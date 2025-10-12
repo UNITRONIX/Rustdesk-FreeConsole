@@ -45,7 +45,6 @@ columns = [
     {'name': 'id', 'label': 'ID', 'field': 'id'},
     {'name': 'note', 'label': 'Note', 'field': 'note'},
     {'name': 'status', 'label': 'Status', 'field': 'status'},
-    {'name': 'edit', 'label': 'Edycja', 'field': 'edit'},
 ]
 
 def get_rows():
@@ -97,14 +96,34 @@ with ui.row().classes('grid grid-cols-3 w-full'):
         columns=columns,
         rows=rows,
         row_key='id',
+        selection='single',
         column_defaults={
             'align': 'left',
             'headerClasses': 'uppercase text-primary',
-        }
+        },
+        pagination={'rowsPerPage': 10, 'rowsPerPageOptions': [5, 10, 20, 50, 100]}
     ).classes('w-full col-span-2')
 
     with ui.card().classes('w-full h-full'):
         ui.label('Rustdesk FreeConsole').classes('text-h4 text-center q-pa-md w-full')
+        ui.separator()
+        ui.label('Functions:').classes('text-h6 q-mb-md')
+        def show_private_key():
+            import glob
+            import os
+            pub_files = glob.glob(os.path.join(os.path.dirname(__file__), '*.pub'))
+            if not pub_files:
+                content = 'No .pub file in directory.'
+            else:
+                with open(pub_files[0], 'r', encoding='utf-8') as f:
+                    content = f.read()
+            with ui.dialog() as dialog, ui.card():
+                ui.label('Your private key:').classes('text-h6 q-mb-md')
+                ui.label(content).classes('q-mb-md')
+                ui.button('Close', on_click=dialog.close)
+            dialog.open()
+        ui.button('Show private key', on_click=show_private_key)
+
         ui.separator()
 
 
