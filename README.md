@@ -24,7 +24,7 @@ pip install nicegui
 
 ## Running the Application
 
-1. Place the `main.py` file and the `db_v2.sqlite3` database in the `/opt/rustdesk` directory on your Linux server.
+1. Place the `main.py` file in the `/opt/rustdesk` directory on your Linux server.
 2. Make sure you have Python 3.8+ and the required modules installed.
 3. Start the application with the command:
 
@@ -76,5 +76,5 @@ sudo systemctl status rustdesk-freeconsole
 - Make sure port 9000 is open in your firewall.
 
 ## Author
-
+UNITRONIX (Krzysztof Nienartowicz)
 Project: Rustdesk FreeConsole
