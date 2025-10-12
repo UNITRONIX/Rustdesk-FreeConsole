@@ -1,5 +1,5 @@
 # Rustdesk FreeConsole
-![App Screenshot]([freeconsole.png](https://github.com/UNITRONIX/Rustdesk-FreeConsole/blob/main/freeconsole.png))
+![App Screenshot]([freeconsole.png](https://github.com/UNITRONIX/Rustdesk-FreeConsole/blob/main/freeconsole.png?raw=true))
 ## Project Description
 
 Rustdesk FreeConsole is a web panel for viewing and managing data from an SQLite database (`db_v2.sqlite3`). The interface is built using the NiceGUI framework and provides:
