@@ -22,7 +22,7 @@ def fetch_db_data():
         rows=rows,
         row_key='guid',
         column_defaults={
-            'align': 'left',
+            'align': 'center',
             'headerClasses': 'uppercase text-primary',
         }
     )
@@ -45,6 +45,7 @@ columns = [
     {'name': 'id', 'label': 'ID', 'field': 'id'},
     {'name': 'note', 'label': 'Note', 'field': 'note'},
     {'name': 'status', 'label': 'Status', 'field': 'status'},
+    {'name': 'connect', 'label': 'Connect', 'field': 'connect'},
 ]
 
 def get_rows():
@@ -76,17 +77,19 @@ def get_rows():
         row_dict = {k: convert_value(v, k) for k, v in zip(all_keys, row)}
         # Widoczne kolumny
         visible = {k: row_dict[k] for k in ['id', 'note', 'status']}
+        # Dodaj pole connect jako HTML link (zastępuje ui.link)
+        # Używamy bezpiecznego linku protokołu rustdesk://{id}
+        rid = row_dict.get('id')
+        if rid is None:
+            connect_html = ''
+        else:
+            connect_html = f'<a href="rustdesk://{rid}" onclick="location.href=\'rustdesk://{rid}\'; return false;" style="background:#1976d2;color:white;padding:6px 10px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600;">Connect</a>'
+        visible['connect'] = connect_html
         # Ukryte kolumny do rozwinięcia
         hidden = {k: row_dict[k] for k in all_keys if k not in visible}
         visible['__hidden'] = hidden
         result.append(visible)
     return result
-
-
-
-
-
-
 
 # Usuwamy globalny dialog, każdy wiersz ma swój dialog
 
@@ -98,7 +101,7 @@ with ui.row().classes('grid grid-cols-3 w-full'):
         row_key='id',
         selection='single',
         column_defaults={
-            'align': 'left',
+            'align': 'center',
             'headerClasses': 'uppercase text-primary',
         },
         pagination={'rowsPerPage': 10, 'rowsPerPageOptions': [5, 10, 20, 50, 100]}
@@ -122,7 +125,7 @@ with ui.row().classes('grid grid-cols-3 w-full'):
                 ui.label(content).classes('q-mb-md')
                 ui.button('Close', on_click=dialog.close)
             dialog.open()
-        ui.button('Show private key', on_click=show_private_key)
+        ui.button('Show private key', on_click=show_private_key).classes('w-full')
        
         # --- Edycja rekordu: prompt + dialog ---
         def edit_row_by_id(row_id: int):
@@ -191,14 +194,14 @@ with ui.row().classes('grid grid-cols-3 w-full'):
                             conn.commit()
                             conn.close()
                             refresh_table()
-                    ui.button('Apply', on_click=go).props('color=primary')
-                    ui.button('Cancel', on_click=pd.close).props('color=secondary')
+                    ui.button('Apply', on_click=go).props('color=green')
+                    ui.button('Cancel', on_click=pd.close).props('color=red')
             pd.open()
-        ui.button('Edit note', on_click=lambda: edit_row_prompt())
+        ui.button('Edit note', on_click=lambda: edit_row_prompt()).classes('w-full')
 
+        ui.button('Edit status (coming soon)').classes('w-full')
 
         ui.separator()
-
 
 # Slot nagłówka
 table.add_slot('header', r'''
@@ -210,22 +213,31 @@ table.add_slot('header', r'''
     </q-tr>
 ''')
 
-# Slot wiersza z kolorowaniem statusu, edycją i rozwijaniem szczegółów
+# Slot wiersza — prosty render: pokazujemy wartości bez dodatkowych wskaźników
 table.add_slot('body', r'''
     <q-tr :props="props">
         <q-td auto-width>
-            <q-btn size="sm" color="accent" round dense
+            <q-btn color="accent"
                 @click="props.expand = !props.expand"
                 :icon="props.expand ? 'remove' : 'add'" />
         </q-td>
         <q-td v-for="col in props.cols" :key="col.name" :props="props">
             <template v-if="col.name === 'status'">
-                <div :style="`background:${props.row.status === 1 ? 'limegreen' : (props.row.status === 0 ? 'red' : 'gray')};color:white;padding:2px 8px;border-radius:6px;`">
-                    {{ props.row.status }}
-                </div>
+                <template v-if="props.row.status === null || props.row.status === undefined || props.row.status === ''">
+                    <span style="background:black;color:white;padding:4px 10px;border-radius:6px;display:inline-block;font-weight:600;">Undefined</span>
+                </template>
+                <template v-else-if="props.row.status == 0">
+                    <span style="background:red;color:black;padding:4px 10px;border-radius:6px;display:inline-block;font-weight:600;">Blocked</span>
+                </template>
+                <template v-else-if="props.row.status == 1">
+                    <span style="background:green;color:white;padding:4px 10px;border-radius:6px;display:inline-block;font-weight:600;">Active</span>
+                </template>
+                <template v-else>
+                    <span>{{ props.row.status }}</span>
+                </template>
             </template>
-            <template v-else-if="col.name === 'edit'">
-                <q-btn size='sm' color='primary' icon='edit' @click="$parent.$parent.$parent.$parent.$emit('edit-row', props.row)" />
+            <template v-else-if="col.name === 'connect'">
+                <span v-html="props.row.connect"></span>
             </template>
             <template v-else>
                 {{ props.row[col.field] }}
