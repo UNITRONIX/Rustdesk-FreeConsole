@@ -1,4 +1,5 @@
 # Rustdesk FreeConsole
+Update 1.1
 ![Rustdesk FreeConsole Screenshot](freeconsole.png)
 ## Project Description
 
