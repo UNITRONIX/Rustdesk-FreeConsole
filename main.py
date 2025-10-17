@@ -123,6 +123,79 @@ with ui.row().classes('grid grid-cols-3 w-full'):
                 ui.button('Close', on_click=dialog.close)
             dialog.open()
         ui.button('Show private key', on_click=show_private_key)
+       
+        # --- Edycja rekordu: prompt + dialog ---
+        def edit_row_by_id(row_id: int):
+            # pobierz wiersz z bazy
+            conn = sqlite3.connect(DB_PATH)
+            cur = conn.cursor()
+            cur.execute('SELECT id, status, note FROM peer WHERE id=?', (row_id,))
+            r = cur.fetchone()
+            conn.close()
+            if not r:
+                with ui.dialog() as d, ui.card():
+                    ui.label(f'Record with id={row_id} not found.')
+                    ui.button('Close', on_click=d.close)
+                d.open()
+                return
+
+            rid, rstatus, rnote = r
+            with ui.dialog() as d, ui.card():
+                ui.label(f'Edit record id={rid}').classes('text-h6 q-mb-md')
+                note_input = ui.input('Note', value=(rnote or '')).props('outlined').classes('w-full')
+                status_select = ui.select(['0','1'], label='Status', value=str(rstatus) if rstatus is not None else '0').props('outlined').classes('w-full')
+                with ui.row():
+                    def save():
+                        try:
+                            sval = int(status_select.value) if status_select.value is not None else 0
+                        except Exception:
+                            sval = 0
+                        conn2 = sqlite3.connect(DB_PATH)
+                        cur2 = conn2.cursor()
+                        cur2.execute('UPDATE peer SET note=?, status=? WHERE id=?', (note_input.value, sval, rid))
+                        conn2.commit()
+                        conn2.close()
+                        d.close()
+                        refresh_table()
+                    ui.button('Save', on_click=save).props('color=primary')
+                    ui.button('Cancel', on_click=d.close).props('color=secondary')
+            d.open()
+
+        def edit_row_prompt():
+            # now show a select populated from DB ids and a note input
+            def get_all_ids():
+                conn = sqlite3.connect(DB_PATH)
+                cur = conn.cursor()
+                cur.execute('SELECT id FROM peer')
+                ids = [str(r[0]) for r in cur.fetchall()]
+                conn.close()
+                return ids
+
+            ids = get_all_ids()
+            with ui.dialog() as pd, ui.card():
+                ui.label('Select ID to edit:').classes('text-h6 q-mb-md')
+                id_select = ui.select(ids, label='ID', value=ids[0] if ids else None).props('outlined').classes('w-full')
+                note_input = ui.input('Note').props('outlined').classes('w-full')
+                with ui.row():
+                    def go():
+                        try:
+                            iid = int(id_select.value) if id_select.value is not None else None
+                        except Exception:
+                            iid = None
+                        pd.close()
+                        if iid is not None:
+                            # apply note directly
+                            conn = sqlite3.connect(DB_PATH)
+                            cur = conn.cursor()
+                            cur.execute('UPDATE peer SET note=? WHERE id=?', (note_input.value, iid))
+                            conn.commit()
+                            conn.close()
+                            refresh_table()
+                    ui.button('Apply', on_click=go).props('color=primary')
+                    ui.button('Cancel', on_click=pd.close).props('color=secondary')
+            pd.open()
+        ui.button('Edit note', on_click=lambda: edit_row_prompt())
+
 
         ui.separator()
 
@@ -171,11 +244,6 @@ table.add_slot('body', r'''
         </q-td>
     </q-tr>
 ''')
-
-# Obsługa kliknięcia przycisku edycji wiersza
-def handle_edit_row(event):
-    open_edit_dialog(event.args)
-table.on('edit-row', handle_edit_row)
 
 # Automatyczne odświeżanie danych co 500ms
 def refresh_table():
