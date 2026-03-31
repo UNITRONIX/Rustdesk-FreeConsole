@@ -3790,33 +3790,28 @@ do_configure_ssl() {
         fi
         
         # Also update systemd service environment if it exists
-        local svc_file="/etc/systemd/system/betterdesk-console.service"
-        if [ -f "$svc_file" ]; then
-            # Ensure API URLs stay HTTP in systemd service too
-            sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
-            sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
-            else
-                sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
-                sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
-            fi
-            # Sync HTTPS_ENABLED in systemd (overrides .env value)
-            if grep -q 'Environment=HTTPS_ENABLED=' "$svc_file"; then
-                sed -i "s|Environment=HTTPS_ENABLED=.*|Environment=HTTPS_ENABLED=true|" "$svc_file"
-            fi
-            # Sync SSL cert/key paths in systemd
-            if grep -q 'Environment=SSL_CERT_PATH=' "$svc_file"; then
-                sed -i "s|Environment=SSL_CERT_PATH=.*|Environment=SSL_CERT_PATH=$ssl_cert_path|" "$svc_file"
-            fi
-            if [ -n "$ssl_cert_path" ] && [ -f "$ssl_cert_path" ]; then
-                if grep -q 'NODE_EXTRA_CA_CERTS' "$svc_file"; then
-                    sed -i "s|Environment=NODE_EXTRA_CA_CERTS=.*|Environment=NODE_EXTRA_CA_CERTS=$ssl_cert_path|" "$svc_file"
-                else
-                    sed -i "/^\[Service\]/a Environment=NODE_EXTRA_CA_CERTS=$ssl_cert_path" "$svc_file"
-                fi
-            fi
-            systemctl daemon-reload 2>/dev/null || true
-        fi
-        
+		local svc_file="/etc/systemd/system/betterdesk-console.service"
+		if [ -f "$svc_file" ]; then
+			sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
+			sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
+
+			if grep -q 'Environment=HTTPS_ENABLED=' "$svc_file"; then
+				sed -i "s|Environment=HTTPS_ENABLED=.*|Environment=HTTPS_ENABLED=true|" "$svc_file"
+			fi
+			if grep -q 'Environment=SSL_CERT_PATH=' "$svc_file"; then
+				sed -i "s|Environment=SSL_CERT_PATH=.*|Environment=SSL_CERT_PATH=$ssl_cert_path|" "$svc_file"
+			fi
+			if [ -n "$ssl_cert_path" ] && [ -f "$ssl_cert_path" ]; then
+				if grep -q 'NODE_EXTRA_CA_CERTS' "$svc_file"; then
+					sed -i "s|Environment=NODE_EXTRA_CA_CERTS=.*|Environment=NODE_EXTRA_CA_CERTS=$ssl_cert_path|" "$svc_file"
+				else
+					sed -i "/^\[Service\]/a Environment=NODE_EXTRA_CA_CERTS=$ssl_cert_path" "$svc_file"
+				fi
+			fi
+		fi
+
+        systemctl daemon-reload 2>/dev/null || true
+
         # Update Go server service — always remove -tls-api if present
         # API port must stay HTTP for RustDesk client compatibility
         local go_svc_file="/etc/systemd/system/betterdesk-server.service"
@@ -3825,47 +3820,43 @@ do_configure_ssl() {
             sed -i 's/ -force-https//' "$go_svc_file"
             systemctl daemon-reload 2>/dev/null || true
         fi
-        
+
         print_info "Signal/relay TLS enabled, API stays HTTP (RustDesk client compatibility)"
-    else
-        # SSL disabled — revert API URLs to HTTP
-        sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$env_file"
-        sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$env_file"
-        sed -i '/^NODE_EXTRA_CA_CERTS=/d' "$env_file"
-        
-        # Also update systemd service
-        local svc_file="/etc/systemd/system/betterdesk-console.service"
-        if [ -f "$svc_file" ]; then
-            sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
-            sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
-            # Sync HTTPS_ENABLED=false in systemd
-            if grep -q 'Environment=HTTPS_ENABLED=' "$svc_file"; then
-                sed -i "s|Environment=HTTPS_ENABLED=.*|Environment=HTTPS_ENABLED=false|" "$svc_file"
-            fi
-            sed -i '/Environment=NODE_EXTRA_CA_CERTS=/d' "$svc_file"
-            systemctl daemon-reload 2>/dev/null || true
-        fi
-        
-        # Remove --tls-api and --force-https from Go server service
-        local go_svc_file="/etc/systemd/system/betterdesk-server.service"
-        if [ -f "$go_svc_file" ]; then
-            sed -i 's/ -tls-api//' "$go_svc_file"
-            sed -i 's/ -force-https//' "$go_svc_file"
-            systemctl daemon-reload 2>/dev/null || true
-        fi
-        
-        print_info "API URLs reverted to HTTP"
-    fi
-    
+	else
+		# SSL disabled — revert API URLs to HTTP
+		sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$env_file"
+		sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$env_file"
+		sed -i '/^NODE_EXTRA_CA_CERTS=/d' "$env_file"
+
+		local svc_file="/etc/systemd/system/betterdesk-console.service"
+		if [ -f "$svc_file" ]; then
+			sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
+			sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
+
+			if grep -q 'Environment=HTTPS_ENABLED=' "$svc_file"; then
+				sed -i "s|Environment=HTTPS_ENABLED=.*|Environment=HTTPS_ENABLED=false|" "$svc_file"
+			fi
+
+			sed -i '/Environment=NODE_EXTRA_CA_CERTS=/d' "$svc_file"
+		fi
+
+		local go_svc_file="/etc/systemd/system/betterdesk-server.service"
+		if [ -f "$go_svc_file" ]; then
+			sed -i 's/ -tls-api//' "$go_svc_file"
+			sed -i 's/ -force-https//' "$go_svc_file"
+		fi
+
+		systemctl daemon-reload 2>/dev/null || true
+		print_info "API URLs reverted to HTTP"
+	fi
     echo ""
     if confirm "Restart BetterDesk to apply changes?"; then
         systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
         print_success "BetterDesk services restarted"
     fi
-    
+
     press_enter
 }
-
 #===============================================================================
 # Database Migration Functions
 #===============================================================================
@@ -4179,3 +4170,4 @@ main() {
 
 # Run
 main "$@"
+
