@@ -10,6 +10,7 @@ const config = require('../config/config');
 // Supported languages metadata
 const LANGUAGE_META = {
     'en': { name: 'English', native: 'English', flag: '🇬🇧', rtl: false },
+    'ru': { name: 'Russian', native: 'Русский', flag: '🇷🇺', rtl: false },
     'pl': { name: 'Polish', native: 'Polski', flag: '🇵🇱', rtl: false },
     'de': { name: 'German', native: 'Deutsch', flag: '🇩🇪', rtl: false },
     'fr': { name: 'French', native: 'Français', flag: '🇫🇷', rtl: false },
