@@ -700,6 +700,7 @@ function printStartupBanner(protocol, port) {
     const apiProtocol = shouldUseRustDeskApiTls(apiHasCerts ? {} : null) ? 'HTTPS' : 'HTTP';
     const apiStatus = config.apiEnabled ? `✅ Port ${config.apiPort} (${apiProtocol})` : '❌ Disabled';
     const panelUrl = `${protocol}://${config.host}:${port}`;
+    const goApiUrl = redactUrlForLog(config.betterdeskApiUrl || process.env.BETTERDESK_API_URL || 'http://localhost:21114/api');
     console.log('');
     console.log('  ╔══════════════════════════════════════════════════╗');
     console.log('  ║                                                  ║');
@@ -712,7 +713,7 @@ function printStartupBanner(protocol, port) {
         console.log(`  ║   Redirect:   http://${config.host}:${config.port} → :${config.httpsPort}`.padEnd(53) + '║');
     }
     console.log(`  ║   Client API: ${apiStatus}`.padEnd(53) + '║');
-    console.log(`  ║   Go API:     http://localhost:21114/api`.padEnd(53) + '║');
+    console.log(`  ║   Go API:     ${goApiUrl}`.padEnd(53) + '║');
     console.log(`  ║   Mode:       ${config.nodeEnv}`.padEnd(53) + '║');
     console.log(`  ║   Security:   ${sslStatus}`.padEnd(53) + '║');
     const dbLabel = (db.DB_TYPE === 'postgres' || db.DB_TYPE === 'postgresql')
@@ -744,6 +745,20 @@ function printStartupBanner(protocol, port) {
         console.log('  ⚠️  NOTICE [SECURITY]: TRUST_PROXY is enabled (' + trustProxy + ').');
         console.log('     Ensure a trusted reverse proxy sets X-Forwarded-For correctly.');
         console.log('');
+    }
+}
+
+function redactUrlForLog(rawUrl) {
+    const value = String(rawUrl || '').trim();
+    if (!value) return '';
+
+    try {
+        const parsed = new URL(value);
+        parsed.username = '';
+        parsed.password = '';
+        return parsed.toString();
+    } catch (_) {
+        return value.replace(/\/\/[^/@]+@/, '//***@');
     }
 }
 

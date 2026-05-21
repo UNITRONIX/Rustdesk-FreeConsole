@@ -51,7 +51,7 @@
     "dataguard": "DataGuard",
     "reports": "Raporty",
     "tenants": "Organizacje",
-    "registrations": "Rejestracje",
+    "registrations": "Żądania rejestracji",
     "management": "Zarządzanie",
     "toggle_sidebar": "Przełącz pasek boczny",
     "cdap": "Urządzenia CDAP",
@@ -1381,10 +1381,10 @@
     "status": "Status"
   },
   "registrations": {
-    "title": "Rejestracje urządzeń",
-    "subtitle": "Zarządzaj żądaniami rejestracji urządzeń wykrytych w sieci LAN",
+    "title": "Żądania rejestracji urządzeń",
+    "subtitle": "Przeglądaj oczekujące żądania zatwierdzenia rejestracji urządzeń",
     "search_placeholder": "Szukaj po ID urządzenia, nazwie hosta lub IP...",
-    "no_registrations": "Brak żądań rejestracji",
+    "no_registrations": "Brak żądań rejestracji urządzeń",
     "col_device_id": "ID urządzenia",
     "col_hostname": "Nazwa hosta",
     "col_platform": "Platforma",

@@ -27,7 +27,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const db = require('../services/database');
 const config = require('../config/config');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/auth');
 const betterdeskApi = require('../services/betterdeskApi');
 
 // ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ router.get('/register-status', async (req, res) => {
 /**
  * GET /registrations — Render the registrations management page.
  */
-router.get('/registrations', requireAuth, (req, res) => {
+router.get('/registrations', requirePermission('enrollment.approve'), (req, res) => {
     res.render('registrations', {
         title: req.t('nav.registrations'),
         activePage: 'registrations',
@@ -180,7 +180,7 @@ router.get('/registrations', requireAuth, (req, res) => {
  * GET /api/registrations — List all registration requests.
  * Query: ?status=pending|approved|rejected  &search=xxx
  */
-router.get('/api/registrations', requireAuth, async (req, res) => {
+router.get('/api/registrations', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const filters = {
             status: req.query.status || '',
@@ -202,7 +202,7 @@ router.get('/api/registrations', requireAuth, async (req, res) => {
 /**
  * GET /api/registrations/count — Pending registration count (sidebar badge).
  */
-router.get('/api/registrations/count', requireAuth, async (req, res) => {
+router.get('/api/registrations/count', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const count = await db.getPendingRegistrationCount();
         res.json({ success: true, count });
@@ -214,7 +214,7 @@ router.get('/api/registrations/count', requireAuth, async (req, res) => {
 /**
  * GET /api/registrations/:id — Single registration detail.
  */
-router.get('/api/registrations/:id', requireAuth, async (req, res) => {
+router.get('/api/registrations/:id', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const reg = await db.getPendingRegistrationById(parseInt(req.params.id, 10));
         if (!reg) {
@@ -233,7 +233,7 @@ router.get('/api/registrations/:id', requireAuth, async (req, res) => {
  * On approval, generates an access token and server config that the client
  * can retrieve via the polling endpoint.
  */
-router.put('/api/registrations/:id/approve', requireAuth, requireRole('admin'), async (req, res) => {
+router.put('/api/registrations/:id/approve', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const reg = await db.getPendingRegistrationById(id);
@@ -276,7 +276,7 @@ router.put('/api/registrations/:id/approve', requireAuth, requireRole('admin'), 
  * PUT /api/registrations/:id/reject — Reject a pending registration.
  * Body: { reason?: string }
  */
-router.put('/api/registrations/:id/reject', requireAuth, requireRole('admin'), async (req, res) => {
+router.put('/api/registrations/:id/reject', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const reason = (req.body?.reason || '').substring(0, 500);
@@ -311,7 +311,7 @@ router.put('/api/registrations/:id/reject', requireAuth, requireRole('admin'), a
 /**
  * DELETE /api/registrations/:id — Delete a registration record.
  */
-router.delete('/api/registrations/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/api/registrations/:id', requirePermission('enrollment.manage'), async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const reg = await db.getPendingRegistrationById(id);
@@ -333,7 +333,7 @@ router.delete('/api/registrations/:id', requireAuth, requireRole('admin'), async
 /**
  * GET /api/enrollment/pending — List pending enrollment requests from Go server.
  */
-router.get('/api/enrollment/pending', requireAuth, requireRole('operator'), async (req, res) => {
+router.get('/api/enrollment/pending', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const result = await betterdeskApi.getEnrollmentPending();
         res.json(result);
@@ -347,7 +347,7 @@ router.get('/api/enrollment/pending', requireAuth, requireRole('operator'), asyn
  * POST /api/enrollment/approve/:id — Approve a pending enrollment on Go server.
  * Body: { display_name, sync_mode }
  */
-router.post('/api/enrollment/approve/:id', requireAuth, requireRole('operator'), async (req, res) => {
+router.post('/api/enrollment/approve/:id', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const deviceId = req.params.id;
         const { display_name, sync_mode } = req.body;
@@ -374,7 +374,7 @@ router.post('/api/enrollment/approve/:id', requireAuth, requireRole('operator'),
 /**
  * POST /api/enrollment/reject/:id — Reject a pending enrollment on Go server.
  */
-router.post('/api/enrollment/reject/:id', requireAuth, requireRole('operator'), async (req, res) => {
+router.post('/api/enrollment/reject/:id', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const deviceId = req.params.id;
         const result = await betterdeskApi.rejectEnrollment(deviceId);

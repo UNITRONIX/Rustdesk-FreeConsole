@@ -20,6 +20,10 @@
     let currentStatus = '';
     let currentSearch = '';
     let rejectTargetId = null;
+    let rejectTargetSource = null;
+
+    const SOURCE_REGISTRATION = 'registration';
+    const SOURCE_ENROLLMENT = 'enrollment';
 
     // ---- DOM refs ----
     const tbody = document.getElementById('registrations-body');
@@ -53,10 +57,18 @@
         `;
 
         try {
-            const result = await apiFetch(`/api/registrations?${params}`);
-            if (!result.success) throw new Error(result.error);
+            const [registrationResult, enrollmentResult] = await Promise.all([
+                apiFetch(`/api/registrations?${params}`),
+                shouldLoadEnrollmentPending() ? apiFetch('/api/enrollment/pending') : Promise.resolve({ success: true, data: [], count: 0 }),
+            ]);
+            if (!registrationResult.success) throw new Error(registrationResult.error);
 
-            renderTable(result.data || []);
+            const registrations = normalizeRegistrations(registrationResult.data || []);
+            const enrollments = enrollmentResult.success
+                ? normalizeEnrollments(enrollmentResult.data || []).filter(matchesSearch)
+                : [];
+
+            renderTable([...enrollments, ...registrations]);
         } catch (err) {
             tbody.innerHTML = `
                 <tr class="empty-row">
@@ -73,8 +85,11 @@
 
     async function loadPendingCount() {
         try {
-            const result = await apiFetch('/api/registrations/count');
-            const count = result.count || 0;
+            const [registrationResult, enrollmentResult] = await Promise.all([
+                apiFetch('/api/registrations/count'),
+                apiFetch('/api/enrollment/pending'),
+            ]);
+            const count = (registrationResult.count || 0) + (enrollmentResult.count || 0);
             pendingCountBadge.textContent = count;
             pendingCountBadge.style.display = count > 0 ? '' : 'none';
 
@@ -105,7 +120,9 @@
         }
 
         tbody.innerHTML = registrations.map(reg => {
-            const statusClass = reg.status;
+            const source = reg.source || SOURCE_REGISTRATION;
+            const rowId = String(reg.row_id || reg.id || reg.device_id || '');
+            const statusClass = String(reg.status || '');
             const statusLabel = _(`registrations.status_${reg.status}`) || reg.status;
             const platformIcon = getPlatformIcon(reg.platform);
             const timeAgo = formatTimeAgo(reg.created_at);
@@ -113,25 +130,25 @@
             let actions = '';
             if (reg.status === 'pending') {
                 actions = `
-                    <button class="action-btn approve" data-reg-action="approve" data-id="${reg.id}" title="${_('registrations.approve_btn')}">
+                    <button class="action-btn approve" data-reg-action="approve" data-source="${escapeAttr(source)}" data-id="${escapeAttr(rowId)}" title="${escapeAttr(_('registrations.approve_btn'))}">
                         <span class="material-icons">check</span>
                         ${_('registrations.approve_btn')}
                     </button>
-                    <button class="action-btn reject" data-reg-action="reject" data-id="${reg.id}" title="${_('registrations.reject_btn')}">
+                    <button class="action-btn reject" data-reg-action="reject" data-source="${escapeAttr(source)}" data-id="${escapeAttr(rowId)}" title="${escapeAttr(_('registrations.reject_btn'))}">
                         <span class="material-icons">close</span>
                         ${_('registrations.reject_btn')}
                     </button>
                 `;
-            } else {
+            } else if (source === SOURCE_REGISTRATION) {
                 actions = `
-                    <button class="action-btn delete" data-reg-action="remove" data-id="${reg.id}" title="${_('common.delete')}">
+                    <button class="action-btn delete" data-reg-action="remove" data-source="${escapeAttr(source)}" data-id="${escapeAttr(rowId)}" title="${escapeAttr(_('common.delete'))}">
                         <span class="material-icons">delete</span>
                     </button>
                 `;
             }
 
             return `
-                <tr data-id="${reg.id}">
+                <tr data-id="${escapeAttr(rowId)}" data-source="${escapeAttr(source)}">
                     <td class="device-id-cell">${escapeHtml(reg.device_id)}</td>
                     <td>${escapeHtml(reg.hostname || '—')}</td>
                     <td class="platform-cell">
@@ -140,8 +157,8 @@
                     </td>
                     <td>${escapeHtml(reg.ip_address || '—')}</td>
                     <td>${escapeHtml(reg.version || '—')}</td>
-                    <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-                    <td class="time-cell" title="${escapeHtml(reg.created_at || '')}">${timeAgo}</td>
+                    <td><span class="status-badge ${escapeAttr(statusClass)}">${escapeHtml(statusLabel)}</span></td>
+                    <td class="time-cell" title="${escapeAttr(reg.created_at || '')}">${timeAgo}</td>
                     <td class="action-btn-group">${actions}</td>
                 </tr>
             `;
@@ -150,14 +167,19 @@
 
     // ---- Actions ----
 
-    async function approveRegistration(id) {
+    async function approveRegistration(id, source) {
         if (!confirm(_('registrations.approve_confirm'))) return;
 
         try {
-            const result = await apiFetch(`/api/registrations/${id}/approve`, { method: 'PUT' });
+            const result = source === SOURCE_ENROLLMENT
+                ? await apiFetch(`/api/enrollment/approve/${encodeURIComponent(id)}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ display_name: '', sync_mode: 'standard' }),
+                })
+                : await apiFetch(`/api/registrations/${encodeURIComponent(id)}/approve`, { method: 'PUT' });
             if (!result.success) throw new Error(result.error);
 
-            showToast(_('registrations.approved_success'), 'success');
+            showToast(source === SOURCE_ENROLLMENT ? _('registrations.enrollment_approved_success') : _('registrations.approved_success'), 'success');
             loadRegistrations();
             loadPendingCount();
         } catch (err) {
@@ -165,8 +187,9 @@
         }
     }
 
-    function openRejectModal(id) {
+    function openRejectModal(id, source) {
         rejectTargetId = id;
+        rejectTargetSource = source || SOURCE_REGISTRATION;
         rejectReasonInput.value = '';
         rejectModal.style.display = 'flex';
     }
@@ -175,15 +198,22 @@
         if (!rejectTargetId) return;
 
         try {
-            const result = await apiFetch(`/api/registrations/${rejectTargetId}/reject`, {
-                method: 'PUT',
-                body: JSON.stringify({ reason: rejectReasonInput.value }),
-            });
+            const result = rejectTargetSource === SOURCE_ENROLLMENT
+                ? await apiFetch(`/api/enrollment/reject/${encodeURIComponent(rejectTargetId)}`, {
+                    method: 'POST',
+                    body: JSON.stringify({}),
+                })
+                : await apiFetch(`/api/registrations/${encodeURIComponent(rejectTargetId)}/reject`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ reason: rejectReasonInput.value }),
+                });
             if (!result.success) throw new Error(result.error);
 
+            const wasEnrollment = rejectTargetSource === SOURCE_ENROLLMENT;
             rejectModal.style.display = 'none';
             rejectTargetId = null;
-            showToast(_('registrations.rejected_success'), 'success');
+            rejectTargetSource = null;
+            showToast(wasEnrollment ? _('registrations.enrollment_rejected_success') : _('registrations.rejected_success'), 'success');
             loadRegistrations();
             loadPendingCount();
         } catch (err) {
@@ -195,7 +225,7 @@
         if (!confirm(_('registrations.delete_confirm'))) return;
 
         try {
-            const result = await apiFetch(`/api/registrations/${id}`, { method: 'DELETE' });
+            const result = await apiFetch(`/api/registrations/${encodeURIComponent(id)}`, { method: 'DELETE' });
             if (!result.success) throw new Error(result.error);
 
             showToast(_('registrations.deleted_success'), 'success');
@@ -210,8 +240,43 @@
 
     function escapeHtml(str) {
         const div = document.createElement('div');
-        div.textContent = str;
+        div.textContent = String(str || '');
         return div.innerHTML;
+    }
+
+    function escapeAttr(str) {
+        return escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function shouldLoadEnrollmentPending() {
+        return !currentStatus || currentStatus === 'pending';
+    }
+
+    function normalizeRegistrations(items) {
+        return items.map(item => ({
+            ...item,
+            row_id: String(item.id),
+            source: SOURCE_REGISTRATION,
+            ip_address: item.ip_address || item.ip || '',
+        }));
+    }
+
+    function normalizeEnrollments(items) {
+        return items.map(item => ({
+            ...item,
+            id: item.device_id,
+            row_id: item.device_id,
+            source: SOURCE_ENROLLMENT,
+            status: 'pending',
+            ip_address: item.ip || item.ip_address || '',
+        }));
+    }
+
+    function matchesSearch(reg) {
+        if (!currentSearch) return true;
+        const needle = currentSearch.toLowerCase();
+        return [reg.device_id, reg.hostname, reg.ip_address, reg.platform, reg.version]
+            .some(value => String(value || '').toLowerCase().includes(needle));
     }
 
     function getPlatformIcon(platform) {
@@ -281,12 +346,13 @@
         const actionBtn = e.target.closest('[data-reg-action]');
         if (!actionBtn) return;
         const id = actionBtn.dataset.id;
+        const source = actionBtn.dataset.source || SOURCE_REGISTRATION;
         switch (actionBtn.dataset.regAction) {
             case 'approve':
-                approveRegistration(id);
+                approveRegistration(id, source);
                 break;
             case 'reject':
-                openRejectModal(id);
+                openRejectModal(id, source);
                 break;
             case 'remove':
                 deleteRegistration(id);

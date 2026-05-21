@@ -51,7 +51,7 @@
     "dataguard": "DataGuard",
     "reports": "Reports",
     "tenants": "Tenants",
-    "registrations": "Registrations",
+    "registrations": "Enrollment Requests",
     "management": "Management",
     "toggle_sidebar": "Toggle sidebar",
     "toggle_theme": "Toggle theme",
@@ -1381,10 +1381,10 @@
     "status": "Status"
   },
   "registrations": {
-    "title": "Device Registrations",
-    "subtitle": "Manage registration requests from devices discovered via LAN",
+    "title": "Device Enrollment Requests",
+    "subtitle": "Review pending device enrollment and registration approval requests",
     "search_placeholder": "Search by device ID, hostname or IP...",
-    "no_registrations": "No registration requests",
+    "no_registrations": "No enrollment requests",
     "col_device_id": "Device ID",
     "col_hostname": "Hostname",
     "col_platform": "Platform",

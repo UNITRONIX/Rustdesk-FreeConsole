@@ -32,7 +32,7 @@
                     data-category="tools" title="<%= _('nav.tools') %>">
                 <span class="material-icons">build</span>
             </button>
-            <% if (isSuperAdmin || hasPermission('server.config') || hasPermission('user.view') || hasPermission('enrollment.manage') || hasPermission('audit.view')) { %>
+            <% if (isSuperAdmin || hasPermission('server.config') || hasPermission('user.view') || hasPermission('enrollment.manage') || hasPermission('enrollment.approve') || hasPermission('audit.view')) { %>
             <button class="sidebar-rail-btn <%= ['tokens','organizations','policies','attestation','dataguard','users','settings','security-audit','permissions','languages','resource-control'].includes(currentPage) ? 'active' : '' %>"
                     data-category="system" title="<%= _('nav.system') %>">
                 <span class="material-icons">admin_panel_settings</span>
@@ -81,7 +81,7 @@
                 <span class="sidebar-link-text"><%= _('nav.devices') %></span>
             </a>
             <% } %>
-            <% if (hasPermission('enrollment.manage')) { %>
+            <% if (hasPermission('enrollment.approve')) { %>
             <a href="/registrations" class="sidebar-link <%= currentPage === 'registrations' ? 'active' : '' %>">
                 <span class="material-icons">how_to_reg</span>
                 <span class="sidebar-link-text"><%= _('nav.registrations') %></span>
