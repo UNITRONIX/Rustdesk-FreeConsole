@@ -598,9 +598,8 @@ detect_architecture() {
 
 detect_os() {
     if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        OS_NAME="$NAME"
-        OS_VERSION="$VERSION_ID"
+        OS_NAME=$(grep -m1 '^NAME=' /etc/os-release | cut -d= -f2- | sed 's/^"//; s/"$//' || echo "Unknown")
+        OS_VERSION=$(grep -m1 '^VERSION_ID=' /etc/os-release | cut -d= -f2- | sed 's/^"//; s/"$//' || echo "")
     else
         OS_NAME="Unknown"
         OS_VERSION=""
@@ -1814,27 +1813,25 @@ generate_ssl_certificates() {
             sed -i "s|^HTTPS_ENABLED=.*|HTTPS_ENABLED=true|" "$env_file"
             sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$ssl_dir/betterdesk.crt|" "$env_file"
             sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$ssl_dir/betterdesk.key|" "$env_file"
-            # Note: Do NOT change API URLs to https:// here for self-signed certs
-            # API TLS is only enabled with --tls-api (proper certs or ENTERPRISE_TLS=true)
-            # Self-signed: Node.js needs to trust the CA
+            # Note: Do NOT change internal Go API URLs to https:// here.
+            # API TLS breaks RustDesk clients; Node.js only needs the CA for its own HTTPS endpoints.
             if grep -q '^NODE_EXTRA_CA_CERTS=' "$env_file" 2>/dev/null; then
                 sed -i "s|^NODE_EXTRA_CA_CERTS=.*|NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt|" "$env_file"
             else
                 echo "NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt" >> "$env_file"
             fi
             
-            # Enterprise TLS: Enable HTTPS for Go API communication
+            # Enterprise TLS compatibility: Go API must remain HTTP because
+            # RustDesk desktop clients use plain HTTP on signal_port-2.
             if [ "${ENTERPRISE_TLS:-false}" = "true" ]; then
-                # Add ALLOW_SELF_SIGNED_CERTS for Node.js → Go API HTTPS
                 if grep -q '^ALLOW_SELF_SIGNED_CERTS=' "$env_file" 2>/dev/null; then
                     sed -i "s|^ALLOW_SELF_SIGNED_CERTS=.*|ALLOW_SELF_SIGNED_CERTS=true|" "$env_file"
                 else
                     echo "ALLOW_SELF_SIGNED_CERTS=true" >> "$env_file"
                 fi
-                # Update API URLs to HTTPS
-                sed -i "s|^HBBS_API_URL=http://localhost|HBBS_API_URL=https://localhost|" "$env_file"
-                sed -i "s|^BETTERDESK_API_URL=http://localhost|BETTERDESK_API_URL=https://localhost|" "$env_file"
-                print_info "Enterprise TLS: API URLs set to HTTPS"
+                sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$env_file"
+                sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$env_file"
+                print_info "Enterprise TLS: Go API stays HTTP for RustDesk client compatibility"
             fi
         fi
     fi
@@ -2327,11 +2324,10 @@ setup_services_minimal() {
     if [ -f "$TLS_CERT_PATH" ] && [ -f "$TLS_KEY_PATH" ]; then
         SERVER_ARGS="$SERVER_ARGS -tls-cert $TLS_CERT_PATH -tls-key $TLS_KEY_PATH -tls-signal -tls-relay"
         
-        # Enterprise TLS: Also enable API HTTPS if ENTERPRISE_TLS=true
-        # This requires RustDesk clients >= 1.3.x which support HTTPS API
+        # Enterprise TLS still keeps the Go API HTTP for RustDesk client
+        # compatibility. Only signal/relay receive TLS flags here.
         if [ "${ENTERPRISE_TLS:-false}" = "true" ]; then
-            SERVER_ARGS="$SERVER_ARGS -tls-api"
-            print_info "Enterprise TLS enabled: API port 21114 will use HTTPS"
+            print_info "Enterprise TLS enabled: API port 21114 stays HTTP"
         fi
     fi
     
@@ -2498,8 +2494,8 @@ do_install() {
     # Offer HTTPS Enterprise configuration for fresh installs
     if [ "$install_ok" = true ] && [ "$AUTO_MODE" = false ]; then
         echo ""
-        print_info "🔒 Enterprise TLS enables full HTTPS on ALL ports (panel, signal, relay, API)"
-        print_info "   Recommended for production. Requires RustDesk client >= 1.3.x"
+        print_info "🔒 Enterprise TLS enables HTTPS for panel/signal/relay; Go API stays HTTP for compatibility"
+        print_info "   Recommended for production deployments behind trusted operator access"
         echo ""
         if confirm "Would you like to configure HTTPS Enterprise now? (Option 5 in SSL menu)"; then
             do_configure_ssl
@@ -2514,6 +2510,27 @@ do_install() {
 #===============================================================================
 # Update Functions
 #===============================================================================
+
+run_terminal_project_update() {
+    local cli_path="$CONSOLE_PATH/scripts/update-cli.js"
+    local node_bin=""
+    node_bin=$(command -v node 2>/dev/null || true)
+
+    if [ -z "$node_bin" ] || [ ! -f "$cli_path" ]; then
+        return 2
+    fi
+
+    print_step "Running commit-aware project updater..."
+    print_info "Updater CLI: $cli_path"
+
+    local args=()
+    if [ "${AUTO_MODE:-false}" = "true" ]; then
+        args+=("--yes")
+    fi
+
+    "$node_bin" "$cli_path" "${args[@]}"
+    return $?
+}
 
 do_update() {
     print_header
@@ -2554,6 +2571,20 @@ do_update() {
     # CRITICAL: Preserve database configuration before reinstalling console
     # This prevents PostgreSQL → SQLite switch during updates
     preserve_database_config
+
+    if run_terminal_project_update; then
+        print_success "Online project update completed"
+        press_enter
+        return
+    else
+        update_rc=$?
+        if [ "$update_rc" -ne 2 ]; then
+            print_error "Online project update failed"
+            press_enter
+            return
+        fi
+        print_warning "Online updater CLI not available in installed console; using legacy local update path"
+    fi
     
     print_info "Creating backup before update..."
     do_backup_silent
@@ -3939,8 +3970,8 @@ do_configure_ssl() {
     echo -e "  ${RED}4.${NC} Disable SSL (revert to HTTP)"
     echo ""
     echo -e "  ${YELLOW}Enterprise Options:${NC}"
-    echo -e "  ${CYAN}5.${NC} Enterprise TLS (full HTTPS: panel + signal + relay + API)"
-    echo -e "      ${WHITE}↳ Recommended for corporate networks with RustDesk >= 1.3.x${NC}"
+    echo -e "  ${CYAN}5.${NC} Enterprise TLS (panel + signal + relay; API stays HTTP)"
+    echo -e "      ${WHITE}↳ Recommended for corporate networks; keeps RustDesk API compatible${NC}"
     echo ""
     
     read -p "Choice [1]: " ssl_choice
@@ -4140,12 +4171,11 @@ do_configure_ssl() {
             print_success "SSL disabled. Running in HTTP mode."
             ;;
         5)
-            # Enterprise TLS - full HTTPS on ALL channels including API
+            # Enterprise TLS - HTTPS for panel/signal/relay, Go API remains HTTP
             print_header "Enterprise TLS Configuration"
             echo ""
-            print_warning "⚠️  IMPORTANT: Enterprise TLS enables HTTPS on ALL ports including API."
-            print_warning "    This requires RustDesk client >= 1.3.x for full compatibility."
-            print_warning "    Legacy clients may have connectivity issues."
+            print_warning "⚠️  IMPORTANT: Go API port 21114 stays HTTP for RustDesk client compatibility."
+            print_warning "    Panel, signal and relay channels can still use TLS."
             echo ""
             
             local ssl_dir="$RUSTDESK_PATH/ssl"
@@ -4210,13 +4240,13 @@ do_configure_ssl() {
                 echo "NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt" >> "$CONSOLE_PATH/.env"
             fi
             
-            # Update API URLs to HTTPS for Enterprise mode
+            # Keep internal Go API URLs on HTTP for RustDesk client compatibility
             local api_port
             api_port=$(grep -oP '^HBBS_API_URL=https?://localhost:\K[0-9]+' "$CONSOLE_PATH/.env" 2>/dev/null || echo "${API_PORT:-21114}")
-            sed -i "s|^HBBS_API_URL=http://|HBBS_API_URL=https://|" "$CONSOLE_PATH/.env"
-            sed -i "s|^BETTERDESK_API_URL=http://|BETTERDESK_API_URL=https://|" "$CONSOLE_PATH/.env"
+            sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$CONSOLE_PATH/.env"
+            sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$CONSOLE_PATH/.env"
             
-            # === Configure Go server with FULL TLS (signal + relay + API) ===
+            # === Configure Go server with TLS for signal + relay only ===
             local go_svc_file="/etc/systemd/system/betterdesk-server.service"
             if [ -f "$go_svc_file" ]; then
                 # Remove old TLS args
@@ -4225,8 +4255,9 @@ do_configure_ssl() {
                 sed -i 's/ -tls-signal//g' "$go_svc_file"
                 sed -i 's/ -tls-relay//g' "$go_svc_file"
                 sed -i 's/ -tls-api//g' "$go_svc_file"
-                # Add FULL TLS args including -tls-api
-                sed -i "s|\(ExecStart=.*betterdesk-server[^$]*\)|\1 -tls-cert $ssl_dir/betterdesk.crt -tls-key $ssl_dir/betterdesk.key -tls-signal -tls-relay -tls-api|" "$go_svc_file"
+                sed -i 's/ -force-https//g' "$go_svc_file"
+                # Add TLS args without -tls-api
+                sed -i "s|\(ExecStart=.*betterdesk-server[^$]*\)|\1 -tls-cert $ssl_dir/betterdesk.crt -tls-key $ssl_dir/betterdesk.key -tls-signal -tls-relay|" "$go_svc_file"
             fi
             
             # Set ENTERPRISE_TLS marker
@@ -4243,11 +4274,11 @@ do_configure_ssl() {
             print_info "Valid: 10 years (RSA 4096-bit)"
             [ -n "$lan_ip" ] && [ "$lan_ip" != "$server_ip" ] && print_info "LAN IP: $lan_ip"
             echo ""
-            print_warning "All connections now use TLS:"
+            print_warning "TLS configured for external channels:"
             print_info "  • Panel HTTPS: :5443 (or configured port)"
             print_info "  • Signal TLS: :21116"
             print_info "  • Relay TLS: :21117"
-            print_info "  • API HTTPS: :21114"
+            print_info "  • Go API HTTP: :21114 (required for RustDesk clients)"
             echo ""
             print_warning "For browsers/clients accessing this server, you may need to:"
             print_info "  1. Import $ssl_dir/betterdesk.crt as trusted CA"
@@ -4261,16 +4292,17 @@ do_configure_ssl() {
     esac
     
     # ── Update API URLs in .env when SSL is enabled/disabled ──
-    # API TLS (--tls-api) is only enabled for Enterprise TLS (option 5).
-    # Standard options (1-3): API stays HTTP on localhost, only signal/relay use TLS.
-    # Option 5 (Enterprise): ALL channels use TLS including API.
+    # Go API TLS (--tls-api) is intentionally not enabled by SSL options.
+    # RustDesk desktop clients always use plain HTTP on signal_port-2 (21114).
     local env_file="$CONSOLE_PATH/.env"
     local api_port
     api_port=$(grep -oP '^HBBS_API_URL=https?://localhost:\K[0-9]+' "$env_file" 2>/dev/null || echo "$API_PORT")
     
     if [ "${ssl_choice:-1}" = "5" ]; then
-        # === Enterprise TLS: Keep HTTPS for API (already configured in option handler) ===
-        print_info "Enterprise TLS mode: ALL connections use HTTPS/TLS"
+        # === Enterprise TLS compatibility mode: Go API stays HTTP ===
+        print_info "Enterprise TLS mode: panel/signal/relay use TLS; Go API stays HTTP"
+        sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$env_file"
+        sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$env_file"
         
         # Ensure systemd service has ALLOW_SELF_SIGNED_CERTS
         local svc_file="/etc/systemd/system/betterdesk-console.service"
@@ -4285,6 +4317,15 @@ do_configure_ssl() {
             else
                 sed -i "/^\[Service\]/a Environment=RUSTDESK_API_TLS=true" "$svc_file"
             fi
+            sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
+            sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
+            systemctl daemon-reload 2>/dev/null || true
+        fi
+
+        local go_svc_file="/etc/systemd/system/betterdesk-server.service"
+        if [ -f "$go_svc_file" ]; then
+            sed -i 's/ -tls-api//g' "$go_svc_file"
+            sed -i 's/ -force-https//g' "$go_svc_file"
             systemctl daemon-reload 2>/dev/null || true
         fi
         

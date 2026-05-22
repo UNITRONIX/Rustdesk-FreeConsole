@@ -23,7 +23,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
@@ -294,6 +294,121 @@ function getGoVersionNumber(versionOutput) {
 function quoteCommand(cmd) {
     if (!cmd) return '';
     return /\s/.test(cmd) ? `"${cmd}"` : cmd;
+}
+
+function shellQuote(value) {
+    return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function stripIncompatibleGoApiTLSArgs(value, compact = false) {
+    const stripped = String(value || '')
+        .replace(/[ \t]+-(?:tls-api|force-https)(?=(?:\s|$))/g, '');
+    return compact ? stripped.replace(/[ \t]{2,}/g, ' ').trim() : stripped;
+}
+
+function readTextFilePrivileged(filePath) {
+    try {
+        return fs.readFileSync(filePath, 'utf8');
+    } catch (err) {
+        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
+            return execSync(`sudo cat ${shellQuote(filePath)}`, { timeout: 5000, stdio: 'pipe' }).toString();
+        }
+        throw err;
+    }
+}
+
+function writeTextFilePrivileged(filePath, content) {
+    try {
+        fs.writeFileSync(filePath, content);
+    } catch (err) {
+        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
+            execSync(`sudo tee ${shellQuote(filePath)} >/dev/null`, {
+                input: content,
+                timeout: 5000,
+                stdio: ['pipe', 'pipe', 'pipe']
+            });
+            return;
+        }
+        throw err;
+    }
+}
+
+function runPrivileged(command, options = {}) {
+    const prefix = !IS_WINDOWS && typeof process.getuid === 'function' && process.getuid() !== 0 ? 'sudo ' : '';
+    return execSync(prefix + command, options);
+}
+
+/**
+ * Keep the Go REST API on plain HTTP even when signal/relay TLS is enabled.
+ * RustDesk clients call signal_port-2 (21114) over HTTP for heartbeat,
+ * sysinfo, login and address-book endpoints; -tls-api breaks that contract.
+ */
+function sanitizeGoServerServiceConfig() {
+    const result = { changed: false, changes: [], error: null };
+
+    try {
+        if (IS_WINDOWS) {
+            const serviceName = COMPONENTS.server.service;
+            const args = execSync(`nssm get "${serviceName}" AppParameters 2>nul`, {
+                timeout: 5000,
+                stdio: 'pipe'
+            }).toString();
+            const cleanArgs = stripIncompatibleGoApiTLSArgs(args, true);
+            if (cleanArgs !== args.trim()) {
+                execFileSync('nssm', ['set', serviceName, 'AppParameters', cleanArgs], {
+                    timeout: 5000,
+                    stdio: 'pipe'
+                });
+                result.changed = true;
+                result.changes.push('removed Go API TLS flags from NSSM service parameters');
+            }
+
+            try {
+                const consoleService = COMPONENTS.console.service;
+                const envRaw = execSync(`nssm get "${consoleService}" AppEnvironmentExtra 2>nul`, {
+                    timeout: 5000,
+                    stdio: 'pipe'
+                }).toString();
+                const cleanEnv = envRaw
+                    .replace(/HBBS_API_URL=https:\/\/localhost/g, 'HBBS_API_URL=http://localhost')
+                    .replace(/BETTERDESK_API_URL=https:\/\/localhost/g, 'BETTERDESK_API_URL=http://localhost');
+                if (cleanEnv !== envRaw) {
+                    execFileSync('nssm', ['set', consoleService, 'AppEnvironmentExtra', cleanEnv], {
+                        timeout: 5000,
+                        stdio: 'pipe'
+                    });
+                    result.changed = true;
+                    result.changes.push('kept console Go API URLs on HTTP in NSSM environment');
+                }
+            } catch (_e) { /* console service may not exist */ }
+
+            return result;
+        }
+
+        const serviceName = COMPONENTS.server.service;
+        let fragmentPath = execSync(`systemctl show ${shellQuote(serviceName)} --property=FragmentPath --value 2>/dev/null || true`, {
+            timeout: 5000,
+            stdio: 'pipe'
+        }).toString().trim();
+        if (!fragmentPath) fragmentPath = `/etc/systemd/system/${serviceName}.service`;
+        if (!fs.existsSync(fragmentPath)) return result;
+
+        const original = readTextFilePrivileged(fragmentPath);
+        let clean = stripIncompatibleGoApiTLSArgs(original)
+            .replace(/Environment=HBBS_API_URL=https:\/\/localhost/g, 'Environment=HBBS_API_URL=http://localhost')
+            .replace(/Environment=BETTERDESK_API_URL=https:\/\/localhost/g, 'Environment=BETTERDESK_API_URL=http://localhost');
+
+        if (clean !== original) {
+            writeTextFilePrivileged(fragmentPath, clean);
+            runPrivileged('systemctl daemon-reload', { timeout: 10000, stdio: 'pipe' });
+            result.changed = true;
+            result.changes.push('removed Go API TLS flags from systemd service');
+        }
+    } catch (err) {
+        result.error = err.message || String(err);
+    }
+
+    return result;
 }
 
 function createGoInfo(version, binPath, source) {
@@ -1496,6 +1611,14 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             };
 
             if (deployResult.success) {
+                const serviceConfig = sanitizeGoServerServiceConfig();
+                results.serverServiceConfig = serviceConfig;
+                if (serviceConfig.error) {
+                    results.failed.push({
+                        file: 'betterdesk-server.service',
+                        error: `Service config cleanup failed: ${serviceConfig.error}`
+                    });
+                }
                 results.needsServerRestart = true;
             } else {
                 results.failed.push({ file: 'betterdesk-server-deploy', error: deployResult.error || 'Server deploy failed' });
@@ -1541,7 +1664,7 @@ function restartService(serviceName) {
         if (IS_WINDOWS) {
             execSync(`nssm restart "${serviceName}"`, { timeout: 30000, stdio: 'pipe' });
         } else {
-            execSync(`sudo systemctl restart "${serviceName}"`, { timeout: 30000, stdio: 'pipe' });
+            runPrivileged(`systemctl restart ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
         }
         return { success: true, service: serviceName };
     } catch (err) {

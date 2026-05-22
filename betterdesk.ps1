@@ -1361,11 +1361,9 @@ function Update-EnvForTLS {
         $content = $content -replace 'HTTPS_ENABLED=.*', 'HTTPS_ENABLED=true'
         $content = $content -replace 'SSL_CERT_PATH=.*', "SSL_CERT_PATH=$CertPath"
         $content = $content -replace 'SSL_KEY_PATH=.*', "SSL_KEY_PATH=$KeyPath"
-        # Only update API URLs to HTTPS when --tls-api is active (proper certs, not self-signed)
-        if ($UpdateApiUrls) {
-            $content = $content -replace 'HBBS_API_URL=http://localhost', 'HBBS_API_URL=https://localhost'
-            $content = $content -replace 'BETTERDESK_API_URL=http://localhost', 'BETTERDESK_API_URL=https://localhost'
-        }
+        # Internal Go API URLs must stay HTTP for RustDesk client compatibility.
+        $content = $content -replace 'HBBS_API_URL=https://localhost', 'HBBS_API_URL=http://localhost'
+        $content = $content -replace 'BETTERDESK_API_URL=https://localhost', 'BETTERDESK_API_URL=http://localhost'
         if ($content -match 'NODE_EXTRA_CA_CERTS=') {
             $content = $content -replace 'NODE_EXTRA_CA_CERTS=.*', "NODE_EXTRA_CA_CERTS=$CertPath"
         } else {
@@ -1640,8 +1638,7 @@ function Setup-Services {
         # plain HTTP to signal_port-2 and do not support HTTPS for API endpoints.
         $serverArgs += " -tls-cert `"$certPath`" -tls-key `"$keyPath`" -tls-signal -tls-relay"
         
-        # Only add -tls-api and -force-https for proper (non-self-signed) certificates
-        # DISABLED: RustDesk clients always send HTTP to API port. API stays HTTP for all cert types.
+        # RustDesk clients always send HTTP to API port. API stays HTTP for all cert types.
         if (-not $tlsIsSelfSigned) {
             $apiScheme = "http"
             Print-Info "TLS: Enabled for signal/relay (proper certificate, API stays HTTP)"
@@ -2515,8 +2512,8 @@ function Do-Install {
     # Offer HTTPS Enterprise configuration for fresh installs
     if (-not $script:AUTO_MODE) {
         Write-Host ""
-        Print-Info "Enterprise TLS enables full HTTPS on ALL ports (panel, signal, relay, API)"
-        Print-Info "Recommended for production. Requires RustDesk client >= 1.3.x"
+        Print-Info "Enterprise TLS enables HTTPS for panel/signal/relay; Go API stays HTTP for compatibility"
+        Print-Info "Recommended for production deployments behind trusted operator access"
         Write-Host ""
         if (Confirm-Action "Would you like to configure HTTPS Enterprise now? (Option 5 in SSL menu)") {
             Do-ConfigureSSL
@@ -2531,6 +2528,25 @@ function Do-Install {
 #===============================================================================
 # Update Functions
 #===============================================================================
+
+function Invoke-TerminalProjectUpdate {
+    $script:TerminalUpdateExitCode = 2
+    $cliPath = Join-Path $script:CONSOLE_PATH "scripts\update-cli.js"
+    $node = Get-Command node -ErrorAction SilentlyContinue
+
+    if (-not $node -or -not (Test-Path $cliPath)) {
+        return
+    }
+
+    Print-Step "Running commit-aware project updater..."
+    Print-Info "Updater CLI: $cliPath"
+
+    $args = @()
+    if ($script:AUTO_MODE) { $args += "--yes" }
+
+    & $node.Source $cliPath @args
+    $script:TerminalUpdateExitCode = $LASTEXITCODE
+}
 
 function Do-Update {
     Print-Header
@@ -2570,6 +2586,19 @@ function Do-Update {
     # CRITICAL: Preserve database configuration before reinstalling console
     # This prevents PostgreSQL -> SQLite switch during updates
     Preserve-DatabaseConfig
+
+    Invoke-TerminalProjectUpdate
+    if ($script:TerminalUpdateExitCode -eq 0) {
+        Print-Success "Online project update completed"
+        Press-Enter
+        return
+    } elseif ($script:TerminalUpdateExitCode -ne 2) {
+        Print-Error "Online project update failed"
+        Press-Enter
+        return
+    } else {
+        Print-Warning "Online updater CLI not available in installed console; using legacy local update path"
+    }
     
     Print-Info "Creating backup before update..."
     Do-BackupSilent
@@ -3927,7 +3956,7 @@ function Do-ConfigureSSL {
     Write-Host "  4. Disable SSL (revert to HTTP)" -ForegroundColor Red
     Write-Host ""
     Write-Host "  ─── Enterprise Options ───" -ForegroundColor Cyan
-    Write-Host "  5. Enterprise TLS (full HTTPS: panel + signal + relay + API)" -ForegroundColor Yellow
+    Write-Host "  5. Enterprise TLS (panel + signal + relay; API stays HTTP)" -ForegroundColor Yellow
     Write-Host ""
     
     $sslChoice = Read-Host "Choice [3]"
@@ -4130,13 +4159,12 @@ function Do-ConfigureSSL {
             Print-Success "SSL disabled. Running in HTTP mode."
         }
         "5" {
-            # Enterprise TLS - full HTTPS on ALL channels including API
+            # Enterprise TLS - HTTPS for panel/signal/relay, Go API remains HTTP
             Print-Header
             Write-Host "========== ENTERPRISE TLS CONFIGURATION ==========" -ForegroundColor Yellow
             Write-Host ""
-            Write-Host "  WARNING: Enterprise TLS enables HTTPS on ALL ports including API." -ForegroundColor Yellow
-            Write-Host "  This requires RustDesk client >= 1.3.x for full compatibility." -ForegroundColor Yellow
-            Write-Host "  Legacy clients may have connectivity issues." -ForegroundColor Yellow
+            Write-Host "  WARNING: Go API port 21114 stays HTTP for RustDesk client compatibility." -ForegroundColor Yellow
+            Write-Host "  Panel, signal and relay channels can still use TLS." -ForegroundColor Yellow
             Write-Host ""
             
             New-Item -ItemType Directory -Path $sslDir -Force | Out-Null
@@ -4225,9 +4253,9 @@ function Do-ConfigureSSL {
                 $envContent = $envContent.TrimEnd() + "`nNODE_EXTRA_CA_CERTS=$certPath`n"
             }
             
-            # Update API URLs to HTTPS
-            $envContent = $envContent -replace 'HBBS_API_URL=http://', 'HBBS_API_URL=https://'
-            $envContent = $envContent -replace 'BETTERDESK_API_URL=http://', 'BETTERDESK_API_URL=https://'
+            # Keep internal Go API URLs on HTTP for RustDesk client compatibility
+            $envContent = $envContent -replace 'HBBS_API_URL=https://localhost', 'HBBS_API_URL=http://localhost'
+            $envContent = $envContent -replace 'BETTERDESK_API_URL=https://localhost', 'BETTERDESK_API_URL=http://localhost'
             
             # Set ENTERPRISE_TLS marker
             if ($envContent -match 'ENTERPRISE_TLS=') {
@@ -4238,7 +4266,7 @@ function Do-ConfigureSSL {
             
             Set-Content $envFile -Value $envContent -NoNewline
             
-            # === Configure Go server with FULL TLS ===
+            # === Configure Go server with TLS for signal + relay only ===
             $nssm = Get-Command nssm -ErrorAction SilentlyContinue
             if ($nssm) {
                 $goSvcName = $script:SERVER_SERVICE
@@ -4251,8 +4279,9 @@ function Do-ConfigureSSL {
                         $goArgs = $goArgs -replace ' -tls-signal', ''
                         $goArgs = $goArgs -replace ' -tls-relay', ''
                         $goArgs = $goArgs -replace ' -tls-api', ''
-                        # Add FULL TLS args including -tls-api
-                        $goArgs = "$goArgs -tls-cert $certPath -tls-key $keyPath -tls-signal -tls-relay -tls-api"
+                        $goArgs = $goArgs -replace ' -force-https', ''
+                        # Add TLS args without -tls-api
+                        $goArgs = "$goArgs -tls-cert $certPath -tls-key $keyPath -tls-signal -tls-relay"
                         & nssm set $goSvcName AppParameters $goArgs 2>$null
                     }
                 } catch { }
@@ -4266,11 +4295,11 @@ function Do-ConfigureSSL {
                 Print-Info "LAN IP: $lanIp"
             }
             Write-Host ""
-            Write-Host "  All connections now use TLS:" -ForegroundColor Yellow
+            Write-Host "  TLS configured for external channels:" -ForegroundColor Yellow
             Print-Info "  - Panel HTTPS: :5443 (or configured port)"
             Print-Info "  - Signal TLS: :21116"
             Print-Info "  - Relay TLS: :21117"
-            Print-Info "  - API HTTPS: :21114"
+            Print-Info "  - Go API HTTP: :21114 (required for RustDesk clients)"
             Write-Host ""
             Print-Warning "For browsers/clients, you may need to import $certPath as trusted CA"
         }
@@ -4282,14 +4311,15 @@ function Do-ConfigureSSL {
     }
     
     # ── Update API URLs in .env when SSL is enabled/disabled ──
-    # API TLS (--tls-api) is only enabled for Enterprise TLS (option 5).
-    # Standard options (1-3): API stays HTTP, only signal/relay use TLS.
-    # Option 5 (Enterprise): ALL channels use TLS including API.
+    # Go API TLS (--tls-api) is intentionally not enabled by SSL options.
+    # RustDesk desktop clients always use plain HTTP on signal_port-2 (21114).
     $envContent = Get-Content $envFile -Raw
     
     if ($sslChoice -eq "5") {
-        # === Enterprise TLS: Keep HTTPS for API (already configured in option handler) ===
-        Print-Info "Enterprise TLS mode: ALL connections use HTTPS/TLS"
+        # === Enterprise TLS compatibility mode: Go API stays HTTP ===
+        Print-Info "Enterprise TLS mode: panel/signal/relay use TLS; Go API stays HTTP"
+        $envContent = $envContent -replace 'HBBS_API_URL=https://localhost', 'HBBS_API_URL=http://localhost'
+        $envContent = $envContent -replace 'BETTERDESK_API_URL=https://localhost', 'BETTERDESK_API_URL=http://localhost'
         
         # Ensure NSSM service has ALLOW_SELF_SIGNED_CERTS
         $nssm = Get-Command nssm -ErrorAction SilentlyContinue
@@ -4306,7 +4336,19 @@ function Do-ConfigureSSL {
                     } else {
                         $currentEnv = "$currentEnv`nRUSTDESK_API_TLS=true"
                     }
+                    $currentEnv = $currentEnv -replace 'HBBS_API_URL=https://localhost', 'HBBS_API_URL=http://localhost'
+                    $currentEnv = $currentEnv -replace 'BETTERDESK_API_URL=https://localhost', 'BETTERDESK_API_URL=http://localhost'
                     & nssm set $svcName AppEnvironmentExtra $currentEnv 2>$null
+                }
+            } catch { }
+
+            $goSvcName = $script:SERVER_SERVICE
+            try {
+                $goArgs = & nssm get $goSvcName AppParameters 2>$null
+                if ($goArgs) {
+                    $goArgs = $goArgs -replace ' -tls-api', ''
+                    $goArgs = $goArgs -replace ' -force-https', ''
+                    & nssm set $goSvcName AppParameters $goArgs 2>$null
                 }
             } catch { }
         }
