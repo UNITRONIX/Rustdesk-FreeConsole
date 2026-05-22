@@ -621,7 +621,10 @@ router.get('/api/settings/updates/changes', requireAuth, requirePermission('serv
 
 /**
  * POST /api/settings/updates/install - Apply the update
- * Body: { remoteSHA, createBackup: true/false, components: ['console','scripts'] }
+ * Body: { remoteSHA, createBackup: true/false }
+ * The update scope is detected server-side from the changed files. Supported
+ * changed components are always applied together so operators cannot
+ * accidentally skip the Go server when its source changed.
  */
 router.post('/api/settings/updates/install', requireAuth, requirePermission('server.config'), async (req, res) => {
     // Extend timeout for server compilation (up to 10 minutes)
@@ -629,7 +632,7 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
     res.setTimeout(600000);
 
     try {
-        const { remoteSHA, createBackup, components, serverStrategy } = req.body;
+        const { remoteSHA, createBackup } = req.body;
         if (!remoteSHA || !/^[0-9a-f]{7,40}$/i.test(remoteSHA)) {
             return res.status(400).json({ success: false, error: 'Valid remoteSHA is required' });
         }
@@ -643,8 +646,7 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
         // Apply update
         const result = await updateService.applyUpdate(remoteSHA, changedData, {
             createBackup: createBackup !== false,
-            components: components || ['console', 'scripts'],
-            serverStrategy: serverStrategy || 'auto'
+            serverStrategy: 'auto'
         });
 
         await db.logAction(
@@ -654,8 +656,8 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
             req.ip
         );
 
-        // Restart Go server if changes detected and component selected
-        if (result.needsServerRestart && (components || []).includes('server')) {
+        // Restart Go server when its binary was updated.
+        if (result.needsServerRestart) {
             const svc = updateService.restartService(
                 process.platform === 'win32' ? 'BetterDeskServer' : 'betterdesk-server'
             );

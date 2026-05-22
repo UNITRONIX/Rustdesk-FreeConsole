@@ -1,7 +1,6 @@
 package signal
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -13,14 +12,9 @@ import (
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
-	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
-
-type signalPendingEnrollment struct {
-	UUID string
-}
 
 // handleUDPMessage dispatches a UDP message to the appropriate handler.
 func (s *Server) handleUDPMessage(msg *pb.RendezvousMessage, raddr *net.UDPAddr) {
@@ -227,7 +221,7 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 	// NEW PEER — Dual Key System enrollment check. A soft-deleted peer is a
 	// previously known device, so allow it to re-register unless it was revoked
 	// through the blocklist or persistent ban marker.
-	if !softDeleted && !s.checkEnrollmentPermission(id, raddr.IP.String(), nil) {
+	if !softDeleted && !s.checkEnrollmentPermission(id, raddr.IP.String()) {
 		log.Printf("[signal] Rejected new peer %s from %s (enrollment policy)", id, raddr.IP)
 		return
 	}
@@ -349,8 +343,7 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 		log.Printf("[signal] Failed to check peer %s before RegisterPk enrollment: %v", id, err)
 		return registerPkResponse(pb.RegisterPkResponse_SERVER_ERROR)
 	}
-	pending := &signalPendingEnrollment{UUID: fmt.Sprintf("%x", msg.Uuid)}
-	if existingPeer == nil && !softDeleted && !s.checkEnrollmentPermission(id, clientHost, pending) {
+	if existingPeer == nil && !softDeleted && !s.checkEnrollmentPermission(id, clientHost) {
 		log.Printf("[signal] Rejected new peer PK registration: %s from %s (enrollment policy)", id, clientHost)
 		s.peers.Remove(id)
 		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
@@ -1599,9 +1592,9 @@ func mustParseCIDR(s string) *net.IPNet {
 //
 // Modes:
 //   - "open" (default): All devices can register
-//   - "managed": New devices create an approval request unless they have a token
+//   - "managed": New devices need to be pre-approved (exist in DB) or have a token
 //   - "locked": Only devices with a valid token binding can register
-func (s *Server) checkEnrollmentPermission(peerID, clientIP string, pending *signalPendingEnrollment) bool {
+func (s *Server) checkEnrollmentPermission(peerID, clientIP string) bool {
 	mode := s.cfg.EnrollmentMode
 	if mode == "" {
 		mode = config.EnrollmentModeOpen
@@ -1617,108 +1610,31 @@ func (s *Server) checkEnrollmentPermission(peerID, clientIP string, pending *sig
 		return true
 	}
 
-	// Managed mode - allow if there is a token pre-bound to this peer ID. Without
-	// a token, queue the device for operator approval and keep the signal
-	// registration denied until the operator approves it.
+	// Managed mode — allow if there's a pending token with this peer ID pre-bound
+	// Admin can pre-bind tokens to specific peer IDs before they register
 	if mode == config.EnrollmentModeManaged {
-		if s.hasValidBoundDeviceToken(peerID, "managed") {
-			return true
+		if token, err := s.db.GetDeviceTokenByPeerID(peerID); err == nil && token != nil {
+			if token.Status == db.TokenStatusPending || token.Status == db.TokenStatusActive {
+				// Token is valid — activate and bind to peer
+				log.Printf("[signal] Enrollment: peer %s matched token %s (managed mode)", peerID, token.Name)
+				return true
+			}
 		}
-
-		if s.isEnrollmentRejected(peerID) {
-			log.Printf("[signal] Enrollment: rejected peer %s (managed mode, previously rejected)", peerID)
-			return false
-		}
-
-		if created := s.storePendingSignalEnrollment(peerID, clientIP, pending); created {
-			log.Printf("[signal] Enrollment: queued peer %s for approval (managed mode)", peerID)
-		} else {
-			log.Printf("[signal] Enrollment: peer %s is still waiting for approval (managed mode)", peerID)
-		}
+		// In managed mode, reject unknown devices
+		log.Printf("[signal] Enrollment: rejected unknown peer %s (managed mode, no token)", peerID)
 		return false
 	}
 
 	// Locked mode — only devices with a valid token binding can register
 	if mode == config.EnrollmentModeLocked {
-		if s.hasValidBoundDeviceToken(peerID, "locked") {
-			return true
+		if token, err := s.db.GetDeviceTokenByPeerID(peerID); err == nil && token != nil {
+			if token.Status == db.TokenStatusPending || token.Status == db.TokenStatusActive {
+				log.Printf("[signal] Enrollment: peer %s matched token %s (locked mode)", peerID, token.Name)
+				return true
+			}
 		}
 		log.Printf("[signal] Enrollment: rejected peer %s (locked mode, no valid token)", peerID)
 		return false
-	}
-
-	return true
-}
-
-func (s *Server) hasValidBoundDeviceToken(peerID, mode string) bool {
-	token, err := s.db.GetDeviceTokenByPeerID(peerID)
-	if err != nil {
-		log.Printf("[signal] Enrollment: token lookup failed for peer %s (%s mode): %v", peerID, mode, err)
-		return false
-	}
-	if token == nil {
-		return false
-	}
-
-	valid, err := s.db.ValidateToken(token.TokenHash)
-	if err != nil {
-		log.Printf("[signal] Enrollment: token validation failed for peer %s (%s mode): %v", peerID, mode, err)
-		return false
-	}
-	if valid == nil {
-		return false
-	}
-
-	log.Printf("[signal] Enrollment: peer %s matched token %s (%s mode)", peerID, token.Name, mode)
-	return true
-}
-
-func (s *Server) isEnrollmentRejected(peerID string) bool {
-	rejected, err := s.db.GetConfig("rejected_device_" + peerID)
-	return err == nil && rejected != ""
-}
-
-func (s *Server) storePendingSignalEnrollment(peerID, clientIP string, pending *signalPendingEnrollment) bool {
-	if existing, err := s.db.GetConfig("pending_device_" + peerID); err == nil && existing != "" {
-		return false
-	}
-
-	info := struct {
-		DeviceID  string `json:"device_id"`
-		UUID      string `json:"uuid"`
-		Hostname  string `json:"hostname"`
-		Platform  string `json:"platform"`
-		Version   string `json:"version"`
-		IP        string `json:"ip"`
-		CreatedAt string `json:"created_at"`
-	}{
-		DeviceID:  peerID,
-		IP:        clientIP,
-		CreatedAt: time.Now().UTC().Format(time.RFC3339),
-	}
-	if pending != nil {
-		info.UUID = pending.UUID
-	}
-
-	data, err := json.Marshal(info)
-	if err != nil {
-		log.Printf("[signal] Enrollment: failed to marshal pending peer %s: %v", peerID, err)
-		return false
-	}
-	if err := s.db.SetConfig("pending_device_"+peerID, string(data)); err != nil {
-		log.Printf("[signal] Enrollment: failed to store pending peer %s: %v", peerID, err)
-		return false
-	}
-
-	if s.eventBus != nil {
-		s.eventBus.Publish(events.Event{
-			Type: "device_pending",
-			Data: map[string]string{
-				"device_id": peerID,
-				"ip":        clientIP,
-				"source":    "signal",
-			},
-		})
 	}
 
 	return true

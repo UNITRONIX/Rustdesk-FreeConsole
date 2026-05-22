@@ -15,7 +15,7 @@
  *   3. GET /repos/{owner}/{repo}/compare/{local}...{remote} → changed files
  *   4. Categorise: console / server / scripts / agent / other
  *   5. Backup current console files → data/backups/pre-update-{ts}/
- *   6. Download & overwrite changed files per selected component
+ *   6. Download & overwrite changed files for all supported changed components
  *   7. npm install if package.json changed
  *   8. Restart affected services (systemd / NSSM)
  */
@@ -54,7 +54,7 @@ const COMPONENTS = {
         label: 'Go Server',
         localRoot: path.join(PROJECT_ROOT, 'betterdesk-server'),
         service: IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server',
-        autoUpdate: false
+        autoUpdate: true
     },
     agent: {
         prefix: 'betterdesk-agent/',
@@ -283,6 +283,46 @@ function copyDirRecursive(src, dest) {
     }
 }
 
+function getGoVersionNumber(versionOutput) {
+    const text = String(versionOutput || '');
+    const goMatch = text.match(/go(\d+(?:\.\d+){1,2})/i);
+    if (goMatch) return goMatch[1];
+    const genericMatch = text.match(/(\d+\.\d+(?:\.\d+)?)/);
+    return genericMatch ? genericMatch[1] : null;
+}
+
+function quoteCommand(cmd) {
+    if (!cmd) return '';
+    return /\s/.test(cmd) ? `"${cmd}"` : cmd;
+}
+
+function createGoInfo(version, binPath, source) {
+    const versionNumber = getGoVersionNumber(version);
+    const meetsMinimum = !!versionNumber && compareGoVersion(versionNumber, GO_MIN_VERSION) >= 0;
+    return {
+        available: true,
+        version,
+        versionNumber,
+        binPath,
+        source,
+        meetsMinimum,
+        needsUpgrade: !meetsMinimum
+    };
+}
+
+function probeGoBinary(binPath, source) {
+    if (!binPath) return null;
+    try {
+        const version = execSync(`${quoteCommand(binPath)} version`, {
+            timeout: 10000,
+            stdio: 'pipe'
+        }).toString().trim();
+        return createGoInfo(version, binPath, source);
+    } catch (_e) {
+        return null;
+    }
+}
+
 /**
  * Check if Go toolchain is available.
  * Searches PATH first, then well-known install locations (snap, tarball,
@@ -292,16 +332,26 @@ function copyDirRecursive(src, dest) {
  * @returns {{ available: boolean, version: string|null, binPath: string|null, source: string|null }}
  */
 function checkGoAvailable() {
+    const found = [];
+    const seen = new Set();
+    const addCandidate = (binPath, source) => {
+        if (!binPath) return;
+        const key = path.resolve(binPath === 'go' ? binPath : binPath.toLowerCase());
+        if (seen.has(key)) return;
+        seen.add(key);
+        const info = probeGoBinary(binPath, source);
+        if (info) found.push(info);
+    };
+
     // 1. Try the regular PATH lookup first
     try {
-        const version = execSync('go version', { timeout: 10000, stdio: 'pipe' }).toString().trim();
         let binPath = null;
         try {
             binPath = execSync(IS_WINDOWS ? 'where go' : 'command -v go', {
                 timeout: 5000, stdio: 'pipe'
             }).toString().split(/\r?\n/)[0].trim() || null;
         } catch (_e) { /* ok */ }
-        return { available: true, version, binPath: binPath || 'go', source: 'path' };
+        addCandidate(binPath || 'go', 'path');
     } catch (_e) { /* fall through */ }
 
     // 2. Scan well-known install locations
@@ -332,16 +382,31 @@ function checkGoAvailable() {
 
     for (const candidate of candidates) {
         if (!candidate || !fs.existsSync(candidate)) continue;
-        try {
-            const version = execSync(`"${candidate}" version`, {
-                timeout: 10000, stdio: 'pipe'
-            }).toString().trim();
-            const source = candidate === localGoBin ? 'vendored' : 'system';
-            return { available: true, version, binPath: candidate, source };
-        } catch (_e) { /* candidate broken, try next */ }
+        const source = candidate === localGoBin ? 'vendored' : 'system';
+        addCandidate(candidate, source);
     }
 
-    return { available: false, version: null, binPath: null, source: null };
+    if (found.length) {
+        found.sort((a, b) => {
+            if (a.meetsMinimum !== b.meetsMinimum) return a.meetsMinimum ? -1 : 1;
+            const versionDiff = compareGoVersion(b.versionNumber || b.version, a.versionNumber || a.version);
+            if (versionDiff !== 0) return versionDiff;
+            if (a.source === 'vendored' && b.source !== 'vendored') return -1;
+            if (b.source === 'vendored' && a.source !== 'vendored') return 1;
+            return 0;
+        });
+        return found[0];
+    }
+
+    return {
+        available: false,
+        version: null,
+        versionNumber: null,
+        binPath: null,
+        source: null,
+        meetsMinimum: false,
+        needsUpgrade: false
+    };
 }
 
 /**
@@ -482,15 +547,24 @@ async function ensureServerSource(remoteSHA) {
  *
  * @returns {Promise<{ success: boolean, binaryPath: string|null, error?: string, duration?: number }>}
  */
-async function buildGoServer() {
+async function buildGoServer(preferredGoBinPath = null) {
     const serverDir = COMPONENTS.server.localRoot;
     if (!fs.existsSync(path.join(serverDir, 'go.mod'))) {
         return { success: false, binaryPath: null, error: 'go.mod not found — server source incomplete' };
     }
 
-    const goCheck = checkGoAvailable();
+    const goCheck = preferredGoBinPath
+        ? (probeGoBinary(preferredGoBinPath, 'vendored') || checkGoAvailable())
+        : checkGoAvailable();
     if (!goCheck.available) {
         return { success: false, binaryPath: null, error: 'Go toolchain not installed. Install Go from https://go.dev/dl/' };
+    }
+    if (!goCheck.meetsMinimum) {
+        return {
+            success: false,
+            binaryPath: null,
+            error: `Go ${GO_MIN_VERSION}+ is required. Found ${goCheck.version || 'unknown Go version'}.`
+        };
     }
 
     const binaryName = IS_WINDOWS ? 'betterdesk-server.exe' : 'betterdesk-server';
@@ -624,23 +698,32 @@ async function installGoToolchain(onProgress) {
     const goRoot = path.join(GO_TOOLCHAIN_DIR, 'go');
     const goBin  = path.join(goRoot, 'bin', IS_WINDOWS ? 'go.exe' : 'go');
 
-    // Reuse existing install if it still works
-    if (fs.existsSync(goBin)) {
-        try {
-            const v = execSync(`"${goBin}" version`, { timeout: 5000, stdio: 'pipe' }).toString().trim();
-            log('ready', v);
-            return { success: true, binPath: goBin, version: v };
-        } catch (_e) { /* fall through and reinstall */ }
-    }
-
     fs.mkdirSync(GO_TOOLCHAIN_DIR, { recursive: true });
+
+    let installed = null;
+    if (fs.existsSync(goBin)) {
+        installed = probeGoBinary(goBin, 'vendored');
+    }
 
     let release;
     try {
         log('resolving', 'go.dev/dl');
         release = await resolveGoRelease();
     } catch (err) {
+        if (installed?.meetsMinimum) {
+            log('ready', installed.version);
+            return { success: true, binPath: goBin, version: installed.version, reused: true };
+        }
         return { success: false, binPath: null, version: null, error: `Cannot resolve Go release: ${err.message}` };
+    }
+
+    if (installed?.versionNumber && compareGoVersion(installed.versionNumber, release.version) >= 0) {
+        log('ready', installed.version);
+        return { success: true, binPath: goBin, version: installed.version, reused: true };
+    }
+
+    if (installed?.version) {
+        log('updating', `${installed.versionNumber || installed.version} → ${release.version}`);
     }
 
     const archivePath = path.join(GO_TOOLCHAIN_DIR, release.filename);
@@ -889,13 +972,17 @@ function getServerUpdateInfo() {
     return {
         goAvailable: goInfo.available,
         goVersion: goInfo.version,
+        goVersionNumber: goInfo.versionNumber,
         goPath: goInfo.binPath,
         goSource: goInfo.source,           // 'path' | 'system' | 'vendored' | null
+        goMeetsMinimum: goInfo.meetsMinimum,
+        goNeedsUpgrade: goInfo.needsUpgrade,
+        goMinimumVersion: GO_MIN_VERSION,
         vendoredGoInstalled,
         canInstallGo: true,                // toolchain bootstrap is always available
         binaryPath,
         sourcePresent,
-        canAutoUpdate: goInfo.available,
+        canAutoUpdate: true,
         // Platform info for binary matching
         platform: IS_WINDOWS ? 'windows' : process.platform,
         arch: process.arch === 'arm64' ? 'arm64' : 'amd64',
@@ -908,6 +995,11 @@ function getServerUpdateInfo() {
  */
 async function getPrebuiltInfo() {
     return checkPrebuiltAvailable();
+}
+
+function getAutoUpdateComponents(changedData) {
+    const grouped = changedData?.grouped || {};
+    return ['console', 'scripts', 'server'].filter(component => grouped[component]?.length > 0);
 }
 
 // ======================== Public API ====================================
@@ -1114,14 +1206,15 @@ async function createPreUpdateBackup(allFiles) {
  * @param {object} changedData        Output of getChangedFiles()
  * @param {object} opts
  * @param {boolean}  opts.createBackup  default true
- * @param {string[]} opts.components    default ['console','scripts']
+ * @param {string}   opts.serverStrategy default 'auto'
  */
 async function applyUpdate(remoteSHA, changedData, opts = {}) {
     if (_updateInProgress) throw new Error('Another update is already in progress');
     _updateInProgress = true;
 
     try {
-    const { createBackup = true, components: selectedComponents = ['console', 'scripts'] } = opts;
+    const { createBackup = true } = opts;
+    const selectedComponents = getAutoUpdateComponents(changedData);
 
     let backupInfo = null;
     if (createBackup) {
@@ -1141,7 +1234,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         backedUp: backupInfo?.backedUp || 0,
         needsConsoleRestart: false,
         needsServerRestart: false,
-        needsAgentRestart: false
+        needsAgentRestart: false,
+        selectedComponents,
+        shaSaved: false
     };
 
     // ---- Console files ----
@@ -1211,9 +1306,17 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     // ---- Server source files + compile/download + deploy ----
     if (changedData.grouped.server?.length && selectedComponents.includes('server')) {
         const strategy = opts.serverStrategy || 'auto'; // 'auto', 'compile', 'download', 'install-go'
-        let goAvailable = checkGoAvailable().available;
+        let goInfo = checkGoAvailable();
+        let goAvailable = goInfo.available && goInfo.meetsMinimum;
         let serverBinaryPath = null;
         let buildUsed = null;
+        let preferredGoBinPath = null;
+        let prebuiltInfo = null;
+
+        const getPrebuiltOnce = async () => {
+            if (!prebuiltInfo) prebuiltInfo = await checkPrebuiltAvailable();
+            return prebuiltInfo;
+        };
 
         // ---- Strategy: download Go toolchain on demand ----
         // Triggered explicitly ('install-go') or by auto-fallback (no Go + no
@@ -1230,12 +1333,13 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             if (tc.success) {
                 toolchainInstalled = true;
                 goAvailable = true;
+                preferredGoBinPath = tc.binPath || null;
             }
         } else if (strategy === 'auto' && !goAvailable) {
             // Auto-fallback: only attempt toolchain install if no pre-built
             // release is reachable. This keeps the default path light.
             try {
-                const prebuilt = await checkPrebuiltAvailable();
+                const prebuilt = await getPrebuiltOnce();
                 if (!prebuilt.available || !prebuilt.downloadUrl) {
                     const tc = await installGoToolchain();
                     results.toolchainInstall = {
@@ -1248,55 +1352,68 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     if (tc.success) {
                         toolchainInstalled = true;
                         goAvailable = true;
+                        preferredGoBinPath = tc.binPath || null;
                     }
                 }
             } catch (err) {
                 console.error('[UPDATE] auto-fallback toolchain install failed:', err.message);
+            }
+        } else if (strategy === 'compile' && !goAvailable) {
+            const tc = await installGoToolchain();
+            results.toolchainInstall = {
+                success: tc.success,
+                version: tc.version || null,
+                error: tc.error || null,
+                binPath: tc.binPath || null,
+                autoTriggered: true
+            };
+            if (tc.success) {
+                toolchainInstalled = true;
+                goAvailable = true;
+                preferredGoBinPath = tc.binPath || null;
             }
         }
 
         const wantsCompile = strategy === 'compile' || strategy === 'install-go' || toolchainInstalled
             || (strategy === 'auto' && goAvailable);
 
+        // Keep local Go server source in sync for every server update path.
+        // Even when a pre-built binary is used, the next source build must not
+        // start from stale files.
+        try {
+            const sourceResult = await ensureServerSource(remoteSHA);
+            console.log(`[UPDATE] Server source: strategy=${sourceResult.strategy}, files=${sourceResult.filesDownloaded}`);
+        } catch (err) {
+            results.failed.push({ file: 'server-source', error: `Source download failed: ${err.message}` });
+        }
+
+        const serverDir = COMPONENTS.server.localRoot;
+        for (const file of changedData.grouped.server) {
+            try {
+                const localPath = file.path.slice(COMPONENTS.server.prefix.length);
+                const dest = path.join(serverDir, localPath);
+                if (file.status === 'removed') {
+                    if (isProtectedRuntimePath(dest)) { results.skipped.push(file.path); continue; }
+                    if (fs.existsSync(dest)) { fs.unlinkSync(dest); results.removed.push(file.path); }
+                    continue;
+                }
+                if (isProtectedRuntimePath(dest)) {
+                    console.warn(`[UPDATE] Refusing to overwrite runtime state file: ${file.path}`);
+                    results.skipped.push(file.path);
+                    continue;
+                }
+                const content = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, file.path);
+                fs.mkdirSync(path.dirname(dest), { recursive: true });
+                fs.writeFileSync(dest, content);
+                results.applied.push(file.path);
+            } catch (err) {
+                results.failed.push({ file: file.path, error: err.message });
+            }
+        }
+
         if (wantsCompile && goAvailable) {
             // ---- Strategy: Compile from source ----
-            // 1. Ensure full source is present (downloads if missing)
-            try {
-                const sourceResult = await ensureServerSource(remoteSHA);
-                console.log(`[UPDATE] Server source: strategy=${sourceResult.strategy}, files=${sourceResult.filesDownloaded}`);
-            } catch (err) {
-                results.failed.push({ file: 'server-source', error: `Source download failed: ${err.message}` });
-            }
-
-            // 2. Download changed server source files (incremental)
-            const serverDir = COMPONENTS.server.localRoot;
-            for (const file of changedData.grouped.server) {
-                try {
-                    if (file.status === 'removed') {
-                        const localPath = file.path.slice(COMPONENTS.server.prefix.length);
-                        const localFile = path.join(serverDir, localPath);
-                        if (isProtectedRuntimePath(localFile)) { results.skipped.push(file.path); continue; }
-                        if (fs.existsSync(localFile)) { fs.unlinkSync(localFile); results.removed.push(file.path); }
-                        continue;
-                    }
-                    const localPath = file.path.slice(COMPONENTS.server.prefix.length);
-                    const dest = path.join(serverDir, localPath);
-                    if (isProtectedRuntimePath(dest)) {
-                        console.warn(`[UPDATE] Refusing to overwrite runtime state file: ${file.path}`);
-                        results.skipped.push(file.path);
-                        continue;
-                    }
-                    const content = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, file.path);
-                    fs.mkdirSync(path.dirname(dest), { recursive: true });
-                    fs.writeFileSync(dest, content);
-                    results.applied.push(file.path);
-                } catch (err) {
-                    results.failed.push({ file: file.path, error: err.message });
-                }
-            }
-
-            // 3. Build binary from source
-            const buildResult = await buildGoServer();
+            const buildResult = await buildGoServer(preferredGoBinPath);
             results.serverBuild = {
                 success: buildResult.success,
                 duration: buildResult.duration || 0,
@@ -1307,6 +1424,8 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             if (buildResult.success) {
                 serverBinaryPath = buildResult.binaryPath;
                 buildUsed = 'compile';
+            } else {
+                results.failed.push({ file: 'betterdesk-server', error: buildResult.error || 'Server build failed' });
             }
         } else {
             // ---- Strategy: Download pre-built binary ----
@@ -1314,7 +1433,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
             // Try to get from GitHub Releases first
             let downloadResult = null;
-            const prebuilt = await checkPrebuiltAvailable();
+            const prebuilt = await getPrebuiltOnce();
 
             if (prebuilt.available && prebuilt.downloadUrl) {
                 downloadResult = await downloadPrebuiltBinary(prebuilt.downloadUrl);
@@ -1361,11 +1480,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     error: errMsg,
                     method: 'download'
                 };
-            }
-
-            // Still download source files for tracking even if binary was downloaded
-            for (const f of changedData.grouped.server) {
-                results.skipped.push(f.path + ' (source — binary downloaded)');
+                results.failed.push({ file: 'betterdesk-server', error: errMsg });
             }
         }
 
@@ -1382,11 +1497,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
             if (deployResult.success) {
                 results.needsServerRestart = true;
+            } else {
+                results.failed.push({ file: 'betterdesk-server-deploy', error: deployResult.error || 'Server deploy failed' });
             }
-        }
-    } else if (changedData.grouped.server?.length) {
-        for (const f of changedData.grouped.server) {
-            results.skipped.push(f.path + ' (server — not selected)');
         }
     }
 
@@ -1397,13 +1510,21 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     }
 
     // ---- Update SHA tracking ----
-    saveLocalSHA(remoteSHA);
+    // Only mark the remote commit as deployed when all critical update steps
+    // completed. This keeps a partial server update visible for retry instead
+    // of hiding it behind a new baseline SHA.
+    if (results.failed.length === 0) {
+        saveLocalSHA(remoteSHA);
+        results.shaSaved = true;
 
-    // ---- Pull remote VERSION file ----
-    try {
-        const versionContent = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, 'VERSION');
-        fs.writeFileSync(path.join(PROJECT_ROOT, 'VERSION'), versionContent);
-    } catch (_e) { /* non-critical */ }
+        // ---- Pull remote VERSION file ----
+        try {
+            const versionContent = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, 'VERSION');
+            fs.writeFileSync(path.join(PROJECT_ROOT, 'VERSION'), versionContent);
+        } catch (_e) { /* non-critical */ }
+    } else {
+        results.skipped.push('SHA tracking (update incomplete)');
+    }
 
     return results;
     } finally {

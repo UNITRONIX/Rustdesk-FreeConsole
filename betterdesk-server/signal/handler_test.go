@@ -50,7 +50,7 @@ func udpAddr(ip string, port int) *net.UDPAddr {
 	return &net.UDPAddr{IP: net.ParseIP(ip), Port: port}
 }
 
-func TestProcessRegisterPkManagedQueuesUnknownPeer(t *testing.T) {
+func TestProcessRegisterPkManagedRejectsUnknownPeer(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
 
 	resp := srv.processRegisterPk(newRegisterPk("NEWPK1"), "203.0.113.10:50123")
@@ -68,16 +68,9 @@ func TestProcessRegisterPkManagedQueuesUnknownPeer(t *testing.T) {
 	if entry := srv.peers.Get("NEWPK1"); entry != nil {
 		t.Fatalf("unknown peer remained in memory: %+v", entry)
 	}
-	pending, err := database.GetConfig("pending_device_NEWPK1")
-	if err != nil {
-		t.Fatalf("GetConfig pending_device_NEWPK1: %v", err)
-	}
-	if pending == "" {
-		t.Fatal("managed mode did not create a pending enrollment request")
-	}
 }
 
-func TestHandleRegisterPeerWSManagedQueuesUnknownPeer(t *testing.T) {
+func TestHandleRegisterPeerWSManagedRejectsUnknownPeer(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
 
 	resp := srv.handleRegisterPeerWS(&pb.RegisterPeer{Id: "WSDENY1", Serial: 1}, "203.0.113.11:51234")
@@ -93,27 +86,6 @@ func TestHandleRegisterPeerWSManagedQueuesUnknownPeer(t *testing.T) {
 	}
 	if peer != nil {
 		t.Fatalf("unknown WS peer was persisted: %+v", peer)
-	}
-	pending, err := database.GetConfig("pending_device_WSDENY1")
-	if err != nil {
-		t.Fatalf("GetConfig pending_device_WSDENY1: %v", err)
-	}
-	if pending == "" {
-		t.Fatal("managed WS registration did not create a pending enrollment request")
-	}
-}
-
-func TestProcessRegisterPkLockedRejectsUnknownPeerWithoutPending(t *testing.T) {
-	srv, database := newTestSignalServer(t, config.EnrollmentModeLocked)
-
-	resp := srv.processRegisterPk(newRegisterPk("LOCKED1"), "203.0.113.12:50123")
-	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
-		t.Fatalf("RegisterPk result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
-	}
-
-	pending, err := database.GetConfig("pending_device_LOCKED1")
-	if err == nil && pending != "" {
-		t.Fatalf("locked mode created unexpected pending enrollment: %s", pending)
 	}
 }
 

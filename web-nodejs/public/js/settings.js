@@ -1340,7 +1340,7 @@
             const grouped = changesData.grouped || {};
             const meta = {
                 console: { icon: 'web',       label: _('updates.component_console'),  auto: true },
-                server:  { icon: 'dns',       label: _('updates.component_server'),   auto: false },
+                server:  { icon: 'dns',       label: _('updates.component_server'),   auto: true },
                 agent:   { icon: 'smart_toy', label: _('updates.component_agent'),    auto: false },
                 scripts: { icon: 'terminal',  label: _('updates.component_scripts'),  auto: true },
                 other:   { icon: 'folder',    label: _('updates.component_other'),    auto: false }
@@ -1365,34 +1365,13 @@
             
             if (grouped.server?.length > 0) {
                 html += `<div class="update-server-section" style="margin-top:12px;padding:12px;border:1px solid var(--border-color, #333);border-radius:8px;">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                        <label class="restore-option" style="margin:0;">
-                            <input type="checkbox" id="update-include-server">
-                            <span>${_('updates.include_server')}</span>
-                        </label>
+                    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;">
+                        <span class="material-icons" style="font-size:20px;color:var(--primary);">auto_mode</span>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;color:var(--text-primary);">${_('updates.include_server')}</div>
+                            <div class="text-muted" style="font-size:12px;margin-top:2px;">${_('updates.auto_strategy_hint')}</div>
+                        </div>
                         <span id="update-server-status" class="badge badge-warning badge-sm">${_('updates.checking_go')}</span>
-                    </div>
-                    <div id="update-server-strategy" style="display:none;margin:8px 0;padding:8px;background:var(--bg-tertiary, #1a1e24);border-radius:6px;">
-                        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">${_('updates.strategy_label')}</div>
-                        <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer;font-size:13px;">
-                            <input type="radio" name="server-strategy" value="download" id="strategy-download">
-                            <span class="material-icons" style="font-size:16px;">cloud_download</span>
-                            <span>${_('updates.strategy_download')}</span>
-                            <span id="strategy-download-badge" class="badge badge-sm" style="margin-left:4px;"></span>
-                        </label>
-                        <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer;font-size:13px;">
-                            <input type="radio" name="server-strategy" value="compile" id="strategy-compile">
-                            <span class="material-icons" style="font-size:16px;">build</span>
-                            <span>${_('updates.strategy_compile')}</span>
-                            <span id="strategy-compile-badge" class="badge badge-sm" style="margin-left:4px;"></span>
-                        </label>
-                        <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer;font-size:13px;">
-                            <input type="radio" name="server-strategy" value="install-go" id="strategy-install-go">
-                            <span class="material-icons" style="font-size:16px;">download_for_offline</span>
-                            <span>${_('updates.strategy_install_go')}</span>
-                            <span id="strategy-install-go-badge" class="badge badge-info badge-sm" style="margin-left:4px;">${_('updates.auto_strategy')}</span>
-                        </label>
-                        <div id="strategy-install-go-hint" class="text-muted" style="font-size:11px;margin-top:4px;">${_('updates.strategy_install_go_hint')}</div>
                     </div>
                     <div id="update-server-info" class="text-muted" style="font-size:11px;"></div>
                 </div>`;
@@ -1410,73 +1389,16 @@
     async function checkServerBuildInfo() {
         const statusEl = document.getElementById('update-server-status');
         const infoEl = document.getElementById('update-server-info');
-        const toggleEl = document.getElementById('update-include-server');
-        const strategySection = document.getElementById('update-server-strategy');
-        const downloadRadio = document.getElementById('strategy-download');
-        const compileRadio = document.getElementById('strategy-compile');
-        const installGoRadio = document.getElementById('strategy-install-go');
-        const downloadBadge = document.getElementById('strategy-download-badge');
-        const compileBadge = document.getElementById('strategy-compile-badge');
-        const installGoBadge = document.getElementById('strategy-install-go-badge');
-        if (!statusEl || !toggleEl) return;
+        if (!statusEl) return;
 
         try {
             const info = await Utils.api('/api/settings/updates/server-info');
-            const hasGo = !!info.goAvailable;
+            const hasGo = !!info.goAvailable && info.goMeetsMinimum !== false;
+            const goNeedsUpgrade = !!info.goAvailable && info.goMeetsMinimum === false;
             const prebuilt = info.prebuilt || {};
             const hasDownload = !!prebuilt.available;
             const canInstallGo = !!info.canInstallGo;
             const vendoredReady = !!info.vendoredGoInstalled;
-
-            // Server rebuild is always offered: if no Go and no release, the
-            // "auto-install Go" path will take over.
-            const canUpdate = hasGo || hasDownload || canInstallGo;
-            toggleEl.disabled = !canUpdate;
-
-            if (strategySection && canUpdate) {
-                strategySection.style.display = '';
-
-                if (downloadRadio) {
-                    downloadRadio.disabled = !hasDownload;
-                    if (downloadBadge) {
-                        if (hasDownload) {
-                            const sizeMB = prebuilt.assetSize ? (prebuilt.assetSize / (1024 * 1024)).toFixed(1) + ' MB' : '';
-                            downloadBadge.className = 'badge badge-success badge-sm';
-                            downloadBadge.textContent = prebuilt.releaseTag ? `${prebuilt.releaseTag}${sizeMB ? ' · ' + sizeMB : ''}` : _('updates.available');
-                        } else {
-                            downloadBadge.className = 'badge badge-warning badge-sm';
-                            downloadBadge.textContent = _('updates.no_release');
-                        }
-                    }
-                }
-                if (compileRadio) {
-                    compileRadio.disabled = !hasGo;
-                    if (compileBadge) {
-                        if (hasGo) {
-                            compileBadge.className = 'badge badge-success badge-sm';
-                            compileBadge.textContent = info.goVersion ? info.goVersion.replace('go version ', '') : 'Go';
-                        } else {
-                            compileBadge.className = 'badge badge-warning badge-sm';
-                            compileBadge.textContent = _('updates.go_not_found');
-                        }
-                    }
-                }
-                if (installGoRadio && installGoBadge) {
-                    installGoRadio.disabled = false;
-                    if (vendoredReady) {
-                        installGoBadge.className = 'badge badge-success badge-sm';
-                        installGoBadge.textContent = _('updates.toolchain_ready');
-                    } else {
-                        installGoBadge.className = 'badge badge-info badge-sm';
-                        installGoBadge.textContent = _('updates.auto_strategy');
-                    }
-                }
-
-                // Auto-select the best available strategy
-                if (hasDownload && downloadRadio) downloadRadio.checked = true;
-                else if (hasGo && compileRadio) compileRadio.checked = true;
-                else if (installGoRadio) installGoRadio.checked = true;
-            }
 
             // Status badge
             if (hasGo && hasDownload) {
@@ -1488,9 +1410,12 @@
             } else if (hasGo) {
                 statusEl.className = 'badge badge-success badge-sm';
                 statusEl.textContent = info.goVersion ? info.goVersion.replace('go version ', '') : 'Go';
-            } else {
+            } else if (goNeedsUpgrade || canInstallGo) {
                 statusEl.className = 'badge badge-info badge-sm';
-                statusEl.textContent = _('updates.auto_available');
+                statusEl.textContent = vendoredReady ? _('updates.toolchain_ready') : _('updates.auto_available');
+            } else {
+                statusEl.className = 'badge badge-warning badge-sm';
+                statusEl.textContent = _('updates.no_method');
             }
 
             // Info line
@@ -1500,14 +1425,28 @@
                 if (info.sourcePresent) parts.push('Source: present');
                 if (hasDownload && prebuilt.releaseName) parts.push(`Release: ${prebuilt.releaseName}`);
                 if (info.goSource && info.goSource !== 'path') parts.push(`Go: ${info.goSource}`);
-                if (!hasGo && !hasDownload) parts.push(_('updates.toolchain_will_install'));
+                if (goNeedsUpgrade) parts.push(_('updates.toolchain_will_install'));
+                if (!hasGo && !hasDownload && canInstallGo) parts.push(_('updates.toolchain_will_install'));
                 infoEl.textContent = parts.join(' · ');
             }
         } catch (_e) {
             statusEl.className = 'badge badge-warning badge-sm';
             statusEl.textContent = _('updates.go_check_failed');
-            toggleEl.disabled = false; // Allow user to try anyway
         }
+    }
+
+    function getUpdateScopeLabels() {
+        const grouped = _updateState.changedData?.grouped || {};
+        const labels = {
+            console: _('updates.component_console'),
+            server: _('updates.component_server'),
+            scripts: _('updates.component_scripts'),
+            agent: _('updates.component_agent'),
+            other: _('updates.component_other')
+        };
+        return Object.entries(grouped)
+            .filter(([, files]) => files?.length > 0)
+            .map(([component, files]) => `${labels[component] || labels.other}: ${files.length} ${_('updates.files')}`);
     }
     
     // ---------- Update progress modal ----------
@@ -1601,25 +1540,18 @@
             return;
         }
 
-        const includeServer = document.getElementById('update-include-server')?.checked || false;
-        const serverStrategy = includeServer
-            ? (document.querySelector('input[name="server-strategy"]:checked')?.value || 'auto')
-            : null;
+        const hasServerUpdate = (_updateState.changedData?.grouped?.server || []).length > 0;
         const createBackup = document.getElementById('update-backup-toggle')?.checked ?? true;
 
         // Pre-flight confirmation modal
-        let strategyNote = '';
-        if (includeServer) {
-            if (serverStrategy === 'compile') strategyNote = _('updates.server_build_note');
-            else if (serverStrategy === 'install-go') strategyNote = _('updates.strategy_install_go_hint');
-            else if (serverStrategy === 'download') strategyNote = _('updates.server_download_note');
-            else strategyNote = _('updates.auto_strategy_hint');
-        }
+        const scopeItems = getUpdateScopeLabels();
+        const strategyNote = hasServerUpdate ? _('updates.auto_strategy_hint') : '';
         const confirmHtml = `
             <p>${Utils.escapeHtml(_('updates.install_confirm'))}</p>
             <ul style="margin:8px 0 0 0;padding-left:20px;font-size:13px;color:var(--text-secondary);">
                 <li>${Utils.escapeHtml(createBackup ? _('updates.confirm_with_backup') : _('updates.confirm_no_backup'))}</li>
-                ${includeServer ? `<li>${Utils.escapeHtml(strategyNote || '')}</li>` : ''}
+                ${scopeItems.map(item => `<li>${Utils.escapeHtml(item)}</li>`).join('')}
+                ${hasServerUpdate ? `<li>${Utils.escapeHtml(strategyNote || '')}</li>` : ''}
             </ul>
         `;
         const proceed = await new Promise((resolve) => {
@@ -1654,9 +1586,6 @@
         logUpdate(`Starting update to ${_updateState.remoteSHA.slice(0, 7)}…`);
 
         try {
-            const components = ['console', 'scripts'];
-            if (includeServer) components.push('server');
-
             // Console download phase indicator (we cannot stream backend
             // progress today, so we just mark it active until response arrives)
             setTimeout(() => {
@@ -1664,21 +1593,16 @@
                 setUpdatePhase('console', 'active', _('updates.downloading'));
             }, 800);
 
-            if (includeServer) {
-                const serverDetailKey =
-                    serverStrategy === 'install-go' ? 'updates.toolchain_downloading' :
-                    serverStrategy === 'compile'    ? 'updates.server_building' :
-                    serverStrategy === 'download'   ? 'updates.server_downloading' :
-                                                       'updates.server_processing';
+            if (hasServerUpdate) {
                 setTimeout(() => {
                     setUpdatePhase('console', 'done');
-                    setUpdatePhase('server', 'active', _(serverDetailKey));
+                    setUpdatePhase('server', 'active', _('updates.server_processing'));
                 }, 4000);
             }
 
             const result = await Utils.api('/api/settings/updates/install', {
                 method: 'POST',
-                body: { remoteSHA: _updateState.remoteSHA, createBackup, components, serverStrategy: serverStrategy || 'auto' }
+                body: { remoteSHA: _updateState.remoteSHA, createBackup }
             });
 
             // Mark earlier phases done if not already
@@ -1688,7 +1612,7 @@
             });
 
             // Server result
-            if (includeServer) {
+            if (hasServerUpdate) {
                 if (result.toolchainInstall) {
                     if (result.toolchainInstall.success) {
                         logUpdate(`Go toolchain ready: ${result.toolchainInstall.version || ''}`.trim());
@@ -1726,7 +1650,7 @@
                     logUpdate(`Deploy failed: ${result.serverDeploy.error || ''}`);
                 }
             } else {
-                setUpdatePhase('server', 'skipped', _('updates.server_not_selected'));
+                setUpdatePhase('server', 'skipped', _('updates.server_skipped'));
             }
 
             const applied = result.applied?.length || 0;
