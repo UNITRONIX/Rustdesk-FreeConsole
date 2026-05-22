@@ -17,15 +17,21 @@ import (
 
 // WSConn wraps a WebSocket connection for protobuf message I/O.
 type WSConn struct {
-	WS      *websocket.Conn
-	Ctx     context.Context
-	Addr    string // remote address string (for logging)
-	writeMu sync.Mutex
+	WS               *websocket.Conn
+	Ctx              context.Context
+	Addr             string // remote address string (for logging)
+	writeMu          sync.Mutex
+	keepAliveHandler func()
 }
 
 // NewWSConn creates a WSConn from an accepted WebSocket connection.
 func NewWSConn(ws *websocket.Conn, ctx context.Context, remoteAddr string) *WSConn {
 	return &WSConn{WS: ws, Ctx: ctx, Addr: remoteAddr}
+}
+
+// SetKeepAliveHandler registers a callback for empty binary keepalive frames.
+func (c *WSConn) SetKeepAliveHandler(handler func()) {
+	c.keepAliveHandler = handler
 }
 
 // ReadMessage reads one binary WS frame and decodes it as a RendezvousMessage.
@@ -39,6 +45,9 @@ func (c *WSConn) ReadMessage() (*pb.RendezvousMessage, error) {
 			return nil, fmt.Errorf("ws: expected binary frame, got %v", typ)
 		}
 		if len(data) == 0 {
+			if c.keepAliveHandler != nil {
+				c.keepAliveHandler()
+			}
 			continue
 		}
 

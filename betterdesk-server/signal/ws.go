@@ -109,6 +109,12 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 	defer wsc.Close()
 
 	remoteAddr := wsc.RemoteAddr()
+	peerID := ""
+	wsc.SetKeepAliveHandler(func() {
+		if peerID != "" {
+			s.peers.TouchHeartbeat(peerID)
+		}
+	})
 	keepAliveDone := make(chan struct{})
 	go s.wsSignalKeepAlive(wsc, keepAliveDone)
 	defer close(keepAliveDone)
@@ -129,12 +135,14 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 
 		switch {
 		case msg.GetRegisterPeer() != nil:
+			peerID = msg.GetRegisterPeer().Id
 			resp := s.handleRegisterPeerWS(msg.GetRegisterPeer(), remoteAddr)
 			if resp != nil {
 				wsc.WriteMessage(resp)
 			}
 
 		case msg.GetRegisterPk() != nil:
+			peerID = msg.GetRegisterPk().Id
 			fakeAddr, _ := net.ResolveUDPAddr("udp", remoteAddr)
 			resp := s.processRegisterPk(msg.GetRegisterPk(), remoteAddr)
 			if fakeAddr != nil {

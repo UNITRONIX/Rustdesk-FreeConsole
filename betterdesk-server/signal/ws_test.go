@@ -185,6 +185,10 @@ func TestWSSignalRustDeskKeepAlive(t *testing.T) {
 	if resp.GetRegisterPkResponse() == nil {
 		t.Fatalf("expected RegisterPkResponse, got: %v", resp)
 	}
+	beforeKeepAlive, ok := srv.PeerMap().GetSnapshot("WSKEEP1", config.DegradedThreshold, config.CriticalThreshold)
+	if !ok {
+		t.Fatal("expected WSKEEP1 to be registered")
+	}
 
 	readCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
@@ -213,6 +217,13 @@ func TestWSSignalRustDeskKeepAlive(t *testing.T) {
 	resp = readWSProtoSkippingKeepAlive(t, ctx, ws)
 	if resp.GetHc() == nil || resp.GetHc().Token != "after-keepalive" {
 		t.Fatalf("expected HealthCheck response after keepalive, got: %v", resp)
+	}
+	afterKeepAlive, ok := srv.PeerMap().GetSnapshot("WSKEEP1", config.DegradedThreshold, config.CriticalThreshold)
+	if !ok {
+		t.Fatal("expected WSKEEP1 to remain registered after keepalive")
+	}
+	if !afterKeepAlive.LastHeartbeat.After(beforeKeepAlive.LastHeartbeat) {
+		t.Fatalf("expected WS keepalive echo to refresh heartbeat, before=%v after=%v", beforeKeepAlive.LastHeartbeat, afterKeepAlive.LastHeartbeat)
 	}
 }
 

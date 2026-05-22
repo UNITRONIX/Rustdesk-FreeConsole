@@ -261,6 +261,22 @@ func (m *Map) UpdateHeartbeat(id string, addr *net.UDPAddr, serial int32) bool {
 	return true
 }
 
+// TouchHeartbeat refreshes the heartbeat timestamp without changing address or serial.
+// It is used by transports where protocol-level keepalive frames prove the peer is alive.
+func (m *Map) TouchHeartbeat(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, ok := m.entries[id]
+	if !ok {
+		return false
+	}
+	e.LastReg = time.Now()
+	e.MissedBeats = 0
+	e.StatusTier = StatusOnline
+	e.HeartbeatCount++
+	return true
+}
+
 // Remove deletes a peer from the map. Returns the removed entry (nil if not found).
 // Closes any open TCP/WS connections to force immediate disconnect.
 func (m *Map) Remove(id string) *Entry {
