@@ -170,6 +170,14 @@ function canSyncDeviceTags(user) {
     return user && user.role !== 'pro' && roleHasPermission(user.role, 'device.edit');
 }
 
+function isReachableRustDeskDevice(device) {
+    if (!device || device.banned || device.disabled) return false;
+    if (device.online === true || device.live_online === true || device.cdap_connected === true) return true;
+
+    const liveStatus = String(device.live_status || device.status_tier || device.status || '').trim().toLowerCase();
+    return liveStatus === 'online' || liveStatus === 'degraded' || liveStatus === 'critical';
+}
+
 function getDeviceFolderId(device) {
     const raw = device && device.folder_id;
     if (raw === undefined || raw === null || raw === '') return null;
@@ -501,8 +509,7 @@ async function getRustDeskPeerList(user, params = {}) {
     const requestedGroup = requestedGroupValue(params);
     const requestedTags = requestedTagValues(params);
     let devices = await serverBackend.getAllDevices({
-        search: params.search || '',
-        status: 'online'
+        search: params.search || ''
     });
 
     let assignments = {};
@@ -517,7 +524,7 @@ async function getRustDeskPeerList(user, params = {}) {
     devices = await filterDevicesForRustDeskUser(user, devices);
     const accessUser = await deviceGroupService.getUserAccessContext(db, user);
 
-    devices = devices.filter(device => !!device.online);
+    devices = devices.filter(isReachableRustDeskDevice);
 
     if (requestedFolder !== null) {
         devices = devices.filter(device => getDeviceFolderId(device) === requestedFolder);
@@ -562,14 +569,29 @@ async function getRustDeskPeerList(user, params = {}) {
         const folderId = getDeviceFolderId(device);
         const deviceGroupGuid = folderId ? folderGroupGuid(folderId) : '';
         const deviceGroupName = folderId ? (folderNames.get(folderId) || '') : '';
+        const hostname = sysinfo.hostname || device.hostname || '';
+        const username = sysinfo.username || device.username || device.user || '';
+        const platform = sysinfo.platform || device.platform || device.os || '';
+        const displayName = device.display_name || '';
+        const alias = displayName || device.note || hostname || String(device.id || '');
+        const reachable = isReachableRustDeskDevice(device);
+        const liveStatus = String(device.live_status || device.status_tier || (reachable ? 'online' : 'offline')).toLowerCase();
+
         return {
             id: device.id,
-            hostname: sysinfo.hostname || device.hostname || '',
-            username: sysinfo.username || device.username || '',
-            platform: sysinfo.platform || device.platform || '',
+            hostname,
+            username,
+            user: username,
+            alias,
+            peer_name: alias,
+            display_name: displayName,
+            platform,
             version: sysinfo.version || '',
             ip: device.ip || '',
-            online: device.online,
+            online: reachable,
+            live_online: reachable,
+            live_status: liveStatus,
+            status: liveStatus,
             last_online: device.last_online || '',
             created_at: device.created_at || '',
             note: device.note || '',
@@ -577,8 +599,9 @@ async function getRustDeskPeerList(user, params = {}) {
             pk: device.pk || '',
             cpu: sysinfo.cpu_name || '',
             memory: sysinfo.memory_gb || 0,
-            os: sysinfo.os_full || '',
+            os: sysinfo.os_full || device.os || '',
             displays: sysinfo.displays || [],
+            device_type: device.device_type || '',
             tags,
             folder_id: folderId,
             folder_name: deviceGroupName,

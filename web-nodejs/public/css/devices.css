@@ -195,6 +195,10 @@
     color: var(--text-secondary);
 }
 
+.chip-action .material-icons {
+    font-size: 14px;
+}
+
 .chip-action:hover {
     background: var(--bg-hover);
     border-color: var(--border-hover, #484f58);
@@ -207,6 +211,9 @@
 
 /* Add folder chip */
 .chip-add {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
     align-items: center;
     justify-items: center;
     text-align: center;
@@ -224,16 +231,16 @@
 }
 
 .chip-add .material-icons {
-    grid-column: 1 / 4;
-    grid-row: 1 / 3;
+    grid-column: 1;
+    grid-row: 1;
     align-self: center;
     justify-self: center;
     font-size: 26px;
 }
 
 .chip-add .chip-label {
-    grid-column: 1 / 4;
-    grid-row: 3;
+    grid-column: 1;
+    grid-row: 2;
     align-self: end;
     justify-self: center;
     text-align: center;

@@ -118,6 +118,58 @@ describe('RustDesk Client API routes', () => {
             expect(res.body.data.map(peer => peer.id)).toEqual(['ONLINE1']);
         });
 
+        it('keeps degraded and critical peers in the reachable devices list', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
+            serverBackend.getAllDevices.mockResolvedValue([
+                { id: 'DEG1', hostname: 'Degraded', online: false, status_tier: 'degraded', tags: 'Allowed' },
+                { id: 'CRIT1', hostname: 'Critical', online: false, live_status: 'critical', tags: 'Allowed' },
+                { id: 'OFF1', hostname: 'Offline', online: false, status_tier: 'offline', tags: 'Allowed' }
+            ]);
+
+            const res = await request(app)
+                .get('/api/peers')
+                .set('Authorization', 'Bearer operator-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body.total).toBe(2);
+            expect(res.body.data.map(peer => peer.id)).toEqual(['DEG1', 'CRIT1']);
+        });
+
+        it('mirrors address-book peer fields for RustDesk available devices', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
+            serverBackend.getAllDevices.mockResolvedValue([
+                {
+                    id: 'PEER1',
+                    hostname: 'server-a',
+                    username: 'alice',
+                    platform: 'Windows',
+                    display_name: 'Finance PC',
+                    device_type: 'desktop',
+                    online: true,
+                    tags: ['Allowed']
+                }
+            ]);
+
+            const res = await request(app)
+                .get('/api/peers')
+                .set('Authorization', 'Bearer operator-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body.data[0]).toMatchObject({
+                id: 'PEER1',
+                hostname: 'server-a',
+                username: 'alice',
+                user: 'alice',
+                alias: 'Finance PC',
+                peer_name: 'Finance PC',
+                display_name: 'Finance PC',
+                platform: 'Windows',
+                device_type: 'desktop',
+                live_online: true,
+                live_status: 'online'
+            });
+        });
+
         it('filters reachable devices by folder device group guid', async () => {
             authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
             serverBackend.getAllDevices.mockResolvedValue([
@@ -138,7 +190,7 @@ describe('RustDesk Client API routes', () => {
                 folder_id: 7,
                 device_group_guid: 'folder_7'
             });
-            expect(serverBackend.getAllDevices).toHaveBeenCalledWith(expect.objectContaining({ status: 'online' }));
+            expect(serverBackend.getAllDevices).toHaveBeenCalledWith(expect.objectContaining({ search: '' }));
         });
 
         it('filters reachable devices by folder name', async () => {
