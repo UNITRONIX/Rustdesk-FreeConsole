@@ -331,17 +331,20 @@
 }
 
 .group-chip-action {
-    width: 20px;
-    height: 20px;
+    min-width: 0;
+    height: 24px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 4px;
     border: 1px solid transparent;
     border-radius: var(--radius-sm, 4px);
     background: rgba(255, 255, 255, 0.04);
     color: var(--text-secondary);
     cursor: pointer;
-    padding: 0;
+    padding: 0 7px;
+    font-size: var(--font-size-xs, 0.75rem);
+    font-family: inherit;
 }
 
 .group-chip-action:hover {
@@ -356,6 +359,10 @@
 
 .group-chip-action .material-icons {
     font-size: 14px;
+}
+
+.group-chip-action-label {
+    line-height: 1;
 }
 
 .group-chip.active .chip-count {
@@ -1000,6 +1007,18 @@ td.column-hidden {
     gap: var(--space-md);
 }
 
+.form-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-xs);
+}
+
+.form-label-row label {
+    margin: 0;
+}
+
 .group-membership-list {
     display: flex;
     flex-direction: column;
@@ -1014,6 +1033,13 @@ td.column-hidden {
 
 .group-membership-list.compact {
     max-height: 150px;
+}
+
+.user-group-empty {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
 }
 
 .group-membership-option {

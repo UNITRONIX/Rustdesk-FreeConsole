@@ -329,7 +329,13 @@
     function renderUserGroupAccessOptions(selectedGuids) {
         const selected = new Set(normalizeGuids(selectedGuids));
         if (!availableUserGroups.length) {
-            return `<div class="tag-filter-empty">${_('devices.no_user_groups') || 'No user groups'}</div>`;
+            return `<div class="tag-filter-empty user-group-empty">
+                <span>${_('devices.no_user_groups') || 'No user groups'}</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="dg-manage-user-groups-empty">
+                    <span class="material-icons">group_add</span>
+                    ${_('devices.manage_user_groups') || 'Manage user groups'}
+                </button>
+            </div>`;
         }
         return availableUserGroups.map(group => `
             <label class="group-membership-option compact">
@@ -748,7 +754,13 @@
                     <p class="form-hint">${_('devices.group_allowed_users_hint') || 'Leave empty to keep the group visible to everyone with device permissions.'}</p>
                 </div>
                 <div class="form-group">
-                    <label>${_('devices.group_allowed_user_groups') || 'Allowed user groups'}</label>
+                    <div class="form-label-row">
+                        <label>${_('devices.group_allowed_user_groups') || 'Allowed user groups'}</label>
+                        <button type="button" class="btn btn-secondary btn-sm" id="dg-manage-user-groups">
+                            <span class="material-icons">groups</span>
+                            ${_('devices.manage_user_groups') || 'Manage user groups'}
+                        </button>
+                    </div>
                     <div class="group-membership-list compact">${renderUserGroupAccessOptions(selectedUserGroups)}</div>
                     <p class="form-hint">${_('devices.group_allowed_user_groups_hint') || 'Users in selected user groups can access this device group.'}</p>
                 </div>
@@ -800,6 +812,12 @@
         dynamicInput?.addEventListener('change', () => {
             tagRow.style.opacity = dynamicInput.checked ? '1' : '0.5';
             tagRow.style.pointerEvents = dynamicInput.checked ? 'auto' : 'none';
+        });
+        document.getElementById('dg-manage-user-groups')?.addEventListener('click', () => {
+            window.location.href = '/users#user-groups';
+        });
+        document.getElementById('dg-manage-user-groups-empty')?.addEventListener('click', () => {
+            window.location.href = '/users#user-groups';
         });
     }
 
@@ -1602,9 +1620,11 @@
                 <span class="chip-actions">
                     <button type="button" class="group-chip-action" data-action="edit" data-group="${Utils.escapeHtml(group.guid)}" title="${_('devices.edit_group') || 'Edit group'}">
                         <span class="material-icons">edit</span>
+                        <span class="group-chip-action-label">${_('actions.edit') || _('devices.edit_group') || 'Edit'}</span>
                     </button>
                     <button type="button" class="group-chip-action danger" data-action="delete" data-group="${Utils.escapeHtml(group.guid)}" title="${_('devices.delete_group') || 'Delete group'}">
                         <span class="material-icons">delete</span>
+                        <span class="group-chip-action-label">${_('actions.delete') || _('devices.delete_group') || 'Delete'}</span>
                     </button>
                 </span>
             </span>`;

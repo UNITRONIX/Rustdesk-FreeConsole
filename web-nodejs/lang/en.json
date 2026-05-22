@@ -232,6 +232,7 @@
     "group_allowed_users_hint": "Leave empty to keep the group visible to everyone with device permissions.",
     "group_allowed_user_groups": "Allowed user groups",
     "group_allowed_user_groups_hint": "Users in selected user groups can access this device group.",
+    "manage_user_groups": "Manage user groups",
     "no_user_groups": "No user groups",
     "edit_group": "Edit group",
     "delete_group": "Delete group",

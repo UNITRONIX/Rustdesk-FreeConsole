@@ -290,7 +290,8 @@
     "delete_group": "Delete group",
     "delete_group_confirm": "Delete device group {name}?",
     "group_deleted": "Device group deleted",
-    "folder_group_readonly": "Folder-backed groups are managed from folders."
+    "folder_group_readonly": "Folder-backed groups are managed from folders.",
+    "manage_user_groups": "Manage user groups"
   },
   "keys": {
     "title": "Chaves do servidor",

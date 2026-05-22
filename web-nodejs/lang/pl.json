@@ -232,6 +232,7 @@
     "group_allowed_users_hint": "Pozostaw puste, aby grupa była widoczna dla wszystkich z uprawnieniami do urządzeń.",
     "group_allowed_user_groups": "Dozwolone grupy użytkowników",
     "group_allowed_user_groups_hint": "Użytkownicy z wybranych grup mogą uzyskać dostęp do tej grupy urządzeń.",
+    "manage_user_groups": "Zarządzaj grupami użytkowników",
     "no_user_groups": "Brak grup użytkowników",
     "edit_group": "Edytuj grupę",
     "delete_group": "Usuń grupę",

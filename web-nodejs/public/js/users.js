@@ -27,8 +27,17 @@
         loadUserGroups();
         loadUsers();
         initEventListeners();
+        focusUserGroupsFromHash();
         
         window.addEventListener('app:refresh', loadUsers);
+    }
+
+    function focusUserGroupsFromHash() {
+        if (window.location.hash !== '#user-groups') return;
+        window.requestAnimationFrame(() => {
+            document.getElementById('user-groups')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            document.getElementById('add-user-group-btn')?.focus();
+        });
     }
     
     function initEventListeners() {

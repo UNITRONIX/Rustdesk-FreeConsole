@@ -9,7 +9,7 @@ const authService = require('../services/authService');
 const db = require('../services/database');
 const { apiClient } = require('../services/betterdeskApi');
 const userSync = require('../services/userSync');
-const { requireAuth, requirePermission, isSuperAdminRole } = require('../middleware/auth');
+const { requireAuth, requirePermission, roleHasPermission, isSuperAdminRole } = require('../middleware/auth');
 const { passwordChangeLimiter } = require('../middleware/rateLimiter');
 
 // ---------------------------------------------------------------------------
@@ -130,6 +130,14 @@ function runBestEffortUserSync(operation) {
     }
 }
 
+function requireAnyPermission(...permissions) {
+    return function(req, res, next) {
+        const role = req.session && req.session.user && req.session.user.role;
+        if (permissions.some(permission => roleHasPermission(role, permission))) return next();
+        return res.status(403).json({ success: false, error: `Permission denied: ${permissions.join(' or ')}` });
+    };
+}
+
 /**
  * GET /users - Users management page (admin only)
  */
@@ -177,7 +185,7 @@ router.get('/api/users', requireAuth, requirePermission('user.view'), async (req
 /**
  * GET /api/panel/user-groups - Get user groups for panel assignment UIs.
  */
-router.get('/api/panel/user-groups', requireAuth, requirePermission('user.view'), async (req, res) => {
+router.get('/api/panel/user-groups', requireAuth, requireAnyPermission('user.view', 'device.edit'), async (req, res) => {
     try {
         const groups = await db.getAllUserGroups();
         res.json({
