@@ -377,9 +377,13 @@ async function buildSyncedAddressBook(user, abType) {
     const abData = (abRecord && abRecord.data) ? String(abRecord.data) : '{}';
     const context = await getConsoleDeviceContext(user);
 
+    // Auto-include server devices for admin/operator users so their AB is pre-populated.
+    // Regular (pro) users only see devices they have manually added.
+    const canViewDevices = user && user.role && user.role !== 'pro';
+
     return addressBookSync.mergeAddressBookData(abData, {
         ...context,
-        includeDevices: false
+        includeDevices: canViewDevices
     });
 }
 
@@ -408,11 +412,17 @@ async function getRustDeskDeviceGroups(user) {
     const accessUser = await deviceGroupService.getUserAccessContext(db, user);
 
     try {
-        devices = await serverBackend.getAllDevices({ status: 'online' });
+        devices = await serverBackend.getAllDevices();
         devices = await filterDevicesForRustDeskUser(user, devices);
     } catch (err) {
         console.warn('[API:DEVICE-GROUP] Failed to read devices for dynamic counts:', err.message);
     }
+
+    // Build folder assignments map for peer lookups
+    let assignments = {};
+    try {
+        assignments = await db.getAllFolderAssignments() || {};
+    } catch (_) { /* non-critical */ }
 
     try {
         const rawGroups = (await db.getAllDeviceGroups())
@@ -420,14 +430,12 @@ async function getRustDeskDeviceGroups(user) {
             .filter(group => deviceGroupService.groupAllowedForUser(group, accessUser));
         const deviceGroups = await deviceGroupService.enrichGroups(db, rawGroups, devices);
         for (const group of deviceGroups) {
+            const peerIds = await deviceGroupService.getGroupPeerIds(db, group, devices);
             groups.push({
                 guid: group.guid,
                 name: group.name,
                 note: group.note || '',
-                team_id: group.team_id || '',
-                member_count: group.member_count || 0,
-                source_type: group.source_type || 'manual',
-                tag_filter: group.tag_filter || ''
+                peer_ids: [...peerIds]
             });
         }
     } catch (err) {
@@ -436,13 +444,6 @@ async function getRustDeskDeviceGroups(user) {
 
     try {
         const folders = await db.getAllFolders();
-        const assignments = await db.getAllFolderAssignments();
-        const counts = {};
-        const onlineIds = new Set(devices.map(device => String(device.id)));
-        for (const [deviceId, folderId] of Object.entries(assignments || {})) {
-            if (!onlineIds.has(String(deviceId))) continue;
-            counts[folderId] = (counts[folderId] || 0) + 1;
-        }
         for (const folder of folders) {
             const guid = folderGroupGuid(folder.id);
             let mirrorGroup = null;
@@ -452,18 +453,20 @@ async function getRustDeskDeviceGroups(user) {
             const allowedUsers = mirrorGroup && Array.isArray(mirrorGroup.allowed_users) ? mirrorGroup.allowed_users : [];
             const allowedGroups = mirrorGroup && Array.isArray(mirrorGroup.allowed_groups) ? mirrorGroup.allowed_groups : [];
             if (!deviceGroupService.groupAllowedForUser({ allowed_users: allowedUsers, allowed_groups: allowedGroups }, accessUser)) continue;
+
+            // Collect peer IDs assigned to this folder
+            const folderPeerIds = [];
+            for (const [deviceId, folderId] of Object.entries(assignments)) {
+                if (Number.parseInt(folderId, 10) === Number.parseInt(folder.id, 10)) {
+                    folderPeerIds.push(String(deviceId));
+                }
+            }
+
             groups.push({
-                id: guid,
                 guid,
                 name: folder.name,
-                note: 'BetterDesk folder',
-                team_id: '',
-                member_count: counts[folder.id] || 0,
-                source_type: 'folder',
-                tag_filter: '',
-                folder_id: folder.id,
-                allowed_users: allowedUsers,
-                allowed_groups: allowedGroups
+                note: '',
+                peer_ids: folderPeerIds
             });
         }
     } catch (err) {
@@ -473,29 +476,18 @@ async function getRustDeskDeviceGroups(user) {
     return groups;
 }
 
-function rustDeskDeviceGroupPayload(group) {
-    const guid = String(group.guid || group.id || '').trim();
-    const folderId = group.folder_id === undefined || group.folder_id === null || group.folder_id === ''
-        ? null
-        : group.folder_id;
-    const memberCount = group.member_count || group.accessed_count || 0;
+function rustDeskDeviceGroupPayload(group, index) {
+    const guid = String(group.guid || '').trim();
+    // Build team.peers array from peer_ids — required by RustDesk Dart client
+    const peerRefs = (group.peer_ids || []).map(id => ({ id: String(id) }));
     return {
-        id: guid,
         guid,
-        device_group_guid: guid,
-        device_group_id: guid,
-        group_id: guid,
         name: group.name || '',
-        group_name: group.name || '',
+        team: { peers: peerRefs },
+        access_perm: 1,
         note: group.note || '',
-        team_id: group.team_id || '',
-        member_count: memberCount,
-        accessed_count: memberCount,
-        source_type: group.source_type || 'manual',
-        tag_filter: group.tag_filter || '',
-        folder_id: folderId,
-        allowed_users: Array.isArray(group.allowed_users) ? group.allowed_users : [],
-        allowed_groups: Array.isArray(group.allowed_groups) ? group.allowed_groups : []
+        created_at: '',
+        sort: typeof index === 'number' ? index : 0
     };
 }
 
@@ -524,7 +516,8 @@ async function getRustDeskPeerList(user, params = {}) {
     devices = await filterDevicesForRustDeskUser(user, devices);
     const accessUser = await deviceGroupService.getUserAccessContext(db, user);
 
-    devices = devices.filter(isReachableRustDeskDevice);
+    // Filter banned/disabled but keep offline devices visible (with correct status)
+    devices = devices.filter(d => d && !d.banned && !d.disabled);
 
     if (requestedFolder !== null) {
         devices = devices.filter(device => getDeviceFolderId(device) === requestedFolder);
@@ -575,41 +568,25 @@ async function getRustDeskPeerList(user, params = {}) {
         const displayName = device.display_name || '';
         const alias = displayName || device.note || hostname || String(device.id || '');
         const reachable = isReachableRustDeskDevice(device);
-        const liveStatus = String(device.live_status || device.status_tier || (reachable ? 'online' : 'offline')).toLowerCase();
 
+        // Match Go server PeerPayload format — info as nested map, status as int
         return {
             id: device.id,
-            hostname,
-            username,
+            info: {
+                device_name: hostname,
+                os: platform,
+                username: username,
+                version: sysinfo.version || ''
+            },
+            status: 1,
             user: username,
-            alias,
-            peer_name: alias,
-            display_name: displayName,
-            platform,
-            version: sysinfo.version || '',
-            ip: device.ip || '',
-            online: reachable,
-            live_online: reachable,
-            live_status: liveStatus,
-            status: liveStatus,
-            last_online: device.last_online || '',
-            created_at: device.created_at || '',
+            user_name: username,
             note: device.note || '',
-            banned: device.banned,
-            pk: device.pk || '',
-            cpu: sysinfo.cpu_name || '',
-            memory: sysinfo.memory_gb || 0,
-            os: sysinfo.os_full || device.os || '',
-            displays: sysinfo.displays || [],
-            device_type: device.device_type || '',
-            tags,
-            folder_id: folderId,
-            folder_name: deviceGroupName,
-            device_group_guid: deviceGroupGuid,
-            device_group_id: deviceGroupGuid,
             device_group_name: deviceGroupName,
-            group_id: deviceGroupGuid,
-            group_name: deviceGroupName
+            tags,
+            online: reachable,
+            alias,
+            hash: device.hash || ''
         };
     });
 
@@ -631,7 +608,7 @@ async function sendRustDeskDeviceGroups(req, res) {
         }
         const groups = await getRustDeskDeviceGroups(req.authUser);
         return res.json({
-            data: groups.map(rustDeskDeviceGroupPayload),
+            data: groups.map((g, i) => rustDeskDeviceGroupPayload(g, i)),
             total: groups.length,
             msg: 'success'
         });
