@@ -17,6 +17,7 @@ const config = require('../config/config');
  */
 function initCdapTerminalProxy(server, sessionMiddleware) {
     const wss = new WebSocket.Server({ noServer: true });
+    const { enforceOrigin } = require('../middleware/wsOrigin');
 
     server.on('upgrade', (req, socket, head) => {
         const url = new URL(req.url, `http://${req.headers.host}`);
@@ -27,6 +28,9 @@ function initCdapTerminalProxy(server, sessionMiddleware) {
         if (!match) return; // Let other upgrade handlers deal with it
 
         const deviceId = match[1];
+
+        // CSWSH protection — reject before validating session.
+        if (!enforceOrigin(req, socket, `cdap-terminal ${pathname}`)) return;
 
         // Require session authentication
         sessionMiddleware(req, {}, () => {

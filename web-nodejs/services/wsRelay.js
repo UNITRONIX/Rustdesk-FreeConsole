@@ -15,6 +15,7 @@ const WebSocket = require('ws');
 const net = require('net');
 const os = require('os');
 const config = require('../config/config');
+const { enforceOrigin } = require('../middleware/wsOrigin');
 
 // Maximum concurrent relay connections per IP
 const MAX_CONNECTIONS_PER_IP = 5;
@@ -75,6 +76,9 @@ function initWsProxy(server, sessionMiddleware) {
         if (pathname !== '/ws/rendezvous' && pathname !== '/ws/relay') {
             return; // let other upgrade handlers deal with it
         }
+
+        // CSWSH protection: reject cross-origin upgrades before touching session
+        if (!enforceOrigin(request, socket, `ws-proxy ${pathname}`)) return;
 
         // Validate the session against the real Express session store.
         // Using sessionMiddleware (from server.js) populates req.session, which

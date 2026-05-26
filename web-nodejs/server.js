@@ -168,19 +168,19 @@ app.use((req, res, next) => {
     next();
 });
 
-// CSRF protection — generate token for views, validate on POST/PUT/DELETE/PATCH
-// Skip CSRF for device-facing API routes (/api/bd/*) — these use Bearer token
-// or X-Device-Id header authentication, not browser cookie-based CSRF.
+// CSRF protection — generate token for views, validate on POST/PUT/DELETE/PATCH.
+// Skip CSRF for device-facing API routes (/api/bd/*) — these MUST authenticate
+// via Bearer access token (session-cookie fallback is rejected in requireDeviceAuth).
+//
+// SECURITY (audit fix C-02, 2026-04-10): the previous Origin-based CSRF skip
+// for Tauri webview origins (`tauri://localhost`, `https://tauri.localhost`,
+// `http://localhost:1420`) was removed — `Origin` is freely forgeable by any
+// non-browser HTTP client, so it is unsafe as a CSRF-bypass signal. Tauri
+// desktop clients receive the CSRF token via `csrfTokenProvider` and must
+// echo it back in the `X-CSRF-Token` header (csrf-csrf double-submit).
 app.use(csrfTokenProvider);
 app.use((req, res, next) => {
     if (req.path.startsWith('/api/bd/')) {
-        return next();
-    }
-    // Skip CSRF for BetterDesk desktop clients (Tauri) — they are not
-    // vulnerable to CSRF attacks (not browser tabs). Identified by origin.
-    const origin = req.headers.origin || '';
-    const tauriOrigins = ['http://localhost:1420', 'tauri://localhost', 'https://tauri.localhost'];
-    if (req.path.startsWith('/api/') && tauriOrigins.includes(origin)) {
         return next();
     }
     doubleCsrfProtection(req, res, next);

@@ -3,35 +3,111 @@
 package auth
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
+
+	"golang.org/x/crypto/pbkdf2"
 )
 
 const (
-	// PBKDF2-like iterations for password hashing.
-	pbkdfIterations = 100_000
-	saltLength      = 16
+	// currentIterations is the cost factor for newly created hashes.
+	// 600_000 matches the OWASP 2023 recommendation for PBKDF2-HMAC-SHA256.
+	// Increase periodically as compute power rises.
+	currentIterations = 600_000
+
+	// legacyIterations is used to verify hashes produced by the older single-block
+	// custom PBKDF2 implementation. Hashes in the legacy "hex(salt):hex(hash)" form
+	// are still accepted by VerifyPassword and should be re-hashed on next successful
+	// login (see NeedsRehash).
+	legacyIterations = 100_000
+
+	saltLength = 16
+	keyLength  = 32 // SHA-256 output size
+
+	// hashScheme is the prefix for the modern, self-describing hash format:
+	//   pbkdf2-sha256$<iterations>$<hex-salt>$<hex-hash>
+	hashScheme = "pbkdf2-sha256"
 )
 
-// HashPassword creates a salted PBKDF2-HMAC-SHA256 hash of the password.
-// Returns "hex(salt):hex(hash)".
+// HashPassword creates a salted PBKDF2-HMAC-SHA256 hash of the password using
+// the current cost parameters. The returned string is self-describing:
+//
+//	pbkdf2-sha256$<iterations>$<hex-salt>$<hex-hash>
+//
+// VerifyPassword also accepts hashes in the legacy "hex(salt):hex(hash)" form
+// (100_000 iterations) for backwards compatibility with existing user records.
 func HashPassword(password string) (string, error) {
 	salt := make([]byte, saltLength)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("auth: generate salt: %w", err)
 	}
-	hash := deriveKey(password, salt, pbkdfIterations)
-	return fmt.Sprintf("%s:%s", hex.EncodeToString(salt), hex.EncodeToString(hash)), nil
+	hash := pbkdf2.Key([]byte(password), salt, currentIterations, keyLength, sha256.New)
+	return fmt.Sprintf("%s$%d$%s$%s",
+		hashScheme,
+		currentIterations,
+		hex.EncodeToString(salt),
+		hex.EncodeToString(hash),
+	), nil
 }
 
-// VerifyPassword checks a password against a stored "salt:hash" string.
+// VerifyPassword checks a password against a stored hash. Supports two formats:
+//
+//  1. Modern: "pbkdf2-sha256$<iterations>$<hex-salt>$<hex-hash>"
+//  2. Legacy: "hex(salt):hex(hash)" — assumed 100_000 iterations
+//
 // Uses constant-time comparison to prevent timing attacks.
 func VerifyPassword(stored, password string) bool {
+	if strings.HasPrefix(stored, hashScheme+"$") {
+		return verifyModern(stored, password)
+	}
+	return verifyLegacy(stored, password)
+}
+
+// NeedsRehash reports whether the stored hash uses outdated parameters (legacy
+// format, or fewer iterations than the current cost). Callers should re-hash
+// the password on next successful login when this returns true.
+func NeedsRehash(stored string) bool {
+	if !strings.HasPrefix(stored, hashScheme+"$") {
+		return true
+	}
+	parts := strings.SplitN(stored, "$", 4)
+	if len(parts) != 4 {
+		return true
+	}
+	iter, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return true
+	}
+	return iter < currentIterations
+}
+
+func verifyModern(stored, password string) bool {
+	parts := strings.SplitN(stored, "$", 4)
+	if len(parts) != 4 {
+		return false
+	}
+	iter, err := strconv.Atoi(parts[1])
+	if err != nil || iter <= 0 || iter > 10_000_000 {
+		return false
+	}
+	salt, err := hex.DecodeString(parts[2])
+	if err != nil {
+		return false
+	}
+	expected, err := hex.DecodeString(parts[3])
+	if err != nil || len(expected) == 0 {
+		return false
+	}
+	actual := pbkdf2.Key([]byte(password), salt, iter, len(expected), sha256.New)
+	return subtle.ConstantTimeCompare(expected, actual) == 1
+}
+
+func verifyLegacy(stored, password string) bool {
 	parts := strings.SplitN(stored, ":", 2)
 	if len(parts) != 2 {
 		return false
@@ -41,42 +117,11 @@ func VerifyPassword(stored, password string) bool {
 		return false
 	}
 	expected, err := hex.DecodeString(parts[1])
-	if err != nil {
+	if err != nil || len(expected) == 0 {
 		return false
 	}
-	actual := deriveKey(password, salt, pbkdfIterations)
+	actual := pbkdf2.Key([]byte(password), salt, legacyIterations, len(expected), sha256.New)
 	return subtle.ConstantTimeCompare(expected, actual) == 1
-}
-
-// deriveKey computes PBKDF2-HMAC-SHA256(password, salt, iterations).
-func deriveKey(password string, salt []byte, iterations int) []byte {
-	// PBKDF2 with HMAC-SHA256 (RFC 2898)
-	prf := func(key, data []byte) []byte {
-		mac := hmac.New(sha256.New, key)
-		mac.Write(data)
-		return mac.Sum(nil)
-	}
-
-	// Single block derivation (32 bytes output)
-	keyLen := sha256.Size
-	block := make([]byte, len(salt)+4)
-	copy(block, salt)
-	block[len(salt)+0] = 0
-	block[len(salt)+1] = 0
-	block[len(salt)+2] = 0
-	block[len(salt)+3] = 1
-
-	u := prf([]byte(password), block)
-	result := make([]byte, keyLen)
-	copy(result, u)
-
-	for i := 1; i < iterations; i++ {
-		u = prf([]byte(password), u)
-		for j := range result {
-			result[j] ^= u[j]
-		}
-	}
-	return result
 }
 
 // GenerateRandomString generates a URL-safe random string of n bytes (hex-encoded).

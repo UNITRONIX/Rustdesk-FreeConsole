@@ -246,6 +246,7 @@ function handleViewerConnection(ws, deviceId, operatorName) {
 
 function initRemoteRelay(server, sessionMiddleware) {
     const wss = new WebSocket.Server({ noServer: true });
+    const { enforceOrigin } = require('../middleware/wsOrigin');
 
     server.on('upgrade', (req, socket, head) => {
         const url    = new URL(req.url, `http://${req.headers.host}`);
@@ -254,6 +255,7 @@ function initRemoteRelay(server, sessionMiddleware) {
         // Agent: /ws/remote-agent/<device_id>
         const agentMatch = path.match(/^\/ws\/remote-agent\/([^/]+)$/);
         if (agentMatch) {
+            if (!enforceOrigin(req, socket, `remote-agent ${path}`)) return;
             const deviceId = decodeURIComponent(agentMatch[1]);
             // Validate device ID format (reject path traversal etc.)
             if (!/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
@@ -270,6 +272,7 @@ function initRemoteRelay(server, sessionMiddleware) {
         // Viewer (operator): /ws/remote-viewer/<device_id>
         const viewerMatch = path.match(/^\/ws\/remote-viewer\/([^/]+)$/);
         if (viewerMatch) {
+            if (!enforceOrigin(req, socket, `remote-viewer ${path}`)) return;
             sessionMiddleware(req, {}, () => {
                 if (!req.session || !req.session.userId) {
                     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');

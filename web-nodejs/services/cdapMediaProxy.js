@@ -40,6 +40,7 @@ function createCdapMediaProxy(server, sessionMiddleware, opts) {
     };
 
     const wss = new WebSocket.Server({ noServer: true });
+    const { enforceOrigin } = require('../middleware/wsOrigin');
 
     server.on('upgrade', (req, socket, head) => {
         const url = new URL(req.url, `http://${req.headers.host}`);
@@ -47,6 +48,9 @@ function createCdapMediaProxy(server, sessionMiddleware, opts) {
         if (!match) return;
 
         const deviceId = match[1];
+
+        // CSWSH protection — reject before validating session.
+        if (!enforceOrigin(req, socket, `cdap-${label} ${url.pathname}`)) return;
 
         sessionMiddleware(req, {}, () => {
             if (!req.session || !req.session.userId) {

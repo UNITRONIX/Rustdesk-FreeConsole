@@ -205,6 +205,7 @@ function requestFromDevice(deviceId, type, payload = null, timeoutMs = REQUEST_T
 function initBdRelay(server) {
     const relayWss  = new WebSocket.Server({ noServer: true, maxPayload: MAX_FRAME_BYTES });
     const signalWss = new WebSocket.Server({ noServer: true, maxPayload: 64 * 1024 });
+    const { enforceOrigin } = require('../middleware/wsOrigin');
 
     // Attach to server upgrade — only handle /ws/bd-relay and /ws/bd-signal,
     // let other handlers (remoteRelay, chatRelay, cdap) handle their paths.
@@ -213,10 +214,12 @@ function initBdRelay(server) {
         const pathname = url.pathname;
 
         if (pathname === '/ws/bd-relay') {
+            if (!enforceOrigin(request, socket, `bd-relay ${pathname}`)) return;
             relayWss.handleUpgrade(request, socket, head, (ws) => {
                 relayWss.emit('connection', ws, request);
             });
         } else if (pathname === '/ws/bd-signal') {
+            if (!enforceOrigin(request, socket, `bd-signal ${pathname}`)) return;
             signalWss.handleUpgrade(request, socket, head, (ws) => {
                 signalWss.emit('connection', ws, request);
             });

@@ -495,6 +495,7 @@ function initChatRelay(server, sessionMiddleware, betterdeskApi) {
     }
 
     const wss = new WebSocket.Server({ noServer: true });
+    const { enforceOrigin } = require('../middleware/wsOrigin');
 
     server.on('upgrade', (req, socket, head) => {
         const url = new URL(req.url, `http://${req.headers.host}`);
@@ -502,6 +503,7 @@ function initChatRelay(server, sessionMiddleware, betterdeskApi) {
 
         const agentMatch = pathname.match(/^\/ws\/chat\/([^/]+)$/);
         if (agentMatch) {
+            if (!enforceOrigin(req, socket, `chat-agent ${pathname}`)) return;
             wss.handleUpgrade(req, socket, head, (ws) => {
                 wss.emit('connection', ws, req, 'agent', agentMatch[1]);
             });
@@ -510,6 +512,7 @@ function initChatRelay(server, sessionMiddleware, betterdeskApi) {
 
         const opMatch = pathname.match(/^\/ws\/chat-operator\/([^/]+)$/);
         if (opMatch) {
+            if (!enforceOrigin(req, socket, `chat-operator ${pathname}`)) return;
             sessionMiddleware(req, {}, () => {
                 if (!req.session || !req.session.userId) {
                     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');

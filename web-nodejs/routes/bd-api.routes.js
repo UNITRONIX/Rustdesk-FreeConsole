@@ -132,19 +132,16 @@ function buildSessionHistory(entries, limit) {
 // ---------------------------------------------------------------------------
 
 async function requireDeviceAuth(req, res, next) {
-    // DEBUG: Log incoming auth state for troubleshooting
-    const authHeader = req.headers['authorization'] || '(none)';
-    const sessionId = req.session?.id || '(no session)';
-    const sessionUserId = req.session?.userId || '(no userId)';
-    const cookies = Object.keys(req.cookies || {}).join(', ') || '(no cookies)';
-    console.log(`[BD-API] requireDeviceAuth: path=${req.path} auth=${authHeader.substring(0, 20)}... session=${sessionId.substring(0, 10)}... userId=${sessionUserId} cookies=[${cookies}]`);
-
-    // Primary: Bearer access token
+    // SECURITY (audit fix H-02, 2026-04-10): /api/bd/* now accepts ONLY
+    // Bearer access tokens. The previous session-cookie fallback combined
+    // with the CSRF skip for /api/bd/* enabled CSRF on device-management
+    // endpoints when called from an authenticated browser session.
+    // Browser-based operators must obtain a Bearer token from
+    // POST /api/auth/access-token before calling /api/bd/* endpoints.
     const token = extractBearerToken(req);
     if (token) {
         try {
             const tokenRow = await db.getAccessToken(token);
-            console.log(`[BD-API] Bearer token lookup: found=${!!tokenRow}`);
             if (tokenRow) {
                 const user = await db.getUserById(tokenRow.user_id);
                 req.deviceToken = tokenRow;
@@ -157,23 +154,10 @@ async function requireDeviceAuth(req, res, next) {
         }
     }
 
-    // Fallback: express-session cookie (from Tauri api_proxy with cookie jar)
-    if (req.session && req.session.userId) {
-        try {
-            const user = await db.getUserById(req.session.userId);
-            console.log(`[BD-API] Session fallback: userId=${req.session.userId} userFound=${!!user} role=${user?.role}`);
-            if (user && (user.role === 'admin' || user.role === 'operator')) {
-                req.deviceUser = user;
-                req.deviceToken = { client_id: 'session', user_id: user.id };
-                return next();
-            }
-        } catch (err) {
-            console.error('[BD-API] Session auth error:', err.message);
-        }
-    }
-
-    console.warn(`[BD-API] Auth FAILED for ${req.method} ${req.path} — no valid Bearer token and no session cookie`);
-    return res.status(401).json({ error: 'Missing authorization token' });
+    // Log auth attempt without leaking the token (redact entirely).
+    const hasAuth = !!req.headers['authorization'];
+    console.warn(`[BD-API] Auth FAILED ${req.method} ${req.path} — Bearer=${hasAuth ? '[present-invalid]' : '[absent]'} ip=${req.ip}`);
+    return res.status(401).json({ error: 'Missing or invalid Bearer access token' });
 }
 
 /**

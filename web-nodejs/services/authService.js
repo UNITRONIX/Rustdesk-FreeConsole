@@ -20,18 +20,23 @@ const DUMMY_HASH = '$2b$12$KiXeOj5vHpJRJHGMhWzadeKfRJLvJRaRHQbMGBBdkpu.jQfXAzgWS
 const http = require('http');
 const https = require('https');
 
-// PBKDF2 parameters matching Go server's auth.HashPassword()
-const PBKDF2_ITERATIONS = 100_000;
-const PBKDF2_KEY_LENGTH = 32; // SHA-256 output size
+// PBKDF2 parameters matching Go server's auth.HashPassword().
+// Two formats are supported when verifying hashes that originated on the
+// Go server (panel can fall back to those when migrating users):
+//   - Legacy: "hex(salt):hex(hash)"               — 100_000 iter, SHA-256
+//   - Modern: "pbkdf2-sha256$<iter>$<salt>$<hash>" — variable iter, SHA-256
+const PBKDF2_LEGACY_ITERATIONS = 100_000;
+const PBKDF2_KEY_LENGTH = 32;        // SHA-256 output size
 const PBKDF2_DIGEST = 'sha256';
+const PBKDF2_MODERN_PREFIX = 'pbkdf2-sha256$';
 
 /**
  * Detect whether a stored hash is bcrypt or PBKDF2 (Go server format).
- * Go format: "hex_salt:hex_derived_key" (32-char salt + ":" + 64-char key)
- * bcrypt format: "$2b$..." or "$2a$..."
+ * Accepts both the legacy "salt:hash" and modern "pbkdf2-sha256$..." forms.
  */
 function isPBKDF2Hash(hash) {
     if (!hash || hash.startsWith('$2b$') || hash.startsWith('$2a$')) return false;
+    if (hash.startsWith(PBKDF2_MODERN_PREFIX)) return true;
     const parts = hash.split(':');
     return parts.length === 2
         && /^[0-9a-f]{32}$/i.test(parts[0])
@@ -40,14 +45,32 @@ function isPBKDF2Hash(hash) {
 
 /**
  * Verify a password against a PBKDF2-HMAC-SHA256 hash (Go server format).
- * Format: "hex(salt):hex(derived_key)" with 100,000 iterations, SHA-256.
+ * Supports both legacy "salt:hash" (100k iterations) and modern
+ * "pbkdf2-sha256$<iter>$<salt>$<hash>" formats.
  */
 function verifyPBKDF2(password, stored) {
+    if (stored.startsWith(PBKDF2_MODERN_PREFIX)) {
+        const parts = stored.split('$');
+        // parts[0] === "pbkdf2-sha256", [1]=iter, [2]=hex-salt, [3]=hex-hash
+        if (parts.length !== 4) return false;
+        const iter = parseInt(parts[1], 10);
+        if (!Number.isFinite(iter) || iter <= 0 || iter > 10_000_000) return false;
+        let salt, expected;
+        try {
+            salt = Buffer.from(parts[2], 'hex');
+            expected = Buffer.from(parts[3], 'hex');
+        } catch (_) {
+            return false;
+        }
+        if (salt.length === 0 || expected.length === 0) return false;
+        const derived = crypto.pbkdf2Sync(password, salt, iter, expected.length, PBKDF2_DIGEST);
+        return derived.length === expected.length && crypto.timingSafeEqual(expected, derived);
+    }
     const parts = stored.split(':');
     if (parts.length !== 2) return false;
     const salt = Buffer.from(parts[0], 'hex');
     const expected = Buffer.from(parts[1], 'hex');
-    const derived = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH, PBKDF2_DIGEST);
+    const derived = crypto.pbkdf2Sync(password, salt, PBKDF2_LEGACY_ITERATIONS, PBKDF2_KEY_LENGTH, PBKDF2_DIGEST);
     return crypto.timingSafeEqual(expected, derived);
 }
 
@@ -156,22 +179,30 @@ async function authenticate(username, password) {
         // Timing-safe: do a real hash comparison to prevent user enumeration
         await bcrypt.compare(password, DUMMY_HASH);
 
-        // Fallback: user may exist on Go server but not in local Node.js auth.db
-        const goResult = await tryGoServerAuth(username, password);
-        if (goResult) {
-            console.log(`[AUTH] Go server accepted credentials for '${username}' — creating local user`);
-            const bcryptHash = await hashPassword(password);
-            await db.createUser(username, bcryptHash, goResult.role || 'admin');
-            const created = await db.getUserByUsername(username);
-            if (created) {
-                await db.updateLastLogin(created.id);
-                return {
-                    id: created.id,
-                    username: created.username,
-                    role: created.role,
-                    preferred_language: created.preferred_language || null,
-                    totpRequired: false,
-                };
+        // SECURITY (audit fix H-01, 2026-04-10): auto-creation of a local
+        // user when the Go server accepts credentials is OPT-IN only.
+        // A compromised Go server would otherwise automatically provision
+        // admin accounts in the panel. Enable explicitly via
+        // BETTERDESK_AUTH_AUTOCREATE=true when synchronizing identities
+        // with a trusted central auth (e.g., first-time bootstrap).
+        const autoCreateEnabled = process.env.BETTERDESK_AUTH_AUTOCREATE === 'true';
+        if (autoCreateEnabled) {
+            const goResult = await tryGoServerAuth(username, password);
+            if (goResult) {
+                console.log(`[AUTH] Go server accepted credentials for '${username}' — creating local user (BETTERDESK_AUTH_AUTOCREATE=true)`);
+                const bcryptHash = await hashPassword(password);
+                await db.createUser(username, bcryptHash, goResult.role || 'admin');
+                const created = await db.getUserByUsername(username);
+                if (created) {
+                    await db.updateLastLogin(created.id);
+                    return {
+                        id: created.id,
+                        username: created.username,
+                        role: created.role,
+                        preferred_language: created.preferred_language || null,
+                        totpRequired: false,
+                    };
+                }
             }
         }
 
