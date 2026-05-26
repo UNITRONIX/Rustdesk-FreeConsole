@@ -209,7 +209,7 @@
     color: var(--accent-red);
 }
 
-/* Add folder chip */
+/* Add chip (create folder / create group) — unified style */
 .chip-add {
     display: grid;
     grid-template-columns: 1fr;
@@ -222,7 +222,14 @@
 }
 
 .group-chip.chip-add {
+    /* Override group-chip base grid to match folder-chip add tile */
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    align-items: center;
+    justify-items: center;
+    text-align: center;
     gap: 6px 8px;
+    border-style: dashed;
 }
 
 .chip-add:hover {

@@ -383,6 +383,13 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 // handleListUsers returns all users without sensitive fields.
 // GET /api/users
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	// Detect RustDesk client group model request: sends ?accessible&status=1
+	// and expects {total,data} envelope with UserPayload format.
+	if r.URL.Query().Has("accessible") || r.URL.Query().Has("pageSize") {
+		s.handleClientUsersList(w, r)
+		return
+	}
+
 	users, err := s.db.ListUsers()
 	if err != nil {
 		log.Printf("api: list users failed: %v", err)
@@ -409,6 +416,40 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// handleClientUsersList returns users in the {total,data} envelope format
+// expected by the RustDesk Flutter client's group model (UserPayload format).
+func (s *Server) handleClientUsersList(w http.ResponseWriter, r *http.Request) {
+	users, err := s.db.ListUsers()
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"total": 0,
+			"data":  []any{},
+		})
+		return
+	}
+
+	result := make([]map[string]any, 0, len(users))
+	for _, u := range users {
+		// Convert role to status int: 1=active (normal), 0=disabled
+		statusInt := 1
+		isAdmin := u.Role == "admin" || u.Role == "super_admin" || u.IsServerAdmin
+
+		result = append(result, map[string]any{
+			"name":         u.Username,
+			"display_name": u.Username,
+			"email":        "",
+			"note":         "",
+			"status":       statusInt,
+			"is_admin":     isAdmin,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"total": len(result),
+		"data":  result,
+	})
 }
 
 // handleCreateUser creates a new user account.
