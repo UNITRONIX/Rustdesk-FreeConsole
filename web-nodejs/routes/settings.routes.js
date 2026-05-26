@@ -15,7 +15,7 @@ const fontService = require('../services/fontService');
 const serverBackend = require('../services/serverBackend');
 const backupService = require('../services/backupService');
 const updateService = require('../services/updateService');
-const { requireAuth, requirePermission } = require('../middleware/auth');
+const { requireAuth, requirePermission, roleHasPermission } = require('../middleware/auth');
 const os = require('os');
 const multer = require('multer');
 
@@ -23,9 +23,12 @@ const multer = require('multer');
  * GET /settings - Settings page
  */
 router.get('/settings', requireAuth, (req, res) => {
+    const userRole = req.session.user && req.session.user.role;
     res.render('settings', {
         title: req.t('nav.settings'),
-        activePage: 'settings'
+        activePage: 'settings',
+        canServerConfig: roleHasPermission(userRole, 'server.config'),
+        canBrandingEdit: roleHasPermission(userRole, 'branding.edit')
     });
 });
 

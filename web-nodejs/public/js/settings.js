@@ -12,8 +12,15 @@
         initPasswordForm();
         initTotpSection();
         initBrandingSection();
-        initBackupSection();
-        initUpdateSection();
+
+        // Only init server-config sections when the tab is visible (requires server.config permission)
+        if (document.getElementById('tab-backup') && document.getElementById('tab-backup').style.display !== 'none') {
+            initBackupSection();
+        }
+        if (document.getElementById('tab-updates') && document.getElementById('tab-updates').style.display !== 'none') {
+            initUpdateSection();
+        }
+
         initTutorialSection();
         loadAuditLog();
         loadServerInfo();

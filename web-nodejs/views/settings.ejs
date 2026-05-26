@@ -20,14 +20,14 @@
                 <span class="material-icons">palette</span>
                 ${_('settings.tab_branding')}
             </button>
-            <button class="settings-tab" data-tab="backup">
+            ${canServerConfig ? `<button class="settings-tab" data-tab="backup">
                 <span class="material-icons">backup</span>
                 ${_('settings.tab_backup')}
             </button>
             <button class="settings-tab" data-tab="updates">
                 <span class="material-icons">system_update</span>
                 ${_('updates.tab_title')}
-            </button>
+            </button>` : ''}
         </div>
         
         <!-- General Tab -->
@@ -577,8 +577,8 @@
         </div>
         </div>
         
-        <!-- Backup & Restore Tab -->
-        <div class="settings-tab-content" id="tab-backup">
+        <!-- Backup & Restore Tab (server.config permission required) -->
+        <div class="settings-tab-content" id="tab-backup" ${canServerConfig ? '' : 'style="display:none"'}>
         <div class="settings-sections">
             <!-- Backup Info -->
             <div class="settings-section">
@@ -675,8 +675,8 @@
         </div>
         </div>
         
-        <!-- Updates Tab -->
-        <div class="settings-tab-content" id="tab-updates">
+        <!-- Updates Tab (server.config permission required) -->
+        <div class="settings-tab-content" id="tab-updates" ${canServerConfig ? '' : 'style="display:none"'}>
         <div class="settings-sections">
             <!-- Version Check -->
             <div class="settings-section">
