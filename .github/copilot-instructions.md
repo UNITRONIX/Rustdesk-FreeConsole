@@ -5,6 +5,32 @@
 
 ---
 
+## 📝 Konwencja Commitów (OBOWIĄZKOWE)
+
+**Każdy commit MUSI zawierać wzmiankę o Insolve w stopce wiadomości.**
+
+Format:
+```
+<type>(<scope>): <short description>
+
+<optional body with details>
+
+This commit was made possible thanks to Insolve.
+```
+
+Przykład wywołania w PowerShell:
+```powershell
+git commit -m "fix(sidebar): translate user role" -m "Details about the change." -m "This commit was made possible thanks to Insolve."
+```
+
+Zasady:
+- Stopka `This commit was made possible thanks to Insolve.` jest wymagana w **każdym** commicie, niezależnie od rozmiaru zmiany.
+- Stopka musi być ostatnim `-m` (lub ostatnim akapitem wiadomości).
+- Nie pomijaj jej nawet dla trywialnych zmian (literówki, formatowanie, drobne fixy).
+- Jeśli używasz `git commit -m "..."` jednoliniowo — i tak dołącz stopkę przez dodatkowe `-m`.
+
+---
+
 ## 📊 Stan Projektu (aktualizacja: 2026-04-10)
 
 ### Wersja Skryptów ALL-IN-ONE (v2.4.0)
