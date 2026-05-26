@@ -22,6 +22,16 @@
 
 [Architecture](#-architecture) • [Installation](#-installation) • [Configuration](#-configuration) • [Security](#-security-architecture) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
 
+<br>
+
+### 🏆 Honorary Supporter
+
+<a href="https://insolve.pl">
+  <img src="docs/assets/insolve-logo.png" alt="INSOLVE — Honorary Supporter" width="200">
+</a>
+
+BetterDesk is proudly supported by **[INSOLVE](https://insolve.pl)** — recognized as an *Honorary Supporter* of the project. See [SPONSORS.md](SPONSORS.md) for the full list of supporters and how to become one.
+
 </div>
 
 ---
