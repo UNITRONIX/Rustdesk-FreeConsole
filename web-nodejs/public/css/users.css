@@ -320,7 +320,8 @@
     gap: var(--space-xs);
 }
 
-.user-actions .action-btn {
+.user-actions .action-btn,
+.user-group-manager-actions .action-btn {
     padding: var(--space-xs);
     background: none;
     border: none;
@@ -333,12 +334,14 @@
     justify-content: center;
 }
 
-.user-actions .action-btn:hover {
+.user-actions .action-btn:hover,
+.user-group-manager-actions .action-btn:hover {
     color: var(--text-primary, #e6edf3);
     background: var(--bg-tertiary, #21262d);
 }
 
-.user-actions .action-btn.danger:hover {
+.user-actions .action-btn.danger:hover,
+.user-group-manager-actions .action-btn.danger:hover {
     color: var(--accent-red, #f85149);
     background: var(--accent-red-muted, rgba(248, 81, 73, 0.1));
 }

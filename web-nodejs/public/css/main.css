@@ -671,6 +671,29 @@ table {
     border-color: var(--accent-red-hover);
 }
 
+.btn-warning {
+    background: var(--accent-yellow);
+    color: white;
+    border-color: var(--accent-yellow);
+}
+
+.btn-warning:hover:not(:disabled) {
+    background: var(--accent-yellow-hover);
+    border-color: var(--accent-yellow-hover);
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-primary);
+}
+
+.btn-outline:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-hover);
+}
+
 .btn-ghost {
     background: transparent;
     color: var(--text-secondary);
