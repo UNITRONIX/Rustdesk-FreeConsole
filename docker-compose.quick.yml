@@ -44,6 +44,13 @@ services:
     networks:
       - betterdesk-net
     restart: unless-stopped
+    # SECURITY (audit fix L-02, 2026-04-10): no privilege escalation, drop
+    # all Linux capabilities — Go server only needs to bind ports + write
+    # to the mounted volume.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:21114/api/health"]
       interval: 30s
@@ -85,6 +92,11 @@ services:
       server:
         condition: service_healthy
     restart: unless-stopped
+    # L-02: drop caps + no privilege escalation for Node.js console
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:5000/login"]
       interval: 30s

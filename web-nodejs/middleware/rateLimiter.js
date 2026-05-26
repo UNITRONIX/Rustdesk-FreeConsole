@@ -5,8 +5,15 @@
 const rateLimit = require('express-rate-limit');
 const config = require('../config/config');
 
+const defaultKeyGenerator = (req) => req.ip || req.headers['x-forwarded-for'] || 'unknown';
+
 /**
- * General API rate limiter
+ * General API rate limiter.
+ *
+ * SECURITY (audit fix M-03, 2026-04-10): the previous Referer-based skip was
+ * removed because Referer is fully client-controlled. High-frequency widget /
+ * dashboard refresh endpoints now have their own higher-quota limiter
+ * (`widgetLimiter`) that the panel routes opt into explicitly.
  */
 const apiLimiter = rateLimit({
     windowMs: config.rateLimitWindowMs,
@@ -17,18 +24,24 @@ const apiLimiter = rateLimit({
         success: false,
         error: 'Too many requests. Please try again later.'
     },
-    keyGenerator: (req) => {
-        return req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    keyGenerator: defaultKeyGenerator
+});
+
+/**
+ * Widget / dashboard refresh limiter. Higher quota (600 req/min by default)
+ * because the panel polls many widgets in parallel. Still authenticated —
+ * mount only on routes that require an active session.
+ */
+const widgetLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: parseInt(process.env.WIDGET_RATE_LIMIT_MAX, 10) || 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        success: false,
+        error: 'Too many widget requests. Please slow down.'
     },
-    skip: (req) => {
-        // Skip rate limiting for widget data endpoints from same-origin panel requests
-        // These are internal dashboard/widget refresh calls, not external abuse
-        const widgetPaths = ['/api/stats', '/api/server/status', '/api/devices', '/api/audit/conn'];
-        if (widgetPaths.some(p => req.path.startsWith(p)) && req.headers.referer && req.session && req.session.userId) {
-            return true;
-        }
-        return false;
-    }
+    keyGenerator: defaultKeyGenerator
 });
 
 /**
@@ -64,6 +77,7 @@ const passwordChangeLimiter = rateLimit({
 
 module.exports = {
     apiLimiter,
+    widgetLimiter,
     loginLimiter,
     passwordChangeLimiter
 };

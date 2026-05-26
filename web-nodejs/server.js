@@ -18,7 +18,7 @@ const https = require('https');
 const config = require('./config/config');
 const securityMiddleware = require('./middleware/security');
 const { initI18n } = require('./middleware/i18n');
-const { apiLimiter } = require('./middleware/rateLimiter');
+const { apiLimiter, widgetLimiter } = require('./middleware/rateLimiter');
 const { csrfTokenProvider, doubleCsrfProtection, downgradeToHttp: csrfDowngradeToHttp } = require('./middleware/csrf');
 const { roleHasPermission, isSuperAdminRole } = require('./middleware/auth');
 const authService = require('./services/authService');
@@ -138,7 +138,14 @@ app.use('/wallpapers', express.static(path.join(__dirname, 'wallpapers'), {
     immutable: true
 }));
 
-// Rate limiting for API
+// Rate limiting for API.
+// SECURITY (audit fix M-03, 2026-04-10): high-frequency widget refresh paths
+// have their own higher-quota limiter mounted BEFORE the general one so they
+// are still bounded but do not eat into the regular API budget.
+const widgetPaths = ['/api/stats', '/api/server/status', '/api/devices', '/api/audit/conn'];
+for (const p of widgetPaths) {
+    app.use(p, widgetLimiter);
+}
 app.use('/api/', apiLimiter);
 
 // RustDesk Client API — mounted BEFORE CSRF because desktop clients use Bearer
@@ -745,6 +752,34 @@ function printStartupBanner(protocol, port) {
         console.log('  ⚠️  NOTICE [SECURITY]: TRUST_PROXY is enabled (' + trustProxy + ').');
         console.log('     Ensure a trusted reverse proxy sets X-Forwarded-For correctly.');
         console.log('');
+    }
+
+    // L-01 (audit 2026-04-10): warn about disabled proxy trust in production
+    // — rate limiters and audit logs will see the proxy IP, not the client IP.
+    if (process.env.NODE_ENV === 'production' && (!trustProxy || trustProxy === false || trustProxy === 0)) {
+        console.log('  ⚠️  WARNING [SECURITY]: NODE_ENV=production but TRUST_PROXY is disabled.');
+        console.log('     If the panel is behind a reverse proxy (nginx, Cloudflare, ALB,');
+        console.log('     Traefik…) rate-limit keys and audit logs will record the proxy IP,');
+        console.log('     not the real client IP. Set TRUST_PROXY=1 (single proxy) or a CIDR list.');
+        console.log('');
+    }
+
+    // H-04 (audit 2026-04-10): unconditional banner when the RustDesk client
+    // API TOTP bypass is enabled, regardless of acknowledgement — the bypass
+    // weakens 2FA on the WAN-facing :21121 endpoint and operators MUST be
+    // aware of it on every restart.
+    if (config.rustdeskApiDisableTotp) {
+        if (!config.rustdeskApiDisableTotpAck) {
+            console.log('  ⛔  ERROR  [SECURITY]: RUSTDESK_API_DISABLE_TOTP=true but ACK flag is missing.');
+            console.log('     The bypass is IGNORED. Set RUSTDESK_API_DISABLE_TOTP_ACKNOWLEDGED=true');
+            console.log('     to confirm you accept disabling 2FA on the RustDesk client login.');
+            console.log('');
+        } else {
+            console.log('  ⚠️  WARNING [SECURITY]: TOTP is DISABLED on the RustDesk client API (:21121).');
+            console.log('     RustDesk desktop clients can log in with username+password only.');
+            console.log('     The web panel still enforces 2FA independently.');
+            console.log('');
+        }
     }
 }
 

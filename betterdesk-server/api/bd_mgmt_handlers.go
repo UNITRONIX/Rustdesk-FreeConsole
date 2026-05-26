@@ -294,6 +294,11 @@ func (s *Server) handleBdMgmt(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[bd-mgmt] WebSocket accept error for %s: %v", deviceID, err)
 		return
 	}
+	// SECURITY (audit fix I-02, 2026-04-10): cap inbound WebSocket frames at
+	// 16 MiB so a misbehaving / hostile device cannot exhaust server memory
+	// by streaming an unbounded JSON payload. The CDAP gateway has its own
+	// 8 MiB cap; this channel allows slightly larger management blobs.
+	conn.SetReadLimit(16 << 20)
 
 	ctx, cancel := context.WithCancel(r.Context())
 	session := &bdMgmtSession{

@@ -143,6 +143,14 @@ module.exports = {
     //   - rely on device bans / API key for admin endpoints.
     rustdeskApiDisableTotp: (process.env.RUSTDESK_API_DISABLE_TOTP || 'false').toLowerCase() === 'true',
 
+    // H-04 mitigation (audit 2026-04-10):
+    // Setting RUSTDESK_API_DISABLE_TOTP=true alone is no longer sufficient —
+    // the operator must also opt in explicitly with
+    // RUSTDESK_API_DISABLE_TOTP_ACKNOWLEDGED=true, confirming they have read
+    // and accepted the WAN-port 2FA bypass risk. Without the ACK flag the
+    // bypass is ignored and TOTP is enforced normally on :21121.
+    rustdeskApiDisableTotpAck: (process.env.RUSTDESK_API_DISABLE_TOTP_ACKNOWLEDGED || 'false').toLowerCase() === 'true',
+
     // HTTPS / SSL
     httpsEnabled: (process.env.HTTPS_ENABLED || 'false').toLowerCase() === 'true',
     httpsPort: parseInt(process.env.HTTPS_PORT, 10) || 5443,

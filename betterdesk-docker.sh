@@ -599,7 +599,8 @@ EOF
             admin_password=$(cut -d: -f2 "$DATA_DIR/.admin_credentials" 2>/dev/null)
         fi
         if [ -z "$admin_password" ]; then
-            admin_password=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+            # SECURITY (audit fix M-05, 2026-04-10): full hex entropy
+            admin_password=$(openssl rand -hex 16)
             # Only clean auth.db on FRESH install (no existing credentials)
             if docker volume inspect "${PROJECT_NAME:-betterdesk}_console_data" >/dev/null 2>&1; then
                 print_info "Cleaning old auth database from console_data volume..."
@@ -817,7 +818,8 @@ create_admin_user() {
     # Use the password generated during compose file creation
     local admin_password="${DOCKER_ADMIN_PASSWORD}"
     if [ -z "$admin_password" ]; then
-        admin_password=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+        # M-05: full hex entropy
+        admin_password=$(openssl rand -hex 16)
     fi
     
     # Wait for database to be created
@@ -1280,7 +1282,8 @@ do_reset_password() {
     
     case $pw_choice in
         1)
-            new_password=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+            # M-05: full hex entropy
+            new_password=$(openssl rand -hex 16)
             ;;
         2)
             echo ""

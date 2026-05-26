@@ -1194,7 +1194,10 @@ setup_postgresql_database() {
     
     # Generate password if not set
     if [ -z "$POSTGRESQL_PASS" ]; then
-        POSTGRESQL_PASS=$(openssl rand -base64 16 | tr -d '/+=' | head -c 16)
+        # SECURITY (audit fix M-05, 2026-04-10): use hex (4 bits/char, no
+        # alphabet shrinking) instead of base64+tr+truncate which lost a few
+        # entropy bits per character.
+        POSTGRESQL_PASS=$(openssl rand -hex 16)
         print_info "Generated PostgreSQL password"
     fi
     
@@ -1511,8 +1514,8 @@ install_nodejs_console() {
             rm -f "$CONSOLE_PATH/data/auth.db" "$CONSOLE_PATH/data/auth.db-wal" "$CONSOLE_PATH/data/auth.db-shm"
         fi
         
-        # Generate admin password for Node.js console
-        ADMIN_PASSWORD=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+        # Generate admin password for Node.js console (M-05: full hex entropy)
+        ADMIN_PASSWORD=$(openssl rand -hex 16)
         local nodejs_admin_password="$ADMIN_PASSWORD"
         
         # Create sentinel file so ensureDefaultAdmin() force-updates the password
@@ -3105,7 +3108,8 @@ do_reset_password() {
     
     case $pw_choice in
         1)
-            new_password=$(openssl rand -base64 12 | tr -d '/+=' | head -c 16)
+            # M-05: full hex entropy
+            new_password=$(openssl rand -hex 16)
             ;;
         2)
             echo ""
@@ -4559,14 +4563,17 @@ do_migrate_database() {
             fi
 
             print_step "Running Node.js → Go migration..."
-            local cmd="$migrate_bin -mode nodejs2go -src $src_db"
+            # SECURITY (audit fix M-04, 2026-04-10): use a bash array + direct exec
+            # instead of cmd-string + eval to avoid shell injection if any input
+            # contains spaces / metacharacters.
+            local args=("-mode" "nodejs2go" "-src" "$src_db")
             if [ -f "$auth_db" ]; then
-                cmd="$cmd -node-auth $auth_db"
+                args+=("-node-auth" "$auth_db")
             fi
             if [ -n "$dst_db" ]; then
-                cmd="$cmd -dst $dst_db"
+                args+=("-dst" "$dst_db")
             fi
-            eval "$cmd" 2>&1
+            "$migrate_bin" "${args[@]}" 2>&1
 
             if [ $? -eq 0 ]; then
                 print_success "Node.js → Go migration completed successfully!"

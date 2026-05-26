@@ -85,6 +85,15 @@ type Config struct {
 	AllowedWSOrigins    string // Comma-separated allowed WebSocket origins (empty = allow all)
 	APIAllowedWSOrigins string // Comma-separated allowed WebSocket origins for HTTP API events endpoint
 
+	// Metrics endpoint access control (audit fix H-03, 2026-04-10)
+	// MetricsAllowlist: comma-separated list of IP / CIDR allowed to call /metrics.
+	//   Empty + MetricsPublic=false => /metrics requires authentication.
+	//   Non-empty                  => /metrics is open to listed IPs only, no auth.
+	// MetricsPublic: when true, /metrics is reachable without auth from anywhere
+	//   (legacy behavior). Off by default.
+	MetricsAllowlist string
+	MetricsPublic    bool
+
 	// TLS for signal/relay/api (Phase 3 + Phase 21)
 	TLSSignal bool // Enable TLS on TCP signal (:21116) and WS signal (:21118)
 	TLSRelay  bool // Enable TLS on TCP relay (:21117) and WS relay (:21119)
@@ -248,6 +257,12 @@ func (c *Config) LoadEnv() {
 	if v := os.Getenv("API_WS_ALLOWED_ORIGINS"); v != "" {
 		c.APIAllowedWSOrigins = v
 	}
+	if v := os.Getenv("METRICS_IP_ALLOWLIST"); v != "" {
+		c.MetricsAllowlist = v
+	}
+	if strings.ToUpper(os.Getenv("METRICS_PUBLIC")) == "Y" || strings.ToUpper(os.Getenv("METRICS_PUBLIC")) == "YES" || os.Getenv("METRICS_PUBLIC") == "1" || strings.ToUpper(os.Getenv("METRICS_PUBLIC")) == "TRUE" {
+		c.MetricsPublic = true
+	}
 	if strings.ToUpper(os.Getenv("TLS_SIGNAL")) == "Y" {
 		c.TLSSignal = true
 	}
@@ -362,6 +377,23 @@ func (c *Config) GetAPIAllowedWSOrigins() []string {
 	origins := strings.Split(c.APIAllowedWSOrigins, ",")
 	result := make([]string, 0, len(origins))
 	for _, o := range origins {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			result = append(result, o)
+		}
+	}
+	return result
+}
+
+// GetMetricsAllowlist returns the parsed list of IP / CIDR allowed to call /metrics.
+// Used together with MetricsPublic to decide whether to require authentication.
+func (c *Config) GetMetricsAllowlist() []string {
+	if c.MetricsAllowlist == "" {
+		return nil
+	}
+	parts := strings.Split(c.MetricsAllowlist, ",")
+	result := make([]string, 0, len(parts))
+	for _, o := range parts {
 		o = strings.TrimSpace(o)
 		if o != "" {
 			result = append(result, o)

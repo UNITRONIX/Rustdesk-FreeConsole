@@ -56,6 +56,10 @@ type Server struct {
 	jwtManager        *auth.JWTManager
 	loginLimiter      *ratelimit.IPLimiter
 	heartbeatLimiter  *ratelimit.IPLimiter // BD-2026-001: rate-limit heartbeat/sysinfo
+	// SECURITY (audit fix M-07, 2026-04-10): rate-limit public enrollment and
+	// branding endpoints to deter device-ID enumeration and config probing.
+	enrollmentLimiter *ratelimit.IPLimiter
+	brandingLimiter   *ratelimit.IPLimiter
 	keyPair           *crypto.KeyPair      // Ed25519 keypair for signing
 	cdapGw            *cdap.Gateway        // CDAP gateway (nil if CDAP disabled)
 	clientTFASessions *tfaSessionStore
@@ -74,8 +78,71 @@ func New(cfg *config.Config, database db.Database, peerMap *peer.Map, relaySrv *
 		version:           version,
 		loginLimiter:      ratelimit.NewIPLimiter(5, 5*time.Minute, 10*time.Minute),
 		heartbeatLimiter:  ratelimit.NewIPLimiter(20, 60*time.Second, 5*time.Minute), // BD-2026-001: 20 req/min per IP
+		enrollmentLimiter: ratelimit.NewIPLimiter(20, 1*time.Minute, 5*time.Minute),  // M-07: 20/min per IP, 5-min block
+		brandingLimiter:   ratelimit.NewIPLimiter(60, 1*time.Minute, 5*time.Minute),  // M-07: 60/min per IP
 		clientTFASessions: newTFASessionStore(),
 	}
+}
+
+// rateLimitPublic wraps a public (no-auth) handler with the supplied IP limiter.
+// Returns HTTP 429 with a JSON body when the per-IP budget is exhausted.
+// Used by audit fix M-07 (enrollment, branding endpoints).
+func (s *Server) rateLimitPublic(lim *ratelimit.IPLimiter, h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if lim != nil {
+			ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+			if ip == "" {
+				ip = r.RemoteAddr
+			}
+			if !lim.Allow(ip) {
+				writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
+				return
+			}
+		}
+		h(w, r)
+	}
+}
+
+// metricsGuard enforces the audit fix H-03 access policy for /metrics:
+//   - cfg.MetricsPublic=true       => unrestricted (legacy/dev)
+//   - cfg.MetricsAllowlist non-empty => caller IP must match one entry
+//   - otherwise                      => caller must present a valid bearer/api-key
+func (s *Server) metricsGuard(h http.HandlerFunc) http.HandlerFunc {
+	allowlist := s.cfg.GetMetricsAllowlist()
+	public := s.cfg.MetricsPublic
+	return func(w http.ResponseWriter, r *http.Request) {
+		if public {
+			h(w, r)
+			return
+		}
+		ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+		if ip == "" {
+			ip = r.RemoteAddr
+		}
+		if len(allowlist) > 0 && ipInAllowlist(ip, allowlist) {
+			h(w, r)
+			return
+		}
+		// Fall back to standard auth middleware (JWT / API key).
+		s.authMiddleware(h).ServeHTTP(w, r)
+	}
+}
+
+// ipInAllowlist reports whether ip matches any literal IP or CIDR in list.
+func ipInAllowlist(ip string, list []string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	for _, entry := range list {
+		if entry == ip {
+			return true
+		}
+		if _, cidr, err := net.ParseCIDR(entry); err == nil && cidr.Contains(parsed) {
+			return true
+		}
+	}
+	return false
 }
 
 // SetBlocklist sets the blocklist instance for the API server.
@@ -277,9 +344,9 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/enrollment/mode", s.requireRole(auth.RoleAdmin, s.handleGetEnrollmentMode))
 	mux.HandleFunc("PUT /api/enrollment/mode", s.requireRole(auth.RoleAdmin, s.handleSetEnrollmentMode))
 
-	// Enrollment — device self-registration (public, no auth)
-	mux.HandleFunc("POST /api/devices/register", s.handleDeviceRegister)
-	mux.HandleFunc("GET /api/devices/register/status", s.handleDeviceRegisterStatus)
+	// Enrollment — device self-registration (public, no auth, rate-limited via M-07)
+	mux.HandleFunc("POST /api/devices/register", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceRegister))
+	mux.HandleFunc("GET /api/devices/register/status", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceRegisterStatus))
 
 	// Enrollment — operator approval (admin/operator)
 	mux.HandleFunc("GET /api/enrollment/pending", s.requireRole(auth.RoleOperator, s.handleListPendingDevices))
@@ -287,7 +354,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/enrollment/reject/{id}", s.requireRole(auth.RoleOperator, s.handleRejectDevice))
 
 	// Branding (GET is public for desktop clients, POST is admin)
-	mux.HandleFunc("GET /api/branding", s.handleGetBranding)
+	mux.HandleFunc("GET /api/branding", s.rateLimitPublic(s.brandingLimiter, s.handleGetBranding))
 	mux.HandleFunc("POST /api/branding", s.requireRole(auth.RoleAdmin, s.handleSaveBranding))
 
 	// CDAP device management (requires CDAP gateway to be enabled)
@@ -326,8 +393,10 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/bd/mgmt/{device_id}/send", s.requireRole(auth.RoleOperator, s.handleBdMgmtSend))
 	mux.HandleFunc("GET /api/bd/mgmt/connected", s.handleBdMgmtConnected)
 
-	// Prometheus metrics (public, no API key required)
-	mux.HandleFunc("GET /metrics", s.handleMetrics)
+	// Prometheus metrics. Gated via H-03 — see handleMetrics for the actual
+	// IP-allowlist / auth check. We register a wrapper here that enforces the
+	// policy before any metric data is exposed.
+	mux.HandleFunc("GET /metrics", s.metricsGuard(s.handleMetrics))
 
 	// Catch-all: return JSON 404 for unmatched routes.
 	// Go's default ServeMux returns HTML which breaks RustDesk (Dart) client parsing.

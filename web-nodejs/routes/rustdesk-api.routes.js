@@ -1309,7 +1309,12 @@ router.post('/api/login', async (req, res) => {
             // opted in via RUSTDESK_API_DISABLE_TOTP=true, skip 2FA on this
             // (RustDesk-only) endpoint and issue an access token directly.
             // The web panel routes still enforce TOTP independently.
-            if (config.rustdeskApiDisableTotp) {
+            //
+            // SECURITY (audit fix H-04, 2026-04-10): the bypass also requires
+            // RUSTDESK_API_DISABLE_TOTP_ACKNOWLEDGED=true to confirm the
+            // operator understands the WAN-facing risk on :21121. Without the
+            // ACK flag TOTP is enforced normally even if DISABLE_TOTP is set.
+            if (config.rustdeskApiDisableTotp && config.rustdeskApiDisableTotpAck) {
                 authService.recordAttempt(username, ip, true);
                 const token = await authService.generateAccessToken(user.id, clientId, clientUuid, ip);
                 await db.updateLastLogin(user.id);

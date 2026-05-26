@@ -194,6 +194,16 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SECURITY (audit fix H-03, 2026-04-10): per-username rate limiting in
+	// addition to per-IP. Defeats credential-stuffing from a rotating IP pool
+	// hammering a single high-value account (e.g. "admin").
+	if s.loginLimiter != nil && !s.loginLimiter.Allow("user:"+strings.ToLower(body.Username)) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{
+			"error": "Too many login attempts. Please try again later.",
+		})
+		return
+	}
+
 	user, err := s.db.GetUser(body.Username)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
@@ -267,6 +277,16 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid or expired partial token"})
 		return
+	}
+
+	// H-03: per-username 2FA rate limiting (in addition to per-IP).
+	if claims != nil && claims.Username != "" {
+		if s.loginLimiter != nil && !s.loginLimiter.Allow("user:"+strings.ToLower(claims.Username)) {
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{
+				"error": "Too many 2FA attempts. Please try again later.",
+			})
+			return
+		}
 	}
 	if claims.Role != "__2fa_pending__" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Not a 2FA partial token"})
@@ -844,19 +864,45 @@ func (s *Server) extractOrgIDFromRequest(r *http.Request) string {
 	return claims.OrgID
 }
 
+// redactPathSegment masks high-cardinality identifiers in URL paths so that
+// device IDs / user IDs do not leak verbatim into access logs (audit fix L-04).
+// Currently rewrites:
+//   - /api/peers/{id}/...     -> /api/peers/<id>/...
+//   - /api/cdap/devices/{id}/ -> /api/cdap/devices/<id>/
+//   - /ws/bd-mgmt/{id}        -> /ws/bd-mgmt/<id>
+func redactPathSegment(p string) string {
+	for _, prefix := range []string{"/api/peers/", "/api/cdap/devices/", "/ws/bd-mgmt/", "/api/tokens/", "/api/users/", "/api/orgs/"} {
+		if !strings.HasPrefix(p, prefix) {
+			continue
+		}
+		rest := p[len(prefix):]
+		slash := strings.IndexByte(rest, '/')
+		if slash < 0 {
+			return prefix + "<id>"
+		}
+		return prefix + "<id>" + rest[slash:]
+	}
+	return p
+}
+
 // authMiddleware replaces the old apiKeyMiddleware.
 // It authenticates every request and attaches role + username to the context.
 // Public endpoints are excluded from authentication.
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Log ALL incoming HTTP requests for debugging
-		log.Printf("[api] %s %s from %s", r.Method, r.URL.Path, s.remoteIP(r))
+		// Log incoming HTTP requests. SECURITY (audit fix L-04, 2026-04-10):
+		//   - skip noisy public probes (heartbeat / sysinfo / metrics / health)
+		//   - redact /peers/{id} segments so device IDs do not leak into logs
+		path := r.URL.Path
+		if path != "/api/heartbeat" && path != "/api/sysinfo" && path != "/api/sysinfo_ver" &&
+			path != "/metrics" && path != "/api/health" {
+			log.Printf("[api] %s %s from %s", r.Method, redactPathSegment(path), s.remoteIP(r))
+		}
 
 		// Limit request body size to 1 MB for all requests (S10)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
 		// Public endpoints — no auth required
-		path := r.URL.Path
 		if path == "/api/health" || path == "/metrics" ||
 			path == "/api/auth/login" || path == "/api/auth/login/2fa" ||
 			path == "/api/server/pubkey" || path == "/api/server/stats" ||

@@ -74,6 +74,13 @@ services:
       # - ADMIN_USERNAME=admin
       # - ADMIN_PASSWORD=YourSecurePassword123
     restart: unless-stopped
+    # SECURITY (audit fix L-02, 2026-04-10): minimal capabilities, no
+    # privilege escalation. All-in-one container still only needs to bind
+    # ports inside its own netns and write to mounted volumes.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:21114/api/health && curl -sf http://localhost:5000/health"]
       interval: 30s
@@ -93,6 +100,11 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
+    # L-02: drop caps for PostgreSQL too
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U betterdesk"]
       interval: 10s
