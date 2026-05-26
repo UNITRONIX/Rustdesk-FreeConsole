@@ -280,8 +280,8 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// H-03: per-username 2FA rate limiting (in addition to per-IP).
-	if claims != nil && claims.Username != "" {
-		if s.loginLimiter != nil && !s.loginLimiter.Allow("user:"+strings.ToLower(claims.Username)) {
+	if claims != nil && claims.Sub != "" {
+		if s.loginLimiter != nil && !s.loginLimiter.Allow("user:"+strings.ToLower(claims.Sub)) {
 			writeJSON(w, http.StatusTooManyRequests, map[string]string{
 				"error": "Too many 2FA attempts. Please try again later.",
 			})
