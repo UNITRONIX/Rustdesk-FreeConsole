@@ -56,6 +56,10 @@ const ALLOWED_PATHS = new Set([
     // Security: server key distribution
     '/api/server-key',
     '/api/server-key/fingerprint',
+    // RustDesk PRO group endpoints (Flutter client queries after login)
+    '/api/group',
+    '/api/group/get',
+    '/api/peers/list',
     // LAN registration
     '/api/bd/register-request',
     '/api/bd/register-status'
@@ -95,6 +99,9 @@ const ALLOWED_METHODS = {
     '/api/software/client-download-link': 'GET',
     '/api/server-key': 'GET',
     '/api/server-key/fingerprint': 'GET',
+    '/api/group': '*',
+    '/api/group/get': '*',
+    '/api/peers/list': '*',
     '/api/bd/register-request': 'POST',
     '/api/bd/register-status': 'GET'
 };
@@ -104,6 +111,7 @@ const ALLOWED_METHODS = {
  * Paths not listed use the default MAX_BODY_SIZE.
  */
 const PATH_BODY_LIMITS = {
+    '/api/login': 4096,           // 4KB — login with deviceInfo payload
     '/api/sysinfo': 8192,         // 8KB — sysinfo with displays/encoding data
     '/api/sysinfo_ver': 512,      // 512B — version check (id + hash only)
     '/api/ab': 65536,             // 64KB — address book sync
@@ -113,7 +121,10 @@ const PATH_BODY_LIMITS = {
     '/api/audit/alarm': 2048,     // 2KB — alarm event
     '/api/device-group': 2048,    // 2KB — group create/update
     '/api/user-groups': 2048,     // 2KB — group create/update
-    '/api/strategies': 4096       // 4KB — strategy with permissions JSON
+    '/api/strategies': 4096,      // 4KB — strategy with permissions JSON
+    '/api/group': 2048,           // 2KB — RustDesk PRO group endpoint
+    '/api/group/get': 2048,       // 2KB — RustDesk PRO group fetch
+    '/api/peers/list': 2048       // 2KB — RustDesk PRO peer list
 };
 
 /**
@@ -202,13 +213,21 @@ function jsonOnly(req, res, next) {
  */
 function bodySizeLimit(req, res, next) {
     let size = 0;
+    let rejected = false;
     const maxSize = PATH_BODY_LIMITS[req.path] || MAX_BODY_SIZE;
 
     req.on('data', (chunk) => {
+        if (rejected) return;
         size += chunk.length;
         if (size > maxSize) {
+            rejected = true;
+            // Send error response BEFORE destroying the request stream.
+            // Calling req.destroy() first would close the socket and prevent
+            // the 413 response from reaching the client (causes IncompleteMessage).
+            if (!res.headersSent) {
+                res.status(413).json({ error: 'Request too large' });
+            }
             req.destroy();
-            res.status(413).json({ error: 'Request too large' });
         }
     });
 
