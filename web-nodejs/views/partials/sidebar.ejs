@@ -283,7 +283,16 @@
                 </div>
                 <div class="sidebar-user-info">
                     <div class="sidebar-user-name"><%= user ? user.username : 'Admin' %></div>
-                    <div class="sidebar-user-role"><%= user ? user.role : 'administrator' %></div>
+                    <%
+                        var _roleKey = user && user.role ? ('users.role_' + user.role) : 'users.role_admin';
+                        var _roleLabel = _(_roleKey);
+                        if (!_roleLabel || _roleLabel === _roleKey) {
+                            _roleLabel = user && user.role
+                                ? user.role.replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); })
+                                : 'Administrator';
+                        }
+                    %>
+                    <div class="sidebar-user-role"><%= _roleLabel %></div>
                 </div>
             </div>
         </div>
