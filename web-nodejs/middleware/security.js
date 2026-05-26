@@ -76,9 +76,11 @@ function customSecurityHeaders(req, res, next) {
     res.setHeader('X-XSS-Protection', '0');
 
     // Permissions policy — restrict powerful APIs
+    // Only use standardized features; non-standard ones (browsing-topics,
+    // attribution-reporting, private-state-token-*, etc.) cause console warnings.
     res.setHeader('Permissions-Policy',
         'geolocation=(), microphone=(self), camera=(), ' +
-        'browsing-topics=(), payment=(), usb=(), ' +
+        'payment=(), usb=(), ' +
         'accelerometer=(), gyroscope=(), magnetometer=()');
 
     // Prevent cross-site leak via cache timing
