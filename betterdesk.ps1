@@ -35,6 +35,9 @@
 .PARAMETER NodeJs
     Install Node.js web console (default)
 
+.PARAMETER Protocol
+    Set protocol mode: 'http' or 'https'
+
 .PARAMETER PostgreSQL
     Use PostgreSQL instead of SQLite
 
@@ -65,6 +68,8 @@ param(
     [switch]$NodeJs,
     [switch]$PostgreSQL,
     [string]$PgUri = "",
+    [ValidateSet('http', 'https', '')]
+    [string]$Protocol = "",
     [switch]$Flask  # Deprecated, kept for backward compatibility
 )
 
@@ -4463,6 +4468,240 @@ function Do-ConfigureSSL {
 }
 
 #===============================================================================
+# HTTP/HTTPS Protocol Toggle
+#===============================================================================
+
+function Do-ToggleProtocol {
+    Print-Header
+    Write-Host "========== PROTOCOL TOGGLE (HTTP / HTTPS) ==========" -ForegroundColor White
+    Write-Host ""
+
+    $envFile = Join-Path $script:CONSOLE_PATH ".env"
+    $sslDir = Join-Path $script:RUSTDESK_PATH "ssl"
+
+    # Detect current mode from NSSM or .env
+    $currentMode = "HTTP"
+    $nssmConsole = "BetterDeskConsole"
+    try {
+        $nssmEnv = (nssm get $nssmConsole AppEnvironmentExtra 2>$null) -join "`n"
+        if ($nssmEnv -match "HTTPS_ENABLED=true") {
+            $currentMode = "HTTPS"
+        }
+    } catch {
+        if (Test-Path $envFile) {
+            $envContent = Get-Content $envFile -Raw
+            if ($envContent -match "HTTPS_ENABLED=true") {
+                $currentMode = "HTTPS"
+            }
+        }
+    }
+
+    $tlsSignal = "no"
+    $tlsRelay = "no"
+    $nssmServer = "BetterDeskServer"
+    try {
+        $serverArgs = nssm get $nssmServer AppParameters 2>$null
+        if ($serverArgs -match "-tls-signal") { $tlsSignal = "yes" }
+        if ($serverArgs -match "-tls-relay") { $tlsRelay = "yes" }
+    } catch {}
+
+    Write-Host "  Current mode: $currentMode" -ForegroundColor White
+    Write-Host "  Signal TLS:   $tlsSignal"
+    Write-Host "  Relay TLS:    $tlsRelay"
+    Write-Host ""
+    Write-Host "  1. Switch to HTTP  (everything plain - LAN/testing)" -ForegroundColor Green
+    Write-Host "  2. Switch to HTTPS (panel HTTPS + signal/relay TLS)" -ForegroundColor Green
+    Write-Host "  0. Back" -ForegroundColor Red
+    Write-Host ""
+
+    $protoChoice = Read-Host "Select mode [0]"
+
+    switch ($protoChoice) {
+        "1" {
+            # --- Switch to HTTP ---
+            Write-Host ""
+            Print-Step "Switching to HTTP mode..."
+
+            # Update .env
+            if (Test-Path $envFile) {
+                $content = Get-Content $envFile -Raw
+                $content = $content -replace "(?m)^HTTPS_ENABLED=.*$", "HTTPS_ENABLED=false"
+                $content = $content -replace "(?m)^RUSTDESK_API_TLS=.*$", "RUSTDESK_API_TLS=false"
+                $content = $content -replace "(?m)^ALLOW_SELF_SIGNED_CERTS=.*$", "ALLOW_SELF_SIGNED_CERTS=false"
+                $content = $content -replace "(?m)^HBBS_API_URL=https://localhost", "HBBS_API_URL=http://localhost"
+                $content = $content -replace "(?m)^BETTERDESK_API_URL=https://localhost", "BETTERDESK_API_URL=http://localhost"
+                $content = $content -replace "(?m)^HTTP_REDIRECT_HTTPS=.*$", "HTTP_REDIRECT_HTTPS=false"
+                $content = $content -replace "(?m)^NODE_EXTRA_CA_CERTS=.*`n?", ""
+                $content = $content -replace "(?m)^ENTERPRISE_TLS=.*`n?", ""
+                Set-Content -Path $envFile -Value $content.TrimEnd() -Encoding UTF8
+            }
+
+            # Update NSSM console service
+            try {
+                $env = (nssm get $nssmConsole AppEnvironmentExtra 2>$null) -join "`n"
+                $env = $env -replace "HTTPS_ENABLED=true", "HTTPS_ENABLED=false"
+                $env = $env -replace "ALLOW_SELF_SIGNED_CERTS=true", "ALLOW_SELF_SIGNED_CERTS=false"
+                $env = $env -replace "RUSTDESK_API_TLS=[^\s]+", "RUSTDESK_API_TLS=false"
+                $env = $env -replace "HBBS_API_URL=https://localhost", "HBBS_API_URL=http://localhost"
+                $env = $env -replace "BETTERDESK_API_URL=https://localhost", "BETTERDESK_API_URL=http://localhost"
+                $env = $env -replace "(?m)^NODE_EXTRA_CA_CERTS=.*$", ""
+                $env = $env -replace "(?m)^ENTERPRISE_TLS=.*$", ""
+                $env = ($env -split "`n" | Where-Object { $_.Trim() -ne "" }) -join "`n"
+                nssm set $nssmConsole AppEnvironmentExtra $env 2>$null | Out-Null
+            } catch {}
+
+            # Remove TLS args from Go server
+            try {
+                $args = nssm get $nssmServer AppParameters 2>$null
+                $args = $args -replace '\s*-tls-cert\s+[^\s]+', ''
+                $args = $args -replace '\s*-tls-key\s+[^\s]+', ''
+                $args = $args -replace '\s*-tls-signal', ''
+                $args = $args -replace '\s*-tls-relay', ''
+                $args = $args -replace '\s*-tls-api', ''
+                $args = $args -replace '\s*-force-https', ''
+                nssm set $nssmServer AppParameters $args.Trim() 2>$null | Out-Null
+            } catch {}
+
+            Print-Success "Switched to HTTP mode"
+            Write-Host ""
+            Print-Info "  Panel:         HTTP :5000"
+            Print-Info "  Signal:        TCP  :21116"
+            Print-Info "  Relay:         TCP  :21117"
+            Print-Info "  Go API:        HTTP :21114"
+            Print-Info "  Client API:    HTTP :21121"
+            Write-Host ""
+            Print-Warning "SSL certificates were NOT deleted (use option C > 4 to remove)"
+        }
+        "2" {
+            # --- Switch to HTTPS ---
+            Write-Host ""
+
+            $certFile = Join-Path $sslDir "betterdesk.crt"
+            $keyFile = Join-Path $sslDir "betterdesk.key"
+
+            # Check for SSL certificates
+            if (-not (Test-Path $certFile) -or -not (Test-Path $keyFile)) {
+                Print-Warning "No SSL certificates found at $sslDir"
+                Write-Host ""
+                $gen = Read-Host "Generate self-signed certificate now? [Y/n]"
+                if ($gen -ne "n" -and $gen -ne "N") {
+                    if (-not (Test-Path $sslDir)) { New-Item -ItemType Directory -Path $sslDir -Force | Out-Null }
+
+                    $serverIp = try {
+                        (Invoke-WebRequest -Uri "https://api.ipify.org" -TimeoutSec 5 -UseBasicParsing).Content.Trim()
+                    } catch { "127.0.0.1" }
+
+                    & openssl req -x509 -nodes -days 3650 -newkey rsa:4096 `
+                        -keyout $keyFile -out $certFile `
+                        -subj "/CN=$serverIp/O=BetterDesk/C=PL" 2>$null
+
+                    if (Test-Path $certFile) {
+                        Print-Success "Self-signed certificate generated"
+                    } else {
+                        Print-Error "Failed to generate certificate (is openssl installed?)"
+                        Press-Enter
+                        return
+                    }
+                } else {
+                    Print-Error "Cannot enable HTTPS without certificates"
+                    Print-Info "Use option C (SSL config) to set up certificates first"
+                    Press-Enter
+                    return
+                }
+            }
+
+            Print-Step "Switching to HTTPS mode..."
+
+            # Update .env
+            if (Test-Path $envFile) {
+                $content = Get-Content $envFile -Raw
+                $content = $content -replace "(?m)^HTTPS_ENABLED=.*$", "HTTPS_ENABLED=true"
+                $content = $content -replace "(?m)^SSL_CERT_PATH=.*$", "SSL_CERT_PATH=$certFile"
+                $content = $content -replace "(?m)^SSL_KEY_PATH=.*$", "SSL_KEY_PATH=$keyFile"
+                $content = $content -replace "(?m)^HTTP_REDIRECT_HTTPS=.*$", "HTTP_REDIRECT_HTTPS=true"
+                # Keep Go API on HTTP
+                $content = $content -replace "(?m)^HBBS_API_URL=https://localhost", "HBBS_API_URL=http://localhost"
+                $content = $content -replace "(?m)^BETTERDESK_API_URL=https://localhost", "BETTERDESK_API_URL=http://localhost"
+                if ($content -notmatch "ALLOW_SELF_SIGNED_CERTS=") {
+                    $content += "`nALLOW_SELF_SIGNED_CERTS=true"
+                } else {
+                    $content = $content -replace "(?m)^ALLOW_SELF_SIGNED_CERTS=.*$", "ALLOW_SELF_SIGNED_CERTS=true"
+                }
+                if ($content -notmatch "NODE_EXTRA_CA_CERTS=") {
+                    $content += "`nNODE_EXTRA_CA_CERTS=$certFile"
+                } else {
+                    $content = $content -replace "(?m)^NODE_EXTRA_CA_CERTS=.*$", "NODE_EXTRA_CA_CERTS=$certFile"
+                }
+                Set-Content -Path $envFile -Value $content.TrimEnd() -Encoding UTF8
+            }
+
+            # Update NSSM console service
+            try {
+                $env = (nssm get $nssmConsole AppEnvironmentExtra 2>$null) -join "`n"
+                $env = $env -replace "HTTPS_ENABLED=false", "HTTPS_ENABLED=true"
+                if ($env -notmatch "HTTPS_ENABLED=") { $env += "`nHTTPS_ENABLED=true" }
+                $env = $env -replace "ALLOW_SELF_SIGNED_CERTS=false", "ALLOW_SELF_SIGNED_CERTS=true"
+                if ($env -notmatch "ALLOW_SELF_SIGNED_CERTS=") { $env += "`nALLOW_SELF_SIGNED_CERTS=true" }
+                # Go API stays HTTP
+                $env = $env -replace "HBBS_API_URL=https://localhost", "HBBS_API_URL=http://localhost"
+                $env = $env -replace "BETTERDESK_API_URL=https://localhost", "BETTERDESK_API_URL=http://localhost"
+                if ($env -notmatch "NODE_EXTRA_CA_CERTS=") { $env += "`nNODE_EXTRA_CA_CERTS=$certFile" }
+                else { $env = $env -replace "(?m)^NODE_EXTRA_CA_CERTS=.*$", "NODE_EXTRA_CA_CERTS=$certFile" }
+                $env = ($env -split "`n" | Where-Object { $_.Trim() -ne "" }) -join "`n"
+                nssm set $nssmConsole AppEnvironmentExtra $env 2>$null | Out-Null
+            } catch {}
+
+            # Add TLS to Go server (signal + relay only, NOT API)
+            try {
+                $args = nssm get $nssmServer AppParameters 2>$null
+                # Remove old TLS args
+                $args = $args -replace '\s*-tls-cert\s+[^\s]+', ''
+                $args = $args -replace '\s*-tls-key\s+[^\s]+', ''
+                $args = $args -replace '\s*-tls-signal', ''
+                $args = $args -replace '\s*-tls-relay', ''
+                $args = $args -replace '\s*-tls-api', ''
+                $args = $args -replace '\s*-force-https', ''
+                # Add signal + relay TLS (API stays HTTP)
+                $args = "$($args.Trim()) -tls-cert $certFile -tls-key $keyFile -tls-signal -tls-relay"
+                nssm set $nssmServer AppParameters $args 2>$null | Out-Null
+            } catch {}
+
+            Print-Success "Switched to HTTPS mode"
+            Write-Host ""
+            Print-Info "  Panel:         HTTPS :5443"
+            Print-Info "  Signal:        TLS   :21116"
+            Print-Info "  Relay:         TLS   :21117"
+            Print-Info "  Go API:        HTTP  :21114 (internal, always HTTP)"
+            Print-Info "  Client API:    auto  :21121"
+        }
+        default { return }
+    }
+
+    Write-Host ""
+    $restart = Read-Host "Restart BetterDesk services now? [Y/n]"
+    if ($restart -ne "n" -and $restart -ne "N") {
+        try {
+            nssm restart $nssmServer 2>$null | Out-Null
+            nssm restart $nssmConsole 2>$null | Out-Null
+            Start-Sleep -Seconds 2
+            Print-Success "BetterDesk services restarted"
+            Write-Host ""
+            # Quick status check
+            $serverStatus = (nssm status $nssmServer 2>$null)
+            $consoleStatus = (nssm status $nssmConsole 2>$null)
+            if ($serverStatus -match "Running") { Print-Success "Go Server:   running" }
+            else { Print-Error "Go Server:   $serverStatus" }
+            if ($consoleStatus -match "Running") { Print-Success "Web Console: running" }
+            else { Print-Error "Web Console: $consoleStatus" }
+        } catch {
+            Print-Error "Failed to restart services: $_"
+        }
+    }
+
+    Press-Enter
+}
+
+#===============================================================================
 # Database Migration Functions
 #===============================================================================
 
@@ -4703,6 +4942,7 @@ function Show-Menu {
     Write-Host ""
     Write-Host "  L. MINIMAL INSTALLATION (server only)"
     Write-Host "  C. Configure SSL certificates"
+    Write-Host "  T. Toggle HTTP/HTTPS mode"
     Write-Host "  M. Database migration"
     Write-Host "  S. Settings (paths)"
     Write-Host "  0. Exit"
@@ -4745,6 +4985,8 @@ function Main {
             "l" { Do-InstallMinimal }
             "C" { Do-ConfigureSSL }
             "c" { Do-ConfigureSSL }
+            "T" { Do-ToggleProtocol }
+            "t" { Do-ToggleProtocol }
             "M" { Do-MigrateDatabase }
             "m" { Do-MigrateDatabase }
             "S" { Configure-Paths }

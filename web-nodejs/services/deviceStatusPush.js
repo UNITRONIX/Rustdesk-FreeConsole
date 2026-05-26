@@ -95,9 +95,13 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
 
         log.info('Connecting to Go event bus...');
 
-        const goWs = new WebSocket(url, {
-            headers: { 'X-API-Key': apiKey },
-        });
+        // Only set TLS options when connecting via wss://
+        const wsOpts = { headers: { 'X-API-Key': apiKey } };
+        if (wsUrl.startsWith('wss://')) {
+            wsOpts.rejectUnauthorized = !require('../config/config').allowSelfSignedCerts;
+        }
+
+        const goWs = new WebSocket(url, wsOpts);
 
         goWs.on('open', () => {
             log.info('Connected to Go event bus');

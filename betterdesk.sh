@@ -68,6 +68,14 @@ while [[ $# -gt 0 ]]; do
             USE_POSTGRESQL=true
             shift
             ;;
+        --protocol)
+            PROTOCOL_MODE="$2"
+            if [ "$PROTOCOL_MODE" != "http" ] && [ "$PROTOCOL_MODE" != "https" ]; then
+                echo "ERROR: --protocol must be 'http' or 'https'"
+                exit 1
+            fi
+            shift 2
+            ;;
         --pg-uri)
             POSTGRESQL_URI="$2"
             USE_POSTGRESQL=true
@@ -91,6 +99,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --nodejs         Install Node.js web console (default)"
             echo "  --postgresql     Use PostgreSQL instead of SQLite"
             echo "  --pg-uri URI     PostgreSQL connection URI (implies --postgresql)"
+            echo "  --protocol MODE  Set protocol mode: 'http' or 'https'"
             echo "  --help, -h       Show this help message"
             echo ""
             echo "Environment variables:"
@@ -4497,6 +4506,231 @@ do_configure_ssl() {
 }
 
 #===============================================================================
+# HTTP/HTTPS Protocol Toggle
+#===============================================================================
+
+do_toggle_protocol() {
+    print_header
+    echo -e "${WHITE}${BOLD}══════════ PROTOCOL TOGGLE (HTTP / HTTPS) ══════════${NC}"
+    echo ""
+
+    local env_file="$CONSOLE_PATH/.env"
+    local svc_file="/etc/systemd/system/betterdesk-console.service"
+    local go_svc_file="/etc/systemd/system/betterdesk-server.service"
+    local ssl_dir="$RUSTDESK_PATH/ssl"
+
+    # Detect current mode
+    local current_mode="HTTP"
+    if [ -f "$svc_file" ]; then
+        if grep -q 'Environment=HTTPS_ENABLED=true' "$svc_file" 2>/dev/null; then
+            current_mode="HTTPS"
+        fi
+    elif [ -f "$env_file" ]; then
+        if grep -q '^HTTPS_ENABLED=true' "$env_file" 2>/dev/null; then
+            current_mode="HTTPS"
+        fi
+    fi
+
+    local tls_signal="no"
+    local tls_relay="no"
+    if [ -f "$go_svc_file" ]; then
+        grep -q '\-tls-signal' "$go_svc_file" 2>/dev/null && tls_signal="yes"
+        grep -q '\-tls-relay' "$go_svc_file" 2>/dev/null && tls_relay="yes"
+    fi
+
+    echo -e "  Current mode: ${BOLD}${current_mode}${NC}"
+    echo -e "  Signal TLS:   $tls_signal"
+    echo -e "  Relay TLS:    $tls_relay"
+    echo ""
+    echo -e "  ${GREEN}1.${NC} Switch to ${BOLD}HTTP${NC}  (everything plain — LAN/testing)"
+    echo -e "  ${GREEN}2.${NC} Switch to ${BOLD}HTTPS${NC} (panel HTTPS + signal/relay TLS)"
+    echo -e "  ${RED}0.${NC} Back"
+    echo ""
+
+    read -p "Select mode [0]: " proto_choice
+
+    case "${proto_choice:-0}" in
+        1)
+            # ── Switch to HTTP ──
+            echo ""
+            print_step "Switching to HTTP mode..."
+
+            # Update .env if it exists
+            if [ -f "$env_file" ]; then
+                sed -i "s|^HTTPS_ENABLED=.*|HTTPS_ENABLED=false|" "$env_file"
+                sed -i "s|^RUSTDESK_API_TLS=.*|RUSTDESK_API_TLS=false|" "$env_file"
+                sed -i "s|^ALLOW_SELF_SIGNED_CERTS=.*|ALLOW_SELF_SIGNED_CERTS=false|" "$env_file"
+                sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$env_file"
+                sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$env_file"
+                sed -i "s|^HTTP_REDIRECT_HTTPS=.*|HTTP_REDIRECT_HTTPS=false|" "$env_file"
+                sed -i '/^NODE_EXTRA_CA_CERTS=/d' "$env_file"
+                sed -i '/^ENTERPRISE_TLS=/d' "$env_file"
+            fi
+
+            # Update console systemd service
+            if [ -f "$svc_file" ]; then
+                sed -i "s|Environment=HTTPS_ENABLED=.*|Environment=HTTPS_ENABLED=false|" "$svc_file"
+                sed -i "s|Environment=ALLOW_SELF_SIGNED_CERTS=.*|Environment=ALLOW_SELF_SIGNED_CERTS=false|" "$svc_file"
+                sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
+                sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
+                if grep -q 'Environment=RUSTDESK_API_TLS=' "$svc_file"; then
+                    sed -i "s|Environment=RUSTDESK_API_TLS=.*|Environment=RUSTDESK_API_TLS=false|" "$svc_file"
+                fi
+                sed -i '/Environment=NODE_EXTRA_CA_CERTS=/d' "$svc_file"
+                sed -i '/Environment=ENTERPRISE_TLS=/d' "$svc_file"
+            fi
+
+            # Remove ALL TLS args from Go server
+            if [ -f "$go_svc_file" ]; then
+                sed -i 's/ -tls-cert [^ ]*//g' "$go_svc_file"
+                sed -i 's/ -tls-key [^ ]*//g' "$go_svc_file"
+                sed -i 's/ -tls-signal//g' "$go_svc_file"
+                sed -i 's/ -tls-relay//g' "$go_svc_file"
+                sed -i 's/ -tls-api//g' "$go_svc_file"
+                sed -i 's/ -force-https//g' "$go_svc_file"
+            fi
+
+            systemctl daemon-reload 2>/dev/null || true
+
+            print_success "Switched to HTTP mode"
+            echo ""
+            print_info "  Panel:         HTTP :5000"
+            print_info "  Signal:        TCP  :21116"
+            print_info "  Relay:         TCP  :21117"
+            print_info "  Go API:        HTTP :21114"
+            print_info "  Client API:    HTTP :21121"
+            echo ""
+            print_warning "SSL certificates were NOT deleted (use option C > 4 to remove)"
+            ;;
+        2)
+            # ── Switch to HTTPS ──
+            echo ""
+
+            # Check for SSL certificates
+            if [ ! -f "$ssl_dir/betterdesk.crt" ] || [ ! -f "$ssl_dir/betterdesk.key" ]; then
+                print_warning "No SSL certificates found at $ssl_dir/"
+                echo ""
+                if confirm "Generate self-signed certificate now?"; then
+                    mkdir -p "$ssl_dir"
+                    local server_ip
+                    server_ip=$(get_public_ip 2>/dev/null || echo "127.0.0.1")
+                    local san_list="IP:$server_ip,IP:127.0.0.1,DNS:localhost"
+                    openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
+                        -keyout "$ssl_dir/betterdesk.key" \
+                        -out "$ssl_dir/betterdesk.crt" \
+                        -subj "/CN=$server_ip/O=BetterDesk/C=PL" \
+                        -addext "subjectAltName=$san_list" 2>/dev/null || \
+                    openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
+                        -keyout "$ssl_dir/betterdesk.key" \
+                        -out "$ssl_dir/betterdesk.crt" \
+                        -subj "/CN=$server_ip/O=BetterDesk/C=PL" 2>/dev/null
+                    chmod 600 "$ssl_dir/betterdesk.key"
+                    chmod 644 "$ssl_dir/betterdesk.crt"
+                    print_success "Self-signed certificate generated"
+                else
+                    print_error "Cannot enable HTTPS without certificates"
+                    print_info "Use option C (SSL config) to set up certificates first"
+                    press_enter
+                    return
+                fi
+            fi
+
+            print_step "Switching to HTTPS mode..."
+
+            # Update .env if it exists
+            if [ -f "$env_file" ]; then
+                sed -i "s|^HTTPS_ENABLED=.*|HTTPS_ENABLED=true|" "$env_file"
+                sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$ssl_dir/betterdesk.crt|" "$env_file"
+                sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$ssl_dir/betterdesk.key|" "$env_file"
+                sed -i "s|^HTTP_REDIRECT_HTTPS=.*|HTTP_REDIRECT_HTTPS=true|" "$env_file"
+                # Keep Go API on HTTP — this is internal communication
+                sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$env_file"
+                sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$env_file"
+                if grep -q '^ALLOW_SELF_SIGNED_CERTS=' "$env_file"; then
+                    sed -i "s|^ALLOW_SELF_SIGNED_CERTS=.*|ALLOW_SELF_SIGNED_CERTS=true|" "$env_file"
+                else
+                    echo "ALLOW_SELF_SIGNED_CERTS=true" >> "$env_file"
+                fi
+                if grep -q '^NODE_EXTRA_CA_CERTS=' "$env_file"; then
+                    sed -i "s|^NODE_EXTRA_CA_CERTS=.*|NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt|" "$env_file"
+                else
+                    echo "NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt" >> "$env_file"
+                fi
+            fi
+
+            # Update console systemd service
+            if [ -f "$svc_file" ]; then
+                if grep -q 'Environment=HTTPS_ENABLED=' "$svc_file"; then
+                    sed -i "s|Environment=HTTPS_ENABLED=.*|Environment=HTTPS_ENABLED=true|" "$svc_file"
+                else
+                    sed -i "/^\[Service\]/a Environment=HTTPS_ENABLED=true" "$svc_file"
+                fi
+                if grep -q 'Environment=ALLOW_SELF_SIGNED_CERTS=' "$svc_file"; then
+                    sed -i "s|Environment=ALLOW_SELF_SIGNED_CERTS=.*|Environment=ALLOW_SELF_SIGNED_CERTS=true|" "$svc_file"
+                else
+                    sed -i "/^\[Service\]/a Environment=ALLOW_SELF_SIGNED_CERTS=true" "$svc_file"
+                fi
+                # Go API URL stays HTTP
+                sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
+                sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
+                if grep -q 'Environment=NODE_EXTRA_CA_CERTS=' "$svc_file"; then
+                    sed -i "s|Environment=NODE_EXTRA_CA_CERTS=.*|Environment=NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt|" "$svc_file"
+                else
+                    sed -i "/^\[Service\]/a Environment=NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt" "$svc_file"
+                fi
+            fi
+
+            # Add TLS to Go server (signal + relay only, NOT API)
+            if [ -f "$go_svc_file" ]; then
+                # Remove old TLS args first
+                sed -i 's/ -tls-cert [^ ]*//g' "$go_svc_file"
+                sed -i 's/ -tls-key [^ ]*//g' "$go_svc_file"
+                sed -i 's/ -tls-signal//g' "$go_svc_file"
+                sed -i 's/ -tls-relay//g' "$go_svc_file"
+                sed -i 's/ -tls-api//g' "$go_svc_file"
+                sed -i 's/ -force-https//g' "$go_svc_file"
+                # Add signal + relay TLS (API stays HTTP)
+                sed -i "s|\(ExecStart=.*betterdesk-server[^$]*\)|\1 -tls-cert $ssl_dir/betterdesk.crt -tls-key $ssl_dir/betterdesk.key -tls-signal -tls-relay|" "$go_svc_file"
+            fi
+
+            systemctl daemon-reload 2>/dev/null || true
+
+            print_success "Switched to HTTPS mode"
+            echo ""
+            print_info "  Panel:         HTTPS :5443"
+            print_info "  Signal:        TLS   :21116"
+            print_info "  Relay:         TLS   :21117"
+            print_info "  Go API:        HTTP  :21114 (internal, always HTTP)"
+            print_info "  Client API:    auto  :21121"
+            ;;
+        0|*)
+            return
+            ;;
+    esac
+
+    echo ""
+    if confirm "Restart BetterDesk services now?"; then
+        systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
+        sleep 2
+        print_success "BetterDesk services restarted"
+        echo ""
+        # Quick status check
+        if systemctl is-active --quiet betterdesk-server; then
+            print_success "Go Server:   running"
+        else
+            print_error "Go Server:   not running"
+        fi
+        if systemctl is-active --quiet betterdesk-console; then
+            print_success "Web Console: running"
+        else
+            print_error "Web Console: not running"
+        fi
+    fi
+
+    press_enter
+}
+
+#===============================================================================
 # Database Migration Functions
 #===============================================================================
 
@@ -4754,6 +4988,7 @@ show_menu() {
     echo ""
     echo "  L. 📦 MINIMAL INSTALLATION (server only)"
     echo "  C. 🔒 Configure SSL certificates"
+    echo "  T. 🔄 Toggle HTTP/HTTPS mode"
     echo "  M. 🔄 Database migration"
     echo "  S. ⚙️  Settings (paths)"
     echo "  0. ❌ Exit"
@@ -4801,6 +5036,7 @@ main() {
             9) do_uninstall ;;
             [Ll]) do_install_minimal ;;
             [Cc]) do_configure_ssl ;;
+            [Tt]) do_toggle_protocol ;;
             [Mm]) do_migrate_database ;;
             [Ss]) configure_paths ;;
             0) 

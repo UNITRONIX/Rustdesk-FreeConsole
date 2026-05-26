@@ -8,12 +8,17 @@
  */
 
 const axios = require('axios');
+const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const config = require('../config/config');
 
+// Determine whether the Go API URL uses HTTPS so we only set the appropriate
+// agent. Setting httpsAgent on plain HTTP connections can trigger spurious
+// EPROTO / "wrong version number" errors on some axios/Node.js versions.
+const _isApiHttps = (config.betterdeskApiUrl || '').startsWith('https://');
+
 // Axios instance for BetterDesk Go API
-// Allow self-signed certificates for local TLS connections
 const apiClient = axios.create({
     baseURL: config.betterdeskApiUrl,
     timeout: config.betterdeskApiTimeout,
@@ -21,7 +26,10 @@ const apiClient = axios.create({
         'Content-Type': 'application/json',
         'X-API-Key': config.betterdeskApiKey
     },
-    httpsAgent: new https.Agent({ rejectUnauthorized: !config.allowSelfSignedCerts })
+    ...(_isApiHttps
+        ? { httpsAgent: new https.Agent({ rejectUnauthorized: !config.allowSelfSignedCerts }) }
+        : { httpAgent: new http.Agent({ keepAlive: true }) }
+    ),
 });
 
 // Retry once on 401 by reloading API key from file (handles race condition
