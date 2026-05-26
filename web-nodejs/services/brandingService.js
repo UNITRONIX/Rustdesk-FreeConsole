@@ -7,36 +7,83 @@
 const db = require('./database');
 const fontService = require('./fontService');
 
-// Dangerous SVG elements that can execute scripts
-const SVG_DANGEROUS_TAGS = /<\s*(script|foreignobject|iframe|embed|object|applet|animate|set)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
-const SVG_DANGEROUS_TAGS_SELFCLOSING = /<\s*(script|foreignobject|iframe|embed|object|applet)[^>]*\/>/gi;
+// Dangerous SVG elements that can execute scripts or fetch external resources.
+// Includes <style> (CSS @import/expression XSS vectors) and <use> (xlink:href external SVG inclusion).
+const SVG_DANGEROUS_TAGS = /<\s*(script|foreignobject|iframe|embed|object|applet|animate|set|style|use|image)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
+const SVG_DANGEROUS_TAGS_SELFCLOSING = /<\s*(script|foreignobject|iframe|embed|object|applet|style|use|image)\b[^>]*\/>/gi;
 
-// Dangerous attributes that can execute JavaScript
-const SVG_DANGEROUS_ATTRS = /\s(on\w+|xlink:href\s*=\s*["']javascript:)[^>]*/gi;
-const SVG_JAVASCRIPT_HREF = /\bhref\s*=\s*["']javascript:[^"']*/gi;
+// Dangerous attributes that can execute JavaScript or trigger external fetches.
+const SVG_DANGEROUS_ATTRS = /\s(on\w+|xlink:href\s*=\s*["']\s*(?:javascript|data|vbscript|file):)[^>]*/gi;
+// Strip javascript:/data:/vbscript: URLs in href / xlink:href.
+const SVG_JAVASCRIPT_HREF = /\b(?:xlink:)?href\s*=\s*["']\s*(?:javascript|data|vbscript|file):[^"']*/gi;
+// Strip CSS expression() and @import inside style attributes (legacy IE / SVG abuse).
+const SVG_CSS_EXPRESSION = /\b(?:expression|@import|url\s*\(\s*["']?\s*(?:javascript|data|vbscript|file):)/gi;
 
 /**
- * Sanitize SVG content to prevent XSS attacks.
- * Removes script tags, event handlers, and javascript: URLs.
+ * Sanitize SVG content to prevent XSS / SSRF attacks.
+ * Removes script tags, event handlers, dangerous URL schemes, external references.
  * @param {string} svg - Raw SVG string
  * @returns {string} - Sanitized SVG string
  */
 function sanitizeSvg(svg) {
     if (!svg || typeof svg !== 'string') return '';
-    
+
     let sanitized = svg;
-    
-    // Remove dangerous elements (script, foreignObject, iframe, etc.)
+
+    // Strip XML processing instructions and DOCTYPE (entity expansion / external DTD).
+    sanitized = sanitized.replace(/<\?[\s\S]*?\?>/g, '');
+    sanitized = sanitized.replace(/<!DOCTYPE[\s\S]*?>/gi, '');
+
+    // Remove dangerous elements.
     sanitized = sanitized.replace(SVG_DANGEROUS_TAGS, '');
     sanitized = sanitized.replace(SVG_DANGEROUS_TAGS_SELFCLOSING, '');
-    
-    // Remove event handler attributes (onclick, onload, etc.)
+
+    // Remove event handler attributes & dangerous href schemes.
     sanitized = sanitized.replace(SVG_DANGEROUS_ATTRS, '');
-    
-    // Remove javascript: URLs in href
-    sanitized = sanitized.replace(SVG_JAVASCRIPT_HREF, ' href="');
-    
+    sanitized = sanitized.replace(SVG_JAVASCRIPT_HREF, ' href="#"');
+
+    // Defuse CSS expression() and @import inside style attributes.
+    sanitized = sanitized.replace(SVG_CSS_EXPRESSION, 'blocked-');
+
     return sanitized;
+}
+
+/**
+ * Validate a logo / favicon URL.
+ * Accepts only:
+ *   - https:// or http:// absolute URLs (parseable, hostname present)
+ *   - same-origin relative paths starting with a single "/"  (rejects "//evil.com" protocol-relative)
+ *   - empty string (clears the field)
+ *
+ * Rejects: javascript:, data:, vbscript:, file:, blob:, and protocol-relative ("//") URLs.
+ *
+ * @param {string} value
+ * @returns {string|null} normalized URL or null if invalid
+ */
+function validateBrandingUrl(value) {
+    if (value === undefined || value === null) return '';
+    const trimmed = String(value).trim();
+    if (trimmed === '') return '';
+
+    // Reject protocol-relative ("//host/path") explicitly — bypass for the "/" relative check.
+    if (trimmed.startsWith('//')) return null;
+
+    // Relative path: must start with a single "/" and contain no scheme.
+    if (trimmed.startsWith('/')) {
+        // Disallow ".." path traversal hints.
+        if (trimmed.includes('..')) return null;
+        return trimmed;
+    }
+
+    // Absolute URL: must parse and be http(s).
+    try {
+        const u = new URL(trimmed);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+        if (!u.hostname) return null;
+        return u.toString();
+    } catch (_) {
+        return null;
+    }
 }
 
 // Default branding (BetterDesk original theme)
@@ -176,12 +223,10 @@ async function saveBranding(updates) {
             // Security: Sanitize SVG content to prevent XSS
             if (key === 'logoSvg' || key === 'faviconSvg') {
                 entries.push({ key, value: sanitizeSvg(String(value)) });            } else if (key === 'logoUrl' || key === 'faviconUrl') {
-                // Security: Validate URL scheme to prevent javascript: / data: XSS
-                const url = String(value).trim();
-                if (url && !/^(https?:\/\/|\/)/i.test(url)) {
-                    continue; // skip dangerous URL schemes
-                }
-                entries.push({ key, value: url });            } else {
+                // Security: Validate URL scheme to prevent javascript:/data:/file:/protocol-relative XSS/SSRF.
+                const normalized = validateBrandingUrl(value);
+                if (normalized === null) continue; // skip invalid value, keep previous DB value
+                entries.push({ key, value: normalized });            } else {
                 entries.push({ key, value: String(value) });
             }
         }
@@ -336,5 +381,7 @@ module.exports = {
     generateFavicon,
     exportPreset,
     importPreset,
-    invalidateCache
+    invalidateCache,
+    sanitizeSvg,
+    validateBrandingUrl
 };

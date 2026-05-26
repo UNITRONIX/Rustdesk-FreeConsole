@@ -40,15 +40,16 @@ type ServerConfig struct {
 
 // User represents an API user account.
 type User struct {
-	ID            int64  `json:"id"`
-	Username      string `json:"username"`
-	PasswordHash  string `json:"-"`
-	Role          string `json:"role"`            // admin, operator, viewer
-	IsServerAdmin bool   `json:"is_server_admin"` // Phase 3: separate server admin flag
-	TOTPSecret    string `json:"-"`
-	TOTPEnabled   bool   `json:"totp_enabled"`
-	CreatedAt     string `json:"created_at"`
-	LastLogin     string `json:"last_login,omitempty"`
+	ID                 int64  `json:"id"`
+	Username           string `json:"username"`
+	PasswordHash       string `json:"-"`
+	Role               string `json:"role"`            // admin, operator, viewer
+	IsServerAdmin      bool   `json:"is_server_admin"` // Phase 3: separate server admin flag
+	TOTPSecret         string `json:"-"`
+	TOTPEnabled        bool   `json:"totp_enabled"`
+	TOTPRecoveryCodes  string `json:"-"` // JSON array of bcrypt-hashed recovery codes (H4)
+	CreatedAt          string `json:"created_at"`
+	LastLogin          string `json:"last_login,omitempty"`
 }
 
 // RolePermission represents a custom permission override for a role.

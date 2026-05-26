@@ -217,13 +217,27 @@ router.post('/api/settings/branding/upload-logo', requireAuth, requirePermission
         }
         const url = `/uploads/${req.file.filename}`;
 
-        // Remove previous uploaded logo if it was in the uploads dir
+        // Remove previous uploaded logo if it was in the uploads dir.
+        // Security: defense-in-depth path validation — resolve real paths and
+        // verify the candidate is (a) inside UPLOADS_DIR and (b) matches the
+        // managed filename pattern (logo-<hex>.<ext>) before unlinking.
         try {
             const branding = brandingService.getBranding();
             if (branding.logoUrl && branding.logoUrl.startsWith('/uploads/')) {
-                const prev = path.join(UPLOADS_DIR, path.basename(branding.logoUrl));
-                if (fs.existsSync(prev) && prev !== path.join(UPLOADS_DIR, req.file.filename)) {
-                    fs.unlinkSync(prev);
+                const baseName = path.basename(branding.logoUrl);
+                // Managed logos use crypto.randomBytes(8).toString('hex') => 16 hex chars
+                const managedPattern = /^logo-[0-9a-f]{16}\.(png|jpg|jpeg|gif|webp|svg)$/i;
+                if (managedPattern.test(baseName)) {
+                    const prev = path.resolve(UPLOADS_DIR, baseName);
+                    const uploadsRoot = path.resolve(UPLOADS_DIR);
+                    const newPath = path.resolve(UPLOADS_DIR, req.file.filename);
+                    if (prev.startsWith(uploadsRoot + path.sep) && prev !== newPath && fs.existsSync(prev)) {
+                        // Final guard: stat must be a regular file (not symlink to elsewhere)
+                        const st = fs.lstatSync(prev);
+                        if (st.isFile() && !st.isSymbolicLink()) {
+                            fs.unlinkSync(prev);
+                        }
+                    }
                 }
             }
         } catch (_) { /* ignore cleanup errors */ }

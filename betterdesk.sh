@@ -1391,19 +1391,72 @@ install_nodejs() {
     fi
     
     print_step "Installing Node.js 20 LTS..."
-    
+
+    # Detect OS and install Node.js. The NodeSource setup script is downloaded
+    # to a temp file and validated before execution (H5 audit fix): we do NOT
+    # pipe `curl | bash` blindly. Optional pinning: set $NODESOURCE_SHA256 to
+    # require an exact SHA-256 match before running the installer.
+    _fetch_and_run_nodesource() {
+        local url="$1"
+        local tmp
+        tmp=$(mktemp --suffix=.sh) || { print_error "mktemp failed"; return 1; }
+        trap "rm -f '$tmp'" RETURN
+
+        if ! curl -fsSL --max-time 60 --proto '=https' --tlsv1.2 -o "$tmp" "$url"; then
+            print_error "Failed to download NodeSource setup script from $url"
+            return 1
+        fi
+
+        # Size sanity check: NodeSource setup script is ~15-40 KB. Reject anything
+        # outside [1 KB, 500 KB] (catches HTML error pages and tampered payloads).
+        local size
+        size=$(stat -c%s "$tmp" 2>/dev/null || wc -c <"$tmp")
+        if [ "${size:-0}" -lt 1024 ] || [ "${size:-0}" -gt 512000 ]; then
+            print_error "Downloaded NodeSource script has unexpected size (${size} bytes). Aborting."
+            return 1
+        fi
+
+        # Header sanity check: must be a bash/sh script.
+        local first_line
+        first_line=$(head -n 1 "$tmp")
+        case "$first_line" in
+            "#!/bin/bash"*|"#!/usr/bin/env bash"*|"#!/bin/sh"*|"#!/usr/bin/env sh"*) ;;
+            *)
+                print_error "Downloaded NodeSource script has unexpected shebang: '$first_line'"
+                return 1
+                ;;
+        esac
+
+        # Optional pinned SHA-256 verification.
+        local actual_sha
+        if command -v sha256sum &> /dev/null; then
+            actual_sha=$(sha256sum "$tmp" | awk '{print $1}')
+        elif command -v shasum &> /dev/null; then
+            actual_sha=$(shasum -a 256 "$tmp" | awk '{print $1}')
+        fi
+        if [ -n "$actual_sha" ]; then
+            print_info "NodeSource setup script SHA-256: $actual_sha"
+            if [ -n "${NODESOURCE_SHA256:-}" ] && [ "$actual_sha" != "$NODESOURCE_SHA256" ]; then
+                print_error "NodeSource SHA-256 mismatch (expected $NODESOURCE_SHA256, got $actual_sha)"
+                return 1
+            fi
+        fi
+
+        bash "$tmp"
+    }
+
     # Detect OS and install Node.js
     if command -v apt-get &> /dev/null; then
         # Debian/Ubuntu - use NodeSource
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        _fetch_and_run_nodesource "https://deb.nodesource.com/setup_20.x" || return 1
         apt-get install -y -qq nodejs
     elif command -v dnf &> /dev/null; then
         # Fedora/RHEL 8+
-        curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_20.x" || return 1
         dnf install -y -q nodejs
     elif command -v yum &> /dev/null; then
         # RHEL/CentOS 7
-        curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_20.x" || return 1
         yum install -y -q nodejs
     elif command -v pacman &> /dev/null; then
         # Arch Linux

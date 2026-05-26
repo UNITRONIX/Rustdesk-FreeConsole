@@ -824,9 +824,10 @@ func scanUser(row pgx.Row) (*User, error) {
 	u := &User{}
 	var createdAt *time.Time
 	var lastLogin *time.Time
+	var recoveryCodes *string
 
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
-		&u.TOTPSecret, &u.TOTPEnabled, &createdAt, &lastLogin, &u.IsServerAdmin)
+		&u.TOTPSecret, &u.TOTPEnabled, &createdAt, &lastLogin, &u.IsServerAdmin, &recoveryCodes)
 	if err != nil {
 		return nil, err
 	}
@@ -837,6 +838,9 @@ func scanUser(row pgx.Row) (*User, error) {
 	if lastLogin != nil {
 		u.LastLogin = lastLogin.Format("2006-01-02 15:04:05")
 	}
+	if recoveryCodes != nil {
+		u.TOTPRecoveryCodes = *recoveryCodes
+	}
 
 	return u, nil
 }
@@ -845,7 +849,7 @@ func scanUser(row pgx.Row) (*User, error) {
 func (pg *PostgresDB) GetUser(username string) (*User, error) {
 	row := pg.pool.QueryRow(pg.ctx,
 		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE) FROM users WHERE username = $1`, username)
+		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes FROM users WHERE username = $1`, username)
 	u, err := scanUser(row)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -857,7 +861,7 @@ func (pg *PostgresDB) GetUser(username string) (*User, error) {
 func (pg *PostgresDB) GetUserByID(id int64) (*User, error) {
 	row := pg.pool.QueryRow(pg.ctx,
 		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE) FROM users WHERE id = $1`, id)
+		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes FROM users WHERE id = $1`, id)
 	u, err := scanUser(row)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -869,7 +873,7 @@ func (pg *PostgresDB) GetUserByID(id int64) (*User, error) {
 func (pg *PostgresDB) ListUsers() ([]*User, error) {
 	rows, err := pg.pool.Query(pg.ctx,
 		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE) FROM users ORDER BY id`)
+		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes FROM users ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("db: ListUsers: %w", err)
 	}
@@ -888,10 +892,16 @@ func (pg *PostgresDB) ListUsers() ([]*User, error) {
 
 // UpdateUser updates a user's mutable fields.
 func (pg *PostgresDB) UpdateUser(u *User) error {
+	var recoveryCodes interface{}
+	if u.TOTPRecoveryCodes == "" {
+		recoveryCodes = nil
+	} else {
+		recoveryCodes = u.TOTPRecoveryCodes
+	}
 	_, err := pg.pool.Exec(pg.ctx,
-		`UPDATE users SET password_hash = $1, role = $2, totp_secret = $3, totp_enabled = $4, is_server_admin = $5
-		 WHERE id = $6`,
-		u.PasswordHash, u.Role, u.TOTPSecret, u.TOTPEnabled, u.IsServerAdmin, u.ID)
+		`UPDATE users SET password_hash = $1, role = $2, totp_secret = $3, totp_enabled = $4, is_server_admin = $5, totp_recovery_codes = $6
+		 WHERE id = $7`,
+		u.PasswordHash, u.Role, u.TOTPSecret, u.TOTPEnabled, u.IsServerAdmin, recoveryCodes, u.ID)
 	return err
 }
 

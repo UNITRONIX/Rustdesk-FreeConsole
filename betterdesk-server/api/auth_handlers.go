@@ -300,6 +300,38 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !auth.ValidateTOTP(user.TOTPSecret, body.Code) {
+		// H4: fall back to recovery code consumption (single-use).
+		if user.TOTPRecoveryCodes != "" {
+			newStore, matched, rcErr := auth.ConsumeRecoveryCode(user.TOTPRecoveryCodes, body.Code)
+			if rcErr != nil {
+				log.Printf("api: recovery code consume failed for user %d: %v", user.ID, rcErr)
+			}
+			if matched {
+				user.TOTPRecoveryCodes = newStore
+				if err := s.db.UpdateUser(user); err != nil {
+					log.Printf("api: persist consumed recovery code failed for user %d: %v", user.ID, err)
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+					return
+				}
+				if s.auditLog != nil {
+					s.auditLog.Log(audit.ActionAuthLogin, s.remoteIP(r), user.Username, map[string]string{"2fa": "recovery_code"})
+				}
+				token, err := s.jwtManager.Generate(user.Username, user.Role)
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
+					return
+				}
+				_ = s.db.UpdateUserLogin(user.ID)
+				writeJSON(w, http.StatusOK, map[string]any{
+					"token":              token,
+					"role":               user.Role,
+					"username":           user.Username,
+					"used_recovery_code": true,
+				})
+				return
+			}
+		}
+
 		if s.auditLog != nil {
 			s.auditLog.Log(audit.ActionAuthLoginFailed, s.remoteIP(r), claims.Sub, map[string]string{"reason": "invalid_totp"})
 		}
@@ -654,13 +686,34 @@ func (s *Server) handleConfirmTOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user.TOTPEnabled = true
+
+	// H4: generate one-shot recovery codes on enable and return them ONCE in
+	// plaintext. Only bcrypt hashes are persisted. The user must save them
+	// somewhere safe — there is no way to retrieve them later.
+	plainCodes, err := auth.GenerateRecoveryCodes()
+	if err != nil {
+		log.Printf("api: totp recovery code gen failed for user %d: %v", user.ID, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	hashed, err := auth.HashRecoveryCodes(plainCodes)
+	if err != nil {
+		log.Printf("api: totp recovery code hash failed for user %d: %v", user.ID, err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	user.TOTPRecoveryCodes = hashed
+
 	if err := s.db.UpdateUser(user); err != nil {
 		log.Printf("api: totp confirm persist failed for user %d: %v", user.ID, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "totp_enabled"})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":         "totp_enabled",
+		"recovery_codes": plainCodes,
+	})
 }
 
 // handleDisableTOTP removes TOTP for a user.
@@ -680,6 +733,7 @@ func (s *Server) handleDisableTOTP(w http.ResponseWriter, r *http.Request) {
 
 	user.TOTPSecret = ""
 	user.TOTPEnabled = false
+	user.TOTPRecoveryCodes = ""
 	if err := s.db.UpdateUser(user); err != nil {
 		log.Printf("api: totp disable persist failed for user %d: %v", user.ID, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
