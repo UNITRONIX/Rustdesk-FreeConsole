@@ -1,13 +1,12 @@
 use crate::cdap_client::CdapClient;
-use crate::config::AgentConfig;
+use crate::config::{AccessMode, AgentConfig};
 use crate::registration;
 use crate::sidecar::{SidecarConfig, SidecarStatus};
 use crate::sysinfo_collect::SystemSnapshot;
 use log::info;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::State;
-use tauri::Manager;
+use tauri::{Emitter, Manager, State};
 
 /// Shared application state managed by Tauri.
 pub struct AgentState {
@@ -21,6 +20,22 @@ pub struct AgentState {
     /// parity because it contains desktop streaming, input, monitor, and
     /// consent handlers that the native Rust CDAP client does not yet provide.
     pub sidecar: crate::sidecar::SidecarManager,
+    /// Sessions currently being streamed to operators. Tracked here so the
+    /// frontend can render the per-monitor overlay and "Disconnect" button
+    /// without round-tripping to the sidecar.
+    pub active_sessions: Mutex<Vec<ActiveSession>>,
+}
+
+/// Single inbound remote-desktop session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveSession {
+    pub session_id: String,
+    pub operator: String,
+    /// Reported by the Go sidecar's SESSION_START event: `supervised` or
+    /// `unattended`.
+    pub mode: String,
+    /// ISO-8601 timestamp captured when the session became active.
+    pub started_at: String,
 }
 
 /// Chat message structure.
@@ -56,6 +71,8 @@ pub struct AgentSettings {
     pub cdap_port: u16,
     pub allow_screen_capture: bool,
     pub require_consent: bool,
+    /// Remote-desktop access policy. See [`AccessMode`].
+    pub access_mode: AccessMode,
     pub allow_terminal: bool,
     pub allow_file_browser: bool,
     pub allow_clipboard: bool,
@@ -459,12 +476,36 @@ pub async fn poll_enrollment_status(
 }
 
 #[tauri::command]
-pub async fn sync_initial_config(state: State<'_, AgentState>) -> Result<(), String> {
+pub async fn sync_initial_config(
+    app: tauri::AppHandle,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
     let config = state.config.lock().map_err(|e| e.to_string())?.clone();
 
     registration::sync_config(&config)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Auto-start the managed CDAP sidecar once the wizard completes. The boot
+    // path in lib.rs only fires when `is_registered` is already true at app
+    // launch — for first-run registration we have to kick the sidecar here
+    // (skipping the OS-admin gate, which only protects the user-facing IPC
+    // command from being invoked while the sidecar runs).
+    if config.is_registered() && config.auto_start_sidecar {
+        match build_sidecar_config(&state).await {
+            Ok(sidecar_cfg) => {
+                state.sidecar.stop();
+                if let Err(e) = state.sidecar.start(&sidecar_cfg, app) {
+                    log::warn!("[sidecar] Post-registration auto-start failed: {}", e);
+                } else {
+                    info!("[sidecar] Auto-started after initial registration");
+                }
+            }
+            Err(e) => log::warn!("[sidecar] Skipping post-registration start: {}", e),
+        }
+    }
+
+    Ok(())
 }
 
 // ─────────────────────────── Chat ───────────────────────────
@@ -599,6 +640,7 @@ pub fn get_agent_settings(state: State<'_, AgentState>) -> Result<AgentSettings,
         cdap_port: config.cdap_port,
         allow_screen_capture: config.allow_screen_capture,
         require_consent: config.require_consent,
+        access_mode: config.access_mode,
         allow_terminal: config.allow_terminal,
         allow_file_browser: config.allow_file_browser,
         allow_clipboard: config.allow_clipboard,
@@ -622,7 +664,11 @@ pub fn save_agent_settings(
         config.api_key = settings.api_key;
         config.cdap_port = settings.cdap_port;
         config.allow_screen_capture = settings.allow_screen_capture;
+        // `access_mode` is authoritative; `require_consent` is kept in sync
+        // afterwards so legacy code paths still see a consistent value.
+        config.access_mode = settings.access_mode;
         config.require_consent = settings.require_consent;
+        config.sync_access_mode();
         config.allow_terminal = settings.allow_terminal;
         config.allow_file_browser = settings.allow_file_browser;
         config.allow_clipboard = settings.allow_clipboard;
@@ -834,4 +880,81 @@ fn format_uptime() -> String {
     } else {
         format!("{}m", minutes)
     }
+}
+
+// ---------------------------------------------------------------------------
+// Access-mode controls (Phase 1: supervised / unattended / disabled)
+// ---------------------------------------------------------------------------
+
+/// Returns the currently configured remote-desktop access mode.
+#[tauri::command]
+pub fn get_access_mode(state: State<AgentState>) -> Result<AccessMode, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(config.access_mode)
+}
+
+/// Updates the access mode, persists the config, and restarts the sidecar so
+/// the new policy is pushed into the Go agent's runtime config immediately.
+#[tauri::command]
+pub async fn set_access_mode(
+    mode: AccessMode,
+    state: State<'_, AgentState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let sidecar_cfg = {
+        let mut config = state.config.lock().map_err(|e| e.to_string())?;
+        if config.access_mode == mode {
+            return Ok(());
+        }
+        config.access_mode = mode;
+        config.sync_access_mode();
+        config.save().map_err(|e| e.to_string())?;
+        config.to_sidecar_config()
+    };
+
+    // Hot-apply: restart the sidecar so the Go agent picks up the new policy.
+    // We ignore errors here — the next sidecar start will use the new config
+    // regardless, and the access mode is already persisted to disk.
+    state.sidecar.stop();
+    if let Err(e) = state.sidecar.start(&sidecar_cfg, app.clone()) {
+        log::warn!("[access-mode] Sidecar restart failed: {}", e);
+    }
+
+    let _ = app.emit("access-mode-changed", mode);
+    Ok(())
+}
+
+/// Returns the list of remote-desktop sessions currently being streamed.
+#[tauri::command]
+pub fn get_active_sessions(state: State<AgentState>) -> Result<Vec<ActiveSession>, String> {
+    let sessions = state.active_sessions.lock().map_err(|e| e.to_string())?;
+    Ok(sessions.clone())
+}
+
+/// Internal helper invoked by the sidecar stdout reader to record a session.
+pub fn record_session_start(state: &AgentState, session: ActiveSession) {
+    if let Ok(mut sessions) = state.active_sessions.lock() {
+        // Replace any stale entry with the same session id.
+        sessions.retain(|s| s.session_id != session.session_id);
+        sessions.push(session);
+    }
+}
+
+/// Internal helper invoked by the sidecar stdout reader to drop a session.
+pub fn record_session_end(state: &AgentState, session_id: &str) {
+    if let Ok(mut sessions) = state.active_sessions.lock() {
+        sessions.retain(|s| s.session_id != session_id);
+    }
+}
+
+/// Requests the sidecar to terminate the given remote-desktop session.
+/// This is intended for the "Disconnect" button on the on-screen overlay.
+#[tauri::command]
+pub async fn disconnect_active_session(
+    session_id: String,
+    state: State<'_, AgentState>,
+) -> Result<(), String> {
+    record_session_end(&state, &session_id);
+    state.sidecar.send_disconnect(&session_id);
+    Ok(())
 }
