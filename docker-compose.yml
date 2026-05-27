@@ -42,13 +42,17 @@ services:
     networks:
       - betterdesk-net
     restart: unless-stopped
-    # SECURITY (audit fix L-02, 2026-04-10): minimal capabilities, no privilege
-    # escalation. The Go server only needs to bind low ports inside the
-    # container namespace and write to the shared volume — no extra caps.
+    # SECURITY (audit fix L-02, 2026-04-10): drop all capabilities except
+    # those needed by the entrypoint to chown volumes + su-exec to non-root.
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+      - FOWNER
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:21114/api/health"]
       interval: 30s
@@ -96,13 +100,17 @@ services:
     networks:
       - betterdesk-net
     restart: unless-stopped
-    # SECURITY (audit fix L-02, 2026-04-10): drop all caps for the Node.js
-    # console. Node only needs to listen on TCP/5000+21121 inside its own
-    # netns and write to /app/data — no host-level privileges.
+    # SECURITY (audit fix L-02, 2026-04-10): drop all caps except those
+    # needed by su-exec (SETUID/SETGID) and volume permission fixes (CHOWN/FOWNER).
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+      - FOWNER
     depends_on:
       server:
         condition: service_healthy
