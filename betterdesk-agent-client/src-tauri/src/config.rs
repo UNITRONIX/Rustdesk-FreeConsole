@@ -3,6 +3,46 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// Remote-desktop access policy enforced by the agent.
+///
+/// `Supervised` (default) shows a consent dialog before every session.
+/// `Unattended`  starts sessions immediately without prompting the user.
+/// `Disabled`    rejects every inbound desktop session locally; the operator
+///               sees a clear "remote desktop disabled by user policy" error.
+///
+/// The legacy `require_consent` boolean is derived from this value at config
+/// load and write time to keep wire compatibility with the Go sidecar's JSON
+/// config until the sidecar gains a native `access_mode` field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AccessMode {
+    Supervised,
+    Unattended,
+    Disabled,
+}
+
+impl Default for AccessMode {
+    fn default() -> Self {
+        AccessMode::Supervised
+    }
+}
+
+impl AccessMode {
+    /// Whether the agent should prompt the user before starting a session.
+    pub fn requires_consent(self) -> bool {
+        matches!(self, AccessMode::Supervised)
+    }
+
+    /// Whether the agent should refuse desktop sessions outright.
+    pub fn is_disabled(self) -> bool {
+        matches!(self, AccessMode::Disabled)
+    }
+}
+
+fn default_access_mode() -> AccessMode {
+    AccessMode::Supervised
+}
+
 /// Persistent agent configuration stored as JSON on disk.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
@@ -50,7 +90,20 @@ pub struct AgentConfig {
     #[serde(default = "default_true")]
     pub allow_screen_capture: bool,
 
+    /// Remote-desktop access policy. New in 2026-05.
+    ///
+    /// Backward compatible: configs written by older builds only have
+    /// `require_consent`; the loader migrates that into `access_mode` and the
+    /// `require_consent` setter mirrors changes back to keep the sidecar
+    /// JSON unchanged until it learns the new field.
+    #[serde(default = "default_access_mode")]
+    pub access_mode: AccessMode,
+
     /// Require explicit user consent dialog before a remote session starts.
+    ///
+    /// Treated as a derived mirror of `access_mode == Supervised`. Kept as a
+    /// separate field so the Go sidecar JSON contract is unchanged and so
+    /// old configs continue to load without losing user intent.
     #[serde(default = "default_true")]
     pub require_consent: bool,
 
@@ -102,6 +155,7 @@ impl Default for AgentConfig {
             auth_token: String::new(),
             registered: false,
             allow_screen_capture: true,
+            access_mode: AccessMode::Supervised,
             require_consent: true,
             allow_terminal: true,
             allow_file_browser: true,
@@ -132,8 +186,37 @@ impl AgentConfig {
         }
 
         let content = std::fs::read_to_string(&path)?;
-        let config: Self = serde_json::from_str(&content)?;
+        // Detect legacy configs that lack `access_mode` so we can derive it
+        // from the older `require_consent` field. serde_json::Value gives us a
+        // cheap way to inspect the raw JSON before strongly typing it.
+        let had_access_mode = serde_json::from_str::<serde_json::Value>(&content)
+            .ok()
+            .and_then(|v| v.get("access_mode").cloned())
+            .is_some();
+
+        let mut config: Self = serde_json::from_str(&content)?;
+        if !had_access_mode {
+            config.access_mode = if config.require_consent {
+                AccessMode::Supervised
+            } else {
+                AccessMode::Unattended
+            };
+            info!(
+                "Migrated legacy config to access_mode={:?} (from require_consent={})",
+                config.access_mode, config.require_consent
+            );
+        }
+        // Always keep require_consent in sync with access_mode so the sidecar
+        // JSON written next reflects the new policy correctly.
+        config.sync_access_mode();
         Ok(config)
+    }
+
+    /// Mirror `access_mode` into the derived `require_consent` field. Call
+    /// after every mutation of `access_mode` so the sidecar JSON written next
+    /// reflects user intent.
+    pub fn sync_access_mode(&mut self) {
+        self.require_consent = self.access_mode.requires_consent();
     }
 
     /// Repair stale configs produced by the legacy fake-registration flow.
@@ -213,6 +296,13 @@ impl AgentConfig {
             .map(|d| d.data_dir().to_path_buf())
             .unwrap_or_else(|| PathBuf::from("."));
 
+        // When the policy is Disabled we force `allow_screen_capture=false`
+        // on the wire so the Go sidecar refuses `desktop_start` outright,
+        // even if the user toggled the capability gate on. The Tauri layer
+        // also enforces this, but two-layer defense keeps the contract honest
+        // if the sidecar config file is read directly.
+        let screen_capture = self.allow_screen_capture && !self.access_mode.is_disabled();
+
         crate::sidecar::SidecarConfig {
             server_address: self.server_address.clone(),
             device_id: self.device_id.clone(),
@@ -222,8 +312,8 @@ impl AgentConfig {
             allow_terminal: self.allow_terminal,
             allow_file_browser: self.allow_file_browser,
             allow_clipboard: self.allow_clipboard,
-            allow_screen_capture: self.allow_screen_capture,
-            require_consent: self.require_consent,
+            allow_screen_capture: screen_capture,
+            require_consent: self.access_mode.requires_consent(),
             data_dir,
             cdap_port: self.cdap_port,
         }

@@ -19,8 +19,11 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Python distutils 'lib/' build output (root-level only — must NOT match
+# Tauri/SolidJS client src/lib directories like
+# betterdesk-agent-client/src/lib or betterdesk-mgmt/src/lib).
+/lib/
+/lib64/
 parts/
 sdist/
 var/

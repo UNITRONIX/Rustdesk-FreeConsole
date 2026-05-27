@@ -1569,3 +1569,182 @@ a:hover { color: var(--accent-hover); }
 .sudo-auth-btn-submit:hover:not(:disabled) {
   background: var(--accent-hover);
 }
+
+/* ── SessionOverlay (Phase 1) ─────────────────────────────────────────── */
+
+/* TV-style border around the viewport. Always-on-top of regular UI. Lets the
+   user instantly notice that a remote session is in progress. */
+.session-overlay-border {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9000;
+  border-style: solid;
+  border-width: 6px;
+  box-sizing: border-box;
+  animation: session-overlay-pulse 2s ease-in-out infinite;
+}
+
+.session-overlay-border--supervised {
+  border-color: #d97706; /* amber-600 */
+  box-shadow: inset 0 0 24px rgba(217, 119, 6, 0.45);
+}
+
+.session-overlay-border--unattended {
+  border-color: #dc2626; /* red-600 */
+  box-shadow: inset 0 0 28px rgba(220, 38, 38, 0.55);
+}
+
+@keyframes session-overlay-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+/* Collapsible widget anchored to bottom-right. */
+.session-overlay-widget {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9001;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 280px;
+  max-width: 360px;
+  background: var(--bg-elevated, #1f2937);
+  color: var(--text-primary, #f3f4f6);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(217, 119, 6, 0.6);
+  overflow: hidden;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.session-overlay-widget--unattended {
+  border-color: rgba(220, 38, 38, 0.7);
+}
+
+.session-overlay-widget--collapsed {
+  min-width: 36px;
+  max-width: 36px;
+}
+
+.session-overlay-toggle {
+  flex: 0 0 28px;
+  width: 28px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-overlay-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.session-overlay-body {
+  flex: 1;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.session-overlay-icon {
+  font-size: 1.1rem;
+}
+
+.session-overlay-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.session-overlay-row:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.session-overlay-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-overlay-operator {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-overlay-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.72rem;
+  margin-top: 2px;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.session-overlay-mode {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.session-overlay-mode--supervised { color: #f59e0b; }
+.session-overlay-mode--unattended { color: #ef4444; }
+
+.session-overlay-disconnect {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+}
+
+/* SettingsPanel — access-mode radio group (Phase 1) */
+.settings-access-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 12px 0;
+}
+.settings-access-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.settings-access-mode-option:hover {
+  border-color: var(--accent, #3b82f6);
+  background: rgba(59, 130, 246, 0.06);
+}
+.settings-access-mode-option input[type="radio"] {
+  margin-top: 3px;
+}
+.settings-access-mode-text { flex: 1; }
+.settings-access-mode-title { font-weight: 600; font-size: 0.9rem; }
+.settings-access-mode-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #94a3b8);
+  margin-top: 2px;
+}

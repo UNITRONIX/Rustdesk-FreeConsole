@@ -7,6 +7,7 @@ import HelpRequest from "./components/HelpRequest";
 import SettingsPanel from "./components/SettingsPanel";
 import ConsentDialog from "./components/ConsentDialog";
 import SudoAuthDialog from "./components/SudoAuthDialog";
+import SessionOverlay from "./components/SessionOverlay";
 import { initI18n, t } from "./lib/i18n";
 import { frontendLog } from "./lib/logger";
 import { invoke } from "@tauri-apps/api/core";
@@ -162,6 +163,7 @@ const RegisteredShell: Component<RegisteredShellProps> = (props) => {
         <div class="app-layout app-layout-tray">
           <NavigationListener />
           <ConsentDialog />
+          <SessionOverlay />
           <main class="app-main app-main-full">{routerProps.children}</main>
           <BottomNav isAdmin={props.isAdmin} onQuit={props.onQuit} />
         </div>

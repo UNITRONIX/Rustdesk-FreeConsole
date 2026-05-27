@@ -186,5 +186,25 @@
     "auto_deny_in": "Automatyczna odmowa za",
     "allow": "Zezwól",
     "deny": "Odmów"
+  },
+  "session": {
+    "active_title": "Trwa sesja zdalna",
+    "operator_label": "Operator",
+    "elapsed": "Czas:",
+    "disconnect": "Rozłącz",
+    "supervised": "Nadzorowana",
+    "unattended": "Nienadzorowana",
+    "expand": "Rozwiń panel sesji",
+    "collapse": "Zwiń panel sesji"
+  },
+  "access_mode": {
+    "label": "Dostęp zdalny",
+    "description": "Określa, w jaki sposób operatorzy mogą łączyć się z tym urządzeniem.",
+    "supervised": "Nadzorowany",
+    "supervised_desc": "Pytaj o zgodę przed każdą sesją (zalecane).",
+    "unattended": "Nienadzorowany",
+    "unattended_desc": "Operatorzy mogą łączyć się bez pytania. Używaj tylko z zaufanymi serwerami.",
+    "disabled": "Wyłączony",
+    "disabled_desc": "Blokuj wszystkie sesje zdalnego pulpitu na tym urządzeniu."
   }
 }

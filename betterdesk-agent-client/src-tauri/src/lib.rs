@@ -14,6 +14,7 @@ pub mod commands;
 pub mod config;
 pub mod privileges;
 pub mod registration;
+pub mod session_overlay;
 pub mod sidecar;
 pub mod sysinfo_collect;
 
@@ -311,6 +312,7 @@ pub fn run() {
             chat_history: Mutex::new(Vec::new()),
             cdap: cdap_client,
             sidecar: sidecar_manager,
+            active_sessions: Mutex::new(Vec::new()),
         })
         .invoke_handler(tauri::generate_handler![
             // Status & lifecycle
@@ -352,6 +354,11 @@ pub fn run() {
             commands::unregister_device,
             commands::authenticate_sudo,
             commands::log_frontend_event,
+            // Access mode + active sessions (Phase 1)
+            commands::get_access_mode,
+            commands::set_access_mode,
+            commands::get_active_sessions,
+            commands::disconnect_active_session,
         ])
         .setup(move |app| {
             info!("Tauri setup complete");

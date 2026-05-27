@@ -165,6 +165,14 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	streamer := newDesktopStreamer(p.SessionID, cancel)
 	a.desktopStreams.Store(p.SessionID, streamer)
 
+	// Notify the Tauri wrapper so it can render the on-screen overlay
+	// (border around every monitor + collapsible session widget). The
+	// Tauri sidecar stdout reader translates this into a `session-active`
+	// event consumed by the SessionOverlay component.
+	fmt.Fprintf(os.Stdout,
+		"SESSION_START:{\"session_id\":%q,\"operator\":%q,\"mode\":%q}\n",
+		p.SessionID, p.OperatorName, sessionModeLabel(a.cfg.RequireConsent))
+
 	// Send the monitor list as soon as the session is accepted so the
 	// operator's toolbar can populate its dropdown before any frames
 	// arrive. Errors here are non-fatal — single-monitor placeholder is
@@ -184,8 +192,25 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	go func() {
 		defer close(streamer.done)
 		defer a.desktopStreams.Delete(p.SessionID)
+		// Always emit SESSION_END (matched to the SESSION_START above) when
+		// the streamer goroutine exits, no matter the reason — stop request,
+		// operator disconnect, or watchdog failure. The overlay state machine
+		// in the Tauri wrapper depends on the symmetry of these events.
+		defer fmt.Fprintf(os.Stdout,
+			"SESSION_END:{\"session_id\":%q}\n", p.SessionID)
 		a.streamDesktop(ctx, streamer, p.FPS, p.Quality)
 	}()
+}
+
+// sessionModeLabel converts the consent flag into the human-readable label
+// the overlay UI uses to colour its border. The Go side does not yet know
+// the full Tauri `access_mode` enum so it reports "supervised" vs
+// "unattended" only; the Tauri wrapper can refine the colour if needed.
+func sessionModeLabel(requireConsent bool) string {
+	if requireConsent {
+		return "supervised"
+	}
+	return "unattended"
 }
 
 // runDesktopWatchdog emits an `error` message after 8 seconds if no frame

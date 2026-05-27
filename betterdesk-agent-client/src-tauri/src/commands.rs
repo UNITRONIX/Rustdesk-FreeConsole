@@ -405,6 +405,23 @@ pub async fn register_device(
         .await
         .map_err(|e| e.to_string())?;
 
+    // Re-registration of a device that already exists on the server returns
+    // `approved` but does NOT emit a fresh device_token (the server reuses the
+    // existing one). If we lost the local copy (e.g. user reset agent-config),
+    // recover it from the OS keyring before persisting state. Without this,
+    // the post-registration sidecar auto-start fails with
+    // "CDAP sidecar requires a valid API key … or a server-issued device token".
+    if config_clone.registered
+        && config_clone.auth_token.is_empty()
+        && config_clone.api_key.is_empty()
+        && !config_clone.device_id.is_empty()
+    {
+        if let Some(stored) = crate::config::AgentConfig::load_token_secure(&config_clone.device_id) {
+            info!("Recovered auth token from OS keyring for {}", config_clone.device_id);
+            config_clone.auth_token = stored;
+        }
+    }
+
     // Apply mutations back to shared state (pending saves partial state too).
     {
         let mut config = state.config.lock().map_err(|e| e.to_string())?;
@@ -452,6 +469,14 @@ pub async fn poll_enrollment_status(
             let mut config = state.config.lock().map_err(|e| e.to_string())?;
             config.registered = true;
             config.device_id = enrollment.device_id.clone();
+            // If neither api_key nor auth_token is set (server did not emit a
+            // fresh device_token on re-approval), recover from OS keyring.
+            if config.auth_token.is_empty() && config.api_key.is_empty() {
+                if let Some(stored) = crate::config::AgentConfig::load_token_secure(&config.device_id) {
+                    info!("Recovered auth token from OS keyring for {}", config.device_id);
+                    config.auth_token = stored;
+                }
+            }
             if let Err(e) = config.save() {
                 info!("Config save after approval: {}", e);
             }

@@ -9,6 +9,10 @@ interface AgentSettings {
   cdap_port: number;
   allow_screen_capture: boolean;
   require_consent: boolean;
+  /** "supervised" | "unattended" | "disabled" — authoritative source for the
+   *  remote-desktop access policy. `require_consent` is kept in sync by the
+   *  Rust backend for legacy code paths. */
+  access_mode: "supervised" | "unattended" | "disabled";
   allow_terminal: boolean;
   allow_file_browser: boolean;
   allow_clipboard: boolean;
@@ -39,6 +43,7 @@ const SettingsPanel: Component<SettingsPanelProps> = (props) => {
     cdap_port: 21122,
     allow_screen_capture: true,
     require_consent: true,
+    access_mode: "supervised",
     allow_terminal: true,
     allow_file_browser: true,
     allow_clipboard: true,
@@ -215,17 +220,33 @@ const SettingsPanel: Component<SettingsPanelProps> = (props) => {
 
         <div class="settings-toggle-row">
           <div>
-            <div class="settings-toggle-label">{t("settings.require_consent")}</div>
-            <div class="settings-toggle-hint">{t("settings.require_consent_hint")}</div>
+            <div class="settings-toggle-label">{t("access_mode.label")}</div>
+            <div class="settings-toggle-hint">{t("access_mode.description")}</div>
           </div>
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings().require_consent}
-              onChange={(e) => updateSetting("require_consent", e.currentTarget.checked)}
-            />
-            <span class="toggle-slider" />
-          </label>
+        </div>
+        <div class="settings-access-mode">
+          {(["supervised", "unattended", "disabled"] as const).map((mode) => (
+            <label class="settings-access-mode-option">
+              <input
+                type="radio"
+                name="access_mode"
+                value={mode}
+                checked={settings().access_mode === mode}
+                onChange={() => {
+                  updateSetting("access_mode", mode);
+                  updateSetting("require_consent", mode === "supervised");
+                }}
+              />
+              <div class="settings-access-mode-text">
+                <div class="settings-access-mode-title">
+                  {t(`access_mode.${mode}`)}
+                </div>
+                <div class="settings-access-mode-desc">
+                  {t(`access_mode.${mode}_desc`)}
+                </div>
+              </div>
+            </label>
+          ))}
         </div>
 
         <div class="settings-toggle-row">

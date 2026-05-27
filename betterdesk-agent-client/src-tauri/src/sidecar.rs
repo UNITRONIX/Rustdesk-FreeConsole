@@ -43,7 +43,7 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use tauri::{async_runtime, Emitter};
+use tauri::{async_runtime, Emitter, Manager};
 
 // ── Public status ─────────────────────────────────────────────────────────
 
@@ -318,6 +318,18 @@ impl SidecarManager {
         }
     }
 
+    /// Write a desktop-stop request for the given session id. Used by the
+    /// on-screen "Disconnect" button on the session overlay.
+    pub fn send_disconnect(&self, session_id: &str) {
+        let mut guard = self.inner.child_stdin.lock().unwrap();
+        if let Some(ref mut stdin) = *guard {
+            let line = format!("DESKTOP_STOP:{}\n", session_id);
+            if let Err(e) = stdin.write_all(line.as_bytes()) {
+                warn!("[sidecar] Failed to write disconnect: {}", e);
+            }
+        }
+    }
+
     /// Start a background thread to read stdout from the child and emit
     /// "consent-request" Tauri events when "CONSENT_REQUEST:{...}" is seen.
     pub fn start_stdout_reader(&self, app: tauri::AppHandle) {
@@ -337,6 +349,67 @@ impl SidecarManager {
                         let json_str = l.trim_start_matches("CONSENT_REQUEST:").to_string();
                         if let Err(e) = app.emit("consent-request", json_str) {
                             warn!("[sidecar] Failed to emit consent-request event: {}", e);
+                        }
+                    }
+                    Ok(l) if l.starts_with("SESSION_START:") => {
+                        // Emitted by `betterdesk-agent/agent/desktop.go` after the
+                        // operator's `desktop_start` is accepted (post-consent in
+                        // supervised mode, immediately in unattended mode). The
+                        // payload carries `session_id`, `operator`, and `mode`.
+                        // SessionOverlay listens for this to draw the per-monitor
+                        // border + the collapsible session widget.
+                        let json_str = l.trim_start_matches("SESSION_START:").to_string();
+                        // Mirror into AgentState.active_sessions so the
+                        // overlay UI can render even after the Tauri event
+                        // has already fired.
+                        let mut overlay_mode = String::from("supervised");
+                        if let Some(state) = app.try_state::<crate::commands::AgentState>() {
+                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                                overlay_mode = parsed.get("mode").and_then(|v| v.as_str()).unwrap_or("supervised").to_string();
+                                let session = crate::commands::ActiveSession {
+                                    session_id: parsed.get("session_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                    operator: parsed.get("operator").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                    mode: overlay_mode.clone(),
+                                    started_at: chrono::Utc::now().to_rfc3339(),
+                                };
+                                crate::commands::record_session_start(&state, session);
+                            }
+                        }
+                        // Draw the click-through border on the primary monitor.
+                        // Must run on the main (UI) thread — Tauri window APIs
+                        // are not safe to call from arbitrary worker threads.
+                        let app_for_overlay = app.clone();
+                        let mode_for_overlay = overlay_mode.clone();
+                        app.run_on_main_thread(move || {
+                            crate::session_overlay::show(&app_for_overlay, &mode_for_overlay);
+                        }).ok();
+                        if let Err(e) = app.emit("session-active", json_str) {
+                            warn!("[sidecar] Failed to emit session-active event: {}", e);
+                        }
+                    }
+                    Ok(l) if l.starts_with("SESSION_END:") => {
+                        let json_str = l.trim_start_matches("SESSION_END:").to_string();
+                        let mut remaining: usize = 0;
+                        if let Some(state) = app.try_state::<crate::commands::AgentState>() {
+                            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                                if let Some(sid) = parsed.get("session_id").and_then(|v| v.as_str()) {
+                                    crate::commands::record_session_end(&state, sid);
+                                }
+                            }
+                            if let Ok(sessions) = state.active_sessions.lock() {
+                                remaining = sessions.len();
+                            }
+                        }
+                        // Tear down the on-screen border only when *all* sessions
+                        // have ended — there could be concurrent operators.
+                        if remaining == 0 {
+                            let app_for_overlay = app.clone();
+                            app.run_on_main_thread(move || {
+                                crate::session_overlay::hide(&app_for_overlay);
+                            }).ok();
+                        }
+                        if let Err(e) = app.emit("session-ended", json_str) {
+                            warn!("[sidecar] Failed to emit session-ended event: {}", e);
                         }
                     }
                     Ok(l) => {

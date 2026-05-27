@@ -186,5 +186,25 @@
     "auto_deny_in": "Auto-deny in",
     "allow": "Allow",
     "deny": "Deny"
+  },
+  "session": {
+    "active_title": "Remote session active",
+    "operator_label": "Operator",
+    "elapsed": "Duration:",
+    "disconnect": "Disconnect",
+    "supervised": "Supervised",
+    "unattended": "Unattended",
+    "expand": "Expand session widget",
+    "collapse": "Collapse session widget"
+  },
+  "access_mode": {
+    "label": "Remote-desktop access",
+    "description": "Controls how operators can connect to this device.",
+    "supervised": "Supervised",
+    "supervised_desc": "Ask me before each session (recommended).",
+    "unattended": "Unattended",
+    "unattended_desc": "Operators may connect without asking. Use only on trusted servers.",
+    "disabled": "Disabled",
+    "disabled_desc": "Block all remote-desktop sessions on this device."
   }
 }

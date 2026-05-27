@@ -775,6 +775,17 @@ func (a *Agent) stdinConsentReader() {
 		case strings.HasPrefix(line, "CONSENT_DENIED:"):
 			granted = false
 			sessionID = strings.TrimPrefix(line, "CONSENT_DENIED:")
+		case strings.HasPrefix(line, "DESKTOP_STOP:"):
+			// User clicked "Disconnect" on the session overlay in the
+			// Tauri wrapper. Tear down the matching desktop stream.
+			sessionID = strings.TrimSpace(strings.TrimPrefix(line, "DESKTOP_STOP:"))
+			if sessionID == "" {
+				continue
+			}
+			if sess, loaded := a.desktopStreams.LoadAndDelete(sessionID); loaded {
+				sess.(*DesktopStreamer).Stop()
+			}
+			continue
 		default:
 			continue
 		}

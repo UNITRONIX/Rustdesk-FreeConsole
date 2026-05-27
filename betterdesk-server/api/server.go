@@ -44,24 +44,24 @@ var configKeyRegexp = regexp.MustCompile(`^[A-Za-z0-9_.\-]{1,64}$`)
 
 // Server is the HTTP API server.
 type Server struct {
-	cfg               *config.Config
-	db                db.Database
-	peers             *peer.Map
-	relay             *relay.Server
-	blocklist         *security.Blocklist
-	bwLimiter         *ratelimit.BandwidthLimiter
-	auditLog          *audit.Logger
-	eventBus          *eventsModule.Bus
-	metrics           *metrics.Collector
-	jwtManager        *auth.JWTManager
-	loginLimiter      *ratelimit.IPLimiter
-	heartbeatLimiter  *ratelimit.IPLimiter // BD-2026-001: rate-limit heartbeat/sysinfo
+	cfg              *config.Config
+	db               db.Database
+	peers            *peer.Map
+	relay            *relay.Server
+	blocklist        *security.Blocklist
+	bwLimiter        *ratelimit.BandwidthLimiter
+	auditLog         *audit.Logger
+	eventBus         *eventsModule.Bus
+	metrics          *metrics.Collector
+	jwtManager       *auth.JWTManager
+	loginLimiter     *ratelimit.IPLimiter
+	heartbeatLimiter *ratelimit.IPLimiter // BD-2026-001: rate-limit heartbeat/sysinfo
 	// SECURITY (audit fix M-07, 2026-04-10): rate-limit public enrollment and
 	// branding endpoints to deter device-ID enumeration and config probing.
 	enrollmentLimiter *ratelimit.IPLimiter
 	brandingLimiter   *ratelimit.IPLimiter
-	keyPair           *crypto.KeyPair      // Ed25519 keypair for signing
-	cdapGw            *cdap.Gateway        // CDAP gateway (nil if CDAP disabled)
+	keyPair           *crypto.KeyPair // Ed25519 keypair for signing
+	cdapGw            *cdap.Gateway   // CDAP gateway (nil if CDAP disabled)
 	clientTFASessions *tfaSessionStore
 	httpSrv           *http.Server
 	wg                sync.WaitGroup

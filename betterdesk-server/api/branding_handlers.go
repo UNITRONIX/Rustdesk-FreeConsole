@@ -192,6 +192,16 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 		displayName, _ := s.db.GetConfig("device_display_name_" + req.DeviceID)
 
 		resp := s.buildEnrollmentResponse("approved", req.DeviceID, syncMode, displayName)
+		// Re-issue a device_token so an agent that lost its local copy
+		// (e.g. user reset agent-config) can recover authentication for the
+		// CDAP sidecar without manual intervention. Existing tokens remain
+		// valid — server stores only hashes so we cannot return the prior one.
+		if token, err := s.issueEnrollmentDeviceToken(req.DeviceID); err == nil {
+			resp.DeviceToken = token
+			log.Printf("[API] Re-issued enrollment device token for %s (len=%d)", req.DeviceID, len(token))
+		} else {
+			log.Printf("[API] Failed to re-issue enrollment device token for %s: %v", req.DeviceID, err)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 		return
