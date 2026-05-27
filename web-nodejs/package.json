@@ -1,7 +1,7 @@
 {
   "name": "betterdesk-console",
-  "version": "2.3.0",
-  "description": "BetterDesk Console - Professional Web Management Panel for RustDesk Server",
+  "version": "3.0.0",
+  "description": "BetterDesk Console - Professional Web Management Panel for BetterDesk Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

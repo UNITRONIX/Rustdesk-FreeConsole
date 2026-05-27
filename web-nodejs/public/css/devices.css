@@ -230,11 +230,17 @@
     text-align: center;
     gap: 6px 8px;
     border-style: dashed;
+    color: var(--text-secondary);
 }
 
-.chip-add:hover {
+.chip-add:hover,
+.group-chip.chip-add:hover,
+.folder-chip.chip-add:hover {
     border-color: var(--accent-blue);
     color: var(--accent-blue);
+    background: var(--bg-secondary, #161b22);
+    box-shadow: none;
+    transform: none;
 }
 
 .chip-add .material-icons {
@@ -337,39 +343,9 @@
     pointer-events: auto;
 }
 
-.group-chip-action {
-    min-width: 0;
-    height: 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm, 4px);
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 0 7px;
-    font-size: var(--font-size-xs, 0.75rem);
-    font-family: inherit;
-}
-
-.group-chip-action:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-hover, #484f58);
-    color: var(--text-primary);
-}
-
-.group-chip-action.danger:hover {
-    color: var(--danger, #f85149);
-}
-
-.group-chip-action .material-icons {
-    font-size: 14px;
-}
-
-.group-chip-action-label {
-    line-height: 1;
+/* Group chip actions now use unified .chip-action class (same as folders) */
+.group-chip .chip-action.group-delete:hover {
+    color: var(--accent-red);
 }
 
 .group-chip.active .chip-count {

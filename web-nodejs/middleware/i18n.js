@@ -82,7 +82,7 @@ function i18nMiddleware(req, res, next) {
     // Branding - inject dynamic app name and branding data
     const branding = brandingService.getBranding();
     res.locals.appName = branding.appName || config.appName;
-    res.locals.appDescription = branding.appDescription || 'RustDesk Server Management';
+    res.locals.appDescription = branding.appDescription || 'BetterDesk Server Management';
     res.locals.branding = branding;
     
     // Full translations object for client-side JS

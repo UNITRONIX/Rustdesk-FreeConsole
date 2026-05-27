@@ -90,7 +90,7 @@ function validateBrandingUrl(value) {
 const DEFAULT_BRANDING = {
     // Brand identity
     appName: 'BetterDesk',
-    appDescription: 'RustDesk Server Management',
+    appDescription: 'BetterDesk Server Management',
     
     // Logo configuration
     logoType: 'image', // 'icon' | 'svg' | 'image' | 'text'

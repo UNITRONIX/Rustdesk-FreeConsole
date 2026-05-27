@@ -1618,13 +1618,11 @@
                 <span class="chip-label">${Utils.escapeHtml(group.name)}</span>
                 <span class="chip-count">${group.member_count || 0}</span>
                 <span class="chip-actions">
-                    <button type="button" class="group-chip-action" data-action="edit" data-group="${Utils.escapeHtml(group.guid)}" title="${_('devices.edit_group') || 'Edit group'}">
+                    <button type="button" class="chip-action group-chip-action" data-action="edit" data-group="${Utils.escapeHtml(group.guid)}" title="${_('devices.edit_group') || 'Edit group'}">
                         <span class="material-icons">edit</span>
-                        <span class="group-chip-action-label">${_('actions.edit') || _('devices.edit_group') || 'Edit'}</span>
                     </button>
-                    <button type="button" class="group-chip-action danger" data-action="delete" data-group="${Utils.escapeHtml(group.guid)}" title="${_('devices.delete_group') || 'Delete group'}">
+                    <button type="button" class="chip-action group-chip-action group-delete" data-action="delete" data-group="${Utils.escapeHtml(group.guid)}" title="${_('devices.delete_group') || 'Delete group'}">
                         <span class="material-icons">delete</span>
-                        <span class="group-chip-action-label">${_('actions.delete') || _('devices.delete_group') || 'Delete'}</span>
                     </button>
                 </span>
             </span>`;

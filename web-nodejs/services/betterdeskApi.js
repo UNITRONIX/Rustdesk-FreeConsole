@@ -437,7 +437,7 @@ function normalisePeer(peer) {
         banned_at: peer.banned_at || null,
         folder_id: peer.folder_id || null,
         tags,
-        status_tier: peer.live_status || (peer.live_online ? 'online' : 'offline'),
+        status_tier: peer.live_status || peer.status_text || (peer.live_online ? 'online' : 'offline'),
         uuid: peer.uuid || '',
         nat_type: peer.nat_type || 0,
         disabled: !!(peer.disabled || peer.soft_deleted),

@@ -3,7 +3,7 @@
   "type": "betterdesk-theme",
   "branding": {
     "appName": "BetterDesk",
-    "appDescription": "RustDesk Server Management",
+    "appDescription": "BetterDesk Server Management",
     "logoType": "icon",
     "logoIcon": "dns",
     "logoSvg": "",

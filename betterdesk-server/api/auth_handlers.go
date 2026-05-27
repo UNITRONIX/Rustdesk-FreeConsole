@@ -452,6 +452,46 @@ func (s *Server) handleClientUsersList(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleUsersWithClientFallback detects RustDesk client requests (with
+// ?accessible or ?pageSize) and returns the current user without requiring
+// user.view permission. This prevents the client's group pull from failing
+// for operator users. Admin panel requests fall through to the full
+// permission-protected list handler.
+// Issue #138: _getUsers() failure causes _getPeers() to never run.
+func (s *Server) handleUsersWithClientFallback(w http.ResponseWriter, r *http.Request) {
+	// RustDesk client sends ?accessible=&status=1&pageSize=100
+	if r.URL.Query().Has("accessible") || r.URL.Query().Has("pageSize") {
+		username := getUsernameFromCtx(r)
+		role := getRoleFromCtx(r)
+
+		// If user has user.view permission, return full list
+		if auth.IsSuperAdminRole(role) || auth.RoleHasPermission(role, auth.PermUserView) {
+			s.handleClientUsersList(w, r)
+			return
+		}
+
+		// For operators without user.view, return current user only
+		// so the client's _getUsers() succeeds and _getPeers() proceeds
+		statusInt := 1
+		isAdmin := auth.IsSuperAdminRole(role)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"total": 1,
+			"data": []map[string]any{{
+				"name":         username,
+				"display_name": username,
+				"email":        "",
+				"note":         "",
+				"status":       statusInt,
+				"is_admin":     isAdmin,
+			}},
+		})
+		return
+	}
+
+	// Admin panel request — require user.view permission
+	s.requirePermission(auth.PermUserView, s.handleListUsers)(w, r)
+}
+
 // handleCreateUser creates a new user account.
 // POST /api/users
 func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {

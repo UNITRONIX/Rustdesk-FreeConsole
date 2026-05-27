@@ -310,7 +310,12 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/sysinfo_ver", s.handleClientSysinfoVer)
 
 	// User management (permission-based)
-	mux.HandleFunc("GET /api/users", s.requirePermission(auth.PermUserView, s.handleListUsers))
+	// Issue #138: RustDesk client calls GET /api/users?accessible&pageSize=100
+	// with operator tokens. The _getUsers() result gates the entire group pull —
+	// if it fails (403), _getPeers() is never called and the Available Devices
+	// tab stays empty. Use a wrapper that detects client requests and returns
+	// only the current user before the permission check.
+	mux.HandleFunc("GET /api/users", s.handleUsersWithClientFallback)
 	mux.HandleFunc("POST /api/users", s.requirePermission(auth.PermUserCreate, s.handleCreateUser))
 	mux.HandleFunc("PUT /api/users/{id}", s.requirePermission(auth.PermUserEdit, s.handleUpdateUser))
 	mux.HandleFunc("DELETE /api/users/{id}", s.requirePermission(auth.PermUserDelete, s.handleDeleteUser))
@@ -591,9 +596,14 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enrich with live online status and status tier from memory map
+	// Enrich with live online status and status tier from memory map.
+	// Issue #138 hardening: override db.Peer.Status (string) with an int
+	// so any RustDesk client that reaches this handler without the
+	// ?accessible / ?pageSize detection still receives a valid int.
 	type peerResponse struct {
 		*db.Peer
+		Status        int         `json:"status"`      // 1=active, 0=disabled (overrides db.Peer.Status string)
+		StatusText    string      `json:"status_text"` // Original string status for admin panel
 		LiveOnline    bool        `json:"live_online"`
 		LiveStatus    peer.Status `json:"live_status"`
 		Platform      string      `json:"platform"`
@@ -615,8 +625,15 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 			liveStatus = peer.StatusOnline
 		}
 
+		statusInt := 1
+		if p.Disabled {
+			statusInt = 0
+		}
+
 		result[i] = peerResponse{
 			Peer:          p,
+			Status:        statusInt,
+			StatusText:    p.Status,
 			LiveOnline:    liveOnline,
 			LiveStatus:    liveStatus,
 			Platform:      p.OS,
@@ -740,14 +757,23 @@ func (s *Server) handleGetPeer(w http.ResponseWriter, r *http.Request) {
 
 	type singlePeerResponse struct {
 		*db.Peer
+		Status        int         `json:"status"`      // 1=active, 0=disabled (overrides db.Peer.Status string)
+		StatusText    string      `json:"status_text"` // Original string status for admin panel
 		LiveOnline    bool        `json:"live_online"`
 		LiveStatus    peer.Status `json:"live_status"`
 		Platform      string      `json:"platform"`
 		CDAPConnected bool        `json:"cdap_connected"`
 	}
 
+	statusInt := 1
+	if p.Disabled {
+		statusInt = 0
+	}
+
 	writeJSON(w, http.StatusOK, singlePeerResponse{
 		Peer:          p,
+		Status:        statusInt,
+		StatusText:    p.Status,
 		LiveOnline:    liveOnline,
 		LiveStatus:    liveStatus,
 		Platform:      p.OS,
