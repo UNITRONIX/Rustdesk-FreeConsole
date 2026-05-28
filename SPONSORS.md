@@ -99,7 +99,52 @@ contribution (audits, infrastructure, sustained mentorship).*
 
 ---
 
-## 📋 Other ways to contribute
+## � Sponsorship Terms & Boundaries
+
+By becoming a Sponsor you acknowledge and accept the following terms. These
+rules exist to ensure high code quality, full transparency, and to protect the
+long-term health of the project and its creator.
+
+### No Hiding or Commercializing Changes
+
+No modification, feature, or fix introduced into the project during a
+sponsorship engagement may be hidden from the community, locked in a private
+(closed-source) repository, or commercialized as a paid add-on unavailable to
+others. Everything built with sponsorship support is available to everyone under
+the Apache 2.0 license.
+
+### Best-Effort Model (No Guaranteed SLA)
+
+Due to the limited time budget of an independent maintainer, the project does
+**not** offer a guaranteed response time for issues (no Service Level
+Agreement). Development and fixes are delivered asynchronously, as the
+maintainer's schedule allows.
+
+### Communication
+
+All change requests and bug reports should go through **GitHub Issues** to
+maintain project transparency. If sensitive information needs to be shared
+(e.g. proprietary configuration details, company logs), **email** communication
+is also acceptable.
+
+### Full Code Control (No External PRs)
+
+To maximize security (protection against unauthorized code injection) and
+architectural consistency, all development is performed exclusively by the lead
+maintainer. External code contributions (Pull Requests) from third-party
+developers are **not accepted at this time**, eliminating the risk of unwanted
+software injection.
+
+### Creator Independence (BDFL)
+
+Sponsorship does not entitle a sponsor to exert pressure, dictate architectural
+changes, or push features that conflict with the project's core vision. The
+final decision on the shape of the code and the direction of development always
+belongs to the creator.
+
+---
+
+## �📋 Other ways to contribute
 
 - **Code contributions:** see [CONTRIBUTING.md](docs/development/CONTRIBUTING.md)
 - **Security disclosures:** see [docs/security/](docs/security/)
