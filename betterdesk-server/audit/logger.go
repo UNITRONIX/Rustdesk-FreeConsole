@@ -20,9 +20,16 @@ const (
 	ActionPeerUnbanned     Action = "peer_unbanned"
 	ActionPeerDeleted      Action = "peer_deleted"
 	ActionPeerRevoked      Action = "peer_revoked"
+	ActionPeerRestored     Action = "peer_restored"
 	ActionPeerUpdated      Action = "peer_updated"
 	ActionPeerIDChanged    Action = "peer_id_changed"
 	ActionPeerTagsUpdated  Action = "peer_tags_updated"
+	// ActionPeerRegistrationRejected is logged when a registration attempt is
+	// rejected by the signal server (soft-deleted, banned, blocklisted,
+	// enrollment policy, renamed ID). Used for forensic visibility of
+	// attempted identity replays (GHSA-3v82-3gf8-fxx8). The "reason" field
+	// in details carries the specific cause.
+	ActionPeerRegistrationRejected Action = "peer_registration_rejected"
 	ActionBlocklistAdd     Action = "blocklist_add"
 	ActionBlocklistRemove  Action = "blocklist_remove"
 	ActionConfigChanged    Action = "config_changed"

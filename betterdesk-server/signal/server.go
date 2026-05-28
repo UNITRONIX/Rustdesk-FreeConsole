@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/codec"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
@@ -67,6 +68,7 @@ type Server struct {
 	blocklist *security.Blocklist
 	limiter   *ratelimit.IPLimiter
 	eventBus  *events.Bus
+	auditLog  *audit.Logger
 	udpConn   *net.UDPConn
 	tcpLn     net.Listener
 	natLn     net.Listener
@@ -115,6 +117,13 @@ func (s *Server) SetBlocklist(bl *security.Blocklist) {
 // SetRateLimiter sets the IP rate limiter used by the signal server.
 func (s *Server) SetRateLimiter(l *ratelimit.IPLimiter) {
 	s.limiter = l
+}
+
+// SetAuditLogger sets the audit logger used by the signal server. Rejected
+// registration attempts (soft-deleted, banned, enrollment policy, renamed ID)
+// are recorded so administrators have forensic visibility (GHSA-3v82-3gf8-fxx8).
+func (s *Server) SetAuditLogger(l *audit.Logger) {
+	s.auditLog = l
 }
 
 // PeerMap returns the server's in-memory peer map for external access (e.g., API).

@@ -441,9 +441,10 @@ func (pg *PostgresDB) UpsertPeer(p *Peer) error {
 			disabled      = EXCLUDED.disabled,
 			note          = COALESCE(NULLIF(EXCLUDED.note, ''), peers.note),
 			tags          = COALESCE(NULLIF(EXCLUDED.tags, ''), peers.tags),
-			heartbeat_seq = EXCLUDED.heartbeat_seq,
-			soft_deleted  = FALSE,
-			deleted_at    = NULL`,
+			heartbeat_seq = EXCLUDED.heartbeat_seq`,
+		/* SECURITY (GHSA-3v82-3gf8-fxx8): UpsertPeer MUST NOT silently clear
+		   soft_deleted/deleted_at on conflict. Restoration is now an explicit
+		   operation — see RestorePeer. */
 		p.ID, p.UUID, p.PK, p.IP, p.User, p.Hostname, p.OS, p.Version,
 		p.Status, p.NATType, lastOnline, p.Disabled, p.Note, p.Tags, p.HeartbeatSeq,
 	)
@@ -575,6 +576,16 @@ func (pg *PostgresDB) IsPeerSoftDeleted(id string) (bool, error) {
 		return false, nil
 	}
 	return deleted, err
+}
+
+// RestorePeer clears soft_deleted and deleted_at for a previously deleted
+// peer. Required because UpsertPeer no longer does this implicitly
+// (GHSA-3v82-3gf8-fxx8).
+func (pg *PostgresDB) RestorePeer(id string) error {
+	_, err := pg.pool.Exec(pg.ctx,
+		`UPDATE peers SET soft_deleted = FALSE, deleted_at = NULL WHERE id = $1`,
+		id)
+	return err
 }
 
 // UpdatePeerFields updates specific peer fields (note, user, tags, device_type, linked_peer_id).

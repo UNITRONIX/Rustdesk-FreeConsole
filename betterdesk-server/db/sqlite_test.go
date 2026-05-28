@@ -166,7 +166,9 @@ func TestSoftDelete(t *testing.T) {
 	}
 }
 
-func TestUpsertRestoresSoftDeletedPeer(t *testing.T) {
+func TestUpsertDoesNotRestoreSoftDeletedPeer(t *testing.T) {
+	// SECURITY (GHSA-3v82-3gf8-fxx8): UpsertPeer must NOT silently clear
+	// soft_deleted on conflict. Restoration must happen via RestorePeer.
 	db := newTestDB(t)
 
 	if err := db.UpsertPeer(&Peer{ID: "RESTORE1", Status: "ONLINE", IP: "10.0.0.1"}); err != nil {
@@ -179,11 +181,30 @@ func TestUpsertRestoresSoftDeletedPeer(t *testing.T) {
 		t.Fatalf("peer should be soft-deleted, deleted=%v err=%v", deleted, err)
 	}
 
+	// A second upsert (e.g. attacker re-registering under the deleted ID)
+	// must NOT bring the row back from the trash bin.
 	if err := db.UpsertPeer(&Peer{ID: "RESTORE1", Status: "ONLINE", IP: "10.0.0.2"}); err != nil {
 		t.Fatal(err)
 	}
 
+	if deleted, err := db.IsPeerSoftDeleted("RESTORE1"); err != nil || !deleted {
+		t.Fatalf("peer must remain soft-deleted after upsert, deleted=%v err=%v", deleted, err)
+	}
+
+	// GetPeer filters soft-deleted rows, so the peer is invisible.
 	peer, err := db.GetPeer("RESTORE1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if peer != nil {
+		t.Error("soft-deleted peer must not be visible to GetPeer after upsert")
+	}
+
+	// Explicit restore brings it back.
+	if err := db.RestorePeer("RESTORE1"); err != nil {
+		t.Fatalf("RestorePeer: %v", err)
+	}
+	peer, err = db.GetPeer("RESTORE1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,9 +216,6 @@ func TestUpsertRestoresSoftDeletedPeer(t *testing.T) {
 	}
 	if peer.DeletedAt != nil {
 		t.Error("restored peer should clear deleted_at")
-	}
-	if peer.IP != "10.0.0.2" {
-		t.Errorf("restored peer IP = %q, want 10.0.0.2", peer.IP)
 	}
 }
 

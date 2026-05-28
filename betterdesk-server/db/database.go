@@ -299,6 +299,11 @@ type Database interface {
 	UnbanPeer(id string) error
 	IsPeerBanned(id string) (bool, error)
 	IsPeerSoftDeleted(id string) (bool, error)
+	// RestorePeer clears the soft_deleted flag and deleted_at timestamp,
+	// making a previously deleted peer visible and registrable again.
+	// This is an explicit admin operation — UpsertPeer must NOT do this
+	// implicitly (GHSA-3v82-3gf8-fxx8).
+	RestorePeer(id string) error
 
 	// ID change
 	ChangePeerID(oldID, newID string) error

@@ -445,9 +445,11 @@ func (s *SQLiteDB) UpsertPeer(p *Peer) error {
 			disabled = excluded.disabled,
 			note = COALESCE(NULLIF(excluded.note, ''), peers.note),
 			tags = COALESCE(NULLIF(excluded.tags, ''), peers.tags),
-			heartbeat_seq = excluded.heartbeat_seq,
-			soft_deleted = 0,
-			deleted_at = NULL`,
+			heartbeat_seq = excluded.heartbeat_seq`,
+		/* SECURITY (GHSA-3v82-3gf8-fxx8): UpsertPeer MUST NOT silently clear
+		   soft_deleted/deleted_at on conflict. Doing so allows any successful
+		   registration to undo an administrator's deletion. Restoration is now
+		   an explicit operation — see RestorePeer. */
 		p.ID, p.UUID, p.PK, p.IP, p.User, p.Hostname, p.OS, p.Version,
 		p.Status, p.NATType, formatTime(p.LastOnline),
 		p.Disabled, p.Note, p.Tags, p.HeartbeatSeq,
@@ -628,6 +630,19 @@ func (s *SQLiteDB) IsPeerSoftDeleted(id string) (bool, error) {
 		return false, nil
 	}
 	return deleted, err
+}
+
+// RestorePeer clears soft_deleted and deleted_at for a previously deleted
+// peer. Required because UpsertPeer no longer does this implicitly
+// (GHSA-3v82-3gf8-fxx8).
+func (s *SQLiteDB) RestorePeer(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.Exec(
+		`UPDATE peers SET soft_deleted = 0, deleted_at = NULL WHERE id = ?`,
+		id)
+	return err
 }
 
 // UpdatePeerFields updates specific peer fields (note, user, tags, device_type, linked_peer_id, display_name).

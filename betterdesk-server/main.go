@@ -294,6 +294,7 @@ func main() {
 		sig := sigServer.New(cfg, kp, database)
 		sig.SetBlocklist(blocklist)
 		sig.SetRateLimiter(ipLimiter)
+		sig.SetAuditLogger(auditLogger)
 		if err := sig.Start(ctx); err != nil {
 			log.Fatalf("Failed to start signal server: %v", err)
 		}
@@ -355,6 +356,7 @@ func main() {
 		sig := sigServer.New(cfg, kp, database)
 		sig.SetBlocklist(blocklist)
 		sig.SetRateLimiter(ipLimiter)
+		sig.SetAuditLogger(auditLogger)
 		if err := sig.Start(ctx); err != nil {
 			log.Fatalf("Failed to start signal server: %v", err)
 		}

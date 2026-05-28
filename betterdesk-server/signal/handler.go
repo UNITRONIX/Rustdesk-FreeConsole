@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
@@ -216,13 +217,31 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 		return
 	}
 
-	softDeleted, _ := s.db.IsPeerSoftDeleted(id)
+	// SECURITY (GHSA-3v82-3gf8-fxx8): A soft-deleted peer is one that an
+	// administrator explicitly removed. It must NOT silently re-enroll —
+	// otherwise an attacker who knows the deleted ID can re-register it
+	// (bypassing managed/locked enrollment policy) and take over the
+	// identity, because the old PK is no longer loaded (Trust-on-First-Use
+	// bypass). The device must be explicitly restored via the API/UI before
+	// it can come back online.
+	if softDeleted, _ := s.db.IsPeerSoftDeleted(id); softDeleted {
+		log.Printf("[signal] Rejected registration of deleted peer: %s from %s", id, raddr.IP)
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionPeerRegistrationRejected, raddr.IP.String(), id, map[string]string{
+				"reason": "soft_deleted",
+			})
+		}
+		return
+	}
 
-	// NEW PEER — Dual Key System enrollment check. A soft-deleted peer is a
-	// previously known device, so allow it to re-register unless it was revoked
-	// through the blocklist or persistent ban marker.
-	if !softDeleted && !s.checkEnrollmentPermission(id, raddr.IP.String()) {
+	// NEW PEER — Dual Key System enrollment check.
+	if !s.checkEnrollmentPermission(id, raddr.IP.String()) {
 		log.Printf("[signal] Rejected new peer %s from %s (enrollment policy)", id, raddr.IP)
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionPeerRegistrationRejected, raddr.IP.String(), id, map[string]string{
+				"reason": "enrollment_policy",
+			})
+		}
 		return
 	}
 
@@ -230,6 +249,11 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 	// map after ban but trying to re-register)
 	if banned, _ := s.db.IsPeerBanned(id); banned {
 		log.Printf("[signal] Rejected banned peer registration: %s from %s", id, raddr.IP)
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionPeerRegistrationRejected, raddr.IP.String(), id, map[string]string{
+				"reason": "banned",
+			})
+		}
 		return
 	}
 
@@ -338,12 +362,29 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 	// Enforce enrollment before creating a new peer row, otherwise managed/locked
 	// mode can be bypassed by sending PK registration without a prior heartbeat.
 	softDeleted, _ := s.db.IsPeerSoftDeleted(id)
+
+	// SECURITY (GHSA-3v82-3gf8-fxx8): Reject PK registration for soft-deleted
+	// peers. UpsertPeer would otherwise silently restore the row AND overwrite
+	// the previously-stored PK with the attacker's key, completing an identity
+	// takeover of a device the admin explicitly removed.
+	if softDeleted {
+		log.Printf("[signal] Rejected PK registration of deleted peer: %s from %s", id, clientHost)
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionPeerRegistrationRejected, clientHost, id, map[string]string{
+				"reason": "soft_deleted",
+				"stage":  "register_pk",
+			})
+		}
+		s.peers.Remove(id)
+		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
 	existingPeer, err := s.db.GetPeer(id)
 	if err != nil {
 		log.Printf("[signal] Failed to check peer %s before RegisterPk enrollment: %v", id, err)
 		return registerPkResponse(pb.RegisterPkResponse_SERVER_ERROR)
 	}
-	if existingPeer == nil && !softDeleted && !s.checkEnrollmentPermission(id, clientHost) {
+	if existingPeer == nil && !s.checkEnrollmentPermission(id, clientHost) {
 		log.Printf("[signal] Rejected new peer PK registration: %s from %s (enrollment policy)", id, clientHost)
 		s.peers.Remove(id)
 		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
