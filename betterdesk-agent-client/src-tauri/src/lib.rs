@@ -8,6 +8,7 @@
 
 pub mod autostart;
 pub mod bd_signal;
+pub mod branding;
 pub mod cdap_client;
 pub mod chat_crypto;
 pub mod commands;
@@ -327,6 +328,7 @@ pub fn run() {
             commands::reconnect_agent,
             commands::send_diagnostics,
             commands::get_agent_version,
+            commands::get_branding,
             commands::copy_to_clipboard,
             // Registration flow
             commands::validate_server_step,

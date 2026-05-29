@@ -784,6 +784,46 @@ function createSqliteAdapter(config) {
         `);
     }
 
+    // -- Agent installer bundles (Generator Agenta) ------------------------
+    function ensureAgentBundleTables(db) {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS agent_bundles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bundle_id TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                branding TEXT NOT NULL DEFAULT '{}',
+                branding_hash TEXT NOT NULL DEFAULT '',
+                created_by INTEGER DEFAULT NULL,
+                revoked INTEGER NOT NULL DEFAULT 0,
+                download_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_agent_bundles_bundle_id ON agent_bundles (bundle_id);
+            CREATE INDEX IF NOT EXISTS idx_agent_bundles_hash ON agent_bundles (branding_hash);
+
+            CREATE TABLE IF NOT EXISTS agent_bundle_builds (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                branding_hash TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                arch TEXT NOT NULL DEFAULT 'x64',
+                format TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'queued',
+                artifact_path TEXT DEFAULT NULL,
+                artifact_size INTEGER DEFAULT 0,
+                artifact_sha256 TEXT DEFAULT NULL,
+                error_message TEXT DEFAULT '',
+                started_at TEXT DEFAULT NULL,
+                finished_at TEXT DEFAULT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(branding_hash, platform, arch, format)
+            );
+            CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_hash ON agent_bundle_builds (branding_hash);
+            CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_status ON agent_bundle_builds (status);
+        `);
+    }
+
     // -- Multi-tenancy tables ----------------------------------------------
     function ensureTenantTables(db) {
         db.exec(`
@@ -956,6 +996,7 @@ function createSqliteAdapter(config) {
             ensureReportTables(main);
             ensureTenantTables(main);
             ensureRegistrationTables(main);
+            ensureAgentBundleTables(main);
             ensureAuthTables(auth);
             console.log('[DB] SQLite adapter initialized');
         },
@@ -2643,6 +2684,96 @@ function createSqliteAdapter(config) {
             return db.prepare(sql).get(...params).count;
         },
 
+        // ---- Agent installer bundles (Generator) ----
+
+        async listAgentBundles({ includeRevoked = false } = {}) {
+            const db = openMain();
+            const where = includeRevoked ? '' : 'WHERE revoked = 0';
+            return db.prepare(`SELECT * FROM agent_bundles ${where} ORDER BY created_at DESC`).all();
+        },
+
+        async getAgentBundle(bundleId) {
+            return openMain().prepare('SELECT * FROM agent_bundles WHERE bundle_id = ?').get(bundleId) || null;
+        },
+
+        async createAgentBundle({ bundleId, name, branding, brandingHash, createdBy }) {
+            const db = openMain();
+            const r = db.prepare(`
+                INSERT INTO agent_bundles (bundle_id, name, branding, branding_hash, created_by)
+                VALUES (?, ?, ?, ?, ?)
+            `).run(bundleId, name, branding, brandingHash, createdBy || null);
+            return db.prepare('SELECT * FROM agent_bundles WHERE id = ?').get(r.lastInsertRowid);
+        },
+
+        async updateAgentBundle(bundleId, { name, branding, brandingHash }) {
+            const db = openMain();
+            db.prepare(`
+                UPDATE agent_bundles
+                SET name = ?, branding = ?, branding_hash = ?, updated_at = datetime('now')
+                WHERE bundle_id = ?
+            `).run(name, branding, brandingHash, bundleId);
+            return db.prepare('SELECT * FROM agent_bundles WHERE bundle_id = ?').get(bundleId) || null;
+        },
+
+        async setAgentBundleRevoked(bundleId, revoked) {
+            const db = openMain();
+            db.prepare(`
+                UPDATE agent_bundles SET revoked = ?, updated_at = datetime('now') WHERE bundle_id = ?
+            `).run(revoked ? 1 : 0, bundleId);
+            return db.prepare('SELECT * FROM agent_bundles WHERE bundle_id = ?').get(bundleId) || null;
+        },
+
+        async deleteAgentBundle(bundleId) {
+            const r = openMain().prepare('DELETE FROM agent_bundles WHERE bundle_id = ?').run(bundleId);
+            return r.changes > 0;
+        },
+
+        async incrementAgentBundleDownload(bundleId) {
+            openMain().prepare(`
+                UPDATE agent_bundles SET download_count = download_count + 1, updated_at = datetime('now')
+                WHERE bundle_id = ?
+            `).run(bundleId);
+        },
+
+        async listAgentBundleBuildsForHash(brandingHash) {
+            return openMain().prepare(
+                'SELECT * FROM agent_bundle_builds WHERE branding_hash = ? ORDER BY platform, arch, format'
+            ).all(brandingHash);
+        },
+
+        async getAgentBundleBuild({ brandingHash, platform, arch, format }) {
+            return openMain().prepare(`
+                SELECT * FROM agent_bundle_builds
+                WHERE branding_hash = ? AND platform = ? AND arch = ? AND format = ?
+            `).get(brandingHash, platform, arch, format) || null;
+        },
+
+        async upsertAgentBundleBuild({ brandingHash, platform, arch, format, status, artifactPath, artifactSize, artifactSha256, errorMessage }) {
+            const db = openMain();
+            const ts = (status === 'building') ? "datetime('now')" : 'started_at';
+            const finishTs = (status === 'ready' || status === 'failed') ? "datetime('now')" : 'finished_at';
+            db.prepare(`
+                INSERT INTO agent_bundle_builds (
+                    branding_hash, platform, arch, format, status,
+                    artifact_path, artifact_size, artifact_sha256, error_message,
+                    started_at, finished_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${status === 'building' ? "datetime('now')" : 'NULL'}, ${status === 'ready' || status === 'failed' ? "datetime('now')" : 'NULL'})
+                ON CONFLICT(branding_hash, platform, arch, format) DO UPDATE SET
+                    status = excluded.status,
+                    artifact_path = COALESCE(excluded.artifact_path, agent_bundle_builds.artifact_path),
+                    artifact_size = COALESCE(excluded.artifact_size, agent_bundle_builds.artifact_size),
+                    artifact_sha256 = COALESCE(excluded.artifact_sha256, agent_bundle_builds.artifact_sha256),
+                    error_message = excluded.error_message,
+                    started_at = CASE WHEN excluded.status = 'building' THEN datetime('now') ELSE agent_bundle_builds.started_at END,
+                    finished_at = CASE WHEN excluded.status IN ('ready','failed') THEN datetime('now') ELSE agent_bundle_builds.finished_at END,
+                    updated_at = datetime('now')
+            `).run(
+                brandingHash, platform, arch, format, status,
+                artifactPath || null, artifactSize || 0, artifactSha256 || null, errorMessage || ''
+            );
+            return this.getAgentBundleBuild({ brandingHash, platform, arch, format });
+        },
+
         // ---- Integration Housekeeping ----
 
         async runIntegrationHousekeeping() {
@@ -3129,6 +3260,45 @@ function createPostgresAdapter() {
         `);
         await q('CREATE INDEX IF NOT EXISTS idx_pending_reg_status ON pending_registrations (status)');
         await q('CREATE INDEX IF NOT EXISTS idx_pending_reg_device ON pending_registrations (device_id)');
+
+        // -- Agent installer bundles (Generator Agenta)
+        await q(`
+            CREATE TABLE IF NOT EXISTS agent_bundles (
+                id SERIAL PRIMARY KEY,
+                bundle_id TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                branding TEXT NOT NULL DEFAULT '{}',
+                branding_hash TEXT NOT NULL DEFAULT '',
+                created_by INTEGER DEFAULT NULL,
+                revoked BOOLEAN NOT NULL DEFAULT FALSE,
+                download_count INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        `);
+        await q('CREATE INDEX IF NOT EXISTS idx_agent_bundles_bundle_id ON agent_bundles (bundle_id)');
+        await q('CREATE INDEX IF NOT EXISTS idx_agent_bundles_hash ON agent_bundles (branding_hash)');
+        await q(`
+            CREATE TABLE IF NOT EXISTS agent_bundle_builds (
+                id SERIAL PRIMARY KEY,
+                branding_hash TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                arch TEXT NOT NULL DEFAULT 'x64',
+                format TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'queued',
+                artifact_path TEXT DEFAULT NULL,
+                artifact_size BIGINT DEFAULT 0,
+                artifact_sha256 TEXT DEFAULT NULL,
+                error_message TEXT DEFAULT '',
+                started_at TIMESTAMPTZ DEFAULT NULL,
+                finished_at TIMESTAMPTZ DEFAULT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(branding_hash, platform, arch, format)
+            )
+        `);
+        await q('CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_hash ON agent_bundle_builds (branding_hash)');
+        await q('CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_status ON agent_bundle_builds (status)');
 
         // -- RustDesk Client Integration tables --
         await q(`
@@ -5104,6 +5274,91 @@ function createPostgresAdapter() {
             else if (filters.status === 'banned') sql += ' AND is_banned = TRUE';
             if (filters.hasNotes) sql += " AND note IS NOT NULL AND note != ''";
             return +(await one(sql, params)).count;
+        },
+
+        // ---- Agent installer bundles (Generator) ----
+
+        async listAgentBundles({ includeRevoked = false } = {}) {
+            const where = includeRevoked ? '' : 'WHERE revoked = FALSE';
+            return all(`SELECT * FROM agent_bundles ${where} ORDER BY created_at DESC`);
+        },
+
+        async getAgentBundle(bundleId) {
+            return one('SELECT * FROM agent_bundles WHERE bundle_id = $1', [bundleId]);
+        },
+
+        async createAgentBundle({ bundleId, name, branding, brandingHash, createdBy }) {
+            return one(`
+                INSERT INTO agent_bundles (bundle_id, name, branding, branding_hash, created_by)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING *
+            `, [bundleId, name, branding, brandingHash, createdBy || null]);
+        },
+
+        async updateAgentBundle(bundleId, { name, branding, brandingHash }) {
+            return one(`
+                UPDATE agent_bundles
+                SET name = $1, branding = $2, branding_hash = $3, updated_at = NOW()
+                WHERE bundle_id = $4
+                RETURNING *
+            `, [name, branding, brandingHash, bundleId]);
+        },
+
+        async setAgentBundleRevoked(bundleId, revoked) {
+            return one(`
+                UPDATE agent_bundles SET revoked = $1, updated_at = NOW()
+                WHERE bundle_id = $2 RETURNING *
+            `, [!!revoked, bundleId]);
+        },
+
+        async deleteAgentBundle(bundleId) {
+            const { rowCount } = await q('DELETE FROM agent_bundles WHERE bundle_id = $1', [bundleId]);
+            return rowCount > 0;
+        },
+
+        async incrementAgentBundleDownload(bundleId) {
+            await q(`
+                UPDATE agent_bundles SET download_count = download_count + 1, updated_at = NOW()
+                WHERE bundle_id = $1
+            `, [bundleId]);
+        },
+
+        async listAgentBundleBuildsForHash(brandingHash) {
+            return all(
+                'SELECT * FROM agent_bundle_builds WHERE branding_hash = $1 ORDER BY platform, arch, format',
+                [brandingHash]
+            );
+        },
+
+        async getAgentBundleBuild({ brandingHash, platform, arch, format }) {
+            return one(`
+                SELECT * FROM agent_bundle_builds
+                WHERE branding_hash = $1 AND platform = $2 AND arch = $3 AND format = $4
+            `, [brandingHash, platform, arch, format]);
+        },
+
+        async upsertAgentBundleBuild({ brandingHash, platform, arch, format, status, artifactPath, artifactSize, artifactSha256, errorMessage }) {
+            return one(`
+                INSERT INTO agent_bundle_builds (
+                    branding_hash, platform, arch, format, status,
+                    artifact_path, artifact_size, artifact_sha256, error_message,
+                    started_at, finished_at
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9,
+                    CASE WHEN $5 = 'building' THEN NOW() ELSE NULL END,
+                    CASE WHEN $5 IN ('ready','failed') THEN NOW() ELSE NULL END
+                )
+                ON CONFLICT (branding_hash, platform, arch, format) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    artifact_path = COALESCE(EXCLUDED.artifact_path, agent_bundle_builds.artifact_path),
+                    artifact_size = COALESCE(EXCLUDED.artifact_size, agent_bundle_builds.artifact_size),
+                    artifact_sha256 = COALESCE(EXCLUDED.artifact_sha256, agent_bundle_builds.artifact_sha256),
+                    error_message = EXCLUDED.error_message,
+                    started_at = CASE WHEN EXCLUDED.status = 'building' THEN NOW() ELSE agent_bundle_builds.started_at END,
+                    finished_at = CASE WHEN EXCLUDED.status IN ('ready','failed') THEN NOW() ELSE agent_bundle_builds.finished_at END,
+                    updated_at = NOW()
+                RETURNING *
+            `, [brandingHash, platform, arch, format, status, artifactPath || null, artifactSize || 0, artifactSha256 || null, errorMessage || '']);
         },
 
         // ---- Integration Housekeeping ----

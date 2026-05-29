@@ -3695,6 +3695,79 @@ CREDEOF
 # Build Functions
 #===============================================================================
 
+# Install the toolchain used by the Node.js console worker to compile branded
+# agent installers (cargo + rustup + tauri-cli + cargo-xwin + nsis + rpm +
+# appimagetool + mingw-w64). Runs the standalone script shipped alongside the
+# installer; idempotent. Requires ~3 GB download + 5 GB free disk.
+do_install_build_toolchain() {
+    print_header
+    echo -e "${WHITE}${BOLD}══════════ AGENT BUILD TOOLCHAIN ══════════${NC}"
+    echo ""
+    echo "  Installs: Rust stable, cargo-tauri 2.x, cargo-xwin,"
+    echo "            mingw-w64 (Windows cross-compile), NSIS,"
+    echo "            rpm-build, appimagetool, pnpm, WebKit dev libs."
+    echo ""
+    echo "  Disk:  ~3 GB download, ~5 GB after install,"
+    echo "         plus cargo build cache (/var/cache/betterdesk-build)."
+    echo ""
+    echo "  This is REQUIRED for the 'Generator Agenta' feature."
+    echo "  Skip if you do not generate branded agent installers."
+    echo ""
+
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local toolchain_script="$script_dir/scripts/install-build-toolchain.sh"
+
+    if [ ! -f "$toolchain_script" ]; then
+        print_error "Toolchain installer not found: $toolchain_script"
+        print_info "Pull the latest repository and try again."
+        press_enter
+        return 1
+    fi
+
+    if [ "$AUTO_MODE" != true ]; then
+        read -p "Proceed with toolchain install? [y/N]: " confirm
+        confirm="${confirm:-N}"
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+            print_info "Cancelled."
+            press_enter
+            return 0
+        fi
+    fi
+
+    local extra_args=()
+    [ "$AUTO_MODE" = true ] && extra_args+=(--unattended)
+
+    BUILD_USER="${SUDO_USER:-${BUILD_USER:-unitronix}}" \
+        bash "$toolchain_script" "${extra_args[@]}"
+
+    local rc=$?
+    if [ $rc -eq 0 ]; then
+        # Stage the agent-client source where the build worker expects it,
+        # so each console build doesn't need to know about the git checkout.
+        local agent_src="$script_dir/betterdesk-agent-client"
+        local agent_dst="/opt/BetterDeskConsole/agent-source/betterdesk-agent-client"
+        if [ -d "$agent_src/src-tauri" ]; then
+            mkdir -p "$(dirname "$agent_dst")"
+            rsync -a --delete \
+                --exclude node_modules \
+                --exclude target \
+                --exclude dist \
+                "$agent_src/" "$agent_dst/"
+            chown -R "${SUDO_USER:-${BUILD_USER:-unitronix}}:${SUDO_USER:-${BUILD_USER:-unitronix}}" \
+                "$(dirname "$agent_dst")" 2>/dev/null || true
+            print_success "Agent source staged at $agent_dst"
+        fi
+        print_success "Build toolchain installed."
+        print_info "Restart the console service to pick up new PATH:"
+        print_info "  sudo systemctl restart betterdesk-console"
+    else
+        print_error "Toolchain installer exited with code $rc"
+    fi
+    press_enter
+    return $rc
+}
+
 do_build() {
     print_header
     echo -e "${WHITE}${BOLD}══════════ BUILD & DEPLOY ══════════${NC}"
@@ -5372,6 +5445,7 @@ main() {
             [Cc]) do_configure_ssl ;;
             [Tt]) do_toggle_protocol ;;
             [Mm]) do_migrate_database ;;
+            [Bb]) do_install_build_toolchain ;;
             [Ss]) configure_paths ;;
             0) 
                 echo ""

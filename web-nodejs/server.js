@@ -508,6 +508,18 @@ async function startServer() {
 
         // Start LAN Discovery UDP service
         startDiscoveryService();
+
+        // Start branded agent installer build worker (Generator Agenta / Phase 2).
+        // Disabled when AGENT_BUILD_WORKER=off — useful for hosts without the
+        // build toolchain (e.g. small consoles that only proxy to a build node).
+        if (process.env.AGENT_BUILD_WORKER !== 'off') {
+            try {
+                const agentBuildWorker = require('./services/agentBuildWorker');
+                agentBuildWorker.startWorker();
+            } catch (err) {
+                console.warn('[server] agent build worker disabled:', err.message);
+            }
+        }
         
         // ============ RustDesk Client API Server (dedicated port) ============
         let apiServer = null;
