@@ -319,6 +319,11 @@ func main() {
 		apiSrv.SetJWTManager(jwtManager)
 		apiSrv.SetKeyPair(kp)
 
+		// LDAP provider (loads config from DB, hot-reloadable via API)
+		apiSrv.InitLDAP()
+		// OIDC/OAuth2 provider (loads config from DB, hot-reloadable via API)
+		apiSrv.InitOIDC()
+
 		// CDAP Gateway (optional — custom device automation protocol)
 		var cdapGw *cdap.Gateway
 		if cfg.CDAPEnabled {
@@ -370,6 +375,8 @@ func main() {
 		apiSrv.SetMetrics(mc)
 		apiSrv.SetJWTManager(jwtManager)
 		apiSrv.SetKeyPair(kp)
+		apiSrv.InitLDAP()
+		apiSrv.InitOIDC()
 		if err := apiSrv.Start(ctx); err != nil {
 			log.Fatalf("Failed to start API server: %v", err)
 		}

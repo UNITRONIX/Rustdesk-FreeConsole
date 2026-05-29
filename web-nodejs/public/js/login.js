@@ -22,6 +22,9 @@
         if (!loginForm) return;
         
         const csrfToken = window.BetterDesk?.csrfToken || '';
+
+        // Check OIDC status and show SSO button if enabled
+        checkOIDCStatus();
         
         // Password visibility toggle
         passwordToggle?.addEventListener('click', () => {
@@ -208,6 +211,29 @@
             setTimeout(() => {
                 errorContainer.style.animation = '';
             }, 500);
+        }
+    }
+
+    /**
+     * Check if OIDC/SSO is enabled and show the SSO button.
+     */
+    async function checkOIDCStatus() {
+        try {
+            const response = await fetch('/api/auth/oidc/status');
+            if (!response.ok) return;
+            const data = await response.json();
+            if (data.enabled) {
+                const ssoSection = document.getElementById('sso-section');
+                const ssoBtnText = document.getElementById('sso-btn-text');
+                if (ssoSection) {
+                    ssoSection.classList.remove('hidden');
+                }
+                if (ssoBtnText && data.display_name) {
+                    ssoBtnText.textContent = _('auth.login_sso_with', { provider: data.display_name }) || `Sign in with ${data.display_name}`;
+                }
+            }
+        } catch (e) {
+            // Silently ignore — SSO button stays hidden
         }
     }
     

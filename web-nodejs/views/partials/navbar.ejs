@@ -1,4 +1,10 @@
 <!-- Top Navigation Bar -->
+<% if (typeof emergencyMode !== 'undefined' && emergencyMode) { %>
+<div class="emergency-banner" role="alert">
+    <span class="material-icons">warning</span>
+    <span><%= _('auth.emergency_mode_banner') %></span>
+</div>
+<% } %>
 <header class="navbar">
     <div class="navbar-left">
         <!-- Mobile menu button -->

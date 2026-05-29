@@ -14,6 +14,10 @@
         initBrandingSection();
 
         // Only init server-config sections when the tab is visible (requires server.config permission)
+        if (document.getElementById('tab-auth') && document.getElementById('tab-auth').style.display !== 'none') {
+            initLdapSection();
+            initOidcSection();
+        }
         if (document.getElementById('tab-backup') && document.getElementById('tab-backup').style.display !== 'none') {
             initBackupSection();
         }
@@ -48,7 +52,7 @@
         
         // Check URL hash for direct tab navigation
         const hash = window.location.hash.replace('#', '');
-        if (['branding', 'server', 'backup', 'updates'].includes(hash)) {
+        if (['branding', 'server', 'backup', 'updates', 'auth'].includes(hash)) {
             const tab = document.querySelector(`[data-tab="${hash}"]`);
             if (tab) tab.click();
         }
@@ -1960,5 +1964,394 @@
 
     // Expose retention loader so tab activation can call it
     window.loadBackupRetention = loadBackupRetention;
+
+    // ==================== LDAP / Authentication Section ====================
+
+    /**
+     * Initialize LDAP settings section
+     */
+    async function initLdapSection() {
+        const form = document.getElementById('ldap-form');
+        if (!form) return;
+
+        // Toggle config fields visibility based on enabled checkbox
+        const enabledCb = document.getElementById('ldap-enabled');
+        const configFields = document.getElementById('ldap-config-fields');
+        if (enabledCb && configFields) {
+            enabledCb.addEventListener('change', () => {
+                configFields.style.display = enabledCb.checked ? '' : 'none';
+            });
+        }
+
+        // Toggle direct bind vs bind+search fields
+        const directBindCb = document.getElementById('ldap-direct-bind');
+        const bindSearchFields = document.getElementById('ldap-bind-search-fields');
+        const directBindFields = document.getElementById('ldap-direct-bind-fields');
+        if (directBindCb) {
+            directBindCb.addEventListener('change', () => {
+                if (bindSearchFields) bindSearchFields.style.display = directBindCb.checked ? 'none' : '';
+                if (directBindFields) directBindFields.style.display = directBindCb.checked ? '' : 'none';
+            });
+        }
+
+        // Auto-update port when TLS checkbox changes
+        const useTlsCb = document.getElementById('ldap-use-tls');
+        const portInput = document.getElementById('ldap-port');
+        if (useTlsCb && portInput) {
+            useTlsCb.addEventListener('change', () => {
+                const current = parseInt(portInput.value, 10);
+                if (useTlsCb.checked && (current === 389 || !current)) {
+                    portInput.value = 636;
+                } else if (!useTlsCb.checked && current === 636) {
+                    portInput.value = 389;
+                }
+            });
+        }
+
+        // Load existing config
+        await loadLdapConfig();
+
+        // Test connection button
+        document.getElementById('ldap-test-btn')?.addEventListener('click', testLdapConnection);
+
+        // Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await saveLdapConfig();
+        });
+    }
+
+    /**
+     * Load LDAP configuration from Go server (via Node.js proxy)
+     */
+    async function loadLdapConfig() {
+        try {
+            const data = await Utils.api('/api/settings/ldap');
+            populateLdapForm(data);
+        } catch (error) {
+            console.error('Failed to load LDAP config:', error);
+        }
+    }
+
+    /**
+     * Populate LDAP form fields with config data
+     */
+    function populateLdapForm(data) {
+        if (!data) return;
+
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val ?? '';
+        };
+        const setChecked = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = !!val;
+        };
+
+        setChecked('ldap-enabled', data.enabled);
+        setVal('ldap-host', data.host);
+        setVal('ldap-port', data.port || 389);
+        setChecked('ldap-use-tls', data.use_tls);
+        setChecked('ldap-start-tls', data.start_tls);
+        setChecked('ldap-skip-tls-verify', data.skip_tls_verify);
+        setVal('ldap-bind-dn', data.bind_dn);
+        setVal('ldap-bind-password', data.bind_password);
+        setVal('ldap-base-dn', data.base_dn);
+        setVal('ldap-user-filter', data.user_filter);
+        setVal('ldap-user-attr-id', data.user_attr_id);
+        setVal('ldap-user-attr-email', data.user_attr_email);
+        setVal('ldap-user-attr-name', data.user_attr_name);
+        setVal('ldap-group-base-dn', data.group_base_dn);
+        setVal('ldap-group-filter', data.group_filter);
+        setVal('ldap-group-attr-name', data.group_attr_name);
+        setVal('ldap-default-role', data.default_role || 'viewer');
+        setVal('ldap-group-role-map', data.group_role_map);
+        setChecked('ldap-direct-bind', data.direct_bind);
+        setVal('ldap-direct-bind-dn', data.direct_bind_dn);
+        setVal('ldap-conn-timeout', data.conn_timeout_sec || 10);
+
+        // Update visibility
+        const configFields = document.getElementById('ldap-config-fields');
+        if (configFields) configFields.style.display = data.enabled ? '' : 'none';
+
+        const bindSearchFields = document.getElementById('ldap-bind-search-fields');
+        const directBindFields = document.getElementById('ldap-direct-bind-fields');
+        if (bindSearchFields) bindSearchFields.style.display = data.direct_bind ? 'none' : '';
+        if (directBindFields) directBindFields.style.display = data.direct_bind ? '' : 'none';
+    }
+
+    /**
+     * Collect LDAP form data
+     */
+    function collectLdapData() {
+        const getVal = (id) => {
+            const el = document.getElementById(id);
+            return el ? el.value.trim() : '';
+        };
+        const getChecked = (id) => {
+            const el = document.getElementById(id);
+            return el ? el.checked : false;
+        };
+
+        return {
+            enabled: getChecked('ldap-enabled'),
+            host: getVal('ldap-host'),
+            port: parseInt(getVal('ldap-port'), 10) || 389,
+            use_tls: getChecked('ldap-use-tls'),
+            start_tls: getChecked('ldap-start-tls'),
+            skip_tls_verify: getChecked('ldap-skip-tls-verify'),
+            bind_dn: getVal('ldap-bind-dn'),
+            bind_password: getVal('ldap-bind-password'),
+            base_dn: getVal('ldap-base-dn'),
+            user_filter: getVal('ldap-user-filter'),
+            user_attr_id: getVal('ldap-user-attr-id'),
+            user_attr_email: getVal('ldap-user-attr-email'),
+            user_attr_name: getVal('ldap-user-attr-name'),
+            group_base_dn: getVal('ldap-group-base-dn'),
+            group_filter: getVal('ldap-group-filter'),
+            group_attr_name: getVal('ldap-group-attr-name'),
+            default_role: getVal('ldap-default-role'),
+            group_role_map: getVal('ldap-group-role-map'),
+            direct_bind: getChecked('ldap-direct-bind'),
+            direct_bind_dn: getVal('ldap-direct-bind-dn'),
+            conn_timeout_sec: parseInt(getVal('ldap-conn-timeout'), 10) || 10
+        };
+    }
+
+    /**
+     * Save LDAP configuration
+     */
+    async function saveLdapConfig() {
+        try {
+            const data = collectLdapData();
+            await Utils.api('/api/settings/ldap', {
+                method: 'PUT',
+                body: data
+            });
+            Notifications.success(_('settings.ldap_saved'));
+        } catch (error) {
+            Notifications.error(error.message || _('errors.server_error'));
+        }
+    }
+
+    /**
+     * Test LDAP connection with current form values
+     */
+    async function testLdapConnection() {
+        const btn = document.getElementById('ldap-test-btn');
+        const resultEl = document.getElementById('ldap-test-result');
+        if (!btn) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-icons spin">sync</span> ' + _('settings.ldap_testing');
+
+        if (resultEl) {
+            resultEl.innerHTML = '';
+            resultEl.style.display = 'none';
+        }
+
+        try {
+            const data = collectLdapData();
+            const result = await Utils.api('/api/settings/ldap/test', {
+                method: 'POST',
+                body: data
+            });
+
+            if (resultEl) {
+                resultEl.style.display = 'block';
+                if (result.success) {
+                    resultEl.innerHTML = '<div class="alert alert-success"><span class="material-icons">check_circle</span> ' + _('settings.ldap_test_success') + '</div>';
+                } else {
+                    resultEl.innerHTML = '<div class="alert alert-danger"><span class="material-icons">error</span> ' + Utils.escapeHtml(result.error || _('settings.ldap_test_failed')) + '</div>';
+                }
+            }
+        } catch (error) {
+            if (resultEl) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = '<div class="alert alert-danger"><span class="material-icons">error</span> ' + Utils.escapeHtml(error.message || _('settings.ldap_test_failed')) + '</div>';
+            }
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-icons">cable</span> ' + _('settings.ldap_test_connection');
+        }
+    }
+
+    // ==================== OIDC / OAuth2 Section ====================
+
+    async function initOidcSection() {
+        const form = document.getElementById('oidc-form');
+        if (!form) return;
+
+        // Toggle config fields visibility based on enabled checkbox
+        const enabledCb = document.getElementById('oidc-enabled');
+        const configFields = document.getElementById('oidc-config-fields');
+        if (enabledCb && configFields) {
+            enabledCb.addEventListener('change', () => {
+                configFields.style.display = enabledCb.checked ? '' : 'none';
+            });
+        }
+
+        // Toggle manual endpoints based on auto-discovery checkbox
+        const autoDiscoveryCb = document.getElementById('oidc-auto-discovery');
+        const manualEndpoints = document.getElementById('oidc-manual-endpoints');
+        if (autoDiscoveryCb && manualEndpoints) {
+            autoDiscoveryCb.addEventListener('change', () => {
+                manualEndpoints.style.display = autoDiscoveryCb.checked ? 'none' : '';
+            });
+        }
+
+        // Load existing config
+        await loadOidcConfig();
+
+        // Test discovery button
+        document.getElementById('oidc-test-btn')?.addEventListener('click', testOidcDiscovery);
+
+        // Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await saveOidcConfig();
+        });
+    }
+
+    async function loadOidcConfig() {
+        try {
+            const data = await Utils.api('/api/settings/oidc');
+            populateOidcForm(data);
+        } catch (error) {
+            console.error('Failed to load OIDC config:', error);
+        }
+    }
+
+    function populateOidcForm(data) {
+        if (!data) return;
+
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = val ?? '';
+        };
+        const setChecked = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.checked = !!val;
+        };
+
+        setChecked('oidc-enabled', data.enabled);
+        setVal('oidc-display-name', data.display_name);
+        setVal('oidc-issuer-url', data.issuer_url);
+        setVal('oidc-client-id', data.client_id);
+        setVal('oidc-client-secret', data.client_secret);
+        setVal('oidc-redirect-url', data.redirect_url);
+        setVal('oidc-scopes', data.scopes || 'openid profile email');
+        setChecked('oidc-use-pkce', data.use_pkce);
+        setChecked('oidc-auto-discovery', data.auto_discovery !== false);
+        setChecked('oidc-allow-signup', data.allow_signup !== false);
+        setVal('oidc-authorization-url', data.authorization_url);
+        setVal('oidc-token-url', data.token_url);
+        setVal('oidc-userinfo-url', data.userinfo_url);
+        setVal('oidc-claim-username', data.claim_username || 'preferred_username');
+        setVal('oidc-claim-email', data.claim_email || 'email');
+        setVal('oidc-claim-name', data.claim_name || 'name');
+        setVal('oidc-claim-groups', data.claim_groups || 'groups');
+        setVal('oidc-default-role', data.default_role || 'viewer');
+        setVal('oidc-group-role-map', data.group_role_map);
+
+        // Update visibility
+        const configFields = document.getElementById('oidc-config-fields');
+        if (configFields) configFields.style.display = data.enabled ? '' : 'none';
+        const manualEndpoints = document.getElementById('oidc-manual-endpoints');
+        if (manualEndpoints) manualEndpoints.style.display = (data.auto_discovery !== false) ? 'none' : '';
+    }
+
+    function collectOidcData() {
+        const getVal = (id) => {
+            const el = document.getElementById(id);
+            return el ? el.value.trim() : '';
+        };
+        const getChecked = (id) => {
+            const el = document.getElementById(id);
+            return el ? el.checked : false;
+        };
+
+        return {
+            enabled: getChecked('oidc-enabled'),
+            display_name: getVal('oidc-display-name'),
+            issuer_url: getVal('oidc-issuer-url'),
+            client_id: getVal('oidc-client-id'),
+            client_secret: getVal('oidc-client-secret'),
+            redirect_url: getVal('oidc-redirect-url'),
+            scopes: getVal('oidc-scopes'),
+            use_pkce: getChecked('oidc-use-pkce'),
+            auto_discovery: getChecked('oidc-auto-discovery'),
+            allow_signup: getChecked('oidc-allow-signup'),
+            authorization_url: getVal('oidc-authorization-url'),
+            token_url: getVal('oidc-token-url'),
+            userinfo_url: getVal('oidc-userinfo-url'),
+            claim_username: getVal('oidc-claim-username'),
+            claim_email: getVal('oidc-claim-email'),
+            claim_name: getVal('oidc-claim-name'),
+            claim_groups: getVal('oidc-claim-groups'),
+            default_role: getVal('oidc-default-role'),
+            group_role_map: getVal('oidc-group-role-map')
+        };
+    }
+
+    async function saveOidcConfig() {
+        try {
+            const data = collectOidcData();
+            await Utils.api('/api/settings/oidc', {
+                method: 'PUT',
+                body: data
+            });
+            Notifications.success(_('settings.oidc_saved'));
+        } catch (error) {
+            Notifications.error(error.message || _('errors.server_error'));
+        }
+    }
+
+    async function testOidcDiscovery() {
+        const btn = document.getElementById('oidc-test-btn');
+        const resultEl = document.getElementById('oidc-test-result');
+        if (!btn) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-icons spin">sync</span> ' + _('settings.oidc_testing');
+
+        if (resultEl) {
+            resultEl.innerHTML = '';
+            resultEl.style.display = 'none';
+        }
+
+        try {
+            const issuerUrl = document.getElementById('oidc-issuer-url')?.value?.trim();
+            if (!issuerUrl) {
+                throw new Error(_('settings.oidc_issuer_required'));
+            }
+
+            const result = await Utils.api('/api/settings/oidc/test', {
+                method: 'POST',
+                body: { issuer_url: issuerUrl }
+            });
+
+            if (resultEl) {
+                resultEl.style.display = 'block';
+                if (result.success) {
+                    let details = '';
+                    if (result.authorization_endpoint) details += '<br><small>Authorization: ' + Utils.escapeHtml(result.authorization_endpoint) + '</small>';
+                    if (result.token_endpoint) details += '<br><small>Token: ' + Utils.escapeHtml(result.token_endpoint) + '</small>';
+                    if (result.userinfo_endpoint) details += '<br><small>Userinfo: ' + Utils.escapeHtml(result.userinfo_endpoint) + '</small>';
+                    resultEl.innerHTML = '<div class="alert alert-success"><span class="material-icons">check_circle</span> ' + _('settings.oidc_test_success') + details + '</div>';
+                } else {
+                    resultEl.innerHTML = '<div class="alert alert-danger"><span class="material-icons">error</span> ' + Utils.escapeHtml(result.error || _('settings.oidc_test_failed')) + '</div>';
+                }
+            }
+        } catch (error) {
+            if (resultEl) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = '<div class="alert alert-danger"><span class="material-icons">error</span> ' + Utils.escapeHtml(error.message || _('settings.oidc_test_failed')) + '</div>';
+            }
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-icons">travel_explore</span> ' + _('settings.oidc_test_discovery');
+        }
+    }
     
 })();

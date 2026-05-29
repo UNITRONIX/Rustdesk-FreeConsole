@@ -98,6 +98,17 @@
                 </button>
             </form>
             
+            <!-- SSO / OIDC Login (shown dynamically when OIDC is enabled) -->
+            <div class="login-sso hidden" id="sso-section">
+                <div class="login-divider">
+                    <span><%= _('auth.or') %></span>
+                </div>
+                <a href="/api/auth/oidc/authorize" class="btn btn-secondary login-btn sso-btn" id="sso-btn">
+                    <span class="material-icons">key</span>
+                    <span id="sso-btn-text"><%= _('auth.login_sso') %></span>
+                </a>
+            </div>
+            
             <!-- TOTP Verification Step (hidden by default) -->
             <form class="login-form hidden" id="totp-form">
                 <div class="totp-header">

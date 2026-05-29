@@ -831,4 +831,112 @@ router.put('/api/settings/backup/retention', requireAuth, requirePermission('ser
     }
 });
 
+// ==================== LDAP Configuration API (proxy to Go server) ===========
+
+const betterdeskApi = require('../services/betterdeskApi');
+
+/**
+ * GET /api/settings/ldap - Get LDAP configuration from Go server
+ */
+router.get('/api/settings/ldap', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const result = await betterdeskApi.getLDAPConfig();
+        if (!result.success) {
+            return res.status(500).json({ success: false, error: result.error || 'Failed to load LDAP config' });
+        }
+        res.json(result.data);
+    } catch (err) {
+        console.error('Get LDAP config error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * PUT /api/settings/ldap - Save LDAP configuration to Go server
+ */
+router.put('/api/settings/ldap', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const result = await betterdeskApi.saveLDAPConfig(req.body);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.error || 'Failed to save LDAP config' });
+        }
+
+        await db.logAction(req.session?.userId, 'ldap_config_updated', 'Updated LDAP configuration', req.ip);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Save LDAP config error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/ldap/test - Test LDAP connection via Go server
+ */
+router.post('/api/settings/ldap/test', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const result = await betterdeskApi.testLDAPConnection(req.body);
+        if (!result.success) {
+            return res.json({ success: false, error: result.error || 'Connection test failed' });
+        }
+        res.json(result.data);
+    } catch (err) {
+        console.error('Test LDAP connection error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+// ==================== OIDC Configuration API (proxy to Go server) ===========
+
+/**
+ * GET /api/settings/oidc - Get OIDC configuration from Go server
+ */
+router.get('/api/settings/oidc', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const result = await betterdeskApi.getOIDCConfig();
+        if (!result.success) {
+            return res.status(500).json({ success: false, error: result.error || 'Failed to load OIDC config' });
+        }
+        res.json(result.data);
+    } catch (err) {
+        console.error('Get OIDC config error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * PUT /api/settings/oidc - Save OIDC configuration to Go server
+ */
+router.put('/api/settings/oidc', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const result = await betterdeskApi.saveOIDCConfig(req.body);
+        if (!result.success) {
+            return res.status(400).json({ success: false, error: result.error || 'Failed to save OIDC config' });
+        }
+
+        await db.logAction(req.session?.userId, 'oidc_config_updated', 'Updated OIDC configuration', req.ip);
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Save OIDC config error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/oidc/test - Test OIDC discovery via Go server
+ */
+router.post('/api/settings/oidc/test', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const result = await betterdeskApi.testOIDCDiscovery(req.body);
+        if (!result.success) {
+            return res.json({ success: false, error: result.error || 'Discovery test failed' });
+        }
+        res.json(result.data);
+    } catch (err) {
+        console.error('Test OIDC discovery error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
 module.exports = router;

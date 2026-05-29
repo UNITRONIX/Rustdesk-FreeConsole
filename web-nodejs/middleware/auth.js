@@ -113,6 +113,8 @@ function requireAuth(req, res, next) {
     
     // Add user info to locals for templates
     res.locals.user = req.session.user;
+    // Phase A: expose emergency mode flag to EJS templates
+    res.locals.emergencyMode = !!req.session.emergencyMode;
     
     next();
 }

@@ -62,6 +62,8 @@ type Server struct {
 	brandingLimiter   *ratelimit.IPLimiter
 	keyPair           *crypto.KeyPair // Ed25519 keypair for signing
 	cdapGw            *cdap.Gateway   // CDAP gateway (nil if CDAP disabled)
+	ldapProvider      *auth.LDAPProvider // LDAP auth provider (nil if not configured)
+	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
 	httpSrv           *http.Server
 	wg                sync.WaitGroup
@@ -183,6 +185,26 @@ func (s *Server) SetKeyPair(kp *crypto.KeyPair) {
 // SetCDAPGateway sets the CDAP gateway for serving CDAP REST endpoints.
 func (s *Server) SetCDAPGateway(gw *cdap.Gateway) {
 	s.cdapGw = gw
+}
+
+// InitLDAP initializes the LDAP provider from the database configuration.
+// Should be called after the database is ready, before Start().
+func (s *Server) InitLDAP() {
+	cfg := s.loadLDAPConfigFromDB()
+	s.ldapProvider = auth.NewLDAPProvider(cfg)
+	if cfg.Enabled {
+		log.Printf("[LDAP] Provider initialized (host=%s, port=%d, tls=%v)", cfg.Host, cfg.Port, cfg.UseTLS)
+	}
+}
+
+// InitOIDC initializes the OIDC provider from the database configuration.
+// Should be called after the database is ready, before Start().
+func (s *Server) InitOIDC() {
+	cfg := s.loadOIDCConfigFromDB()
+	s.oidcProvider = auth.NewOIDCProvider(cfg)
+	if cfg.Enabled {
+		log.Printf("[OIDC] Provider initialized (issuer=%s, client_id=%s)", cfg.IssuerURL, cfg.ClientID)
+	}
 }
 
 // Start launches the HTTP API server.
@@ -361,6 +383,21 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/enrollment/pending", s.requireRole(auth.RoleOperator, s.handleListPendingDevices))
 	mux.HandleFunc("POST /api/enrollment/approve/{id}", s.requireRole(auth.RoleOperator, s.handleApproveDevice))
 	mux.HandleFunc("POST /api/enrollment/reject/{id}", s.requireRole(auth.RoleOperator, s.handleRejectDevice))
+
+	// LDAP configuration (server.config permission)
+	mux.HandleFunc("GET /api/auth/ldap/config", s.requirePermission(auth.PermServerConfig, s.handleGetLDAPConfig))
+	mux.HandleFunc("PUT /api/auth/ldap/config", s.requirePermission(auth.PermServerConfig, s.handleSaveLDAPConfig))
+	mux.HandleFunc("POST /api/auth/ldap/test", s.requirePermission(auth.PermServerConfig, s.handleTestLDAPConnection))
+
+	// OIDC/OAuth2 configuration (server.config permission)
+	mux.HandleFunc("GET /api/auth/oidc/config", s.requirePermission(auth.PermServerConfig, s.handleGetOIDCConfig))
+	mux.HandleFunc("PUT /api/auth/oidc/config", s.requirePermission(auth.PermServerConfig, s.handleSaveOIDCConfig))
+	mux.HandleFunc("POST /api/auth/oidc/test", s.requirePermission(auth.PermServerConfig, s.handleTestOIDCDiscovery))
+	// OIDC public endpoints (no auth — used by login page and IdP callback)
+	mux.HandleFunc("GET /api/auth/oidc/status", s.handleOIDCLoginStatus)
+	mux.HandleFunc("GET /api/auth/oidc/authorize", s.handleOIDCAuthorize)
+	mux.HandleFunc("GET /api/auth/oidc/callback", s.handleOIDCCallback)
+	mux.HandleFunc("POST /api/auth/oidc/exchange", s.handleOIDCExchange)
 
 	// Branding (GET is public for desktop clients, POST is admin)
 	mux.HandleFunc("GET /api/branding", s.rateLimitPublic(s.brandingLimiter, s.handleGetBranding))

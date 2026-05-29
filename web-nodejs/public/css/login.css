@@ -211,6 +211,42 @@
 
 /* ==================== TOTP (2FA) Styles ==================== */
 
+/* ==================== SSO / OIDC Styles ==================== */
+
+.login-sso {
+    margin-top: var(--space-md);
+}
+
+.login-divider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-md);
+    color: var(--text-tertiary);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.login-divider::before,
+.login-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-primary);
+}
+
+.sso-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    text-decoration: none;
+}
+
+/* ==================== TOTP (2FA) Styles ==================== */
+
 .totp-header {
     text-align: center;
     margin-bottom: var(--space-lg);

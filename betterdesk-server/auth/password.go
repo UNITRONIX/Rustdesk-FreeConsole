@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/pbkdf2"
 )
 
@@ -55,23 +56,30 @@ func HashPassword(password string) (string, error) {
 	), nil
 }
 
-// VerifyPassword checks a password against a stored hash. Supports two formats:
+// VerifyPassword checks a password against a stored hash. Supports three formats:
 //
 //  1. Modern: "pbkdf2-sha256$<iterations>$<hex-salt>$<hex-hash>"
-//  2. Legacy: "hex(salt):hex(hash)" — assumed 100_000 iterations
+//  2. Bcrypt: "$2a$", "$2b$", "$2y$" (Node.js bcrypt compatibility)
+//  3. Legacy: "hex(salt):hex(hash)" — assumed 100_000 iterations
 //
 // Uses constant-time comparison to prevent timing attacks.
 func VerifyPassword(stored, password string) bool {
 	if strings.HasPrefix(stored, hashScheme+"$") {
 		return verifyModern(stored, password)
 	}
+	if strings.HasPrefix(stored, "$2a$") || strings.HasPrefix(stored, "$2b$") || strings.HasPrefix(stored, "$2y$") {
+		return bcrypt.CompareHashAndPassword([]byte(stored), []byte(password)) == nil
+	}
 	return verifyLegacy(stored, password)
 }
 
 // NeedsRehash reports whether the stored hash uses outdated parameters (legacy
-// format, or fewer iterations than the current cost). Callers should re-hash
-// the password on next successful login when this returns true.
+// format, bcrypt format, or fewer iterations than the current cost). Callers
+// should re-hash the password on next successful login when this returns true.
 func NeedsRehash(stored string) bool {
+	if strings.HasPrefix(stored, "$2a$") || strings.HasPrefix(stored, "$2b$") || strings.HasPrefix(stored, "$2y$") {
+		return true // bcrypt hashes should be migrated to PBKDF2
+	}
 	if !strings.HasPrefix(stored, hashScheme+"$") {
 		return true
 	}

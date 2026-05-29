@@ -823,6 +823,111 @@ async function deleteRolePermission(role, permission) {
     }
 }
 
+// ========================== LDAP Configuration =============================
+
+/**
+ * GET /api/auth/ldap/config — Get LDAP configuration (password masked)
+ */
+async function getLDAPConfig() {
+    try {
+        const { data } = await apiClient.get('/auth/ldap/config');
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * PUT /api/auth/ldap/config — Save LDAP configuration
+ */
+async function saveLDAPConfig(config) {
+    try {
+        const { data } = await apiClient.put('/auth/ldap/config', config);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * POST /api/auth/ldap/test — Test LDAP connection
+ */
+async function testLDAPConnection(config) {
+    try {
+        const { data } = await apiClient.post('/auth/ldap/test', config);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+// ========================== OIDC Configuration =============================
+
+/**
+ * GET /api/auth/oidc/config — Get OIDC configuration (secret masked)
+ */
+async function getOIDCConfig() {
+    try {
+        const { data } = await apiClient.get('/auth/oidc/config');
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * PUT /api/auth/oidc/config — Save OIDC configuration
+ */
+async function saveOIDCConfig(config) {
+    try {
+        const { data } = await apiClient.put('/auth/oidc/config', config);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * POST /api/auth/oidc/test — Test OIDC discovery
+ */
+async function testOIDCDiscovery(config) {
+    try {
+        const { data } = await apiClient.post('/auth/oidc/test', config);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * GET /api/auth/oidc/status — Check if OIDC is enabled (public)
+ */
+async function getOIDCStatus() {
+    try {
+        const { data } = await apiClient.get('/auth/oidc/status');
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * POST /api/auth/oidc/exchange — Exchange a one-time OIDC auth code for
+ * the JWT + verified user identity. Server-to-server only. The code itself
+ * is the credential, so this endpoint is public on the Go side. Codes are
+ * single-use and expire after 60 seconds.
+ *
+ * Returns { success, data: { token, username, role, return_url } } on success.
+ */
+async function exchangeOIDCCode(code) {
+    try {
+        const { data } = await apiClient.post('/auth/oidc/exchange', { code });
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
 module.exports = {
     // Health / Stats
     getHealth,
@@ -892,6 +997,16 @@ module.exports = {
     listRolePermissionOverrides,
     setRolePermission,
     deleteRolePermission,
+    // LDAP Configuration
+    getLDAPConfig,
+    saveLDAPConfig,
+    testLDAPConnection,
+    // OIDC Configuration
+    getOIDCConfig,
+    saveOIDCConfig,
+    testOIDCDiscovery,
+    getOIDCStatus,
+    exchangeOIDCCode,
     // Helpers
     normalisePeer,
     // Raw axios client (for services that need direct API access)

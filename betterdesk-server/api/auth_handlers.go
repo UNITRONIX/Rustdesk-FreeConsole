@@ -209,12 +209,103 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
 		return
 	}
+
+	// Try LDAP authentication if enabled
+	var ldapResult *auth.LDAPResult
+	if s.ldapProvider != nil && s.ldapProvider.IsEnabled() {
+		ldapResult, err = s.ldapProvider.Authenticate(body.Username, body.Password)
+		if err != nil {
+			log.Printf("[LDAP] Auth error for %s: %v", body.Username, err)
+			// LDAP error is non-fatal — fall through to local auth
+			ldapResult = nil
+		}
+		if ldapResult != nil && ldapResult.Authenticated {
+			// LDAP auth succeeded — auto-provision local user if needed
+			if user == nil {
+				hash, hashErr := auth.HashPassword(body.Password)
+				if hashErr != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+					return
+				}
+				role := ldapResult.Role
+				if role == "" {
+					role = auth.RoleViewer
+				}
+				newUser := &db.User{
+					Username:     body.Username,
+					PasswordHash: hash,
+					Role:         role,
+				}
+				if createErr := s.db.CreateUser(newUser); createErr != nil {
+					log.Printf("[LDAP] Failed to auto-create user %s: %v", body.Username, createErr)
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+					return
+				}
+				user, _ = s.db.GetUser(body.Username)
+				if user == nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+					return
+				}
+				log.Printf("[LDAP] Auto-provisioned user %s with role %s", body.Username, role)
+			} else {
+				// Update role from LDAP group mapping if changed
+				if ldapResult.Role != "" && ldapResult.Role != user.Role {
+					user.Role = ldapResult.Role
+					_ = s.db.UpdateUser(user)
+					log.Printf("[LDAP] Updated role for %s to %s", body.Username, ldapResult.Role)
+				}
+			}
+
+			if s.auditLog != nil {
+				s.auditLog.Log(audit.ActionAuthLogin, s.remoteIP(r), user.Username, map[string]string{"method": "ldap"})
+			}
+
+			// LDAP users skip TOTP (TOTP is managed locally, not via LDAP)
+			// If user has TOTP enabled locally, still require it
+			if user.TOTPEnabled {
+				partialToken, tokenErr := s.jwtManager.GenerateWithTTL(user.Username, "__2fa_pending__", 5*time.Minute)
+				if tokenErr != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{
+					"requires_2fa":  true,
+					"partial_token": partialToken,
+				})
+				return
+			}
+
+			token, tokenErr := s.jwtManager.Generate(user.Username, user.Role)
+			if tokenErr != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
+				return
+			}
+			_ = s.db.UpdateUserLogin(user.ID)
+			writeJSON(w, http.StatusOK, map[string]any{
+				"token":    token,
+				"role":     user.Role,
+				"username": user.Username,
+			})
+			return
+		}
+	}
+
+	// Local password verification
 	if user == nil || !auth.VerifyPassword(user.PasswordHash, body.Password) {
 		if s.auditLog != nil {
 			s.auditLog.Log(audit.ActionAuthLoginFailed, s.remoteIP(r), body.Username, nil)
 		}
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
+	}
+
+	// Rehash bcrypt/legacy passwords to PBKDF2 on successful login
+	if auth.NeedsRehash(user.PasswordHash) {
+		if newHash, hashErr := auth.HashPassword(body.Password); hashErr == nil {
+			user.PasswordHash = newHash
+			_ = s.db.UpdateUser(user)
+			log.Printf("[auth] Rehashed password for %s (migrated to PBKDF2)", user.Username)
+		}
 	}
 
 	// If TOTP is enabled, issue a short-lived partial token that requires 2FA completion.
@@ -1045,6 +1136,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			path == "/api/heartbeat" || path == "/api/sysinfo" || path == "/api/sysinfo_ver" ||
 			path == "/api/branding" ||
 			path == "/api/org/login" ||
+			path == "/api/auth/oidc/status" || path == "/api/auth/oidc/authorize" || path == "/api/auth/oidc/callback" || path == "/api/auth/oidc/exchange" ||
 			strings.HasPrefix(path, "/ws/bd-mgmt/") ||
 			path == "/api/devices/register" || path == "/api/devices/register/status" {
 			next.ServeHTTP(w, r)

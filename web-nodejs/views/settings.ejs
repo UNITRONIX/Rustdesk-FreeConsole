@@ -20,7 +20,11 @@
                 <span class="material-icons">palette</span>
                 ${_('settings.tab_branding')}
             </button>
-            ${canServerConfig ? `<button class="settings-tab" data-tab="backup">
+            ${canServerConfig ? `<button class="settings-tab" data-tab="auth">
+                <span class="material-icons">admin_panel_settings</span>
+                ${_('settings.tab_auth')}
+            </button>
+            <button class="settings-tab" data-tab="backup">
                 <span class="material-icons">backup</span>
                 ${_('settings.tab_backup')}
             </button>
@@ -577,6 +581,322 @@
         </div>
         </div>
         
+        <!-- Authentication Tab (server.config permission required) -->
+        <div class="settings-tab-content" id="tab-auth" ${canServerConfig ? '' : 'style="display:none"'}>
+        <div class="settings-sections">
+            <!-- LDAP / Active Directory -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">domain</span>
+                        ${_('settings.ldap_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('settings.ldap_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <form class="settings-form" id="ldap-form" style="max-width: 700px;">
+                        <!-- Enable toggle -->
+                        <div class="form-group" style="display: flex; align-items: center; gap: 12px;">
+                            <input type="checkbox" id="ldap-enabled" class="toggle-switch">
+                            <div>
+                                <label class="form-label" for="ldap-enabled" style="margin-bottom: 0; cursor: pointer;">${_('settings.ldap_enabled')}</label>
+                                <small class="form-hint" style="display: block; margin-top: 2px;">${_('settings.ldap_enabled_hint')}</small>
+                            </div>
+                        </div>
+
+                        <div id="ldap-config-fields">
+                            <!-- Server connection -->
+                            <h3 class="settings-subsection-title">${_('settings.ldap_connection')}</h3>
+
+                            <div class="form-row">
+                                <div class="form-group" style="flex: 2;">
+                                    <label class="form-label" for="ldap-host">${_('settings.ldap_host')}</label>
+                                    <input type="text" id="ldap-host" class="form-input" placeholder="ldap.example.com">
+                                </div>
+                                <div class="form-group" style="flex: 1;">
+                                    <label class="form-label" for="ldap-port">${_('settings.ldap_port')}</label>
+                                    <input type="number" id="ldap-port" class="form-input" placeholder="389" min="1" max="65535">
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="display: flex; gap: 24px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="ldap-use-tls" class="toggle-switch">
+                                    <span>${_('settings.ldap_use_tls')}</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="ldap-start-tls" class="toggle-switch">
+                                    <span>${_('settings.ldap_start_tls')}</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="ldap-skip-tls-verify" class="toggle-switch">
+                                    <span>${_('settings.ldap_skip_verify')}</span>
+                                </label>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="ldap-conn-timeout">${_('settings.ldap_timeout')}</label>
+                                <input type="number" id="ldap-conn-timeout" class="form-input" placeholder="10" min="1" max="120" style="max-width: 120px;">
+                                <small class="form-hint">${_('settings.ldap_timeout_hint')}</small>
+                            </div>
+
+                            <!-- Bind mode -->
+                            <h3 class="settings-subsection-title">${_('settings.ldap_bind_mode')}</h3>
+
+                            <div class="form-group" style="display: flex; align-items: center; gap: 12px;">
+                                <input type="checkbox" id="ldap-direct-bind" class="toggle-switch">
+                                <div>
+                                    <label class="form-label" for="ldap-direct-bind" style="margin-bottom: 0; cursor: pointer;">${_('settings.ldap_direct_bind')}</label>
+                                    <small class="form-hint" style="display: block; margin-top: 2px;">${_('settings.ldap_direct_bind_hint')}</small>
+                                </div>
+                            </div>
+
+                            <!-- Bind+Search fields (shown when direct_bind is off) -->
+                            <div id="ldap-bind-search-fields">
+                                <div class="form-group">
+                                    <label class="form-label" for="ldap-bind-dn">${_('settings.ldap_bind_dn')}</label>
+                                    <input type="text" id="ldap-bind-dn" class="form-input" placeholder="cn=readonly,dc=example,dc=com">
+                                    <small class="form-hint">${_('settings.ldap_bind_dn_hint')}</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="ldap-bind-password">${_('settings.ldap_bind_password')}</label>
+                                    <input type="password" id="ldap-bind-password" class="form-input" placeholder="••••••••">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="ldap-base-dn">${_('settings.ldap_base_dn')}</label>
+                                    <input type="text" id="ldap-base-dn" class="form-input" placeholder="dc=example,dc=com">
+                                    <small class="form-hint">${_('settings.ldap_base_dn_hint')}</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="ldap-user-filter">${_('settings.ldap_user_filter')}</label>
+                                    <input type="text" id="ldap-user-filter" class="form-input" placeholder="(sAMAccountName={{username}})">
+                                    <small class="form-hint">${_('settings.ldap_user_filter_hint')}</small>
+                                </div>
+                            </div>
+
+                            <!-- Direct bind fields (shown when direct_bind is on) -->
+                            <div id="ldap-direct-bind-fields" style="display: none;">
+                                <div class="form-group">
+                                    <label class="form-label" for="ldap-direct-bind-dn">${_('settings.ldap_direct_bind_dn')}</label>
+                                    <input type="text" id="ldap-direct-bind-dn" class="form-input" placeholder="uid={{username}},ou=users,dc=example,dc=com">
+                                    <small class="form-hint">${_('settings.ldap_direct_bind_dn_hint')}</small>
+                                </div>
+                            </div>
+
+                            <!-- User attributes -->
+                            <h3 class="settings-subsection-title">${_('settings.ldap_user_attrs')}</h3>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label" for="ldap-user-attr-id">${_('settings.ldap_attr_id')}</label>
+                                    <input type="text" id="ldap-user-attr-id" class="form-input" placeholder="sAMAccountName">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="ldap-user-attr-email">${_('settings.ldap_attr_email')}</label>
+                                    <input type="text" id="ldap-user-attr-email" class="form-input" placeholder="mail">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="ldap-user-attr-name">${_('settings.ldap_attr_name')}</label>
+                                    <input type="text" id="ldap-user-attr-name" class="form-input" placeholder="displayName">
+                                </div>
+                            </div>
+
+                            <!-- Group mapping -->
+                            <h3 class="settings-subsection-title">${_('settings.ldap_group_mapping')}</h3>
+
+                            <div class="form-group">
+                                <label class="form-label" for="ldap-group-base-dn">${_('settings.ldap_group_base_dn')}</label>
+                                <input type="text" id="ldap-group-base-dn" class="form-input" placeholder="ou=groups,dc=example,dc=com">
+                                <small class="form-hint">${_('settings.ldap_group_base_dn_hint')}</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ldap-group-filter">${_('settings.ldap_group_filter')}</label>
+                                <input type="text" id="ldap-group-filter" class="form-input" placeholder="(member={{dn}})">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ldap-group-attr-name">${_('settings.ldap_group_attr_name')}</label>
+                                <input type="text" id="ldap-group-attr-name" class="form-input" placeholder="cn">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ldap-default-role">${_('settings.ldap_default_role')}</label>
+                                <select id="ldap-default-role" class="form-input" style="max-width: 300px;">
+                                    <option value="viewer">${_('settings.ldap_role_viewer')}</option>
+                                    <option value="operator">${_('settings.ldap_role_operator')}</option>
+                                    <option value="admin">${_('settings.ldap_role_admin')}</option>
+                                </select>
+                                <small class="form-hint">${_('settings.ldap_default_role_hint')}</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ldap-group-role-map">${_('settings.ldap_group_role_map')}</label>
+                                <textarea id="ldap-group-role-map" class="form-input form-textarea" rows="4"
+                                    placeholder="CN=BetterDesk Admins,OU=Groups,DC=example,DC=com=admin|CN=Operators,OU=Groups,DC=example,DC=com=operator"></textarea>
+                                <small class="form-hint">${_('settings.ldap_group_role_map_hint')}</small>
+                            </div>
+                        </div>
+
+                        <div class="form-actions" style="display: flex; gap: 12px; margin-top: 16px;">
+                            <button type="button" class="btn btn-secondary" id="ldap-test-btn">
+                                <span class="material-icons">cable</span>
+                                ${_('settings.ldap_test_connection')}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <span class="material-icons">save</span>
+                                ${_('settings.ldap_save')}
+                            </button>
+                        </div>
+                        <div id="ldap-test-result" style="margin-top: 12px;"></div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- OIDC / OAuth2 / SSO -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">key</span>
+                        ${_('settings.oidc_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('settings.oidc_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <form class="settings-form" id="oidc-form" style="max-width: 700px;">
+                        <!-- Enable toggle -->
+                        <div class="form-group" style="display: flex; align-items: center; gap: 12px;">
+                            <input type="checkbox" id="oidc-enabled" class="toggle-switch">
+                            <div>
+                                <label class="form-label" for="oidc-enabled" style="margin-bottom: 0; cursor: pointer;">${_('settings.oidc_enabled')}</label>
+                                <small class="form-hint" style="display: block; margin-top: 2px;">${_('settings.oidc_enabled_hint')}</small>
+                            </div>
+                        </div>
+
+                        <div id="oidc-config-fields">
+                            <!-- Provider settings -->
+                            <h3 class="settings-subsection-title">${_('settings.oidc_provider')}</h3>
+
+                            <div class="form-group">
+                                <label class="form-label" for="oidc-display-name">${_('settings.oidc_display_name')}</label>
+                                <input type="text" id="oidc-display-name" class="form-input" placeholder="Azure AD / Okta / Google" style="max-width: 400px;">
+                                <small class="form-hint">${_('settings.oidc_display_name_hint')}</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="oidc-issuer-url">${_('settings.oidc_issuer_url')}</label>
+                                <input type="url" id="oidc-issuer-url" class="form-input" placeholder="https://login.microsoftonline.com/{tenant}/v2.0">
+                                <small class="form-hint">${_('settings.oidc_issuer_url_hint')}</small>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group" style="flex: 2;">
+                                    <label class="form-label" for="oidc-client-id">${_('settings.oidc_client_id')}</label>
+                                    <input type="text" id="oidc-client-id" class="form-input" placeholder="your-client-id">
+                                </div>
+                                <div class="form-group" style="flex: 2;">
+                                    <label class="form-label" for="oidc-client-secret">${_('settings.oidc_client_secret')}</label>
+                                    <input type="password" id="oidc-client-secret" class="form-input" placeholder="••••••••">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="oidc-redirect-url">${_('settings.oidc_redirect_url')}</label>
+                                <input type="url" id="oidc-redirect-url" class="form-input" placeholder="http://your-server:21114/api/auth/oidc/callback">
+                                <small class="form-hint">${_('settings.oidc_redirect_url_hint')}</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label" for="oidc-scopes">${_('settings.oidc_scopes')}</label>
+                                <input type="text" id="oidc-scopes" class="form-input" placeholder="openid profile email" style="max-width: 500px;">
+                            </div>
+
+                            <div class="form-group" style="display: flex; gap: 24px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="oidc-use-pkce" class="toggle-switch">
+                                    <span>${_('settings.oidc_use_pkce')}</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="oidc-auto-discovery" class="toggle-switch" checked>
+                                    <span>${_('settings.oidc_auto_discovery')}</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="oidc-allow-signup" class="toggle-switch" checked>
+                                    <span>${_('settings.oidc_allow_signup')}</span>
+                                </label>
+                            </div>
+
+                            <!-- Manual endpoints (shown when auto_discovery is off) -->
+                            <div id="oidc-manual-endpoints" style="display: none;">
+                                <h3 class="settings-subsection-title">${_('settings.oidc_manual_endpoints')}</h3>
+                                <div class="form-group">
+                                    <label class="form-label" for="oidc-authorization-url">${_('settings.oidc_authorization_url')}</label>
+                                    <input type="url" id="oidc-authorization-url" class="form-input" placeholder="https://idp.example.com/authorize">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="oidc-token-url">${_('settings.oidc_token_url')}</label>
+                                    <input type="url" id="oidc-token-url" class="form-input" placeholder="https://idp.example.com/token">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="oidc-userinfo-url">${_('settings.oidc_userinfo_url')}</label>
+                                    <input type="url" id="oidc-userinfo-url" class="form-input" placeholder="https://idp.example.com/userinfo">
+                                </div>
+                            </div>
+
+                            <!-- Claim mapping -->
+                            <h3 class="settings-subsection-title">${_('settings.oidc_claim_mapping')}</h3>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label" for="oidc-claim-username">${_('settings.oidc_claim_username')}</label>
+                                    <input type="text" id="oidc-claim-username" class="form-input" placeholder="preferred_username">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="oidc-claim-email">${_('settings.oidc_claim_email')}</label>
+                                    <input type="text" id="oidc-claim-email" class="form-input" placeholder="email">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="oidc-claim-name">${_('settings.oidc_claim_name')}</label>
+                                    <input type="text" id="oidc-claim-name" class="form-input" placeholder="name">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="oidc-claim-groups">${_('settings.oidc_claim_groups')}</label>
+                                <input type="text" id="oidc-claim-groups" class="form-input" placeholder="groups" style="max-width: 300px;">
+                            </div>
+
+                            <!-- Role mapping -->
+                            <h3 class="settings-subsection-title">${_('settings.oidc_role_mapping')}</h3>
+
+                            <div class="form-group">
+                                <label class="form-label" for="oidc-default-role">${_('settings.oidc_default_role')}</label>
+                                <select id="oidc-default-role" class="form-input" style="max-width: 300px;">
+                                    <option value="viewer">${_('settings.ldap_role_viewer')}</option>
+                                    <option value="operator">${_('settings.ldap_role_operator')}</option>
+                                    <option value="admin">${_('settings.ldap_role_admin')}</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="oidc-group-role-map">${_('settings.oidc_group_role_map')}</label>
+                                <textarea id="oidc-group-role-map" class="form-input form-textarea" rows="3"
+                                    placeholder="betterdesk-admins=admin&#10;betterdesk-operators=operator"></textarea>
+                                <small class="form-hint">${_('settings.oidc_group_role_map_hint')}</small>
+                            </div>
+                        </div>
+
+                        <div class="form-actions" style="display: flex; gap: 12px; margin-top: 16px;">
+                            <button type="button" class="btn btn-secondary" id="oidc-test-btn">
+                                <span class="material-icons">travel_explore</span>
+                                ${_('settings.oidc_test_discovery')}
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <span class="material-icons">save</span>
+                                ${_('settings.oidc_save')}
+                            </button>
+                        </div>
+                        <div id="oidc-test-result" style="margin-top: 12px;"></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        </div>
+
         <!-- Backup & Restore Tab (server.config permission required) -->
         <div class="settings-tab-content" id="tab-backup" ${canServerConfig ? '' : 'style="display:none"'}>
         <div class="settings-sections">

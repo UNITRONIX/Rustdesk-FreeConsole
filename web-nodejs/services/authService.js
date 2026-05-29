@@ -20,6 +20,190 @@ const DUMMY_HASH = '$2b$12$KiXeOj5vHpJRJHGMhWzadeKfRJLvJRaRHQbMGBBdkpu.jQfXAzgWS
 const http = require('http');
 const https = require('https');
 
+// ---------------------------------------------------------------------------
+//  Go Server Health Cache (Phase A: Auth Delegation)
+// ---------------------------------------------------------------------------
+// Caches the Go server health status for 10 seconds to avoid hammering
+// /api/health on every login attempt.
+let _goHealthCache = { healthy: null, checkedAt: 0 };
+const GO_HEALTH_CACHE_TTL = 10_000;   // 10s
+const GO_HEALTH_TIMEOUT   = 2_000;    // 2s connect+read timeout
+
+/**
+ * Check whether the Go server is reachable.
+ * Result is cached for GO_HEALTH_CACHE_TTL ms.
+ * @returns {Promise<boolean>}
+ */
+async function checkGoServerHealth() {
+    const now = Date.now();
+    if (_goHealthCache.healthy !== null && now - _goHealthCache.checkedAt < GO_HEALTH_CACHE_TTL) {
+        return _goHealthCache.healthy;
+    }
+
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
+    let healthUrl;
+    try {
+        const base = new URL(apiUrl);
+        healthUrl = new URL('/api/health', base.origin);
+    } catch (_) {
+        _goHealthCache = { healthy: false, checkedAt: now };
+        return false;
+    }
+
+    const mod = healthUrl.protocol === 'https:' ? https : http;
+
+    return new Promise((resolve) => {
+        const req = mod.request(healthUrl, {
+            method: 'GET',
+            timeout: GO_HEALTH_TIMEOUT,
+            rejectUnauthorized: !config.allowSelfSignedCerts,
+        }, (res) => {
+            // Drain response body
+            res.resume();
+            const ok = res.statusCode >= 200 && res.statusCode < 400;
+            _goHealthCache = { healthy: ok, checkedAt: Date.now() };
+            resolve(ok);
+        });
+        req.on('error', () => {
+            _goHealthCache = { healthy: false, checkedAt: Date.now() };
+            resolve(false);
+        });
+        req.on('timeout', () => {
+            req.destroy();
+            _goHealthCache = { healthy: false, checkedAt: Date.now() };
+            resolve(false);
+        });
+        req.end();
+    });
+}
+
+/**
+ * Authenticate against Go server's POST /api/auth/login.
+ * Returns the full Go response on success, or null on failure/unreachable.
+ * The response shape is one of:
+ *   { token, role, username }          — credentials accepted, no 2FA
+ *   { requires_2fa, partial_token }    — 2FA required
+ *   null                               — rejected or unreachable
+ *
+ * @param {string} username
+ * @param {string} password
+ * @returns {Promise<Object|null>}
+ */
+function authenticateViaGo(username, password) {
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
+    let authUrl;
+    try {
+        const base = new URL(apiUrl);
+        authUrl = new URL('/api/auth/login', base.origin);
+    } catch (_) {
+        return Promise.resolve(null);
+    }
+
+    const body = JSON.stringify({ username, password });
+    const mod = authUrl.protocol === 'https:' ? https : http;
+    const timeout = Math.min(config.betterdeskApiTimeout || 5000, 5000);
+
+    return new Promise((resolve) => {
+        const req = mod.request(authUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body),
+            },
+            timeout,
+            rejectUnauthorized: !config.allowSelfSignedCerts,
+        }, (res) => {
+            let data = '';
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (res.statusCode === 200) {
+                        resolve(parsed);
+                        return;
+                    }
+                    // 401/400 = Go explicitly rejected
+                    if (res.statusCode === 401 || res.statusCode === 400) {
+                        resolve({ rejected: true, status: res.statusCode, error: parsed.error });
+                        return;
+                    }
+                    // 429 = rate limited
+                    if (res.statusCode === 429) {
+                        resolve({ rejected: true, rateLimited: true, error: parsed.error });
+                        return;
+                    }
+                } catch (_) { /* JSON parse error */ }
+                resolve(null); // unexpected response — treat as unreachable
+            });
+        });
+        req.on('error', () => resolve(null));
+        req.on('timeout', () => { req.destroy(); resolve(null); });
+        req.write(body);
+        req.end();
+    });
+}
+
+/**
+ * Verify TOTP code via Go server's POST /api/auth/login/2fa.
+ * @param {string} partialToken — JWT partial token from Go login
+ * @param {string} code         — TOTP code or recovery code
+ * @returns {Promise<Object|null>} — { token, role, username } or null
+ */
+function verifyTotpViaGo(partialToken, code) {
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
+    let url;
+    try {
+        const base = new URL(apiUrl);
+        url = new URL('/api/auth/login/2fa', base.origin);
+    } catch (_) {
+        return Promise.resolve(null);
+    }
+
+    const body = JSON.stringify({ partial_token: partialToken, code });
+    const mod = url.protocol === 'https:' ? https : http;
+    const timeout = Math.min(config.betterdeskApiTimeout || 5000, 5000);
+
+    return new Promise((resolve) => {
+        const req = mod.request(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body),
+            },
+            timeout,
+            rejectUnauthorized: !config.allowSelfSignedCerts,
+        }, (res) => {
+            let data = '';
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (res.statusCode === 200 && parsed.token) {
+                        resolve(parsed);
+                        return;
+                    }
+                    if (res.statusCode === 401 || res.statusCode === 400) {
+                        resolve({ rejected: true, error: parsed.error });
+                        return;
+                    }
+                    if (res.statusCode === 429) {
+                        resolve({ rejected: true, rateLimited: true, error: parsed.error });
+                        return;
+                    }
+                } catch (_) { /* JSON parse error */ }
+                resolve(null);
+            });
+        });
+        req.on('error', () => resolve(null));
+        req.on('timeout', () => { req.destroy(); resolve(null); });
+        req.write(body);
+        req.end();
+    });
+}
+
+/** Admin roles allowed to log in during emergency mode */
+const EMERGENCY_ADMIN_ROLES = new Set(['admin', 'super_admin']);
+
 // PBKDF2 parameters matching Go server's auth.HashPassword().
 // Two formats are supported when verifying hashes that originated on the
 // Go server (panel can fall back to those when migrating users):
@@ -161,10 +345,20 @@ function tryGoServerAuth(username, password) {
 
 /**
  * Authenticate user with username and password.
- * Supports both bcrypt (Node.js native) and PBKDF2 (Go server) hash formats.
- * When a PBKDF2 hash is verified successfully, it is auto-migrated to bcrypt
- * so subsequent logins do not need the PBKDF2 code path.
- * Returns user object with totpRequired flag if 2FA is enabled.
+ *
+ * Auth Delegation (Phase A):
+ *   1. Check Go server health (cached 10s)
+ *   2. If Go is healthy → delegate auth to Go POST /api/auth/login
+ *      - Go accepts → sync local admin hash for emergency fallback, return user
+ *      - Go rejects (401) → reject login
+ *      - Go returns requires_2fa → return totpRequired + goPartialToken
+ *   3. If Go is unreachable → EMERGENCY MODE
+ *      - Only admin roles may log in locally
+ *      - Verify against local DB (auth.db or shared PostgreSQL)
+ *      - Return user with emergencyMode flag
+ *
+ * Returns user object with totpRequired flag if 2FA is enabled,
+ * or emergencyMode flag if Go server is unreachable.
  */
 async function authenticate(username, password) {
     // Safeguard: reject empty username immediately (Issue #104)
@@ -172,99 +366,168 @@ async function authenticate(username, password) {
         console.log(`[AUTH] Rejected authenticate() with empty/invalid username: ${JSON.stringify(username)}`);
         return null;
     }
-    
-    const user = await db.getUserByUsername(username);
-    
-    if (!user) {
-        // Timing-safe: do a real hash comparison to prevent user enumeration
-        await bcrypt.compare(password, DUMMY_HASH);
 
-        // SECURITY (audit fix H-01, 2026-04-10): auto-creation of a local
-        // user when the Go server accepts credentials is OPT-IN only.
-        // A compromised Go server would otherwise automatically provision
-        // admin accounts in the panel. Enable explicitly via
-        // BETTERDESK_AUTH_AUTOCREATE=true when synchronizing identities
-        // with a trusted central auth (e.g., first-time bootstrap).
-        const autoCreateEnabled = process.env.BETTERDESK_AUTH_AUTOCREATE === 'true';
-        if (autoCreateEnabled) {
-            const goResult = await tryGoServerAuth(username, password);
-            if (goResult) {
-                console.log(`[AUTH] Go server accepted credentials for '${username}' — creating local user (BETTERDESK_AUTH_AUTOCREATE=true)`);
-                const bcryptHash = await hashPassword(password);
-                await db.createUser(username, bcryptHash, goResult.role || 'admin');
-                const created = await db.getUserByUsername(username);
-                if (created) {
-                    await db.updateLastLogin(created.id);
-                    return {
-                        id: created.id,
-                        username: created.username,
-                        role: created.role,
-                        preferred_language: created.preferred_language || null,
-                        totpRequired: false,
-                    };
+    // ---------------------------------------------------------------
+    //  Step 1: Try Go server (source of truth)
+    // ---------------------------------------------------------------
+    const goHealthy = await checkGoServerHealth();
+
+    if (goHealthy) {
+        const goResult = await authenticateViaGo(username, password);
+
+        if (goResult && !goResult.rejected) {
+            // --- 2FA required ---
+            if (goResult.requires_2fa && goResult.partial_token) {
+                console.log(`[AUTH] Go server requires 2FA for '${username}'`);
+
+                // We need a local user ID for session storage.
+                // Ensure the user exists locally (auto-create from Go data if needed).
+                const localUser = await ensureLocalUserFromGo(username, password, 'admin');
+
+                return {
+                    id: localUser ? localUser.id : 0,
+                    username: username,
+                    role: localUser ? localUser.role : 'admin',
+                    preferred_language: localUser ? (localUser.preferred_language || null) : null,
+                    totpRequired: true,
+                    goPartialToken: goResult.partial_token,
+                };
+            }
+
+            // --- Credentials accepted (no 2FA) ---
+            if (goResult.token && goResult.role) {
+                console.log(`[AUTH] Go server accepted credentials for '${username}' (role: ${goResult.role})`);
+
+                // Block pro-only accounts from web panel login early
+                if (goResult.role === 'pro') {
+                    return null;
                 }
+
+                // Ensure user exists locally and sync hash for emergency fallback
+                const localUser = await ensureLocalUserFromGo(username, password, goResult.role);
+
+                // Update last login
+                if (localUser) {
+                    try { await db.updateLastLogin(localUser.id); } catch (_) { /* ignore */ }
+                }
+
+                return {
+                    id: localUser ? localUser.id : 0,
+                    username: goResult.username || username,
+                    role: goResult.role,
+                    preferred_language: localUser ? (localUser.preferred_language || null) : null,
+                    totpRequired: false,
+                    goToken: goResult.token,
+                };
             }
         }
 
-        console.log(`[AUTH] Login failed: user '${username}' not found in database`);
-        return null;
-    }
-    
-    // Diagnostic: log hash format to help debug password issues
-    const hashType = isPBKDF2Hash(user.password_hash) ? 'PBKDF2'
-        : (user.password_hash && user.password_hash.startsWith('$2')) ? 'bcrypt'
-        : 'unknown';
-    console.log(`[AUTH] Verifying password for '${username}' (hash type: ${hashType}, length: ${(user.password_hash || '').length})`);
-    
-    const { valid, needsMigration } = await verifyPasswordEx(password, user.password_hash);
-    if (!valid) {
-        // Fallback: try Go server auth — password may have been changed on Go side
-        const goResult = await tryGoServerAuth(username, password);
-        if (goResult) {
-            console.log(`[AUTH] Go server accepted password for '${username}' — syncing local hash`);
-            const bcryptHash = await hashPassword(password);
-            await db.updateUserPassword(user.id, bcryptHash);
-            // Fall through to TOTP check and normal success path
-        } else {
-            console.log(`[AUTH] Login failed: password mismatch for '${username}' (hash type: ${hashType})`);
+        // --- Go explicitly rejected ---
+        if (goResult && goResult.rejected) {
+            if (goResult.rateLimited) {
+                console.log(`[AUTH] Go server rate-limited login for '${username}'`);
+            } else {
+                console.log(`[AUTH] Go server rejected credentials for '${username}'`);
+            }
+            // Timing-safe: do a real hash comparison to prevent user enumeration
+            await bcrypt.compare(password, DUMMY_HASH);
             return null;
         }
-    } else if (valid) {
-        console.log(`[AUTH] Login successful for '${username}'`);
+
+        // --- Go returned unexpected response (null) — treat as unreachable ---
+        console.warn(`[AUTH] Go server returned unexpected response for '${username}' — falling through to emergency mode`);
+        // Invalidate health cache so next attempt re-checks
+        _goHealthCache = { healthy: null, checkedAt: 0 };
     }
-    
-    // Auto-migrate PBKDF2 hash to bcrypt for future logins
-    if (valid && needsMigration) {
-        try {
-            const bcryptHash = await hashPassword(password);
-            await db.updateUserPassword(user.id, bcryptHash);
-            console.log(`[AUTH] Migrated password hash from PBKDF2 to bcrypt for user: ${username}`);
-        } catch (err) {
-            console.warn(`[AUTH] Failed to migrate password hash for ${username}:`, err.message);
-        }
+
+    // ---------------------------------------------------------------
+    //  Step 2: Emergency mode — Go server is unreachable
+    // ---------------------------------------------------------------
+    console.warn(`[AUTH] ⚠ EMERGENCY MODE: Go server unreachable — attempting local auth for '${username}'`);
+
+    const user = await db.getUserByUsername(username);
+
+    if (!user) {
+        await bcrypt.compare(password, DUMMY_HASH);
+        console.log(`[AUTH] Emergency mode: user '${username}' not found locally`);
+        return null;
     }
-    
-    // Check if TOTP is enabled
-    if (user.totp_enabled) {
-        return {
-            id: user.id,
-            username: user.username,
-            role: user.role,
-            preferred_language: user.preferred_language || null,
-            totpRequired: true
-        };
+
+    // Only admin roles allowed in emergency mode
+    if (!EMERGENCY_ADMIN_ROLES.has(user.role)) {
+        console.warn(`[AUTH] Emergency mode: rejected non-admin user '${username}' (role: ${user.role})`);
+        await bcrypt.compare(password, DUMMY_HASH);
+        return null;
     }
-    
-    // Update last login
+
+    // Verify against local hash
+    const { valid } = await verifyPasswordEx(password, user.password_hash);
+    if (!valid) {
+        console.log(`[AUTH] Emergency mode: password mismatch for '${username}'`);
+        return null;
+    }
+
+    console.log(`[AUTH] Emergency mode: admin '${username}' authenticated locally`);
+
+    // Skip TOTP in emergency mode — admin needs access to fix the Go server
     await db.updateLastLogin(user.id);
-    
+
     return {
         id: user.id,
         username: user.username,
         role: user.role,
         preferred_language: user.preferred_language || null,
-        totpRequired: false
+        totpRequired: false,
+        emergencyMode: true,
     };
+}
+
+/**
+ * Ensure a user record exists in the local database for session storage.
+ * If the user doesn't exist locally, create it. If it exists, update the
+ * password hash (for emergency fallback) and role.
+ *
+ * @param {string} username
+ * @param {string} password   — plaintext (available only during login)
+ * @param {string} role
+ * @returns {Promise<Object|null>} — local user record
+ */
+async function ensureLocalUserFromGo(username, password, role) {
+    let localUser = await db.getUserByUsername(username);
+
+    // Sync password hash for emergency fallback (only for admin roles)
+    const shouldSyncHash = EMERGENCY_ADMIN_ROLES.has(role);
+
+    if (!localUser) {
+        // Auto-create local user from Go server data
+        try {
+            const bcryptHash = await hashPassword(password);
+            await db.createUser(username, bcryptHash, role);
+            localUser = await db.getUserByUsername(username);
+            if (localUser) {
+                console.log(`[AUTH] Auto-created local user '${username}' (role: ${role}) for session storage`);
+            }
+        } catch (err) {
+            console.warn(`[AUTH] Failed to auto-create local user '${username}': ${err.message}`);
+        }
+    } else if (shouldSyncHash) {
+        // Update local hash so emergency fallback always has current password
+        try {
+            const bcryptHash = await hashPassword(password);
+            await db.updateUserPassword(localUser.id, bcryptHash);
+        } catch (err) {
+            console.warn(`[AUTH] Failed to sync local hash for '${username}': ${err.message}`);
+        }
+        // Sync role if changed on Go side
+        if (localUser.role !== role) {
+            try {
+                await db.updateUserRole(localUser.id, role);
+                localUser.role = role;
+            } catch (_) { /* updateUserRole may not exist in all adapters */ }
+        }
+    }
+
+    return localUser;
 }
 
 /**
@@ -807,6 +1070,10 @@ module.exports = {
     ensureDefaultAdmin,
     changePassword,
     validatePasswordStrength,
+    // Go server delegation (Phase A)
+    checkGoServerHealth,
+    authenticateViaGo,
+    verifyTotpViaGo,
     // TOTP
     generateTotpSetup,
     verifyAndEnableTotp,
