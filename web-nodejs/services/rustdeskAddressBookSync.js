@@ -105,14 +105,30 @@ function mergeAddressBookData(data, options = {}) {
     const devices = Array.isArray(options.devices) ? options.devices : [];
     const includeDevices = options.includeDevices !== false;
 
+    // Issue #138: build set of banned/deleted device IDs to strip from AB
+    const bannedIds = new Set();
+    for (const device of devices) {
+        const id = String(device && device.id || '').trim();
+        if (!id) continue;
+        if (device.banned || device.soft_deleted) {
+            bannedIds.add(id);
+        }
+    }
+
     ab.tags = normalizeTags(ab.tags);
     const globalSeen = new Set(ab.tags);
 
     const peerById = new Map();
-    for (const peer of ab.peers) {
-        if (!peer || typeof peer !== 'object') continue;
+    // Filter out banned/deleted peers from existing AB data
+    ab.peers = ab.peers.filter(peer => {
+        if (!peer || typeof peer !== 'object') return false;
         const id = String(peer.id || '').trim();
-        if (!id) continue;
+        if (!id) return false;
+        if (bannedIds.has(id)) return false; // strip banned
+        return true;
+    });
+    for (const peer of ab.peers) {
+        const id = String(peer.id || '').trim();
         peer.tags = normalizeTags(peer.tags);
         peerById.set(id, peer);
         for (const tag of peer.tags) {

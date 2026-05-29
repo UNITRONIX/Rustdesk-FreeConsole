@@ -511,6 +511,10 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 // handleClientUsersList returns users in the {total,data} envelope format
 // expected by the RustDesk Flutter client's group model (UserPayload format).
+//
+// Issue #138 (2.3): Only return users that have at least one device assigned
+// (peer.User matches username). Users without devices create misleading sidebar
+// entries that lead to empty device lists when clicked.
 func (s *Server) handleClientUsersList(w http.ResponseWriter, r *http.Request) {
 	users, err := s.db.ListUsers()
 	if err != nil {
@@ -521,8 +525,23 @@ func (s *Server) handleClientUsersList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build set of usernames that have at least one peer assigned
+	allPeers, _ := s.db.ListPeers(false)
+	usersWithDevices := make(map[string]bool)
+	for _, p := range allPeers {
+		if p.User != "" {
+			usersWithDevices[p.User] = true
+		}
+	}
+
 	result := make([]map[string]any, 0, len(users))
 	for _, u := range users {
+		// Skip users that have no devices assigned — they create empty
+		// sidebar entries in the RustDesk client (Issue #138 point 2.3)
+		if !usersWithDevices[u.Username] {
+			continue
+		}
+
 		// Convert role to status int: 1=active (normal), 0=disabled
 		statusInt := 1
 		isAdmin := u.Role == "admin" || u.Role == "super_admin" || u.IsServerAdmin
@@ -561,8 +580,27 @@ func (s *Server) handleUsersWithClientFallback(w http.ResponseWriter, r *http.Re
 			return
 		}
 
-		// For operators without user.view, return current user only
-		// so the client's _getUsers() succeeds and _getPeers() proceeds
+		// For operators without user.view: only include this user in the
+		// sidebar if they have at least one device assigned. Otherwise
+		// clicking the name shows an empty device list (Issue #138 point 2.3).
+		// Returning {total:0, data:[]} still satisfies _getUsers() so _getPeers()
+		// is called and all devices are shown under groups.
+		allPeers, _ := s.db.ListPeers(false)
+		hasDevices := false
+		for _, p := range allPeers {
+			if p.User == username {
+				hasDevices = true
+				break
+			}
+		}
+		if !hasDevices {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"total": 0,
+				"data":  []any{},
+			})
+			return
+		}
+
 		statusInt := 1
 		isAdmin := auth.IsSuperAdminRole(role)
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -1136,7 +1174,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			path == "/api/heartbeat" || path == "/api/sysinfo" || path == "/api/sysinfo_ver" ||
 			path == "/api/branding" ||
 			path == "/api/org/login" ||
-			path == "/api/auth/oidc/status" || path == "/api/auth/oidc/authorize" || path == "/api/auth/oidc/callback" || path == "/api/auth/oidc/exchange" ||
+			path == "/api/auth/oidc/status" || path == "/api/auth/oidc/authorize" || path == "/api/auth/oidc/callback" ||
 			strings.HasPrefix(path, "/ws/bd-mgmt/") ||
 			path == "/api/devices/register" || path == "/api/devices/register/status" {
 			next.ServeHTTP(w, r)

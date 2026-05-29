@@ -571,9 +571,15 @@ func (s *Server) mergeAdminTagsIntoAB(data string) string {
 	// Build maps of peer_id → admin tags and peer_id → sysinfo from the peers table
 	adminTags := make(map[string][]string)
 	peerInfo := make(map[string]*db.Peer)
+	bannedPeers := make(map[string]bool)
 	for _, id := range ids {
 		peer, err := s.db.GetPeer(id)
 		if err != nil || peer == nil {
+			continue
+		}
+		// Issue #138: track banned/deleted peers so they can be stripped from the AB
+		if peer.Banned || peer.SoftDeleted {
+			bannedPeers[id] = true
 			continue
 		}
 		peerInfo[id] = peer
@@ -602,13 +608,22 @@ func (s *Server) mergeAdminTagsIntoAB(data string) string {
 		tagSet[t] = true
 	}
 
-	// Merge admin tags and sysinfo into each peer
+	// Merge admin tags and sysinfo into each peer; strip banned/deleted peers
 	modified := false
+	filtered := make([]map[string]any, 0, len(peers))
 	for _, p := range peers {
 		id, ok := p["id"].(string)
 		if !ok || id == "" {
+			filtered = append(filtered, p)
 			continue
 		}
+
+		// Issue #138: remove banned/deleted peers from the address book entirely
+		if bannedPeers[id] {
+			modified = true
+			continue
+		}
+		filtered = append(filtered, p)
 
 		// Enrich peer with sysinfo from peers table (Issue #138: OS icon/name not showing)
 		if info, ok := peerInfo[id]; ok {
@@ -675,9 +690,9 @@ func (s *Server) mergeAdminTagsIntoAB(data string) string {
 	}
 
 	// Write back the modified peers and tags into the original map
-	// Convert peers back to []any for JSON serialization
-	peersAny := make([]any, len(peers))
-	for i, p := range peers {
+	// Use filtered list (banned/deleted peers removed)
+	peersAny := make([]any, len(filtered))
+	for i, p := range filtered {
 		peersAny[i] = p
 	}
 	ab["peers"] = peersAny
@@ -782,10 +797,13 @@ func (s *Server) handleClientGroupList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build tag → peer IDs map
+	// Build tag → peer IDs map (skip banned/deleted peers)
 	tagPeers := make(map[string][]string)
 	tagOrder := make([]string, 0)
 	for _, p := range allPeers {
+		if p.Banned || p.SoftDeleted {
+			continue
+		}
 		if p.Tags == "" {
 			continue
 		}
@@ -895,8 +913,13 @@ func (s *Server) handleClientGroupPeers(w http.ResponseWriter, r *http.Request) 
 		}
 
 		// Build info map matching RustDesk PeerPayload.info format
+		// Issue #138 (2.4): fallback device_name to peer ID if hostname empty
+		deviceName := p.Hostname
+		if deviceName == "" {
+			deviceName = p.ID
+		}
 		info := map[string]any{
-			"device_name": p.Hostname,
+			"device_name": deviceName,
 			"os":          p.OS,
 			"username":    p.User,
 			"version":     p.Version,

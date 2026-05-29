@@ -377,13 +377,13 @@ async function buildSyncedAddressBook(user, abType) {
     const abData = (abRecord && abRecord.data) ? String(abRecord.data) : '{}';
     const context = await getConsoleDeviceContext(user);
 
-    // Auto-include server devices for admin/operator users so their AB is pre-populated.
-    // Regular (pro) users only see devices they have manually added.
-    const canViewDevices = user && user.role && user.role !== 'pro';
-
+    // Issue #138 (2.1): Do NOT auto-include all server devices into the AB.
+    // Previously this was true for admin/operator users, causing "ghost" entries
+    // that reappear after deletion. The "Available Devices" tab shows all server
+    // devices via /api/peers/list — the AB should only contain user-added entries.
     return addressBookSync.mergeAddressBookData(abData, {
         ...context,
-        includeDevices: canViewDevices
+        includeDevices: false
     });
 }
 
