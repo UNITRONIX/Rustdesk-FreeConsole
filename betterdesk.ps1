@@ -1095,7 +1095,13 @@ function Install-NodeJsConsole {
             }
             
             # Generate admin password for Node.js console
-            $nodejsAdminPassword = Generate-RandomPassword
+            # Respect user-provided ADMIN_PASSWORD env var if set
+            if ($env:ADMIN_PASSWORD) {
+                $nodejsAdminPassword = $env:ADMIN_PASSWORD
+                Print-Info "Using custom admin password from ADMIN_PASSWORD env var"
+            } else {
+                $nodejsAdminPassword = Generate-RandomPassword
+            }
             
             # Create sentinel file so ensureDefaultAdmin() force-updates the password
             # even if auth.db was somehow preserved (e.g. shared volume, manual copy)

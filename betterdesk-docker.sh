@@ -603,8 +603,14 @@ EOF
             fi
         fi
         if [ -z "$admin_password" ]; then
-            # SECURITY (audit fix M-05, 2026-04-10): full hex entropy
-            admin_password=$(openssl rand -hex 16)
+            # Respect user-provided ADMIN_PASSWORD env var if set
+            if [ -n "$ADMIN_PASSWORD" ]; then
+                admin_password="$ADMIN_PASSWORD"
+                print_info "Using custom admin password from ADMIN_PASSWORD env var"
+            else
+                # SECURITY (audit fix M-05, 2026-04-10): full hex entropy
+                admin_password=$(openssl rand -hex 16)
+            fi
             # Only clean auth.db on FRESH install (no existing credentials)
             if docker volume inspect "${PROJECT_NAME:-betterdesk}_console_data" >/dev/null 2>&1; then
                 print_info "Cleaning old auth database from console_data volume..."

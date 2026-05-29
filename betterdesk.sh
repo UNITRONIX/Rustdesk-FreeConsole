@@ -111,6 +111,7 @@ while [[ $# -gt 0 ]]; do
             echo "  POSTGRESQL_HOST=...     PostgreSQL host (default: localhost)"
             echo "  POSTGRESQL_PORT=...     PostgreSQL port (default: 5432)"
             echo "  STORE_ADMIN_CREDENTIALS=true  Persist admin password to .admin_credentials (not recommended)"
+            echo "  ADMIN_PASSWORD=...      Set custom admin password (default: auto-generated)"
             exit 0
             ;;
         *)
@@ -1577,7 +1578,12 @@ install_nodejs_console() {
         fi
         
         # Generate admin password for Node.js console (M-05: full hex entropy)
-        ADMIN_PASSWORD=$(openssl rand -hex 16)
+        # Respect user-provided ADMIN_PASSWORD env var if set
+        if [ -z "$ADMIN_PASSWORD" ]; then
+            ADMIN_PASSWORD=$(openssl rand -hex 16)
+        else
+            print_info "Using custom admin password from ADMIN_PASSWORD env var"
+        fi
         local nodejs_admin_password="$ADMIN_PASSWORD"
         
         # Create sentinel file so ensureDefaultAdmin() force-updates the password
@@ -1602,51 +1608,62 @@ DB_PATH=$RUSTDESK_PATH/db_v2.sqlite3"
     fi
     
     # Create .env file (always update to ensure correct paths)
-    cat > "$CONSOLE_PATH/.env" << EOF
+    # Use quoted heredoc ('ENVEOF') to prevent shell expansion of $, `, ! in passwords.
+    # Then patch in the dynamic values safely with awk.
+    cat > "$CONSOLE_PATH/.env" << 'ENVEOF'
 # BetterDesk Node.js Console Configuration
 PORT=5000
 HOST=0.0.0.0
 NODE_ENV=production
+ENVEOF
 
-# RustDesk paths (critical for key/QR code generation)
-RUSTDESK_DIR=$RUSTDESK_PATH
-KEYS_PATH=$RUSTDESK_PATH
-PUB_KEY_PATH=$RUSTDESK_PATH/id_ed25519.pub
-API_KEY_PATH=$RUSTDESK_PATH/.api_key
-
-$db_config
-
-# Auth database location
-DATA_DIR=$CONSOLE_PATH/data
-
-# HBBS API
-HBBS_API_URL=http://localhost:$API_PORT/api
-
-# RustDesk Client API listener
-API_HOST=0.0.0.0
-RUSTDESK_API_TLS=auto
-
-# Server backend (betterdesk = Go server, rustdesk = legacy Rust)
-SERVER_BACKEND=betterdesk
-
-# Default admin credentials (used only on first startup)
-DEFAULT_ADMIN_USERNAME=admin
-DEFAULT_ADMIN_PASSWORD=$nodejs_admin_password
-
-# Session
-SESSION_SECRET=$session_secret
-
-# HTTPS (set to true and provide certificate paths to enable)
-HTTPS_ENABLED=false
-HTTPS_PORT=5443
-SSL_CERT_PATH=$RUSTDESK_PATH/ssl/betterdesk.crt
-SSL_KEY_PATH=$RUSTDESK_PATH/ssl/betterdesk.key
-SSL_CA_PATH=
-HTTP_REDIRECT_HTTPS=true
-
-# Go server API URL (uses HTTPS when TLS certificates are present)
-BETTERDESK_API_URL=http://localhost:$API_PORT/api
-EOF
+    # Append dynamic values safely (no shell expansion issues with special chars)
+    {
+        echo ""
+        echo "# RustDesk paths (critical for key/QR code generation)"
+        echo "RUSTDESK_DIR=$RUSTDESK_PATH"
+        echo "KEYS_PATH=$RUSTDESK_PATH"
+        echo "PUB_KEY_PATH=$RUSTDESK_PATH/id_ed25519.pub"
+        echo "API_KEY_PATH=$RUSTDESK_PATH/.api_key"
+        echo ""
+        echo "$db_config"
+        echo ""
+        echo "# Auth database location"
+        echo "DATA_DIR=$CONSOLE_PATH/data"
+        echo ""
+        echo "# HBBS API"
+        echo "HBBS_API_URL=http://localhost:$API_PORT/api"
+        echo ""
+        echo "# RustDesk Client API listener"
+        echo "API_HOST=0.0.0.0"
+        echo "RUSTDESK_API_TLS=auto"
+        echo ""
+        echo "# Server backend (betterdesk = Go server, rustdesk = legacy Rust)"
+        echo "SERVER_BACKEND=betterdesk"
+        echo ""
+        echo "# Default admin credentials (used only on first startup)"
+        echo "DEFAULT_ADMIN_USERNAME=admin"
+    } >> "$CONSOLE_PATH/.env"
+    # Write password on its own line — printf %s avoids interpreting backslashes/specials
+    printf 'DEFAULT_ADMIN_PASSWORD=%s\n' "$nodejs_admin_password" >> "$CONSOLE_PATH/.env"
+    {
+        echo ""
+        echo "# Session"
+    } >> "$CONSOLE_PATH/.env"
+    printf 'SESSION_SECRET=%s\n' "$session_secret" >> "$CONSOLE_PATH/.env"
+    {
+        echo ""
+        echo "# HTTPS (set to true and provide certificate paths to enable)"
+        echo "HTTPS_ENABLED=false"
+        echo "HTTPS_PORT=5443"
+        echo "SSL_CERT_PATH=$RUSTDESK_PATH/ssl/betterdesk.crt"
+        echo "SSL_KEY_PATH=$RUSTDESK_PATH/ssl/betterdesk.key"
+        echo "SSL_CA_PATH="
+        echo "HTTP_REDIRECT_HTTPS=true"
+        echo ""
+        echo "# Go server API URL (uses HTTPS when TLS certificates are present)"
+        echo "BETTERDESK_API_URL=http://localhost:$API_PORT/api"
+    } >> "$CONSOLE_PATH/.env"
     print_info "Created .env configuration file"
     
     # Persist credentials only when explicitly requested.
