@@ -2576,6 +2576,12 @@ do_install() {
 # Update Functions
 #===============================================================================
 
+# GitHub repository configuration for online updates
+UPDATE_GITHUB_OWNER="${UPDATE_GITHUB_OWNER:-UNITRONIX}"
+UPDATE_GITHUB_REPO="${UPDATE_GITHUB_REPO:-BetterDesk}"
+UPDATE_GITHUB_BRANCH="${UPDATE_GITHUB_BRANCH:-main}"
+UPDATE_CLONE_DIR="/tmp/betterdesk-update-$$"
+
 run_terminal_project_update() {
     local cli_path="$CONSOLE_PATH/scripts/update-cli.js"
     local node_bin=""
@@ -2595,6 +2601,212 @@ run_terminal_project_update() {
 
     "$node_bin" "$cli_path" "${args[@]}"
     return $?
+}
+
+# Pull latest project from GitHub and apply update to local installation.
+# This is the primary update path — it fetches the full repo, rebuilds
+# the Go server, and reinstalls the Node.js console from fresh source.
+# All local state (databases, keys, .env, auth.db) is preserved.
+update_from_github() {
+    local clone_dir="$UPDATE_CLONE_DIR"
+
+    # Clean up any leftover clone from a previous failed run
+    rm -rf "$clone_dir"
+
+    # ---- Step 1: Clone or download latest code ----
+    print_step "Downloading latest BetterDesk from GitHub..."
+    if command -v git &>/dev/null; then
+        local repo_url="https://github.com/${UPDATE_GITHUB_OWNER}/${UPDATE_GITHUB_REPO}.git"
+        if ! git clone --depth 1 --single-branch --branch "$UPDATE_GITHUB_BRANCH" "$repo_url" "$clone_dir" 2>/dev/null; then
+            print_error "git clone failed"
+            rm -rf "$clone_dir"
+            return 1
+        fi
+        print_success "Repository cloned (branch: $UPDATE_GITHUB_BRANCH)"
+    else
+        # Fallback: download tarball via curl
+        local tarball_url="https://github.com/${UPDATE_GITHUB_OWNER}/${UPDATE_GITHUB_REPO}/archive/refs/heads/${UPDATE_GITHUB_BRANCH}.tar.gz"
+        local tarball_path="/tmp/betterdesk-update-$$.tar.gz"
+        print_info "git not available, downloading tarball..."
+        if ! curl -fsSL --connect-timeout 15 --max-time 120 -o "$tarball_path" "$tarball_url"; then
+            print_error "Download failed. Check internet connection."
+            rm -f "$tarball_path"
+            return 1
+        fi
+        mkdir -p "$clone_dir"
+        if ! tar -xzf "$tarball_path" -C "$clone_dir" --strip-components=1; then
+            print_error "Failed to extract update archive"
+            rm -f "$tarball_path" && rm -rf "$clone_dir"
+            return 1
+        fi
+        rm -f "$tarball_path"
+        print_success "Source downloaded and extracted"
+    fi
+
+    # Validate downloaded source
+    if [ ! -f "$clone_dir/betterdesk-server/go.mod" ] || [ ! -f "$clone_dir/web-nodejs/server.js" ]; then
+        print_error "Downloaded source is incomplete or invalid"
+        rm -rf "$clone_dir"
+        return 1
+    fi
+
+    # Read remote version
+    local remote_version=""
+    if [ -f "$clone_dir/VERSION" ]; then
+        remote_version=$(cat "$clone_dir/VERSION" | tr -d '[:space:]')
+    fi
+    if [ -n "$remote_version" ]; then
+        print_info "Remote version: $remote_version"
+    fi
+
+    # ---- Step 2: Update Go server source & compile ----
+    print_step "Updating Go server source..."
+    if [ -d "$GO_SERVER_SOURCE" ]; then
+        # Backup existing source (lightweight — just rename)
+        mv "$GO_SERVER_SOURCE" "${GO_SERVER_SOURCE}.pre-update.$$" 2>/dev/null || true
+    fi
+    cp -r "$clone_dir/betterdesk-server" "$GO_SERVER_SOURCE"
+
+    # Restore any local data/ directory that existed in the old source dir
+    if [ -d "${GO_SERVER_SOURCE}.pre-update.$$/data" ]; then
+        cp -rn "${GO_SERVER_SOURCE}.pre-update.$$/data" "$GO_SERVER_SOURCE/" 2>/dev/null || true
+    fi
+    rm -rf "${GO_SERVER_SOURCE}.pre-update.$$"
+    print_success "Go server source updated"
+
+    # Compile Go server
+    print_step "Building Go server..."
+    if ! check_go_installed; then
+        print_info "Installing Go toolchain..."
+        if ! install_golang; then
+            print_warning "Go toolchain not available — server binary not updated"
+            print_info "Install Go manually from https://go.dev/dl/ and re-run update"
+            # Non-critical: source files were updated, binary can be built later
+        fi
+    fi
+
+    if check_go_installed; then
+        if compile_go_server; then
+            print_success "Go server compiled successfully"
+            # Deploy binary to installation path
+            if [ -f "$GO_SERVER_SOURCE/betterdesk-server" ]; then
+                # Backup existing binary
+                if [ -f "$RUSTDESK_PATH/betterdesk-server" ]; then
+                    cp "$RUSTDESK_PATH/betterdesk-server" \
+                       "$RUSTDESK_PATH/betterdesk-server.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+                fi
+                cp "$GO_SERVER_SOURCE/betterdesk-server" "$RUSTDESK_PATH/betterdesk-server"
+                chmod +x "$RUSTDESK_PATH/betterdesk-server"
+                print_success "Go server binary deployed to $RUSTDESK_PATH"
+            fi
+        else
+            print_warning "Go server compilation failed — keeping existing binary"
+            print_info "You can retry with option 7 (Build & deploy server)"
+        fi
+    fi
+
+    # ---- Step 3: Update Node.js console files ----
+    print_step "Updating Node.js web console..."
+
+    # Preserve critical local state files before overwriting
+    local state_files=(".env" "data" "node_modules")
+    local preserved_dir="/tmp/betterdesk-console-state-$$"
+    mkdir -p "$preserved_dir"
+
+    for item in "${state_files[@]}"; do
+        if [ -e "$CONSOLE_PATH/$item" ]; then
+            cp -a "$CONSOLE_PATH/$item" "$preserved_dir/$item" 2>/dev/null || true
+        fi
+    done
+
+    # Copy new console files (overwrite code, but not state)
+    # Use rsync if available for selective copy, otherwise cp
+    if command -v rsync &>/dev/null; then
+        rsync -a --delete \
+            --exclude='data/' \
+            --exclude='node_modules/' \
+            --exclude='.env' \
+            --exclude='.env.local' \
+            --exclude='*.sqlite3' \
+            --exclude='*.sqlite3-wal' \
+            --exclude='*.sqlite3-shm' \
+            --exclude='*.db' \
+            --exclude='*.db-wal' \
+            --exclude='*.db-shm' \
+            --exclude='.session_secret' \
+            --exclude='.update_sha' \
+            --exclude='.api_key' \
+            --exclude='.admin_credentials' \
+            --exclude='.force_password_update' \
+            "$clone_dir/web-nodejs/" "$CONSOLE_PATH/"
+    else
+        # cp fallback: copy everything then restore state
+        cp -r "$clone_dir/web-nodejs/"* "$CONSOLE_PATH/"
+        # Restore preserved state files
+        for item in "${state_files[@]}"; do
+            if [ -e "$preserved_dir/$item" ]; then
+                if [ -d "$preserved_dir/$item" ]; then
+                    # For directories (data/, node_modules/), don't delete the new
+                    # copy — just ensure old files are restored
+                    cp -a "$preserved_dir/$item/"* "$CONSOLE_PATH/$item/" 2>/dev/null || true
+                else
+                    cp -a "$preserved_dir/$item" "$CONSOLE_PATH/$item" 2>/dev/null || true
+                fi
+            fi
+        done
+    fi
+    rm -rf "$preserved_dir"
+    print_success "Console files updated"
+
+    # Install npm dependencies if package.json changed
+    print_step "Installing npm dependencies..."
+    cd "$CONSOLE_PATH"
+    local npm_log="/tmp/betterdesk_npm_install.log"
+    if npm install --production --no-audit --no-fund > "$npm_log" 2>&1; then
+        print_success "npm dependencies installed"
+    else
+        print_warning "npm install had issues (non-critical):"
+        tail -5 "$npm_log"
+    fi
+    rm -f "$npm_log"
+
+    # ---- Step 4: Update installer scripts ----
+    print_step "Updating installer scripts..."
+    local scripts_updated=0
+    for script_file in betterdesk.sh betterdesk.ps1 betterdesk-docker.sh \
+                       docker-compose.yml docker-compose.single.yml docker-compose.quick.yml \
+                       Dockerfile Dockerfile.server Dockerfile.console VERSION; do
+        if [ -f "$clone_dir/$script_file" ]; then
+            cp "$clone_dir/$script_file" "$SCRIPT_DIR/$script_file" 2>/dev/null || true
+            if [[ "$script_file" == *.sh ]]; then
+                chmod +x "$SCRIPT_DIR/$script_file" 2>/dev/null || true
+            fi
+            scripts_updated=$((scripts_updated + 1))
+        fi
+    done
+    print_success "$scripts_updated installer files updated"
+
+    # ---- Step 5: Update SHA tracking for in-app updater ----
+    if command -v git &>/dev/null && [ -d "$clone_dir/.git" ]; then
+        local remote_sha
+        remote_sha=$(git -C "$clone_dir" rev-parse HEAD 2>/dev/null)
+        if [ -n "$remote_sha" ]; then
+            mkdir -p "$CONSOLE_PATH/data"
+            echo "$remote_sha" > "$CONSOLE_PATH/data/.update_sha"
+            print_info "SHA tracking updated: ${remote_sha:0:7}"
+        fi
+    fi
+
+    # ---- Step 6: Update VERSION file in project root ----
+    if [ -f "$clone_dir/VERSION" ] && [ -n "$remote_version" ]; then
+        cp "$clone_dir/VERSION" "$SCRIPT_DIR/VERSION" 2>/dev/null || true
+    fi
+
+    # Cleanup
+    rm -rf "$clone_dir"
+
+    print_success "All project files updated from GitHub"
+    return 0
 }
 
 do_update() {
@@ -2637,41 +2849,104 @@ do_update() {
     # This prevents PostgreSQL → SQLite switch during updates
     preserve_database_config
 
-    if run_terminal_project_update; then
-        print_success "Online project update completed"
-        press_enter
-        return
+    # ---- Update method selection ----
+    # Method 1 (preferred): Pull from GitHub, rebuild Go server, reinstall console
+    # Method 2 (fallback):  Node.js in-app updater CLI (commit-aware)
+    # Method 3 (legacy):    Copy from local SCRIPT_DIR (only works if script dir has new files)
+
+    if [ "${AUTO_MODE:-false}" = "true" ]; then
+        print_info "Auto mode: using GitHub pull update"
     else
-        update_rc=$?
-        if [ "$update_rc" -ne 2 ]; then
-            print_error "Online project update failed"
-            press_enter
-            return
-        fi
-        print_warning "Online updater CLI not available in installed console; using legacy local update path"
+        echo -e "${WHITE}Select update method:${NC}"
+        echo ""
+        echo "  1. 🌐 Online update from GitHub (recommended)"
+        echo "     Downloads latest code, rebuilds Go server, updates console"
+        echo ""
+        echo "  2. 📦 In-app updater (commit-aware)"
+        echo "     Uses built-in Node.js update mechanism"
+        echo ""
+        echo "  3. 📁 Local update (from script directory)"
+        echo "     Copies files from the directory where this script is located"
+        echo ""
+        echo "  0. ↩️  Back"
+        echo ""
+        read -p "Select option [1]: " update_method
+        update_method="${update_method:-1}"
+
+        case "$update_method" in
+            0)
+                return
+                ;;
+            2)
+                if run_terminal_project_update; then
+                    print_success "Online project update completed"
+                    press_enter
+                    return
+                else
+                    update_rc=$?
+                    if [ "$update_rc" -ne 2 ]; then
+                        print_error "In-app update failed (exit code: $update_rc)"
+                    else
+                        print_error "In-app updater not available (Node.js or CLI script missing)"
+                    fi
+                    press_enter
+                    return
+                fi
+                ;;
+            3)
+                # Legacy local update path
+                print_info "Using local files from: $SCRIPT_DIR"
+                print_info "Creating backup before update..."
+                do_backup_silent
+                graceful_stop_services
+                detect_architecture
+                install_binaries true
+                install_console
+                run_migrations
+                setup_services
+                create_admin_user
+                start_services_with_verification
+                print_success "Local update completed!"
+                press_enter
+                return
+                ;;
+            1|*)
+                # Fall through to GitHub update below
+                ;;
+        esac
     fi
-    
+
+    # ---- GitHub Pull Update ----
     print_info "Creating backup before update..."
     do_backup_silent
-    
-    # Stop services gracefully
+
+    # Stop services gracefully before updating files
     graceful_stop_services
-    
-    detect_architecture
-    install_binaries true
-    install_console
+
+    if ! update_from_github; then
+        print_error "GitHub update failed"
+        print_info "Attempting to restart services with existing files..."
+        start_services_with_verification
+        press_enter
+        return
+    fi
+
+    # Run database migrations (adds missing columns etc.)
     run_migrations
     
     # Update systemd services with latest configuration
     setup_services
     
-    # Ensure admin user exists (especially for Node.js console migration)
+    # Ensure admin user exists
     create_admin_user
     
     # Start services with verification
     start_services_with_verification
     
     print_success "Update completed!"
+    if [ -n "${remote_version:-}" ]; then
+        print_info "BetterDesk is now at version $remote_version"
+    fi
     press_enter
 }
 

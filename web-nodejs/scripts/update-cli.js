@@ -117,9 +117,24 @@ async function main() {
     step(4, 6, 'Summarizing result');
     summarizeResult(result);
 
-    if (result.failed?.length) {
+    // Distinguish critical failures (file download/write errors) from
+    // non-critical ones (server binary not available — source was still
+    // applied). See issue #154: server binary failures caused infinite
+    // update loop because SHA was never saved.
+    const NON_CRITICAL_FILES = new Set([
+        'betterdesk-server', 'betterdesk-server-deploy', 'server-source'
+    ]);
+    const criticalFailures = (result.failed || []).filter(f => !NON_CRITICAL_FILES.has(f.file));
+    const nonCriticalFailures = (result.failed || []).filter(f => NON_CRITICAL_FILES.has(f.file));
+
+    if (criticalFailures.length) {
+        console.log(`\n${criticalFailures.length} critical failure(s) — update incomplete.`);
         process.exitCode = 1;
         return;
+    }
+    if (nonCriticalFailures.length) {
+        console.log(`\n${nonCriticalFailures.length} non-critical issue(s) (server binary not built/downloaded).`);
+        console.log('Console and script files were applied successfully. Rebuild Go server manually if needed.');
     }
 
     step(5, 6, 'Restarting affected services');

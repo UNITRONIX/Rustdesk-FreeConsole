@@ -2534,6 +2534,11 @@ function Do-Install {
 # Update Functions
 #===============================================================================
 
+# GitHub repository configuration for online updates
+$script:UPDATE_GITHUB_OWNER = if ($env:UPDATE_GITHUB_OWNER) { $env:UPDATE_GITHUB_OWNER } else { "UNITRONIX" }
+$script:UPDATE_GITHUB_REPO = if ($env:UPDATE_GITHUB_REPO) { $env:UPDATE_GITHUB_REPO } else { "BetterDesk" }
+$script:UPDATE_GITHUB_BRANCH = if ($env:UPDATE_GITHUB_BRANCH) { $env:UPDATE_GITHUB_BRANCH } else { "main" }
+
 function Invoke-TerminalProjectUpdate {
     $script:TerminalUpdateExitCode = 2
     $cliPath = Join-Path $script:CONSOLE_PATH "scripts\update-cli.js"
@@ -2551,6 +2556,230 @@ function Invoke-TerminalProjectUpdate {
 
     & $node.Source $cliPath @args
     $script:TerminalUpdateExitCode = $LASTEXITCODE
+}
+
+# Pull latest project from GitHub and apply update to local installation.
+# Downloads latest code, rebuilds Go server, reinstalls Node.js console.
+# All local state (databases, keys, .env, auth.db) is preserved.
+function Update-FromGitHub {
+    $cloneDir = Join-Path $env:TEMP "betterdesk-update-$PID"
+
+    # Clean up any leftover clone from a previous failed run
+    if (Test-Path $cloneDir) { Remove-Item -Recurse -Force $cloneDir -ErrorAction SilentlyContinue }
+
+    # ---- Step 1: Clone or download latest code ----
+    Print-Step "Downloading latest BetterDesk from GitHub..."
+    $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+    $downloaded = $false
+
+    if ($gitCmd) {
+        $repoUrl = "https://github.com/$($script:UPDATE_GITHUB_OWNER)/$($script:UPDATE_GITHUB_REPO).git"
+        try {
+            & git clone --depth 1 --single-branch --branch $script:UPDATE_GITHUB_BRANCH $repoUrl $cloneDir 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Print-Success "Repository cloned (branch: $($script:UPDATE_GITHUB_BRANCH))"
+                $downloaded = $true
+            }
+        } catch { }
+    }
+
+    if (-not $downloaded) {
+        # Fallback: download ZIP archive
+        $zipUrl = "https://github.com/$($script:UPDATE_GITHUB_OWNER)/$($script:UPDATE_GITHUB_REPO)/archive/refs/heads/$($script:UPDATE_GITHUB_BRANCH).zip"
+        $zipPath = Join-Path $env:TEMP "betterdesk-update-$PID.zip"
+        Print-Info "git not available, downloading ZIP archive..."
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            $wc = New-Object System.Net.WebClient
+            $wc.DownloadFile($zipUrl, $zipPath)
+            $wc.Dispose()
+
+            New-Item -ItemType Directory -Path $cloneDir -Force | Out-Null
+            Expand-Archive -Path $zipPath -DestinationPath $cloneDir -Force
+
+            # GitHub ZIP extracts into a subdirectory like "BetterDesk-main/"
+            $subDir = Get-ChildItem -Path $cloneDir -Directory | Select-Object -First 1
+            if ($subDir) {
+                Get-ChildItem -Path $subDir.FullName | Move-Item -Destination $cloneDir -Force
+                Remove-Item -Path $subDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            }
+
+            Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+            Print-Success "Source downloaded and extracted"
+            $downloaded = $true
+        } catch {
+            Print-Error "Download failed: $($_.Exception.Message)"
+            Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force $cloneDir -ErrorAction SilentlyContinue
+            return $false
+        }
+    }
+
+    if (-not $downloaded) {
+        Print-Error "Failed to download source code"
+        return $false
+    }
+
+    # Validate downloaded source
+    $goModPath = Join-Path $cloneDir "betterdesk-server\go.mod"
+    $serverJsPath = Join-Path $cloneDir "web-nodejs\server.js"
+    if (-not (Test-Path $goModPath) -or -not (Test-Path $serverJsPath)) {
+        Print-Error "Downloaded source is incomplete or invalid"
+        Remove-Item -Recurse -Force $cloneDir -ErrorAction SilentlyContinue
+        return $false
+    }
+
+    # Read remote version
+    $remoteVersion = ""
+    $versionFile = Join-Path $cloneDir "VERSION"
+    if (Test-Path $versionFile) {
+        $remoteVersion = (Get-Content $versionFile -Raw).Trim()
+    }
+    if ($remoteVersion) {
+        Print-Info "Remote version: $remoteVersion"
+    }
+
+    # ---- Step 2: Update Go server source & compile ----
+    Print-Step "Updating Go server source..."
+    $goServerSource = $script:GO_SERVER_SOURCE
+    if (Test-Path $goServerSource) {
+        $backupName = "$goServerSource.pre-update.$PID"
+        Rename-Item -Path $goServerSource -NewName $backupName -ErrorAction SilentlyContinue
+    }
+    $sourceDir = Join-Path $cloneDir "betterdesk-server"
+    Copy-Item -Path $sourceDir -Destination $goServerSource -Recurse -Force
+
+    # Restore any local data/ directory from old source
+    $oldDataDir = "$goServerSource.pre-update.$PID\data"
+    if (Test-Path $oldDataDir) {
+        Copy-Item -Path "$oldDataDir\*" -Destination (Join-Path $goServerSource "data") -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item -Path "$goServerSource.pre-update.$PID" -Recurse -Force -ErrorAction SilentlyContinue
+    Print-Success "Go server source updated"
+
+    # Compile Go server
+    Print-Step "Building Go server..."
+    $goAvailable = Test-GoInstalled
+    if (-not $goAvailable) {
+        Print-Info "Installing Go toolchain..."
+        Install-Golang
+        $goAvailable = Test-GoInstalled
+    }
+
+    if ($goAvailable) {
+        if (Compile-GoServer) {
+            Print-Success "Go server compiled successfully"
+            $builtBinary = Join-Path $goServerSource "betterdesk-server.exe"
+            if (Test-Path $builtBinary) {
+                $targetBinary = Join-Path $script:RUSTDESK_PATH "betterdesk-server.exe"
+                if (Test-Path $targetBinary) {
+                    $ts = Get-Date -Format "yyyyMMddHHmmss"
+                    Copy-Item $targetBinary "$targetBinary.bak.$ts" -ErrorAction SilentlyContinue
+                }
+                Copy-Item $builtBinary $targetBinary -Force
+                Print-Success "Go server binary deployed to $($script:RUSTDESK_PATH)"
+            }
+        } else {
+            Print-Warning "Go server compilation failed -- keeping existing binary"
+            Print-Info "You can retry with option 7 (Build & deploy server)"
+        }
+    } else {
+        Print-Warning "Go toolchain not available -- server binary not updated"
+        Print-Info "Install Go manually from https://go.dev/dl/ and re-run update"
+    }
+
+    # ---- Step 3: Update Node.js console files ----
+    Print-Step "Updating Node.js web console..."
+
+    # Files/directories to preserve during console update
+    $preserveItems = @(".env", ".env.local", "data", "node_modules")
+    $preservedDir = Join-Path $env:TEMP "betterdesk-console-state-$PID"
+    New-Item -ItemType Directory -Path $preservedDir -Force | Out-Null
+
+    foreach ($item in $preserveItems) {
+        $src = Join-Path $script:CONSOLE_PATH $item
+        if (Test-Path $src) {
+            $dst = Join-Path $preservedDir $item
+            Copy-Item -Path $src -Destination $dst -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    # Copy new console files
+    $consoleSrc = Join-Path $cloneDir "web-nodejs"
+    Copy-Item -Path "$consoleSrc\*" -Destination $script:CONSOLE_PATH -Recurse -Force
+
+    # Restore preserved state files
+    foreach ($item in $preserveItems) {
+        $src = Join-Path $preservedDir $item
+        if (Test-Path $src) {
+            $dst = Join-Path $script:CONSOLE_PATH $item
+            if (Test-Path $src -PathType Container) {
+                if (-not (Test-Path $dst)) { New-Item -ItemType Directory -Path $dst -Force | Out-Null }
+                Copy-Item -Path "$src\*" -Destination $dst -Recurse -Force -ErrorAction SilentlyContinue
+            } else {
+                Copy-Item -Path $src -Destination $dst -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    Remove-Item -Path $preservedDir -Recurse -Force -ErrorAction SilentlyContinue
+    Print-Success "Console files updated"
+
+    # Install npm dependencies
+    Print-Step "Installing npm dependencies..."
+    Push-Location $script:CONSOLE_PATH
+    try {
+        & npm install --production --no-audit --no-fund 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Print-Success "npm dependencies installed"
+        } else {
+            Print-Warning "npm install had issues (non-critical)"
+        }
+    } catch {
+        Print-Warning "npm install failed (non-critical): $($_.Exception.Message)"
+    }
+    Pop-Location
+
+    # ---- Step 4: Update installer scripts ----
+    Print-Step "Updating installer scripts..."
+    $scriptFiles = @(
+        "betterdesk.sh", "betterdesk.ps1", "betterdesk-docker.sh",
+        "docker-compose.yml", "docker-compose.single.yml", "docker-compose.quick.yml",
+        "Dockerfile", "Dockerfile.server", "Dockerfile.console", "VERSION"
+    )
+    $scriptsUpdated = 0
+    foreach ($sf in $scriptFiles) {
+        $src = Join-Path $cloneDir $sf
+        if (Test-Path $src) {
+            Copy-Item -Path $src -Destination (Join-Path $script:ScriptDir $sf) -Force -ErrorAction SilentlyContinue
+            $scriptsUpdated++
+        }
+    }
+    Print-Success "$scriptsUpdated installer files updated"
+
+    # ---- Step 5: Update SHA tracking for in-app updater ----
+    $gitCmd2 = Get-Command git -ErrorAction SilentlyContinue
+    if ($gitCmd2 -and (Test-Path (Join-Path $cloneDir ".git"))) {
+        try {
+            $remoteSha = (& git -C $cloneDir rev-parse HEAD 2>$null).Trim()
+            if ($remoteSha) {
+                $dataDir = Join-Path $script:CONSOLE_PATH "data"
+                if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir -Force | Out-Null }
+                Set-Content -Path (Join-Path $dataDir ".update_sha") -Value $remoteSha
+                Print-Info "SHA tracking updated: $($remoteSha.Substring(0, 7))"
+            }
+        } catch { }
+    }
+
+    # ---- Step 6: Update VERSION file ----
+    if ($remoteVersion -and (Test-Path (Join-Path $cloneDir "VERSION"))) {
+        Copy-Item -Path (Join-Path $cloneDir "VERSION") -Destination (Join-Path $script:ScriptDir "VERSION") -Force -ErrorAction SilentlyContinue
+    }
+
+    # Cleanup
+    Remove-Item -Recurse -Force $cloneDir -ErrorAction SilentlyContinue
+
+    Print-Success "All project files updated from GitHub"
+    return $true
 }
 
 function Do-Update {
@@ -2592,32 +2821,84 @@ function Do-Update {
     # This prevents PostgreSQL -> SQLite switch during updates
     Preserve-DatabaseConfig
 
-    Invoke-TerminalProjectUpdate
-    if ($script:TerminalUpdateExitCode -eq 0) {
-        Print-Success "Online project update completed"
-        Press-Enter
-        return
-    } elseif ($script:TerminalUpdateExitCode -ne 2) {
-        Print-Error "Online project update failed"
-        Press-Enter
-        return
+    # ---- Update method selection ----
+    if ($script:AUTO_MODE) {
+        Print-Info "Auto mode: using GitHub pull update"
     } else {
-        Print-Warning "Online updater CLI not available in installed console; using legacy local update path"
+        Write-Host "Select update method:" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  1. Online update from GitHub (recommended)" -ForegroundColor Cyan
+        Write-Host "     Downloads latest code, rebuilds Go server, updates console"
+        Write-Host ""
+        Write-Host "  2. In-app updater (commit-aware)" -ForegroundColor Yellow
+        Write-Host "     Uses built-in Node.js update mechanism"
+        Write-Host ""
+        Write-Host "  3. Local update (from script directory)" -ForegroundColor Gray
+        Write-Host "     Copies files from the directory where this script is located"
+        Write-Host ""
+        Write-Host "  0. Back" -ForegroundColor Gray
+        Write-Host ""
+        $updateMethod = Read-Host "Select option [1]"
+        if (-not $updateMethod) { $updateMethod = "1" }
+
+        switch ($updateMethod) {
+            "0" {
+                return
+            }
+            "2" {
+                Invoke-TerminalProjectUpdate
+                if ($script:TerminalUpdateExitCode -eq 0) {
+                    Print-Success "Online project update completed"
+                } elseif ($script:TerminalUpdateExitCode -ne 2) {
+                    Print-Error "In-app update failed (exit code: $($script:TerminalUpdateExitCode))"
+                } else {
+                    Print-Error "In-app updater not available (Node.js or CLI script missing)"
+                }
+                Press-Enter
+                return
+            }
+            "3" {
+                # Legacy local update path
+                Print-Info "Using local files from: $($script:ScriptDir)"
+                Print-Info "Creating backup before update..."
+                Do-BackupSilent
+                Stop-AllServices
+                if (-not (Install-Binaries -ForceRecompile)) { Print-Error "Binary update failed"; return }
+                if (-not (Install-Console)) { Print-Error "Console update failed"; return }
+                Run-Migrations
+                Setup-Services
+                Create-AdminUser | Out-Null
+                Start-Services
+                Print-Success "Local update completed!"
+                Press-Enter
+                return
+            }
+        }
     }
-    
+
+    # ---- GitHub Pull Update ----
     Print-Info "Creating backup before update..."
     Do-BackupSilent
-    
+
+    # Stop services before updating files
     Stop-AllServices
-    
-    if (-not (Install-Binaries -ForceRecompile)) { Print-Error "Binary update failed"; return }
-    if (-not (Install-Console)) { Print-Error "Console update failed"; return }
+
+    $result = Update-FromGitHub
+    if (-not $result) {
+        Print-Error "GitHub update failed"
+        Print-Info "Attempting to restart services with existing files..."
+        Start-Services
+        Press-Enter
+        return
+    }
+
+    # Run database migrations
     Run-Migrations
     
     # Update services with latest configuration
     Setup-Services
     
-    # Ensure admin user exists (especially for Node.js console migration)
+    # Ensure admin user exists
     Create-AdminUser | Out-Null
     
     Start-Services

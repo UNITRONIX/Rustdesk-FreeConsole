@@ -975,6 +975,113 @@ do_install() {
 # Update Functions
 #===============================================================================
 
+# GitHub repository configuration for online updates
+UPDATE_GITHUB_OWNER="${UPDATE_GITHUB_OWNER:-UNITRONIX}"
+UPDATE_GITHUB_REPO="${UPDATE_GITHUB_REPO:-BetterDesk}"
+UPDATE_GITHUB_BRANCH="${UPDATE_GITHUB_BRANCH:-main}"
+
+# Pull latest project files from GitHub before rebuilding Docker images.
+# This ensures the Dockerfiles, compose files, and source code (Go server,
+# Node.js console) are up-to-date before docker compose build.
+update_docker_from_github() {
+    local clone_dir="/tmp/betterdesk-docker-update-$$"
+    rm -rf "$clone_dir"
+
+    print_step "Downloading latest BetterDesk from GitHub..."
+    if command -v git &>/dev/null; then
+        local repo_url="https://github.com/${UPDATE_GITHUB_OWNER}/${UPDATE_GITHUB_REPO}.git"
+        if ! git clone --depth 1 --single-branch --branch "$UPDATE_GITHUB_BRANCH" "$repo_url" "$clone_dir" 2>/dev/null; then
+            print_error "git clone failed"
+            rm -rf "$clone_dir"
+            return 1
+        fi
+        print_success "Repository cloned (branch: $UPDATE_GITHUB_BRANCH)"
+    else
+        local tarball_url="https://github.com/${UPDATE_GITHUB_OWNER}/${UPDATE_GITHUB_REPO}/archive/refs/heads/${UPDATE_GITHUB_BRANCH}.tar.gz"
+        local tarball_path="/tmp/betterdesk-docker-update-$$.tar.gz"
+        print_info "git not available, downloading tarball..."
+        if ! curl -fsSL --connect-timeout 15 --max-time 120 -o "$tarball_path" "$tarball_url"; then
+            print_error "Download failed. Check internet connection."
+            rm -f "$tarball_path"
+            return 1
+        fi
+        mkdir -p "$clone_dir"
+        if ! tar -xzf "$tarball_path" -C "$clone_dir" --strip-components=1; then
+            print_error "Failed to extract update archive"
+            rm -f "$tarball_path" && rm -rf "$clone_dir"
+            return 1
+        fi
+        rm -f "$tarball_path"
+        print_success "Source downloaded and extracted"
+    fi
+
+    # Validate
+    if [ ! -f "$clone_dir/betterdesk-server/go.mod" ] || [ ! -f "$clone_dir/web-nodejs/server.js" ]; then
+        print_error "Downloaded source is incomplete or invalid"
+        rm -rf "$clone_dir"
+        return 1
+    fi
+
+    local remote_version=""
+    if [ -f "$clone_dir/VERSION" ]; then
+        remote_version=$(cat "$clone_dir/VERSION" | tr -d '[:space:]')
+        print_info "Remote version: $remote_version"
+    fi
+
+    # Update project files that Docker build needs
+    print_step "Updating project files..."
+    local files_updated=0
+
+    # Update Go server source
+    if [ -d "$SCRIPT_DIR/betterdesk-server" ]; then
+        rm -rf "$SCRIPT_DIR/betterdesk-server.pre-update" 2>/dev/null || true
+        mv "$SCRIPT_DIR/betterdesk-server" "$SCRIPT_DIR/betterdesk-server.pre-update" 2>/dev/null || true
+    fi
+    cp -r "$clone_dir/betterdesk-server" "$SCRIPT_DIR/betterdesk-server"
+    files_updated=$((files_updated + 1))
+
+    # Update Node.js console source
+    if [ -d "$SCRIPT_DIR/web-nodejs" ]; then
+        # Preserve data/ and node_modules/ if they exist locally
+        local preserve_dirs=("data" "node_modules")
+        for pd in "${preserve_dirs[@]}"; do
+            if [ -d "$SCRIPT_DIR/web-nodejs/$pd" ]; then
+                mv "$SCRIPT_DIR/web-nodejs/$pd" "/tmp/betterdesk-docker-preserve-$$-$pd" 2>/dev/null || true
+            fi
+        done
+        rm -rf "$SCRIPT_DIR/web-nodejs.pre-update" 2>/dev/null || true
+        mv "$SCRIPT_DIR/web-nodejs" "$SCRIPT_DIR/web-nodejs.pre-update" 2>/dev/null || true
+    fi
+    cp -r "$clone_dir/web-nodejs" "$SCRIPT_DIR/web-nodejs"
+    # Restore preserved directories
+    for pd in "${preserve_dirs[@]}"; do
+        if [ -d "/tmp/betterdesk-docker-preserve-$$-$pd" ]; then
+            mv "/tmp/betterdesk-docker-preserve-$$-$pd" "$SCRIPT_DIR/web-nodejs/$pd" 2>/dev/null || true
+        fi
+    done
+    rm -rf "$SCRIPT_DIR/web-nodejs.pre-update" 2>/dev/null || true
+    rm -rf "$SCRIPT_DIR/betterdesk-server.pre-update" 2>/dev/null || true
+    files_updated=$((files_updated + 1))
+
+    # Update Dockerfiles and compose files
+    for df in Dockerfile Dockerfile.server Dockerfile.console \
+              docker-compose.yml docker-compose.single.yml docker-compose.quick.yml \
+              docker/entrypoint.sh docker/supervisord.conf docker/server-entrypoint.sh docker/console-entrypoint.sh \
+              betterdesk-docker.sh betterdesk.sh betterdesk.ps1 VERSION; do
+        if [ -f "$clone_dir/$df" ]; then
+            mkdir -p "$(dirname "$SCRIPT_DIR/$df")"
+            cp "$clone_dir/$df" "$SCRIPT_DIR/$df"
+            if [[ "$df" == *.sh ]]; then chmod +x "$SCRIPT_DIR/$df" 2>/dev/null || true; fi
+            files_updated=$((files_updated + 1))
+        fi
+    done
+
+    print_success "$files_updated project components updated from GitHub"
+
+    rm -rf "$clone_dir"
+    return 0
+}
+
 do_update() {
     print_header
     echo -e "${WHITE}${BOLD}══════════ DOCKER UPDATE ══════════${NC}"
@@ -989,8 +1096,45 @@ do_update() {
         return
     fi
     
+    echo -e "${WHITE}Select update method:${NC}"
+    echo ""
+    echo "  1. 🌐 Online update from GitHub (recommended)"
+    echo "     Downloads latest code, rebuilds Docker images"
+    echo ""
+    echo "  2. 📁 Local rebuild (from current files)"
+    echo "     Rebuilds Docker images using existing local files"
+    echo ""
+    echo "  0. ↩️  Back"
+    echo ""
+    read -p "Select option [1]: " update_method
+    update_method="${update_method:-1}"
+
+    case "$update_method" in
+        0) return ;;
+        2)
+            # Legacy local rebuild
+            print_info "Creating backup before update..."
+            do_backup_silent
+            preserve_compose_database_config
+            create_compose_file
+            stop_containers
+            build_images
+            start_containers
+            print_success "Local update completed!"
+            press_enter
+            return
+            ;;
+    esac
+
+    # ---- GitHub Pull + Docker Rebuild ----
     print_info "Creating backup before update..."
     do_backup_silent
+
+    if ! update_docker_from_github; then
+        print_error "GitHub download failed. Try option 2 (local rebuild) instead."
+        press_enter
+        return
+    fi
 
     preserve_compose_database_config
     print_info "Regenerating docker-compose.yml with latest template..."
@@ -1000,7 +1144,7 @@ do_update() {
     build_images
     start_containers
     
-    print_success "Update completed!"
+    print_success "Docker update completed!"
     press_enter
 }
 

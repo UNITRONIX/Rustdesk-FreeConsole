@@ -930,6 +930,13 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 410. [x] **Agent is now truly hidden**: `skipTaskbar: true` + `visible: false` in `tauri.conf.json` already set. Agent does not appear in taskbar/dock. Main window only shows on tray click or first-time setup. Goal achieved: behaves like RustDesk desktop but invisible.
 411. [x] **Roadmap updated**: `docs/AGENT_CLIENT_ROADMAP_2026-04-21.md` — full architecture diagram, current state table, Phase 56-61 plan (bundling, continuous capture, input injection, H.264, audio, E2E NaCl). Sidecar testing procedures documented.
 
+#### Update Mechanism Fix & Rewrite (Phase 56) ✅ COMPLETED 2026-05-29
+412. [x] **In-app update SHA tracking fix (Issue #154, CRITICAL)**: `updateService.js` `applyUpdate()` only saved SHA when `results.failed.length === 0`. Server binary download/compile failure (no pre-built release + no Go installed) added to `failed[]` → SHA never saved → same updates shown after every restart (infinite loop). Fix: added `NON_CRITICAL_FILES` set (`betterdesk-server`, `betterdesk-server-deploy`, `server-source`) — SHA saved when only non-critical steps fail. Critical failures (file download/write errors) still block SHA save.
+413. [x] **CLI updater fix**: `update-cli.js` now distinguishes critical vs non-critical failures matching server-side logic. Non-critical failures log warning but don't set exit code 1, preventing the infinite retry loop when called from ALL-IN-ONE scripts.
+414. [x] **betterdesk.sh — GitHub pull update**: New `update_from_github()` function. `git clone --depth 1` (or tarball fallback). Downloads latest code → updates Go server source → compiles Go server → deploys binary → copies Node.js console files (preserving .env, data/, node_modules/) → npm install → updates installer scripts → updates SHA tracking. `do_update()` rewritten with 3-method menu: (1) Online GitHub update (recommended), (2) In-app Node.js updater, (3) Legacy local copy. Auto mode uses GitHub path.
+415. [x] **betterdesk.ps1 — GitHub pull update**: New `Update-FromGitHub` function. Same 3-method menu. `git clone` or ZIP archive fallback via `System.Net.WebClient`. Preserves .env, data/, node_modules/. Compiles Go server if Go available, warns if not.
+416. [x] **betterdesk-docker.sh — GitHub pull update**: New `update_docker_from_github()` function. Downloads latest source → updates Go server source, Node.js console, Dockerfiles, compose files → regenerates docker-compose.yml → rebuilds images → restarts containers. 2-method menu: (1) Online GitHub + rebuild, (2) Local rebuild.
+
 ### Konfiguracja przez Zmienne Środowiskowe
 
 ```bash
@@ -1199,4 +1206,4 @@ All code changes MUST include a security review as part of the implementation pr
 
 ---
 
-*Ostatnia aktualizacja: 2026-04-21 (Phase 55: Agent Client Sidecar Architecture — sidecar.rs manager, config.rs CDAP capabilities, commands.rs 4 new IPC commands, lib.rs auto-start + tray restart, roadmap 2026-04-21 created. Previous: Phase 54 Agent Security Hardening) przez GitHub Copilot*
+*Ostatnia aktualizacja: 2026-05-29 (Phase 56: Update Mechanism Fix & Rewrite — SHA tracking fix for Issue #154, GitHub pull update in all 3 ALL-IN-ONE scripts, critical vs non-critical failure distinction in updateService.js + update-cli.js. Previous: Phase 55 Agent Client Sidecar Architecture) przez GitHub Copilot*

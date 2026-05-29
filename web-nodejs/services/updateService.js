@@ -1633,10 +1633,26 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     }
 
     // ---- Update SHA tracking ----
-    // Only mark the remote commit as deployed when all critical update steps
-    // completed. This keeps a partial server update visible for retry instead
-    // of hiding it behind a new baseline SHA.
-    if (results.failed.length === 0) {
+    // Separate critical failures (file download/write errors that leave the
+    // local codebase in an inconsistent state) from non-critical ones (server
+    // binary compilation/download unavailable — source files were still
+    // applied, so the codebase is consistent, just the compiled binary is
+    // missing and can be rebuilt later).
+    //
+    // Issue #154: When pre-built binaries are not available on GitHub
+    // Releases and Go is not installed, the server binary step always
+    // fails, preventing the SHA from ever being saved. This causes the
+    // same update to be reported as available after every console restart,
+    // creating an infinite update loop.
+    const NON_CRITICAL_FILES = new Set([
+        'betterdesk-server',          // binary compile/download failure
+        'betterdesk-server-deploy',   // binary deployment failure
+        'server-source',              // full source tree download failure (incremental still applied)
+    ]);
+    const criticalFailures = results.failed.filter(f => !NON_CRITICAL_FILES.has(f.file));
+    const nonCriticalFailures = results.failed.filter(f => NON_CRITICAL_FILES.has(f.file));
+
+    if (criticalFailures.length === 0) {
         saveLocalSHA(remoteSHA);
         results.shaSaved = true;
 
@@ -1645,8 +1661,12 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             const versionContent = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, 'VERSION');
             fs.writeFileSync(path.join(PROJECT_ROOT, 'VERSION'), versionContent);
         } catch (_e) { /* non-critical */ }
+
+        if (nonCriticalFailures.length > 0) {
+            console.log(`[UPDATE] SHA saved despite ${nonCriticalFailures.length} non-critical failure(s): ${nonCriticalFailures.map(f => f.file).join(', ')}`);
+        }
     } else {
-        results.skipped.push('SHA tracking (update incomplete)');
+        results.skipped.push('SHA tracking (critical update steps incomplete)');
     }
 
     return results;
