@@ -857,7 +857,8 @@ async function testLDAPConnection(config) {
         const { data } = await apiClient.post('/auth/ldap/test', config);
         return wrap(data);
     } catch (e) {
-        return { success: false, error: e.message };
+        const goErr = e.response?.data?.error || e.response?.data?.message;
+        return { success: false, error: goErr || e.message };
     }
 }
 
@@ -895,7 +896,8 @@ async function testOIDCDiscovery(config) {
         const { data } = await apiClient.post('/auth/oidc/test', config);
         return wrap(data);
     } catch (e) {
-        return { success: false, error: e.message };
+        const goErr = e.response?.data?.error || e.response?.data?.message;
+        return { success: false, error: goErr || e.message };
     }
 }
 
