@@ -43,7 +43,7 @@ apiClient.interceptors.response.use(undefined, async (error) => {
         if (body.includes('HTTP request to an HTTPS server') || body.includes('Client sent an HTTP request')) {
             _tlsMismatchWarned = true;
             console.error('[BetterDesk API] ⚠ TLS MISMATCH: Go server has TLS_API=Y enabled on port ' +
-                (config.betterdeskApiUrl || '21114') + ' but this console connects via HTTP.');
+                (config.betterdeskApiUrl || '21121') + ' but this console connects via HTTP.');
             console.error('[BetterDesk API]   Fix: remove TLS_API=Y from Go server environment or add -tls-api removal.');
             console.error('[BetterDesk API]   The API port must stay HTTP for console↔Go communication. See issue #104.');
         }
@@ -327,6 +327,52 @@ async function getAuditEvents(limit = 100) {
         return wrap(data);
     } catch (err) {
         return { success: false, error: err.message };
+    }
+}
+
+// RustDesk Client API audit (consolidated onto the Go server, port 21121).
+// After the API-port consolidation the RustDesk clients report connection /
+// file / alarm audit events to the Go server, so the panel must read them
+// back from Go to stay consistent (especially on SQLite where Go and Node
+// use separate database files). Each getter returns { data, total } or null
+// on failure so callers can fall back to the local Node database.
+
+/**
+ * GET /api/audit/conn — connection audit events from the Go server.
+ */
+async function getClientAuditConnections(filters = {}) {
+    try {
+        const { data } = await apiClient.get('/audit/conn', { params: filters });
+        return { data: data.data || [], total: data.total || 0 };
+    } catch (err) {
+        console.warn('BetterDesk API getClientAuditConnections error:', err.message);
+        return null;
+    }
+}
+
+/**
+ * GET /api/audit/file — file-transfer audit events from the Go server.
+ */
+async function getClientAuditFiles(filters = {}) {
+    try {
+        const { data } = await apiClient.get('/audit/file', { params: filters });
+        return { data: data.data || [], total: data.total || 0 };
+    } catch (err) {
+        console.warn('BetterDesk API getClientAuditFiles error:', err.message);
+        return null;
+    }
+}
+
+/**
+ * GET /api/audit/alarm — security alarm audit events from the Go server.
+ */
+async function getClientAuditAlarms(filters = {}) {
+    try {
+        const { data } = await apiClient.get('/audit/alarm', { params: filters });
+        return { data: data.data || [], total: data.total || 0 };
+    } catch (err) {
+        console.warn('BetterDesk API getClientAuditAlarms error:', err.message);
+        return null;
     }
 }
 
@@ -857,8 +903,7 @@ async function testLDAPConnection(config) {
         const { data } = await apiClient.post('/auth/ldap/test', config);
         return wrap(data);
     } catch (e) {
-        const goErr = e.response?.data?.error || e.response?.data?.message;
-        return { success: false, error: goErr || e.message };
+        return { success: false, error: e.message };
     }
 }
 
@@ -896,8 +941,7 @@ async function testOIDCDiscovery(config) {
         const { data } = await apiClient.post('/auth/oidc/test', config);
         return wrap(data);
     } catch (e) {
-        const goErr = e.response?.data?.error || e.response?.data?.message;
-        return { success: false, error: goErr || e.message };
+        return { success: false, error: e.message };
     }
 }
 
@@ -907,23 +951,6 @@ async function testOIDCDiscovery(config) {
 async function getOIDCStatus() {
     try {
         const { data } = await apiClient.get('/auth/oidc/status');
-        return wrap(data);
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
-}
-
-/**
- * POST /api/auth/oidc/exchange — Exchange a one-time OIDC auth code for
- * the JWT + verified user identity. Server-to-server only. The code itself
- * is the credential, so this endpoint is public on the Go side. Codes are
- * single-use and expire after 60 seconds.
- *
- * Returns { success, data: { token, username, role, return_url } } on success.
- */
-async function exchangeOIDCCode(code) {
-    try {
-        const { data } = await apiClient.post('/auth/oidc/exchange', { code });
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -957,6 +984,9 @@ module.exports = {
     updatePeer,
     // Audit
     getAuditEvents,
+    getClientAuditConnections,
+    getClientAuditFiles,
+    getClientAuditAlarms,
     // Config
     getConfig,
     setConfig,
@@ -1008,7 +1038,6 @@ module.exports = {
     saveOIDCConfig,
     testOIDCDiscovery,
     getOIDCStatus,
-    exchangeOIDCCode,
     // Helpers
     normalisePeer,
     // Raw axios client (for services that need direct API access)

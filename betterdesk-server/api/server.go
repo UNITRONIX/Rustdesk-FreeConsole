@@ -302,8 +302,11 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/auth/login/2fa", s.handleLogin2FA)
 	mux.HandleFunc("GET /api/auth/me", s.handleAuthMe)
 
-	// RustDesk Client API (compatible with RustDesk desktop client)
-	// The client calculates API port as signal_port - 2 (21116-2=21114).
+	// RustDesk Client API (compatible with RustDesk desktop client).
+	// The API surface is consolidated onto the Go server. By default it is
+	// served on the dedicated client-API port (21121) that the fleet points
+	// its `api-server` setting at; clients without an explicit api-server fall
+	// back to signal_port-2. See docs/architecture for the consolidation note.
 	mux.HandleFunc("POST /api/login", s.handleClientLogin)
 	mux.HandleFunc("GET /api/login-options", s.handleClientLoginOptions)
 	mux.HandleFunc("POST /api/logout", s.handleClientLogout)
@@ -340,6 +343,14 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/audit/file", s.requirePermission(auth.PermAuditView, s.handleAuditFileGet))
 	mux.HandleFunc("POST /api/audit/alarm", s.handleAuditAlarmPost)
 	mux.HandleFunc("GET /api/audit/alarm", s.requirePermission(auth.PermAuditView, s.handleAuditAlarmGet))
+
+	// RustDesk Client API — compatibility shims (software probe, user group,
+	// combined audit summary). software endpoints are public; user/group and
+	// the audit summary require authentication.
+	mux.HandleFunc("GET /api/software", s.handleClientSoftware)
+	mux.HandleFunc("GET /api/software/client-download-link", s.handleClientSoftwareDownloadLink)
+	mux.HandleFunc("GET /api/user/group", s.handleClientUserGroup)
+	mux.HandleFunc("GET /api/audit", s.requirePermission(auth.PermAuditView, s.handleClientAuditSummary))
 
 	// RustDesk Client API — server / peer public keys.
 	// server-key endpoints are public (key is safe to expose). peer-key requires auth.

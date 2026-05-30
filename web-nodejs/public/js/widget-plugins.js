@@ -189,7 +189,7 @@
                     { name: 'Relay', port: data.relay_port || 21117, up: rel === 'running' },
                     { name: 'WS Signal', port: data.ws_signal_port || 21118, up: sig === 'running' },
                     { name: 'WS Relay', port: data.ws_relay_port || 21119, up: rel === 'running' },
-                    { name: 'API', port: data.api_port || 21114, up: true },
+                    { name: 'API', port: data.api_port || 21121, up: true },
                     { name: 'Client API', port: data.client_api_port || 21121, up: true },
                     { name: 'Console', port: data.console_port || 5000, up: true }
                 ];

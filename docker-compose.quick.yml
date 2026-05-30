@@ -23,9 +23,9 @@ services:
     image: ghcr.io/unitronix/betterdesk-server:latest
     container_name: betterdesk-server
     hostname: betterdesk-server
-    command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-key-file", "/opt/rustdesk/id_ed25519"]
+    command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-api-port", "21121", "-key-file", "/opt/rustdesk/id_ed25519"]
     ports:
-      - "21114:21114"           # HTTP API
+      - "21121:21121"           # HTTP API (RustDesk client + REST, WAN-facing)
       - "21115:21115"           # NAT type test
       - "21116:21116/tcp"       # Signal TCP
       - "21116:21116/udp"       # Signal UDP
@@ -56,7 +56,7 @@ services:
       - CHOWN
       - FOWNER
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:21114/api/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:21121/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -68,8 +68,7 @@ services:
     container_name: betterdesk-console
     hostname: betterdesk-console
     ports:
-      - "5000:5000"             # Web console
-      - "21121:21121"           # RustDesk Client API (WAN)
+      - "5000:5000"             # Web console (admin panel)
     volumes:
       - betterdesk-data:/opt/rustdesk
       - console-data:/app/data
@@ -78,8 +77,9 @@ services:
       - PORT=5000
       - HOST=0.0.0.0
       - API_HOST=0.0.0.0
+      - API_ENABLED=false
       - SERVER_BACKEND=betterdesk
-      - BETTERDESK_API_URL=http://betterdesk-server:21114/api
+      - BETTERDESK_API_URL=http://betterdesk-server:21121/api
       - RUSTDESK_PATH=/opt/rustdesk
       - DATA_DIR=/app/data
       - DB_PATH=/app/data/db_v2.sqlite3

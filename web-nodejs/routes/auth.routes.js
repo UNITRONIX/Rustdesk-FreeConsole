@@ -279,7 +279,7 @@ router.get('/api/auth/oidc/authorize', (req, res) => {
     // BETTERDESK_API_URL may or may not include a trailing /api segment
     // (it does in config.js for axios baseURL use). Strip it before building
     // the absolute redirect to avoid a doubled /api/api/... path.
-    const rawApiUrl = process.env.BETTERDESK_API_URL || 'http://localhost:21114';
+    const rawApiUrl = process.env.BETTERDESK_API_URL || 'http://localhost:21121';
     const goApiUrl = rawApiUrl.replace(/\/+$/, '').replace(/\/api$/, '');
     const requested = typeof req.query.return_url === 'string' ? req.query.return_url : '/';
     const returnUrl = isSafeReturnUrl(requested) ? requested : '/';

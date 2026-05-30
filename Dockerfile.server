@@ -58,17 +58,17 @@ RUN chmod +x /server-entrypoint.sh
 WORKDIR /opt/rustdesk
 
 # Ports:
-# 21114 - HTTP API
+# 21121 - HTTP API (RustDesk client API + REST)
 # 21115 - NAT type test
 # 21116 - Signal (TCP+UDP)
 # 21117 - Relay (TCP)
 # 21118 - WebSocket Signal
 # 21119 - WebSocket Relay
-EXPOSE 21114 21115 21116/tcp 21116/udp 21117 21118 21119
+EXPOSE 21115 21116/tcp 21116/udp 21117 21118 21119 21121
 
 # Health check via API
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -sf http://localhost:21114/api/health || exit 1
+    CMD curl -sf http://localhost:21121/api/health || exit 1
 
 # Note: Container starts as root so entrypoint can fix volume permissions.
 # server-entrypoint.sh drops to betterdesk user via su-exec before running the server.

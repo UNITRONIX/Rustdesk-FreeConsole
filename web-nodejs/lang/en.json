@@ -383,7 +383,7 @@
     "oidc_client_id": "Client ID",
     "oidc_client_secret": "Client Secret",
     "oidc_redirect_url": "Redirect URL (Callback)",
-    "oidc_redirect_url_hint": "Must match exactly what is configured in your IdP. Usually: http(s)://your-server:21114/api/auth/oidc/callback",
+    "oidc_redirect_url_hint": "Must match exactly what is configured in your IdP. Usually: http(s)://your-server:21121/api/auth/oidc/callback",
     "oidc_scopes": "Scopes",
     "oidc_use_pkce": "Use PKCE (recommended)",
     "oidc_auto_discovery": "Auto-discovery",

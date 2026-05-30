@@ -717,9 +717,9 @@ function printStartupBanner(protocol, port) {
     const apiHasCerts = config.sslCertPath && config.sslKeyPath && 
                         fs.existsSync(config.sslCertPath) && fs.existsSync(config.sslKeyPath);
     const apiProtocol = shouldUseRustDeskApiTls(apiHasCerts ? {} : null) ? 'HTTPS' : 'HTTP';
-    const apiStatus = config.apiEnabled ? `✅ Port ${config.apiPort} (${apiProtocol})` : '❌ Disabled';
+    const apiStatus = config.apiEnabled ? `✅ Port ${config.apiPort} (${apiProtocol})` : '➡️  Served by Go server';
     const panelUrl = `${protocol}://${config.host}:${port}`;
-    const goApiUrl = redactUrlForLog(config.betterdeskApiUrl || process.env.BETTERDESK_API_URL || 'http://localhost:21114/api');
+    const goApiUrl = redactUrlForLog(config.betterdeskApiUrl || process.env.BETTERDESK_API_URL || 'http://localhost:21121/api');
     console.log('');
     console.log('  ╔══════════════════════════════════════════════════╗');
     console.log('  ║                                                  ║');

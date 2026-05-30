@@ -383,7 +383,7 @@
     "oidc_client_id": "客户端 ID",
     "oidc_client_secret": "客户端密钥",
     "oidc_redirect_url": "重定向 URL (回调)",
-    "oidc_redirect_url_hint": "必须与身份提供商中的配置完全匹配。通常为: http(s)://your-server:21114/api/auth/oidc/callback",
+    "oidc_redirect_url_hint": "必须与身份提供商中的配置完全匹配。通常为: http(s)://your-server:21121/api/auth/oidc/callback",
     "oidc_scopes": "作用域",
     "oidc_use_pkce": "使用 PKCE (推荐)",
     "oidc_auto_discovery": "自动发现",

@@ -178,3 +178,75 @@ func TestUserGroupsEndpoint(t *testing.T) {
 		t.Error("guid should be auto-generated")
 	}
 }
+
+func TestClientCompatEndpoints(t *testing.T) {
+	cfg, cleanup := startTestServer(t, 19905)
+	defer cleanup()
+	base := fmt.Sprintf("http://127.0.0.1:%d", cfg.APIPort)
+
+	// /api/software and /api/software/client-download-link are public and
+	// return an empty JSON object.
+	for _, p := range []string{"/api/software", "/api/software/client-download-link"} {
+		resp, err := http.Get(base + p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != 200 {
+			t.Fatalf("GET %s status: %d", p, resp.StatusCode)
+		}
+		var obj map[string]any
+		json.NewDecoder(resp.Body).Decode(&obj)
+		resp.Body.Close()
+		if len(obj) != 0 {
+			t.Errorf("GET %s expected empty object, got %v", p, obj)
+		}
+	}
+
+	// /api/user/group requires auth and returns the singular envelope.
+	resp, err := testAuthGet(base + "/api/user/group")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("GET /api/user/group status: %d", resp.StatusCode)
+	}
+	var ug struct {
+		Data map[string]any `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&ug)
+	resp.Body.Close()
+	if ug.Data == nil || ug.Data["name"] == nil {
+		t.Errorf("GET /api/user/group missing data.name: %v", ug.Data)
+	}
+
+	// /api/audit requires the audit.view permission (admin API key passes).
+	resp, err = testAuthGet(base + "/api/audit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("GET /api/audit status: %d", resp.StatusCode)
+	}
+	var as struct {
+		Data struct {
+			Connections []any `json:"connections"`
+			Files       []any `json:"files"`
+			Alarms      []any `json:"alarms"`
+		} `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&as)
+	resp.Body.Close()
+	if as.Data.Connections == nil || as.Data.Files == nil || as.Data.Alarms == nil {
+		t.Errorf("GET /api/audit envelope missing arrays: %+v", as.Data)
+	}
+
+	// Unauthenticated /api/audit must be rejected.
+	resp, err = http.Get(base + "/api/audit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode == 200 {
+		t.Errorf("GET /api/audit without auth should not return 200")
+	}
+}

@@ -26,7 +26,7 @@ const RECONNECT_MAX = 60000;
  * Initialize real-time device status push.
  * @param {import('http').Server} httpServer - The HTTP server to attach WS to
  * @param {Function} sessionMiddleware - Express session middleware for auth
- * @param {string} goApiUrl - Go server base URL (e.g. http://localhost:21114/api)
+ * @param {string} goApiUrl - Go server base URL (e.g. http://localhost:21121/api)
  * @param {string} apiKey - API key for Go server authentication
  */
 function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {

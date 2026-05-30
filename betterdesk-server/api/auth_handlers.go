@@ -1176,6 +1176,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			path == "/api/audit/file" && r.Method == http.MethodPost ||
 			path == "/api/audit/alarm" && r.Method == http.MethodPost ||
 			path == "/api/server-key" || path == "/api/server-key/fingerprint" ||
+			path == "/api/software" || path == "/api/software/client-download-link" ||
 			path == "/api/branding" ||
 			path == "/api/org/login" ||
 			path == "/api/auth/oidc/status" || path == "/api/auth/oidc/authorize" || path == "/api/auth/oidc/callback" ||
