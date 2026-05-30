@@ -10,6 +10,7 @@ import SudoAuthDialog from "./components/SudoAuthDialog";
 import SessionOverlay from "./components/SessionOverlay";
 import { initI18n, t } from "./lib/i18n";
 import { frontendLog } from "./lib/logger";
+import { loadBranding } from "./lib/branding";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
@@ -275,6 +276,10 @@ const App: Component = () => {
         undefined,
         "initI18n",
       );
+
+      // Apply per-deployment branding (theme colors, product name, logo). Runs
+      // in the background so a slow/failed load never blocks the boot path.
+      void withTimeout(loadBranding(), 1000, undefined, "loadBranding");
 
       markBootStage("Checking agent state");
       const [reg, admin] = await Promise.all([
