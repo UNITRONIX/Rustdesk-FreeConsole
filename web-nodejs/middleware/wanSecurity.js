@@ -316,7 +316,7 @@ function requestLogger(req, res, next) {
 
 /**
  * Get the complete middleware stack for WAN API
- * Apply these in order to the Express app on port 21114
+ * Apply these in order to the Express app on port 21121
  */
 function getWanMiddlewareStack() {
     return [

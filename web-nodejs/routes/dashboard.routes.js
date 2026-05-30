@@ -109,7 +109,7 @@ router.get('/api/server/status', requireAuth, async (req, res) => {
         // Build port map for the UI
         const apiPort = parseInt(new URL(
             isBD ? config.betterdeskApiUrl : config.hbbsApiUrl
-        ).port, 10) || 21114;
+        ).port, 10) || 21121;
 
         res.json({
             success: true,

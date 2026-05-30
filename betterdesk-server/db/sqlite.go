@@ -263,6 +263,82 @@ func (s *SQLiteDB) Migrate() error {
 			UNIQUE(role, permission)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions(role)`,
+
+		// Audit logs (RustDesk client reporting — API-port consolidation Phase A)
+		`CREATE TABLE IF NOT EXISTS audit_connections (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			host_id TEXT NOT NULL,
+			host_uuid TEXT DEFAULT '',
+			peer_id TEXT DEFAULT '',
+			peer_name TEXT DEFAULT '',
+			action TEXT NOT NULL DEFAULT '',
+			conn_type INTEGER DEFAULT 0,
+			session_id TEXT DEFAULT '',
+			ip TEXT DEFAULT '',
+			created_at TEXT DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_conn_host ON audit_connections(host_id, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_conn_peer ON audit_connections(peer_id, created_at)`,
+
+		`CREATE TABLE IF NOT EXISTS audit_files (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			host_id TEXT NOT NULL,
+			host_uuid TEXT DEFAULT '',
+			peer_id TEXT DEFAULT '',
+			direction INTEGER DEFAULT 0,
+			path TEXT DEFAULT '',
+			is_file INTEGER DEFAULT 1,
+			num_files INTEGER DEFAULT 0,
+			files_json TEXT DEFAULT '[]',
+			ip TEXT DEFAULT '',
+			peer_name TEXT DEFAULT '',
+			created_at TEXT DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_files_host ON audit_files(host_id, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_files_peer ON audit_files(peer_id, created_at)`,
+
+		`CREATE TABLE IF NOT EXISTS audit_alarms (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			alarm_type INTEGER NOT NULL DEFAULT 0,
+			alarm_name TEXT DEFAULT '',
+			host_id TEXT DEFAULT '',
+			peer_id TEXT DEFAULT '',
+			ip TEXT DEFAULT '',
+			details TEXT DEFAULT '{}',
+			created_at TEXT DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_alarms_type ON audit_alarms(alarm_type, created_at)`,
+
+		// User/device groups + strategies (API-port consolidation Phase A)
+		`CREATE TABLE IF NOT EXISTS user_groups (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			guid TEXT UNIQUE NOT NULL,
+			name TEXT NOT NULL,
+			note TEXT DEFAULT '',
+			team_id TEXT DEFAULT '',
+			created_at TEXT DEFAULT (datetime('now'))
+		)`,
+		`CREATE TABLE IF NOT EXISTS device_groups (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			guid TEXT UNIQUE NOT NULL,
+			name TEXT NOT NULL,
+			note TEXT DEFAULT '',
+			team_id TEXT DEFAULT '',
+			source_type TEXT DEFAULT 'manual',
+			tag_filter TEXT DEFAULT '',
+			created_at TEXT DEFAULT (datetime('now'))
+		)`,
+		`CREATE TABLE IF NOT EXISTS strategies (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			guid TEXT UNIQUE NOT NULL,
+			name TEXT NOT NULL,
+			user_group_guid TEXT DEFAULT '',
+			device_group_guid TEXT DEFAULT '',
+			enabled INTEGER DEFAULT 1,
+			permissions TEXT DEFAULT '{}',
+			created_at TEXT DEFAULT (datetime('now')),
+			updated_at TEXT DEFAULT (datetime('now'))
+		)`,
 	}
 
 	for _, stmt := range statements {

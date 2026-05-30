@@ -44,6 +44,10 @@
 .PARAMETER PgUri
     PostgreSQL connection URI (implies -PostgreSQL)
 
+.PARAMETER RunAsRoot
+    Run the Windows services as LocalSystem (legacy). By default the services
+    run under low-privilege per-service virtual accounts (privilege separation).
+
 .EXAMPLE
     .\betterdesk.ps1
     Interactive mode
@@ -70,6 +74,7 @@ param(
     [string]$PgUri = "",
     [ValidateSet('http', 'https', '')]
     [string]$Protocol = "",
+    [switch]$RunAsRoot,
     [switch]$Flask  # Deprecated, kept for backward compatibility
 )
 
@@ -84,6 +89,12 @@ $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $script:AUTO_MODE = $Auto
 $script:SKIP_VERIFY = $SkipVerify
 $script:MINIMAL_MODE = $Minimal
+
+# Privilege separation (default). The installer needs Administrator, but the
+# services run under low-privilege per-service virtual accounts (NT SERVICE\...)
+# instead of LocalSystem. Use -RunAsRoot or BETTERDESK_RUN_AS_ROOT=1 to keep the
+# legacy behavior of running services as LocalSystem.
+$script:RUN_AS_ROOT = $RunAsRoot -or ($env:BETTERDESK_RUN_AS_ROOT -eq "1") -or ($env:BETTERDESK_RUN_AS_ROOT -eq "true")
 
 # Console type preference
 $script:PREFERRED_CONSOLE_TYPE = "nodejs"  # Always Node.js (Flask removed in v2.3.0)
@@ -115,7 +126,7 @@ $script:BACKUP_DIR = if ($env:BACKUP_DIR) { $env:BACKUP_DIR } else { "C:\BetterD
 $script:DB_PATH = "$script:RUSTDESK_PATH\db_v2.sqlite3"
 
 # API configuration
-$script:API_PORT = if ($env:API_PORT) { $env:API_PORT } else { "21114" }
+$script:API_PORT = if ($env:API_PORT) { $env:API_PORT } else { "21121" }
 $script:STORE_ADMIN_CREDENTIALS = ($env:STORE_ADMIN_CREDENTIALS -eq "true")
 
 # Common installation paths to search
@@ -1147,7 +1158,9 @@ DATA_DIR=$dataDir
 # HBBS API
 HBBS_API_URL=http://localhost:$script:API_PORT/api
 
-# RustDesk Client API listener
+# RustDesk Client API (consolidated onto the Go server, port $script:API_PORT)
+# The Node.js console no longer runs its own client API listener.
+API_ENABLED=false
 API_HOST=0.0.0.0
 RUSTDESK_API_TLS=auto
 
@@ -1439,7 +1452,7 @@ function Generate-SSLCertificates {
         # Clean up certificate from store
         Remove-Item "Cert:\LocalMachine\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
         
-        # Enable HTTPS in .env so Node.js console (port 5000 + 21121) uses TLS
+        # Enable HTTPS in .env so Node.js console (admin panel port 5000/5443) uses TLS
         Update-EnvForTLS -CertPath $certPath -KeyPath $keyPath
         
         Print-Success "Self-signed TLS certificate generated"
@@ -1475,6 +1488,36 @@ function Generate-SSLCertificates {
         Print-Info "Use SSL config menu (option C) to generate later"
         return $false
     }
+}
+
+function Set-ServiceLeastPrivilege {
+    param(
+        [string]$ServiceName,
+        [string]$NssmPath,
+        [string[]]$Paths
+    )
+    # Privilege separation: run the NSSM service under its per-service virtual
+    # account (NT SERVICE\<service>) instead of the default LocalSystem. Virtual
+    # accounts are unprivileged, auto-managed, need no password, and already hold
+    # the "Log on as a service" right. Skipped when -RunAsRoot is set.
+    if ($script:RUN_AS_ROOT) {
+        & $NssmPath set $ServiceName ObjectName "LocalSystem" 2>$null | Out-Null
+        return
+    }
+
+    $account = "NT SERVICE\$ServiceName"
+    & $NssmPath set $ServiceName ObjectName $account "" 2>$null | Out-Null
+
+    foreach ($p in $Paths) {
+        if ($p -and (Test-Path $p)) {
+            try {
+                & icacls "$p" /grant "${account}:(OI)(CI)M" /T /C /Q 2>$null | Out-Null
+            } catch {
+                Print-Warning "Could not grant $account access to $p"
+            }
+        }
+    }
+    Print-Info "Service $ServiceName runs under least-privilege account ($account)"
 }
 
 function Setup-Services {
@@ -1540,13 +1583,15 @@ function Setup-Services {
     Print-Info "Server IP: $serverIP"
     Print-Info "API Port: $script:API_PORT"
     
-    # Build database argument
-    $dbArg = ""
+    # Build database value (raw). The DSN is passed to the Go server through NSSM
+    # AppEnvironmentExtra (DB_URL env var), never as a CLI argument, so the
+    # PostgreSQL password does not appear in the process command line.
+    $dbValue = ""
     if ($script:USE_POSTGRESQL -and $script:POSTGRESQL_URI) {
-        $dbArg = "-db `"$($script:POSTGRESQL_URI)`""
+        $dbValue = $script:POSTGRESQL_URI
         Print-Info "Database: PostgreSQL"
     } else {
-        $dbArg = "-db `"$($script:DB_PATH)`""
+        $dbValue = $script:DB_PATH
         Print-Info "Database: SQLite"
     }
     
@@ -1605,9 +1650,11 @@ function Setup-Services {
         Print-Warning "Invalid SIGNAL_RATE_LIMIT_PER_IP='$signalRateLimit'; using 20"
         $signalRateLimit = "20"
     }
-    $serverArgs = "-mode all -relay-servers $serverIP $dbArg -key-file `"$script:RUSTDESK_PATH\id_ed25519`" -api-port $script:API_PORT -signal-rate-limit-per-ip $signalRateLimit"
+    $serverArgs = "-mode all -relay-servers $serverIP -key-file `"$script:RUSTDESK_PATH\id_ed25519`" -api-port $script:API_PORT -signal-rate-limit-per-ip $signalRateLimit"
     
-    # Add -init-admin-pass to sync admin password with Node.js console
+    # Discover admin password to sync the Go server initial admin with the
+    # Node.js console. It is passed via NSSM AppEnvironmentExtra (INIT_ADMIN_PASS),
+    # never as a CLI argument, to keep it out of the process command line.
     $adminPass = $null
     $credsFile = Join-Path $script:CONSOLE_PATH "data\.admin_credentials"
     if (Test-Path $credsFile) {
@@ -1624,9 +1671,6 @@ function Setup-Services {
                 $adminPass = ($line -split '=', 2)[1].Trim()
             }
         }
-    }
-    if ($adminPass) {
-        $serverArgs += " -init-admin-pass `"$adminPass`""
     }
     
     # Add TLS flags if certificates exist
@@ -1646,7 +1690,7 @@ function Setup-Services {
         }
         
         # Enable TLS on signal/relay for client encryption.
-        # API port (21114) MUST stay HTTP -- RustDesk desktop clients always send
+        # API port (21121) MUST stay HTTP -- RustDesk desktop clients always send
         # plain HTTP to signal_port-2 and do not support HTTPS for API endpoints.
         $serverArgs += " -tls-cert `"$certPath`" -tls-key `"$keyPath`" -tls-signal -tls-relay"
         
@@ -1669,6 +1713,16 @@ function Setup-Services {
     & $nssm set $script:SERVER_SERVICE Start SERVICE_AUTO_START
     & $nssm set $script:SERVER_SERVICE AppStdout "$script:RUSTDESK_PATH\logs\server.log"
     & $nssm set $script:SERVER_SERVICE AppStderr "$script:RUSTDESK_PATH\logs\server_error.log"
+    
+    # Server secrets via environment (DB_URL / INIT_ADMIN_PASS) instead of CLI
+    # arguments, so the PostgreSQL and admin passwords stay out of the process
+    # command line (NSSM stores these in the ACL-protected service registry key).
+    $serverEnvExtra = @("DB_URL=$dbValue")
+    if ($adminPass) { $serverEnvExtra += "INIT_ADMIN_PASS=$adminPass" }
+    & $nssm set $script:SERVER_SERVICE AppEnvironmentExtra $serverEnvExtra
+    
+    # Privilege separation: drop the Go server to its low-privilege virtual account.
+    Set-ServiceLeastPrivilege -ServiceName $script:SERVER_SERVICE -NssmPath $nssm -Paths @($script:RUSTDESK_PATH)
     
     Print-Success "Created BetterDesk Go Server service"
     
@@ -1720,6 +1774,11 @@ function Setup-Services {
         & $nssm set $script:CONSOLE_SERVICE AppEnvironmentExtra $envExtra
         & $nssm set $script:CONSOLE_SERVICE AppStdout "$script:CONSOLE_PATH\logs\console.log"
         & $nssm set $script:CONSOLE_SERVICE AppStderr "$script:CONSOLE_PATH\logs\console_error.log"
+        
+        # Privilege separation: the console's virtual account needs read/write on
+        # its own dir and read access to the server keys / API key in RUSTDESK_PATH.
+        Set-ServiceLeastPrivilege -ServiceName $script:CONSOLE_SERVICE -NssmPath $nssm -Paths @($script:CONSOLE_PATH, $script:RUSTDESK_PATH)
+        
         Print-Success "Created Node.js console service"
     }
     
@@ -1736,12 +1795,13 @@ function Setup-ScheduledTasks {
     
     Print-Step "Creating scheduled tasks as service alternative..."
     
-    # Build database argument
-    $dbArg = ""
+    # Build database value (raw). Injected into the launcher below as an env var,
+    # never as a task action argument (those are visible in Task Scheduler).
+    $dbValue = ""
     if ($script:USE_POSTGRESQL -and $script:POSTGRESQL_URI) {
-        $dbArg = "-db `"$($script:POSTGRESQL_URI)`""
+        $dbValue = $script:POSTGRESQL_URI
     } else {
-        $dbArg = "-db `"$($script:DB_PATH)`""
+        $dbValue = $script:DB_PATH
     }
     
     # Remove existing tasks
@@ -1757,9 +1817,10 @@ function Setup-ScheduledTasks {
         Print-Warning "Invalid SIGNAL_RATE_LIMIT_PER_IP='$signalRateLimit'; using 20"
         $signalRateLimit = "20"
     }
-    $serverArgs = "-mode all -relay-servers $ServerIP $dbArg -key-file `"$script:RUSTDESK_PATH\id_ed25519`" -api-port $script:API_PORT -signal-rate-limit-per-ip $signalRateLimit"
+    $serverArgs = "-mode all -relay-servers $ServerIP -key-file `"$script:RUSTDESK_PATH\id_ed25519`" -api-port $script:API_PORT -signal-rate-limit-per-ip $signalRateLimit"
     
-    # Add -init-admin-pass to sync admin password with Node.js console
+    # Discover admin password (synced with Node.js console). Injected via the
+    # protected launcher as INIT_ADMIN_PASS, never as a task action argument.
     $adminPass = $null
     $credsFile = Join-Path $script:CONSOLE_PATH "data\.admin_credentials"
     if (Test-Path $credsFile) {
@@ -1776,9 +1837,6 @@ function Setup-ScheduledTasks {
                 $adminPass = ($line -split '=', 2)[1].Trim()
             }
         }
-    }
-    if ($adminPass) {
-        $serverArgs += " -init-admin-pass `"$adminPass`""
     }
     
     # Add TLS flags if certificates exist
@@ -1803,7 +1861,17 @@ function Setup-ScheduledTasks {
         }
     }
     
-    $serverAction = New-ScheduledTaskAction -Execute $serverExe -Argument $serverArgs -WorkingDirectory $script:RUSTDESK_PATH
+    # Secrets (DB_URL / INIT_ADMIN_PASS) are injected via a launcher script that
+    # is restricted to Administrators/SYSTEM, never via the task action arguments
+    # (which are visible in Task Scheduler and the process command line).
+    $serverLauncher = Join-Path $script:RUSTDESK_PATH "start-betterdesk-server.cmd"
+    $launcherLines = @("@echo off")
+    $launcherLines += "set `"DB_URL=$dbValue`""
+    if ($adminPass) { $launcherLines += "set `"INIT_ADMIN_PASS=$adminPass`"" }
+    $launcherLines += "`"$serverExe`" $serverArgs"
+    Set-Content -Path $serverLauncher -Value $launcherLines -Encoding ASCII
+    & icacls $serverLauncher /inheritance:r /grant:r "*S-1-5-32-544:F" "*S-1-5-18:F" 2>$null | Out-Null
+    $serverAction = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$serverLauncher`"" -WorkingDirectory $script:RUSTDESK_PATH
     $serverTrigger = New-ScheduledTaskTrigger -AtStartup
     $serverPrincipal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
     $serverSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
@@ -2244,7 +2312,7 @@ function Do-InstallMinimal {
     
     Print-Info "BetterDesk Minimal installs the Go server binary only."
     Print-Info "No web console, no Node.js, no npm dependencies."
-    Print-Info "Manage via REST API on port 21114 or TCP admin console."
+    Print-Info "Manage via REST API on port $script:API_PORT or TCP admin console."
     Write-Host ""
     
     Detect-Installation
@@ -2297,7 +2365,7 @@ function Do-InstallMinimal {
     
     # Configure firewall rules (server ports only)
     Print-Step "Configuring firewall rules..."
-    $ports = @(21114, 21115, 21116, 21117, 21118, 21119)
+    $ports = @(21121, 21115, 21116, 21117, 21118, 21119)
     foreach ($port in $ports) {
         try {
             New-NetFirewallRule -DisplayName "BetterDesk Port $port" -Direction Inbound -LocalPort $port -Protocol TCP -Action Allow -ErrorAction SilentlyContinue | Out-Null
@@ -2333,9 +2401,9 @@ function Do-InstallMinimal {
     
     $serverIP = Get-PublicIP
     Write-Host "Server: $serverIP" -ForegroundColor Green
-    Write-Host "API: http://${serverIP}:21114" -ForegroundColor Green
+    Write-Host "API: http://${serverIP}:$($script:API_PORT)" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Ports: 21114 (API), 21115-21117 (Signal/Relay), 21118-21119 (WS)" -ForegroundColor Yellow
+    Write-Host "Ports: $($script:API_PORT) (API), 21115-21117 (Signal/Relay), 21118-21119 (WS)" -ForegroundColor Yellow
     Write-Host "No web console installed. Use REST API or TCP admin for management." -ForegroundColor Yellow
     Write-Host ""
     
@@ -2404,6 +2472,9 @@ function Setup-ServicesMinimal {
         $envExtra += "`nDB_URL=$($script:POSTGRESQL_URI)"
     }
     nssm set $svcName AppEnvironmentExtra $envExtra
+    
+    # Privilege separation: drop the Go server to its low-privilege virtual account.
+    Set-ServiceLeastPrivilege -ServiceName $svcName -NssmPath "nssm" -Paths @($script:INSTALL_DIR)
     
     Print-Success "BetterDesk server service created (Minimal mode)"
 }
@@ -3184,12 +3255,11 @@ function Do-Validate {
     Write-Host ""
     
     $ports = @(
-        @{Port=21114; Desc="HBBS API"; Expected="hbbs"},
+        @{Port=21121; Desc="Go API"; Expected="betterdesk-server"},
         @{Port=21115; Desc="NAT Test"; Expected="hbbs"},
         @{Port=21116; Desc="ID Server"; Expected="hbbs"},
         @{Port=21117; Desc="Relay"; Expected="hbbr"},
-        @{Port=5000;  Desc="Web Console"; Expected="node"},
-        @{Port=21121; Desc="Client API"; Expected="node"}
+        @{Port=5000;  Desc="Web Console"; Expected="node"}
     )
     foreach ($p in $ports) {
         $status = Check-PortStatus -Port $p.Port -Protocol "TCP" -ExpectedService $p.Expected
@@ -3215,7 +3285,7 @@ function Do-Validate {
     $firewallProfile = Get-NetFirewallProfile -ErrorAction SilentlyContinue
     $activeProfiles = $firewallProfile | Where-Object { $_.Enabled -eq $true }
     if ($activeProfiles) {
-        $fwPorts = @(21114, 21115, 21116, 21117, 21118, 21119, 5000, 5443, 21121)
+        $fwPorts = @(21115, 21116, 21117, 21118, 21119, 5000, 5443, 21121)
         $fwMissing = 0
         foreach ($fwPort in $fwPorts) {
             $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | 
@@ -3602,10 +3672,9 @@ function Check-FirewallRules {
         @{Port=21117; Proto="TCP";  Name="Relay Server"},
         @{Port=21118; Proto="TCP";  Name="WebSocket Signal"},
         @{Port=21119; Proto="TCP";  Name="WebSocket Relay"},
-        @{Port=21114; Proto="TCP";  Name="HBBS API"},
         @{Port=5000;  Proto="TCP";  Name="Web Console"},
         @{Port=5443;  Proto="TCP";  Name="Web Console HTTPS"},
-        @{Port=21121; Proto="TCP";  Name="Client API"}
+        @{Port=21121; Proto="TCP";  Name="Go API (RustDesk client + REST)"}
     )
     
     $missingRules = @()
@@ -3641,10 +3710,9 @@ function Configure-Firewall {
             @{Port=21117; Proto="TCP";  Name="BetterDesk Relay Server"},
             @{Port=21118; Proto="TCP";  Name="BetterDesk WebSocket Signal"},
             @{Port=21119; Proto="TCP";  Name="BetterDesk WebSocket Relay"},
-            @{Port=21114; Proto="TCP";  Name="BetterDesk HBBS API"},
             @{Port=5000;  Proto="TCP";  Name="BetterDesk Web Console"},
             @{Port=5443;  Proto="TCP";  Name="BetterDesk Console HTTPS"},
-            @{Port=21121; Proto="TCP";  Name="BetterDesk Client API"}
+            @{Port=21121; Proto="TCP";  Name="BetterDesk Go API"}
         )
         
         foreach ($p in $requiredPorts) {
@@ -3767,13 +3835,12 @@ conn.close()
     Write-Host ""
     
     $portDefs = @(
-        @{Port=21114; Proto="TCP"; Expected="betterdesk-server"; Desc="Server API"},
+        @{Port=21121; Proto="TCP"; Expected="betterdesk-server"; Desc="Go API (RustDesk client + REST)"},
         @{Port=21115; Proto="TCP"; Expected="betterdesk-server"; Desc="NAT Test"},
         @{Port=21116; Proto="TCP"; Expected="betterdesk-server"; Desc="ID Server (TCP)"},
         @{Port=21116; Proto="UDP"; Expected="betterdesk-server"; Desc="ID Server (UDP)"},
         @{Port=21117; Proto="TCP"; Expected="betterdesk-server"; Desc="Relay Server"},
-        @{Port=5000;  Proto="TCP"; Expected="node"; Desc="Web Console"},
-        @{Port=21121; Proto="TCP"; Expected="node"; Desc="Client API (WAN)"}
+        @{Port=5000;  Proto="TCP"; Expected="node"; Desc="Web Console"}
     )
     
     $portIssues = 0
@@ -3801,7 +3868,7 @@ conn.close()
         Write-Host ""
         Print-Warning "$portIssues port conflict(s) detected!"
         Write-Host "  Tip: Stop conflicting processes or change ports in configuration" -ForegroundColor Yellow
-        Write-Host "  Common fix: Ensure no other app uses ports 21114-21117, 5000, 21121" -ForegroundColor Yellow
+        Write-Host "  Common fix: Ensure no other app uses ports 21115-21117, 5000, 21121" -ForegroundColor Yellow
     }
     
     # --- Firewall diagnostics ---
@@ -4484,7 +4551,7 @@ function Do-ConfigureSSL {
             Print-Header
             Write-Host "========== ENTERPRISE TLS CONFIGURATION ==========" -ForegroundColor Yellow
             Write-Host ""
-            Write-Host "  WARNING: Go API port 21114 stays HTTP for RustDesk client compatibility." -ForegroundColor Yellow
+            Write-Host "  WARNING: Go API port 21121 stays HTTP for RustDesk client compatibility." -ForegroundColor Yellow
             Write-Host "  Panel, signal and relay channels can still use TLS." -ForegroundColor Yellow
             Write-Host ""
             
@@ -4620,7 +4687,7 @@ function Do-ConfigureSSL {
             Print-Info "  - Panel HTTPS: :5443 (or configured port)"
             Print-Info "  - Signal TLS: :21116"
             Print-Info "  - Relay TLS: :21117"
-            Print-Info "  - Go API HTTP: :21114 (required for RustDesk clients)"
+            Print-Info "  - Go API HTTP: :21121 (required for RustDesk clients)"
             Write-Host ""
             Print-Warning "For browsers/clients, you may need to import $certPath as trusted CA"
         }
@@ -4633,7 +4700,7 @@ function Do-ConfigureSSL {
     
     # ── Update API URLs in .env when SSL is enabled/disabled ──
     # Go API TLS (--tls-api) is intentionally not enabled by SSL options.
-    # RustDesk desktop clients always use plain HTTP on signal_port-2 (21114).
+    # RustDesk desktop clients always use plain HTTP on the api-server (21121).
     $envContent = Get-Content $envFile -Raw
     
     if ($sslChoice -eq "5") {
@@ -4883,7 +4950,7 @@ function Do-ToggleProtocol {
             Print-Info "  Panel:         HTTP :5000"
             Print-Info "  Signal:        TCP  :21116"
             Print-Info "  Relay:         TCP  :21117"
-            Print-Info "  Go API:        HTTP :21114"
+            Print-Info "  Go API:        HTTP :21121 (RustDesk client + REST)"
             Print-Info "  Client API:    HTTP :21121"
             Write-Host ""
             Print-Warning "SSL certificates were NOT deleted (use option C > 4 to remove)"
@@ -4987,7 +5054,7 @@ function Do-ToggleProtocol {
             Print-Info "  Panel:         HTTPS :5443"
             Print-Info "  Signal:        TLS   :21116"
             Print-Info "  Relay:         TLS   :21117"
-            Print-Info "  Go API:        HTTP  :21114 (internal, always HTTP)"
+            Print-Info "  Go API:        HTTP  :21121 (RustDesk client + REST, always HTTP)"
             Print-Info "  Client API:    auto  :21121"
         }
         default { return }

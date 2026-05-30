@@ -1,0 +1,218 @@
+/* =========================================================================
+   Public agent download portal
+   ========================================================================= */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0b1020 0%, #16213e 100%);
+    color: #e6edf3;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.55;
+}
+
+.portal {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 56px 20px 32px;
+}
+
+.portal-header {
+    text-align: center;
+    margin-bottom: 48px;
+}
+
+.portal-logo {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 18px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--brand-primary, #2563eb);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    object-fit: contain;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+img.portal-logo { padding: 0; background: white; }
+
+.portal-logo-fallback .material-icons {
+    font-size: 56px;
+    color: white;
+}
+
+.portal-header h1 {
+    font-size: 36px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: white;
+}
+
+.portal-subtitle {
+    color: #94a3b8;
+    font-size: 17px;
+    max-width: 620px;
+    margin: 0 auto;
+}
+
+.portal-intro {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.portal-intro h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.portal-intro p { color: #94a3b8; font-size: 15px; }
+
+.portal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+    margin-bottom: 48px;
+}
+
+.portal-card {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 28px 20px;
+    text-align: center;
+    backdrop-filter: blur(20px);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.portal-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.card-icon {
+    color: var(--brand-primary, #2563eb);
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: center;
+}
+
+.portal-card h3 {
+    font-size: 17px;
+    margin-bottom: 4px;
+    color: white;
+}
+
+.card-arch {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 18px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.card-status { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+.btn:hover { filter: brightness(1.1); }
+
+.btn-primary {
+    background: var(--brand-primary, #2563eb);
+    color: white;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.status-pending {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fcd34d;
+}
+
+.status-failed {
+    background: rgba(220, 53, 69, 0.15);
+    color: #f87171;
+}
+
+.spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(252, 211, 77, 0.3);
+    border-top-color: #fcd34d;
+    border-radius: 50%;
+    animation: portal-spin 0.8s linear infinite;
+}
+
+@keyframes portal-spin { to { transform: rotate(360deg); } }
+
+.portal-contact {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 32px;
+}
+
+.portal-contact h2 {
+    font-size: 18px;
+    margin-bottom: 14px;
+    color: white;
+}
+
+.contact-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.contact-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #cbd5e1;
+}
+
+.contact-list a {
+    color: var(--brand-primary, #2563eb);
+    text-decoration: none;
+}
+
+.contact-list a:hover { text-decoration: underline; }
+
+.contact-list .material-icons { color: #94a3b8; font-size: 18px; }
+
+.portal-footer {
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+    padding: 20px 0;
+}
+
+@media (max-width: 600px) {
+    .portal { padding: 32px 16px; }
+    .portal-header h1 { font-size: 28px; }
+}

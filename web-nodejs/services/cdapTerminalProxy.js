@@ -3,7 +3,7 @@
  * Proxies terminal WebSocket connections from the browser to the Go server's
  * CDAP terminal endpoint.  Authenticates via session cookie.
  *
- * Browser  ←WS→  Node.js (:5000)  ←WS→  Go API (:21114)
+ * Browser  ←WS→  Node.js (:5000)  ←WS→  Go API (:21121)
  *    /api/cdap/devices/:id/terminal  →  /api/cdap/devices/:id/terminal
  */
 
@@ -69,7 +69,7 @@ function initCdapTerminalProxy(server, sessionMiddleware) {
         console.log(`[CDAP Terminal] Proxy session started for device ${deviceId} by ${username}`);
 
         // Build Go server WebSocket URL
-        const goApiBase = config.betterdeskApiUrl || 'http://localhost:21114/api';
+        const goApiBase = config.betterdeskApiUrl || 'http://localhost:21121/api';
         const goWsUrl = goApiBase
             .replace(/^http/, 'ws')
             .replace(/\/api\/?$/, '') +

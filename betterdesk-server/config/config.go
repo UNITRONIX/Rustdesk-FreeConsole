@@ -22,7 +22,7 @@ type Config struct {
 	// Network
 	SignalPort int // UDP+TCP signal port (default 21116)
 	RelayPort  int // TCP relay port (default 21117)
-	APIPort    int // HTTP API port (default 21114)
+	APIPort    int // HTTP API / RustDesk client-API port (default 21121, consolidated surface)
 
 	// Mode
 	Mode string // "all", "signal", "relay"
@@ -117,7 +117,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		SignalPort:           21116,
 		RelayPort:            21117,
-		APIPort:              21114,
+		APIPort:              21121,
 		Mode:                 "all",
 		DBPath:               "./db_v2.sqlite3",
 		KeyFile:              "id_ed25519",

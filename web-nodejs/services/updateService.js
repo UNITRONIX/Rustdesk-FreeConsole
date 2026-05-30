@@ -340,7 +340,7 @@ function runPrivileged(command, options = {}) {
 
 /**
  * Keep the Go REST API on plain HTTP even when signal/relay TLS is enabled.
- * RustDesk clients call signal_port-2 (21114) over HTTP for heartbeat,
+ * RustDesk clients call the consolidated Go API (21121) over HTTP for heartbeat,
  * sysinfo, login and address-book endpoints; -tls-api breaks that contract.
  */
 function sanitizeGoServerServiceConfig() {

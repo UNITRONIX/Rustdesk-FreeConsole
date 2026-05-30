@@ -174,6 +174,18 @@ const facade = {
     deletePendingRegistration:      (id) => adapter.deletePendingRegistration(id),
     getPendingRegistrationCount:    () => adapter.getPendingRegistrationCount(),
 
+    // ---- Agent installer bundles (Generator) ----
+    listAgentBundles:           (opts) => adapter.listAgentBundles(opts),
+    getAgentBundle:             (bundleId) => adapter.getAgentBundle(bundleId),
+    createAgentBundle:          (data) => adapter.createAgentBundle(data),
+    updateAgentBundle:          (bundleId, data) => adapter.updateAgentBundle(bundleId, data),
+    setAgentBundleRevoked:      (bundleId, revoked) => adapter.setAgentBundleRevoked(bundleId, revoked),
+    deleteAgentBundle:          (bundleId) => adapter.deleteAgentBundle(bundleId),
+    incrementAgentBundleDownload: (bundleId) => adapter.incrementAgentBundleDownload(bundleId),
+    listAgentBundleBuildsForHash: (hash) => adapter.listAgentBundleBuildsForHash(hash),
+    getAgentBundleBuild:        (q) => adapter.getAgentBundleBuild(q),
+    upsertAgentBundleBuild:     (data) => adapter.upsertAgentBundleBuild(data),
+
     // ---- User Groups ----
     getAllUserGroups:    () => adapter.getAllUserGroups(),
     getUserGroupByGuid: (guid) => adapter.getUserGroupByGuid(guid),

@@ -284,6 +284,82 @@ func (pg *PostgresDB) Migrate() error {
 			updated_at TIMESTAMPTZ,
 			updated_by TEXT NOT NULL DEFAULT ''
 		)`,
+
+		// Audit logs (RustDesk client reporting — API-port consolidation Phase A)
+		`CREATE TABLE IF NOT EXISTS audit_connections (
+			id BIGSERIAL PRIMARY KEY,
+			host_id TEXT NOT NULL,
+			host_uuid TEXT NOT NULL DEFAULT '',
+			peer_id TEXT NOT NULL DEFAULT '',
+			peer_name TEXT NOT NULL DEFAULT '',
+			action TEXT NOT NULL DEFAULT '',
+			conn_type INTEGER NOT NULL DEFAULT 0,
+			session_id TEXT NOT NULL DEFAULT '',
+			ip TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_conn_host ON audit_connections(host_id, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_conn_peer ON audit_connections(peer_id, created_at)`,
+
+		`CREATE TABLE IF NOT EXISTS audit_files (
+			id BIGSERIAL PRIMARY KEY,
+			host_id TEXT NOT NULL,
+			host_uuid TEXT NOT NULL DEFAULT '',
+			peer_id TEXT NOT NULL DEFAULT '',
+			direction INTEGER NOT NULL DEFAULT 0,
+			path TEXT NOT NULL DEFAULT '',
+			is_file INTEGER NOT NULL DEFAULT 1,
+			num_files INTEGER NOT NULL DEFAULT 0,
+			files_json TEXT NOT NULL DEFAULT '[]',
+			ip TEXT NOT NULL DEFAULT '',
+			peer_name TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_files_host ON audit_files(host_id, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_files_peer ON audit_files(peer_id, created_at)`,
+
+		`CREATE TABLE IF NOT EXISTS audit_alarms (
+			id BIGSERIAL PRIMARY KEY,
+			alarm_type INTEGER NOT NULL DEFAULT 0,
+			alarm_name TEXT NOT NULL DEFAULT '',
+			host_id TEXT NOT NULL DEFAULT '',
+			peer_id TEXT NOT NULL DEFAULT '',
+			ip TEXT NOT NULL DEFAULT '',
+			details TEXT NOT NULL DEFAULT '{}',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_alarms_type ON audit_alarms(alarm_type, created_at)`,
+
+		// User/device groups + strategies (API-port consolidation Phase A)
+		`CREATE TABLE IF NOT EXISTS user_groups (
+			id BIGSERIAL PRIMARY KEY,
+			guid TEXT UNIQUE NOT NULL,
+			name TEXT NOT NULL,
+			note TEXT NOT NULL DEFAULT '',
+			team_id TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS device_groups (
+			id BIGSERIAL PRIMARY KEY,
+			guid TEXT UNIQUE NOT NULL,
+			name TEXT NOT NULL,
+			note TEXT NOT NULL DEFAULT '',
+			team_id TEXT NOT NULL DEFAULT '',
+			source_type TEXT NOT NULL DEFAULT 'manual',
+			tag_filter TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS strategies (
+			id BIGSERIAL PRIMARY KEY,
+			guid TEXT UNIQUE NOT NULL,
+			name TEXT NOT NULL,
+			user_group_guid TEXT NOT NULL DEFAULT '',
+			device_group_guid TEXT NOT NULL DEFAULT '',
+			enabled BOOLEAN NOT NULL DEFAULT TRUE,
+			permissions TEXT NOT NULL DEFAULT '{}',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
 	}
 
 	for _, stmt := range statements {

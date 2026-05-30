@@ -3,7 +3,7 @@
  * Proxies desktop/video/file-browser WebSocket connections from the
  * browser to the Go server's CDAP endpoints.
  *
- * Browser  ←WS→  Node.js (:5000)  ←WS→  Go API (:21114)
+ * Browser  ←WS→  Node.js (:5000)  ←WS→  Go API (:21121)
  */
 
 const WebSocket = require('ws');
@@ -92,7 +92,7 @@ function createCdapMediaProxy(server, sessionMiddleware, opts) {
         const role = req._cdapUserRole || req.session?.user?.role || req.session?.role || 'admin';
         console.log(`[CDAP ${label}] Proxy started for device ${deviceId} by ${username} (role=${role})`);
 
-        const goApiBase = config.betterdeskApiUrl || 'http://localhost:21114/api';
+        const goApiBase = config.betterdeskApiUrl || 'http://localhost:21121/api';
         const goWsUrl = goApiBase
             .replace(/^http/, 'ws')
             .replace(/\/api\/?$/, '') +

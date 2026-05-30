@@ -55,7 +55,7 @@ docker run -d -p 5000:5000 \
 | `DB_PATH` | `/opt/rustdesk/db_v2.sqlite3` | Path to SQLite database |
 | `KEYS_PATH` | `/opt/rustdesk` | Path to key files directory |
 | `SESSION_SECRET` | auto-generated | Session cookie secret |
-| `BETTERDESK_API_URL` | `http://127.0.0.1:21114` | BetterDesk Go server API endpoint |
+| `BETTERDESK_API_URL` | `http://127.0.0.1:21121` | BetterDesk Go server API endpoint |
 | `DEFAULT_LANG` | `en` | Default language code |
 
 ## Project Structure

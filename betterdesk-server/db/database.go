@@ -40,16 +40,16 @@ type ServerConfig struct {
 
 // User represents an API user account.
 type User struct {
-	ID                 int64  `json:"id"`
-	Username           string `json:"username"`
-	PasswordHash       string `json:"-"`
-	Role               string `json:"role"`            // admin, operator, viewer
-	IsServerAdmin      bool   `json:"is_server_admin"` // Phase 3: separate server admin flag
-	TOTPSecret         string `json:"-"`
-	TOTPEnabled        bool   `json:"totp_enabled"`
-	TOTPRecoveryCodes  string `json:"-"` // JSON array of bcrypt-hashed recovery codes (H4)
-	CreatedAt          string `json:"created_at"`
-	LastLogin          string `json:"last_login,omitempty"`
+	ID                int64  `json:"id"`
+	Username          string `json:"username"`
+	PasswordHash      string `json:"-"`
+	Role              string `json:"role"`            // admin, operator, viewer
+	IsServerAdmin     bool   `json:"is_server_admin"` // Phase 3: separate server admin flag
+	TOTPSecret        string `json:"-"`
+	TOTPEnabled       bool   `json:"totp_enabled"`
+	TOTPRecoveryCodes string `json:"-"` // JSON array of bcrypt-hashed recovery codes (H4)
+	CreatedAt         string `json:"created_at"`
+	LastLogin         string `json:"last_login,omitempty"`
 }
 
 // RolePermission represents a custom permission override for a role.
@@ -269,6 +269,100 @@ func ValidOrgRole(r string) bool {
 	return r == OrgRoleOwner || r == OrgRoleAdmin || r == OrgRoleOperator || r == OrgRoleUser
 }
 
+// AuditConnection records a remote-control session event reported by a RustDesk client.
+// Mirrors the Node.js console's audit_connections table for API-port consolidation.
+type AuditConnection struct {
+	ID        int64  `json:"id"`
+	HostID    string `json:"host_id"`
+	HostUUID  string `json:"host_uuid"`
+	PeerID    string `json:"peer_id"`
+	PeerName  string `json:"peer_name"`
+	Action    string `json:"action"`
+	ConnType  int    `json:"conn_type"`
+	SessionID string `json:"session_id"`
+	IP        string `json:"ip"`
+	CreatedAt string `json:"created_at"`
+}
+
+// AuditFile records a file-transfer event reported by a RustDesk client.
+type AuditFile struct {
+	ID        int64  `json:"id"`
+	HostID    string `json:"host_id"`
+	HostUUID  string `json:"host_uuid"`
+	PeerID    string `json:"peer_id"`
+	Direction int    `json:"direction"`
+	Path      string `json:"path"`
+	IsFile    int    `json:"is_file"`
+	NumFiles  int    `json:"num_files"`
+	FilesJSON string `json:"files_json"`
+	IP        string `json:"ip"`
+	PeerName  string `json:"peer_name"`
+	CreatedAt string `json:"created_at"`
+}
+
+// AuditAlarm records a security alarm event reported by a RustDesk client.
+type AuditAlarm struct {
+	ID        int64  `json:"id"`
+	AlarmType int    `json:"alarm_type"`
+	AlarmName string `json:"alarm_name"`
+	HostID    string `json:"host_id"`
+	PeerID    string `json:"peer_id"`
+	IP        string `json:"ip"`
+	Details   string `json:"details"`
+	CreatedAt string `json:"created_at"`
+}
+
+// AuditFilter holds optional filter parameters for audit list/count queries.
+// A nil AlarmType means "no filter on alarm_type".
+type AuditFilter struct {
+	HostID    string
+	PeerID    string
+	Action    string
+	AlarmType *int
+	Limit     int
+	Offset    int
+}
+
+// UserGroup represents a named group of operator/user accounts.
+// Mirrors the Node.js console's user_groups table.
+type UserGroup struct {
+	ID          int64  `json:"id"`
+	GUID        string `json:"guid"`
+	Name        string `json:"name"`
+	Note        string `json:"note"`
+	TeamID      string `json:"team_id"`
+	MemberCount int    `json:"member_count"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// DeviceGroup represents a named group of devices.
+// Mirrors the Node.js console's device_groups table.
+type DeviceGroup struct {
+	ID          int64  `json:"id"`
+	GUID        string `json:"guid"`
+	Name        string `json:"name"`
+	Note        string `json:"note"`
+	TeamID      string `json:"team_id"`
+	SourceType  string `json:"source_type"` // "manual" or "tag"
+	TagFilter   string `json:"tag_filter"`
+	MemberCount int    `json:"member_count"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// Strategy maps a user group + device group to a permission policy.
+// Mirrors the Node.js console's strategies table.
+type Strategy struct {
+	ID              int64  `json:"id"`
+	GUID            string `json:"guid"`
+	Name            string `json:"name"`
+	UserGroupGUID   string `json:"user_group_guid"`
+	DeviceGroupGUID string `json:"device_group_guid"`
+	Enabled         bool   `json:"enabled"`
+	Permissions     string `json:"permissions"` // JSON blob
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
+}
+
 // Database is the interface for all database operations.
 // Designed to support SQLite (now) and PostgreSQL (future) as drop-in implementations.
 type Database interface {
@@ -437,4 +531,36 @@ type Database interface {
 
 	// Org-scoped device queries (RBAC Phase 52 — data scoping)
 	ListPeersForOrg(orgID string, includeDeleted bool) ([]*Peer, error)
+
+	// Audit logs (RustDesk client reporting — API-port consolidation Phase A)
+	InsertAuditConnection(a *AuditConnection) error
+	ListAuditConnections(f AuditFilter) ([]*AuditConnection, error)
+	CountAuditConnections(f AuditFilter) (int, error)
+	InsertAuditFile(a *AuditFile) error
+	ListAuditFiles(f AuditFilter) ([]*AuditFile, error)
+	CountAuditFiles(f AuditFilter) (int, error)
+	InsertAuditAlarm(a *AuditAlarm) error
+	ListAuditAlarms(f AuditFilter) ([]*AuditAlarm, error)
+	CountAuditAlarms(f AuditFilter) (int, error)
+
+	// User groups (operator/user grouping — API-port consolidation Phase A)
+	ListUserGroups() ([]*UserGroup, error)
+	GetUserGroup(guid string) (*UserGroup, error)
+	CreateUserGroup(g *UserGroup) error
+	UpdateUserGroup(guid string, g *UserGroup) error
+	DeleteUserGroup(guid string) error
+
+	// Device groups (device grouping — API-port consolidation Phase A)
+	ListDeviceGroups() ([]*DeviceGroup, error)
+	GetDeviceGroup(guid string) (*DeviceGroup, error)
+	CreateDeviceGroup(g *DeviceGroup) error
+	UpdateDeviceGroup(guid string, g *DeviceGroup) error
+	DeleteDeviceGroup(guid string) error
+
+	// Strategies (permission policies — API-port consolidation Phase A)
+	ListStrategies() ([]*Strategy, error)
+	GetStrategy(guid string) (*Strategy, error)
+	CreateStrategy(s *Strategy) error
+	UpdateStrategy(guid string, s *Strategy) error
+	DeleteStrategy(guid string) error
 }

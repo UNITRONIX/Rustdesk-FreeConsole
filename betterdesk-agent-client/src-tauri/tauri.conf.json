@@ -36,6 +36,9 @@
   },
   "bundle": {
     "active": true,
+    "resources": [
+      "resources/branding.json"
+    ],
     "targets": ["deb", "rpm", "appimage", "nsis", "msi"],
     "icon": [
       "icons/32x32.png",

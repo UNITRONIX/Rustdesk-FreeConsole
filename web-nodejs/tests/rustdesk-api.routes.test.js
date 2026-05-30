@@ -102,7 +102,7 @@ describe('RustDesk Client API routes', () => {
             expect(db.getAddressBook).not.toHaveBeenCalled();
         });
 
-        it('always returns only online peers to the RustDesk reachable devices list', async () => {
+        it('exposes reachable and offline devices with correct online flags', async () => {
             authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
             serverBackend.getAllDevices.mockResolvedValue([
                 { id: 'ONLINE1', hostname: 'Online', online: true, tags: 'Allowed' },
@@ -114,8 +114,10 @@ describe('RustDesk Client API routes', () => {
                 .set('Authorization', 'Bearer operator-token');
 
             expect(res.status).toBe(200);
-            expect(res.body.total).toBe(1);
-            expect(res.body.data.map(peer => peer.id)).toEqual(['ONLINE1']);
+            expect(res.body.total).toBe(2);
+            const byId = Object.fromEntries(res.body.data.map(peer => [peer.id, peer]));
+            expect(byId.ONLINE1.online).toBe(true);
+            expect(byId.OFFLINE1.online).toBe(false);
         });
 
         it('keeps degraded and critical peers in the reachable devices list', async () => {
@@ -131,8 +133,11 @@ describe('RustDesk Client API routes', () => {
                 .set('Authorization', 'Bearer operator-token');
 
             expect(res.status).toBe(200);
-            expect(res.body.total).toBe(2);
-            expect(res.body.data.map(peer => peer.id)).toEqual(['DEG1', 'CRIT1']);
+            expect(res.body.total).toBe(3);
+            const byId = Object.fromEntries(res.body.data.map(peer => [peer.id, peer]));
+            expect(byId.DEG1.online).toBe(true);
+            expect(byId.CRIT1.online).toBe(true);
+            expect(byId.OFF1.online).toBe(false);
         });
 
         it('mirrors address-book peer fields for RustDesk available devices', async () => {
@@ -157,16 +162,16 @@ describe('RustDesk Client API routes', () => {
             expect(res.status).toBe(200);
             expect(res.body.data[0]).toMatchObject({
                 id: 'PEER1',
-                hostname: 'server-a',
-                username: 'alice',
+                info: {
+                    device_name: 'server-a',
+                    os: 'Windows',
+                    username: 'alice'
+                },
                 user: 'alice',
+                user_name: 'alice',
                 alias: 'Finance PC',
-                peer_name: 'Finance PC',
-                display_name: 'Finance PC',
-                platform: 'Windows',
-                device_type: 'desktop',
-                live_online: true,
-                live_status: 'online'
+                online: true,
+                status: 1
             });
         });
 
@@ -187,8 +192,7 @@ describe('RustDesk Client API routes', () => {
             expect(res.body.total).toBe(1);
             expect(res.body.data[0]).toMatchObject({
                 id: 'FOLDER1',
-                folder_id: 7,
-                device_group_guid: 'folder_7'
+                device_group_name: 'Servers'
             });
             expect(serverBackend.getAllDevices).toHaveBeenCalledWith(expect.objectContaining({ search: '' }));
         });
@@ -210,9 +214,6 @@ describe('RustDesk Client API routes', () => {
             expect(res.body.total).toBe(1);
             expect(res.body.data[0]).toMatchObject({
                 id: 'FOLDER1',
-                folder_id: 7,
-                folder_name: 'Servers',
-                device_group_guid: 'folder_7',
                 device_group_name: 'Servers'
             });
         });
@@ -348,17 +349,10 @@ describe('RustDesk Client API routes', () => {
             expect(res.body.total).toBe(1);
             expect(res.body.msg).toBe('success');
             expect(res.body.data[0]).toMatchObject({
-                id: 'folder_7',
                 guid: 'folder_7',
-                device_group_guid: 'folder_7',
-                device_group_id: 'folder_7',
-                group_id: 'folder_7',
                 name: 'Servers',
-                group_name: 'Servers',
-                source_type: 'folder',
-                folder_id: 7,
-                member_count: 1,
-                accessed_count: 1
+                access_perm: 1,
+                team: { peers: [{ id: 'FOLDER1' }] }
             });
         });
 
@@ -378,12 +372,10 @@ describe('RustDesk Client API routes', () => {
             expect(res.status).toBe(200);
             expect(res.body.total).toBe(1);
             expect(res.body.data[0]).toMatchObject({
-                id: 'kuzzel',
                 guid: 'kuzzel',
-                device_group_guid: 'kuzzel',
                 name: 'KUZZEL',
-                source_type: 'tag',
-                tag_filter: 'KUZZEL'
+                access_perm: 1,
+                team: { peers: [{ id: 'TAG1' }] }
             });
         });
     });

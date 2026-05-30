@@ -123,9 +123,13 @@ module.exports = {
     host: process.env.HOST || '127.0.0.1',
 
     // RustDesk Client API (dedicated WAN-facing port)
+    // The client API surface is now consolidated onto the Go server (port
+    // 21121 by default). Node's standalone listener is therefore DISABLED by
+    // default; set API_ENABLED=true only for legacy deployments that still
+    // want Node to serve the RustDesk client API on apiPort.
     apiPort: parseInt(process.env.API_PORT, 10) || 21121,
     apiHost: process.env.API_HOST || '127.0.0.1',
-    apiEnabled: (process.env.API_ENABLED || 'true').toLowerCase() !== 'false',
+    apiEnabled: (process.env.API_ENABLED || 'false').toLowerCase() === 'true',
     rustdeskApiTls: (process.env.RUSTDESK_API_TLS || 'auto').toLowerCase(),
 
     // Issue #104 mitigation:
@@ -171,12 +175,12 @@ module.exports = {
     serverBackend: 'betterdesk',
 
     // BetterDesk Go Server API
-    hbbsApiUrl: process.env.BETTERDESK_API_URL || process.env.HBBS_API_URL || 'http://localhost:21114/api',
+    hbbsApiUrl: process.env.BETTERDESK_API_URL || process.env.HBBS_API_URL || 'http://localhost:21121/api',
     hbbsApiKey: apiKey,
     hbbsApiTimeout: parseInt(process.env.BETTERDESK_API_TIMEOUT || process.env.HBBS_API_TIMEOUT, 10) || 3000,
 
     // BetterDesk Go Server API (preferred names)
-    betterdeskApiUrl: process.env.BETTERDESK_API_URL || process.env.HBBS_API_URL || 'http://localhost:21114/api',
+    betterdeskApiUrl: process.env.BETTERDESK_API_URL || process.env.HBBS_API_URL || 'http://localhost:21121/api',
     betterdeskApiKey: process.env.BETTERDESK_API_KEY || apiKey,
     betterdeskApiTimeout: parseInt(process.env.BETTERDESK_API_TIMEOUT, 10) || 5000,
 

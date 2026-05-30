@@ -9,7 +9,7 @@ echo "  Version: 2.4.0"
 echo "========================================"
 echo ""
 echo "Components:"
-echo "  Go Server:    signal + relay + API (ports 21114-21119)"
+echo "  Go Server:    signal + relay + API (ports 21115-21121)"
 echo "  Node.js Console: web panel (port ${PORT:-5000})"
 echo "  Client API:   port ${API_PORT:-21121}"
 echo ""
@@ -154,7 +154,7 @@ if [ "${HTTPS_ENABLED:-false}" = "true" ]; then
 else
     echo "  Web Console:  http://localhost:${PORT:-5000}"
 fi
-echo "  Go API:       http://localhost:21114/api"
+echo "  Go API:       http://localhost:21121/api"
 echo "========================================"
 echo ""
 

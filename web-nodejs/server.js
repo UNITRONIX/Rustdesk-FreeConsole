@@ -508,6 +508,18 @@ async function startServer() {
 
         // Start LAN Discovery UDP service
         startDiscoveryService();
+
+        // Start branded agent installer build worker (Generator Agenta / Phase 2).
+        // Disabled when AGENT_BUILD_WORKER=off — useful for hosts without the
+        // build toolchain (e.g. small consoles that only proxy to a build node).
+        if (process.env.AGENT_BUILD_WORKER !== 'off') {
+            try {
+                const agentBuildWorker = require('./services/agentBuildWorker');
+                agentBuildWorker.startWorker();
+            } catch (err) {
+                console.warn('[server] agent build worker disabled:', err.message);
+            }
+        }
         
         // ============ RustDesk Client API Server (dedicated port) ============
         let apiServer = null;
@@ -705,9 +717,9 @@ function printStartupBanner(protocol, port) {
     const apiHasCerts = config.sslCertPath && config.sslKeyPath && 
                         fs.existsSync(config.sslCertPath) && fs.existsSync(config.sslKeyPath);
     const apiProtocol = shouldUseRustDeskApiTls(apiHasCerts ? {} : null) ? 'HTTPS' : 'HTTP';
-    const apiStatus = config.apiEnabled ? `✅ Port ${config.apiPort} (${apiProtocol})` : '❌ Disabled';
+    const apiStatus = config.apiEnabled ? `✅ Port ${config.apiPort} (${apiProtocol})` : '➡️  Served by Go server';
     const panelUrl = `${protocol}://${config.host}:${port}`;
-    const goApiUrl = redactUrlForLog(config.betterdeskApiUrl || process.env.BETTERDESK_API_URL || 'http://localhost:21114/api');
+    const goApiUrl = redactUrlForLog(config.betterdeskApiUrl || process.env.BETTERDESK_API_URL || 'http://localhost:21121/api');
     console.log('');
     console.log('  ╔══════════════════════════════════════════════════╗');
     console.log('  ║                                                  ║');

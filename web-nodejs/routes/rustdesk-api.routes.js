@@ -39,10 +39,18 @@ const crypto = require('crypto');
 const authService = require('../services/authService');
 const db = require('../services/database');
 const serverBackend = require('../services/serverBackend');
+const betterdeskApi = require('../services/betterdeskApi');
 const addressBookSync = require('../services/rustdeskAddressBookSync');
 const deviceGroupService = require('../services/deviceGroupService');
 const config = require('../config/config');
 const { roleHasPermission } = require('../middleware/auth');
+
+// After the API-port consolidation the RustDesk clients report audit events to
+// the Go server (port 21121). When Node's own client API listener is disabled
+// the Go server is the source of truth, so panel audit widgets must read audit
+// data back from Go to stay consistent (notably on SQLite, where Go and Node
+// keep separate database files).
+const AUDIT_SOURCE_IS_GO = config.serverBackend === 'betterdesk' && !config.apiEnabled;
 
 // ==================== Constants ====================
 
@@ -928,6 +936,22 @@ router.get('/api/audit', async (req, res) => {
     }
     // Return combined recent audit events
     try {
+        if (AUDIT_SOURCE_IS_GO) {
+            const [c, f, a] = await Promise.all([
+                betterdeskApi.getClientAuditConnections({ limit: 50 }),
+                betterdeskApi.getClientAuditFiles({ limit: 50 }),
+                betterdeskApi.getClientAuditAlarms({ limit: 50 })
+            ]);
+            if (c || f || a) {
+                return res.json({
+                    data: {
+                        connections: (c && c.data) || [],
+                        files: (f && f.data) || [],
+                        alarms: (a && a.data) || []
+                    }
+                });
+            }
+        }
         const conns = await db.getAuditConnections({ limit: 50 });
         const files = await db.getAuditFiles({ limit: 50 });
         const alarms = await db.getAuditAlarms({ limit: 50 });
@@ -1608,6 +1632,11 @@ router.get('/api/audit/conn', async (req, res) => {
             offset: Math.max(0, parseInt(req.query.offset, 10) || 0)
         };
 
+        if (AUDIT_SOURCE_IS_GO) {
+            const remote = await betterdeskApi.getClientAuditConnections(filters);
+            if (remote) return res.json(remote);
+        }
+
         const data = await db.getAuditConnections(filters);
         const total = await db.countAuditConnections(filters);
 
@@ -1667,6 +1696,11 @@ router.get('/api/audit/file', requireAuth, async (req, res) => {
             offset: Math.max(0, parseInt(req.query.offset, 10) || 0)
         };
 
+        if (AUDIT_SOURCE_IS_GO) {
+            const remote = await betterdeskApi.getClientAuditFiles(filters);
+            if (remote) return res.json(remote);
+        }
+
         const data = await db.getAuditFiles(filters);
         const total = await db.countAuditFiles(filters);
 
@@ -1719,6 +1753,11 @@ router.get('/api/audit/alarm', requireAuth, async (req, res) => {
             limit: Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 100)),
             offset: Math.max(0, parseInt(req.query.offset, 10) || 0)
         };
+
+        if (AUDIT_SOURCE_IS_GO) {
+            const remote = await betterdeskApi.getClientAuditAlarms(filters);
+            if (remote) return res.json(remote);
+        }
 
         const data = await db.getAuditAlarms(filters);
         const total = await db.countAuditAlarms(filters);

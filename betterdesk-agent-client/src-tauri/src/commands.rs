@@ -327,6 +327,14 @@ pub fn get_agent_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Return the branding profile bundled with this build.  The frontend reads
+/// it once on startup to apply company colors, product name, and contact
+/// details set by the Console "Generator agenta".
+#[tauri::command]
+pub fn get_branding(app: tauri::AppHandle) -> crate::branding::Branding {
+    crate::branding::load(&app)
+}
+
 #[tauri::command]
 pub fn copy_to_clipboard(text: String) -> Result<(), String> {
     // Use Tauri's clipboard API via shell command fallback.

@@ -64,6 +64,9 @@ ENV DB_PATH=/app/data/db_v2.sqlite3
 ENV PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
 ENV API_KEY_PATH=/opt/rustdesk/.api_key
 ENV SERVER_BACKEND=betterdesk
+# API consolidated onto the Go server (21121); the console proxies to it and
+# does not run its own client API listener.
+ENV API_ENABLED=false
 ENV DOCKER=true
 
 # Health check
@@ -71,9 +74,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
 # Expose ports
-# 5000  - Web console
-# 21121 - RustDesk Client API (WAN-facing)
-EXPOSE 5000 21121
+# 5000  - Web console (admin panel)
+EXPOSE 5000
 
 # Note: Container starts as root so console-entrypoint.sh can fix volume permissions.
 # It drops to betterdesk user via su-exec before running docker-entrypoint.sh.

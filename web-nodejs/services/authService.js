@@ -40,7 +40,7 @@ async function checkGoServerHealth() {
         return _goHealthCache.healthy;
     }
 
-    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21121/api';
     let healthUrl;
     try {
         const base = new URL(apiUrl);
@@ -90,7 +90,7 @@ async function checkGoServerHealth() {
  * @returns {Promise<Object|null>}
  */
 function authenticateViaGo(username, password) {
-    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21121/api';
     let authUrl;
     try {
         const base = new URL(apiUrl);
@@ -150,7 +150,7 @@ function authenticateViaGo(username, password) {
  * @returns {Promise<Object|null>} — { token, role, username } or null
  */
 function verifyTotpViaGo(partialToken, code) {
-    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21121/api';
     let url;
     try {
         const base = new URL(apiUrl);
@@ -292,7 +292,7 @@ async function verifyPassword(password, hash) {
  * Returns { role: string } on success, or null on failure.
  */
 function tryGoServerAuth(username, password) {
-    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21121/api';
     let authUrl;
     try {
         const base = new URL(apiUrl);

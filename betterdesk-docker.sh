@@ -640,8 +640,9 @@ EOF
             context: .
             dockerfile: Dockerfile.server
         pull_policy: never
+        command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-api-port", "21121", "-key-file", "/opt/rustdesk/id_ed25519"]
         ports:
-            - "21114:21114"
+            - "21121:21121"
             - "21115:21115"
             - "21116:21116"
             - "21116:21116/udp"
@@ -667,7 +668,7 @@ EOF
 
         cat >> "$COMPOSE_FILE" << EOF
         healthcheck:
-            test: ["CMD", "curl", "-sf", "http://localhost:21114/api/health"]
+            test: ["CMD", "curl", "-sf", "http://localhost:21121/api/health"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -684,7 +685,6 @@ EOF
         pull_policy: never
         ports:
             - "5000:5000"
-            - "21121:21121"
         volumes:
             - $DATA_DIR:/opt/rustdesk:ro
             - console_data:/app/data
@@ -693,9 +693,10 @@ EOF
             - PORT=5000
             - HOST=0.0.0.0
             - API_HOST=0.0.0.0
+            - API_ENABLED=false
             - RUSTDESK_PATH=/opt/rustdesk
-            - HBBS_API_URL=http://$SERVER_CONTAINER:21114/api
-            - BETTERDESK_API_URL=http://$SERVER_CONTAINER:21114/api
+            - HBBS_API_URL=http://$SERVER_CONTAINER:21121/api
+            - BETTERDESK_API_URL=http://$SERVER_CONTAINER:21121/api
             - SERVER_BACKEND=betterdesk
             - DATA_DIR=/app/data
             - DB_PATH=/opt/rustdesk/db_v2.sqlite3
@@ -1341,7 +1342,7 @@ do_validate() {
     echo -e "${WHITE}Checking ports...${NC}"
     echo ""
     
-    for port in 21114 21115 21116 21117 5000 21121; do
+    for port in 21115 21116 21117 5000 21121; do
         echo -n "  Port $port: "
         if ss -tlnp 2>/dev/null | grep -q ":$port " || netstat -tlnp 2>/dev/null | grep -q ":$port "; then
             echo -e "${GREEN}● Listening${NC}"
@@ -1686,7 +1687,7 @@ do_diagnostics() {
         '
         if [ "$SERVER_RUNNING" = true ]; then
             docker exec "$SERVER_CONTAINER" sh -c '
-                RESP=$(curl -sf http://localhost:21114/api/peers 2>/dev/null)
+                RESP=$(curl -sf http://localhost:21121/api/peers 2>/dev/null)
                 if [ -n "$RESP" ]; then
                     echo "  Server API: responding"
                 else
@@ -1710,7 +1711,7 @@ do_diagnostics() {
         "21116:UDP:betterdesk-server:ID Server (UDP)"
         "21117:TCP:betterdesk-server:Relay Server"
         "5000:TCP:betterdesk-console:Web Console"
-        "21121:TCP:betterdesk-console:Client API (WAN)"
+        "21121:TCP:betterdesk-server:HTTP API (client + REST, WAN)"
     )
 
     for entry in "${port_defs[@]}"; do
@@ -1817,8 +1818,8 @@ do_diagnostics() {
     echo -e "${WHITE}${BOLD}═══ API connectivity ═══${NC}"
     echo ""
 
-    printf "  Server API (21114):  "
-    if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:21114/api/server-info" 2>/dev/null; then
+    printf "  Server API (21121):  "
+    if curl -sfo /dev/null --connect-timeout 3 "http://127.0.0.1:21121/api/server-info" 2>/dev/null; then
         echo -e "${GREEN}OK${NC}"
     else
         echo -e "${RED}UNREACHABLE${NC}"
@@ -2760,7 +2761,7 @@ do_configure_ssl() {
             print_info "  • Panel HTTPS: :5443"
             print_info "  • Signal TLS: :21116"
             print_info "  • Relay TLS: :21117"
-            print_info "  • API HTTPS: :21114"
+            print_info "  • API HTTPS: :21121"
             echo ""
             print_warning "For browsers/clients, you may need to import $ssl_dir/betterdesk.crt as trusted CA"
             ;;
