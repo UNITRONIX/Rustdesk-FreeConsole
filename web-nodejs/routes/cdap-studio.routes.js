@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth, requireRole, isSuperAdminRole } = require('../middleware/auth');
 const betterdeskApi = require('../services/betterdeskApi');
 const db = require('../services/dbAdapter');
 const crypto = require('crypto');
@@ -53,7 +53,7 @@ router.get('/cdap-studio', requireAuth, requireRole('operator'), (req, res) => {
  */
 router.get('/api/cdap-studio/flows', requireAuth, async (req, res) => {
     try {
-        const isAdmin = req.session.user && req.session.user.role === 'admin';
+        const isAdmin = isSuperAdminRole(req.session.user && req.session.user.role);
         let rows;
         if (isAdmin) {
             rows = await db.all(

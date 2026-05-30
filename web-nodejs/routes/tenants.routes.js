@@ -30,6 +30,7 @@
 const express = require('express');
 const router = express.Router();
 const { getAdapter } = require('../services/dbAdapter');
+const { isSuperAdminRole } = require('../middleware/auth');
 
 // ---------------------------------------------------------------------------
 //  Auth middleware
@@ -41,7 +42,8 @@ function requireSession(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-    if (req.session && req.session.user && req.session.user.role === 'admin') return next();
+    const role = req.session && req.session.user && req.session.user.role;
+    if (isSuperAdminRole(role) || role === 'global_admin') return next();
     return res.status(403).json({ error: 'Admin access required' });
 }
 

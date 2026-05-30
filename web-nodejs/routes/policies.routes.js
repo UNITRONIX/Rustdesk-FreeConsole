@@ -33,26 +33,7 @@
 const express = require('express');
 const router = express.Router();
 const { apiClient } = require('../services/betterdeskApi');
-
-// ---------------------------------------------------------------------------
-//  Auth middleware
-// ---------------------------------------------------------------------------
-
-function requireAuth(req, res, next) {
-    if (req.session && req.session.user) return next();
-    if (req.path.startsWith('/api/')) {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
-    return res.redirect('/login');
-}
-
-function requireAdmin(req, res, next) {
-    if (req.session && req.session.user && req.session.user.role === 'admin') return next();
-    if (req.path.startsWith('/api/')) {
-        return res.status(403).json({ error: 'Admin access required' });
-    }
-    return res.redirect('/dashboard');
-}
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 // ---------------------------------------------------------------------------
 //  Helper: proxy to Go server
