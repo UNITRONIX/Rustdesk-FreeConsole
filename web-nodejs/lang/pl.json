@@ -1585,7 +1585,20 @@
     "enrollment_sync_standard": "Standardowy — zbalansowana synchronizacja",
     "enrollment_sync_turbo": "Turbo — agresywna synchronizacja",
     "enrollment_approved_success": "Rejestracja urządzenia zatwierdzona",
-    "enrollment_rejected_success": "Rejestracja urządzenia odrzucona"
+    "enrollment_rejected_success": "Rejestracja urządzenia odrzucona",
+    "approve_title": "Zatwierdź urządzenie",
+    "field_name": "Nazwa urządzenia",
+    "field_name_placeholder": "Wpisz nazwę dla tego urządzenia...",
+    "field_sync_mode": "Tryb synchronizacji",
+    "sync_standard": "Standardowy — zrównoważona synchronizacja",
+    "sync_silent": "Cichy — minimalna telemetria",
+    "sync_turbo": "Turbo — agresywna synchronizacja",
+    "field_tags": "Tagi",
+    "field_tags_placeholder": "Tagi oddzielone przecinkami (np. biuro, laptop)...",
+    "field_folder": "Folder / Grupa",
+    "field_folder_none": "Brak folderu",
+    "reject_ban_option": "Zablokuj to urządzenie",
+    "reject_ban_hint": "Urządzenie zostanie zablokowane i nie będzie mogło wysyłać nowych żądań rejestracji."
   },
   "backup": {
     "title": "Kopia zapasowa",

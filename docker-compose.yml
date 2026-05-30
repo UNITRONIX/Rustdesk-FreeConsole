@@ -39,6 +39,10 @@ services:
       - ENCRYPTED_ONLY=1
       - DB_URL=${DB_URL:-/opt/rustdesk/db_v2.sqlite3}
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
+      # Enrollment policy. Fresh volumes default to "managed" (operator approves
+      # new devices); pre-existing volumes keep their current mode. Set to
+      # "open", "managed", or "locked" to override.
+      - ENROLLMENT_MODE=${ENROLLMENT_MODE:-}
     networks:
       - betterdesk-net
     restart: unless-stopped

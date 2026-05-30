@@ -182,6 +182,12 @@ BACKUP_DIR="${BACKUP_DIR:-/opt/rustdesk-backups}"
 API_PORT="${API_PORT:-21121}"
 STORE_ADMIN_CREDENTIALS="${STORE_ADMIN_CREDENTIALS:-false}"
 
+# Enrollment configuration
+# FRESH_INSTALL controls whether new-install defaults (e.g. managed enrollment
+# mode) are applied. It stays false for UPDATE/REPAIR so existing installs are
+# never silently switched to a stricter enrollment mode.
+FRESH_INSTALL="${FRESH_INSTALL:-false}"
+
 # Database configuration
 USE_POSTGRESQL="${USE_POSTGRESQL:-false}"  # true = PostgreSQL, false = SQLite
 POSTGRESQL_URI="${POSTGRESQL_URI:-}"       # postgres://user:pass@host:5432/dbname
@@ -2312,6 +2318,13 @@ setup_services() {
         if [ -n "$ADMIN_PASSWORD" ]; then
             printf 'INIT_ADMIN_PASS=%s\n' "$ADMIN_PASSWORD"
         fi
+        # New installs default to "managed" enrollment: stock RustDesk clients
+        # are queued for operator approval instead of connecting silently.
+        # Existing installs are left untouched (no ENROLLMENT_MODE written), so
+        # the Go server keeps its persisted/DB mode (open by default).
+        if [ "$FRESH_INSTALL" = "true" ]; then
+            printf 'ENROLLMENT_MODE=managed\n'
+        fi
     } > "$server_env_file"
     chmod 600 "$server_env_file"
     print_info "Wrote server secrets to $server_env_file (mode 0600)"
@@ -2793,7 +2806,16 @@ do_install() {
     echo ""
     
     detect_installation
-    
+
+    # Treat as a fresh install only when there is no existing database. This
+    # gates new-install defaults (managed enrollment mode) so reinstalls over
+    # an existing database preserve the operator's current enrollment policy.
+    if [ "$DATABASE_OK" = "true" ]; then
+        FRESH_INSTALL=false
+    else
+        FRESH_INSTALL=true
+    fi
+
     if [ "$INSTALL_STATUS" = "complete" ]; then
         print_warning "BetterDesk is already installed!"
         if [ "$AUTO_MODE" = false ]; then

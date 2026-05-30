@@ -21,6 +21,8 @@
     let currentSearch = '';
     let rejectTargetId = null;
     let rejectTargetSource = null;
+    let approveTargetId = null;
+    let foldersLoaded = false;
 
     const SOURCE_REGISTRATION = 'registration';
     const SOURCE_ENROLLMENT = 'enrollment';
@@ -32,7 +34,16 @@
     const filterButtons = document.querySelectorAll('.filter-btn');
     const rejectModal = document.getElementById('reject-modal');
     const rejectReasonInput = document.getElementById('reject-reason');
+    const rejectBanCheckbox = document.getElementById('reject-ban-checkbox');
+    const rejectBanGroup = document.getElementById('reject-ban-group');
     const confirmRejectBtn = document.getElementById('confirm-reject-btn');
+    const approveModal = document.getElementById('approve-modal');
+    const approveDeviceIdEl = document.getElementById('approve-device-id');
+    const approveDisplayNameInput = document.getElementById('approve-display-name');
+    const approveSyncModeSelect = document.getElementById('approve-sync-mode');
+    const approveTagsInput = document.getElementById('approve-tags');
+    const approveFolderSelect = document.getElementById('approve-folder');
+    const confirmApproveBtn = document.getElementById('confirm-approve-btn');
 
     // ---- API helpers ----
 
@@ -167,19 +178,75 @@
 
     // ---- Actions ----
 
-    async function approveRegistration(id, source) {
-        if (!confirm(_('registrations.approve_confirm'))) return;
-
+    async function loadFolders() {
+        // Populate folder dropdown once; keep the default "no folder" option.
         try {
-            const result = source === SOURCE_ENROLLMENT
-                ? await apiFetch(`/api/enrollment/approve/${encodeURIComponent(id)}`, {
-                    method: 'POST',
-                    body: JSON.stringify({ display_name: '', sync_mode: 'standard' }),
-                })
-                : await apiFetch(`/api/registrations/${encodeURIComponent(id)}/approve`, { method: 'PUT' });
+            const result = await apiFetch('/api/folders');
+            const folders = result.success ? ((result.data && result.data.folders) || result.folders || []) : [];
+            // Reset to the default option, then append folders.
+            approveFolderSelect.querySelectorAll('option:not([value="0"])').forEach(o => o.remove());
+            folders.forEach(folder => {
+                const opt = document.createElement('option');
+                opt.value = String(folder.id);
+                opt.textContent = folder.name || folder.label || `#${folder.id}`;
+                approveFolderSelect.appendChild(opt);
+            });
+            foldersLoaded = true;
+        } catch (_) {
+            // Folder list is optional; ignore errors.
+        }
+    }
+
+    function openApproveModal(id) {
+        approveTargetId = id;
+        approveDeviceIdEl.textContent = id;
+        approveDisplayNameInput.value = '';
+        approveSyncModeSelect.value = 'standard';
+        approveTagsInput.value = '';
+        approveFolderSelect.value = '0';
+        if (!foldersLoaded) loadFolders();
+        approveModal.style.display = 'flex';
+        setTimeout(() => approveDisplayNameInput.focus(), 50);
+    }
+
+    async function confirmApprove() {
+        if (!approveTargetId) return;
+        try {
+            const result = await apiFetch(`/api/enrollment/approve/${encodeURIComponent(approveTargetId)}`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    display_name: approveDisplayNameInput.value.trim(),
+                    sync_mode: approveSyncModeSelect.value || 'standard',
+                    tags: approveTagsInput.value.trim(),
+                    folder_id: parseInt(approveFolderSelect.value, 10) || 0,
+                }),
+            });
             if (!result.success) throw new Error(result.error);
 
-            showToast(source === SOURCE_ENROLLMENT ? _('registrations.enrollment_approved_success') : _('registrations.approved_success'), 'success');
+            approveModal.style.display = 'none';
+            approveTargetId = null;
+            showToast(_('registrations.enrollment_approved_success'), 'success');
+            loadRegistrations();
+            loadPendingCount();
+        } catch (err) {
+            showToast(err.message || _('errors.server_error'), 'error');
+        }
+    }
+
+    async function approveRegistration(id, source) {
+        // Enrollment requests (stock RustDesk) use the rich approval modal.
+        if (source === SOURCE_ENROLLMENT) {
+            openApproveModal(id);
+            return;
+        }
+
+        // Node-side LAN registration requests keep the simple approve flow.
+        if (!confirm(_('registrations.approve_confirm'))) return;
+        try {
+            const result = await apiFetch(`/api/registrations/${encodeURIComponent(id)}/approve`, { method: 'PUT' });
+            if (!result.success) throw new Error(result.error);
+
+            showToast(_('registrations.approved_success'), 'success');
             loadRegistrations();
             loadPendingCount();
         } catch (err) {
@@ -191,6 +258,11 @@
         rejectTargetId = id;
         rejectTargetSource = source || SOURCE_REGISTRATION;
         rejectReasonInput.value = '';
+        if (rejectBanCheckbox) rejectBanCheckbox.checked = false;
+        // The ban option only applies to enrollment (stock RustDesk) requests.
+        if (rejectBanGroup) {
+            rejectBanGroup.style.display = rejectTargetSource === SOURCE_ENROLLMENT ? '' : 'none';
+        }
         rejectModal.style.display = 'flex';
     }
 
@@ -201,7 +273,7 @@
             const result = rejectTargetSource === SOURCE_ENROLLMENT
                 ? await apiFetch(`/api/enrollment/reject/${encodeURIComponent(rejectTargetId)}`, {
                     method: 'POST',
-                    body: JSON.stringify({}),
+                    body: JSON.stringify({ ban: !!(rejectBanCheckbox && rejectBanCheckbox.checked) }),
                 })
                 : await apiFetch(`/api/registrations/${encodeURIComponent(rejectTargetId)}/reject`, {
                     method: 'PUT',
@@ -341,6 +413,9 @@
 
     // Reject modal
     confirmRejectBtn.addEventListener('click', confirmReject);
+
+    // Approve modal
+    if (confirmApproveBtn) confirmApproveBtn.addEventListener('click', confirmApprove);
 
     tbody.addEventListener('click', (e) => {
         const actionBtn = e.target.closest('[data-reg-action]');

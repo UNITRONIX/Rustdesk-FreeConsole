@@ -60,6 +60,52 @@
                 </table>
             </div>
 
+            <!-- Approve Modal (enrollment) -->
+            <div class="modal-overlay" id="approve-modal" style="display: none;">
+                <div class="modal">
+                    <div class="modal-header">
+                        <h3>${_('registrations.approve_title')}</h3>
+                        <button class="btn-icon modal-close" data-modal="approve-modal">
+                            <span class="material-icons">close</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="modal-device-line">
+                            <span class="material-icons">how_to_reg</span>
+                            <code id="approve-device-id"></code>
+                        </p>
+                        <div class="form-group">
+                            <label for="approve-display-name">${_('registrations.field_name')}</label>
+                            <input type="text" id="approve-display-name" class="form-input"
+                                placeholder="${_('registrations.field_name_placeholder')}">
+                        </div>
+                        <div class="form-group">
+                            <label for="approve-sync-mode">${_('registrations.field_sync_mode')}</label>
+                            <select id="approve-sync-mode" class="form-input">
+                                <option value="standard">${_('registrations.sync_standard')}</option>
+                                <option value="silent">${_('registrations.sync_silent')}</option>
+                                <option value="turbo">${_('registrations.sync_turbo')}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="approve-tags">${_('registrations.field_tags')}</label>
+                            <input type="text" id="approve-tags" class="form-input"
+                                placeholder="${_('registrations.field_tags_placeholder')}">
+                        </div>
+                        <div class="form-group">
+                            <label for="approve-folder">${_('registrations.field_folder')}</label>
+                            <select id="approve-folder" class="form-input">
+                                <option value="0">${_('registrations.field_folder_none')}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary modal-close" data-modal="approve-modal">${_('common.cancel')}</button>
+                        <button class="btn btn-primary" id="confirm-approve-btn">${_('registrations.approve_btn')}</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Reject Modal -->
             <div class="modal-overlay" id="reject-modal" style="display: none;">
                 <div class="modal">
@@ -75,6 +121,13 @@
                             <label for="reject-reason">${_('registrations.reject_reason')}</label>
                             <textarea id="reject-reason" class="form-input" rows="3"
                                 placeholder="${_('registrations.reject_reason_placeholder')}"></textarea>
+                        </div>
+                        <div class="form-group form-check" id="reject-ban-group" style="margin-top: 12px;">
+                            <label class="check-label">
+                                <input type="checkbox" id="reject-ban-checkbox">
+                                <span>${_('registrations.reject_ban_option')}</span>
+                            </label>
+                            <p class="form-hint">${_('registrations.reject_ban_hint')}</p>
                         </div>
                     </div>
                     <div class="modal-footer">

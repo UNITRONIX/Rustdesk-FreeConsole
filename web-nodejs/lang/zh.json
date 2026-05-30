@@ -1521,7 +1521,20 @@
     "enrollment_sync_standard": "Standard — balanced sync",
     "enrollment_sync_turbo": "Turbo — aggressive sync",
     "enrollment_approved_success": "Device enrollment approved",
-    "enrollment_rejected_success": "Device enrollment rejected"
+    "enrollment_rejected_success": "Device enrollment rejected",
+    "approve_title": "批准设备",
+    "field_name": "设备名称",
+    "field_name_placeholder": "为此设备输入名称...",
+    "field_sync_mode": "同步模式",
+    "sync_standard": "标准 — 平衡同步",
+    "sync_silent": "静默 — 最少遥测",
+    "sync_turbo": "极速 — 积极同步",
+    "field_tags": "标签",
+    "field_tags_placeholder": "以逗号分隔的标签（例如 办公室, 笔记本）...",
+    "field_folder": "文件夹 / 分组",
+    "field_folder_none": "无文件夹",
+    "reject_ban_option": "封禁此设备",
+    "reject_ban_hint": "该设备将被封禁，无法发送新的注册请求。"
   },
   "backup": {
     "title": "备份",

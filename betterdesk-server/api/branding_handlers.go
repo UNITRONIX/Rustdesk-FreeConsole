@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -435,6 +436,7 @@ func (s *Server) handleApproveDevice(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		DisplayName string `json:"display_name"`
 		SyncMode    string `json:"sync_mode"` // silent, standard, turbo
+		Tags        string `json:"tags"`      // comma-separated tag list
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
@@ -489,12 +491,18 @@ func (s *Server) handleApproveDevice(w http.ResponseWriter, r *http.Request) {
 		s.db.UpdatePeerFields(deviceID, map[string]string{"note": req.DisplayName})
 	}
 
+	// Apply tags if provided (comma-separated, normalized)
+	tags := normalizeEnrollmentTags(req.Tags)
+	if tags != "" {
+		s.db.UpdatePeerFields(deviceID, map[string]string{"tags": tags})
+	}
+
 	// Remove from pending
 	s.db.DeleteConfig("pending_device_" + deviceID)
 
 	if s.auditLog != nil {
 		s.auditLog.Log("device_approved", s.remoteIP(r), getUsernameFromCtx(r), map[string]string{
-			"device_id": deviceID, "sync_mode": syncMode, "display_name": req.DisplayName,
+			"device_id": deviceID, "sync_mode": syncMode, "display_name": req.DisplayName, "tags": tags,
 		})
 	}
 
@@ -527,14 +535,28 @@ func (s *Server) handleRejectDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req struct {
+		Ban bool `json:"ban"` // also ban the device so it cannot retry
+	}
+	// Body is optional; ignore decode errors (empty body = no ban).
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
 	// Remove from pending
 	s.db.DeleteConfig("pending_device_" + deviceID)
 	// Store rejection marker (so status poll returns "rejected")
 	s.db.SetConfig("rejected_device_"+deviceID, `{"rejected":true}`)
 
+	// Optionally ban the device so subsequent registration attempts are blocked.
+	if req.Ban {
+		if err := s.db.BanPeer(deviceID, "enrollment rejected"); err != nil {
+			log.Printf("[API] handleRejectDevice: failed to ban %s: %v", deviceID, err)
+		}
+	}
+
 	if s.auditLog != nil {
 		s.auditLog.Log("device_rejected", s.remoteIP(r), getUsernameFromCtx(r), map[string]string{
 			"device_id": deviceID,
+			"banned":    strconv.FormatBool(req.Ban),
 		})
 	}
 
@@ -543,12 +565,13 @@ func (s *Server) handleRejectDevice(w http.ResponseWriter, r *http.Request) {
 			Type: "device_rejected",
 			Data: map[string]string{
 				"device_id": deviceID,
+				"banned":    strconv.FormatBool(req.Ban),
 			},
 		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "banned": req.Ban})
 }
 
 // ---------------------------------------------------------------------------
@@ -705,4 +728,26 @@ func timeNowUnixMilli() int64 {
 
 func timeNowISO() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+// normalizeEnrollmentTags cleans a comma-separated tag list: trims whitespace,
+// drops empty entries and de-duplicates while preserving order.
+func normalizeEnrollmentTags(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return ""
+	}
+	seen := make(map[string]struct{})
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		t := strings.TrimSpace(part)
+		if t == "" {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		out = append(out, t)
+	}
+	return strings.Join(out, ",")
 }

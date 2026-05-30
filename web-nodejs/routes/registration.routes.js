@@ -345,15 +345,24 @@ router.get('/api/enrollment/pending', requirePermission('enrollment.approve'), a
 
 /**
  * POST /api/enrollment/approve/:id — Approve a pending enrollment on Go server.
- * Body: { display_name, sync_mode }
+ * Body: { display_name, sync_mode, tags, folder_id }
  */
 router.post('/api/enrollment/approve/:id', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const deviceId = req.params.id;
-        const { display_name, sync_mode } = req.body;
-        const result = await betterdeskApi.approveEnrollment(deviceId, display_name, sync_mode);
+        const { display_name, sync_mode, tags, folder_id } = req.body;
+        const result = await betterdeskApi.approveEnrollment(deviceId, display_name, sync_mode, tags);
 
         if (result.success) {
+            // Folders are managed Node-side; assign after Go approval succeeds.
+            const folderId = parseInt(folder_id, 10);
+            if (!isNaN(folderId) && folderId > 0) {
+                try {
+                    await db.assignDeviceToFolder(deviceId, folderId);
+                } catch (e) {
+                    console.error('Assign device to folder error:', e);
+                }
+            }
             try {
                 await db.logAction(
                     req.session?.user?.id || 0,
@@ -373,18 +382,20 @@ router.post('/api/enrollment/approve/:id', requirePermission('enrollment.approve
 
 /**
  * POST /api/enrollment/reject/:id — Reject a pending enrollment on Go server.
+ * Body: { ban }
  */
 router.post('/api/enrollment/reject/:id', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const deviceId = req.params.id;
-        const result = await betterdeskApi.rejectEnrollment(deviceId);
+        const ban = !!(req.body && req.body.ban);
+        const result = await betterdeskApi.rejectEnrollment(deviceId, ban);
 
         if (result.success) {
             try {
                 await db.logAction(
                     req.session?.user?.id || 0,
                     'enrollment_rejected',
-                    `Rejected enrollment for device ${deviceId}`,
+                    `Rejected enrollment for device ${deviceId}${ban ? ' (banned)' : ''}`,
                     getClientIp(req)
                 );
             } catch (_) { /* audit log optional */ }

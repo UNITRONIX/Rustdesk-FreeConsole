@@ -41,6 +41,10 @@ services:
       # Example: RELAY_SERVERS=203.0.113.10:21117 docker compose up -d
       - RELAY_SERVERS=${RELAY_SERVERS:-}
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
+      # Enrollment policy. Fresh volumes default to "managed" (operator approves
+      # new devices); pre-existing volumes keep their current mode. Override with
+      # "open", "managed", or "locked".
+      - ENROLLMENT_MODE=${ENROLLMENT_MODE:-}
     networks:
       - betterdesk-net
     restart: unless-stopped

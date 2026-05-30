@@ -24,6 +24,9 @@ const (
 	ActionPeerUpdated      Action = "peer_updated"
 	ActionPeerIDChanged    Action = "peer_id_changed"
 	ActionPeerTagsUpdated  Action = "peer_tags_updated"
+	// ActionEnrollmentPending is logged when an unknown device is placed into
+	// the pending enrollment queue (managed mode) awaiting operator approval.
+	ActionEnrollmentPending Action = "enrollment_pending"
 	// ActionPeerRegistrationRejected is logged when a registration attempt is
 	// rejected by the signal server (soft-deleted, banned, blocklisted,
 	// enrollment policy, renamed ID). Used for forensic visibility of

@@ -146,6 +146,29 @@ elif [ -n "${API_KEY:-}" ] && [ ! -f "$API_KEY_FILE" ]; then
     echo "API key from env → $API_KEY_FILE"
 fi
 
+# Default enrollment policy.
+# Fresh volumes default to "managed": stock RustDesk clients are queued for
+# operator approval instead of connecting silently. Pre-existing installs keep
+# their current behavior (Go default "open", or whatever was set via the panel
+# and persisted in the database). A volume that already contains a server key
+# or SQLite database is treated as pre-existing.
+if [ -z "${ENROLLMENT_MODE:-}" ]; then
+    ENROLLMENT_SENTINEL="/opt/rustdesk/.enrollment_initialized"
+    if [ ! -f "$ENROLLMENT_SENTINEL" ]; then
+        if [ -f /opt/rustdesk/db_v2.sqlite3 ] || [ -f /opt/rustdesk/id_ed25519 ]; then
+            echo "Enrollment:   preserving existing policy (pre-existing volume)"
+        else
+            export ENROLLMENT_MODE="managed"
+            echo "Enrollment:   managed (fresh install — new devices need approval)"
+        fi
+        touch "$ENROLLMENT_SENTINEL" 2>/dev/null || true
+        chown betterdesk:betterdesk "$ENROLLMENT_SENTINEL" 2>/dev/null || true
+    fi
+fi
+# Always export so supervisord's %(ENV_ENROLLMENT_MODE)s interpolation resolves.
+# An empty value is ignored by the Go server (keeps default/DB-restored mode).
+export ENROLLMENT_MODE="${ENROLLMENT_MODE:-}"
+
 echo ""
 echo "Starting services via supervisord..."
 if [ "${HTTPS_ENABLED:-false}" = "true" ]; then

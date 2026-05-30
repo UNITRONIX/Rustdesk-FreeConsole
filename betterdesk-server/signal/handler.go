@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -13,6 +14,7 @@ import (
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
@@ -1661,8 +1663,11 @@ func (s *Server) checkEnrollmentPermission(peerID, clientIP string) bool {
 				return true
 			}
 		}
-		// In managed mode, reject unknown devices
-		log.Printf("[signal] Enrollment: rejected unknown peer %s (managed mode, no token)", peerID)
+		// In managed mode, unknown devices are placed into the pending
+		// enrollment queue so an operator can review and approve/reject them.
+		// The connection is still denied until approval.
+		s.recordPendingEnrollment(peerID, clientIP)
+		log.Printf("[signal] Enrollment: queued unknown peer %s for approval (managed mode)", peerID)
 		return false
 	}
 
@@ -1679,4 +1684,67 @@ func (s *Server) checkEnrollmentPermission(peerID, clientIP string) bool {
 	}
 
 	return true
+}
+
+// pendingEnrollmentInfo mirrors the JSON schema used by the API package
+// (pendingDeviceInfo) so that entries created here are readable by the
+// enrollment approve/list handlers.
+type pendingEnrollmentInfo struct {
+	DeviceID  string `json:"device_id"`
+	Hostname  string `json:"hostname"`
+	Platform  string `json:"platform"`
+	Version   string `json:"version"`
+	IP        string `json:"ip"`
+	CreatedAt string `json:"created_at"`
+}
+
+// recordPendingEnrollment stores an unknown peer in the pending enrollment
+// queue (server_config key "pending_device_<id>") so operators can review it.
+// It is idempotent: existing pending entries are preserved (to keep their
+// original timestamp) and already-rejected devices are never re-queued.
+func (s *Server) recordPendingEnrollment(peerID, clientIP string) {
+	if s.db == nil {
+		return
+	}
+
+	// Never re-queue a device that was explicitly rejected.
+	if v, err := s.db.GetConfig("rejected_device_" + peerID); err == nil && v != "" {
+		return
+	}
+
+	// Preserve an existing pending entry (keeps the original created_at).
+	key := "pending_device_" + peerID
+	if v, err := s.db.GetConfig(key); err == nil && v != "" {
+		return
+	}
+
+	info := pendingEnrollmentInfo{
+		DeviceID:  peerID,
+		IP:        clientIP,
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	data, err := json.Marshal(info)
+	if err != nil {
+		log.Printf("[signal] recordPendingEnrollment: marshal failed for %s: %v", peerID, err)
+		return
+	}
+	if err := s.db.SetConfig(key, string(data)); err != nil {
+		log.Printf("[signal] recordPendingEnrollment: store failed for %s: %v", peerID, err)
+		return
+	}
+
+	if s.auditLog != nil {
+		s.auditLog.Log(audit.ActionEnrollmentPending, peerID, clientIP, map[string]string{
+			"reason": "queued for approval (managed mode)",
+		})
+	}
+	if s.eventBus != nil {
+		s.eventBus.Publish(events.Event{
+			Type: events.EventEnrollmentPending,
+			Data: map[string]string{
+				"device_id": peerID,
+				"ip":        clientIP,
+			},
+		})
+	}
 }

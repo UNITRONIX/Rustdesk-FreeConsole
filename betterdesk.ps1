@@ -160,7 +160,9 @@ $script:BINARIES_OK = $false
 $script:DATABASE_OK = $false
 $script:CONSOLE_TYPE = "none"  # none, nodejs
 $script:SERVER_TYPE = "none"    # none, go, rust
-
+# FRESH_INSTALL gates new-install defaults (e.g. managed enrollment mode). It
+# stays $false for UPDATE/REPAIR so existing installs keep their current policy.
+$script:FRESH_INSTALL = $false
 # Logging
 $script:LOG_FILE = "$env:TEMP\betterdesk_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
@@ -1719,6 +1721,9 @@ function Setup-Services {
     # command line (NSSM stores these in the ACL-protected service registry key).
     $serverEnvExtra = @("DB_URL=$dbValue")
     if ($adminPass) { $serverEnvExtra += "INIT_ADMIN_PASS=$adminPass" }
+    # New installs default to "managed" enrollment so stock RustDesk clients are
+    # queued for operator approval. Existing installs are left untouched.
+    if ($script:FRESH_INSTALL) { $serverEnvExtra += "ENROLLMENT_MODE=managed" }
     & $nssm set $script:SERVER_SERVICE AppEnvironmentExtra $serverEnvExtra
     
     # Privilege separation: drop the Go server to its low-privilege virtual account.
@@ -1868,6 +1873,8 @@ function Setup-ScheduledTasks {
     $launcherLines = @("@echo off")
     $launcherLines += "set `"DB_URL=$dbValue`""
     if ($adminPass) { $launcherLines += "set `"INIT_ADMIN_PASS=$adminPass`"" }
+    # New installs default to "managed" enrollment; existing installs untouched.
+    if ($script:FRESH_INSTALL) { $launcherLines += "set `"ENROLLMENT_MODE=managed`"" }
     $launcherLines += "`"$serverExe`" $serverArgs"
     Set-Content -Path $serverLauncher -Value $launcherLines -Encoding ASCII
     & icacls $serverLauncher /inheritance:r /grant:r "*S-1-5-32-544:F" "*S-1-5-18:F" 2>$null | Out-Null
@@ -2499,6 +2506,10 @@ function Do-Install {
         }
         Do-BackupSilent
     }
+    
+    # Treat as fresh only when no database exists yet. Reinstalls over an
+    # existing database preserve the operator's current enrollment policy.
+    $script:FRESH_INSTALL = -not $script:DATABASE_OK
     
     Write-Host ""
     Print-Info "Starting BetterDesk Console v$script:VERSION installation..."

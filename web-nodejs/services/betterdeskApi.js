@@ -717,12 +717,14 @@ async function getEnrollmentPending() {
  * @param {string} deviceId - Device ID to approve
  * @param {string} displayName - Operator-assigned display name
  * @param {string} syncMode - Sync mode: silent, standard, turbo
+ * @param {string} tags - Comma-separated tag list
  */
-async function approveEnrollment(deviceId, displayName, syncMode) {
+async function approveEnrollment(deviceId, displayName, syncMode, tags) {
     try {
         const { data } = await apiClient.post(`/enrollment/approve/${encodeURIComponent(deviceId)}`, {
             display_name: displayName || '',
-            sync_mode: syncMode || 'standard'
+            sync_mode: syncMode || 'standard',
+            tags: tags || ''
         });
         return wrap(data);
     } catch (e) {
@@ -733,10 +735,13 @@ async function approveEnrollment(deviceId, displayName, syncMode) {
 /**
  * Reject a pending enrollment request on Go server.
  * @param {string} deviceId - Device ID to reject
+ * @param {boolean} ban - Also ban the device so it cannot retry
  */
-async function rejectEnrollment(deviceId) {
+async function rejectEnrollment(deviceId, ban) {
     try {
-        const { data } = await apiClient.post(`/enrollment/reject/${encodeURIComponent(deviceId)}`);
+        const { data } = await apiClient.post(`/enrollment/reject/${encodeURIComponent(deviceId)}`, {
+            ban: !!ban
+        });
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
