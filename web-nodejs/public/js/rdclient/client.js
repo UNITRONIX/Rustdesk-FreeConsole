@@ -999,7 +999,15 @@ class RDClient {
 
         // Initialize video decoder callbacks
         this.video.onFrame = (frame) => this.renderer.pushFrame(frame);
-        this.video.onError = (err) => this._emit('log', 'Video error: ' + err.message);
+        this.video.onError = (err) => this._emit('log', 'Video error: ' + (err && err.message ? err.message : err));
+
+        // The decoder asks for a keyframe whenever it (re)configures or recovers
+        // from an error; forward that as a refresh_video request to the peer.
+        this.video.onNeedKeyframe = () => {
+            if (this._state === 'streaming') {
+                this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
+            }
+        };
 
         // Request keyframe on resize/fullscreen to fix blur
         this.renderer.onResizeRefresh = () => {
@@ -1035,6 +1043,10 @@ class RDClient {
             imageQuality: quality
         }));
 
+        // Proactively request an initial keyframe so the decoder can start
+        // immediately even if we joined an already-running stream on a delta.
+        this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
+
         // Start ping interval
         this._pingInterval = setInterval(() => {
             if (this._state === 'streaming') {
@@ -1050,15 +1062,35 @@ class RDClient {
             }
         }, 1000);
 
-        // Stall recovery: if no video frames arrive for 3 seconds, request a keyframe
+        // Stall recovery. Two cases trigger a keyframe request:
+        //  1. No VideoFrame at all from the peer for 3s.
+        //  2. The peer keeps sending frames but the decoder produces no output
+        //     (e.g. we joined mid-stream on delta frames) for 2s.
+        this._lastDecodedCount = 0;
+        this._lastDecodeProgressTime = Date.now();
         this._stallCheckInterval = setInterval(() => {
             if (this._state !== 'streaming') return;
             const now = Date.now();
+
+            const decoded = this.video ? this.video.frameCount : 0;
+            if (decoded !== this._lastDecodedCount) {
+                this._lastDecodedCount = decoded;
+                this._lastDecodeProgressTime = now;
+            }
+
             const lastFrame = this._lastVideoFrameTime || 0;
-            if (lastFrame > 0 && now - lastFrame > 3000) {
+            const noPeerFrames = lastFrame > 0 && now - lastFrame > 3000;
+            const peerFramesButNoDecode = (this._peerFrameCount || 0) > 0
+                && decoded === 0 && now - this._lastDecodeProgressTime > 2000;
+
+            if (noPeerFrames || peerFramesButNoDecode) {
                 this._emit('log', 'Video stall detected, requesting keyframe');
                 this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
+                if (this.video) {
+                    this.video._needKeyframe = true;
+                }
                 this._lastVideoFrameTime = now; // prevent rapid retries
+                this._lastDecodeProgressTime = now;
             }
         }, 1500);
 

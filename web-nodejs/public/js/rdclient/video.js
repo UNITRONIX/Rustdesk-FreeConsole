@@ -52,6 +52,18 @@ class RDVideo {
         this._autoplayBlocked = false;
         /** @type {Function|null} Callback when autoplay is blocked */
         this.onAutoplayBlocked = null;
+        /** @type {boolean} WebCodecs decoder is waiting for a keyframe before it can decode */
+        this._needKeyframe = false;
+        /** @type {Function|null} Callback asking the client to request a keyframe (refresh_video) */
+        this.onNeedKeyframe = null;
+        /** @type {number} Monotonic counter for WebCodecs chunk timestamps */
+        this._decodeInputCount = 0;
+        /** @type {Object|null} Last WebCodecs decoder configuration (for recovery) */
+        this._codecConfig = null;
+        /** @type {boolean} Whether we already retried software decoding after a hardware failure */
+        this._softwareRetry = false;
+        /** @type {number} Last decoder error timestamp (ms) for throttled recovery */
+        this._lastDecodeErrorTime = 0;
     }
 
     /**
@@ -162,12 +174,27 @@ class RDVideo {
             throw new Error(`Unsupported codec: ${codecName}`);
         }
 
-        // Verify codec is supported
-        const support = await VideoDecoder.isConfigSupported({
-            codec: codecString,
-            hardwareAcceleration: 'prefer-hardware'
-        });
+        // Choose acceleration: prefer hardware, but fall back to software after
+        // a hardware decode failure (some Linux/Chrome setups have flaky
+        // hardware H.264 paths that silently stop producing frames).
+        const accel = this._softwareRetry ? 'prefer-software' : 'prefer-hardware';
 
+        // Verify codec is supported. If the preferred acceleration is not
+        // available, retry the probe without a preference so software-only
+        // environments still pass.
+        let support;
+        try {
+            support = await VideoDecoder.isConfigSupported({ codec: codecString, hardwareAcceleration: accel });
+        } catch {
+            support = { supported: false };
+        }
+        if (!support.supported) {
+            try {
+                support = await VideoDecoder.isConfigSupported({ codec: codecString });
+            } catch {
+                support = { supported: false };
+            }
+        }
         if (!support.supported) {
             throw new Error(`Codec ${codecName} not supported by browser`);
         }
@@ -177,17 +204,26 @@ class RDVideo {
             error: (err) => this._handleError(err)
         });
 
-        this.decoder.configure({
+        // Remember the configuration so the decoder can be rebuilt on error.
+        this._codecConfig = {
             codec: codecString,
-            hardwareAcceleration: 'prefer-hardware',
+            hardwareAcceleration: accel,
             optimizeForLatency: true
-        });
+        };
+        this.decoder.configure(this._codecConfig);
 
         this.fallbackMode = false;
         this.currentCodec = codecName;
         this.frameCount = 0;
         this.droppedFrames = 0;
         this.initialized = true;
+        // A freshly configured decoder must receive a keyframe before any delta
+        // frame. Drop deltas until one arrives and proactively request one.
+        this._needKeyframe = true;
+        this._decodeInputCount = 0;
+        if (this.onNeedKeyframe) {
+            this.onNeedKeyframe();
+        }
     }
 
     /**
@@ -532,11 +568,29 @@ class RDVideo {
             return;
         }
 
+        // A WebCodecs decoder must start from a keyframe. Drop delta frames
+        // until the first keyframe (or one requested after an error) arrives.
+        if (this._needKeyframe) {
+            if (!frameData.key) {
+                this.droppedFrames++;
+                return;
+            }
+            this._needKeyframe = false;
+        }
+
+        // If the decode queue is backing up (slow/overloaded decoder), drop
+        // delta frames to catch up. Keyframes are always decoded.
+        if (!frameData.key && this.decoder.decodeQueueSize > 30) {
+            this.droppedFrames++;
+            return;
+        }
+
         try {
-            // WebCodecs expects timestamps in microseconds.
-            // Use monotonic frameCount * 16667µs (~60fps) for stable timing.
-            // Using pts directly with * 1000 would give 1ms intervals which overflows the decoder queue.
-            const timestamp = this.frameCount * 16667; // ~60fps in microseconds
+            // WebCodecs expects monotonically increasing timestamps in
+            // microseconds. Use a dedicated input counter (the output
+            // frameCount can stay 0 while decoding has not produced a frame
+            // yet, which would yield duplicate timestamps).
+            const timestamp = (this._decodeInputCount++) * 16667; // ~60fps in microseconds
             const chunk = new EncodedVideoChunk({
                 type: frameData.key ? 'key' : 'delta',
                 timestamp: timestamp,
@@ -546,9 +600,9 @@ class RDVideo {
             this.decoder.decode(chunk);
         } catch (err) {
             this.droppedFrames++;
-            if (this.onError) {
-                this.onError(err);
-            }
+            // The next frame must be a keyframe to resynchronise the decoder.
+            this._needKeyframe = true;
+            this._handleError(err);
         }
     }
 
@@ -637,13 +691,52 @@ class RDVideo {
     }
 
     /**
-     * Handle decoder error
+     * Handle decoder error.
+     * Rebuilds the WebCodecs decoder (falling back to software decoding once)
+     * and requests a fresh keyframe so the stream can resynchronise instead of
+     * staying stuck on a black screen.
      * @param {Error} err
      */
     _handleError(err) {
-        console.error('[RDVideo] Decoder error:', err);
+        console.error('[RDVideo] Decoder error:', err && err.message ? err.message : err);
         if (this.onError) {
             this.onError(err);
+        }
+
+        if (this.fallbackMode || !RDVideo.isSupported()) {
+            return;
+        }
+
+        // Throttle recovery attempts to once per second.
+        const now = performance.now();
+        if (now - this._lastDecodeErrorTime < 1000) {
+            return;
+        }
+        this._lastDecodeErrorTime = now;
+
+        // First recovery after a hardware decode failure: retry with software.
+        if (!this._softwareRetry) {
+            this._softwareRetry = true;
+            console.warn('[RDVideo] Rebuilding decoder with software decoding fallback');
+        }
+
+        this._needKeyframe = true;
+
+        try {
+            if (this.decoder && this.decoder.state !== 'closed') {
+                this.decoder.close();
+            }
+        } catch {
+            // ignore
+        }
+
+        const codecName = this.currentCodec;
+        this.decoder = null;
+        this.initialized = false;
+        if (codecName) {
+            this.init(codecName).catch((e) => {
+                console.error('[RDVideo] Decoder rebuild failed:', e && e.message ? e.message : e);
+            });
         }
     }
 
