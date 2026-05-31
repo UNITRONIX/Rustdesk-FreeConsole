@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -47,6 +48,24 @@ type Config struct {
 	// choose; "none" forces software. Concrete: vaapi, nvenc, qsv, amf,
 	// videotoolbox.
 	HwAccel string `json:"hw_accel,omitempty"`
+
+	// ── TLS hardening (Phase 4) ──────────────────────────────────────
+	// EnforceTLS rejects plaintext ws:// for any non-local host (returns an
+	// error from Validate instead of only warning). Recommended for any
+	// production deployment reachable over a network.
+	EnforceTLS bool `json:"enforce_tls,omitempty"`
+	// ServerCertPin is a hex-encoded SHA-256 of the server certificate's
+	// SubjectPublicKeyInfo (SPKI). When set, the agent verifies that the TLS
+	// leaf certificate's public key matches this pin and rejects any
+	// connection that does not — defeating man-in-the-middle attacks even
+	// when a rogue CA is trusted by the system. Generate with:
+	//   openssl x509 -in cert.pem -pubkey -noout |
+	//   openssl pkey -pubin -outform der | openssl dgst -sha256
+	ServerCertPin string `json:"server_cert_pin,omitempty"`
+	// TLSInsecureSkipVerify disables system CA verification (self-signed
+	// servers). Only honoured when ServerCertPin is empty; logs a warning.
+	// Prefer ServerCertPin over this for self-signed deployments.
+	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
 }
 
 // DefaultConfig returns sensible defaults for all platforms.
@@ -131,6 +150,9 @@ func (c *Config) loadEnv() {
 	envBool("BDAGENT_FILE_BROWSER", &c.FileBrowser)
 	envBool("BDAGENT_CLIPBOARD", &c.Clipboard)
 	envBool("BDAGENT_SCREENSHOT", &c.Screenshot)
+	envStr("BDAGENT_SERVER_CERT_PIN", &c.ServerCertPin)
+	envBool("BDAGENT_ENFORCE_TLS", &c.EnforceTLS)
+	envBool("BDAGENT_TLS_INSECURE", &c.TLSInsecureSkipVerify)
 }
 
 // Validate checks required fields and clamps values to safe ranges.
@@ -150,8 +172,26 @@ func (c *Config) Validate() error {
 		}
 		isLocal := host == "localhost" || host == "127.0.0.1" || host == "::1"
 		if !isLocal {
+			if c.EnforceTLS {
+				return fmt.Errorf("plaintext ws:// is not allowed for non-local host %q while enforce_tls is enabled; use wss://", host)
+			}
 			log.Printf("WARNING: server URL uses plaintext ws:// (%s). API key and CDAP payloads will be transmitted unencrypted. Use wss:// in production.", c.Server)
 		}
+	}
+	// Phase 4: validate the certificate pin format up-front so a typo fails
+	// fast instead of silently disabling pinning at connect time.
+	if c.ServerCertPin != "" {
+		pin := normalizeCertPin(c.ServerCertPin)
+		if len(pin) != 64 {
+			return fmt.Errorf("server_cert_pin must be a 64-character hex SHA-256 (got %d chars)", len(pin))
+		}
+		if _, err := hex.DecodeString(pin); err != nil {
+			return fmt.Errorf("server_cert_pin is not valid hex: %w", err)
+		}
+		c.ServerCertPin = pin
+	}
+	if c.TLSInsecureSkipVerify && c.ServerCertPin == "" {
+		log.Printf("WARNING: tls_insecure_skip_verify is enabled without a server_cert_pin; the server certificate will NOT be validated. Prefer setting server_cert_pin for self-signed deployments.")
 	}
 	switch c.AuthMethod {
 	case "api_key":
@@ -206,6 +246,15 @@ func normalizeHwAccelValue(v string) string {
 	default:
 		return HwAuto
 	}
+}
+
+// normalizeCertPin strips common separators (colons, whitespace) and
+// lowercases a certificate pin so values copied from openssl/sha256sum output
+// (e.g. "AB:CD:...") are accepted.
+func normalizeCertPin(v string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	v = strings.NewReplacer(":", "", " ", "", "\t", "", "\n", "").Replace(v)
+	return strings.TrimPrefix(v, "sha256:")
 }
 
 func defaultDataDir() string {

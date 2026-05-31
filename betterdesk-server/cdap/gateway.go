@@ -340,6 +340,10 @@ func (g *Gateway) messageLoop(ctx context.Context, dc *DeviceConn) {
 			g.handleEvent(ctx, dc, msg)
 		case "log":
 			g.handleLog(ctx, dc, msg)
+		case "help_request":
+			g.handleHelpRequest(ctx, dc, msg)
+		case "chat_message":
+			g.handleChatMessage(ctx, dc, msg)
 		case "unregister":
 			g.handleUnregister(ctx, dc, msg)
 			return
@@ -521,6 +525,32 @@ func (g *Gateway) SendCommand(ctx context.Context, deviceID string, cmd *Command
 		ID:        cmd.ID,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Payload:   cmd.Payload,
+	})
+}
+
+// SendChatToDevice delivers an operator chat message to a connected device.
+// Returns an error if the device is not connected. The caller is responsible
+// for persisting the message and performing RBAC checks.
+func (g *Gateway) SendChatToDevice(ctx context.Context, deviceID, fromID, fromName, text string) error {
+	val, ok := g.devices.Load(deviceID)
+	if !ok {
+		return fmt.Errorf("device %s not connected", deviceID)
+	}
+	dc := val.(*DeviceConn)
+
+	payload, err := json.Marshal(map[string]string{
+		"from_id":   fromID,
+		"from_name": fromName,
+		"text":      text,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal chat payload: %w", err)
+	}
+
+	return dc.WriteMessage(ctx, &Message{
+		Type:      "chat_message",
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Payload:   payload,
 	})
 }
 

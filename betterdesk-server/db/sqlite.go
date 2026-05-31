@@ -179,6 +179,23 @@ func (s *SQLiteDB) Migrate() error {
 			created_at TEXT DEFAULT (datetime('now'))
 		)`,
 
+		// Help requests table (support requests raised by agent devices)
+		`CREATE TABLE IF NOT EXISTS help_requests (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			device_id TEXT NOT NULL,
+			hostname TEXT DEFAULT '',
+			org_id TEXT DEFAULT '',
+			message TEXT DEFAULT '',
+			status TEXT DEFAULT 'pending',
+			handled_by TEXT DEFAULT '',
+			created_at TEXT DEFAULT (datetime('now')),
+			updated_at TEXT DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_help_requests_device ON help_requests(device_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_help_requests_status ON help_requests(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_help_requests_created ON help_requests(created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_help_requests_org ON help_requests(org_id)`,
+
 		// Organizations (v3.0.0)
 		`CREATE TABLE IF NOT EXISTS organizations (
 			id TEXT PRIMARY KEY,

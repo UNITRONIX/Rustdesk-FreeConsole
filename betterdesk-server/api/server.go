@@ -60,8 +60,8 @@ type Server struct {
 	// branding endpoints to deter device-ID enumeration and config probing.
 	enrollmentLimiter *ratelimit.IPLimiter
 	brandingLimiter   *ratelimit.IPLimiter
-	keyPair           *crypto.KeyPair    // Ed25519 keypair for signing
-	cdapGw            *cdap.Gateway      // CDAP gateway (nil if CDAP disabled)
+	keyPair           *crypto.KeyPair // Ed25519 keypair for signing
+	cdapGw            *cdap.Gateway   // CDAP gateway (nil if CDAP disabled)
 	ldapProvider      *auth.LDAPProvider // LDAP auth provider (nil if not configured)
 	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
@@ -256,6 +256,16 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("PUT /api/chat/groups/", s.requirePermission(auth.PermChatAccess, s.handleChatUpdateGroup))
 	mux.HandleFunc("DELETE /api/chat/groups/", s.requirePermission(auth.PermChatAccess, s.handleChatDeleteGroup))
 
+	// Help requests (raised by agents via CDAP, managed by operators).
+	// Path-suffix routes (/acknowledge, /resolve) are registered before the
+	// generic /api/help/requests/ prefix so Go's ServeMux matches the longer
+	// pattern first.
+	mux.HandleFunc("POST /api/help/requests/{id}/acknowledge", s.requirePermission(auth.PermChatAccess, s.handleAcknowledgeHelpRequest))
+	mux.HandleFunc("POST /api/help/requests/{id}/resolve", s.requirePermission(auth.PermChatAccess, s.handleResolveHelpRequest))
+	mux.HandleFunc("GET /api/help/requests/{id}", s.requirePermission(auth.PermChatAccess, s.handleGetHelpRequest))
+	mux.HandleFunc("GET /api/help/requests", s.requirePermission(auth.PermChatAccess, s.handleListHelpRequests))
+	mux.HandleFunc("POST /api/help/requests", s.requirePermission(auth.PermChatAccess, s.handleCreateHelpRequest))
+
 	// Organizations — org membership enforced on org-specific routes
 	mux.HandleFunc("POST /api/org", s.requirePermission(auth.PermOrgCreate, s.handleCreateOrg))
 	mux.HandleFunc("GET /api/org", s.handleListOrgs) // data-scoped in handler
@@ -302,11 +312,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/auth/login/2fa", s.handleLogin2FA)
 	mux.HandleFunc("GET /api/auth/me", s.handleAuthMe)
 
-	// RustDesk Client API (compatible with RustDesk desktop client).
-	// The API surface is consolidated onto the Go server. By default it is
-	// served on the dedicated client-API port (21121) that the fleet points
-	// its `api-server` setting at; clients without an explicit api-server fall
-	// back to signal_port-2. See docs/architecture for the consolidation note.
+	// RustDesk Client API (compatible with RustDesk desktop client)
+	// The client calculates API port as signal_port - 2 (21116-2=21114).
 	mux.HandleFunc("POST /api/login", s.handleClientLogin)
 	mux.HandleFunc("GET /api/login-options", s.handleClientLoginOptions)
 	mux.HandleFunc("POST /api/logout", s.handleClientLogout)
@@ -333,38 +340,6 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/heartbeat", s.handleClientHeartbeat)
 	mux.HandleFunc("POST /api/sysinfo", s.handleClientSysinfo)
 	mux.HandleFunc("POST /api/sysinfo_ver", s.handleClientSysinfoVer)
-
-	// RustDesk Client API — audit reporting (Phase A consolidation).
-	// POST endpoints are public: the RustDesk client reports events and may be
-	// unauthenticated. GET endpoints require the audit.view permission (panel).
-	mux.HandleFunc("POST /api/audit/conn", s.handleAuditConnPost)
-	mux.HandleFunc("GET /api/audit/conn", s.requirePermission(auth.PermAuditView, s.handleAuditConnGet))
-	mux.HandleFunc("POST /api/audit/file", s.handleAuditFilePost)
-	mux.HandleFunc("GET /api/audit/file", s.requirePermission(auth.PermAuditView, s.handleAuditFileGet))
-	mux.HandleFunc("POST /api/audit/alarm", s.handleAuditAlarmPost)
-	mux.HandleFunc("GET /api/audit/alarm", s.requirePermission(auth.PermAuditView, s.handleAuditAlarmGet))
-
-	// RustDesk Client API — compatibility shims (software probe, user group,
-	// combined audit summary). software endpoints are public; user/group and
-	// the audit summary require authentication.
-	mux.HandleFunc("GET /api/software", s.handleClientSoftware)
-	mux.HandleFunc("GET /api/software/client-download-link", s.handleClientSoftwareDownloadLink)
-	mux.HandleFunc("GET /api/user/group", s.handleClientUserGroup)
-	mux.HandleFunc("GET /api/audit", s.requirePermission(auth.PermAuditView, s.handleClientAuditSummary))
-
-	// RustDesk Client API — server / peer public keys.
-	// server-key endpoints are public (key is safe to expose). peer-key requires auth.
-	mux.HandleFunc("GET /api/server-key", s.handleServerKey)
-	mux.HandleFunc("GET /api/server-key/fingerprint", s.handleServerKeyFingerprint)
-	mux.HandleFunc("GET /api/peer-key/{id}", s.requirePermission(auth.PermDeviceView, s.handlePeerKey))
-
-	// RustDesk Client API — user groups, device groups, strategies (panel-facing).
-	mux.HandleFunc("GET /api/user-groups", s.requirePermission(auth.PermUserView, s.handleUserGroupsGet))
-	mux.HandleFunc("POST /api/user-groups", s.requirePermission(auth.PermUserCreate, s.handleUserGroupsPost))
-	mux.HandleFunc("GET /api/device-group", s.requirePermission(auth.PermDeviceView, s.handleDeviceGroupsGet))
-	mux.HandleFunc("POST /api/device-group", s.requirePermission(auth.PermUserCreate, s.handleDeviceGroupsPost))
-	mux.HandleFunc("GET /api/strategies", s.requirePermission(auth.PermUserView, s.handleStrategiesGet))
-	mux.HandleFunc("POST /api/strategies", s.requirePermission(auth.PermUserCreate, s.handleStrategiesPost))
 
 	// User management (permission-based)
 	// Issue #138: RustDesk client calls GET /api/users?accessible&pageSize=100

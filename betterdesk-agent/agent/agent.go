@@ -3,11 +3,17 @@ package agent
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -131,13 +137,60 @@ func (a *Agent) Stop() {
 
 // ── Single connection lifecycle ──────────────────────────────────────
 
+// dialOptions builds the WebSocket dial options, including a hardened TLS
+// configuration for wss:// connections: optional public-key pinning
+// (ServerCertPin) and optional self-signed acceptance (TLSInsecureSkipVerify).
+// Returns nil for plaintext ws:// (no TLS layer involved).
+func (a *Agent) dialOptions() *websocket.DialOptions {
+	if !strings.HasPrefix(a.cfg.Server, "wss://") {
+		return nil
+	}
+
+	tlsCfg := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+
+	switch {
+	case a.cfg.ServerCertPin != "":
+		// Pinned mode: skip the default chain check and verify the leaf
+		// public key against the configured SPKI SHA-256. This defeats MITM
+		// even when a rogue CA is trusted by the system store.
+		tlsCfg.InsecureSkipVerify = true
+		pin := a.cfg.ServerCertPin
+		tlsCfg.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			if len(rawCerts) == 0 {
+				return fmt.Errorf("tls: server presented no certificate")
+			}
+			leaf, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return fmt.Errorf("tls: parse leaf certificate: %w", err)
+			}
+			sum := sha256.Sum256(leaf.RawSubjectPublicKeyInfo)
+			got := hex.EncodeToString(sum[:])
+			if subtle.ConstantTimeCompare([]byte(got), []byte(pin)) != 1 {
+				return fmt.Errorf("tls: server public-key pin mismatch (expected %s, got %s)", pin, got)
+			}
+			return nil
+		}
+	case a.cfg.TLSInsecureSkipVerify:
+		// Explicit opt-out: accept self-signed without verification.
+		tlsCfg.InsecureSkipVerify = true
+	}
+
+	return &websocket.DialOptions{
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{TLSClientConfig: tlsCfg},
+		},
+	}
+}
+
 func (a *Agent) runOnce() error {
 	log.Printf("[agent] Connecting to %s...", a.cfg.Server)
 
 	dialCtx, dialCancel := context.WithTimeout(a.ctx, 30*time.Second)
 	defer dialCancel()
 
-	conn, _, err := websocket.Dial(dialCtx, a.cfg.Server, nil)
+	conn, _, err := websocket.Dial(dialCtx, a.cfg.Server, a.dialOptions())
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}

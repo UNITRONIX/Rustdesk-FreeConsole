@@ -192,7 +192,6 @@ func (pg *PostgresDB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_chat_messages_conv ON chat_messages(conversation_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_chat_messages_from ON chat_messages(from_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at)`,
-
 		// Chat groups
 		`CREATE TABLE IF NOT EXISTS chat_groups (
 			id         TEXT PRIMARY KEY,
@@ -201,6 +200,23 @@ func (pg *PostgresDB) Migrate() error {
 			created_by TEXT NOT NULL DEFAULT '',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+
+		// Help requests (support requests raised by agent devices)
+		`CREATE TABLE IF NOT EXISTS help_requests (
+			id         BIGSERIAL PRIMARY KEY,
+			device_id  TEXT NOT NULL,
+			hostname   TEXT NOT NULL DEFAULT '',
+			org_id     TEXT NOT NULL DEFAULT '',
+			message    TEXT NOT NULL DEFAULT '',
+			status     TEXT NOT NULL DEFAULT 'pending',
+			handled_by TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_help_requests_device ON help_requests(device_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_help_requests_status ON help_requests(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_help_requests_created ON help_requests(created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_help_requests_org ON help_requests(org_id)`,
 
 		// Organizations (v3.0.0)
 		`CREATE TABLE IF NOT EXISTS organizations (

@@ -97,6 +97,16 @@ struct GoAgentConfig {
     max_reconnect: u32,
     log_level: String,
     data_dir: String,
+
+    // ── TLS hardening (Phase 4) ──────────────────────────────────────────
+    #[serde(skip_serializing_if = "is_false")]
+    enforce_tls: bool,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    server_cert_pin: String,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 // ── Public config mirror from Tauri AgentConfig ───────────────────────────
@@ -118,6 +128,12 @@ pub struct SidecarConfig {
     pub hw_accel: String,
     pub data_dir: PathBuf,
     pub cdap_port: u16,
+    /// Opt-in: reject plaintext `ws://` for non-local hosts. Default `false`
+    /// keeps HTTP a fully supported transport (the Go agent only warns).
+    pub enforce_tls: bool,
+    /// Hex SHA-256 SPKI pin of the CDAP server certificate (Phase 4). Empty
+    /// disables pinning. Forwarded to the Go agent as `server_cert_pin`.
+    pub server_cert_pin: String,
 }
 
 impl SidecarConfig {
@@ -663,8 +679,9 @@ fn write_go_config(path: &PathBuf, cfg: &SidecarConfig) -> Result<()> {
         ));
     }
 
+    let server_url = cfg.cdap_ws_url();
     let go_cfg = GoAgentConfig {
-        server: cfg.cdap_ws_url(),
+        server: server_url.clone(),
         auth_method: auth_method.to_string(),
         api_key,
         device_token,
@@ -684,7 +701,32 @@ fn write_go_config(path: &PathBuf, cfg: &SidecarConfig) -> Result<()> {
         max_reconnect: 300,
         log_level: "info".to_string(),
         data_dir: cfg.data_dir.to_string_lossy().to_string(),
+        // HTTP (ws://) stays a fully supported transport: enforcement is an
+        // explicit operator opt-in, never auto-derived from the URL scheme. A
+        // configured cert pin still protects wss:// against MITM.
+        enforce_tls: cfg.enforce_tls,
+        server_cert_pin: cfg.server_cert_pin.clone(),
     };
+
+    // Recommend TLS but never block plaintext: surface a warning in the agent
+    // log when the operator connects over ws:// to a non-local host so they can
+    // make an informed choice without losing connectivity.
+    if server_url.starts_with("ws://") {
+        let host = server_url
+            .trim_start_matches("ws://")
+            .split(['/', ':'])
+            .next()
+            .unwrap_or("");
+        let is_local = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
+        if !is_local {
+            warn!(
+                "[sidecar] CDAP connecting over plaintext ws:// to {} — API key and \
+                 payloads are unencrypted. wss:// is recommended for networks you do \
+                 not fully control.",
+                host
+            );
+        }
+    }
 
     let json = serde_json::to_string_pretty(&go_cfg)?;
     std::fs::write(path, json)

@@ -117,6 +117,22 @@ type UnregisterPayload struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// HelpRequestPayload is sent by an agent device to raise a support request.
+// The device identity is taken from the authenticated connection (dc.ID),
+// never from the payload, to prevent spoofing.
+type HelpRequestPayload struct {
+	Message  string `json:"message"`
+	Hostname string `json:"hostname,omitempty"`
+}
+
+// ChatMessagePayload is sent by an agent device to deliver a chat message to
+// the operator console. The sender identity is taken from the authenticated
+// connection (dc.ID).
+type ChatMessagePayload struct {
+	Text string `json:"text"`
+	ToID string `json:"to_id,omitempty"` // optional target operator/group; "" = console
+}
+
 // TokenRefreshPayload is sent by client to refresh JWT.
 type TokenRefreshPayload struct {
 	Token string `json:"token"`

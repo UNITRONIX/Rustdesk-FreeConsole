@@ -31,13 +31,33 @@ const db = require('../services/database');
 const bdRelay = require('../services/bdRelay');
 const brandingService = require('../services/brandingService');
 const authService = require('../services/authService');
+const betterdeskApi = require('../services/betterdeskApi');
 
 // ---------------------------------------------------------------------------
-//  In-memory help-request store (survives restarts via audit log for history)
+//  Help requests & chat are stored on the Go server (single source of truth).
+//  The panel is a read proxy: it forwards reads/writes to the Go REST API and
+//  fans out Go events to browsers via socket.io (see helpChatPush service).
+//
+//  Go uses status values pending/acknowledged/resolved/cancelled. The panel UI
+//  historically uses pending/accepted/resolved, so we normalize on the way out.
 // ---------------------------------------------------------------------------
 
-/** @type {Map<string, Object>} */
-const helpRequests = new Map();
+/** Map a Go help-request record to the shape the panel UI expects. */
+function normalizeHelpRequest(r) {
+    if (!r || typeof r !== 'object') return null;
+    const statusMap = { acknowledged: 'accepted' };
+    const createdMs = r.created_at ? Date.parse(r.created_at) : Date.now();
+    return {
+        id: String(r.id),
+        device_id: r.device_id || '',
+        hostname: r.hostname || '',
+        message: r.message || '',
+        status: statusMap[r.status] || r.status || 'pending',
+        accepted_by: r.status === 'acknowledged' ? (r.handled_by || '') : '',
+        resolved_by: r.status === 'resolved' ? (r.handled_by || '') : '',
+        created_at: Number.isFinite(createdMs) ? createdMs : Date.now(),
+    };
+}
 
 // ---------------------------------------------------------------------------
 //  Helpers
@@ -449,36 +469,32 @@ router.post('/help-request', identifyDevice, async (req, res) => {
             return res.status(400).json({ error: 'Missing device_id' });
         }
 
-        const helpRequest = {
-            id: crypto.randomUUID(),
-            device_id: String(device_id).substring(0, 32),
-            hostname: String(hostname || '').substring(0, 128),
-            message: String(message || '').substring(0, 500),
-            status: 'pending',
-            created_at: Date.now(),
-        };
+        const cleanDeviceId = String(device_id).substring(0, 32);
+        const cleanHostname = String(hostname || '').substring(0, 128);
+        const cleanMessage = String(message || '').substring(0, 500);
 
-        // Emit to all connected operator WebSocket clients
-        const io = req.app.get('io');
-        if (io) {
-            io.emit('help-request', helpRequest);
+        // Help requests live on the Go server. Legacy agents that still POST to
+        // the panel are proxied through; modern agents send help requests over
+        // CDAP directly. The Go server publishes a help_request event which the
+        // helpChatPush service fans out to browser clients.
+        let requestId = null;
+        try {
+            const goRes = await betterdeskApi.apiClient.post('/help/requests', {
+                device_id: cleanDeviceId,
+                hostname: cleanHostname,
+                message: cleanMessage,
+            });
+            requestId = goRes.data && (goRes.data.id || goRes.data.request_id);
+        } catch (goErr) {
+            console.warn('[BD-API] Help request Go proxy failed:', goErr.message);
         }
 
-        // Store in memory for dashboard polling
-        helpRequests.set(helpRequest.id, helpRequest);
+        // Audit locally for history/searchability.
+        await db.logAction(null, 'help_request', `Help requested by ${cleanDeviceId}: ${cleanMessage}`, getClientIp(req));
 
-        // Auto-prune: keep max 200 entries
-        if (helpRequests.size > 200) {
-            const oldest = [...helpRequests.keys()].slice(0, helpRequests.size - 200);
-            for (const key of oldest) helpRequests.delete(key);
-        }
+        console.log(`[BD-API] Help request from ${cleanDeviceId} (${cleanHostname}): ${cleanMessage}`);
 
-        // Log the help request
-        await db.logAction(null, 'help_request', `Help requested by ${helpRequest.device_id}: ${helpRequest.message}`, getClientIp(req));
-
-        console.log(`[BD-API] Help request from ${helpRequest.device_id} (${helpRequest.hostname}): ${helpRequest.message}`);
-
-        res.json({ success: true, request_id: helpRequest.id });
+        res.json({ success: true, request_id: requestId ? String(requestId) : crypto.randomUUID() });
     } catch (err) {
         console.error('[BD-API] Help request error:', err.message);
         res.status(500).json({ error: 'Failed to process help request' });
@@ -493,8 +509,9 @@ router.post('/help-request', identifyDevice, async (req, res) => {
 //  POST /api/bd/chat/send — Agent client sends a message to connected operators
 // ---------------------------------------------------------------------------
 
-// In-memory chat history per device (max 200 messages per device, auto-pruned).
-const chatHistory = new Map(); // deviceId → [{id, device_id, sender, content, timestamp}]
+// Chat messages are persisted on the Go server (single source of truth). The
+// panel proxies sends/reads through the Go REST API. Live fan-out to operator
+// browsers happens through the Go event bus (see helpChatPush service).
 
 router.post('/chat/send', identifyDevice, async (req, res) => {
     try {
@@ -510,27 +527,25 @@ router.post('/chat/send', identifyDevice, async (req, res) => {
             return res.status(400).json({ error: 'Message too long (max 4096 chars)' });
         }
 
-        const sanitizedSender = typeof sender === 'string' ? sender.trim().slice(0, 128) : device_id;
-        const message = {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            device_id: String(device_id).slice(0, 64),
-            sender: sanitizedSender,
-            content: content.trim().slice(0, 4096),
-            timestamp: typeof timestamp === 'string' ? timestamp : new Date().toISOString(),
-        };
+        const cleanDeviceId = String(device_id).slice(0, 64);
+        const sanitizedSender = typeof sender === 'string' ? sender.trim().slice(0, 128) : cleanDeviceId;
 
-        // Persist in memory for dashboard polling
-        if (!chatHistory.has(message.device_id)) chatHistory.set(message.device_id, []);
-        const history = chatHistory.get(message.device_id);
-        history.push(message);
-        if (history.length > 200) history.splice(0, history.length - 200);
+        // conversation_id is the device id; from_id identifies the device sender.
+        const result = await betterdeskApi.sendChatMessage({
+            conversation_id: cleanDeviceId,
+            from_id: cleanDeviceId,
+            from_name: sanitizedSender,
+            to_id: '',
+            text: content.trim().slice(0, 4096),
+        });
 
-        // Push to all connected browser clients
-        if (io) {
-            io.emit('chat-message', message);
+        if (!result.success) {
+            console.warn('[BD-API] Chat send Go proxy failed:', result.error);
+            return res.status(502).json({ error: 'Failed to send message' });
         }
 
-        res.json({ success: true, message_id: message.id });
+        const messageId = result.data && (result.data.id || result.data.message_id);
+        res.json({ success: true, message_id: messageId ? String(messageId) : `${Date.now()}` });
     } catch (err) {
         console.error('[BD-API] Chat send error:', err.message);
         res.status(500).json({ error: 'Failed to send message' });
@@ -545,8 +560,21 @@ router.get('/chat/history', requireDeviceAuth, async (req, res) => {
     const deviceId = String(req.query.device_id || '').slice(0, 64);
     if (!deviceId) return res.status(400).json({ error: 'Missing device_id' });
 
-    const history = chatHistory.get(deviceId) || [];
     const limit = Math.min(parseInt(req.query.limit, 10) || 100, 200);
+    const result = await betterdeskApi.getChatHistory(deviceId, limit);
+    if (!result.success) {
+        console.warn('[BD-API] Chat history Go proxy failed:', result.error);
+        return res.json([]);
+    }
+
+    // Map Go chat messages to the panel's {id, device_id, sender, content, timestamp} shape.
+    const history = (result.data || []).map((m) => ({
+        id: String(m.id),
+        device_id: m.conversation_id || deviceId,
+        sender: m.from_name || m.from_id || '',
+        content: m.text || '',
+        timestamp: m.created_at || new Date().toISOString(),
+    }));
     res.json(history.slice(-limit));
 });
 
@@ -655,7 +683,19 @@ router.get('/operator/devices', requireDeviceAuth, requireOperatorRole, async (r
 
 router.get('/help-requests', requireDeviceAuth, requireOperatorRole, async (req, res) => {
     try {
-        const items = [...helpRequests.values()]
+        const filter = { limit: 200 };
+        if (req.query.status) filter.status = String(req.query.status);
+        if (req.query.device_id) filter.device_id = String(req.query.device_id);
+
+        const result = await betterdeskApi.listHelpRequests(filter);
+        if (!result.success) {
+            console.warn('[BD-API] List help requests Go proxy failed:', result.error);
+            return res.json({ success: true, requests: [] });
+        }
+
+        const items = (result.data || [])
+            .map(normalizeHelpRequest)
+            .filter(Boolean)
             .sort((a, b) => b.created_at - a.created_at);
 
         res.json({ success: true, requests: items });
@@ -671,23 +711,20 @@ router.get('/help-requests', requireDeviceAuth, requireOperatorRole, async (req,
 
 router.post('/help-requests/:id/accept', requireDeviceAuth, requireOperatorRole, async (req, res) => {
     try {
-        const entry = helpRequests.get(req.params.id);
-        if (!entry) {
-            return res.status(404).json({ error: 'Help request not found' });
+        const result = await betterdeskApi.acknowledgeHelpRequest(req.params.id);
+        if (!result.success) {
+            console.warn('[BD-API] Accept help request Go proxy failed:', result.error);
+            return res.status(502).json({ error: 'Failed to accept help request' });
         }
-
-        entry.status = 'accepted';
-        entry.accepted_by = req.deviceUser?.username || 'operator';
-        entry.accepted_at = Date.now();
 
         await db.logAction(
             req.deviceUser?.id || null,
             'help_request_accept',
-            `Accepted help request ${entry.id} from ${entry.device_id}`,
+            `Accepted help request ${req.params.id}`,
             getClientIp(req)
         );
 
-        res.json({ success: true, request: entry });
+        res.json({ success: true, request: result.data });
     } catch (err) {
         console.error('[BD-API] Accept help request error:', err.message);
         res.status(500).json({ error: 'Failed to accept help request' });
@@ -700,23 +737,20 @@ router.post('/help-requests/:id/accept', requireDeviceAuth, requireOperatorRole,
 
 router.post('/help-requests/:id/resolve', requireDeviceAuth, requireOperatorRole, async (req, res) => {
     try {
-        const entry = helpRequests.get(req.params.id);
-        if (!entry) {
-            return res.status(404).json({ error: 'Help request not found' });
+        const result = await betterdeskApi.resolveHelpRequest(req.params.id);
+        if (!result.success) {
+            console.warn('[BD-API] Resolve help request Go proxy failed:', result.error);
+            return res.status(502).json({ error: 'Failed to resolve help request' });
         }
-
-        entry.status = 'resolved';
-        entry.resolved_by = req.deviceUser?.username || 'operator';
-        entry.resolved_at = Date.now();
 
         await db.logAction(
             req.deviceUser?.id || null,
             'help_request_resolve',
-            `Resolved help request ${entry.id} from ${entry.device_id}`,
+            `Resolved help request ${req.params.id}`,
             getClientIp(req)
         );
 
-        res.json({ success: true, request: entry });
+        res.json({ success: true, request: result.data });
     } catch (err) {
         console.error('[BD-API] Resolve help request error:', err.message);
         res.status(500).json({ error: 'Failed to resolve help request' });
@@ -729,11 +763,13 @@ router.post('/help-requests/:id/resolve', requireDeviceAuth, requireOperatorRole
 
 router.delete('/help-requests/:id', requireDeviceAuth, requireOperatorRole, async (req, res) => {
     try {
-        if (!helpRequests.has(req.params.id)) {
-            return res.status(404).json({ error: 'Help request not found' });
+        // The Go server has no hard-delete for help requests; closing it (resolve)
+        // removes it from the active list, which is what the panel UI expects.
+        const result = await betterdeskApi.resolveHelpRequest(req.params.id);
+        if (!result.success) {
+            console.warn('[BD-API] Delete help request Go proxy failed:', result.error);
+            return res.status(502).json({ error: 'Failed to delete help request' });
         }
-
-        helpRequests.delete(req.params.id);
         res.json({ success: true });
     } catch (err) {
         console.error('[BD-API] Delete help request error:', err.message);
@@ -798,20 +834,25 @@ function helpRequestToNotif(req, userId) {
 //  GET /api/bd/notifications — list recent notifications for current user
 // ---------------------------------------------------------------------------
 
-router.get('/notifications', requireAuth, (req, res) => {
+router.get('/notifications', requireAuth, async (req, res) => {
     try {
         const rawLimit = parseInt(req.query.limit, 10);
         const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 50) : 20;
         const unreadOnly = String(req.query.unread_only || '').toLowerCase() === 'true';
         const userId = req.session?.user?.id;
 
-        const items = [...helpRequests.values()]
+        const result = await betterdeskApi.listHelpRequests({ limit: 200 });
+        const requests = (result.success ? (result.data || []) : [])
+            .map(normalizeHelpRequest)
+            .filter(Boolean);
+
+        const items = requests
             .sort((a, b) => b.created_at - a.created_at)
             .map(r => helpRequestToNotif(r, userId))
             .filter(n => (unreadOnly ? !n.read : true))
             .slice(0, limit);
 
-        const unreadCount = [...helpRequests.values()]
+        const unreadCount = requests
             .filter(r => !isReadBy(userId, r.id)).length;
 
         res.json({ success: true, items, unread_count: unreadCount });
@@ -833,12 +874,8 @@ router.post('/notifications/:id/read', requireAuth, (req, res) => {
         }
 
         const id = String(req.params.id || '').slice(0, 128);
-        if (!helpRequests.has(id)) {
-            // Idempotent: succeed even if the item was already pruned. Client
-            // only uses this to update its local badge state.
-            return res.json({ success: true, pruned: true });
-        }
-
+        // Idempotent: the help request lives on the Go server; the read overlay
+        // is a local per-user state, so we simply record it.
         markReadBy(userId, id);
         res.json({ success: true });
     } catch (err) {
@@ -851,15 +888,19 @@ router.post('/notifications/:id/read', requireAuth, (req, res) => {
 //  POST /api/bd/notifications/read-all — mark all notifications read
 // ---------------------------------------------------------------------------
 
-router.post('/notifications/read-all', requireAuth, (req, res) => {
+router.post('/notifications/read-all', requireAuth, async (req, res) => {
     try {
         const userId = req.session?.user?.id;
         if (!userId) {
             return res.status(401).json({ error: 'Not authenticated' });
         }
 
-        for (const id of helpRequests.keys()) {
-            markReadBy(userId, id);
+        const result = await betterdeskApi.listHelpRequests({ limit: 200 });
+        const requests = (result.success ? (result.data || []) : [])
+            .map(normalizeHelpRequest)
+            .filter(Boolean);
+        for (const r of requests) {
+            markReadBy(userId, r.id);
         }
 
         res.json({ success: true });

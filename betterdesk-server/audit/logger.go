@@ -50,6 +50,10 @@ const (
 	ActionAPIKeyRevoked    Action = "apikey_revoked"
 	ActionSysinfoUpdated   Action = "sysinfo_updated"
 	ActionSysinfoError     Action = "sysinfo_error"
+	// Help requests and chat (raised by agent devices via CDAP).
+	ActionHelpRequestCreated Action = "help_request_created"
+	ActionHelpRequestUpdated Action = "help_request_updated"
+	ActionChatMessage        Action = "chat_message"
 )
 
 // Event represents a single audit log entry.

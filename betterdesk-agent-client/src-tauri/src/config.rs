@@ -161,10 +161,25 @@ pub struct AgentConfig {
     /// Forwarded to the sidecar config so future builds can enforce it.
     #[serde(default)]
     pub unattended_password: String,
+
+    // ── TLS hardening (Phase 4) ─────────────────────────────────────────────
+
+    /// Opt-in flag that rejects plaintext `ws://` for non-local hosts. Left
+    /// `false` by default so HTTP/`ws://` stays a fully supported transport for
+    /// deployments without TLS infrastructure (the agent still logs a warning
+    /// recommending `wss://`). Operators on hostile networks can enable it.
+    #[serde(default)]
+    pub enforce_tls: bool,
+
+    /// Hex-encoded SHA-256 of the server certificate's SubjectPublicKeyInfo
+    /// (SPKI). When set, the Go sidecar pins the CDAP server's public key and
+    /// rejects any connection that does not match — defeating MITM even when a
+    /// rogue CA is trusted by the OS. Empty disables pinning.
+    #[serde(default)]
+    pub server_cert_pin: String,
 }
 
-fn default_cdap_port() -> u16 { 21122 }
-fn default_true() -> bool { true }
+fn default_cdap_port() -> u16 { 21122 }fn default_true() -> bool { true }
 fn default_codec_auto() -> String { "auto".to_string() }
 
 impl Default for AgentConfig {
@@ -192,6 +207,8 @@ impl Default for AgentConfig {
             start_minimized: true,
             language: "en".to_string(),
             unattended_password: String::new(),
+            enforce_tls: false,
+            server_cert_pin: String::new(),
         }
     }
 }
@@ -346,6 +363,8 @@ impl AgentConfig {
             hw_accel: self.hw_accel.clone(),
             data_dir,
             cdap_port: self.cdap_port,
+            enforce_tls: self.enforce_tls,
+            server_cert_pin: self.server_cert_pin.clone(),
         }
     }
 

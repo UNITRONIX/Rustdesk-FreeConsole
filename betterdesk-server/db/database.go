@@ -152,6 +152,35 @@ type ChatContact struct {
 	AvatarColor string `json:"avatar_color"`
 }
 
+// HelpRequest status constants.
+const (
+	HelpStatusPending      = "pending"      // Raised by device, awaiting operator
+	HelpStatusAcknowledged = "acknowledged" // Operator picked it up
+	HelpStatusResolved     = "resolved"     // Operator closed it
+	HelpStatusCancelled    = "cancelled"    // Device cancelled it
+)
+
+// HelpRequest represents a support request raised by an agent device.
+type HelpRequest struct {
+	ID        int64     `json:"id"`
+	DeviceID  string    `json:"device_id"`
+	Hostname  string    `json:"hostname,omitempty"`
+	OrgID     string    `json:"org_id,omitempty"`
+	Message   string    `json:"message"`
+	Status    string    `json:"status"`
+	HandledBy string    `json:"handled_by,omitempty"` // operator that acked/resolved
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// HelpRequestFilter narrows ListHelpRequests results. Empty fields match any.
+type HelpRequestFilter struct {
+	Status   string // "" = any status
+	DeviceID string // "" = any device
+	OrgID    string // "" = any org (org data-scoping)
+	Limit    int    // 0 = default (100)
+}
+
 // Organization represents a customer/tenant entity.
 type Organization struct {
 	ID        string    `json:"id"`
@@ -473,6 +502,14 @@ type Database interface {
 	ListChatGroups(memberID string) ([]*ChatGroup, error) // Groups containing memberID
 	UpdateChatGroup(g *ChatGroup) error
 	DeleteChatGroup(id string) error
+
+	// Help Requests
+	CreateHelpRequest(r *HelpRequest) (int64, error) // Returns inserted ID
+	GetHelpRequest(id int64) (*HelpRequest, error)
+	ListHelpRequests(filter HelpRequestFilter) ([]*HelpRequest, error)
+	UpdateHelpRequestStatus(id int64, status, handledBy string) error
+	PruneHelpRequests(maxAge time.Duration) (int64, error) // Delete requests older than maxAge
+	GetDeviceOrgID(deviceID string) (string, error)        // "" if device has no org
 
 	// Organizations
 	CreateOrganization(o *Organization) error

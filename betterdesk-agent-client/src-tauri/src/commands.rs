@@ -658,18 +658,11 @@ pub async fn send_chat_message(
     });
 
     let url = format_console_url(&address, "/bd/chat/send");
-    if let Ok(client) = crate::registration::build_http_client(8) {
-        // `X-Device-Id` is required by the `identifyDevice` middleware on the
-        // console; otherwise the relay rejects the message with 401.
-        if let Err(e) = client
-            .post(&url)
-            .header("X-Device-Id", &device_id)
-            .json(&payload)
-            .send()
-            .await
-        {
-            info!("Chat delivery failed (non-fatal): {}", e);
-        }
+    // `X-Device-Id` is required by the `identifyDevice` middleware on the
+    // console; otherwise the relay rejects the message with 401. The helper
+    // also follows the HTTP→HTTPS redirect so the POST body survives.
+    if let Err(e) = send_console_json(reqwest::Method::POST, &url, &device_id, &payload, 8).await {
+        info!("Chat delivery failed (non-fatal): {}", e);
     }
 
     Ok(())
@@ -740,17 +733,10 @@ pub async fn request_help(
         "timestamp": chrono::Utc::now().to_rfc3339(),
     });
 
-    let client = crate::registration::build_http_client(10).map_err(|e| e.to_string())?;
-
     let url = format_console_url(&address, "/bd/help-request");
 
-    let resp = client
-        .post(&url)
-        .header("X-Device-Id", &device_id)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| format!("Help request failed: {}", e))?;
+    let resp =
+        send_console_json(reqwest::Method::POST, &url, &device_id, &payload, 10).await?;
 
     if resp.status().is_success() {
         info!("Help request sent from {}", device_id);
@@ -775,16 +761,10 @@ pub async fn cancel_help_request(state: State<'_, AgentState>) -> Result<(), Str
         "action": "cancel",
     });
 
-    let client = crate::registration::build_http_client(10).map_err(|e| e.to_string())?;
-
     let url = format_console_url(&address, "/bd/help-request");
 
-    let _ = client
-        .delete(&url)
-        .header("X-Device-Id", &device_id)
-        .json(&payload)
-        .send()
-        .await;
+    // Best-effort: no DELETE route exists server-side, so the result is ignored.
+    let _ = send_console_json(reqwest::Method::DELETE, &url, &device_id, &payload, 10).await;
     info!("Help request cancelled for {}", device_id);
     Ok(())
 }
@@ -1029,6 +1009,52 @@ fn format_api_url(address: &str, path: &str) -> String {
 
 /// Format a web console URL from server address and path (targets port 5000).
 /// Help-request and chat endpoints live on the Node.js console, not the Go API.
+/// Sends a JSON request to the web console, manually following HTTP→HTTPS
+/// redirects so the method, body and headers survive.
+///
+/// The production console redirects the plain-HTTP port (`:5000`) to the TLS
+/// port (`:5443`) with a `301`. reqwest's automatic redirect handling would
+/// downgrade the `POST`/`DELETE` to a `GET` and drop the body + `X-Device-Id`
+/// header, which the server rejects (401/400). This helper uses a no-redirect
+/// client and re-issues the same request against the `Location` target.
+async fn send_console_json(
+    method: reqwest::Method,
+    url: &str,
+    device_id: &str,
+    payload: &serde_json::Value,
+    timeout_secs: u64,
+) -> Result<reqwest::Response, String> {
+    let client = registration::build_http_client_no_redirect(timeout_secs)
+        .map_err(|e| e.to_string())?;
+
+    let mut current = url.to_string();
+    for _ in 0..5 {
+        let resp = client
+            .request(method.clone(), &current)
+            .header("X-Device-Id", device_id)
+            .json(payload)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+
+        if resp.status().is_redirection() {
+            if let Some(loc) = resp.headers().get(reqwest::header::LOCATION) {
+                let loc = loc.to_str().map_err(|e| e.to_string())?;
+                current = match url::Url::parse(loc) {
+                    Ok(abs) => abs.to_string(),
+                    Err(_) => url::Url::parse(&current)
+                        .and_then(|base| base.join(loc))
+                        .map_err(|e| e.to_string())?
+                        .to_string(),
+                };
+                continue;
+            }
+        }
+        return Ok(resp);
+    }
+    Err("Too many redirects".to_string())
+}
+
 fn format_console_url(address: &str, path: &str) -> String {
     let addr = address.trim();
     let with_scheme = if addr.starts_with("http://") || addr.starts_with("https://") {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/events"
 )
@@ -332,6 +333,130 @@ func (g *Gateway) handleLog(ctx context.Context, dc *DeviceConn, msg *Message) {
 			},
 		})
 	}
+}
+
+// handleHelpRequest persists a support request raised by an agent device and
+// notifies operators via the event bus. The device identity is taken from the
+// authenticated connection (dc.ID), never from the payload.
+func (g *Gateway) handleHelpRequest(ctx context.Context, dc *DeviceConn, msg *Message) {
+	var payload HelpRequestPayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		sendError(ctx, dc.conn, 3008, "invalid help_request payload")
+		return
+	}
+
+	message := strings.TrimSpace(payload.Message)
+	if len(message) > 2048 {
+		message = message[:2048]
+	}
+
+	hostname := strings.TrimSpace(payload.Hostname)
+	if hostname == "" && dc.Manifest != nil {
+		hostname = dc.Manifest.Device.Name
+	}
+
+	// Stamp the org the device belongs to (for operator data-scoping).
+	orgID, _ := g.db.GetDeviceOrgID(dc.ID)
+
+	req := &db.HelpRequest{
+		DeviceID: dc.ID,
+		Hostname: hostname,
+		OrgID:    orgID,
+		Message:  message,
+		Status:   db.HelpStatusPending,
+	}
+	id, err := g.db.CreateHelpRequest(req)
+	if err != nil {
+		log.Printf("[cdap] %s: failed to save help request: %v", dc.ID, err)
+		sendError(ctx, dc.conn, 5001, "failed to store help request")
+		return
+	}
+	req.ID = id
+
+	g.auditAction(string(audit.ActionHelpRequestCreated), dc.ID, map[string]string{
+		"request_id": fmt.Sprintf("%d", id),
+		"org_id":     orgID,
+	})
+
+	if g.eventBus != nil {
+		g.eventBus.Publish(events.Event{
+			Type: "help_request",
+			Data: map[string]string{
+				"id":        fmt.Sprintf("%d", id),
+				"device_id": dc.ID,
+				"hostname":  hostname,
+				"org_id":    orgID,
+				"message":   message,
+				"status":    db.HelpStatusPending,
+			},
+		})
+	}
+
+	// Acknowledge to the device so it can confirm delivery.
+	ack, _ := json.Marshal(map[string]any{"id": id, "status": db.HelpStatusPending})
+	dc.WriteMessage(ctx, &Message{Type: "help_request_ack", Payload: ack})
+}
+
+// handleChatMessage persists a chat message from an agent device and notifies
+// operators via the event bus. The sender identity is taken from the
+// authenticated connection (dc.ID).
+func (g *Gateway) handleChatMessage(ctx context.Context, dc *DeviceConn, msg *Message) {
+	var payload ChatMessagePayload
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		sendError(ctx, dc.conn, 3009, "invalid chat_message payload")
+		return
+	}
+
+	text := strings.TrimSpace(payload.Text)
+	if text == "" {
+		sendError(ctx, dc.conn, 3009, "empty chat message")
+		return
+	}
+	if len(text) > 4096 {
+		text = text[:4096]
+	}
+
+	fromName := dc.ID
+	if dc.Manifest != nil && dc.Manifest.Device.Name != "" {
+		fromName = dc.Manifest.Device.Name
+	}
+
+	cm := &db.ChatMessage{
+		ConversationID: dc.ID, // device <-> operator conversation keyed by device ID
+		FromID:         dc.ID,
+		FromName:       fromName,
+		ToID:           payload.ToID,
+		Text:           text,
+	}
+	id, err := g.db.SaveChatMessage(cm)
+	if err != nil {
+		log.Printf("[cdap] %s: failed to save chat message: %v", dc.ID, err)
+		sendError(ctx, dc.conn, 5002, "failed to store chat message")
+		return
+	}
+	cm.ID = id
+
+	g.auditAction(string(audit.ActionChatMessage), dc.ID, map[string]string{
+		"message_id": fmt.Sprintf("%d", id),
+	})
+
+	if g.eventBus != nil {
+		g.eventBus.Publish(events.Event{
+			Type: "chat_message",
+			Data: map[string]string{
+				"id":              fmt.Sprintf("%d", id),
+				"conversation_id": cm.ConversationID,
+				"from_id":         cm.FromID,
+				"from_name":       cm.FromName,
+				"to_id":           cm.ToID,
+				"text":            text,
+			},
+		})
+	}
+
+	// Acknowledge to the device.
+	ack, _ := json.Marshal(map[string]any{"id": id})
+	dc.WriteMessage(ctx, &Message{Type: "chat_message_ack", Payload: ack})
 }
 
 // handleUnregister processes a graceful disconnect from the device.

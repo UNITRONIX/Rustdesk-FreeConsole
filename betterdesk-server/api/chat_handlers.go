@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/events"
 )
 
 // handleChatHistory returns message history for a conversation.
@@ -116,6 +117,31 @@ func (s *Server) handleChatSendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg.ID = id
+
+	// Notify subscribers (e.g. the Node.js panel) so they can fan the message
+	// out to operator browsers in real time.
+	if s.eventBus != nil {
+		s.eventBus.Publish(events.Event{
+			Type: "chat_message",
+			Data: map[string]string{
+				"id":              strconv.FormatInt(id, 10),
+				"conversation_id": msg.ConversationID,
+				"from_id":         msg.FromID,
+				"from_name":       msg.FromName,
+				"to_id":           msg.ToID,
+				"text":            msg.Text,
+			},
+		})
+	}
+
+	// Deliver to the target device over CDAP if it is connected. The message is
+	// already persisted; CDAP delivery is best-effort for online agents.
+	if body.ToID != "" && s.cdapGw != nil && s.cdapGw.IsConnected(body.ToID) {
+		if err := s.cdapGw.SendChatToDevice(r.Context(), body.ToID, body.FromID, body.FromName, body.Text); err != nil {
+			log.Printf("[chat] CDAP delivery to %s failed: %v", body.ToID, err)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(msg)
 }

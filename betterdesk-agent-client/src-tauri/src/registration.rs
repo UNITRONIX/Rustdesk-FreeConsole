@@ -109,6 +109,25 @@ pub(crate) fn build_http_client(timeout_secs: u64) -> Result<Client> {
     builder.build().map_err(Into::into)
 }
 
+/// Build a reqwest client with automatic redirect following DISABLED.
+///
+/// The production console enforces HTTPS by issuing a `301 Moved Permanently`
+/// from the plain-HTTP port (`:5000`) to the TLS port (`:5443`). reqwest's
+/// default redirect policy downgrades `POST`/`DELETE` to `GET` on a 301 and
+/// drops the request body and custom headers (e.g. `X-Device-Id`), which the
+/// server then rejects. Callers use this client to follow such redirects
+/// manually while preserving the original method, body and headers.
+pub(crate) fn build_http_client_no_redirect(timeout_secs: u64) -> Result<Client> {
+    let mut builder = Client::builder()
+        .timeout(Duration::from_secs(timeout_secs))
+        .redirect(reqwest::redirect::Policy::none());
+    if !strict_tls_enabled() {
+        warn_self_signed_once();
+        builder = builder.danger_accept_invalid_certs(true);
+    }
+    builder.build().map_err(Into::into)
+}
+
 /// Result of a single validation step.
 #[derive(Debug, Clone, Serialize)]
 pub struct ValidationResult {
