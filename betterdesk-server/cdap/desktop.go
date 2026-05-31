@@ -34,11 +34,13 @@ type DesktopSession struct {
 
 // DesktopStartPayload is sent to the device to initiate a desktop session.
 type DesktopStartPayload struct {
-	SessionID string `json:"session_id"`
-	Width     int    `json:"width"`
-	Height    int    `json:"height"`
-	Quality   int    `json:"quality"` // JPEG quality 1-100
-	FPS       int    `json:"fps"`     // target frames per second
+	SessionID  string   `json:"session_id"`
+	Width      int      `json:"width"`
+	Height     int      `json:"height"`
+	Quality    int      `json:"quality"` // JPEG quality 1-100
+	FPS        int      `json:"fps"`     // target frames per second
+	Codecs     []string `json:"codecs,omitempty"`      // codecs the operator can decode
+	VideoCodec string   `json:"video_codec,omitempty"` // operator codec preference ("auto" = let agent choose)
 }
 
 // DesktopFramePayload is sent from the device to the browser.
@@ -84,7 +86,7 @@ type DesktopEndPayload struct {
 
 // StartDesktopSession creates a new remote desktop session between the
 // browser and a CDAP device for screen capture and input relay.
-func (g *Gateway) StartDesktopSession(ctx context.Context, browserConn *websocket.Conn, deviceID, username, role string, width, height, quality, fps int) (*DesktopSession, error) {
+func (g *Gateway) StartDesktopSession(ctx context.Context, browserConn *websocket.Conn, deviceID, username, role string, width, height, quality, fps int, codecs []string, videoCodec string) (*DesktopSession, error) {
 	dc := g.GetDeviceConn(deviceID)
 	if dc == nil {
 		return nil, fmt.Errorf("device %s not connected", deviceID)
@@ -130,11 +132,13 @@ func (g *Gateway) StartDesktopSession(ctx context.Context, browserConn *websocke
 	}
 
 	startPayload := DesktopStartPayload{
-		SessionID: sessionID,
-		Width:     width,
-		Height:    height,
-		Quality:   quality,
-		FPS:       fps,
+		SessionID:  sessionID,
+		Width:      width,
+		Height:     height,
+		Quality:    quality,
+		FPS:        fps,
+		Codecs:     codecs,
+		VideoCodec: videoCodec,
 	}
 	data, _ := json.Marshal(startPayload)
 	msg := &Message{

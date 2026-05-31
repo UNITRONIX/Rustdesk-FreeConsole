@@ -31,6 +31,68 @@
     // Cursor cache limit
     const CURSOR_CACHE_MAX = 50;
 
+    // ── Codec capability detection ───────────────────────────────────────
+    //
+    // The agent picks an encoder by intersecting its own ability with the
+    // list the operator advertises here. MJPEG ('jpeg') and WebP decode
+    // through the standard image pipeline (Blob + createImageBitmap) and are
+    // always safe. The hardware video codecs (h264/vp9/av1) require the
+    // WebCodecs `VideoDecoder` API, which browsers only expose in a secure
+    // context (HTTPS / localhost). When unavailable we simply omit them and
+    // the agent transparently falls back to image codecs.
+
+    const HAS_VIDEO_DECODER =
+        typeof window !== 'undefined' &&
+        window.isSecureContext &&
+        typeof window.VideoDecoder !== 'undefined';
+
+    // Media Source Extensions H.264 fallback. Unlike WebCodecs, MSE does NOT
+    // require a secure context, so this unlocks GPU-accelerated H.264 over
+    // plain HTTP (no HTTPS / domain / certificate). Decoding is delegated to
+    // the shared RDVideo class (JMuxer/MSE machinery). Available only when
+    // both the RDVideo helper and JMuxer library are loaded on the page.
+    function hasMseH264() {
+        return typeof window !== 'undefined' &&
+            typeof window.RDVideo !== 'undefined' &&
+            typeof window.JMuxer !== 'undefined' &&
+            typeof window.MediaSource !== 'undefined' &&
+            typeof window.MediaSource.isTypeSupported === 'function' &&
+            window.MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E"');
+    }
+
+    const HAS_MSE_H264 = hasMseH264();
+
+    // WebCodecs codec strings used to configure a VideoDecoder when the
+    // agent does not supply an explicit `codec_string` in desktop_meta.
+    const DEFAULT_CODEC_STRINGS = {
+        h264: 'avc1.42E01E',
+        vp9: 'vp09.00.10.08',
+        av1: 'av01.0.04M.08'
+    };
+
+    // Returns the codec list the operator can decode, ordered by preference.
+    // Image codecs first guarantees a working stream everywhere; video
+    // codecs are appended only when WebCodecs is available.
+    function decodableCodecs() {
+        const list = [];
+        if (HAS_VIDEO_DECODER) {
+            // Secure context — full WebCodecs decode of every codec.
+            // Most-efficient first; the agent honours its own ordering too.
+            list.push('av1', 'vp9', 'h264');
+        } else if (HAS_MSE_H264) {
+            // Plain HTTP — advertise H.264 so the agent still streams a
+            // GPU-encoded bitstream (decoded via JMuxer/MSE) instead of
+            // dropping to slow MJPEG. AV1/VP9 require WebCodecs (HTTPS).
+            list.push('h264');
+        }
+        list.push('webp', 'jpeg');
+        return list;
+    }
+
+    function isVideoCodec(fmt) {
+        return fmt === 'h264' || fmt === 'vp9' || fmt === 'av1';
+    }
+
     // ── Desktop Session Manager ──────────────────────────────────────────
 
     function openDesktop(deviceId, widgetId) {
@@ -95,6 +157,17 @@
             // Codec
             _videoCodec: null,
             _audioCodec: null,
+            // Active desktop stream format ('jpeg' | 'webp' | 'h264' | 'vp9' |
+            // 'av1'), taken from the most recent desktop_meta. Defaults to
+            // jpeg so legacy agents that never send desktop_meta still render.
+            _activeFormat: 'jpeg',
+            _codecString: null,
+            // WebCodecs decoder state for video codecs.
+            _videoDecoder: null,
+            _videoDecoderCodec: null,
+            _gotKeyframe: false,
+            // RDVideo (JMuxer/MSE) decoder used for H.264 over plain HTTP.
+            _rdVideo: null,
             // Clipboard
             _clipboardEnabled: true
         };
@@ -120,7 +193,13 @@
                 fps: 30,
                 device_pixel_ratio: dpr,
                 client_css_width: Math.round(rect.width || 0),
-                client_css_height: Math.round(rect.height || 0)
+                client_css_height: Math.round(rect.height || 0),
+                // Advertise the codecs this browser can decode so the agent
+                // can pick a hardware-accelerated encoder. Older agents
+                // ignore the field and keep streaming MJPEG.
+                webcodecs: HAS_VIDEO_DECODER,
+                codecs: decodableCodecs(),
+                video_codec: 'auto'
             }));
             // Start sending presence pings every 15s. The Go server's
             // desktop read loop has a 30s deadline; missing pings cause
@@ -189,6 +268,21 @@
                     session.width = msg.width;
                     session.height = msg.height;
                 }
+                // Track the stream format so renderBinaryFrame knows whether
+                // the following binary frames are images (jpeg/webp) or a
+                // compressed video bitstream (h264/vp9/av1).
+                {
+                    const fmt = (msg.format || 'jpeg').toLowerCase();
+                    if (fmt !== session._activeFormat) {
+                        session._activeFormat = fmt;
+                        session._codecString = msg.codec_string || null;
+                        // Switching codecs invalidates any existing decoder.
+                        closeVideoDecoder(session);
+                        session._gotKeyframe = false;
+                    } else if (msg.codec_string) {
+                        session._codecString = msg.codec_string;
+                    }
+                }
                 break;
 
             case 'cursor_update':
@@ -239,6 +333,14 @@
         session._frameBytes += buffer.byteLength;
         session._lastFrameTime = Date.now();
 
+        // Video bitstreams (h264/vp9/av1) carry a 1-byte flag header
+        // (bit0 = keyframe) followed by the access unit. They are decoded
+        // through WebCodecs instead of the image pipeline.
+        if (isVideoCodec(session._activeFormat)) {
+            decodeVideoFrame(session, buffer);
+            return;
+        }
+
         // Drop frames if the previous decode is still pending. Painting old
         // frames over fresher ones would only add latency.
         if (session._decodeInFlight) {
@@ -247,7 +349,8 @@
         }
         session._decodeInFlight = true;
 
-        const blob = new Blob([buffer], { type: 'image/jpeg' });
+        const mime = session._activeFormat === 'webp' ? 'image/webp' : 'image/jpeg';
+        const blob = new Blob([buffer], { type: mime });
         createImageBitmap(blob)
             .then((bitmap) => {
                 const { canvas, ctx } = session;
@@ -266,6 +369,200 @@
             .finally(() => {
                 session._decodeInFlight = false;
             });
+    }
+
+    // ── WebCodecs Video Decode (h264 / vp9 / av1) ────────────────────────
+
+    // Lazily creates (or recreates) a VideoDecoder for the session's active
+    // codec. Decoded frames are painted straight onto the canvas. On any
+    // configuration/decode error we tear the decoder down and ask the agent
+    // for a fresh keyframe so the next IDR can restart decoding.
+    function ensureVideoDecoder(session) {
+        if (!HAS_VIDEO_DECODER) return null;
+        if (session._videoDecoder && session._videoDecoderCodec === session._activeFormat) {
+            return session._videoDecoder;
+        }
+        closeVideoDecoder(session);
+
+        const codecString =
+            session._codecString || DEFAULT_CODEC_STRINGS[session._activeFormat];
+        if (!codecString) return null;
+
+        let decoder;
+        try {
+            decoder = new window.VideoDecoder({
+                output: (frame) => {
+                    try {
+                        const { canvas, ctx } = session;
+                        if (canvas.width !== frame.displayWidth || canvas.height !== frame.displayHeight) {
+                            canvas.width = frame.displayWidth;
+                            canvas.height = frame.displayHeight;
+                            session.width = frame.displayWidth;
+                            session.height = frame.displayHeight;
+                        }
+                        ctx.drawImage(frame, 0, 0);
+                    } catch (_) {
+                        session._droppedFrames++;
+                    } finally {
+                        frame.close();
+                    }
+                },
+                error: () => {
+                    // Decoder hit an unrecoverable error — drop it and
+                    // request a keyframe to rebuild state.
+                    closeVideoDecoder(session);
+                    session._gotKeyframe = false;
+                    requestKeyframe(session.deviceId, session.widgetId);
+                }
+            });
+            decoder.configure({ codec: codecString, optimizeForLatency: true });
+        } catch (err) {
+            console.warn('[CDAPDesktop] VideoDecoder configure failed:', err);
+            return null;
+        }
+
+        session._videoDecoder = decoder;
+        session._videoDecoderCodec = session._activeFormat;
+        return decoder;
+    }
+
+    function decodeVideoFrame(session, buffer) {
+        // Plain-HTTP fast path: no WebCodecs, but H.264 can still be GPU
+        // decoded through JMuxer/MSE via the shared RDVideo helper.
+        if (!HAS_VIDEO_DECODER && HAS_MSE_H264 && session._activeFormat === 'h264') {
+            decodeVideoFrameMse(session, buffer);
+            return;
+        }
+
+        const decoder = ensureVideoDecoder(session);
+        if (!decoder) {
+            session._droppedFrames++;
+            return;
+        }
+
+        const bytes = new Uint8Array(buffer);
+        if (bytes.length < 2) return;
+        const isKey = (bytes[0] & 0x01) === 1;
+        const payload = bytes.subarray(1);
+
+        // A decoder can only start from a keyframe. Skip delta frames until
+        // the first IDR arrives, and proactively ask for one if needed.
+        if (!session._gotKeyframe) {
+            if (!isKey) {
+                session._droppedFrames++;
+                if (!session._keyframeRequested) {
+                    session._keyframeRequested = true;
+                    requestKeyframe(session.deviceId, session.widgetId);
+                }
+                return;
+            }
+            session._gotKeyframe = true;
+            session._keyframeRequested = false;
+        }
+
+        try {
+            const chunk = new window.EncodedVideoChunk({
+                type: isKey ? 'key' : 'delta',
+                timestamp: (session._frameCount * 1000000) / 30,
+                data: payload
+            });
+            decoder.decode(chunk);
+        } catch (err) {
+            session._droppedFrames++;
+            closeVideoDecoder(session);
+            session._gotKeyframe = false;
+        }
+    }
+
+    // ── MSE / JMuxer H.264 Decode (plain HTTP, no secure context) ────────
+
+    // Lazily creates an RDVideo decoder bound to the session canvas. RDVideo
+    // wraps JMuxer/MSE which the browser hardware-accelerates without a
+    // secure context, making smooth H.264 possible over plain HTTP.
+    function ensureRdVideo(session) {
+        if (session._rdVideo && session._rdVideo.initialized) {
+            return session._rdVideo;
+        }
+        if (typeof window.RDVideo === 'undefined') return null;
+
+        const v = new window.RDVideo();
+        v.onFrame = (frame) => {
+            try {
+                const { canvas, ctx } = session;
+                const w = frame.displayWidth || canvas.width;
+                const h = frame.displayHeight || canvas.height;
+                if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+                    canvas.width = w;
+                    canvas.height = h;
+                    session.width = w;
+                    session.height = h;
+                }
+                ctx.drawImage(frame._source || frame, 0, 0, canvas.width, canvas.height);
+            } catch (_) {
+                session._droppedFrames++;
+            } finally {
+                try { frame.close && frame.close(); } catch (_) { /* ignore */ }
+            }
+        };
+        v.onError = () => {
+            session._gotKeyframe = false;
+            if (!session._keyframeRequested) {
+                session._keyframeRequested = true;
+                requestKeyframe(session.deviceId, session.widgetId);
+            }
+        };
+        v.init('h264').catch(() => { session._rdVideo = null; });
+        session._rdVideo = v;
+        return v;
+    }
+
+    // Feeds one H.264 access unit (1-byte keyframe flag + Annex-B AU) into the
+    // RDVideo / JMuxer decoder.
+    function decodeVideoFrameMse(session, buffer) {
+        const v = ensureRdVideo(session);
+        if (!v) {
+            session._droppedFrames++;
+            return;
+        }
+        const bytes = new Uint8Array(buffer);
+        if (bytes.length < 2) return;
+        const isKey = (bytes[0] & 0x01) === 1;
+        const payload = bytes.subarray(1);
+
+        if (!session._gotKeyframe) {
+            if (!isKey) {
+                session._droppedFrames++;
+                if (!session._keyframeRequested) {
+                    session._keyframeRequested = true;
+                    requestKeyframe(session.deviceId, session.widgetId);
+                }
+                return;
+            }
+            session._gotKeyframe = true;
+            session._keyframeRequested = false;
+        }
+
+        try {
+            v.decode({ data: payload, key: isKey, codec: 'h264' });
+        } catch (_) {
+            session._droppedFrames++;
+        }
+    }
+
+    function closeVideoDecoder(session) {
+        if (session._videoDecoder) {
+            try {
+                if (session._videoDecoder.state !== 'closed') {
+                    session._videoDecoder.close();
+                }
+            } catch (_) { /* ignore */ }
+            session._videoDecoder = null;
+            session._videoDecoderCodec = null;
+        }
+        if (session._rdVideo) {
+            try { session._rdVideo.close(); } catch (_) { /* ignore */ }
+            session._rdVideo = null;
+        }
     }
 
     function renderFrame(session, msg) {
@@ -474,12 +771,13 @@
 
     function sendCodecOffer(session) {
         if (!session.sessionId) return;
+        const video = decodableCodecs();
         sendMsg(session, {
             type: 'codec_offer',
             session_id: session.sessionId,
-            video: ['jpeg', 'png'],
+            video: video,
             audio: ['opus', 'pcm'],
-            preferred: 'jpeg'
+            preferred: video[0] || 'jpeg'
         });
     }
 
@@ -739,6 +1037,10 @@
             session._qualityTimer = null;
         }
         stopPresencePing(session);
+        // Release any WebCodecs video decoder so the GPU/decoder slot is
+        // freed immediately rather than waiting for GC.
+        closeVideoDecoder(session);
+        session._gotKeyframe = false;
         // Stop recorder if still rolling — we don't want to leave dangling
         // MediaRecorder + canvas captureStream when the session ends.
         if (session._recorder && session._recorder.state === 'recording') {

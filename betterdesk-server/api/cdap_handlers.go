@@ -694,17 +694,19 @@ func (s *Server) handleCDAPDesktop(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var initMsg struct {
-		Width   int `json:"width"`
-		Height  int `json:"height"`
-		Quality int `json:"quality"`
-		FPS     int `json:"fps"`
+		Width      int      `json:"width"`
+		Height     int      `json:"height"`
+		Quality    int      `json:"quality"`
+		FPS        int      `json:"fps"`
+		Codecs     []string `json:"codecs"`
+		VideoCodec string   `json:"video_codec"`
 	}
 	if err := json.Unmarshal(initData, &initMsg); err != nil {
 		wsConn.Close(websocket.StatusProtocolError, "invalid init message")
 		return
 	}
 
-	session, err := s.cdapGw.StartDesktopSession(ctx, wsConn, id, username, role, initMsg.Width, initMsg.Height, initMsg.Quality, initMsg.FPS)
+	session, err := s.cdapGw.StartDesktopSession(ctx, wsConn, id, username, role, initMsg.Width, initMsg.Height, initMsg.Quality, initMsg.FPS, initMsg.Codecs, initMsg.VideoCodec)
 	if err != nil {
 		errMsg, _ := json.Marshal(map[string]string{"type": "error", "error": fmt.Sprintf("Failed to start desktop: %v", err)})
 		wsConn.Write(ctx, websocket.MessageText, errMsg)

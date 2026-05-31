@@ -87,6 +87,10 @@ struct GoAgentConfig {
     clipboard: bool,
     screenshot: bool,
     require_consent: bool,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    video_codec: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    hw_accel: String,
 
     heartbeat_sec: u32,
     reconnect_sec: u32,
@@ -110,6 +114,8 @@ pub struct SidecarConfig {
     pub allow_clipboard: bool,
     pub allow_screen_capture: bool,
     pub require_consent: bool,
+    pub video_codec: String,
+    pub hw_accel: String,
     pub data_dir: PathBuf,
     pub cdap_port: u16,
 }
@@ -671,6 +677,8 @@ fn write_go_config(path: &PathBuf, cfg: &SidecarConfig) -> Result<()> {
         clipboard: cfg.allow_clipboard,
         screenshot: cfg.allow_screen_capture,
         require_consent: cfg.require_consent,
+        video_codec: cfg.video_codec.clone(),
+        hw_accel: cfg.hw_accel.clone(),
         heartbeat_sec: 15,
         reconnect_sec: 5,
         max_reconnect: 300,

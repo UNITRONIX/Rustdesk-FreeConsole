@@ -38,6 +38,15 @@ type Config struct {
 	MaxReconnect int    `json:"max_reconnect"`       // max reconnect delay
 	LogLevel     string `json:"log_level"`           // debug, info, warning, error
 	DataDir      string `json:"data_dir"`
+
+	// VideoCodec pins the desktop-stream encoder. "" or "auto" lets the agent
+	// pick the most efficient codec the operator can decode (probe-driven).
+	// Concrete values: mjpeg, webp, h264, vp9, av1.
+	VideoCodec string `json:"video_codec,omitempty"`
+	// HwAccel pins the hardware encode back-end. "" or "auto" lets the probe
+	// choose; "none" forces software. Concrete: vaapi, nvenc, qsv, amf,
+	// videotoolbox.
+	HwAccel string `json:"hw_accel,omitempty"`
 }
 
 // DefaultConfig returns sensible defaults for all platforms.
@@ -68,6 +77,8 @@ func DefaultConfig() *Config {
 		MaxReconnect: 300,
 		LogLevel:     "info",
 		DataDir:      defaultDataDir(),
+		VideoCodec:   CodecAuto,
+		HwAccel:      HwAuto,
 	}
 }
 
@@ -114,6 +125,8 @@ func (c *Config) loadEnv() {
 	envStr("BDAGENT_LOG_LEVEL", &c.LogLevel)
 	envStr("BDAGENT_DATA_DIR", &c.DataDir)
 	envStr("BDAGENT_FILE_ROOT", &c.FileRoot)
+	envStr("BDAGENT_VIDEO_CODEC", &c.VideoCodec)
+	envStr("BDAGENT_HW_ACCEL", &c.HwAccel)
 	envBool("BDAGENT_TERMINAL", &c.Terminal)
 	envBool("BDAGENT_FILE_BROWSER", &c.FileBrowser)
 	envBool("BDAGENT_CLIPBOARD", &c.Clipboard)
@@ -168,7 +181,31 @@ func (c *Config) Validate() error {
 	if c.MaxReconnect < c.ReconnectSec {
 		c.MaxReconnect = c.ReconnectSec * 60
 	}
+	c.VideoCodec = normalizeCodecValue(c.VideoCodec)
+	c.HwAccel = normalizeHwAccelValue(c.HwAccel)
 	return nil
+}
+
+// normalizeCodecValue lowercases and validates a configured codec, falling
+// back to "auto" for empty or unknown values.
+func normalizeCodecValue(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case CodecMJPEG, CodecWebP, CodecH264, CodecVP9, CodecAV1:
+		return strings.ToLower(strings.TrimSpace(v))
+	default:
+		return CodecAuto
+	}
+}
+
+// normalizeHwAccelValue lowercases and validates a configured hw back-end,
+// falling back to "auto" for empty or unknown values.
+func normalizeHwAccelValue(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case HwNone, HwVAAPI, HwNVENC, HwQSV, HwAMF, HwVideoToolbox:
+		return strings.ToLower(strings.TrimSpace(v))
+	default:
+		return HwAuto
+	}
 }
 
 func defaultDataDir() string {

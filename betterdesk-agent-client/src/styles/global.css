@@ -1223,6 +1223,21 @@ a:hover { color: var(--accent-hover); }
   flex: 1;
 }
 
+.settings-select {
+  background: var(--bg-input, var(--bg-secondary));
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  min-width: 160px;
+  cursor: pointer;
+}
+.settings-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .settings-toggle-row {
   display: flex;
   align-items: center;

@@ -1,7 +1,7 @@
 <%- include('layouts/main', {
     title: _('cdap.device_detail'),
     pageStyles: ['cdap'],
-    pageScripts: ['cdap-widgets', 'cdap-commands', 'cdap-terminal', 'cdap-desktop', 'cdap-video', 'cdap-filebrowser', 'cdap-audio'],
+    pageScripts: ['vendor/jmuxer.min', 'rdclient/video', 'cdap-widgets', 'cdap-commands', 'cdap-terminal', 'cdap-desktop', 'cdap-video', 'cdap-filebrowser', 'cdap-audio'],
     currentPage: 'devices',
     breadcrumb: [
         { label: _('nav.devices'), href: '/devices' },
