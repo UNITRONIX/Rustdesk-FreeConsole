@@ -152,6 +152,15 @@ pub struct AgentConfig {
 
     /// UI language code ("en" or "pl").
     pub language: String,
+
+    // ── Unattended access ───────────────────────────────────────────────────
+
+    /// Permanent unattended-access password shown in the agent card when the
+    /// deployment branding enables unattended access. Generated once on first
+    /// request and persisted so the operator always sees a stable code.
+    /// Forwarded to the sidecar config so future builds can enforce it.
+    #[serde(default)]
+    pub unattended_password: String,
 }
 
 fn default_cdap_port() -> u16 { 21122 }
@@ -182,6 +191,7 @@ impl Default for AgentConfig {
             autostart: true,
             start_minimized: true,
             language: "en".to_string(),
+            unattended_password: String::new(),
         }
     }
 }

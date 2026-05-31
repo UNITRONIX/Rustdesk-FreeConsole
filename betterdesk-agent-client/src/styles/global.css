@@ -95,6 +95,67 @@ a:hover { color: var(--accent-hover); }
   width: 100vw;
   height: 100vh;
   display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Body region below the custom title bar — fills the remaining height. */
+.app-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* ── Custom window title bar (native decorations are disabled) ── */
+.app-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 4px 0 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.app-titlebar-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.app-titlebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.app-titlebar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.app-titlebar-btn .material-symbols-rounded {
+  font-size: 18px;
+}
+.app-titlebar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.app-titlebar-btn-close:hover {
+  background: #e81123;
+  color: #fff;
 }
 
 .app-loading {
@@ -117,8 +178,9 @@ a:hover { color: var(--accent-hover); }
 .app-layout-tray {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  flex: 1;
   min-height: 0;
+  width: 100%;
 }
 
 .app-layout-tray .app-main-full {
@@ -195,7 +257,7 @@ a:hover { color: var(--accent-hover); }
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  padding: clamp(14px, 4vw, 20px);
+  padding: 0;
 }
 
 /* ── Admin-required gate (legacy) ── */
@@ -457,6 +519,35 @@ a:hover { color: var(--accent-hover); }
   font-weight: 600;
   margin-bottom: 24px;
 }
+
+/* Secondary-panel header with a back affordance (Settings, Help, Chat). With
+   the bottom navigation removed, this button returns the user to the status
+   card. */
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.page-header .page-title {
+  margin-bottom: 0;
+}
+.page-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.page-back-btn:hover { background: var(--bg-hover); color: var(--accent); }
+.page-back-btn .material-symbols-rounded { font-size: 20px; }
 
 /* ── Form Controls ── */
 .form-label {
@@ -789,12 +880,13 @@ a:hover { color: var(--accent-hover); }
 
 /* ── Setup Wizard ── */
 .setup-root {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-primary);
+  overflow-y: auto;
 }
 
 .setup-card {
@@ -1763,3 +1855,398 @@ a:hover { color: var(--accent-hover); }
   color: var(--text-secondary, #94a3b8);
   margin-top: 2px;
 }
+
+/* Permanent unattended-access password management (Settings). */
+.settings-pw-block {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.03));
+}
+.settings-pw-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.settings-pw-value {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.95rem;
+  letter-spacing: 0.18em;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg-tertiary, rgba(0, 0, 0, 0.2));
+  min-width: 120px;
+}
+.settings-pw-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+}
+.settings-pw-icon-btn:hover {
+  color: var(--text-primary, #e2e8f0);
+  border-color: var(--accent, #3b82f6);
+}
+.settings-pw-icon-btn .material-symbols-rounded {
+  font-size: 18px;
+}
+.settings-pw-regen-btn,
+.settings-pw-save-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.settings-pw-regen-btn:hover,
+.settings-pw-save-btn:hover {
+  border-color: var(--accent, #3b82f6);
+}
+.settings-pw-set {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.settings-pw-set .form-input {
+  flex: 1;
+}
+.settings-pw-feedback {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--accent, #3b82f6);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Branded support card (StatusPanel) — mirrors the Console agent generator
+   live preview. Colors come from branding CSS variables (--accent etc.).
+   ───────────────────────────────────────────────────────────────────────── */
+.ap-page {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  padding: 0;
+}
+
+.ap-card {
+  width: 100%;
+  max-width: none;
+  border-radius: 0;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  border: none;
+  box-shadow: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.ap-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: #fff;
+}
+
+.ap-logo {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+.ap-logo img { width: 100%; height: 100%; object-fit: contain; }
+.ap-logo .material-symbols-rounded { font-size: 24px; color: #fff; }
+
+.ap-brand { min-width: 0; }
+.ap-brand-name {
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ap-brand-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ap-body {
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.ap-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.ap-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-bg);
+}
+.ap-status-dot.offline {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px var(--warning-bg);
+}
+
+.ap-id-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+}
+.ap-id-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ap-id-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ap-id-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+.ap-copy-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  transition: var(--transition);
+}
+.ap-copy-btn:hover { background: var(--bg-hover); color: var(--accent); }
+.ap-copy-btn .material-symbols-rounded { font-size: 18px; }
+.ap-copied { font-size: 11px; color: var(--success); }
+
+/* Unattended-access password row (shown only when the deployment enables it) */
+.ap-pw-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+}
+.ap-pw {
+  letter-spacing: 0.22em;
+}
+
+.ap-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.ap-chat:hover { background: var(--accent-hover); }
+.ap-chat .material-symbols-rounded { font-size: 20px; }
+
+/* Help-request button — outlined accent, sits directly above the chat button */
+.ap-help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.ap-help:hover { background: var(--accent); color: #fff; }
+.ap-help .material-symbols-rounded { font-size: 20px; }
+
+.ap-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.ap-secondary:hover { background: var(--bg-hover); }
+.ap-secondary .material-symbols-rounded { font-size: 18px; }
+
+.ap-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border);
+}
+/* Square icon buttons (settings gear + power) mirroring the generator preview */
+.ap-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.ap-icon-btn:hover { background: var(--bg-hover); color: var(--accent); }
+.ap-icon-btn .material-symbols-rounded { font-size: 20px; }
+/* Branded support channels: email • phone • url */
+.ap-contact {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Admin-only collapsible technical details toggle */
+.ap-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.ap-advanced-toggle:hover { color: var(--accent); }
+.ap-advanced-toggle .material-symbols-rounded { font-size: 18px; }
+.ap-diag {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.ap-advanced {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Standalone chat window (?win=chat)
+   ───────────────────────────────────────────────────────────────────────── */
+.chat-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-primary);
+}
+.chat-window-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: #fff;
+  flex-shrink: 0;
+}
+.chat-window-icon { font-size: 22px; }
+.chat-window-titles { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.chat-window-title { font-weight: 700; font-size: 14px; }
+.chat-window-subtitle {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-window-close {
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  transition: var(--transition);
+}
+.chat-window-close:hover { background: rgba(255, 255, 255, 0.18); }
+.chat-window-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.chat-window-body > * { flex: 1; min-height: 0; }
+

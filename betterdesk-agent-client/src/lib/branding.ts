@@ -22,6 +22,7 @@ export interface Branding {
   accent_color: string;
   logo_data_url: string;
   default_language: string;
+  allow_unattended: boolean;
   server_address: string;
   server_key: string;
   bundle_id: string;
@@ -38,6 +39,7 @@ const DEFAULT_BRANDING: Branding = {
   accent_color: "#0ea5e9",
   logo_data_url: "",
   default_language: "en",
+  allow_unattended: false,
   server_address: "",
   server_key: "",
   bundle_id: "",

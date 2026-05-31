@@ -15,17 +15,28 @@ use tauri::Manager;
 
 /// Subset of the Console-side branding schema that the agent UI consumes.
 /// Fields kept loose (`Option` / `Default`) so a partial JSON still loads.
+///
+/// The Console "Generator agenta" emits a slightly different field naming
+/// convention than the agent historically expected. `serde(alias = ...)`
+/// keeps both spellings working so the same `branding.json` loads regardless
+/// of which side produced it:
+///   - `tagline`         <- `short_text`
+///   - `support_email`   <- `contact_email`
+///   - `support_phone`   <- `contact_phone`
+///   - `default_language`<- `default_lang`
+/// The generator also nests the server origin/key under a `server` object,
+/// which `merge_with_defaults` flattens into `server_address` / `server_key`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Branding {
     #[serde(default)]
     pub product_name:  String,
     #[serde(default)]
     pub company_name:  String,
-    #[serde(default)]
+    #[serde(default, alias = "short_text")]
     pub tagline:       String,
-    #[serde(default)]
+    #[serde(default, alias = "contact_email")]
     pub support_email: String,
-    #[serde(default)]
+    #[serde(default, alias = "contact_phone")]
     pub support_phone: String,
     #[serde(default)]
     pub contact_url:   String,
@@ -35,14 +46,34 @@ pub struct Branding {
     pub accent_color:  String,
     #[serde(default)]
     pub logo_data_url: String,
-    #[serde(default)]
+    #[serde(default, alias = "default_lang")]
     pub default_language: String,
+    /// Whether this deployment lets the operator connect without the user
+    /// being present (shows the permanent password row in the agent card).
+    #[serde(default)]
+    pub allow_unattended: bool,
     #[serde(default)]
     pub server_address: String,
     #[serde(default)]
     pub server_key:     String,
     #[serde(default)]
     pub bundle_id:      String,
+    /// Nested server object as emitted by the Console generator. Flattened
+    /// into `server_address` / `server_key` by `merge_with_defaults` and
+    /// never re-serialized back to the frontend.
+    #[serde(default, skip_serializing)]
+    pub server: Option<ServerBranding>,
+}
+
+/// Nested `server` object produced by the Console generator schema.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ServerBranding {
+    #[serde(default)]
+    pub address:    String,
+    #[serde(default)]
+    pub api_url:    String,
+    #[serde(default)]
+    pub public_key: String,
 }
 
 impl Branding {
@@ -97,6 +128,11 @@ fn resolve(app: &tauri::AppHandle) -> Option<Branding> {
 
 fn merge_with_defaults(mut b: Branding) -> Branding {
     let d = Branding::defaults();
+    // Flatten the generator's nested `server` object before applying defaults.
+    if let Some(server) = b.server.take() {
+        if b.server_address.is_empty() { b.server_address = server.address; }
+        if b.server_key.is_empty()     { b.server_key     = server.public_key; }
+    }
     if b.product_name.is_empty()  { b.product_name  = d.product_name; }
     if b.company_name.is_empty()  { b.company_name  = d.company_name; }
     if b.primary_color.is_empty() { b.primary_color = d.primary_color; }

@@ -28,7 +28,7 @@ const HelpRequest: Component = () => {
     setState("sending");
     setError("");
     try {
-      await invoke("request_help", { message: message().trim() });
+      await invoke("request_help", { description: message().trim() });
       setState("sent");
       setMessage("");
     } catch (e) {
@@ -46,7 +46,18 @@ const HelpRequest: Component = () => {
 
   return (
     <div class="page-content">
-      <h2 class="page-title">{t("help.title")}</h2>
+      <div class="page-header">
+        <button
+          class="page-back-btn"
+          onClick={() => {
+            if (typeof window !== "undefined") window.location.hash = "/";
+          }}
+          title={t("common.back")}
+        >
+          <span class="material-symbols-rounded">arrow_back</span>
+        </button>
+        <h2 class="page-title">{t("help.title")}</h2>
+      </div>
 
       {/* Idle — show form */}
       <Show when={state() === "idle"}>

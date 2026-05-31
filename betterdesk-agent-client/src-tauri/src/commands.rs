@@ -339,6 +339,72 @@ pub fn get_branding(app: tauri::AppHandle) -> crate::branding::Branding {
     crate::branding::load(&app)
 }
 
+/// Returns this device's permanent unattended-access password, generating and
+/// persisting a fresh code on first use.
+///
+/// The agent card only displays this value when the deployment branding sets
+/// `allow_unattended`. The code is a stable, locally-generated secret persisted
+/// in the agent config; it is never derived from the public device ID.
+#[tauri::command]
+pub fn get_unattended_password(state: State<'_, AgentState>) -> Result<String, String> {
+    let mut config = state.config.lock().map_err(|e| e.to_string())?;
+    if config.unattended_password.is_empty() {
+        config.unattended_password = generate_access_password();
+        config.save().map_err(|e| e.to_string())?;
+        log::info!("Generated permanent unattended-access password for this device");
+    }
+    Ok(config.unattended_password.clone())
+}
+
+/// Sets a custom permanent unattended-access password chosen by the user.
+///
+/// The password is validated locally (6–64 characters) and persisted to the
+/// agent config. Used by the Settings panel so an administrator can pick a
+/// memorable password instead of the auto-generated code.
+#[tauri::command]
+pub fn set_unattended_password(
+    state: State<'_, AgentState>,
+    password: String,
+) -> Result<(), String> {
+    let trimmed = password.trim();
+    if trimmed.chars().count() < 6 {
+        return Err("password_too_short".to_string());
+    }
+    if trimmed.chars().count() > 64 {
+        return Err("password_too_long".to_string());
+    }
+    let mut config = state.config.lock().map_err(|e| e.to_string())?;
+    config.unattended_password = trimmed.to_string();
+    config.save().map_err(|e| e.to_string())?;
+    log::info!("Custom unattended-access password set by user");
+    Ok(())
+}
+
+/// Regenerates a fresh random unattended-access password and returns it.
+#[tauri::command]
+pub fn regenerate_unattended_password(
+    state: State<'_, AgentState>,
+) -> Result<String, String> {
+    let mut config = state.config.lock().map_err(|e| e.to_string())?;
+    config.unattended_password = generate_access_password();
+    config.save().map_err(|e| e.to_string())?;
+    log::info!("Regenerated unattended-access password for this device");
+    Ok(config.unattended_password.clone())
+}
+
+/// Generates an unambiguous 8-character access password.
+///
+/// Excludes visually ambiguous characters (0/O, 1/l/I) so users can read the
+/// code from the agent card without confusion.
+fn generate_access_password() -> String {
+    use rand::Rng;
+    const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut rng = rand::thread_rng();
+    (0..8)
+        .map(|_| CHARSET[rng.gen_range(0..CHARSET.len())] as char)
+        .collect()
+}
+
 #[tauri::command]
 pub fn copy_to_clipboard(text: String) -> Result<(), String> {
     // Use Tauri's clipboard API via shell command fallback.
@@ -593,11 +659,55 @@ pub async fn send_chat_message(
 
     let url = format_console_url(&address, "/bd/chat/send");
     if let Ok(client) = crate::registration::build_http_client(8) {
-        if let Err(e) = client.post(&url).json(&payload).send().await {
+        // `X-Device-Id` is required by the `identifyDevice` middleware on the
+        // console; otherwise the relay rejects the message with 401.
+        if let Err(e) = client
+            .post(&url)
+            .header("X-Device-Id", &device_id)
+            .json(&payload)
+            .send()
+            .await
+        {
             info!("Chat delivery failed (non-fatal): {}", e);
         }
     }
 
+    Ok(())
+}
+
+/// Opens the dedicated chat window. The chat lives in a separate, frameless-free
+/// native window (label `chat`) so the user can talk to support while keeping
+/// the main status card available. If the window already exists it is simply
+/// shown and focused. Maximize is disabled to match the main window policy;
+/// the window stays minimizable and closable (closing just hides it).
+#[tauri::command]
+pub async fn open_chat_window(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+    if let Some(win) = app.get_webview_window("chat") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+        return Ok(());
+    }
+
+    // The `?win=chat` query flag tells the frontend to render the standalone
+    // chat view (no bottom navigation / status shell).
+    let win = WebviewWindowBuilder::new(&app, "chat", WebviewUrl::App("index.html?win=chat".into()))
+        .title("BetterDesk — Chat")
+        .inner_size(420.0, 600.0)
+        .min_inner_size(360.0, 480.0)
+        .resizable(true)
+        .minimizable(true)
+        .maximizable(false)
+        .closable(true)
+        .center()
+        .skip_taskbar(false)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let _ = win.show();
+    let _ = win.set_focus();
     Ok(())
 }
 
@@ -616,8 +726,15 @@ pub async fn request_help(
         (config.server_address.clone(), config.device_id.clone(), config.device_name.clone())
     };
 
+    // The Node.js console route (`/api/bd/help-request`) reads `message` and
+    // `hostname`; older `description`/`device_name` keys are kept for forward
+    // compatibility. The `X-Device-Id` header is REQUIRED by the `identifyDevice`
+    // middleware — without it the request is rejected with 401 even though the
+    // device is registered.
     let payload = serde_json::json!({
         "device_id": device_id,
+        "hostname": device_name,
+        "message": description,
         "device_name": device_name,
         "description": description,
         "timestamp": chrono::Utc::now().to_rfc3339(),
@@ -629,6 +746,7 @@ pub async fn request_help(
 
     let resp = client
         .post(&url)
+        .header("X-Device-Id", &device_id)
         .json(&payload)
         .send()
         .await
@@ -661,7 +779,12 @@ pub async fn cancel_help_request(state: State<'_, AgentState>) -> Result<(), Str
 
     let url = format_console_url(&address, "/bd/help-request");
 
-    let _ = client.delete(&url).json(&payload).send().await;
+    let _ = client
+        .delete(&url)
+        .header("X-Device-Id", &device_id)
+        .json(&payload)
+        .send()
+        .await;
     info!("Help request cancelled for {}", device_id);
     Ok(())
 }

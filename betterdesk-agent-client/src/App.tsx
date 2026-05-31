@@ -8,6 +8,7 @@ import SettingsPanel from "./components/SettingsPanel";
 import ConsentDialog from "./components/ConsentDialog";
 import SudoAuthDialog from "./components/SudoAuthDialog";
 import SessionOverlay from "./components/SessionOverlay";
+import TitleBar from "./components/TitleBar";
 import { initI18n, t } from "./lib/i18n";
 import { frontendLog } from "./lib/logger";
 import { loadBranding } from "./lib/branding";
@@ -23,8 +24,6 @@ const getCurrentHashRoute = (): string => {
   const raw = window.location.hash.replace(/^#/, "") || "/";
   return raw.startsWith("/") ? raw : `/${raw}`;
 };
-
-const getCurrentHashPath = (): string => getCurrentHashRoute().split("?")[0] || "/";
 
 const navigateHashRoute = (route: string): void => {
   if (typeof window === "undefined") {
@@ -53,109 +52,15 @@ const NavigationListener: Component = () => {
   return null;
 };
 
-// ── Bottom navigation bar ─────────────────────────────────────────────────────
-// Visible tabs: Status | Chat | Help | Settings
-// The "Close" action is in the overflow menu (requires sudo auth for non-admins).
-interface BottomNavProps {
-  isAdmin: boolean;
-  onQuit: () => void;
-}
-
+// ── Registered shell ──────────────────────────────────────────────────────────
+// Single-card layout matching the Console "Generator agenta" preview. The
+// status card carries its own footer (settings gear + contact + power button),
+// so there is no separate bottom navigation bar. Secondary panels (Settings,
+// Help) are reached from the card footer or the tray menu and provide their own
+// back affordance.
 interface RegisteredShellProps {
   isAdmin: boolean;
-  onQuit: () => void;
 }
-
-const BottomNav: Component<BottomNavProps> = (props) => {
-  const [showMenu, setShowMenu] = createSignal(false);
-  const [currentPath, setCurrentPath] = createSignal(getCurrentHashPath());
-
-  const isActive = (path: string) =>
-    path === "/" ? currentPath() === "/" : currentPath().startsWith(path);
-
-  // Close overflow menu on outside click. Solid delegates click handlers at the
-  // document level, so the native listener must explicitly ignore clicks inside
-  // this overflow area instead of relying on stopPropagation timing.
-  onMount(() => {
-    const handler = (event: MouseEvent) => {
-      const target = event.target as Element | null;
-      if (target?.closest(".bottom-nav-overflow")) {
-        return;
-      }
-
-      setShowMenu(false);
-    };
-    const syncPath = () => setCurrentPath(getCurrentHashPath());
-
-    document.addEventListener("click", handler, { capture: true });
-    window.addEventListener("hashchange", syncPath);
-    onCleanup(() => {
-      document.removeEventListener("click", handler, { capture: true });
-      window.removeEventListener("hashchange", syncPath);
-    });
-  });
-
-  const mainTabs = [
-    { path: "/", icon: "monitoring", label: () => t("sidebar.status") },
-    { path: "/chat", icon: "chat", label: () => t("sidebar.chat") },
-    { path: "/help", icon: "support_agent", label: () => t("sidebar.help") },
-  ];
-
-  return (
-    <nav class="bottom-nav">
-      {mainTabs.map((tab) => (
-        <button
-          class={`bottom-nav-item ${isActive(tab.path) ? "active" : ""}`}
-          onClick={() => { setShowMenu(false); navigateHashRoute(tab.path); }}
-        >
-          <span class="material-symbols-rounded">{tab.icon}</span>
-          <span class="bottom-nav-label">{tab.label()}</span>
-        </button>
-      ))}
-
-            {/* Settings / overflow */}
-          <div class="bottom-nav-overflow" onClick={(e) => e.stopPropagation()}>
-            <button
-              class={`bottom-nav-item ${showMenu() || isActive("/settings") ? "active" : ""}`}
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={showMenu()}
-              onClick={() => setShowMenu((v) => !v)}
-            >
-              <span class="material-symbols-rounded">more_vert</span>
-              <span class="bottom-nav-label">{t("sidebar.more")}</span>
-            </button>
-
-            <Show when={showMenu()}>
-              <div class="overflow-menu" role="menu">
-                {/* Settings — always visible, SudoAuthDialog gates controls inside */}
-                <button
-                  class="overflow-menu-item"
-                  type="button"
-                  role="menuitem"
-                  onClick={() => { navigateHashRoute("/settings"); setShowMenu(false); }}
-                >
-                  <span class="material-symbols-rounded">settings</span>
-                  {t("sidebar.settings")}
-                </button>
-
-                <hr class="overflow-menu-divider" />
-                {/* Close — always visible; non-admin gets sudo dialog */}
-                <button
-                  class="overflow-menu-item overflow-menu-item-danger"
-                  type="button"
-                  role="menuitem"
-                  onClick={() => { props.onQuit(); setShowMenu(false); }}
-                >
-                  <span class="material-symbols-rounded">power_settings_new</span>
-                  {t("app.close_agent")}
-                </button>
-              </div>
-            </Show>
-          </div>
-        </nav>
-  );
-};
 
 const RegisteredShell: Component<RegisteredShellProps> = (props) => {
   return (
@@ -166,7 +71,6 @@ const RegisteredShell: Component<RegisteredShellProps> = (props) => {
           <ConsentDialog />
           <SessionOverlay />
           <main class="app-main app-main-full">{routerProps.children}</main>
-          <BottomNav isAdmin={props.isAdmin} onQuit={props.onQuit} />
         </div>
       )}
     >
@@ -268,14 +172,21 @@ const App: Component = () => {
         frontendLog("error", "app.boot", "Failed to register request-quit listener", error);
       });
 
+    // The status card's power button dispatches a DOM event instead of a Tauri
+    // event so it works without a backend round-trip; route it to the same
+    // quit / sudo dialog as the tray menu.
+    const onCardQuit = () => {
+      frontendLog("info", "app.quit", "Quit requested from status card");
+      setShowQuitDialog(true);
+    };
+    window.addEventListener("agent:request-quit", onCardQuit);
+    onCleanup(() => window.removeEventListener("agent:request-quit", onCardQuit));
+
     try {
       markBootStage("Initialising bundled translations");
-      await withTimeout(
-        initI18n(),
-        750,
-        undefined,
-        "initI18n",
-      );
+      // initI18n is synchronous (translation bundles are statically imported),
+      // so it runs inline without a timeout guard.
+      initI18n();
 
       // Apply per-deployment branding (theme colors, product name, logo). Runs
       // in the background so a slow/failed load never blocks the boot path.
@@ -311,6 +222,7 @@ const App: Component = () => {
 
   return (
     <div class="app-root">
+      <TitleBar />
       {/* Quit confirmation / sudo auth dialog — rendered at root so it overlays everything */}
       <Show when={showQuitDialog()}>
         {isAdmin() ? (
@@ -342,32 +254,34 @@ const App: Component = () => {
           />
         )}
       </Show>
-      <Show
-        when={ready()}
-        fallback={
-          <div class="app-loading">
-            <span class="material-symbols-rounded spin">sync</span>
-            <span>{bootStage()}</span>
-          </div>
-        }
-      >
+      <div class="app-body">
         <Show
-          when={registered()}
+          when={ready()}
           fallback={
-            <SetupWizard
-              onComplete={async () => {
-                const ok = await checkRegistration();
-                if (ok) {
-                  navigateHashRoute("/");
-                }
-                setRegistered(ok);
-              }}
-            />
+            <div class="app-loading">
+              <span class="material-symbols-rounded spin">sync</span>
+              <span>{bootStage()}</span>
+            </div>
           }
         >
-          <RegisteredShell isAdmin={isAdmin()} onQuit={() => setShowQuitDialog(true)} />
+          <Show
+            when={registered()}
+            fallback={
+              <SetupWizard
+                onComplete={async () => {
+                  const ok = await checkRegistration();
+                  if (ok) {
+                    navigateHashRoute("/");
+                  }
+                  setRegistered(ok);
+                }}
+              />
+            }
+          >
+            <RegisteredShell isAdmin={isAdmin()} />
+          </Show>
         </Show>
-      </Show>
+      </div>
     </div>
   );
 };

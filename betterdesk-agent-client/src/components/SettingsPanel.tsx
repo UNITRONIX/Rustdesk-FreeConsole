@@ -60,11 +60,61 @@ const SettingsPanel: Component<SettingsPanelProps> = (props) => {
   });
   const [testResult, setTestResult] = createSignal<"ok" | "fail" | null>(null);
   const [version, setVersion] = createSignal("1.0.0");
+  // Permanent unattended-access password management.
+  const [permanentPassword, setPermanentPassword] = createSignal("");
+  const [pwInput, setPwInput] = createSignal("");
+  const [pwShown, setPwShown] = createSignal(false);
+  const [pwCopied, setPwCopied] = createSignal(false);
+  const [pwFeedback, setPwFeedback] = createSignal<"" | "saved" | string>("");
+
+  const loadPermanentPassword = async () => {
+    try {
+      const pw = await invoke<string>("get_unattended_password");
+      setPermanentPassword(pw);
+    } catch {}
+  };
+
+  const copyPermanentPassword = async () => {
+    try {
+      await invoke("copy_to_clipboard", { text: permanentPassword() });
+      setPwCopied(true);
+      setTimeout(() => setPwCopied(false), 1500);
+    } catch {}
+  };
+
+  const regeneratePassword = async () => {
+    try {
+      const pw = await invoke<string>("regenerate_unattended_password");
+      setPermanentPassword(pw);
+      setPwFeedback("saved");
+      setTimeout(() => setPwFeedback(""), 2000);
+    } catch {}
+  };
+
+  const saveCustomPassword = async () => {
+    const value = pwInput().trim();
+    if (value.length < 6) {
+      setPwFeedback(t("settings.password_too_short"));
+      return;
+    }
+    try {
+      await invoke("set_unattended_password", { password: value });
+      setPermanentPassword(value);
+      setPwInput("");
+      setPwFeedback("saved");
+      setTimeout(() => setPwFeedback(""), 2000);
+    } catch (e) {
+      setPwFeedback(typeof e === "string" ? e : t("settings.password_save_failed"));
+    }
+  };
 
   onMount(async () => {
     try {
       const s = await invoke<AgentSettings>("get_agent_settings");
       setSettings(s);
+      if (s.access_mode === "unattended") {
+        await loadPermanentPassword();
+      }
     } catch {}
     try {
       const v = await invoke<string>("get_agent_version");
@@ -78,6 +128,10 @@ const SettingsPanel: Component<SettingsPanelProps> = (props) => {
     try {
       await invoke("save_agent_settings", { settings: updated });
     } catch {}
+
+    if (key === "access_mode" && value === "unattended") {
+      await loadPermanentPassword();
+    }
 
     if (key === "language" && typeof value === "string") {
       setLocale(value);
@@ -134,7 +188,12 @@ const SettingsPanel: Component<SettingsPanelProps> = (props) => {
       }
     >
     <div class="page-content">
-      <h2 class="page-title">{t("settings.title")}</h2>
+      <div class="page-header">
+        <button class="page-back-btn" onClick={goBack} title={t("common.back")}>
+          <span class="material-symbols-rounded">arrow_back</span>
+        </button>
+        <h2 class="page-title">{t("settings.title")}</h2>
+      </div>
 
       {/* Connection */}
       <section class="settings-section">
@@ -295,6 +354,56 @@ const SettingsPanel: Component<SettingsPanelProps> = (props) => {
             </label>
           ))}
         </div>
+
+        <Show when={settings().access_mode === "unattended"}>
+          <div class="settings-pw-block">
+            <div class="settings-toggle-label">{t("settings.permanent_password")}</div>
+            <div class="settings-toggle-hint">{t("settings.permanent_password_hint")}</div>
+            <div class="settings-pw-current">
+              <span class="settings-pw-value">
+                {pwShown() ? permanentPassword() || "—" : "••••••••"}
+              </span>
+              <button
+                class="settings-pw-icon-btn"
+                title={pwShown() ? t("settings.password_hide") : t("settings.password_show")}
+                onClick={() => setPwShown(!pwShown())}
+              >
+                <span class="material-symbols-rounded">
+                  {pwShown() ? "visibility_off" : "visibility"}
+                </span>
+              </button>
+              <button
+                class="settings-pw-icon-btn"
+                title={t("settings.copy_password")}
+                onClick={copyPermanentPassword}
+              >
+                <span class="material-symbols-rounded">
+                  {pwCopied() ? "check" : "content_copy"}
+                </span>
+              </button>
+              <button class="settings-pw-regen-btn" onClick={regeneratePassword}>
+                {t("settings.regenerate_password")}
+              </button>
+            </div>
+            <div class="settings-pw-set">
+              <input
+                type="text"
+                class="form-input"
+                placeholder={t("settings.custom_password_placeholder")}
+                value={pwInput()}
+                onInput={(e) => setPwInput(e.currentTarget.value)}
+              />
+              <button class="settings-pw-save-btn" onClick={saveCustomPassword}>
+                {t("settings.save_password")}
+              </button>
+            </div>
+            <Show when={pwFeedback()}>
+              <div class="settings-pw-feedback">
+                {pwFeedback() === "saved" ? t("settings.password_saved") : pwFeedback()}
+              </div>
+            </Show>
+          </div>
+        </Show>
 
         <div class="settings-toggle-row">
           <div>

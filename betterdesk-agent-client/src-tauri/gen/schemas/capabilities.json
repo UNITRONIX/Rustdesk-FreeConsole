@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default BetterDesk Agent capabilities","local":true,"windows":["main"],"permissions":["core:default"]}}
+{"default":{"identifier":"default","description":"Default BetterDesk Agent capabilities","local":true,"windows":["main"],"permissions":["core:default","core:window:allow-minimize","core:window:allow-unminimize","core:window:allow-hide","core:window:allow-show","core:window:allow-close","core:window:allow-start-dragging","core:window:allow-set-focus","core:webview:allow-set-webview-zoom"]}}

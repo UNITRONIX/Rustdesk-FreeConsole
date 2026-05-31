@@ -329,6 +329,9 @@ pub fn run() {
             commands::send_diagnostics,
             commands::get_agent_version,
             commands::get_branding,
+            commands::get_unattended_password,
+            commands::set_unattended_password,
+            commands::regenerate_unattended_password,
             commands::copy_to_clipboard,
             // Registration flow
             commands::validate_server_step,
@@ -346,6 +349,7 @@ pub fn run() {
             // Chat
             commands::get_chat_history,
             commands::send_chat_message,
+            commands::open_chat_window,
             // Help request
             commands::request_help,
             commands::cancel_help_request,
@@ -374,6 +378,29 @@ pub fn run() {
             install_shutdown_signal_handlers(app.handle());
 
             let is_autostart = std::env::args().any(|a| a == "--autostart");
+
+            // HiDPI / UI scaling.
+            //
+            // On Linux WebKitGTK already scales the web content to the desktop
+            // display scaling (including Wayland fractional scaling), so calling
+            // `set_zoom` with the monitor factor would scale a second time and
+            // make the UI huge. We therefore only honor an *explicit* override
+            // via BETTERDESK_UI_SCALE for the rare setups where the automatic
+            // scaling is wrong. Windows (WebView2) and macOS (WKWebView) handle
+            // DPI natively as well.
+            if let Some(window) = app.get_webview_window("main") {
+                if let Some(scale) = std::env::var("BETTERDESK_UI_SCALE")
+                    .ok()
+                    .and_then(|v| v.trim().parse::<f64>().ok())
+                    .filter(|v| *v > 0.0 && (*v - 1.0).abs() > 0.01)
+                {
+                    if let Err(e) = window.set_zoom(scale) {
+                        log::warn!("Failed to apply UI scale {}: {}", scale, e);
+                    } else {
+                        info!("Applied UI scale factor {}", scale);
+                    }
+                }
+            }
 
             // On first run (device not registered yet): show the window so the
             // SetupWizard is immediately visible without requiring the user to
@@ -441,9 +468,15 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                info!("Close requested from window chrome — hiding to tray");
-                let _ = window.hide();
+                // The main window must never close — it keeps the agent alive in
+                // the background (tray). Hide it instead. Auxiliary windows (the
+                // chat window) are allowed to close normally and are recreated
+                // on demand via `open_chat_window`.
+                if window.label() == "main" {
+                    api.prevent_close();
+                    info!("Close requested on main window — hiding to tray");
+                    let _ = window.hide();
+                }
             }
         })
         .run(tauri::generate_context!())
@@ -522,7 +555,18 @@ fn setup_tray(
             match id {
                 "show_id" => show_window(app, "/"),
                 "help_request" => show_window(app, "/help"),
-                "chat" => show_window(app, "/chat"),
+                "chat" => {
+                    // Chat opens in its own window so it can be used alongside
+                    // the status card. Fall back to the in-shell route only if
+                    // the dedicated window fails to spawn.
+                    let app_handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = commands::open_chat_window(app_handle.clone()).await {
+                            log::warn!("[tray] open chat window failed: {}", e);
+                            show_window(&app_handle, "/chat");
+                        }
+                    });
+                }
                 "check_conn" => show_window(app, "/?action=reconnect"),
                 "sidecar_toggle" => {
                     // Restart the managed Go CDAP sidecar on demand.
