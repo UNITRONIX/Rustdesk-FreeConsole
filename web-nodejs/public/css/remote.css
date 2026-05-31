@@ -287,6 +287,8 @@
 .toolbar-expanded {
     display: none;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 4px;
     max-width: calc(100vw - 24px);
     padding: 6px 10px;
@@ -295,12 +297,8 @@
     border: 1px solid var(--border-primary, #30363d);
     border-radius: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-
-.toolbar-expanded::-webkit-scrollbar {
-    display: none;
+    /* overflow must stay visible so dropdown menus (top:100%) can escape the pill */
+    overflow: visible;
 }
 
 .viewer-toolbar.expanded .toolbar-expanded {
