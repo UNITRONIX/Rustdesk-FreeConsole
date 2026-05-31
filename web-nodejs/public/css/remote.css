@@ -286,6 +286,10 @@
 /* Expanded action pill — only visible when the toolbar is expanded */
 .toolbar-expanded {
     display: none;
+    position: relative;
+    /* Sit above the compact handle so dropdown menus (which extend downward
+       into the handle's region) are not covered by it. */
+    z-index: 2;
     align-items: center;
     flex-wrap: wrap;
     justify-content: center;
@@ -314,6 +318,8 @@
 /* Compact handle — always visible */
 .toolbar-handle {
     display: flex;
+    position: relative;
+    z-index: 1;
     align-items: center;
     gap: 2px;
     padding: 3px 5px;
