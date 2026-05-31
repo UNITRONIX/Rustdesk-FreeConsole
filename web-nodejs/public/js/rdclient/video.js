@@ -116,14 +116,26 @@ class RDVideo {
 
         const result = {};
         for (const [name, codec] of Object.entries(codecs)) {
-            try {
-                const support = await VideoDecoder.isConfigSupported({
-                    codec: codec,
-                    hardwareAcceleration: 'prefer-hardware'
-                });
-                result[name] = support.supported === true;
-            } catch {
-                result[name] = false;
+            result[name] = false;
+            // A codec is "selectable" if the browser can decode it AT ALL — either
+            // via hardware or software. Probing only with prefer-hardware wrongly
+            // marks software-decodable codecs (VP9/AV1/VP8/H265) as unsupported,
+            // which left the codec menu with nothing but "Auto" selectable.
+            const probes = [
+                { codec, hardwareAcceleration: 'prefer-hardware' },
+                { codec, hardwareAcceleration: 'prefer-software' },
+                { codec }
+            ];
+            for (const cfg of probes) {
+                try {
+                    const support = await VideoDecoder.isConfigSupported(cfg);
+                    if (support && support.supported === true) {
+                        result[name] = true;
+                        break;
+                    }
+                } catch {
+                    /* try next probe variant */
+                }
             }
         }
         return result;
