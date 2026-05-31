@@ -107,9 +107,16 @@ class RDProtocol {
     /**
      * Serialize a Message to raw protobuf bytes (NO frame header)
      * Use this when encryption will be applied before framing
+     *
+     * Uses fromObject() (not create()) so that string enum names — e.g. a
+     * KeyEvent's `controlKey: 'Backspace'` or `mode: 'Legacy'` — are converted
+     * to their numeric enum values. create() leaves them as strings, which the
+     * encoder writes as 0 (Unknown), breaking every non-character key. Byte
+     * fields supplied as Uint8Array (clipboard content, file blocks, keys) are
+     * preserved as-is by fromObject().
      */
     serializeMessage(msgObj) {
-        const msg = this.types.Message.create(msgObj);
+        const msg = this.types.Message.fromObject(msgObj);
         return this.types.Message.encode(msg).finish();
     }
 
