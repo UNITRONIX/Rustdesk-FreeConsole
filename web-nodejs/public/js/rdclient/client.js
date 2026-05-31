@@ -966,11 +966,23 @@ class RDClient {
 
     _handleTestDelay(testDelay) {
         if (!testDelay.fromClient) {
-            // Respond to server's ping
-            const pong = this.proto.buildTestDelay();
-            this._sendPeerMessage(pong);
+            // This is the controlled peer's QoS probe. RustDesk's video QoS
+            // controller measures the round-trip delay of this exact message to
+            // size the target bitrate AND framerate. We MUST echo it back
+            // verbatim (same `time`, `from_client` stays false, original
+            // last_delay/target_bitrate). Replying with a fresh timestamp makes
+            // the peer compute a bogus delay and throttle the stream down to
+            // ~1 fps. Echoing correctly keeps the full 24-30 fps stream.
+            this._sendPeerMessage({
+                testDelay: {
+                    time: testDelay.time,
+                    fromClient: false,
+                    lastDelay: testDelay.lastDelay || 0,
+                    targetBitrate: testDelay.targetBitrate || 0
+                }
+            });
         } else {
-            // Our ping came back - calculate RTT
+            // Our own ping came back - calculate RTT
             const rtt = Date.now() - (testDelay.time || 0);
             this._emit('latency', rtt);
         }
