@@ -798,7 +798,7 @@
 
                             <div class="form-group">
                                 <label class="form-label" for="oidc-redirect-url">${_('settings.oidc_redirect_url')}</label>
-                                <input type="url" id="oidc-redirect-url" class="form-input" placeholder="http://your-server:21121/api/auth/oidc/callback">
+                                <input type="url" id="oidc-redirect-url" class="form-input" placeholder="http://your-server:21114/api/auth/oidc/callback">
                                 <small class="form-hint">${_('settings.oidc_redirect_url_hint')}</small>
                             </div>
 
@@ -1029,6 +1029,22 @@
                             <span class="material-icons">refresh</span>
                             ${_('updates.check_now')}
                         </button>
+                    </div>
+
+                    <!-- Stale server binary warning (security): server source was
+                         updated but the running binary was not rebuilt. -->
+                    <div class="update-stale-warning" id="update-stale-warning" style="display:none; margin-top:16px;">
+                        <div class="update-stale-icon">
+                            <span class="material-icons">gpp_maybe</span>
+                        </div>
+                        <div class="update-stale-body">
+                            <strong>${_('updates.server_stale_title')}</strong>
+                            <p id="update-stale-detail">${_('updates.server_stale_desc')}</p>
+                            <button class="btn btn-warning" id="update-rebuild-server-btn">
+                                <span class="material-icons">build</span>
+                                ${_('updates.rebuild_server')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

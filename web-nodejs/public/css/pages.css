@@ -1472,6 +1472,38 @@
     color: var(--text-secondary);
 }
 
+.update-stale-warning {
+    display: flex;
+    gap: var(--space-md);
+    align-items: flex-start;
+    padding: var(--space-md);
+    border: 1px solid var(--warning, #d29922);
+    background: rgba(210, 153, 34, 0.08);
+    border-radius: var(--radius-md);
+}
+
+.update-stale-icon .material-icons {
+    color: var(--warning, #d29922);
+    font-size: 28px;
+}
+
+.update-stale-body {
+    flex: 1;
+}
+
+.update-stale-body strong {
+    display: block;
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.update-stale-body p {
+    margin: 0 0 var(--space-md) 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
 .update-progress {
     margin-top: var(--space-md);
 }

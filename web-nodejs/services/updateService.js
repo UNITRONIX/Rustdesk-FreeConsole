@@ -189,6 +189,49 @@ function saveLocalSHA(sha) {
     fs.writeFileSync(SHA_FILE, sha.trim() + '\n');
 }
 
+// ---- Server binary staleness marker ---------------------------------------
+// When a server update applies the Go source files (including dependency
+// bumps in go.mod/go.sum) but the binary cannot be rebuilt or deployed
+// (Issue #154 classifies that step as non-critical so the SHA is still
+// saved), the running binary is left behind — potentially missing the very
+// security fix that triggered the update. We persist a marker so the panel
+// can surface a clear "server binary is out of date" warning and offer an
+// explicit rebuild, instead of silently reporting "up to date".
+const SERVER_STALE_FILE = path.join(config.dataDir, '.server_binary_stale');
+
+function markServerBinaryStale(info = {}) {
+    try {
+        fs.mkdirSync(path.dirname(SERVER_STALE_FILE), { recursive: true });
+        fs.writeFileSync(SERVER_STALE_FILE, JSON.stringify({
+            stale: true,
+            reason: info.reason || 'unknown',
+            detail: info.detail || null,
+            sha: info.sha || null,
+            since: new Date().toISOString()
+        }, null, 2));
+    } catch (_e) { /* best-effort marker */ }
+}
+
+function clearServerBinaryStale() {
+    try { if (fs.existsSync(SERVER_STALE_FILE)) fs.unlinkSync(SERVER_STALE_FILE); } catch (_e) { /* ok */ }
+}
+
+function getServerBinaryStatus() {
+    try {
+        if (fs.existsSync(SERVER_STALE_FILE)) {
+            const data = JSON.parse(fs.readFileSync(SERVER_STALE_FILE, 'utf8'));
+            return {
+                stale: true,
+                reason: data.reason || null,
+                detail: data.detail || null,
+                sha: data.sha || null,
+                since: data.since || null
+            };
+        }
+    } catch (_e) { /* corrupt marker — treat as healthy */ }
+    return { stale: false };
+}
+
 async function getRemoteHeadSHA() {
     const data = await ghGet(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/${GITHUB_BRANCH}`);
     return {
@@ -1620,6 +1663,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     });
                 }
                 results.needsServerRestart = true;
+                // Fresh binary (with updated dependencies) is in place — any
+                // previous staleness warning no longer applies.
+                clearServerBinaryStale();
             } else {
                 results.failed.push({ file: 'betterdesk-server-deploy', error: deployResult.error || 'Server deploy failed' });
             }
@@ -1651,6 +1697,26 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     ]);
     const criticalFailures = results.failed.filter(f => !NON_CRITICAL_FILES.has(f.file));
     const nonCriticalFailures = results.failed.filter(f => NON_CRITICAL_FILES.has(f.file));
+
+    // Security visibility: if the Go server source changed (e.g. a go.mod
+    // dependency bump shipping a security fix) but the binary could not be
+    // rebuilt/deployed, the running process is still the OLD binary. Persist a
+    // staleness marker and flag it on the result so the panel can warn the
+    // admin and offer an explicit rebuild instead of silently reporting
+    // success.
+    const serverSourceChanged = !!changedData.grouped.server?.length;
+    const serverBinaryFailed = nonCriticalFailures.some(f =>
+        f.file === 'betterdesk-server' || f.file === 'betterdesk-server-deploy'
+    );
+    if (serverSourceChanged && serverBinaryFailed && !results.needsServerRestart) {
+        const detail = (results.serverBuild && results.serverBuild.error)
+            || (nonCriticalFailures.find(f => f.file === 'betterdesk-server' || f.file === 'betterdesk-server-deploy') || {}).error
+            || 'Server binary could not be rebuilt';
+        markServerBinaryStale({ reason: 'rebuild_failed', detail, sha: remoteSHA });
+        results.serverBinaryStale = true;
+        results.serverBinaryStaleReason = detail;
+        console.warn(`[UPDATE] Server source updated but binary not rebuilt — running binary may be missing security fixes: ${detail}`);
+    }
 
     if (criticalFailures.length === 0) {
         saveLocalSHA(remoteSHA);
@@ -1828,6 +1894,98 @@ function restoreFromBackup(backupName) {
     return { restored, version: manifest.version, sha: manifest.sha, totalFiles: (manifest.files || []).length };
 }
 
+/**
+ * Explicitly rebuild the Go server binary from the local source with the
+ * current dependency versions (go.mod/go.sum) and deploy it.
+ *
+ * This is the recovery path for the case where a previous update applied the
+ * server source (including security-relevant dependency bumps) but the binary
+ * step failed and was left stale. It is idempotent and self-contained:
+ *   1. sync the server source to the tracked SHA (when known),
+ *   2. ensure a usable Go toolchain (bootstrapping a vendored one if needed),
+ *   3. `go mod download` + `go build` to link the updated dependencies,
+ *   4. deploy the binary to the service path and sanitize the service config,
+ *   5. clear the staleness marker and restart the service.
+ *
+ * @param {{ sha?: string, restart?: boolean }} opts
+ * @returns {Promise<{ success: boolean, error?: string, steps: object }>}
+ */
+async function rebuildServerBinary(opts = {}) {
+    const result = { success: false, steps: {} };
+    const remoteSHA = opts.sha || getLocalSHA();
+
+    // 1. Sync source so the build links the latest go.mod/go.sum.
+    try {
+        if (remoteSHA) {
+            const src = await ensureServerSource(remoteSHA);
+            result.steps.source = { success: true, strategy: src.strategy, files: src.filesDownloaded };
+        } else {
+            result.steps.source = { success: true, strategy: 'local', files: 0 };
+        }
+    } catch (err) {
+        result.steps.source = { success: false, error: err.message };
+        result.error = `Source sync failed: ${err.message}`;
+        return result;
+    }
+
+    // 2. Ensure a Go toolchain capable of building the server.
+    let preferredGoBinPath = null;
+    const goInfo = checkGoAvailable();
+    if (!goInfo.available || !goInfo.meetsMinimum) {
+        const tc = await installGoToolchain();
+        result.steps.toolchain = { success: tc.success, version: tc.version || null, error: tc.error || null };
+        if (!tc.success) {
+            result.error = `Go toolchain unavailable: ${tc.error || 'install failed'}`;
+            markServerBinaryStale({ reason: 'no_toolchain', detail: result.error, sha: remoteSHA });
+            return result;
+        }
+        preferredGoBinPath = tc.binPath || null;
+    } else {
+        result.steps.toolchain = { success: true, version: goInfo.version, existing: true };
+    }
+
+    // 3. Build with the updated dependencies.
+    const build = await buildGoServer(preferredGoBinPath);
+    result.steps.build = {
+        success: build.success,
+        duration: build.duration || 0,
+        error: build.error || null,
+        goVersion: build.goVersion || null
+    };
+    if (!build.success) {
+        result.error = build.error || 'Build failed';
+        markServerBinaryStale({ reason: 'rebuild_failed', detail: result.error, sha: remoteSHA });
+        return result;
+    }
+
+    // 4. Deploy to the service path.
+    const targetPath = detectServerBinaryPath();
+    const deploy = deployServerBinary(build.binaryPath, targetPath);
+    result.steps.deploy = {
+        success: deploy.success,
+        backupPath: deploy.backupPath || null,
+        error: deploy.error || null,
+        targetPath
+    };
+    if (!deploy.success) {
+        result.error = deploy.error || 'Deploy failed';
+        markServerBinaryStale({ reason: 'deploy_failed', detail: result.error, sha: remoteSHA });
+        return result;
+    }
+
+    // 5. Sanitize the service config and clear the staleness marker.
+    result.steps.serviceConfig = sanitizeGoServerServiceConfig();
+    clearServerBinaryStale();
+
+    // 6. Restart the service so the new binary takes effect.
+    if (opts.restart !== false) {
+        result.steps.restart = restartService(IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server');
+    }
+
+    result.success = true;
+    return result;
+}
+
 module.exports = {
     checkForUpdates,
     getChangedFiles,
@@ -1845,5 +2003,7 @@ module.exports = {
     getPrebuiltInfo,
     installGoToolchain,
     checkGoAvailable,
+    getServerBinaryStatus,
+    rebuildServerBinary,
     COMPONENTS
 };

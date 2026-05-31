@@ -698,6 +698,50 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
 });
 
 /**
+ * GET /api/settings/updates/server-binary/status - Report whether the running
+ * Go server binary is out of date (server source updated but binary not
+ * rebuilt). Lets the panel surface a security warning instead of silently
+ * reporting "up to date".
+ */
+router.get('/api/settings/updates/server-binary/status', requireAuth, requirePermission('server.config'), (req, res) => {
+    try {
+        const status = updateService.getServerBinaryStatus();
+        res.json({ success: true, data: status });
+    } catch (err) {
+        console.error('Server binary status error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/updates/server-binary/rebuild - Explicitly rebuild the Go
+ * server binary from local source with the current dependency versions
+ * (go.mod/go.sum) and deploy it. Bootstraps a vendored Go toolchain when one
+ * is not installed.
+ */
+router.post('/api/settings/updates/server-binary/rebuild', requireAuth, requirePermission('server.config'), async (req, res) => {
+    // Compilation may take several minutes.
+    req.setTimeout(600000);
+    res.setTimeout(600000);
+    try {
+        const result = await updateService.rebuildServerBinary({ restart: true });
+        await db.logAction(
+            req.session?.userId,
+            'system_update',
+            `Rebuilt server binary (${result.success ? 'success' : 'failed: ' + (result.error || 'unknown')})`,
+            req.ip
+        );
+        if (!result.success) {
+            return res.status(500).json({ success: false, error: result.error || 'Rebuild failed', data: result });
+        }
+        res.json({ success: true, data: result });
+    } catch (err) {
+        console.error('Server binary rebuild error:', err);
+        res.status(500).json({ success: false, error: 'Rebuild failed: ' + err.message });
+    }
+});
+
+/**
  * GET /api/settings/updates/backups - List pre-update backups
  */
 router.get('/api/settings/updates/backups', requireAuth, requirePermission('server.config'), (req, res) => {

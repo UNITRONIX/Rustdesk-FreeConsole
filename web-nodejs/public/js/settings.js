@@ -1258,9 +1258,56 @@
         
         checkBtn.addEventListener('click', checkForUpdates);
         installBtn?.addEventListener('click', installUpdate);
-        
+
+        const rebuildBtn = document.getElementById('update-rebuild-server-btn');
+        rebuildBtn?.addEventListener('click', rebuildServerBinary);
+        loadServerBinaryStatus();
+
         loadUpdateBackups();
         loadBackupRetention();
+    }
+
+    async function loadServerBinaryStatus() {
+        const warning = document.getElementById('update-stale-warning');
+        if (!warning) return;
+        try {
+            const status = await Utils.api('/api/settings/updates/server-binary/status');
+            if (status && status.stale) {
+                const detailEl = document.getElementById('update-stale-detail');
+                if (detailEl) {
+                    detailEl.textContent = status.detail
+                        ? `${_('updates.server_stale_desc')} (${status.detail})`
+                        : _('updates.server_stale_desc');
+                }
+                warning.style.display = '';
+            } else {
+                warning.style.display = 'none';
+            }
+        } catch (_e) {
+            warning.style.display = 'none';
+        }
+    }
+
+    async function rebuildServerBinary() {
+        const btn = document.getElementById('update-rebuild-server-btn');
+        if (!btn) return;
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="material-icons spinning">sync</span> ${_('updates.rebuilding_server')}`;
+        try {
+            const result = await Utils.api('/api/settings/updates/server-binary/rebuild', { method: 'POST' });
+            if (result && result.success) {
+                Notifications.success(_('updates.rebuild_server_success'));
+                await loadServerBinaryStatus();
+            } else {
+                Notifications.error((result && result.error) || _('updates.rebuild_server_failed'));
+            }
+        } catch (error) {
+            Notifications.error(error.message || _('updates.rebuild_server_failed'));
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
     }
     
     async function checkForUpdates() {
@@ -1678,6 +1725,7 @@
                 setUpdatePhase('done', 'done', _('updates.complete'));
                 showUpdateCompletionModal(result);
                 if (installBtn) installBtn.disabled = false;
+                loadServerBinaryStatus();
             }
         } catch (error) {
             const activePhase = UPDATE_PHASES.find(p => {
