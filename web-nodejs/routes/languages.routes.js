@@ -7,7 +7,7 @@ const fs = require('fs');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 
 const LANG_DIR = path.join(__dirname, '..', 'lang');
-const REFERENCE = 'en.json';
+const REFERENCE_FILES = ['en.json', 'pl.json'];
 
 /**
  * Recursively flatten nested JSON object into dot-notation keys
@@ -25,6 +25,24 @@ function flattenKeys(obj, prefix = '') {
         }
     }
     return result;
+}
+
+function loadReferenceKeys() {
+    const references = new Map();
+    const keySet = new Set();
+
+    for (const file of REFERENCE_FILES) {
+        const refPath = path.join(LANG_DIR, file);
+        if (!fs.existsSync(refPath)) continue;
+
+        const code = file.replace('.json', '');
+        const data = JSON.parse(fs.readFileSync(refPath, 'utf8'));
+        const keys = flattenKeys(data);
+        references.set(code, keys);
+        for (const key of keys.keys()) keySet.add(key);
+    }
+
+    return { references, keySet };
 }
 
 // --- Page Route ---
@@ -46,14 +64,10 @@ router.get('/languages', requireAuth, requirePermission('server.config'), (req, 
  */
 router.get('/api/panel/languages', requireAuth, requirePermission('server.config'), (req, res) => {
     try {
-        const refPath = path.join(LANG_DIR, REFERENCE);
-        if (!fs.existsSync(refPath)) {
+        const { keySet: refKeySet } = loadReferenceKeys();
+        if (refKeySet.size === 0) {
             return res.json({ languages: [], refKeyCount: 0 });
         }
-
-        const refData = JSON.parse(fs.readFileSync(refPath, 'utf8'));
-        const refKeys = flattenKeys(refData);
-        const refKeySet = new Set(refKeys.keys());
 
         const langFiles = fs.readdirSync(LANG_DIR)
             .filter(f => f.endsWith('.json'))
@@ -76,7 +90,7 @@ router.get('/api/panel/languages', requireAuth, requirePermission('server.config
                     flag: '',
                     rtl: false,
                     needs_review: true,
-                    is_reference: code === 'en',
+                    is_reference: code === 'en' || code === 'pl',
                     total_keys: 0,
                     missing_keys: refKeySet.size,
                     extra_keys: 0,
@@ -107,9 +121,9 @@ router.get('/api/panel/languages', requireAuth, requirePermission('server.config
                 flag: meta.flag || '',
                 rtl: meta.rtl || false,
                 needs_review: meta.needs_review || false,
-                is_reference: code === 'en',
+                is_reference: code === 'en' || code === 'pl',
                 total_keys: langKeySet.size,
-                missing_keys: code === 'en' ? 0 : missing.length,
+                missing_keys: code === 'en' || code === 'pl' ? 0 : missing.length,
                 extra_keys: extra.length,
                 empty_keys: empty.length,
                 coverage,
@@ -129,27 +143,25 @@ router.get('/api/panel/languages', requireAuth, requirePermission('server.config
 router.get('/api/panel/languages/:code/missing', requireAuth, requirePermission('server.config'), (req, res) => {
     try {
         const code = req.params.code.replace(/[^a-z-]/gi, '');
-        const refPath = path.join(LANG_DIR, REFERENCE);
         const langPath = path.join(LANG_DIR, `${code}.json`);
 
         if (!fs.existsSync(langPath)) {
             return res.status(404).json({ error: 'Language not found' });
         }
 
-        const refData = JSON.parse(fs.readFileSync(refPath, 'utf8'));
+        const { references, keySet: refKeySet } = loadReferenceKeys();
         const langData = JSON.parse(fs.readFileSync(langPath, 'utf8'));
 
-        const refKeys = flattenKeys(refData);
         const langKeys = flattenKeys(langData);
-        const refKeySet = new Set(refKeys.keys());
         const langKeySet = new Set(langKeys.keys());
 
         const missing = [...refKeySet].filter(k => !langKeySet.has(k)).map(k => ({
             key: k,
-            en_value: refKeys.get(k)
+            en_value: references.get('en')?.get(k) || '',
+            pl_value: references.get('pl')?.get(k) || ''
         }));
 
-        const extra = [...langKeySet].filter(k => !refKeySet.has(k) && !k.startsWith('_meta'));
+        const extra = [...langKeySet].filter(k => !refKeySet.has(k) && !k.startsWith('_meta') && !k.startsWith('meta.'));
 
         res.json({ code, missing, extra, total: refKeySet.size });
     } catch (err) {
@@ -158,55 +170,12 @@ router.get('/api/panel/languages/:code/missing', requireAuth, requirePermission(
 });
 
 /**
- * POST /api/panel/languages/:code/fix — Add missing keys with EN fallback
+ * POST /api/panel/languages/:code/fix — Disabled by strict i18n policy
  */
 router.post('/api/panel/languages/:code/fix', requireAuth, requirePermission('server.config'), (req, res) => {
-    try {
-        const code = req.params.code.replace(/[^a-z-]/gi, '');
-        if (code === 'en') {
-            return res.status(400).json({ error: 'Cannot fix reference language' });
-        }
-
-        const refPath = path.join(LANG_DIR, REFERENCE);
-        const langPath = path.join(LANG_DIR, `${code}.json`);
-
-        if (!fs.existsSync(langPath)) {
-            return res.status(404).json({ error: 'Language not found' });
-        }
-
-        const refData = JSON.parse(fs.readFileSync(refPath, 'utf8'));
-        const langData = JSON.parse(fs.readFileSync(langPath, 'utf8'));
-
-        const refKeys = flattenKeys(refData);
-        const langKeys = flattenKeys(langData);
-        const refKeySet = new Set(refKeys.keys());
-        const langKeySet = new Set(langKeys.keys());
-
-        const missing = [...refKeySet].filter(k => !langKeySet.has(k));
-
-        if (missing.length === 0) {
-            return res.json({ fixed: 0 });
-        }
-
-        // Set missing keys with EN fallback
-        for (const key of missing) {
-            const parts = key.split('.');
-            let current = langData;
-            for (let i = 0; i < parts.length - 1; i++) {
-                if (!(parts[i] in current) || typeof current[parts[i]] !== 'object') {
-                    current[parts[i]] = {};
-                }
-                current = current[parts[i]];
-            }
-            current[parts[parts.length - 1]] = refKeys.get(key);
-        }
-
-        fs.writeFileSync(langPath, JSON.stringify(langData, null, 2) + '\n', 'utf8');
-
-        res.json({ fixed: missing.length });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to fix language' });
-    }
+    res.status(410).json({
+        error: 'Automatic language fixing is disabled. Missing keys must be translated manually in the target language.'
+    });
 });
 
 module.exports = router;

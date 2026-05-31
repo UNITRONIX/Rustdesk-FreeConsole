@@ -8,7 +8,8 @@
     "dev": "node --watch server.js",
     "test": "jest --detectOpenHandles --forceExit",
     "test:ci": "jest --detectOpenHandles --forceExit --ci",
-    "i18n:check": "node scripts/i18n-check.js",
+    "i18n:check": "node scripts/i18n-check.js --system web-nodejs",
+    "i18n:check:all": "node scripts/i18n-check.js",
     "i18n:fix": "node scripts/i18n-check.js --fix"
   },
   "keywords": [

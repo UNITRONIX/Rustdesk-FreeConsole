@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "i18n:check": "node ../web-nodejs/scripts/i18n-check.js --system agent-client",
     "test": "vitest run --environment node",
     "test:watch": "vitest --environment node",
     "tauri": "tauri",

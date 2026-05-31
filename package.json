@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "i18n:check": "node web-nodejs/scripts/i18n-check.js"
+  },
   "devDependencies": {
     "vitest": "^3.2.4"
   }

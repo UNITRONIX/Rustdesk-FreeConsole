@@ -3,7 +3,16 @@
     "status": "狀態",
     "chat": "聊天",
     "help": "求助請求",
-    "settings": "設定"
+    "settings": "設定",
+    "more": "更多"
+  },
+  "app": {
+    "close_agent": "關閉代理程式",
+    "close_confirm": "您確定要關閉代理程式嗎？關閉後將無法再提供遠端協助。",
+    "quit_title": "結束 BetterDesk Agent",
+    "quit_sudo_hint": "請輸入您的使用者密碼以關閉代理程式。",
+    "admin_only": "僅限管理員",
+    "admin_only_hint": "此區段僅限管理員使用。請以管理員權限執行代理程式以存取此區段。"
   },
   "auth": {
     "title": "需要驗證",
@@ -130,7 +139,16 @@
     "test_connection": "測試連線",
     "connection_ok": "連線成功",
     "connection_failed": "連線失敗",
-    "section_privacy": "隱私與同意",
+    "section_cdap": "CDAP 代理",
+    "api_key": "API 金鑰",
+    "api_key_placeholder": "貼上伺服器提供的 API 金鑰",
+    "api_key_hint": "請在網頁主控台的「伺服器 → API 金鑰」中建立 API 金鑰。",
+    "cdap_port": "CDAP 連接埠",
+    "auto_start_sidecar": "自動啟動 CDAP 代理",
+    "auto_start_sidecar_hint": "應用程式啟動時自動建立 CDAP 連線",
+    "section_privacy": "隱私與功能權限",
+    "allow_screen_capture": "允許螢幕擷取",
+    "allow_screen_capture_hint": "操作員可以檢視並控制此裝置的螢幕",
     "video_codec": "視訊編解碼器",
     "video_codec_hint": "遠端螢幕串流使用的編碼。自動模式會選擇操作員能解碼的最佳編解碼器。",
     "video_codec_auto": "自動（建議）",
@@ -138,12 +156,14 @@
     "hw_accel_hint": "在可用時使用 GPU 編碼螢幕串流。自動模式會偵測最佳後端。",
     "hw_accel_auto": "自動",
     "hw_accel_none": "關閉（軟體）",
-    "allow_remote": "允許遠端存取",
-    "allow_remote_hint": "操作員可以檢視和控制此裝置",
     "require_consent": "每次工作階段需要同意",
     "require_consent_hint": "每次遠端工作階段前都會詢問您",
-    "allow_file_transfer": "允許檔案傳輸",
-    "allow_file_transfer_hint": "操作員可以傳送和接收檔案",
+    "allow_terminal": "允許終端機存取",
+    "allow_terminal_hint": "操作員可以在此裝置上開啟遠端 shell",
+    "allow_file_browser": "允許檔案瀏覽器",
+    "allow_file_browser_hint": "操作員可以瀏覽並傳輸檔案",
+    "allow_clipboard": "允許剪貼簿同步",
+    "allow_clipboard_hint": "剪貼簿內容會與操作員同步",
     "section_general": "一般",
     "language": "語言",
     "start_with_system": "隨系統啟動",
@@ -165,5 +185,33 @@
     "yes": "是",
     "no": "否",
     "ok": "確定"
+  },
+  "consent": {
+    "title": "螢幕存取請求",
+    "operator_suffix": "想要檢視您的螢幕。",
+    "hint": "操作員將能看到您目前的螢幕，但除非您也授予輸入控制權，否則無法控制您的電腦。",
+    "auto_deny_in": "自動拒絕倒數",
+    "allow": "允許",
+    "deny": "拒絕"
+  },
+  "session": {
+    "active_title": "遠端工作階段進行中",
+    "operator_label": "操作員",
+    "elapsed": "持續時間：",
+    "disconnect": "中斷連線",
+    "supervised": "受監督",
+    "unattended": "無人值守",
+    "expand": "展開工作階段小工具",
+    "collapse": "收合工作階段小工具"
+  },
+  "access_mode": {
+    "label": "遠端桌面存取",
+    "description": "控制操作員如何連線到此裝置。",
+    "supervised": "受監督",
+    "supervised_desc": "每次工作階段前都先詢問我（建議）。",
+    "unattended": "無人值守",
+    "unattended_desc": "操作員可以不經詢問直接連線。僅應在受信任的伺服器上使用。",
+    "disabled": "停用",
+    "disabled_desc": "封鎖此裝置上的所有遠端桌面工作階段。"
   }
 }

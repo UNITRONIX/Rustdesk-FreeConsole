@@ -162,6 +162,22 @@ For right-to-left languages (Arabic, Hebrew, etc.):
 
 ## Translation Guidelines
 
+## Required Audit
+
+Before submitting translation changes, run the strict i18n audit from the repository root:
+
+```bash
+npm run i18n:check
+```
+
+The audit compares every active locale against the combined `en.json` + `pl.json` key baseline for each product surface:
+
+- `web-nodejs/lang/` for the web console
+- `betterdesk-agent-client/src/locales/` for the endpoint agent UI
+- `betterdesk-mgmt/src/locales/` for the operator desktop app
+
+Every active locale must have the same key set as the EN/PL baseline, no empty values, and no visible English fallback text. The old `i18n:fix` workflow is intentionally disabled because copying English values into another locale creates a false-complete translation.
+
 ### Do's
 
 - ✅ Keep translations concise (UI space is limited)
@@ -169,6 +185,7 @@ For right-to-left languages (Arabic, Hebrew, etc.):
 - ✅ Preserve placeholders exactly
 - ✅ Test in browser if possible
 - ✅ Keep JSON structure identical to English
+- ✅ Translate every value in the target language before enabling that locale
 
 ### Don'ts
 
@@ -176,6 +193,7 @@ For right-to-left languages (Arabic, Hebrew, etc.):
 - ❌ Don't change JSON keys (left side of `:`)
 - ❌ Don't add or remove entries
 - ❌ Don't include HTML tags unless present in English
+- ❌ Don't fill missing keys with English text as a temporary fallback
 
 ## Example: Adding German
 

@@ -106,9 +106,6 @@
                             ${lang.missing_keys > 0 ? `<button onclick="Languages.viewMissing('${lang.code}')" title="${_('languages.view_missing')}">
                                 <span class="material-icons-round">search</span> ${_('languages.view_missing')}
                             </button>` : ''}
-                            ${lang.missing_keys > 0 ? `<button onclick="Languages.fixMissing('${lang.code}')" title="${_('languages.fix_missing')}">
-                                <span class="material-icons-round">auto_fix_high</span> ${_('languages.fix_missing')}
-                            </button>` : ''}
                         </div>
                     ` : ''}
                 </div>
@@ -136,7 +133,8 @@
                 for (const item of data.missing.slice(0, 100)) {
                     html += `<li>
                         <div class="lang-key-name">${escHtml(item.key)}</div>
-                        <div class="lang-key-value">${escHtml(item.en_value)}</div>
+                        <div class="lang-key-value">EN: ${escHtml(item.en_value || '')}</div>
+                        <div class="lang-key-value">PL: ${escHtml(item.pl_value || '')}</div>
                     </li>`;
                 }
                 if (data.missing.length > 100) {
@@ -159,36 +157,6 @@
         if (overlay) overlay.classList.remove('active');
     }
 
-    async function fixMissing(code) {
-        if (!confirm(_('languages.confirm_fix').replace('{code}', code))) return;
-
-        try {
-            const resp = await fetch(`/api/panel/languages/${encodeURIComponent(code)}/fix`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-csrf-token': window.BetterDesk?.csrfToken || ''
-                }
-            });
-            const data = await resp.json();
-
-            if (data.fixed > 0) {
-                if (typeof Notifications !== 'undefined') {
-                    Notifications.success(_('languages.fixed_msg').replace('{n}', data.fixed).replace('{code}', code), _('languages.fixed_title'));
-                } else {
-                    alert(`Fixed ${data.fixed} missing keys in ${code}`);
-                }
-                await loadLanguages();
-            } else {
-                if (typeof Notifications !== 'undefined') {
-                    Notifications.info(_('languages.no_fix_needed'));
-                }
-            }
-        } catch (err) {
-            console.error('Failed to fix language:', err);
-        }
-    }
-
     function escHtml(str) {
         const div = document.createElement('div');
         div.textContent = str;
@@ -196,7 +164,7 @@
     }
 
     // Public API
-    window.Languages = { init, viewMissing, fixMissing, closeDetail };
+    window.Languages = { init, viewMissing, closeDetail };
 
     // Self-initialize (inline <script> blocked by CSP nonce policy)
     document.addEventListener('DOMContentLoaded', init);

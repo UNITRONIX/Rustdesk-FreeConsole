@@ -1,42 +1,158 @@
 #!/usr/bin/env node
 /**
- * BetterDesk Console — i18n Key Completeness Checker
+ * BetterDesk i18n audit
  *
- * Compares all language files against en.json (reference) and reports:
- *   - Missing keys (present in en.json but absent in target)
- *   - Extra keys (present in target but absent in en.json)
- *   - Empty values (key exists but value is empty string)
+ * Audits all active translation systems against the EN+PL key baseline and
+ * reports structural gaps plus likely English fallback values. This script is
+ * intentionally read-only: adding missing keys with English text would hide
+ * untranslated UI behind a false 100% key coverage result.
  *
  * Usage:
- *   node scripts/i18n-check.js          # Check all languages
- *   node scripts/i18n-check.js --fix    # Add missing keys with English fallback
- *
- * Exit codes:
- *   0 = All languages complete
- *   1 = Missing or extra keys found
+ *   node web-nodejs/scripts/i18n-check.js
+ *   node web-nodejs/scripts/i18n-check.js --system web-nodejs
+ *   node web-nodejs/scripts/i18n-check.js --system agent-client
+ *   node web-nodejs/scripts/i18n-check.js --system mgmt
+ *   node web-nodejs/scripts/i18n-check.js --json
  */
+
+'use strict';
 
 const fs = require('fs');
 const path = require('path');
 
-const LANG_DIR = path.join(__dirname, '..', 'lang');
-const REFERENCE = 'en.json';
-const FIX_MODE = process.argv.includes('--fix');
+const REFERENCE_FILES = ['en.json', 'pl.json'];
+const DEFAULT_SYSTEMS = [
+    { id: 'web-nodejs', label: 'Web Console', dir: 'web-nodejs/lang' },
+    { id: 'agent-client', label: 'Agent Client', dir: 'betterdesk-agent-client/src/locales' },
+    { id: 'mgmt', label: 'MGMT Client', dir: 'betterdesk-mgmt/src/locales' }
+];
 
-/**
- * Recursively flatten nested JSON object into dot-notation keys
- * @param {object} obj
- * @param {string} prefix
- * @returns {Map<string, string>}
- */
-function flattenKeys(obj, prefix = '') {
-    const result = new Map();
-    for (const [key, value] of Object.entries(obj)) {
+const args = process.argv.slice(2);
+const jsonMode = args.includes('--json');
+const verbose = args.includes('--verbose');
+const systemArgIndex = args.indexOf('--system');
+const requestedSystem = systemArgIndex >= 0 ? args[systemArgIndex + 1] : null;
+
+if (args.includes('--fix')) {
+    console.error('Automatic i18n --fix is disabled. Missing keys must be translated in the target language, not filled with English fallback text.');
+    process.exit(2);
+}
+
+if (args.includes('--help') || args.includes('-h')) {
+    console.log(`BetterDesk i18n audit\n\nUsage:\n  node web-nodejs/scripts/i18n-check.js [--system web-nodejs|agent-client|mgmt] [--json] [--verbose]\n\nChecks:\n  - EN and PL key parity\n  - every locale has the same EN+PL key baseline\n  - no empty values\n  - no likely English fallback values in non-English locales\n\nThe script is read-only. It never inserts English values into target locales.`);
+    process.exit(0);
+}
+
+const ROOT_DIR = path.resolve(__dirname, '..', '..');
+
+const SHARED_EXACT_VALUES = new Set([
+    '',
+    'OK',
+    'ID',
+    'API',
+    'API Key',
+    'API Keys',
+    'Auto',
+    'Automatic',
+    'BETA',
+    'Beta',
+    'CDAP',
+    'CPU',
+    'DataGuard',
+    'GPU',
+    'HTTP',
+    'HTTPS',
+    'IoT',
+    'JSON',
+    'JWT',
+    'LAN',
+    'LDAP',
+    'LDAPS (TLS)',
+    'OIDC',
+    'OAuth2',
+    'RAM',
+    'SCADA',
+    'SDK',
+    'SDK Studio',
+    'SSO',
+    'StartTLS',
+    'TCP',
+    'TLS',
+    'TOTP',
+    'UDP',
+    'URL',
+    'UTF-8',
+    'WS',
+    'WSS',
+    'WebSocket',
+    'Windows',
+    'Linux',
+    'macOS',
+    'Node.js',
+    'RustDesk',
+    'BetterDesk',
+    'BetterDesk MGMT',
+    'Ctrl+Alt+Del',
+    'Ctrl+K',
+    'Wake on LAN',
+    'OpenID Connect',
+    'Active Directory',
+    'Azure AD',
+    'Okta',
+    'Google',
+    'Keycloak',
+    'GitHub',
+    'Docker',
+    'PostgreSQL',
+    'SQLite',
+    'NSIS',
+    'MSI',
+    'AppImage'
+]);
+
+const SHARED_SHORT_TERMS = new Set([
+    'Admin',
+    'Agent',
+    'Audit',
+    'Chat',
+    'Desktop',
+    'Error',
+    'Generator',
+    'Info',
+    'Login',
+    'Logo',
+    'Media',
+    'Model',
+    'Offline',
+    'Online',
+    'Operator',
+    'Pro',
+    'Status',
+    'System',
+    'Terminal',
+    'Toolkit'
+]);
+
+const ALLOWED_IDENTICAL_KEY_PATTERNS = [
+    /(^|\.)(id|lang|direction|flag|code|version|name|native_name)$/i,
+    /(^|\.)(api_key|api_key_placeholder|api_key_hint|key_prefix|token|secret)$/i,
+    /(^|\.)(platform|protocol|port|host|hostname|os|cpu|gpu|ram|disk|memory)$/i,
+    /(^|\.)(ctrl_alt_del|totp_code|ldap_|oidc_|cdap_|sdk_)/i,
+    /(^|\.)(filter_type_rustdesk|filter_type_scada|filter_type_iot)$/i
+];
+
+const ENGLISH_HINT = /\b(the|and|or|to|from|with|without|for|this|that|these|those|your|you|are|is|was|were|will|can|cannot|could|should|please|enter|select|search|loading|failed|successfully|required|available|enabled|disabled|device|devices|server|settings|management|dashboard|connection|connections|operator|operators|permission|permissions|password|username|language|translation|translations|configure|configuration|clipboard|screen|session|sessions|request|requests|history|metrics|automation|notification|notifications|delete|deleted|save|saved|create|created|update|updated|restart|shutdown|confirm|cancel|close|open|view|edit|back|next|finish|remote|toolbar|display|sync|ready|organization|organizations|member|members|policy|policies|group|groups|file|files|send|share|terminal|widget|widgets|overview|basics|tour|setup)\b/i;
+
+function readJson(filePath) {
+    const content = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
+    return JSON.parse(content);
+}
+
+function flattenKeys(obj, prefix = '', result = new Map()) {
+    for (const [key, value] of Object.entries(obj || {})) {
         const fullKey = prefix ? `${prefix}.${key}` : key;
         if (value && typeof value === 'object' && !Array.isArray(value)) {
-            for (const [k, v] of flattenKeys(value, fullKey)) {
-                result.set(k, v);
-            }
+            flattenKeys(value, fullKey, result);
         } else {
             result.set(fullKey, String(value ?? ''));
         }
@@ -44,141 +160,213 @@ function flattenKeys(obj, prefix = '') {
     return result;
 }
 
-/**
- * Set a nested key in an object using dot notation
- * @param {object} obj
- * @param {string} dotKey
- * @param {string} value
- */
-function setNestedKey(obj, dotKey, value) {
-    const parts = dotKey.split('.');
-    let current = obj;
-    for (let i = 0; i < parts.length - 1; i++) {
-        if (!(parts[i] in current) || typeof current[parts[i]] !== 'object') {
-            current[parts[i]] = {};
-        }
-        current = current[parts[i]];
-    }
-    current[parts[parts.length - 1]] = value;
+function isIgnoredExtra(key) {
+    return key.startsWith('_meta.');
 }
 
-// --- Main ---
-
-const refPath = path.join(LANG_DIR, REFERENCE);
-if (!fs.existsSync(refPath)) {
-    console.error(`Reference file not found: ${refPath}`);
-    process.exit(1);
+function isSharedExactValue(value) {
+    const normalized = value.trim();
+    return SHARED_EXACT_VALUES.has(normalized) || SHARED_SHORT_TERMS.has(normalized);
 }
 
-const refData = JSON.parse(fs.readFileSync(refPath, 'utf8'));
-const refKeys = flattenKeys(refData);
-const refKeySet = new Set(refKeys.keys());
+function isAllowedIdentical(key, value) {
+    const normalized = value.trim();
+    if (!/[A-Za-z]/.test(normalized)) return true;
+    if (isSharedExactValue(normalized)) return true;
+    if (/^[A-Z0-9_./:+ -]{1,14}$/.test(normalized)) return true;
+    if (/^https?:\/\//i.test(normalized)) return true;
+    if (/^\{\{?[A-Za-z0-9_]+\}?\}$/.test(normalized)) return true;
+    if (/^[A-Za-z0-9_.-]+\.(json|db|sqlite3|exe|sh|ps1|dll|msi|nsi|nsh)$/i.test(normalized)) return true;
+    return ALLOWED_IDENTICAL_KEY_PATTERNS.some(pattern => pattern.test(key));
+}
 
-console.log(`\n  BetterDesk i18n Checker`);
-console.log(`  Reference: ${REFERENCE} (${refKeySet.size} keys)\n`);
+function looksLikeEnglishFallback(key, value) {
+    const normalized = value.trim();
+    if (!normalized || !/[A-Za-z]/.test(normalized)) return false;
+    if (isAllowedIdentical(key, normalized)) return false;
+    if (ENGLISH_HINT.test(normalized)) return true;
+    if (/\s/.test(normalized) && normalized.length >= 12) return true;
+    if (/[.!?]$/.test(normalized) && normalized.length >= 8) return true;
+    return false;
+}
 
-const langFiles = fs.readdirSync(LANG_DIR)
-    .filter(f => f.endsWith('.json') && f !== REFERENCE)
-    .sort();
-
-let hasErrors = false;
-const summary = [];
-
-for (const file of langFiles) {
-    const filePath = path.join(LANG_DIR, file);
-    let data;
-    try {
-        data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    } catch (e) {
-        console.error(`  ✗ ${file}: Invalid JSON — ${e.message}`);
-        hasErrors = true;
-        summary.push({ file, missing: '?', extra: '?', empty: '?', status: 'PARSE ERROR' });
-        continue;
+function auditSystem(system) {
+    const dir = path.join(ROOT_DIR, system.dir);
+    if (!fs.existsSync(dir)) {
+        return { ...system, skipped: true, reason: `Directory not found: ${system.dir}` };
     }
 
-    const langKeys = flattenKeys(data);
-    const langKeySet = new Set(langKeys.keys());
+    const files = fs.readdirSync(dir)
+        .filter(file => file.endsWith('.json'))
+        .sort();
 
-    const missing = [...refKeySet].filter(k => !langKeySet.has(k));
-    const extra = [...langKeySet].filter(k => !refKeySet.has(k));
-    const empty = [...langKeySet].filter(k => refKeySet.has(k) && langKeys.get(k) === '');
-
-    const ok = missing.length === 0 && extra.length === 0;
-    const icon = ok ? '✓' : '✗';
-
-    console.log(`  ${icon} ${file}: ${langKeySet.size} keys`);
-
-    if (missing.length > 0) {
-        console.log(`    Missing (${missing.length}):`);
-        for (const k of missing.slice(0, 20)) {
-            console.log(`      - ${k}`);
+    const referenceMaps = new Map();
+    for (const refFile of REFERENCE_FILES) {
+        const refPath = path.join(dir, refFile);
+        if (!fs.existsSync(refPath)) {
+            throw new Error(`${system.id}: missing reference file ${refFile}`);
         }
-        if (missing.length > 20) {
-            console.log(`      ... and ${missing.length - 20} more`);
-        }
+        referenceMaps.set(refFile, flattenKeys(readJson(refPath)));
     }
 
-    if (extra.length > 0) {
-        console.log(`    Extra (${extra.length}):`);
-        for (const k of extra.slice(0, 10)) {
-            console.log(`      + ${k}`);
+    const enKeys = referenceMaps.get('en.json');
+    const plKeys = referenceMaps.get('pl.json');
+    const baselineKeys = new Set([...enKeys.keys(), ...plKeys.keys()]);
+    const enMissingVsPL = [...plKeys.keys()].filter(key => !enKeys.has(key));
+    const plMissingVsEN = [...enKeys.keys()].filter(key => !plKeys.has(key));
+
+    const rows = [];
+    for (const file of files) {
+        const filePath = path.join(dir, file);
+        let data;
+        try {
+            data = readJson(filePath);
+        } catch (error) {
+            rows.push({
+                file,
+                parseError: error.message,
+                keys: 0,
+                missing: [],
+                extra: [],
+                ignoredExtra: [],
+                empty: [],
+                englishFallback: []
+            });
+            continue;
         }
-        if (extra.length > 10) {
-            console.log(`      ... and ${extra.length - 10} more`);
+
+        const localeKeys = flattenKeys(data);
+        const localeKeySet = new Set(localeKeys.keys());
+        const missing = [...baselineKeys].filter(key => !localeKeySet.has(key));
+        const extraAll = [...localeKeySet].filter(key => !baselineKeys.has(key));
+        const extra = extraAll.filter(key => !isIgnoredExtra(key));
+        const ignoredExtra = extraAll.filter(isIgnoredExtra);
+        const empty = [...baselineKeys].filter(key => localeKeySet.has(key) && localeKeys.get(key).trim() === '');
+        const englishFallback = [];
+
+        if (file !== 'en.json') {
+            for (const [key, englishValue] of enKeys) {
+                if (!baselineKeys.has(key) || !localeKeySet.has(key)) continue;
+                const value = localeKeys.get(key);
+                if (value === englishValue && looksLikeEnglishFallback(key, value)) {
+                    englishFallback.push(key);
+                }
+            }
         }
+
+        rows.push({
+            file,
+            keys: localeKeys.size,
+            missing,
+            extra,
+            ignoredExtra,
+            empty,
+            englishFallback
+        });
     }
 
-    if (empty.length > 0) {
-        console.log(`    Empty values (${empty.length}):`);
-        for (const k of empty.slice(0, 10)) {
-            console.log(`      ~ ${k}`);
+    return {
+        ...system,
+        dir: system.dir,
+        files: files.length,
+        baselineCount: baselineKeys.size,
+        enCount: enKeys.size,
+        plCount: plKeys.size,
+        enMissingVsPL,
+        plMissingVsEN,
+        rows
+    };
+}
+
+function summarizeStatus(row) {
+    if (row.parseError) return 'PARSE_ERROR';
+    if (row.missing.length || row.extra.length || row.empty.length || row.englishFallback.length) return 'FAIL';
+    return 'OK';
+}
+
+function printHuman(results) {
+    console.log('\nBetterDesk i18n audit');
+    console.log('Reference baseline: union of en.json and pl.json keys');
+    console.log('English fallback check: exact EN values filtered through a technical-term allowlist\n');
+
+    for (const result of results) {
+        if (result.skipped) {
+            console.log(`=== ${result.label} (${result.id}) ===`);
+            console.log(`Skipped: ${result.reason}\n`);
+            continue;
         }
-    }
 
-    // Fix mode: add missing keys with English values
-    if (FIX_MODE && missing.length > 0) {
-        for (const k of missing) {
-            setNestedKey(data, k, refKeys.get(k));
+        console.log(`=== ${result.label} (${result.dir}) ===`);
+        console.log(`files=${result.files} baseline=${result.baselineCount} en=${result.enCount} pl=${result.plCount} en_missing_vs_pl=${result.enMissingVsPL.length} pl_missing_vs_en=${result.plMissingVsEN.length}`);
+        if (result.enMissingVsPL.length) console.log(`  EN missing keys present in PL: ${result.enMissingVsPL.slice(0, 20).join(', ')}${result.enMissingVsPL.length > 20 ? ' ...' : ''}`);
+        if (result.plMissingVsEN.length) console.log(`  PL missing keys present in EN: ${result.plMissingVsEN.slice(0, 20).join(', ')}${result.plMissingVsEN.length > 20 ? ' ...' : ''}`);
+
+        const tableRows = result.rows.map(row => ({
+            file: row.file,
+            keys: row.keys,
+            missing: row.missing.length,
+            extra: row.extra.length,
+            ignoredExtra: row.ignoredExtra.length,
+            empty: row.empty.length,
+            englishFallback: row.englishFallback.length,
+            status: summarizeStatus(row)
+        }));
+        console.table(tableRows);
+
+        for (const row of result.rows) {
+            const status = summarizeStatus(row);
+            if (status === 'OK' && !verbose) continue;
+            console.log(`-- ${row.file}`);
+            if (row.parseError) console.log(`  parse-error: ${row.parseError}`);
+            if (row.missing.length) console.log(`  missing(${row.missing.length}): ${row.missing.slice(0, 30).join(', ')}${row.missing.length > 30 ? ' ...' : ''}`);
+            if (row.extra.length) console.log(`  extra(${row.extra.length}): ${row.extra.slice(0, 30).join(', ')}${row.extra.length > 30 ? ' ...' : ''}`);
+            if (row.ignoredExtra.length && verbose) console.log(`  ignored-extra(${row.ignoredExtra.length}): ${row.ignoredExtra.join(', ')}`);
+            if (row.empty.length) console.log(`  empty(${row.empty.length}): ${row.empty.slice(0, 30).join(', ')}${row.empty.length > 30 ? ' ...' : ''}`);
+            if (row.englishFallback.length) console.log(`  english-fallback(${row.englishFallback.length}): ${row.englishFallback.slice(0, 40).join(', ')}${row.englishFallback.length > 40 ? ' ...' : ''}`);
         }
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n', 'utf8');
-        console.log(`    → Fixed: added ${missing.length} missing keys with English fallback`);
+        console.log('');
     }
+}
 
-    if (!ok) hasErrors = true;
-
-    const coverage = refKeySet.size > 0
-        ? Math.round(((refKeySet.size - missing.length) / refKeySet.size) * 100)
-        : 100;
-
-    summary.push({
-        file,
-        missing: missing.length,
-        extra: extra.length,
-        empty: empty.length,
-        coverage: `${coverage}%`,
-        status: ok ? 'OK' : 'INCOMPLETE'
+function hasFailures(results) {
+    return results.some(result => {
+        if (result.skipped) return false;
+        if (result.enMissingVsPL.length || result.plMissingVsEN.length) return true;
+        return result.rows.some(row => summarizeStatus(row) !== 'OK');
     });
 }
 
-// Summary table
-console.log('\n  ┌──────────────┬─────────┬───────┬───────┬──────────┬──────────┐');
-console.log('  │ Language      │ Missing │ Extra │ Empty │ Coverage │ Status   │');
-console.log('  ├──────────────┼─────────┼───────┼───────┼──────────┼──────────┤');
-for (const s of summary) {
-    const lang = s.file.padEnd(12);
-    const miss = String(s.missing).padStart(7);
-    const ext = String(s.extra).padStart(5);
-    const emp = String(s.empty).padStart(5);
-    const cov = (s.coverage || '?').padStart(8);
-    const stat = (s.status || '?').padStart(8);
-    console.log(`  │ ${lang} │${miss} │${ext} │${emp} │${cov} │${stat} │`);
+let systems = DEFAULT_SYSTEMS;
+if (requestedSystem) {
+    systems = DEFAULT_SYSTEMS.filter(system => system.id === requestedSystem);
+    if (systems.length === 0) {
+        console.error(`Unknown i18n system: ${requestedSystem}`);
+        console.error(`Known systems: ${DEFAULT_SYSTEMS.map(system => system.id).join(', ')}`);
+        process.exit(2);
+    }
 }
-console.log('  └──────────────┴─────────┴───────┴───────┴──────────┴──────────┘');
 
-if (hasErrors) {
-    console.log('\n  ⚠ Some languages are incomplete. Run with --fix to add missing keys.\n');
+let results;
+try {
+    results = systems.map(auditSystem);
+} catch (error) {
+    console.error(`i18n audit failed: ${error.message}`);
     process.exit(1);
+}
+
+if (jsonMode) {
+    console.log(JSON.stringify(results, null, 2));
 } else {
-    console.log('\n  ✓ All languages have 100% key coverage.\n');
-    process.exit(0);
+    printHuman(results);
+}
+
+if (hasFailures(results)) {
+    if (!jsonMode) {
+        console.log('i18n audit failed: every active locale must match the EN+PL key baseline and must not contain English fallback text.');
+    }
+    process.exit(1);
+}
+
+if (!jsonMode) {
+    console.log('i18n audit passed: all active locales have complete key coverage and no detected English fallback text.');
 }
