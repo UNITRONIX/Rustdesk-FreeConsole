@@ -254,6 +254,133 @@ function Confirm-Action {
     return $response -match "^[YyTt]"
 }
 
+#===============================================================================
+# Interactive TUI (arrow-key navigable menu) — no external dependencies
+#===============================================================================
+$script:TUI_RESULT = -1
+$script:MENU_CHOICE = ''
+
+function Test-TuiAvailable {
+    if ($env:BETTERDESK_CLASSIC_MENU -eq '1') { return $false }
+    if ($script:AUTO_MODE) { return $false }
+    try {
+        if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected) { return $false }
+    } catch { return $false }
+    return $true
+}
+
+# Invoke-TuiSelect -Title T -Subtitle S -Items @("Label`tDesc", ...)
+# Navigation: Up/Down or k/j to move, Enter/Right to choose, q/Esc/0 to cancel.
+# Returns $true and sets $script:TUI_RESULT on selection, $false on cancel.
+function Invoke-TuiSelect {
+    param(
+        [string]$Title,
+        [string]$Subtitle,
+        [string[]]$Items
+    )
+    $script:TUI_RESULT = -1
+    $count = $Items.Count
+    if (-not (Test-TuiAvailable) -or $count -eq 0) { return $false }
+
+    $sel = 0
+    try { [Console]::CursorVisible = $false } catch {}
+    Clear-Host
+    try {
+        while ($true) {
+            try { [Console]::SetCursorPosition(0, 0) } catch {}
+            Write-Host "+--------------------------------------------------------------+" -ForegroundColor Cyan
+            Write-Host ("| {0,-60} |" -f $Title) -ForegroundColor White
+            if ($Subtitle) { Write-Host ("| {0,-60} |" -f $Subtitle) -ForegroundColor DarkGray }
+            Write-Host "+--------------------------------------------------------------+" -ForegroundColor Cyan
+            Write-Host ""
+
+            for ($i = 0; $i -lt $count; $i++) {
+                $parts = $Items[$i] -split "`t", 2
+                $label = $parts[0]
+                $desc  = if ($parts.Count -gt 1) { $parts[1] } else { '' }
+                if ($i -eq $sel) {
+                    $line = ("  > {0,-30}{1}" -f $label, $desc)
+                    Write-Host ($line.PadRight(78)) -ForegroundColor Green
+                } else {
+                    $line = ("    {0,-30}{1}" -f $label, $desc)
+                    Write-Host ($line.PadRight(78)) -ForegroundColor White
+                }
+            }
+
+            Write-Host ""
+            Write-Host ("  Up/Down navigate   Enter select   q/Esc back".PadRight(78)) -ForegroundColor DarkGray
+
+            $key = [Console]::ReadKey($true)
+            switch ($key.Key) {
+                'UpArrow'    { $sel = (($sel - 1 + $count) % $count) }
+                'DownArrow'  { $sel = (($sel + 1) % $count) }
+                'Enter'      { $script:TUI_RESULT = $sel; return $true }
+                'RightArrow' { $script:TUI_RESULT = $sel; return $true }
+                'Escape'     { return $false }
+                default {
+                    $ch = $key.KeyChar
+                    if     ($ch -eq 'k') { $sel = (($sel - 1 + $count) % $count) }
+                    elseif ($ch -eq 'j') { $sel = (($sel + 1) % $count) }
+                    elseif ($ch -eq 'q' -or $ch -eq 'Q' -or $ch -eq '0') { return $false }
+                    elseif ($ch -ge '1' -and $ch -le '9') {
+                        $idx = [int]::Parse($ch) - 1
+                        if ($idx -lt $count) { $script:TUI_RESULT = $idx; return $true }
+                    }
+                }
+            }
+        }
+    } finally {
+        try { [Console]::CursorVisible = $true } catch {}
+    }
+}
+
+function Show-PanelHeader {
+    param([string]$Title, [string]$Subtitle)
+    Clear-Host
+    Write-Host "+--------------------------------------------------------------+" -ForegroundColor Cyan
+    Write-Host ("| {0,-60} |" -f $Title) -ForegroundColor White
+    if ($Subtitle) { Write-Host ("| {0,-60} |" -f $Subtitle) -ForegroundColor DarkGray }
+    Write-Host "+--------------------------------------------------------------+" -ForegroundColor Cyan
+    Write-Host ""
+}
+
+# Invoke-MenuChoose -Title T -Subtitle S -Items @(...) -Returns @(...)
+# Uses the arrow-key TUI when available, a styled numeric prompt otherwise.
+# The chosen token is stored in $script:MENU_CHOICE; on cancel the last entry
+# is returned so existing switch blocks can treat it as "back".
+function Invoke-MenuChoose {
+    param(
+        [string]$Title,
+        [string]$Subtitle,
+        [string[]]$Items,
+        [string[]]$Returns
+    )
+    $script:MENU_CHOICE = ''
+    $lastIdx = $Returns.Count - 1
+    if ($lastIdx -lt 0) { $lastIdx = 0 }
+
+    if (Test-TuiAvailable) {
+        if (Invoke-TuiSelect -Title $Title -Subtitle $Subtitle -Items $Items) {
+            $script:MENU_CHOICE = $Returns[$script:TUI_RESULT]
+        } else {
+            $script:MENU_CHOICE = $Returns[$lastIdx]
+        }
+        return
+    }
+
+    Show-PanelHeader $Title $Subtitle
+    for ($i = 0; $i -lt $Items.Count; $i++) {
+        $parts = $Items[$i] -split "`t", 2
+        $label = $parts[0]
+        $desc  = if ($parts.Count -gt 1) { $parts[1] } else { '' }
+        Write-Host ("  {0,2}) " -f $Returns[$i]) -ForegroundColor Green -NoNewline
+        Write-Host ("{0,-28}" -f $label) -NoNewline
+        Write-Host " $desc" -ForegroundColor DarkGray
+    }
+    Write-Host ""
+    $script:MENU_CHOICE = Read-Host "  Select option"
+}
+
 function Get-PublicIP {
     try {
         $ip = (Invoke-WebRequest -Uri "https://ifconfig.me/ip" -UseBasicParsing -TimeoutSec 10).Content.Trim()
@@ -888,21 +1015,13 @@ function Choose-DatabaseType {
     }
     
     Write-Host ""
-    Write-Host "Select Database Type:" -ForegroundColor White
-    Write-Host ""
-    Write-Host "  1. SQLite (default)" -ForegroundColor Green
-    Write-Host "     Single-file database, zero setup. Good for " -ForegroundColor DarkGray -NoNewline
-    Write-Host ([char]0x2264) -NoNewline -ForegroundColor DarkGray
-    Write-Host "100 devices." -ForegroundColor DarkGray
-    Write-Host "     Data stored in $RUSTDESK_PATH\db_v2.sqlite3" -ForegroundColor DarkGray
-    Write-Host ""
-    Write-Host "  2. PostgreSQL (production)" -ForegroundColor Green
-    Write-Host "     Full SQL database with connection pooling. Recommended for" -ForegroundColor DarkGray
-    Write-Host "     multi-server setups, >100 devices, or high availability." -ForegroundColor DarkGray
-    Write-Host "     Requires PostgreSQL 14+ (installed automatically if missing)." -ForegroundColor DarkGray
-    Write-Host ""
-    
-    $dbChoice = Read-Host "Choose database type [1]"
+    $items = @(
+        "SQLite`tSingle-file DB, zero setup (recommended)",
+        "PostgreSQL`tProduction backend with connection pooling"
+    )
+    $returns = @("1", "2")
+    Invoke-MenuChoose -Title "Select Database Type" -Subtitle "SQLite is recommended for most installs" -Items $items -Returns $returns
+    $dbChoice = $script:MENU_CHOICE
     if ([string]::IsNullOrEmpty($dbChoice)) { $dbChoice = "1" }
     
     switch ($dbChoice) {
@@ -2914,20 +3033,15 @@ function Do-Update {
     if ($script:AUTO_MODE) {
         Print-Info "Auto mode: using GitHub pull update"
     } else {
-        Write-Host "Select update method:" -ForegroundColor White
-        Write-Host ""
-        Write-Host "  1. Online update from GitHub (recommended)" -ForegroundColor Cyan
-        Write-Host "     Downloads latest code, rebuilds Go server, updates console"
-        Write-Host ""
-        Write-Host "  2. In-app updater (commit-aware)" -ForegroundColor Yellow
-        Write-Host "     Uses built-in Node.js update mechanism"
-        Write-Host ""
-        Write-Host "  3. Local update (from script directory)" -ForegroundColor Gray
-        Write-Host "     Copies files from the directory where this script is located"
-        Write-Host ""
-        Write-Host "  0. Back" -ForegroundColor Gray
-        Write-Host ""
-        $updateMethod = Read-Host "Select option [1]"
+        $items = @(
+            "Online update from GitHub`tDownload latest code + rebuild (recommended)",
+            "In-app updater`tBuilt-in Node.js commit-aware updater",
+            "Local update`tCopy files from this script's directory",
+            "Back`tReturn to the main menu"
+        )
+        $returns = @("1", "2", "3", "0")
+        Invoke-MenuChoose -Title "Update Method" -Subtitle "Online GitHub update is recommended" -Items $items -Returns $returns
+        $updateMethod = $script:MENU_CHOICE
         if (-not $updateMethod) { $updateMethod = "1" }
 
         switch ($updateMethod) {
@@ -3013,17 +3127,16 @@ function Do-Repair {
     
     Print-Status
     
-    Write-Host ""
-    Write-Host "What do you want to repair?" -ForegroundColor White
-    Write-Host ""
-    Write-Host "  1. Repair binaries (replace with BetterDesk)"
-    Write-Host "  2. Repair database (add missing columns)"
-    Write-Host "  3. Repair Windows services"
-    Write-Host "  4. Full repair (all of the above)"
-    Write-Host "  0. Back"
-    Write-Host ""
-    
-    $choice = Read-Host "Select option"
+    $items = @(
+        "Repair binaries`tReplace the server binary with BetterDesk",
+        "Repair database`tAdd any missing columns",
+        "Repair services`tRecreate the Windows services",
+        "Full repair`tDo everything above",
+        "Back`tReturn to the main menu"
+    )
+    $returns = @("1", "2", "3", "4", "0")
+    Invoke-MenuChoose -Title "Repair Installation" -Subtitle "Choose what to repair" -Items $items -Returns $returns
+    $choice = $script:MENU_CHOICE
     
     switch ($choice) {
         "1" { Repair-Binaries }
@@ -3418,18 +3531,14 @@ function Do-ResetPassword {
         return
     }
     
-    Write-Host "Detected console type: " -NoNewline
-    Write-Host "Node.js" -ForegroundColor Cyan
-    Write-Host ""
-    
-    Write-Host "Select option:"
-    Write-Host ""
-    Write-Host "  1. Generate new random password"
-    Write-Host "  2. Set custom password"
-    Write-Host "  0. Back"
-    Write-Host ""
-    
-    $choice = Read-Host "Choice"
+    $items = @(
+        "Generate random password`tCreate a new strong password",
+        "Set custom password`tType the password yourself",
+        "Back`tReturn to the main menu"
+    )
+    $returns = @("1", "2", "0")
+    Invoke-MenuChoose -Title "Admin Password Reset" -Subtitle "Console type: Node.js" -Items $items -Returns $returns
+    $choice = $script:MENU_CHOICE
     
     $newPassword = $null
     
@@ -3918,14 +4027,14 @@ conn.close()
     
     # --- Diagnostics sub-menu ---
     Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "  F. Configure firewall rules (auto-create missing rules)"
-    Write-Host "  P. Test port connectivity from outside (requires internet)"
-    Write-Host "  0. Back to main menu"
-    Write-Host ""
-    
-    $subChoice = Read-Host "  Select option"
+    $items = @(
+        "Configure firewall rules`tAuto-create any missing rules",
+        "Test port connectivity`tProbe ports from outside",
+        "Back`tReturn to the main menu"
+    )
+    $returns = @("F", "P", "0")
+    Invoke-MenuChoose -Title "Diagnostics Actions" -Subtitle "Optional follow-up checks" -Items $items -Returns $returns
+    $subChoice = $script:MENU_CHOICE
     
     switch ($subChoice) {
         "F" {
@@ -4031,15 +4140,16 @@ function Configure-Paths {
     Write-Host "  Database path:         " -NoNewline; Write-Host $script:DB_PATH -ForegroundColor Cyan
     Write-Host ""
     
-    Write-Host "Options:" -ForegroundColor Yellow
-    Write-Host "  1. Auto-detect installation paths"
-    Write-Host "  2. Set RustDesk server path manually"
-    Write-Host "  3. Set Console path manually"
-    Write-Host "  4. Reset to defaults"
-    Write-Host "  0. Back to main menu"
-    Write-Host ""
-    
-    $choice = Read-Host "Select option [0-4]"
+    $items = @(
+        "Auto-detect paths`tProbe for an existing installation",
+        "Set server path`tEnter the BetterDesk server path",
+        "Set console path`tEnter the web console path",
+        "Reset to defaults`tRestore the default paths",
+        "Back`tReturn to the main menu"
+    )
+    $returns = @("1", "2", "3", "4", "0")
+    Invoke-MenuChoose -Title "Path Configuration" -Subtitle "Server: $script:RUSTDESK_PATH" -Items $items -Returns $returns
+    $choice = $script:MENU_CHOICE
     
     switch ($choice) {
         "1" {
@@ -4112,14 +4222,15 @@ function Configure-Paths {
 
 function Do-Build {
     Print-Header
-    Write-Host "========== BUILD & DEPLOY ==========" -ForegroundColor White
-    Write-Host ""
-    Write-Host "  1. Rebuild & deploy Go server (compile, stop, replace, start)"
-    Write-Host "  2. Compile Go server only (do not deploy)"
-    Write-Host "  3. Build legacy Rust binaries (archived, hbbs/hbbr)"
-    Write-Host "  0. Back to main menu"
-    Write-Host ""
-    $buildChoice = Read-Host "Select option [1]"
+    $items = @(
+        "Rebuild & deploy Go server`tCompile, stop, replace, start",
+        "Compile Go server only`tBuild without deploying",
+        "Build legacy Rust binaries`tArchived hbbs/hbbr",
+        "Back`tReturn to the main menu"
+    )
+    $returns = @("1", "2", "3", "0")
+    Invoke-MenuChoose -Title "Build & Deploy" -Subtitle "Compile the BetterDesk server" -Items $items -Returns $returns
+    $buildChoice = $script:MENU_CHOICE
     if ([string]::IsNullOrEmpty($buildChoice)) { $buildChoice = "1" }
 
     switch ($buildChoice) {
@@ -4348,23 +4459,24 @@ function Do-ConfigureSSL {
         return
     }
     
-    Write-Host "  ─── Standard Options ───" -ForegroundColor Cyan
-    Write-Host "  1. Let's Encrypt (ACME)" -ForegroundColor Green
-    Write-Host "  2. Custom certificate (provide cert + key files)" -ForegroundColor Green
-    Write-Host "  3. Self-signed certificate (for testing)" -ForegroundColor Green
-    Write-Host "  4. Disable SSL (revert to HTTP)" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "  ─── Enterprise Options ───" -ForegroundColor Cyan
-    Write-Host "  5. Enterprise TLS (panel + signal + relay; API stays HTTP)" -ForegroundColor Yellow
-    Write-Host ""
-    
-    $sslChoice = Read-Host "Choice [3]"
+    $items = @(
+        "Let's Encrypt`tACME certificate (manual on Windows)",
+        "Custom certificate`tProvide your own cert + key files",
+        "Self-signed certificate`tQuick HTTPS for testing",
+        "Disable SSL`tRevert the panel back to HTTP",
+        "Enterprise TLS`tPanel + signal + relay (API stays HTTP)",
+        "Back`tReturn to the main menu"
+    )
+    $returns = @("1", "2", "3", "4", "5", "0")
+    Invoke-MenuChoose -Title "SSL Certificate Configuration" -Subtitle "Enables HTTPS for the admin panel" -Items $items -Returns $returns
+    $sslChoice = $script:MENU_CHOICE
     if ([string]::IsNullOrEmpty($sslChoice)) { $sslChoice = "3" }
     
     $envContent = Get-Content $envFile -Raw
     $sslDir = Join-Path $script:RUSTDESK_PATH "ssl"
     
     switch ($sslChoice) {
+        "0" { return }
         "1" {
             # Let's Encrypt
             Print-Warning "Let's Encrypt is not yet supported on Windows via this script."
@@ -4903,12 +5015,14 @@ function Do-ToggleProtocol {
     Write-Host "  Signal TLS:   $tlsSignal"
     Write-Host "  Relay TLS:    $tlsRelay"
     Write-Host ""
-    Write-Host "  1. Switch to HTTP  (everything plain - LAN/testing)" -ForegroundColor Green
-    Write-Host "  2. Switch to HTTPS (panel HTTPS + signal/relay TLS)" -ForegroundColor Green
-    Write-Host "  0. Back" -ForegroundColor Red
-    Write-Host ""
-
-    $protoChoice = Read-Host "Select mode [0]"
+    $items = @(
+        "Switch to HTTP`tEverything plain - LAN / testing",
+        "Switch to HTTPS`tPanel HTTPS + signal/relay TLS",
+        "Back`tReturn to the main menu"
+    )
+    $returns = @("1", "2", "0")
+    Invoke-MenuChoose -Title "Protocol Mode" -Subtitle "Current mode: $currentMode" -Items $items -Returns $returns
+    $protoChoice = $script:MENU_CHOICE
 
     switch ($protoChoice) {
         "1" {
@@ -5130,19 +5244,17 @@ function Do-MigrateDatabase {
 
     Print-Info "Migration binary: $migrateBin"
     Write-Host ""
-    Write-Host "  Migrate databases between different BetterDesk components." -ForegroundColor White
-    Write-Host ""
-    Write-Host "  Migration Modes:" -ForegroundColor Yellow
-    Write-Host "  1. Rust -> Go          Migrate from legacy Rust hbbs database to Go server" -ForegroundColor Green
-    Write-Host "  2. Node.js -> Go       Migrate from Node.js web console to Go server" -ForegroundColor Green
-    Write-Host "  3. SQLite -> PostgreSQL Migrate BetterDesk Go SQLite to PostgreSQL" -ForegroundColor Green
-    Write-Host "  4. PostgreSQL -> SQLite Migrate PostgreSQL back to SQLite" -ForegroundColor Green
-    Write-Host "  5. Backup              Create timestamped backup of SQLite database" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "  0. Back to main menu" -ForegroundColor Red
-    Write-Host ""
-
-    $migChoice = Read-Host "Select migration mode"
+    $items = @(
+        "Rust -> Go`tLegacy Rust hbbs database to Go server",
+        "Node.js -> Go`tNode.js web console to Go server",
+        "SQLite -> PostgreSQL`tBetterDesk Go SQLite to PostgreSQL",
+        "PostgreSQL -> SQLite`tPostgreSQL back to SQLite",
+        "Backup`tCreate a timestamped SQLite backup",
+        "Back`tReturn to the main menu"
+    )
+    $returns = @("1", "2", "3", "4", "5", "0")
+    Invoke-MenuChoose -Title "Database Migration" -Subtitle "Move data between BetterDesk components" -Items $items -Returns $returns
+    $migChoice = $script:MENU_CHOICE
 
     switch ($migChoice) {
         "1" {
@@ -5362,8 +5474,37 @@ function Main {
     }
     
     while ($true) {
-        Show-Menu
-        $choice = Read-Host "Select option"
+        $menuLabels = @(
+            "Fresh installation`tFull install from scratch",
+            "Update`tUpdate an existing installation",
+            "Repair installation`tFix common problems",
+            "Validate installation`tCheck correctness",
+            "Backup`tCreate a backup",
+            "Reset admin password`tReset the console admin",
+            "Build & deploy server`tCompile and deploy the Go server",
+            "Diagnostics`tDetailed problem analysis",
+            "Uninstall`tRemove BetterDesk",
+            "Minimal installation`tServer only",
+            "Configure SSL certificates`tLet's Encrypt / custom / self-signed",
+            "Toggle HTTP/HTTPS`tSwitch protocol mode",
+            "Database migration`tMigrate between backends",
+            "Settings (paths)`tConfigure install paths",
+            "Exit`tQuit the manager"
+        )
+        $menuActions = @("1", "2", "3", "4", "5", "6", "7", "8", "9", "L", "C", "T", "M", "S", "0")
+
+        $choice = ""
+        if (Test-TuiAvailable) {
+            $statusLine = "BetterDesk Console Manager v$VERSION"
+            if (Invoke-TuiSelect -Title "BetterDesk Console Manager v$VERSION" -Subtitle "Use arrow keys, Enter to select" -Items $menuLabels) {
+                $choice = $menuActions[$script:TUI_RESULT]
+            } else {
+                $choice = "0"
+            }
+        } else {
+            Show-Menu
+            $choice = Read-Host "Select option"
+        }
         
         switch ($choice) {
             "1" { Do-Install }

@@ -228,6 +228,168 @@ confirm() {
     [[ "$response" =~ ^[TtYy]$ ]]
 }
 
+#===============================================================================
+# Interactive TUI (arrow-key navigable menu) — pure bash, no dependencies
+#===============================================================================
+# Result of tui_select() is returned in the global TUI_RESULT.
+# Returns 0 on selection, 1 when TUI is unavailable (caller falls back to text).
+TUI_RESULT=""
+
+# Detect whether the modern arrow-key interface can be used.
+tui_available() {
+    [ "${BETTERDESK_CLASSIC_MENU:-0}" = "1" ] && return 1
+    [ -t 0 ] && [ -t 1 ] || return 1
+    return 0
+}
+
+# Cleanup helper: always restore the cursor when leaving the TUI.
+_tui_restore() { printf '\033[?25h' 2>/dev/null; stty echo 2>/dev/null; }
+
+# tui_select "Title" "Subtitle" item1 item2 ...
+# Each item may embed a description after a literal $'\t' (tab).
+# Navigation: ↑/↓ or k/j to move, Enter/→ to choose, q/Esc/0 to cancel.
+tui_select() {
+    local title="$1"; shift
+    local subtitle="$1"; shift
+    local items=("$@")
+    local count=${#items[@]}
+    local sel=0 key rest
+
+    if ! tui_available || [ "$count" -eq 0 ]; then
+        TUI_RESULT=""
+        return 1
+    fi
+
+    printf '\033[?25l'                       # hide cursor
+    trap '_tui_restore' INT TERM
+
+    clear
+    while true; do
+        # Build the whole frame in a single buffer, then emit it with one
+        # write. Terminals (notably the VS Code integrated terminal with GPU
+        # acceleration) drop individual glyphs when a full-screen TUI is redrawn
+        # via many separate printf calls after each keypress. One write avoids it.
+        local buf=""
+        buf+="\033[H"   # move cursor home instead of clearing (less flicker)
+        buf+="${CYAN}${BOLD}+--------------------------------------------------------------+${NC}\033[K\n"
+        buf+="$(printf "${CYAN}${BOLD}|${NC} ${WHITE}${BOLD}%-60s${NC} ${CYAN}${BOLD}|${NC}" "$title")\033[K\n"
+        if [ -n "$subtitle" ]; then
+            buf+="$(printf "${CYAN}${BOLD}|${NC} ${DIM}%-60s${NC} ${CYAN}${BOLD}|${NC}" "$subtitle")\033[K\n"
+        fi
+        buf+="${CYAN}${BOLD}+--------------------------------------------------------------+${NC}\033[K\n"
+        buf+="\033[K\n"
+
+        local i label desc pad line
+        for i in "${!items[@]}"; do
+            label="${items[$i]%%$'\t'*}"
+            desc=""
+            [[ "${items[$i]}" == *$'\t'* ]] && desc="${items[$i]#*$'\t'}"
+            # Manual padding by character count keeps columns aligned reliably.
+            pad=$(( 32 - ${#label} ))
+            [ "$pad" -lt 1 ] && pad=1
+            if [ "$i" -eq "$sel" ]; then
+                line="$(printf "  ${GREEN}${BOLD}>${NC} ${GREEN}${BOLD}%s${NC}%*s${DIM}%s${NC}" "$label" "$pad" "" "$desc")"
+            else
+                line="$(printf "    ${WHITE}%s${NC}%*s${DIM}%s${NC}" "$label" "$pad" "" "$desc")"
+            fi
+            buf+="${line}\033[K\n"
+        done
+
+        buf+="\033[K\n"
+        buf+="  ${DIM}Up/Down navigate   Enter select   q/Esc back${NC}\033[K\n"
+        buf+="\033[J"   # clear anything below the menu
+
+        printf '%b' "$buf"
+
+        # Read a single keypress (with escape-sequence handling)
+        IFS= read -rsn1 key 2>/dev/null
+        if [[ "$key" == $'\033' ]]; then
+            read -rsn2 -t 0.05 rest 2>/dev/null
+            key+="$rest"
+        fi
+
+        case "$key" in
+            $'\033[A'|'k') sel=$(( (sel - 1 + count) % count )) ;;
+            $'\033[B'|'j') sel=$(( (sel + 1) % count )) ;;
+            ''|$'\033[C') TUI_RESULT="$sel"; _tui_restore; trap - INT TERM; return 0 ;;  # Enter / →
+            'q'|'Q'|'0'|$'\033') TUI_RESULT=""; _tui_restore; trap - INT TERM; return 2 ;;
+            [1-9])
+                # Numeric shortcut jumps straight to that 1-based entry
+                local idx=$(( key - 1 ))
+                if [ "$idx" -lt "$count" ]; then
+                    TUI_RESULT="$idx"; _tui_restore; trap - INT TERM; return 0
+                fi
+                ;;
+        esac
+    done
+}
+
+#===============================================================================
+# Modern UI helpers shared by every sub-menu
+#===============================================================================
+# ui_panel_header "Title" "Subtitle"
+# Draws a clean ASCII box header (single buffered write to avoid glyph drops).
+ui_panel_header() {
+    local title="$1" subtitle="$2"
+    clear 2>/dev/null || true
+    local buf=""
+    buf+="${CYAN}${BOLD}+--------------------------------------------------------------+${NC}\n"
+    buf+="$(printf "${CYAN}${BOLD}|${NC} ${WHITE}${BOLD}%-60s${NC} ${CYAN}${BOLD}|${NC}" "$title")\n"
+    if [ -n "$subtitle" ]; then
+        buf+="$(printf "${CYAN}${BOLD}|${NC} ${DIM}%-60s${NC} ${CYAN}${BOLD}|${NC}" "$subtitle")\n"
+    fi
+    buf+="${CYAN}${BOLD}+--------------------------------------------------------------+${NC}\n"
+    printf '%b' "$buf"
+    echo ""
+}
+
+# ui_section "Title"  — a lightweight section divider for output screens.
+ui_section() {
+    echo ""
+    echo -e "  ${CYAN}${BOLD}== $1 ==${NC}"
+    echo ""
+}
+
+# menu_choose "Title" "Subtitle"
+# Caller must pre-populate two parallel arrays:
+#   _menu_items=( "Label\tDescription" ... )   # what the user sees
+#   _menu_returns=( "1" "2" ... "0" )          # value returned for each entry
+# The chosen value is stored in MENU_CHOICE. On cancel (q/Esc) the LAST entry's
+# value is returned (by convention the final item is "Back"/"Exit").
+# Uses the arrow-key TUI when available, otherwise a styled numeric menu.
+MENU_CHOICE=""
+menu_choose() {
+    local title="$1" subtitle="$2"
+    MENU_CHOICE=""
+    local last_idx=$(( ${#_menu_returns[@]} - 1 ))
+    [ "$last_idx" -lt 0 ] && last_idx=0
+
+    if tui_available; then
+        tui_select "$title" "$subtitle" "${_menu_items[@]}"
+        local rc=$?
+        if [ "$rc" -eq 0 ] && [ -n "$TUI_RESULT" ]; then
+            MENU_CHOICE="${_menu_returns[$TUI_RESULT]}"
+        else
+            MENU_CHOICE="${_menu_returns[$last_idx]}"
+        fi
+        return 0
+    fi
+
+    # Styled numeric fallback (no TTY / classic mode)
+    ui_panel_header "$title" "$subtitle"
+    local i label desc
+    for i in "${!_menu_items[@]}"; do
+        label="${_menu_items[$i]%%$'\t'*}"
+        desc=""
+        [[ "${_menu_items[$i]}" == *$'\t'* ]] && desc="${_menu_items[$i]#*$'\t'}"
+        printf "  ${GREEN}${BOLD}%2s${NC}) ${WHITE}%-28s${NC} ${DIM}%s${NC}\n" \
+            "${_menu_returns[$i]}" "$label" "$desc"
+    done
+    echo ""
+    echo -ne "  ${CYAN}Select option:${NC} "
+    read -r MENU_CHOICE
+}
+
 get_public_ip() {
     local ip
     ip=$(curl -4 -s --max-time 5 ifconfig.me 2>/dev/null) && [ -n "$ip" ] && echo "$ip" && return
@@ -698,26 +860,18 @@ auto_detect_paths() {
 
 # Interactive path configuration
 configure_paths() {
-    clear
-    print_header
-    echo ""
-    echo -e "${WHITE}${BOLD}═══ Path Configuration ═══${NC}"
-    echo ""
-    echo -e "  Current RustDesk path: ${CYAN}${RUSTDESK_PATH:-Not set}${NC}"
-    echo -e "  Current Console path:  ${CYAN}${CONSOLE_PATH:-Not set}${NC}"
-    echo -e "  Database path:         ${CYAN}${DB_PATH:-Not set}${NC}"
-    echo ""
-    
-    echo -e "${YELLOW}Options:${NC}"
-    echo "  1. Auto-detect installation paths"
-    echo "  2. Set RustDesk server path manually"
-    echo "  3. Set Console path manually"
-    echo "  4. Reset to defaults"
-    echo "  0. Back to main menu"
-    echo ""
-    echo -n "Select option [0-4]: "
-    read -r choice
-    
+    local _menu_items=(
+        $'Auto-detect paths\tScan common install locations'
+        $'Set server path\tManually set the RustDesk server path'
+        $'Set console path\tManually set the web console path'
+        $'Reset to defaults\t/opt/betterdesk + /opt/BetterDeskConsole'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 3 4 0 )
+    local subtitle="server: ${RUSTDESK_PATH:-unset} | console: ${CONSOLE_PATH:-unset}"
+    menu_choose "Path Configuration" "$subtitle"
+    local choice="$MENU_CHOICE"
+
     case $choice in
         1)
             RUSTDESK_PATH=""
@@ -1263,20 +1417,13 @@ choose_database_type() {
     fi
     
     echo ""
-    echo -e "${WHITE}${BOLD}Select Database Type:${NC}"
-    echo ""
-    echo -e "  ${GREEN}1.${NC} SQLite (default)"
-    echo -e "     ${DIM}Single-file database, zero setup. Good for ≤100 devices.${NC}"
-    echo -e "     ${DIM}Data stored in /opt/rustdesk/db_v2.sqlite3${NC}"
-    echo ""
-    echo -e "  ${GREEN}2.${NC} PostgreSQL (production)"
-    echo -e "     ${DIM}Full SQL database with connection pooling. Recommended for${NC}"
-    echo -e "     ${DIM}multi-server setups, >100 devices, or high availability.${NC}"
-    echo -e "     ${DIM}Requires PostgreSQL 14+ (installed automatically if missing).${NC}"
-    echo ""
-    
-    read -p "Choose database type [1]: " db_choice
-    db_choice="${db_choice:-1}"
+    local _menu_items=(
+        $'SQLite (default)\tSingle-file DB, zero setup, good for <=100 devices'
+        $'PostgreSQL (production)\tPooled SQL DB, multi-server / >100 devices / HA'
+    )
+    local _menu_returns=( 1 2 )
+    menu_choose "Select Database Type" "SQLite is recommended for most installs"
+    local db_choice="${MENU_CHOICE:-1}"
     
     case $db_choice in
         2)
@@ -2884,21 +3031,15 @@ do_update() {
     if [ "${AUTO_MODE:-false}" = "true" ]; then
         print_info "Auto mode: using GitHub pull update"
     else
-        echo -e "${WHITE}Select update method:${NC}"
-        echo ""
-        echo "  1. 🌐 Online update from GitHub (recommended)"
-        echo "     Downloads latest code, rebuilds Go server, updates console"
-        echo ""
-        echo "  2. 📦 In-app updater (commit-aware)"
-        echo "     Uses built-in Node.js update mechanism"
-        echo ""
-        echo "  3. 📁 Local update (from script directory)"
-        echo "     Copies files from the directory where this script is located"
-        echo ""
-        echo "  0. ↩️  Back"
-        echo ""
-        read -p "Select option [1]: " update_method
-        update_method="${update_method:-1}"
+        local _menu_items=(
+            $'Online update from GitHub\tDownload latest code, rebuild server, update console'
+            $'In-app updater\tBuilt-in Node.js commit-aware updater'
+            $'Local update\tCopy files from this script\'s directory'
+            $'Back\tReturn to the main menu'
+        )
+        local _menu_returns=( 1 2 3 0 )
+        menu_choose "Update Method" "Online GitHub update is recommended"
+        update_method="${MENU_CHOICE:-1}"
 
         case "$update_method" in
             0)
@@ -2994,18 +3135,17 @@ do_repair() {
     
     print_status
     
-    echo ""
-    echo -e "${WHITE}What do you want to repair?${NC}"
-    echo ""
-    echo "  1. 🔧 Repair binaries (replace with BetterDesk)"
-    echo "  2. 🗃️  Repair database (add missing columns)"
-    echo "  3. ⚙️  Repair systemd services"
-    echo "  4. 🔐 Repair file permissions"
-    echo "  5. 🔄 Full repair (all of the above)"
-    echo "  0. ↩️  Back"
-    echo ""
-    
-    read -p "Select option: " repair_choice
+    local _menu_items=(
+        $'Repair binaries\tReplace the server binary with BetterDesk Go'
+        $'Repair database\tAdd missing columns / run migrations'
+        $'Repair services\tRegenerate systemd service units'
+        $'Repair permissions\tFix file ownership and permissions'
+        $'Full repair\tRun all repair steps above'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 3 4 5 0 )
+    menu_choose "Repair Installation" "Choose what to repair"
+    local repair_choice="$MENU_CHOICE"
     
     case $repair_choice in
         1) repair_binaries ;;
@@ -3459,14 +3599,14 @@ do_reset_password() {
     echo -e "Detected console type: ${CYAN}${CONSOLE_TYPE}${NC}"
     echo ""
     
-    echo "Select option:"
-    echo ""
-    echo "  1. Generate new random password"
-    echo "  2. Set custom password"
-    echo "  0. Back"
-    echo ""
-    
-    read -p "Choice: " pw_choice
+    local _menu_items=(
+        $'Generate random password\tCreate a strong random admin password'
+        $'Set custom password\tType a new password (min. 8 characters)'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 0 )
+    menu_choose "Admin Password Reset" "Console type: ${CONSOLE_TYPE}"
+    local pw_choice="$MENU_CHOICE"
     
     local new_password
     
@@ -3769,16 +3909,15 @@ do_install_build_toolchain() {
 }
 
 do_build() {
-    print_header
-    echo -e "${WHITE}${BOLD}══════════ BUILD & DEPLOY ══════════${NC}"
-    echo ""
-    echo "  1. 🔨 Rebuild & deploy Go server (compile, stop, replace, start)"
-    echo "  2. 🔨 Compile Go server only (do not deploy)"
-    echo "  3. 🦀 Build legacy Rust binaries (archived, hbbs/hbbr)"
-    echo "  0. ↩️  Back to main menu"
-    echo ""
-    read -p "Select option [1]: " build_choice
-    build_choice="${build_choice:-1}"
+    local _menu_items=(
+        $'Rebuild & deploy server\tCompile, stop, replace and restart the Go server'
+        $'Compile server only\tBuild the Go binary without deploying it'
+        $'Build legacy Rust binaries\tArchived hbbs/hbbr (advanced)'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 3 0 )
+    menu_choose "Build & Deploy" "Rebuild and deploy the BetterDesk Go server"
+    local build_choice="${MENU_CHOICE:-1}"
 
     case $build_choice in
         1) do_rebuild_go_server ;;
@@ -4095,42 +4234,69 @@ do_diagnostics() {
     echo -e "${WHITE}${BOLD}═══ Database statistics ═══${NC}"
     echo ""
     
-    if [ -f "$DB_PATH" ]; then
-        local device_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peers WHERE soft_deleted = 0" 2>/dev/null || \
+    # Determine the active database type the SAME way the rest of the script does:
+    # read DB_TYPE from the console .env first (source of truth), and only fall back
+    # to SQLite file detection. This prevents a stale db_v2.sqlite3 left over from a
+    # previous install from masking an active PostgreSQL backend.
+    local diag_db_type="sqlite"
+    local diag_pg_uri=""
+    if [ -f "$CONSOLE_PATH/.env" ]; then
+        diag_db_type=$(grep -m1 '^DB_TYPE=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
+        diag_db_type="${diag_db_type:-sqlite}"
+        diag_pg_uri=$(grep -m1 '^DATABASE_URL=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
+    fi
+    # The Go server may also carry the DSN in its systemd unit (-db postgres://...)
+    if [ "$diag_db_type" != "postgres" ] && [ -f /etc/systemd/system/betterdesk-server.service ]; then
+        local svc_db
+        svc_db=$(grep -oP '\-db\s+"?\K(postgres|postgresql)://[^" ]+' /etc/systemd/system/betterdesk-server.service 2>/dev/null | head -1)
+        if [ -n "$svc_db" ]; then
+            diag_db_type="postgres"
+            diag_pg_uri="${diag_pg_uri:-$svc_db}"
+        fi
+    fi
+    
+    if [ "$diag_db_type" = "postgres" ] && [ -n "$diag_pg_uri" ]; then
+        # Mask password for display
+        local diag_pg_display
+        diag_pg_display=$(echo "$diag_pg_uri" | sed 's|://[^:]*:[^@]*@|://***:***@|')
+        echo -e "  Database type:     ${CYAN}PostgreSQL${NC}"
+        echo -e "  Connection:        ${DIM}$diag_pg_display${NC}"
+        if command -v psql &>/dev/null; then
+            if PGCONNECT_TIMEOUT=3 psql "$diag_pg_uri" -tAc "SELECT 1" &>/dev/null; then
+                local device_count online_count user_count
+                device_count=$(PGCONNECT_TIMEOUT=3 psql "$diag_pg_uri" -tAc "SELECT COUNT(*) FROM peers WHERE soft_deleted = FALSE" 2>/dev/null || echo "0")
+                online_count=$(PGCONNECT_TIMEOUT=3 psql "$diag_pg_uri" -tAc "SELECT COUNT(*) FROM peers WHERE soft_deleted = FALSE AND status = 'ONLINE'" 2>/dev/null || echo "0")
+                user_count=$(PGCONNECT_TIMEOUT=3 psql "$diag_pg_uri" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
+                echo -e "  Status:            ${GREEN}Connected${NC}"
+                echo "  Devices:           ${device_count:-0}"
+                echo "  Online:            ${online_count:-0}"
+                echo "  Users:             ${user_count:-0}"
+            else
+                echo -e "  Status:            ${RED}Connection failed${NC}"
+                echo -e "  ${YELLOW}Tip: verify the PostgreSQL service and DATABASE_URL credentials${NC}"
+            fi
+        else
+            echo -e "  ${YELLOW}Install the 'psql' client to see live database statistics${NC}"
+        fi
+    elif [ -f "$DB_PATH" ]; then
+        local device_count online_count user_count
+        device_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peers WHERE soft_deleted = 0" 2>/dev/null || \
                             sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peers WHERE is_deleted = 0" 2>/dev/null || \
                             sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peer WHERE is_deleted = 0" 2>/dev/null || echo "0")
-        local online_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peers WHERE soft_deleted = 0 AND status = 'ONLINE'" 2>/dev/null || \
+        online_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peers WHERE soft_deleted = 0 AND status = 'ONLINE'" 2>/dev/null || \
                             sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peers WHERE status = 1 AND is_deleted = 0" 2>/dev/null || \
                             sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM peer WHERE status = 1 AND is_deleted = 0" 2>/dev/null || echo "0")
-        local user_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
+        user_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
         
         echo -e "  Database type:     ${CYAN}SQLite${NC}"
+        echo -e "  File:              ${DIM}$DB_PATH${NC}"
         echo "  Devices:           $device_count"
         echo "  Online:            $online_count"
         echo "  Users:             $user_count"
     else
-        # Check for PostgreSQL
-        local diag_db_type="sqlite"
-        local diag_pg_uri=""
-        if [ -f "$CONSOLE_PATH/.env" ]; then
-            diag_db_type=$(grep -m1 '^DB_TYPE=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
-            diag_db_type="${diag_db_type:-sqlite}"
-            diag_pg_uri=$(grep -m1 '^DATABASE_URL=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
-        fi
-        
-        if [ "$diag_db_type" = "postgres" ] && [ -n "$diag_pg_uri" ]; then
-            echo -e "  Database type:     ${CYAN}PostgreSQL${NC}"
-            if command -v psql &>/dev/null; then
-                local device_count=$(PGCONNECT_TIMEOUT=3 psql "$diag_pg_uri" -tAc "SELECT COUNT(*) FROM peers WHERE soft_deleted = FALSE" 2>/dev/null || echo "0")
-                local user_count=$(PGCONNECT_TIMEOUT=3 psql "$diag_pg_uri" -tAc "SELECT COUNT(*) FROM users" 2>/dev/null || echo "0")
-                echo "  Devices:           ${device_count:-0}"
-                echo "  Users:             ${user_count:-0}"
-            else
-                echo -e "  ${YELLOW}Install psql to see database statistics${NC}"
-            fi
-        else
-            echo -e "  ${YELLOW}SQLite database file not found: $DB_PATH${NC}"
-        fi
+        echo -e "  Database type:     ${CYAN}SQLite${NC} (configured)"
+        echo -e "  ${YELLOW}SQLite database file not found: $DB_PATH${NC}"
+        echo -e "  ${DIM}This is normal before the first device registers.${NC}"
     fi
     
     # --- Port diagnostics ---
@@ -4323,14 +4489,14 @@ do_diagnostics() {
     
     # --- Diagnostics sub-menu ---
     echo ""
-    echo -e "${WHITE}════════════════════════════════════════${NC}"
-    echo ""
-    echo "  F. Configure firewall rules (auto-create missing rules)"
-    echo "  P. Test port connectivity from outside"
-    echo "  0. Back to main menu"
-    echo ""
-    echo -n "  Select option: "
-    read -r sub_choice
+    local _menu_items=(
+        $'Configure firewall rules\tAuto-create any missing firewall rules'
+        $'Test external ports\tCheck port connectivity from outside'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( F P 0 )
+    menu_choose "Diagnostics Actions" "Optional follow-up checks"
+    local sub_choice="$MENU_CHOICE"
     
     case "$sub_choice" in
         [Ff])
@@ -4433,21 +4599,16 @@ do_configure_ssl() {
         return
     fi
     
-    echo -e "  ${WHITE}Configure SSL/TLS certificates for BetterDesk Console.${NC}"
-    echo -e "  ${WHITE}This enables HTTPS for both the admin panel and the RustDesk Client API.${NC}"
-    echo ""
-    echo -e "  ${YELLOW}Standard Options:${NC}"
-    echo -e "  ${GREEN}1.${NC} Let's Encrypt (automatic, requires domain name + port 80)"
-    echo -e "  ${GREEN}2.${NC} Custom certificate (provide your own cert + key files)"
-    echo -e "  ${GREEN}3.${NC} Self-signed certificate (LAN/testing)"
-    echo -e "  ${RED}4.${NC} Disable SSL (revert to HTTP)"
-    echo ""
-    echo -e "  ${YELLOW}Enterprise Options:${NC}"
-    echo -e "  ${CYAN}5.${NC} Enterprise TLS (panel + signal + relay; API stays HTTP)"
-    echo -e "      ${WHITE}↳ Recommended for corporate networks; keeps RustDesk API compatible${NC}"
-    echo ""
-    
-    read -p "Choice [1]: " ssl_choice
+    local _menu_items=(
+        $'Let\'s Encrypt\tAutomatic cert (needs domain name + port 80)'
+        $'Custom certificate\tProvide your own cert + key files'
+        $'Self-signed certificate\tLAN / testing only'
+        $'Disable SSL\tRevert the console to plain HTTP'
+        $'Enterprise TLS\tPanel + signal + relay TLS (API stays HTTP)'
+    )
+    local _menu_returns=( 1 2 3 4 5 )
+    menu_choose "SSL Certificate Configuration" "Enables HTTPS for the admin panel + client API"
+    local ssl_choice="$MENU_CHOICE"
     
     case "${ssl_choice:-1}" in
         1)
@@ -4907,9 +5068,147 @@ do_configure_ssl() {
     if confirm "Restart BetterDesk to apply changes?"; then
         systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
         print_success "BetterDesk services restarted"
+        sleep 2
+        run_protocol_tests
     fi
     
     press_enter
+}
+
+#===============================================================================
+# Protocol verification test-suite
+#===============================================================================
+# Runs a series of non-destructive connectivity / certificate checks after an
+# HTTP <-> HTTPS switch so the operator gets immediate, trustworthy feedback.
+# Honours the project invariant: the Go API (:21114) must remain HTTP.
+run_protocol_tests() {
+    local env_file="$CONSOLE_PATH/.env"
+    local go_svc_file="/etc/systemd/system/betterdesk-server.service"
+    local ssl_dir="$RUSTDESK_PATH/ssl"
+    local pass=0 fail=0 warn=0
+
+    echo ""
+    echo -e "${WHITE}${BOLD}═══ Post-configuration tests ═══${NC}"
+    echo ""
+
+    _test_ok()   { echo -e "  ${GREEN}✓${NC} $1"; pass=$((pass+1)); }
+    _test_fail() { echo -e "  ${RED}✗${NC} $1"; fail=$((fail+1)); }
+    _test_warn() { echo -e "  ${YELLOW}!${NC} $1"; warn=$((warn+1)); }
+
+    # ── 1. Services running ──
+    if systemctl is-active --quiet betterdesk-server 2>/dev/null; then
+        _test_ok "Go server service is active"
+    else
+        _test_fail "Go server service is NOT active (journalctl -u betterdesk-server)"
+    fi
+    if systemctl is-active --quiet betterdesk-console 2>/dev/null; then
+        _test_ok "Web console service is active"
+    else
+        _test_fail "Web console service is NOT active (journalctl -u betterdesk-console)"
+    fi
+
+    # ── 2. Determine panel scheme / port from configuration ──
+    local https_enabled="false"
+    if [ -f "$env_file" ]; then
+        grep -q '^HTTPS_ENABLED=true' "$env_file" 2>/dev/null && https_enabled="true"
+    fi
+    local panel_scheme="http" panel_port="5000"
+    if [ "$https_enabled" = "true" ]; then
+        panel_scheme="https"; panel_port="5443"
+    fi
+    # Allow custom ports from .env
+    local cfg_port
+    cfg_port=$(grep -m1 '^PORT=' "$env_file" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
+    [ -n "$cfg_port" ] && panel_port="$cfg_port"
+
+    # ── 3. Panel reachability ──
+    local panel_code
+    panel_code=$(curl -k -s -o /dev/null -w '%{http_code}' --max-time 6 \
+        "${panel_scheme}://127.0.0.1:${panel_port}/" 2>/dev/null || echo "000")
+    if [[ "$panel_code" =~ ^(200|301|302|304|401|403)$ ]]; then
+        _test_ok "Web panel reachable: ${panel_scheme}://<server>:${panel_port} (HTTP $panel_code)"
+    else
+        _test_fail "Web panel NOT reachable on ${panel_scheme}://127.0.0.1:${panel_port} (got $panel_code)"
+    fi
+
+    # ── 4. Go API must answer over HTTP on 21114 ──
+    local api_code
+    api_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 \
+        "http://127.0.0.1:${API_PORT:-21114}/api/server/stats" 2>/dev/null || echo "000")
+    if [[ "$api_code" =~ ^(200|401|403|404)$ ]]; then
+        _test_ok "Go API responding over HTTP on :${API_PORT:-21114} (HTTP $api_code)"
+    else
+        _test_fail "Go API not responding over HTTP on :${API_PORT:-21114} (got $api_code)"
+    fi
+    # Critical invariant: Go API must never be HTTPS-only
+    if [ -f "$go_svc_file" ] && grep -Eq '\-tls-api|\-force-https' "$go_svc_file" 2>/dev/null; then
+        _test_warn "Go service carries -tls-api/-force-https — RustDesk clients require plain HTTP on :${API_PORT:-21114}"
+    fi
+
+    # ── 5. Signal / Relay listeners ──
+    local p
+    for p in 21116 21117; do
+        if ss -tlnH 2>/dev/null | grep -q ":${p} "; then
+            _test_ok "Listener present on TCP :${p}"
+        else
+            _test_warn "No TCP listener detected on :${p} (UDP-only signal is normal for :21116)"
+        fi
+    done
+
+    # ── 6. Certificate validation (HTTPS / TLS modes) ──
+    local tls_active="no"
+    [ -f "$go_svc_file" ] && grep -q '\-tls-signal' "$go_svc_file" 2>/dev/null && tls_active="yes"
+    if [ "$https_enabled" = "true" ] || [ "$tls_active" = "yes" ]; then
+        if [ -f "$ssl_dir/betterdesk.crt" ]; then
+            if openssl x509 -in "$ssl_dir/betterdesk.crt" -noout 2>/dev/null; then
+                local not_after days_left
+                not_after=$(openssl x509 -in "$ssl_dir/betterdesk.crt" -noout -enddate 2>/dev/null | cut -d= -f2)
+                if [ -n "$not_after" ]; then
+                    local exp_epoch now_epoch
+                    exp_epoch=$(date -d "$not_after" +%s 2>/dev/null || echo 0)
+                    now_epoch=$(date +%s)
+                    if [ "$exp_epoch" -gt "$now_epoch" ]; then
+                        days_left=$(( (exp_epoch - now_epoch) / 86400 ))
+                        if [ "$days_left" -lt 14 ]; then
+                            _test_warn "Certificate valid but expires in ${days_left} days ($not_after)"
+                        else
+                            _test_ok "Certificate valid for ${days_left} more days (until $not_after)"
+                        fi
+                    else
+                        _test_fail "Certificate has EXPIRED ($not_after)"
+                    fi
+                fi
+                # SAN summary helps diagnose "name mismatch" client errors
+                local san
+                san=$(openssl x509 -in "$ssl_dir/betterdesk.crt" -noout -ext subjectAltName 2>/dev/null | tail -n +2 | tr -d ' ')
+                [ -n "$san" ] && echo -e "      ${DIM}SAN: ${san}${NC}"
+            else
+                _test_fail "Certificate file is not a valid X.509 certificate"
+            fi
+        else
+            _test_fail "HTTPS/TLS enabled but no certificate found at $ssl_dir/betterdesk.crt"
+        fi
+
+        # Live TLS handshake against the signal port when signal TLS is on
+        if [ "$tls_active" = "yes" ]; then
+            if echo | timeout 5 openssl s_client -connect "127.0.0.1:21116" 2>/dev/null | grep -q 'BEGIN CERTIFICATE'; then
+                _test_ok "TLS handshake succeeded on signal :21116"
+            else
+                _test_warn "Could not complete TLS handshake on :21116 (dual-mode listener may still accept plain TCP)"
+            fi
+        fi
+    fi
+
+    echo ""
+    echo -e "  ${GREEN}${pass} passed${NC}   ${YELLOW}${warn} warnings${NC}   ${RED}${fail} failed${NC}"
+    if [ "$fail" -gt 0 ]; then
+        echo -e "  ${YELLOW}Some checks failed — review the messages above and the service logs.${NC}"
+    else
+        echo -e "  ${GREEN}Configuration verified successfully.${NC}"
+    fi
+    echo ""
+
+    unset -f _test_ok _test_fail _test_warn 2>/dev/null || true
 }
 
 #===============================================================================
@@ -4945,16 +5244,14 @@ do_toggle_protocol() {
         grep -q '\-tls-relay' "$go_svc_file" 2>/dev/null && tls_relay="yes"
     fi
 
-    echo -e "  Current mode: ${BOLD}${current_mode}${NC}"
-    echo -e "  Signal TLS:   $tls_signal"
-    echo -e "  Relay TLS:    $tls_relay"
-    echo ""
-    echo -e "  ${GREEN}1.${NC} Switch to ${BOLD}HTTP${NC}  (everything plain — LAN/testing)"
-    echo -e "  ${GREEN}2.${NC} Switch to ${BOLD}HTTPS${NC} (panel HTTPS + signal/relay TLS)"
-    echo -e "  ${RED}0.${NC} Back"
-    echo ""
-
-    read -p "Select mode [0]: " proto_choice
+    local _menu_items=(
+        $'Switch to HTTP\tEverything plain — LAN / testing'
+        $'Switch to HTTPS\tPanel HTTPS + signal/relay TLS'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 0 )
+    menu_choose "Protocol Toggle (HTTP / HTTPS)" "Current: ${current_mode} | signal TLS: ${tls_signal} | relay TLS: ${tls_relay}"
+    local proto_choice="$MENU_CHOICE"
 
     case "${proto_choice:-0}" in
         1)
@@ -5012,35 +5309,123 @@ do_toggle_protocol() {
         2)
             # ── Switch to HTTPS ──
             echo ""
+            local have_cert="no"
+            [ -f "$ssl_dir/betterdesk.crt" ] && [ -f "$ssl_dir/betterdesk.key" ] && have_cert="yes"
+            local _keep_desc="No existing certificate found"
+            [ "$have_cert" = "yes" ] && _keep_desc="Reuse $ssl_dir/betterdesk.crt"
+            local _menu_items=(
+                $'Keep existing certificate\t'"$_keep_desc"
+                $'Self-signed certificate\tGenerate one for LAN / testing'
+                $'Let\'s Encrypt certificate\tPublic domain, port 80 must be free'
+                $'Custom certificate\tPaste your own cert + key file paths'
+                $'Cancel\tDo not change the protocol'
+            )
+            local _menu_returns=( 1 2 3 4 0 )
+            menu_choose "HTTPS Certificate Source" "Choose the certificate to use for TLS"
+            local cert_choice="$MENU_CHOICE"
 
-            # Check for SSL certificates
-            if [ ! -f "$ssl_dir/betterdesk.crt" ] || [ ! -f "$ssl_dir/betterdesk.key" ]; then
-                print_warning "No SSL certificates found at $ssl_dir/"
-                echo ""
-                if confirm "Generate self-signed certificate now?"; then
+            case "${cert_choice:-2}" in
+                1)
+                    if [ "$have_cert" != "yes" ]; then
+                        print_error "No existing certificate found — choose another option."
+                        press_enter
+                        return
+                    fi
+                    print_info "Using existing certificate at $ssl_dir/betterdesk.crt"
+                    ;;
+                2)
                     mkdir -p "$ssl_dir"
-                    local server_ip
+                    local server_ip lan_ip san_list
                     server_ip=$(get_public_ip 2>/dev/null || echo "127.0.0.1")
-                    local san_list="IP:$server_ip,IP:127.0.0.1,DNS:localhost"
+                    lan_ip=$(ip route get 1 2>/dev/null | awk '{print $7; exit}')
+                    san_list="IP:$server_ip,IP:127.0.0.1,DNS:localhost"
+                    [ -n "$lan_ip" ] && [ "$lan_ip" != "$server_ip" ] && san_list="$san_list,IP:$lan_ip"
+                    read -p "Optional DNS domain for the certificate (blank to skip): " ss_domain
+                    [ -n "$ss_domain" ] && san_list="$san_list,DNS:$ss_domain"
+                    print_step "Generating self-signed certificate..."
                     openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
                         -keyout "$ssl_dir/betterdesk.key" \
                         -out "$ssl_dir/betterdesk.crt" \
-                        -subj "/CN=$server_ip/O=BetterDesk/C=PL" \
+                        -subj "/CN=${ss_domain:-$server_ip}/O=BetterDesk/C=PL" \
                         -addext "subjectAltName=$san_list" 2>/dev/null || \
                     openssl req -x509 -nodes -days 3650 -newkey rsa:4096 \
                         -keyout "$ssl_dir/betterdesk.key" \
                         -out "$ssl_dir/betterdesk.crt" \
-                        -subj "/CN=$server_ip/O=BetterDesk/C=PL" 2>/dev/null
-                    chmod 600 "$ssl_dir/betterdesk.key"
-                    chmod 644 "$ssl_dir/betterdesk.crt"
+                        -subj "/CN=${ss_domain:-$server_ip}/O=BetterDesk/C=PL" 2>/dev/null
+                    chmod 600 "$ssl_dir/betterdesk.key"; chmod 644 "$ssl_dir/betterdesk.crt"
                     print_success "Self-signed certificate generated"
-                else
-                    print_error "Cannot enable HTTPS without certificates"
-                    print_info "Use option C (SSL config) to set up certificates first"
+                    ;;
+                3)
+                    if ! command -v certbot &>/dev/null; then
+                        print_step "Installing certbot..."
+                        if command -v dnf &>/dev/null; then dnf install -y certbot &>/dev/null
+                        elif command -v apt-get &>/dev/null; then apt-get install -y certbot &>/dev/null
+                        elif command -v yum &>/dev/null; then yum install -y certbot &>/dev/null; fi
+                    fi
+                    if ! command -v certbot &>/dev/null; then
+                        print_error "certbot could not be installed automatically."
+                        press_enter
+                        return
+                    fi
+                    read -p "Public domain (e.g. desk.example.com): " le_domain
+                    read -p "Admin email (for renewal notices): " le_email
+                    if [ -z "$le_domain" ]; then
+                        print_error "A domain is required for Let's Encrypt."
+                        press_enter
+                        return
+                    fi
+                    print_step "Requesting certificate for $le_domain (standalone, needs port 80)..."
+                    if certbot certonly --standalone --non-interactive --agree-tos \
+                        ${le_email:+--email "$le_email"} ${le_email:+} \
+                        $([ -z "$le_email" ] && echo "--register-unsafely-without-email") \
+                        -d "$le_domain"; then
+                        mkdir -p "$ssl_dir"
+                        ln -sf "/etc/letsencrypt/live/$le_domain/fullchain.pem" "$ssl_dir/betterdesk.crt"
+                        ln -sf "/etc/letsencrypt/live/$le_domain/privkey.pem" "$ssl_dir/betterdesk.key"
+                        # Auto-renew + reload services
+                        local renew_hook="/etc/letsencrypt/renewal-hooks/deploy/betterdesk-reload.sh"
+                        mkdir -p "$(dirname "$renew_hook")"
+                        cat > "$renew_hook" <<'HOOK'
+#!/bin/bash
+systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
+HOOK
+                        chmod +x "$renew_hook"
+                        print_success "Let's Encrypt certificate installed for $le_domain"
+                    else
+                        print_error "certbot failed — check that DNS points here and port 80 is free."
+                        press_enter
+                        return
+                    fi
+                    ;;
+                4)
+                    read -p "Path to certificate (.crt/.pem, fullchain): " custom_crt
+                    read -p "Path to private key (.key): " custom_key
+                    read -p "Path to CA chain (optional, blank to skip): " custom_ca
+                    if [ ! -f "$custom_crt" ] || [ ! -f "$custom_key" ]; then
+                        print_error "Certificate or key file not found."
+                        press_enter
+                        return
+                    fi
+                    if ! openssl x509 -in "$custom_crt" -noout 2>/dev/null; then
+                        print_error "The provided certificate is not a valid X.509 file."
+                        press_enter
+                        return
+                    fi
+                    mkdir -p "$ssl_dir"
+                    cp "$custom_crt" "$ssl_dir/betterdesk.crt"
+                    cp "$custom_key" "$ssl_dir/betterdesk.key"
+                    if [ -n "$custom_ca" ] && [ -f "$custom_ca" ]; then
+                        cat "$custom_crt" "$custom_ca" > "$ssl_dir/betterdesk.crt"
+                    fi
+                    chmod 600 "$ssl_dir/betterdesk.key"; chmod 644 "$ssl_dir/betterdesk.crt"
+                    print_success "Custom certificate installed"
+                    ;;
+                0|*)
+                    print_info "Cancelled — no changes made."
                     press_enter
                     return
-                fi
-            fi
+                    ;;
+            esac
 
             print_step "Switching to HTTPS mode..."
 
@@ -5120,18 +5505,9 @@ do_toggle_protocol() {
         systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
         sleep 2
         print_success "BetterDesk services restarted"
-        echo ""
-        # Quick status check
-        if systemctl is-active --quiet betterdesk-server; then
-            print_success "Go Server:   running"
-        else
-            print_error "Go Server:   not running"
-        fi
-        if systemctl is-active --quiet betterdesk-console; then
-            print_success "Web Console: running"
-        else
-            print_error "Web Console: not running"
-        fi
+        run_protocol_tests
+    else
+        print_info "Changes saved. Restart later with: systemctl restart betterdesk-server betterdesk-console"
     fi
 
     press_enter
@@ -5184,19 +5560,17 @@ do_migrate_database() {
 
     print_info "Migration binary: $migrate_bin"
     echo ""
-    echo -e "  ${WHITE}Migrate databases between different BetterDesk components.${NC}"
-    echo ""
-    echo -e "  ${YELLOW}Migration Modes:${NC}"
-    echo -e "  ${GREEN}1.${NC} Rust → Go        Migrate from legacy Rust hbbs database to Go server"
-    echo -e "  ${GREEN}2.${NC} Node.js → Go     Migrate from Node.js web console to Go server"
-    echo -e "  ${GREEN}3.${NC} SQLite → PostgreSQL  Migrate BetterDesk Go SQLite to PostgreSQL"
-    echo -e "  ${GREEN}4.${NC} PostgreSQL → SQLite  Migrate PostgreSQL back to SQLite"
-    echo -e "  ${GREEN}5.${NC} Backup           Create timestamped backup of SQLite database"
-    echo ""
-    echo -e "  ${RED}0.${NC} Back to main menu"
-    echo ""
-
-    read -p "Select migration mode: " mig_choice
+    local _menu_items=(
+        $'Rust -> Go\tMigrate legacy Rust hbbs database to the Go server'
+        $'Node.js -> Go\tMigrate the Node.js web console DB to the Go server'
+        $'SQLite -> PostgreSQL\tMigrate BetterDesk Go SQLite to PostgreSQL'
+        $'PostgreSQL -> SQLite\tMigrate PostgreSQL back to SQLite'
+        $'Backup\tCreate a timestamped SQLite database backup'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 3 4 5 0 )
+    menu_choose "Database Migration" "Migrate databases between BetterDesk components"
+    local mig_choice="$MENU_CHOICE"
 
     case $mig_choice in
         1)
@@ -5397,8 +5771,11 @@ show_menu() {
     echo "  C. 🔒 Configure SSL certificates"
     echo "  T. 🔄 Toggle HTTP/HTTPS mode"
     echo "  M. 🔄 Database migration"
+    echo "  B. 🧰 Build toolchain"
     echo "  S. ⚙️  Settings (paths)"
     echo "  0. ❌ Exit"
+    echo ""
+    echo -e "  ${DIM}Tip: this menu also supports arrow-key navigation (set BETTERDESK_CLASSIC_MENU=1 to force this list).${NC}"
     echo ""
 }
 
@@ -5426,11 +5803,46 @@ main() {
         fi
         exit $?
     fi
-    
+
+    # Action tokens map 1:1 to the classic case dispatch below, so both the
+    # arrow-key TUI and the numeric fallback share the exact same handlers.
+    local menu_labels=(
+        $'Fresh installation\tFull install from scratch'
+        $'Update\tUpdate an existing installation'
+        $'Repair installation\tFix common problems'
+        $'Validate installation\tCheck correctness'
+        $'Backup\tCreate a backup'
+        $'Reset admin password\tReset the console admin'
+        $'Build & deploy server\tCompile and deploy the Go server'
+        $'Diagnostics\tDetailed problem analysis'
+        $'Uninstall\tRemove BetterDesk'
+        $'Minimal installation\tServer only'
+        $'Configure SSL certificates\tLet'"'"'s Encrypt / custom / self-signed'
+        $'Toggle HTTP/HTTPS\tSwitch protocol + run tests'
+        $'Database migration\tMigrate between backends'
+        $'Build toolchain\tInstall compilers'
+        $'Settings (paths)\tConfigure install paths'
+        $'Exit\tQuit the manager'
+    )
+    local menu_actions=( 1 2 3 4 5 6 7 8 9 L C T M B S 0 )
+
     while true; do
-        show_menu
-        read -p "Select option: " choice
-        
+        local choice=""
+        if tui_available; then
+            detect_installation 2>/dev/null
+            local status_line="Install: ${INSTALL_STATUS:-unknown}"
+            [ "$HBBS_RUNNING" = true ] && status_line="$status_line  |  server: running" || status_line="$status_line  |  server: stopped"
+            [ "$CONSOLE_RUNNING" = true ] && status_line="$status_line  |  console: running" || status_line="$status_line  |  console: stopped"
+            if tui_select "BetterDesk Console Manager v${VERSION}" "$status_line" "${menu_labels[@]}"; then
+                choice="${menu_actions[$TUI_RESULT]}"
+            else
+                choice="0"
+            fi
+        else
+            show_menu
+            read -p "Select option: " choice
+        fi
+
         case $choice in
             1) do_install ;;
             2) do_update ;;

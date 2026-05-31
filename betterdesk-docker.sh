@@ -70,6 +70,7 @@ MAGENTA='\033[0;35m'
 WHITE='\033[1;37m'
 NC='\033[0m'
 BOLD='\033[1m'
+DIM='\033[2m'
 
 # Logging
 LOG_FILE="/tmp/betterdesk_docker_$(date +%Y%m%d_%H%M%S).log"
@@ -153,6 +154,148 @@ confirm() {
     echo -e "${YELLOW}${prompt} [y/N]${NC} "
     read -r response
     [[ "$response" =~ ^[TtYy]$ ]]
+}
+
+#===============================================================================
+# Interactive TUI (arrow-key navigable menu) — pure bash, no dependencies
+#===============================================================================
+# Result of tui_select() is returned in the global TUI_RESULT.
+TUI_RESULT=""
+
+tui_available() {
+    [ "${BETTERDESK_CLASSIC_MENU:-0}" = "1" ] && return 1
+    [ -t 0 ] && [ -t 1 ] || return 1
+    return 0
+}
+
+_tui_restore() { printf '\033[?25h' 2>/dev/null; stty echo 2>/dev/null; }
+
+# tui_select "Title" "Subtitle" item1 item2 ...
+# Each item may embed a description after a literal $'\t' (tab).
+# Navigation: Up/Down or k/j to move, Enter/Right to choose, q/Esc/0 to cancel.
+tui_select() {
+    local title="$1"; shift
+    local subtitle="$1"; shift
+    local items=("$@")
+    local count=${#items[@]}
+    local sel=0 key rest
+
+    if ! tui_available || [ "$count" -eq 0 ]; then
+        TUI_RESULT=""
+        return 1
+    fi
+
+    printf '\033[?25l'
+    trap '_tui_restore' INT TERM
+
+    clear
+    while true; do
+        # Build the whole frame in a single buffer, then emit it with one write
+        # to avoid renderers (notably the VS Code integrated terminal with GPU
+        # acceleration) dropping individual glyphs on full-screen redraws.
+        local buf=""
+        buf+="\033[H"
+        buf+="${CYAN}${BOLD}+--------------------------------------------------------------+${NC}\033[K\n"
+        buf+="$(printf "${CYAN}${BOLD}|${NC} ${WHITE}${BOLD}%-60s${NC} ${CYAN}${BOLD}|${NC}" "$title")\033[K\n"
+        if [ -n "$subtitle" ]; then
+            buf+="$(printf "${CYAN}${BOLD}|${NC} ${DIM}%-60s${NC} ${CYAN}${BOLD}|${NC}" "$subtitle")\033[K\n"
+        fi
+        buf+="${CYAN}${BOLD}+--------------------------------------------------------------+${NC}\033[K\n"
+        buf+="\033[K\n"
+
+        local i label desc pad line
+        for i in "${!items[@]}"; do
+            label="${items[$i]%%$'\t'*}"
+            desc=""
+            [[ "${items[$i]}" == *$'\t'* ]] && desc="${items[$i]#*$'\t'}"
+            pad=$(( 32 - ${#label} ))
+            [ "$pad" -lt 1 ] && pad=1
+            if [ "$i" -eq "$sel" ]; then
+                line="$(printf "  ${GREEN}${BOLD}>${NC} ${GREEN}${BOLD}%s${NC}%*s${DIM}%s${NC}" "$label" "$pad" "" "$desc")"
+            else
+                line="$(printf "    ${WHITE}%s${NC}%*s${DIM}%s${NC}" "$label" "$pad" "" "$desc")"
+            fi
+            buf+="${line}\033[K\n"
+        done
+
+        buf+="\033[K\n"
+        buf+="  ${DIM}Up/Down navigate   Enter select   q/Esc back${NC}\033[K\n"
+        buf+="\033[J"
+
+        printf '%b' "$buf"
+
+        IFS= read -rsn1 key 2>/dev/null
+        if [[ "$key" == $'\033' ]]; then
+            read -rsn2 -t 0.05 rest 2>/dev/null
+            key+="$rest"
+        fi
+
+        case "$key" in
+            $'\033[A'|'k') sel=$(( (sel - 1 + count) % count )) ;;
+            $'\033[B'|'j') sel=$(( (sel + 1) % count )) ;;
+            ''|$'\033[C') TUI_RESULT="$sel"; _tui_restore; trap - INT TERM; return 0 ;;
+            'q'|'Q'|'0'|$'\033') TUI_RESULT=""; _tui_restore; trap - INT TERM; return 2 ;;
+            [1-9])
+                local idx=$(( key - 1 ))
+                if [ "$idx" -lt "$count" ]; then
+                    TUI_RESULT="$idx"; _tui_restore; trap - INT TERM; return 0
+                fi
+                ;;
+        esac
+    done
+}
+
+#===============================================================================
+# Modern UI helpers shared by every sub-menu
+#===============================================================================
+ui_panel_header() {
+    local title="$1" subtitle="$2"
+    clear 2>/dev/null || true
+    local buf=""
+    buf+="${CYAN}${BOLD}+--------------------------------------------------------------+${NC}\n"
+    buf+="$(printf "${CYAN}${BOLD}|${NC} ${WHITE}${BOLD}%-60s${NC} ${CYAN}${BOLD}|${NC}" "$title")\n"
+    if [ -n "$subtitle" ]; then
+        buf+="$(printf "${CYAN}${BOLD}|${NC} ${DIM}%-60s${NC} ${CYAN}${BOLD}|${NC}" "$subtitle")\n"
+    fi
+    buf+="${CYAN}${BOLD}+--------------------------------------------------------------+${NC}\n"
+    printf '%b' "$buf"
+    echo ""
+}
+
+# menu_choose "Title" "Subtitle"
+# Caller pre-populates parallel arrays _menu_items (Label\tDescription) and
+# _menu_returns. The chosen value lands in MENU_CHOICE; on cancel the last
+# entry's value is returned. Arrow-key TUI when available, styled numeric else.
+MENU_CHOICE=""
+menu_choose() {
+    local title="$1" subtitle="$2"
+    MENU_CHOICE=""
+    local last_idx=$(( ${#_menu_returns[@]} - 1 ))
+    [ "$last_idx" -lt 0 ] && last_idx=0
+
+    if tui_available; then
+        tui_select "$title" "$subtitle" "${_menu_items[@]}"
+        local rc=$?
+        if [ "$rc" -eq 0 ] && [ -n "$TUI_RESULT" ]; then
+            MENU_CHOICE="${_menu_returns[$TUI_RESULT]}"
+        else
+            MENU_CHOICE="${_menu_returns[$last_idx]}"
+        fi
+        return 0
+    fi
+
+    ui_panel_header "$title" "$subtitle"
+    local i label desc
+    for i in "${!_menu_items[@]}"; do
+        label="${_menu_items[$i]%%$'\t'*}"
+        desc=""
+        [[ "${_menu_items[$i]}" == *$'\t'* ]] && desc="${_menu_items[$i]#*$'\t'}"
+        printf "  ${GREEN}${BOLD}%2s${NC}) ${WHITE}%-28s${NC} ${DIM}%s${NC}\n" \
+            "${_menu_returns[$i]}" "$label" "$desc"
+    done
+    echo ""
+    echo -ne "  ${CYAN}Select option:${NC} "
+    read -r MENU_CHOICE
 }
 
 get_public_ip() {
@@ -246,26 +389,18 @@ auto_detect_docker_paths() {
 
 # Interactive path configuration for Docker
 configure_docker_paths() {
-    clear
-    print_header
-    echo ""
-    echo -e "${WHITE}${BOLD}═══ Docker Path Configuration ═══${NC}"
-    echo ""
-    echo -e "  Data directory:     ${CYAN}${DATA_DIR:-Not set}${NC}"
-    echo -e "  Backup directory:   ${CYAN}${BACKUP_DIR:-Not set}${NC}"
-    echo -e "  Docker Compose file: ${CYAN}${COMPOSE_FILE:-Not set}${NC}"
-    echo ""
-    
-    echo -e "${YELLOW}Options:${NC}"
-    echo "  1. Auto-detect data directory"
-    echo "  2. Set data directory manually"
-    echo "  3. Set backup directory manually"
-    echo "  4. Set docker-compose.yml path"
-    echo "  5. Reset to defaults"
-    echo "  0. Back to main menu"
-    echo ""
-    echo -n "Select option [0-5]: "
-    read -r choice
+    local subtitle="data: ${DATA_DIR:-unset} | backup: ${BACKUP_DIR:-unset}"
+    local _menu_items=(
+        $'Auto-detect data directory\tProbe for an existing deployment'
+        $'Set data directory\tEnter the data path manually'
+        $'Set backup directory\tEnter the backup path manually'
+        $'Set docker-compose.yml path\tPoint at a specific compose file'
+        $'Reset to defaults\tRestore the default paths'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 3 4 5 0 )
+    menu_choose "Docker Path Configuration" "$subtitle"
+    local choice="$MENU_CHOICE"
     
     case $choice in
         1)
@@ -492,12 +627,13 @@ choose_database_type() {
     fi
     
     echo ""
-    echo -e "${WHITE}${BOLD}Choose database type:${NC}"
-    echo ""
-    echo -e "  ${WHITE}1)${NC} SQLite (default, simple, no extra setup)"
-    echo -e "  ${WHITE}2)${NC} PostgreSQL (recommended for production, Docker container)"
-    echo ""
-    read -p "Choice [1]: " db_choice
+    local _menu_items=(
+        $'SQLite\tDefault, simple, no extra setup'
+        $'PostgreSQL\tRecommended for production (Docker container)'
+    )
+    local _menu_returns=( 1 2 )
+    menu_choose "Select Database Type" "SQLite is recommended for most installs"
+    local db_choice="$MENU_CHOICE"
     
     case "$db_choice" in
         2)
@@ -1112,18 +1248,14 @@ do_update() {
         return
     fi
     
-    echo -e "${WHITE}Select update method:${NC}"
-    echo ""
-    echo "  1. 🌐 Online update from GitHub (recommended)"
-    echo "     Downloads latest code, rebuilds Docker images"
-    echo ""
-    echo "  2. 📁 Local rebuild (from current files)"
-    echo "     Rebuilds Docker images using existing local files"
-    echo ""
-    echo "  0. ↩️  Back"
-    echo ""
-    read -p "Select option [1]: " update_method
-    update_method="${update_method:-1}"
+    local _menu_items=(
+        $'Online update from GitHub\tDownload latest code + rebuild images'
+        $'Local rebuild\tRebuild images from current local files'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 0 )
+    menu_choose "Update Method" "Online GitHub update is recommended"
+    local update_method="${MENU_CHOICE:-1}"
 
     case "$update_method" in
         0) return ;;
@@ -1169,25 +1301,19 @@ do_update() {
 #===============================================================================
 
 do_repair() {
-    print_header
-    echo -e "${WHITE}${BOLD}══════════ DOCKER REPAIR ══════════${NC}"
-    echo ""
-    
     detect_installation
-    print_status
     
-    echo ""
-    echo -e "${WHITE}What do you want to repair?${NC}"
-    echo ""
-    echo "  1. 🔄 Rebuild images"
-    echo "  2. 🔃 Restart containers"
-    echo "  3. 🗃️  Repair database"
-    echo "  4. 🧹 Clean Docker (images, volumes)"
-    echo "  5. 🔄 Full repair (everything)"
-    echo "  0. ↩️  Back"
-    echo ""
-    
-    read -p "Select option: " repair_choice
+    local _menu_items=(
+        $'Rebuild images\tRecreate the Docker images'
+        $'Restart containers\tStop and start the stack'
+        $'Repair database\tRun database repair routines'
+        $'Clean Docker\tPrune images and volumes'
+        $'Full repair\tDo everything above'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 3 4 5 0 )
+    menu_choose "Docker Repair" "Choose what to repair"
+    local repair_choice="$MENU_CHOICE"
     
     case $repair_choice in
         1) 
@@ -1417,10 +1543,6 @@ do_backup_silent() {
 #===============================================================================
 
 do_reset_password() {
-    print_header
-    echo -e "${WHITE}${BOLD}══════════ ADMIN PASSWORD RESET ══════════${NC}"
-    echo ""
-    
     detect_installation
     
     if [ "$CONSOLE_RUNNING" != true ]; then
@@ -1429,14 +1551,14 @@ do_reset_password() {
         return
     fi
     
-    echo "Select option:"
-    echo ""
-    echo "  1. Generate new random password"
-    echo "  2. Set custom password"
-    echo "  0. Back"
-    echo ""
-    
-    read -p "Choice: " pw_choice
+    local _menu_items=(
+        $'Generate random password\tCreate a new strong password'
+        $'Set custom password\tType the password yourself'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 0 )
+    menu_choose "Admin Password Reset" "Console container: running"
+    local pw_choice="$MENU_CHOICE"
     
     local new_password
     
@@ -1521,19 +1643,15 @@ CREDEOF
 #===============================================================================
 
 do_build() {
-    print_header
-    echo -e "${WHITE}${BOLD}══════════ BUILD IMAGES ══════════${NC}"
-    echo ""
-    
-    echo "Select option:"
-    echo ""
-    echo "  1. Rebuild all images"
-    echo "  2. Rebuild Server (Go)"
-    echo "  3. Rebuild Console (Node.js)"
-    echo "  0. Back"
-    echo ""
-    
-    read -p "Choice: " build_choice
+    local _menu_items=(
+        $'Rebuild all images\tServer + console containers'
+        $'Rebuild server (Go)\tOnly the Go server image'
+        $'Rebuild console (Node.js)\tOnly the console image'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 3 0 )
+    menu_choose "Build Images" "Rebuild Docker images"
+    local build_choice="$MENU_CHOICE"
     
     cd "$SCRIPT_DIR"
     
@@ -1834,14 +1952,14 @@ do_diagnostics() {
 
     # --- Diagnostics sub-menu ---
     echo ""
-    echo -e "${WHITE}════════════════════════════════════════${NC}"
-    echo ""
-    echo "  F. Configure firewall rules (auto-create missing rules)"
-    echo "  P. Test port connectivity from outside"
-    echo "  0. Back to main menu"
-    echo ""
-    echo -n "  Select option: "
-    read -r sub_choice
+    local _menu_items=(
+        $'Configure firewall rules\tAuto-create any missing rules'
+        $'Test port connectivity\tProbe ports from outside'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( F P 0 )
+    menu_choose "Diagnostics Actions" "Optional follow-up checks"
+    local sub_choice="$MENU_CHOICE"
 
     case "$sub_choice" in
         [Ff])
@@ -2587,10 +2705,6 @@ EOSQL
 #===============================================================================
 
 do_configure_ssl() {
-    print_header
-    echo -e "${WHITE}${BOLD}══════════ SSL CERTIFICATE CONFIGURATION ══════════${NC}"
-    echo ""
-    
     detect_installation
     
     if [ "$INSTALL_STATUS" = "none" ]; then
@@ -2603,21 +2717,20 @@ do_configure_ssl() {
     local ssl_dir="$DATA_DIR/ssl"
     local env_file="$DATA_DIR/.env"
     
-    echo -e "${CYAN}  ─── Standard Options ───${NC}"
-    echo "  1. Let's Encrypt (ACME auto-renewal)"
-    echo "  2. Custom certificate (provide cert + key files)"
-    echo -e "${GREEN}  3. Self-signed certificate (for testing)${NC}"
-    echo -e "${RED}  4. Disable SSL (revert to HTTP)${NC}"
-    echo ""
-    echo -e "${CYAN}  ─── Enterprise Options ───${NC}"
-    echo -e "${YELLOW}  5. Enterprise TLS (full HTTPS: panel + signal + relay + API)${NC}"
-    echo ""
-    
-    local ssl_choice
-    read -p "Choice [3]: " ssl_choice
-    ssl_choice="${ssl_choice:-3}"
+    local _menu_items=(
+        $'Let'"'"'s Encrypt\tACME certificate with auto-renewal'
+        $'Custom certificate\tProvide your own cert + key files'
+        $'Self-signed certificate\tQuick HTTPS for testing'
+        $'Disable SSL\tRevert the panel back to HTTP'
+        $'Enterprise TLS\tFull HTTPS: panel + signal + relay'
+        $'Back\tReturn to the main menu'
+    )
+    local _menu_returns=( 1 2 3 4 5 0 )
+    menu_choose "SSL Certificate Configuration" "Enables HTTPS for the admin panel"
+    local ssl_choice="${MENU_CHOICE:-3}"
     
     case "$ssl_choice" in
+        0) return ;;
         1)
             print_warning "Let's Encrypt for Docker requires additional setup."
             print_info "Recommended: Use a reverse proxy (nginx/traefik) with Let's Encrypt."
@@ -2868,10 +2981,41 @@ main() {
     echo ""
     sleep 1
     
+    # Action tokens map 1:1 to the classic case dispatch below, so both the
+    # arrow-key TUI and the numeric fallback share the exact same handlers.
+    local menu_labels=(
+        $'Fresh installation\tFull Docker install from scratch'
+        $'Update\tUpdate an existing installation'
+        $'Repair\tFix common problems'
+        $'Validate\tCheck correctness'
+        $'Backup\tCreate a backup'
+        $'Reset admin password\tReset the console admin'
+        $'Build images\tRebuild Docker images'
+        $'Diagnostics\tDetailed problem analysis'
+        $'Uninstall\tRemove BetterDesk'
+        $'Configure SSL/TLS\tEnable HTTPS for the panel'
+        $'Migrate from RustDesk\tImport an existing RustDesk deployment'
+        $'SQLite -> PostgreSQL\tMigrate the database backend'
+        $'Settings (paths)\tConfigure install paths'
+        $'Exit\tQuit the manager'
+    )
+    local menu_actions=( 1 2 3 4 5 6 7 8 9 C M P S 0 )
+
     while true; do
-        show_menu
-        read -p "Select option: " choice
-        
+        local choice=""
+        if tui_available; then
+            local status_line="Docker Compose manager v${VERSION}"
+            [ -n "$DATA_DIR" ] && status_line="$status_line  |  data: ${DATA_DIR}"
+            if tui_select "BetterDesk Console Manager (Docker)" "$status_line" "${menu_labels[@]}"; then
+                choice="${menu_actions[$TUI_RESULT]}"
+            else
+                choice="0"
+            fi
+        else
+            show_menu
+            read -p "Select option: " choice
+        fi
+
         case $choice in
             1) do_install ;;
             2) do_update ;;
