@@ -66,14 +66,34 @@
             </button>
             <div class="toolbar-dropdown-menu toolbar-dropdown-wide" id="display-menu">
                 <div class="dropdown-label">${_('remote.image_quality')}</div>
-                <button class="dropdown-item quality-item" data-quality="Best">
+                <button class="dropdown-item quality-item active" data-quality="Best">
                     <span class="material-icons">hd</span> ${_('remote.quality_best')}
                 </button>
-                <button class="dropdown-item quality-item active" data-quality="Balanced">
+                <button class="dropdown-item quality-item" data-quality="Balanced">
                     <span class="material-icons">tune</span> ${_('remote.quality_balanced')}
                 </button>
                 <button class="dropdown-item quality-item" data-quality="Low">
                     <span class="material-icons">speed</span> ${_('remote.quality_low')}
+                </button>
+                <div class="dropdown-separator"></div>
+                <div class="dropdown-label">${_('remote.codec')}</div>
+                <button class="dropdown-item codec-item active" data-codec="Auto">
+                    <span class="material-icons">auto_awesome</span> ${_('remote.codec_auto')}
+                </button>
+                <button class="dropdown-item codec-item" data-codec="VP9">
+                    <span class="material-icons">memory</span> VP9
+                </button>
+                <button class="dropdown-item codec-item" data-codec="AV1">
+                    <span class="material-icons">memory</span> AV1
+                </button>
+                <button class="dropdown-item codec-item" data-codec="H264">
+                    <span class="material-icons">memory</span> H264
+                </button>
+                <button class="dropdown-item codec-item" data-codec="VP8">
+                    <span class="material-icons">memory</span> VP8
+                </button>
+                <button class="dropdown-item codec-item" data-codec="H265">
+                    <span class="material-icons">memory</span> H265
                 </button>
                 <div class="dropdown-separator"></div>
                 <div class="dropdown-label">${_('remote.scale_mode')}</div>

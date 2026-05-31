@@ -231,7 +231,7 @@
             myName: userName,
             scaleMode: 'fit',
             fps: 30,
-            imageQuality: 'Balanced',
+            imageQuality: 'Best',
             adaptiveQuality: true,
             disableAudio: false
         });
@@ -322,7 +322,7 @@
             myName: userName,
             scaleMode: 'fit',
             fps: 30,
-            imageQuality: 'Balanced',
+            imageQuality: 'Best',
             adaptiveQuality: true,
             disableAudio: false
         });
@@ -1030,6 +1030,33 @@
             closeAllDropdowns();
         });
     });
+
+    // Codec items — request the peer to (re)encode with a specific codec (GPU-friendly).
+    document.querySelectorAll('.codec-item').forEach(btn => {
+        btn.addEventListener('click', function () {
+            if (this.classList.contains('disabled')) return;
+            withClient(c => c.setCodec(this.dataset.codec));
+            document.querySelectorAll('.codec-item').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            closeAllDropdowns();
+        });
+    });
+
+    // Disable codec options the browser's decoder cannot handle.
+    (function probeCodecMenu() {
+        if (!window.RDVideo || typeof RDVideo.getSupportedCodecs !== 'function') return;
+        RDVideo.getSupportedCodecs().then(function (support) {
+            document.querySelectorAll('.codec-item').forEach(function (btn) {
+                var codec = (btn.dataset.codec || '').toLowerCase();
+                if (codec === 'auto') return; // always allowed
+                if (support && support[codec] === false) {
+                    btn.classList.add('disabled');
+                    btn.setAttribute('disabled', 'disabled');
+                    btn.title = 'Not supported by this browser';
+                }
+            });
+        }).catch(function () { /* ignore */ });
+    })();
 
     // Toggle helpers
     setupToggle('btn-show-cursor', (on) => withClient(c => c.setShowRemoteCursor(on)));

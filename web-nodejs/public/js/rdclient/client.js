@@ -58,6 +58,11 @@ class RDClient {
         this._rendezvousDecoder = null;
         this._relayDecoder = null;
 
+        // Codec / quality control
+        this._codecAbilities = null;          // probed VideoDecoder support map
+        this._preferCodec = opts.preferCodec || 'Auto';
+        this._adaptivePaused = false;         // true once the user picks codec/quality manually
+
         // Relay state tracking
         this._relayFrameIdx = 0;         // Counter for relay frames (debugging)
         this._relayConfirmReceived = false; // Whether hbbr's RelayResponse confirmation was consumed
@@ -246,6 +251,13 @@ class RDClient {
             console.log('[RDClient] Auth: hash=' + Array.from(hash.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('')
                 + '... (' + hash.length + ' bytes)');
 
+            // Probe which codecs this browser's VideoDecoder can actually decode so we
+            // only advertise real abilities (avoids the peer sending a codec we can't decode).
+            if (!this._codecAbilities) {
+                try { this._codecAbilities = await RDVideo.getSupportedCodecs(); }
+                catch { this._codecAbilities = null; }
+            }
+
             // Build and send LoginRequest
             // username must be set to target device ID (RustDesk validates: is_ip || is_domain_port || == Config::get_id())
             const loginReq = this.proto.buildLoginRequest(hash, {
@@ -254,7 +266,9 @@ class RDClient {
                 myName: this.opts.myName || this.opts.myName || 'BetterDesk Web',
                 disableAudio: this.opts.disableAudio || false,
                 fps: this.opts.fps || 60,
-                imageQuality: this.opts.imageQuality || 'Best'
+                imageQuality: this.opts.imageQuality || 'Best',
+                codecAbilities: this._codecAbilities,
+                preferCodec: this._preferCodec
             });
 
             console.log('[RDClient] Auth: sending LoginRequest, crypto.enabled=' + this.crypto.enabled
@@ -1139,6 +1153,7 @@ class RDClient {
 
         this._adaptiveInterval = setInterval(() => {
             if (this._state !== 'streaming') return;
+            if (this._adaptivePaused) return; // user took manual control of quality/codec
             const stats = this.video.getStats();
             const fps = stats.videoFps || 0;
             const target = tiers[current].fps;
@@ -1456,9 +1471,32 @@ class RDClient {
         };
 
         var c = config[preset] || config.balanced;
+        this._adaptivePaused = true; // explicit user choice — stop auto-adjusting
         this._sendPeerMessage(this.proto.buildOptionMisc({ imageQuality: c.imageQuality, customFps: c.customFps }));
         this.opts.qualityPreset = preset;
         this._emit('quality_changed', preset);
+    }
+
+    // ---- Codec Control ----
+
+    /**
+     * Request the remote peer to (re)encode using a specific codec.
+     * @param {'Auto'|'VP9'|'AV1'|'H264'|'H265'|'VP8'} codec
+     */
+    setCodec(codec) {
+        if (this._state !== 'streaming') return;
+        const name = codec || 'Auto';
+        this._preferCodec = name;
+        this._adaptivePaused = true; // explicit user choice
+        // Re-advertise abilities with the new preferred codec so the peer switches encoder.
+        this._sendPeerMessage(this.proto.buildOptionMisc({
+            supportedDecoding: { abilities: this._codecAbilities, prefer: name }
+        }));
+        // The encoder restarts with a fresh keyframe; force our decoder to wait for it.
+        if (this.video) this.video._needKeyframe = true;
+        this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
+        this.opts.preferCodec = name;
+        this._emit('codec_changed', name);
     }
 
     /**
@@ -1484,6 +1522,7 @@ class RDClient {
      */
     setImageQuality(quality) {
         if (this._state !== 'streaming') return;
+        this._adaptivePaused = true; // explicit user choice
         this._sendPeerMessage(this.proto.buildOptionMisc({ imageQuality: quality }));
     }
 
