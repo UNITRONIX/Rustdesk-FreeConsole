@@ -317,33 +317,15 @@ class RDInput {
         e.stopPropagation();
 
         const keyCode = e.code;
-        if (this.pressedKeys.has(keyCode)) return; // Key repeat
+        // RustDesk legacy mode: keydown => down, key repeat => press (click).
+        // Repeat is reported either via e.repeat or our own pressedKeys guard.
+        const isRepeat = e.repeat || this.pressedKeys.has(keyCode);
         this.pressedKeys.add(keyCode);
 
-        const controlKey = RDInput.KEY_MAP[keyCode];
-
-        if (controlKey) {
-            // Special key
-            this.sendMessage({
-                keyEvent: {
-                    controlKey: controlKey,
-                    down: true,
-                    press: false,
-                    modifiers: this._getKeyModifiers(e),
-                    mode: 'Legacy'
-                }
-            });
-        } else if (e.key.length === 1) {
-            // Character key - send as chr (unicode code point)
-            this.sendMessage({
-                keyEvent: {
-                    chr: e.key.charCodeAt(0),
-                    down: true,
-                    press: true,
-                    modifiers: this._getKeyModifiers(e),
-                    mode: 'Legacy'
-                }
-            });
+        if (isRepeat) {
+            this._sendKey(e, false, true);
+        } else {
+            this._sendKey(e, true, false);
         }
     }
 
@@ -354,32 +336,50 @@ class RDInput {
         e.preventDefault();
         e.stopPropagation();
 
-        const keyCode = e.code;
-        this.pressedKeys.delete(keyCode);
+        this.pressedKeys.delete(e.code);
+        this._sendKey(e, false, false);
+    }
 
-        const controlKey = RDInput.KEY_MAP[keyCode];
+    /**
+     * Build and dispatch a single RustDesk Legacy key event.
+     * @param {KeyboardEvent} e
+     * @param {boolean} down  - key is pressed down
+     * @param {boolean} press - key click (down+up), used for repeats
+     */
+    _sendKey(e, down, press) {
+        const controlKey = RDInput.KEY_MAP[e.code];
 
         if (controlKey) {
+            // Special / navigation / modifier key
             this.sendMessage({
                 keyEvent: {
                     controlKey: controlKey,
-                    down: false,
-                    press: false,
-                    modifiers: this._getKeyModifiers(e),
+                    down: down,
+                    press: press,
+                    modifiers: this._getKeyModifiers(e, false),
                     mode: 'Legacy'
                 }
             });
-        } else if (e.key.length === 1) {
-            this.sendMessage({
-                keyEvent: {
-                    chr: e.key.charCodeAt(0),
-                    down: false,
-                    press: false,
-                    modifiers: this._getKeyModifiers(e),
-                    mode: 'Legacy'
-                }
-            });
+            return;
         }
+
+        // Character key — forward the produced character so layout-specific and
+        // accented glyphs (ą, ę, ü, etc.) resolve correctly on the remote side.
+        const key = e.key;
+        if (!key || key.length === 0 || key === 'Unidentified' || key === 'Dead') return;
+
+        const codePoint = key.codePointAt(0);
+        if (codePoint === undefined) return;
+
+        this.sendMessage({
+            keyEvent: {
+                chr: codePoint,
+                down: down,
+                press: press,
+                modifiers: this._getKeyModifiers(e, true),
+                mode: 'Legacy'
+            }
+        });
     }
 
     // ---- Helpers ----
@@ -429,10 +429,29 @@ class RDInput {
     /**
      * Get keyboard modifier flags
      * @param {KeyboardEvent} e
+     * @param {boolean} [isChar=false] - true for printable-character events
      * @returns {number[]}
      */
-    _getKeyModifiers(e) {
-        return this._getModifiers(e);
+    _getKeyModifiers(e, isChar) {
+        // Values must match ControlKey enum in message.proto:
+        // Alt=1, Control=4, Meta=23, Shift=29
+        const mods = [];
+        if (e.shiftKey) mods.push(29); // ControlKey.Shift
+
+        // AltGr (Right Alt) is reported on Windows as a phantom Ctrl+Alt
+        // combination. When AltGr produced a printable character the produced
+        // glyph already encodes it, so forwarding Ctrl+Alt makes the remote
+        // side treat it as a hotkey instead of typing the character.
+        const altGraph = typeof e.getModifierState === 'function' &&
+            e.getModifierState('AltGraph');
+        if (isChar && altGraph) {
+            return mods;
+        }
+
+        if (e.ctrlKey) mods.push(4);  // ControlKey.Control
+        if (e.altKey) mods.push(1);   // ControlKey.Alt
+        if (e.metaKey) mods.push(23); // ControlKey.Meta
+        return mods;
     }
 
     /**

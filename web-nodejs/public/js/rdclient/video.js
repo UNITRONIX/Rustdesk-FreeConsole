@@ -687,6 +687,10 @@ class RDVideo {
      */
     _handleDecodedFrame(frame) {
         this.frameCount++;
+        // Record timestamp so getStats() can report real FPS on the WebCodecs
+        // path (previously only the JMuxer fallback fed this array, so HTTPS
+        // sessions always reported 0 FPS).
+        this._feedTimestamps.push(performance.now());
 
         // Track display dimensions
         if (frame.displayWidth !== this.displayWidth || frame.displayHeight !== this.displayHeight) {

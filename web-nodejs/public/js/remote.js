@@ -115,8 +115,11 @@
     }
 
     document.body.addEventListener('mousemove', (e) => {
-        // Show toolbar when mouse near top (below tab bar)
-        if (e.clientY < 80 || toolbarVisible) {
+        // Reveal the toolbar only while the pointer is near the top edge (below
+        // the tab bar). Re-triggering on `toolbarVisible` kept resetting the
+        // 3s auto-hide timer on every mouse move, so the bar never hid and
+        // obscured the remote desktop.
+        if (e.clientY < 80) {
             showToolbar();
         }
     });
@@ -130,6 +133,34 @@
             toolbarVisible = true;
         }
     }
+
+    // ---- Automatic clipboard sync (local -> remote) ----
+    // Native RustDesk pushes the controlling side's clipboard to the peer
+    // automatically, so a plain Ctrl+V on the remote pastes local content.
+    // The browser cannot observe clipboard changes, but it can read the
+    // clipboard once the tab regains focus (with transient activation), so we
+    // push the current local clipboard to the active streaming session then.
+    let _lastSyncedClipboard = '';
+    async function syncLocalClipboardToRemote() {
+        const session = getActiveSession();
+        if (!session || !session.client || session.state !== 'streaming') return;
+        if (!navigator.clipboard || !navigator.clipboard.readText) return;
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text && text !== _lastSyncedClipboard) {
+                _lastSyncedClipboard = text;
+                session.client.sendClipboard(text);
+            }
+        } catch {
+            // Permission denied or not focused — ignore, the manual paste
+            // button remains available as a fallback.
+        }
+    }
+    window.addEventListener('focus', syncLocalClipboardToRemote);
+    if (viewerContainer) {
+        viewerContainer.addEventListener('mousedown', syncLocalClipboardToRemote);
+    }
+
 
     // ---- Tab Bar ----
 
