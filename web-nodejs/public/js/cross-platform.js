@@ -13,11 +13,14 @@
         { feature: 'cross_platform.feat_background_agent',  vals: ['full','full','full','partial','partial','none','none','partial'] },
         { feature: 'cross_platform.feat_remote_target',     vals: ['full','full','partial','partial','partial','none','partial','partial'] },
         { feature: 'cross_platform.feat_screen_capture',    vals: ['full','full','full','partial','partial','none','partial','partial'] },
-        { feature: 'cross_platform.feat_input_injection',   vals: ['full','full','full','partial','partial','none','none','none'] },
+        { feature: 'cross_platform.feat_input_injection',   vals: ['full','full','full','partial','partial','none','partial','none'] },
         { feature: 'cross_platform.feat_file_transfer',     vals: ['full','full','full','full','partial','none','partial','partial'] },
         { feature: 'cross_platform.feat_clipboard_sync',    vals: ['full','full','full','full','partial','none','partial','partial'] },
         { feature: 'cross_platform.feat_audio_streaming',   vals: ['full','full','partial','partial','none','none','partial','none'] },
         { feature: 'cross_platform.feat_chat',              vals: ['full','full','full','full','full','full','full','full'] },
+        { feature: 'cross_platform.feat_session_recording', vals: ['full','full','full','partial','none','none','partial','none'] },
+        { feature: 'cross_platform.feat_multi_monitor',     vals: ['full','full','full','full','partial','none','partial','none'] },
+        { feature: 'cross_platform.feat_unattended_access', vals: ['full','full','full','partial','partial','none','none','none'] },
         { feature: 'cross_platform.feat_h264',              vals: ['full','full','full','full','full','none','partial','full'] },
         { feature: 'cross_platform.feat_vp9',               vals: ['full','full','full','full','partial','none','partial','partial'] },
         { feature: 'cross_platform.feat_av1',               vals: ['partial','partial','none','partial','none','none','partial','none'] },
@@ -28,12 +31,14 @@
         { platform: 'windows', icon: 'desktop_windows', status: 'production', items: [
             'cross_platform.limit_win_uac',
             'cross_platform.limit_win_service',
-            'cross_platform.limit_win_firewall'
+            'cross_platform.limit_win_firewall',
+            'cross_platform.limit_win_virtual_account'
         ]},
         { platform: 'linux', icon: 'computer', status: 'production', items: [
             'cross_platform.limit_linux_wayland',
             'cross_platform.limit_linux_pipewire',
-            'cross_platform.limit_linux_arm'
+            'cross_platform.limit_linux_arm',
+            'cross_platform.limit_linux_unprivileged'
         ]},
         { platform: 'macos', icon: 'laptop_mac', status: 'testing', items: [
             'cross_platform.limit_mac_screen',

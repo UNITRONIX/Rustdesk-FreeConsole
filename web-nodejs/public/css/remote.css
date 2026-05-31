@@ -267,27 +267,106 @@
     text-align: center;
 }
 
-/* ---- Toolbar ---- */
+/* ---- Toolbar (floating RustDesk-style collapsible pill) ---- */
 .viewer-toolbar {
     position: fixed;
-    top: 36px;
-    left: 0;
-    right: 0;
-    height: 48px;
+    top: 44px;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 12px;
-    background: linear-gradient(180deg, rgba(22, 27, 34, 0.95) 0%, rgba(22, 27, 34, 0.8) 100%);
-    backdrop-filter: blur(8px);
+    gap: 6px;
+    padding: 0;
+    background: transparent;
+    border: none;
     z-index: 50;
-    transform: translateY(-100%);
-    transition: transform 0.25s ease;
-    border-bottom: 1px solid var(--border-primary, #30363d);
 }
 
-.viewer-toolbar.visible {
-    transform: translateY(0);
+/* Expanded action pill — only visible when the toolbar is expanded */
+.toolbar-expanded {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    max-width: calc(100vw - 24px);
+    padding: 6px 10px;
+    background: linear-gradient(180deg, rgba(22, 27, 34, 0.97) 0%, rgba(22, 27, 34, 0.92) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-primary, #30363d);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.toolbar-expanded::-webkit-scrollbar {
+    display: none;
+}
+
+.viewer-toolbar.expanded .toolbar-expanded {
+    display: flex;
+    animation: toolbar-pop 0.18s ease;
+}
+
+@keyframes toolbar-pop {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Compact handle — always visible */
+.toolbar-handle {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 5px;
+    background: linear-gradient(180deg, rgba(22, 27, 34, 0.95) 0%, rgba(22, 27, 34, 0.88) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-primary, #30363d);
+    border-radius: 999px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.toolbar-handle:hover,
+.viewer-toolbar.expanded .toolbar-handle,
+.viewer-toolbar.dragging .toolbar-handle {
+    opacity: 1;
+}
+
+.handle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 28px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.handle-btn:hover {
+    background: var(--bg-tertiary, #21262d);
+    color: var(--text-primary, #e6edf3);
+}
+
+.handle-btn .material-icons {
+    font-size: 18px;
+}
+
+.handle-drag {
+    cursor: grab;
+}
+
+.viewer-toolbar.dragging .handle-drag {
+    cursor: grabbing;
+}
+
+.handle-expand.active {
+    color: var(--accent-blue, #58a6ff);
 }
 
 .toolbar-left,
@@ -299,7 +378,6 @@
 }
 
 .toolbar-center {
-    flex: 1;
     justify-content: center;
 }
 
@@ -466,9 +544,9 @@
     50% { opacity: 0.5; }
 }
 
-/* Pinned toolbar */
-.viewer-toolbar.pinned {
-    transform: translateY(0) !important;
+/* Pinned toolbar — keeps the expanded pill open (no auto-collapse) */
+.viewer-toolbar.pinned .toolbar-expanded {
+    display: flex;
 }
 
 /* ---- Chat Panel ---- */
@@ -1098,8 +1176,11 @@
     }
 
     .viewer-toolbar {
-        height: 44px;
-        padding: 0 8px;
+        top: 40px;
+    }
+
+    .toolbar-expanded {
+        max-width: calc(100vw - 16px);
     }
 
     .overlay-card {

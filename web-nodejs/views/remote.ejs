@@ -5,9 +5,9 @@
 
 <!-- Session Tab Bar -->
 <div class="session-tab-bar" id="session-tab-bar">
-    <a href="/devices" class="tab-bar-back" title="${_('remote.back_to_devices')}">
+    <button type="button" class="tab-bar-back" id="btn-back-devices" title="${_('remote.back_to_devices')}">
         <span class="material-icons">arrow_back</span>
-    </a>
+    </button>
     <div class="session-tabs" id="session-tabs"></div>
     <button class="tab-bar-add" id="btn-add-session" title="${_('remote.new_connection') || 'New Connection'}">
         <span class="material-icons">add</span>
@@ -17,8 +17,10 @@
 <!-- Main Viewer Container (session panels are inserted here) -->
 <div class="viewer-container" id="viewer-container"></div>
 
-<!-- Shared Toolbar (auto-hide, applies to active session) -->
+<!-- Shared floating toolbar (collapsible RustDesk-style pill, applies to active session) -->
 <div class="viewer-toolbar" id="viewer-toolbar">
+  <!-- Expanded action pill (shown only when the toolbar is expanded) -->
+  <div class="toolbar-expanded" id="toolbar-expanded">
     <div class="toolbar-left">
         <span class="toolbar-device-info">
             <span class="toolbar-device-id" id="toolbar-device-id"></span>
@@ -175,6 +177,19 @@
             <span class="material-icons">power_settings_new</span>
         </button>
     </div>
+  </div>
+  <!-- Always-visible compact handle: [move] [fullscreen] [expand/collapse] -->
+  <div class="toolbar-handle" id="toolbar-handle">
+    <button type="button" class="handle-btn handle-drag" id="btn-toolbar-drag" title="${_('remote.move_toolbar')}">
+        <span class="material-icons">drag_indicator</span>
+    </button>
+    <button type="button" class="handle-btn" id="btn-handle-fullscreen" title="${_('remote.fullscreen')}">
+        <span class="material-icons">fullscreen</span>
+    </button>
+    <button type="button" class="handle-btn handle-expand" id="btn-toolbar-expand" title="${_('remote.toggle_menu')}">
+        <span class="material-icons">expand_more</span>
+    </button>
+  </div>
 </div>
 
 <!-- Add Session Dialog -->
