@@ -44,20 +44,6 @@ AUTO_MODE=false
 SKIP_VERIFY=false
 MINIMAL_MODE=false
 PREFERRED_CONSOLE_TYPE="nodejs"  # Always Node.js (Flask removed in v2.3.0)
-# Rootless / user-mode install (GitHub discussion #131). When true, BetterDesk
-# installs entirely under the invoking user's $HOME and runs as `systemd --user`
-# services. No root is needed because every listening port is >1024.
-USER_MODE="${BETTERDESK_USER_MODE:-false}"
-[ "$USER_MODE" = "1" ] && USER_MODE=true
-
-# Privilege separation (default for root installs). The installer itself still
-# needs root (packages, firewall, creating the service account), but the running
-# BetterDesk services drop to a dedicated unprivileged system account
-# (BETTERDESK_SERVICE_USER, default "betterdesk"). All listening ports are >1024,
-# so the daemons never need elevated privileges at runtime. Set --run-as-root /
-# BETTERDESK_RUN_AS_ROOT=1 to keep the legacy behavior of running as root.
-RUN_AS_ROOT="${BETTERDESK_RUN_AS_ROOT:-false}"
-[ "$RUN_AS_ROOT" = "1" ] && RUN_AS_ROOT=true
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -80,14 +66,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --postgresql|--postgres)
             USE_POSTGRESQL=true
-            shift
-            ;;
-        --user|--rootless)
-            USER_MODE=true
-            shift
-            ;;
-        --run-as-root)
-            RUN_AS_ROOT=true
             shift
             ;;
         --protocol)
@@ -122,27 +100,9 @@ while [[ $# -gt 0 ]]; do
             echo "  --postgresql     Use PostgreSQL instead of SQLite"
             echo "  --pg-uri URI     PostgreSQL connection URI (implies --postgresql)"
             echo "  --protocol MODE  Set protocol mode: 'http' or 'https'"
-            echo "  --user           Rootless install under \$HOME (systemd --user, no root)"
-            echo "  --rootless       Alias for --user"
-            echo "  --run-as-root    Run the services as root (legacy; disables privilege separation)"
             echo "  --help, -h       Show this help message"
             echo ""
-            echo "Rootless (--user) mode:"
-            echo "  Runs without root. You must pre-install prerequisites yourself:"
-            echo "    Go (to build the server) OR a prebuilt binary, Node.js >= 18, npm,"
-            echo "    openssl, and a user systemd manager (XDG_RUNTIME_DIR set)."
-            echo "  System packages, firewall rules, Let's Encrypt and system PostgreSQL"
-            echo "  provisioning are skipped. Use --pg-uri to point at an external database."
-            echo ""
-            echo "Privilege separation (default for root installs):"
-            echo "  The installer runs as root, but the services run as a dedicated,"
-            echo "  unprivileged system account (default: betterdesk). Use --run-as-root"
-            echo "  or BETTERDESK_RUN_AS_ROOT=1 to keep the legacy root behavior."
-            echo ""
             echo "Environment variables:"
-            echo "  BETTERDESK_USER_MODE=1  Enable rootless mode (same as --user)"
-            echo "  BETTERDESK_RUN_AS_ROOT=1   Run services as root (disable privilege separation)"
-            echo "  BETTERDESK_SERVICE_USER=...   Dedicated service account name (default: betterdesk)"
             echo "  USE_POSTGRESQL=true     Use PostgreSQL"
             echo "  POSTGRESQL_URI=...      PostgreSQL connection URI"
             echo "  POSTGRESQL_USER=...     PostgreSQL username (default: betterdesk)"
@@ -174,19 +134,8 @@ CONSOLE_TYPE="none"  # none, nodejs
 BACKUP_DIR="${BACKUP_DIR:-/opt/rustdesk-backups}"
 
 # API configuration
-# The HTTP API and the RustDesk client API are consolidated onto the Go server
-# and served on port 21121 by default (the port RustDesk clients are configured
-# to use as api-server). Port 21114 is retired. The Node.js console no longer
-# runs its own client API listener (API_ENABLED=false); it proxies to the Go
-# server instead.
-API_PORT="${API_PORT:-21121}"
+API_PORT="${API_PORT:-21114}"
 STORE_ADMIN_CREDENTIALS="${STORE_ADMIN_CREDENTIALS:-false}"
-
-# Enrollment configuration
-# FRESH_INSTALL controls whether new-install defaults (e.g. managed enrollment
-# mode) are applied. It stays false for UPDATE/REPAIR so existing installs are
-# never silently switched to a stricter enrollment mode.
-FRESH_INSTALL="${FRESH_INSTALL:-false}"
 
 # Database configuration
 USE_POSTGRESQL="${USE_POSTGRESQL:-false}"  # true = PostgreSQL, false = SQLite
@@ -213,185 +162,6 @@ COMMON_CONSOLE_PATHS=(
     "/var/lib/betterdesk"
     "$HOME/BetterDeskConsole"
 )
-
-#-------------------------------------------------------------------------------
-# Rootless / user-mode configuration (GitHub discussion #131)
-#
-# In root mode (default) $SYSTEMD_SCOPE is empty, so bd_systemctl is a transparent
-# pass-through to the system manager and every path keeps its historical value —
-# the root install flow is byte-for-byte identical to before.
-#
-# In user mode (--user / BETTERDESK_USER_MODE=1) everything lives under $HOME and
-# services run via `systemctl --user`. No privileged operation is performed.
-#-------------------------------------------------------------------------------
-if [ "$USER_MODE" = true ]; then
-    SYSTEMD_SCOPE="--user"
-    SYSTEMD_UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-    SYSTEMD_WANTED_BY="default.target"
-    SYSTEMD_SERVICE_USER_LINE=""
-    BETTERDESK_USER_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/betterdesk"
-
-    # Redirect default paths into $HOME. Custom RUSTDESK_PATH/CONSOLE_PATH env
-    # values are honoured; only the empty/standard defaults are rewritten.
-    [ -z "$RUSTDESK_PATH" ] && RUSTDESK_PATH="$BETTERDESK_USER_DATA/server"
-    [ -z "$CONSOLE_PATH" ] && CONSOLE_PATH="$BETTERDESK_USER_DATA/console"
-    [ "$BACKUP_DIR" = "/opt/rustdesk-backups" ] && BACKUP_DIR="$BETTERDESK_USER_DATA/backups"
-
-    # Rootless installs default to SQLite. PostgreSQL is only used when the user
-    # supplies an external database via --pg-uri / POSTGRESQL_URI (we never try to
-    # provision a system PostgreSQL instance without root).
-    if [ "$USE_POSTGRESQL" = "true" ] && [ -z "$POSTGRESQL_URI" ]; then
-        USE_POSTGRESQL=false
-    fi
-
-    # Rootless services already run as the invoking user; no privilege drop and
-    # no chown to a dedicated account are required.
-    SERVICE_USER=""
-    SERVICE_GROUP=""
-else
-    SYSTEMD_SCOPE=""
-    SYSTEMD_UNIT_DIR="/etc/systemd/system"
-    SYSTEMD_WANTED_BY="multi-user.target"
-
-    # Privilege separation (default). The installer keeps root, but the running
-    # services drop to a dedicated unprivileged system account. --run-as-root
-    # restores the historical "everything as root" behavior.
-    if [ "$RUN_AS_ROOT" = true ]; then
-        SERVICE_USER="root"
-        SERVICE_GROUP="root"
-        SYSTEMD_SERVICE_USER_LINE="User=root"
-    else
-        SERVICE_USER="${BETTERDESK_SERVICE_USER:-betterdesk}"
-        SERVICE_GROUP="$SERVICE_USER"
-        SYSTEMD_SERVICE_USER_LINE="User=$SERVICE_USER
-Group=$SERVICE_GROUP"
-    fi
-fi
-
-# systemctl wrapper. Targets the user manager in rootless mode, the system
-# manager otherwise. $SYSTEMD_SCOPE is intentionally unquoted so it disappears
-# entirely (no empty positional arg) when running as root.
-bd_systemctl() {
-    # shellcheck disable=SC2086
-    systemctl $SYSTEMD_SCOPE "$@"
-}
-
-# Re-assert user-mode paths after auto_detect_paths(), which would otherwise
-# invalidate a not-yet-created CONSOLE_PATH and fall back to /opt.
-apply_user_mode_paths() {
-    [ "$USER_MODE" = true ] || return 0
-    RUSTDESK_PATH="${RUSTDESK_PATH:-$BETTERDESK_USER_DATA/server}"
-    CONSOLE_PATH="${CONSOLE_PATH:-$BETTERDESK_USER_DATA/console}"
-    case "$RUSTDESK_PATH" in /opt/*|/var/*|/usr/*) RUSTDESK_PATH="$BETTERDESK_USER_DATA/server" ;; esac
-    case "$CONSOLE_PATH" in /opt/*|/var/*|/usr/*) CONSOLE_PATH="$BETTERDESK_USER_DATA/console" ;; esac
-    DB_PATH="$RUSTDESK_PATH/db_v2.sqlite3"
-    CONSOLE_TYPE="nodejs"
-}
-
-# Best-effort: keep user services running after logout / across reboots.
-enable_user_lingering() {
-    [ "$USER_MODE" = true ] || return 0
-    local u; u="$(id -un)"
-    if command -v loginctl &> /dev/null; then
-        if ! loginctl show-user "$u" 2>/dev/null | grep -q "Linger=yes"; then
-            if loginctl enable-linger "$u" 2>/dev/null; then
-                print_success "Enabled systemd lingering for $u (services survive logout)"
-            else
-                print_warning "Could not enable lingering automatically."
-                print_info  "Run once (may need an admin): sudo loginctl enable-linger $u"
-            fi
-        fi
-    fi
-}
-
-# Verify rootless prerequisites that normally require root to install.
-check_user_mode_prereqs() {
-    [ "$USER_MODE" = true ] || return 0
-    local missing=()
-    local warns=()
-
-    # User systemd manager must be reachable.
-    if [ -z "${XDG_RUNTIME_DIR:-}" ] || ! systemctl --user show-environment &> /dev/null; then
-        warns+=("No reachable 'systemctl --user' manager. Ensure you have a real login session (XDG_RUNTIME_DIR set). Over SSH, log in with 'machinectl shell' or enable lingering first.")
-    fi
-
-    # Node.js >= 18 must already be present (we cannot apt-get it without root).
-    if ! command -v node &> /dev/null; then
-        missing+=("node (>= 18)")
-    else
-        local nv; nv=$(node --version 2>/dev/null | sed 's/v//' | cut -d'.' -f1)
-        [ "${nv:-0}" -lt 18 ] 2>/dev/null && missing+=("node >= 18 (found v$(node --version 2>/dev/null))")
-    fi
-    command -v npm &> /dev/null || missing+=("npm")
-    command -v openssl &> /dev/null || missing+=("openssl")
-
-    # Either a Go toolchain (to build) or a prebuilt server binary is required.
-    if ! command -v go &> /dev/null && [ ! -f "$GO_SERVER_SOURCE/betterdesk-server-linux-amd64" ]; then
-        warns+=("No 'go' toolchain and no prebuilt server binary found. Install Go to build the server, or place a prebuilt binary in $GO_SERVER_SOURCE.")
-    fi
-
-    if [ "${#warns[@]}" -gt 0 ]; then
-        for w in "${warns[@]}"; do print_warning "$w"; done
-    fi
-    if [ "${#missing[@]}" -gt 0 ]; then
-        print_error "Rootless mode is missing required tools:"
-        for m in "${missing[@]}"; do echo "    - $m"; done
-        echo ""
-        print_info "Install them with your package manager (one-time, may need sudo), then re-run:"
-        print_info "  ./betterdesk.sh --user"
-        exit 1
-    fi
-}
-
-# Create the dedicated unprivileged service account used for privilege
-# separation on the (root) install path. No-op in rootless mode or when the
-# operator explicitly opted into --run-as-root. Falls back to root if the system
-# provides no usable user-management tool.
-ensure_service_user() {
-    [ "$USER_MODE" = true ] && return 0
-    [ "$SERVICE_USER" = "root" ] && return 0
-    [ -z "$SERVICE_USER" ] && return 0
-
-    if ! getent group "$SERVICE_GROUP" &>/dev/null; then
-        groupadd --system "$SERVICE_GROUP" 2>/dev/null \
-            || addgroup --system "$SERVICE_GROUP" 2>/dev/null \
-            || true
-    fi
-
-    if ! id "$SERVICE_USER" &>/dev/null; then
-        print_info "Creating dedicated service account: $SERVICE_USER"
-        local nologin_shell
-        nologin_shell="$(command -v nologin 2>/dev/null || echo /usr/sbin/nologin)"
-        useradd --system --gid "$SERVICE_GROUP" --no-create-home \
-            --home-dir "$RUSTDESK_PATH" --shell "$nologin_shell" "$SERVICE_USER" 2>/dev/null \
-            || adduser --system --ingroup "$SERVICE_GROUP" --no-create-home \
-                --home "$RUSTDESK_PATH" --shell "$nologin_shell" "$SERVICE_USER" 2>/dev/null \
-            || useradd --system "$SERVICE_USER" 2>/dev/null \
-            || {
-                print_warning "Could not create $SERVICE_USER; services will run as root."
-                SERVICE_USER="root"
-                SERVICE_GROUP="root"
-                SYSTEMD_SERVICE_USER_LINE="User=root"
-                return 0
-            }
-        print_success "Service account $SERVICE_USER created"
-    fi
-}
-
-# Hand ownership of the install/data directories to the service account so the
-# unprivileged daemons can read keys and write their databases. No-op in
-# rootless / run-as-root mode.
-chown_service_paths() {
-    [ "$USER_MODE" = true ] && return 0
-    [ "$SERVICE_USER" = "root" ] && return 0
-    [ -z "$SERVICE_USER" ] && return 0
-    local p
-    for p in "$RUSTDESK_PATH" "$CONSOLE_PATH" "$BACKUP_DIR"; do
-        if [ -n "$p" ] && [ -d "$p" ]; then
-            chown -R "$SERVICE_USER:$SERVICE_GROUP" "$p" 2>/dev/null || true
-        fi
-    done
-}
 
 # Colors
 RED='\033[0;31m'
@@ -554,7 +324,7 @@ verify_service_health() {
     local elapsed=0
     
     # First check if service is active
-    if ! bd_systemctl is-active --quiet "$service_name" 2>/dev/null; then
+    if ! systemctl is-active --quiet "$service_name" 2>/dev/null; then
         print_error "Service $service_name is not running"
         show_service_logs "$service_name" 20
         return 1
@@ -586,8 +356,7 @@ show_service_logs() {
     
     echo ""
     echo -e "${YELLOW}═══ Recent logs for $service_name ═══${NC}"
-    # shellcheck disable=SC2086
-    journalctl $SYSTEMD_SCOPE -u "$service_name" -n "$lines" --no-pager 2>/dev/null || \
+    journalctl -u "$service_name" -n "$lines" --no-pager 2>/dev/null || \
         print_warning "Could not retrieve logs for $service_name"
     echo -e "${YELLOW}═══════════════════════════════════════${NC}"
     echo ""
@@ -604,17 +373,17 @@ graceful_stop_services() {
     
     # Stop current services
     for service in "${services[@]}"; do
-        if bd_systemctl is-active --quiet "$service" 2>/dev/null; then
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
             print_info "Stopping $service..."
-            bd_systemctl stop "$service" 2>/dev/null || true
+            systemctl stop "$service" 2>/dev/null || true
         fi
     done
     
     # Stop legacy services if they exist
     for service in "${legacy_services[@]}"; do
-        if bd_systemctl is-active --quiet "$service" 2>/dev/null; then
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
             print_info "Stopping legacy $service..."
-            bd_systemctl stop "$service" 2>/dev/null || true
+            systemctl stop "$service" 2>/dev/null || true
         fi
     done
     
@@ -658,17 +427,17 @@ start_services_with_verification() {
     fi
     
     # Enable services
-    bd_systemctl enable betterdesk-server betterdesk-console 2>/dev/null || true
+    systemctl enable betterdesk-server betterdesk-console 2>/dev/null || true
     
     # Start Go server (signal + relay + API in one binary)
     print_info "Starting betterdesk-server (Go)..."
-    bd_systemctl start betterdesk-server
+    systemctl start betterdesk-server
     sleep 3
     
     if ! verify_service_health "betterdesk-server" "21116" 10; then
         print_error "Failed to start betterdesk-server"
-        print_info "Service state: $(bd_systemctl show betterdesk-server --property=ActiveState --value 2>/dev/null)"
-        print_info "Run: journalctl $SYSTEMD_SCOPE -u betterdesk-server -n 50 --no-pager"
+        print_info "Service state: $(systemctl show betterdesk-server --property=ActiveState --value 2>/dev/null)"
+        print_info "Run: journalctl -u betterdesk-server -n 50 --no-pager"
         return 1
     fi
     print_success "betterdesk-server started and healthy"
@@ -696,13 +465,13 @@ start_services_with_verification() {
     
     # Start Node.js console
     print_info "Starting betterdesk-console (Node.js)..."
-    bd_systemctl start betterdesk-console
+    systemctl start betterdesk-console
     sleep 2
     
     if ! verify_service_health "betterdesk-console" "5000" 10; then
         print_warning "Web console may not be running correctly"
         local console_state
-        console_state=$(bd_systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null)
+        console_state=$(systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null)
         if [ "$console_state" = "failed" ]; then
             print_error "Console service FAILED. Possible causes:"
             print_info "  - Missing npm modules (npm install failed)"
@@ -1096,9 +865,9 @@ print_status() {
     echo ""
     
     # Check if using Go server (single binary) or legacy Rust (two binaries)
-    if [ "${SERVER_TYPE:-}" = "go" ] || bd_systemctl is-active --quiet betterdesk-server 2>/dev/null; then
+    if [ "${SERVER_TYPE:-}" = "go" ] || systemctl is-active --quiet betterdesk-server 2>/dev/null; then
         local go_state
-        go_state=$(bd_systemctl show betterdesk-server --property=ActiveState --value 2>/dev/null || echo "unknown")
+        go_state=$(systemctl show betterdesk-server --property=ActiveState --value 2>/dev/null || echo "unknown")
         case "$go_state" in
             active)
                 echo -e "  BetterDesk Server (Go): ${GREEN}● Active${NC} (Signal + Relay + API)"
@@ -1130,7 +899,7 @@ print_status() {
     
     # Console status with state details
     local console_state
-    console_state=$(bd_systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null || echo "unknown")
+    console_state=$(systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null || echo "unknown")
     case "$console_state" in
         active)
             echo -e "  Web Console:   ${GREEN}● Active${NC}"
@@ -1357,15 +1126,7 @@ verify_binaries() {
 
 install_dependencies() {
     print_step "Installing dependencies..."
-
-    # Rootless mode cannot install system packages. Prerequisites were already
-    # verified by check_user_mode_prereqs(); just confirm and move on.
-    if [ "$USER_MODE" = true ]; then
-        print_info "Rootless mode: skipping system package installation."
-        print_info "Using pre-installed node/npm/openssl from PATH."
-        return 0
-    fi
-
+    
     if command -v apt-get &> /dev/null; then
         apt-get update -qq
         apt-get install -y -qq python3 python3-pip python3-venv sqlite3 curl wget openssl build-essential
@@ -1388,13 +1149,7 @@ install_dependencies() {
 
 install_postgresql() {
     print_step "Installing PostgreSQL..."
-
-    if [ "$USER_MODE" = true ]; then
-        print_info "Rootless mode: skipping system PostgreSQL provisioning."
-        print_info "Provide an external database with --pg-uri to use PostgreSQL."
-        return 0
-    fi
-
+    
     if command -v psql &> /dev/null; then
         local pg_version=$(psql --version | grep -oP '\d+' | head -1)
         print_success "PostgreSQL $pg_version already installed"
@@ -1435,18 +1190,6 @@ install_postgresql() {
 
 setup_postgresql_database() {
     print_step "Setting up PostgreSQL database for BetterDesk..."
-
-    # Rootless mode never provisions a local PostgreSQL role/database (needs the
-    # postgres superuser). It only consumes an externally provided URI.
-    if [ "$USER_MODE" = true ]; then
-        if [ -n "$POSTGRESQL_URI" ]; then
-            print_info "Rootless mode: using externally provided PostgreSQL URI."
-            return 0
-        fi
-        print_warning "Rootless mode: no --pg-uri provided; falling back to SQLite."
-        USE_POSTGRESQL=false
-        return 0
-    fi
 
     if ! is_valid_pg_identifier "$POSTGRESQL_USER"; then
         print_error "Invalid PostgreSQL username: $POSTGRESQL_USER"
@@ -1655,13 +1398,6 @@ install_nodejs() {
         else
             print_warning "Node.js version $node_version is too old (need 18+). Upgrading..."
         fi
-    fi
-
-    # Rootless mode cannot install/upgrade Node.js (needs root). The prereq check
-    # already enforced node >= 18, so reaching here without a usable node is fatal.
-    if [ "$USER_MODE" = true ]; then
-        print_error "Rootless mode requires Node.js >= 18 pre-installed. Cannot upgrade without root."
-        return 1
     fi
     
     print_step "Installing Node.js 20 LTS..."
@@ -1898,9 +1634,7 @@ ENVEOF
         echo "# HBBS API"
         echo "HBBS_API_URL=http://localhost:$API_PORT/api"
         echo ""
-        echo "# RustDesk Client API (consolidated onto the Go server, port $API_PORT)"
-        echo "# The Node.js console no longer runs its own client API listener."
-        echo "API_ENABLED=false"
+        echo "# RustDesk Client API listener"
         echo "API_HOST=0.0.0.0"
         echo "RUSTDESK_API_TLS=auto"
         echo ""
@@ -1943,11 +1677,8 @@ CREDEOF
         chmod 600 "$CONSOLE_PATH/data/.admin_credentials"
     fi
     
-    # Set permissions. In rootless mode files are already owned by the invoking
-    # user, so the chown to root is skipped (it would fail under set -e).
-    if [ "$USER_MODE" != true ]; then
-        chown -R root:root "$CONSOLE_PATH"
-    fi
+    # Set permissions
+    chown -R root:root "$CONSOLE_PATH"
     chmod -R 755 "$CONSOLE_PATH"
     chmod 600 "$CONSOLE_PATH/.env" 2>/dev/null || true
     
@@ -2248,16 +1979,13 @@ setup_services() {
     fi
     print_info "Signal registration rate limit: $signal_rate_limit/min (0 = disabled)"
     
-    # Build database configuration (raw value only). The DSN is passed to the
-    # Go server through a root-only EnvironmentFile (DB_URL env var), never as a
-    # CLI argument, because process arguments are world-readable via
-    # /proc/<pid>/cmdline (any local user can run `ps` and read the password).
-    local db_value=""
+    # Build database configuration
+    local db_arg=""
     if [ "$USE_POSTGRESQL" = "true" ] && [ -n "$POSTGRESQL_URI" ]; then
-        db_value="$POSTGRESQL_URI"
+        db_arg="-db \"$POSTGRESQL_URI\""
         print_info "Database: PostgreSQL"
     else
-        db_value="$RUSTDESK_PATH/db_v2.sqlite3"
+        db_arg="-db \"$RUSTDESK_PATH/db_v2.sqlite3\""
         print_info "Database: SQLite"
     fi
     
@@ -2277,10 +2005,9 @@ setup_services() {
         fi
         
         # Enable TLS on signal/relay for client encryption.
-        # The API port (21121) MUST stay HTTP — RustDesk desktop clients always
-        # send plain HTTP to the api-server and do not support HTTPS for API
-        # endpoints (heartbeat, sysinfo, login, ab). Enabling -tls-api breaks
-        # all clients.
+        # API port (21114) MUST stay HTTP — RustDesk desktop clients always send
+        # plain HTTP to signal_port-2 and do not support HTTPS for API endpoints
+        # (heartbeat, sysinfo, login, ab). Enabling -tls-api breaks all clients.
         tls_arg="-tls-cert $ssl_dir/betterdesk.crt -tls-key $ssl_dir/betterdesk.key -tls-signal -tls-relay"
         
         if [ "$tls_is_selfsigned" = false ]; then
@@ -2305,50 +2032,21 @@ setup_services() {
         print_info "Generated API key for console-server communication"
     fi
     
-    # Write server secrets to a root-only EnvironmentFile instead of passing them
-    # as CLI arguments. systemd reads EnvironmentFile values literally (no $ or %
-    # escaping required, no shell expansion), and the Go server picks them up via
-    # the DB_URL / INIT_ADMIN_PASS environment variables. INIT_ADMIN_PASS is only
-    # consumed on first initialization (when no user exists yet).
-    local server_env_file="$RUSTDESK_PATH/.server.env"
-    {
-        echo "# BetterDesk Go server secrets - root only (chmod 600)."
-        echo "# Generated by betterdesk.sh. Never commit, share, or log this file."
-        printf 'DB_URL=%s\n' "$db_value"
-        if [ -n "$ADMIN_PASSWORD" ]; then
-            printf 'INIT_ADMIN_PASS=%s\n' "$ADMIN_PASSWORD"
-        fi
-        # New installs default to "managed" enrollment: stock RustDesk clients
-        # are queued for operator approval instead of connecting silently.
-        # Existing installs are left untouched (no ENROLLMENT_MODE written), so
-        # the Go server keeps its persisted/DB mode (open by default).
-        if [ "$FRESH_INSTALL" = "true" ]; then
-            printf 'ENROLLMENT_MODE=managed\n'
-        fi
-    } > "$server_env_file"
-    chmod 600 "$server_env_file"
-    print_info "Wrote server secrets to $server_env_file (mode 0600)"
-
-    # Ensure the dedicated unprivileged service account exists before it is
-    # referenced in the unit files (privilege separation; no-op in rootless /
-    # --run-as-root mode).
-    ensure_service_user
-
-    # Optional systemd hardening for the (now unprivileged) Go server. Left empty
-    # for run-as-root / rootless installs so their unit files stay unchanged.
-    local server_hardening=""
-    if [ "$USER_MODE" != true ] && [ -n "$SERVICE_USER" ] && [ "$SERVICE_USER" != "root" ]; then
-        server_hardening="NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-ReadWritePaths=$RUSTDESK_PATH"
+    # Read admin password from install step (for syncing Go server admin)
+    # Escape $ → $$ and % → %% for systemd (ExecStart interprets $VAR
+    # as env var substitution and %n/%u/etc. as specifiers)
+    local init_admin_arg=""
+    if [ -n "$ADMIN_PASSWORD" ]; then
+        local escaped_admin_pass
+        escaped_admin_pass=$(printf '%s' "$ADMIN_PASSWORD" | sed 's/\$/\$\$/g; s/%/%%/g')
+        init_admin_arg="-init-admin-pass $escaped_admin_pass"
     fi
-
-    # systemd unit directory (system manager for root, user manager for --user)
-    mkdir -p "$SYSTEMD_UNIT_DIR"
-
-    cat > "$SYSTEMD_UNIT_DIR/betterdesk-server.service" << EOF
+    
+    # Escape $ and % in database URL for systemd (PostgreSQL passwords can contain $ and %)
+    local systemd_db_arg="$db_arg"
+    systemd_db_arg=$(printf '%s' "$systemd_db_arg" | sed 's/\$/\$\$/g; s/%/%%/g')
+    
+    cat > /etc/systemd/system/betterdesk-server.service << EOF
 [Unit]
 Description=BetterDesk Go Server v$VERSION (Signal + Relay + API)
 Documentation=https://github.com/UNITRONIX/Rustdesk-FreeConsole
@@ -2356,17 +2054,15 @@ After=network.target postgresql.service
 
 [Service]
 Type=simple
-$SYSTEMD_SERVICE_USER_LINE
+User=root
 WorkingDirectory=$RUSTDESK_PATH
-EnvironmentFile=$server_env_file
-ExecStart=$RUSTDESK_PATH/betterdesk-server -mode all -relay-servers $server_ip -key-file $RUSTDESK_PATH/id_ed25519 -api-port $API_PORT -signal-rate-limit-per-ip $signal_rate_limit $tls_arg
+ExecStart=$RUSTDESK_PATH/betterdesk-server -mode all -relay-servers $server_ip $systemd_db_arg -key-file $RUSTDESK_PATH/id_ed25519 -api-port $API_PORT -signal-rate-limit-per-ip $signal_rate_limit $init_admin_arg $tls_arg
 Restart=always
 RestartSec=5
 LimitNOFILE=1000000
-$server_hardening
 
 [Install]
-WantedBy=$SYSTEMD_WANTED_BY
+WantedBy=multi-user.target
 EOF
 
     print_success "Created betterdesk-server.service (Go)"
@@ -2422,8 +2118,8 @@ Environment=DB_PATH=$RUSTDESK_PATH/db_v2.sqlite3"
         local tls_env=""
         if [ -n "$tls_arg" ]; then
                 # Enable HTTPS on Node.js console (admin panel port 5443). The
-                # RustDesk client API is now served by the Go server (port
-                # 21121, plain HTTP) so this switch only affects the admin panel.
+                # RustDesk Client API port 21121 has its own TLS switch because
+                # stock clients cannot trust self-signed certs here.
                 local rustdesk_api_tls="auto"
                 [ "$tls_is_selfsigned" = true ] && rustdesk_api_tls="false"
             tls_env="Environment=HTTPS_ENABLED=true
@@ -2438,17 +2134,8 @@ Environment=SSL_CERT_PATH=$ssl_dir/betterdesk.crt
         if [ ! -x "$node_path" ]; then
             print_warning "Node.js binary not found at $node_path — service may fail to start"
         fi
-
-        # Light hardening for the Node.js console. Kept conservative (no
-        # ProtectHome/ProtectSystem) so nvm- or home-installed node binaries keep
-        # working. Empty for run-as-root / rootless installs.
-        local console_hardening=""
-        if [ "$USER_MODE" != true ] && [ -n "$SERVICE_USER" ] && [ "$SERVICE_USER" != "root" ]; then
-            console_hardening="NoNewPrivileges=true
-PrivateTmp=true"
-        fi
         
-        cat > "$SYSTEMD_UNIT_DIR/betterdesk-console.service" << EOF
+        cat > /etc/systemd/system/betterdesk-console.service << EOF
 [Unit]
 Description=BetterDesk Web Console (Node.js)
 Documentation=https://github.com/UNITRONIX/Rustdesk-FreeConsole
@@ -2456,7 +2143,7 @@ After=network.target betterdesk-server.service postgresql.service
 
 [Service]
 Type=simple
-$SYSTEMD_SERVICE_USER_LINE
+User=root
 WorkingDirectory=$CONSOLE_PATH
 EnvironmentFile=-$CONSOLE_PATH/.env
 ExecStart=$node_path server.js
@@ -2478,10 +2165,9 @@ $tls_env
 $([ "$tls_is_selfsigned" = true ] && echo "Environment=NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt" || true)
 Restart=always
 RestartSec=5
-$console_hardening
 
 [Install]
-WantedBy=$SYSTEMD_WANTED_BY
+WantedBy=multi-user.target
 EOF
         print_success "Created betterdesk-console.service (Node.js)"
         
@@ -2494,11 +2180,7 @@ EOF
         fi
     fi
 
-    # Drop ownership of the install/data directories to the service account so
-    # the unprivileged daemons can read their keys and write their databases.
-    chown_service_paths
-
-    bd_systemctl daemon-reload
+    systemctl daemon-reload
     
     print_success "Systemd services configured"
     print_info "Services: betterdesk-server, betterdesk-console"
@@ -2592,7 +2274,7 @@ do_install_minimal() {
     
     print_info "BetterDesk Minimal installs the Go server binary only."
     print_info "No web console, no Node.js, no npm dependencies."
-    print_info "Manage via REST API on port $API_PORT or TCP admin console."
+    print_info "Manage via REST API on port 21114 or TCP admin console."
     echo ""
     
     detect_installation
@@ -2643,7 +2325,7 @@ do_install_minimal() {
     # Configure firewall rules (signal + relay + API only, no console ports)
     print_step "Configuring firewall rules..."
     if command -v ufw >/dev/null 2>&1; then
-        ufw allow "$API_PORT/tcp" comment "BetterDesk API (Go)" 2>/dev/null || true
+        ufw allow 21114/tcp comment "BetterDesk API" 2>/dev/null || true
         ufw allow 21115/tcp comment "BetterDesk NAT" 2>/dev/null || true
         ufw allow 21116/tcp comment "BetterDesk Signal TCP" 2>/dev/null || true
         ufw allow 21116/udp comment "BetterDesk Signal UDP" 2>/dev/null || true
@@ -2654,9 +2336,9 @@ do_install_minimal() {
     
     # Start server
     print_step "Starting BetterDesk server..."
-    bd_systemctl daemon-reload
-    bd_systemctl start betterdesk-server.service 2>/dev/null || true
-    bd_systemctl enable betterdesk-server.service 2>/dev/null || true
+    systemctl daemon-reload
+    systemctl start betterdesk-server.service 2>/dev/null || true
+    systemctl enable betterdesk-server.service 2>/dev/null || true
     
     sleep 3
     
@@ -2677,9 +2359,9 @@ do_install_minimal() {
     SERVER_IP=$(get_public_ip)
     
     echo -e "${GREEN}Server: ${SERVER_IP}${NC}"
-    echo -e "${GREEN}API: http://${SERVER_IP}:${API_PORT}${NC}"
+    echo -e "${GREEN}API: http://${SERVER_IP}:21114${NC}"
     echo ""
-    echo -e "${YELLOW}Ports: ${API_PORT} (API), 21115-21117 (Signal/Relay), 21118-21119 (WS)${NC}"
+    echo -e "${YELLOW}Ports: 21114 (API), 21115-21117 (Signal/Relay), 21118-21119 (WS)${NC}"
     echo -e "${YELLOW}No web console installed. Use REST API or TCP admin for management.${NC}"
     echo ""
     
@@ -2737,7 +2419,7 @@ setup_services_minimal() {
         # Enterprise TLS still keeps the Go API HTTP for RustDesk client
         # compatibility. Only signal/relay receive TLS flags here.
         if [ "${ENTERPRISE_TLS:-false}" = "true" ]; then
-            print_info "Enterprise TLS enabled: API port $API_PORT stays HTTP"
+            print_info "Enterprise TLS enabled: API port 21114 stays HTTP"
         fi
     fi
     
@@ -2752,16 +2434,6 @@ setup_services_minimal() {
         fi
     done
     
-    # Privilege separation (default): create + drop to a dedicated account.
-    ensure_service_user
-    local min_user_line="User=root"
-    if [ "$USER_MODE" = true ]; then
-        min_user_line=""
-    elif [ -n "$SERVICE_USER" ] && [ "$SERVICE_USER" != "root" ]; then
-        min_user_line="User=$SERVICE_USER
-Group=$SERVICE_GROUP"
-    fi
-
     cat > /etc/systemd/system/betterdesk-server.service <<EOF
 [Unit]
 Description=BetterDesk Server (Minimal)
@@ -2770,7 +2442,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-$min_user_line
+User=root
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$GO_BINARY_PATH $SERVER_ARGS
 Restart=always
@@ -2793,9 +2465,6 @@ SyslogIdentifier=betterdesk-server
 WantedBy=multi-user.target
 EOF
     
-    if [ "$USER_MODE" != true ] && [ -n "$SERVICE_USER" ] && [ "$SERVICE_USER" != "root" ]; then
-        [ -d "$INSTALL_DIR" ] && chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_DIR" 2>/dev/null || true
-    fi
     systemctl daemon-reload
     print_success "BetterDesk server service created (Minimal mode)"
 }
@@ -2806,16 +2475,7 @@ do_install() {
     echo ""
     
     detect_installation
-
-    # Treat as a fresh install only when there is no existing database. This
-    # gates new-install defaults (managed enrollment mode) so reinstalls over
-    # an existing database preserve the operator's current enrollment policy.
-    if [ "$DATABASE_OK" = "true" ]; then
-        FRESH_INSTALL=false
-    else
-        FRESH_INSTALL=true
-    fi
-
+    
     if [ "$INSTALL_STATUS" = "complete" ]; then
         print_warning "BetterDesk is already installed!"
         if [ "$AUTO_MODE" = false ]; then
@@ -2871,7 +2531,7 @@ do_install() {
     sleep 2
     
     local go_state
-    go_state=$(bd_systemctl show betterdesk-server --property=ActiveState --value 2>/dev/null || echo "unknown")
+    go_state=$(systemctl show betterdesk-server --property=ActiveState --value 2>/dev/null || echo "unknown")
     if [ "$go_state" != "active" ]; then
         print_error "betterdesk-server is $go_state (expected: active)"
         print_info "Debug: journalctl -u betterdesk-server -n 30 --no-pager"
@@ -2879,7 +2539,7 @@ do_install() {
     fi
     
     local console_state
-    console_state=$(bd_systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null || echo "unknown")
+    console_state=$(systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null || echo "unknown")
     if [ "$console_state" != "active" ]; then
         print_warning "betterdesk-console is $console_state (expected: active)"
         print_info "Debug: journalctl -u betterdesk-console -n 30 --no-pager"
@@ -3695,7 +3355,7 @@ do_validate() {
     echo -e "${WHITE}Checking ports...${NC}"
     echo ""
     
-    for port in 21115 21116 21117 5000 21121; do
+    for port in 21114 21115 21116 21117 5000 21121; do
         echo -n "  Port $port: "
         if ss -tlnp 2>/dev/null | grep -q ":$port " || netstat -tlnp 2>/dev/null | grep -q ":$port "; then
             local pname=$(ss -tlnp 2>/dev/null | grep ":$port " | grep -oP 'users:\(\("\K[^"]+' 2>/dev/null | head -1)
@@ -4000,9 +3660,9 @@ PYEOF
         fi
         
         # Restart console so it picks up the new .env value
-        if bd_systemctl is-active betterdesk-console &>/dev/null; then
+        if systemctl is-active betterdesk-console &>/dev/null; then
             print_info "Restarting betterdesk-console..."
-            bd_systemctl restart betterdesk-console 2>/dev/null || true
+            systemctl restart betterdesk-console 2>/dev/null || true
             sleep 2
         fi
         
@@ -4206,9 +3866,9 @@ do_rebuild_go_server() {
         if [ -f "${installed_binary}.backup.${ts}" ]; then
             cp "${installed_binary}.backup.${ts}" "$installed_binary"
             chmod +x "$installed_binary"
-            bd_systemctl start betterdesk-server 2>/dev/null || true
+            systemctl start betterdesk-server 2>/dev/null || true
             sleep 2
-            if bd_systemctl is-active --quiet betterdesk-server 2>/dev/null; then
+            if systemctl is-active --quiet betterdesk-server 2>/dev/null; then
                 print_success "Rollback successful — previous binary restored"
             else
                 print_error "Rollback also failed. Check: journalctl -u betterdesk-server -n 50"
@@ -4322,15 +3982,7 @@ do_build_legacy_rust() {
 #===============================================================================
 
 configure_firewall_rules() {
-    # Rootless (--user) mode cannot modify system firewall rules. Skip and let
-    # the operator open the required ports manually (all ports are >1024).
-    if [ "$USER_MODE" = true ]; then
-        print_info "Rootless mode: skipping firewall configuration"
-        print_info "Open these ports manually if needed: 21115-21119, 21121, 5000, 5443"
-        return 0
-    fi
-
-    local required_ports="21115 21116 21117 21118 21119 5000 5443 21121"
+    local required_ports="21114 21115 21116 21117 21118 21119 5000 5443 21121"
     local created=0
     local total=0
     
@@ -4488,12 +4140,13 @@ do_diagnostics() {
     
     local port_issues=0
     local port_defs=(
-        "21121:TCP:betterdesk-serv|betterdesk-server|hbbs:API Server (Go)"
+        "21114:TCP:betterdesk-serv|betterdesk-server|hbbs:API Server"
         "21115:TCP:betterdesk-serv|betterdesk-server|hbbs:NAT Test"
         "21116:TCP:betterdesk-serv|betterdesk-server|hbbs:ID Server (TCP)"
         "21116:UDP:betterdesk-serv|betterdesk-server|hbbs:ID Server (UDP)"
         "21117:TCP:betterdesk-serv|betterdesk-server|hbbr:Relay Server"
         "5000:TCP:node|MainThread:Web Console"
+        "21121:TCP:node|MainThread:Client API (WAN)"
     )
     
     for entry in "${port_defs[@]}"; do
@@ -4545,7 +4198,7 @@ do_diagnostics() {
     
     local fw_type="none"
     local missing_rules=0
-    local required_ports="21115 21116 21117 5000 21121"
+    local required_ports="21114 21115 21116 21117 5000 21121"
     
     if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "active"; then
         fw_type="ufw"
@@ -4608,11 +4261,7 @@ do_diagnostics() {
     echo -e "${WHITE}${BOLD}═══ API connectivity ═══${NC}"
     echo ""
     
-    # Resolve the API port from the running service when possible, else default
-    # to the consolidated Go API port (21121).
-    local api_port
-    api_port=$(systemctl cat betterdesk-server.service 2>/dev/null | grep -oP '\-api-port \K[0-9]+' | head -1)
-    api_port="${api_port:-${API_PORT:-21121}}"
+    local api_port="${API_PORT:-21114}"
     
     # Detect if Go server API uses TLS (only if explicit --tls-api in service args)
     local api_use_tls=false
@@ -4736,25 +4385,23 @@ do_uninstall() {
     
     print_step "Stopping services..."
     # Stop Go server (primary)
-    bd_systemctl stop betterdesk-server betterdesk-console 2>/dev/null || true
-    bd_systemctl disable betterdesk-server betterdesk-console 2>/dev/null || true
+    systemctl stop betterdesk-server betterdesk-console 2>/dev/null || true
+    systemctl disable betterdesk-server betterdesk-console 2>/dev/null || true
     # Stop legacy Rust services if they exist
     systemctl stop rustdesksignal rustdeskrelay betterdesk betterdesk-api betterdesk-go 2>/dev/null || true
     systemctl disable rustdesksignal rustdeskrelay betterdesk betterdesk-api betterdesk-go 2>/dev/null || true
     
     print_step "Removing service files..."
-    # Remove Go services (system or user unit directory)
-    rm -f "$SYSTEMD_UNIT_DIR/betterdesk-server.service"
-    rm -f "$SYSTEMD_UNIT_DIR/betterdesk-console.service"
-    # Remove legacy services (system scope only)
+    # Remove Go services
     rm -f /etc/systemd/system/betterdesk-server.service
     rm -f /etc/systemd/system/betterdesk-console.service
+    # Remove legacy services
     rm -f /etc/systemd/system/rustdesksignal.service
     rm -f /etc/systemd/system/rustdeskrelay.service
     rm -f /etc/systemd/system/betterdesk.service
     rm -f /etc/systemd/system/betterdesk-api.service
     rm -f /etc/systemd/system/betterdesk-go.service
-    bd_systemctl daemon-reload
+    systemctl daemon-reload
     
     if confirm "Remove installation files ($RUSTDESK_PATH)?"; then
         rm -rf "$RUSTDESK_PATH"
@@ -5000,7 +4647,7 @@ do_configure_ssl() {
             # Enterprise TLS - HTTPS for panel/signal/relay, Go API remains HTTP
             print_header "Enterprise TLS Configuration"
             echo ""
-            print_warning "⚠️  IMPORTANT: Go API port 21121 stays HTTP for RustDesk client compatibility."
+            print_warning "⚠️  IMPORTANT: Go API port 21114 stays HTTP for RustDesk client compatibility."
             print_warning "    Panel, signal and relay channels can still use TLS."
             echo ""
             
@@ -5068,7 +4715,7 @@ do_configure_ssl() {
             
             # Keep internal Go API URLs on HTTP for RustDesk client compatibility
             local api_port
-            api_port=$(grep -oP '^HBBS_API_URL=https?://localhost:\K[0-9]+' "$CONSOLE_PATH/.env" 2>/dev/null || echo "${API_PORT:-21121}")
+            api_port=$(grep -oP '^HBBS_API_URL=https?://localhost:\K[0-9]+' "$CONSOLE_PATH/.env" 2>/dev/null || echo "${API_PORT:-21114}")
             sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$CONSOLE_PATH/.env"
             sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$CONSOLE_PATH/.env"
             
@@ -5104,7 +4751,7 @@ do_configure_ssl() {
             print_info "  • Panel HTTPS: :5443 (or configured port)"
             print_info "  • Signal TLS: :21116"
             print_info "  • Relay TLS: :21117"
-            print_info "  • Go API HTTP: :21121 (required for RustDesk clients)"
+            print_info "  • Go API HTTP: :21114 (required for RustDesk clients)"
             echo ""
             print_warning "For browsers/clients accessing this server, you may need to:"
             print_info "  1. Import $ssl_dir/betterdesk.crt as trusted CA"
@@ -5119,7 +4766,7 @@ do_configure_ssl() {
     
     # ── Update API URLs in .env when SSL is enabled/disabled ──
     # Go API TLS (--tls-api) is intentionally not enabled by SSL options.
-    # RustDesk desktop clients always use plain HTTP on the api-server (21121).
+    # RustDesk desktop clients always use plain HTTP on signal_port-2 (21114).
     local env_file="$CONSOLE_PATH/.env"
     local api_port
     api_port=$(grep -oP '^HBBS_API_URL=https?://localhost:\K[0-9]+' "$env_file" 2>/dev/null || echo "$API_PORT")
@@ -5157,7 +4804,7 @@ do_configure_ssl() {
         
     elif [ "${ssl_choice:-1}" != "4" ]; then
         # === Standard SSL (options 1-3): API stays HTTP for RustDesk client compatibility ===
-        # RustDesk desktop clients always send plain HTTP to the api-server (21121).
+        # RustDesk desktop clients always send plain HTTP to signal_port-2 (21114).
         sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$env_file"
         sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$env_file"
         
@@ -5357,7 +5004,8 @@ do_toggle_protocol() {
             print_info "  Panel:         HTTP :5000"
             print_info "  Signal:        TCP  :21116"
             print_info "  Relay:         TCP  :21117"
-            print_info "  Go API:        HTTP :21121 (RustDesk client + REST)"
+            print_info "  Go API:        HTTP :21114"
+            print_info "  Client API:    HTTP :21121"
             echo ""
             print_warning "SSL certificates were NOT deleted (use option C > 4 to remove)"
             ;;
@@ -5459,7 +5107,8 @@ do_toggle_protocol() {
             print_info "  Panel:         HTTPS :5443"
             print_info "  Signal:        TLS   :21116"
             print_info "  Relay:         TLS   :21117"
-            print_info "  Go API:        HTTP  :21121 (RustDesk client + REST, always HTTP)"
+            print_info "  Go API:        HTTP  :21114 (internal, always HTTP)"
+            print_info "  Client API:    auto  :21121"
             ;;
         0|*)
             return
@@ -5754,36 +5403,19 @@ show_menu() {
 }
 
 main() {
-    # Check privileges. Root mode (default) requires root. Rootless mode (--user)
-    # runs as a normal user; running it as root is rejected to avoid creating
-    # system-owned files in $HOME of root.
-    if [ "$USER_MODE" = true ]; then
-        if [ "$EUID" -eq 0 ]; then
-            echo -e "${RED}--user (rootless) mode must NOT be run as root.${NC}"
-            echo "Run it as the unprivileged user that will own the service: $0 --user"
-            exit 1
-        fi
-        echo -e "${CYAN}Rootless mode: installing under \$HOME (systemd --user).${NC}"
-    else
-        if [ "$EUID" -ne 0 ]; then
-            echo -e "${RED}This script requires root privileges!${NC}"
-            echo "Run: sudo $0"
-            echo "Or install without root: $0 --user"
-            exit 1
-        fi
+    # Check root
+    if [ "$EUID" -ne 0 ]; then
+        echo -e "${RED}This script requires root privileges!${NC}"
+        echo "Run: sudo $0"
+        exit 1
     fi
     
     # Auto-detect paths on startup
     echo -e "${CYAN}Detecting installation...${NC}"
     auto_detect_paths
-    apply_user_mode_paths
     echo ""
     sleep 1
-
-    # Rootless prerequisite checks + lingering (no-op in root mode)
-    check_user_mode_prereqs
-    enable_user_lingering
-
+    
     # Auto mode - run installation directly
     if [ "$AUTO_MODE" = true ]; then
         print_info "Running in AUTO mode..."
