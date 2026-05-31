@@ -38,6 +38,60 @@
     const PRESENCE_PING_MS = 15000;
     const STATS_INTERVAL_MS = 1000;
 
+    // Video codecs that can be hardware-decoded in the browser image formats
+    // (webp/jpeg) are always handled by createImageBitmap.
+    const VIDEO_CODECS = ['av1', 'vp9', 'h264'];
+    const isVideoCodec = (fmt) => VIDEO_CODECS.indexOf(fmt) !== -1;
+
+    /**
+     * Probe whether the H.264 elementary stream can be decoded through Media
+     * Source Extensions (JMuxer). MSE, unlike WebCodecs, does NOT require a
+     * secure context, so this path enables GPU-accelerated H.264 over plain
+     * HTTP (no HTTPS / domain / certificate needed).
+     * @returns {boolean}
+     */
+    function hasMseH264() {
+        return typeof window.JMuxer !== 'undefined'
+            && typeof window.MediaSource !== 'undefined'
+            && typeof window.MediaSource.isTypeSupported === 'function'
+            && window.MediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E"');
+    }
+
+    /**
+     * Whether the full WebCodecs `VideoDecoder` pipeline is usable. Requires a
+     * secure context (HTTPS or localhost). When available it unlocks AV1/VP9/
+     * H.264 hardware decode.
+     * @returns {boolean}
+     */
+    function hasWebCodecs() {
+        return window.isSecureContext === true
+            && typeof window.VideoDecoder !== 'undefined';
+    }
+
+    /**
+     * Build the ordered list of codecs the operator can decode, advertised to
+     * the agent in the `desktop_start` payload. The agent intersects this with
+     * its own GPU/encoder ability and picks the first match in its own
+     * preference order (AV1 → VP9 → H264 → WebP).
+     *
+     * - Secure context (WebCodecs): advertise AV1/VP9/H264 for max quality.
+     * - Plain HTTP with MSE H.264: advertise H264 so the agent still sends a
+     *   GPU-encoded video stream (decoded via JMuxer/MSE) instead of falling
+     *   back to MJPEG — this is the key to smooth video without HTTPS.
+     * - Otherwise: image formats only (WebP/JPEG).
+     * @returns {string[]}
+     */
+    function decodableCodecs() {
+        const list = [];
+        if (hasWebCodecs()) {
+            list.push('av1', 'vp9', 'h264');
+        } else if (hasMseH264()) {
+            list.push('h264');
+        }
+        list.push('webp', 'jpeg');
+        return list;
+    }
+
     /**
      * Stub renderer that mirrors the subset of `RDRenderer` used by
      * `remote.js` (resize + scale mode). Frames are painted directly by
@@ -131,6 +185,15 @@
             this._lastStatsTime = 0;
             this._lastFrameTime = 0;
 
+            // Video decode pipeline (WebCodecs / JMuxer-MSE). `_activeFormat`
+            // tracks the encoding the agent is currently sending; it is set
+            // from `desktop_meta` and defaults to the legacy MJPEG path.
+            this._activeFormat = 'jpeg';
+            this._codecString = null;
+            this._video = null;          // RDVideo instance (lazy)
+            this._gotKeyframe = false;
+            this._keyframeRequestedAt = 0;
+
             // Bound handlers (so remove works on disconnect)
             this._onMouseDown = this._handleMouseDown.bind(this);
             this._onMouseUp   = this._handleMouseUp.bind(this);
@@ -221,6 +284,7 @@
             this._unbindInput();
             this._stopPresencePing();
             this._stopStats();
+            this._closeVideoDecoder();
             if (this._readyTimer) { clearTimeout(this._readyTimer); this._readyTimer = null; }
             if (this._ws && this._ws.readyState !== WebSocket.CLOSED) {
                 try { this._ws.close(1000, 'client_disconnect'); }
@@ -358,6 +422,12 @@
                 device_pixel_ratio: dpr,
                 client_css_width:  Math.round(rect.width  || 0),
                 client_css_height: Math.round(rect.height || 0),
+                // Advertise the codecs this browser can decode so the agent
+                // sends a GPU-encoded video stream. Over plain HTTP this still
+                // includes H.264 (decoded via JMuxer/MSE), avoiding the slow
+                // MJPEG fallback. See decodableCodecs().
+                codecs: decodableCodecs(),
+                video_codec: 'auto',
             });
 
             this._startPresencePing();
@@ -367,6 +437,7 @@
             this._unbindInput();
             this._stopPresencePing();
             this._stopStats();
+            this._closeVideoDecoder();
             if (this._readyTimer) { clearTimeout(this._readyTimer); this._readyTimer = null; }
             this._connected = false;
             const reason = (e && e.reason) || 'closed';
@@ -376,9 +447,15 @@
         }
 
         _handleMessage(event) {
-            // Binary fast path: raw JPEG bytes.
+            // Binary fast path: encoded frame bytes. Route to the video
+            // decoder for codec streams (h264/vp9/av1) or the image path for
+            // MJPEG/WebP, based on the format last reported via desktop_meta.
             if (event.data instanceof ArrayBuffer) {
-                this._renderBinaryFrame(event.data);
+                if (isVideoCodec(this._activeFormat)) {
+                    this._feedVideoFrame(event.data);
+                } else {
+                    this._renderBinaryFrame(event.data);
+                }
                 return;
             }
             let msg;
@@ -407,6 +484,7 @@
                         if (this.canvas.width !== msg.width)  this.canvas.width  = msg.width;
                         if (this.canvas.height !== msg.height) this.canvas.height = msg.height;
                     }
+                    this._applyFormat(msg.format, msg.codec_string);
                     break;
 
                 case 'frame':
@@ -474,7 +552,8 @@
         // ── Frame rendering ──────────────────────────────────────────────
 
         _renderBinaryFrame(buf) {
-            const blob = new Blob([buf], { type: 'image/jpeg' });
+            const mime = this._activeFormat === 'webp' ? 'image/webp' : 'image/jpeg';
+            const blob = new Blob([buf], { type: mime });
             this._frameCount++;
             this._frameBytes += buf.byteLength;
             this._lastFrameTime = performance.now();
@@ -506,6 +585,133 @@
                 img.onerror = () => URL.revokeObjectURL(url);
                 img.src = url;
             }
+        }
+
+        // ── Video decode pipeline (WebCodecs / JMuxer-MSE) ───────────────
+
+        /**
+         * React to a format change announced by the agent (`desktop_meta`).
+         * Tears down or (re)creates the video decoder as needed so the binary
+         * frame path knows whether to feed the codec decoder or the image
+         * decoder.
+         * @param {string} [format] e.g. 'h264' | 'vp9' | 'av1' | 'webp' | 'jpeg'
+         * @param {string} [codecString] WebCodecs codec string from the agent
+         */
+        _applyFormat(format, codecString) {
+            const fmt = (format || this._activeFormat || 'jpeg').toLowerCase();
+            if (fmt === this._activeFormat && codecString === this._codecString) return;
+            const prevWasVideo = isVideoCodec(this._activeFormat);
+            this._activeFormat = fmt;
+            this._codecString = codecString || null;
+            this._gotKeyframe = false;
+
+            if (isVideoCodec(fmt)) {
+                this._ensureVideoDecoder(fmt);
+            } else if (prevWasVideo) {
+                // Switched back to an image format — release the decoder.
+                this._closeVideoDecoder();
+            }
+        }
+
+        /**
+         * Lazily create the shared `RDVideo` decoder (WebCodecs when secure,
+         * JMuxer/MSE H.264 otherwise) and bind its decoded-frame callback to
+         * the canvas.
+         * @param {string} codecName
+         */
+        _ensureVideoDecoder(codecName) {
+            if (typeof RDVideo === 'undefined') {
+                console.warn('[CDAP] RDVideo unavailable — cannot decode', codecName);
+                return;
+            }
+            if (this._video && this._video.currentCodec === codecName && this._video.initialized) {
+                return;
+            }
+            this._closeVideoDecoder();
+            const v = new RDVideo();
+            this._video = v;
+            v.onFrame = (frame) => this._drawVideoFrame(frame);
+            v.onError = () => {
+                // A decode error usually means we fed a delta frame before the
+                // first keyframe — ask the agent for a fresh keyframe.
+                this._gotKeyframe = false;
+                this._requestKeyframe();
+            };
+            v.init(codecName).catch((err) => {
+                console.warn('[CDAP] video decoder init failed:', err && err.message);
+                this._video = null;
+            });
+        }
+
+        /**
+         * Feed one binary video frame to the decoder. The agent prefixes each
+         * access unit with a single flag byte (bit0 = keyframe); the Node proxy
+         * has already stripped the 64-byte session id prefix.
+         * @param {ArrayBuffer} buf
+         */
+        _feedVideoFrame(buf) {
+            const bytes = new Uint8Array(buf);
+            if (bytes.length < 2) return;
+            const isKey = (bytes[0] & 1) === 1;
+            const payload = bytes.subarray(1);
+
+            this._frameCount++;
+            this._frameBytes += buf.byteLength;
+            this._lastFrameTime = performance.now();
+
+            if (!this._video) {
+                this._ensureVideoDecoder(this._activeFormat);
+                if (!this._video) return;
+            }
+            // Wait for the first keyframe before feeding the decoder; delta
+            // frames decoded without a reference produce errors/artifacts.
+            if (!this._gotKeyframe) {
+                if (!isKey) {
+                    this._requestKeyframe();
+                    return;
+                }
+                this._gotKeyframe = true;
+            }
+
+            this._video.decode({ data: payload, key: isKey, codec: this._activeFormat });
+        }
+
+        /**
+         * Draw a decoded frame (WebCodecs `VideoFrame` or JMuxer `<video>`
+         * proxy) onto the canvas, resizing it to the frame dimensions.
+         * @param {Object} frame
+         */
+        _drawVideoFrame(frame) {
+            try {
+                const w = frame.displayWidth || this.canvas.width;
+                const h = frame.displayHeight || this.canvas.height;
+                if (w > 0 && h > 0 && (this.canvas.width !== w || this.canvas.height !== h)) {
+                    this.canvas.width = w;
+                    this.canvas.height = h;
+                }
+                const src = frame._source || frame;
+                this.ctx.drawImage(src, 0, 0, this.canvas.width, this.canvas.height);
+            } catch { /* drop frame on draw error */ }
+            finally {
+                try { frame.close && frame.close(); } catch { /* noop */ }
+            }
+        }
+
+        /** Ask the agent to emit a fresh keyframe (throttled to ~1/s). */
+        _requestKeyframe() {
+            const now = performance.now();
+            if (now - this._keyframeRequestedAt < 1000) return;
+            this._keyframeRequestedAt = now;
+            this._send({ type: 'keyframe_request' });
+        }
+
+        /** Tear down the video decoder and release GPU/DOM resources. */
+        _closeVideoDecoder() {
+            if (this._video) {
+                try { this._video.close(); } catch { /* noop */ }
+                this._video = null;
+            }
+            this._gotKeyframe = false;
         }
 
         _renderEncodedFrame(msg) {

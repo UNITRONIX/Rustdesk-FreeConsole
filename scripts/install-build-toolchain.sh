@@ -146,7 +146,10 @@ sudo -u "$BUILD_USER" -H bash -lc "
     source \"\$HOME/.cargo/env\"
     rustup target add x86_64-unknown-linux-gnu
     if [[ $SKIP_WINDOWS -eq 0 ]]; then
-        rustup target add x86_64-pc-windows-gnu
+        # cargo-xwin cross-compiles against the MSVC ABI (it bundles the
+        # Windows SDK/CRT itself), so the MSVC target is what the build
+        # worker selects -- NOT the gnu target.
+        rustup target add x86_64-pc-windows-msvc
     fi
     cargo install --locked tauri-cli --version '^2.0' || true
     cargo install --locked cargo-xwin || true

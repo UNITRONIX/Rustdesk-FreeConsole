@@ -97,10 +97,15 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	}
 
 	var p struct {
-		SessionID    string `json:"session_id"`
-		Quality      int    `json:"quality"`
-		FPS          int    `json:"fps"`
-		OperatorName string `json:"operator_name"`
+		SessionID    string   `json:"session_id"`
+		Quality      int      `json:"quality"`
+		FPS          int      `json:"fps"`
+		OperatorName string   `json:"operator_name"`
+		// VideoCodec is the operator's preferred codec ("", "auto" or concrete).
+		VideoCodec string `json:"video_codec"`
+		// Codecs is the list of codecs the operator can DECODE. A legacy operator
+		// omits this, in which case only JPEG is assumed and used.
+		Codecs []string `json:"codecs"`
 	}
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
 		return
@@ -189,6 +194,13 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	// of leaving them looking at a black canvas.
 	go a.runDesktopWatchdog(ctx, streamer)
 
+	// Resolve the encoder for this session based on the operator's decode
+	// capabilities and the agent's configured codec/hw-accel preferences. This
+	// always succeeds (MJPEG is the universal fallback).
+	plan := a.selectEncoder(p.VideoCodec, p.Codecs)
+	log.Printf("[desktop] session %s codec=%s encoder=%s hw=%s",
+		p.SessionID, plan.codec, plan.ffmpegName, plan.hwAccel)
+
 	go func() {
 		defer close(streamer.done)
 		defer a.desktopStreams.Delete(p.SessionID)
@@ -198,7 +210,7 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 		// in the Tauri wrapper depends on the symmetry of these events.
 		defer fmt.Fprintf(os.Stdout,
 			"SESSION_END:{\"session_id\":%q}\n", p.SessionID)
-		a.streamDesktop(ctx, streamer, p.FPS, p.Quality)
+		a.streamDesktop(ctx, streamer, p.FPS, p.Quality, plan)
 	}()
 }
 
@@ -302,48 +314,49 @@ func (a *Agent) captureAndSendScreenshot() (any, error) {
 
 // ── Codec Offer ──────────────────────────────────────────────────────────
 
-// handleCodecOffer responds with the agent's actual encoding capabilities.
-// os_agent supports JPEG only (screenshot-based). Audio is never supported.
+// handleCodecOffer responds with the agent's actual encoding capabilities,
+// probed live (available ffmpeg encoders + validated hardware back-ends). The
+// operator picks one of these and the agent honours it at desktop_start time.
+// Audio is never supported in os_agent mode.
 func (a *Agent) handleCodecOffer(msg *Message) {
 	var p struct {
 		SessionID string `json:"session_id"`
 	}
 	_ = json.Unmarshal(msg.Payload, &p)
 
-	videoCodec := ""
-	if a.cfg.Screenshot {
-		videoCodec = "jpeg"
+	caps := a.videoCapabilities()
+	primary := ""
+	if len(caps) > 0 {
+		primary = caps[0]
 	}
 
 	_ = a.sendMessage("codec_answer", map[string]any{
-		"session_id":  p.SessionID,
-		"video_codec": videoCodec,
-		"audio_codec": "",
+		"session_id":   p.SessionID,
+		"video_codec":  primary, // most preferred codec the agent can produce
+		"video_codecs": caps,    // full ordered capability list
+		"audio_codec":  "",
 	})
 }
 
 // ── Streaming logic ──────────────────────────────────────────────────────
 
 // streamDesktop tries ffmpeg first, falls back to periodic screenshots.
-func (a *Agent) streamDesktop(ctx context.Context, s *DesktopStreamer, fps, quality int) {
-	if streamWithFFmpeg(ctx, a, s, fps, quality) {
+func (a *Agent) streamDesktop(ctx context.Context, s *DesktopStreamer, fps, quality int, plan encoderPlan) {
+	if streamWithFFmpeg(ctx, a, s, fps, quality, plan) {
 		return
 	}
 	streamFallback(ctx, a, s, fps, quality)
 }
 
-// streamWithFFmpeg launches ffmpeg to capture the screen and streams JPEG
-// frames to the CDAP server. Returns true if ffmpeg was available and ran.
-func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, quality int) bool {
+// streamWithFFmpeg launches ffmpeg to capture the screen and streams encoded
+// frames to the CDAP server using the negotiated codec. Returns true if
+// ffmpeg was available and ran. MJPEG keeps the original zero-regression path
+// (including the gst-launch FullCommand strategies); other codecs append the
+// codec-specific encoder tail to a raw ffmpeg capture.
+func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, quality int, plan encoderPlan) bool {
 	ffmpegPath, err := exec.LookPath("ffmpeg")
 	if err != nil {
 		return false
-	}
-
-	// ffmpeg MJPEG quality scale: 2 (best) – 31 (worst), mapped from 0–100.
-	mquality := 31 - (quality * 29 / 100)
-	if mquality < 2 {
-		mquality = 2
 	}
 
 	// captureFFmpegStrategies is platform-specific and returns an ORDERED list
@@ -356,7 +369,22 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 		return false
 	}
 
+	// ffmpeg MJPEG quality scale: 2 (best) – 31 (worst), mapped from 0–100.
+	// Used only by the FullCommand (gst-launch) MJPEG path.
+	mquality := 31 - (quality * 29 / 100)
+	if mquality < 2 {
+		mquality = 2
+	}
+	isMJPEG := plan.codec == "" || plan.codec == CodecMJPEG
+
 	for _, strat := range strategies {
+		// FullCommand strategies (e.g. gst-launch with jpegenc) produce MJPEG
+		// only; skip them for non-MJPEG codecs and rely on the raw ffmpeg
+		// capture + codec tail instead.
+		if len(strat.FullCommand) > 0 && !isMJPEG {
+			continue
+		}
+
 		var cmd *exec.Cmd
 		if len(strat.FullCommand) > 0 {
 			// Custom binary (e.g. gst-launch-1.0). Substitute %QUALITY% with
@@ -368,13 +396,20 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 			}
 			cmd = exec.CommandContext(ctx, full[0], full[1:]...)
 		} else {
-			args := append([]string{"-hide_banner", "-loglevel", "error"}, strat.Args...)
-			args = append(args,
-				"-vcodec", "mjpeg",
-				"-q:v", fmt.Sprintf("%d", mquality),
-				"-f", "image2pipe",
-				"-",
-			)
+			args := []string{"-hide_banner", "-loglevel", "error"}
+			// Hardware device init must precede the input.
+			args = append(args, plan.preInputArgs()...)
+			args = append(args, strat.Args...)
+			if isMJPEG {
+				args = append(args,
+					"-vcodec", "mjpeg",
+					"-q:v", fmt.Sprintf("%d", mquality),
+					"-f", "image2pipe",
+					"-",
+				)
+			} else {
+				args = append(args, plan.encoderTail(fps, quality)...)
+			}
 			cmd = exec.CommandContext(ctx, ffmpegPath, args...)
 		}
 		stderr := &bytes.Buffer{}
@@ -389,27 +424,9 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 			continue
 		}
 
-		log.Printf("[desktop] ffmpeg streaming via %s: fps=%d quality=%d", strat.Name, fps, quality)
+		log.Printf("[desktop] ffmpeg streaming via %s: codec=%s fps=%d quality=%d", strat.Name, plan.codec, fps, quality)
 
-		frames := 0
-		metaSent := false
-		readJPEGFrames(ctx, stdout, func(frame []byte) {
-			frames++
-			if !metaSent {
-				w, h := jpegDimensions(frame)
-				_ = a.sendMessage("desktop_meta", map[string]any{
-					"session_id": s.sessionID,
-					"format":     "jpeg",
-					"width":      w,
-					"height":     h,
-					"binary":     true,
-				})
-				metaSent = true
-			}
-			if err := sendDesktopBinaryFrame(a, s.sessionID, frame); err == nil {
-				s.recordFrame()
-			}
-		})
+		frames := streamEncodedFrames(ctx, a, s, stdout, plan)
 
 		_ = cmd.Wait()
 
@@ -430,6 +447,80 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 	}
 
 	return false
+}
+
+// streamEncodedFrames reads frames from ffmpeg's stdout according to the plan's
+// framing mode and forwards each as a binary WebSocket message. Image codecs
+// use the legacy binary frame format; video codecs prepend a 1-byte keyframe
+// flag after the session header. Returns the number of frames sent.
+func streamEncodedFrames(ctx context.Context, a *Agent, s *DesktopStreamer, stdout io.Reader, plan encoderPlan) int {
+	frames := 0
+	metaSent := false
+
+	sendMeta := func(format string, w, h int) {
+		if metaSent {
+			return
+		}
+		meta := map[string]any{
+			"session_id": s.sessionID,
+			"format":     format,
+			"binary":     true,
+		}
+		if w > 0 {
+			meta["width"] = w
+		}
+		if h > 0 {
+			meta["height"] = h
+		}
+		if plan.codecString != "" {
+			meta["codec_string"] = plan.codecString
+		}
+		_ = a.sendMessage("desktop_meta", meta)
+		metaSent = true
+	}
+
+	switch plan.mode {
+	case frameModeImage:
+		format := "jpeg"
+		if plan.codec == CodecWebP {
+			format = "webp"
+		}
+		readImageFrames(ctx, stdout, plan.codec, func(frame []byte) {
+			if !metaSent {
+				w, h := imageDimensions(plan.codec, frame)
+				sendMeta(format, w, h)
+			}
+			if err := sendDesktopBinaryFrame(a, s.sessionID, frame); err == nil {
+				frames++
+				s.recordFrame()
+			}
+		})
+	case frameModeAnnexB:
+		readAnnexBFrames(ctx, stdout, func(au []byte, keyframe bool) {
+			sendMeta(plan.codec, 0, 0)
+			if err := sendDesktopVideoFrame(a, s.sessionID, au, keyframe); err == nil {
+				frames++
+				s.recordFrame()
+			}
+		})
+	case frameModeIVF:
+		readIVFFrames(ctx, stdout, plan.codec, func(frame []byte, keyframe bool) {
+			sendMeta(plan.codec, 0, 0)
+			if err := sendDesktopVideoFrame(a, s.sessionID, frame, keyframe); err == nil {
+				frames++
+				s.recordFrame()
+			}
+		})
+	}
+	return frames
+}
+
+// imageDimensions returns the pixel size of a still frame for desktop_meta.
+func imageDimensions(codec string, frame []byte) (int, int) {
+	if codec == CodecWebP {
+		return webpDimensions(frame)
+	}
+	return jpegDimensions(frame)
 }
 
 // readJPEGFrames reads concatenated JPEG frames from r and calls onFrame for
@@ -564,6 +655,59 @@ func sendDesktopBinaryFrame(a *Agent, sessionID string, jpeg []byte) error {
 	// Remaining bytes of the header are already zero from make().
 	copy(buf[frameHeaderSize:], jpeg)
 	return a.sendBinary(buf)
+}
+
+// sendDesktopVideoFrame writes a single encoded video access unit as a binary
+// WebSocket message: [64 bytes session ID, NUL-padded][1 flag byte][payload].
+// Flag bit0 = keyframe. This layout is distinguished from the image-codec
+// layout by the desktop_meta "format" field (h264/vp9/av1), which tells the
+// operator to consume the extra flag byte and feed the payload to a WebCodecs
+// VideoDecoder.
+func sendDesktopVideoFrame(a *Agent, sessionID string, au []byte, keyframe bool) error {
+	if len(sessionID) > frameHeaderSize {
+		sessionID = sessionID[:frameHeaderSize]
+	}
+	buf := make([]byte, frameHeaderSize+1+len(au))
+	copy(buf[:frameHeaderSize], []byte(sessionID))
+	if keyframe {
+		buf[frameHeaderSize] = 1
+	}
+	copy(buf[frameHeaderSize+1:], au)
+	return a.sendBinary(buf)
+}
+
+// webpDimensions parses width and height from a WebP file header. Supports the
+// simple (VP8 lossy), lossless (VP8L) and extended (VP8X) container forms.
+// Returns (0, 0) if the data isn't a parseable WebP.
+func webpDimensions(data []byte) (int, int) {
+	if len(data) < 30 || string(data[0:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+		return 0, 0
+	}
+	switch string(data[12:16]) {
+	case "VP8 ": // simple lossy: 16-bit width/height at offset 26/28 (14-bit each)
+		if len(data) < 30 {
+			return 0, 0
+		}
+		w := int(data[26]) | int(data[27])<<8
+		h := int(data[28]) | int(data[29])<<8
+		return w & 0x3FFF, h & 0x3FFF
+	case "VP8L": // lossless: 14-bit width/height packed after the 0x2F signature
+		if len(data) < 25 || data[20] != 0x2F {
+			return 0, 0
+		}
+		b := uint32(data[21]) | uint32(data[22])<<8 | uint32(data[23])<<16 | uint32(data[24])<<24
+		w := int(b&0x3FFF) + 1
+		h := int((b>>14)&0x3FFF) + 1
+		return w, h
+	case "VP8X": // extended: 24-bit canvas width/height minus one at offset 24/27
+		if len(data) < 30 {
+			return 0, 0
+		}
+		w := int(data[24]) | int(data[25])<<8 | int(data[26])<<16
+		h := int(data[27]) | int(data[28])<<8 | int(data[29])<<16
+		return w + 1, h + 1
+	}
+	return 0, 0
 }
 
 // jpegDimensions parses width and height from the first SOFn marker in a

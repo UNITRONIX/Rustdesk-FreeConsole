@@ -127,6 +127,21 @@ pub struct AgentConfig {
     #[serde(default = "default_true")]
     pub auto_start_sidecar: bool,
 
+    // ── Video codec ─────────────────────────────────────────────────────────
+
+    /// Desktop-stream codec preference forwarded to the Go sidecar.
+    /// "auto" (default) lets the agent pick the most efficient codec the
+    /// operator can decode. Concrete values: "mjpeg", "webp", "h264", "vp9",
+    /// "av1".
+    #[serde(default = "default_codec_auto")]
+    pub video_codec: String,
+
+    /// Hardware-acceleration preference for video encoding. "auto" (default)
+    /// probes for a working GPU encoder; "none" forces software. Concrete
+    /// values: "vaapi", "nvenc", "qsv", "amf", "videotoolbox".
+    #[serde(default = "default_codec_auto")]
+    pub hw_accel: String,
+
     // ── General preferences ─────────────────────────────────────────────────
 
     /// Start Tauri app on system boot.
@@ -141,6 +156,7 @@ pub struct AgentConfig {
 
 fn default_cdap_port() -> u16 { 21122 }
 fn default_true() -> bool { true }
+fn default_codec_auto() -> String { "auto".to_string() }
 
 impl Default for AgentConfig {
     fn default() -> Self {
@@ -161,6 +177,8 @@ impl Default for AgentConfig {
             allow_file_browser: true,
             allow_clipboard: true,
             auto_start_sidecar: true,
+            video_codec: "auto".to_string(),
+            hw_accel: "auto".to_string(),
             autostart: true,
             start_minimized: true,
             language: "en".to_string(),
@@ -314,6 +332,8 @@ impl AgentConfig {
             allow_clipboard: self.allow_clipboard,
             allow_screen_capture: screen_capture,
             require_consent: self.access_mode.requires_consent(),
+            video_codec: self.video_codec.clone(),
+            hw_accel: self.hw_accel.clone(),
             data_dir,
             cdap_port: self.cdap_port,
         }

@@ -77,6 +77,10 @@ pub struct AgentSettings {
     pub allow_file_browser: bool,
     pub allow_clipboard: bool,
     pub auto_start_sidecar: bool,
+    /// Desktop-stream codec: "auto", "mjpeg", "webp", "h264", "vp9", "av1".
+    pub video_codec: String,
+    /// Hardware accel: "auto", "none", "vaapi", "nvenc", "qsv", "amf", "videotoolbox".
+    pub hw_accel: String,
     pub language: String,
     pub autostart: bool,
     pub start_minimized: bool,
@@ -664,6 +668,22 @@ pub async fn cancel_help_request(state: State<'_, AgentState>) -> Result<(), Str
 
 // ─────────────────────────── Settings ───────────────────────────
 
+/// Normalize a codec value from the UI, defaulting to "auto" for unknown input.
+fn normalize_codec(v: &str) -> String {
+    match v.trim().to_lowercase().as_str() {
+        "mjpeg" | "webp" | "h264" | "vp9" | "av1" => v.trim().to_lowercase(),
+        _ => "auto".to_string(),
+    }
+}
+
+/// Normalize a hardware-accel value from the UI, defaulting to "auto".
+fn normalize_hw_accel(v: &str) -> String {
+    match v.trim().to_lowercase().as_str() {
+        "none" | "vaapi" | "nvenc" | "qsv" | "amf" | "videotoolbox" => v.trim().to_lowercase(),
+        _ => "auto".to_string(),
+    }
+}
+
 #[tauri::command]
 pub fn get_agent_settings(state: State<'_, AgentState>) -> Result<AgentSettings, String> {
     let config = state.config.lock().map_err(|e| e.to_string())?;
@@ -678,6 +698,8 @@ pub fn get_agent_settings(state: State<'_, AgentState>) -> Result<AgentSettings,
         allow_file_browser: config.allow_file_browser,
         allow_clipboard: config.allow_clipboard,
         auto_start_sidecar: config.auto_start_sidecar,
+        video_codec: config.video_codec.clone(),
+        hw_accel: config.hw_accel.clone(),
         language: config.language.clone(),
         autostart: config.autostart,
         start_minimized: config.start_minimized,
@@ -706,6 +728,8 @@ pub fn save_agent_settings(
         config.allow_file_browser = settings.allow_file_browser;
         config.allow_clipboard = settings.allow_clipboard;
         config.auto_start_sidecar = settings.auto_start_sidecar;
+        config.video_codec = normalize_codec(&settings.video_codec);
+        config.hw_accel = normalize_hw_accel(&settings.hw_accel);
         config.language = settings.language;
         config.autostart = settings.autostart;
         config.start_minimized = settings.start_minimized;

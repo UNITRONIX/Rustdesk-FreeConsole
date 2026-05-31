@@ -17,6 +17,10 @@ interface AgentSettings {
   allow_file_browser: boolean;
   allow_clipboard: boolean;
   auto_start_sidecar: boolean;
+  /** "auto" | "mjpeg" | "webp" | "h264" | "vp9" | "av1" */
+  video_codec: string;
+  /** "auto" | "none" | "vaapi" | "nvenc" | "qsv" | "amf" | "videotoolbox" */
+  hw_accel: string;
   autostart: boolean;       // matches Rust AgentSettings.autostart
   start_minimized: boolean;
   language: string;
@@ -48,6 +52,8 @@ const SettingsPanel: Component<SettingsPanelProps> = (props) => {
     allow_file_browser: true,
     allow_clipboard: true,
     auto_start_sidecar: true,
+    video_codec: "auto",
+    hw_accel: "auto",
     autostart: true,
     start_minimized: true,
     language: "en",
@@ -217,6 +223,47 @@ const SettingsPanel: Component<SettingsPanelProps> = (props) => {
             <span class="toggle-slider" />
           </label>
         </div>
+
+        <Show when={settings().allow_screen_capture}>
+          <div class="settings-toggle-row">
+            <div>
+              <div class="settings-toggle-label">{t("settings.video_codec")}</div>
+              <div class="settings-toggle-hint">{t("settings.video_codec_hint")}</div>
+            </div>
+            <select
+              class="settings-select"
+              value={settings().video_codec}
+              onChange={(e) => updateSetting("video_codec", e.currentTarget.value)}
+            >
+              <option value="auto">{t("settings.video_codec_auto")}</option>
+              <option value="webp">WebP</option>
+              <option value="h264">H.264</option>
+              <option value="vp9">VP9</option>
+              <option value="av1">AV1</option>
+              <option value="mjpeg">MJPEG</option>
+            </select>
+          </div>
+
+          <div class="settings-toggle-row">
+            <div>
+              <div class="settings-toggle-label">{t("settings.hw_accel")}</div>
+              <div class="settings-toggle-hint">{t("settings.hw_accel_hint")}</div>
+            </div>
+            <select
+              class="settings-select"
+              value={settings().hw_accel}
+              onChange={(e) => updateSetting("hw_accel", e.currentTarget.value)}
+            >
+              <option value="auto">{t("settings.hw_accel_auto")}</option>
+              <option value="none">{t("settings.hw_accel_none")}</option>
+              <option value="vaapi">VA-API</option>
+              <option value="nvenc">NVENC</option>
+              <option value="qsv">Intel QSV</option>
+              <option value="amf">AMD AMF</option>
+              <option value="videotoolbox">VideoToolbox</option>
+            </select>
+          </div>
+        </Show>
 
         <div class="settings-toggle-row">
           <div>
