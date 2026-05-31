@@ -9,6 +9,17 @@
 (function () {
     'use strict';
 
+    // ---- i18n helper ----
+    // window.t (from i18n-client.js) returns the key itself when missing;
+    // wrap it so callers can provide an English fallback string.
+    function t(key, fallback) {
+        if (typeof window.t === 'function') {
+            const val = window.t(key);
+            if (val && val !== key) return val;
+        }
+        return fallback !== undefined ? fallback : key;
+    }
+
     // ---- Transport selection (PR 2.3) ----
     // The unified web client picks the right transport per-device based
     // on `window.__capabilities.transport` (set server-side from the Go
@@ -90,82 +101,48 @@
     const toolbarDeviceId = document.getElementById('toolbar-device-id');
     const tabBar = document.getElementById('session-tabs');
 
-    // ---- Floating toolbar (collapsible RustDesk-style pill) ----
-    // The compact handle is always visible; the action pill expands only on an
-    // explicit click of the expand button. There is NO hover-to-open behaviour.
+    // ---- Auto-hide toolbar ----
+    let toolbarTimeout = null;
+    let toolbarVisible = true;
     let toolbarPinned = false;
 
-    function expandToolbar() {
-        toolbar.classList.add('expanded');
-        const exp = document.getElementById('btn-toolbar-expand');
-        if (exp) {
-            exp.classList.add('active');
-            const ic = exp.querySelector('.material-icons');
-            if (ic) ic.textContent = 'expand_less';
+    function showToolbar() {
+        toolbar.classList.add('visible');
+        toolbarVisible = true;
+        clearTimeout(toolbarTimeout);
+        if (!toolbarPinned) {
+            toolbarTimeout = setTimeout(hideToolbar, 3000);
         }
     }
 
-    function collapseToolbar() {
+    function hideToolbar() {
         if (toolbarPinned) return;
         if (document.querySelector('.toolbar-dropdown-menu.open')) return;
-        toolbar.classList.remove('expanded');
-        const exp = document.getElementById('btn-toolbar-expand');
-        if (exp) {
-            exp.classList.remove('active');
-            const ic = exp.querySelector('.material-icons');
-            if (ic) ic.textContent = 'expand_more';
+        const session = getActiveSession();
+        if (session && session.state === 'streaming') {
+            toolbar.classList.remove('visible');
+            toolbarVisible = false;
         }
     }
 
-    function toggleToolbar() {
-        if (toolbar.classList.contains('expanded')) {
-            // Force-collapse (ignore pin) when the user explicitly clicks.
-            toolbar.classList.remove('expanded');
-            const exp = document.getElementById('btn-toolbar-expand');
-            if (exp) {
-                exp.classList.remove('active');
-                const ic = exp.querySelector('.material-icons');
-                if (ic) ic.textContent = 'expand_more';
-            }
-        } else {
-            expandToolbar();
+    document.body.addEventListener('mousemove', (e) => {
+        // Reveal the toolbar only while the pointer is near the top edge (below
+        // the tab bar). Re-triggering on `toolbarVisible` kept resetting the
+        // 3s auto-hide timer on every mouse move, so the bar never hid and
+        // obscured the remote desktop.
+        if (e.clientY < 80) {
+            showToolbar();
         }
-    }
+    });
 
-    // Legacy compatibility shims — older code paths call these to surface the
-    // status while overlays are visible. They now drive expand/collapse only,
-    // never an auto-hide timer.
-    function showToolbar() { expandToolbar(); }
     function setToolbarAutoHide(enable) {
-        // enable === true  -> session is streaming, keep the pill collapsed.
-        // enable === false -> an overlay is shown, expand so status is visible.
         if (enable) {
-            collapseToolbar();
+            showToolbar();
         } else {
-            expandToolbar();
+            clearTimeout(toolbarTimeout);
+            toolbar.classList.add('visible');
+            toolbarVisible = true;
         }
-    }
-
-    // ---- Independent "back to devices" navigation ----
-    // The rdclient page is opened as a script-launched tab (window.open) from
-    // the web panel. Navigating THIS tab to /devices spawned duplicate panel
-    // tabs that accumulated over time. Instead, close this tab and re-focus the
-    // opener; only fall back to navigation when there is no opener (e.g. the
-    // page was opened directly via URL).
-    function returnToDevices() {
-        try {
-            if (window.opener && !window.opener.closed) {
-                try { window.opener.focus(); } catch { /* ignore */ }
-                window.close();
-                // If the browser blocked window.close() (not script-opened),
-                // fall through to navigation after a short delay.
-                setTimeout(() => {
-                    if (!window.closed) window.location.href = '/devices';
-                }, 150);
-                return;
-            }
-        } catch { /* ignore */ }
-        window.location.href = '/devices';
     }
 
     // ---- Automatic clipboard sync (local -> remote) ----
@@ -365,7 +342,7 @@
             if (sessions.size > 0) {
                 switchSession(sessions.keys().next().value);
             } else {
-                returnToDevices();
+                window.location.href = '/devices';
             }
         }
     }
@@ -476,6 +453,7 @@
             if (isActive(session)) {
                 session.canvas.focus();
                 setToolbarAutoHide(true);
+                try { refreshMonitorButton(session); } catch { /* not ready */ }
             }
             if (session.client.video) {
                 session.client.video.onAutoplayBlocked = () => {
@@ -498,6 +476,25 @@
         c.on('monitors', (list) => {
             const btn = document.getElementById('btn-monitors');
             if (btn) btn.style.display = (Array.isArray(list) && list.length > 1) ? '' : 'none';
+            if (isActive(session)) {
+                try { updateMonitorMenu(); } catch { /* menu not yet built */ }
+            }
+        });
+
+        // Native RustDesk transport: the rdclient emits `peer_info` once the
+        // login completes. Reveal the monitors dropdown when the peer has more
+        // than one display OR supports virtual displays, then rebuild it.
+        c.on('peer_info', () => {
+            if (isActive(session)) {
+                try { refreshMonitorButton(session); } catch { /* not ready */ }
+            }
+        });
+        c.on('display_switched', () => {
+            if (isActive(session)) {
+                try { updateMonitorMenu(); } catch { /* menu not yet built */ }
+            }
+        });
+        c.on('virtual_display_toggled', () => {
             if (isActive(session)) {
                 try { updateMonitorMenu(); } catch { /* menu not yet built */ }
             }
@@ -1149,12 +1146,41 @@
         document.getElementById('monitors-menu')?.classList.toggle('open');
     });
 
+    function refreshMonitorButton(session) {
+        session = session || getActiveSession();
+        if (!session || !session.client) return;
+        const btn = document.getElementById('btn-monitors');
+        if (!btn) return;
+        let monitors = [];
+        let vd = { supported: false };
+        try { monitors = session.client.getMonitors() || []; } catch { monitors = []; }
+        try {
+            vd = (typeof session.client.getVirtualDisplaySupport === 'function')
+                ? session.client.getVirtualDisplaySupport()
+                : { supported: false };
+        } catch { vd = { supported: false }; }
+        const visible = (monitors.length > 1) || (vd && vd.supported);
+        btn.style.display = visible ? '' : 'none';
+        if (visible) updateMonitorMenu();
+    }
+
     function updateMonitorMenu() {
         const session = getActiveSession();
         if (!session || !session.client) return;
-        const monitors = session.client.getMonitors();
+        const monitors = session.client.getMonitors() || [];
         const menu = document.getElementById('monitors-menu');
-        if (!menu || monitors.length < 2) return;
+        if (!menu) return;
+
+        let vd = { supported: false };
+        try {
+            vd = (typeof session.client.getVirtualDisplaySupport === 'function')
+                ? session.client.getVirtualDisplaySupport()
+                : { supported: false };
+        } catch { vd = { supported: false }; }
+
+        // Nothing meaningful to show: a single physical display and no virtual
+        // display support.
+        if (monitors.length < 2 && !(vd && vd.supported)) return;
 
         const btn = document.getElementById('btn-monitors');
         if (btn) btn.style.display = '';
@@ -1163,9 +1189,10 @@
         menu.innerHTML = '';
         if (label) menu.appendChild(label);
 
+        // Physical monitors
         monitors.forEach(m => {
             const item = document.createElement('button');
-            item.className = 'dropdown-item monitor-item';
+            item.className = 'dropdown-item monitor-item' + (m.current ? ' active' : '');
             item.dataset.idx = m.idx;
             item.innerHTML = '<span class="material-icons">' +
                 (m.primary ? 'desktop_windows' : 'monitor') +
@@ -1178,6 +1205,76 @@
             });
             menu.appendChild(item);
         });
+
+        // Virtual displays (RustDesk IDD / Amyuni IDD)
+        if (vd && vd.supported) {
+            const divider = document.createElement('div');
+            divider.className = 'dropdown-divider';
+            menu.appendChild(divider);
+
+            const vdLabel = document.createElement('div');
+            vdLabel.className = 'dropdown-label';
+            vdLabel.textContent = t('remote.virtual_displays', 'Virtual displays');
+            menu.appendChild(vdLabel);
+
+            if (vd.impl === 'rustdesk_idd') {
+                const active = Array.isArray(vd.rustdeskDisplays) ? vd.rustdeskDisplays : [];
+                for (let i = 0; i < 4; i++) {
+                    const idx = i + 1;
+                    const on = active.indexOf(idx) !== -1;
+                    const item = document.createElement('button');
+                    item.className = 'dropdown-item virtual-display-item' + (on ? ' active' : '');
+                    item.innerHTML = '<span class="material-icons">' +
+                        (on ? 'check_box' : 'check_box_outline_blank') + '</span> ' +
+                        escapeHtml(t('remote.virtual_display', 'Virtual display') + ' ' + idx);
+                    item.addEventListener('click', () => {
+                        session.client.toggleVirtualDisplay(idx, !on);
+                    });
+                    menu.appendChild(item);
+                }
+            } else if (vd.impl === 'amyuni_idd') {
+                const count = (typeof vd.amyuniCount === 'number') ? vd.amyuniCount : 0;
+                const row = document.createElement('div');
+                row.className = 'dropdown-item virtual-display-counter';
+
+                const minus = document.createElement('button');
+                minus.className = 'vd-count-btn';
+                minus.innerHTML = '<span class="material-icons">remove</span>';
+                minus.disabled = count <= 0;
+                minus.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    session.client.toggleVirtualDisplay(0, false);
+                });
+
+                const num = document.createElement('span');
+                num.className = 'vd-count-value';
+                num.textContent = String(count);
+
+                const plus = document.createElement('button');
+                plus.className = 'vd-count-btn';
+                plus.innerHTML = '<span class="material-icons">add</span>';
+                plus.disabled = count >= 4;
+                plus.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    session.client.toggleVirtualDisplay(0, true);
+                });
+
+                row.appendChild(minus);
+                row.appendChild(num);
+                row.appendChild(plus);
+                menu.appendChild(row);
+            }
+
+            // Plug out all
+            const plugOut = document.createElement('button');
+            plugOut.className = 'dropdown-item virtual-display-item';
+            plugOut.innerHTML = '<span class="material-icons">power_off</span> ' +
+                escapeHtml(t('remote.plug_out_all', 'Plug out all'));
+            plugOut.addEventListener('click', () => {
+                session.client.toggleVirtualDisplay(-1, false);
+            });
+            menu.appendChild(plugOut);
+        }
     }
 
     // Chat toggle
@@ -1248,81 +1345,12 @@
         withClient(c => c.setViewOnly(isViewOnly));
     });
 
-    // Pin Toolbar toggle — keeps the expanded action pill open
+    // Pin Toolbar toggle
     document.getElementById('btn-pin')?.addEventListener('click', function () {
         toolbarPinned = !toolbarPinned;
         toolbar.classList.toggle('pinned', toolbarPinned);
         this.classList.toggle('active', toolbarPinned);
-        if (toolbarPinned) expandToolbar();
-    });
-
-    // ---- Compact handle: expand / collapse the action pill ----
-    document.getElementById('btn-toolbar-expand')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleToolbar();
-    });
-
-    // ---- Compact handle: fullscreen ----
-    document.getElementById('btn-handle-fullscreen')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        withClient(c => c.toggleFullscreen(viewerContainer));
-    });
-
-    // ---- Compact handle: drag the floating toolbar horizontally ----
-    (function setupToolbarDrag() {
-        const dragBtn = document.getElementById('btn-toolbar-drag');
-        if (!dragBtn) return;
-        let dragging = false;
-        let startX = 0;
-        let startLeft = 0;
-
-        function clampLeft(px) {
-            const w = toolbar.offsetWidth || 200;
-            const min = 8 + w / 2;
-            const max = window.innerWidth - 8 - w / 2;
-            return Math.max(min, Math.min(max, px));
-        }
-
-        function onMove(ev) {
-            if (!dragging) return;
-            ev.preventDefault();
-            const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
-            const next = clampLeft(startLeft + (clientX - startX));
-            toolbar.style.left = next + 'px';
-            toolbar.style.transform = 'translateX(-50%)';
-        }
-
-        function onUp() {
-            if (!dragging) return;
-            dragging = false;
-            toolbar.classList.remove('dragging');
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            document.removeEventListener('touchmove', onMove);
-            document.removeEventListener('touchend', onUp);
-        }
-
-        function onDown(ev) {
-            ev.preventDefault();
-            dragging = true;
-            toolbar.classList.add('dragging');
-            const rect = toolbar.getBoundingClientRect();
-            startLeft = rect.left + rect.width / 2;
-            startX = ev.touches ? ev.touches[0].clientX : ev.clientX;
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-            document.addEventListener('touchmove', onMove, { passive: false });
-            document.addEventListener('touchend', onUp);
-        }
-
-        dragBtn.addEventListener('mousedown', onDown);
-        dragBtn.addEventListener('touchstart', onDown, { passive: false });
-    })();
-
-    // ---- Back to devices (independent tab — close instead of navigating) ----
-    document.getElementById('btn-back-devices')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        returnToDevices();
+        if (toolbarPinned) clearTimeout(toolbarTimeout);
     });
 
     function closeAllDropdowns(exceptId) {
@@ -1354,11 +1382,8 @@
 
     // Fullscreen handler
     document.addEventListener('fullscreenchange', () => {
-        const fsIcon = document.fullscreenElement ? 'fullscreen_exit' : 'fullscreen';
         const icon = document.getElementById('btn-fullscreen')?.querySelector('.material-icons');
-        if (icon) icon.textContent = fsIcon;
-        const handleIcon = document.getElementById('btn-handle-fullscreen')?.querySelector('.material-icons');
-        if (handleIcon) handleIcon.textContent = fsIcon;
+        if (icon) icon.textContent = document.fullscreenElement ? 'fullscreen_exit' : 'fullscreen';
         setTimeout(() => {
             const session = getActiveSession();
             if (session && session.client && session.client.renderer) session.client.renderer.resize();

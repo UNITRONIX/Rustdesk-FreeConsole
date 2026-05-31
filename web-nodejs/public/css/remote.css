@@ -519,6 +519,66 @@
     min-width: 220px;
 }
 
+/* ---- Monitors & Virtual Displays ---- */
+.dropdown-divider {
+    height: 1px;
+    background: var(--border-primary, #30363d);
+    margin: 6px 8px;
+}
+
+.monitor-item.active,
+.virtual-display-item.active {
+    color: var(--accent-blue, #58a6ff);
+}
+
+.monitor-item.active::after,
+.virtual-display-item.active::after {
+    content: '✓';
+    margin-left: auto;
+    font-size: 14px;
+    color: var(--accent-green, #2ea44f);
+}
+
+.virtual-display-counter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.vd-count-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-primary, #30363d);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary, #e6edf3);
+    cursor: pointer;
+}
+
+.vd-count-btn:hover:not(:disabled) {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent-blue, #58a6ff);
+}
+
+.vd-count-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.vd-count-btn .material-icons {
+    font-size: 18px;
+}
+
+.vd-count-value {
+    min-width: 24px;
+    text-align: center;
+    font-weight: 600;
+}
+
 /* Toggle items in dropdown */
 .toggle-item[data-active="true"] {
     color: var(--accent-blue, #58a6ff);

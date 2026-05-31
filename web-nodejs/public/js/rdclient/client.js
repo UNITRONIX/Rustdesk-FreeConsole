@@ -889,13 +889,16 @@ class RDClient {
         // Login successful
         this._peerInfo = resp.peerInfo || null;
         console.log('[RDClient] Login successful, peerInfo:', this._peerInfo ? 'present' : 'null');
+        this._processPeerInfo(this._peerInfo);
         this._emit('log', 'Login successful');
         this._emit('login_success', resp);
+        if (this._peerInfo) this._emit('peer_info', this._peerInfo);
         this._startSession();
     }
 
     _handlePeerInfo(info) {
         this._peerInfo = info;
+        this._processPeerInfo(info);
         this._emit('peer_info', info);
 
         // If we got peer info without hash challenge, session can start
@@ -1006,6 +1009,9 @@ class RDClient {
             return;
         }
         if (misc.switchDisplay) {
+            if (typeof misc.switchDisplay.display === 'number') {
+                this._currentDisplay = misc.switchDisplay.display;
+            }
             this._emit('switch_display', misc.switchDisplay);
             return;
         }
@@ -1445,25 +1451,125 @@ class RDClient {
      */
     getMonitors() {
         if (!this._peerInfo || !this._peerInfo.displays) return [];
+        var current = this.getCurrentDisplay();
         return this._peerInfo.displays.map(function (d, i) {
             return {
                 idx: i,
                 name: d.name || ('Monitor ' + (i + 1)),
                 width: d.width || 0,
                 height: d.height || 0,
-                primary: d.is_primary || false
+                // A display positioned at the origin is the primary one.
+                primary: (d.x === 0 && d.y === 0),
+                current: (i === current)
             };
         });
     }
 
     /**
-     * Switch to a specific monitor.
+     * Index of the currently captured remote display.
+     * @returns {number}
+     */
+    getCurrentDisplay() {
+        if (typeof this._currentDisplay === 'number') return this._currentDisplay;
+        if (this._peerInfo && typeof this._peerInfo.currentDisplay === 'number') {
+            return this._peerInfo.currentDisplay;
+        }
+        return 0;
+    }
+
+    /**
+     * Switch to a specific monitor (RustDesk-compatible).
+     * Sends a SwitchDisplay message followed by a CaptureDisplays message
+     * (matching the desktop client's software-render switch path), then
+     * forces a fresh keyframe.
      * @param {number} monitorIdx - Monitor index
      */
     switchMonitor(monitorIdx) {
         if (this._state !== 'streaming') return;
-        this._sendPeerMessage(this.proto.buildMisc('switchDisplay', monitorIdx));
+        this._currentDisplay = monitorIdx;
+        this._sendPeerMessage(this.proto.buildMisc('switchDisplay', {
+            display: monitorIdx,
+            width: 0,
+            height: 0
+        }));
+        this._sendPeerMessage(this.proto.buildMisc('captureDisplays', {
+            add: [],
+            sub: [],
+            set: [monitorIdx]
+        }));
+        if (this.video) this.video._needKeyframe = true;
         this.sendRefreshScreen();
+        this._emit('display_switched', monitorIdx);
+    }
+
+    // ---- Virtual Displays (RustDesk IDD / Amyuni IDD) ----
+
+    /**
+     * Parse peer info into cached current-display and virtual-display state.
+     * @param {Object} info - PeerInfo from login response or peer_info message
+     */
+    _processPeerInfo(info) {
+        if (!info) return;
+        if (typeof info.currentDisplay === 'number') {
+            this._currentDisplay = info.currentDisplay;
+        } else if (typeof this._currentDisplay !== 'number') {
+            this._currentDisplay = 0;
+        }
+        this._virtualDisplay = this._parseVirtualDisplaySupport(info);
+    }
+
+    /**
+     * Derive virtual-display support from PeerInfo.platformAdditions (JSON).
+     * @param {Object} info
+     * @returns {{supported:boolean, impl:string, rustdeskDisplays:Array<number>, amyuniCount:number}}
+     */
+    _parseVirtualDisplaySupport(info) {
+        var result = { supported: false, impl: '', rustdeskDisplays: [], amyuniCount: 0 };
+        if (!info) return result;
+        var platform = info.platform || '';
+        var additions = info.platformAdditions || info.platform_additions || '';
+        if (typeof additions === 'string') {
+            if (!additions) return result;
+            try { additions = JSON.parse(additions); } catch (e) { return result; }
+        }
+        if (!additions || typeof additions !== 'object') return result;
+        var isInstalled = additions['is_installed'] === true;
+        var impl = additions['idd_impl'] || '';
+        if (platform !== 'Windows' || !isInstalled) return result;
+        if (impl === 'rustdesk_idd') {
+            result.supported = true;
+            result.impl = impl;
+            var list = additions['rustdesk_virtual_displays'];
+            if (Array.isArray(list)) result.rustdeskDisplays = list.slice();
+        } else if (impl === 'amyuni_idd') {
+            result.supported = true;
+            result.impl = impl;
+            var count = additions['amyuni_virtual_displays'];
+            result.amyuniCount = (typeof count === 'number') ? count : 0;
+        }
+        return result;
+    }
+
+    /**
+     * Virtual-display capability of the connected peer.
+     * @returns {{supported:boolean, impl:string, rustdeskDisplays:Array<number>, amyuniCount:number}}
+     */
+    getVirtualDisplaySupport() {
+        return this._virtualDisplay || { supported: false, impl: '', rustdeskDisplays: [], amyuniCount: 0 };
+    }
+
+    /**
+     * Plug in / plug out a virtual display (RustDesk-compatible).
+     * @param {number} index - Display index. Use -1 to plug out all.
+     * @param {boolean} on - True to plug in, false to plug out
+     */
+    toggleVirtualDisplay(index, on) {
+        if (this._state !== 'streaming') return;
+        this._sendPeerMessage(this.proto.buildMisc('toggleVirtualDisplay', {
+            display: index,
+            on: !!on
+        }));
+        this._emit('virtual_display_toggled', { index: index, on: !!on });
     }
 
     // ---- Image Quality Control ----
