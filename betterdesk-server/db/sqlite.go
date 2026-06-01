@@ -92,6 +92,7 @@ func (s *SQLiteDB) Migrate() error {
 			username TEXT UNIQUE NOT NULL,
 			password_hash TEXT NOT NULL,
 			role TEXT NOT NULL DEFAULT 'viewer',
+			auth_provider TEXT NOT NULL DEFAULT 'local',
 			totp_secret TEXT DEFAULT '',
 			totp_enabled INTEGER DEFAULT 0,
 			totp_recovery_codes TEXT DEFAULT NULL,
@@ -390,6 +391,7 @@ func (s *SQLiteDB) Migrate() error {
 		{"peers", "display_name", `ALTER TABLE peers ADD COLUMN display_name TEXT DEFAULT ''`},
 		// users: is_server_admin flag (RBAC Phase 52)
 		{"users", "is_server_admin", `ALTER TABLE users ADD COLUMN is_server_admin INTEGER DEFAULT 0`},
+		{"users", "auth_provider", `ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local'`},
 		// org_users: server_user_id for linking existing users (Issue #106)
 		{"org_users", "server_user_id", `ALTER TABLE org_users ADD COLUMN server_user_id INTEGER DEFAULT 0`},
 	}
@@ -1047,9 +1049,12 @@ func formatTime(t time.Time) string {
 func (s *SQLiteDB) CreateUser(u *User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	res, err := s.db.Exec(`INSERT INTO users (username, password_hash, role, totp_secret, totp_enabled)
-		VALUES (?, ?, ?, ?, ?)`,
-		u.Username, u.PasswordHash, u.Role, u.TOTPSecret, u.TOTPEnabled)
+	if u.AuthProvider == "" {
+		u.AuthProvider = AuthProviderLocal
+	}
+	res, err := s.db.Exec(`INSERT INTO users (username, password_hash, role, auth_provider, totp_secret, totp_enabled)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		u.Username, u.PasswordHash, u.Role, u.AuthProvider, u.TOTPSecret, u.TOTPEnabled)
 	if err != nil {
 		return fmt.Errorf("db: CreateUser: %w", err)
 	}
@@ -1063,9 +1068,9 @@ func (s *SQLiteDB) GetUser(username string) (*User, error) {
 	defer s.mu.RUnlock()
 	u := &User{}
 	err := s.db.QueryRow(`SELECT id, username, password_hash, role, COALESCE(is_server_admin, 0),
-		totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users WHERE username = ?`, username).Scan(
+		COALESCE(auth_provider, 'local'), totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users WHERE username = ?`, username).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsServerAdmin,
-		&u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin)
+		&u.AuthProvider, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1078,9 +1083,9 @@ func (s *SQLiteDB) GetUserByID(id int64) (*User, error) {
 	defer s.mu.RUnlock()
 	u := &User{}
 	err := s.db.QueryRow(`SELECT id, username, password_hash, role, COALESCE(is_server_admin, 0),
-		totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users WHERE id = ?`, id).Scan(
+		COALESCE(auth_provider, 'local'), totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users WHERE id = ?`, id).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsServerAdmin,
-		&u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin)
+		&u.AuthProvider, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1092,7 +1097,7 @@ func (s *SQLiteDB) ListUsers() ([]*User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	rows, err := s.db.Query(`SELECT id, username, password_hash, role, COALESCE(is_server_admin, 0),
-		totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users ORDER BY id`)
+		COALESCE(auth_provider, 'local'), totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("db: ListUsers: %w", err)
 	}
@@ -1101,7 +1106,7 @@ func (s *SQLiteDB) ListUsers() ([]*User, error) {
 	for rows.Next() {
 		u := &User{}
 		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsServerAdmin,
-			&u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin); err != nil {
+			&u.AuthProvider, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
@@ -1113,9 +1118,12 @@ func (s *SQLiteDB) ListUsers() ([]*User, error) {
 func (s *SQLiteDB) UpdateUser(u *User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, err := s.db.Exec(`UPDATE users SET password_hash=?, role=?, is_server_admin=?,
+	if u.AuthProvider == "" {
+		u.AuthProvider = AuthProviderLocal
+	}
+	_, err := s.db.Exec(`UPDATE users SET password_hash=?, role=?, is_server_admin=?, auth_provider=?,
 		totp_secret=?, totp_enabled=?, totp_recovery_codes=? WHERE id=?`,
-		u.PasswordHash, u.Role, u.IsServerAdmin, u.TOTPSecret, u.TOTPEnabled, u.TOTPRecoveryCodes, u.ID)
+		u.PasswordHash, u.Role, u.IsServerAdmin, u.AuthProvider, u.TOTPSecret, u.TOTPEnabled, u.TOTPRecoveryCodes, u.ID)
 	return err
 }
 

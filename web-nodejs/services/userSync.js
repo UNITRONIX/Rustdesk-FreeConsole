@@ -88,6 +88,7 @@ function readGoUsersFromSqlite() {
         'username',
         'password_hash',
         cols.has('role') ? "COALESCE(role, 'viewer') AS role" : "'viewer' AS role",
+        cols.has('auth_provider') ? "COALESCE(auth_provider, 'local') AS auth_provider" : "'local' AS auth_provider",
         cols.has('totp_secret') ? "COALESCE(totp_secret, '') AS totp_secret" : "'' AS totp_secret",
         cols.has('totp_enabled') ? 'COALESCE(totp_enabled, 0) AS totp_enabled' : '0 AS totp_enabled',
         cols.has('created_at') ? 'created_at' : "datetime('now') AS created_at",
@@ -306,12 +307,12 @@ async function backfillFromGo() {
     }
 
     const insertWithId = authDb.prepare(`
-        INSERT INTO users (id, username, password_hash, role, created_at, last_login, totp_secret, totp_enabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (id, username, password_hash, role, auth_provider, created_at, last_login, totp_secret, totp_enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertWithoutId = authDb.prepare(`
-        INSERT INTO users (username, password_hash, role, created_at, last_login, totp_secret, totp_enabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (username, password_hash, role, auth_provider, created_at, last_login, totp_secret, totp_enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     let imported = 0;
@@ -319,6 +320,7 @@ async function backfillFromGo() {
         const username = String(user.username || '').trim();
         const passwordHash = String(user.password_hash || '').trim();
         const role = normalizeRole(user.role);
+        const authProvider = String(user.auth_provider || 'local').trim() || 'local';
         const createdAt = user.created_at || new Date().toISOString();
         const lastLogin = user.last_login || null;
         const totpSecret = user.totp_secret || null;
@@ -327,10 +329,10 @@ async function backfillFromGo() {
 
         try {
             if (Number.isInteger(goId) && goId > 0 && !localIds.has(goId)) {
-                insertWithId.run(goId, username, passwordHash, role, createdAt, lastLogin, totpSecret, totpEnabled);
+                insertWithId.run(goId, username, passwordHash, role, authProvider, createdAt, lastLogin, totpSecret, totpEnabled);
                 localIds.add(goId);
             } else {
-                insertWithoutId.run(username, passwordHash, role, createdAt, lastLogin, totpSecret, totpEnabled);
+                insertWithoutId.run(username, passwordHash, role, authProvider, createdAt, lastLogin, totpSecret, totpEnabled);
             }
             localByUsername.add(normalizeUsername(username));
             imported++;

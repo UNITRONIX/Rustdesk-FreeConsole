@@ -320,6 +320,9 @@
             };
             const roleIcon = roleIcons[user.role] || 'person';
             const roleLabelKey = 'users.role_' + user.role;
+            const provider = (user.auth_provider || 'local').toLowerCase();
+            const providerLabel = _('users.provider_' + provider) || provider;
+            const isLocal = provider === 'local';
             return `
             <tr data-id="${user.id}">
                 <td>
@@ -339,6 +342,11 @@
                     </span>
                 </td>
                 <td>
+                    <span class="provider-badge provider-${provider}" title="${Utils.escapeHtml(providerLabel)}">
+                        ${Utils.escapeHtml(providerLabel)}
+                    </span>
+                </td>
+                <td>
                     <div class="user-orgs-cell" data-user-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}">
                         <span class="skeleton skeleton-text" style="width: 80px; height: 14px;"></span>
                     </div>
@@ -350,9 +358,9 @@
                         <button class="action-btn" title="${_('users.organizations')}" data-action="organizations" data-id="${user.id}" data-username="${Utils.escapeHtml(user.username)}">
                             <span class="material-icons">business</span>
                         </button>
-                        <button class="action-btn" title="${_('users.reset_password')}" data-action="reset-password" data-id="${user.id}">
+                        ${isLocal ? `<button class="action-btn" title="${_('users.reset_password')}" data-action="reset-password" data-id="${user.id}">
                             <span class="material-icons">lock_reset</span>
-                        </button>
+                        </button>` : ''}
                         <button class="action-btn" title="${_('users.edit')}" data-action="edit" data-id="${user.id}">
                             <span class="material-icons">edit</span>
                         </button>
@@ -462,6 +470,23 @@
                 }
                 if (roleSelect) roleSelect.value = user.role;
                 if (passwordInput) passwordInput.placeholder = _('users.password_leave_empty');
+                // LDAP/OIDC accounts are managed by the identity provider:
+                // password cannot be set locally and the role is provider-mapped.
+                const provider = (user.auth_provider || 'local').toLowerCase();
+                if (provider !== 'local') {
+                    if (passwordInput) {
+                        passwordInput.value = '';
+                        passwordInput.disabled = true;
+                        passwordInput.placeholder = _('users.password_managed_by_provider');
+                    }
+                    const passwordGroup = passwordInput ? passwordInput.closest('.form-group') : null;
+                    if (passwordGroup) {
+                        const hint = document.createElement('span');
+                        hint.className = 'form-hint';
+                        hint.textContent = _('users.provider_managed_hint');
+                        passwordGroup.appendChild(hint);
+                    }
+                }
                 renderUserGroupCheckboxes(user.user_groups || []);
             }
         });

@@ -118,6 +118,7 @@ func (pg *PostgresDB) Migrate() error {
 			username             TEXT UNIQUE NOT NULL,
 			password_hash        TEXT NOT NULL,
 			role                 TEXT NOT NULL DEFAULT 'viewer',
+			auth_provider        TEXT NOT NULL DEFAULT 'local',
 			totp_secret          TEXT NOT NULL DEFAULT '',
 			totp_enabled         BOOLEAN NOT NULL DEFAULT FALSE,
 			totp_recovery_codes  TEXT DEFAULT NULL,
@@ -406,6 +407,8 @@ func (pg *PostgresDB) Migrate() error {
 		`ALTER TABLE peers ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''`,
 		// users: server admin flag (RBAC Phase 52)
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_server_admin BOOLEAN NOT NULL DEFAULT FALSE`,
+		// users: authentication provider (Issue #148)
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT NOT NULL DEFAULT 'local'`,
 		// org_users: server_user_id for linking existing users (Issue #106)
 		`ALTER TABLE org_users ADD COLUMN IF NOT EXISTS server_user_id BIGINT NOT NULL DEFAULT 0`,
 	}
@@ -909,10 +912,13 @@ func (pg *PostgresDB) ListConfigByPrefix(prefix string) ([]ServerConfig, error) 
 
 // CreateUser inserts a new user and sets u.ID to the generated primary key.
 func (pg *PostgresDB) CreateUser(u *User) error {
+	if u.AuthProvider == "" {
+		u.AuthProvider = AuthProviderLocal
+	}
 	err := pg.pool.QueryRow(pg.ctx,
-		`INSERT INTO users (username, password_hash, role, totp_secret, totp_enabled)
-		 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		u.Username, u.PasswordHash, u.Role, u.TOTPSecret, u.TOTPEnabled,
+		`INSERT INTO users (username, password_hash, role, auth_provider, totp_secret, totp_enabled)
+		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		u.Username, u.PasswordHash, u.Role, u.AuthProvider, u.TOTPSecret, u.TOTPEnabled,
 	).Scan(&u.ID)
 	if err != nil {
 		return fmt.Errorf("db: CreateUser: %w", err)
@@ -928,9 +934,10 @@ func scanUser(row pgx.Row) (*User, error) {
 	var createdAt *time.Time
 	var lastLogin *time.Time
 	var recoveryCodes *string
+	var authProvider *string
 
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role,
-		&u.TOTPSecret, &u.TOTPEnabled, &createdAt, &lastLogin, &u.IsServerAdmin, &recoveryCodes)
+		&u.TOTPSecret, &u.TOTPEnabled, &createdAt, &lastLogin, &u.IsServerAdmin, &recoveryCodes, &authProvider)
 	if err != nil {
 		return nil, err
 	}
@@ -944,6 +951,11 @@ func scanUser(row pgx.Row) (*User, error) {
 	if recoveryCodes != nil {
 		u.TOTPRecoveryCodes = *recoveryCodes
 	}
+	if authProvider != nil && *authProvider != "" {
+		u.AuthProvider = *authProvider
+	} else {
+		u.AuthProvider = AuthProviderLocal
+	}
 
 	return u, nil
 }
@@ -952,7 +964,7 @@ func scanUser(row pgx.Row) (*User, error) {
 func (pg *PostgresDB) GetUser(username string) (*User, error) {
 	row := pg.pool.QueryRow(pg.ctx,
 		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes FROM users WHERE username = $1`, username)
+		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local') FROM users WHERE username = $1`, username)
 	u, err := scanUser(row)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -964,7 +976,7 @@ func (pg *PostgresDB) GetUser(username string) (*User, error) {
 func (pg *PostgresDB) GetUserByID(id int64) (*User, error) {
 	row := pg.pool.QueryRow(pg.ctx,
 		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes FROM users WHERE id = $1`, id)
+		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local') FROM users WHERE id = $1`, id)
 	u, err := scanUser(row)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -976,7 +988,7 @@ func (pg *PostgresDB) GetUserByID(id int64) (*User, error) {
 func (pg *PostgresDB) ListUsers() ([]*User, error) {
 	rows, err := pg.pool.Query(pg.ctx,
 		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes FROM users ORDER BY id`)
+		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local') FROM users ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("db: ListUsers: %w", err)
 	}
@@ -1001,10 +1013,13 @@ func (pg *PostgresDB) UpdateUser(u *User) error {
 	} else {
 		recoveryCodes = u.TOTPRecoveryCodes
 	}
+	if u.AuthProvider == "" {
+		u.AuthProvider = AuthProviderLocal
+	}
 	_, err := pg.pool.Exec(pg.ctx,
-		`UPDATE users SET password_hash = $1, role = $2, totp_secret = $3, totp_enabled = $4, is_server_admin = $5, totp_recovery_codes = $6
-		 WHERE id = $7`,
-		u.PasswordHash, u.Role, u.TOTPSecret, u.TOTPEnabled, u.IsServerAdmin, recoveryCodes, u.ID)
+		`UPDATE users SET password_hash = $1, role = $2, totp_secret = $3, totp_enabled = $4, is_server_admin = $5, totp_recovery_codes = $6, auth_provider = $7
+		 WHERE id = $8`,
+		u.PasswordHash, u.Role, u.TOTPSecret, u.TOTPEnabled, u.IsServerAdmin, recoveryCodes, u.AuthProvider, u.ID)
 	return err
 }
 

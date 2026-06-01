@@ -210,31 +210,66 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try LDAP authentication if enabled
-	var ldapResult *auth.LDAPResult
-	if s.ldapProvider != nil && s.ldapProvider.IsEnabled() {
-		ldapResult, err = s.ldapProvider.Authenticate(body.Username, body.Password)
-		if err != nil {
-			log.Printf("[LDAP] Auth error for %s: %v", body.Username, err)
-			// LDAP error is non-fatal — fall through to local auth
+	// Determine the authentication provider bound to this account. An account
+	// is authoritatively tied to a single provider (Issue #148): accounts
+	// provisioned via LDAP/OIDC can ONLY authenticate through that provider,
+	// and local accounts can ONLY authenticate with their local password.
+	// This eliminates the dual-password hole where a same-name AD account and
+	// local account could each log in with their own password, and guarantees
+	// that LDAP group→role mapping is always re-applied on LDAP logins.
+	provider := db.AuthProviderLocal
+	if user != nil && user.AuthProvider != "" {
+		provider = user.AuthProvider
+	}
+
+	// OIDC-bound accounts must authenticate through single sign-on, never with
+	// a password on this endpoint.
+	if user != nil && provider == db.AuthProviderOIDC {
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionAuthLoginFailed, s.remoteIP(r), body.Username, map[string]string{"reason": "oidc_account_password_login"})
+		}
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "This account uses single sign-on. Please log in with your identity provider."})
+		return
+	}
+
+	ldapEnabled := s.ldapProvider != nil && s.ldapProvider.IsEnabled()
+
+	// Authenticate through LDAP only when the account is LDAP-bound, or when
+	// it is an unknown user and LDAP is enabled (first-time auto-provisioning).
+	// A local account is NEVER probed against LDAP, even on a username clash.
+	if ldapEnabled && (user == nil || provider == db.AuthProviderLDAP) {
+		ldapResult, ldapErr := s.ldapProvider.Authenticate(body.Username, body.Password)
+		if ldapErr != nil {
+			log.Printf("[LDAP] Auth error for %s: %v", body.Username, ldapErr)
 			ldapResult = nil
 		}
+
 		if ldapResult != nil && ldapResult.Authenticated {
-			// LDAP auth succeeded — auto-provision local user if needed
+			role := ldapResult.Role
+			if role == "" {
+				role = auth.RoleViewer
+			}
+
 			if user == nil {
-				hash, hashErr := auth.HashPassword(body.Password)
+				// Auto-provision an LDAP-bound account. The local password hash
+				// is a random, unusable value — the AD password is NEVER stored
+				// as a local credential, so it cannot be replayed via the local
+				// password path.
+				randomSecret, randErr := auth.GenerateRandomString(32)
+				if randErr != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+					return
+				}
+				unusable, hashErr := auth.HashPassword(randomSecret)
 				if hashErr != nil {
 					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
 					return
 				}
-				role := ldapResult.Role
-				if role == "" {
-					role = auth.RoleViewer
-				}
 				newUser := &db.User{
 					Username:     body.Username,
-					PasswordHash: hash,
+					PasswordHash: unusable,
 					Role:         role,
+					AuthProvider: db.AuthProviderLDAP,
 				}
 				if createErr := s.db.CreateUser(newUser); createErr != nil {
 					log.Printf("[LDAP] Failed to auto-create user %s: %v", body.Username, createErr)
@@ -248,11 +283,20 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 				}
 				log.Printf("[LDAP] Auto-provisioned user %s with role %s", body.Username, role)
 			} else {
-				// Update role from LDAP group mapping if changed
+				// Existing LDAP-bound account — always re-apply the AD group→role
+				// mapping so permission changes in AD take effect on next login.
+				changed := false
 				if ldapResult.Role != "" && ldapResult.Role != user.Role {
 					user.Role = ldapResult.Role
-					_ = s.db.UpdateUser(user)
+					changed = true
 					log.Printf("[LDAP] Updated role for %s to %s", body.Username, ldapResult.Role)
+				}
+				if user.AuthProvider != db.AuthProviderLDAP {
+					user.AuthProvider = db.AuthProviderLDAP
+					changed = true
+				}
+				if changed {
+					_ = s.db.UpdateUser(user)
 				}
 			}
 
@@ -260,8 +304,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 				s.auditLog.Log(audit.ActionAuthLogin, s.remoteIP(r), user.Username, map[string]string{"method": "ldap"})
 			}
 
-			// LDAP users skip TOTP (TOTP is managed locally, not via LDAP)
-			// If user has TOTP enabled locally, still require it
+			// TOTP is managed locally; if enabled, still require it for LDAP users.
 			if user.TOTPEnabled {
 				partialToken, tokenErr := s.jwtManager.GenerateWithTTL(user.Username, "__2fa_pending__", 5*time.Minute)
 				if tokenErr != nil {
@@ -288,10 +331,23 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+
+		// LDAP authentication failed. An LDAP-bound account must NOT fall back
+		// to local password verification — reject immediately.
+		if user != nil && provider == db.AuthProviderLDAP {
+			if s.auditLog != nil {
+				s.auditLog.Log(audit.ActionAuthLoginFailed, s.remoteIP(r), body.Username, map[string]string{"method": "ldap"})
+			}
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
+			return
+		}
+		// Unknown user with failed LDAP — fall through to the local check below,
+		// which returns 401 because user == nil.
 	}
 
-	// Local password verification
-	if user == nil || !auth.VerifyPassword(user.PasswordHash, body.Password) {
+	// Local password verification — only for local accounts. LDAP-bound and
+	// unknown users are rejected here.
+	if user == nil || provider != db.AuthProviderLocal || !auth.VerifyPassword(user.PasswordHash, body.Password) {
 		if s.auditLog != nil {
 			s.auditLog.Log(audit.ActionAuthLoginFailed, s.remoteIP(r), body.Username, nil)
 		}
@@ -492,6 +548,7 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 		ID            int64  `json:"id"`
 		Username      string `json:"username"`
 		Role          string `json:"role"`
+		AuthProvider  string `json:"auth_provider"`
 		TOTPEnabled   bool   `json:"totp_enabled"`
 		IsServerAdmin bool   `json:"is_server_admin"`
 		CreatedAt     string `json:"created_at"`
@@ -500,9 +557,14 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	result := make([]userView, len(users))
 	for i, u := range users {
+		provider := u.AuthProvider
+		if provider == "" {
+			provider = db.AuthProviderLocal
+		}
 		result[i] = userView{
 			ID: u.ID, Username: u.Username, Role: u.Role,
-			TOTPEnabled: u.TOTPEnabled, IsServerAdmin: u.IsServerAdmin,
+			AuthProvider: provider,
+			TOTPEnabled:  u.TOTPEnabled, IsServerAdmin: u.IsServerAdmin,
 			CreatedAt: u.CreatedAt, LastLogin: u.LastLogin,
 		}
 	}
@@ -662,6 +724,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		Username:     body.Username,
 		PasswordHash: hash,
 		Role:         body.Role,
+		AuthProvider: db.AuthProviderLocal,
 	}
 	if err := s.db.CreateUser(user); err != nil {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "Username already exists or DB error"})
@@ -702,6 +765,16 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if body.Password != "" {
+		// Issue #148: LDAP/OIDC accounts have no usable local password. Setting
+		// one here would re-open the dual-authentication hole, so reject it.
+		provider := user.AuthProvider
+		if provider == "" {
+			provider = db.AuthProviderLocal
+		}
+		if provider != db.AuthProviderLocal {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Cannot set a local password on an LDAP/OIDC account"})
+			return
+		}
 		hash, err := auth.HashPassword(body.Password)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Password hash failed"})

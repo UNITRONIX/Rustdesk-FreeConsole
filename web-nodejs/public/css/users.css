@@ -279,6 +279,33 @@
     color: var(--text-secondary, #8b949e);
 }
 
+/* Authentication provider badge (Issue #148) */
+.provider-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs, 12px);
+    font-weight: var(--font-weight-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.provider-badge.provider-local {
+    background: var(--bg-tertiary, #21262d);
+    color: var(--text-secondary, #8b949e);
+}
+
+.provider-badge.provider-ldap {
+    background: rgba(14, 165, 233, 0.15);
+    color: #0ea5e9;
+}
+
+.provider-badge.provider-oidc {
+    background: rgba(168, 85, 247, 0.15);
+    color: #a855f7;
+}
+
 /* Inline org badges in the users table column */
 .user-orgs-cell {
     display: flex;

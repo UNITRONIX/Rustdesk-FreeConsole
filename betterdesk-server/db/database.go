@@ -39,12 +39,23 @@ type ServerConfig struct {
 }
 
 // User represents an API user account.
+// Authentication provider values for User.AuthProvider. Determines how an
+// account is allowed to authenticate. A user bound to a non-local provider
+// can ONLY authenticate via that provider — password login is rejected even
+// when a username collides with a local account (Issue #148).
+const (
+	AuthProviderLocal = "local" // local password (PBKDF2/bcrypt)
+	AuthProviderLDAP  = "ldap"  // LDAP / Active Directory
+	AuthProviderOIDC  = "oidc"  // OpenID Connect / OAuth2 SSO
+)
+
 type User struct {
 	ID                int64  `json:"id"`
 	Username          string `json:"username"`
 	PasswordHash      string `json:"-"`
 	Role              string `json:"role"`            // admin, operator, viewer
 	IsServerAdmin     bool   `json:"is_server_admin"` // Phase 3: separate server admin flag
+	AuthProvider      string `json:"auth_provider"`   // local, ldap, oidc (Issue #148)
 	TOTPSecret        string `json:"-"`
 	TOTPEnabled       bool   `json:"totp_enabled"`
 	TOTPRecoveryCodes string `json:"-"` // JSON array of bcrypt-hashed recovery codes (H4)

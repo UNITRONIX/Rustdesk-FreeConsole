@@ -360,6 +360,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 			Username:     result.Username,
 			PasswordHash: hash,
 			Role:         role,
+			AuthProvider: db.AuthProviderOIDC,
 		}
 		if createErr := s.db.CreateUser(newUser); createErr != nil {
 			log.Printf("[OIDC] Failed to create user %s: %v", result.Username, createErr)
@@ -375,11 +376,20 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("[OIDC] Auto-provisioned user %s with role %s", result.Username, role)
 	} else {
-		// Update role from OIDC group mapping if changed
+		// Update role from OIDC group mapping if changed, and ensure the
+		// account is bound to the OIDC provider (Issue #148).
+		changed := false
 		if result.Role != "" && result.Role != user.Role {
 			user.Role = result.Role
-			_ = s.db.UpdateUser(user)
+			changed = true
 			log.Printf("[OIDC] Updated role for %s to %s", result.Username, result.Role)
+		}
+		if user.AuthProvider != db.AuthProviderOIDC {
+			user.AuthProvider = db.AuthProviderOIDC
+			changed = true
+		}
+		if changed {
+			_ = s.db.UpdateUser(user)
 		}
 	}
 

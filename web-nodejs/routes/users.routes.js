@@ -161,6 +161,7 @@ router.get('/api/users', requireAuth, requirePermission('user.view'), async (req
             id: u.id,
             username: u.username,
             role: u.role,
+            auth_provider: u.auth_provider || 'local',
             created_at: u.created_at,
             last_login: u.last_login,
             user_groups: await getUserGroupGuids(u.id)
