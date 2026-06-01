@@ -45,6 +45,13 @@ SKIP_VERIFY=false
 MINIMAL_MODE=false
 PREFERRED_CONSOLE_TYPE="nodejs"  # Always Node.js (Flask removed in v2.3.0)
 
+# Relay server selection mode:
+#   auto   - detect public IP (default, best for internet-facing servers)
+#   local  - use the server's LAN IP (best for LAN-only deployments)
+#   public - force public IP detection
+# RELAY_SERVERS env var (or --relay-servers) always overrides this with a fixed value.
+RELAY_MODE="${RELAY_MODE:-auto}"
+
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -67,6 +74,18 @@ while [[ $# -gt 0 ]]; do
         --postgresql|--postgres)
             USE_POSTGRESQL=true
             shift
+            ;;
+        --relay-mode)
+            RELAY_MODE="$2"
+            if [ "$RELAY_MODE" != "auto" ] && [ "$RELAY_MODE" != "local" ] && [ "$RELAY_MODE" != "lan" ] && [ "$RELAY_MODE" != "public" ] && [ "$RELAY_MODE" != "wan" ]; then
+                echo "ERROR: --relay-mode must be 'auto', 'local' (lan) or 'public' (wan)"
+                exit 1
+            fi
+            shift 2
+            ;;
+        --relay-servers|--relay)
+            RELAY_SERVERS="$2"
+            shift 2
             ;;
         --protocol)
             PROTOCOL_MODE="$2"
@@ -100,6 +119,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --postgresql     Use PostgreSQL instead of SQLite"
             echo "  --pg-uri URI     PostgreSQL connection URI (implies --postgresql)"
             echo "  --protocol MODE  Set protocol mode: 'http' or 'https'"
+            echo "  --relay-mode M   Relay IP selection: 'auto' (public, default), 'local' (LAN), 'public'"
+            echo "  --relay-servers IP  Force a fixed relay server address (IP or host[:port])"
             echo "  --help, -h       Show this help message"
             echo ""
             echo "Environment variables:"
@@ -110,6 +131,8 @@ while [[ $# -gt 0 ]]; do
             echo "  POSTGRESQL_DB=...       PostgreSQL database (default: betterdesk)"
             echo "  POSTGRESQL_HOST=...     PostgreSQL host (default: localhost)"
             echo "  POSTGRESQL_PORT=...     PostgreSQL port (default: 5432)"
+            echo "  RELAY_MODE=auto|local|public  Relay IP selection mode (default: auto)"
+            echo "  RELAY_SERVERS=...       Force a fixed relay server address (overrides RELAY_MODE)"
             echo "  STORE_ADMIN_CREDENTIALS=true  Persist admin password to .admin_credentials (not recommended)"
             echo "  ADMIN_PASSWORD=...      Set custom admin password (default: auto-generated)"
             exit 0
@@ -397,6 +420,60 @@ get_public_ip() {
     ip=$(curl -s --max-time 5 ifconfig.me 2>/dev/null) && [ -n "$ip" ] && echo "$ip" && return
     ip=$(curl -s --max-time 5 icanhazip.com 2>/dev/null) && [ -n "$ip" ] && echo "$ip" && return
     echo "127.0.0.1"
+}
+
+# Detect the server's primary LAN/private IPv4 address.
+# Used for LAN-only deployments where the public IP is unreachable by clients.
+get_local_ip() {
+    local ip
+    # Primary: source address used to reach the default gateway
+    ip=$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+' | head -1)
+    [ -n "$ip" ] && echo "$ip" && return
+    # Fallback: first non-loopback global-scope address
+    ip=$(ip -4 addr show scope global 2>/dev/null | grep -oP 'inet \K[0-9.]+' | head -1)
+    [ -n "$ip" ] && echo "$ip" && return
+    # Last resort: hostname resolution
+    ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -n "$ip" ] && echo "$ip" && return
+    echo "127.0.0.1"
+}
+
+# Resolve the relay server address according to RELAY_MODE / RELAY_SERVERS.
+# Prints the resolved address to stdout; warnings/info go to stderr so the
+# captured value (server_ip=$(resolve_relay_ip)) stays clean.
+resolve_relay_ip() {
+    # Explicit override always wins
+    if [ -n "$RELAY_SERVERS" ]; then
+        echo "Using fixed relay address (RELAY_SERVERS): $RELAY_SERVERS" >&2
+        echo "$RELAY_SERVERS"
+        return
+    fi
+
+    local ip
+    case "${RELAY_MODE:-auto}" in
+        local|lan)
+            ip=$(get_local_ip)
+            echo "Relay mode 'local': using LAN IP $ip (LAN-only deployment)" >&2
+            ;;
+        public|wan)
+            ip=$(get_public_ip)
+            echo "Relay mode 'public': using public IP $ip" >&2
+            ;;
+        auto|*)
+            ip=$(get_public_ip)
+            # Warn if auto-detection returned a private/loopback address — relay
+            # will not work for remote clients unless this is a LAN-only setup.
+            if [ "$ip" = "127.0.0.1" ] || [[ "$ip" == 10.* ]] || [[ "$ip" == 192.168.* ]] || [[ "$ip" == 172.1[6-9].* ]] || [[ "$ip" == 172.2[0-9].* ]] || [[ "$ip" == 172.3[0-1].* ]]; then
+                echo "WARNING: Auto-detected private/loopback IP: $ip" >&2
+                echo "WARNING: Remote (internet) clients will NOT connect via relay with this address." >&2
+                echo "         For LAN-only use, this is fine. For internet access, run with:" >&2
+                echo "           --relay-servers YOUR.PUBLIC.IP   (or RELAY_SERVERS env var)" >&2
+                echo "         To silence this and use the LAN IP explicitly, run with:" >&2
+                echo "           --relay-mode local" >&2
+            fi
+            ;;
+    esac
+    echo "$ip"
 }
 
 sql_escape_literal() {
@@ -2096,27 +2173,34 @@ setup_services() {
         fi
     fi
     
-    # Get server IP (prefers IPv4 for relay compatibility)
+    # Get relay server IP according to RELAY_MODE / RELAY_SERVERS
+    # (auto = public IP, local = LAN IP, public = forced public, RELAY_SERVERS = fixed)
+    # Interactive relay mode selection (skipped in auto mode or when explicitly set)
+    if [ "$AUTO_MODE" = false ] && [ -z "$RELAY_SERVERS" ] && [ "${RELAY_MODE:-auto}" = "auto" ]; then
+        local _local_ip _public_ip
+        _local_ip=$(get_local_ip)
+        echo ""
+        print_info "Relay server address controls how clients connect for remote sessions."
+        echo -e "  ${CYAN}1)${NC} Internet / public  ${DIM}(auto-detect public IP — default)${NC}"
+        echo -e "  ${CYAN}2)${NC} LAN only           ${DIM}(use this server's local IP: $_local_ip)${NC}"
+        echo -e "  ${CYAN}3)${NC} Custom address     ${DIM}(enter a specific IP or host)${NC}"
+        echo -ne "  ${CYAN}Select relay mode [1]:${NC} "
+        read -r _relay_choice
+        case "$_relay_choice" in
+            2) RELAY_MODE="local" ;;
+            3)
+                echo -ne "  ${CYAN}Enter relay address (IP or host[:port]):${NC} "
+                read -r RELAY_SERVERS
+                ;;
+            *) RELAY_MODE="auto" ;;
+        esac
+        echo ""
+    fi
+
     local server_ip
-    server_ip=$(get_public_ip)
-    
-    # Warn if public IP detection failed — relay will not work for remote clients
-    if [ "$server_ip" = "127.0.0.1" ] || [[ "$server_ip" == 10.* ]] || [[ "$server_ip" == 192.168.* ]] || [[ "$server_ip" == 172.1[6-9].* ]] || [[ "$server_ip" == 172.2[0-9].* ]] || [[ "$server_ip" == 172.3[0-1].* ]]; then
-        print_warning "Detected private/loopback IP: $server_ip"
-        print_warning "Remote clients will NOT be able to connect via relay!"
-        print_warning "If this is a public-facing server, set RELAY_SERVERS env var to your public IP."
-        echo ""
-        echo -e "  ${YELLOW}Example: RELAY_SERVERS=YOUR.PUBLIC.IP sudo ./betterdesk.sh${NC}"
-        echo ""
-    fi
-    
-    # Allow manual override via RELAY_SERVERS env var
-    if [ -n "$RELAY_SERVERS" ]; then
-        server_ip="$RELAY_SERVERS"
-        print_info "Using RELAY_SERVERS override: $server_ip"
-    fi
-    
-    print_info "Server IP: $server_ip"
+    server_ip=$(resolve_relay_ip)
+
+    print_info "Relay server IP: $server_ip (mode: ${RELAY_SERVERS:+fixed}${RELAY_SERVERS:-$RELAY_MODE})"
     print_info "API Port: $API_PORT"
 
     local signal_rate_limit="${SIGNAL_RATE_LIMIT_PER_IP:-20}"
@@ -2528,7 +2612,7 @@ setup_services_minimal() {
     
     # Add relay servers argument
     local SERVER_IP
-    SERVER_IP=$(get_public_ip)
+    SERVER_IP=$(resolve_relay_ip)
     if [ -n "$SERVER_IP" ]; then
         SERVER_ARGS="$SERVER_ARGS -relay-servers $SERVER_IP"
     fi

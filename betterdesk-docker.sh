@@ -44,6 +44,14 @@ POSTGRESQL_HOST="${POSTGRESQL_HOST:-postgres}"  # Container name as host
 POSTGRESQL_PORT="${POSTGRESQL_PORT:-5432}"
 STORE_ADMIN_CREDENTIALS="${STORE_ADMIN_CREDENTIALS:-false}"
 
+# Relay server configuration
+#   auto   - detect public IP (default, best for internet-facing servers)
+#   local  - use the host's LAN IP (best for LAN-only deployments)
+#   public - force public IP detection
+# RELAY_SERVERS env var always overrides this with a fixed value.
+RELAY_MODE="${RELAY_MODE:-auto}"
+RELAY_SERVERS="${RELAY_SERVERS:-}"
+
 # Common data directory paths to search
 COMMON_DATA_PATHS=(
     "/opt/betterdesk-data"
@@ -305,6 +313,54 @@ get_public_ip() {
     ip=$(curl -s --max-time 5 ifconfig.me 2>/dev/null) && [ -n "$ip" ] && echo "$ip" && return
     ip=$(curl -s --max-time 5 icanhazip.com 2>/dev/null) && [ -n "$ip" ] && echo "$ip" && return
     echo "127.0.0.1"
+}
+
+# Detect the host's primary LAN/private IPv4 address (for LAN-only deployments).
+get_local_ip() {
+    local ip
+    ip=$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+' | head -1)
+    [ -n "$ip" ] && echo "$ip" && return
+    ip=$(ip -4 addr show scope global 2>/dev/null | grep -oP 'inet \K[0-9.]+' | head -1)
+    [ -n "$ip" ] && echo "$ip" && return
+    ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -n "$ip" ] && echo "$ip" && return
+    echo "127.0.0.1"
+}
+
+# Resolve the relay server address according to RELAY_MODE / RELAY_SERVERS.
+# Prints the address to stdout; warnings/info go to stderr.
+#   auto   - detect public IP (default)
+#   local  - use the host's LAN IP (LAN-only deployments)
+#   public - force public IP detection
+# RELAY_SERVERS env var always overrides this with a fixed value.
+resolve_relay_ip() {
+    if [ -n "$RELAY_SERVERS" ]; then
+        echo "Using fixed relay address (RELAY_SERVERS): $RELAY_SERVERS" >&2
+        echo "$RELAY_SERVERS"
+        return
+    fi
+
+    local ip
+    case "${RELAY_MODE:-auto}" in
+        local|lan)
+            ip=$(get_local_ip)
+            echo "Relay mode 'local': using LAN IP $ip (LAN-only deployment)" >&2
+            ;;
+        public|wan)
+            ip=$(get_public_ip)
+            echo "Relay mode 'public': using public IP $ip" >&2
+            ;;
+        auto|*)
+            ip=$(get_public_ip)
+            if [ "$ip" = "127.0.0.1" ] || [[ "$ip" == 10.* ]] || [[ "$ip" == 192.168.* ]] || [[ "$ip" == 172.1[6-9].* ]] || [[ "$ip" == 172.2[0-9].* ]] || [[ "$ip" == 172.3[0-1].* ]]; then
+                echo "WARNING: Auto-detected private/loopback IP: $ip" >&2
+                echo "WARNING: Remote (internet) clients will NOT connect via relay with this address." >&2
+                echo "         For internet access set RELAY_SERVERS=YOUR.PUBLIC.IP, or for LAN-only" >&2
+                echo "         deployments set RELAY_MODE=local to silence this warning." >&2
+            fi
+            ;;
+    esac
+    echo "$ip"
 }
 
 sql_escape_literal() {
@@ -758,9 +814,9 @@ EOF
         fi
         DOCKER_ADMIN_PASSWORD="$admin_password"
 
-        # Get server public IP for relay-servers
+        # Get relay server address according to RELAY_MODE / RELAY_SERVERS
         local server_ip
-        server_ip=$(get_public_ip)
+        server_ip=$(resolve_relay_ip)
 
         local signal_rate_limit="${SIGNAL_RATE_LIMIT_PER_IP:-20}"
         if ! [[ "$signal_rate_limit" =~ ^[0-9]+$ ]]; then

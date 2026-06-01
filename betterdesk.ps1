@@ -44,6 +44,15 @@
 .PARAMETER PgUri
     PostgreSQL connection URI (implies -PostgreSQL)
 
+.PARAMETER RelayMode
+    Relay IP selection mode: 'auto' (detect public IP, default), 'local'/'lan'
+    (use the server's LAN IP for LAN-only deployments), or 'public'/'wan'
+    (force public IP detection). Overridden by -RelayServers / RELAY_SERVERS.
+
+.PARAMETER RelayServers
+    Force a fixed relay server address (IP or host[:port]). Always overrides
+    -RelayMode. Equivalent to the RELAY_SERVERS environment variable.
+
 .PARAMETER RunAsRoot
     Run the Windows services as LocalSystem (legacy). By default the services
     run under low-privilege per-service virtual accounts (privilege separation).
@@ -61,6 +70,14 @@
     Automatic installation with PostgreSQL
 
 .EXAMPLE
+    .\betterdesk.ps1 -Auto -RelayMode local
+    Automatic LAN-only installation (relay uses the server's local IP)
+
+.EXAMPLE
+    .\betterdesk.ps1 -Auto -RelayServers 203.0.113.10
+    Automatic installation with a fixed public relay address
+
+.EXAMPLE
     .\betterdesk.ps1 -SkipVerify
     Skip binary verification
 #>
@@ -74,6 +91,9 @@ param(
     [string]$PgUri = "",
     [ValidateSet('http', 'https', '')]
     [string]$Protocol = "",
+    [ValidateSet('auto', 'local', 'lan', 'public', 'wan', '')]
+    [string]$RelayMode = "",
+    [string]$RelayServers = "",
     [switch]$RunAsRoot,
     [switch]$Flask  # Deprecated, kept for backward compatibility
 )
@@ -111,6 +131,16 @@ $script:POSTGRESQL_PASS = if ($env:POSTGRESQL_PASS) { $env:POSTGRESQL_PASS } els
 $script:POSTGRESQL_DB = if ($env:POSTGRESQL_DB) { $env:POSTGRESQL_DB } else { "betterdesk" }
 $script:POSTGRESQL_HOST = if ($env:POSTGRESQL_HOST) { $env:POSTGRESQL_HOST } else { "localhost" }
 $script:POSTGRESQL_PORT = if ($env:POSTGRESQL_PORT) { $env:POSTGRESQL_PORT } else { "5432" }
+
+# Relay server configuration
+#   auto   - detect public IP (default, best for internet-facing servers)
+#   local  - use the server's LAN IP (best for LAN-only deployments)
+#   public - force public IP detection
+# RELAY_SERVERS env var (or -RelayServers) always overrides this with a fixed value.
+$script:RELAY_MODE = if ($RelayMode) { $RelayMode } elseif ($env:RELAY_MODE) { $env:RELAY_MODE } else { "auto" }
+if ($script:RELAY_MODE -eq "lan") { $script:RELAY_MODE = "local" }
+if ($script:RELAY_MODE -eq "wan") { $script:RELAY_MODE = "public" }
+$script:RELAY_SERVERS = if ($RelayServers) { $RelayServers } elseif ($env:RELAY_SERVERS) { $env:RELAY_SERVERS } else { "" }
 
 # Go server configuration
 $script:GO_SERVER_SOURCE = Join-Path $script:ScriptDir "betterdesk-server"
@@ -382,17 +412,73 @@ function Invoke-MenuChoose {
 }
 
 function Get-PublicIP {
-    try {
-        $ip = (Invoke-WebRequest -Uri "https://ifconfig.me/ip" -UseBasicParsing -TimeoutSec 10).Content.Trim()
-        return $ip
-    } catch {
+    # Prefer IPv4 endpoints first: many RustDesk clients cannot use IPv6-only relay.
+    $endpoints = @(
+        "https://ipv4.icanhazip.com",
+        "https://ifconfig.me/ip",
+        "https://icanhazip.com"
+    )
+    foreach ($url in $endpoints) {
         try {
-            $ip = (Invoke-WebRequest -Uri "https://icanhazip.com" -UseBasicParsing -TimeoutSec 10).Content.Trim()
-            return $ip
-        } catch {
-            return "127.0.0.1"
+            $ip = (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10).Content.Trim()
+            if ($ip) { return $ip }
+        } catch {}
+    }
+    return "127.0.0.1"
+}
+
+# Detect the server's primary LAN/private IPv4 address.
+# Used for LAN-only deployments where the public IP is unreachable by clients.
+function Get-LocalIP {
+    try {
+        # Primary: source address used to reach an external destination
+        $route = Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+            Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' } |
+            Select-Object -First 1
+        if ($route -and $route.IPv4Address) {
+            return $route.IPv4Address.IPAddress
+        }
+    } catch {}
+    try {
+        # Fallback: first non-loopback, non-APIPA IPv4 address
+        $ip = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            Where-Object { $_.IPAddress -ne '127.0.0.1' -and $_.IPAddress -notlike '169.254.*' -and $_.PrefixOrigin -ne 'WellKnown' } |
+            Select-Object -First 1
+        if ($ip) { return $ip.IPAddress }
+    } catch {}
+    return "127.0.0.1"
+}
+
+# Resolve the relay server address according to RELAY_MODE / RELAY_SERVERS.
+# Returns the resolved address; warnings are written to the host (not the value).
+function Resolve-RelayIp {
+    # Explicit override always wins
+    if ($script:RELAY_SERVERS) {
+        Print-Info "Using fixed relay address (RelayServers): $($script:RELAY_SERVERS)"
+        return $script:RELAY_SERVERS
+    }
+
+    $ip = ""
+    switch ($script:RELAY_MODE) {
+        "local" {
+            $ip = Get-LocalIP
+            Print-Info "Relay mode 'local': using LAN IP $ip (LAN-only deployment)"
+        }
+        "public" {
+            $ip = Get-PublicIP
+            Print-Info "Relay mode 'public': using public IP $ip"
+        }
+        default {
+            $ip = Get-PublicIP
+            if ($ip -eq "127.0.0.1" -or $ip -match '^10\.' -or $ip -match '^192\.168\.' -or $ip -match '^172\.(1[6-9]|2[0-9]|3[0-1])\.') {
+                Print-Warning "Auto-detected private/loopback IP: $ip"
+                Print-Warning "Remote (internet) clients will NOT connect via relay with this address."
+                Print-Warning "For LAN-only use this is fine. For internet access run with: -RelayServers YOUR.PUBLIC.IP"
+                Print-Warning "To use the LAN IP explicitly run with: -RelayMode local"
+            }
         }
     }
+    return $ip
 }
 
 function Generate-RandomPassword {
@@ -1664,44 +1750,27 @@ function Setup-Services {
         }
     }
     
-    $serverIP = Get-PublicIP
-    
-    # IPv6-only relay detection: many RustDesk clients cannot connect via IPv6-only relay.
-    # If the detected IP is IPv6, try to also resolve an IPv4 address for dual-stack support.
-    if ($serverIP -match ':') {
-        Print-Warning "Detected IPv6 address: $serverIP"
-        try {
-            $ipv4Addr = (Invoke-WebRequest -Uri "https://ipv4.icanhazip.com" -UseBasicParsing -TimeoutSec 5).Content.Trim()
-            if ($ipv4Addr -and $ipv4Addr -notmatch ':') {
-                $serverIP = $ipv4Addr
-                Print-Info "Using IPv4 address for relay compatibility: $serverIP"
-                Print-Info "(IPv6-only relay causes connection failures on many RustDesk clients)"
-            } else {
-                Print-Warning "No IPv4 address found. Relay connections may fail for clients without IPv6 support."
-                Print-Warning "If clients report 'Relay connection failed', set RELAY_SERVERS to an IPv4 address manually."
-            }
-        } catch {
-            Print-Warning "Could not detect IPv4 address. If relay fails, configure RELAY_SERVERS manually."
+    # Resolve relay server IP according to RELAY_MODE / RELAY_SERVERS
+    # Interactive relay mode selection (skipped in auto mode or when explicitly set)
+    if (-not $script:AUTO_MODE -and -not $script:RELAY_SERVERS -and $script:RELAY_MODE -eq "auto") {
+        $localIp = Get-LocalIP
+        Write-Host ""
+        Print-Info "Relay server address controls how clients connect for remote sessions."
+        Write-Host "  1) Internet / public  (auto-detect public IP - default)" -ForegroundColor Cyan
+        Write-Host "  2) LAN only           (use this server's local IP: $localIp)" -ForegroundColor Cyan
+        Write-Host "  3) Custom address     (enter a specific IP or host)" -ForegroundColor Cyan
+        $relayChoice = Read-Host "  Select relay mode [1]"
+        switch ($relayChoice) {
+            "2" { $script:RELAY_MODE = "local" }
+            "3" { $script:RELAY_SERVERS = Read-Host "  Enter relay address (IP or host[:port])" }
+            default { $script:RELAY_MODE = "auto" }
         }
-    }
-    
-    # Warn if public IP detection failed -- relay will not work for remote clients
-    if ($serverIP -eq "127.0.0.1" -or $serverIP -match "^10\." -or $serverIP -match "^192\.168\." -or $serverIP -match "^172\.(1[6-9]|2[0-9]|3[0-1])\.") {
-        Print-Warning "Detected private/loopback IP: $serverIP"
-        Print-Warning "Remote clients will NOT be able to connect via relay!"
-        Print-Warning "If this is a public-facing server, set RELAY_SERVERS env var to your public IP."
-        Write-Host ""
-        Write-Host "  Example: `$env:RELAY_SERVERS='YOUR.PUBLIC.IP'; .\betterdesk.ps1" -ForegroundColor Yellow
         Write-Host ""
     }
-    
-    # Allow manual override via RELAY_SERVERS env var
-    if ($env:RELAY_SERVERS) {
-        $serverIP = $env:RELAY_SERVERS
-        Print-Info "Using RELAY_SERVERS override: $serverIP"
-    }
-    
-    Print-Info "Server IP: $serverIP"
+
+    $serverIP = Resolve-RelayIp
+
+    Print-Info "Relay server IP: $serverIP (mode: $(if ($script:RELAY_SERVERS) { 'fixed' } else { $script:RELAY_MODE }))"
     Print-Info "API Port: $script:API_PORT"
     
     # Build database value (raw). The DSN is passed to the Go server through NSSM
@@ -2546,8 +2615,8 @@ function Setup-ServicesMinimal {
     # Build arguments
     $serverArgs = "-key `"$keyDir`" -db `"$dbDir`""
     
-    # Add relay servers
-    $serverIP = Get-PublicIP
+    # Add relay servers (honors RELAY_MODE / RelayServers)
+    $serverIP = Resolve-RelayIp
     if ($serverIP) {
         $serverArgs += " -relay-servers $serverIP"
     }
