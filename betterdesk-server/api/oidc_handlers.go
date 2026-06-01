@@ -245,6 +245,21 @@ func (s *Server) handleOIDCLoginStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleSSOStatus reports whether any SSO provider (LDAP, OIDC) is enabled.
+// GET /api/auth/sso/status
+// Public endpoint — Node.js console queries this (cached) so it can delegate
+// unknown-user logins to the Go server's LDAP/OIDC flow without requiring the
+// admin to set BETTERDESK_AUTH_AUTOCREATE manually (#148).
+func (s *Server) handleSSOStatus(w http.ResponseWriter, r *http.Request) {
+	ldapEnabled := s.ldapProvider != nil && s.ldapProvider.IsEnabled()
+	oidcEnabled := s.oidcProvider != nil && s.oidcProvider.IsEnabled()
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"ldap_enabled": ldapEnabled,
+		"oidc_enabled": oidcEnabled,
+		"any_enabled":  ldapEnabled || oidcEnabled,
+	})
+}
+
 // handleOIDCAuthorize starts the OIDC authorization code flow.
 // GET /api/auth/oidc/authorize
 // Public endpoint — redirects user to the IdP's authorization page.

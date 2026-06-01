@@ -40,7 +40,7 @@ async function checkGoServerHealth() {
         return _goHealthCache.healthy;
     }
 
-    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21121/api';
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
     let healthUrl;
     try {
         const base = new URL(apiUrl);
@@ -90,7 +90,7 @@ async function checkGoServerHealth() {
  * @returns {Promise<Object|null>}
  */
 function authenticateViaGo(username, password) {
-    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21121/api';
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
     let authUrl;
     try {
         const base = new URL(apiUrl);
@@ -150,7 +150,7 @@ function authenticateViaGo(username, password) {
  * @returns {Promise<Object|null>} — { token, role, username } or null
  */
 function verifyTotpViaGo(partialToken, code) {
-    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21121/api';
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
     let url;
     try {
         const base = new URL(apiUrl);
@@ -285,6 +285,61 @@ async function verifyPassword(password, hash) {
 }
 
 /**
+ * Cached lookup of the Go server's SSO status. Used to decide whether
+ * unknown-user logins should be delegated to Go (for LDAP/OIDC users who
+ * don't have a local account yet). Cache lasts 60s to avoid hammering the
+ * Go server on every login attempt. Returns { ldap, oidc, any } booleans.
+ */
+let _ssoStatusCache = { at: 0, value: null };
+const SSO_STATUS_TTL_MS = 60_000;
+
+function getGoSSOStatus() {
+    const now = Date.now();
+    if (_ssoStatusCache.value && (now - _ssoStatusCache.at) < SSO_STATUS_TTL_MS) {
+        return Promise.resolve(_ssoStatusCache.value);
+    }
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
+    let statusUrl;
+    try {
+        const base = new URL(apiUrl);
+        statusUrl = new URL('/api/auth/sso/status', base.origin);
+    } catch (_) {
+        return Promise.resolve({ ldap: false, oidc: false, any: false });
+    }
+    const mod = statusUrl.protocol === 'https:' ? https : http;
+    const timeout = config.betterdeskApiTimeout || 3000;
+
+    return new Promise((resolve) => {
+        const req = mod.request(statusUrl, {
+            method: 'GET',
+            timeout,
+            rejectUnauthorized: !config.allowSelfSignedCerts,
+        }, (res) => {
+            let data = '';
+            res.on('data', c => { data += c; });
+            res.on('end', () => {
+                let value = { ldap: false, oidc: false, any: false };
+                if (res.statusCode === 200) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        value = {
+                            ldap: !!parsed.ldap_enabled,
+                            oidc: !!parsed.oidc_enabled,
+                            any: !!parsed.any_enabled,
+                        };
+                    } catch (_) { /* keep defaults */ }
+                }
+                _ssoStatusCache = { at: now, value };
+                resolve(value);
+            });
+        });
+        req.on('error', () => resolve({ ldap: false, oidc: false, any: false }));
+        req.on('timeout', () => { req.destroy(); resolve({ ldap: false, oidc: false, any: false }); });
+        req.end();
+    });
+}
+
+/**
  * Fallback authentication against Go server's /api/auth/login endpoint.
  * Used when local (Node.js) auth fails — the Go server may have a different
  * password hash (e.g., after fresh install race condition, or manual password
@@ -292,7 +347,7 @@ async function verifyPassword(password, hash) {
  * Returns { role: string } on success, or null on failure.
  */
 function tryGoServerAuth(username, password) {
-    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21121/api';
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
     let authUrl;
     try {
         const base = new URL(apiUrl);
@@ -439,15 +494,25 @@ async function authenticate(username, password) {
     // Timing-safe: do a real hash comparison to prevent user enumeration
     await bcrypt.compare(password, DUMMY_HASH);
 
-    // Auto-creation from Go server is OPT-IN only (SECURITY audit fix H-01).
-    // A compromised Go server would otherwise auto-provision admin accounts.
-    const autoCreateEnabled = process.env.BETTERDESK_AUTH_AUTOCREATE === 'true';
+    // Auto-provisioning is allowed when EITHER:
+    //   1. BETTERDESK_AUTH_AUTOCREATE=true is set explicitly (legacy opt-in)
+    //   2. Go server reports LDAP or OIDC is enabled — the admin has
+    //      intentionally configured an external identity provider so users
+    //      from that provider must be allowed to log in on first attempt (#148).
+    const autoCreateEnv = process.env.BETTERDESK_AUTH_AUTOCREATE === 'true';
+    const ssoStatus = await getGoSSOStatus();
+    const autoCreateEnabled = autoCreateEnv || ssoStatus.any;
+
     if (autoCreateEnabled) {
         const goResult = await tryGoServerAuth(username, password);
         if (goResult) {
-            console.log(`[AUTH] Go server accepted credentials for '${username}' — creating local user (BETTERDESK_AUTH_AUTOCREATE=true)`);
+            const reason = autoCreateEnv ? 'BETTERDESK_AUTH_AUTOCREATE=true'
+                : ssoStatus.ldap && ssoStatus.oidc ? 'LDAP+OIDC enabled on Go server'
+                : ssoStatus.ldap ? 'LDAP enabled on Go server'
+                : 'OIDC enabled on Go server';
+            console.log(`[AUTH] Go server accepted credentials for '${username}' — provisioning local user (${reason})`);
             const bcryptHash = await hashPassword(password);
-            await db.createUser(username, bcryptHash, goResult.role || 'admin');
+            await db.createUser(username, bcryptHash, goResult.role || 'viewer');
             const created = await db.getUserByUsername(username);
             if (created) {
                 await db.updateLastLogin(created.id);
@@ -456,7 +521,7 @@ async function authenticate(username, password) {
                     username: created.username,
                     role: created.role,
                     preferred_language: created.preferred_language || null,
-                    totpRequired: false,
+                    totpRequired: !!goResult.requires2fa,
                 };
             }
         }

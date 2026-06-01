@@ -1172,14 +1172,10 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			path == "/api/server/pubkey" || path == "/api/server/stats" ||
 			path == "/api/login" || path == "/api/login-options" || path == "/api/logout" ||
 			path == "/api/heartbeat" || path == "/api/sysinfo" || path == "/api/sysinfo_ver" ||
-			path == "/api/audit/conn" && r.Method == http.MethodPost ||
-			path == "/api/audit/file" && r.Method == http.MethodPost ||
-			path == "/api/audit/alarm" && r.Method == http.MethodPost ||
-			path == "/api/server-key" || path == "/api/server-key/fingerprint" ||
-			path == "/api/software" || path == "/api/software/client-download-link" ||
 			path == "/api/branding" ||
 			path == "/api/org/login" ||
 			path == "/api/auth/oidc/status" || path == "/api/auth/oidc/authorize" || path == "/api/auth/oidc/callback" ||
+			path == "/api/auth/oidc/exchange" || path == "/api/auth/sso/status" ||
 			strings.HasPrefix(path, "/ws/bd-mgmt/") ||
 			path == "/api/devices/register" || path == "/api/devices/register/status" {
 			next.ServeHTTP(w, r)

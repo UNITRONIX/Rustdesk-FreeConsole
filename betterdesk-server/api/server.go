@@ -256,16 +256,6 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("PUT /api/chat/groups/", s.requirePermission(auth.PermChatAccess, s.handleChatUpdateGroup))
 	mux.HandleFunc("DELETE /api/chat/groups/", s.requirePermission(auth.PermChatAccess, s.handleChatDeleteGroup))
 
-	// Help requests (raised by agents via CDAP, managed by operators).
-	// Path-suffix routes (/acknowledge, /resolve) are registered before the
-	// generic /api/help/requests/ prefix so Go's ServeMux matches the longer
-	// pattern first.
-	mux.HandleFunc("POST /api/help/requests/{id}/acknowledge", s.requirePermission(auth.PermChatAccess, s.handleAcknowledgeHelpRequest))
-	mux.HandleFunc("POST /api/help/requests/{id}/resolve", s.requirePermission(auth.PermChatAccess, s.handleResolveHelpRequest))
-	mux.HandleFunc("GET /api/help/requests/{id}", s.requirePermission(auth.PermChatAccess, s.handleGetHelpRequest))
-	mux.HandleFunc("GET /api/help/requests", s.requirePermission(auth.PermChatAccess, s.handleListHelpRequests))
-	mux.HandleFunc("POST /api/help/requests", s.requirePermission(auth.PermChatAccess, s.handleCreateHelpRequest))
-
 	// Organizations — org membership enforced on org-specific routes
 	mux.HandleFunc("POST /api/org", s.requirePermission(auth.PermOrgCreate, s.handleCreateOrg))
 	mux.HandleFunc("GET /api/org", s.handleListOrgs) // data-scoped in handler
@@ -406,6 +396,12 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/auth/oidc/status", s.handleOIDCLoginStatus)
 	mux.HandleFunc("GET /api/auth/oidc/authorize", s.handleOIDCAuthorize)
 	mux.HandleFunc("GET /api/auth/oidc/callback", s.handleOIDCCallback)
+	mux.HandleFunc("POST /api/auth/oidc/exchange", s.handleOIDCExchange)
+
+	// Combined SSO status — public, used by Node.js console to detect
+	// whether LDAP or OIDC is enabled and auto-provision LDAP-authenticated
+	// users on first login (#148).
+	mux.HandleFunc("GET /api/auth/sso/status", s.handleSSOStatus)
 
 	// Branding (GET is public for desktop clients, POST is admin)
 	mux.HandleFunc("GET /api/branding", s.rateLimitPublic(s.brandingLimiter, s.handleGetBranding))
