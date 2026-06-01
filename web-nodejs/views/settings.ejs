@@ -1275,6 +1275,26 @@
                             <span class="backup-stat-label">${_('backup.stat_backend')}</span>
                             <span class="backup-stat-value" id="backup-stat-backend">-</span>
                         </div>
+                        <div class="backup-stat-row">
+                            <span class="backup-stat-label">${_('backup.stat_database')}</span>
+                            <span class="backup-stat-value" id="backup-stat-database">-</span>
+                        </div>
+                        <div class="backup-stat-row">
+                            <span class="backup-stat-label">${_('backup.stat_keys')}</span>
+                            <span class="backup-stat-value" id="backup-stat-keys">-</span>
+                        </div>
+                        <div class="backup-stat-row">
+                            <span class="backup-stat-label">${_('backup.stat_env')}</span>
+                            <span class="backup-stat-value" id="backup-stat-env">-</span>
+                        </div>
+                        <div class="backup-stat-row">
+                            <span class="backup-stat-label">${_('backup.stat_uploads')}</span>
+                            <span class="backup-stat-value" id="backup-stat-uploads">-</span>
+                        </div>
+                    </div>
+                    <div class="restore-warning-box">
+                        <span class="material-icons">warning</span>
+                        <span>${_('backup.security_warning')}</span>
                     </div>
                     <div class="backup-actions">
                         <button class="btn btn-primary" id="backup-download-btn">
@@ -1297,36 +1317,40 @@
                 <div class="settings-section-body">
                     <div class="restore-options">
                         <label class="restore-option">
-                            <input type="checkbox" id="restore-settings" checked>
-                            <span>${_('backup.opt_settings')}</span>
+                            <input type="checkbox" id="restore-database" checked>
+                            <span>${_('backup.opt_database')}</span>
+                            <small class="restore-hint">${_('backup.opt_database_hint')}</small>
                         </label>
                         <label class="restore-option">
-                            <input type="checkbox" id="restore-branding" checked>
-                            <span>${_('backup.opt_branding')}</span>
-                        </label>
-                        <label class="restore-option">
-                            <input type="checkbox" id="restore-folders" checked>
-                            <span>${_('backup.opt_folders')}</span>
-                        </label>
-                        <label class="restore-option">
-                            <input type="checkbox" id="restore-groups" checked>
-                            <span>${_('backup.opt_groups')}</span>
-                        </label>
-                        <label class="restore-option">
-                            <input type="checkbox" id="restore-addressbooks" checked>
-                            <span>${_('backup.opt_addressbooks')}</span>
+                            <input type="checkbox" id="restore-uploads" checked>
+                            <span>${_('backup.opt_uploads')}</span>
+                            <small class="restore-hint">${_('backup.opt_uploads_hint')}</small>
                         </label>
                         <label class="restore-option restore-option-danger">
-                            <input type="checkbox" id="restore-users">
-                            <span>${_('backup.opt_users')}</span>
-                            <small class="restore-warning">${_('backup.opt_users_warning')}</small>
+                            <input type="checkbox" id="restore-secrets">
+                            <span>${_('backup.opt_secrets')}</span>
+                            <small class="restore-warning">${_('backup.opt_secrets_warning')}</small>
                         </label>
+                        <label class="restore-option restore-option-danger">
+                            <input type="checkbox" id="restore-env">
+                            <span>${_('backup.opt_env')}</span>
+                            <small class="restore-warning">${_('backup.opt_env_warning')}</small>
+                        </label>
+                        <label class="restore-option restore-option-danger">
+                            <input type="checkbox" id="restore-godb">
+                            <span>${_('backup.opt_godb')}</span>
+                            <small class="restore-warning">${_('backup.opt_godb_warning')}</small>
+                        </label>
+                    </div>
+                    <div class="restore-warning-box restore-warning-box-danger">
+                        <span class="material-icons">priority_high</span>
+                        <span>${_('backup.restore_warning')}</span>
                     </div>
                     <div class="backup-actions">
                         <label class="btn btn-warning" id="restore-upload-label">
                             <span class="material-icons">upload</span>
                             ${_('backup.upload')}
-                            <input type="file" id="restore-file-input" accept=".json" hidden>
+                            <input type="file" id="restore-file-input" accept=".gz,.tar.gz,.json" hidden>
                         </label>
                     </div>
                     <div class="restore-result" id="restore-result" style="display:none;"></div>

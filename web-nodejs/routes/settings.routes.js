@@ -509,18 +509,19 @@ router.get('/branding/favicon.svg', (req, res) => {
 
 // ==================== Backup & Restore API ====================
 
-// multer configured for in-memory buffer (max 10 MB)
+// multer configured for in-memory buffer. Full disaster-recovery archives may
+// embed the raw SQLite databases and branding uploads, so allow up to 200 MB.
 const backupUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }
+    limits: { fileSize: 200 * 1024 * 1024 }
 });
 
 /**
  * GET /api/settings/backup/stats - Preview backup size/contents
  */
-router.get('/api/settings/backup/stats', requireAuth, requirePermission('server.config'), (req, res) => {
+router.get('/api/settings/backup/stats', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
-        const stats = backupService.getBackupStats();
+        const stats = await backupService.getFullBackupStats();
         res.json({ success: true, data: stats });
     } catch (err) {
         console.error('Backup stats error:', err);
@@ -529,19 +530,26 @@ router.get('/api/settings/backup/stats', requireAuth, requirePermission('server.
 });
 
 /**
- * GET /api/settings/backup - Download full backup as JSON file
+ * GET /api/settings/backup - Download a full disaster-recovery backup (.tar.gz).
+ * Pass ?format=json for the legacy JSON configuration snapshot.
  */
 router.get('/api/settings/backup', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
-        const backup = await backupService.createBackup();
-        const json = JSON.stringify(backup, null, 2);
-        const filename = `betterdesk-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        if (req.query.format === 'json') {
+            const backup = await backupService.createBackup();
+            const json = JSON.stringify(backup, null, 2);
+            const filename = `betterdesk-config-${new Date().toISOString().slice(0, 10)}.json`;
+            await db.logAction(req.session?.userId, 'backup_created', `Config snapshot downloaded (${(json.length / 1024).toFixed(1)} KB)`, req.ip);
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            return res.send(json);
+        }
 
-        await db.logAction(req.session?.userId, 'backup_created', `Backup downloaded (${(json.length / 1024).toFixed(1)} KB)`, req.ip);
-
-        res.setHeader('Content-Type', 'application/json');
+        const { buffer, filename } = await backupService.createFullBackup();
+        await db.logAction(req.session?.userId, 'backup_created', `Full backup downloaded (${(buffer.length / 1024 / 1024).toFixed(2)} MB)`, req.ip);
+        res.setHeader('Content-Type', 'application/gzip');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.send(json);
+        res.send(buffer);
     } catch (err) {
         console.error('Backup download error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });
@@ -549,9 +557,10 @@ router.get('/api/settings/backup', requireAuth, requirePermission('server.config
 });
 
 /**
- * POST /api/settings/restore - Upload and restore from backup JSON
- * Expects multipart/form-data with field "backup" (JSON file)
- * Optional JSON body fields: restoreSettings, restoreBranding, restoreUsers, etc.
+ * POST /api/settings/restore - Upload and restore from a backup.
+ * Accepts either a full .tar.gz disaster-recovery archive (auto-detected via
+ * the gzip magic bytes) or a legacy JSON configuration snapshot.
+ * Expects multipart/form-data with field "backup".
  */
 router.post('/api/settings/restore', requireAuth, requirePermission('server.config'), backupUpload.single('backup'), async (req, res) => {
     try {
@@ -559,21 +568,57 @@ router.post('/api/settings/restore', requireAuth, requirePermission('server.conf
             return res.status(400).json({ success: false, error: req.t('backup.no_file') });
         }
 
-        // Parse JSON from uploaded file buffer
+        const buf = req.file.buffer;
+        const isGzip = buf.length > 2 && buf[0] === 0x1f && buf[1] === 0x8b;
+
+        if (isGzip) {
+            // --- Full disaster-recovery archive ---
+            const opts = {
+                restoreDatabase: req.body.restoreDatabase !== 'false',
+                restoreUploads: req.body.restoreUploads !== 'false',
+                restoreSecrets: req.body.restoreSecrets === 'true',  // Off by default — overwrites keys
+                restoreEnv: req.body.restoreEnv === 'true',          // Off by default — needs restart
+                restoreGoDb: req.body.restoreGoDb === 'true'         // Off by default — needs restart
+            };
+
+            let result;
+            try {
+                result = await backupService.restoreFullBackup(buf, opts);
+            } catch (err) {
+                return res.status(400).json({ success: false, error: err.message });
+            }
+
+            await db.logAction(
+                req.session?.userId, 'backup_restored',
+                `Full restore | Restored: ${result.restored.join(', ')} | Skipped: ${result.skipped.join(', ')}`,
+                req.ip
+            );
+
+            return res.json({
+                success: true,
+                data: {
+                    type: 'full',
+                    restored: result.restored,
+                    skipped: result.skipped,
+                    warnings: result.warnings,
+                    requiresRestart: result.requiresRestart
+                }
+            });
+        }
+
+        // --- Legacy JSON configuration snapshot ---
         let data;
         try {
-            data = JSON.parse(req.file.buffer.toString('utf-8'));
+            data = JSON.parse(buf.toString('utf-8'));
         } catch {
             return res.status(400).json({ success: false, error: req.t('backup.invalid_json') });
         }
 
-        // Validate
         const validation = backupService.validateBackup(data);
         if (!validation.valid) {
             return res.status(400).json({ success: false, error: validation.errors.join('; ') });
         }
 
-        // Parse restore options from query params or body
         const opts = {
             restoreSettings: req.body.restoreSettings !== 'false',
             restoreBranding: req.body.restoreBranding !== 'false',
@@ -583,17 +628,18 @@ router.post('/api/settings/restore', requireAuth, requirePermission('server.conf
             restoreAddressBooks: req.body.restoreAddressBooks !== 'false'
         };
 
-        const result = backupService.restoreBackup(data, opts);
+        const result = await backupService.restoreBackup(data, opts);
 
         await db.logAction(
             req.session?.userId, 'backup_restored',
-            `Restored: ${result.restored.join(', ')} | Skipped: ${result.skipped.join(', ')}`,
+            `Config restore | Restored: ${result.restored.join(', ')} | Skipped: ${result.skipped.join(', ')}`,
             req.ip
         );
 
         res.json({
             success: true,
             data: {
+                type: 'config',
                 restored: result.restored,
                 skipped: result.skipped,
                 warnings: result.warnings,

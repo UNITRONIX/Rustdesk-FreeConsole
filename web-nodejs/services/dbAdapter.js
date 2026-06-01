@@ -1401,9 +1401,9 @@ function createSqliteAdapter(config) {
         // ---- Backup Helpers ----
 
         async getAllUsersForBackup() {
-            return openAuth().prepare(
-                'SELECT id, username, password_hash, role, created_at, last_login, totp_enabled FROM users ORDER BY id'
-            ).all();
+            // SELECT * captures every column (incl. totp_secret, totp_recovery_codes,
+            // is_server_admin, org_id, preferred_language) so account restore is lossless.
+            return openAuth().prepare('SELECT * FROM users ORDER BY id').all();
         },
         async getAllAddressBooks() {
             return openAuth().prepare(
@@ -1412,27 +1412,118 @@ function createSqliteAdapter(config) {
         },
         async restoreUsers(users) {
             const db = openAuth();
+            // Restore dynamically against the live schema so backups created on a
+            // newer schema (extra columns) still import without raising errors.
+            const cols = new Set(db.prepare('PRAGMA table_info(users)').all().map((c) => c.name));
             const tx = db.transaction((items) => {
                 db.prepare('DELETE FROM users').run();
-                const ins = db.prepare(
-                    `INSERT OR REPLACE INTO users (id, username, password_hash, role, created_at, last_login, totp_enabled)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`
-                );
                 for (const u of items) {
-                    ins.run(u.id, u.username, u.password_hash, u.role || 'admin',
-                        u.created_at || new Date().toISOString(), u.last_login || null, u.totp_enabled || 0);
+                    const keys = Object.keys(u).filter((k) => cols.has(k));
+                    if (keys.length === 0) continue;
+                    const placeholders = keys.map(() => '?').join(', ');
+                    const ins = db.prepare(
+                        `INSERT OR REPLACE INTO users (${keys.map((k) => `"${k}"`).join(', ')}) VALUES (${placeholders})`
+                    );
+                    ins.run(...keys.map((k) => u[k]));
                 }
             });
             tx(users);
         },
         async getBackupStats() {
             const db = openAuth();
-            const c = (tbl) => db.prepare(`SELECT COUNT(*) as c FROM ${tbl}`).get().c;
+            const c = (tbl) => {
+                try { return db.prepare(`SELECT COUNT(*) as c FROM ${tbl}`).get().c; }
+                catch (_) { return 0; }
+            };
             return {
                 users: c('users'), settings: c('settings'), folders: c('folders'),
                 userGroups: c('user_groups'), deviceGroups: c('device_groups'),
                 strategies: c('strategies'), addressBooks: c('address_books'),
             };
+        },
+
+        /**
+         * Absolute path to the SQLite database file backing the console.
+         * Used by full backups for a 1:1 raw file copy. Returns null for PostgreSQL.
+         */
+        getDatabaseFilePath() {
+            return path.join(config.dataDir, 'auth.db');
+        },
+
+        /**
+         * Logical dump of every user table in auth.db. DB-agnostic and portable
+         * across machines and database engines. BLOB values are encoded as
+         * { __buf__: <base64> } so they survive JSON serialisation.
+         */
+        async dumpAllTables() {
+            const db = openAuth();
+            const tableRows = db.prepare(
+                `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
+            ).all();
+            const tables = {};
+            for (const { name } of tableRows) {
+                try {
+                    const rows = db.prepare(`SELECT * FROM "${name}"`).all();
+                    tables[name] = rows.map((row) => {
+                        const out = {};
+                        for (const [k, v] of Object.entries(row)) {
+                            out[k] = Buffer.isBuffer(v) ? { __buf__: v.toString('base64') } : v;
+                        }
+                        return out;
+                    });
+                } catch (_) { /* skip unreadable table */ }
+            }
+            return { _engine: 'sqlite', tables };
+        },
+
+        /**
+         * Logical restore of tables produced by dumpAllTables(). Each table is
+         * wiped and re-populated. Only tables that exist in the live schema are
+         * touched; unknown columns are dropped. Wrapped per-table so one bad
+         * table does not abort the whole restore.
+         * @returns {{ restored: string[], skipped: string[], warnings: string[] }}
+         */
+        async importAllTables(dump) {
+            const db = openAuth();
+            const result = { restored: [], skipped: [], warnings: [] };
+            const tables = (dump && dump.tables) || {};
+            const liveTables = new Set(
+                db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all().map((t) => t.name)
+            );
+            db.pragma('foreign_keys = OFF');
+            try {
+                for (const [name, rows] of Object.entries(tables)) {
+                    if (!liveTables.has(name) || !Array.isArray(rows)) { result.skipped.push(name); continue; }
+                    const cols = new Set(db.prepare(`PRAGMA table_info("${name}")`).all().map((c) => c.name));
+                    try {
+                        const tx = db.transaction(() => {
+                            db.prepare(`DELETE FROM "${name}"`).run();
+                            for (const row of rows) {
+                                const keys = Object.keys(row).filter((k) => cols.has(k));
+                                if (keys.length === 0) continue;
+                                const vals = keys.map((k) => {
+                                    const v = row[k];
+                                    if (v && typeof v === 'object' && typeof v.__buf__ === 'string') {
+                                        return Buffer.from(v.__buf__, 'base64');
+                                    }
+                                    return v;
+                                });
+                                const placeholders = keys.map(() => '?').join(', ');
+                                db.prepare(
+                                    `INSERT OR REPLACE INTO "${name}" (${keys.map((k) => `"${k}"`).join(', ')}) VALUES (${placeholders})`
+                                ).run(...vals);
+                            }
+                        });
+                        tx();
+                        result.restored.push(name);
+                    } catch (err) {
+                        result.warnings.push(`Table ${name}: ${err.message}`);
+                    }
+                }
+            } finally {
+                db.pragma('foreign_keys = ON');
+            }
+            return result;
         },
 
         // ---- Tickets ----
@@ -3983,7 +4074,9 @@ function createPostgresAdapter() {
         // ---- Backup Helpers ----
 
         async getAllUsersForBackup() {
-            return all('SELECT id, username, password_hash, role, created_at, last_login, totp_enabled FROM users ORDER BY id');
+            // SELECT * captures every column (incl. totp_secret, totp_recovery_codes,
+            // is_server_admin, org_id, preferred_language) so account restore is lossless.
+            return all('SELECT * FROM users ORDER BY id');
         },
         async getAllAddressBooks() {
             return all('SELECT username, ab_type, data, updated_at FROM address_books ORDER BY username');
@@ -3992,14 +4085,22 @@ function createPostgresAdapter() {
             const client = await getPool().connect();
             try {
                 await client.query('BEGIN');
+                // Restore dynamically against the live schema so backups from a
+                // newer schema (extra columns) still import.
+                const colRes = await client.query(
+                    `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='users'`
+                );
+                const cols = new Set(colRes.rows.map((r) => r.column_name));
                 await client.query('DELETE FROM users');
                 for (const u of users) {
+                    const keys = Object.keys(u).filter((k) => cols.has(k));
+                    if (keys.length === 0) continue;
+                    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+                    const updates = keys.filter((k) => k !== 'id').map((k) => `"${k}"=EXCLUDED."${k}"`).join(', ');
                     await client.query(
-                        `INSERT INTO users (id, username, password_hash, role, created_at, last_login, totp_enabled)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7)
-                         ON CONFLICT(id) DO UPDATE SET username=$2, password_hash=$3, role=$4, created_at=$5, last_login=$6, totp_enabled=$7`,
-                        [u.id, u.username, u.password_hash, u.role || 'admin',
-                         u.created_at || new Date().toISOString(), u.last_login || null, u.totp_enabled || false]
+                        `INSERT INTO users (${keys.map((k) => `"${k}"`).join(', ')}) VALUES (${placeholders})
+                         ON CONFLICT(id) DO UPDATE SET ${updates || '"username"=EXCLUDED."username"'}`,
+                        keys.map((k) => u[k])
                     );
                 }
                 await client.query('COMMIT');
@@ -4011,12 +4112,107 @@ function createPostgresAdapter() {
             }
         },
         async getBackupStats() {
-            const c = async (tbl) => +(await one(`SELECT COUNT(*) AS c FROM ${tbl}`)).c;
+            const c = async (tbl) => {
+                try { return +(await one(`SELECT COUNT(*) AS c FROM ${tbl}`)).c; }
+                catch (_) { return 0; }
+            };
             return {
                 users: await c('users'), settings: await c('settings'), folders: await c('folders'),
                 userGroups: await c('user_groups'), deviceGroups: await c('device_groups'),
                 strategies: await c('strategies'), addressBooks: await c('address_books'),
             };
+        },
+
+        /**
+         * PostgreSQL has no single local DB file to copy — full backups fall
+         * back to the portable logical dump instead. Returns null.
+         */
+        getDatabaseFilePath() {
+            return null;
+        },
+
+        /**
+         * Logical dump of every public table. BYTEA values are encoded as
+         * { __buf__: <base64> } so they survive JSON serialisation.
+         */
+        async dumpAllTables() {
+            const tableRows = await all(
+                `SELECT table_name FROM information_schema.tables
+                 WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name`
+            );
+            const tables = {};
+            for (const { table_name } of tableRows) {
+                if (!/^[A-Za-z0-9_]+$/.test(table_name)) continue;
+                try {
+                    const rows = await all(`SELECT * FROM "${table_name}"`);
+                    tables[table_name] = rows.map((row) => {
+                        const out = {};
+                        for (const [k, v] of Object.entries(row)) {
+                            out[k] = Buffer.isBuffer(v) ? { __buf__: v.toString('base64') } : v;
+                        }
+                        return out;
+                    });
+                } catch (_) { /* skip unreadable table */ }
+            }
+            return { _engine: 'postgres', tables };
+        },
+
+        /**
+         * Logical restore of tables produced by dumpAllTables(). Each table is
+         * wiped and re-populated. Only existing tables/columns are touched.
+         * @returns {{ restored: string[], skipped: string[], warnings: string[] }}
+         */
+        async importAllTables(dump) {
+            const result = { restored: [], skipped: [], warnings: [] };
+            const tables = (dump && dump.tables) || {};
+            const client = await getPool().connect();
+            try {
+                const liveRes = await client.query(
+                    `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'`
+                );
+                const liveTables = new Set(liveRes.rows.map((r) => r.table_name));
+                // Relax FK ordering for the bulk reload (best-effort; ignored if not permitted).
+                try { await client.query("SET session_replication_role = 'replica'"); } catch (_) { /* ignore */ }
+                for (const [name, rows] of Object.entries(tables)) {
+                    if (!liveTables.has(name) || !Array.isArray(rows) || !/^[A-Za-z0-9_]+$/.test(name)) {
+                        result.skipped.push(name); continue;
+                    }
+                    const colRes = await client.query(
+                        `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,
+                        [name]
+                    );
+                    const cols = new Set(colRes.rows.map((r) => r.column_name));
+                    try {
+                        await client.query('BEGIN');
+                        await client.query(`DELETE FROM "${name}"`);
+                        for (const row of rows) {
+                            const keys = Object.keys(row).filter((k) => cols.has(k));
+                            if (keys.length === 0) continue;
+                            const vals = keys.map((k) => {
+                                const v = row[k];
+                                if (v && typeof v === 'object' && typeof v.__buf__ === 'string') {
+                                    return Buffer.from(v.__buf__, 'base64');
+                                }
+                                return v;
+                            });
+                            const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+                            await client.query(
+                                `INSERT INTO "${name}" (${keys.map((k) => `"${k}"`).join(', ')}) VALUES (${placeholders})`,
+                                vals
+                            );
+                        }
+                        await client.query('COMMIT');
+                        result.restored.push(name);
+                    } catch (err) {
+                        try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
+                        result.warnings.push(`Table ${name}: ${err.message}`);
+                    }
+                }
+                try { await client.query("SET session_replication_role = 'origin'"); } catch (_) { /* ignore */ }
+            } finally {
+                client.release();
+            }
+            return result;
         },
 
         // ---- Tickets ----

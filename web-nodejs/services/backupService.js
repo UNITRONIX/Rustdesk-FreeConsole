@@ -17,9 +17,16 @@ const db = require('./database');
 const brandingService = require('./brandingService');
 const serverBackend = require('./serverBackend');
 const config = require('../config/config');
+const fs = require('fs');
+const path = require('path');
+const archive = require('./backupArchive');
 
 // Current backup format version — increment on breaking schema changes
 const BACKUP_FORMAT_VERSION = 1;
+
+// Full disaster-recovery archive format identifier + version
+const FULL_BACKUP_FORMAT = 'betterdesk-full-backup';
+const FULL_BACKUP_VERSION = 1;
 
 // ========================== Export ========================================
 
@@ -295,10 +302,382 @@ async function getBackupStats() {
     };
 }
 
+// ===================== Full Disaster-Recovery Backup ======================
+//
+// Unlike the JSON snapshot above, the full backup bundles everything required
+// to rebuild the server identity and data on a brand-new machine:
+//   - manifest.json                  metadata + component inventory
+//   - console/data.json              logical dump of ALL console DB tables
+//   - console/auth.db                raw SQLite copy (sqlite backend only)
+//   - console/.env                   environment (SESSION_SECRET, API key, DSN, ports, TLS)
+//   - console/.session_secret        session signing secret
+//   - console/uploads/*              branding image files
+//   - goserver/data.json            Go server peers/blocklist/audit (informational)
+//   - goserver/id_ed25519(.pub)      server identity keypair (client trust + relay)
+//   - goserver/.api_key              console <-> Go server API key
+//   - goserver/db_v2.sqlite3         raw Go server DB (when readable)
+//   - README.txt                     human-readable recovery instructions
+//
+// SECURITY: the archive contains secrets (keys, .env, password hashes, 2FA
+// secrets). It MUST be stored securely and never shared. The UI warns about
+// this and most secret components require an explicit opt-in to restore.
+
+/**
+ * Resolve the absolute paths of every file-based backup component.
+ */
+function resolveBackupPaths() {
+    return {
+        env: path.join(__dirname, '..', '.env'),
+        sessionSecret: path.join(config.dataDir, '.session_secret'),
+        uploadsDir: path.join(config.dataDir, 'uploads'),
+        consoleDb: db.getDatabaseFilePath(),
+        goPrivKey: path.join(config.keysPath, 'id_ed25519'),
+        goPubKey: config.pubKeyPath,
+        goApiKey: config.apiKeyPath,
+        goDb: config.dbPath
+    };
+}
+
+/**
+ * Add a file to the archive entry list if it exists and is readable.
+ */
+function addFileIfExists(entries, archiveName, filePath, present) {
+    try {
+        if (filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+            entries.push({ name: archiveName, data: fs.readFileSync(filePath), mode: 0o600 });
+            present.push(archiveName);
+            return true;
+        }
+    } catch (_) { /* unreadable — skip */ }
+    return false;
+}
+
+/**
+ * Recursively collect files under a directory into archive entries.
+ */
+function addDirIfExists(entries, archivePrefix, dirPath, present) {
+    try {
+        if (!dirPath || !fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) return;
+        const walk = (rel) => {
+            const abs = path.join(dirPath, rel);
+            for (const name of fs.readdirSync(abs)) {
+                const childRel = rel ? path.join(rel, name) : name;
+                const childAbs = path.join(dirPath, childRel);
+                const st = fs.statSync(childAbs);
+                if (st.isDirectory()) {
+                    walk(childRel);
+                } else if (st.isFile()) {
+                    const archiveName = `${archivePrefix}/${childRel.split(path.sep).join('/')}`;
+                    entries.push({ name: archiveName, data: fs.readFileSync(childAbs), mode: 0o644 });
+                    present.push(archiveName);
+                }
+            }
+        };
+        walk('');
+    } catch (_) { /* skip */ }
+}
+
+/**
+ * Build the human-readable recovery instructions bundled in the archive.
+ */
+function buildRecoveryReadme(manifest) {
+    return [
+        'BetterDesk Console — Full Disaster-Recovery Backup',
+        '==================================================',
+        '',
+        `Created:          ${manifest._created}`,
+        `Console version:  ${manifest._console_version}`,
+        `Database engine:  ${manifest.dbType}`,
+        `Components:        ${manifest.components.join(', ')}`,
+        '',
+        'WARNING: This archive contains SECRETS (Ed25519 server keys, .env with',
+        'SESSION_SECRET / API key / database credentials, user password hashes and',
+        '2FA secrets). Store it securely and never share it.',
+        '',
+        'How to restore on a fresh machine',
+        '---------------------------------',
+        '1. Install BetterDesk using the ALL-IN-ONE installer (betterdesk.sh / .ps1).',
+        '2. Stop the console and Go server services.',
+        '3. Open the web console Settings page and use "Restore from backup",',
+        '   OR extract this archive manually with: tar -xzf <backup>.tar.gz',
+        '   and copy each component back to its location:',
+        '     console/.env            -> web-nodejs/.env',
+        '     console/.session_secret -> <dataDir>/.session_secret',
+        '     console/auth.db         -> <dataDir>/auth.db   (SQLite backend only)',
+        '     console/uploads/*       -> <dataDir>/uploads/',
+        '     goserver/id_ed25519     -> <keysPath>/id_ed25519',
+        '     goserver/id_ed25519.pub -> <keysPath>/id_ed25519.pub',
+        '     goserver/.api_key       -> <keysPath>/.api_key',
+        '     goserver/db_v2.sqlite3  -> Go server DB path (SQLite backend only)',
+        '4. For PostgreSQL backends, the logical dump in console/data.json is',
+        '   re-imported through the console Restore action.',
+        '5. Restart both services. Clients keep trusting the server because the',
+        '   Ed25519 identity key was preserved.',
+        ''
+    ].join('\n');
+}
+
+/**
+ * Create a full disaster-recovery backup as a gzipped tar archive.
+ * @returns {Promise<{ buffer: Buffer, filename: string }>}
+ */
+async function createFullBackup() {
+    const timestamp = new Date().toISOString();
+    const paths = resolveBackupPaths();
+    const entries = [];
+    const present = [];
+
+    // --- Console logical DB dump (portable across engines) ---
+    let consoleDump = null;
+    try { consoleDump = await db.dumpAllTables(); } catch (_) { consoleDump = null; }
+    if (consoleDump) {
+        entries.push({ name: 'console/data.json', data: JSON.stringify(consoleDump) });
+        present.push('console/data.json');
+    }
+
+    // --- Go server data (best-effort, informational) ---
+    let goServer = null;
+    if (await serverBackend.isBetterDesk()) {
+        goServer = await fetchGoServerData();
+    }
+    if (goServer) {
+        entries.push({ name: 'goserver/data.json', data: JSON.stringify(goServer) });
+        present.push('goserver/data.json');
+    }
+
+    // --- Raw secret / identity files ---
+    addFileIfExists(entries, 'console/.env', paths.env, present);
+    addFileIfExists(entries, 'console/.session_secret', paths.sessionSecret, present);
+    addFileIfExists(entries, 'console/auth.db', paths.consoleDb, present);
+    addDirIfExists(entries, 'console/uploads', paths.uploadsDir, present);
+    addFileIfExists(entries, 'goserver/id_ed25519', paths.goPrivKey, present);
+    addFileIfExists(entries, 'goserver/id_ed25519.pub', paths.goPubKey, present);
+    addFileIfExists(entries, 'goserver/.api_key', paths.goApiKey, present);
+    addFileIfExists(entries, 'goserver/db_v2.sqlite3', paths.goDb, present);
+
+    // --- Manifest + README ---
+    const manifest = {
+        _format: FULL_BACKUP_FORMAT,
+        _version: FULL_BACKUP_VERSION,
+        _created: timestamp,
+        _console_version: config.appVersion,
+        _backend: await serverBackend.getActiveBackend(),
+        dbType: config.dbType,
+        components: present
+    };
+    entries.unshift({ name: 'manifest.json', data: JSON.stringify(manifest, null, 2) });
+    entries.push({ name: 'README.txt', data: buildRecoveryReadme(manifest) });
+
+    const buffer = archive.createTarGz(entries);
+    const dateStr = timestamp.slice(0, 19).replace(/[:T]/g, '-');
+    return { buffer, filename: `betterdesk-backup-${dateStr}.tar.gz` };
+}
+
+/**
+ * Validate a full-backup archive buffer.
+ * @returns {{ valid: boolean, errors: string[], manifest: Object|null }}
+ */
+function validateFullBackup(buffer) {
+    const errors = [];
+    let files;
+    try {
+        files = archive.extractTarGz(buffer);
+    } catch (err) {
+        return { valid: false, errors: [`Not a valid gzip/tar archive: ${err.message}`], manifest: null };
+    }
+    const manifestRaw = files.get('manifest.json');
+    if (!manifestRaw) {
+        return { valid: false, errors: ['Archive is missing manifest.json'], manifest: null };
+    }
+    let manifest;
+    try {
+        manifest = JSON.parse(manifestRaw.toString('utf8'));
+    } catch (err) {
+        return { valid: false, errors: [`manifest.json is not valid JSON: ${err.message}`], manifest: null };
+    }
+    if (manifest._format !== FULL_BACKUP_FORMAT) {
+        errors.push('Archive is not a BetterDesk full backup (wrong _format)');
+    }
+    if (typeof manifest._version !== 'number' || manifest._version > FULL_BACKUP_VERSION) {
+        errors.push(`Unsupported full-backup version: ${manifest._version}`);
+    }
+    return { valid: errors.length === 0, errors, manifest, files };
+}
+
+/**
+ * Restore a full disaster-recovery backup.
+ *
+ * @param {Buffer} buffer - gzipped tar archive
+ * @param {Object} options
+ * @param {boolean} options.restoreDatabase  - Re-import logical DB dump (default true)
+ * @param {boolean} options.restoreEnv       - Overwrite .env (default false — needs restart)
+ * @param {boolean} options.restoreSecrets   - Restore session secret + Go keys + API key (default false)
+ * @param {boolean} options.restoreUploads   - Restore branding upload files (default true)
+ * @param {boolean} options.restoreGoDb      - Overwrite Go server raw DB (default false — needs restart)
+ * @returns {Promise<{ restored: string[], skipped: string[], warnings: string[], requiresRestart: boolean }>}
+ */
+async function restoreFullBackup(buffer, options = {}) {
+    const {
+        restoreDatabase = true,
+        restoreEnv = false,
+        restoreSecrets = false,
+        restoreUploads = true,
+        restoreGoDb = false
+    } = options;
+
+    const result = { restored: [], skipped: [], warnings: [], requiresRestart: false };
+
+    const validation = validateFullBackup(buffer);
+    if (!validation.valid) {
+        throw new Error(`Invalid backup archive: ${validation.errors.join('; ')}`);
+    }
+    const files = validation.files;
+    const paths = resolveBackupPaths();
+
+    const writeFile = (filePath, data, mode) => {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, data, { mode: mode || 0o600 });
+    };
+
+    // --- Logical DB import (live restore, no restart needed) ---
+    if (restoreDatabase && files.has('console/data.json')) {
+        try {
+            const dump = JSON.parse(files.get('console/data.json').toString('utf8'));
+            const r = await db.importAllTables(dump);
+            result.restored.push(`database (${r.restored.length} tables)`);
+            for (const w of r.warnings) result.warnings.push(w);
+        } catch (err) {
+            result.warnings.push(`Database restore failed: ${err.message}`);
+        }
+    } else {
+        result.skipped.push('database');
+    }
+
+    // --- Branding upload files ---
+    if (restoreUploads) {
+        try {
+            let count = 0;
+            for (const [name, data] of files) {
+                if (name.startsWith('console/uploads/')) {
+                    const rel = name.slice('console/uploads/'.length);
+                    if (!rel || rel.includes('..')) continue;
+                    writeFile(path.join(paths.uploadsDir, rel), data, 0o644);
+                    count++;
+                }
+            }
+            if (count > 0) result.restored.push(`uploads (${count} files)`);
+            else result.skipped.push('uploads');
+        } catch (err) {
+            result.warnings.push(`Uploads restore failed: ${err.message}`);
+        }
+    } else {
+        result.skipped.push('uploads');
+    }
+
+    // --- Secrets: session secret, Go identity keys, API key (needs restart) ---
+    if (restoreSecrets) {
+        const secretFiles = [
+            ['console/.session_secret', paths.sessionSecret, 0o600],
+            ['goserver/id_ed25519', paths.goPrivKey, 0o600],
+            ['goserver/id_ed25519.pub', paths.goPubKey, 0o644],
+            ['goserver/.api_key', paths.goApiKey, 0o600]
+        ];
+        let restoredAny = false;
+        for (const [archiveName, target, mode] of secretFiles) {
+            if (files.has(archiveName) && target) {
+                try {
+                    writeFile(target, files.get(archiveName), mode);
+                    restoredAny = true;
+                } catch (err) {
+                    result.warnings.push(`${archiveName} restore failed: ${err.message}`);
+                }
+            }
+        }
+        if (restoredAny) { result.restored.push('secrets/keys'); result.requiresRestart = true; }
+        else result.skipped.push('secrets/keys');
+    } else {
+        result.skipped.push('secrets/keys');
+    }
+
+    // --- .env (needs restart) ---
+    if (restoreEnv && files.has('console/.env')) {
+        try {
+            writeFile(paths.env, files.get('console/.env'), 0o600);
+            result.restored.push('.env');
+            result.requiresRestart = true;
+        } catch (err) {
+            result.warnings.push(`.env restore failed: ${err.message}`);
+        }
+    } else {
+        result.skipped.push('.env');
+    }
+
+    // --- Go server raw DB (SQLite only, needs restart) ---
+    if (restoreGoDb && files.has('goserver/db_v2.sqlite3') && paths.goDb) {
+        try {
+            writeFile(paths.goDb, files.get('goserver/db_v2.sqlite3'), 0o600);
+            result.restored.push('goserver-db');
+            result.requiresRestart = true;
+        } catch (err) {
+            result.warnings.push(`Go server DB restore failed: ${err.message}`);
+        }
+    } else {
+        result.skipped.push('goserver-db');
+    }
+
+    return result;
+}
+
+/**
+ * Stats / inventory for the full backup UI.
+ */
+async function getFullBackupStats() {
+    const stats = await db.getBackupStats();
+    const paths = resolveBackupPaths();
+    const exists = (p) => {
+        try { return !!p && fs.existsSync(p); } catch (_) { return false; }
+    };
+    let uploadCount = 0;
+    try {
+        if (exists(paths.uploadsDir)) {
+            const walk = (dir) => {
+                for (const name of fs.readdirSync(dir)) {
+                    const abs = path.join(dir, name);
+                    const st = fs.statSync(abs);
+                    if (st.isDirectory()) walk(abs);
+                    else if (st.isFile()) uploadCount++;
+                }
+            };
+            walk(paths.uploadsDir);
+        }
+    } catch (_) { /* ignore */ }
+    return {
+        ...stats,
+        backend: await serverBackend.getActiveBackend(),
+        dbType: config.dbType,
+        components: {
+            env: exists(paths.env),
+            sessionSecret: exists(paths.sessionSecret),
+            consoleDb: exists(paths.consoleDb),
+            uploads: uploadCount,
+            goPrivKey: exists(paths.goPrivKey),
+            goPubKey: exists(paths.goPubKey),
+            goApiKey: exists(paths.goApiKey),
+            goDb: exists(paths.goDb)
+        }
+    };
+}
+
 module.exports = {
     createBackup,
     validateBackup,
     restoreBackup,
     getBackupStats,
-    BACKUP_FORMAT_VERSION
+    BACKUP_FORMAT_VERSION,
+    createFullBackup,
+    restoreFullBackup,
+    getFullBackupStats,
+    validateFullBackup,
+    FULL_BACKUP_FORMAT,
+    FULL_BACKUP_VERSION
 };

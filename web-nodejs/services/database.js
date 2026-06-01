@@ -163,6 +163,9 @@ const facade = {
     getAllAddressBooks:   () => adapter.getAllAddressBooks(),
     restoreUsers:        (users) => adapter.restoreUsers(users),
     getBackupStats:      () => adapter.getBackupStats(),
+    dumpAllTables:       () => adapter.dumpAllTables(),
+    importAllTables:     (dump) => adapter.importAllTables(dump),
+    getDatabaseFilePath: () => adapter.getDatabaseFilePath(),
 
     // ---- Pending Registrations ----
     getPendingRegistrations:        (filters) => adapter.getPendingRegistrations(filters),

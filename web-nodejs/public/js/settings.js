@@ -1247,8 +1247,16 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                const date = new Date().toISOString().slice(0, 10);
-                a.download = `betterdesk-backup-${date}.json`;
+                // Prefer the server-provided filename (full backup .tar.gz).
+                let filename = '';
+                const disp = response.headers.get('Content-Disposition') || '';
+                const match = disp.match(/filename="?([^";]+)"?/i);
+                if (match) filename = match[1];
+                if (!filename) {
+                    const date = new Date().toISOString().slice(0, 10);
+                    filename = `betterdesk-backup-${date}.tar.gz`;
+                }
+                a.download = filename;
                 a.click();
                 URL.revokeObjectURL(url);
                 
@@ -1266,8 +1274,11 @@
             const file = e.target.files[0];
             if (!file) return;
             
-            if (!file.name.endsWith('.json')) {
-                Notifications.error(_('backup.invalid_json'));
+            const name = file.name.toLowerCase();
+            const isArchive = name.endsWith('.gz') || name.endsWith('.tar.gz');
+            const isJson = name.endsWith('.json');
+            if (!isArchive && !isJson) {
+                Notifications.error(_('backup.invalid_format'));
                 e.target.value = '';
                 return;
             }
@@ -1281,32 +1292,16 @@
             const label = document.getElementById('restore-upload-label');
             
             try {
-                // Read and validate client-side first
-                const text = await file.text();
-                let data;
-                try {
-                    data = JSON.parse(text);
-                } catch {
-                    Notifications.error(_('backup.invalid_json'));
-                    e.target.value = '';
-                    return;
-                }
-                
-                if (data._format !== 'betterdesk-backup') {
-                    Notifications.error(_('backup.invalid_format'));
-                    e.target.value = '';
-                    return;
-                }
-                
-                // Build FormData with options
+                // Build FormData with restore options. The server auto-detects the
+                // archive format (gzip magic bytes) vs a legacy JSON snapshot.
                 const formData = new FormData();
                 formData.append('backup', file);
-                formData.append('restoreSettings', document.getElementById('restore-settings')?.checked ?? true);
-                formData.append('restoreBranding', document.getElementById('restore-branding')?.checked ?? true);
-                formData.append('restoreUsers', document.getElementById('restore-users')?.checked ?? false);
-                formData.append('restoreFolders', document.getElementById('restore-folders')?.checked ?? true);
-                formData.append('restoreGroups', document.getElementById('restore-groups')?.checked ?? true);
-                formData.append('restoreAddressBooks', document.getElementById('restore-addressbooks')?.checked ?? true);
+                // Full disaster-recovery archive options
+                formData.append('restoreDatabase', document.getElementById('restore-database')?.checked ?? true);
+                formData.append('restoreUploads', document.getElementById('restore-uploads')?.checked ?? true);
+                formData.append('restoreSecrets', document.getElementById('restore-secrets')?.checked ?? false);
+                formData.append('restoreEnv', document.getElementById('restore-env')?.checked ?? false);
+                formData.append('restoreGoDb', document.getElementById('restore-godb')?.checked ?? false);
                 
                 if (label) label.classList.add('loading');
                 
@@ -1327,6 +1322,9 @@
                 if (result.success) {
                     Notifications.success(_('backup.restore_success'));
                     showRestoreResult(result.data, resultEl);
+                    if (result.data && result.data.requiresRestart) {
+                        Notifications.warning(_('backup.restart_required'));
+                    }
                 } else {
                     Notifications.error(result.error || _('errors.server_error'));
                 }
@@ -1348,6 +1346,7 @@
                 const el = document.getElementById(id);
                 if (el) el.textContent = val;
             };
+            const yn = (b) => b ? _('common.yes') : _('common.no');
             
             setVal('backup-stat-users', data.users || 0);
             setVal('backup-stat-settings', data.settings || 0);
@@ -1355,6 +1354,11 @@
             setVal('backup-stat-groups', (data.userGroups || 0) + (data.deviceGroups || 0));
             setVal('backup-stat-strategies', data.strategies || 0);
             setVal('backup-stat-backend', data.backend === 'betterdesk' ? 'BetterDesk Go' : 'RustDesk');
+            const comp = data.components || {};
+            setVal('backup-stat-database', (data.dbType === 'postgres' ? 'PostgreSQL' : 'SQLite'));
+            setVal('backup-stat-keys', yn(comp.goPrivKey || comp.goApiKey));
+            setVal('backup-stat-env', yn(comp.env));
+            setVal('backup-stat-uploads', comp.uploads || 0);
         } catch { /* silent */ }
     }
     
