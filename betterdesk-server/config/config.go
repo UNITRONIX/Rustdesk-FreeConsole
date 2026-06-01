@@ -81,6 +81,21 @@ type Config struct {
 	// times out (issue #121).  Default: enabled.
 	SameNATRelay bool
 
+	// P2PFirst enables the classic RustDesk hole-punching handshake: instead
+	// of immediately answering the initiator with the target's (still
+	// un-punched) address, the server forwards PunchHole to the target and
+	// waits for its PunchHoleSent before delivering the genuine
+	// PunchHoleResponse. This gives direct P2P a real chance to succeed
+	// (issue #157). If the target does not complete hole punching within
+	// P2PFallbackMs, a best-effort response is delivered so the client can
+	// fall back to relay instead of hanging. Default: enabled.
+	P2PFirst bool
+
+	// P2PFallbackMs is the grace period (milliseconds) the server waits for a
+	// target's PunchHoleSent before sending the relay-capable fallback
+	// response. Only used when P2PFirst is enabled. Default: 2000.
+	P2PFallbackMs int
+
 	// WebSocket security (M3)
 	AllowedWSOrigins    string // Comma-separated allowed WebSocket origins (empty = allow all)
 	APIAllowedWSOrigins string // Comma-separated allowed WebSocket origins for HTTP API events endpoint
@@ -129,6 +144,8 @@ func DefaultConfig() *Config {
 		CDAPRateLimit:        30,
 		SignalRateLimitPerIP: IPRateLimitRegistrations,
 		SameNATRelay:         true, // issue #121: auto-fallback to relay on shared public IP
+		P2PFirst:             true, // issue #157: give direct P2P a real chance before relay
+		P2PFallbackMs:        2000, // grace period for target hole punch before relay fallback
 	}
 }
 
@@ -243,6 +260,22 @@ func (c *Config) LoadEnv() {
 			c.SameNATRelay = true
 		case "N", "NO", "0", "FALSE", "OFF":
 			c.SameNATRelay = false
+		}
+	}
+	// Issue #157: P2P-first hole punching. Enabled by default so direct
+	// connections are attempted before relay. Set P2P_FIRST=N to restore the
+	// legacy behavior of answering the initiator immediately (always relay).
+	if v := os.Getenv("P2P_FIRST"); v != "" {
+		switch strings.ToUpper(v) {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.P2PFirst = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.P2PFirst = false
+		}
+	}
+	if v := os.Getenv("P2P_FALLBACK_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			c.P2PFallbackMs = n
 		}
 	}
 	if v := os.Getenv("INIT_ADMIN_USER"); v != "" {

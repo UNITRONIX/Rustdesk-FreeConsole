@@ -567,6 +567,10 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 
 	if target.UDPAddr != nil {
 		s.sendUDP(punchHole, target.UDPAddr)
+	} else {
+		// Target is connected via TCP/WS (e.g. logged in): forward PunchHole
+		// over its active connection so it can still open its NAT for P2P.
+		s.sendToPeer(targetID, punchHole)
 	}
 
 	// Send PunchHoleResponse to the INITIATOR with signed PK for E2E.
@@ -608,6 +612,24 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 			PunchHoleResponse: phr,
 		},
 	}
+
+	// P2P-first (issue #157): when the peers are not on the same LAN, defer
+	// this response and wait for the target's PunchHoleSent, which carries the
+	// target's actual punched address and lets direct P2P succeed. If the
+	// target stays silent past the grace period, the scheduled fallback sends
+	// this relay-capable response so the client can fall back to relay instead
+	// of hanging. handlePunchHoleSent cancels the fallback once the genuine
+	// response is forwarded.
+	if s.cfg.P2PFirst && !sameNetwork {
+		raddrCopy := *raddr
+		s.schedulePunchFallback(normalizeAddrKey(raddr.String()), func() {
+			log.Printf("[signal] P2P-first: target %s did not complete hole punch in time, sending relay fallback to %s",
+				targetID, raddrCopy.String())
+			s.sendUDP(resp, &raddrCopy)
+		})
+		return
+	}
+
 	s.sendUDP(resp, raddr)
 }
 
@@ -770,11 +792,31 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 		phr.Union = &pb.PunchHoleResponse_NatType{NatType: pb.NatType(target.NATType)}
 	}
 
-	return &pb.RendezvousMessage{
+	resp := &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_PunchHoleResponse{
 			PunchHoleResponse: phr,
 		},
 	}
+
+	// P2P-first (issue #157): for non-LAN peers, defer this response and wait
+	// for the target's PunchHoleSent, which carries the target's actual punched
+	// address and lets direct P2P succeed. The TCP connection is already kept
+	// alive (keepAlive via logAndCheckKeepAlive) and registered in
+	// tcpPunchConns, so handlePunchHoleSent can forward the genuine response
+	// over it. If the target stays silent past the grace period, the scheduled
+	// fallback forwards this relay-capable response so the client can fall back
+	// to relay instead of hanging (preserving the Phase 7 timeout fix).
+	if s.cfg.P2PFirst && !sameNetwork {
+		initiatorKey := normalizeAddrKey(raddr.String())
+		s.schedulePunchFallback(initiatorKey, func() {
+			log.Printf("[signal] P2P-first (TCP): target %s did not complete hole punch in time, forwarding relay fallback to %s",
+				targetID, initiatorKey)
+			s.forwardToTCPInitiator(initiatorKey, resp)
+		})
+		return nil
+	}
+
+	return resp
 }
 
 // handlePunchHoleSent processes a PunchHoleSent message from the target peer.
@@ -874,6 +916,13 @@ func (s *Server) handlePunchHoleSent(phs *pb.PunchHoleSent, senderAddr *net.UDPA
 	}
 
 	addrStr := normalizeAddrKey(initiatorAddr.String())
+
+	// P2P-first (issue #157): the target completed hole punching, so cancel any
+	// scheduled relay fallback for this initiator before delivering the genuine
+	// PunchHoleResponse (which carries the target's real punched address).
+	if s.cancelPunchFallback(addrStr) {
+		log.Printf("[signal] P2P-first: cancelled relay fallback for %s — direct P2P response incoming", addrStr)
+	}
 
 	// Try TCP delivery first (initiator may have an open TCP connection).
 	if s.forwardToTCPInitiator(addrStr, resp) {

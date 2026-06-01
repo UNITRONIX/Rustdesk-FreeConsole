@@ -49,6 +49,19 @@ type pendingUUID struct {
 	createdAt time.Time
 }
 
+// pendingPunch tracks a scheduled P2P-first fallback for an initiator that is
+// waiting for its target to complete hole punching (issue #157). When the
+// target responds with PunchHoleSent in time, handlePunchHoleSent cancels the
+// fallback and the genuine PunchHoleResponse (carrying the target's punched
+// address) is delivered. Otherwise the fallback fires, delivering a
+// relay-capable response so the client can fall back to relay instead of
+// hanging.
+type pendingPunch struct {
+	timer     *time.Timer
+	fired     atomic.Bool
+	createdAt time.Time
+}
+
 // writeProto sends a protobuf message, using encryption if the connection is secure.
 func (pc *tcpPunchConn) writeProto(msg *pb.RendezvousMessage) error {
 	pc.writeMu.Lock()
@@ -88,6 +101,10 @@ type Server struct {
 	// an empty UUID in RelayResponse — this map lets us recover the original UUID
 	// so relay pairing succeeds. Key=targetID, Value=*pendingUUID.
 	pendingRelayUUIDs sync.Map // map[string]*pendingUUID
+
+	// pendingPunches tracks P2P-first fallback timers per initiator address
+	// (issue #157). Key=normalizeAddrKey(initiatorAddr), Value=*pendingPunch.
+	pendingPunches sync.Map // map[string]*pendingPunch
 
 	// localIP is the server's detected public IP address (via external service).
 	// Used to build the relay server address when -relay-servers is not set.
@@ -799,6 +816,27 @@ func (s *Server) cleanupTCPPunchConns() {
 			if uuidEvicted > 0 {
 				log.Printf("[signal] Pending relay UUIDs cleanup: evicted %d stale entries", uuidEvicted)
 			}
+
+			// Safety sweep for pendingPunches (issue #157). Entries normally
+			// self-remove when the fallback fires or is cancelled; this only
+			// reclaims orphans left by abnormal shutdown paths.
+			punchEvicted := 0
+			s.pendingPunches.Range(func(key, value any) bool {
+				pp := value.(*pendingPunch)
+				if now.Sub(pp.createdAt) > maxTTL {
+					if val, ok := s.pendingPunches.LoadAndDelete(key); ok {
+						if stale, ok := val.(*pendingPunch); ok {
+							stale.fired.Store(true)
+							stale.timer.Stop()
+						}
+					}
+					punchEvicted++
+				}
+				return true
+			})
+			if punchEvicted > 0 {
+				log.Printf("[signal] Pending punches cleanup: evicted %d stale entries", punchEvicted)
+			}
 		}
 	}
 }
@@ -833,6 +871,50 @@ func (s *Server) getPendingUUID(targetID string) string {
 		return val.(*pendingUUID).uuid
 	}
 	return ""
+}
+
+// schedulePunchFallback registers a delayed P2P-first fallback for an
+// initiator (issue #157). After the configured grace period, fallback() runs
+// unless cancelPunchFallback is called first (i.e. the target completed hole
+// punching and the genuine PunchHoleResponse was delivered). Any pre-existing
+// pending punch for the same initiator is replaced.
+func (s *Server) schedulePunchFallback(initiatorKey string, fallback func()) {
+	delay := time.Duration(s.cfg.P2PFallbackMs) * time.Millisecond
+	if delay <= 0 {
+		delay = 2 * time.Second
+	}
+	pp := &pendingPunch{createdAt: time.Now()}
+	pp.timer = time.AfterFunc(delay, func() {
+		if pp.fired.Swap(true) {
+			return
+		}
+		s.pendingPunches.Delete(initiatorKey)
+		fallback()
+	})
+	if old, loaded := s.pendingPunches.Swap(initiatorKey, pp); loaded {
+		if op, ok := old.(*pendingPunch); ok {
+			op.fired.Store(true)
+			op.timer.Stop()
+		}
+	}
+}
+
+// cancelPunchFallback cancels a scheduled P2P-first fallback for an initiator.
+// Returns true if the fallback was cancelled before it could fire.
+func (s *Server) cancelPunchFallback(initiatorKey string) bool {
+	val, ok := s.pendingPunches.LoadAndDelete(initiatorKey)
+	if !ok {
+		return false
+	}
+	pp, ok := val.(*pendingPunch)
+	if !ok {
+		return false
+	}
+	if pp.fired.Swap(true) {
+		return false // already fired
+	}
+	pp.timer.Stop()
+	return true
 }
 
 // isNormalClose returns true if the error represents a normal connection close
