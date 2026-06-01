@@ -295,6 +295,12 @@
                     <div class="sidebar-user-role"><%= _roleLabel %></div>
                 </div>
             </div>
+            <% if ((branding && branding.footerText) || (branding && branding.showPoweredBy !== 'false')) { %>
+            <div class="sidebar-attribution">
+                <% if (branding.footerText) { %><span class="sidebar-attribution-text"><%= branding.footerText %></span><% } %>
+                <% if (branding.showPoweredBy !== 'false') { %><span class="sidebar-attribution-powered"><%= _('branding.powered_by') %> BetterDesk</span><% } %>
+            </div>
+            <% } %>
         </div>
     </div>
 </aside>

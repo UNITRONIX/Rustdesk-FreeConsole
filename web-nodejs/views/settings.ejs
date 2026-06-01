@@ -543,6 +543,346 @@
                 </div>
             </div>
             
+            <!-- Background & Appearance -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">wallpaper</span>
+                        ${_('branding.background_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('branding.background_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="branding-bg-config">
+                        <div class="logo-type-selector">
+                            <label class="logo-type-option">
+                                <input type="radio" name="bg-type" value="none">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">block</span>
+                                    <span>${_('branding.bg_type_none')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="bg-type" value="color">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">format_color_fill</span>
+                                    <span>${_('branding.bg_type_color')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="bg-type" value="gradient">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">gradient</span>
+                                    <span>${_('branding.bg_type_gradient')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="bg-type" value="image">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">image</span>
+                                    <span>${_('branding.bg_type_image')}</span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="bg-color-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="bg-color">${_('branding.bg_color')}</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" id="bg-color-picker" value="#0d1117">
+                                    <input type="text" class="form-input color-hex" id="bg-color"
+                                           placeholder="#0d1117" maxlength="32">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="bg-gradient-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="bg-gradient">${_('branding.bg_gradient')}</label>
+                                <input type="text" id="bg-gradient" class="form-input"
+                                       placeholder="linear-gradient(135deg, #1e293b 0%, #0f172a 100%)" maxlength="400">
+                                <small class="form-hint">${_('branding.bg_gradient_hint')}</small>
+                            </div>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="bg-image-panel">
+                            <div class="form-group">
+                                <label class="form-label">${_('branding.bg_image_upload')}</label>
+                                <div class="logo-upload-area">
+                                    <input type="file" id="bg-image-file" data-target="bg-image-url" accept="image/png,image/jpeg,image/webp,image/gif" class="logo-file-input branding-bg-file">
+                                    <label for="bg-image-file" class="logo-upload-btn">
+                                        <span class="material-icons">upload_file</span>
+                                        <span>${_('branding.bg_image_choose')}</span>
+                                    </label>
+                                    <span id="bg-file-name" class="logo-file-name"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="bg-image-url">${_('branding.bg_image_url')}</label>
+                                <input type="text" id="bg-image-url" class="form-input"
+                                       placeholder="https://example.com/wallpaper.jpg">
+                                <small class="form-hint">${_('branding.bg_image_hint')}</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="bg-size">${_('branding.bg_size')}</label>
+                                <select id="bg-size" class="form-input form-select">
+                                    <option value="cover">${_('branding.bg_size_cover')}</option>
+                                    <option value="contain">${_('branding.bg_size_contain')}</option>
+                                    <option value="auto">${_('branding.bg_size_auto')}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="bg-effects-group">
+                            <label class="form-label" for="bg-blur">${_('branding.bg_blur')} (<span id="bg-blur-value">0</span>px)</label>
+                            <input type="range" id="bg-blur" class="form-range" min="0" max="30" step="1" value="0">
+                        </div>
+                        <div class="form-group" id="bg-overlay-group">
+                            <label class="form-label" for="bg-overlay">${_('branding.bg_overlay')} (<span id="bg-overlay-value">0</span>%)</label>
+                            <input type="range" id="bg-overlay" class="form-range" min="0" max="90" step="5" value="0">
+                            <small class="form-hint">${_('branding.bg_overlay_hint')}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Login Page -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">login</span>
+                        ${_('branding.login_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('branding.login_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <form class="settings-form branding-form" style="max-width: 600px;">
+                        <div class="form-group">
+                            <label class="form-label" for="login-title">${_('branding.login_heading')}</label>
+                            <input type="text" id="login-title" class="form-input" maxlength="80"
+                                   placeholder="${_('branding.login_heading_placeholder')}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="login-subtitle">${_('branding.login_subheading')}</label>
+                            <input type="text" id="login-subtitle" class="form-input" maxlength="160"
+                                   placeholder="${_('branding.login_subheading_placeholder')}">
+                        </div>
+                    </form>
+                    <div class="branding-bg-config" style="margin-top: 16px;">
+                        <div class="logo-type-selector">
+                            <label class="logo-type-option">
+                                <input type="radio" name="login-bg-type" value="inherit">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">sync</span>
+                                    <span>${_('branding.login_bg_inherit')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="login-bg-type" value="color">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">format_color_fill</span>
+                                    <span>${_('branding.bg_type_color')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="login-bg-type" value="gradient">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">gradient</span>
+                                    <span>${_('branding.bg_type_gradient')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="login-bg-type" value="image">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">image</span>
+                                    <span>${_('branding.bg_type_image')}</span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="login-bg-color-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="login-bg-color">${_('branding.bg_color')}</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" id="login-bg-color-picker" value="#0d1117">
+                                    <input type="text" class="form-input color-hex" id="login-bg-color"
+                                           placeholder="#0d1117" maxlength="32">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="login-bg-gradient-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="login-bg-gradient">${_('branding.bg_gradient')}</label>
+                                <input type="text" id="login-bg-gradient" class="form-input"
+                                       placeholder="linear-gradient(135deg, #1e293b 0%, #0f172a 100%)" maxlength="400">
+                            </div>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="login-bg-image-panel">
+                            <div class="form-group">
+                                <label class="form-label">${_('branding.bg_image_upload')}</label>
+                                <div class="logo-upload-area">
+                                    <input type="file" id="login-bg-image-file" data-target="login-bg-image-url" accept="image/png,image/jpeg,image/webp,image/gif" class="logo-file-input branding-bg-file">
+                                    <label for="login-bg-image-file" class="logo-upload-btn">
+                                        <span class="material-icons">upload_file</span>
+                                        <span>${_('branding.bg_image_choose')}</span>
+                                    </label>
+                                    <span id="login-bg-file-name" class="logo-file-name"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="login-bg-image-url">${_('branding.bg_image_url')}</label>
+                                <input type="text" id="login-bg-image-url" class="form-input"
+                                       placeholder="https://example.com/login-bg.jpg">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="login-bg-overlay">${_('branding.bg_overlay')} (<span id="login-bg-overlay-value">0</span>%)</label>
+                            <input type="range" id="login-bg-overlay" class="form-range" min="0" max="90" step="5" value="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Download Page -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">download</span>
+                        ${_('branding.agent_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('branding.agent_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="branding-bg-config">
+                        <div class="logo-type-selector">
+                            <label class="logo-type-option">
+                                <input type="radio" name="agent-bg-type" value="none">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">block</span>
+                                    <span>${_('branding.bg_type_none')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="agent-bg-type" value="color">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">format_color_fill</span>
+                                    <span>${_('branding.bg_type_color')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="agent-bg-type" value="gradient">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">gradient</span>
+                                    <span>${_('branding.bg_type_gradient')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="agent-bg-type" value="image">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">image</span>
+                                    <span>${_('branding.bg_type_image')}</span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="agent-bg-color-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="agent-bg-color">${_('branding.bg_color')}</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" id="agent-bg-color-picker" value="#f1f5f9">
+                                    <input type="text" class="form-input color-hex" id="agent-bg-color"
+                                           placeholder="#f1f5f9" maxlength="32">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="agent-bg-gradient-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="agent-bg-gradient">${_('branding.bg_gradient')}</label>
+                                <input type="text" id="agent-bg-gradient" class="form-input"
+                                       placeholder="linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)" maxlength="400">
+                            </div>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="agent-bg-image-panel">
+                            <div class="form-group">
+                                <label class="form-label">${_('branding.bg_image_upload')}</label>
+                                <div class="logo-upload-area">
+                                    <input type="file" id="agent-bg-image-file" data-target="agent-bg-image-url" accept="image/png,image/jpeg,image/webp,image/gif" class="logo-file-input branding-bg-file">
+                                    <label for="agent-bg-image-file" class="logo-upload-btn">
+                                        <span class="material-icons">upload_file</span>
+                                        <span>${_('branding.bg_image_choose')}</span>
+                                    </label>
+                                    <span id="agent-bg-file-name" class="logo-file-name"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="agent-bg-image-url">${_('branding.bg_image_url')}</label>
+                                <input type="text" id="agent-bg-image-url" class="form-input"
+                                       placeholder="https://example.com/agent-bg.jpg">
+                            </div>
+                        </div>
+
+                        <div class="form-group toggle-group" style="display:flex;align-items:center;gap:12px;margin-top:8px;">
+                            <input type="checkbox" id="agent-show-powered" class="toggle-switch" checked>
+                            <div>
+                                <label class="form-label" for="agent-show-powered" style="margin-bottom:0;cursor:pointer;">${_('branding.agent_show_powered')}</label>
+                                <small class="form-hint" style="display:block;margin-top:2px;">${_('branding.agent_show_powered_hint')}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer & Copyright -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">copyright</span>
+                        ${_('branding.footer_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('branding.footer_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <form class="settings-form branding-form" style="max-width: 600px;">
+                        <div class="form-group">
+                            <label class="form-label" for="footer-text">${_('branding.footer_text')}</label>
+                            <input type="text" id="footer-text" class="form-input" maxlength="200"
+                                   placeholder="© 2026 Your Company. All rights reserved.">
+                            <small class="form-hint">${_('branding.footer_text_hint')}</small>
+                        </div>
+                        <div class="form-group toggle-group" style="display:flex;align-items:center;gap:12px;">
+                            <input type="checkbox" id="show-powered" class="toggle-switch" checked>
+                            <div>
+                                <label class="form-label" for="show-powered" style="margin-bottom:0;cursor:pointer;">${_('branding.show_powered')}</label>
+                                <small class="form-hint" style="display:block;margin-top:2px;">${_('branding.show_powered_hint')}</small>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Custom CSS -->
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">code</span>
+                        ${_('branding.custom_css_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('branding.custom_css_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="form-group" style="max-width: 800px;">
+                        <textarea id="custom-css" class="form-input form-textarea code-textarea" rows="10"
+                                  placeholder=".sidebar { box-shadow: 0 0 20px rgba(0,0,0,.4); }"></textarea>
+                        <small class="form-hint">${_('branding.custom_css_hint')}</small>
+                    </div>
+                </div>
+            </div>
+
             <!-- Import / Export -->
             <div class="settings-section">
                 <div class="settings-section-header">

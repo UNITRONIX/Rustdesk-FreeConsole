@@ -428,6 +428,32 @@ table {
     background: var(--bg-tertiary);
 }
 
+.sidebar-attribution {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-xs) var(--space-sm) 0;
+    margin-top: var(--space-xs);
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--text-tertiary);
+    text-align: center;
+}
+
+.sidebar-attribution-text {
+    color: var(--text-secondary);
+    word-break: break-word;
+}
+
+.sidebar-attribution-powered {
+    opacity: 0.7;
+}
+
+/* Hide attribution in collapsed rail to avoid cramped layout */
+#sidebar[data-collapsed="true"] .sidebar-attribution {
+    display: none;
+}
+
 .sidebar-user-avatar {
     width: 32px;
     height: 32px;

@@ -19,6 +19,7 @@ const bundleService = require('../services/agentBundleService');
 const buildWorker = require('../services/agentBuildWorker');
 const db = require('../services/database');
 const config = require('../config/config');
+const brandingService = require('../services/brandingService');
 
 // Branding payloads may carry a base64-encoded logo up to 10 MB; expand the
 // default 2 MB JSON body limit on the bundle CRUD + preview endpoints only.
@@ -238,9 +239,19 @@ router.get('/d/:bundleId', async (req, res) => {
             ...p,
             status: buildMap[`${p.platform}/${p.arch}/${p.format}`] || 'pending',
         }));
+        // Global console branding provides portal-wide defaults (wallpaper,
+        // attribution) shared by every bundle that does not override them.
+        const gb = brandingService.getBranding();
+        const globalBranding = {
+            background: brandingService.buildBackgroundValue(gb.agentBgType, gb.agentBgColor, gb.agentBgGradient, gb.agentBgImageUrl),
+            showPoweredBy: gb.agentShowPoweredBy !== 'false',
+            appName: gb.appName || 'BetterDesk',
+            logoUrl: gb.logoType === 'image' ? gb.logoUrl : '',
+        };
         res.render('agent-download', {
             bundle,
             platforms,
+            globalBranding,
             t: req.t.bind(req),
         });
     } catch (err) {

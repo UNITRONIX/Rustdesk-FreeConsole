@@ -247,6 +247,49 @@ router.post('/api/settings/branding/upload-logo', requireAuth, requirePermission
     });
 });
 
+// ── Background image upload (disk storage) ───────────────────────────────────
+const bgUpload = multer({
+    storage: multer.diskStorage({
+        destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+        filename: (_req, file, cb) => {
+            const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+            const hash = crypto.randomBytes(8).toString('hex');
+            cb(null, `bg-${hash}${ext}`);
+        }
+    }),
+    limits: { fileSize: 8 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        const allowed = /^image\/(png|jpeg|gif|webp|svg\+xml)$/;
+        if (allowed.test(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type'));
+        }
+    }
+});
+
+/**
+ * POST /api/settings/branding/upload-background - Upload a background image.
+ * Used by the console / login / agent-portal wallpaper pickers. Returns the
+ * served URL; the caller decides which branding field to assign it to. Old
+ * background files are not auto-removed because a single image may be shared
+ * across console/login/agent backgrounds.
+ */
+router.post('/api/settings/branding/upload-background', requireAuth, requirePermission('branding.edit'), (req, res) => {
+    bgUpload.single('background')(req, res, async (err) => {
+        if (err) {
+            const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 8 MB)' : (err.message || 'Upload failed');
+            return res.status(400).json({ success: false, error: msg });
+        }
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: 'No file provided' });
+        }
+        const url = `/uploads/${req.file.filename}`;
+        await db.logAction(req.session?.userId, 'branding_bg_upload', `Uploaded background: ${req.file.filename}`, req.ip);
+        res.json({ success: true, url });
+    });
+});
+
 /**
  * POST /api/settings/branding/reset - Reset branding to defaults (admin only)
  */

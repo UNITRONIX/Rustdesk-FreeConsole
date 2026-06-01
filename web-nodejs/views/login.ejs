@@ -36,8 +36,8 @@
                     <span class="login-logo-text"><%= appName %></span>
                     <% } %>
                 </div>
-                <h1 class="login-title"><%= _('auth.login_title') %></h1>
-                <p class="login-subtitle"><%= _('auth.login_subtitle') %></p>
+                <h1 class="login-title"><%= branding.loginTitle || _('auth.login_title') %></h1>
+                <p class="login-subtitle"><%= branding.loginSubtitle || _('auth.login_subtitle') %></p>
             </div>
             
             <!-- Error message -->
@@ -171,7 +171,12 @@
             </form>
             
             <div class="login-footer">
+                <% if (branding.footerText) { %>
+                <p class="login-footer-custom"><%= branding.footerText %></p>
+                <% } %>
+                <% if (branding.showPoweredBy !== 'false') { %>
                 <p><%= appName %> v<%= appVersion %></p>
+                <% } %>
             </div>
         </div>
     </div>

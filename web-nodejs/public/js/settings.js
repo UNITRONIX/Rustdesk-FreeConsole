@@ -489,6 +489,7 @@
             initLogoTypeSelector();
             initColorPickers();
             initFontPickers();
+            initBackgroundSelectors();
             initBrandingActions();
             
         } catch (error) {
@@ -544,8 +545,161 @@
             }
         }
         
+        // Background & appearance (console)
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el != null && el) el.value = val; };
+        const setChecked = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
+        const checkRadio = (name, val) => {
+            const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+            if (r) r.checked = true;
+        };
+        checkRadio('bg-type', data.bgType || 'none');
+        setVal('bg-color', data.bgColor || '');
+        setVal('bg-gradient', data.bgGradient || '');
+        setVal('bg-image-url', data.bgImageUrl || '');
+        setVal('bg-blur', data.bgBlur || '0');
+        setVal('bg-overlay', data.bgOverlay || '0');
+        setVal('bg-size', data.bgSize || 'cover');
+        if (data.bgColor && document.getElementById('bg-color-picker') && /^#[0-9a-fA-F]{6}$/.test(data.bgColor)) {
+            document.getElementById('bg-color-picker').value = data.bgColor;
+        }
+        const bgBlurVal = document.getElementById('bg-blur-value');
+        if (bgBlurVal) bgBlurVal.textContent = data.bgBlur || '0';
+        const bgOverlayVal = document.getElementById('bg-overlay-value');
+        if (bgOverlayVal) bgOverlayVal.textContent = data.bgOverlay || '0';
+        showBackgroundPanel('bg', data.bgType || 'none');
+        
+        // Login page
+        setVal('login-title', data.loginTitle || '');
+        setVal('login-subtitle', data.loginSubtitle || '');
+        checkRadio('login-bg-type', data.loginBgType || 'inherit');
+        setVal('login-bg-color', data.loginBgColor || '');
+        setVal('login-bg-gradient', data.loginBgGradient || '');
+        setVal('login-bg-image-url', data.loginBgImageUrl || '');
+        setVal('login-bg-overlay', data.loginBgOverlay || '0');
+        if (data.loginBgColor && document.getElementById('login-bg-color-picker') && /^#[0-9a-fA-F]{6}$/.test(data.loginBgColor)) {
+            document.getElementById('login-bg-color-picker').value = data.loginBgColor;
+        }
+        const loginOverlayVal = document.getElementById('login-bg-overlay-value');
+        if (loginOverlayVal) loginOverlayVal.textContent = data.loginBgOverlay || '0';
+        showBackgroundPanel('login-bg', data.loginBgType || 'inherit');
+        
+        // Agent download page
+        checkRadio('agent-bg-type', data.agentBgType || 'none');
+        setVal('agent-bg-color', data.agentBgColor || '');
+        setVal('agent-bg-gradient', data.agentBgGradient || '');
+        setVal('agent-bg-image-url', data.agentBgImageUrl || '');
+        setChecked('agent-show-powered', data.agentShowPoweredBy !== 'false');
+        if (data.agentBgColor && document.getElementById('agent-bg-color-picker') && /^#[0-9a-fA-F]{6}$/.test(data.agentBgColor)) {
+            document.getElementById('agent-bg-color-picker').value = data.agentBgColor;
+        }
+        showBackgroundPanel('agent-bg', data.agentBgType || 'none');
+        
+        // Footer & custom CSS
+        setVal('footer-text', data.footerText || '');
+        setChecked('show-powered', data.showPoweredBy !== 'false');
+        setVal('custom-css', data.customCss || '');
+        
         // Update preview
         updateLogoPreview();
+    }
+    
+    /**
+     * Show the active panel for a background group (bg / login-bg / agent-bg)
+     * and hide the rest. "none"/"inherit" hide all detail panels.
+     */
+    function showBackgroundPanel(prefix, type) {
+        ['none', 'inherit', 'color', 'gradient', 'image'].forEach(t => {
+            const panel = document.getElementById(`${prefix}-${t}-panel`);
+            if (panel) panel.classList.add('hidden');
+        });
+        const active = document.getElementById(`${prefix}-${type}-panel`);
+        if (active) active.classList.remove('hidden');
+    }
+    
+    /**
+     * Wire background selectors: radio toggles, range value labels,
+     * color picker sync and image uploads for console/login/agent groups.
+     */
+    function initBackgroundSelectors() {
+        // Radio toggles for the three background groups
+        [['bg-type', 'bg'], ['login-bg-type', 'login-bg'], ['agent-bg-type', 'agent-bg']].forEach(([name, prefix]) => {
+            document.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
+                radio.addEventListener('change', () => showBackgroundPanel(prefix, radio.value));
+            });
+        });
+        
+        // Color picker <-> hex text sync for the standalone background pickers
+        [['bg-color-picker', 'bg-color'], ['login-bg-color-picker', 'login-bg-color'], ['agent-bg-color-picker', 'agent-bg-color']].forEach(([pickerId, textId]) => {
+            const picker = document.getElementById(pickerId);
+            const text = document.getElementById(textId);
+            if (picker && text) {
+                picker.addEventListener('input', () => { text.value = picker.value; });
+                text.addEventListener('input', () => {
+                    if (/^#[0-9a-fA-F]{6}$/.test(text.value)) picker.value = text.value;
+                });
+            }
+        });
+        
+        // Range value labels
+        [['bg-blur', 'bg-blur-value'], ['bg-overlay', 'bg-overlay-value'], ['login-bg-overlay', 'login-bg-overlay-value']].forEach(([rangeId, labelId]) => {
+            const range = document.getElementById(rangeId);
+            const label = document.getElementById(labelId);
+            if (range && label) {
+                range.addEventListener('input', () => { label.textContent = range.value; });
+            }
+        });
+        
+        // Background image uploads (shared route, data-target picks the URL field)
+        document.querySelectorAll('.branding-bg-file').forEach(input => {
+            input.addEventListener('change', handleBackgroundFileUpload);
+        });
+    }
+    
+    /**
+     * Handle background image upload — uploads to the shared background route
+     * and fills the URL field referenced by the input's data-target attribute.
+     */
+    async function handleBackgroundFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const maxSize = 8 * 1024 * 1024; // 8 MB
+        if (file.size > maxSize) {
+            Utils.showNotification(_('branding.bg_image_too_large'), 'error');
+            e.target.value = '';
+            return;
+        }
+        const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+            Utils.showNotification(_('branding.bg_image_invalid_type'), 'error');
+            e.target.value = '';
+            return;
+        }
+        
+        const targetId = e.target.dataset.target;
+        const nameElId = e.target.id.replace('-file', '-file-name');
+        const nameEl = document.getElementById(nameElId);
+        if (nameEl) nameEl.textContent = file.name;
+        
+        const formData = new FormData();
+        formData.append('background', file);
+        
+        try {
+            const resp = await fetch('/api/settings/branding/upload-background', {
+                method: 'POST',
+                headers: { 'x-csrf-token': window.BetterDesk?.csrfToken || '' },
+                body: formData
+            });
+            const result = await resp.json();
+            if (!resp.ok || !result.success) {
+                throw new Error(result.error || 'Upload failed');
+            }
+            const urlInput = document.getElementById(targetId);
+            if (urlInput) urlInput.value = result.url;
+            Notifications.success(_('branding.bg_upload_success'));
+        } catch (err) {
+            Utils.showNotification(err.message || _('errors.server_error'), 'error');
+        }
     }
     
     /**
@@ -764,6 +918,36 @@
                 data.colors[key] = value;
             }
         });
+        
+        // Background & appearance (console)
+        data.bgType = document.querySelector('input[name="bg-type"]:checked')?.value || 'none';
+        data.bgColor = document.getElementById('bg-color')?.value.trim() || '';
+        data.bgGradient = document.getElementById('bg-gradient')?.value.trim() || '';
+        data.bgImageUrl = document.getElementById('bg-image-url')?.value.trim() || '';
+        data.bgBlur = document.getElementById('bg-blur')?.value || '';
+        data.bgOverlay = document.getElementById('bg-overlay')?.value || '';
+        data.bgSize = document.getElementById('bg-size')?.value || 'cover';
+        
+        // Login page
+        data.loginBgType = document.querySelector('input[name="login-bg-type"]:checked')?.value || 'inherit';
+        data.loginBgColor = document.getElementById('login-bg-color')?.value.trim() || '';
+        data.loginBgGradient = document.getElementById('login-bg-gradient')?.value.trim() || '';
+        data.loginBgImageUrl = document.getElementById('login-bg-image-url')?.value.trim() || '';
+        data.loginBgOverlay = document.getElementById('login-bg-overlay')?.value || '';
+        data.loginTitle = document.getElementById('login-title')?.value.trim() || '';
+        data.loginSubtitle = document.getElementById('login-subtitle')?.value.trim() || '';
+        
+        // Agent download page
+        data.agentBgType = document.querySelector('input[name="agent-bg-type"]:checked')?.value || 'none';
+        data.agentBgColor = document.getElementById('agent-bg-color')?.value.trim() || '';
+        data.agentBgGradient = document.getElementById('agent-bg-gradient')?.value.trim() || '';
+        data.agentBgImageUrl = document.getElementById('agent-bg-image-url')?.value.trim() || '';
+        data.agentShowPoweredBy = document.getElementById('agent-show-powered')?.checked ? 'true' : 'false';
+        
+        // Footer & custom CSS
+        data.footerText = document.getElementById('footer-text')?.value.trim() || '';
+        data.showPoweredBy = document.getElementById('show-powered')?.checked ? 'true' : 'false';
+        data.customCss = document.getElementById('custom-css')?.value || '';
         
         return data;
     }

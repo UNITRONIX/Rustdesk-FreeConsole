@@ -2,14 +2,17 @@
 // Public download portal — branded per bundle. No auth, no shared layout.
 // Bundle ID itself is the access token.
 const brand = bundle.branding || {};
+const gb = typeof globalBranding !== 'undefined' && globalBranding ? globalBranding : {};
 const primary = brand.primary_color || '#2563eb';
 const accent  = brand.accent_color  || '#1e293b';
-const companyName = brand.company_name || 'BetterDesk Support';
+const companyName = brand.company_name || gb.appName || 'BetterDesk Support';
 const shortText   = brand.short_text   || '';
-const logo        = brand.logo_data_url || '';
+const logo        = brand.logo_data_url || gb.logoUrl || '';
 const contactEmail = brand.contact_email || '';
 const contactPhone = brand.contact_phone || '';
 const contactUrl   = brand.contact_url   || '';
+const portalBackground = gb.background || '';
+const showPoweredBy = gb.showPoweredBy !== false;
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 %><!DOCTYPE html>
 <html lang="<%= brand.default_lang || 'en' %>">
@@ -25,6 +28,15 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'
             --brand-primary: <%= esc(primary) %>;
             --brand-accent:  <%= esc(accent) %>;
         }
+        <% if (portalBackground) { %>
+        body {
+            background: <%- portalBackground %>;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }
+        <% } %>
     </style>
 </head>
 <body>
@@ -100,7 +112,9 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'
         <% } %>
 
         <footer class="portal-footer">
+            <% if (showPoweredBy) { %>
             <p><%= t('download.powered_by') %> <strong>BetterDesk</strong></p>
+            <% } %>
         </footer>
     </main>
 

@@ -86,6 +86,77 @@ function validateBrandingUrl(value) {
     }
 }
 
+/**
+ * Sanitize a free-form CSS color or gradient value used in generated stylesheets.
+ * Allows only a safe character set so the value cannot break out of its CSS
+ * declaration or inject additional rules. Strips characters that could be used
+ * for CSS injection (`{`, `}`, `;`, `<`, `>`, `@`, backslash, quotes) and
+ * neutralizes `expression(` / `javascript:` / `url(` patterns.
+ * @param {string} value
+ * @returns {string} sanitized value (may be empty)
+ */
+function sanitizeCssColorValue(value) {
+    if (value === undefined || value === null) return '';
+    let v = String(value).trim();
+    if (v === '') return '';
+    // Drop anything outside a conservative allowlist for colors/gradients.
+    v = v.replace(/[^a-zA-Z0-9#%.,()\s/-]/g, '');
+    // Defuse function-based CSS abuse even within the allowed charset.
+    v = v.replace(/expression\s*\(/gi, '');
+    v = v.replace(/url\s*\(/gi, '');
+    return v.substring(0, 400);
+}
+
+/**
+ * Build a CSS background shorthand value from a configured background spec.
+ * @param {string} type  - 'color' | 'gradient' | 'image' | anything else => ''
+ * @param {string} color
+ * @param {string} gradient
+ * @param {string} imageUrl - already validated via validateBrandingUrl
+ * @returns {string} CSS background value or '' when nothing is configured
+ */
+function buildBackgroundValue(type, color, gradient, imageUrl) {
+    switch (type) {
+        case 'color':
+            return sanitizeCssColorValue(color);
+        case 'gradient':
+            return sanitizeCssColorValue(gradient);
+        case 'image': {
+            const url = validateBrandingUrl(imageUrl);
+            if (!url) return '';
+            // Encode quotes/parens defensively even though validation already ran.
+            const safe = url.replace(/["()\\]/g, encodeURIComponent);
+            return `url("${safe}")`;
+        }
+        default:
+            return '';
+    }
+}
+
+/**
+ * Sanitize operator-supplied custom CSS (advanced escape hatch).
+ * Removes constructs that could lead to XSS / data exfiltration:
+ *   - </style> breakouts, HTML tags
+ *   - @import (external stylesheet loading)
+ *   - expression() (legacy IE script execution)
+ *   - behavior: / -moz-binding: (HTC / XBL script binding)
+ *   - url(javascript:|data:|vbscript:) schemes
+ * @param {string} value
+ * @returns {string} sanitized CSS (capped length)
+ */
+function sanitizeCustomCss(value) {
+    if (value === undefined || value === null) return '';
+    let css = String(value);
+    css = css.replace(/<\s*\/?\s*style[^>]*>/gi, '');     // </style> breakout
+    css = css.replace(/<[^>]*>/g, '');                    // any HTML tags
+    css = css.replace(/@import\b[^;]*;?/gi, '');          // external imports
+    css = css.replace(/expression\s*\(/gi, '');           // IE expression()
+    css = css.replace(/(?:-\w+-)?behavior\s*:/gi, '');    // HTC/XBL binding
+    css = css.replace(/-moz-binding\s*:/gi, '');          // Firefox XBL binding
+    css = css.replace(/url\s*\(\s*["']?\s*(?:javascript|data|vbscript|file):[^)]*\)/gi, 'none');
+    return css.substring(0, 20000);
+}
+
 // Default branding (BetterDesk original theme)
 const DEFAULT_BRANDING = {
     // Brand identity
@@ -106,7 +177,39 @@ const DEFAULT_BRANDING = {
     
     // Favicon (SVG)
     faviconSvg: '',   // Custom favicon SVG (empty = default)
-    
+
+    // Console background & appearance
+    bgType: 'none',     // 'none' | 'color' | 'gradient' | 'image'
+    bgColor: '',        // solid color (when bgType === 'color')
+    bgGradient: '',     // CSS gradient (when bgType === 'gradient')
+    bgImageUrl: '',     // uploaded/linked image (when bgType === 'image')
+    bgBlur: '',         // blur radius in px applied to the wallpaper layer
+    bgOverlay: '',      // dark overlay opacity 0-100 (%) for readability
+    bgSize: 'cover',    // 'cover' | 'contain' | 'repeat' | 'center'
+
+    // Login page branding
+    loginBgType: 'inherit', // 'inherit' | 'none' | 'color' | 'gradient' | 'image'
+    loginBgColor: '',
+    loginBgGradient: '',
+    loginBgImageUrl: '',
+    loginBgOverlay: '',     // dark overlay opacity 0-100 (%)
+    loginTitle: '',         // overrides the login heading
+    loginSubtitle: '',      // overrides the login subtitle
+
+    // Footer / attribution
+    footerText: '',         // custom footer / copyright text
+    showPoweredBy: 'true',  // 'true' | 'false' — show "Powered by BetterDesk"
+
+    // Agent download portal (global defaults shared by all bundles)
+    agentBgType: 'none',    // 'none' | 'color' | 'gradient' | 'image'
+    agentBgColor: '',
+    agentBgGradient: '',
+    agentBgImageUrl: '',
+    agentShowPoweredBy: 'true', // 'true' | 'false'
+
+    // Advanced — custom CSS escape hatch (sanitized)
+    customCss: '',
+
     // Color scheme overrides (empty = use defaults from variables.css)
     colors: {
         bgPrimary: '',
@@ -222,11 +325,21 @@ async function saveBranding(updates) {
         } else if (key in DEFAULT_BRANDING) {
             // Security: Sanitize SVG content to prevent XSS
             if (key === 'logoSvg' || key === 'faviconSvg') {
-                entries.push({ key, value: sanitizeSvg(String(value)) });            } else if (key === 'logoUrl' || key === 'faviconUrl') {
+                entries.push({ key, value: sanitizeSvg(String(value)) });            } else if (key === 'logoUrl' || key === 'faviconUrl' ||
+                       key === 'bgImageUrl' || key === 'loginBgImageUrl' || key === 'agentBgImageUrl') {
                 // Security: Validate URL scheme to prevent javascript:/data:/file:/protocol-relative XSS/SSRF.
                 const normalized = validateBrandingUrl(value);
                 if (normalized === null) continue; // skip invalid value, keep previous DB value
-                entries.push({ key, value: normalized });            } else {
+                entries.push({ key, value: normalized });
+            } else if (key === 'bgColor' || key === 'bgGradient' ||
+                       key === 'loginBgColor' || key === 'loginBgGradient' ||
+                       key === 'agentBgColor' || key === 'agentBgGradient') {
+                // Security: Restrict to a safe CSS color/gradient charset.
+                entries.push({ key, value: sanitizeCssColorValue(value) });
+            } else if (key === 'customCss') {
+                // Security: Neutralize CSS-based XSS / external resource loading.
+                entries.push({ key, value: sanitizeCustomCss(value) });
+            } else {
                 entries.push({ key, value: String(value) });
             }
         }
@@ -286,8 +399,89 @@ function generateThemeCss() {
     if (overrides.length > 0) {
         css += `:root {\n${overrides.join('\n')}\n}\n`;
     }
-    
+
+    // Background wallpaper (console + login) and custom CSS
+    css += generateBackgroundCss(branding);
+
+    const customCss = sanitizeCustomCss(branding.customCss);
+    if (customCss.trim()) {
+        css += `\n/* --- custom branding CSS --- */\n${customCss}\n`;
+    }
+
     return css;
+}
+
+/** Clamp a numeric branding input (blur px / overlay %) to a safe range. */
+function clampNumber(value, min, max) {
+    const n = parseFloat(value);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(max, Math.max(min, n));
+}
+
+/**
+ * Generate the wallpaper / overlay CSS for the console (.app-page) and the
+ * login page (.login-page). The wallpaper sits on a fixed pseudo-element behind
+ * all content; the scrollable content area is made transparent so cards float
+ * over it. Login background can either inherit the console one or override it.
+ * @param {Object} branding
+ * @returns {string}
+ */
+function generateBackgroundCss(branding) {
+    let out = '';
+
+    const sizeRule = (size) => {
+        switch (size) {
+            case 'contain': return 'background-size: contain; background-repeat: no-repeat; background-position: center;';
+            case 'repeat':  return 'background-repeat: repeat;';
+            case 'center':  return 'background-size: auto; background-repeat: no-repeat; background-position: center;';
+            case 'cover':
+            default:        return 'background-size: cover; background-repeat: no-repeat; background-position: center;';
+        }
+    };
+
+    // ---- Console wallpaper ----
+    const consoleBg = buildBackgroundValue(branding.bgType, branding.bgColor, branding.bgGradient, branding.bgImageUrl);
+    if (consoleBg) {
+        const blur = clampNumber(branding.bgBlur, 0, 40);
+        const overlay = clampNumber(branding.bgOverlay, 0, 95);
+        out += `body.app-page::before {\n` +
+               `    content: '';\n    position: fixed;\n    inset: 0;\n    z-index: -2;\n` +
+               `    background: ${consoleBg};\n    ${branding.bgType === 'image' ? sizeRule(branding.bgSize) : ''}\n` +
+               (blur ? `    filter: blur(${blur}px);\n    transform: scale(1.05);\n` : '') +
+               `}\n`;
+        if (overlay) {
+            out += `body.app-page::after {\n` +
+                   `    content: '';\n    position: fixed;\n    inset: 0;\n    z-index: -1;\n` +
+                   `    background: rgba(0, 0, 0, ${(overlay / 100).toFixed(2)});\n    pointer-events: none;\n}\n`;
+        }
+        // Let the wallpaper show behind floating cards in the content area.
+        out += `body.app-page { background-color: transparent; }\n`;
+        out += `body.app-page .main-content { background: transparent; }\n`;
+    }
+
+    // ---- Login wallpaper ----
+    let loginBg = '';
+    let loginOverlay = null;
+    if (branding.loginBgType === 'inherit') {
+        loginBg = consoleBg;
+        loginOverlay = clampNumber(branding.bgOverlay, 0, 95);
+    } else if (branding.loginBgType && branding.loginBgType !== 'none') {
+        loginBg = buildBackgroundValue(branding.loginBgType, branding.loginBgColor, branding.loginBgGradient, branding.loginBgImageUrl);
+        loginOverlay = clampNumber(branding.loginBgOverlay, 0, 95);
+    }
+    if (loginBg) {
+        out += `body.login-page::before {\n` +
+               `    content: '';\n    position: fixed;\n    inset: 0;\n    z-index: -2;\n` +
+               `    background: ${loginBg};\n    background-size: cover;\n    background-position: center;\n    background-repeat: no-repeat;\n}\n`;
+        if (loginOverlay) {
+            out += `body.login-page::after {\n` +
+                   `    content: '';\n    position: fixed;\n    inset: 0;\n    z-index: -1;\n` +
+                   `    background: rgba(0, 0, 0, ${(loginOverlay / 100).toFixed(2)});\n    pointer-events: none;\n}\n`;
+        }
+        out += `body.login-page { background-color: transparent; }\n`;
+    }
+
+    return out;
 }
 
 /**
@@ -353,8 +547,12 @@ async function importPreset(preset) {
                 }
                 sanitized.colors = colors;
             } else {
-                // Limit string length for safety
-                sanitized[key] = String(preset.branding[key]).substring(0, key === 'logoSvg' || key === 'faviconSvg' ? 50000 : 500);
+                // Limit string length for safety (larger caps for markup/CSS fields)
+                let cap = 500;
+                if (key === 'logoSvg' || key === 'faviconSvg') cap = 50000;
+                else if (key === 'customCss') cap = 20000;
+                else if (key === 'bgGradient' || key === 'loginBgGradient' || key === 'agentBgGradient') cap = 1000;
+                sanitized[key] = String(preset.branding[key]).substring(0, cap);
             }
         }
     }
@@ -383,5 +581,8 @@ module.exports = {
     importPreset,
     invalidateCache,
     sanitizeSvg,
+    sanitizeCssColorValue,
+    sanitizeCustomCss,
+    buildBackgroundValue,
     validateBrandingUrl
 };
