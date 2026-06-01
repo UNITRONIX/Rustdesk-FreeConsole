@@ -1189,7 +1189,12 @@ update_docker_from_github() {
         rm -rf "$SCRIPT_DIR/betterdesk-server.pre-update" 2>/dev/null || true
         mv "$SCRIPT_DIR/betterdesk-server" "$SCRIPT_DIR/betterdesk-server.pre-update" 2>/dev/null || true
     fi
-    cp -r "$clone_dir/betterdesk-server" "$SCRIPT_DIR/betterdesk-server"
+    # Copy *contents* into a guaranteed dir. Copying the directory itself would
+    # nest the new tree inside an existing betterdesk-server/ if the rename
+    # above failed (e.g. a locked file), leaving inconsistent source that breaks
+    # the Docker build with "undefined" Go errors (issue #158).
+    mkdir -p "$SCRIPT_DIR/betterdesk-server"
+    cp -rf "$clone_dir/betterdesk-server/." "$SCRIPT_DIR/betterdesk-server/"
     files_updated=$((files_updated + 1))
 
     # Update Node.js console source
@@ -1204,7 +1209,9 @@ update_docker_from_github() {
         rm -rf "$SCRIPT_DIR/web-nodejs.pre-update" 2>/dev/null || true
         mv "$SCRIPT_DIR/web-nodejs" "$SCRIPT_DIR/web-nodejs.pre-update" 2>/dev/null || true
     fi
-    cp -r "$clone_dir/web-nodejs" "$SCRIPT_DIR/web-nodejs"
+    # Copy *contents* into a guaranteed dir (see issue #158 note above).
+    mkdir -p "$SCRIPT_DIR/web-nodejs"
+    cp -rf "$clone_dir/web-nodejs/." "$SCRIPT_DIR/web-nodejs/"
     # Restore preserved directories
     for pd in "${preserve_dirs[@]}"; do
         if [ -d "/tmp/betterdesk-docker-preserve-$$-$pd" ]; then

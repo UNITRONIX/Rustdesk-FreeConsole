@@ -2839,7 +2839,13 @@ update_from_github() {
         # Backup existing source (lightweight — just rename)
         mv "$GO_SERVER_SOURCE" "${GO_SERVER_SOURCE}.pre-update.$$" 2>/dev/null || true
     fi
-    cp -r "$clone_dir/betterdesk-server" "$GO_SERVER_SOURCE"
+    # Copy the *contents* into a guaranteed-existing destination. Copying the
+    # directory itself would nest the new tree inside an existing
+    # $GO_SERVER_SOURCE if the rename above failed (e.g. a locked/busy file),
+    # leaving the old inconsistent source in place and breaking `go build`
+    # with "undefined" errors (issue #158).
+    mkdir -p "$GO_SERVER_SOURCE"
+    cp -rf "$clone_dir/betterdesk-server/." "$GO_SERVER_SOURCE/"
 
     # Restore any local data/ directory that existed in the old source dir
     if [ -d "${GO_SERVER_SOURCE}.pre-update.$$/data" ]; then

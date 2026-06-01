@@ -2855,7 +2855,13 @@ function Update-FromGitHub {
         Rename-Item -Path $goServerSource -NewName $backupName -ErrorAction SilentlyContinue
     }
     $sourceDir = Join-Path $cloneDir "betterdesk-server"
-    Copy-Item -Path $sourceDir -Destination $goServerSource -Recurse -Force
+    # Copy the *contents* into a guaranteed-existing destination. Copying the
+    # directory itself would nest the new tree inside an existing
+    # $goServerSource if the rename above failed (e.g. a momentarily locked
+    # file), leaving the old inconsistent source in place and breaking
+    # `go build` with "undefined" errors (issue #158).
+    New-Item -ItemType Directory -Path $goServerSource -Force | Out-Null
+    Copy-Item -Path "$sourceDir\*" -Destination $goServerSource -Recurse -Force
 
     # Restore any local data/ directory from old source
     $oldDataDir = "$goServerSource.pre-update.$PID\data"

@@ -631,16 +631,27 @@ function detectServerBinaryPath() {
 
 /**
  * Ensure full Go server source code is present locally.
- * If go.mod already exists, assumes source is present (changed files applied separately).
- * Otherwise downloads the full source tree from GitHub.
+ *
+ * When `opts.force` is false (default) and go.mod already exists, the source is
+ * assumed present and only the per-file compare diff is applied elsewhere.
+ *
+ * When `opts.force` is true, the COMPLETE source tree is (re)downloaded even if
+ * go.mod exists. This is required because GitHub's compare API caps its `files`
+ * array at 300 entries: for large updates the diff is truncated, so changed
+ * dependency files (e.g. codec/ws.go, peer/map.go, auth/ldap.go, auth/oidc.go)
+ * may never be downloaded. The result is an inconsistent on-disk source where
+ * updated callers (signal/ws.go, api/server.go) reference symbols that are
+ * missing from stale callees, breaking `go build` (issue #158). Forcing a full
+ * sync before every compile/rebuild guarantees source consistency.
  *
  * @param {string} remoteSHA
+ * @param {{ force?: boolean }} [opts]
  * @returns {Promise<{ strategy: string, filesDownloaded: number }>}
  */
-async function ensureServerSource(remoteSHA) {
+async function ensureServerSource(remoteSHA, opts = {}) {
     const serverDir = COMPONENTS.server.localRoot;
     const goModPath = path.join(serverDir, 'go.mod');
-    if (fs.existsSync(goModPath)) {
+    if (!opts.force && fs.existsSync(goModPath)) {
         return { strategy: 'incremental', filesDownloaded: 0 };
     }
 
@@ -1537,9 +1548,12 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
         // Keep local Go server source in sync for every server update path.
         // Even when a pre-built binary is used, the next source build must not
-        // start from stale files.
+        // start from stale files. Force a FULL source resync (issue #158): the
+        // GitHub compare diff is capped at 300 files and can omit changed
+        // dependency files, leaving the on-disk source inconsistent and
+        // unbuildable. A full resync guarantees all callee files are present.
         try {
-            const sourceResult = await ensureServerSource(remoteSHA);
+            const sourceResult = await ensureServerSource(remoteSHA, { force: true });
             console.log(`[UPDATE] Server source: strategy=${sourceResult.strategy}, files=${sourceResult.filesDownloaded}`);
         } catch (err) {
             results.failed.push({ file: 'server-source', error: `Source download failed: ${err.message}` });
@@ -1915,9 +1929,11 @@ async function rebuildServerBinary(opts = {}) {
     const remoteSHA = opts.sha || getLocalSHA();
 
     // 1. Sync source so the build links the latest go.mod/go.sum.
+    //    Force a FULL resync (issue #158) so a previously truncated compare
+    //    diff cannot leave the local source inconsistent and unbuildable.
     try {
         if (remoteSHA) {
-            const src = await ensureServerSource(remoteSHA);
+            const src = await ensureServerSource(remoteSHA, { force: true });
             result.steps.source = { success: true, strategy: src.strategy, files: src.filesDownloaded };
         } else {
             result.steps.source = { success: true, strategy: 'local', files: 0 };
