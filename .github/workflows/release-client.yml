@@ -2,7 +2,8 @@
 # BetterDesk Desktop Client — Build & Release (Multi-Platform)
 # =============================================================================
 # Builds Tauri desktop client for Windows, Linux, and macOS.
-# Triggers on version tag push (v*) or manual dispatch.
+# Desktop client is still in development — NOT triggered by git tags (v*).
+# Use workflow_dispatch only when explicitly testing a desktop release build.
 #
 # Artifacts:
 #   - Windows: NSIS installer (.exe)
@@ -13,9 +14,6 @@
 name: Build & Release Desktop Client
 
 on:
-  push:
-    tags: ['v*']
-
   workflow_dispatch:
     inputs:
       version:
