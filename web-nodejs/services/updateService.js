@@ -1773,6 +1773,21 @@ function restartService(serviceName) {
 }
 
 /**
+ * Reload systemd unit definitions after editing .service files (Linux only).
+ */
+function daemonReload() {
+    if (IS_WINDOWS) {
+        return { success: true, skipped: true };
+    }
+    try {
+        runPrivileged('systemctl daemon-reload', { timeout: 10000, stdio: 'pipe' });
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
+
+/**
  * Recursively compute total size in bytes of a directory.
  * Returns 0 on error so the UI can still render.
  */
@@ -2008,6 +2023,7 @@ module.exports = {
     createPreUpdateBackup,
     applyUpdate,
     restartService,
+    daemonReload,
     listBackups,
     deleteBackup,
     pruneBackups,

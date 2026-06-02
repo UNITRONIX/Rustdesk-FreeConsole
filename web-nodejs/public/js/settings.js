@@ -24,6 +24,9 @@
         if (document.getElementById('tab-updates') && document.getElementById('tab-updates').style.display !== 'none') {
             initUpdateSection();
         }
+        if (document.getElementById('tab-advanced') && document.getElementById('tab-advanced').style.display !== 'none') {
+            initAdvancedSection();
+        }
 
         initTutorialSection();
         loadAuditLog();
@@ -52,7 +55,7 @@
         
         // Check URL hash for direct tab navigation
         const hash = window.location.hash.replace('#', '');
-        if (['branding', 'server', 'backup', 'updates', 'auth'].includes(hash)) {
+        if (['branding', 'server', 'backup', 'updates', 'auth', 'advanced'].includes(hash)) {
             const tab = document.querySelector(`[data-tab="${hash}"]`);
             if (tab) tab.click();
         }
@@ -2588,6 +2591,273 @@
             btn.disabled = false;
             btn.innerHTML = '<span class="material-icons">travel_explore</span> ' + _('settings.oidc_test_discovery');
         }
+    }
+
+    // ==================== Advanced config files =================================
+
+    const advancedState = { files: [], activeId: null, dirty: false, original: '' };
+
+    function initAdvancedSection() {
+        const listEl = document.getElementById('advanced-config-file-list');
+        const textarea = document.getElementById('advanced-config-textarea');
+        const saveBtn = document.getElementById('advanced-config-save');
+        const reloadBtn = document.getElementById('advanced-config-reload');
+        const restartBtn = document.getElementById('advanced-config-restart');
+        if (!listEl) return;
+
+        loadAdvancedFileList();
+
+        saveBtn?.addEventListener('click', saveAdvancedFile);
+        restartBtn?.addEventListener('click', restartAdvancedServices);
+        reloadBtn?.addEventListener('click', () => {
+            if (advancedState.activeId) loadAdvancedFile(advancedState.activeId, true);
+        });
+
+        textarea?.addEventListener('input', () => {
+            advancedState.dirty = textarea.value !== advancedState.original;
+            if (saveBtn) saveBtn.disabled = !advancedState.dirty;
+        });
+
+        window.addEventListener('beforeunload', (e) => {
+            if (advancedState.dirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    }
+
+    async function loadAdvancedFileList() {
+        const listEl = document.getElementById('advanced-config-file-list');
+        if (!listEl) return;
+        try {
+            const resp = await Utils.api('/api/settings/advanced/files');
+            advancedState.files = resp.data || [];
+            if (!advancedState.files.length) {
+                listEl.innerHTML = '<li class="text-muted">' + _('settings.advanced_no_files') + '</li>';
+                return;
+            }
+            listEl.innerHTML = advancedState.files.map((f) => {
+                const label = _('settings.advanced_file_' + f.id) !== 'settings.advanced_file_' + f.id
+                    ? _('settings.advanced_file_' + f.id)
+                    : f.id;
+                const status = f.exists
+                    ? (f.writable ? '' : ' <span class="badge badge-muted">' + _('settings.advanced_readonly') + '</span>')
+                    : ' <span class="badge badge-muted">' + _('settings.advanced_missing') + '</span>';
+                const disabled = !f.exists && !f.canCreate;
+                return '<li><button type="button" class="advanced-config-file-btn' +
+                    (advancedState.activeId === f.id ? ' active' : '') +
+                    '" data-id="' + Utils.escapeHtml(f.id) + '"' +
+                    (disabled ? ' disabled' : '') + '>' +
+                    Utils.escapeHtml(label) + status + '</button></li>';
+            }).join('');
+
+            listEl.querySelectorAll('.advanced-config-file-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-id');
+                    if (!id) return;
+                    if (advancedState.dirty && !confirm(_('settings.advanced_unsaved_confirm'))) return;
+                    loadAdvancedFile(id);
+                });
+            });
+
+        } catch (err) {
+            listEl.innerHTML = '<li class="text-danger">' + Utils.escapeHtml(err.message || _('errors.server_error')) + '</li>';
+        }
+    }
+
+    function advancedRestartHint(restart) {
+        const map = {
+            console: _('settings.advanced_restart_console'),
+            goserver: _('settings.advanced_restart_goserver'),
+            systemd: _('settings.advanced_restart_systemd')
+        };
+        return map[restart] || _('settings.advanced_restart_generic');
+    }
+
+    function updateAdvancedRestartButton(catalogOrData) {
+        const restartBtn = document.getElementById('advanced-config-restart');
+        if (!restartBtn) return;
+        const show = catalogOrData && (catalogOrData.exists || catalogOrData.canCreate);
+        restartBtn.hidden = !show;
+    }
+
+    async function loadAdvancedFile(id, force) {
+        if (!force && advancedState.dirty && !confirm(_('settings.advanced_unsaved_confirm'))) return;
+
+        const placeholder = document.getElementById('advanced-config-placeholder');
+        const toolbar = document.getElementById('advanced-config-toolbar');
+        const textarea = document.getElementById('advanced-config-textarea');
+        const hint = document.getElementById('advanced-config-restart-hint');
+        const saveBtn = document.getElementById('advanced-config-save');
+        const meta = document.getElementById('advanced-config-meta');
+        const pathEl = document.getElementById('advanced-config-path');
+
+        const catalog = advancedState.files.find((f) => f.id === id);
+        if (catalog && !catalog.exists && catalog.canCreate) {
+            advancedState.activeId = id;
+            advancedState.original = '';
+            advancedState.dirty = false;
+            if (placeholder) placeholder.hidden = true;
+            if (toolbar) toolbar.hidden = false;
+            if (textarea) {
+                textarea.hidden = false;
+                textarea.value = '# ' + _('settings.advanced_new_file_hint') + '\n';
+                textarea.disabled = !catalog.writable;
+            }
+            if (pathEl) pathEl.textContent = catalog.path;
+            if (meta) meta.textContent = _('settings.advanced_new_file');
+            if (hint) {
+                hint.hidden = false;
+                hint.textContent = advancedRestartHint(catalog.requiresRestart);
+            }
+            if (saveBtn) saveBtn.disabled = !catalog.writable;
+            updateAdvancedRestartButton(catalog);
+            document.querySelectorAll('.advanced-config-file-btn').forEach((b) => {
+                b.classList.toggle('active', b.getAttribute('data-id') === id);
+            });
+            return;
+        }
+
+        try {
+            const resp = await Utils.api('/api/settings/advanced/files/' + encodeURIComponent(id));
+            const data = resp.data;
+            advancedState.activeId = id;
+            advancedState.original = data.content || '';
+            advancedState.dirty = false;
+
+            if (placeholder) placeholder.hidden = true;
+            if (toolbar) toolbar.hidden = false;
+            if (textarea) {
+                textarea.hidden = false;
+                textarea.value = advancedState.original;
+                const cat = advancedState.files.find((f) => f.id === id);
+                textarea.disabled = cat ? !cat.writable : false;
+            }
+            if (pathEl) pathEl.textContent = data.path;
+            if (meta) {
+                const kb = ((data.size || 0) / 1024).toFixed(1);
+                meta.textContent = kb + ' KB · ' + (data.mtime || '');
+            }
+            if (hint) {
+                hint.hidden = false;
+                hint.textContent = advancedRestartHint(data.requiresRestart);
+            }
+            if (saveBtn) saveBtn.disabled = !cat || !cat.writable;
+            updateAdvancedRestartButton(cat || { exists: true });
+
+            document.querySelectorAll('.advanced-config-file-btn').forEach((b) => {
+                b.classList.toggle('active', b.getAttribute('data-id') === id);
+            });
+        } catch (err) {
+            Notifications.error(err.message || _('errors.server_error'));
+        }
+    }
+
+    async function saveAdvancedFile() {
+        const id = advancedState.activeId;
+        const textarea = document.getElementById('advanced-config-textarea');
+        if (!id || !textarea) return;
+
+        const catalog = advancedState.files.find((f) => f.id === id);
+        if (catalog && !catalog.writable) {
+            Notifications.error(_('settings.advanced_error_not_writable'));
+            return;
+        }
+
+        if (!confirm(_('settings.advanced_save_confirm'))) return;
+
+        const saveBtn = document.getElementById('advanced-config-save');
+        if (saveBtn) saveBtn.disabled = true;
+
+        try {
+            const resp = await Utils.api('/api/settings/advanced/files/' + encodeURIComponent(id), {
+                method: 'PUT',
+                body: { content: textarea.value }
+            });
+            advancedState.original = textarea.value;
+            advancedState.dirty = false;
+            let msg = _('settings.advanced_saved');
+            if (resp && resp.backupPath) {
+                msg += ' (' + _('settings.advanced_backup_created') + ')';
+            }
+            Notifications.success(msg);
+            await loadAdvancedFileList();
+            loadAdvancedFile(id, true);
+
+            if (confirm(_('settings.advanced_restart_after_save'))) {
+                await restartAdvancedServices(true);
+            }
+        } catch (err) {
+            Notifications.error(err.message || _('errors.server_error'));
+            if (saveBtn) saveBtn.disabled = advancedState.dirty;
+        }
+    }
+
+    async function restartAdvancedServices(skipConfirm) {
+        const id = advancedState.activeId;
+        if (!id) return;
+
+        if (advancedState.dirty && !confirm(_('settings.advanced_unsaved_confirm'))) return;
+
+        const catalog = advancedState.files.find((f) => f.id === id);
+        const isConsole = catalog && (catalog.requiresRestart === 'console' || id === 'systemd-console'
+            || id === 'console-env' || id === 'console-env-local');
+        const confirmKey = isConsole
+            ? 'settings.advanced_restart_console_confirm'
+            : 'settings.advanced_restart_confirm';
+        if (!skipConfirm && !confirm(_(confirmKey))) return;
+
+        const restartBtn = document.getElementById('advanced-config-restart');
+        if (restartBtn) restartBtn.disabled = true;
+
+        try {
+            const result = await Utils.api('/api/settings/advanced/restart', {
+                method: 'POST',
+                body: { fileId: id }
+            });
+            Notifications.success(_('settings.advanced_restart_started'));
+
+            if (result && result.needsConsolePoll) {
+                pollAdvancedConsoleRestart();
+            }
+        } catch (err) {
+            const detail = err.data && (err.data.details || err.data.error);
+            Notifications.error(detail || err.message || _('settings.advanced_restart_failed'));
+        } finally {
+            if (restartBtn) restartBtn.disabled = false;
+        }
+    }
+
+    function pollAdvancedConsoleRestart() {
+        let attempts = 0;
+        const maxAttempts = 90;
+        const previousCacheVersion = window.BetterDesk?.cacheVersion || '';
+        Notifications.info(_('settings.advanced_restart_polling'));
+
+        const interval = setInterval(async () => {
+            attempts++;
+            try {
+                const resp = await fetch('/api/settings/restart-status?_=' + Date.now(), {
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                });
+                if (resp.ok) {
+                    const body = await resp.json().catch(() => null);
+                    const status = body?.data || body || {};
+                    if (previousCacheVersion && status.cacheVersion && status.cacheVersion === previousCacheVersion) {
+                        return;
+                    }
+                    clearInterval(interval);
+                    Notifications.success(_('settings.advanced_restart_done'));
+                    setTimeout(() => window.location.reload(), 2000);
+                    return;
+                }
+            } catch (_) { /* console still restarting */ }
+            if (attempts >= maxAttempts) {
+                clearInterval(interval);
+                Notifications.warning(_('settings.advanced_restart_timeout'));
+            }
+        }, 2000);
     }
     
 })();

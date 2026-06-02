@@ -15,6 +15,7 @@ const fontService = require('../services/fontService');
 const serverBackend = require('../services/serverBackend');
 const backupService = require('../services/backupService');
 const updateService = require('../services/updateService');
+const advancedConfig = require('../services/advancedConfigService');
 const { requireAuth, requirePermission, roleHasPermission } = require('../middleware/auth');
 const os = require('os');
 const multer = require('multer');
@@ -1069,6 +1070,132 @@ router.post('/api/settings/oidc/test', requireAuth, requirePermission('server.co
     } catch (err) {
         console.error('Test OIDC discovery error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+// ==================== Advanced config files ==================================
+
+function advancedConfigError(req, res, err) {
+    const map = {
+        unknown_file: 'settings.advanced_error_unknown',
+        not_found: 'settings.advanced_error_not_found',
+        not_a_file: 'settings.advanced_error_not_file',
+        file_too_large: 'settings.advanced_error_too_large',
+        binary_file: 'settings.advanced_error_binary',
+        invalid_content: 'settings.advanced_error_invalid',
+        not_writable: 'settings.advanced_error_not_writable',
+        no_restart: 'settings.advanced_error_no_restart'
+    };
+    const key = map[err.message];
+    const status = err.message === 'unknown_file' ? 404
+        : (err.message === 'not_found' ? 404 : 400);
+    res.status(status).json({
+        success: false,
+        error: key ? req.t(key) : (err.message || req.t('errors.server_error'))
+    });
+}
+
+/**
+ * GET /api/settings/advanced/files - List editable config files
+ */
+router.get('/api/settings/advanced/files', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const files = await advancedConfig.listFiles();
+        res.json({ success: true, data: files });
+    } catch (err) {
+        console.error('List advanced config files error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * GET /api/settings/advanced/files/:id - Read a config file
+ */
+router.get('/api/settings/advanced/files/:id', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const data = await advancedConfig.readFile(req.params.id);
+        res.json({ success: true, data });
+    } catch (err) {
+        if (['unknown_file', 'not_found', 'not_a_file', 'file_too_large', 'binary_file'].includes(err.message)) {
+            return advancedConfigError(req, res, err);
+        }
+        console.error('Read advanced config file error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * PUT /api/settings/advanced/files/:id - Save a config file (backup created when overwriting)
+ */
+router.put('/api/settings/advanced/files/:id', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const { content } = req.body || {};
+        const result = await advancedConfig.writeFile(req.params.id, content);
+        await db.logAction(
+            req.session?.userId,
+            'advanced_config_saved',
+            `Saved advanced config: ${result.path}${result.backupPath ? ` (backup: ${result.backupPath})` : ''}`,
+            req.ip
+        );
+        res.json({
+            success: true,
+            data: result,
+            message: req.t('settings.advanced_saved')
+        });
+    } catch (err) {
+        if (['unknown_file', 'not_found', 'not_a_file', 'file_too_large', 'invalid_content', 'not_writable'].includes(err.message)) {
+            return advancedConfigError(req, res, err);
+        }
+        console.error('Write advanced config file error:', err);
+        res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/advanced/restart - Restart services for the given config file
+ * Body: { fileId }
+ */
+router.post('/api/settings/advanced/restart', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const fileId = req.body && req.body.fileId;
+        if (!fileId || typeof fileId !== 'string') {
+            return res.status(400).json({ success: false, error: req.t('settings.advanced_error_unknown') });
+        }
+
+        const result = advancedConfig.restartForFile(fileId);
+        const failed = (result.restarts || []).filter((r) => !r.success);
+        const daemonFailed = result.daemonReload && result.daemonReload.success === false;
+
+        await db.logAction(
+            req.session?.userId,
+            'advanced_config_restart',
+            `Restart after advanced config (${fileId}): ${JSON.stringify(result.restarts)}`,
+            req.ip
+        );
+
+        if (daemonFailed || failed.length) {
+            const parts = [];
+            if (daemonFailed && result.daemonReload.error) parts.push(result.daemonReload.error);
+            failed.forEach((f) => { if (f.error) parts.push(`${f.service}: ${f.error}`); });
+            return res.status(500).json({
+                success: false,
+                error: req.t('settings.advanced_restart_failed'),
+                data: result,
+                details: parts.join('; ')
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result,
+            message: req.t('settings.advanced_restart_started')
+        });
+    } catch (err) {
+        if (['unknown_file', 'no_restart'].includes(err.message)) {
+            return advancedConfigError(req, res, err);
+        }
+        console.error('Advanced config restart error:', err);
+        res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
     }
 });
 

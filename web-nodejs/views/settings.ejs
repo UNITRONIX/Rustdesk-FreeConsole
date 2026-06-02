@@ -31,6 +31,10 @@
             <button class="settings-tab" data-tab="updates">
                 <span class="material-icons">system_update</span>
                 ${_('updates.tab_title')}
+            </button>
+            <button class="settings-tab" data-tab="advanced">
+                <span class="material-icons">code</span>
+                ${_('settings.tab_advanced')}
             </button>` : ''}
         </div>
         
@@ -1472,6 +1476,60 @@
                     <div class="backup-summary text-muted" id="backup-summary"></div>
                     <div id="update-backups-list">
                         <p class="text-muted">${_('common.loading')}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- Advanced config files (server.config permission required) -->
+        <div class="settings-tab-content" id="tab-advanced" ${canServerConfig ? '' : 'style="display:none"'}>
+        <div class="settings-sections">
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">code</span>
+                        ${_('settings.advanced_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('settings.advanced_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="restore-warning-box">
+                        <span class="material-icons">warning</span>
+                        <span>${_('settings.advanced_warning')}</span>
+                    </div>
+                    <div class="advanced-config-layout">
+                        <aside class="advanced-config-sidebar">
+                            <p class="advanced-config-sidebar-label">${_('settings.advanced_files_label')}</p>
+                            <ul class="advanced-config-file-list" id="advanced-config-file-list">
+                                <li class="text-muted">${_('common.loading')}</li>
+                            </ul>
+                        </aside>
+                        <div class="advanced-config-editor">
+                            <div class="advanced-config-editor-toolbar" id="advanced-config-toolbar" hidden>
+                                <div class="advanced-config-editor-meta">
+                                    <code class="advanced-config-path" id="advanced-config-path"></code>
+                                    <span class="text-muted" id="advanced-config-meta"></span>
+                                </div>
+                                <div class="advanced-config-editor-actions">
+                                    <button type="button" class="btn btn-sm btn-outline" id="advanced-config-reload">
+                                        <span class="material-icons">refresh</span>
+                                        ${_('settings.advanced_reload')}
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="advanced-config-save">
+                                        <span class="material-icons">save</span>
+                                        ${_('settings.advanced_save')}
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-warning" id="advanced-config-restart" hidden>
+                                        <span class="material-icons">restart_alt</span>
+                                        ${_('settings.advanced_apply_restart')}
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="advanced-config-placeholder text-muted" id="advanced-config-placeholder">${_('settings.advanced_select_file')}</p>
+                            <textarea class="advanced-config-textarea" id="advanced-config-textarea" spellcheck="false" hidden></textarea>
+                            <p class="advanced-config-restart-hint text-muted" id="advanced-config-restart-hint" hidden></p>
+                        </div>
                     </div>
                 </div>
             </div>

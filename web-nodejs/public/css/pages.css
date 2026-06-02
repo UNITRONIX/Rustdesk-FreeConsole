@@ -679,6 +679,138 @@
     display: block;
 }
 
+/* ==================== Advanced config editor ==================== */
+
+.advanced-config-layout {
+    display: grid;
+    grid-template-columns: minmax(200px, 260px) 1fr;
+    gap: var(--space-lg);
+    margin-top: var(--space-md);
+    min-height: 420px;
+}
+
+.advanced-config-sidebar-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: var(--space-sm);
+}
+
+.advanced-config-file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.advanced-config-file-btn {
+    width: 100%;
+    text-align: left;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.advanced-config-file-btn:hover:not(:disabled) {
+    border-color: var(--border-hover);
+    background: var(--bg-hover);
+}
+
+.advanced-config-file-btn.active {
+    border-color: var(--accent-blue);
+    background: var(--accent-blue-muted);
+    color: var(--accent-blue);
+}
+
+.advanced-config-file-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.advanced-config-editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    min-width: 0;
+}
+
+.advanced-config-editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-md);
+}
+
+.advanced-config-editor-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-width: 0;
+}
+
+.advanced-config-path {
+    font-size: var(--font-size-xs);
+    word-break: break-all;
+    color: var(--text-secondary);
+}
+
+.advanced-config-editor-actions {
+    display: flex;
+    gap: var(--space-sm);
+    flex-shrink: 0;
+}
+
+.advanced-config-textarea {
+    flex: 1;
+    min-height: 360px;
+    width: 100%;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 13px;
+    line-height: 1.45;
+    padding: var(--space-md);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    resize: vertical;
+    tab-size: 4;
+}
+
+.advanced-config-textarea:disabled {
+    opacity: 0.7;
+}
+
+.advanced-config-restart-hint {
+    font-size: var(--font-size-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--accent-orange, #d29922);
+}
+
+.advanced-config-placeholder {
+    padding: var(--space-xl);
+    text-align: center;
+    border: 1px dashed var(--border-primary);
+    border-radius: var(--radius-md);
+}
+
+@media (max-width: 900px) {
+    .advanced-config-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ==================== Branding / Theming ==================== */
 
 /* Logo type selector */
