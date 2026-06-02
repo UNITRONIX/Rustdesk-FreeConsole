@@ -296,7 +296,6 @@ async function backfillFromGo() {
     const localByUsername = new Set((localUsers || []).map(u => normalizeUsername(u.username)));
     const localIds = new Set((localUsers || []).map(u => Number(u.id)).filter(Number.isInteger));
     const missing = goUsers.filter(u => !localByUsername.has(normalizeUsername(u.username)));
-    if (missing.length === 0) return { imported: 0 };
 
     let authDb;
     try {
@@ -344,8 +343,44 @@ async function backfillFromGo() {
 
     if (imported > 0) {
         console.log(`[userSync] Go->Node backfill: restored ${imported} user(s) into local auth DB`);
+        try {
+            localUsers = await db.getAllUsersForBackup();
+        } catch (_) { /* keep previous snapshot */ }
     }
-    return { imported };
+
+    const synced = syncExistingAuthFromGo(authDb, goUsers, localUsers);
+    if (synced > 0) {
+        console.log(`[userSync] Go->Node backfill: synced auth_provider/role for ${synced} existing user(s)`);
+    }
+
+    return { imported, synced };
+}
+
+function syncExistingAuthFromGo(authDb, goUsers, localUsers) {
+    if (!authDb || !Array.isArray(goUsers) || goUsers.length === 0) return 0;
+    const localByName = new Map((localUsers || []).map(u => [normalizeUsername(u.username), u]));
+    const updateStmt = authDb.prepare('UPDATE users SET role = ?, auth_provider = ? WHERE id = ?');
+    let synced = 0;
+
+    for (const goUser of goUsers) {
+        const local = localByName.get(normalizeUsername(goUser.username));
+        if (!local) continue;
+
+        const goProvider = String(goUser.auth_provider || 'local').trim() || 'local';
+        const goRole = normalizeRole(goUser.role);
+        const localProvider = String(local.auth_provider || 'local').trim() || 'local';
+
+        if (goProvider !== localProvider || goRole !== local.role) {
+            try {
+                updateStmt.run(goRole, goProvider, local.id);
+                synced++;
+            } catch (err) {
+                console.warn(`[userSync] Go->Node sync failed for '${local.username}': ${err.message}`);
+            }
+        }
+    }
+
+    return synced;
 }
 
 module.exports = {

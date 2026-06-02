@@ -339,12 +339,85 @@ function getGoSSOStatus() {
     });
 }
 
+const VALID_AUTH_PROVIDERS = new Set(['local', 'ldap', 'oidc']);
+
+function normalizeAuthProvider(provider) {
+    const value = String(provider || 'local').trim().toLowerCase();
+    return VALID_AUTH_PROVIDERS.has(value) ? value : 'local';
+}
+
+function inferAuthProviderFromSSO(goResult, ssoStatus) {
+    if (goResult && goResult.auth_provider) {
+        return normalizeAuthProvider(goResult.auth_provider);
+    }
+    if (ssoStatus && ssoStatus.ldap && !ssoStatus.oidc) return 'ldap';
+    if (ssoStatus && ssoStatus.oidc && !ssoStatus.ldap) return 'oidc';
+    return 'local';
+}
+
+async function syncLocalUserFromGoResult(localUser, goResult, password, ssoStatus) {
+    if (!localUser || !goResult) return localUser;
+
+    const authProvider = inferAuthProviderFromSSO(goResult, ssoStatus);
+    const role = goResult.role || localUser.role;
+    const sync = {};
+
+    if (authProvider !== normalizeAuthProvider(localUser.auth_provider)) {
+        sync.authProvider = authProvider;
+    }
+    if (role && role !== localUser.role) {
+        sync.role = role;
+    }
+    if (password) {
+        sync.passwordHash = await hashPassword(password);
+    }
+
+    if (Object.keys(sync).length === 0) {
+        return localUser;
+    }
+
+    await db.syncUserFromGo(localUser.id, sync);
+    console.log(`[AUTH] Synced '${localUser.username}' from Go (provider=${authProvider}, role=${role})`);
+    return {
+        ...localUser,
+        role: sync.role || localUser.role,
+        auth_provider: sync.authProvider || localUser.auth_provider || 'local',
+    };
+}
+
+async function provisionLocalUserFromGo(username, password, goResult, ssoStatus) {
+    const authProvider = inferAuthProviderFromSSO(goResult, ssoStatus);
+    const role = goResult.role || 'viewer';
+    const bcryptHash = await hashPassword(password);
+
+    let user = await db.getUserByUsername(username);
+    if (user) {
+        return syncLocalUserFromGoResult(user, goResult, password, ssoStatus);
+    }
+
+    try {
+        await db.createUser(username, bcryptHash, role, authProvider);
+    } catch (err) {
+        // Shared PostgreSQL users table: Go may have created the row first.
+        user = await db.getUserByUsername(username);
+        if (!user) throw err;
+        return syncLocalUserFromGoResult(user, goResult, password, ssoStatus);
+    }
+
+    user = await db.getUserByUsername(username);
+    if (user && (user.auth_provider !== authProvider || user.role !== role)) {
+        await db.syncUserFromGo(user.id, { authProvider, role });
+        user = { ...user, auth_provider: authProvider, role };
+    }
+    return user;
+}
+
 /**
  * Fallback authentication against Go server's /api/auth/login endpoint.
  * Used when local (Node.js) auth fails — the Go server may have a different
  * password hash (e.g., after fresh install race condition, or manual password
  * change on Go server side).
- * Returns { role: string } on success, or null on failure.
+ * Returns { role, auth_provider } on success, or null on failure.
  */
 function tryGoServerAuth(username, password) {
     const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
@@ -376,9 +449,12 @@ function tryGoServerAuth(username, password) {
                 if (res.statusCode === 200) {
                     try {
                         const parsed = JSON.parse(data);
-                        // Go server returns { token, role, username } on success
+                        // Go server returns { token, role, username, auth_provider } on success
                         if (parsed.token && parsed.role) {
-                            resolve({ role: parsed.role });
+                            resolve({
+                                role: parsed.role,
+                                auth_provider: parsed.auth_provider,
+                            });
                             return;
                         }
                         // 2FA required — credentials are valid but need second factor
@@ -423,7 +499,7 @@ async function authenticate(username, password) {
     // ---------------------------------------------------------------
     //  Step 1: Check local database FIRST (primary source of truth)
     // ---------------------------------------------------------------
-    const user = await db.getUserByUsername(username);
+    let user = await db.getUserByUsername(username);
 
     if (user) {
         // Diagnostic: log hash format to help debug password issues
@@ -439,9 +515,9 @@ async function authenticate(username, password) {
             // on Go side, or LDAP/OIDC may have accepted it
             const goResult = await tryGoServerAuth(username, password);
             if (goResult) {
-                console.log(`[AUTH] Go server accepted password for '${username}' — syncing local hash`);
-                const bcryptHash = await hashPassword(password);
-                await db.updateUserPassword(user.id, bcryptHash);
+                console.log(`[AUTH] Go server accepted password for '${username}' — syncing local account`);
+                const ssoStatus = await getGoSSOStatus();
+                user = await syncLocalUserFromGoResult(user, goResult, password, ssoStatus);
                 // Fall through to TOTP check and normal success path
             } else {
                 console.log(`[AUTH] Login failed: password mismatch for '${username}' (hash type: ${hashType})`);
@@ -511,9 +587,7 @@ async function authenticate(username, password) {
                 : ssoStatus.ldap ? 'LDAP enabled on Go server'
                 : 'OIDC enabled on Go server';
             console.log(`[AUTH] Go server accepted credentials for '${username}' — provisioning local user (${reason})`);
-            const bcryptHash = await hashPassword(password);
-            await db.createUser(username, bcryptHash, goResult.role || 'viewer');
-            const created = await db.getUserByUsername(username);
+            const created = await provisionLocalUserFromGo(username, password, goResult, ssoStatus);
             if (created) {
                 await db.updateLastLogin(created.id);
                 return {
@@ -551,7 +625,7 @@ async function ensureLocalUserFromGo(username, password, role) {
         // Auto-create local user from Go server data
         try {
             const bcryptHash = await hashPassword(password);
-            await db.createUser(username, bcryptHash, role);
+            await db.createUser(username, bcryptHash, role, 'local');
             localUser = await db.getUserByUsername(username);
             if (localUser) {
                 console.log(`[AUTH] Auto-created local user '${username}' (role: ${role}) for session storage`);

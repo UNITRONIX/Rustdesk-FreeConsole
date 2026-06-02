@@ -55,7 +55,9 @@ try {
 }
 
 const BUILD_USER       = process.env.BUILD_USER      || 'unitronix';
-const BUILD_CACHE_DIR  = process.env.CARGO_TARGET_DIR || '/var/cache/betterdesk-build';
+const BUILD_CACHE_DIR  = process.env.CARGO_TARGET_DIR
+    || process.env.BUILD_CACHE_DIR
+    || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'build-cache');
 const WORK_ROOT        = path.join(BUILD_CACHE_DIR, 'work');
 const ARTIFACT_ROOT    = process.env.AGENT_ARTIFACT_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'agent-builds');

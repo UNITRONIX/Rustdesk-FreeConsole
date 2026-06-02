@@ -374,17 +374,59 @@ func (p *LDAPProvider) resolveGroups(conn *ldapv3.Conn, cfg *LDAPConfig, result 
 	// Map groups to roles — highest-privilege match wins
 	bestLevel := -1
 	for _, groupDN := range result.Groups {
-		normalizedDN := strings.ToLower(groupDN)
 		for mapDN, mapRole := range roleMap {
-			if strings.ToLower(mapDN) == normalizedDN {
-				level := RoleLevel(mapRole)
-				if level > bestLevel {
-					bestLevel = level
-					result.Role = mapRole
-				}
+			if !ldapGroupMatches(mapDN, groupDN) {
+				continue
+			}
+			level := RoleLevel(mapRole)
+			if level > bestLevel {
+				bestLevel = level
+				result.Role = mapRole
 			}
 		}
 	}
+
+	if len(result.Groups) > 0 {
+		log.Printf("[LDAP] User %s: groups=%v mapped role=%s", result.Username, result.Groups, result.Role)
+	}
+}
+
+// ldapCommonName extracts the CN component from an LDAP DN.
+func ldapCommonName(dn string) string {
+	for _, part := range strings.Split(dn, ",") {
+		part = strings.TrimSpace(part)
+		if len(part) >= 3 && strings.EqualFold(part[:3], "CN=") {
+			return part[3:]
+		}
+	}
+	return ""
+}
+
+// ldapGroupMatches checks whether a group_role_map key matches a memberOf DN.
+// Supports full DN equality (case-insensitive), CN-only keys, and CN= keys.
+func ldapGroupMatches(mapKey, groupDN string) bool {
+	mapKey = strings.TrimSpace(mapKey)
+	groupDN = strings.TrimSpace(groupDN)
+	if mapKey == "" || groupDN == "" {
+		return false
+	}
+	if strings.EqualFold(mapKey, groupDN) {
+		return true
+	}
+	groupCN := ldapCommonName(groupDN)
+	if groupCN == "" {
+		return false
+	}
+	if strings.EqualFold(mapKey, groupCN) {
+		return true
+	}
+	if strings.EqualFold(mapKey, "CN="+groupCN) {
+		return true
+	}
+	if mapCN := ldapCommonName(mapKey); mapCN != "" && strings.EqualFold(mapCN, groupCN) {
+		return true
+	}
+	return false
 }
 
 // parseGroupRoleMap parses a JSON-like group→role mapping string.
@@ -395,8 +437,11 @@ func parseGroupRoleMap(raw string) map[string]string {
 		return result
 	}
 
-	// Try simple format first: "CN=Admins,DC=ex,DC=com=admin|CN=Ops,DC=ex,DC=com=operator"
-	// Use pipe as separator (comma conflicts with DN commas)
+	// Format: "CN=Admins,DC=ex,DC=com=admin|CN=Ops,DC=ex,DC=com=operator"
+	// Pipe separates entries; newlines are also accepted (Settings UI paste).
+	// Commas inside DNs are preserved — only the last '=' splits DN from role.
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	raw = strings.ReplaceAll(raw, "\n", "|")
 	entries := strings.Split(raw, "|")
 	for _, entry := range entries {
 		entry = strings.TrimSpace(entry)

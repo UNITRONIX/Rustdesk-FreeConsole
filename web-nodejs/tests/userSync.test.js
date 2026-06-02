@@ -29,7 +29,7 @@ function createSqliteMock(goUsers = [], inserts = []) {
             if (sql.startsWith('PRAGMA table_info(users)')) {
                 return { all: jest.fn(() => [
                     { name: 'id' }, { name: 'username' }, { name: 'password_hash' },
-                    { name: 'role' }, { name: 'totp_secret' }, { name: 'totp_enabled' },
+                    { name: 'role' }, { name: 'auth_provider' }, { name: 'totp_secret' }, { name: 'totp_enabled' },
                     { name: 'created_at' }, { name: 'last_login' },
                 ]) };
             }
@@ -80,6 +80,7 @@ describe('userSync', () => {
             'operator1',
             'salt0123456789ab:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
             'operator',
+            'local',
             '2026-05-01T00:00:00Z',
             null,
             'SECRET',
@@ -94,7 +95,7 @@ describe('userSync', () => {
         ], inserts);
         mockDb.getDb.mockReturnValue(goDb);
         mockDb.getAuthDb.mockReturnValue(authDb);
-        mockDb.getAllUsersForBackup.mockResolvedValue([{ id: 12, username: 'operator1' }]);
+        mockDb.getAllUsersForBackup.mockResolvedValue([{ id: 12, username: 'operator1', role: 'operator', auth_provider: 'local' }]);
 
         const result = await userSync.backfillFromGo();
 

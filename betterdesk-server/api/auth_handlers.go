@@ -324,11 +324,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			_ = s.db.UpdateUserLogin(user.ID)
-			writeJSON(w, http.StatusOK, map[string]any{
-				"token":    token,
-				"role":     user.Role,
-				"username": user.Username,
-			})
+			writeLoginSuccess(w, user, token)
 			return
 		}
 
@@ -392,11 +388,26 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.auditLog.Log(audit.ActionAuthLogin, s.remoteIP(r), user.Username, nil)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"token":    token,
-		"role":     user.Role,
-		"username": user.Username,
-	})
+	writeLoginSuccess(w, user, token)
+}
+
+func writeLoginSuccess(w http.ResponseWriter, user *db.User, token string, extra ...map[string]any) {
+	provider := user.AuthProvider
+	if provider == "" {
+		provider = db.AuthProviderLocal
+	}
+	resp := map[string]any{
+		"token":         token,
+		"role":          user.Role,
+		"username":      user.Username,
+		"auth_provider": provider,
+	}
+	if len(extra) > 0 {
+		for k, v := range extra[0] {
+			resp[k] = v
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleLogin2FA completes a two-factor authentication login.
@@ -469,12 +480,7 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				_ = s.db.UpdateUserLogin(user.ID)
-				writeJSON(w, http.StatusOK, map[string]any{
-					"token":              token,
-					"role":               user.Role,
-					"username":           user.Username,
-					"used_recovery_code": true,
-				})
+				writeLoginSuccess(w, user, token, map[string]any{"used_recovery_code": true})
 				return
 			}
 		}
@@ -498,11 +504,7 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 		s.auditLog.Log(audit.ActionAuthLogin, s.remoteIP(r), user.Username, map[string]string{"2fa": "true"})
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"token":    token,
-		"role":     user.Role,
-		"username": user.Username,
-	})
+	writeLoginSuccess(w, user, token)
 }
 
 // handleAuthMe returns current authenticated user info.

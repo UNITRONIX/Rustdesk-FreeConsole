@@ -330,11 +330,21 @@ router.get('/api/auth/oidc/session', async (req, res) => {
             const randomPass = crypto.randomBytes(32).toString('hex');
             const hash = await bcrypt.hash(randomPass, 12);
             try {
-                await db.createUser(username, hash, role || 'viewer');
+                await db.createUser(username, hash, role || 'viewer', 'oidc');
             } catch (err) {
                 console.error('[OIDC] Failed to auto-provision local user', username, err.message);
             }
             user = await db.getUserByUsername(username);
+        } else {
+            try {
+                await db.syncUserFromGo(user.id, {
+                    role: role || user.role,
+                    authProvider: 'oidc',
+                });
+                user = await db.getUserByUsername(username);
+            } catch (err) {
+                console.warn('[OIDC] Failed to sync local user from Go', username, err.message);
+            }
         }
 
         if (!user) {

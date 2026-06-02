@@ -1165,9 +1165,29 @@ function createSqliteAdapter(config) {
         async getUserById(id) {
             return openAuth().prepare('SELECT * FROM users WHERE id = ?').get(id) || null;
         },
-        async createUser(username, passwordHash, role = 'admin') {
-            const info = openAuth().prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(username, passwordHash, role);
-            return { id: Number(info.lastInsertRowid), username, role };
+        async createUser(username, passwordHash, role = 'admin', authProvider = 'local') {
+            const provider = authProvider || 'local';
+            const info = openAuth().prepare('INSERT INTO users (username, password_hash, role, auth_provider) VALUES (?, ?, ?, ?)').run(username, passwordHash, role, provider);
+            return { id: Number(info.lastInsertRowid), username, role, auth_provider: provider };
+        },
+        async syncUserFromGo(id, { role, authProvider, passwordHash } = {}) {
+            const sets = [];
+            const values = [];
+            if (role !== undefined && role !== null) {
+                sets.push('role = ?');
+                values.push(role);
+            }
+            if (authProvider !== undefined && authProvider !== null) {
+                sets.push('auth_provider = ?');
+                values.push(authProvider);
+            }
+            if (passwordHash !== undefined && passwordHash !== null) {
+                sets.push('password_hash = ?');
+                values.push(passwordHash);
+            }
+            if (!sets.length) return;
+            values.push(id);
+            openAuth().prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...values);
         },
         async updateUserPassword(id, passwordHash) {
             openAuth().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
@@ -3896,9 +3916,33 @@ function createPostgresAdapter() {
 
         async getUserByUsername(username) { return one('SELECT * FROM users WHERE username = $1', [username]); },
         async getUserById(id) { return one('SELECT * FROM users WHERE id = $1', [id]); },
-        async createUser(username, passwordHash, role = 'admin') {
-            const r = await one('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id', [username, passwordHash, role]);
-            return { id: r.id, username, role };
+        async createUser(username, passwordHash, role = 'admin', authProvider = 'local') {
+            const provider = authProvider || 'local';
+            const r = await one(
+                'INSERT INTO users (username, password_hash, role, auth_provider) VALUES ($1, $2, $3, $4) RETURNING id',
+                [username, passwordHash, role, provider]
+            );
+            return { id: r.id, username, role, auth_provider: provider };
+        },
+        async syncUserFromGo(id, { role, authProvider, passwordHash } = {}) {
+            const sets = [];
+            const values = [];
+            let idx = 1;
+            if (role !== undefined && role !== null) {
+                sets.push(`role = $${idx++}`);
+                values.push(role);
+            }
+            if (authProvider !== undefined && authProvider !== null) {
+                sets.push(`auth_provider = $${idx++}`);
+                values.push(authProvider);
+            }
+            if (passwordHash !== undefined && passwordHash !== null) {
+                sets.push(`password_hash = $${idx++}`);
+                values.push(passwordHash);
+            }
+            if (!sets.length) return;
+            values.push(id);
+            await q(`UPDATE users SET ${sets.join(', ')} WHERE id = $${idx}`, values);
         },
         async updateUserPassword(id, passwordHash) { await q('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, id]); },
         async touchLastLogin(id) { await q('UPDATE users SET last_login = NOW() WHERE id = $1', [id]); },
