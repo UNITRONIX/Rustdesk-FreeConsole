@@ -1,6 +1,8 @@
 # 🚀 BetterDesk Docker Quick Start
 
-Get BetterDesk running in **30 seconds** with pre-built images from GitHub Container Registry.
+Get BetterDesk running in **30 seconds** with pre-built images from GitHub Container Registry (ghcr.io).
+
+Versioned tags match [CHANGELOG.md](../../CHANGELOG.md) and git releases (e.g. `3.0.0-alpha`, git tag `v3.0.0-alpha`). The quick-start compose file defaults to the current alpha; override with `BETTERDESK_IMAGE_TAG`.
 
 ## Prerequisites
 
@@ -12,16 +14,31 @@ Get BetterDesk running in **30 seconds** with pre-built images from GitHub Conta
 
 ```bash
 # 1. Download docker-compose file
-curl -fsSL https://raw.githubusercontent.com/UNITRONIX/Rustdesk-FreeConsole/main/docker-compose.quick.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.yml -o docker-compose.yml
 
-# 2. Start BetterDesk
+# 2. Pull pinned images and start (default tag: 3.0.0-alpha)
+docker compose pull
 docker compose up -d
 
 # 3. Get admin password
-docker compose logs console 2>&1 | grep -i "Admin password"
+docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
 ```
 
 **Done!** Open http://localhost:5000 and log in with `admin` / (password from step 3).
+
+### Pin or change image version
+
+```bash
+# Explicit version (recommended for production)
+export BETTERDESK_IMAGE_TAG=3.0.0-alpha
+docker compose pull && docker compose up -d
+
+# Track rolling latest from main branch builds
+export BETTERDESK_IMAGE_TAG=latest
+docker compose pull && docker compose up -d
+```
+
+Browse tags: GitHub repo → **Packages** → `betterdesk-server` / `betterdesk-console`, or [releases](https://github.com/UNITRONIX/BetterDesk/releases).
 
 ---
 
@@ -99,8 +116,13 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 ## 🔄 Updates
 
 ```bash
+# Stay on the same pinned tag (default 3.0.0-alpha)
 docker compose pull
 docker compose up -d
+
+# Move to a newer release after it is published on ghcr.io
+export BETTERDESK_IMAGE_TAG=<new-version>   # e.g. 3.0.0-beta or 3.0.0
+docker compose pull && docker compose up -d
 ```
 
 ## 🗑️ Uninstall

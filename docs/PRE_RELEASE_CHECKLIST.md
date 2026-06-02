@@ -66,6 +66,9 @@ Use this checklist before every tagged release to ensure quality and stability.
 - [ ] **CHANGELOG.md**: updated with new version section
 - [ ] **README.md**: reflects current features
 - [ ] **VERSION file**: bumped to release version
-- [ ] **Git tag**: `git tag v<version>` created
+- [ ] **Git tag**: `git tag v<version>` created and pushed (`git push origin v<version>`)
+- [ ] **GitHub Release**: published (prerelease for alpha/beta); triggers Docker publish workflow
+- [ ] **GHCR image tags**: verify `ghcr.io/unitronix/betterdesk-server`, `betterdesk-console`, and `betterdesk` show semver tag (e.g. `3.0.0-alpha`) and git ref (`v3.0.0-alpha`) after workflow completes
+- [ ] **Manual fallback**: Actions → “Build & Publish Docker Images” → Run workflow → tag input `v<version>` if release trigger was skipped
 - [ ] **No secrets in diff**: `git diff --cached` has no API keys / passwords
 - [ ] **No debug code**: no `console.log` debug statements, no `TODO` in shipped code

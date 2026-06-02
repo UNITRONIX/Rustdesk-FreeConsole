@@ -2,7 +2,7 @@
 
 Complete guide for running BetterDesk Console with RustDesk in Docker containers.
 
-> ⚠️ **IMPORTANT**: BetterDesk images are built locally - they are NOT published to Docker Hub. Always use `docker compose build` or `docker compose up --build` instead of `docker compose pull`.
+> **Images**: Pre-built images are published to [GitHub Container Registry](https://github.com/UNITRONIX/BetterDesk/pkgs/container/betterdesk-server) (`ghcr.io/unitronix/…`) with version tags aligned to [CHANGELOG.md](../../CHANGELOG.md). Use [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) and `docker-compose.quick.yml` to pull by tag. For custom changes, build locally with `docker compose build` or `docker compose up --build` (not on Docker Hub).
 
 ## Table of Contents
 

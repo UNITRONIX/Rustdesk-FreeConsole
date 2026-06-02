@@ -1,11 +1,17 @@
 # =============================================================================
 # BetterDesk Console - Quick Start (Pre-built Images)
 # =============================================================================
-# NO BUILD REQUIRED - uses pre-built images from GitHub Container Registry
+# NO BUILD REQUIRED - uses pre-built images from GitHub Container Registry (ghcr.io).
+#
+# Image tag (aligned with CHANGELOG / git tag v3.0.0-alpha):
+#   Default: 3.0.0-alpha  |  Rolling: BETTERDESK_IMAGE_TAG=latest
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/Rustdesk-FreeConsole/main/docker-compose.quick.yml -o docker-compose.yml
-#   docker compose up -d
+#   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.yml -o docker-compose.yml
+#   docker compose pull && docker compose up -d
+#
+# Pin a specific release:
+#   BETTERDESK_IMAGE_TAG=3.0.0-alpha docker compose up -d
 #
 # Web Console: http://localhost:5000
 # Default credentials are written to the shared credentials file:
@@ -20,7 +26,7 @@
 services:
   # BetterDesk Server (Go) — handles signal, relay, and API
   server:
-    image: ghcr.io/unitronix/betterdesk-server:latest
+    image: ghcr.io/unitronix/betterdesk-server:${BETTERDESK_IMAGE_TAG:-3.0.0-alpha}
     container_name: betterdesk-server
     hostname: betterdesk-server
     command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-api-port", "21121", "-key-file", "/opt/rustdesk/id_ed25519"]
@@ -68,7 +74,7 @@ services:
 
   # BetterDesk Console — Web Management Interface
   console:
-    image: ghcr.io/unitronix/betterdesk-console:latest
+    image: ghcr.io/unitronix/betterdesk-console:${BETTERDESK_IMAGE_TAG:-3.0.0-alpha}
     container_name: betterdesk-console
     hostname: betterdesk-console
     ports:
