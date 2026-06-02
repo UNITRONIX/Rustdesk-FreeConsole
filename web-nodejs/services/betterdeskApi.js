@@ -874,6 +874,53 @@ async function deleteRolePermission(role, permission) {
     }
 }
 
+// ========================== Help Requests ====================================
+
+/**
+ * GET /api/help/requests — list help requests
+ * @param {{ status?: string, device_id?: string, limit?: number }} filter
+ */
+async function listHelpRequests(filter = {}) {
+    try {
+        const params = {};
+        if (filter.status) params.status = filter.status;
+        if (filter.device_id) params.device_id = filter.device_id;
+        if (filter.limit) params.limit = filter.limit;
+        const { data } = await apiClient.get('/help/requests', { params });
+        const requests = Array.isArray(data) ? data : (data.requests || []);
+        return { success: true, data: requests };
+    } catch (err) {
+        if (err.response?.data) return wrap(err.response.data);
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * POST /api/help/requests/:id/acknowledge
+ */
+async function acknowledgeHelpRequest(id) {
+    try {
+        const { data } = await apiClient.post(`/help/requests/${encodeURIComponent(id)}/acknowledge`);
+        return wrap(data);
+    } catch (err) {
+        if (err.response?.data) return wrap(err.response.data);
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * POST /api/help/requests/:id/resolve
+ */
+async function resolveHelpRequest(id) {
+    try {
+        const { data } = await apiClient.post(`/help/requests/${encodeURIComponent(id)}/resolve`);
+        return wrap(data);
+    } catch (err) {
+        if (err.response?.data) return wrap(err.response.data);
+        return { success: false, error: err.message };
+    }
+}
+
 // ========================== LDAP Configuration =============================
 
 /**
@@ -1043,6 +1090,10 @@ module.exports = {
     saveOIDCConfig,
     testOIDCDiscovery,
     getOIDCStatus,
+    // Help Requests
+    listHelpRequests,
+    acknowledgeHelpRequest,
+    resolveHelpRequest,
     // Helpers
     normalisePeer,
     // Raw axios client (for services that need direct API access)
