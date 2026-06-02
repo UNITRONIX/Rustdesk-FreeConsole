@@ -14,20 +14,43 @@ const config = require('../config/config');
 const updateService = require('./updateService');
 
 const CONSOLE_ROOT = path.join(__dirname, '..');
+const REPO_ROOT = path.join(CONSOLE_ROOT, '..');
 const MAX_BYTES = 512 * 1024;
 
 /** Which components to restart after editing a given file (console / server). */
 const FILE_RESTART_COMPONENTS = {
     'console-env': ['console'],
     'console-env-local': ['console'],
+    'console-session-secret': ['console'],
     'go-blocklist': ['server'],
+    'go-audit-log': ['server'],
     'systemd-console': ['console'],
-    'systemd-server': ['server']
+    'systemd-server': ['server'],
+    'docker-supervisord': ['console']
 };
 
 const SYSTEMD_FILE_IDS = new Set(['systemd-console', 'systemd-server']);
 
-/** @type {Array<{id: string, path: () => string, category: string, requiresRestart: string, canCreate?: boolean, platform?: string}>} */
+function resolveAuditLogPath() {
+    const fromEnv = process.env.AUDIT_LOG_FILE;
+    if (fromEnv && path.isAbsolute(fromEnv)) return fromEnv;
+    const candidates = [
+        '/var/log/betterdesk/audit.jsonl',
+        path.join(config.keysPath, 'audit.jsonl'),
+        path.join(config.rustdeskDir || config.keysPath, 'audit.jsonl')
+    ];
+    for (const p of candidates) {
+        try {
+            if (fs.existsSync(p)) return p;
+        } catch (_) { /* ignore */ }
+    }
+    return '/var/log/betterdesk/audit.jsonl';
+}
+
+/**
+ * Fixed catalog of BetterDesk configuration files (always listed in the UI).
+ * Paths match production installers (betterdesk.sh / betterdesk.ps1) and repo layout.
+ */
 const FILE_CATALOG = [
     {
         id: 'console-env',
@@ -43,8 +66,22 @@ const FILE_CATALOG = [
         canCreate: true
     },
     {
+        id: 'console-session-secret',
+        path: () => path.join(config.dataDir, '.session_secret'),
+        category: 'console',
+        requiresRestart: 'console',
+        canCreate: true
+    },
+    {
         id: 'go-blocklist',
         path: () => path.join(config.keysPath, 'blocklist.txt'),
+        category: 'goserver',
+        requiresRestart: 'goserver',
+        canCreate: true
+    },
+    {
+        id: 'go-audit-log',
+        path: () => resolveAuditLogPath(),
         category: 'goserver',
         requiresRestart: 'goserver',
         canCreate: true
@@ -62,6 +99,26 @@ const FILE_CATALOG = [
         category: 'system',
         requiresRestart: 'systemd',
         platform: 'linux'
+    },
+    {
+        id: 'build-env',
+        path: () => process.env.BETTERDESK_BUILD_ENV_FILE || '/etc/betterdesk/build.env',
+        category: 'system',
+        requiresRestart: 'none',
+        canCreate: true,
+        platform: 'linux'
+    },
+    {
+        id: 'docker-supervisord',
+        path: () => path.join(REPO_ROOT, 'docker', 'supervisord.conf'),
+        category: 'console',
+        requiresRestart: 'console'
+    },
+    {
+        id: 'docker-compose',
+        path: () => path.join(REPO_ROOT, 'docker-compose.yml'),
+        category: 'console',
+        requiresRestart: 'console'
     }
 ];
 

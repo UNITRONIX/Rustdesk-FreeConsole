@@ -2597,6 +2597,17 @@
 
     const advancedState = { files: [], activeId: null, dirty: false, original: '' };
 
+    /** Utils.api unwraps { success, data } — accept both shapes. */
+    function unwrapAdvancedPayload(resp) {
+        if (resp == null) return resp;
+        if (Array.isArray(resp)) return resp;
+        if (typeof resp === 'object' && resp.content !== undefined && resp.path !== undefined) {
+            return resp;
+        }
+        if (typeof resp === 'object' && resp.data !== undefined) return resp.data;
+        return resp;
+    }
+
     function initAdvancedSection() {
         const listEl = document.getElementById('advanced-config-file-list');
         const textarea = document.getElementById('advanced-config-textarea');
@@ -2631,7 +2642,8 @@
         if (!listEl) return;
         try {
             const resp = await Utils.api('/api/settings/advanced/files');
-            advancedState.files = resp.data || [];
+            advancedState.files = unwrapAdvancedPayload(resp) || [];
+            if (!Array.isArray(advancedState.files)) advancedState.files = [];
             if (!advancedState.files.length) {
                 listEl.innerHTML = '<li class="text-muted">' + _('settings.advanced_no_files') + '</li>';
                 return;
@@ -2666,6 +2678,7 @@
     }
 
     function advancedRestartHint(restart) {
+        if (restart === 'none') return _('settings.advanced_restart_none');
         const map = {
             console: _('settings.advanced_restart_console'),
             goserver: _('settings.advanced_restart_goserver'),
@@ -2677,7 +2690,8 @@
     function updateAdvancedRestartButton(catalogOrData) {
         const restartBtn = document.getElementById('advanced-config-restart');
         if (!restartBtn) return;
-        const show = catalogOrData && (catalogOrData.exists || catalogOrData.canCreate);
+        const canRestart = catalogOrData && catalogOrData.requiresRestart !== 'none';
+        const show = canRestart && (catalogOrData.exists || catalogOrData.canCreate);
         restartBtn.hidden = !show;
     }
 
@@ -2720,7 +2734,8 @@
 
         try {
             const resp = await Utils.api('/api/settings/advanced/files/' + encodeURIComponent(id));
-            const data = resp.data;
+            const data = unwrapAdvancedPayload(resp);
+            const cat = advancedState.files.find((f) => f.id === id);
             advancedState.activeId = id;
             advancedState.original = data.content || '';
             advancedState.dirty = false;
@@ -2730,7 +2745,6 @@
             if (textarea) {
                 textarea.hidden = false;
                 textarea.value = advancedState.original;
-                const cat = advancedState.files.find((f) => f.id === id);
                 textarea.disabled = cat ? !cat.writable : false;
             }
             if (pathEl) pathEl.textContent = data.path;
