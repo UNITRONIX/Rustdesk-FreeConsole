@@ -181,6 +181,19 @@ async function unbanPeer(id) {
 }
 
 /**
+ * POST /api/peers/:id/restore — restore a soft-deleted peer
+ */
+async function restorePeer(id) {
+    try {
+        const { data } = await apiClient.post(`/peers/${encodeURIComponent(id)}/restore`);
+        return wrap(data);
+    } catch (err) {
+        if (err.response?.data) return wrap(err.response.data);
+        return { success: false, error: err.message };
+    }
+}
+
+/**
  * POST /api/peers/:id/change-id
  */
 async function changePeerId(oldId, newId) {
@@ -1020,6 +1033,7 @@ module.exports = {
     deletePeer,
     banPeer,
     unbanPeer,
+    restorePeer,
     changePeerId,
     // Status
     getStatusSummary,

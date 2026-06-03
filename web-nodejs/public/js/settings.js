@@ -15,6 +15,7 @@
 
         // Only init server-config sections when the tab is visible (requires server.config permission)
         if (document.getElementById('tab-auth') && document.getElementById('tab-auth').style.display !== 'none') {
+            initEnrollmentSection();
             initLdapSection();
             initOidcSection();
         }
@@ -2343,6 +2344,83 @@
     /**
      * Initialize LDAP settings section
      */
+    async function initEnrollmentSection() {
+        const section = document.getElementById('enrollment-settings-section');
+        if (!section) return;
+
+        const modeRadios = document.querySelectorAll('input[name="settings_enrollment_mode"]');
+        const requireCb = document.getElementById('enrollment-require-approval');
+        const richCb = document.getElementById('enrollment-rich-approve');
+        const tagPickerCb = document.getElementById('enrollment-tag-picker');
+        const pendingHint = document.getElementById('enrollment-pending-hint');
+
+        let saveTimer = null;
+
+        async function loadEnrollmentSettings() {
+            try {
+                const res = await Utils.api('/api/settings/enrollment');
+                const data = res.data || res;
+                const mode = data.mode || 'open';
+                modeRadios.forEach(r => { r.checked = r.value === mode; });
+                if (requireCb) requireCb.checked = mode === 'managed';
+                if (richCb) richCb.checked = data.rich_approve !== false;
+                if (tagPickerCb) tagPickerCb.checked = data.tag_picker !== false;
+                if (pendingHint && data.pending_count > 0) {
+                    const msg = (window.BetterDesk?.translations?.settings?.enrollment_pending_count
+                        || '{count} pending enrollment request(s)')
+                        .replace('{count}', String(data.pending_count));
+                    pendingHint.textContent = msg;
+                } else if (pendingHint) {
+                    pendingHint.textContent = '';
+                }
+            } catch (err) {
+                console.error('Load enrollment settings:', err);
+            }
+        }
+
+        function scheduleSave(patch) {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(async () => {
+                try {
+                    await Utils.api('/api/settings/enrollment', {
+                        method: 'PUT',
+                        body: patch,
+                    });
+                    Notifications?.success?.(window.BetterDesk?.translations?.common?.saved || 'Saved');
+                    await loadEnrollmentSettings();
+                } catch (err) {
+                    Notifications?.error?.(err.message || 'Save failed');
+                }
+            }, 400);
+        }
+
+        modeRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (!radio.checked) return;
+                if (requireCb) requireCb.checked = radio.value === 'managed';
+                scheduleSave({ mode: radio.value });
+            });
+        });
+
+        if (requireCb) {
+            requireCb.addEventListener('change', () => {
+                scheduleSave({ require_approval: requireCb.checked });
+            });
+        }
+        if (richCb) {
+            richCb.addEventListener('change', () => {
+                scheduleSave({ rich_approve: richCb.checked });
+            });
+        }
+        if (tagPickerCb) {
+            tagPickerCb.addEventListener('change', () => {
+                scheduleSave({ tag_picker: tagPickerCb.checked });
+            });
+        }
+
+        await loadEnrollmentSettings();
+    }
+
     async function initLdapSection() {
         const form = document.getElementById('ldap-form');
         if (!form) return;

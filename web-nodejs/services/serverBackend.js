@@ -163,6 +163,10 @@ async function setBanStatus(id, banned, reason = '') {
         : betterdeskApi.unbanPeer(id);
 }
 
+async function restoreDevice(id) {
+    return betterdeskApi.restorePeer(id);
+}
+
 async function updateDevice(id, data) {
     // Route through Go API PATCH /api/peers/:id for note/user/display_name fields
     const fields = {};
@@ -239,6 +243,7 @@ module.exports = {
     getAllDevices,
     getDeviceById,
     deleteDevice,
+    restoreDevice,
     setBanStatus,
     updateDevice,
     changePeerId,

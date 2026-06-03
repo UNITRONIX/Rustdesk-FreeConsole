@@ -68,6 +68,31 @@ func TestProcessRegisterPkManagedRejectsUnknownPeer(t *testing.T) {
 	if entry := srv.peers.Get("NEWPK1"); entry != nil {
 		t.Fatalf("unknown peer remained in memory: %+v", entry)
 	}
+
+	pending, err := database.GetConfig("pending_device_NEWPK1")
+	if err != nil {
+		t.Fatalf("GetConfig pending: %v", err)
+	}
+	if pending == "" {
+		t.Fatal("managed mode should queue unknown peer in pending_device_NEWPK1")
+	}
+}
+
+func TestProcessRegisterPkLockedDoesNotQueueUnknownPeer(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeLocked)
+
+	resp := srv.processRegisterPk(newRegisterPk("LOCKPK1"), "203.0.113.10:50123")
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("RegisterPk result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	pending, err := database.GetConfig("pending_device_LOCKPK1")
+	if err != nil {
+		t.Fatalf("GetConfig pending: %v", err)
+	}
+	if pending != "" {
+		t.Fatalf("locked mode must not create pending queue, got: %s", pending)
+	}
 }
 
 func TestHandleRegisterPeerWSManagedRejectsUnknownPeer(t *testing.T) {

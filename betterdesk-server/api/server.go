@@ -234,6 +234,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("PATCH /api/peers/{id}", s.requirePermission(auth.PermDeviceEdit, s.handleUpdatePeerFields))
 	mux.HandleFunc("POST /api/peers/{id}/ban", s.requirePermission(auth.PermDeviceBan, s.handleBanPeer))
 	mux.HandleFunc("POST /api/peers/{id}/unban", s.requirePermission(auth.PermDeviceBan, s.handleUnbanPeer))
+	mux.HandleFunc("POST /api/peers/{id}/restore", s.requirePermission(auth.PermDeviceDelete, s.handleRestorePeer))
 	mux.HandleFunc("POST /api/peers/{id}/change-id", s.requirePermission(auth.PermDeviceChangeID, s.handleChangePeerID))
 
 	// Detailed device status (enhanced in Phase 4)
@@ -1021,6 +1022,59 @@ func (s *Server) handleUnbanPeer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "unbanned", "id": id})
+}
+
+// handleRestorePeer clears the soft_deleted flag on a previously deleted peer.
+// SECURITY (GHSA-3v82-3gf8-fxx8): This is the ONLY supported path for bringing
+// a deleted device back. UpsertPeer no longer restores rows implicitly.
+func (s *Server) handleRestorePeer(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if !s.peerOrgScopeCheck(w, r, id) {
+		return
+	}
+
+	deleted, err := s.db.IsPeerSoftDeleted(id)
+	if err != nil {
+		writeInternalError(w, err, "IsPeerSoftDeleted")
+		return
+	}
+	if !deleted {
+		live, gerr := s.db.GetPeer(id)
+		if gerr != nil {
+			writeInternalError(w, gerr, "GetPeer")
+			return
+		}
+		if live == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "peer not found"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "already_active", "id": id})
+		return
+	}
+
+	if err := s.db.RestorePeer(id); err != nil {
+		writeInternalError(w, err, "RestorePeer")
+		return
+	}
+
+	if err := s.db.UnbanPeer(id); err != nil {
+		log.Printf("[api] handleRestorePeer: UnbanPeer failed for %s: %v", id, err)
+	}
+	if s.blocklist != nil {
+		s.blocklist.UnblockID(id)
+	}
+
+	if s.eventBus != nil {
+		s.eventBus.Publish(eventsModule.Event{
+			Type: eventsModule.EventPeerRestored,
+			Data: map[string]string{"id": id},
+		})
+	}
+	if s.auditLog != nil {
+		s.auditLog.Log(audit.ActionPeerRestored, s.remoteIP(r), id, nil)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "restored", "id": id})
 }
 
 func (s *Server) handleChangePeerID(w http.ResponseWriter, r *http.Request) {

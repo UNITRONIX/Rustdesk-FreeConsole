@@ -29,6 +29,21 @@ const db = require('../services/database');
 const config = require('../config/config');
 const { requirePermission } = require('../middleware/auth');
 const betterdeskApi = require('../services/betterdeskApi');
+const deviceGroupService = require('../services/deviceGroupService');
+const serverBackend = require('../services/serverBackend');
+
+const ENROLLMENT_SETTING_RICH = 'enrollment_rich_approve';
+const ENROLLMENT_SETTING_TAG_PICKER = 'enrollment_tag_picker';
+
+function parseBoolSetting(val, defaultValue = true) {
+    if (val === null || val === undefined || val === '') return defaultValue;
+    const s = String(val).toLowerCase();
+    return s === '1' || s === 'true' || s === 'yes';
+}
+
+function isValidGroupGuid(guid) {
+    return typeof guid === 'string' && guid.length > 0 && guid.length <= 80 && /^[A-Za-z0-9_.:-]+$/.test(guid);
+}
 
 // ---------------------------------------------------------------------------
 //  Helpers
@@ -212,6 +227,29 @@ router.get('/api/registrations/count', requirePermission('enrollment.approve'), 
 });
 
 /**
+ * GET /api/registrations/enrollment-ui — Panel enrollment UX flags for approvers.
+ */
+router.get('/api/registrations/enrollment-ui', requirePermission('enrollment.approve'), async (req, res) => {
+    try {
+        const modeResult = await betterdeskApi.getEnrollmentMode();
+        const mode = (modeResult.success && modeResult.data?.mode) ? modeResult.data.mode : 'open';
+        const richVal = await db.getSetting(ENROLLMENT_SETTING_RICH);
+        const tagVal = await db.getSetting(ENROLLMENT_SETTING_TAG_PICKER);
+        res.json({
+            success: true,
+            data: {
+                mode,
+                rich_approve: parseBoolSetting(richVal, true),
+                tag_picker: parseBoolSetting(tagVal, true),
+            },
+        });
+    } catch (err) {
+        console.error('Get enrollment UI settings error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
  * GET /api/registrations/:id — Single registration detail.
  */
 router.get('/api/registrations/:id', requirePermission('enrollment.approve'), async (req, res) => {
@@ -254,6 +292,40 @@ router.put('/api/registrations/:id/approve', requirePermission('enrollment.appro
 
         const username = req.session?.user?.username || 'admin';
         const updated = await db.approvePendingRegistration(id, username, serverConfig);
+
+        const body = req.body || {};
+        const deviceId = reg.device_id;
+        if (deviceId) {
+            const folderId = parseInt(body.folder_id, 10);
+            if (!isNaN(folderId) && folderId > 0) {
+                try {
+                    await db.assignDeviceToFolder(deviceId, folderId);
+                } catch (e) {
+                    console.error('Assign folder on LAN approve:', e);
+                }
+            }
+            try {
+                await applyDeviceGroupMemberships(req, deviceId, body.group_guids);
+            } catch (e) {
+                console.error('Assign groups on LAN approve:', e);
+            }
+            const displayName = (body.display_name || '').trim();
+            const tagsStr = (body.tags || '').trim();
+            try {
+                const peer = await serverBackend.getDeviceById(deviceId);
+                if (peer) {
+                    if (displayName) {
+                        await betterdeskApi.updatePeer(deviceId, { note: displayName, display_name: displayName });
+                    }
+                    if (tagsStr) {
+                        const tagList = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+                        if (tagList.length) await betterdeskApi.setPeerTags(deviceId, tagList);
+                    }
+                }
+            } catch (e) {
+                console.error('Apply peer metadata on LAN approve:', e);
+            }
+        }
 
         // Log the approval
         try {
@@ -344,17 +416,49 @@ router.get('/api/enrollment/pending', requirePermission('enrollment.approve'), a
 });
 
 /**
+ * Apply manual device group memberships after enrollment approval.
+ */
+async function applyDeviceGroupMemberships(req, deviceId, groupGuids) {
+    if (!Array.isArray(groupGuids) || groupGuids.length === 0) return;
+    const guids = Array.from(new Set(groupGuids.map(String).filter(isValidGroupGuid)));
+    if (guids.length > 100) return;
+
+    const device = await serverBackend.getDeviceById(deviceId);
+    if (!device) return;
+
+    const allDevices = await serverBackend.getAllDevices({});
+    if (!await deviceGroupService.userCanAccessDevice(db, req.session.user, device, allDevices)) {
+        return;
+    }
+
+    let groups = (await db.getAllDeviceGroups())
+        .filter(group => deviceGroupService.folderIdFromGroupGuid(group.guid) === null);
+    const accessUser = await deviceGroupService.getUserAccessContext(db, req.session.user);
+    groups = groups.filter(group => deviceGroupService.groupAllowedForUser(group, accessUser));
+    const manualGroups = groups.filter(g => (g.source_type || 'manual') !== 'tag');
+    const manualGuidSet = new Set(manualGroups.map(g => g.guid));
+    const selected = guids.filter(guid => manualGuidSet.has(guid));
+
+    for (const group of manualGroups) {
+        if (selected.includes(group.guid)) {
+            await db.addDeviceToGroup(group.guid, deviceId);
+        } else {
+            await db.removeDeviceFromGroup(group.guid, deviceId);
+        }
+    }
+}
+
+/**
  * POST /api/enrollment/approve/:id — Approve a pending enrollment on Go server.
- * Body: { display_name, sync_mode, tags, folder_id }
+ * Body: { display_name, sync_mode, tags, folder_id, group_guids }
  */
 router.post('/api/enrollment/approve/:id', requirePermission('enrollment.approve'), async (req, res) => {
     try {
         const deviceId = req.params.id;
-        const { display_name, sync_mode, tags, folder_id } = req.body;
+        const { display_name, sync_mode, tags, folder_id, group_guids } = req.body || {};
         const result = await betterdeskApi.approveEnrollment(deviceId, display_name, sync_mode, tags);
 
         if (result.success) {
-            // Folders are managed Node-side; assign after Go approval succeeds.
             const folderId = parseInt(folder_id, 10);
             if (!isNaN(folderId) && folderId > 0) {
                 try {
@@ -364,10 +468,18 @@ router.post('/api/enrollment/approve/:id', requirePermission('enrollment.approve
                 }
             }
             try {
+                await applyDeviceGroupMemberships(req, deviceId, group_guids);
+            } catch (e) {
+                console.error('Assign device groups on enrollment approve:', e);
+            }
+            try {
+                const groupNote = Array.isArray(group_guids) && group_guids.length
+                    ? `, groups: [${group_guids.join(', ')}]`
+                    : '';
                 await db.logAction(
                     req.session?.user?.id || 0,
                     'enrollment_approved',
-                    `Approved enrollment for device ${deviceId} (mode: ${sync_mode || 'standard'})`,
+                    `Approved enrollment for device ${deviceId} (mode: ${sync_mode || 'standard'}${groupNote})`,
                     getClientIp(req)
                 );
             } catch (_) { /* audit log optional */ }

@@ -15,6 +15,12 @@
                 <p class="page-subtitle">${_('registrations.subtitle')}</p>
             </div>
 
+            <div class="enrollment-mode-banner" id="enrollment-mode-banner" style="display: none;" role="status">
+                <span class="material-icons">info</span>
+                <span id="enrollment-mode-banner-text"></span>
+                <a href="/settings#auth" class="btn btn-secondary btn-sm">${_('registrations.enrollment_settings_link')}</a>
+            </div>
+
             <!-- Filters -->
             <div class="registrations-filters">
                 <div class="filter-group">
@@ -87,10 +93,26 @@
                                 <option value="turbo">${_('registrations.sync_turbo')}</option>
                             </select>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" id="approve-tags-text-group">
                             <label for="approve-tags">${_('registrations.field_tags')}</label>
                             <input type="text" id="approve-tags" class="form-input"
                                 placeholder="${_('registrations.field_tags_placeholder')}">
+                        </div>
+                        <div class="form-group" id="approve-tags-picker-group" style="display: none;">
+                            <label>${_('registrations.field_tags_existing')}</label>
+                            <div id="approve-tags-picker" class="approve-tags-picker"></div>
+                            <div class="approve-tags-new-row" style="margin-top: 8px; display: flex; gap: 8px;">
+                                <input type="text" id="approve-tag-new" class="form-input" style="flex: 1;"
+                                    placeholder="${_('registrations.field_tag_add_placeholder')}">
+                                <button type="button" class="btn btn-secondary btn-sm" id="approve-tag-add-btn">${_('registrations.field_tag_add_btn')}</button>
+                            </div>
+                            <div id="approve-tags-selected" class="approve-tags-selected"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>${_('registrations.field_groups')}</label>
+                            <div id="approve-groups-picker" class="approve-groups-picker">
+                                <span class="form-hint">${_('common.loading')}</span>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="approve-folder">${_('registrations.field_folder')}</label>

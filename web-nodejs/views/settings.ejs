@@ -987,6 +987,64 @@
         <!-- Authentication Tab (server.config permission required) -->
         <div class="settings-tab-content" id="tab-auth" ${canServerConfig ? '' : 'style="display:none"'}>
         <div class="settings-sections">
+            <!-- Device enrollment -->
+            <div class="settings-section" id="enrollment-settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">how_to_reg</span>
+                        ${_('settings.enrollment_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('settings.enrollment_desc')}</p>
+                </div>
+                <div class="settings-section-body" style="max-width: 720px;">
+                    <div class="enrollment-mode-options settings-enrollment-modes">
+                        <label class="enrollment-option">
+                            <input type="radio" name="settings_enrollment_mode" value="open">
+                            <span class="option-label">${_('tokens.mode_open')}</span>
+                            <span class="option-desc">${_('tokens.mode_open_desc')}</span>
+                        </label>
+                        <label class="enrollment-option">
+                            <input type="radio" name="settings_enrollment_mode" value="managed">
+                            <span class="option-label">${_('tokens.mode_managed')}</span>
+                            <span class="option-desc">${_('tokens.mode_managed_desc')}</span>
+                        </label>
+                        <label class="enrollment-option">
+                            <input type="radio" name="settings_enrollment_mode" value="locked">
+                            <span class="option-label">${_('tokens.mode_locked')}</span>
+                            <span class="option-desc">${_('tokens.mode_locked_desc')}</span>
+                        </label>
+                    </div>
+                    <div class="form-group form-check" style="margin-top: 16px;">
+                        <label class="check-label">
+                            <input type="checkbox" id="enrollment-require-approval" class="toggle-switch">
+                            <span>${_('settings.enrollment_require_approval')}</span>
+                        </label>
+                        <p class="form-hint">${_('settings.enrollment_require_approval_hint')}</p>
+                    </div>
+                    <div class="form-group form-check">
+                        <label class="check-label">
+                            <input type="checkbox" id="enrollment-rich-approve" class="toggle-switch">
+                            <span>${_('settings.enrollment_rich_approve')}</span>
+                        </label>
+                        <p class="form-hint">${_('settings.enrollment_rich_approve_hint')}</p>
+                    </div>
+                    <div class="form-group form-check">
+                        <label class="check-label">
+                            <input type="checkbox" id="enrollment-tag-picker" class="toggle-switch">
+                            <span>${_('settings.enrollment_tag_picker')}</span>
+                        </label>
+                        <p class="form-hint">${_('settings.enrollment_tag_picker_hint')}</p>
+                    </div>
+                    <p class="form-hint" id="enrollment-pending-hint" style="margin-top: 8px;"></p>
+                    <div style="margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap;">
+                        <a href="/registrations" class="btn btn-secondary btn-sm">
+                            <span class="material-icons">pending_actions</span>
+                            ${_('settings.enrollment_open_requests')}
+                        </a>
+                    </div>
+                </div>
+            </div>
+
             <!-- LDAP / Active Directory -->
             <div class="settings-section">
                 <div class="settings-section-header">

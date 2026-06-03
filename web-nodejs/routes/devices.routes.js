@@ -454,6 +454,28 @@ router.delete('/api/devices/:id', requireAuth, requirePermission('device.delete'
 });
 
 /**
+ * POST /api/devices/:id/restore - Restore a soft-deleted device
+ */
+router.post('/api/devices/:id/restore', requireAuth, requirePermission('device.delete'), async (req, res) => {
+    try {
+        const id = req.params.id;
+        const result = await serverBackend.restoreDevice(id);
+        if (!result || !result.success) {
+            const status = result?.error === 'peer not found' ? 404 : 500;
+            return res.status(status).json({
+                success: false,
+                error: result?.error || req.t('devices.restore_failed')
+            });
+        }
+        await db.logAction(req.session.userId, 'device_restored', `Device ${id} restored`, req.ip);
+        res.json({ success: true, data: result.data || result });
+    } catch (err) {
+        console.error('Restore device error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
  * POST /api/devices/:id/ban - Ban device
  */
 router.post('/api/devices/:id/ban', requireAuth, requirePermission('device.ban'), async (req, res) => {

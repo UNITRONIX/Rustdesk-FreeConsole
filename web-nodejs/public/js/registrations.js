@@ -22,7 +22,18 @@
     let rejectTargetId = null;
     let rejectTargetSource = null;
     let approveTargetId = null;
+    let approveTargetSource = null;
     let foldersLoaded = false;
+    let groupsLoaded = false;
+    let manualDeviceGroups = [];
+
+    let enrollmentUi = {
+        mode: 'open',
+        rich_approve: true,
+        tag_picker: true,
+    };
+    const selectedApproveTags = new Set();
+    let availableTags = [];
 
     const SOURCE_REGISTRATION = 'registration';
     const SOURCE_ENROLLMENT = 'enrollment';
@@ -44,6 +55,15 @@
     const approveTagsInput = document.getElementById('approve-tags');
     const approveFolderSelect = document.getElementById('approve-folder');
     const confirmApproveBtn = document.getElementById('confirm-approve-btn');
+    const approveTagsTextGroup = document.getElementById('approve-tags-text-group');
+    const approveTagsPickerGroup = document.getElementById('approve-tags-picker-group');
+    const approveTagsPickerEl = document.getElementById('approve-tags-picker');
+    const approveTagsSelectedEl = document.getElementById('approve-tags-selected');
+    const approveTagNewInput = document.getElementById('approve-tag-new');
+    const approveTagAddBtn = document.getElementById('approve-tag-add-btn');
+    const approveGroupsPickerEl = document.getElementById('approve-groups-picker');
+    const enrollmentModeBanner = document.getElementById('enrollment-mode-banner');
+    const enrollmentModeBannerText = document.getElementById('enrollment-mode-banner-text');
 
     // ---- API helpers ----
 
@@ -178,6 +198,132 @@
 
     // ---- Actions ----
 
+    async function loadEnrollmentUiSettings() {
+        try {
+            const result = await apiFetch('/api/registrations/enrollment-ui');
+            if (result.success && result.data) {
+                enrollmentUi = { ...enrollmentUi, ...result.data };
+            }
+        } catch (_) { /* keep defaults */ }
+        updateEnrollmentBanner();
+    }
+
+    function updateEnrollmentBanner() {
+        if (!enrollmentModeBanner || !enrollmentModeBannerText) return;
+        if (enrollmentUi.mode === 'managed') {
+            enrollmentModeBanner.style.display = 'none';
+            return;
+        }
+        enrollmentModeBanner.style.display = '';
+        enrollmentModeBannerText.textContent = enrollmentUi.mode === 'locked'
+            ? _('registrations.banner_locked_mode')
+            : _('registrations.banner_open_mode');
+    }
+
+    async function loadTagsForPicker() {
+        try {
+            const result = await apiFetch('/api/tags');
+            availableTags = (result.success && result.data?.tags) ? result.data.tags : (result.tags || []);
+        } catch (_) {
+            availableTags = [];
+        }
+        renderTagPicker();
+    }
+
+    function renderTagPicker() {
+        if (!approveTagsPickerEl) return;
+        if (!availableTags.length) {
+            approveTagsPickerEl.innerHTML = `<span class="form-hint">${_('devices.no_tags')}</span>`;
+            return;
+        }
+        approveTagsPickerEl.innerHTML = availableTags.map(tag => {
+            const checked = selectedApproveTags.has(tag) ? 'checked' : '';
+            return `<label class="tag-filter-option">
+                <input type="checkbox" value="${escapeAttr(tag)}" ${checked}>
+                <span>${escapeHtml(tag)}</span>
+            </label>`;
+        }).join('');
+        approveTagsPickerEl.querySelectorAll('input[type="checkbox"]').forEach(input => {
+            input.addEventListener('change', () => {
+                if (input.checked) selectedApproveTags.add(input.value);
+                else selectedApproveTags.delete(input.value);
+                renderSelectedApproveTags();
+                syncTagsTextInput();
+            });
+        });
+        renderSelectedApproveTags();
+    }
+
+    function renderSelectedApproveTags() {
+        if (!approveTagsSelectedEl) return;
+        if (!selectedApproveTags.size) {
+            approveTagsSelectedEl.innerHTML = '';
+            return;
+        }
+        approveTagsSelectedEl.innerHTML = [...selectedApproveTags].map(tag =>
+            `<span class="device-tag-pill">${escapeHtml(tag)}</span>`
+        ).join('');
+    }
+
+    function syncTagsTextInput() {
+        if (approveTagsInput) {
+            approveTagsInput.value = [...selectedApproveTags].join(', ');
+        }
+    }
+
+    function parseTagsFromText(text) {
+        return String(text || '')
+            .split(',')
+            .map(t => t.trim())
+            .filter(Boolean);
+    }
+
+    function collectApproveTags() {
+        if (enrollmentUi.tag_picker) {
+            const fromText = parseTagsFromText(approveTagsInput?.value || '');
+            fromText.forEach(t => selectedApproveTags.add(t));
+            return [...selectedApproveTags].join(', ');
+        }
+        return (approveTagsInput?.value || '').trim();
+    }
+
+    function collectSelectedGroupGuids() {
+        if (!approveGroupsPickerEl) return [];
+        return [...approveGroupsPickerEl.querySelectorAll('input[type="checkbox"]:checked')]
+            .map(el => el.value)
+            .filter(Boolean);
+    }
+
+    function applyTagPickerVisibility() {
+        const usePicker = !!enrollmentUi.tag_picker;
+        if (approveTagsTextGroup) approveTagsTextGroup.style.display = usePicker ? 'none' : '';
+        if (approveTagsPickerGroup) approveTagsPickerGroup.style.display = usePicker ? '' : 'none';
+    }
+
+    async function loadDeviceGroups() {
+        if (!approveGroupsPickerEl) return;
+        try {
+            const result = await apiFetch('/api/device-groups');
+            const groups = result.success
+                ? ((result.data && result.data.groups) || result.groups || [])
+                : [];
+            manualDeviceGroups = groups.filter(g => (g.source_type || 'manual') !== 'tag');
+            groupsLoaded = true;
+            if (!manualDeviceGroups.length) {
+                approveGroupsPickerEl.innerHTML = `<span class="form-hint">${_('devices.no_groups')}</span>`;
+                return;
+            }
+            approveGroupsPickerEl.innerHTML = manualDeviceGroups.map(group => `
+                <label class="tag-filter-option">
+                    <input type="checkbox" value="${escapeAttr(group.guid)}">
+                    <span>${escapeHtml(group.name || group.guid)}</span>
+                </label>
+            `).join('');
+        } catch (_) {
+            approveGroupsPickerEl.innerHTML = `<span class="form-hint">${_('errors.server_error')}</span>`;
+        }
+    }
+
     async function loadFolders() {
         // Populate folder dropdown once; keep the default "no folder" option.
         try {
@@ -197,35 +343,60 @@
         }
     }
 
-    function openApproveModal(id) {
+    function openApproveModal(id, source) {
         approveTargetId = id;
+        approveTargetSource = source || SOURCE_ENROLLMENT;
         approveDeviceIdEl.textContent = id;
         approveDisplayNameInput.value = '';
         approveSyncModeSelect.value = 'standard';
         approveTagsInput.value = '';
+        selectedApproveTags.clear();
         approveFolderSelect.value = '0';
+        if (approveGroupsPickerEl) {
+            approveGroupsPickerEl.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+        }
+        applyTagPickerVisibility();
         if (!foldersLoaded) loadFolders();
+        if (!groupsLoaded) loadDeviceGroups();
+        if (enrollmentUi.tag_picker) loadTagsForPicker();
+        else renderSelectedApproveTags();
         approveModal.style.display = 'flex';
         setTimeout(() => approveDisplayNameInput.focus(), 50);
     }
 
     async function confirmApprove() {
         if (!approveTargetId) return;
+        const payload = {
+            display_name: approveDisplayNameInput.value.trim(),
+            sync_mode: approveSyncModeSelect.value || 'standard',
+            tags: collectApproveTags(),
+            folder_id: parseInt(approveFolderSelect.value, 10) || 0,
+            group_guids: collectSelectedGroupGuids(),
+        };
+
         try {
-            const result = await apiFetch(`/api/enrollment/approve/${encodeURIComponent(approveTargetId)}`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    display_name: approveDisplayNameInput.value.trim(),
-                    sync_mode: approveSyncModeSelect.value || 'standard',
-                    tags: approveTagsInput.value.trim(),
-                    folder_id: parseInt(approveFolderSelect.value, 10) || 0,
-                }),
-            });
+            let result;
+            if (approveTargetSource === SOURCE_ENROLLMENT) {
+                result = await apiFetch(`/api/enrollment/approve/${encodeURIComponent(approveTargetId)}`, {
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                });
+            } else {
+                result = await apiFetch(`/api/registrations/${encodeURIComponent(approveTargetId)}/approve`, {
+                    method: 'PUT',
+                    body: JSON.stringify(payload),
+                });
+            }
             if (!result.success) throw new Error(result.error);
 
             approveModal.style.display = 'none';
+            const wasEnrollment = approveTargetSource === SOURCE_ENROLLMENT;
             approveTargetId = null;
-            showToast(_('registrations.enrollment_approved_success'), 'success');
+            approveTargetSource = null;
+            showToast(
+                wasEnrollment ? _('registrations.enrollment_approved_success') : _('registrations.approved_success'),
+                'success'
+            );
             loadRegistrations();
             loadPendingCount();
         } catch (err) {
@@ -234,13 +405,12 @@
     }
 
     async function approveRegistration(id, source) {
-        // Enrollment requests (stock RustDesk) use the rich approval modal.
-        if (source === SOURCE_ENROLLMENT) {
-            openApproveModal(id);
+        const useRichModal = source === SOURCE_ENROLLMENT || enrollmentUi.rich_approve;
+        if (useRichModal) {
+            openApproveModal(id, source);
             return;
         }
 
-        // Node-side LAN registration requests keep the simple approve flow.
         if (!confirm(_('registrations.approve_confirm'))) return;
         try {
             const result = await apiFetch(`/api/registrations/${encodeURIComponent(id)}/approve`, { method: 'PUT' });
@@ -416,6 +586,23 @@
 
     // Approve modal
     if (confirmApproveBtn) confirmApproveBtn.addEventListener('click', confirmApprove);
+    if (approveTagAddBtn && approveTagNewInput) {
+        approveTagAddBtn.addEventListener('click', () => {
+            const tag = approveTagNewInput.value.trim();
+            if (!tag) return;
+            selectedApproveTags.add(tag);
+            if (!availableTags.includes(tag)) availableTags.push(tag);
+            approveTagNewInput.value = '';
+            renderTagPicker();
+            syncTagsTextInput();
+        });
+        approveTagNewInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                approveTagAddBtn.click();
+            }
+        });
+    }
 
     tbody.addEventListener('click', (e) => {
         const actionBtn = e.target.closest('[data-reg-action]');
@@ -445,8 +632,10 @@
 
     // ---- Init ----
 
-    loadRegistrations();
-    loadPendingCount();
+    loadEnrollmentUiSettings().then(() => {
+        loadRegistrations();
+        loadPendingCount();
+    });
 
     // Refresh pending count every 15 seconds
     setInterval(loadPendingCount, 15000);

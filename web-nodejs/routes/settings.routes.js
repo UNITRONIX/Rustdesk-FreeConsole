@@ -981,9 +981,110 @@ router.put('/api/settings/backup/retention', requireAuth, requirePermission('ser
     }
 });
 
-// ==================== LDAP Configuration API (proxy to Go server) ===========
+// ==================== Device enrollment settings ============================
 
 const betterdeskApi = require('../services/betterdeskApi');
+
+const ENROLLMENT_SETTING_RICH = 'enrollment_rich_approve';
+const ENROLLMENT_SETTING_TAG_PICKER = 'enrollment_tag_picker';
+
+function parseBoolSetting(val, defaultValue = true) {
+    if (val === null || val === undefined || val === '') return defaultValue;
+    const s = String(val).toLowerCase();
+    return s === '1' || s === 'true' || s === 'yes';
+}
+
+/**
+ * GET /api/settings/enrollment — enrollment mode (Go) + panel UX toggles
+ */
+router.get('/api/settings/enrollment', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const modeResult = await betterdeskApi.getEnrollmentMode();
+        const mode = (modeResult.success && modeResult.data?.mode) ? modeResult.data.mode : 'open';
+        const richVal = await db.getSetting(ENROLLMENT_SETTING_RICH);
+        const tagVal = await db.getSetting(ENROLLMENT_SETTING_TAG_PICKER);
+        let pendingCount = 0;
+        try {
+            const pending = await betterdeskApi.getEnrollmentPending();
+            if (pending.success) pendingCount = pending.count || 0;
+        } catch (_) { /* non-fatal */ }
+        res.json({
+            success: true,
+            data: {
+                mode,
+                require_approval: mode === 'managed',
+                rich_approve: parseBoolSetting(richVal, true),
+                tag_picker: parseBoolSetting(tagVal, true),
+                pending_count: pendingCount,
+            },
+        });
+    } catch (err) {
+        console.error('Get enrollment settings error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * PUT /api/settings/enrollment
+ * Body: { mode?, require_approval?, rich_approve?, tag_picker? }
+ */
+router.put('/api/settings/enrollment', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const body = req.body || {};
+        let mode = body.mode;
+
+        if (body.require_approval === true) {
+            mode = 'managed';
+        } else if (body.require_approval === false && (!mode || mode === 'managed')) {
+            mode = 'open';
+        }
+
+        if (mode !== undefined) {
+            const valid = ['open', 'managed', 'locked'];
+            if (!valid.includes(mode)) {
+                return res.status(400).json({ success: false, error: 'Invalid enrollment mode' });
+            }
+            const setResult = await betterdeskApi.setEnrollmentMode(mode);
+            if (!setResult.success) {
+                return res.status(500).json({ success: false, error: setResult.error || 'Failed to set enrollment mode' });
+            }
+        }
+
+        if (body.rich_approve !== undefined) {
+            await db.setSetting(ENROLLMENT_SETTING_RICH, body.rich_approve ? 'true' : 'false');
+        }
+        if (body.tag_picker !== undefined) {
+            await db.setSetting(ENROLLMENT_SETTING_TAG_PICKER, body.tag_picker ? 'true' : 'false');
+        }
+
+        await db.logAction(
+            req.session?.userId,
+            'enrollment_settings_changed',
+            `Enrollment settings updated (mode=${mode || 'unchanged'})`,
+            req.ip
+        );
+
+        const modeResult = await betterdeskApi.getEnrollmentMode();
+        const currentMode = (modeResult.success && modeResult.data?.mode) ? modeResult.data.mode : (mode || 'open');
+        const richVal = await db.getSetting(ENROLLMENT_SETTING_RICH);
+        const tagVal = await db.getSetting(ENROLLMENT_SETTING_TAG_PICKER);
+
+        res.json({
+            success: true,
+            data: {
+                mode: currentMode,
+                require_approval: currentMode === 'managed',
+                rich_approve: parseBoolSetting(richVal, true),
+                tag_picker: parseBoolSetting(tagVal, true),
+            },
+        });
+    } catch (err) {
+        console.error('Set enrollment settings error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+// ==================== LDAP Configuration API (proxy to Go server) ===========
 
 /**
  * GET /api/settings/ldap - Get LDAP configuration from Go server
