@@ -49,6 +49,16 @@ func OpenConsoleAuth(path string) (*ConsoleAuthDB, error) {
 	return &ConsoleAuthDB{db: sqlDB}, nil
 }
 
+// GetUserIDByUsername returns the panel user id from auth.db (for group ACL joins).
+func (c *ConsoleAuthDB) GetUserIDByUsername(username string) (int64, error) {
+	if !c.hasTable("users") {
+		return 0, sql.ErrNoRows
+	}
+	var id int64
+	err := c.db.QueryRow(`SELECT id FROM users WHERE username = ?`, strings.TrimSpace(username)).Scan(&id)
+	return id, err
+}
+
 // Close releases the auth.db handle.
 func (c *ConsoleAuthDB) Close() error {
 	if c == nil || c.db == nil {

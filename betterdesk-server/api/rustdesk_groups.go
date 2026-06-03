@@ -28,8 +28,8 @@ func (s *Server) buildRustDeskDeviceGroups(r *http.Request) []rustDeskGroup {
 		return nil
 	}
 
-	user, err := s.db.GetUser(username)
-	if err != nil || user == nil {
+	user := s.rustDeskUserForGroups(r, username, role)
+	if user == nil {
 		return nil
 	}
 
@@ -50,7 +50,9 @@ func (s *Server) buildRustDeskDeviceGroups(r *http.Request) []rustDeskGroup {
 	if s.consoleAuth != nil {
 		panelGroups, err := s.consoleAuth.ListPanelDeviceGroups()
 		if err != nil {
-			log.Printf("[api] ListPanelDeviceGroups: %v", err)
+			log.Printf("[api] ListPanelDeviceGroups user=%s: %v", username, err)
+		} else if len(panelGroups) == 0 {
+			log.Printf("[api] ListPanelDeviceGroups user=%s: 0 groups (check AUTH_DB_PATH)", username)
 		} else {
 			for _, g := range panelGroups {
 				if !panelGroupAllowedForUser(g, user, role, userGroupGUIDs) {
@@ -94,12 +96,58 @@ func (s *Server) buildRustDeskDeviceGroups(r *http.Request) []rustDeskGroup {
 		}
 	}
 
-	// Fallback: peer tags as groups when auth.db is unavailable (legacy behaviour).
-	if len(groups) == 0 && s.consoleAuth == nil {
-		groups = s.peerTagGroups(peerByID, visiblePeer)
-	}
+	// Always include peer-tag groups (sidebar "Tagi") and dedupe by guid/name.
+	groups = mergeRustDeskGroups(groups, s.peerTagGroups(peerByID, visiblePeer))
 
 	return groups
+}
+
+// rustDeskUserForGroups resolves the user row for ACL checks (Go DB, then JWT context, then auth.db id).
+func (s *Server) rustDeskUserForGroups(r *http.Request, username, role string) *db.User {
+	if u, err := s.db.GetUser(username); err == nil && u != nil {
+		if s.consoleAuth != nil && u.ID > 0 {
+			if authID, err := s.consoleAuth.GetUserIDByUsername(username); err == nil && authID > 0 {
+				u.ID = authID
+			}
+		}
+		return u
+	}
+	if v, ok := r.Context().Value(ctxKeyUser).(*db.User); ok && v != nil {
+		return v
+	}
+	u := &db.User{Username: username, Role: role}
+	if s.consoleAuth != nil {
+		if authID, err := s.consoleAuth.GetUserIDByUsername(username); err == nil {
+			u.ID = authID
+		}
+	}
+	return u
+}
+
+func mergeRustDeskGroups(primary, extra []rustDeskGroup) []rustDeskGroup {
+	if len(extra) == 0 {
+		return primary
+	}
+	seen := make(map[string]bool, len(primary)+len(extra))
+	out := make([]rustDeskGroup, 0, len(primary)+len(extra))
+	add := func(g rustDeskGroup) {
+		key := strings.ToLower(strings.TrimSpace(g.guid))
+		if key == "" {
+			key = strings.ToLower(strings.TrimSpace(g.name))
+		}
+		if key == "" || seen[key] {
+			return
+		}
+		seen[key] = true
+		out = append(out, g)
+	}
+	for _, g := range primary {
+		add(g)
+	}
+	for _, g := range extra {
+		add(g)
+	}
+	return out
 }
 
 func (s *Server) consoleUserGroupGUIDs(userID int64) map[string]bool {

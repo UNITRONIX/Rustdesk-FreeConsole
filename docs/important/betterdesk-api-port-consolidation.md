@@ -66,7 +66,7 @@ Panel **device groups** and **folders** are stored in **`auth.db`** (console `DA
 - `GET /api/group`, `/api/group/get` — groups visible to the logged-in user (`allowed_users` / `allowed_user_groups`)
 - `GET /api/ab/tags` — includes group names as tags for the legacy “Tagi” sidebar
 
-On **:21121** proxy, group routes are still served by Node; on **:21114** Go reads `auth.db` directly.
+On **:21121**, `/api/group*` is proxied to Go (JWT from `/api/login`). Node `requireAuth` only accepts 64-char `auth.db` tokens, not Go JWT.
 
 ## Verification
 

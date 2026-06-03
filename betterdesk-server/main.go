@@ -556,6 +556,35 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 	}
 }
 
+// resolveAuthDBPath finds the Node.js console auth.db used for device groups/folders.
+func resolveAuthDBPath(explicit, dbPath string) string {
+	if strings.TrimSpace(explicit) != "" {
+		return explicit
+	}
+	candidates := []string{}
+	if v := os.Getenv("CONSOLE_DATA_DIR"); v != "" {
+		candidates = append(candidates, filepath.Join(v, "auth.db"))
+	}
+	if v := os.Getenv("DATA_DIR"); v != "" {
+		candidates = append(candidates, filepath.Join(v, "auth.db"))
+	}
+	if dbPath != "" && !strings.HasPrefix(dbPath, "postgres") {
+		dir := filepath.Dir(dbPath)
+		candidates = append(candidates,
+			filepath.Join(dir, "auth.db"),
+			filepath.Join(dir, "../data/auth.db"),
+			filepath.Join(dir, "../../BetterDeskConsole/data/auth.db"),
+			filepath.Join(dir, "../BetterDeskConsole/data/auth.db"),
+		)
+	}
+	for _, p := range candidates {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p
+		}
+	}
+	return explicit
+}
+
 func parseFlags() *config.Config {
 	cfg := config.DefaultConfig()
 
@@ -604,11 +633,7 @@ func parseFlags() *config.Config {
 
 	// Override with environment variables
 	cfg.LoadEnv()
-	if cfg.AuthDBPath == "" {
-		if v := os.Getenv("CONSOLE_DATA_DIR"); v != "" {
-			cfg.AuthDBPath = filepath.Join(v, "auth.db")
-		}
-	}
+	cfg.AuthDBPath = resolveAuthDBPath(cfg.AuthDBPath, cfg.DBPath)
 
 	// Validate mode
 	cfg.Mode = strings.ToLower(cfg.Mode)
