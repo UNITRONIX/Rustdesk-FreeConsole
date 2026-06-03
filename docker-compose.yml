@@ -15,7 +15,7 @@
 
 services:
   # BetterDesk Server (Go) — replaces hbbs + hbbr
-  # Single binary: signal (21116), relay (21117), API (21121), NAT test (21115)
+  # Single binary: signal (21116), relay (21117), API (21114), NAT test (21115)
   server:
     build:
       context: .
@@ -24,9 +24,9 @@ services:
     pull_policy: never
     container_name: betterdesk-server
     hostname: betterdesk-server
-    command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-api-port", "21121", "-key-file", "/opt/rustdesk/id_ed25519"]
+    command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-api-port", "21114", "-key-file", "/opt/rustdesk/id_ed25519"]
     ports:
-      - "21121:21121"           # HTTP API (RustDesk client + REST, WAN-facing)
+      - "21114:21114"           # Go HTTP API (default — direct client + REST)
       - "21115:21115"           # NAT type test
       - "21116:21116/tcp"       # Signal TCP
       - "21116:21116/udp"       # Signal UDP
@@ -58,7 +58,7 @@ services:
       - CHOWN
       - FOWNER
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:21121/api/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:21114/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -75,6 +75,7 @@ services:
     hostname: betterdesk-console
     ports:
       - "5000:5000"             # Web console (admin panel)
+      - "21121:21121"           # Backward compat proxy → Go :21114
     volumes:
       - rustdesk-data:/opt/rustdesk        # Shared server data (keys, db) — needs write for WAL mode
       - console-data:/app/data            # Console-specific data (auth.db, sessions)
@@ -83,10 +84,13 @@ services:
       - PORT=5000
       - HOST=0.0.0.0
       - API_HOST=0.0.0.0
-      - API_ENABLED=false
+      - API_ENABLED=true
+      - API_PORT=21121
+      - RUSTDESK_API_PROXY=true
+      - GO_API_PORT=21114
       - SERVER_BACKEND=betterdesk
-      - HBBS_API_URL=http://betterdesk-server:21121/api
-      - BETTERDESK_API_URL=http://betterdesk-server:21121/api
+      - HBBS_API_URL=http://betterdesk-server:21114/api
+      - BETTERDESK_API_URL=http://betterdesk-server:21114/api
       - RUSTDESK_PATH=/opt/rustdesk
       - DATA_DIR=/app/data
       - DB_PATH=/opt/rustdesk/db_v2.sqlite3

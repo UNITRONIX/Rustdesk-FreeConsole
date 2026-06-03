@@ -34,8 +34,9 @@ BetterDesk v3.0 is a major release that transforms BetterDesk from a RustDesk-co
 │  │                                                            │   │
 │  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐ │   │
 │  │  │ Signal   │  │ Relay    │  │ HTTP API │  │ CDAP     │ │   │
-│  │  │ :21116   │  │ :21117   │  │ :21114   │  │ Gateway  │ │   │
-│  │  │ UDP/TCP  │  │ TCP/WS   │  │ REST+WS  │  │ :21122   │ │   │
+│  │  │ :21116   │  │ :21117   │  │ :21121   │  │ Gateway  │ │   │
+│  │  │ UDP/TCP  │  │ TCP/WS   │  │ REST+    │  │ :21122   │ │   │
+│  │  │          │  │          │  │ ClientAPI│  │          │ │   │
 │  │  │ +WS:18   │  │ +WS:19   │  │          │  │ WS+TLS   │ │   │
 │  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘ │   │
 │  │                                                            │   │
@@ -48,7 +49,7 @@ BetterDesk v3.0 is a major release that transforms BetterDesk from a RustDesk-co
 │                                                                   │
 │  ┌───────────────────────────────────────────────────────────┐   │
 │  │              BetterDesk Web Console (Node.js)              │   │
-│  │              Port 5000 (LAN) + 21121 (WAN)                │   │
+│  │              Port 5000 (LAN) — proxies to Go :21121       │   │
 │  │                                                            │   │
 │  │  Dashboard │ Devices │ Users │ Automation │ CDAP │ Remote │   │
 │  │  Tickets   │ Reports │ Inventory │ Desktop Mode (Beta)    │   │
@@ -109,13 +110,12 @@ docker compose build && docker compose up -d
 
 | Port | Protocol | Service | Mode |
 |------|----------|---------|------|
-| 21114 | HTTP | REST API (Go server) | Full + Minimal |
 | 21115 | TCP | NAT type test | Full + Minimal |
 | 21116 | TCP/UDP | Signal server (client registration) | Full + Minimal |
 | 21117 | TCP | Relay server (bidirectional stream) | Full + Minimal |
 | 21118 | WS | WebSocket Signal | Full + Minimal |
 | 21119 | WS | WebSocket Relay | Full + Minimal |
-| 21121 | TCP | RustDesk Client API (WAN) | Full only |
+| 21121 | HTTP | Go API — REST + RustDesk client (consolidated `-api-port`) | Full + Minimal |
 | 21122 | WS | CDAP Gateway | Full + Minimal (if enabled) |
 | 5000 | HTTP | Web Console (LAN) | Full only |
 

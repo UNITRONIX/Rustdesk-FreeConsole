@@ -156,7 +156,9 @@ $script:BACKUP_DIR = if ($env:BACKUP_DIR) { $env:BACKUP_DIR } else { "C:\BetterD
 $script:DB_PATH = "$script:RUSTDESK_PATH\db_v2.sqlite3"
 
 # API configuration
-$script:API_PORT = if ($env:API_PORT) { $env:API_PORT } else { "21121" }
+$script:GO_API_PORT = if ($env:GO_API_PORT) { $env:GO_API_PORT } elseif ($env:API_PORT) { $env:API_PORT } else { "21114" }
+$script:CLIENT_API_PORT = if ($env:CLIENT_API_PORT) { $env:CLIENT_API_PORT } else { "21121" }
+$script:API_PORT = $script:GO_API_PORT
 $script:STORE_ADMIN_CREDENTIALS = ($env:STORE_ADMIN_CREDENTIALS -eq "true")
 
 # Common installation paths to search
@@ -1363,12 +1365,14 @@ $dbConfig
 DATA_DIR=$dataDir
 
 # HBBS API
-HBBS_API_URL=http://localhost:$script:API_PORT/api
+HBBS_API_URL=http://localhost:$($script:GO_API_PORT)/api
+GO_API_PORT=$($script:GO_API_PORT)
 
-# RustDesk Client API (consolidated onto the Go server, port $script:API_PORT)
-# The Node.js console no longer runs its own client API listener.
-API_ENABLED=false
+# :$($script:CLIENT_API_PORT) backward-compat proxy → Go :$($script:GO_API_PORT)
+API_ENABLED=true
+API_PORT=$($script:CLIENT_API_PORT)
 API_HOST=0.0.0.0
+RUSTDESK_API_PROXY=true
 RUSTDESK_API_TLS=auto
 
 # Server backend (betterdesk = Go server, rustdesk = legacy Rust)
@@ -1390,7 +1394,7 @@ SSL_CA_PATH=
 HTTP_REDIRECT_HTTPS=true
 
 # Go server API URL (uses HTTPS when TLS certificates are present)
-BETTERDESK_API_URL=http://localhost:$script:API_PORT/api
+BETTERDESK_API_URL=http://localhost:$($script:GO_API_PORT)/api
 "@
         Set-Content -Path $envFile -Value $envContent
         Print-Info "Created .env configuration file"
@@ -2560,7 +2564,7 @@ function Do-InstallMinimal {
     
     # Configure firewall rules (server ports only)
     Print-Step "Configuring firewall rules..."
-    $ports = @(21121, 21115, 21116, 21117, 21118, 21119)
+    $ports = @([int]$script:GO_API_PORT, 21115, 21116, 21117, 21118, 21119)
     foreach ($port in $ports) {
         try {
             New-NetFirewallRule -DisplayName "BetterDesk Port $port" -Direction Inbound -LocalPort $port -Protocol TCP -Action Allow -ErrorAction SilentlyContinue | Out-Null
@@ -2774,9 +2778,9 @@ function Do-Install {
     Write-Host "    TCP/UDP 21116  - ID Server (client registration)"
     Write-Host "    TCP    21115  - NAT type test"
     Write-Host "    TCP    21117  - Relay Server"
-    Write-Host "    TCP    $($script:API_PORT)  - Server HTTP API"
+    Write-Host "    TCP    $($script:GO_API_PORT)  - Go API (default, direct)"
     Write-Host "    TCP    5000   - Web Console (admin panel)"
-    Write-Host "    TCP    21121  - RustDesk Client API (WAN)"
+    Write-Host "    TCP    $($script:CLIENT_API_PORT)  - RustDesk client API (backward-compat proxy)"
     Write-Host ""
     Write-Host "  RustDesk Client Configuration:" -ForegroundColor Yellow
     Write-Host "    ID Server:    $serverIP"
@@ -3454,7 +3458,8 @@ function Do-Validate {
     Write-Host ""
     
     $ports = @(
-        @{Port=21121; Desc="Go API"; Expected="betterdesk-server"},
+        @{Port=[int]$script:GO_API_PORT; Desc="Go API"; Expected="betterdesk-server"},
+        @{Port=[int]$script:CLIENT_API_PORT; Desc="Client API proxy"; Expected="node"},
         @{Port=21115; Desc="NAT Test"; Expected="hbbs"},
         @{Port=21116; Desc="ID Server"; Expected="hbbs"},
         @{Port=21117; Desc="Relay"; Expected="hbbr"},
@@ -3484,7 +3489,7 @@ function Do-Validate {
     $firewallProfile = Get-NetFirewallProfile -ErrorAction SilentlyContinue
     $activeProfiles = $firewallProfile | Where-Object { $_.Enabled -eq $true }
     if ($activeProfiles) {
-        $fwPorts = @(21115, 21116, 21117, 21118, 21119, 5000, 5443, 21121)
+        $fwPorts = @(21115, 21116, 21117, 21118, 21119, 5000, 5443, [int]$script:GO_API_PORT, [int]$script:CLIENT_API_PORT)
         $fwMissing = 0
         foreach ($fwPort in $fwPorts) {
             $rules = Get-NetFirewallRule -Direction Inbound -Enabled True -ErrorAction SilentlyContinue | 
@@ -3869,7 +3874,8 @@ function Check-FirewallRules {
         @{Port=21119; Proto="TCP";  Name="WebSocket Relay"},
         @{Port=5000;  Proto="TCP";  Name="Web Console"},
         @{Port=5443;  Proto="TCP";  Name="Web Console HTTPS"},
-        @{Port=21121; Proto="TCP";  Name="Go API (RustDesk client + REST)"}
+        @{Port=[int]$script:GO_API_PORT; Proto="TCP";  Name="Go API (default, direct)"},
+        @{Port=[int]$script:CLIENT_API_PORT; Proto="TCP";  Name="RustDesk client API (backward-compat proxy)"}
     )
     
     $missingRules = @()
@@ -3907,7 +3913,8 @@ function Configure-Firewall {
             @{Port=21119; Proto="TCP";  Name="BetterDesk WebSocket Relay"},
             @{Port=5000;  Proto="TCP";  Name="BetterDesk Web Console"},
             @{Port=5443;  Proto="TCP";  Name="BetterDesk Console HTTPS"},
-            @{Port=21121; Proto="TCP";  Name="BetterDesk Go API"}
+            @{Port=[int]$script:GO_API_PORT; Proto="TCP";  Name="BetterDesk Go API (default)"},
+            @{Port=[int]$script:CLIENT_API_PORT; Proto="TCP";  Name="BetterDesk client API (compat proxy)"}
         )
         
         foreach ($p in $requiredPorts) {
@@ -4030,7 +4037,8 @@ conn.close()
     Write-Host ""
     
     $portDefs = @(
-        @{Port=21121; Proto="TCP"; Expected="betterdesk-server"; Desc="Go API (RustDesk client + REST)"},
+        @{Port=[int]$script:GO_API_PORT; Proto="TCP"; Expected="betterdesk-server"; Desc="Go API (default)"},
+        @{Port=[int]$script:CLIENT_API_PORT; Proto="TCP"; Expected="node"; Desc="Client API (backward-compat proxy)"},
         @{Port=21115; Proto="TCP"; Expected="betterdesk-server"; Desc="NAT Test"},
         @{Port=21116; Proto="TCP"; Expected="betterdesk-server"; Desc="ID Server (TCP)"},
         @{Port=21116; Proto="UDP"; Expected="betterdesk-server"; Desc="ID Server (UDP)"},
@@ -4063,7 +4071,7 @@ conn.close()
         Write-Host ""
         Print-Warning "$portIssues port conflict(s) detected!"
         Write-Host "  Tip: Stop conflicting processes or change ports in configuration" -ForegroundColor Yellow
-        Write-Host "  Common fix: Ensure no other app uses ports 21115-21117, 5000, 21121" -ForegroundColor Yellow
+        Write-Host "  Common fix: Ensure no other app uses ports 21115-21117, 5000, $($script:GO_API_PORT), $($script:CLIENT_API_PORT)" -ForegroundColor Yellow
     }
     
     # --- Firewall diagnostics ---
@@ -4749,7 +4757,7 @@ function Do-ConfigureSSL {
             Print-Header
             Write-Host "========== ENTERPRISE TLS CONFIGURATION ==========" -ForegroundColor Yellow
             Write-Host ""
-            Write-Host "  WARNING: Go API port 21121 stays HTTP for RustDesk client compatibility." -ForegroundColor Yellow
+            Write-Host "  WARNING: Go API :$($script:GO_API_PORT) and compat :$($script:CLIENT_API_PORT) stay HTTP for RustDesk clients." -ForegroundColor Yellow
             Write-Host "  Panel, signal and relay channels can still use TLS." -ForegroundColor Yellow
             Write-Host ""
             
@@ -4885,7 +4893,7 @@ function Do-ConfigureSSL {
             Print-Info "  - Panel HTTPS: :5443 (or configured port)"
             Print-Info "  - Signal TLS: :21116"
             Print-Info "  - Relay TLS: :21117"
-            Print-Info "  - Go API HTTP: :21121 (required for RustDesk clients)"
+            Print-Info "  - Go API HTTP: :$($script:GO_API_PORT) (compat proxy :$($script:CLIENT_API_PORT))"
             Write-Host ""
             Print-Warning "For browsers/clients, you may need to import $certPath as trusted CA"
         }
@@ -4898,7 +4906,7 @@ function Do-ConfigureSSL {
     
     # ── Update API URLs in .env when SSL is enabled/disabled ──
     # Go API TLS (--tls-api) is intentionally not enabled by SSL options.
-    # RustDesk desktop clients always use plain HTTP on the api-server (21121).
+    # RustDesk desktop clients use plain HTTP on :GO_API_PORT or compat :CLIENT_API_PORT.
     $envContent = Get-Content $envFile -Raw
     
     if ($sslChoice -eq "5") {
@@ -5150,8 +5158,8 @@ function Do-ToggleProtocol {
             Print-Info "  Panel:         HTTP :5000"
             Print-Info "  Signal:        TCP  :21116"
             Print-Info "  Relay:         TCP  :21117"
-            Print-Info "  Go API:        HTTP :21121 (RustDesk client + REST)"
-            Print-Info "  Client API:    HTTP :21121"
+            Print-Info "  Go API:        HTTP :$($script:GO_API_PORT) (default)"
+            Print-Info "  Client API:    HTTP :$($script:CLIENT_API_PORT) (compat proxy)"
             Write-Host ""
             Print-Warning "SSL certificates were NOT deleted (use option C > 4 to remove)"
         }
@@ -5254,8 +5262,8 @@ function Do-ToggleProtocol {
             Print-Info "  Panel:         HTTPS :5443"
             Print-Info "  Signal:        TLS   :21116"
             Print-Info "  Relay:         TLS   :21117"
-            Print-Info "  Go API:        HTTP  :21121 (RustDesk client + REST, always HTTP)"
-            Print-Info "  Client API:    auto  :21121"
+            Print-Info "  Go API:        HTTP  :$($script:GO_API_PORT) (default, always HTTP)"
+            Print-Info "  Client API:    HTTP  :$($script:CLIENT_API_PORT) (compat proxy)"
         }
         default { return }
     }

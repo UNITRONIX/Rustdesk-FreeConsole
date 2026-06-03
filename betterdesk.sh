@@ -156,8 +156,11 @@ CONSOLE_PATH="${CONSOLE_PATH:-}"
 CONSOLE_TYPE="none"  # none, nodejs
 BACKUP_DIR="${BACKUP_DIR:-/opt/rustdesk-backups}"
 
-# API configuration
-API_PORT="${API_PORT:-21114}"
+# API (v3): handlers on Go (GO_API_PORT 21114, default/direct). :21121 is Node
+# reverse-proxy for backward compatibility only. Panel is management UI (:5000).
+GO_API_PORT="${GO_API_PORT:-21114}"
+CLIENT_API_PORT="${CLIENT_API_PORT:-21121}"
+API_PORT="${API_PORT:-$GO_API_PORT}"
 STORE_ADMIN_CREDENTIALS="${STORE_ADMIN_CREDENTIALS:-false}"
 
 # Database configuration
@@ -1855,11 +1858,16 @@ ENVEOF
         echo "# Auth database location"
         echo "DATA_DIR=$CONSOLE_PATH/data"
         echo ""
-        echo "# HBBS API"
-        echo "HBBS_API_URL=http://localhost:$API_PORT/api"
+        echo "# Go server HTTP API (REST + RustDesk handlers — canonical port)"
+        echo "GO_API_PORT=${GO_API_PORT:-21114}"
+        echo "HBBS_API_URL=http://localhost:${GO_API_PORT:-21114}/api"
+        echo "BETTERDESK_API_URL=http://localhost:${GO_API_PORT:-21114}/api"
         echo ""
-        echo "# RustDesk Client API listener"
+        echo "# Backward compat: http://host:21121 → proxy to Go (new clients may use :21114 directly)"
+        echo "API_ENABLED=true"
+        echo "API_PORT=${CLIENT_API_PORT:-21121}"
         echo "API_HOST=0.0.0.0"
+        echo "RUSTDESK_API_PROXY=true"
         echo "RUSTDESK_API_TLS=auto"
         echo ""
         echo "# Server backend (betterdesk = Go server, rustdesk = legacy Rust)"
@@ -1884,9 +1892,6 @@ ENVEOF
         echo "SSL_KEY_PATH=$RUSTDESK_PATH/ssl/betterdesk.key"
         echo "SSL_CA_PATH="
         echo "HTTP_REDIRECT_HTTPS=true"
-        echo ""
-        echo "# Go server API URL (uses HTTPS when TLS certificates are present)"
-        echo "BETTERDESK_API_URL=http://localhost:$API_PORT/api"
     } >> "$CONSOLE_PATH/.env"
     print_info "Created .env configuration file"
     
@@ -2155,8 +2160,47 @@ generate_ssl_certificates() {
     return 0
 }
 
+# Go :21114 + Node :21121 proxy (keeps legacy RustDesk client API URLs working).
+ensure_api_compat_proxy_layout() {
+    local go_port="${GO_API_PORT:-21114}"
+    local client_port="${CLIENT_API_PORT:-21121}"
+    API_PORT="$go_port"
+    local go_svc="/etc/systemd/system/betterdesk-server.service"
+
+    if [ -f "$go_svc" ] && grep -qE '\-api-port[[:space:]]+21121\b' "$go_svc" 2>/dev/null; then
+        print_info "Migrating Go -api-port 21121 → $go_port (handlers on Go; clients stay on :$client_port proxy)"
+        sed -i "s/-api-port 21121/-api-port ${go_port}/" "$go_svc"
+    fi
+
+    if [ -z "$CONSOLE_PATH" ] || [ ! -f "$CONSOLE_PATH/.env" ]; then
+        return 0
+    fi
+
+    local env_file="$CONSOLE_PATH/.env"
+    local env_go_port
+    env_go_port=$(grep -oP '^HBBS_API_URL=https?://[^:/]+:\K[0-9]+' "$env_file" 2>/dev/null | head -1)
+    if [ "$env_go_port" = "21121" ]; then
+        print_info "Pointing panel API URLs to Go :$go_port (was :21121)"
+        sed -i "s|://localhost:21121/api|://localhost:${go_port}/api|g" "$env_file"
+        sed -i "s|://127.0.0.1:21121/api|://127.0.0.1:${go_port}/api|g" "$env_file"
+    fi
+
+    sed -i 's/^API_ENABLED=.*/API_ENABLED=true/' "$env_file" 2>/dev/null || echo "API_ENABLED=true" >> "$env_file"
+    sed -i "s/^API_PORT=.*/API_PORT=$client_port/" "$env_file" 2>/dev/null || echo "API_PORT=$client_port" >> "$env_file"
+    sed -i 's/^RUSTDESK_API_PROXY=.*/RUSTDESK_API_PROXY=true/' "$env_file" 2>/dev/null || echo "RUSTDESK_API_PROXY=true" >> "$env_file"
+    if grep -q '^GO_API_PORT=' "$env_file" 2>/dev/null; then
+        sed -i "s/^GO_API_PORT=.*/GO_API_PORT=$go_port/" "$env_file"
+    else
+        echo "GO_API_PORT=$go_port" >> "$env_file"
+    fi
+    sed -i "s|^HBBS_API_URL=.*|HBBS_API_URL=http://localhost:${go_port}/api|" "$env_file"
+    sed -i "s|^BETTERDESK_API_URL=.*|BETTERDESK_API_URL=http://localhost:${go_port}/api|" "$env_file"
+}
+
 setup_services() {
     print_step "Configuring systemd services..."
+
+    ensure_api_compat_proxy_layout
     
     # SAFETY NET: Re-read database config from .env if shell vars are empty.
     # This prevents PostgreSQL → SQLite regression during UPDATE/REPAIR
@@ -2236,8 +2280,8 @@ setup_services() {
         fi
         
         # Enable TLS on signal/relay for client encryption.
-        # API port (21114) MUST stay HTTP — RustDesk desktop clients always send
-        # plain HTTP to signal_port-2 and do not support HTTPS for API endpoints
+        # API port (21121) MUST stay HTTP — RustDesk desktop clients send plain HTTP
+        # to the configured API server URL and do not support HTTPS for API endpoints
         # (heartbeat, sysinfo, login, ab). Enabling -tls-api breaks all clients.
         tls_arg="-tls-cert $ssl_dir/betterdesk.crt -tls-key $ssl_dir/betterdesk.key -tls-signal -tls-relay"
         
@@ -2386,12 +2430,16 @@ Environment=RUSTDESK_DIR=$RUSTDESK_PATH
 Environment=KEYS_PATH=$RUSTDESK_PATH
 Environment=DATA_DIR=$CONSOLE_PATH/data
 $db_env
-Environment=HBBS_API_URL=$api_scheme://localhost:$API_PORT/api
-Environment=BETTERDESK_API_URL=$api_scheme://localhost:$API_PORT/api
+Environment=HBBS_API_URL=$api_scheme://localhost:${GO_API_PORT:-21114}/api
+Environment=BETTERDESK_API_URL=$api_scheme://localhost:${GO_API_PORT:-21114}/api
 Environment=SERVER_BACKEND=betterdesk
+Environment=API_ENABLED=true
+Environment=API_PORT=${CLIENT_API_PORT:-21121}
+Environment=RUSTDESK_API_PROXY=true
+Environment=GO_API_PORT=${GO_API_PORT:-21114}
+Environment=API_HOST=0.0.0.0
 Environment=PORT=5000
 Environment=HOST=0.0.0.0
-Environment=API_HOST=0.0.0.0
 $tls_env
 $([ "$tls_is_selfsigned" = true ] && echo "Environment=NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt" || true)
 Restart=always
@@ -2505,7 +2553,7 @@ do_install_minimal() {
     
     print_info "BetterDesk Minimal installs the Go server binary only."
     print_info "No web console, no Node.js, no npm dependencies."
-    print_info "Manage via REST API on port 21114 or TCP admin console."
+    print_info "Manage via REST API on port ${GO_API_PORT:-21114} or TCP admin console."
     echo ""
     
     detect_installation
@@ -2556,7 +2604,7 @@ do_install_minimal() {
     # Configure firewall rules (signal + relay + API only, no console ports)
     print_step "Configuring firewall rules..."
     if command -v ufw >/dev/null 2>&1; then
-        ufw allow 21114/tcp comment "BetterDesk API" 2>/dev/null || true
+        ufw allow "${GO_API_PORT:-21114}/tcp" comment "BetterDesk Go API (default)" 2>/dev/null || true
         ufw allow 21115/tcp comment "BetterDesk NAT" 2>/dev/null || true
         ufw allow 21116/tcp comment "BetterDesk Signal TCP" 2>/dev/null || true
         ufw allow 21116/udp comment "BetterDesk Signal UDP" 2>/dev/null || true
@@ -2590,9 +2638,9 @@ do_install_minimal() {
     SERVER_IP=$(get_public_ip)
     
     echo -e "${GREEN}Server: ${SERVER_IP}${NC}"
-    echo -e "${GREEN}API: http://${SERVER_IP}:21114${NC}"
+    echo -e "${GREEN}Go API: http://${SERVER_IP}:${GO_API_PORT:-21114}${NC}"
     echo ""
-    echo -e "${YELLOW}Ports: 21114 (API), 21115-21117 (Signal/Relay), 21118-21119 (WS)${NC}"
+    echo -e "${YELLOW}Ports: ${GO_API_PORT:-21114} (Go API), ${CLIENT_API_PORT:-21121} (compat proxy, full install), 21115-21117 (Signal/Relay)${NC}"
     echo -e "${YELLOW}No web console installed. Use REST API or TCP admin for management.${NC}"
     echo ""
     
@@ -2650,7 +2698,7 @@ setup_services_minimal() {
         # Enterprise TLS still keeps the Go API HTTP for RustDesk client
         # compatibility. Only signal/relay receive TLS flags here.
         if [ "${ENTERPRISE_TLS:-false}" = "true" ]; then
-            print_info "Enterprise TLS enabled: API port 21114 stays HTTP"
+            print_info "Enterprise TLS enabled: API port ${API_PORT:-21121} stays HTTP"
         fi
     fi
     
@@ -3585,7 +3633,7 @@ do_validate() {
     echo -e "${WHITE}Checking ports...${NC}"
     echo ""
     
-    for port in 21114 21115 21116 21117 5000 21121; do
+    for port in "${GO_API_PORT:-21114}" "${CLIENT_API_PORT:-21121}" 21115 21116 21117 5000; do
         echo -n "  Port $port: "
         if ss -tlnp 2>/dev/null | grep -q ":$port " || netstat -tlnp 2>/dev/null | grep -q ":$port "; then
             local pname=$(ss -tlnp 2>/dev/null | grep ":$port " | grep -oP 'users:\(\("\K[^"]+' 2>/dev/null | head -1)
@@ -4211,7 +4259,7 @@ do_build_legacy_rust() {
 #===============================================================================
 
 configure_firewall_rules() {
-    local required_ports="21114 21115 21116 21117 21118 21119 5000 5443 21121"
+    local required_ports="${GO_API_PORT:-21114} ${CLIENT_API_PORT:-21121} 21115 21116 21117 21118 21119 5000 5443"
     local created=0
     local total=0
     
@@ -4396,13 +4444,13 @@ do_diagnostics() {
     
     local port_issues=0
     local port_defs=(
-        "21114:TCP:betterdesk-serv|betterdesk-server|hbbs:API Server"
+        "${GO_API_PORT:-21114}:TCP:betterdesk-serv|betterdesk-server|hbbs:Go HTTP API (handlers)"
+        "${CLIENT_API_PORT:-21121}:TCP:node|MainThread:Client API compat proxy → Go"
         "21115:TCP:betterdesk-serv|betterdesk-server|hbbs:NAT Test"
         "21116:TCP:betterdesk-serv|betterdesk-server|hbbs:ID Server (TCP)"
         "21116:UDP:betterdesk-serv|betterdesk-server|hbbs:ID Server (UDP)"
         "21117:TCP:betterdesk-serv|betterdesk-server|hbbr:Relay Server"
         "5000:TCP:node|MainThread:Web Console"
-        "21121:TCP:node|MainThread:Client API (WAN)"
     )
     
     for entry in "${port_defs[@]}"; do
@@ -4454,7 +4502,7 @@ do_diagnostics() {
     
     local fw_type="none"
     local missing_rules=0
-    local required_ports="21114 21115 21116 21117 5000 21121"
+    local required_ports="${GO_API_PORT:-21114} ${CLIENT_API_PORT:-21121} 21115 21116 21117 5000"
     
     if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -q "active"; then
         fw_type="ufw"
@@ -4517,7 +4565,7 @@ do_diagnostics() {
     echo -e "${WHITE}${BOLD}═══ API connectivity ═══${NC}"
     echo ""
     
-    local api_port="${API_PORT:-21114}"
+    local api_port="${GO_API_PORT:-21114}"
     
     # Detect if Go server API uses TLS (only if explicit --tls-api in service args)
     local api_use_tls=false
@@ -4898,7 +4946,7 @@ do_configure_ssl() {
             # Enterprise TLS - HTTPS for panel/signal/relay, Go API remains HTTP
             print_header "Enterprise TLS Configuration"
             echo ""
-            print_warning "⚠️  IMPORTANT: Go API port 21114 stays HTTP for RustDesk client compatibility."
+            print_warning "⚠️  IMPORTANT: Go API port ${API_PORT:-21121} stays HTTP for RustDesk client compatibility."
             print_warning "    Panel, signal and relay channels can still use TLS."
             echo ""
             
@@ -4966,7 +5014,7 @@ do_configure_ssl() {
             
             # Keep internal Go API URLs on HTTP for RustDesk client compatibility
             local api_port
-            api_port=$(grep -oP '^HBBS_API_URL=https?://localhost:\K[0-9]+' "$CONSOLE_PATH/.env" 2>/dev/null || echo "${API_PORT:-21114}")
+            api_port=$(grep -oP '^HBBS_API_URL=https?://localhost:\K[0-9]+' "$CONSOLE_PATH/.env" 2>/dev/null || echo "${API_PORT:-21121}")
             sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$CONSOLE_PATH/.env"
             sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$CONSOLE_PATH/.env"
             
@@ -5002,7 +5050,7 @@ do_configure_ssl() {
             print_info "  • Panel HTTPS: :5443 (or configured port)"
             print_info "  • Signal TLS: :21116"
             print_info "  • Relay TLS: :21117"
-            print_info "  • Go API HTTP: :21114 (required for RustDesk clients)"
+            print_info "  • Go API HTTP: :${API_PORT:-21121} (required for RustDesk clients)"
             echo ""
             print_warning "For browsers/clients accessing this server, you may need to:"
             print_info "  1. Import $ssl_dir/betterdesk.crt as trusted CA"
@@ -5017,7 +5065,7 @@ do_configure_ssl() {
     
     # ── Update API URLs in .env when SSL is enabled/disabled ──
     # Go API TLS (--tls-api) is intentionally not enabled by SSL options.
-    # RustDesk desktop clients always use plain HTTP on signal_port-2 (21114).
+    # RustDesk desktop clients use plain HTTP on the configured API server port.
     local env_file="$CONSOLE_PATH/.env"
     local api_port
     api_port=$(grep -oP '^HBBS_API_URL=https?://localhost:\K[0-9]+' "$env_file" 2>/dev/null || echo "$API_PORT")
@@ -5055,7 +5103,7 @@ do_configure_ssl() {
         
     elif [ "${ssl_choice:-1}" != "4" ]; then
         # === Standard SSL (options 1-3): API stays HTTP for RustDesk client compatibility ===
-        # RustDesk desktop clients always send plain HTTP to signal_port-2 (21114).
+        # RustDesk desktop clients send plain HTTP to the API server URL (default :21121).
         sed -i "s|^HBBS_API_URL=https://localhost|HBBS_API_URL=http://localhost|" "$env_file"
         sed -i "s|^BETTERDESK_API_URL=https://localhost|BETTERDESK_API_URL=http://localhost|" "$env_file"
         
@@ -5170,7 +5218,7 @@ do_configure_ssl() {
 #===============================================================================
 # Runs a series of non-destructive connectivity / certificate checks after an
 # HTTP <-> HTTPS switch so the operator gets immediate, trustworthy feedback.
-# Honours the project invariant: the Go API (:21114) must remain HTTP.
+# Honours the project invariant: the Go API (:21121) must remain HTTP for RustDesk clients.
 run_protocol_tests() {
     local env_file="$CONSOLE_PATH/.env"
     local go_svc_file="/etc/systemd/system/betterdesk-server.service"
@@ -5221,18 +5269,26 @@ run_protocol_tests() {
         _test_fail "Web panel NOT reachable on ${panel_scheme}://127.0.0.1:${panel_port} (got $panel_code)"
     fi
 
-    # ── 4. Go API must answer over HTTP on 21114 ──
+    # ── 4. Go API (RustDesk client + REST) on GO_API_PORT (default 21114) ──
     local api_code
     api_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 \
-        "http://127.0.0.1:${API_PORT:-21114}/api/server/stats" 2>/dev/null || echo "000")
+        "http://127.0.0.1:${GO_API_PORT:-21114}/api/server/stats" 2>/dev/null || echo "000")
     if [[ "$api_code" =~ ^(200|401|403|404)$ ]]; then
-        _test_ok "Go API responding over HTTP on :${API_PORT:-21114} (HTTP $api_code)"
+        _test_ok "Go API responding over HTTP on :${GO_API_PORT:-21114} (HTTP $api_code)"
     else
-        _test_fail "Go API not responding over HTTP on :${API_PORT:-21114} (got $api_code)"
+        _test_fail "Go API not responding over HTTP on :${GO_API_PORT:-21114} (got $api_code)"
+    fi
+    local client_api_code
+    client_api_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 \
+        "http://127.0.0.1:${CLIENT_API_PORT:-21121}/api/login-options" 2>/dev/null || echo "000")
+    if [[ "$client_api_code" =~ ^(200|401|403|404|405)$ ]]; then
+        _test_ok "Client API compat proxy on :${CLIENT_API_PORT:-21121} (HTTP $client_api_code)"
+    else
+        _test_fail "Client API proxy not responding on :${CLIENT_API_PORT:-21121} (got $client_api_code) — check API_ENABLED"
     fi
     # Critical invariant: Go API must never be HTTPS-only
     if [ -f "$go_svc_file" ] && grep -Eq '\-tls-api|\-force-https' "$go_svc_file" 2>/dev/null; then
-        _test_warn "Go service carries -tls-api/-force-https — RustDesk clients require plain HTTP on :${API_PORT:-21114}"
+        _test_warn "Go service carries -tls-api/-force-https — RustDesk clients require plain HTTP on :${GO_API_PORT:-21114}"
     fi
 
     # ── 5. Signal / Relay listeners ──
@@ -5391,7 +5447,7 @@ do_toggle_protocol() {
             print_info "  Panel:         HTTP :5000"
             print_info "  Signal:        TCP  :21116"
             print_info "  Relay:         TCP  :21117"
-            print_info "  Go API:        HTTP :21114"
+            print_info "  Go API:        HTTP :${API_PORT:-21121}"
             print_info "  Client API:    HTTP :21121"
             echo ""
             print_warning "SSL certificates were NOT deleted (use option C > 4 to remove)"
@@ -5582,7 +5638,7 @@ HOOK
             print_info "  Panel:         HTTPS :5443"
             print_info "  Signal:        TLS   :21116"
             print_info "  Relay:         TLS   :21117"
-            print_info "  Go API:        HTTP  :21114 (internal, always HTTP)"
+            print_info "  Go API:        HTTP  :${API_PORT:-21121} (RustDesk client + REST)"
             print_info "  Client API:    auto  :21121"
             ;;
         0|*)

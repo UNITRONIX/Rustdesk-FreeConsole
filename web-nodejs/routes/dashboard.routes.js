@@ -109,7 +109,7 @@ router.get('/api/server/status', requireAuth, async (req, res) => {
         // Build port map for the UI
         const apiPort = parseInt(new URL(
             isBD ? config.betterdeskApiUrl : config.hbbsApiUrl
-        ).port, 10) || 21121;
+        ).port, 10) || config.goApiPort || 21114;
 
         res.json({
             success: true,
@@ -127,7 +127,7 @@ router.get('/api/server/status', requireAuth, async (req, res) => {
                 nat_port: (config.wsProxy.hbbsPort - 1),      // 21115
                 ws_signal_port: (config.wsProxy.hbbsPort + 2), // 21118
                 ws_relay_port: (config.wsProxy.hbbrPort + 2),  // 21119
-                client_api_port: config.apiPort,                // 21121
+                client_api_port: config.apiEnabled ? config.apiPort : apiPort,
                 console_port: config.port                       // 5000
             }
         });

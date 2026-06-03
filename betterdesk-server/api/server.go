@@ -302,8 +302,9 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/auth/login/2fa", s.handleLogin2FA)
 	mux.HandleFunc("GET /api/auth/me", s.handleAuthMe)
 
-	// RustDesk Client API (compatible with RustDesk desktop client)
-	// The client calculates API port as signal_port - 2 (21116-2=21114).
+	// RustDesk Client API (same consolidated HTTP port as REST — default :21121).
+	// Clients with an explicit API Server URL use that; otherwise some builds
+	// fall back to signal_port - 2 (21114).
 	mux.HandleFunc("POST /api/login", s.handleClientLogin)
 	mux.HandleFunc("GET /api/login-options", s.handleClientLoginOptions)
 	mux.HandleFunc("POST /api/logout", s.handleClientLogout)

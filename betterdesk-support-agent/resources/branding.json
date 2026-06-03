@@ -1,0 +1,20 @@
+{
+  "product_name": "BetterDesk Support",
+  "company_name": "BetterDesk",
+  "tagline": "Quick remote help",
+  "support_email": "",
+  "support_phone": "",
+  "contact_url": "",
+  "primary_color": "#2563eb",
+  "accent_color": "#0ea5e9",
+  "logo_data_url": "",
+  "default_language": "en",
+  "allow_unattended": false,
+  "server": {
+    "address": "",
+    "api_url": "",
+    "public_key": ""
+  },
+  "api_key": "",
+  "bundle_id": ""
+}

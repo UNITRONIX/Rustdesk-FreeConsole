@@ -112,6 +112,25 @@ if (!sessionSecret) {
     }
 }
 
+// Go API default port (signal_port - 2). :21121 is optional backward-compat proxy only.
+const GO_API_PORT_DEFAULT = 21114;
+const CLIENT_API_PORT_DEFAULT = 21121;
+
+function parseApiUrlPort(urlString, fallback) {
+    try {
+        const u = new URL(urlString);
+        if (u.port) return parseInt(u.port, 10);
+        return u.protocol === 'https:' ? 443 : 80;
+    } catch {
+        return fallback;
+    }
+}
+
+const _betterdeskApiUrlRaw = process.env.BETTERDESK_API_URL || process.env.HBBS_API_URL
+    || `http://127.0.0.1:${GO_API_PORT_DEFAULT}/api`;
+const goApiPort = parseInt(process.env.GO_API_PORT, 10)
+    || parseApiUrlPort(_betterdeskApiUrlRaw, GO_API_PORT_DEFAULT);
+
 module.exports = {
     // Environment
     nodeEnv: NODE_ENV,
@@ -122,14 +141,15 @@ module.exports = {
     port: parseInt(process.env.PORT, 10) || 5000,
     host: process.env.HOST || '127.0.0.1',
 
-    // RustDesk Client API (dedicated WAN-facing port)
-    // The client API surface is now consolidated onto the Go server (port
-    // 21121 by default). Node's standalone listener is therefore DISABLED by
-    // default; set API_ENABLED=true only for legacy deployments that still
-    // want Node to serve the RustDesk client API on apiPort.
-    apiPort: parseInt(process.env.API_PORT, 10) || 21121,
-    apiHost: process.env.API_HOST || '127.0.0.1',
-    apiEnabled: (process.env.API_ENABLED || 'false').toLowerCase() === 'true',
+    // Go server HTTP API (REST + RustDesk handlers) — default :21114
+    goApiPort,
+
+    // Compatibility listener :21121 — reverse-proxy to Go (no business logic in Node).
+    // Keeps existing RustDesk client configs on http://host:21121 unchanged.
+    apiPort: parseInt(process.env.API_PORT, 10) || CLIENT_API_PORT_DEFAULT,
+    apiHost: process.env.API_HOST || '0.0.0.0',
+    apiEnabled: (process.env.API_ENABLED ?? 'true').toLowerCase() === 'true',
+    apiProxyToGo: (process.env.RUSTDESK_API_PROXY ?? 'true').toLowerCase() === 'true',
     rustdeskApiTls: (process.env.RUSTDESK_API_TLS || 'auto').toLowerCase(),
 
     // Issue #104 mitigation:
@@ -175,12 +195,12 @@ module.exports = {
     serverBackend: 'betterdesk',
 
     // BetterDesk Go Server API
-    hbbsApiUrl: process.env.BETTERDESK_API_URL || process.env.HBBS_API_URL || 'http://localhost:21121/api',
+    hbbsApiUrl: _betterdeskApiUrlRaw,
     hbbsApiKey: apiKey,
     hbbsApiTimeout: parseInt(process.env.BETTERDESK_API_TIMEOUT || process.env.HBBS_API_TIMEOUT, 10) || 3000,
 
     // BetterDesk Go Server API (preferred names)
-    betterdeskApiUrl: process.env.BETTERDESK_API_URL || process.env.HBBS_API_URL || 'http://localhost:21121/api',
+    betterdeskApiUrl: _betterdeskApiUrlRaw,
     betterdeskApiKey: process.env.BETTERDESK_API_KEY || apiKey,
     betterdeskApiTimeout: parseInt(process.env.BETTERDESK_API_TIMEOUT, 10) || 5000,
 

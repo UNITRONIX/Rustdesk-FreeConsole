@@ -1,7 +1,7 @@
 // RustDesk Client API handlers.
-// Provides RustDesk-compatible endpoints on the Go server's API port (:21114).
-// The RustDesk desktop client calculates API port as signal_port - 2 (21116-2=21114),
-// so these endpoints must be served on the same port as the admin API.
+// Provides RustDesk-compatible endpoints on the Go server's consolidated API port
+// (default :21121, overridable via -api-port / API_PORT). When the RustDesk client
+// has no explicit API Server URL, it may fall back to signal_port - 2 (21114).
 //
 // Endpoints:
 //

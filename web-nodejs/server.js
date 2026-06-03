@@ -521,10 +521,12 @@ async function startServer() {
             }
         }
         
-        // ============ RustDesk Client API Server (dedicated port) ============
+        // ============ RustDesk Client API (WAN :21121 → Go :21114 proxy) ============
         let apiServer = null;
         if (config.apiEnabled) {
             apiServer = startRustDeskApiServer();
+        } else if (config.serverBackend === 'betterdesk') {
+            console.log(`  ║   Client API: disabled — use :${config.apiPort} proxy or Go :${config.goApiPort}`.padEnd(53) + '║');
         }
         
         // ============ Periodic Housekeeping ============
@@ -616,6 +618,8 @@ async function startServer() {
  */
 function startRustDeskApiServer() {
     const apiApp = express();
+    const { goApiProxy, getGoApiOrigin } = require('./middleware/goApiProxy');
+    const useGoProxy = config.apiProxyToGo && config.serverBackend === 'betterdesk';
 
     // Trust proxy (use same configuration as main app — TRUST_PROXY env var)
     apiApp.set('trust proxy', trustProxy);
@@ -626,15 +630,18 @@ function startRustDeskApiServer() {
         apiApp.use(mw);
     }
 
-    // JSON body parser with size limit (64KB for address book sync)
-    apiApp.use(express.json({ limit: '64kb', strict: true }));
-
-    // Mount RustDesk-compatible API routes
-    apiApp.use('/', rustdeskApiRoutes);
-
-    // Mount device-facing registration routes (LAN discovery pairing)
-    const registrationRoutes = require('./routes/registration.routes');
-    apiApp.use('/api/bd', registrationRoutes);
+    if (useGoProxy) {
+        // LAN registration is still handled in Node (not on Go API)
+        const registrationRoutes = require('./routes/registration.routes');
+        apiApp.use('/api/bd', registrationRoutes);
+        apiApp.use(goApiProxy);
+    } else {
+        // Legacy: Node implements RustDesk API locally (SQLite-era deployments)
+        apiApp.use(express.json({ limit: '64kb', strict: true }));
+        apiApp.use('/', rustdeskApiRoutes);
+        const registrationRoutes = require('./routes/registration.routes');
+        apiApp.use('/api/bd', registrationRoutes);
+    }
 
     // Catch-all for any unmatched routes (should not reach here due to pathWhitelist).
     // We log every miss so missing RustDesk client compatibility endpoints are
@@ -696,7 +703,11 @@ function startRustDeskApiServer() {
     });
     
     apiServerInstance.listen(config.apiPort, config.apiHost, () => {
-        console.log(`  ║   API Port:  ${config.apiPort} (RustDesk Client)`.padEnd(53) + '║');
+        if (useGoProxy) {
+            console.log(`  ║   Client API:  :${config.apiPort} → Go ${getGoApiOrigin()}`.padEnd(53) + '║');
+        } else {
+            console.log(`  ║   Client API:  :${config.apiPort} (Node local handlers)`.padEnd(53) + '║');
+        }
         console.log('  ║                                                  ║');
     });
 

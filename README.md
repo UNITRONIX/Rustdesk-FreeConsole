@@ -127,13 +127,13 @@ RustDesk Desktop/Mobile Clients
   ├── TCP (:21117) ──────► Relay Server  ──► UUID pairing → bidirectional io.Copy pipe
   ├── WS  (:21119) ──────► WS Relay      ──► WebSocket relay (web clients)
   │
-  └── HTTP (:21121) ─────► Client API    ──► Login, address book sync, heartbeat, sysinfo
-                                              (WAN-facing, 7-layer security stack)
+  ├── HTTP (:21114) ─────► Go HTTP API    ──► Login, AB, heartbeat, REST (default)
+  └── HTTP (:21121) ─────► Node proxy     ──► same handlers on Go (backward compat)
 
 Admin / Web Console
   │
-  ├── HTTP  (:21114) ────► REST API      ──► JWT/API-key auth → CRUD endpoints
-  ├── WS    (:21114) ────► Event Stream  ──► Real-time peer status push
+  ├── (internal) ────────► Go :21114     ──► Panel via BETTERDESK_API_URL
+  ├── WS via panel ──────► Event stream  ──► Real-time peer status
   ├── TCP   (admin)  ────► Admin Console ──► telnet/netcat management (127.0.0.1 only)
   └── HTTP  (:5000)  ────► Web Console   ──► Node.js + Express + EJS (LAN)
                                               TOTP 2FA, RBAC, device management
@@ -148,13 +148,13 @@ Database Layer
 
 | Port | Protocol | Service | Direction |
 |------|----------|---------|-----------|
-| **21114** | HTTP(S) | REST API (Go server) | LAN |
 | **21115** | TCP | NAT type test + OnlineRequest | WAN |
 | **21116** | TCP + UDP | Signal Server (registration, punch hole) | WAN |
 | **21117** | TCP | Relay Server (bidirectional stream) | WAN |
 | **21118** | WS(S) | WebSocket Signal | WAN |
 | **21119** | WS(S) | WebSocket Relay | WAN |
-| **21121** | HTTP | RustDesk Client API — Node.js (login, AB sync, heartbeat) | WAN |
+| **21114** | HTTP | Go server API — default (`-api-port`), direct RustDesk + REST | WAN |
+| **21121** | HTTP | Node backward-compat proxy → Go :21114 | WAN |
 | **5000** | HTTP | Web Console (admin panel) | LAN |
 
 > All TCP/WS ports support **dual-mode TLS** — plain and TLS on the same port with automatic detection.
@@ -396,7 +396,7 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 - **TOTP 2FA** — Two-factor authentication with `otplib`
 - **RBAC** — Admin, Operator, Viewer, and Pro (API-only) roles with permission enforcement
 - **Address book sync** — Full AB storage with `address_books` table
-- **RustDesk Client API** — Dedicated WAN port (21121) with 7-layer security
+- **RustDesk Client API** — Go on :21114 (default WAN), :21121 backward-compat proxy with 7-layer security
 - **Desktop connect** — One-click connect via `rustdesk://` URI handler
 - **i18n** — JSON-based translations, 25+ languages (auto-discovery from `lang/` directory)
 - **Desktop widget dashboard** — Drag-and-drop dashboard mode with 20+ widget types (weather, calendar, system monitor, disk usage, log viewer, alert feed, speed test, Docker containers, world clock, bookmarks, device map, and more), Windows 11-style snap layouts with edge snapping, draggable zone borders, Aero Shake, widget groups/stacking, glassmorphism theme, presets/templates
@@ -417,9 +417,9 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 - **CSRF protection** — Double-submit cookie pattern with `csrf-csrf`
 - **WebSocket** — Real-time status updates from Go server event bus
 
-### RustDesk Client API (Port 21121)
+### RustDesk Client API (Go :21114, compat :21121)
 
-Allows RustDesk desktop clients to:
+**Handlers** run in **betterdesk-server** on **21114** (default API port). **`http://<server>:21114`** for new configs; **`http://<server>:21121`** still works via Node proxy for existing deployments. Allows RustDesk desktop clients to:
 - Login/logout with username and password
 - Sync address books across devices
 - Send heartbeats and system information
@@ -645,7 +645,7 @@ After installing BetterDesk server, configure your RustDesk desktop clients to c
 |-------|-------|---------|
 | **ID Server** | Your server IP or domain | `betterdesk.example.com` |
 | **Relay Server** | Same as ID Server (or leave empty) | `betterdesk.example.com` |
-| **API Server** | `http(s)://<server>:21121` | `http://betterdesk.example.com:21121` |
+| **API Server** | `http://<server>:21114` or `:21121` (compat) | `http://betterdesk.example.com:21114` |
 | **Key** | Contents of `id_ed25519.pub` on the server | (base64 public key string) |
 
 > **Tip:** The public key can be found in the Web Console under **Dashboard → Server Keys**, or by reading the file `/opt/rustdesk/id_ed25519.pub` (Linux) / `C:\BetterDesk\id_ed25519.pub` (Windows) on the server.
@@ -663,7 +663,7 @@ JSON structure:
 {
   "host": "betterdesk.example.com",
   "relay": "betterdesk.example.com",
-  "api": "http://betterdesk.example.com:21121",
+  "api": "http://betterdesk.example.com:21114",
   "key": "<contents-of-id_ed25519.pub>"
 }
 ```
@@ -684,7 +684,7 @@ RustDesk desktop clients can **log in** to the BetterDesk server using their use
 3. Enter your **username** and **password** (the same credentials used for the Web Console)
 4. Click **Login**
 
-> **Note:** The login API runs on port **21121** (the RustDesk Client API), not on port 21114 (which is the server management REST API for LAN-only use). Make sure the `API Server` field in the client points to `http(s)://<server>:21121`.
+> **Note:** Login is handled by **Go on 21114**. Use **`http://<server>:21114`** (default) or **`http://<server>:21121`** (backward compatibility). The web panel (5000) is management UI only.
 
 #### What Login Enables
 
@@ -710,8 +710,10 @@ RustDesk desktop clients can **log in** to the BetterDesk server using their use
 
 | Problem | Solution |
 |---------|----------|
-| "Login failed" | Verify the API Server field is set to `http://<server>:21121` (not 21114) |
-| "Connection refused" | Ensure port 21121 is open in the firewall and the console is running |
+| "Login failed" | Verify API URL `http://<server>:21114` or `:21121`; test `curl http://127.0.0.1:21114/api/login-options` |
+| "Connection refused" on :21114 | Go running with `-api-port 21114`, firewall **21114/tcp** |
+| "Connection refused" on :21121 | `API_ENABLED=true`, console running, firewall **21121/tcp** |
+| "Failed to parse response" with `https://` | Use **plain HTTP** on :21114 or :21121 |
 | TOTP 2FA prompt | Enter the 6-digit code from your authenticator app (if 2FA is enabled for your account) |
 | "Invalid credentials" | Reset password via Web Console → Users, or run the installer with option 6 |
 
@@ -729,13 +731,13 @@ Connecting the RustDesk desktop client to a BetterDesk server with the API Serve
 |-------|-------|
 | **ID Server** | `betterdesk.example.com` |
 | **Relay Server** | `betterdesk.example.com` (or leave empty to auto-detect) |
-| **API Server** | `http://betterdesk.example.com:21121` |
+| **API Server** | `http://betterdesk.example.com:21114` |
 | **Key** | Contents of `id_ed25519.pub` from the server |
 
 4. Click the **account icon** (bottom-left) and **log in** with your BetterDesk credentials
 5. Pro features activate immediately upon successful login
 
-> **Important:** The **API Server** field is the key trigger. Without it, the client operates in basic mode. The field must point to port **21121** (the RustDesk Client API), not to port 21114 (server management API).
+> **Important:** The **API Server** field must point to the **Go** HTTP API (default port **21114**), e.g. `http://your-server:21114`.
 
 #### Features Enabled After Login
 
@@ -773,7 +775,7 @@ rustdesk://config/eyJob3N0IjoiYmV0dGVyZGVzay5leGFtcGxlLmNvbSIsInJlbGF5IjoiYmV0dG
 
 Or via command line:
 ```bash
-rustdesk --config '{"host":"betterdesk.example.com","relay":"betterdesk.example.com","api":"http://betterdesk.example.com:21121","key":"<pubkey>"}'
+rustdesk --config '{"host":"betterdesk.example.com","relay":"betterdesk.example.com","api":"http://betterdesk.example.com:21114","key":"<pubkey>"}'
 ```
 
 > **Note:** Users still need to log in individually after initial configuration to activate per-user features (address book sync, audit trail, etc.).
@@ -789,9 +791,8 @@ Ensure the following **outbound** ports are accessible from clients to the serve
 | 21117 | TCP | Relay (connection forwarding) |
 | 21118 | TCP (WS) | WebSocket signal (optional, web clients) |
 | 21119 | TCP (WS) | WebSocket relay (optional, web clients) |
-| 21121 | TCP | RustDesk Client API — login, address book sync, heartbeat |
-
-> **Port 21114** is the Go server management REST API (LAN-only) — it is **not** used by RustDesk desktop clients. Do not expose it to the internet.
+| 21114 | TCP | Go API — default (RustDesk client + REST) |
+| 21121 | TCP | Backward-compat proxy to Go :21114 |
 
 ---
 
@@ -972,15 +973,16 @@ You can **upgrade to Let's Encrypt** or a custom certificate at any time using m
 ```bash
 PORT=5000              # Web console port
 HOST=0.0.0.0           # Web console bind address (LAN)
-API_PORT=21121         # RustDesk Client API port
-API_HOST=0.0.0.0       # RustDesk Client API bind address
-API_ENABLED=true       # Enable/disable Client API
+GO_API_PORT=21114      # Go -api-port (handlers)
+API_PORT=21121         # Backward-compat proxy port (optional listener)
+API_ENABLED=true
+RUSTDESK_API_PROXY=true
 HTTPS_ENABLED=false    # Enable HTTPS on console
 SSL_CERT_PATH=         # SSL certificate path
 SSL_KEY_PATH=          # SSL key path
 TRUST_PROXY=false      # Trust X-Forwarded-For
 DB_PATH=               # Path to SQLite database
-BETTERDESK_API_URL=    # Go server API URL (http://localhost:21114)
+BETTERDESK_API_URL=    # Go server API URL (http://localhost:21114/api)
 BETTERDESK_API_KEY=    # API key for Go server (env: BETTERDESK_API_KEY or HBBS_API_KEY)
 ```
 
@@ -1274,7 +1276,8 @@ sudo ufw allow 21115/tcp    # NAT test
 sudo ufw allow 21116/tcp    # Signal (TCP)
 sudo ufw allow 21116/udp    # Signal (UDP)
 sudo ufw allow 21117/tcp    # Relay
-sudo ufw allow 21121/tcp    # RustDesk Client API (login/AB)
+sudo ufw allow 21114/tcp    # Go API (default, direct)
+sudo ufw allow 21121/tcp    # RustDesk client API (backward-compat proxy)
 
 # Admin ports (LAN only)
 sudo ufw allow from 192.168.0.0/16 to any port 21114 proto tcp  # REST API
