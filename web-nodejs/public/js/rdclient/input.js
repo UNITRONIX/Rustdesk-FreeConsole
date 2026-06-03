@@ -125,8 +125,8 @@ class RDInput {
      * Button IDs (bits 3+):
      *   1 = left, 2 = right, 4 = middle, 8 = back, 16 = forward
      *
-     * Scroll directions (encoded in button bits for wheel type):
-     *   0 = up, 1 = down, 2 = right, 3 = left
+     * Wheel events (type 3): x/y carry scroll delta, not cursor position.
+     * Match RustDesk Flutter client — normalized to -1 or 1 per axis.
      *
      * Examples:
      *   move          = 0
@@ -136,8 +136,8 @@ class RDInput {
      *   right up      = 2 | (2 << 3) = 18
      *   middle down   = 1 | (4 << 3) = 33
      *   middle up     = 2 | (4 << 3) = 34
-     *   scroll up     = 3 | (0 << 3) = 3
-     *   scroll down   = 3 | (1 << 3) = 11
+     *   scroll up     = 3, x=0, y=1
+     *   scroll down   = 3, x=0, y=-1
      */
     static MOUSE_TYPE_DOWN  = 1;
     static MOUSE_TYPE_UP    = 2;
@@ -232,27 +232,17 @@ class RDInput {
         if (!this.enabled) return;
         e.preventDefault();
 
-        const pos = this._getRemotePosition(e);
-        if (!pos) return;
+        const delta = this._normalizeWheelDelta(e);
+        if (!delta) return;
 
-        // Scroll direction encoded in button bits: 0=up, 1=down, 2=right, 3=left
-        let direction = -1;
-        if (e.deltaY < 0) direction = 0;        // Scroll up
-        else if (e.deltaY > 0) direction = 1;   // Scroll down
-        else if (e.deltaX > 0) direction = 2;   // Scroll right
-        else if (e.deltaX < 0) direction = 3;   // Scroll left
-
-        if (direction >= 0) {
-            const mask = RDInput.MOUSE_TYPE_WHEEL | (direction << 3);
-            this.sendMessage({
-                mouseEvent: {
-                    mask: mask,
-                    x: pos.x,
-                    y: pos.y,
-                    modifiers: this._getModifiers(e)
-                }
-            });
-        }
+        this.sendMessage({
+            mouseEvent: {
+                mask: RDInput.MOUSE_TYPE_WHEEL,
+                x: delta.dx,
+                y: delta.dy,
+                modifiers: this._getModifiers(e)
+            }
+        });
     }
 
     // ---- Keyboard Event Handlers ----
@@ -383,6 +373,36 @@ class RDInput {
     }
 
     // ---- Helpers ----
+
+    /**
+     * Convert a browser WheelEvent into RustDesk scroll deltas.
+     * Peers interpret x/y as scroll amount when mask type is wheel (3).
+     * @param {WheelEvent} e
+     * @returns {{ dx: number, dy: number }|null}
+     */
+    _normalizeWheelDelta(e) {
+        let rawDx = e.deltaX;
+        let rawDy = e.deltaY;
+
+        // Shift+wheel often maps vertical motion to horizontal scrolling.
+        if (e.shiftKey && rawDy !== 0 && rawDx === 0) {
+            rawDx = rawDy;
+            rawDy = 0;
+        }
+
+        if (rawDx === 0 && rawDy === 0) return null;
+
+        let dx = 0;
+        let dy = 0;
+        if (Math.abs(rawDx) > Math.abs(rawDy)) {
+            dx = rawDx > 0 ? -1 : 1;
+        } else if (rawDy !== 0) {
+            dy = rawDy > 0 ? -1 : 1;
+        }
+
+        if (dx === 0 && dy === 0) return null;
+        return { dx, dy };
+    }
 
     _handlePointerLockChange() {
         this.pointerLocked = document.pointerLockElement === this.canvas;

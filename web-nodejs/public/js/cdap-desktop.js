@@ -867,12 +867,26 @@
             const rect = canvas.getBoundingClientRect();
             const x = Math.round((e.clientX - rect.left) / rect.width * canvas.width);
             const y = Math.round((e.clientY - rect.top) / rect.height * canvas.height);
+            let rawDx = e.deltaX;
+            let rawDy = e.deltaY;
+            if (e.shiftKey && rawDy !== 0 && rawDx === 0) {
+                rawDx = rawDy;
+                rawDy = 0;
+            }
+            let deltaX = 0;
+            let deltaY = 0;
+            if (Math.abs(rawDx) > Math.abs(rawDy)) {
+                deltaX = rawDx > 0 ? -1 : 1;
+            } else if (rawDy !== 0) {
+                deltaY = rawDy > 0 ? -1 : 1;
+            }
+            if (deltaX === 0 && deltaY === 0) return;
             sendInput(session, {
                 type: 'input',
                 input_type: 'mouse',
                 x, y,
-                deltaX: e.deltaX,
-                deltaY: e.deltaY,
+                deltaX,
+                deltaY,
                 button: MOUSE_TYPE_WHEEL
             });
             e.preventDefault();

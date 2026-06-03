@@ -35,6 +35,26 @@
     const MOUSE_BUTTON_RIGHT  = 2;
     const MOUSE_BUTTON_MIDDLE = 4;
 
+    /** Normalize browser wheel deltas to ±1 (Windows agent multiplies by 120). */
+    function normalizeWheelDelta(e) {
+        let rawDx = e.deltaX;
+        let rawDy = e.deltaY;
+        if (e.shiftKey && rawDy !== 0 && rawDx === 0) {
+            rawDx = rawDy;
+            rawDy = 0;
+        }
+        if (rawDx === 0 && rawDy === 0) return null;
+        let dx = 0;
+        let dy = 0;
+        if (Math.abs(rawDx) > Math.abs(rawDy)) {
+            dx = rawDx > 0 ? -1 : 1;
+        } else if (rawDy !== 0) {
+            dy = rawDy > 0 ? -1 : 1;
+        }
+        if (dx === 0 && dy === 0) return null;
+        return { dx, dy };
+    }
+
     const PRESENCE_PING_MS = 15000;
     const STATS_INTERVAL_MS = 1000;
 
@@ -834,11 +854,13 @@
         _handleWheel(e) {
             if (!this._connected) return;
             const { x, y } = this._coords(e);
+            const delta = normalizeWheelDelta(e);
+            if (!delta) return;
             this._send({
                 type: 'input', input_type: 'mouse',
                 x, y,
-                deltaX: e.deltaX,
-                deltaY: e.deltaY,
+                deltaX: delta.dx,
+                deltaY: delta.dy,
                 button: MOUSE_TYPE_WHEEL,
             });
             e.preventDefault();
