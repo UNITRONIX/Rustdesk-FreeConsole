@@ -17,7 +17,7 @@ type rustDeskGroup struct {
 	peerIDs []string
 }
 
-// buildRustDeskDeviceGroups mirrors web-nodejs getRustDeskDeviceGroups (panel auth.db + permissions).
+// buildRustDeskDeviceGroups returns panel device groups + folders for /api/group (not peer tags).
 func (s *Server) buildRustDeskDeviceGroups(r *http.Request) []rustDeskGroup {
 	username := getUsernameFromCtx(r)
 	role := getRoleFromCtx(r)
@@ -42,6 +42,22 @@ func (s *Server) buildRustDeskDeviceGroups(r *http.Request) []rustDeskGroup {
 		peerByID[p.ID] = p
 	}
 
+	assignments := map[string]int64{}
+	if s.consoleAuth != nil {
+		if a, err := s.consoleAuth.ListFolderAssignments(); err == nil {
+			assignments = a
+		}
+	}
+
+	return s.buildRustDeskDeviceGroupsFromContext(user, role, peerByID, assignments)
+}
+
+func (s *Server) buildRustDeskDeviceGroupsFromContext(
+	user *db.User,
+	role string,
+	peerByID map[string]*db.Peer,
+	assignments map[string]int64,
+) []rustDeskGroup {
 	visiblePeer := s.rustDeskVisiblePeerSet(user, role, peerByID)
 	userGroupGUIDs := s.consoleUserGroupGUIDs(user.ID)
 
@@ -50,25 +66,23 @@ func (s *Server) buildRustDeskDeviceGroups(r *http.Request) []rustDeskGroup {
 	if s.consoleAuth != nil {
 		panelGroups, err := s.consoleAuth.ListPanelDeviceGroups()
 		if err != nil {
-			log.Printf("[api] ListPanelDeviceGroups user=%s: %v", username, err)
+			log.Printf("[api] ListPanelDeviceGroups user=%s: %v", user.Username, err)
 		} else if len(panelGroups) == 0 {
-			log.Printf("[api] ListPanelDeviceGroups user=%s: 0 groups (check AUTH_DB_PATH)", username)
+			log.Printf("[api] ListPanelDeviceGroups user=%s: 0 groups (check AUTH_DB_PATH)", user.Username)
 		} else {
 			for _, g := range panelGroups {
 				if !panelGroupAllowedForUser(g, user, role, userGroupGUIDs) {
 					continue
 				}
-				peerIDs := s.panelGroupPeerIDs(g, peerByID, visiblePeer)
 				groups = append(groups, rustDeskGroup{
 					guid:    g.GUID,
 					name:    g.Name,
 					note:    g.Note,
-					peerIDs: peerIDs,
+					peerIDs: s.panelGroupPeerIDs(g, peerByID, visiblePeer),
 				})
 			}
 		}
 
-		assignments, _ := s.consoleAuth.ListFolderAssignments()
 		folders, _ := s.consoleAuth.ListFolders()
 		for _, folder := range folders {
 			allowedUsers, allowedGroups, _ := s.consoleAuth.FolderGroupAccess(folder.ID)
@@ -96,9 +110,6 @@ func (s *Server) buildRustDeskDeviceGroups(r *http.Request) []rustDeskGroup {
 		}
 	}
 
-	// Always include peer-tag groups (sidebar "Tagi") and dedupe by guid/name.
-	groups = mergeRustDeskGroups(groups, s.peerTagGroups(peerByID, visiblePeer))
-
 	return groups
 }
 
@@ -122,32 +133,6 @@ func (s *Server) rustDeskUserForGroups(r *http.Request, username, role string) *
 		}
 	}
 	return u
-}
-
-func mergeRustDeskGroups(primary, extra []rustDeskGroup) []rustDeskGroup {
-	if len(extra) == 0 {
-		return primary
-	}
-	seen := make(map[string]bool, len(primary)+len(extra))
-	out := make([]rustDeskGroup, 0, len(primary)+len(extra))
-	add := func(g rustDeskGroup) {
-		key := strings.ToLower(strings.TrimSpace(g.guid))
-		if key == "" {
-			key = strings.ToLower(strings.TrimSpace(g.name))
-		}
-		if key == "" || seen[key] {
-			return
-		}
-		seen[key] = true
-		out = append(out, g)
-	}
-	for _, g := range primary {
-		add(g)
-	}
-	for _, g := range extra {
-		add(g)
-	}
-	return out
 }
 
 func (s *Server) consoleUserGroupGUIDs(userID int64) map[string]bool {
@@ -284,38 +269,6 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 		}
 	}
 	return visible
-}
-
-func (s *Server) peerTagGroups(peerByID map[string]*db.Peer, visiblePeer map[string]bool) []rustDeskGroup {
-	tagPeers := make(map[string][]string)
-	tagOrder := make([]string, 0)
-	for id, p := range peerByID {
-		if visiblePeer != nil && !visiblePeer[id] {
-			continue
-		}
-		if p.Tags == "" {
-			continue
-		}
-		for _, tag := range strings.Split(p.Tags, ",") {
-			tag = strings.TrimSpace(tag)
-			if tag == "" {
-				continue
-			}
-			if _, exists := tagPeers[tag]; !exists {
-				tagOrder = append(tagOrder, tag)
-			}
-			tagPeers[tag] = append(tagPeers[tag], id)
-		}
-	}
-	groups := make([]rustDeskGroup, 0, len(tagOrder))
-	for _, tag := range tagOrder {
-		groups = append(groups, rustDeskGroup{
-			guid:    tag,
-			name:    tag,
-			peerIDs: tagPeers[tag],
-		})
-	}
-	return groups
 }
 
 func folderGroupGUID(folderID int64) string {

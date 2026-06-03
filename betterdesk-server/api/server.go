@@ -329,10 +329,9 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/group", s.handleClientGroupList)
 	mux.HandleFunc("GET /api/group/get", s.handleClientGroupList)
 	mux.HandleFunc("POST /api/group/get", s.handleClientGroupList)
-	mux.HandleFunc("GET /api/peers/list", s.handleClientGroupPeers)
-	// RustDesk Flutter group model calls /api/device-group/accessible to
-	// discover device groups.  Route to the same handler as /api/group.
+	mux.HandleFunc("GET /api/device-group", s.handleClientGroupList)
 	mux.HandleFunc("GET /api/device-group/accessible", s.handleClientGroupList)
+	mux.HandleFunc("GET /api/peers/list", s.handleClientGroupPeers)
 
 	mux.HandleFunc("POST /api/heartbeat", s.handleClientHeartbeat)
 	mux.HandleFunc("POST /api/sysinfo", s.handleClientSysinfo)
@@ -704,77 +703,10 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 // This fixes Issue #138: "type 'String' is not a subtype of type 'int?'"
 // which occurred because the admin API returned status as a string.
 func (s *Server) handleClientPeersList(w http.ResponseWriter, r *http.Request) {
-	allPeers, err := s.db.ListPeers(false)
-	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"total": 0,
-			"data":  []any{},
-		})
-		return
-	}
-
-	result := make([]map[string]any, 0, len(allPeers))
-	for _, p := range allPeers {
-		if p.SoftDeleted || p.Banned {
-			continue
-		}
-
-		// Convert status to int: 1=active (RustDesk convention)
-		statusInt := 1
-		if p.Disabled {
-			statusInt = 0
-		}
-
-		// Build info map matching RustDesk PeerPayload.info format
-		// Issue #138 (2.4): fallback device_name to peer ID if hostname empty
-		deviceName := p.Hostname
-		if deviceName == "" {
-			deviceName = p.ID
-		}
-		info := map[string]any{
-			"device_name": deviceName,
-			"os":          p.OS,
-			"username":    p.User,
-			"version":     p.Version,
-		}
-
-		// Build tags array
-		var tags []string
-		if p.Tags != "" {
-			for _, t := range strings.Split(p.Tags, ",") {
-				t = strings.TrimSpace(t)
-				if t != "" {
-					tags = append(tags, t)
-				}
-			}
-		}
-		if tags == nil {
-			tags = []string{}
-		}
-
-		peer := map[string]any{
-			"id":                p.ID,
-			"info":              info,
-			"status":            statusInt,
-			"user":              p.User,
-			"user_name":         p.User,
-			"note":              p.Note,
-			"device_group_name": "",
-			"tags":              tags,
-			"online":            s.peers.IsOnline(p.ID, config.RegTimeout),
-		}
-
-		// Set device_group_name from first tag (if any) for folder display
-		if len(tags) > 0 {
-			peer["device_group_name"] = tags[0]
-		}
-
-		result = append(result, peer)
-	}
-
+	data, total := s.buildRustDeskPeerList(r)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"total": len(result),
-		"data":  result,
+		"total": total,
+		"data":  data,
 	})
 }
 

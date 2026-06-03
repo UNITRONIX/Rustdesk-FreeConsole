@@ -26,7 +26,6 @@ import (
 
 	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/auth"
-	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/db"
 )
 
@@ -722,55 +721,11 @@ func (s *Server) handleClientAddressBookTags(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := s.db.GetAddressBook(username, "legacy")
-	if err != nil {
-		log.Printf("[api] GetAddressBook(tags) error for %s: %v", username, err)
-		writeJSON(w, http.StatusOK, map[string]any{"data": []string{}})
-		return
-	}
-	data = s.mergeAdminTagsIntoAB(data)
-
-	// Extract tags from the address book JSON
-	var ab struct {
-		Tags []string `json:"tags"`
-	}
-	if err := json.Unmarshal([]byte(data), &ab); err != nil || ab.Tags == nil {
-		ab.Tags = []string{}
-	}
-
-	if role != auth.RolePro && auth.RoleHasPermission(role, auth.PermDeviceView) {
-		seen := make(map[string]bool, len(ab.Tags))
-		for _, tag := range ab.Tags {
-			seen[strings.ToLower(tag)] = true
-		}
-		if peers, err := s.db.ListPeers(false); err == nil {
-			for _, p := range peers {
-				for _, tag := range strings.Split(p.Tags, ",") {
-					tag = strings.TrimSpace(tag)
-					if tag != "" && !seen[strings.ToLower(tag)] {
-						ab.Tags = append(ab.Tags, tag)
-						seen[strings.ToLower(tag)] = true
-					}
-				}
-			}
-		}
-		for _, g := range s.buildRustDeskDeviceGroups(r) {
-			name := strings.TrimSpace(g.name)
-			if name == "" {
-				continue
-			}
-			if !seen[strings.ToLower(name)] {
-				ab.Tags = append(ab.Tags, name)
-				seen[strings.ToLower(name)] = true
-			}
-		}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": ab.Tags})
+	writeJSON(w, http.StatusOK, map[string]any{"data": s.collectRustDeskTags(r, username, role)})
 }
 
-// handleClientGroupList returns panel device groups (auth.db) for the RustDesk client.
-// Respects allowed_users / allowed_user_groups on each group. Falls back to peer tags
-// when auth.db is not configured.
+// handleClientGroupList returns panel device groups and folders (auth.db) for /api/group.
+// Peer tags are exposed separately via /api/ab/tags and the tags field on /api/peers/list.
 //
 // GET  /api/group, /api/group/get
 // POST /api/group/get
@@ -802,123 +757,15 @@ func (s *Server) handleClientGroupList(w http.ResponseWriter, r *http.Request) {
 //
 // Compatibility shim suggested by progloto in PR #81, enhanced for Issue #138.
 func (s *Server) handleClientGroupPeers(w http.ResponseWriter, r *http.Request) {
-	username := getUsernameFromCtx(r)
-	role := getRoleFromCtx(r)
-	if username == "" {
+	if getUsernameFromCtx(r) == "" {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Not authenticated"})
 		return
 	}
 
-	if role == auth.RolePro || !auth.RoleHasPermission(role, auth.PermDeviceView) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"total": 0,
-			"data":  []any{},
-			"msg":   "success",
-		})
-		return
-	}
-
-	// Fetch all peers from the database
-	allPeers, err := s.db.ListPeers(false)
-	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"total": 0,
-			"data":  []any{},
-			"msg":   "success",
-		})
-		return
-	}
-
-	// Build a map of peer_id → data from the user's address book for extra fields
-	abPeerMap := make(map[string]map[string]any)
-	data, _ := s.db.GetAddressBook(username, "legacy")
-	if data != "" && data != "{}" {
-		var abData struct {
-			Peers []map[string]any `json:"peers"`
-		}
-		if json.Unmarshal([]byte(data), &abData) == nil {
-			for _, p := range abData.Peers {
-				if id, ok := p["id"].(string); ok && id != "" {
-					abPeerMap[id] = p
-				}
-			}
-		}
-	}
-
-	// Build peer list enriched with sysinfo from peers table, matching
-	// PeerPayload format: info as nested map, status as int.
-	result := make([]map[string]any, 0, len(allPeers))
-	for _, p := range allPeers {
-		if p.SoftDeleted || p.Banned {
-			continue
-		}
-
-		// Convert status to int: 1=active (RustDesk convention)
-		statusInt := 1
-		if p.Disabled {
-			statusInt = 0
-		}
-
-		// Build info map matching RustDesk PeerPayload.info format
-		// Issue #138 (2.4): fallback device_name to peer ID if hostname empty
-		deviceName := p.Hostname
-		if deviceName == "" {
-			deviceName = p.ID
-		}
-		info := map[string]any{
-			"device_name": deviceName,
-			"os":          p.OS,
-			"username":    p.User,
-			"version":     p.Version,
-		}
-
-		// Build tags list
-		var tags []string
-		if p.Tags != "" {
-			for _, t := range strings.Split(p.Tags, ",") {
-				t = strings.TrimSpace(t)
-				if t != "" {
-					tags = append(tags, t)
-				}
-			}
-		}
-		if tags == nil {
-			tags = []string{}
-		}
-
-		peer := map[string]any{
-			"id":                p.ID,
-			"info":              info,
-			"status":            statusInt,
-			"user":              p.User,
-			"user_name":         p.User,
-			"note":              p.Note,
-			"device_group_name": "",
-			"tags":              tags,
-			"online":            s.peers.IsOnline(p.ID, config.RegTimeout),
-		}
-
-		// Set device_group_name from first tag (if any)
-		if len(tags) > 0 {
-			peer["device_group_name"] = tags[0]
-		}
-
-		// Merge alias/hash from AB if present
-		if abPeer, ok := abPeerMap[p.ID]; ok {
-			if alias, ok := abPeer["alias"].(string); ok && alias != "" {
-				peer["alias"] = alias
-			}
-			if hash, ok := abPeer["hash"].(string); ok && hash != "" {
-				peer["hash"] = hash
-			}
-		}
-
-		result = append(result, peer)
-	}
-
+	data, total := s.buildRustDeskPeerList(r)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"total": len(result),
-		"data":  result,
+		"total": total,
+		"data":  data,
 		"msg":   "success",
 	})
 }

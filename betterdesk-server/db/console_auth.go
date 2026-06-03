@@ -32,6 +32,14 @@ type PanelFolder struct {
 	Name string
 }
 
+// ConsolePeerSysinfo is optional enrichment from auth.db peer_sysinfo.
+type ConsolePeerSysinfo struct {
+	Hostname string
+	Username string
+	Platform string
+	Version  string
+}
+
 // OpenConsoleAuth opens auth.db read-only (shared with BetterDesk Console).
 func OpenConsoleAuth(path string) (*ConsoleAuthDB, error) {
 	if strings.TrimSpace(path) == "" {
@@ -244,6 +252,31 @@ func (c *ConsoleAuthDB) ListFolderAssignments() (map[string]int64, error) {
 		deviceID = strings.TrimSpace(deviceID)
 		if deviceID != "" {
 			out[deviceID] = folderID
+		}
+	}
+	return out, rows.Err()
+}
+
+// ListPeerSysinfo returns peer_id → sysinfo rows from auth.db when the table exists.
+func (c *ConsoleAuthDB) ListPeerSysinfo() (map[string]ConsolePeerSysinfo, error) {
+	out := make(map[string]ConsolePeerSysinfo)
+	if !c.hasTable("peer_sysinfo") {
+		return out, nil
+	}
+	rows, err := c.db.Query(`SELECT peer_id, hostname, username, platform, version FROM peer_sysinfo`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var si ConsolePeerSysinfo
+		if err := rows.Scan(&id, &si.Hostname, &si.Username, &si.Platform, &si.Version); err != nil {
+			return nil, err
+		}
+		id = strings.TrimSpace(id)
+		if id != "" {
+			out[id] = si
 		}
 	}
 	return out, rows.Err()
