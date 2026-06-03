@@ -16,6 +16,8 @@ const serverBackend = require('../services/serverBackend');
 const backupService = require('../services/backupService');
 const updateService = require('../services/updateService');
 const advancedConfig = require('../services/advancedConfigService');
+const serverConnectionConfig = require('../services/serverConnectionConfigService');
+const { apiClient } = require('../services/betterdeskApi');
 const { requireAuth, requirePermission, roleHasPermission } = require('../middleware/auth');
 const os = require('os');
 const multer = require('multer');
@@ -1209,6 +1211,125 @@ router.post('/api/settings/advanced/restart', requireAuth, requirePermission('se
             return advancedConfigError(req, res, err);
         }
         console.error('Advanced config restart error:', err);
+        res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * GET /api/settings/connection-mode — read saved P2P/relay strategy
+ */
+router.get('/api/settings/connection-mode', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const saved = await serverConnectionConfig.getConnectionMode();
+        let runtime = null;
+        try {
+            const health = await apiClient({ method: 'get', url: '/health', timeout: 5000 });
+            runtime = health.data?.connection || null;
+        } catch (_) { /* Go server may be down */ }
+
+        res.json({
+            success: true,
+            data: {
+                ...saved,
+                deployment: serverConnectionConfig.detectDeploymentSource(),
+                runtime
+            }
+        });
+    } catch (err) {
+        console.error('Get connection mode error:', err);
+        res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * PUT /api/settings/connection-mode — persist P2P/relay strategy
+ * Body: { mode, p2p_fallback_ms?, same_nat_relay?, restart?: boolean }
+ */
+router.put('/api/settings/connection-mode', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const body = req.body || {};
+        const result = await serverConnectionConfig.setConnectionMode({
+            mode: body.mode,
+            p2p_fallback_ms: body.p2p_fallback_ms,
+            same_nat_relay: body.same_nat_relay
+        });
+
+        await db.logAction(
+            req.session?.userId,
+            'connection_mode_changed',
+            `Connection mode set to ${result.settings.mode} (${result.source})`,
+            req.ip
+        );
+
+        let restart = null;
+        if (body.restart) {
+            restart = serverConnectionConfig.restartServer();
+        }
+
+        res.json({
+            success: true,
+            data: { ...result, restart },
+            message: req.t('settings.connection_mode_saved')
+        });
+    } catch (err) {
+        if (err.message === 'not_configurable') {
+            return res.status(400).json({
+                success: false,
+                error: req.t('settings.connection_mode_not_configurable')
+            });
+        }
+        if (err.message === 'docker_compose_server_not_found') {
+            return res.status(400).json({
+                success: false,
+                error: req.t('settings.connection_mode_compose_error')
+            });
+        }
+        console.error('Set connection mode error:', err);
+        res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/connection-mode/restart — restart Go server after mode change
+ */
+router.post('/api/settings/connection-mode/restart', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const result = serverConnectionConfig.restartServer();
+        const failed = (result.restarts || []).filter((r) => !r.success);
+        const daemonFailed = result.daemonReload && result.daemonReload.success === false;
+
+        await db.logAction(
+            req.session?.userId,
+            'connection_mode_restart',
+            `Restart after connection mode change: ${JSON.stringify(result.restarts)}`,
+            req.ip
+        );
+
+        if (daemonFailed || failed.length) {
+            const parts = [];
+            if (daemonFailed && result.daemonReload.error) parts.push(result.daemonReload.error);
+            failed.forEach((f) => { if (f.error) parts.push(`${f.service}: ${f.error}`); });
+            return res.status(500).json({
+                success: false,
+                error: req.t('settings.connection_mode_restart_failed'),
+                data: result,
+                details: parts.join('; ')
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result,
+            message: req.t('settings.connection_mode_restart_started')
+        });
+    } catch (err) {
+        if (err.message === 'no_restart') {
+            return res.status(400).json({
+                success: false,
+                error: req.t('settings.connection_mode_not_configurable')
+            });
+        }
+        console.error('Connection mode restart error:', err);
         res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
     }
 });

@@ -441,6 +441,44 @@ get_local_ip() {
     echo "127.0.0.1"
 }
 
+# Resolve P2P/relay connection strategy env vars for systemd/NSSM (issue #157).
+resolve_connection_mode_env() {
+    CONNECTION_MODE="${CONNECTION_MODE:-p2p_first}"
+    if [ "$AUTO_MODE" = false ] && [ -z "$CONNECTION_MODE_SET" ]; then
+        echo ""
+        print_info "Connection strategy: P2P hole punch vs relay-only routing."
+        echo -e "  ${CYAN}1)${NC} P2P first (recommended) — try direct connection, fall back to relay"
+        echo -e "  ${CYAN}2)${NC} Relay only — route all sessions through the relay server"
+        echo -ne "  ${CYAN}Select connection mode [1]:${NC} "
+        read -r _conn_choice
+        case "$_conn_choice" in
+            2) CONNECTION_MODE="relay_only" ;;
+            *) CONNECTION_MODE="p2p_first" ;;
+        esac
+        echo ""
+    fi
+
+    P2P_FALLBACK_MS="${P2P_FALLBACK_MS:-2000}"
+    SAME_NAT_RELAY="${SAME_NAT_RELAY:-Y}"
+
+    case "$CONNECTION_MODE" in
+        relay_only)
+            P2P_FIRST_ENV=N
+            ALWAYS_USE_RELAY_ENV=Y
+            ;;
+        *)
+            P2P_FIRST_ENV=Y
+            ALWAYS_USE_RELAY_ENV=N
+            ;;
+    esac
+
+    CONNECTION_MODE_ENV_BLOCK="Environment=P2P_FIRST=$P2P_FIRST_ENV
+Environment=ALWAYS_USE_RELAY=$ALWAYS_USE_RELAY_ENV
+Environment=P2P_FALLBACK_MS=$P2P_FALLBACK_MS
+Environment=SAME_NAT_RELAY=$SAME_NAT_RELAY"
+    print_info "Connection mode: ${CONNECTION_MODE} (P2P_FIRST=$P2P_FIRST_ENV, ALWAYS_USE_RELAY=$ALWAYS_USE_RELAY_ENV)"
+}
+
 # Resolve the relay server address according to RELAY_MODE / RELAY_SERVERS.
 # Prints the resolved address to stdout; warnings/info go to stderr so the
 # captured value (server_ip=$(resolve_relay_ip)) stays clean.
@@ -2326,6 +2364,8 @@ setup_services() {
     local server_ip
     server_ip=$(resolve_relay_ip)
 
+    resolve_connection_mode_env
+
     print_info "Relay server IP: $server_ip (mode: ${RELAY_SERVERS:+fixed}${RELAY_SERVERS:-$RELAY_MODE})"
     print_info "API Port: $API_PORT"
 
@@ -2414,6 +2454,7 @@ Type=simple
 User=root
 WorkingDirectory=$RUSTDESK_PATH
 Environment=AUTH_DB_PATH=$CONSOLE_PATH/data/auth.db
+$CONNECTION_MODE_ENV_BLOCK
 ExecStart=$RUSTDESK_PATH/betterdesk-server -mode all -relay-servers $server_ip $systemd_db_arg -key-file $RUSTDESK_PATH/id_ed25519 -api-port $API_PORT -signal-rate-limit-per-ip $signal_rate_limit $init_admin_arg $tls_arg
 Restart=always
 RestartSec=5
@@ -2747,6 +2788,7 @@ setup_services_minimal() {
     if [ -n "$SERVER_IP" ]; then
         SERVER_ARGS="$SERVER_ARGS -relay-servers $SERVER_IP"
     fi
+    resolve_connection_mode_env
 
     local signal_rate_limit="${SIGNAL_RATE_LIMIT_PER_IP:-20}"
     if ! [[ "$signal_rate_limit" =~ ^[0-9]+$ ]]; then
@@ -2810,6 +2852,7 @@ ExecStart=$GO_BINARY_PATH $SERVER_ARGS
 Restart=always
 RestartSec=5
 $GO_ENV
+$CONNECTION_MODE_ENV_BLOCK
 
 # Hardening
 NoNewPrivileges=true

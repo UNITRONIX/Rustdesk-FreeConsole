@@ -31,6 +31,7 @@
         initTutorialSection();
         loadAuditLog();
         loadServerInfo();
+        initConnectionModeSection();
         
         // Refresh handler
         window.addEventListener('app:refresh', loadAuditLog);
@@ -212,6 +213,113 @@
         if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
         
         return parts.join(' ');
+    }
+
+    // ==================== Connection Mode (P2P / Relay) ====================
+
+    function initConnectionModeSection() {
+        const section = document.getElementById('connection-mode-section');
+        if (!section) return;
+
+        const saveBtn = document.getElementById('connection-mode-save');
+        const saveRestartBtn = document.getElementById('connection-mode-save-restart');
+        saveBtn?.addEventListener('click', () => saveConnectionMode(false));
+        saveRestartBtn?.addEventListener('click', () => saveConnectionMode(true));
+
+        loadConnectionMode();
+    }
+
+    async function loadConnectionMode() {
+        const sourceEl = document.getElementById('connection-mode-source');
+        const runtimeEl = document.getElementById('connection-mode-runtime');
+        try {
+            const resp = await Utils.api('/api/settings/connection-mode');
+            const data = resp.data || resp;
+            const mode = data.mode || 'p2p_first';
+            const p2pRadio = document.getElementById('conn-mode-p2p');
+            const relayRadio = document.getElementById('conn-mode-relay');
+            if (p2pRadio) p2pRadio.checked = mode === 'p2p_first';
+            if (relayRadio) relayRadio.checked = mode === 'relay_only';
+
+            const fallbackInput = document.getElementById('conn-p2p-fallback-ms');
+            if (fallbackInput && data.p2p_fallback_ms != null) {
+                fallbackInput.value = data.p2p_fallback_ms;
+            }
+            const sameNat = document.getElementById('conn-same-nat-relay');
+            if (sameNat) sameNat.checked = data.same_nat_relay !== false;
+
+            if (sourceEl) {
+                const src = data.source || data.deployment || 'defaults';
+                const writable = data.writable !== false && src !== 'defaults';
+                sourceEl.textContent = writable
+                    ? (_('settings.connection_mode_source_saved') || 'Saved in') + ': ' + src
+                    : (_('settings.connection_mode_source_defaults') || 'Using server defaults (not writable from panel)');
+            }
+
+            if (runtimeEl && data.runtime) {
+                const r = data.runtime;
+                runtimeEl.hidden = false;
+                runtimeEl.textContent = (_('settings.connection_mode_runtime') || 'Active server') + ': '
+                    + (r.always_use_relay ? 'relay only' : 'P2P first')
+                    + ', fallback=' + (r.p2p_fallback_ms ?? '-')
+                    + 'ms, same_nat_relay=' + (r.same_nat_relay ? 'Y' : 'N');
+            } else if (runtimeEl) {
+                runtimeEl.hidden = true;
+            }
+
+            const saveBtns = [document.getElementById('connection-mode-save'), document.getElementById('connection-mode-save-restart')];
+            const disabled = data.writable === false || data.source === 'defaults';
+            saveBtns.forEach((b) => { if (b) b.disabled = disabled; });
+        } catch (err) {
+            console.error('Failed to load connection mode:', err);
+            if (sourceEl) sourceEl.textContent = _('errors.server_error');
+        }
+    }
+
+    function getConnectionModePayload() {
+        const mode = document.querySelector('input[name="connection-mode"]:checked')?.value || 'p2p_first';
+        const fallbackMs = parseInt(document.getElementById('conn-p2p-fallback-ms')?.value, 10);
+        const sameNatRelay = document.getElementById('conn-same-nat-relay')?.checked !== false;
+        return {
+            mode,
+            p2p_fallback_ms: Number.isFinite(fallbackMs) ? fallbackMs : 2000,
+            same_nat_relay: sameNatRelay
+        };
+    }
+
+    async function saveConnectionMode(restart) {
+        const saveBtn = document.getElementById('connection-mode-save');
+        const saveRestartBtn = document.getElementById('connection-mode-save-restart');
+        [saveBtn, saveRestartBtn].forEach((b) => { if (b) b.disabled = true; });
+
+        try {
+            const payload = getConnectionModePayload();
+            payload.restart = restart;
+            const resp = await Utils.api('/api/settings/connection-mode', {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+
+            if (typeof Notifications !== 'undefined') {
+                Notifications.success(resp.message || _('settings.connection_mode_saved'));
+            }
+
+            if (restart && resp.data?.restart) {
+                const failed = (resp.data.restart.restarts || []).filter((r) => !r.success);
+                if (failed.length) {
+                    Notifications.warning(_('settings.connection_mode_restart_failed'));
+                }
+            }
+
+            await loadConnectionMode();
+        } catch (err) {
+            console.error('Save connection mode failed:', err);
+            if (typeof Notifications !== 'undefined') {
+                Notifications.error(err.message || _('errors.server_error'));
+            }
+        } finally {
+            [saveBtn, saveRestartBtn].forEach((b) => { if (b) b.disabled = false; });
+        }
     }
     
     // ==================== TOTP (2FA) Section ====================

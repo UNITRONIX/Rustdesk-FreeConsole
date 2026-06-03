@@ -917,6 +917,39 @@ func (s *Server) handleGetPolicyAudit(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"entries": filtered})
 }
 
+// GET /api/peers/{id}/policy — effective org policy for a device (agent-facing).
+func (s *Server) handleGetPeerPolicy(w http.ResponseWriter, r *http.Request) {
+	deviceID := r.PathValue("id")
+	if deviceID == "" {
+		http.Error(w, `{"error":"device id required"}`, http.StatusBadRequest)
+		return
+	}
+
+	orgID, _ := s.db.GetDeviceOrgID(deviceID)
+	orgPolicies := make(map[string]interface{})
+	if orgID != "" {
+		for _, category := range policyCategories {
+			key := "policy_" + category
+			value, err := s.db.GetOrgSetting(orgID, key)
+			if err != nil || value == "" {
+				continue
+			}
+			var parsed interface{}
+			if err := json.Unmarshal([]byte(value), &parsed); err != nil {
+				continue
+			}
+			orgPolicies[category] = parsed
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"device_id": deviceID,
+		"org_id":    orgID,
+		"policies":  orgPolicies,
+	})
+}
+
 // ---------------------------------------------------------------------------
 //  User-Org Linking (Issue #106)
 // ---------------------------------------------------------------------------

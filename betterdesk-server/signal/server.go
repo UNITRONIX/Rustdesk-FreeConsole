@@ -24,6 +24,7 @@ import (
 	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
 	pb "github.com/unitronix/betterdesk-server/proto"
+	"github.com/unitronix/betterdesk-server/policy"
 	"github.com/unitronix/betterdesk-server/ratelimit"
 	"github.com/unitronix/betterdesk-server/security"
 	"google.golang.org/protobuf/proto"
@@ -113,16 +114,20 @@ type Server struct {
 	// lanIP is the server's local/private IP address (from OS routing table).
 	// Used for LAN relay advertisements when both peers are on the same network.
 	lanIP atomic.Value // stores string
+
+	// networkPolicy resolves org-level block_direct_p2p / allowed relay servers.
+	networkPolicy *policy.NetworkResolver
 }
 
 // New creates a new signal server instance.
 func New(cfg *config.Config, kp *crypto.KeyPair, database db.Database) *Server {
 	return &Server{
-		cfg:      cfg,
-		kp:       kp,
-		db:       database,
-		peers:    peer.NewMap(),
-		eventBus: events.NewBus(),
+		cfg:           cfg,
+		kp:            kp,
+		db:            database,
+		peers:         peer.NewMap(),
+		eventBus:      events.NewBus(),
+		networkPolicy: policy.NewNetworkResolver(database),
 	}
 }
 

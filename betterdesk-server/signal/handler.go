@@ -45,6 +45,14 @@ func (s *Server) handleUDPMessage(msg *pb.RendezvousMessage, raddr *net.UDPAddr)
 			},
 		}
 		s.sendUDP(resp, raddr)
+	case msg.GetKeyExchange() != nil:
+		// Some clients probe signal UDP with KeyExchange; secure handshake is TCP-only.
+		log.Printf("[signal] UDP KeyExchange from %s ignored (use TCP signal for secure sessions)", raddr)
+	case msg.GetOnlineRequest() != nil:
+		resp := s.handleOnlineRequest(msg.GetOnlineRequest())
+		if resp != nil {
+			s.sendUDP(resp, raddr)
+		}
 	default:
 		log.Printf("[signal] UDP: unhandled message type from %s", raddr)
 	}
@@ -532,6 +540,8 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 	}
 
 	relayServer, sameNetwork, hairpin := s.selectPeerRelayServer(s.getRelayServer(), raddr, target.UDPAddr)
+	initiatorID := s.peerIDForAddr(raddr)
+	relayServer = s.applyNetworkRelayPolicy(relayServer, initiatorID, targetID)
 	if sameNetwork {
 		log.Printf("[signal] LAN detected: %s and %s on same network, relay=%s", raddr.IP, target.UDPAddr.IP, relayServer)
 	}
@@ -544,7 +554,7 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 		targetID, target.UDPAddr, target.StatusTier, time.Since(target.LastReg), relayServer)
 
 	// If force relay or always use relay
-	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin {
+	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin || s.shouldForceRelayForPeers(initiatorID, targetID) {
 		log.Printf("[signal] PunchHole: force relay for %s", targetID)
 		s.sendRelayResponse(target, raddr, msg, relayServer)
 		return
@@ -688,6 +698,8 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 	}
 
 	relayServer, sameNetwork, hairpin := s.selectPeerRelayServer(s.getRelayServer(), raddr, target.UDPAddr)
+	initiatorID := s.peerIDForAddr(raddr)
+	relayServer = s.applyNetworkRelayPolicy(relayServer, initiatorID, targetID)
 	if sameNetwork {
 		log.Printf("[signal] LAN detected (TCP): %s and %s on same network, relay=%s", raddr.IP, target.UDPAddr.IP, relayServer)
 	}
@@ -714,7 +726,7 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 	// PunchHoleResponse), generate their own UUID, and connect to relay with it
 	// — while the target connects with the server's UUID. This broke relay
 	// pairing every time (Issue #66).
-	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin {
+	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin || s.shouldForceRelayForPeers(initiatorID, targetID) {
 		log.Printf("[signal] PunchHole (TCP): force relay for %s (returning SYMMETRIC to let client drive relay UUID)", targetID)
 
 		var signedPk []byte
@@ -1002,6 +1014,8 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 	// LAN detection: use server's LAN IP only for genuine LAN cases. Shared
 	// public IP peers keep the public relay to avoid NAT hairpin failures (#121).
 	relayServer, sameNetwork, hairpin := s.selectPeerRelayServer(relayServer, raddr, target.UDPAddr)
+	initiatorID := s.peerIDForAddr(raddr)
+	relayServer = s.applyNetworkRelayPolicy(relayServer, initiatorID, targetID)
 	if sameNetwork {
 		log.Printf("[signal] RequestRelay LAN detected: %s and %s on same network, relay=%s", raddr.IP, target.UDPAddr.IP, relayServer)
 	}
@@ -1448,6 +1462,30 @@ func (s *Server) sendRelayResponse(target *peer.Entry, raddr *net.UDPAddr, msg *
 		s.sendUDP(reqRelay, target.UDPAddr)
 		log.Printf("[signal] sendRelayResponse: forwarded RequestRelay to target %s at %s (uuid=%s)", target.ID, target.UDPAddr, relayUUID[:8])
 	}
+}
+
+func (s *Server) peerIDForAddr(raddr *net.UDPAddr) string {
+	if raddr == nil || s.peers == nil {
+		return ""
+	}
+	if p := s.peers.FindByIP(raddr.IP); p != nil {
+		return p.ID
+	}
+	return ""
+}
+
+func (s *Server) shouldForceRelayForPeers(peerIDs ...string) bool {
+	if s.networkPolicy == nil {
+		return false
+	}
+	return s.networkPolicy.ShouldForceRelay(peerIDs...)
+}
+
+func (s *Server) applyNetworkRelayPolicy(defaultRelay string, peerIDs ...string) string {
+	if s.networkPolicy == nil {
+		return defaultRelay
+	}
+	return s.networkPolicy.ResolveRelay(defaultRelay, peerIDs...)
 }
 
 // getRelayServer returns the relay server address to advertise to clients.

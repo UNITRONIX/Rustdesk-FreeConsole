@@ -246,6 +246,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/peers/{id}/access-policy", s.requireRole(auth.RoleOperator, s.handleGetAccessPolicy))
 	mux.HandleFunc("PUT /api/peers/{id}/access-policy", s.requireRole(auth.RoleAdmin, s.handleSaveAccessPolicy))
 	mux.HandleFunc("DELETE /api/peers/{id}/access-policy", s.requireRole(auth.RoleAdmin, s.handleDeleteAccessPolicy))
+	mux.HandleFunc("GET /api/peers/{id}/policy", s.handleGetPeerPolicy)
 
 	// Blocklist management
 	mux.HandleFunc("GET /api/blocklist", s.requirePermission(auth.PermBlocklistEdit, s.handleListBlocklist))
@@ -536,14 +537,24 @@ func (s *Server) Stop() {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	total, online, _ := s.db.GetPeerCount()
-	writeJSON(w, http.StatusOK, map[string]any{
+	payload := map[string]any{
 		"status":       "ok",
 		"version":      s.version,
 		"peers_total":  total,
 		"peers_online": online,
 		"uptime":       time.Since(startTime).String(),
 		"tls":          s.cfg.TLSCertFile != "" && s.cfg.TLSKeyFile != "",
-	})
+	}
+	if s.cfg != nil {
+		payload["connection"] = map[string]any{
+			"p2p_first":        s.cfg.P2PFirst,
+			"always_use_relay": s.cfg.AlwaysUseRelay,
+			"p2p_fallback_ms":  s.cfg.P2PFallbackMs,
+			"same_nat_relay":   s.cfg.SameNATRelay,
+			"relay_servers":    s.cfg.RelayServers,
+		}
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 // handlePubKey returns the server's Ed25519 public key in base64 format.

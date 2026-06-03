@@ -289,3 +289,52 @@ func TestHandleRequestRelayTCPSamePublicIPIgnoresPrivateRelayHint(t *testing.T) 
 		t.Fatalf("relay = %q, want public relay", rr.RelayServer)
 	}
 }
+
+func TestCancelPunchFallback(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.P2PFirst = true
+	srv.cfg.P2PFallbackMs = 300
+
+	fired := false
+	srv.schedulePunchFallback("203.0.113.10:50000", func() { fired = true })
+	if !srv.cancelPunchFallback("203.0.113.10:50000") {
+		t.Fatal("expected cancelPunchFallback to succeed")
+	}
+	time.Sleep(400 * time.Millisecond)
+	if fired {
+		t.Fatal("fallback timer should not fire after cancel")
+	}
+}
+
+func TestOrgPolicyForcesRelayOnPunchHole(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.CreateOrganization(&db.Organization{ID: "orgp2p", Name: "P2P Org"}); err != nil {
+		t.Fatalf("CreateOrganization: %v", err)
+	}
+	if err := database.SetOrgSetting("orgp2p", "policy_network", `{"block_direct_p2p":true}`); err != nil {
+		t.Fatalf("SetOrgSetting: %v", err)
+	}
+	if err := database.AssignDeviceToOrg(&db.OrgDevice{OrgID: "orgp2p", DeviceID: "TARGETP2P"}); err != nil {
+		t.Fatalf("AssignDeviceToOrg: %v", err)
+	}
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "TARGETP2P",
+		UDPAddr:    udpAddr("203.0.113.50", 52000),
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+		PK:         bytes.Repeat([]byte{0x11}, 32),
+	})
+
+	initiator := udpAddr("198.51.100.30", 51000)
+	srv.peers.Put(&peer.Entry{
+		ID:         "INITP2P",
+		UDPAddr:    initiator,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	if !srv.shouldForceRelayForPeers("INITP2P", "TARGETP2P") {
+		t.Fatal("org block_direct_p2p should force relay")
+	}
+}

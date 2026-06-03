@@ -512,3 +512,46 @@ RELAY_SERVERS=192.168.1.10:21117 docker compose up -d
 ```
 
 Then verify that TCP port `21117` is reachable from a client network.
+
+---
+
+## P2P vs relay connections (issue #157)
+
+RustDesk desktop clients normally try **direct P2P** (UDP hole punch) first, then fall back to the **relay server** if NAT/firewall blocks direct traffic.
+
+### How to read server logs
+
+| Log line | Meaning |
+|---|---|
+| `P2P-first: cancelled relay fallback` | Server deferred relay; target completed hole punch — P2P path is active |
+| `PunchHoleResponse forwarded via TCP` | Initiator received punch info to attempt direct connection |
+| `RequestRelay` ~1s later | Client could not establish P2P (common with symmetric NAT or blocked UDP) |
+| `Pair established` on `[relay]` | Session is using relay (expected fallback when P2P fails) |
+
+Relay fallback after P2P-first is **normal** on restrictive networks. It does not mean P2P is disabled unless `ALWAYS_USE_RELAY=Y` or org policy **Block Direct P2P** is enabled.
+
+### Required ports
+
+| Port | Protocol | Purpose |
+|---|---|---|
+| 21115 | TCP | NAT type test |
+| 21116 | TCP + **UDP** | Signal / hole punching |
+| 21117 | TCP | Relay (fallback path) |
+
+Clients need **outbound UDP 21116** to the server (and often between peers after punch). Blocking UDP commonly forces relay even when the server is configured for P2P-first.
+
+### Panel configuration
+
+- **Settings → Connection strategy** — global `P2P first` vs `Relay only` (requires server restart)
+- **Policies → Network → Block Direct P2P** — per-organization relay-only enforcement
+
+Web browser remote clients always use relay (no UDP hole punch in browsers).
+
+### Environment variables (Go server)
+
+| Variable | Default | Effect |
+|---|---|---|
+| `P2P_FIRST=Y` | on | Wait for target hole punch before answering initiator |
+| `ALWAYS_USE_RELAY=Y` | off | Skip P2P; force relay for all peers |
+| `P2P_FALLBACK_MS` | 2000 | Timeout before relay-capable fallback response |
+| `SAME_NAT_RELAY=Y` | on | Force relay when both peers share one public IP |

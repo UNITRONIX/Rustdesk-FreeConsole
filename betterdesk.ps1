@@ -451,6 +451,38 @@ function Get-LocalIP {
     return "127.0.0.1"
 }
 
+function Resolve-ConnectionModeEnv {
+    $mode = if ($env:CONNECTION_MODE) { $env:CONNECTION_MODE } else { "p2p_first" }
+    if (-not $script:AUTO_MODE -and -not $env:CONNECTION_MODE_SET) {
+        Write-Host ""
+        Print-Info "Connection strategy: P2P hole punch vs relay-only routing."
+        Write-Host "  1) P2P first (recommended) — try direct, fall back to relay" -ForegroundColor Cyan
+        Write-Host "  2) Relay only — all sessions via relay server" -ForegroundColor Cyan
+        $choice = Read-Host "  Select connection mode [1]"
+        if ($choice -eq "2") { $mode = "relay_only" } else { $mode = "p2p_first" }
+        Write-Host ""
+    }
+
+    $fallbackMs = if ($env:P2P_FALLBACK_MS) { $env:P2P_FALLBACK_MS } else { "2000" }
+    $sameNat = if ($env:SAME_NAT_RELAY) { $env:SAME_NAT_RELAY } else { "Y" }
+
+    if ($mode -eq "relay_only") {
+        $p2pFirst = "N"
+        $alwaysRelay = "Y"
+    } else {
+        $p2pFirst = "Y"
+        $alwaysRelay = "N"
+    }
+
+    Print-Info "Connection mode: $mode (P2P_FIRST=$p2pFirst, ALWAYS_USE_RELAY=$alwaysRelay)"
+    return @(
+        "P2P_FIRST=$p2pFirst",
+        "ALWAYS_USE_RELAY=$alwaysRelay",
+        "P2P_FALLBACK_MS=$fallbackMs",
+        "SAME_NAT_RELAY=$sameNat"
+    )
+}
+
 # Resolve the relay server address according to RELAY_MODE / RELAY_SERVERS.
 # Returns the resolved address; warnings are written to the host (not the value).
 function Resolve-RelayIp {
@@ -1864,6 +1896,7 @@ function Setup-Services {
     }
 
     $serverIP = Resolve-RelayIp
+    $connModeEnv = Resolve-ConnectionModeEnv
 
     Print-Info "Relay server IP: $serverIP (mode: $(if ($script:RELAY_SERVERS) { 'fixed' } else { $script:RELAY_MODE }))"
     Print-Info "API Port: $script:API_PORT"
@@ -2004,6 +2037,7 @@ function Setup-Services {
     # command line (NSSM stores these in the ACL-protected service registry key).
     $serverEnvExtra = @("DB_URL=$dbValue")
     if ($adminPass) { $serverEnvExtra += "INIT_ADMIN_PASS=$adminPass" }
+    if ($connModeEnv) { $serverEnvExtra += $connModeEnv }
     # New installs default to "managed" enrollment so stock RustDesk clients are
     # queued for operator approval. Existing installs are left untouched.
     if ($script:FRESH_INSTALL) { $serverEnvExtra += "ENROLLMENT_MODE=managed" }

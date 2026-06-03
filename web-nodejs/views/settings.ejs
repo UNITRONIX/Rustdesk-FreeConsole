@@ -117,6 +117,65 @@
                     </div>
                 </div>
             </div>
+
+            ${canServerConfig ? `
+            <!-- Connection Strategy (P2P / Relay) -->
+            <div class="settings-section" id="connection-mode-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">swap_horiz</span>
+                        ${_('settings.connection_mode_title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('settings.connection_mode_desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="alert alert-info" id="connection-mode-info">
+                        <span class="material-icons">info</span>
+                        <span>${_('settings.connection_mode_network_hint')}</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">${_('settings.connection_mode_label')}</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="connection-mode" value="p2p_first" id="conn-mode-p2p">
+                                <span>${_('settings.connection_mode_p2p_first')}</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="connection-mode" value="relay_only" id="conn-mode-relay">
+                                <span>${_('settings.connection_mode_relay_only')}</span>
+                            </label>
+                        </div>
+                    </div>
+                    <details class="connection-mode-advanced">
+                        <summary>${_('settings.connection_mode_advanced')}</summary>
+                        <div class="form-row" style="margin-top:1rem;">
+                            <div class="form-group">
+                                <label class="form-label" for="conn-p2p-fallback-ms">${_('settings.connection_mode_fallback_ms')}</label>
+                                <input type="number" id="conn-p2p-fallback-ms" class="form-input" min="0" max="30000" step="100" value="2000">
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="conn-same-nat-relay" checked>
+                                    <span>${_('settings.connection_mode_same_nat_relay')}</span>
+                                </label>
+                            </div>
+                        </div>
+                    </details>
+                    <p class="text-muted" id="connection-mode-runtime" hidden></p>
+                    <p class="text-muted" id="connection-mode-source"></p>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" id="connection-mode-save">
+                            <span class="material-icons">save</span>
+                            ${_('settings.connection_mode_save')}
+                        </button>
+                        <button type="button" class="btn btn-warning" id="connection-mode-save-restart">
+                            <span class="material-icons">restart_alt</span>
+                            ${_('settings.connection_mode_save_restart')}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
             
             <!-- Two-Factor Authentication Section -->
             <div class="settings-section">
