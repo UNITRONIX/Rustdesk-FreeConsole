@@ -275,6 +275,16 @@ func folderGroupGUID(folderID int64) string {
 	return fmt.Sprintf("folder_%d", folderID)
 }
 
+// rustDeskAccessibleDeviceGroupPayload matches RustDesk DeviceGroupPayload (name only).
+func rustDeskAccessibleDeviceGroupPayload(g rustDeskGroup, index int) map[string]any {
+	return map[string]any{
+		"name": g.name,
+		"guid": g.guid,
+		"note": g.note,
+		"sort": index,
+	}
+}
+
 func rustDeskGroupPayload(g rustDeskGroup, index int) map[string]any {
 	peerRefs := make([]map[string]any, 0, len(g.peerIDs))
 	for _, pid := range g.peerIDs {

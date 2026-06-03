@@ -321,6 +321,8 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 		}
 		// Merge admin-set tags from peers table into AB (#76 TAG sync)
 		data = s.mergeAdminTagsIntoAB(data)
+		// RustDesk legacy AB reads tags from GET /api/ab (not /api/ab/tags).
+		data = s.syncServerTagsIntoAddressBook(data, r, username, role)
 		writeJSON(w, http.StatusOK, map[string]any{"data": data, "licensed_devices": 0})
 
 	case http.MethodPost:
@@ -736,9 +738,15 @@ func (s *Server) handleClientGroupList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	built := s.buildRustDeskDeviceGroups(r)
+	accessibleOnly := strings.Contains(r.URL.Path, "/device-group")
 	payload := make([]map[string]any, 0, len(built))
 	for i, g := range built {
-		payload = append(payload, rustDeskGroupPayload(g, i))
+		if accessibleOnly {
+			// RustDesk GroupModel (/api/device-group/accessible) reads "name" only.
+			payload = append(payload, rustDeskAccessibleDeviceGroupPayload(g, i))
+		} else {
+			payload = append(payload, rustDeskGroupPayload(g, i))
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

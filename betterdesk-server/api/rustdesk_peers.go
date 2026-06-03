@@ -421,6 +421,59 @@ func splitPeerTags(raw string) []string {
 	return tags
 }
 
+// syncServerTagsIntoAddressBook merges visible server peer tags into legacy AB JSON
+// so the RustDesk desktop client sidebar ("Tagi") lists panel tags after GET /api/ab.
+func (s *Server) syncServerTagsIntoAddressBook(data string, r *http.Request, username, role string) string {
+	ab := map[string]any{}
+	if data != "" && data != "{}" {
+		if err := json.Unmarshal([]byte(data), &ab); err != nil {
+			return data
+		}
+	}
+	if ab["peers"] == nil {
+		ab["peers"] = []any{}
+	}
+
+	serverTags := s.collectRustDeskTags(r, username, role)
+	if len(serverTags) == 0 {
+		out, err := json.Marshal(ab)
+		if err != nil {
+			return data
+		}
+		return string(out)
+	}
+
+	var existing []string
+	switch raw := ab["tags"].(type) {
+	case []any:
+		for _, t := range raw {
+			if s, ok := t.(string); ok && s != "" {
+				existing = append(existing, s)
+			}
+		}
+	case []string:
+		existing = append(existing, raw...)
+	}
+	seen := make(map[string]bool, len(existing)+len(serverTags))
+	for _, t := range existing {
+		seen[strings.ToLower(strings.TrimSpace(t))] = true
+	}
+	for _, t := range serverTags {
+		low := strings.ToLower(strings.TrimSpace(t))
+		if low != "" && !seen[low] {
+			existing = append(existing, t)
+			seen[low] = true
+		}
+	}
+	ab["tags"] = existing
+
+	out, err := json.Marshal(ab)
+	if err != nil {
+		return data
+	}
+	return string(out)
+}
+
 // collectRustDeskTags returns address-book + server peer tags (not group/folder names).
 func (s *Server) collectRustDeskTags(r *http.Request, username string, role string) []string {
 	data, err := s.db.GetAddressBook(username, "legacy")

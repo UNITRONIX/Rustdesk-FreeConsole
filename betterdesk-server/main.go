@@ -561,12 +561,18 @@ func resolveAuthDBPath(explicit, dbPath string) string {
 	if strings.TrimSpace(explicit) != "" {
 		return explicit
 	}
-	candidates := []string{}
+	candidates := []string{
+		"/opt/BetterDeskConsole/data/auth.db",
+		"/opt/rustdesk/../BetterDeskConsole/data/auth.db",
+	}
 	if v := os.Getenv("CONSOLE_DATA_DIR"); v != "" {
 		candidates = append(candidates, filepath.Join(v, "auth.db"))
 	}
 	if v := os.Getenv("DATA_DIR"); v != "" {
 		candidates = append(candidates, filepath.Join(v, "auth.db"))
+	}
+	if v := os.Getenv("BETTERDESK_AUTH_DB_PATH"); v != "" {
+		candidates = append(candidates, v)
 	}
 	if dbPath != "" && !strings.HasPrefix(dbPath, "postgres") {
 		dir := filepath.Dir(dbPath)
