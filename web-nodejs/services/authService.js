@@ -759,27 +759,16 @@ async function ensureDefaultAdmin() {
                     console.warn(`[AUTH] DEFAULT_ADMIN_PASSWORD does not match existing PBKDF2 hash — skipping migration`);
                 }
             } else if (admin) {
-                // Admin exists with bcrypt hash — check if password matches.
-                // Force update when the install script requested it (reinstallation),
-                // or when admin has never logged in (fresh install with stale auth.db).
                 const hashType = (admin.password_hash || '').startsWith('$2') ? 'bcrypt' : 'unknown';
-                if (forceUpdate) {
-                    console.log(`[AUTH] Force password update requested — updating admin password regardless of last_login`);
+                // Only force password write on explicit fresh-install sentinel (issue #158).
+                // Routine updates must never change users.password_hash in auth.db / PostgreSQL.
+                if (forceUpdate && defaultPassword) {
+                    console.log(`[AUTH] Force password update requested — updating admin password`);
                     const bcryptHash = await hashPassword(defaultPassword);
                     await db.updateUserPassword(admin.id, bcryptHash);
                     console.log(`[AUTH] Admin password hash force-updated to match DEFAULT_ADMIN_PASSWORD`);
-                } else if (!admin.last_login) {
-                    const matches = await verifyPassword(defaultPassword, admin.password_hash);
-                    if (!matches) {
-                        console.warn(`[AUTH] DEFAULT_ADMIN_PASSWORD does not match stored ${hashType} hash for '${defaultUsername}' (never logged in). Updating hash...`);
-                        const bcryptHash = await hashPassword(defaultPassword);
-                        await db.updateUserPassword(admin.id, bcryptHash);
-                        console.log(`[AUTH] Admin password hash updated to match DEFAULT_ADMIN_PASSWORD`);
-                    } else {
-                        console.log(`[AUTH] Admin user '${defaultUsername}' exists (${hashType}), password matches, never logged in`);
-                    }
                 } else {
-                    console.log(`[AUTH] Admin user '${defaultUsername}' exists (${hashType}), has logged in before — not touching password`);
+                    console.log(`[AUTH] Admin user '${defaultUsername}' exists (${hashType}) — password unchanged`);
                 }
             }
         } else {

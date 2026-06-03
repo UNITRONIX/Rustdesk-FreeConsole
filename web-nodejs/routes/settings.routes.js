@@ -697,6 +697,20 @@ router.post('/api/settings/updates/install-go', requireAuth, requirePermission('
 });
 
 /**
+ * GET /api/settings/updates/preflight - Pre-install environment checks (issue #158)
+ */
+router.get('/api/settings/updates/preflight', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const serverUpdateRequired = req.query.serverUpdate === '1' || req.query.serverUpdate === 'true';
+        const result = await updateService.runUpdatePreflight({ serverUpdateRequired });
+        res.json({ success: true, data: result });
+    } catch (err) {
+        console.error('Update preflight error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
  * GET /api/settings/updates/check - Check for available updates
  */
 router.get('/api/settings/updates/check', requireAuth, requirePermission('server.config'), async (req, res) => {

@@ -1792,9 +1792,26 @@
         const hasServerUpdate = (_updateState.changedData?.grouped?.server || []).length > 0;
         const createBackup = document.getElementById('update-backup-toggle')?.checked ?? true;
 
+        // Preflight checks (issue #158)
+        let preflightWarnings = [];
+        try {
+            const pfUrl = hasServerUpdate
+                ? '/api/settings/updates/preflight?serverUpdate=1'
+                : '/api/settings/updates/preflight';
+            const pf = await Utils.api(pfUrl);
+            if (pf && pf.ready === false && Array.isArray(pf.issues) && pf.issues.length) {
+                Notifications.error(pf.issues.join('; '));
+                return;
+            }
+            if (pf && Array.isArray(pf.warnings)) preflightWarnings = pf.warnings;
+        } catch (_e) { /* non-blocking if preflight endpoint unavailable */ }
+
         // Pre-flight confirmation modal
         const scopeItems = getUpdateScopeLabels();
         const strategyNote = hasServerUpdate ? _('updates.auto_strategy_hint') : '';
+        const warnHtml = preflightWarnings.length
+            ? `<p class="text-muted" style="font-size:12px;margin-top:8px;">${preflightWarnings.map(w => Utils.escapeHtml(w)).join('<br>')}</p>`
+            : '';
         const confirmHtml = `
             <p>${Utils.escapeHtml(_('updates.install_confirm'))}</p>
             <ul style="margin:8px 0 0 0;padding-left:20px;font-size:13px;color:var(--text-secondary);">
@@ -1802,6 +1819,7 @@
                 ${scopeItems.map(item => `<li>${Utils.escapeHtml(item)}</li>`).join('')}
                 ${hasServerUpdate ? `<li>${Utils.escapeHtml(strategyNote || '')}</li>` : ''}
             </ul>
+            ${warnHtml}
         `;
         const proceed = await new Promise((resolve) => {
             window.Modal.show({
@@ -1894,6 +1912,14 @@
                     }
                 } else {
                     setUpdatePhase('server', 'skipped', _('updates.server_skipped'));
+                }
+                if (result.autoRebuild) {
+                    if (result.autoRebuild.success) {
+                        logUpdate(_('updates.server_built') + ' (auto-rebuild)');
+                        setUpdatePhase('server', 'done', _('updates.server_built'));
+                    } else if (result.autoRebuild.error) {
+                        logUpdate(`Auto-rebuild: ${result.autoRebuild.error}`);
+                    }
                 }
                 if (deployFailed && result.serverBuild?.success) {
                     logUpdate(`Deploy failed: ${result.serverDeploy.error || ''}`);

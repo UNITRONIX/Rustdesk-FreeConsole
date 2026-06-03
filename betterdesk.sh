@@ -838,6 +838,100 @@ preserve_database_config() {
     fi
 }
 
+# Write or merge console .env from web-nodejs/.env.example (issue #158).
+# Usage: merge_console_env true   — fresh install (full template)
+#        merge_console_env false  — update (append missing keys only)
+merge_console_env() {
+    local fresh_install="${1:-false}"
+    local merge_script=""
+    local subst_script=""
+    local ssl_dir="$RUSTDESK_PATH/ssl"
+    local db_type="sqlite"
+    local database_url=""
+    local admin_password="${ADMIN_PASSWORD:-}"
+    local session_secret=""
+    local subst_file="/tmp/betterdesk-env-subst-$$.json"
+    local go_port="${GO_API_PORT:-21114}"
+    local client_port="${CLIENT_API_PORT:-21121}"
+
+    if [ -f "$CONSOLE_PATH/scripts/merge-env.js" ]; then
+        merge_script="$CONSOLE_PATH/scripts/merge-env.js"
+        subst_script="$CONSOLE_PATH/scripts/write-installer-env-subst.js"
+    elif [ -f "$SCRIPT_DIR/web-nodejs/scripts/merge-env.js" ]; then
+        merge_script="$SCRIPT_DIR/web-nodejs/scripts/merge-env.js"
+        subst_script="$SCRIPT_DIR/web-nodejs/scripts/write-installer-env-subst.js"
+    else
+        print_error "merge-env.js not found — cannot configure .env"
+        return 1
+    fi
+
+    if [ "$USE_POSTGRESQL" = "true" ] && [ -n "$POSTGRESQL_URI" ]; then
+        db_type="postgres"
+        database_url="$POSTGRESQL_URI"
+    fi
+
+    if [ "$fresh_install" = "true" ]; then
+        if [ -z "$admin_password" ]; then
+            admin_password=$(openssl rand -hex 16)
+        fi
+        session_secret=$(openssl rand -hex 32)
+    else
+        if [ -f "$CONSOLE_PATH/.env" ]; then
+            session_secret=$(grep -m1 '^SESSION_SECRET=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
+            if [ -z "$admin_password" ]; then
+                admin_password=$(grep -m1 '^DEFAULT_ADMIN_PASSWORD=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
+            fi
+        fi
+        if [ -z "$session_secret" ]; then
+            session_secret=$(openssl rand -hex 32)
+        fi
+    fi
+
+    local fresh_flag=""
+    [ "$fresh_install" = "true" ] && fresh_flag="--fresh"
+
+    export BD_SUBST_RUSTDESK_DIR="$RUSTDESK_PATH"
+    export BD_SUBST_PUB_KEY_PATH="$RUSTDESK_PATH/id_ed25519.pub"
+    export BD_SUBST_API_KEY_PATH="$RUSTDESK_PATH/.api_key"
+    export BD_SUBST_DB_TYPE="$db_type"
+    export BD_SUBST_DB_PATH="$RUSTDESK_PATH/db_v2.sqlite3"
+    export BD_SUBST_DATABASE_URL="$database_url"
+    export BD_SUBST_DATA_DIR="$CONSOLE_PATH/data"
+    export BD_SUBST_GO_API_PORT="$go_port"
+    export BD_SUBST_HBBS_API_URL="http://localhost:${go_port}/api"
+    export BD_SUBST_BETTERDESK_API_URL="http://localhost:${go_port}/api"
+    export BD_SUBST_API_PORT="$client_port"
+    export BD_SUBST_DEFAULT_ADMIN_PASSWORD="$admin_password"
+    export BD_SUBST_SESSION_SECRET="$session_secret"
+    export BD_SUBST_SSL_CERT_PATH="$ssl_dir/betterdesk.crt"
+    export BD_SUBST_SSL_KEY_PATH="$ssl_dir/betterdesk.key"
+
+    if [ -f "$subst_script" ]; then
+        node "$subst_script" "$subst_file" 2>/dev/null || true
+    fi
+
+    local merge_ok=false
+    if [ -f "$subst_file" ]; then
+        if node "$merge_script" --target "$CONSOLE_PATH/.env" $fresh_flag --subst-file "$subst_file" > /dev/null 2>&1; then
+            merge_ok=true
+        fi
+        rm -f "$subst_file"
+    fi
+
+    if [ "$merge_ok" != true ]; then
+        print_error "Failed to write .env via merge-env.js"
+        return 1
+    fi
+
+    chmod 600 "$CONSOLE_PATH/.env" 2>/dev/null || true
+    if [ "$fresh_install" = "true" ]; then
+        print_info "Created .env configuration file (fresh install)"
+    else
+        print_info "Merged new .env keys (existing settings preserved)"
+    fi
+    return 0
+}
+
 detect_architecture() {
     ARCH=$(uname -m)
     case "$ARCH" in
@@ -1780,123 +1874,39 @@ install_nodejs_console() {
     # Create data directory for databases
     mkdir -p "$CONSOLE_PATH/data"
     
-    # Preserve existing authentication and session data during UPDATE.
-    # Only wipe auth.db and generate new credentials on FRESH install.
-    local existing_session_secret=""
-    local existing_admin_password=""
-    local is_update=false
-    
-    if [ -f "$CONSOLE_PATH/.env" ]; then
-        is_update=true
-        existing_session_secret=$(grep -m1 '^SESSION_SECRET=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
-        existing_admin_password=$(grep -m1 '^DEFAULT_ADMIN_PASSWORD=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
+    # Fresh install only when no existing panel state (issue #158 — never reset passwords on update).
+    local is_fresh=false
+    if [ ! -f "$CONSOLE_PATH/.env" ] && [ ! -f "$CONSOLE_PATH/data/auth.db" ]; then
+        is_fresh=true
     fi
-    
-    if [ "$is_update" = true ] && [ -n "$existing_session_secret" ]; then
-        # UPDATE: preserve existing auth database, session secret, and admin password
-        print_info "Preserving existing auth database and session configuration"
-        local nodejs_admin_password="$existing_admin_password"
-        ADMIN_PASSWORD="${ADMIN_PASSWORD:-$existing_admin_password}"
-    else
-        # FRESH INSTALL: remove old auth.db and generate new credentials
+
+    if [ "$is_fresh" = true ]; then
         if [ -f "$CONSOLE_PATH/data/auth.db" ]; then
-            print_info "Removing old auth database (will be recreated with new credentials)..."
+            print_info "Removing old auth database (fresh install)..."
             rm -f "$CONSOLE_PATH/data/auth.db" "$CONSOLE_PATH/data/auth.db-wal" "$CONSOLE_PATH/data/auth.db-shm"
         fi
-        
-        # Generate admin password for Node.js console (M-05: full hex entropy)
-        # Respect user-provided ADMIN_PASSWORD env var if set
         if [ -z "$ADMIN_PASSWORD" ]; then
             ADMIN_PASSWORD=$(openssl rand -hex 16)
-        else
+        elif [ -n "$ADMIN_PASSWORD" ]; then
             print_info "Using custom admin password from ADMIN_PASSWORD env var"
         fi
-        local nodejs_admin_password="$ADMIN_PASSWORD"
-        
-        # Create sentinel file so ensureDefaultAdmin() force-updates the password
-        # even if auth.db was somehow preserved (e.g. shared volume, manual copy)
         touch "$CONSOLE_PATH/data/.force_password_update"
-        existing_session_secret=""
-    fi
-    
-    # Use preserved or newly generated session secret
-    local session_secret="${existing_session_secret:-$(openssl rand -hex 32)}"
-    
-    # Determine database configuration
-    local db_config=""
-    if [ "$USE_POSTGRESQL" = "true" ] && [ -n "$POSTGRESQL_URI" ]; then
-        db_config="# Database: PostgreSQL
-DB_TYPE=postgres
-DATABASE_URL=$POSTGRESQL_URI"
     else
-        db_config="# Database: SQLite
-DB_TYPE=sqlite
-DB_PATH=$RUSTDESK_PATH/db_v2.sqlite3"
+        print_info "Update mode: preserving auth database and panel passwords"
+        ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
     fi
-    
-    # Create .env file (always update to ensure correct paths)
-    # Use quoted heredoc ('ENVEOF') to prevent shell expansion of $, `, ! in passwords.
-    # Then patch in the dynamic values safely with awk.
-    cat > "$CONSOLE_PATH/.env" << 'ENVEOF'
-# BetterDesk Node.js Console Configuration
-PORT=5000
-HOST=0.0.0.0
-NODE_ENV=production
-ENVEOF
 
-    # Append dynamic values safely (no shell expansion issues with special chars)
-    {
-        echo ""
-        echo "# RustDesk paths (critical for key/QR code generation)"
-        echo "RUSTDESK_DIR=$RUSTDESK_PATH"
-        echo "KEYS_PATH=$RUSTDESK_PATH"
-        echo "PUB_KEY_PATH=$RUSTDESK_PATH/id_ed25519.pub"
-        echo "API_KEY_PATH=$RUSTDESK_PATH/.api_key"
-        echo ""
-        echo "$db_config"
-        echo ""
-        echo "# Auth database location"
-        echo "DATA_DIR=$CONSOLE_PATH/data"
-        echo ""
-        echo "# Go server HTTP API (REST + RustDesk handlers — canonical port)"
-        echo "GO_API_PORT=${GO_API_PORT:-21114}"
-        echo "HBBS_API_URL=http://localhost:${GO_API_PORT:-21114}/api"
-        echo "BETTERDESK_API_URL=http://localhost:${GO_API_PORT:-21114}/api"
-        echo ""
-        echo "# Backward compat: http://host:21121 → proxy to Go (new clients may use :21114 directly)"
-        echo "API_ENABLED=true"
-        echo "API_PORT=${CLIENT_API_PORT:-21121}"
-        echo "API_HOST=0.0.0.0"
-        echo "RUSTDESK_API_PROXY=true"
-        echo "RUSTDESK_API_TLS=auto"
-        echo ""
-        echo "# Server backend (betterdesk = Go server, rustdesk = legacy Rust)"
-        echo "SERVER_BACKEND=betterdesk"
-        echo ""
-        echo "# Default admin credentials (used only on first startup)"
-        echo "DEFAULT_ADMIN_USERNAME=admin"
-    } >> "$CONSOLE_PATH/.env"
-    # Write password on its own line — printf %s avoids interpreting backslashes/specials
-    printf 'DEFAULT_ADMIN_PASSWORD=%s\n' "$nodejs_admin_password" >> "$CONSOLE_PATH/.env"
-    {
-        echo ""
-        echo "# Session"
-    } >> "$CONSOLE_PATH/.env"
-    printf 'SESSION_SECRET=%s\n' "$session_secret" >> "$CONSOLE_PATH/.env"
-    {
-        echo ""
-        echo "# HTTPS (set to true and provide certificate paths to enable)"
-        echo "HTTPS_ENABLED=false"
-        echo "HTTPS_PORT=5443"
-        echo "SSL_CERT_PATH=$RUSTDESK_PATH/ssl/betterdesk.crt"
-        echo "SSL_KEY_PATH=$RUSTDESK_PATH/ssl/betterdesk.key"
-        echo "SSL_CA_PATH="
-        echo "HTTP_REDIRECT_HTTPS=true"
-    } >> "$CONSOLE_PATH/.env"
-    print_info "Created .env configuration file"
-    
-    # Persist credentials only when explicitly requested.
-    if [ "$STORE_ADMIN_CREDENTIALS" = "true" ]; then
+    if ! merge_console_env "$is_fresh"; then
+        return 1
+    fi
+
+    local nodejs_admin_password="${ADMIN_PASSWORD:-}"
+    if [ -z "$nodejs_admin_password" ] && [ -f "$CONSOLE_PATH/.env" ]; then
+        nodejs_admin_password=$(grep -m1 '^DEFAULT_ADMIN_PASSWORD=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2-)
+    fi
+
+    # Persist credentials only when explicitly requested (fresh install).
+    if [ "$STORE_ADMIN_CREDENTIALS" = "true" ] && [ "$is_fresh" = true ] && [ -n "$nodejs_admin_password" ]; then
         cat > "$CONSOLE_PATH/data/.admin_credentials" << CREDEOF
 Admin Username: admin
 Admin Password: $nodejs_admin_password
@@ -2195,6 +2205,78 @@ ensure_api_compat_proxy_layout() {
     fi
     sed -i "s|^HBBS_API_URL=.*|HBBS_API_URL=http://localhost:${go_port}/api|" "$env_file"
     sed -i "s|^BETTERDESK_API_URL=.*|BETTERDESK_API_URL=http://localhost:${go_port}/api|" "$env_file"
+}
+
+# Safe in-place patch of systemd units (TLS API flags, HTTP URLs) without recreating units.
+patch_service_definitions() {
+    local changed=0
+    local svc console_svc
+    for svc in /etc/systemd/system/betterdesk-server.service; do
+        [ -f "$svc" ] || continue
+        local content new_content backup
+        content=$(cat "$svc")
+        new_content=$(printf '%s' "$content" \
+            | sed -E 's/[[:space:]]-tls-api(=[^[:space:]]*)?//g' \
+            | sed -E 's/[[:space:]]-tls-api-port(=[^[:space:]]*)?//g' \
+            | sed 's|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|g' \
+            | sed 's|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|g')
+        if [ "$new_content" != "$content" ]; then
+            backup="${svc}.bak.$(date +%Y%m%d%H%M%S)"
+            cp "$svc" "$backup" 2>/dev/null || true
+            printf '%s' "$new_content" > "$svc"
+            print_info "Patched $(basename "$svc") (removed incompatible TLS API flags)"
+            changed=1
+        fi
+    done
+
+    console_svc="/etc/systemd/system/betterdesk-console.service"
+    if [ -f "$console_svc" ]; then
+        local content new_content backup
+        content=$(cat "$console_svc")
+        new_content=$(printf '%s' "$content" \
+            | sed 's|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|g' \
+            | sed 's|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|g')
+        if [ "$new_content" != "$content" ]; then
+            backup="${console_svc}.bak.$(date +%Y%m%d%H%M%S)"
+            cp "$console_svc" "$backup" 2>/dev/null || true
+            printf '%s' "$new_content" > "$console_svc"
+            print_info "Patched betterdesk-console.service (Go API URLs stay HTTP)"
+            changed=1
+        fi
+    fi
+
+    if [ "$changed" -eq 1 ]; then
+        systemctl daemon-reload 2>/dev/null || true
+        print_success "Service definitions patched (custom ExecStart preserved)"
+    fi
+}
+
+# During UPDATE: create missing units; patch existing ones safely (issue #158).
+# Optional: UPDATE_REFRESH_SERVICES=true or second arg "recreate" → full setup_services.
+maybe_update_services() {
+    local mode="${1:-default}"
+    local need_setup=false
+    if [ ! -f /etc/systemd/system/betterdesk-server.service ]; then
+        need_setup=true
+    fi
+    if [ -f "$CONSOLE_PATH/server.js" ] && [ ! -f /etc/systemd/system/betterdesk-console.service ]; then
+        need_setup=true
+    fi
+    if [ "$need_setup" = true ]; then
+        print_info "Service units missing — creating systemd services..."
+        setup_services
+        return
+    fi
+
+    patch_service_definitions
+
+    if [ "$mode" = "recreate" ] || [ "${UPDATE_REFRESH_SERVICES:-false}" = true ]; then
+        print_info "Recreating systemd service units from template..."
+        setup_services
+        return
+    fi
+
+    print_info "Service units present — patched in place (Repair → Repair services for full recreate)"
 }
 
 setup_services() {
@@ -2916,6 +2998,7 @@ run_terminal_project_update() {
 # All local state (databases, keys, .env, auth.db) is preserved.
 update_from_github() {
     local clone_dir="$UPDATE_CLONE_DIR"
+    local server_build_failed=0
 
     # Clean up any leftover clone from a previous failed run
     rm -rf "$clone_dir"
@@ -3014,7 +3097,8 @@ update_from_github() {
             fi
         else
             print_warning "Go server compilation failed — keeping existing binary"
-            print_info "You can retry with option 7 (Build & deploy server)"
+            print_info "Use the panel Rebuild server binary button or option 7 (Build & deploy server)"
+            server_build_failed=1
         fi
     fi
 
@@ -3083,6 +3167,10 @@ update_from_github() {
     fi
     rm -f "$npm_log"
 
+    # Merge any new .env keys from .env.example (preserve operator settings — issue #158)
+    print_step "Merging new .env configuration keys..."
+    merge_console_env false || print_warning ".env merge skipped (merge-env.js unavailable)"
+
     # ---- Step 4: Update installer scripts ----
     print_step "Updating installer scripts..."
     local scripts_updated=0
@@ -3119,6 +3207,10 @@ update_from_github() {
     rm -rf "$clone_dir"
 
     print_success "All project files updated from GitHub"
+    if [ "$server_build_failed" -eq 1 ]; then
+        print_error "Go server binary was not rebuilt — update incomplete for server component"
+        return 1
+    fi
     return 0
 }
 
@@ -3210,7 +3302,7 @@ do_update() {
                 install_binaries true
                 install_console
                 run_migrations
-                setup_services
+                maybe_update_services
                 create_admin_user
                 start_services_with_verification
                 print_success "Local update completed!"
@@ -3240,11 +3332,20 @@ do_update() {
 
     # Run database migrations (adds missing columns etc.)
     run_migrations
+
+    local svc_mode="default"
+    if [ "${AUTO_MODE:-false}" != true ]; then
+        echo ""
+        read -rp "Recreate systemd service units from installer template? [y/N] " _recreate_svc
+        if [ "${_recreate_svc,,}" = "y" ] || [ "${_recreate_svc,,}" = "yes" ]; then
+            svc_mode="recreate"
+        fi
+    fi
     
-    # Update systemd services with latest configuration
-    setup_services
+    # Patch existing units or create missing; optional full recreate (issue #158)
+    maybe_update_services "$svc_mode"
     
-    # Ensure admin user exists
+    # Ensure admin user exists (informational; passwords live in auth.db / PostgreSQL)
     create_admin_user
     
     # Start services with verification

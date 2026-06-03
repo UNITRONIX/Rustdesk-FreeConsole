@@ -1368,6 +1368,31 @@ async function createPreUpdateBackup(allFiles) {
 }
 
 /**
+ * Merge missing .env keys from .env.example with resolved install paths (issue #158).
+ * @returns {{ mode: string, added: string[] }|null}
+ */
+function mergeConsoleEnvAfterUpdate() {
+    const envExample = path.join(ROOT_DIR, '.env.example');
+    const envTarget = path.join(ROOT_DIR, '.env');
+    if (!fs.existsSync(envExample) || !fs.existsSync(envTarget)) return null;
+
+    const existing = fs.readFileSync(envTarget, 'utf8');
+    const { mergeEnvFile, buildEnvSubstitutions } = require('../lib/envMerge');
+    const subs = buildEnvSubstitutions({ existingContent: existing, config });
+    return mergeEnvFile({
+        targetPath: envTarget,
+        templatePath: envExample,
+        freshInstall: false,
+        substitutions: subs
+    });
+}
+
+/** In-place service definition patch (TLS API flags, HTTP URLs). */
+function patchServiceDefinitions() {
+    return sanitizeGoServerServiceConfig();
+}
+
+/**
  * Apply update — download changed files, run npm install if needed,
  * update SHA tracking file.
  *
@@ -1729,7 +1754,29 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         markServerBinaryStale({ reason: 'rebuild_failed', detail, sha: remoteSHA });
         results.serverBinaryStale = true;
         results.serverBinaryStaleReason = detail;
-        console.warn(`[UPDATE] Server source updated but binary not rebuilt — running binary may be missing security fixes: ${detail}`);
+        console.warn(`[UPDATE] Server source updated but binary not rebuilt — attempting auto-rebuild: ${detail}`);
+
+        // Issue #158: retry build/deploy automatically before leaving the install stale.
+        try {
+            const autoRebuild = await rebuildServerBinary({ sha: remoteSHA, restart: false });
+            results.autoRebuild = {
+                success: autoRebuild.success,
+                error: autoRebuild.error || null,
+                steps: autoRebuild.steps || null
+            };
+            if (autoRebuild.success) {
+                clearServerBinaryStale();
+                results.serverBinaryStale = false;
+                results.serverBinaryStaleReason = null;
+                results.needsServerRestart = true;
+                console.log('[UPDATE] Auto-rebuild succeeded — server binary deployed');
+            } else {
+                console.warn(`[UPDATE] Auto-rebuild failed: ${autoRebuild.error || 'unknown'}`);
+            }
+        } catch (autoErr) {
+            results.autoRebuild = { success: false, error: autoErr.message };
+            console.warn(`[UPDATE] Auto-rebuild error: ${autoErr.message}`);
+        }
     }
 
     if (criticalFailures.length === 0) {
@@ -1747,6 +1794,19 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         }
     } else {
         results.skipped.push('SHA tracking (critical update steps incomplete)');
+    }
+
+    if (criticalFailures.length === 0) {
+        try {
+            const merged = mergeConsoleEnvAfterUpdate();
+            if (merged) results.envMerged = merged.added || [];
+        } catch (err) {
+            console.warn(`[UPDATE] .env merge skipped: ${err.message}`);
+        }
+    }
+
+    if (serverSourceChanged || results.needsServerRestart) {
+        results.servicePatch = patchServiceDefinitions();
     }
 
     return results;
@@ -2017,11 +2077,85 @@ async function rebuildServerBinary(opts = {}) {
     return result;
 }
 
+/**
+ * Pre-install checks for panel update (issue #158).
+ * @returns {Promise<{ ready: boolean, issues: string[], warnings: string[], go: object, prebuiltAvailable: boolean, canBuildServer: boolean }>}
+ */
+async function runUpdatePreflight(opts = {}) {
+    const issues = [];
+    const warnings = [];
+    const serverUpdateRequired = !!opts.serverUpdateRequired;
+
+    try {
+        execSync('node --version', { timeout: 5000, stdio: 'pipe' });
+    } catch (_e) {
+        issues.push('Node.js is not available on PATH');
+    }
+
+    try {
+        execSync('npm --version', { timeout: 5000, stdio: 'pipe' });
+    } catch (_e) {
+        warnings.push('npm is not available — console dependency install may fail');
+    }
+
+    try {
+        fs.mkdirSync(config.dataDir, { recursive: true });
+        fs.accessSync(config.dataDir, fs.constants.W_OK);
+    } catch (_e) {
+        issues.push(`Console data directory is not writable: ${config.dataDir}`);
+    }
+
+    const binaryPath = detectServerBinaryPath();
+    if (binaryPath) {
+        try {
+            fs.accessSync(path.dirname(binaryPath), fs.constants.W_OK);
+        } catch (_e) {
+            warnings.push(`Server binary directory is not writable: ${path.dirname(binaryPath)}`);
+        }
+    } else {
+        warnings.push('Go server binary path could not be detected — deploy step may require manual repair');
+    }
+
+    let prebuiltAvailable = false;
+    try {
+        const prebuilt = await checkPrebuiltAvailable();
+        prebuiltAvailable = !!(prebuilt && prebuilt.available);
+    } catch (_e) { /* optional */ }
+
+    const goInfo = checkGoAvailable();
+    const canBuildServer = prebuiltAvailable || (goInfo.available && goInfo.meetsMinimum);
+
+    if (!canBuildServer) {
+        const msg = 'Neither a compatible Go toolchain nor a pre-built server binary is available';
+        if (serverUpdateRequired) {
+            issues.push(`${msg} — server update cannot complete`);
+        } else {
+            warnings.push(`${msg} — server compile may fail (auto-rebuild will retry)`);
+        }
+    }
+
+    try {
+        await getRemoteHeadSHA();
+    } catch (err) {
+        issues.push(`Cannot reach GitHub API: ${err.message}`);
+    }
+
+    return {
+        ready: issues.length === 0,
+        issues,
+        warnings,
+        go: goInfo,
+        prebuiltAvailable,
+        canBuildServer
+    };
+}
+
 module.exports = {
     checkForUpdates,
     getChangedFiles,
     createPreUpdateBackup,
     applyUpdate,
+    runUpdatePreflight,
     restartService,
     daemonReload,
     listBackups,
@@ -2037,5 +2171,7 @@ module.exports = {
     checkGoAvailable,
     getServerBinaryStatus,
     rebuildServerBinary,
+    mergeConsoleEnvAfterUpdate,
+    patchServiceDefinitions,
     COMPONENTS
 };

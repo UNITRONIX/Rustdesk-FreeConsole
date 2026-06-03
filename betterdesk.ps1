@@ -605,6 +605,110 @@ function Preserve-DatabaseConfig {
     }
 }
 
+# Write or merge console .env from web-nodejs/.env.example (issue #158).
+function Merge-ConsoleEnv {
+    param(
+        [bool]$FreshInstall = $false
+    )
+
+    $mergeScript = Join-Path $script:CONSOLE_PATH "scripts\merge-env.js"
+    if (-not (Test-Path $mergeScript)) {
+        $mergeScript = Join-Path $script:ScriptDir "web-nodejs\scripts\merge-env.js"
+    }
+    if (-not (Test-Path $mergeScript)) {
+        Print-Error "merge-env.js not found — cannot configure .env"
+        return $false
+    }
+
+    $sslDir = Join-Path $script:RUSTDESK_PATH "ssl"
+    $dbType = "sqlite"
+    $databaseUrl = ""
+    if ($script:USE_POSTGRESQL -and $script:POSTGRESQL_URI) {
+        $dbType = "postgres"
+        $databaseUrl = $script:POSTGRESQL_URI
+    }
+
+    $adminPassword = $env:ADMIN_PASSWORD
+    $sessionSecret = ""
+
+    if ($FreshInstall) {
+        if (-not $adminPassword) {
+            $adminPassword = Generate-RandomPassword
+        }
+        $sessionSecret = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 64 | ForEach-Object { [char]$_ })
+    } else {
+        $envFile = Join-Path $script:CONSOLE_PATH ".env"
+        if (Test-Path $envFile) {
+            $ssLine = Select-String -Path $envFile -Pattern '^SESSION_SECRET=' -SimpleMatch | Select-Object -First 1
+            $sessionSecret = if ($ssLine) { ($ssLine.Line -split '=', 2)[1].Trim() } else { "" }
+            if (-not $adminPassword) {
+                $apLine = Select-String -Path $envFile -Pattern '^DEFAULT_ADMIN_PASSWORD=' -SimpleMatch | Select-Object -First 1
+                $adminPassword = if ($apLine) { ($apLine.Line -split '=', 2)[1].Trim() } else { "" }
+            }
+        }
+        if (-not $sessionSecret) {
+            $sessionSecret = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 64 | ForEach-Object { [char]$_ })
+        }
+    }
+
+    $goPort = if ($script:GO_API_PORT) { $script:GO_API_PORT } else { 21114 }
+    $clientPort = if ($script:CLIENT_API_PORT) { $script:CLIENT_API_PORT } else { 21121 }
+    $dataDir = Join-Path $script:CONSOLE_PATH "data"
+
+    $substScript = Join-Path $script:CONSOLE_PATH "scripts\write-installer-env-subst.js"
+    if (-not (Test-Path $substScript)) {
+        $substScript = Join-Path $script:ScriptDir "web-nodejs\scripts\write-installer-env-subst.js"
+    }
+    $substFile = Join-Path $env:TEMP "betterdesk-env-subst-$PID.json"
+
+    $env:BD_SUBST_RUSTDESK_DIR = $script:RUSTDESK_PATH
+    $env:BD_SUBST_PUB_KEY_PATH = Join-Path $script:RUSTDESK_PATH "id_ed25519.pub"
+    $env:BD_SUBST_API_KEY_PATH = Join-Path $script:RUSTDESK_PATH ".api_key"
+    $env:BD_SUBST_DB_TYPE = $dbType
+    $env:BD_SUBST_DB_PATH = Join-Path $script:RUSTDESK_PATH "db_v2.sqlite3"
+    $env:BD_SUBST_DATABASE_URL = $databaseUrl
+    $env:BD_SUBST_DATA_DIR = $dataDir
+    $env:BD_SUBST_GO_API_PORT = [string]$goPort
+    $env:BD_SUBST_HBBS_API_URL = "http://localhost:${goPort}/api"
+    $env:BD_SUBST_BETTERDESK_API_URL = "http://localhost:${goPort}/api"
+    $env:BD_SUBST_API_PORT = [string]$clientPort
+    $env:BD_SUBST_DEFAULT_ADMIN_PASSWORD = [string]$adminPassword
+    $env:BD_SUBST_SESSION_SECRET = [string]$sessionSecret
+    $env:BD_SUBST_SSL_CERT_PATH = Join-Path $sslDir "betterdesk.crt"
+    $env:BD_SUBST_SSL_KEY_PATH = Join-Path $sslDir "betterdesk.key"
+
+    if (-not (Test-Path $substScript)) {
+        Print-Error "write-installer-env-subst.js not found"
+        return $false
+    }
+    & node $substScript $substFile 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $substFile)) {
+        Print-Error "Failed to build .env substitution file"
+        return $false
+    }
+
+    $nodeArgs = @(
+        $mergeScript,
+        "--target", (Join-Path $script:CONSOLE_PATH ".env"),
+        "--subst-file", $substFile
+    )
+    if ($FreshInstall) { $nodeArgs += "--fresh" }
+
+    $output = & node @nodeArgs 2>&1
+    Remove-Item -Path $substFile -Force -ErrorAction SilentlyContinue
+    if ($LASTEXITCODE -ne 0) {
+        Print-Error "Failed to write .env via merge-env.js: $output"
+        return $false
+    }
+
+    if ($FreshInstall) {
+        Print-Info "Created .env configuration file (fresh install)"
+    } else {
+        Print-Info "Merged new .env keys (existing settings preserved)"
+    }
+    return $true
+}
+
 function Auto-DetectPaths {
     $found = $false
     
@@ -1278,135 +1382,48 @@ function Install-NodeJsConsole {
             $ptyOutput | Select-Object -Last 5 | ForEach-Object { Write-Host "[node-pty] $_" }
         }
         
-        # Create data directory for databases
+        # Fresh install only when no existing panel state (issue #158).
         $dataDir = Join-Path $script:CONSOLE_PATH "data"
         if (-not (Test-Path $dataDir)) {
             New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
         }
-        
-        # Preserve existing authentication and session data during UPDATE.
-        # Only wipe auth.db and generate new credentials on FRESH install.
+
         $envFile = Join-Path $script:CONSOLE_PATH ".env"
-        $existingSessionSecret = ""
-        $existingAdminPassword = ""
-        $isUpdate = $false
-        
-        if (Test-Path $envFile) {
-            $isUpdate = $true
-            $ssLine = Select-String -Path $envFile -Pattern '^SESSION_SECRET=' -SimpleMatch | Select-Object -First 1
-            $existingSessionSecret = if ($ssLine) { ($ssLine.Line -split '=', 2)[1].Trim() } else { "" }
-            $apLine = Select-String -Path $envFile -Pattern '^DEFAULT_ADMIN_PASSWORD=' -SimpleMatch | Select-Object -First 1
-            $existingAdminPassword = if ($apLine) { ($apLine.Line -split '=', 2)[1].Trim() } else { "" }
-        }
-        
-        if ($isUpdate -and $existingSessionSecret) {
-            # UPDATE: preserve existing auth database, session secret, and admin password
-            Print-Info "Preserving existing auth database and session configuration"
-            $nodejsAdminPassword = $existingAdminPassword
-            $sessionSecret = $existingSessionSecret
-        } else {
-            # FRESH INSTALL: remove old auth.db and generate new credentials
-            $authDbPath = Join-Path $dataDir "auth.db"
+        $authDbPath = Join-Path $dataDir "auth.db"
+        $isFresh = (-not (Test-Path $envFile)) -and (-not (Test-Path $authDbPath))
+
+        if ($isFresh) {
             if (Test-Path $authDbPath) {
-                Print-Info "Removing old auth database (will be recreated with new credentials)..."
-                Remove-Item -Force -Path $authDbPath -ErrorAction SilentlyContinue
-                Remove-Item -Force -Path "$authDbPath-wal" -ErrorAction SilentlyContinue
-                Remove-Item -Force -Path "$authDbPath-shm" -ErrorAction SilentlyContinue
+                Print-Info "Removing old auth database (fresh install)..."
+                Remove-Item -Force -Path $authDbPath, "$authDbPath-wal", "$authDbPath-shm" -ErrorAction SilentlyContinue
             }
-            
-            # Generate admin password for Node.js console
-            # Respect user-provided ADMIN_PASSWORD env var if set
             if ($env:ADMIN_PASSWORD) {
-                $nodejsAdminPassword = $env:ADMIN_PASSWORD
                 Print-Info "Using custom admin password from ADMIN_PASSWORD env var"
-            } else {
-                $nodejsAdminPassword = Generate-RandomPassword
             }
-            
-            # Create sentinel file so ensureDefaultAdmin() force-updates the password
-            # even if auth.db was somehow preserved (e.g. shared volume, manual copy)
             New-Item -ItemType File -Path (Join-Path $dataDir ".force_password_update") -Force | Out-Null
-            
-            $sessionSecret = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 64 | ForEach-Object {[char]$_})
-        }
-        
-        # Database configuration
-        $dbConfig = ""
-        if ($script:USE_POSTGRESQL -and $script:POSTGRESQL_URI) {
-            $dbConfig = @"
-# Database: PostgreSQL
-DB_TYPE=postgres
-DATABASE_URL=$($script:POSTGRESQL_URI)
-DB_PATH=$script:RUSTDESK_PATH\db_v2.sqlite3
-"@
         } else {
-            $dbConfig = @"
-# Database: SQLite
-DB_TYPE=sqlite
-DB_PATH=$script:RUSTDESK_PATH\db_v2.sqlite3
-"@
+            Print-Info "Update mode: preserving auth database and panel passwords"
         }
-        
-        $envContent = @"
-# BetterDesk Node.js Console Configuration
-PORT=5000
-HOST=0.0.0.0
-NODE_ENV=production
 
-# RustDesk paths (critical for key/QR code generation)
-RUSTDESK_DIR=$script:RUSTDESK_PATH
-KEYS_PATH=$script:RUSTDESK_PATH
-PUB_KEY_PATH=$script:RUSTDESK_PATH\id_ed25519.pub
-API_KEY_PATH=$script:RUSTDESK_PATH\.api_key
+        if (-not (Merge-ConsoleEnv -FreshInstall:$isFresh)) {
+            Pop-Location
+            return $false
+        }
 
-$dbConfig
+        $nodejsAdminPassword = $env:ADMIN_PASSWORD
+        if (-not $nodejsAdminPassword -and (Test-Path $envFile)) {
+            $apLine = Select-String -Path $envFile -Pattern '^DEFAULT_ADMIN_PASSWORD=' -SimpleMatch | Select-Object -First 1
+            $nodejsAdminPassword = if ($apLine) { ($apLine.Line -split '=', 2)[1].Trim() } else { "" }
+        }
 
-# Auth database location
-DATA_DIR=$dataDir
-
-# HBBS API
-HBBS_API_URL=http://localhost:$($script:GO_API_PORT)/api
-GO_API_PORT=$($script:GO_API_PORT)
-
-# :$($script:CLIENT_API_PORT) backward-compat proxy → Go :$($script:GO_API_PORT)
-API_ENABLED=true
-API_PORT=$($script:CLIENT_API_PORT)
-API_HOST=0.0.0.0
-RUSTDESK_API_PROXY=true
-RUSTDESK_API_TLS=auto
-
-# Server backend (betterdesk = Go server, rustdesk = legacy Rust)
-SERVER_BACKEND=betterdesk
-
-# Default admin credentials (used only on first startup)
-DEFAULT_ADMIN_USERNAME=admin
-DEFAULT_ADMIN_PASSWORD=$nodejsAdminPassword
-
-# Session
-SESSION_SECRET=$sessionSecret
-
-# HTTPS (set to true and provide certificate paths to enable)
-HTTPS_ENABLED=false
-HTTPS_PORT=5443
-SSL_CERT_PATH=$script:RUSTDESK_PATH\ssl\betterdesk.crt
-SSL_KEY_PATH=$script:RUSTDESK_PATH\ssl\betterdesk.key
-SSL_CA_PATH=
-HTTP_REDIRECT_HTTPS=true
-
-# Go server API URL (uses HTTPS when TLS certificates are present)
-BETTERDESK_API_URL=http://localhost:$($script:GO_API_PORT)/api
-"@
-        Set-Content -Path $envFile -Value $envContent
-        Print-Info "Created .env configuration file"
-        
         if ($script:USE_POSTGRESQL) {
             Print-Info "Database: PostgreSQL"
         } else {
             Print-Info "Database: SQLite"
         }
-        
-        # Persist credentials only when explicitly requested.
-        if ($script:STORE_ADMIN_CREDENTIALS) {
+
+        # Persist credentials only when explicitly requested (fresh install).
+        if ($script:STORE_ADMIN_CREDENTIALS -and $isFresh -and $nodejsAdminPassword) {
             $credsFile = Join-Path $dataDir ".admin_credentials"
             $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
             @("Admin Username: admin", "Admin Password: $nodejsAdminPassword", "Generated by: BetterDesk installer", "Timestamp: $timestamp") | Out-File -FilePath $credsFile -Encoding UTF8
@@ -1729,6 +1746,80 @@ function Set-ServiceLeastPrivilege {
         }
     }
     Print-Info "Service $ServiceName runs under least-privilege account ($account)"
+}
+
+# Safe in-place patch of NSSM services (TLS API flags, HTTP URLs) without remove+install.
+function Patch-ServiceDefinitions {
+    $nssm = Get-Command nssm -ErrorAction SilentlyContinue
+    if (-not $nssm) {
+        $nssmLocal = Join-Path $script:ScriptDir "tools\nssm.exe"
+        if (Test-Path $nssmLocal) { $nssm = $nssmLocal } else { return }
+    }
+    $nssmExe = if ($nssm -is [System.Management.Automation.ApplicationInfo]) { $nssm.Source } else { $nssm }
+
+    $changed = $false
+    foreach ($svc in @($script:SERVER_SERVICE, $script:CONSOLE_SERVICE)) {
+        if (-not (Get-Service -Name $svc -ErrorAction SilentlyContinue)) { continue }
+        try {
+            if ($svc -eq $script:SERVER_SERVICE) {
+                $args = (& $nssmExe get $svc AppParameters 2>$null)
+                if ($args) {
+                    $clean = ($args -replace '\s-tls-api(=\S+)?', '' -replace '\s-tls-api-port(=\S+)?', '').Trim()
+                    if ($clean -ne $args.Trim()) {
+                        & $nssmExe set $svc AppParameters $clean | Out-Null
+                        Print-Info "Patched $svc AppParameters (removed incompatible TLS API flags)"
+                        $changed = $true
+                    }
+                }
+            }
+            $envRaw = (& $nssmExe get $svc AppEnvironmentExtra 2>$null)
+            if ($envRaw) {
+                $cleanEnv = $envRaw `
+                    -replace 'HBBS_API_URL=https://localhost', 'HBBS_API_URL=http://localhost' `
+                    -replace 'BETTERDESK_API_URL=https://localhost', 'BETTERDESK_API_URL=http://localhost'
+                if ($cleanEnv -ne $envRaw) {
+                    & $nssmExe set $svc AppEnvironmentExtra $cleanEnv | Out-Null
+                    Print-Info "Patched $svc AppEnvironmentExtra (Go API URLs stay HTTP)"
+                    $changed = $true
+                }
+            }
+        } catch { }
+    }
+    if ($changed) {
+        Print-Success "Service definitions patched (custom NSSM settings preserved)"
+    }
+}
+
+# During UPDATE: create missing services; patch existing; optional full recreate.
+function Maybe-UpdateServices {
+    param(
+        [ValidateSet('default', 'recreate')]
+        [string]$Mode = 'default'
+    )
+
+    $needSetup = $false
+    if (-not (Get-Service -Name $script:SERVER_SERVICE -ErrorAction SilentlyContinue)) {
+        $needSetup = $true
+    }
+    if ((Test-Path (Join-Path $script:CONSOLE_PATH "server.js")) -and
+        -not (Get-Service -Name $script:CONSOLE_SERVICE -ErrorAction SilentlyContinue)) {
+        $needSetup = $true
+    }
+    if ($needSetup) {
+        Print-Info "Services missing — creating Windows services..."
+        Setup-Services
+        return
+    }
+
+    Patch-ServiceDefinitions
+
+    if ($Mode -eq 'recreate' -or $env:UPDATE_REFRESH_SERVICES -eq 'true') {
+        Print-Info "Recreating Windows services from template..."
+        Setup-Services
+        return
+    }
+
+    Print-Info "Services present — patched in place (Repair → Repair services for full recreate)"
 }
 
 function Setup-Services {
@@ -2844,6 +2935,7 @@ function Invoke-TerminalProjectUpdate {
 # All local state (databases, keys, .env, auth.db) is preserved.
 function Update-FromGitHub {
     $cloneDir = Join-Path $env:TEMP "betterdesk-update-$PID"
+    $script:ServerBuildFailed = $false
 
     # Clean up any leftover clone from a previous failed run
     if (Test-Path $cloneDir) { Remove-Item -Recurse -Force $cloneDir -ErrorAction SilentlyContinue }
@@ -2968,11 +3060,13 @@ function Update-FromGitHub {
             }
         } else {
             Print-Warning "Go server compilation failed -- keeping existing binary"
-            Print-Info "You can retry with option 7 (Build & deploy server)"
+            Print-Info "Use the panel Rebuild server binary button or option 7 (Build & deploy server)"
+            $script:ServerBuildFailed = $true
         }
     } else {
         Print-Warning "Go toolchain not available -- server binary not updated"
         Print-Info "Install Go manually from https://go.dev/dl/ and re-run update"
+        $script:ServerBuildFailed = $true
     }
 
     # ---- Step 3: Update Node.js console files ----
@@ -3026,6 +3120,12 @@ function Update-FromGitHub {
     }
     Pop-Location
 
+    # Merge any new .env keys from .env.example (preserve operator settings — issue #158)
+    Print-Step "Merging new .env configuration keys..."
+    if (-not (Merge-ConsoleEnv -FreshInstall:$false)) {
+        Print-Warning ".env merge skipped (merge-env.js unavailable)"
+    }
+
     # ---- Step 4: Update installer scripts ----
     Print-Step "Updating installer scripts..."
     $scriptFiles = @(
@@ -3066,6 +3166,10 @@ function Update-FromGitHub {
     Remove-Item -Recurse -Force $cloneDir -ErrorAction SilentlyContinue
 
     Print-Success "All project files updated from GitHub"
+    if ($script:ServerBuildFailed) {
+        Print-Error "Go server binary was not rebuilt — update incomplete for server component"
+        return $false
+    }
     return $true
 }
 
@@ -3148,7 +3252,7 @@ function Do-Update {
                 if (-not (Install-Binaries -ForceRecompile)) { Print-Error "Binary update failed"; return }
                 if (-not (Install-Console)) { Print-Error "Console update failed"; return }
                 Run-Migrations
-                Setup-Services
+                Maybe-UpdateServices
                 Create-AdminUser | Out-Null
                 Start-Services
                 Print-Success "Local update completed!"
@@ -3177,10 +3281,16 @@ function Do-Update {
     # Run database migrations
     Run-Migrations
     
-    # Update services with latest configuration
-    Setup-Services
+    $svcMode = 'default'
+    if (-not $script:AUTO_MODE) {
+        Write-Host ""
+        $recreateSvc = Read-Host "Recreate Windows service definitions from installer template? [y/N]"
+        if ($recreateSvc -match '^(y|yes)$') { $svcMode = 'recreate' }
+    }
+
+    Maybe-UpdateServices -Mode $svcMode
     
-    # Ensure admin user exists
+    # Informational; panel passwords live in auth.db / PostgreSQL
     Create-AdminUser | Out-Null
     
     Start-Services
