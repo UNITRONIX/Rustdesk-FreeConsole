@@ -40,11 +40,11 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 
 	folderAssignments := map[string]int64{}
 	folderNames := map[int64]string{}
-	if s.consoleAuth != nil {
-		if a, err := s.consoleAuth.ListFolderAssignments(); err == nil {
+	if s.panelStore != nil {
+		if a, err := s.panelStore.ListFolderAssignments(); err == nil {
 			folderAssignments = a
 		}
-		if folders, err := s.consoleAuth.ListFolders(); err == nil {
+		if folders, err := s.panelStore.ListFolders(); err == nil {
 			for _, f := range folders {
 				folderNames[f.ID] = f.Name
 			}
@@ -52,8 +52,8 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 	}
 
 	sysinfoMap := map[string]db.ConsolePeerSysinfo{}
-	if s.consoleAuth != nil {
-		if m, err := s.consoleAuth.ListPeerSysinfo(); err == nil {
+	if s.panelStore != nil {
+		if m, err := s.panelStore.ListPeerSysinfo(); err == nil {
 			sysinfoMap = m
 		}
 	}

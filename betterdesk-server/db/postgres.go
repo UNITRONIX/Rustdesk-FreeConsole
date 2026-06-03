@@ -377,6 +377,63 @@ func (pg *PostgresDB) Migrate() error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+
+		// Panel sync (folders, group members, ACL — consolidated from auth.db)
+		`CREATE TABLE IF NOT EXISTS folders (
+			id BIGSERIAL PRIMARY KEY,
+			name TEXT NOT NULL,
+			color TEXT NOT NULL DEFAULT '#6366f1',
+			icon TEXT NOT NULL DEFAULT 'folder',
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS device_folder_assignments (
+			device_id TEXT PRIMARY KEY NOT NULL,
+			folder_id BIGINT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+			assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS device_group_members (
+			device_group_id BIGINT NOT NULL REFERENCES device_groups(id) ON DELETE CASCADE,
+			peer_id TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (device_group_id, peer_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS user_group_members (
+			user_group_id BIGINT NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
+			user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (user_group_id, user_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS device_group_user_access (
+			device_group_id BIGINT NOT NULL REFERENCES device_groups(id) ON DELETE CASCADE,
+			user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (device_group_id, user_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS device_group_user_group_access (
+			device_group_id BIGINT NOT NULL REFERENCES device_groups(id) ON DELETE CASCADE,
+			user_group_id BIGINT NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (device_group_id, user_group_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS peer_sysinfo (
+			peer_id TEXT PRIMARY KEY,
+			hostname TEXT NOT NULL DEFAULT '',
+			username TEXT NOT NULL DEFAULT '',
+			platform TEXT NOT NULL DEFAULT '',
+			version TEXT NOT NULL DEFAULT '',
+			cpu_name TEXT NOT NULL DEFAULT '',
+			cpu_cores INTEGER NOT NULL DEFAULT 0,
+			cpu_freq_ghz REAL NOT NULL DEFAULT 0,
+			memory_gb REAL NOT NULL DEFAULT 0,
+			os_full TEXT NOT NULL DEFAULT '',
+			displays TEXT NOT NULL DEFAULT '[]',
+			encoding TEXT NOT NULL DEFAULT '[]',
+			features TEXT NOT NULL DEFAULT '{}',
+			platform_additions TEXT NOT NULL DEFAULT '{}',
+			raw_json TEXT NOT NULL DEFAULT '{}',
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
 	}
 
 	for _, stmt := range statements {

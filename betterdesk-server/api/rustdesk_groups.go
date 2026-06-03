@@ -43,8 +43,8 @@ func (s *Server) buildRustDeskDeviceGroups(r *http.Request) []rustDeskGroup {
 	}
 
 	assignments := map[string]int64{}
-	if s.consoleAuth != nil {
-		if a, err := s.consoleAuth.ListFolderAssignments(); err == nil {
+	if s.panelStore != nil {
+		if a, err := s.panelStore.ListFolderAssignments(); err == nil {
 			assignments = a
 		}
 	}
@@ -63,12 +63,12 @@ func (s *Server) buildRustDeskDeviceGroupsFromContext(
 
 	var groups []rustDeskGroup
 
-	if s.consoleAuth != nil {
-		panelGroups, err := s.consoleAuth.ListPanelDeviceGroups()
+	if s.panelStore != nil {
+		panelGroups, err := s.panelStore.ListPanelDeviceGroups()
 		if err != nil {
 			log.Printf("[api] ListPanelDeviceGroups user=%s: %v", user.Username, err)
 		} else if len(panelGroups) == 0 {
-			log.Printf("[api] ListPanelDeviceGroups user=%s: 0 groups (check AUTH_DB_PATH)", user.Username)
+			log.Printf("[api] ListPanelDeviceGroups user=%s: 0 groups (check panel DB / device_groups table)", user.Username)
 		} else {
 			for _, g := range panelGroups {
 				if !panelGroupAllowedForUser(g, user, role, userGroupGUIDs) {
@@ -83,9 +83,9 @@ func (s *Server) buildRustDeskDeviceGroupsFromContext(
 			}
 		}
 
-		folders, _ := s.consoleAuth.ListFolders()
+		folders, _ := s.panelStore.ListFolders()
 		for _, folder := range folders {
-			allowedUsers, allowedGroups, _ := s.consoleAuth.FolderGroupAccess(folder.ID)
+			allowedUsers, allowedGroups, _ := s.panelStore.FolderGroupAccess(folder.ID)
 			if !panelAccessAllowed(user, role, userGroupGUIDs, allowedUsers, allowedGroups) {
 				continue
 			}
@@ -116,8 +116,8 @@ func (s *Server) buildRustDeskDeviceGroupsFromContext(
 // rustDeskUserForGroups resolves the user row for ACL checks (Go DB, then JWT context, then auth.db id).
 func (s *Server) rustDeskUserForGroups(r *http.Request, username, role string) *db.User {
 	if u, err := s.db.GetUser(username); err == nil && u != nil {
-		if s.consoleAuth != nil && u.ID > 0 {
-			if authID, err := s.consoleAuth.GetUserIDByUsername(username); err == nil && authID > 0 {
+		if s.panelStore != nil && u.ID > 0 {
+			if authID, err := s.panelStore.GetUserIDByUsername(username); err == nil && authID > 0 {
 				u.ID = authID
 			}
 		}
@@ -127,8 +127,8 @@ func (s *Server) rustDeskUserForGroups(r *http.Request, username, role string) *
 		return v
 	}
 	u := &db.User{Username: username, Role: role}
-	if s.consoleAuth != nil {
-		if authID, err := s.consoleAuth.GetUserIDByUsername(username); err == nil {
+	if s.panelStore != nil {
+		if authID, err := s.panelStore.GetUserIDByUsername(username); err == nil {
 			u.ID = authID
 		}
 	}
@@ -137,10 +137,10 @@ func (s *Server) rustDeskUserForGroups(r *http.Request, username, role string) *
 
 func (s *Server) consoleUserGroupGUIDs(userID int64) map[string]bool {
 	out := make(map[string]bool)
-	if s.consoleAuth == nil || userID <= 0 {
+	if s.panelStore == nil || userID <= 0 {
 		return out
 	}
-	guids, err := s.consoleAuth.ListUserGroupGUIDsForUser(userID)
+	guids, err := s.panelStore.ListUserGroupGUIDsForUser(userID)
 	if err != nil {
 		log.Printf("[api] ListUserGroupGUIDsForUser: %v", err)
 		return out
@@ -193,8 +193,8 @@ func (s *Server) panelGroupPeerIDs(g db.PanelDeviceGroup, peerByID map[string]*d
 		ids = append(ids, id)
 	}
 
-	if s.consoleAuth != nil {
-		if members, err := s.consoleAuth.ListDeviceGroupMemberPeerIDs(g.ID); err == nil {
+	if s.panelStore != nil {
+		if members, err := s.panelStore.ListDeviceGroupMemberPeerIDs(g.ID); err == nil {
 			for _, id := range members {
 				add(id)
 			}
@@ -226,10 +226,10 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
 		return nil
 	}
-	if s.consoleAuth == nil {
+	if s.panelStore == nil {
 		return nil
 	}
-	panelGroups, err := s.consoleAuth.ListPanelDeviceGroups()
+	panelGroups, err := s.panelStore.ListPanelDeviceGroups()
 	if err != nil {
 		return nil
 	}

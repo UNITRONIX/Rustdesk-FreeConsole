@@ -311,15 +311,7 @@ func main() {
 		defer relaySrv.Stop()
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), relaySrv, Version)
-		if cfg.AuthDBPath != "" {
-			if consoleAuth, err := db.OpenConsoleAuth(cfg.AuthDBPath); err != nil {
-				log.Printf("WARN: console auth.db not opened (%s): %v — RustDesk groups from panel may be missing", cfg.AuthDBPath, err)
-			} else {
-				apiSrv.SetConsoleAuth(consoleAuth)
-				defer consoleAuth.Close()
-				log.Printf("Console auth.db attached for RustDesk device groups: %s", cfg.AuthDBPath)
-			}
-		}
+		defer attachPanelSync(apiSrv, database, cfg.AuthDBPath)()
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -377,15 +369,7 @@ func main() {
 		defer sig.Stop()
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), nil, Version)
-		if cfg.AuthDBPath != "" {
-			if consoleAuth, err := db.OpenConsoleAuth(cfg.AuthDBPath); err != nil {
-				log.Printf("WARN: console auth.db not opened (%s): %v — RustDesk groups from panel may be missing", cfg.AuthDBPath, err)
-			} else {
-				apiSrv.SetConsoleAuth(consoleAuth)
-				defer consoleAuth.Close()
-				log.Printf("Console auth.db attached for RustDesk device groups: %s", cfg.AuthDBPath)
-			}
-		}
+		defer attachPanelSync(apiSrv, database, cfg.AuthDBPath)()
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -556,7 +540,8 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 	}
 }
 
-// resolveAuthDBPath finds the Node.js console auth.db used for device groups/folders.
+// resolveAuthDBPath finds legacy console auth.db (SQLite-only deployments).
+// PostgreSQL deployments use PanelSyncStore on the primary database instead.
 func resolveAuthDBPath(explicit, dbPath string) string {
 	if strings.TrimSpace(explicit) != "" {
 		return explicit
@@ -589,6 +574,27 @@ func resolveAuthDBPath(explicit, dbPath string) string {
 		}
 	}
 	return explicit
+}
+
+// attachPanelSync wires RustDesk group/folder sync to PostgreSQL or legacy auth.db.
+func attachPanelSync(apiSrv *api.Server, database db.Database, authDBPath string) func() {
+	if pg, ok := database.(*db.PostgresDB); ok {
+		apiSrv.SetPanelStore(pg)
+		log.Printf("RustDesk panel sync: PostgreSQL (device groups, folders, ACL)")
+		return func() {}
+	}
+	if strings.TrimSpace(authDBPath) == "" {
+		log.Printf("WARN: no panel sync source — device groups/folders unavailable to RustDesk client")
+		return func() {}
+	}
+	consoleAuth, err := db.OpenConsoleAuth(authDBPath)
+	if err != nil {
+		log.Printf("WARN: console auth.db not opened (%s): %v — RustDesk groups from panel may be missing", authDBPath, err)
+		return func() {}
+	}
+	apiSrv.SetPanelStore(consoleAuth)
+	log.Printf("RustDesk panel sync: legacy auth.db at %s", authDBPath)
+	return func() { _ = consoleAuth.Close() }
 }
 
 func parseFlags() *config.Config {

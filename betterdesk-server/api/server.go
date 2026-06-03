@@ -65,15 +65,20 @@ type Server struct {
 	ldapProvider      *auth.LDAPProvider // LDAP auth provider (nil if not configured)
 	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
-	consoleAuth       *db.ConsoleAuthDB // Node panel auth.db (device groups, folders)
+	panelStore        db.PanelSyncStore // device groups, folders, ACL (PostgreSQL or legacy auth.db)
 	httpSrv           *http.Server
 	wg                sync.WaitGroup
 	version           string
 }
 
-// SetConsoleAuth attaches read-only access to the console auth.db for RustDesk group sync.
+// SetPanelStore attaches the panel data source for RustDesk group/folder sync.
+func (s *Server) SetPanelStore(p db.PanelSyncStore) {
+	s.panelStore = p
+}
+
+// SetConsoleAuth attaches legacy auth.db access (SQLite deployments without consolidated DB).
 func (s *Server) SetConsoleAuth(c *db.ConsoleAuthDB) {
-	s.consoleAuth = c
+	s.panelStore = c
 }
 
 // New creates a new API server.

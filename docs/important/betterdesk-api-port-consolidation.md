@@ -61,12 +61,23 @@ Open **both** for full compatibility:
 
 ## RustDesk device groups (panel → client)
 
-Panel **device groups** and **folders** are stored in **`auth.db`** (console `DATA_DIR`). Go must open them via **`AUTH_DB_PATH`** (installer sets `$CONSOLE_PATH/data/auth.db`). Endpoints:
+Panel **device groups**, **folders**, and ACL are in the **consolidated database**:
 
-- `GET /api/group`, `/api/group/get` — groups visible to the logged-in user (`allowed_users` / `allowed_user_groups`)
-- `GET /api/ab/tags` — includes group names as tags for the legacy “Tagi” sidebar
+- **PostgreSQL** (v3+ default): same DSN as Go `-db` / `DATABASE_URL` — tables `device_groups`, `folders`, `device_folder_assignments`, `device_group_members`, ACL join tables.
+- **Legacy SQLite**: optional read-only **`auth.db`** via `AUTH_DB_PATH` when Go uses SQLite peer DB only.
 
-On **:21121**, `/api/group*` is proxied to Go (JWT from `/api/login`). Node `requireAuth` only accepts 64-char `auth.db` tokens, not Go JWT.
+RustDesk desktop calls (Flutter client):
+
+- `GET /api/ab` — legacy address book + **Tagi** sidebar
+- `GET /api/device-group/accessible` — group/folder names
+- `GET /api/peers?accessible&pageSize=` — accessible devices
+
+Go endpoints (also proxied on **:21121**):
+
+- `GET /api/group`, `/api/group/get` — full group payload with `team.peers`
+- `GET /api/peers/list` — PRO peer list with tags and `device_group_name`
+
+On **:21121**, RustDesk routes are proxied to Go (JWT from `/api/login`).
 
 ## Verification
 

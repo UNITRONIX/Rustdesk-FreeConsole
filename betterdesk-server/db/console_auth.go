@@ -1,4 +1,5 @@
-// Package db — read-only access to the Node.js console auth.db (device groups, folders).
+// Package db — read-only access to legacy console auth.db (SQLite deployments).
+// PostgreSQL deployments implement PanelSyncStore on PostgresDB directly.
 package db
 
 import (
