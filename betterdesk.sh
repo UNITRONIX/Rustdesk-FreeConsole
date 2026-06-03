@@ -2331,6 +2331,7 @@ After=network.target postgresql.service
 Type=simple
 User=root
 WorkingDirectory=$RUSTDESK_PATH
+Environment=AUTH_DB_PATH=$CONSOLE_PATH/data/auth.db
 ExecStart=$RUSTDESK_PATH/betterdesk-server -mode all -relay-servers $server_ip $systemd_db_arg -key-file $RUSTDESK_PATH/id_ed25519 -api-port $API_PORT -signal-rate-limit-per-ip $signal_rate_limit $init_admin_arg $tls_arg
 Restart=always
 RestartSec=5

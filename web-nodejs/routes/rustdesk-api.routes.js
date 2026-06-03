@@ -1926,4 +1926,7 @@ router.get('/api/peer-key/:id', requireAuth, async (req, res) => {
     }
 });
 
+router.requireAuth = requireAuth;
+router.sendRustDeskDeviceGroups = sendRustDeskDeviceGroups;
+
 module.exports = router;

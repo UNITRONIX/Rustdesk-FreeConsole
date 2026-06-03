@@ -739,109 +739,56 @@ func (s *Server) handleClientAddressBookTags(w http.ResponseWriter, r *http.Requ
 	}
 
 	if role != auth.RolePro && auth.RoleHasPermission(role, auth.PermDeviceView) {
+		seen := make(map[string]bool, len(ab.Tags))
+		for _, tag := range ab.Tags {
+			seen[strings.ToLower(tag)] = true
+		}
 		if peers, err := s.db.ListPeers(false); err == nil {
-			seen := make(map[string]bool, len(ab.Tags))
-			for _, tag := range ab.Tags {
-				seen[tag] = true
-			}
 			for _, p := range peers {
 				for _, tag := range strings.Split(p.Tags, ",") {
 					tag = strings.TrimSpace(tag)
-					if tag != "" && !seen[tag] {
+					if tag != "" && !seen[strings.ToLower(tag)] {
 						ab.Tags = append(ab.Tags, tag)
-						seen[tag] = true
+						seen[strings.ToLower(tag)] = true
 					}
 				}
+			}
+		}
+		for _, g := range s.buildRustDeskDeviceGroups(r) {
+			name := strings.TrimSpace(g.name)
+			if name == "" {
+				continue
+			}
+			if !seen[strings.ToLower(name)] {
+				ab.Tags = append(ab.Tags, name)
+				seen[strings.ToLower(name)] = true
 			}
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": ab.Tags})
 }
 
-// handleClientGroupList returns tags from the peers table as groups in the
-// {total,data,msg} envelope expected by RustDesk PRO Flutter clients.
-// Each tag is exposed as a group so the RustDesk client can show folder-like
-// organization of devices.  The "team" field is required by the client and
-// must contain "peers" as a list with peer_id references.
+// handleClientGroupList returns panel device groups (auth.db) for the RustDesk client.
+// Respects allowed_users / allowed_user_groups on each group. Falls back to peer tags
+// when auth.db is not configured.
 //
 // GET  /api/group, /api/group/get
 // POST /api/group/get
-//
-// Compatibility shim suggested by progloto in PR #81, enhanced for Issue #138.
 func (s *Server) handleClientGroupList(w http.ResponseWriter, r *http.Request) {
-	username := getUsernameFromCtx(r)
-	role := getRoleFromCtx(r)
-	if username == "" {
+	if getUsernameFromCtx(r) == "" {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Not authenticated"})
 		return
 	}
 
-	// Only users with device view permission get real groups
-	if role == auth.RolePro || !auth.RoleHasPermission(role, auth.PermDeviceView) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"total": 0,
-			"data":  []any{},
-			"msg":   "success",
-		})
-		return
-	}
-
-	// Collect all tags from the peers table and group peers by tag
-	allPeers, err := s.db.ListPeers(false)
-	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"total": 0,
-			"data":  []any{},
-			"msg":   "success",
-		})
-		return
-	}
-
-	// Build tag → peer IDs map (skip banned/deleted peers)
-	tagPeers := make(map[string][]string)
-	tagOrder := make([]string, 0)
-	for _, p := range allPeers {
-		if p.Banned || p.SoftDeleted {
-			continue
-		}
-		if p.Tags == "" {
-			continue
-		}
-		for _, tag := range strings.Split(p.Tags, ",") {
-			tag = strings.TrimSpace(tag)
-			if tag == "" {
-				continue
-			}
-			if _, exists := tagPeers[tag]; !exists {
-				tagOrder = append(tagOrder, tag)
-			}
-			tagPeers[tag] = append(tagPeers[tag], p.ID)
-		}
-	}
-
-	// Build group entries that the RustDesk Flutter client can parse
-	groups := make([]map[string]any, 0, len(tagOrder))
-	for i, tag := range tagOrder {
-		peerRefs := make([]map[string]any, 0, len(tagPeers[tag]))
-		for _, pid := range tagPeers[tag] {
-			peerRefs = append(peerRefs, map[string]any{
-				"id": pid,
-			})
-		}
-		groups = append(groups, map[string]any{
-			"guid":        tag,
-			"name":        tag,
-			"team":        map[string]any{"peers": peerRefs},
-			"access_perm": 1, // read-write
-			"note":        "",
-			"created_at":  "",
-			"sort":        i,
-		})
+	built := s.buildRustDeskDeviceGroups(r)
+	payload := make([]map[string]any, 0, len(built))
+	for i, g := range built {
+		payload = append(payload, rustDeskGroupPayload(g, i))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"total": len(groups),
-		"data":  groups,
+		"total": len(payload),
+		"data":  payload,
 		"msg":   "success",
 	})
 }

@@ -28,7 +28,8 @@ type Config struct {
 	Mode string // "all", "signal", "relay"
 
 	// Database
-	DBPath string // Database DSN: file path for SQLite, postgres:// URI for PostgreSQL
+	DBPath     string // Database DSN: file path for SQLite, postgres:// URI for PostgreSQL
+	AuthDBPath string // Console auth.db (device groups, folders) — AUTH_DB_PATH
 
 	// Crypto
 	KeyFile string // Ed25519 key file path (without extension)
@@ -179,6 +180,9 @@ func (c *Config) LoadEnv() {
 	}
 	if v := os.Getenv("DB_URL"); v != "" {
 		c.DBPath = v
+	}
+	if v := os.Getenv("AUTH_DB_PATH"); v != "" {
+		c.AuthDBPath = v
 	}
 	if v := os.Getenv("KEY_FILE"); v != "" {
 		c.KeyFile = v

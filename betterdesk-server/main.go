@@ -311,6 +311,15 @@ func main() {
 		defer relaySrv.Stop()
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), relaySrv, Version)
+		if cfg.AuthDBPath != "" {
+			if consoleAuth, err := db.OpenConsoleAuth(cfg.AuthDBPath); err != nil {
+				log.Printf("WARN: console auth.db not opened (%s): %v — RustDesk groups from panel may be missing", cfg.AuthDBPath, err)
+			} else {
+				apiSrv.SetConsoleAuth(consoleAuth)
+				defer consoleAuth.Close()
+				log.Printf("Console auth.db attached for RustDesk device groups: %s", cfg.AuthDBPath)
+			}
+		}
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -368,6 +377,15 @@ func main() {
 		defer sig.Stop()
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), nil, Version)
+		if cfg.AuthDBPath != "" {
+			if consoleAuth, err := db.OpenConsoleAuth(cfg.AuthDBPath); err != nil {
+				log.Printf("WARN: console auth.db not opened (%s): %v — RustDesk groups from panel may be missing", cfg.AuthDBPath, err)
+			} else {
+				apiSrv.SetConsoleAuth(consoleAuth)
+				defer consoleAuth.Close()
+				log.Printf("Console auth.db attached for RustDesk device groups: %s", cfg.AuthDBPath)
+			}
+		}
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -586,6 +604,11 @@ func parseFlags() *config.Config {
 
 	// Override with environment variables
 	cfg.LoadEnv()
+	if cfg.AuthDBPath == "" {
+		if v := os.Getenv("CONSOLE_DATA_DIR"); v != "" {
+			cfg.AuthDBPath = filepath.Join(v, "auth.db")
+		}
+	}
 
 	// Validate mode
 	cfg.Mode = strings.ToLower(cfg.Mode)

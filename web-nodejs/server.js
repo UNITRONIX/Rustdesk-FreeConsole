@@ -634,6 +634,13 @@ function startRustDeskApiServer() {
         // LAN registration is still handled in Node (not on Go API)
         const registrationRoutes = require('./routes/registration.routes');
         apiApp.use('/api/bd', registrationRoutes);
+        // Device groups/folders live in auth.db — serve locally (Go uses AUTH_DB_PATH for :21114)
+        const { requireAuth, sendRustDeskDeviceGroups } = rustdeskApiRoutes;
+        apiApp.get('/api/group', requireAuth, sendRustDeskDeviceGroups);
+        apiApp.get('/api/group/get', requireAuth, sendRustDeskDeviceGroups);
+        apiApp.post('/api/group/get', requireAuth, sendRustDeskDeviceGroups);
+        apiApp.get('/api/device-group', requireAuth, sendRustDeskDeviceGroups);
+        apiApp.get('/api/device-group/accessible', requireAuth, sendRustDeskDeviceGroups);
         apiApp.use(goApiProxy);
     } else {
         // Legacy: Node implements RustDesk API locally (SQLite-era deployments)

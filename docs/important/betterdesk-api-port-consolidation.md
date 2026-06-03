@@ -59,10 +59,20 @@ Open **both** for full compatibility:
 
 **Linux repair:** `ensure_api_compat_proxy_layout()` → Repair → Services.
 
+## RustDesk device groups (panel → client)
+
+Panel **device groups** and **folders** are stored in **`auth.db`** (console `DATA_DIR`). Go must open them via **`AUTH_DB_PATH`** (installer sets `$CONSOLE_PATH/data/auth.db`). Endpoints:
+
+- `GET /api/group`, `/api/group/get` — groups visible to the logged-in user (`allowed_users` / `allowed_user_groups`)
+- `GET /api/ab/tags` — includes group names as tags for the legacy “Tagi” sidebar
+
+On **:21121** proxy, group routes are still served by Node; on **:21114** Go reads `auth.db` directly.
+
 ## Verification
 
 ```bash
 curl -sf http://127.0.0.1:21114/api/health
 curl -sf http://127.0.0.1:21114/api/login-options
 curl -sf http://127.0.0.1:21121/api/login-options
+curl -sf -H "Authorization: Bearer <token>" http://127.0.0.1:21114/api/group/get
 ```

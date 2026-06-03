@@ -65,9 +65,15 @@ type Server struct {
 	ldapProvider      *auth.LDAPProvider // LDAP auth provider (nil if not configured)
 	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
+	consoleAuth       *db.ConsoleAuthDB // Node panel auth.db (device groups, folders)
 	httpSrv           *http.Server
 	wg                sync.WaitGroup
 	version           string
+}
+
+// SetConsoleAuth attaches read-only access to the console auth.db for RustDesk group sync.
+func (s *Server) SetConsoleAuth(c *db.ConsoleAuthDB) {
+	s.consoleAuth = c
 }
 
 // New creates a new API server.
