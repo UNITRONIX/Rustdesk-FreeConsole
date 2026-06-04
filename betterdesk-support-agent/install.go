@@ -70,7 +70,7 @@ func Install() error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("create install dir: %w", err)
 	}
-	if err := copyExecutable(src, dst); err != nil {
+	if err := copyLinuxUIBundle(src, dst); err != nil {
 		return fmt.Errorf("copy binary: %w", err)
 	}
 	copyMesaCompanion(src, dst)
@@ -102,6 +102,42 @@ func copyExecutable(src, dst string) error {
 		return err
 	}
 	// Replace any previous install atomically.
+	tmp := dst + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o755); err != nil {
+		return err
+	}
+	return os.Rename(tmp, dst)
+}
+
+// copyLinuxUIBundle installs the session launcher plus X11/Wayland UI binaries on Linux.
+func copyLinuxUIBundle(src, dst string) error {
+	if runtime.GOOS != "linux" {
+		return copyExecutable(src, dst)
+	}
+	srcDir := filepath.Dir(src)
+	x11 := filepath.Join(srcDir, "betterdesk-support-x11")
+	wl := filepath.Join(srcDir, "betterdesk-support-wayland")
+	launcher := filepath.Join(srcDir, "betterdesk-support")
+	if _, err := os.Stat(x11); err != nil {
+		return copyExecutable(src, dst)
+	}
+	installDir := filepath.Dir(dst)
+	if err := copyExecutable(x11, filepath.Join(installDir, "betterdesk-support-x11")); err != nil {
+		return err
+	}
+	if _, err := os.Stat(wl); err == nil {
+		if err := copyExecutable(wl, filepath.Join(installDir, "betterdesk-support-wayland")); err != nil {
+			return err
+		}
+	}
+	script := launcher
+	if st, err := os.Stat(launcher); err != nil || st.Mode()&0o111 == 0 {
+		script = filepath.Join(srcDir, "scripts", "betterdesk-support-launcher.sh")
+	}
+	data, err := os.ReadFile(script)
+	if err != nil {
+		return copyExecutable(src, dst)
+	}
 	tmp := dst + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o755); err != nil {
 		return err

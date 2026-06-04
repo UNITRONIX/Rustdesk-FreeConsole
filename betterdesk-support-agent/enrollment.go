@@ -44,12 +44,16 @@ func EnsureEnrolled(b Branding, st *AppState, version string) (EnrollmentStatus,
 	deviceID := st.DeviceID
 	st.mu.Unlock()
 
-	if status == EnrollmentApproved && token != "" {
-		return EnrollmentStatus{
-			Status:      EnrollmentApproved,
-			DeviceID:    deviceID,
-			DeviceToken: token,
-		}, nil
+	if status == EnrollmentApproved {
+		if token != "" {
+			return EnrollmentStatus{
+				Status:      EnrollmentApproved,
+				DeviceID:    deviceID,
+				DeviceToken: token,
+			}, nil
+		}
+		// Approved on server but token missing locally (e.g. status poll before fix).
+		return RegisterDevice(b, st, version)
 	}
 
 	if status == EnrollmentRejected {
@@ -119,6 +123,9 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 
 	switch resp.Status {
 	case EnrollmentApproved:
+		if result.DeviceToken == "" {
+			return result, fmt.Errorf("registration approved without device_token")
+		}
 		if err := st.SetEnrollment(EnrollmentApproved, result.DeviceID, result.DeviceToken, ""); err != nil {
 			return result, err
 		}
@@ -166,6 +173,9 @@ func PollEnrollment(b Branding, st *AppState, version string) (EnrollmentStatus,
 
 	switch resp.Status {
 	case EnrollmentApproved:
+		if result.DeviceToken == "" {
+			return RegisterDevice(b, st, version)
+		}
 		if err := st.SetEnrollment(EnrollmentApproved, result.DeviceID, result.DeviceToken, ""); err != nil {
 			return result, err
 		}

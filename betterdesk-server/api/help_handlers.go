@@ -114,6 +114,84 @@ func (s *Server) handleCreateHelpRequest(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(req)
 }
 
+// handleDeviceSelfHelpRequest lets an enrolled device raise a help request over
+// REST when CDAP is not yet connected. POST /api/devices/self/help-request
+func (s *Server) handleDeviceSelfHelpRequest(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		DeviceID    string `json:"device_id"`
+		DeviceToken string `json:"device_token"`
+		Hostname    string `json:"hostname"`
+		Message     string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+	body.DeviceID = strings.TrimSpace(body.DeviceID)
+	body.DeviceToken = strings.TrimSpace(body.DeviceToken)
+	if body.DeviceID == "" || body.DeviceToken == "" {
+		http.Error(w, `{"error":"device_id and device_token required"}`, http.StatusBadRequest)
+		return
+	}
+
+	tokenHash := hashToken(body.DeviceToken)
+	dt, err := s.db.ValidateToken(tokenHash)
+	if err != nil || dt == nil {
+		http.Error(w, `{"error":"invalid device token"}`, http.StatusForbidden)
+		return
+	}
+	if dt.PeerID != "" && dt.PeerID != body.DeviceID {
+		http.Error(w, `{"error":"token bound to another device"}`, http.StatusForbidden)
+		return
+	}
+	if peer, _ := s.db.GetPeer(body.DeviceID); peer == nil {
+		http.Error(w, `{"error":"device not enrolled"}`, http.StatusForbidden)
+		return
+	}
+
+	message := strings.TrimSpace(body.Message)
+	if message == "" {
+		http.Error(w, `{"error":"message required"}`, http.StatusBadRequest)
+		return
+	}
+	if len(message) > 2048 {
+		message = message[:2048]
+	}
+
+	orgID, _ := s.db.GetDeviceOrgID(body.DeviceID)
+	req := &db.HelpRequest{
+		DeviceID: body.DeviceID,
+		Hostname: body.Hostname,
+		OrgID:    orgID,
+		Message:  message,
+		Status:   db.HelpStatusPending,
+	}
+	id, err := s.db.CreateHelpRequest(req)
+	if err != nil {
+		log.Printf("[help] device self CreateHelpRequest error: %v", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	req.ID = id
+
+	if s.eventBus != nil {
+		s.eventBus.Publish(events.Event{
+			Type: "help_request",
+			Data: map[string]string{
+				"id":        strconv.FormatInt(id, 10),
+				"device_id": req.DeviceID,
+				"hostname":  req.Hostname,
+				"org_id":    req.OrgID,
+				"message":   req.Message,
+				"status":    req.Status,
+			},
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"id": id, "status": req.Status})
+}
+
 // handleGetHelpRequest returns a single help request by ID.
 // GET /api/help/requests/{id}
 func (s *Server) handleGetHelpRequest(w http.ResponseWriter, r *http.Request) {

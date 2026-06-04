@@ -35,10 +35,12 @@ func (u *ui) updateStatus() {
 		u.applyStatus(statusKindError, t("enrollment_rejected"))
 		return
 	case EnrollmentApproved:
-		if u.engine.Running() {
+		if u.state.IsEnrolled() && u.engine.Running() {
 			u.applyStatus(statusKindConnected, t("connected"))
-		} else {
+		} else if u.state.IsEnrolled() {
 			u.applyStatus(statusKindPending, t("disconnected"))
+		} else {
+			u.applyStatus(statusKindPending, t("enrollment_pending"))
 		}
 		return
 	}

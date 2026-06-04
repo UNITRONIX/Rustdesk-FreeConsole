@@ -88,6 +88,7 @@ install_apt() {
         libsoup-3.0-dev "$WEBKIT_PKG" \
         libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev \
         libxinerama-dev libxi-dev libxxf86vm-dev libxkbcommon-dev \
+        libwayland-dev libdecor-0-dev \
         nsis dpkg-dev rpm fakeroot \
         libfuse2t64 \
         mingw-w64 gcc-mingw-w64-x86-64
@@ -107,6 +108,7 @@ install_dnf() {
         libsoup3-devel webkit2gtk4.1-devel \
         libX11-devel libXcursor-devel libXrandr-devel libXinerama-devel \
         libXi-devel libXxf86vm-devel mesa-libGL-devel libxkbcommon-devel \
+        wayland-devel libdecor-devel \
         mingw64-gcc mingw64-gcc-c++ \
         nsis rpm-build dpkg fuse-libs \
         nodejs npm || true

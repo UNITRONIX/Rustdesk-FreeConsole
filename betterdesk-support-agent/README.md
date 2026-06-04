@@ -77,15 +77,18 @@ BETTERDESK_AGENT_BRANDING=/path/to/branding.json ./betterdesk-support
 
 ### Linux build dependencies
 
-Fyne needs X11/GL development headers:
+Linux builds ship **two UI binaries** (X11 and Wayland) plus a launcher that picks
+the right one for the current session. Build with `./build.sh -p linux -d`.
 
 ```bash
 # Fedora
 sudo dnf install -y libXxf86vm-devel libXcursor-devel libXrandr-devel \
-    libXinerama-devel libXi-devel mesa-libGL-devel
+    libXinerama-devel libXi-devel mesa-libGL-devel wayland-devel libdecor-devel
 # Debian/Ubuntu
-sudo apt install -y libgl1-mesa-dev xorg-dev
+sudo apt install -y libgl1-mesa-dev xorg-dev libwayland-dev libdecor-0-dev
 ```
+
+Force a backend: `BETTERDESK_UI_BACKEND=wayland` or `=x11`.
 
 ## Install / uninstall
 

@@ -350,6 +350,13 @@ func (s *Server) handleDeviceRegisterStatus(w http.ResponseWriter, r *http.Reque
 		}
 		displayName, _ := s.db.GetConfig("device_display_name_" + deviceID)
 		resp := s.buildEnrollmentResponse("approved", deviceID, syncMode, displayName)
+		// Issue a device_token on poll (same as re-register) so agents approved
+		// via the panel recover CDAP auth without another POST /devices/register.
+		if token, err := s.issueEnrollmentDeviceToken(deviceID); err == nil {
+			resp.DeviceToken = token
+		} else {
+			log.Printf("[API] Failed to issue enrollment device token on status poll for %s: %v", deviceID, err)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 		return

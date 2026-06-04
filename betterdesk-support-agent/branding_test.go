@@ -56,6 +56,14 @@ func TestStateEnrollment(t *testing.T) {
 	if !st2.IsEnrolled() || st2.DeviceToken != "tok-123" {
 		t.Fatalf("reload failed: %+v", st2)
 	}
+
+	// Empty token on approve must not wipe a stored token.
+	if err := st2.SetEnrollment(EnrollmentApproved, st2.DeviceID, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if !st2.IsEnrolled() || st2.DeviceToken != "tok-123" {
+		t.Fatalf("token wiped: %+v", st2)
+	}
 }
 
 func TestAPIBaseURL(t *testing.T) {

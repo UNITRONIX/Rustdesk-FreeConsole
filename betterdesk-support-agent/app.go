@@ -103,7 +103,15 @@ func (u *ui) bootstrapConnection() {
 func (u *ui) onEnrollmentUpdate(res EnrollmentStatus) {
 	switch res.Status {
 	case EnrollmentApproved:
-		u.applyStatus(statusKindConnected, t("connected"))
+		if !u.state.IsEnrolled() {
+			u.applyStatus(statusKindPending, t("enrollment_pending"))
+			return
+		}
+		if u.engine.Running() {
+			u.applyStatus(statusKindConnected, t("connected"))
+		} else {
+			u.applyStatus(statusKindPending, t("disconnected"))
+		}
 		if !u.engine.Running() {
 			_ = u.engine.Start(u.state)
 			_ = SyncAccessPassword(u.brand, u.state)

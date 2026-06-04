@@ -67,6 +67,18 @@ async function _stageWindowsOpenGL(stageDir) {
     return true;
 }
 
+async function _stageLinuxUI(distDir, stageDir, launcherName) {
+    const launcher = path.join(distDir, launcherName);
+    const x11 = path.join(distDir, 'betterdesk-support-x11');
+    const wl = path.join(distDir, 'betterdesk-support-wayland');
+    await fsp.copyFile(launcher, path.join(stageDir, launcherName));
+    await fsp.chmod(path.join(stageDir, launcherName), 0o755);
+    await fsp.copyFile(x11, path.join(stageDir, 'betterdesk-support-x11'));
+    await fsp.chmod(path.join(stageDir, 'betterdesk-support-x11'), 0o755);
+    await fsp.copyFile(wl, path.join(stageDir, 'betterdesk-support-wayland'));
+    await fsp.chmod(path.join(stageDir, 'betterdesk-support-wayland'), 0o755);
+}
+
 function _windowsGuiBat(exeName) {
     return (
         '@echo off\r\n' +
@@ -635,13 +647,18 @@ async function _copyDir(src, dst) {
 async function _runGoBuild(workDir, brandingPath, outputPath, targetOS) {
     await fsp.mkdir(path.dirname(outputPath), { recursive: true });
     const buildScript = path.join(workDir, 'build.sh');
-    await _runProcess('/bin/bash', [
-        buildScript,
-        '-b', brandingPath,
-        '-o', outputPath,
-        '-p', targetOS,
-    ], { cwd: workDir });
+    const args = ['-b', brandingPath, '-o', outputPath, '-p', targetOS];
+    if (targetOS === 'linux') {
+        args.push('-d');
+    }
+    await _runProcess('/bin/bash', [buildScript, ...args], { cwd: workDir });
     await fsp.access(outputPath, fs.constants.R_OK);
+    if (targetOS === 'linux') {
+        const distDir = path.dirname(outputPath);
+        for (const name of ['betterdesk-support-x11', 'betterdesk-support-wayland']) {
+            await fsp.access(path.join(distDir, name), fs.constants.R_OK);
+        }
+    }
 }
 
 async function _packArtifact(workDir, binaryPath, profile, label, branding = {}) {
@@ -718,21 +735,37 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {})
         }
         case 'tar-portable': {
             const stage = path.join(packDir, 'stage');
+            const distDir = path.dirname(binaryPath);
             await fsp.mkdir(stage, { recursive: true });
-            await fsp.copyFile(binaryPath, path.join(stage, baseName));
-            await fsp.chmod(path.join(stage, baseName), 0o755);
+            await _stageLinuxUI(distDir, stage, baseName);
             await fsp.writeFile(path.join(stage, 'portable'), '', 'utf8');
+            await fsp.writeFile(path.join(stage, 'README.txt'),
+                'BetterDesk Support Agent (portable)\r\n\r\n' +
+                'Run ./betterdesk-support — auto-selects Wayland or X11.\r\n' +
+                'Override: BETTERDESK_UI_BACKEND=wayland|x11\r\n',
+                'utf8');
             const tarPath = path.join(packDir, `betterdesk-support-${label}-portable.tar.gz`);
-            await _runProcess('tar', ['-czf', tarPath, '-C', stage, baseName, 'portable'], { cwd: packDir });
+            const tarMembers = ['betterdesk-support', 'betterdesk-support-x11', 'betterdesk-support-wayland', 'portable', 'README.txt'];
+            await _runProcess('tar', ['-czf', tarPath, '-C', stage, ...tarMembers], { cwd: packDir });
             return tarPath;
         }
         case 'deb': {
             const pkgRoot = path.join(packDir, 'pkg');
-            const binDest = path.join(pkgRoot, 'usr', 'local', 'bin', 'betterdesk-support');
-            await fsp.mkdir(path.dirname(binDest), { recursive: true });
-            await fsp.copyFile(binaryPath, binDest);
-            await fsp.chmod(binDest, 0o755);
-            const postinst = `#!/bin/sh\n/usr/local/bin/betterdesk-support -install || true\n`;
+            const binDir = path.join(pkgRoot, 'usr', 'local', 'bin');
+            const libDir = path.join(pkgRoot, 'usr', 'lib', 'betterdesk-support');
+            await fsp.mkdir(binDir, { recursive: true });
+            await fsp.mkdir(libDir, { recursive: true });
+            const distDir = path.dirname(binaryPath);
+            await _stageLinuxUI(distDir, libDir, 'betterdesk-support');
+            const binDest = path.join(binDir, 'betterdesk-support');
+            await fsp.writeFile(binDest, `#!/bin/sh
+LIB="/usr/lib/betterdesk-support"
+if [ -n "$WAYLAND_DISPLAY" ] && [ -z "$DISPLAY" ] && [ -x "$LIB/betterdesk-support-wayland" ]; then
+  exec "$LIB/betterdesk-support-wayland" "$@"
+fi
+exec "$LIB/betterdesk-support-x11" "$@"
+`, { mode: 0o755 });
+            const postinst = `#!/bin/sh\n/usr/lib/betterdesk-support/betterdesk-support-x11 -install || true\n`;
             const debianDir = path.join(pkgRoot, 'DEBIAN');
             await fsp.mkdir(debianDir, { recursive: true });
             await fsp.writeFile(path.join(debianDir, 'postinst'), postinst, { mode: 0o755 });
@@ -793,10 +826,9 @@ install -m 755 %{SOURCE0} %{buildroot}/usr/local/bin/betterdesk-support
         case 'appimage': {
             const appDir = path.join(packDir, 'BetterDeskSupport.AppDir');
             const binDir = path.join(appDir, 'usr', 'bin');
+            const distDir = path.dirname(binaryPath);
             await fsp.mkdir(binDir, { recursive: true });
-            const binDest = path.join(binDir, 'betterdesk-support');
-            await fsp.copyFile(binaryPath, binDest);
-            await fsp.chmod(binDest, 0o755);
+            await _stageLinuxUI(distDir, binDir, 'betterdesk-support');
             await fsp.writeFile(path.join(binDir, 'portable'), '', 'utf8');
 
             const displayName = String(branding.product_name || branding.company_name || 'BetterDesk Support')
@@ -807,7 +839,14 @@ install -m 755 %{SOURCE0} %{buildroot}/usr/local/bin/betterdesk-support
             await fsp.writeFile(path.join(appDir, 'AppRun'), `#!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
 export PATH="$HERE/usr/bin:$PATH"
-exec "$HERE/usr/bin/betterdesk-support" "$@"
+BIN="$HERE/usr/bin/betterdesk-support"
+if [ -n "$WAYLAND_DISPLAY" ] && [ -z "$DISPLAY" ] && [ -x "$HERE/usr/bin/betterdesk-support-wayland" ]; then
+  exec "$HERE/usr/bin/betterdesk-support-wayland" "$@"
+fi
+if [ -x "$HERE/usr/bin/betterdesk-support-x11" ]; then
+  exec "$HERE/usr/bin/betterdesk-support-x11" "$@"
+fi
+exec "$BIN" "$@"
 `, { mode: 0o755 });
 
             await fsp.writeFile(path.join(appDir, 'betterdesk-support.desktop'),

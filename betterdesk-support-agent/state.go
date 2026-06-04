@@ -260,7 +260,9 @@ func (s *AppState) SetEnrollment(status, deviceID, token, message string) error 
 		s.DeviceID = deviceID
 	}
 	s.EnrollmentStatus = status
-	s.DeviceToken = token
+	if token != "" {
+		s.DeviceToken = token
+	}
 	s.EnrollmentMessage = message
 	return s.save()
 }

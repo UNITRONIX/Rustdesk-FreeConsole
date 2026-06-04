@@ -28,6 +28,7 @@ func main() {
 	flag.Parse()
 
 	prepWindowsGraphics()
+	prepLinuxDisplay()
 
 	if *showVer {
 		fmt.Printf("betterdesk-support-agent %s\n", version)
