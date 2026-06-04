@@ -3212,7 +3212,15 @@ update_from_github() {
 
     # Stage Go support-agent source for the Generator build worker
     print_step "Staging support-agent source for Generator builds..."
-    stage_support_agent_source "$clone_dir" || print_warning "Support-agent source staging skipped"
+    if stage_support_agent_source "$clone_dir"; then
+        mkdir -p "$CONSOLE_PATH/data"
+        printf '{"reason":"betterdesk.sh update","at":"%s"}\n' \
+            "$(date -Iseconds 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > "$CONSOLE_PATH/data/.agent_rebuild_pending"
+        print_info "Generator bundles will rebuild after console restart"
+    else
+        print_warning "Support-agent source staging skipped"
+    fi
 
     # Merge any new .env keys from .env.example (preserve operator settings — issue #158)
     print_step "Merging new .env configuration keys..."

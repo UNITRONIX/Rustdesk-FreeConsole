@@ -42,6 +42,7 @@ const AGENT_LIB_ROOT   = _resolveAgentLibRoot();
 const POLL_INTERVAL_MS = parseInt(process.env.AGENT_BUILD_POLL_MS || '5000', 10);
 const WORKER_CONCURRENCY = parseInt(process.env.AGENT_BUILD_CONCURRENCY || '1', 10);
 const BUILD_TIMEOUT_MS = parseInt(process.env.AGENT_BUILD_TIMEOUT_MS || (30 * 60 * 1000), 10);
+const IS_WINDOWS = process.platform === 'win32';
 
 function _resolveSourceRoot() {
     if (process.env.AGENT_SOURCE_DIR) return process.env.AGENT_SOURCE_DIR;
@@ -93,14 +94,26 @@ let _running = false;
 let _activeBuilds = 0;
 let _pollHandle = null;
 
-async function enqueueBuildsForHash(brandingHash) {
+const REBUILD_FLAG_FILE = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.agent_rebuild_pending');
+
+function _agentSourceDirs() {
+    const supportAgent = SOURCE_ROOT;
+    const base = path.dirname(supportAgent);
+    return {
+        base,
+        supportAgent,
+        agentLib: path.join(base, 'betterdesk-agent'),
+    };
+}
+
+async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
     if (!brandingHash) throw new Error('brandingHash required');
     const platforms = bundleService.PLATFORMS || [];
     for (const p of platforms) {
         const existing = await db.getAgentBundleBuild({
             brandingHash, platform: p.platform, arch: p.arch, format: p.format,
         });
-        if (existing && (existing.status === 'ready' || existing.status === 'building')) {
+        if (!force && existing && (existing.status === 'ready' || existing.status === 'building')) {
             continue;
         }
         await db.upsertAgentBundleBuild({
@@ -117,6 +130,89 @@ async function enqueueBuildsForHash(brandingHash) {
     }
 }
 
+/** Queue rebuilds for every non-revoked generator bundle (e.g. after agent source update). */
+async function requeueAllBundleBuilds() {
+    const bundles = await db.listAgentBundles({ includeRevoked: false });
+    const hashes = [...new Set(
+        bundles.filter(b => !b.revoked).map(b => b.branding_hash).filter(Boolean)
+    )];
+    for (const hash of hashes) {
+        await enqueueBuildsForHash(hash, { force: true });
+    }
+    return { bundles: hashes.length };
+}
+
+function markRebuildPending(reason = 'update') {
+    fs.mkdirSync(path.dirname(REBUILD_FLAG_FILE), { recursive: true });
+    fs.writeFileSync(REBUILD_FLAG_FILE, JSON.stringify({
+        reason,
+        at: new Date().toISOString(),
+    }));
+}
+
+/** On console startup, rebuild generator clients when an update left a pending flag. */
+async function processPendingRebuildOnStartup() {
+    if (!fs.existsSync(REBUILD_FLAG_FILE)) return null;
+    let meta = {};
+    try {
+        meta = JSON.parse(fs.readFileSync(REBUILD_FLAG_FILE, 'utf8'));
+    } catch (_) { /* use defaults */ }
+    try {
+        fs.unlinkSync(REBUILD_FLAG_FILE);
+    } catch (_) { /* ok */ }
+
+    const result = await requeueAllBundleBuilds();
+    console.log(
+        `[agentBuildWorker] auto-rebuild queued for ${result.bundles} bundle(s)`
+        + (meta.reason ? ` (reason: ${meta.reason})` : '')
+    );
+    return { ...result, reason: meta.reason || 'pending' };
+}
+
+/**
+ * Stage support-agent / betterdesk-agent files downloaded during an in-app update
+ * into the build worker source tree (agent-source/).
+ */
+async function stageSourcesFromGitHub({ remoteSHA, files, download }) {
+    if (!files?.length || typeof download !== 'function') {
+        return { staged: 0 };
+    }
+    const dirs = _agentSourceDirs();
+    await fsp.mkdir(dirs.supportAgent, { recursive: true });
+    await fsp.mkdir(dirs.agentLib, { recursive: true });
+
+    const owner = process.env.UPDATE_GITHUB_OWNER || 'UNITRONIX';
+    const repo = process.env.UPDATE_GITHUB_REPO || 'BetterDesk';
+    let staged = 0;
+
+    for (const file of files) {
+        if (file.status === 'removed') continue;
+        const fp = file.path;
+        let destRoot;
+        let rel;
+        if (fp.startsWith('betterdesk-support-agent/')) {
+            destRoot = dirs.supportAgent;
+            rel = fp.slice('betterdesk-support-agent/'.length);
+        } else if (fp.startsWith('betterdesk-agent/')) {
+            destRoot = dirs.agentLib;
+            rel = fp.slice('betterdesk-agent/'.length);
+        } else {
+            continue;
+        }
+        if (!rel) continue;
+
+        const dest = path.join(destRoot, rel);
+        const content = await download(owner, repo, remoteSHA, fp);
+        await fsp.mkdir(path.dirname(dest), { recursive: true });
+        await fsp.writeFile(dest, content);
+        if (!IS_WINDOWS && (rel.endsWith('.sh') || rel === 'build.sh')) {
+            try { await fsp.chmod(dest, 0o755); } catch (_) { /* ok */ }
+        }
+        staged++;
+    }
+    return { staged };
+}
+
 function startWorker() {
     if (_pollHandle) return;
     console.log(`[agentBuildWorker] Go support-agent source=${SOURCE_ROOT}`);
@@ -124,6 +220,9 @@ function startWorker() {
     _pollHandle = setInterval(() => {
         _tick().catch((e) => console.error('[agentBuildWorker] tick error:', e.message));
     }, POLL_INTERVAL_MS);
+    processPendingRebuildOnStartup().catch((e) => {
+        console.error('[agentBuildWorker] pending rebuild failed:', e.message);
+    });
     console.log(`[agentBuildWorker] started (poll ${POLL_INTERVAL_MS}ms)`);
 }
 
@@ -188,7 +287,7 @@ async function _listPendingBuilds(limit) {
     const bundles = await db.listAgentBundles();
     const out = [];
     for (const b of bundles) {
-        if (b.revoked_at) continue;
+        if (b.revoked) continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         for (const r of builds) {
             if (r.status === 'pending') out.push(r);
@@ -521,6 +620,10 @@ function _sha256OfFile(filePath) {
 
 module.exports = {
     enqueueBuildsForHash,
+    requeueAllBundleBuilds,
+    markRebuildPending,
+    processPendingRebuildOnStartup,
+    stageSourcesFromGitHub,
     startWorker,
     stopWorker,
     getReadyArtifact,

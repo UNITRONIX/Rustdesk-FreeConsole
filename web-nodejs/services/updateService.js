@@ -58,9 +58,16 @@ const COMPONENTS = {
     },
     agent: {
         prefix: 'betterdesk-agent/',
-        label: 'Agent',
+        label: 'Agent library',
         localRoot: null,
         service: IS_WINDOWS ? 'BetterDeskAgent' : 'betterdesk-agent',
+        autoUpdate: false
+    },
+    supportAgent: {
+        prefix: 'betterdesk-support-agent/',
+        label: 'Support Agent (Generator)',
+        localRoot: null,
+        service: null,
         autoUpdate: false
     },
     scripts: {
@@ -1273,7 +1280,7 @@ async function getChangedFiles(remoteSHA) {
     const compare = await ghGet(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/compare/${localSHA}...${remoteSHA}`);
     const files = (compare.files || []).filter(f => !isExcluded(f.filename));
 
-    const grouped = { console: [], server: [], agent: [], scripts: [], other: [] };
+    const grouped = { console: [], server: [], agent: [], supportAgent: [], scripts: [], other: [] };
 
     for (const f of files) {
         const comp = classifyFile(f.filename);
@@ -1711,9 +1718,31 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         }
     }
 
-    if (changedData.grouped.agent?.length) {
-        for (const f of changedData.grouped.agent) {
-            results.skipped.push(f.path + ' (agent — rebuild required)');
+    if (changedData.grouped.agent?.length || changedData.grouped.supportAgent?.length) {
+        const agentFiles = [
+            ...(changedData.grouped.agent || []),
+            ...(changedData.grouped.supportAgent || []),
+        ];
+        try {
+            const agentBuildWorker = require('./agentBuildWorker');
+            const stageResult = await agentBuildWorker.stageSourcesFromGitHub({
+                remoteSHA,
+                files: agentFiles,
+                download: ghDownloadFile,
+            });
+            agentBuildWorker.markRebuildPending('in-app update');
+            results.agentSourcesStaged = stageResult.staged;
+            results.agentRebuildQueued = true;
+            for (const f of agentFiles) {
+                if (f.status !== 'removed') results.applied.push(f.path);
+            }
+            console.log(
+                `[UPDATE] Support-agent sources staged (${stageResult.staged} file(s));`
+                + ' generator bundles queued for rebuild on console restart'
+            );
+        } catch (err) {
+            results.failed.push({ file: 'support-agent-source', error: err.message });
+            console.warn(`[UPDATE] Support-agent staging failed: ${err.message}`);
         }
     }
 
