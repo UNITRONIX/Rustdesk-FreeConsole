@@ -10,7 +10,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
-const { spawn, execSync } = require('child_process');
+const { spawn } = require('child_process');
 
 const db = require('./database');
 const bundleService = require('./agentBundleService');
@@ -54,15 +54,8 @@ function _resolveBin(candidates) {
 function _goBinaryHealthy(goBin) {
     if (!goBin || !fs.existsSync(goBin)) return false;
     try {
-        execSync(`"${goBin}" list encoding/png`, {
-            timeout: 20000,
-            stdio: 'pipe',
-            env: {
-                ...process.env,
-                PATH: `${path.dirname(goBin)}:${process.env.PATH || ''}`,
-            },
-        });
-        return true;
+        const { goStdlibHealthy } = require('./updateService');
+        return goStdlibHealthy(goBin);
     } catch {
         return false;
     }
@@ -91,17 +84,26 @@ function getGoBin() {
     return _activeGoBin;
 }
 
+let _ensureGoPromise = null;
+
 async function _ensureGoToolchain() {
     if (_goBinaryHealthy(getGoBin())) return getGoBin();
-    const updateService = require('./updateService');
-    const result = await updateService.installGoToolchain();
-    if (result.success && result.binPath && _goBinaryHealthy(result.binPath)) {
-        _activeGoBin = result.binPath;
-        process.env.GO_BIN = result.binPath;
-        console.log(`[agentBuildWorker] Go toolchain ready: ${result.version || result.binPath}`);
-        return _activeGoBin;
+    if (!_ensureGoPromise) {
+        _ensureGoPromise = (async () => {
+            const updateService = require('./updateService');
+            const result = await updateService.installGoToolchain(null, { maxVersion: '1.25.99' });
+            if (result.success && result.binPath && _goBinaryHealthy(result.binPath)) {
+                _activeGoBin = result.binPath;
+                process.env.GO_BIN = result.binPath;
+                console.log(`[agentBuildWorker] Go toolchain ready: ${result.version || result.binPath}`);
+                return _activeGoBin;
+            }
+            throw new Error(result.error || 'Go toolchain install failed');
+        })().finally(() => {
+            _ensureGoPromise = null;
+        });
     }
-    throw new Error(result.error || 'Go toolchain install failed');
+    return _ensureGoPromise;
 }
 
 const BASE_BUILD_ENV = {

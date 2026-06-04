@@ -21,6 +21,7 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const https = require('https');
 const { execSync, execFileSync } = require('child_process');
@@ -833,21 +834,33 @@ function compareGoVersion(a, b) {
     return 0;
 }
 
-/** Verify stdlib is intact — broken/partial Go installs fail here before compile. */
+/** Verify stdlib can compile — go list is unreliable on some Go 1.26 installs. */
 function goStdlibHealthy(binPath) {
     if (!binPath || !fs.existsSync(binPath)) return false;
+    const goEnv = {
+        ...process.env,
+        PATH: `${path.dirname(binPath)}:${process.env.PATH || ''}`,
+    };
     try {
-        execSync(`${quoteCommand(binPath)} list encoding/png`, {
-            timeout: 20000,
+        execSync(`${quoteCommand(binPath)} version`, { timeout: 10000, stdio: 'pipe', env: goEnv });
+    } catch {
+        return false;
+    }
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bd-go-probe-'));
+    try {
+        const src = path.join(tmpDir, 'probe.go');
+        const out = path.join(tmpDir, IS_WINDOWS ? 'probe.exe' : 'probe');
+        fs.writeFileSync(src, 'package main\nimport _ "encoding/png"\nfunc main() {}\n');
+        execSync(`${quoteCommand(binPath)} build -o ${quoteCommand(out)} ${quoteCommand(src)}`, {
+            timeout: 120000,
             stdio: 'pipe',
-            env: {
-                ...process.env,
-                PATH: `${path.dirname(binPath)}:${process.env.PATH || ''}`,
-            },
+            env: goEnv,
         });
         return true;
     } catch {
         return false;
+    } finally {
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) { /* ok */ }
     }
 }
 
@@ -882,17 +895,21 @@ function httpsDownload(url, redirects = 5) {
  * https://go.dev/dl/?mode=json. Returns the asset metadata including
  * the canonical SHA-256 sum so the download can be verified securely.
  */
-async function resolveGoRelease() {
+async function resolveGoRelease(opts = {}) {
+    const maxVersion = opts.maxVersion || null;
     const key = getToolchainKey();
     const data = await httpsDownload('https://go.dev/dl/?mode=json');
     const releases = JSON.parse(data.toString('utf8'));
     if (!Array.isArray(releases) || !releases.length) {
         throw new Error('go.dev manifest empty');
     }
-    // Pick the highest stable release that meets GO_MIN_VERSION.
-    const stable = releases
-        .filter(r => r.stable && compareGoVersion(r.version, GO_MIN_VERSION) >= 0)
-        .sort((a, b) => compareGoVersion(b.version, a.version));
+    // Pick the highest stable release that meets GO_MIN_VERSION (optionally capped).
+    let stable = releases
+        .filter(r => r.stable && compareGoVersion(r.version, GO_MIN_VERSION) >= 0);
+    if (maxVersion) {
+        stable = stable.filter(r => compareGoVersion(r.version, maxVersion) <= 0);
+    }
+    stable.sort((a, b) => compareGoVersion(b.version, a.version));
     const target = stable[0] || releases[0];
     const ext = key.os === 'windows' ? 'zip' : 'tar.gz';
     const file = (target.files || []).find(f =>
@@ -912,11 +929,19 @@ async function resolveGoRelease() {
 
 /**
  * Install (or refresh) the Go toolchain into data/go-toolchain/.
- *
- * @param {(phase: string, detail?: string) => void} [onProgress]
- * @returns {Promise<{ success: boolean, binPath: string|null, version: string|null, error?: string }>}
+ * Serialized — concurrent callers share one download/extract.
  */
-async function installGoToolchain(onProgress) {
+let _installGoInFlight = null;
+
+async function installGoToolchain(onProgress, opts = {}) {
+    if (_installGoInFlight) return _installGoInFlight;
+    _installGoInFlight = _installGoToolchainBody(onProgress, opts).finally(() => {
+        _installGoInFlight = null;
+    });
+    return _installGoInFlight;
+}
+
+async function _installGoToolchainBody(onProgress, opts = {}) {
     const log = (phase, detail) => { try { (onProgress || (() => {}))(phase, detail); } catch (_e) { /* ignore */ } };
     const goRoot = path.join(GO_TOOLCHAIN_DIR, 'go');
     const goBin  = path.join(goRoot, 'bin', IS_WINDOWS ? 'go.exe' : 'go');
@@ -936,7 +961,7 @@ async function installGoToolchain(onProgress) {
     let release;
     try {
         log('resolving', 'go.dev/dl');
-        release = await resolveGoRelease();
+        release = await resolveGoRelease(opts);
     } catch (err) {
         if (installed?.meetsMinimum && goStdlibHealthy(goBin)) {
             log('ready', installed.version);
@@ -2269,5 +2294,6 @@ module.exports = {
     patchServiceDefinitions,
     shouldQueueAgentRebuild,
     syncAgentSourceAtSha,
+    goStdlibHealthy,
     COMPONENTS
 };
