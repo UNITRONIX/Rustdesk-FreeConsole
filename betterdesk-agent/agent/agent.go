@@ -124,6 +124,11 @@ func (a *Agent) Run() error {
 	}
 }
 
+// Connected reports whether the agent has an active CDAP session.
+func (a *Agent) Connected() bool {
+	return a.connected.Load()
+}
+
 // Stop signals the agent to shut down gracefully.
 func (a *Agent) Stop() {
 	a.cancel()

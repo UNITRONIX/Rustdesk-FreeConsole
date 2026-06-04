@@ -177,7 +177,8 @@ func autostartWindows(binPath string, enable bool) error {
 		_ = cmd.Run() // ignore "value not found"
 		return nil
 	}
-	cmd := exec.Command("reg", "add", key, "/v", installAppName, "/t", "REG_SZ", "/d", binPath, "/f")
+	launch := fmt.Sprintf("%q -nogui", binPath)
+	cmd := exec.Command("reg", "add", key, "/v", installAppName, "/t", "REG_SZ", "/d", launch, "/f")
 	return cmd.Run()
 }
 

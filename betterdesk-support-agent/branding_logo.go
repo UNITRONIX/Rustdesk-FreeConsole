@@ -30,8 +30,12 @@ func (b Branding) LogoPNGBytes() []byte {
 }
 
 func (b Branding) LogoResource() fyne.Resource {
-	if data := b.LogoPNGBytes(); len(data) > 0 {
+	if data := b.LogoPNGBytes(); isPNG(data) {
 		return fyne.NewStaticResource("logo.png", data)
 	}
 	return nil
+}
+
+func isPNG(data []byte) bool {
+	return len(data) >= 8 && data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G'
 }

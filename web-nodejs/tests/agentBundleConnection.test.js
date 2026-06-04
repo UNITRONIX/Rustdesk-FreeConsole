@@ -16,13 +16,14 @@ test('buildServerUrls omits default https port', () => {
     assert.equal(urls.api_url, 'https://desk.example.com/api');
 });
 
-test('buildServerUrls bakes CDAP and console endpoints', () => {
+test('buildServerUrls bakes Go API and CDAP only (no web console)', () => {
     const urls = conn.buildServerUrls('desk.example.com', false, '21114');
     assert.equal(urls.address, 'http://desk.example.com:21114');
+    assert.equal(urls.api_url, 'http://desk.example.com:21114/api');
     assert.equal(urls.cdap_url, 'ws://desk.example.com:21122/cdap');
-    assert.equal(urls.console_url, 'http://desk.example.com:5000');
     assert.equal(urls.cdap_port, 21122);
-    assert.equal(urls.console_port, 5000);
+    assert.equal(urls.console_url, undefined);
+    assert.equal(urls.console_port, undefined);
 });
 
 test('connectionFingerprint compares host and TLS only', () => {

@@ -17,19 +17,19 @@ type ProbeResult struct {
 }
 
 type ConnCheck struct {
-	CDAP    ProbeResult
-	Console ProbeResult
+	CDAP ProbeResult
+	API  ProbeResult
 }
 
 func (c ConnCheck) AllOK() bool {
-	return c.CDAP.OK && c.Console.OK
+	return c.CDAP.OK && c.API.OK
 }
 
-// TestConnection probes the CDAP gateway and the web console health endpoints.
+// TestConnection probes the CDAP gateway and the Go management API.
 func TestConnection(b Branding) ConnCheck {
 	return ConnCheck{
-		CDAP:    probeHealth(b.CDAPHealthURL()),
-		Console: probeHealth(b.ConsoleHealthURL()),
+		CDAP: probeHealth(b.CDAPHealthURL()),
+		API:  probeHealth(b.APIHealthURL()),
 	}
 }
 
@@ -38,16 +38,19 @@ func probeHealth(endpoint string) ProbeResult {
 	if err != nil {
 		return ProbeResult{OK: false, Detail: shortenErr(err.Error()), Latency: latency}
 	}
-	if strings.Contains(endpoint, "/cdap/health") {
-		var parsed struct {
-			Status string `json:"status"`
-		}
-		if json.Unmarshal(body, &parsed) == nil && parsed.Status == "ok" {
-			return ProbeResult{OK: true, Detail: "gateway ok", Latency: latency}
-		}
-		return ProbeResult{OK: false, Detail: "unexpected gateway response", Latency: latency}
+	var parsed struct {
+		Status string `json:"status"`
 	}
-	return ProbeResult{OK: true, Detail: "console ok", Latency: latency}
+	if json.Unmarshal(body, &parsed) != nil || parsed.Status != "ok" {
+		return ProbeResult{OK: false, Detail: "unexpected response", Latency: latency}
+	}
+	detail := "ok"
+	if strings.Contains(endpoint, "/cdap/health") {
+		detail = "gateway ok"
+	} else if strings.Contains(endpoint, "/api/health") {
+		detail = "api ok"
+	}
+	return ProbeResult{OK: true, Detail: detail, Latency: latency}
 }
 
 func shortenErr(msg string) string {

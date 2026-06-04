@@ -35,12 +35,6 @@ function defaultCdapPort() {
     return 21122;
 }
 
-/** Node.js console HTTP port. */
-function defaultConsolePort() {
-    const p = parseInt(config.port, 10);
-    return Number.isFinite(p) && p > 0 ? p : 5000;
-}
-
 function formatOrigin(scheme, hostPart, port) {
     const omitPort = (scheme === 'https' && port === 443) || (scheme === 'http' && port === 80);
     return omitPort ? `${scheme}://${hostPart}` : `${scheme}://${hostPart}:${port}`;
@@ -99,17 +93,13 @@ function buildServerUrls(host, useHttps, apiPort) {
     const origin = `${scheme}://${authority}`;
 
     const cdapPort = defaultCdapPort();
-    const consolePort = defaultConsolePort();
     const cdapUrl = `${wsScheme}://${hostPart}:${cdapPort}/cdap`;
-    const consoleUrl = formatOrigin(scheme, hostPart, consolePort);
 
     return {
         address: origin,
         api_url: `${origin}/api`,
         cdap_port: cdapPort,
-        console_port: consolePort,
         cdap_url: cdapUrl,
-        console_url: consoleUrl,
     };
 }
 
@@ -137,7 +127,6 @@ function connectionFingerprint(branding) {
 module.exports = {
     defaultApiPort,
     defaultCdapPort,
-    defaultConsolePort,
     defaultServerHost,
     defaultUseHttps,
     normalizeServerHost,

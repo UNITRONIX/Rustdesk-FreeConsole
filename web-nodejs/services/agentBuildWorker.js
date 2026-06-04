@@ -632,22 +632,24 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {})
             await fsp.writeFile(path.join(stage, 'portable'), '', 'utf8');
             await fsp.writeFile(path.join(stage, 'README.txt'),
                 'BetterDesk Support Agent (portable)\r\n\r\n' +
-                'If the window fails with an OpenGL/WGL error (common in VMs or RDP):\r\n' +
-                '  1. Install "OpenGL Compatibility Pack" from Microsoft Store, or\r\n' +
-                '  2. Run: betterdesk-support.exe -nogui\r\n' +
-                '     (or use Uruchom-bez-okna.bat)\r\n\r\n' +
-                '-nogui runs the agent in the background without a window.\r\n' +
-                'Supervised session prompts require the normal GUI build.\r\n',
+                'Uruchom.bat (or double-click the .exe) starts the agent in the background.\r\n' +
+                'No OpenGL is required on Windows.\r\n\r\n' +
+                'Optional GUI (needs OpenGL/WGL): betterdesk-support.exe -gui\r\n' +
+                'Supervised access prompts need -gui; unattended mode works headless.\r\n',
                 'utf8');
-            await fsp.writeFile(path.join(stage, 'Uruchom-bez-okna.bat'),
-                '@echo off\r\nstart "" "%~dp0betterdesk-support.exe" -nogui\r\n',
+            await fsp.writeFile(path.join(stage, 'Uruchom.bat'),
+                '@echo off\r\nstart "" "%~dp0betterdesk-support.exe"\r\n',
+                'utf8');
+            await fsp.writeFile(path.join(stage, 'Uruchom-z-oknem.bat'),
+                '@echo off\r\nstart "" "%~dp0betterdesk-support.exe" -gui\r\n',
                 'utf8');
             const zipPath = path.join(packDir, `betterdesk-support-${label}-portable.zip`);
             await _runProcess('zip', ['-j', zipPath,
                 path.join(stage, baseName),
                 path.join(stage, 'portable'),
                 path.join(stage, 'README.txt'),
-                path.join(stage, 'Uruchom-bez-okna.bat'),
+                path.join(stage, 'Uruchom.bat'),
+                path.join(stage, 'Uruchom-z-oknem.bat'),
             ], { cwd: packDir });
             return zipPath;
         }

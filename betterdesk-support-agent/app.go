@@ -291,7 +291,7 @@ func (u *ui) showHelpDialog() {
 				return
 			}
 			go func() {
-				err := SendHelpRequest(u.brand, u.state.DeviceID, entry.Text)
+				err := SendHelpRequest(u.engine, u.brand, u.state, entry.Text)
 				if err != nil {
 					u.notify(t("help_failed"))
 					log.Printf("[support-agent] help request: %v", err)
@@ -327,7 +327,7 @@ func (u *ui) showConnTest() {
 		}
 		content := container.NewVBox(
 			wrapLabel(line(res.CDAP.OK, t("test_gateway"), res.CDAP)),
-			wrapLabel(line(res.Console.OK, t("test_console"), res.Console)),
+			wrapLabel(line(res.API.OK, t("test_api"), res.API)),
 		)
 		scroll := container.NewScroll(content)
 		scroll.SetMinSize(fyne.NewSize(440, 120))
@@ -404,8 +404,8 @@ func (u *ui) setupTray() {
 		fyne.NewMenuItem(t("request_help"), u.showHelpDialog),
 	)
 	deskApp.SetSystemTrayMenu(menu)
-	if res := u.brand.LogoResource(); res != nil {
-		deskApp.SetSystemTrayIcon(res)
+	if data := u.brand.LogoPNGBytes(); isPNG(data) {
+		deskApp.SetSystemTrayIcon(fyne.NewStaticResource("logo.png", data))
 	}
 	u.win.SetCloseIntercept(func() { u.win.Hide() })
 }

@@ -7,10 +7,7 @@ import (
 	"strings"
 )
 
-const (
-	defaultCDAPPort    = 21122
-	defaultConsolePort = 5000
-)
+const defaultCDAPPort = 21122
 
 // useTLS reports whether baked branding expects TLS for HTTP/WebSocket calls.
 func (b Branding) useTLS() bool {
@@ -49,13 +46,6 @@ func (b Branding) cdapPort() int {
 		return b.Server.CDAPPort
 	}
 	return defaultCDAPPort
-}
-
-func (b Branding) consolePort() int {
-	if b.Server != nil && b.Server.ConsolePort > 0 {
-		return b.Server.ConsolePort
-	}
-	return defaultConsolePort
 }
 
 func hostFromAddr(addr string) string {
@@ -111,28 +101,9 @@ func (b Branding) CDAPHealthURL() string {
 	return formatHostPort(host, b.cdapPort(), b.useTLS()) + "/cdap/health"
 }
 
-// ConsoleHealthURL is the Node.js console health probe target.
-func (b Branding) ConsoleHealthURL() string {
-	if b.Server != nil && strings.TrimSpace(b.Server.ConsoleURL) != "" {
-		base := strings.TrimRight(strings.TrimSpace(b.Server.ConsoleURL), "/")
-		return base + "/health"
-	}
-	host := hostFromAddr(b.ServerAddress)
-	return formatHostPort(host, b.consolePort(), b.useTLS()) + "/health"
-}
-
-// ConsoleAPIURL builds {origin}/api{path} for help-request routes.
-func (b Branding) ConsoleAPIURL(path string) string {
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	if b.Server != nil && strings.TrimSpace(b.Server.ConsoleURL) != "" {
-		base := strings.TrimRight(strings.TrimSpace(b.Server.ConsoleURL), "/")
-		return base + "/api" + path
-	}
-	host := hostFromAddr(b.ServerAddress)
-	origin := formatHostPort(host, b.consolePort(), b.useTLS())
-	return origin + "/api" + path
+// APIHealthURL is the Go management API health probe (enrollment, devices, branding).
+func (b Branding) APIHealthURL() string {
+	return apiBaseURL(b) + "/health"
 }
 
 // CDAPWebSocketURL is the remote-session gateway URL passed to the engine.

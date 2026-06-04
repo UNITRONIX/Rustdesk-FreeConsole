@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	bdagent "github.com/unitronix/betterdesk-agent/agent"
 )
@@ -170,4 +171,33 @@ func (e *Engine) Running() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.running
+}
+
+// RequestHelp sends help_request over the active CDAP session.
+func (e *Engine) RequestHelp(st *AppState, message string) error {
+	e.mu.Lock()
+	a := e.agent
+	running := e.running
+	e.mu.Unlock()
+	if !running || a == nil {
+		if err := e.Start(st); err != nil {
+			return fmt.Errorf("connect to gateway: %w", err)
+		}
+		for i := 0; i < 40; i++ {
+			e.mu.Lock()
+			a = e.agent
+			e.mu.Unlock()
+			if a != nil && a.Connected() {
+				break
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+		e.mu.Lock()
+		a = e.agent
+		e.mu.Unlock()
+	}
+	if a == nil {
+		return fmt.Errorf("gateway not connected")
+	}
+	return a.RequestHelp(message)
 }
