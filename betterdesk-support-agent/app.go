@@ -61,8 +61,8 @@ func run() {
 
 	u.win = a.NewWindow(brand.ProductName + " — " + t("window_title"))
 	u.win.SetContent(u.buildContent())
-	u.win.Resize(fyne.NewSize(420, 580))
-	u.win.SetFixedSize(true)
+	u.win.Resize(fyne.NewSize(480, 660))
+	u.win.SetFixedSize(false)
 	u.setupTray()
 
 	go u.consentLoop()
@@ -80,7 +80,7 @@ func (u *ui) bootstrapConnection() {
 		res, err := EnsureEnrolled(u.brand, u.state, version)
 		if err != nil {
 			log.Printf("[support-agent] enrollment: %v", err)
-			u.setStatus(t("enrollment_error"))
+			u.setStatus(t("enrollment_error") + " — " + shortenErr(err.Error()))
 			return
 		}
 		u.onEnrollmentUpdate(res)
@@ -90,7 +90,7 @@ func (u *ui) bootstrapConnection() {
 			}
 			_ = SyncAccessPassword(u.brand, u.state)
 		} else if res.Status == EnrollmentPending {
-			StartEnrollmentPoll(u.brand, u.state, 5*time.Second, u.onEnrollmentUpdate)
+			StartEnrollmentPoll(u.brand, u.state, version, 5*time.Second, u.onEnrollmentUpdate)
 		}
 		u.startStatusLoop()
 	}()
@@ -219,6 +219,7 @@ func (u *ui) buildContent() fyne.CanvasObject {
 	testBtn := widget.NewButtonWithIcon(t("test_connection"), theme.SearchIcon(), u.showConnTest)
 
 	u.statusLbl = widget.NewLabelWithStyle(t("status_ready"), fyne.TextAlignCenter, fyne.TextStyle{Italic: true})
+	u.statusLbl.Wrapping = fyne.TextWrapWord
 	u.updateStatus()
 
 	statusDot := canvas.NewRectangle(parseHexColor(u.brand.StatusReadyColor, color.RGBA{R: 0x22, G: 0xc5, B: 0x5e, A: 0xff}))
@@ -269,8 +270,7 @@ func (u *ui) buildHeader() fyne.CanvasObject {
 }
 
 func (u *ui) buildBodyLogo() fyne.CanvasObject {
-	if logo := u.brand.LogoBytes(); logo != nil {
-		res := fyne.NewStaticResource("logo", logo)
+	if res := u.brand.LogoResource(); res != nil {
 		img := canvas.NewImageFromResource(res)
 		img.FillMode = canvas.ImageFillContain
 		img.SetMinSize(fyne.NewSize(120, 80))
@@ -300,8 +300,14 @@ func (u *ui) showHelpDialog() {
 				u.notify(t("help_sent"))
 			}()
 		}, u.win)
-	form.Resize(fyne.NewSize(360, 220))
+	form.Resize(fyne.NewSize(420, 240))
 	form.Show()
+}
+
+func wrapLabel(text string) *widget.Label {
+	lbl := widget.NewLabel(text)
+	lbl.Wrapping = fyne.TextWrapWord
+	return lbl
 }
 
 func (u *ui) showConnTest() {
@@ -312,22 +318,26 @@ func (u *ui) showConnTest() {
 	go func() {
 		res := TestConnection(u.brand)
 		progress.Hide()
-			line := func(ok bool, name string, p ProbeResult) string {
-				mark := "✕"
-				if ok {
-					mark = "✓"
-				}
-				return mark + " " + name + " — " + p.Detail
+		line := func(ok bool, name string, p ProbeResult) string {
+			mark := "✕"
+			if ok {
+				mark = "✓"
 			}
-			content := container.NewVBox(
-				widget.NewLabel(line(res.CDAP.OK, t("test_gateway"), res.CDAP)),
-				widget.NewLabel(line(res.Console.OK, t("test_console"), res.Console)),
-			)
-			title := t("test_failed")
-			if res.AllOK() {
-				title = t("test_ok")
-			}
-			dialog.NewCustom(title, t("close"), content, u.win).Show()
+			return mark + " " + name + " — " + p.Detail
+		}
+		content := container.NewVBox(
+			wrapLabel(line(res.CDAP.OK, t("test_gateway"), res.CDAP)),
+			wrapLabel(line(res.Console.OK, t("test_console"), res.Console)),
+		)
+		scroll := container.NewScroll(content)
+		scroll.SetMinSize(fyne.NewSize(460, 100))
+		title := t("test_failed")
+		if res.AllOK() {
+			title = t("test_ok")
+		}
+		d := dialog.NewCustom(title, t("close"), scroll, u.win)
+		d.Resize(fyne.NewSize(520, 220))
+		d.Show()
 	}()
 }
 
@@ -394,8 +404,8 @@ func (u *ui) setupTray() {
 		fyne.NewMenuItem(t("request_help"), u.showHelpDialog),
 	)
 	deskApp.SetSystemTrayMenu(menu)
-	if logo := u.brand.LogoBytes(); logo != nil {
-		deskApp.SetSystemTrayIcon(fyne.NewStaticResource("tray", logo))
+	if res := u.brand.LogoResource(); res != nil {
+		deskApp.SetSystemTrayIcon(res)
 	}
 	u.win.SetCloseIntercept(func() { u.win.Hide() })
 }

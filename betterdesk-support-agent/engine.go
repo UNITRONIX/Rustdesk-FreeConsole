@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -55,7 +54,7 @@ func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*b
 	st.mu.Unlock()
 
 	cfg := bdagent.DefaultConfig()
-	cfg.Server = cdapWSURL(b)
+	cfg.Server = b.CDAPWebSocketURL()
 	cfg.AuthMethod = "device_token"
 	cfg.DeviceToken = token
 	cfg.DeviceID = deviceID
@@ -95,13 +94,10 @@ func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*b
 		cfg.RequireConsent = true
 	}
 
-	if b.ServerKey != "" {
-		cfg.ServerCertPin = b.ServerKey
-	}
-	if strings.HasPrefix(strings.TrimSpace(b.ServerAddress), "https://") {
+	if strings.HasPrefix(strings.TrimSpace(b.ServerAddress), "https://") || b.useTLS() {
 		cfg.EnforceTLS = true
 	}
-	if os.Getenv("BETTERDESK_AGENT_INSECURE_TLS") == "1" && cfg.ServerCertPin == "" {
+	if tlsInsecureEnabled() && cfg.ServerCertPin == "" {
 		cfg.TLSInsecureSkipVerify = true
 	}
 
@@ -125,30 +121,7 @@ func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*b
 
 // cdapWSURL builds the CDAP WebSocket URL from branding.
 func cdapWSURL(b Branding) string {
-	const cdapPort = 21122
-	addr := strings.TrimSpace(b.ServerAddress)
-	withScheme := addr
-	if !strings.HasPrefix(addr, "http://") && !strings.HasPrefix(addr, "https://") &&
-		!strings.HasPrefix(addr, "ws://") && !strings.HasPrefix(addr, "wss://") {
-		withScheme = "http://" + addr
-	}
-
-	wsScheme := "ws"
-	if strings.HasPrefix(withScheme, "https://") || os.Getenv("BETTERDESK_CDAP_TLS") == "1" {
-		wsScheme = "wss"
-	}
-
-	if u, err := url.Parse(withScheme); err == nil && u.Host != "" {
-		host := u.Hostname()
-		if host == "" {
-			host = "localhost"
-		}
-		if strings.Contains(host, ":") {
-			host = "[" + host + "]"
-		}
-		return fmt.Sprintf("%s://%s:%d/cdap", wsScheme, host, cdapPort)
-	}
-	return fmt.Sprintf("%s://%s:%d/cdap", wsScheme, addr, cdapPort)
+	return b.CDAPWebSocketURL()
 }
 
 // Start launches the engine when enrolled.

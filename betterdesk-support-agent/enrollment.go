@@ -61,7 +61,7 @@ func EnsureEnrolled(b Branding, st *AppState, version string) (EnrollmentStatus,
 	}
 
 	if status == EnrollmentPending && deviceID != "" {
-		return PollEnrollment(b, st)
+		return PollEnrollment(b, st, version)
 	}
 
 	return RegisterDevice(b, st, version)
@@ -137,7 +137,7 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 }
 
 // PollEnrollment GETs /api/devices/register/status.
-func PollEnrollment(b Branding, st *AppState) (EnrollmentStatus, error) {
+func PollEnrollment(b Branding, st *AppState, version string) (EnrollmentStatus, error) {
 	deviceID, _, _, _ := st.Snapshot()
 	url := fmt.Sprintf("%s/devices/register/status?device_id=%s", apiBaseURL(b), deviceID)
 
@@ -180,12 +180,12 @@ func PollEnrollment(b Branding, st *AppState) (EnrollmentStatus, error) {
 }
 
 // StartEnrollmentPoll runs until approved/rejected or ctx cancelled.
-func StartEnrollmentPoll(b Branding, st *AppState, interval time.Duration, onUpdate func(EnrollmentStatus)) {
+func StartEnrollmentPoll(b Branding, st *AppState, version string, interval time.Duration, onUpdate func(EnrollmentStatus)) {
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for range ticker.C {
-			res, err := PollEnrollment(b, st)
+			res, err := PollEnrollment(b, st, version)
 			if err != nil {
 				continue
 			}

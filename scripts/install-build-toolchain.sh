@@ -86,6 +86,8 @@ install_apt() {
         build-essential pkg-config curl wget git ca-certificates \
         libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
         libsoup-3.0-dev "$WEBKIT_PKG" \
+        libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev \
+        libxinerama-dev libxi-dev libxxf86vm-dev libxkbcommon-dev \
         nsis dpkg-dev rpm fakeroot \
         libfuse2t64 \
         mingw-w64 gcc-mingw-w64-x86-64
@@ -103,6 +105,8 @@ install_dnf() {
         @development-tools pkgconf-pkg-config curl wget git ca-certificates \
         openssl-devel gtk3-devel libappindicator-gtk3-devel librsvg2-devel \
         libsoup3-devel webkit2gtk4.1-devel \
+        libX11-devel libXcursor-devel libXrandr-devel libXinerama-devel \
+        libXi-devel libXxf86vm-devel mesa-libGL-devel libxkbcommon-devel \
         mingw64-gcc mingw64-gcc-c++ \
         nsis rpm-build dpkg fuse-libs \
         nodejs npm || true
@@ -201,7 +205,8 @@ BUILD_HOME=$BUILD_HOME
 CARGO_HOME=$CARGO_HOME_DIR
 RUSTUP_HOME=$RUSTUP_HOME_DIR
 CARGO_TARGET_DIR=$BUILD_CACHE_DIR
-PATH=$CARGO_HOME_DIR/bin:/usr/local/bin:/usr/bin:/bin
+GO_BIN=/usr/local/go/bin/go
+PATH=/usr/local/go/bin:$CARGO_HOME_DIR/bin:/usr/local/bin:/usr/bin:/bin
 EOF
 chmod 644 "$ENV_FILE"
 log "Wrote $ENV_FILE"
@@ -213,7 +218,7 @@ log "Wrote $ENV_FILE"
 log "Verifying installed tools…"
 sudo -u "$BUILD_USER" -H bash -lc "
     source \"\$HOME/.cargo/env\" 2>/dev/null || true
-    for c in cargo rustc cargo-tauri cargo-xwin pnpm node npm x86_64-w64-mingw32-gcc makensis dpkg-deb rpmbuild appimagetool; do
+    for c in go cargo rustc cargo-tauri cargo-xwin pnpm node npm x86_64-w64-mingw32-gcc makensis dpkg-deb rpmbuild appimagetool; do
         if command -v \$c >/dev/null 2>&1; then
             v=\$(\$c --version 2>/dev/null | head -1 || echo '?')
             printf '  \e[32mOK\e[0m   %-26s %s\n' \"\$c\" \"\$v\"

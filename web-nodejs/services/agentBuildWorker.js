@@ -268,12 +268,14 @@ async function _materialiseWorkspace(workDir, branding) {
     }
     await fsp.mkdir(workDir, { recursive: true });
     await _copyDir(SOURCE_ROOT, workDir);
-    // go.mod replace => ../betterdesk-agent — ensure sibling exists
+    // go.mod replace => ../betterdesk-agent — refresh sibling lib each build
+    // (legacy Tauri sidecar caches may leave binaries without go.mod here).
     const agentLibDest = path.join(workDir, '..', 'betterdesk-agent');
-    if (!fs.existsSync(path.join(agentLibDest, 'go.mod'))) {
-        await fsp.mkdir(path.dirname(agentLibDest), { recursive: true });
-        await _copyDir(AGENT_LIB_ROOT, agentLibDest);
+    if (fs.existsSync(agentLibDest)) {
+        await fsp.rm(agentLibDest, { recursive: true, force: true });
     }
+    await fsp.mkdir(path.dirname(agentLibDest), { recursive: true });
+    await _copyDir(AGENT_LIB_ROOT, agentLibDest);
     await fsp.mkdir(path.join(workDir, 'resources'), { recursive: true });
     await fsp.writeFile(
         path.join(workDir, 'resources', 'branding.json'),
@@ -326,8 +328,25 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {})
             await fsp.mkdir(stage, { recursive: true });
             await fsp.copyFile(binaryPath, path.join(stage, baseName));
             await fsp.writeFile(path.join(stage, 'portable'), '', 'utf8');
+            await fsp.writeFile(path.join(stage, 'README.txt'),
+                'BetterDesk Support Agent (portable)\r\n\r\n' +
+                'If the window fails with an OpenGL/WGL error (common in VMs or RDP):\r\n' +
+                '  1. Install "OpenGL Compatibility Pack" from Microsoft Store, or\r\n' +
+                '  2. Run: betterdesk-support.exe -nogui\r\n' +
+                '     (or use Uruchom-bez-okna.bat)\r\n\r\n' +
+                '-nogui runs the agent in the background without a window.\r\n' +
+                'Supervised session prompts require the normal GUI build.\r\n',
+                'utf8');
+            await fsp.writeFile(path.join(stage, 'Uruchom-bez-okna.bat'),
+                '@echo off\r\nstart "" "%~dp0betterdesk-support.exe" -nogui\r\n',
+                'utf8');
             const zipPath = path.join(packDir, `betterdesk-support-${label}-portable.zip`);
-            await _runProcess('zip', ['-j', zipPath, path.join(stage, baseName), path.join(stage, 'portable')], { cwd: packDir });
+            await _runProcess('zip', ['-j', zipPath,
+                path.join(stage, baseName),
+                path.join(stage, 'portable'),
+                path.join(stage, 'README.txt'),
+                path.join(stage, 'Uruchom-bez-okna.bat'),
+            ], { cwd: packDir });
             return zipPath;
         }
         case 'tar-portable': {

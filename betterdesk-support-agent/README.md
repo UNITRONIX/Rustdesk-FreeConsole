@@ -102,6 +102,21 @@ the binary; state is written to a `data/` folder beside it.
 **AppImage:** no marker needed — the runtime sets `APPIMAGE` and state is stored
 in `betterdesk-support-data/` next to the `.AppImage` file (the mount is read-only).
 
+### Windows without OpenGL (VM / RDP)
+
+Fyne needs a working OpenGL 2.0+ driver (WGL). If you see
+`WGL: The driver does not appear to support OpenGL`:
+
+1. Update the graphics driver, or install
+   [OpenGL Compatibility Pack](https://apps.microsoft.com/detail/9nqpsl29bfff) from Microsoft Store.
+2. Or run without GUI (remote engine only):
+
+```bat
+betterdesk-support.exe -nogui
+```
+
+Supervised consent prompts require the GUI; use unattended access mode for `-nogui`.
+
 ## Environment variables
 
 | Variable | Effect |

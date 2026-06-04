@@ -67,9 +67,14 @@ function finalizeBundleBrandingSync(input) {
         address: urls.address,
         api_url: urls.api_url,
         public_key: keyService.getPublicKey() || '',
+        cdap_port: urls.cdap_port,
+        console_port: urls.console_port,
+        cdap_url: urls.cdap_url,
+        console_url: urls.console_url,
     };
     branding.server_address = branding.server.address;
     branding.server_key = branding.server.public_key;
+    branding.use_https = !!useHttps;
     return branding;
 }
 

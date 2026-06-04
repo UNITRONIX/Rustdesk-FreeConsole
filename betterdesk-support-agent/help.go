@@ -7,15 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
 )
-
-// consolePort is the fixed Node.js console port that serves the help-request and
-// chat endpoints (the Go API on 21114 does not host them).
-const consolePort = 5000
 
 // helpRequestPayload mirrors the body the Node.js console route
 // (`/api/bd/help-request`) expects. Both new (message/hostname) and legacy
@@ -58,7 +53,7 @@ func CancelHelpRequest(b Branding, deviceID string) error {
 
 // postConsoleJSON sends a JSON POST to the console API with the device header.
 func postConsoleJSON(b Branding, path, deviceID string, body any) error {
-	endpoint := consoleURL(b.ServerAddress, path)
+	endpoint := b.ConsoleAPIURL(path)
 	data, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -75,9 +70,9 @@ func postConsoleJSON(b Branding, path, deviceID string, body any) error {
 	req.Header.Set("X-Device-Id", deviceID)
 
 	client := &http.Client{Timeout: 12 * time.Second}
-	if os.Getenv("BETTERDESK_AGENT_INSECURE_TLS") == "1" {
+	if strings.HasPrefix(endpoint, "https://") || tlsInsecureEnabled() {
 		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // opt-in for self-signed test servers
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: tlsInsecureEnabled()}, //nolint:gosec
 		}
 	}
 
@@ -91,23 +86,4 @@ func postConsoleJSON(b Branding, path, deviceID string, body any) error {
 		return fmt.Errorf("server returned %d", resp.StatusCode)
 	}
 	return nil
-}
-
-// consoleURL builds the console API URL: {scheme}://{host}:5000/api{path}.
-// Mirrors the Rust agent client's format_console_url so both clients target the
-// same console.
-func consoleURL(addr, path string) string {
-	addr = strings.TrimSpace(addr)
-	withScheme := addr
-	if !strings.HasPrefix(addr, "http://") && !strings.HasPrefix(addr, "https://") {
-		withScheme = "http://" + addr
-	}
-	if u, err := url.Parse(withScheme); err == nil && u.Host != "" {
-		host := u.Hostname()
-		if host == "" {
-			host = "localhost"
-		}
-		return fmt.Sprintf("%s://%s:%d/api%s", u.Scheme, host, consolePort, path)
-	}
-	return fmt.Sprintf("http://%s:%d/api%s", addr, consolePort, path)
 }

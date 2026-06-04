@@ -16,10 +16,14 @@ import (
 
 const defaultAPIPort = 21114
 
+func tlsInsecureEnabled() bool {
+	return os.Getenv("BETTERDESK_AGENT_INSECURE_TLS") == "1"
+}
+
 // apiHTTPClient returns an HTTP client for BetterDesk API calls.
 func apiHTTPClient(timeout time.Duration) *http.Client {
 	client := &http.Client{Timeout: timeout}
-	if os.Getenv("BETTERDESK_AGENT_INSECURE_TLS") == "1" {
+	if tlsInsecureEnabled() {
 		client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // opt-in dev
 		}
@@ -37,6 +41,9 @@ func apiBaseURL(b Branding) string {
 		return u + "/api"
 	}
 	scheme := schemeFromAddr(b.ServerAddress)
+	if b.useTLS() {
+		scheme = "https"
+	}
 	host := hostFromAddr(b.ServerAddress)
 	return fmt.Sprintf("%s://%s:%d/api", scheme, host, defaultAPIPort)
 }

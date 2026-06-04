@@ -28,6 +28,24 @@ function defaultApiPort() {
     }
 }
 
+/** CDAP WebSocket gateway port (BetterDesk Go server). */
+function defaultCdapPort() {
+    const fromEnv = parseInt(process.env.CDAP_PORT || process.env.SIGNAL_PORT, 10);
+    if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+    return 21122;
+}
+
+/** Node.js console HTTP port. */
+function defaultConsolePort() {
+    const p = parseInt(config.port, 10);
+    return Number.isFinite(p) && p > 0 ? p : 5000;
+}
+
+function formatOrigin(scheme, hostPart, port) {
+    const omitPort = (scheme === 'https' && port === 443) || (scheme === 'http' && port === 80);
+    return omitPort ? `${scheme}://${hostPart}` : `${scheme}://${hostPart}:${port}`;
+}
+
 /** Suggested host prefill from local server config. */
 function defaultServerHost() {
     try {
@@ -69,18 +87,29 @@ function normalizeServerHost(input) {
 }
 
 /**
- * Build server { address, api_url } from host + TLS preference.
+ * Build server { address, api_url, cdap/console ports and URLs } from host + TLS.
  */
 function buildServerUrls(host, useHttps, apiPort) {
     const port = String(apiPort || defaultApiPort());
     const scheme = useHttps ? 'https' : 'http';
+    const wsScheme = useHttps ? 'wss' : 'ws';
     const omitPort = (scheme === 'https' && port === '443') || (scheme === 'http' && port === '80');
     const hostPart = host.includes(':') ? `[${host}]` : host;
     const authority = omitPort ? hostPart : `${hostPart}:${port}`;
     const origin = `${scheme}://${authority}`;
+
+    const cdapPort = defaultCdapPort();
+    const consolePort = defaultConsolePort();
+    const cdapUrl = `${wsScheme}://${hostPart}:${cdapPort}/cdap`;
+    const consoleUrl = formatOrigin(scheme, hostPart, consolePort);
+
     return {
         address: origin,
         api_url: `${origin}/api`,
+        cdap_port: cdapPort,
+        console_port: consolePort,
+        cdap_url: cdapUrl,
+        console_url: consoleUrl,
     };
 }
 
@@ -107,6 +136,8 @@ function connectionFingerprint(branding) {
 
 module.exports = {
     defaultApiPort,
+    defaultCdapPort,
+    defaultConsolePort,
     defaultServerHost,
     defaultUseHttps,
     normalizeServerHost,

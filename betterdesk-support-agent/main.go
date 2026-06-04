@@ -23,8 +23,14 @@ func main() {
 		showVer   = flag.Bool("version", false, "Print version and exit")
 		doInstall = flag.Bool("install", false, "Install to a per-user location and enable autostart")
 		doUninst  = flag.Bool("uninstall", false, "Remove autostart entry and installed binary")
+		noGUI     = flag.Bool("nogui", false, "Run without graphical interface (no OpenGL required)")
 	)
 	flag.Parse()
+
+	if *noGUI || os.Getenv("BETTERDESK_SUPPORT_NOGUI") == "1" {
+		runHeadless()
+		return
+	}
 
 	if *showVer {
 		fmt.Printf("betterdesk-support-agent %s\n", version)

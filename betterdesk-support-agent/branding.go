@@ -13,9 +13,13 @@ import (
 var brandingJSON []byte
 
 type ServerBranding struct {
-	Address   string `json:"address"`
-	APIURL    string `json:"api_url"`
-	PublicKey string `json:"public_key"`
+	Address     string `json:"address"`
+	APIURL      string `json:"api_url"`
+	PublicKey   string `json:"public_key"`
+	CDAPPort    int    `json:"cdap_port,omitempty"`
+	ConsolePort int    `json:"console_port,omitempty"`
+	CDAPURL     string `json:"cdap_url,omitempty"`
+	ConsoleURL  string `json:"console_url,omitempty"`
 }
 
 type Branding struct {
@@ -45,6 +49,7 @@ type Branding struct {
 	APIKey           string          `json:"api_key"`
 	BundleID         string          `json:"bundle_id"`
 	EnrollmentToken  string          `json:"enrollment_token"`
+	UseHTTPS         bool            `json:"use_https"`
 	Server           *ServerBranding `json:"server,omitempty"`
 }
 

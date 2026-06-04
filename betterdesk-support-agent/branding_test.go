@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -72,9 +73,12 @@ func TestAPIBaseURL(t *testing.T) {
 }
 
 func TestCdapWSURLHTTPS(t *testing.T) {
-	b := Branding{ServerAddress: "https://desk.example.com:5443"}.normalize()
+	b := Branding{ServerAddress: "https://desk.example.com:5443", UseHTTPS: true}.normalize()
 	got := cdapWSURL(b)
 	if got[:6] != "wss://" {
 		t.Fatalf("expected wss, got %q", got)
+	}
+	if !strings.Contains(got, ":21122/cdap") {
+		t.Fatalf("expected default cdap port, got %q", got)
 	}
 }

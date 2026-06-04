@@ -3210,6 +3210,10 @@ update_from_github() {
     fi
     rm -f "$npm_log"
 
+    # Stage Go support-agent source for the Generator build worker
+    print_step "Staging support-agent source for Generator builds..."
+    stage_support_agent_source "$clone_dir" || print_warning "Support-agent source staging skipped"
+
     # Merge any new .env keys from .env.example (preserve operator settings — issue #158)
     print_step "Merging new .env configuration keys..."
     merge_console_env false || print_warning ".env merge skipped (merge-env.js unavailable)"
@@ -4118,6 +4122,58 @@ CREDEOF
 # Build Functions
 #===============================================================================
 
+# Stage Go support-agent sources where the Node.js build worker expects them.
+# Called after console updates and toolchain install so Generator builds work
+# without a full git checkout on the production host.
+stage_support_agent_source() {
+    local repo_root="${1:-$SCRIPT_DIR}"
+    local console_path="${CONSOLE_PATH:-/opt/BetterDeskConsole}"
+    local base="$console_path/agent-source"
+    local build_user="${SUDO_USER:-${BUILD_USER:-unitronix}}"
+
+    local support_src="$repo_root/betterdesk-support-agent"
+    local agent_lib_src="$repo_root/betterdesk-agent"
+    local support_dst="$base/betterdesk-support-agent"
+    local agent_lib_dst="$base/betterdesk-agent"
+
+    if [ ! -f "$support_src/build.sh" ]; then
+        print_warning "Support agent source not found: $support_src (Generator builds will fail)"
+        return 1
+    fi
+
+    mkdir -p "$base"
+    local staged=0
+    for pair in "$support_src:$support_dst" "$agent_lib_src:$agent_lib_dst"; do
+        local src="${pair%%:*}"
+        local dst="${pair#*:}"
+        if [ ! -d "$src" ]; then
+            print_warning "Missing agent source tree: $src"
+            continue
+        fi
+        if command -v rsync &>/dev/null; then
+            rsync -a --delete \
+                --exclude '.git/' \
+                --exclude 'dist/' \
+                --exclude 'data/' \
+                "$src/" "$dst/"
+        else
+            rm -rf "$dst"
+            mkdir -p "$dst"
+            cp -a "$src/." "$dst/"
+        fi
+        staged=$((staged + 1))
+    done
+
+    if [ "$staged" -eq 0 ]; then
+        print_error "No support-agent sources staged"
+        return 1
+    fi
+
+    chown -R "$build_user:$build_user" "$base" 2>/dev/null || true
+    print_success "Go support-agent source staged at $base"
+    return 0
+}
+
 # Install the toolchain used by the Node.js console worker to compile branded
 # agent installers (cargo + rustup + tauri-cli + cargo-xwin + nsis + rpm +
 # appimagetool + mingw-w64). Runs the standalone script shipped alongside the
@@ -4166,21 +4222,7 @@ do_install_build_toolchain() {
 
     local rc=$?
     if [ $rc -eq 0 ]; then
-        # Stage the agent-client source where the build worker expects it,
-        # so each console build doesn't need to know about the git checkout.
-        local agent_src="$script_dir/betterdesk-agent-client"
-        local agent_dst="/opt/BetterDeskConsole/agent-source/betterdesk-agent-client"
-        if [ -d "$agent_src/src-tauri" ]; then
-            mkdir -p "$(dirname "$agent_dst")"
-            rsync -a --delete \
-                --exclude node_modules \
-                --exclude target \
-                --exclude dist \
-                "$agent_src/" "$agent_dst/"
-            chown -R "${SUDO_USER:-${BUILD_USER:-unitronix}}:${SUDO_USER:-${BUILD_USER:-unitronix}}" \
-                "$(dirname "$agent_dst")" 2>/dev/null || true
-            print_success "Agent source staged at $agent_dst"
-        fi
+        stage_support_agent_source "$script_dir" || true
         print_success "Build toolchain installed."
         print_info "Restart the console service to pick up new PATH:"
         print_info "  sudo systemctl restart betterdesk-console"

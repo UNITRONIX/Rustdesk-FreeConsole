@@ -38,7 +38,13 @@ if [ -n "$BRANDING" ]; then
         echo "ERROR: branding file not found: $BRANDING" >&2
         exit 1
     fi
-    cp "$BRANDING" resources/branding.json
+    mkdir -p resources
+    dest="resources/branding.json"
+    branding_abs="$(readlink -f "$BRANDING" 2>/dev/null || realpath "$BRANDING" 2>/dev/null || echo "$BRANDING")"
+    dest_abs="$(readlink -f "$dest" 2>/dev/null || realpath "$dest" 2>/dev/null || echo "$(pwd)/$dest")"
+    if [ "$branding_abs" != "$dest_abs" ]; then
+        cp "$BRANDING" "$dest"
+    fi
     echo "Baked branding from $BRANDING"
 fi
 
@@ -50,6 +56,10 @@ if [ -z "$OUTPUT" ]; then
 fi
 
 echo "Building $OUTPUT (GOOS=$TARGET_OS) ..."
+if [ "$TARGET_OS" = "windows" ]; then
+    export CC="${CC:-x86_64-w64-mingw32-gcc}"
+    export CXX="${CXX:-x86_64-w64-mingw32-g++}"
+fi
 GOOS="$TARGET_OS" CGO_ENABLED=1 go build -trimpath \
     -tags release \
     -ldflags "-s -w" \
