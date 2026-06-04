@@ -80,13 +80,13 @@ function _resolveGoBin() {
     for (const c of candidates) {
         if (_goBinaryHealthy(c)) return c;
     }
-    return _resolveBin(candidates.filter(Boolean));
+    return null;
 }
 
 let _activeGoBin = _resolveGoBin();
 
 function getGoBin() {
-    if (_goBinaryHealthy(_activeGoBin)) return _activeGoBin;
+    if (_activeGoBin && _goBinaryHealthy(_activeGoBin)) return _activeGoBin;
     _activeGoBin = _resolveGoBin();
     return _activeGoBin;
 }
@@ -112,6 +112,9 @@ const BASE_BUILD_ENV = {
 
 function _buildEnv(extra = {}) {
     const goBin = getGoBin();
+    if (!goBin) {
+        throw new Error('Go toolchain not available');
+    }
     const goDir = path.dirname(goBin);
     return {
         ...BASE_BUILD_ENV,

@@ -833,6 +833,24 @@ function compareGoVersion(a, b) {
     return 0;
 }
 
+/** Verify stdlib is intact — broken/partial Go installs fail here before compile. */
+function goStdlibHealthy(binPath) {
+    if (!binPath || !fs.existsSync(binPath)) return false;
+    try {
+        execSync(`${quoteCommand(binPath)} list encoding/png`, {
+            timeout: 20000,
+            stdio: 'pipe',
+            env: {
+                ...process.env,
+                PATH: `${path.dirname(binPath)}:${process.env.PATH || ''}`,
+            },
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Download a binary file via HTTPS (with up to 5 redirects).
  * @returns {Promise<Buffer>}
@@ -908,6 +926,11 @@ async function installGoToolchain(onProgress) {
     let installed = null;
     if (fs.existsSync(goBin)) {
         installed = probeGoBinary(goBin, 'vendored');
+        if (installed && !goStdlibHealthy(goBin)) {
+            log('repairing', 'vendored Go stdlib incomplete — reinstalling');
+            installed = null;
+            try { fs.rmSync(goRoot, { recursive: true, force: true }); } catch (_e) { /* ignore */ }
+        }
     }
 
     let release;
@@ -915,7 +938,7 @@ async function installGoToolchain(onProgress) {
         log('resolving', 'go.dev/dl');
         release = await resolveGoRelease();
     } catch (err) {
-        if (installed?.meetsMinimum) {
+        if (installed?.meetsMinimum && goStdlibHealthy(goBin)) {
             log('ready', installed.version);
             return { success: true, binPath: goBin, version: installed.version, reused: true };
         }
@@ -923,8 +946,13 @@ async function installGoToolchain(onProgress) {
     }
 
     if (installed?.versionNumber && compareGoVersion(installed.versionNumber, release.version) >= 0) {
-        log('ready', installed.version);
-        return { success: true, binPath: goBin, version: installed.version, reused: true };
+        if (goStdlibHealthy(goBin)) {
+            log('ready', installed.version);
+            return { success: true, binPath: goBin, version: installed.version, reused: true };
+        }
+        log('repairing', 'vendored Go stdlib incomplete — reinstalling');
+        try { fs.rmSync(goRoot, { recursive: true, force: true }); } catch (_e) { /* ignore */ }
+        installed = null;
     }
 
     if (installed?.version) {
@@ -970,6 +998,9 @@ async function installGoToolchain(onProgress) {
         }
 
         const v = execSync(`"${goBin}" version`, { timeout: 5000, stdio: 'pipe' }).toString().trim();
+        if (!goStdlibHealthy(goBin)) {
+            return { success: false, binPath: null, version: null, error: 'Go toolchain extracted but stdlib verification failed' };
+        }
         log('ready', v);
         return { success: true, binPath: goBin, version: v };
     } catch (err) {
