@@ -126,12 +126,12 @@ esac
 # ---------------------------------------------------------------------------
 
 install_go() {
-    local GO_VERSION="${GO_VERSION:-1.26.4}"
+    local GO_VERSION="${GO_VERSION:-1.25.11}"
     local GO_TAR="go${GO_VERSION}.linux-amd64.tar.gz"
     local GO_URL="https://go.dev/dl/${GO_TAR}"
     local GO_ROOT="/usr/local/go"
 
-    if [ -x "$GO_ROOT/bin/go" ] && "$GO_ROOT/bin/go" list encoding/png >/dev/null 2>&1; then
+    if [ -x "$GO_ROOT/bin/go" ] && GOROOT="$GO_ROOT" "$GO_ROOT/bin/go" list encoding/json >/dev/null 2>&1; then
         log "Go OK: $($GO_ROOT/bin/go version)"
         return 0
     fi
@@ -144,8 +144,8 @@ install_go() {
     tar -C /usr/local -xzf "$tmp/$GO_TAR"
     rm -rf "$tmp"
 
-    if ! "$GO_ROOT/bin/go" list encoding/png >/dev/null 2>&1; then
-        err "Go install verification failed (encoding/png)"
+    if ! GOROOT="$GO_ROOT" "$GO_ROOT/bin/go" list encoding/json >/dev/null 2>&1; then
+        err "Go install verification failed (encoding/json)"
         exit 3
     fi
     log "Go installed: $($GO_ROOT/bin/go version)"

@@ -10,6 +10,21 @@ import (
 	"time"
 )
 
+type ProbeResult struct {
+	OK      bool
+	Detail  string
+	Latency time.Duration
+}
+
+type ConnCheck struct {
+	CDAP    ProbeResult
+	Console ProbeResult
+}
+
+func (c ConnCheck) AllOK() bool {
+	return c.CDAP.OK && c.Console.OK
+}
+
 // TestConnection probes the CDAP gateway and the web console health endpoints.
 func TestConnection(b Branding) ConnCheck {
 	return ConnCheck{
@@ -53,7 +68,7 @@ func httpGet(endpoint string) ([]byte, time.Duration, error) {
 	}
 
 	client := &http.Client{Timeout: 8 * time.Second}
-	if strings.HasPrefix(endpoint, "https://") || tlsInsecureEnabled() {
+	if strings.HasPrefix(endpoint, "https://") {
 		client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: tlsInsecureEnabled()}, //nolint:gosec
 		}

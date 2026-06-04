@@ -2,11 +2,10 @@ package main
 
 import (
 	"bytes"
-	stdpng "encoding/png"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
-	_ "image/png"
+	"image/png"
 
 	"fyne.io/fyne/v2"
 )
@@ -24,7 +23,7 @@ func (b Branding) LogoPNGBytes() []byte {
 		return nil
 	}
 	var buf bytes.Buffer
-	if err := stdpng.Encode(&buf, img); err != nil {
+	if err := png.Encode(&buf, img); err != nil {
 		return nil
 	}
 	return buf.Bytes()

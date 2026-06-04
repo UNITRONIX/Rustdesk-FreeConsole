@@ -1,7 +1,6 @@
 package main
 
 import (
-	"image/color"
 	"log"
 	"time"
 
@@ -26,6 +25,7 @@ type ui struct {
 	pwShown   bool
 	pwLabel   *widget.Label
 	statusLbl *widget.Label
+	statusDot *canvas.Rectangle
 	consentCh chan consentRequest
 }
 
@@ -60,9 +60,13 @@ func run() {
 	u.engine.SetCallbacks(u.handleConsent, u.handleSessionStart, u.handleSessionEnd)
 
 	u.win = a.NewWindow(brand.ProductName + " — " + t("window_title"))
-	u.win.SetContent(u.buildContent())
-	u.win.Resize(fyne.NewSize(480, 660))
-	u.win.SetFixedSize(false)
+	const winW, winH float32 = 480, 660
+	body := u.buildContent()
+	scroll := container.NewScroll(body)
+	scroll.SetMinSize(fyne.NewSize(winW, winH))
+	u.win.SetContent(scroll)
+	u.win.Resize(fyne.NewSize(winW, winH))
+	u.win.SetFixedSize(true)
 	u.setupTray()
 
 	go u.consentLoop()
@@ -80,7 +84,7 @@ func (u *ui) bootstrapConnection() {
 		res, err := EnsureEnrolled(u.brand, u.state, version)
 		if err != nil {
 			log.Printf("[support-agent] enrollment: %v", err)
-			u.setStatus(t("enrollment_error") + " — " + shortenErr(err.Error()))
+			u.applyStatus(statusKindError, t("enrollment_error")+" — "+shortenErr(err.Error()))
 			return
 		}
 		u.onEnrollmentUpdate(res)
@@ -99,7 +103,7 @@ func (u *ui) bootstrapConnection() {
 func (u *ui) onEnrollmentUpdate(res EnrollmentStatus) {
 	switch res.Status {
 	case EnrollmentApproved:
-		u.setStatus(t("connected"))
+		u.applyStatus(statusKindConnected, t("connected"))
 		if !u.engine.Running() {
 			_ = u.engine.Start(u.state)
 			_ = SyncAccessPassword(u.brand, u.state)
@@ -109,17 +113,11 @@ func (u *ui) onEnrollmentUpdate(res EnrollmentStatus) {
 		if res.Message != "" {
 			msg = res.Message
 		}
-		u.setStatus(msg)
+		u.applyStatus(statusKindPending, msg)
 	case EnrollmentRejected:
-		u.setStatus(t("enrollment_rejected"))
+		u.applyStatus(statusKindError, t("enrollment_rejected"))
 	default:
-		u.setStatus(t("disconnected"))
-	}
-}
-
-func (u *ui) setStatus(text string) {
-	if u.statusLbl != nil {
-		u.statusLbl.SetText(text)
+		u.applyStatus(statusKindPending, t("disconnected"))
 	}
 }
 
@@ -218,14 +216,16 @@ func (u *ui) buildContent() fyne.CanvasObject {
 
 	testBtn := widget.NewButtonWithIcon(t("test_connection"), theme.SearchIcon(), u.showConnTest)
 
-	u.statusLbl = widget.NewLabelWithStyle(t("status_ready"), fyne.TextAlignCenter, fyne.TextStyle{Italic: true})
-	u.statusLbl.Wrapping = fyne.TextWrapWord
-	u.updateStatus()
+	u.statusLbl = widget.NewLabelWithStyle(t("status_ready"), fyne.TextAlignLeading, fyne.TextStyle{Italic: true})
+	u.statusLbl.Wrapping = fyne.TextWrapOff
 
-	statusDot := canvas.NewRectangle(parseHexColor(u.brand.StatusReadyColor, color.RGBA{R: 0x22, G: 0xc5, B: 0x5e, A: 0xff}))
-	statusDot.SetMinSize(fyne.NewSize(10, 10))
-	statusDot.CornerRadius = 5
-	statusRow := container.NewHBox(statusDot, u.statusLbl)
+	u.statusDot = canvas.NewRectangle(statusColor(statusKindReady, u.brand))
+	u.statusDot.SetMinSize(fyne.NewSize(10, 10))
+	u.statusDot.CornerRadius = 5
+	dotBox := container.NewCenter(u.statusDot)
+	dotBox.Resize(fyne.NewSize(18, 18))
+	statusRow := container.NewBorder(nil, nil, dotBox, nil, u.statusLbl)
+	u.updateStatus()
 
 	items := []fyne.CanvasObject{header}
 	if bodyLogo != nil {
@@ -245,7 +245,7 @@ func (u *ui) buildContent() fyne.CanvasObject {
 		helpBtn,
 		testBtn,
 	)
-	return container.NewVBox(items...)
+	return container.NewPadded(container.NewVBox(items...))
 }
 
 func (u *ui) accessModeOptions() []string {
@@ -330,7 +330,7 @@ func (u *ui) showConnTest() {
 			wrapLabel(line(res.Console.OK, t("test_console"), res.Console)),
 		)
 		scroll := container.NewScroll(content)
-		scroll.SetMinSize(fyne.NewSize(460, 100))
+		scroll.SetMinSize(fyne.NewSize(440, 120))
 		title := t("test_failed")
 		if res.AllOK() {
 			title = t("test_ok")

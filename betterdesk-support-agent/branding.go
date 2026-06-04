@@ -118,6 +118,14 @@ func (b Branding) normalize() Branding {
 		if b.ServerKey == "" {
 			b.ServerKey = b.Server.PublicKey
 		}
+		if !b.UseHTTPS {
+			for _, u := range []string{b.Server.Address, b.Server.ConsoleURL, b.Server.APIURL, b.Server.CDAPURL} {
+				if strings.HasPrefix(strings.TrimSpace(u), "https://") || strings.HasPrefix(strings.TrimSpace(u), "wss://") {
+					b.UseHTTPS = true
+					break
+				}
+			}
+		}
 	}
 
 	d := brandingDefaults()

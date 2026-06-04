@@ -32,7 +32,7 @@ func runHeadless() {
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	<-sig
 	log.Printf("[support-agent] shutting down")
-	_ = engine.Stop()
+	engine.Stop()
 }
 
 func headlessBootstrap(brand Branding, st *AppState, engine *Engine) {
@@ -50,7 +50,7 @@ func headlessBootstrap(brand Branding, st *AppState, engine *Engine) {
 		_ = SyncAccessPassword(brand, st)
 	case EnrollmentPending:
 		log.Printf("[support-agent] enrollment pending: %s", res.Message)
-		StartEnrollmentPoll(brand, st, 5*time.Second, func(u EnrollmentStatus) {
+		StartEnrollmentPoll(brand, st, version, 5*time.Second, func(u EnrollmentStatus) {
 			if u.Status == EnrollmentApproved && !engine.Running() {
 				_ = engine.Start(st)
 				_ = SyncAccessPassword(brand, st)

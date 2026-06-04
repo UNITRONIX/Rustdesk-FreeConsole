@@ -17,34 +17,34 @@ func (u *ui) startStatusLoop() {
 	}()
 }
 
-// updateStatus reflects enrollment and engine state in the status label.
+// updateStatus reflects enrollment and engine state in the status label and dot.
 func (u *ui) updateStatus() {
 	if u.statusLbl == nil {
 		return
 	}
 	if !u.brand.HasConnection() {
-		u.statusLbl.SetText("")
+		u.applyStatus(statusKindReady, t("status_ready"))
 		return
 	}
 	status, _, _ := u.state.EnrollmentSnapshot()
 	switch status {
 	case EnrollmentPending:
-		u.statusLbl.SetText(t("enrollment_pending"))
+		u.applyStatus(statusKindPending, t("enrollment_pending"))
 		return
 	case EnrollmentRejected:
-		u.statusLbl.SetText(t("enrollment_rejected"))
+		u.applyStatus(statusKindError, t("enrollment_rejected"))
 		return
 	case EnrollmentApproved:
 		if u.engine.Running() {
-			u.statusLbl.SetText(t("connected"))
+			u.applyStatus(statusKindConnected, t("connected"))
 		} else {
-			u.statusLbl.SetText(t("disconnected"))
+			u.applyStatus(statusKindPending, t("disconnected"))
 		}
 		return
 	}
 	if u.engine.Running() {
-		u.statusLbl.SetText(t("connected"))
+		u.applyStatus(statusKindConnected, t("connected"))
 	} else {
-		u.statusLbl.SetText(t("status_ready"))
+		u.applyStatus(statusKindReady, t("status_ready"))
 	}
 }

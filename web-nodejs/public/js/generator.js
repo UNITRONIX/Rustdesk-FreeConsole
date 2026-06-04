@@ -15,10 +15,15 @@
 
     async function api(method, url, body) {
         const headers = { 'Accept': 'application/json' };
-        if (body !== undefined) headers['Content-Type'] = 'application/json';
+        const writeMethods = method === 'POST' || method === 'PUT' || method === 'PATCH';
+        if (writeMethods) headers['Content-Type'] = 'application/json';
         if (method !== 'GET' && method !== 'HEAD') headers['X-CSRF-Token'] = csrf();
         const opts = { method, headers, credentials: 'same-origin' };
-        if (body !== undefined) opts.body = JSON.stringify(body);
+        if (body !== undefined) {
+            opts.body = JSON.stringify(body);
+        } else if (writeMethods) {
+            opts.body = '{}';
+        }
         const res = await fetch(url, opts);
         const ct = (res.headers.get('content-type') || '');
         const data = ct.includes('application/json') ? await res.json() : null;

@@ -834,13 +834,20 @@ function compareGoVersion(a, b) {
     return 0;
 }
 
-/** Verify stdlib can compile — go list is unreliable on some Go 1.26 installs. */
-function goStdlibHealthy(binPath) {
-    if (!binPath || !fs.existsSync(binPath)) return false;
-    const goEnv = {
+function goEnvForBin(binPath) {
+    const goroot = path.dirname(path.dirname(binPath));
+    return {
         ...process.env,
+        GOROOT: goroot,
+        GO111MODULE: 'off',
         PATH: `${path.dirname(binPath)}:${process.env.PATH || ''}`,
     };
+}
+
+/** Verify stdlib can compile — go list is unreliable on some Go installs. */
+function goStdlibHealthy(binPath) {
+    if (!binPath || !fs.existsSync(binPath)) return false;
+    const goEnv = goEnvForBin(binPath);
     try {
         execSync(`${quoteCommand(binPath)} version`, { timeout: 10000, stdio: 'pipe', env: goEnv });
     } catch {
@@ -850,11 +857,12 @@ function goStdlibHealthy(binPath) {
     try {
         const src = path.join(tmpDir, 'probe.go');
         const out = path.join(tmpDir, IS_WINDOWS ? 'probe.exe' : 'probe');
-        fs.writeFileSync(src, 'package main\nimport _ "encoding/png"\nfunc main() {}\n');
+        fs.writeFileSync(src, 'package main\nimport _ "encoding/json"\nfunc main() {}\n');
         execSync(`${quoteCommand(binPath)} build -o ${quoteCommand(out)} ${quoteCommand(src)}`, {
             timeout: 120000,
             stdio: 'pipe',
             env: goEnv,
+            cwd: tmpDir,
         });
         return true;
     } catch {

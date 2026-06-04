@@ -118,11 +118,13 @@ function _buildEnv(extra = {}) {
         throw new Error('Go toolchain not available');
     }
     const goDir = path.dirname(goBin);
+    const goroot = path.dirname(goDir);
     return {
         ...BASE_BUILD_ENV,
         ...extra,
         GO_BIN: goBin,
-        PATH: `${goDir}:/usr/local/go/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
+        GOROOT: goroot,
+        PATH: `${goDir}:/usr/bin:/bin:${process.env.PATH || ''}`,
     };
 }
 
@@ -238,7 +240,7 @@ async function requeueFailedToolchainBuilds() {
         for (const row of builds) {
             const err = String(row.error_message || '');
             if (row.status !== 'failed') continue;
-            if (!/encoding\/png|not in std|Go toolchain|stdlib verification/i.test(err)) continue;
+            if (!/not in std|Go toolchain|stdlib verification/i.test(err)) continue;
             await db.upsertAgentBundleBuild({
                 brandingHash: row.branding_hash,
                 platform: row.platform,
