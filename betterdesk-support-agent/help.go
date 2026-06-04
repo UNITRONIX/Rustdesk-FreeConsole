@@ -12,7 +12,14 @@ func SendHelpRequest(engine *Engine, brand Branding, st *AppState, message strin
 	if !brand.HasConnection() {
 		return fmt.Errorf("no server address configured")
 	}
-	if !st.IsEnrolled() {
+	enrolled := st.IsEnrolled()
+	// #region agent log
+	debugLog("H4", "help.go:SendHelpRequest", "entry", map[string]any{
+		"is_enrolled": enrolled, "engine_running": engine != nil && engine.Running(),
+		"api_base": apiBaseURL(brand),
+	})
+	// #endregion
+	if !enrolled {
 		return fmt.Errorf("device not enrolled")
 	}
 	message = strings.TrimSpace(message)
@@ -21,13 +28,32 @@ func SendHelpRequest(engine *Engine, brand Branding, st *AppState, message strin
 	}
 
 	if engine != nil {
-		if err := engine.RequestHelp(st, message); err == nil {
+		cdapErr := engine.RequestHelp(st, message)
+		if cdapErr == nil {
+			// #region agent log
+			debugLog("H7", "help.go:SendHelpRequest", "cdap help ok", nil)
+			// #endregion
 			return nil
-		} else if !isHelpGatewayError(err) {
-			return err
 		}
+		if !isHelpGatewayError(cdapErr) {
+			// #region agent log
+			debugLog("H7", "help.go:SendHelpRequest", "cdap help fatal", map[string]any{"error": cdapErr.Error()})
+			// #endregion
+			return cdapErr
+		}
+		// #region agent log
+		debugLog("H7", "help.go:SendHelpRequest", "cdap help fallback", map[string]any{"error": cdapErr.Error()})
+		// #endregion
 	}
-	return sendHelpViaAPI(brand, st, message)
+	err := sendHelpViaAPI(brand, st, message)
+	// #region agent log
+	if err != nil {
+		debugLog("H7", "help.go:SendHelpRequest", "rest help failed", map[string]any{"error": err.Error()})
+	} else {
+		debugLog("H7", "help.go:SendHelpRequest", "rest help ok", nil)
+	}
+	// #endregion
+	return err
 }
 
 func isHelpGatewayError(err error) bool {

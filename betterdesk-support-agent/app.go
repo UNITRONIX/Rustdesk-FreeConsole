@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -81,12 +82,33 @@ func run() {
 
 func (u *ui) bootstrapConnection() {
 	go func() {
+		// #region agent log
+		debugLog("H1", "app.go:bootstrapConnection", "branding connection profile", map[string]any{
+			"server_address":  u.brand.ServerAddress,
+			"api_base":        apiBaseURL(u.brand),
+			"cdap_health":     u.brand.CDAPHealthURL(),
+			"cdap_ws":         u.brand.CDAPWebSocketURL(),
+			"use_https":       u.brand.UseHTTPS,
+			"has_bundle_token": strings.TrimSpace(u.brand.EnrollmentToken) != "",
+			"bundle_id":       u.brand.BundleID,
+			"device_id":       u.state.DeviceID,
+		})
+		// #endregion
 		res, err := EnsureEnrolled(u.brand, u.state, version)
 		if err != nil {
 			log.Printf("[support-agent] enrollment: %v", err)
+			// #region agent log
+			debugLog("H2", "app.go:bootstrapConnection", "enrollment failed", map[string]any{"error": err.Error()})
+			// #endregion
 			u.applyStatus(statusKindError, t("enrollment_error")+" — "+shortenErr(err.Error()))
 			return
 		}
+		// #region agent log
+		debugLog("H4", "app.go:bootstrapConnection", "enrollment result", map[string]any{
+			"status": res.Status, "token_len": len(res.DeviceToken), "message": res.Message,
+			"is_enrolled": u.state.IsEnrolled(),
+		})
+		// #endregion
 		u.onEnrollmentUpdate(res)
 		if res.Status == EnrollmentApproved {
 			if err := u.engine.Start(u.state); err != nil {
@@ -324,6 +346,13 @@ func (u *ui) showConnTest() {
 	progress.Show()
 
 	go func() {
+		// #region agent log
+		debugLog("H1", "app.go:showConnTest", "probe urls", map[string]any{
+			"cdap_health": u.brand.CDAPHealthURL(),
+			"api_health":  u.brand.APIHealthURL(),
+			"register_url": apiBaseURL(u.brand) + "/devices/register",
+		})
+		// #endregion
 		res := TestConnection(u.brand)
 		progress.Hide()
 		line := func(ok bool, name string, p ProbeResult) string {

@@ -71,6 +71,12 @@ func apiJSON(method, apiURL string, body any, out any) (int, error) {
 
 	resp, err := apiHTTPClient(22 * time.Second).Do(req)
 	if err != nil {
+		// #region agent log
+		debugLog("H2", "apihttp.go:apiJSON", "http request failed", map[string]any{
+			"method": method, "url": apiURL, "error": err.Error(),
+			"insecure_tls": tlsInsecureEnabled(),
+		})
+		// #endregion
 		return 0, err
 	}
 	defer resp.Body.Close()
@@ -81,8 +87,21 @@ func apiJSON(method, apiURL string, body any, out any) (int, error) {
 	}
 	if out != nil && len(raw) > 0 {
 		if err := json.Unmarshal(raw, out); err != nil {
+			// #region agent log
+			debugLog("H2", "apihttp.go:apiJSON", "json decode failed", map[string]any{
+				"method": method, "url": apiURL, "status": resp.StatusCode,
+				"body_len": len(raw), "error": err.Error(),
+			})
+			// #endregion
 			return resp.StatusCode, fmt.Errorf("invalid JSON: %w", err)
 		}
+	}
+	if resp.StatusCode >= 400 {
+		// #region agent log
+		debugLog("H2", "apihttp.go:apiJSON", "http error status", map[string]any{
+			"method": method, "url": apiURL, "status": resp.StatusCode, "body_len": len(raw),
+		})
+		// #endregion
 	}
 	return resp.StatusCode, nil
 }

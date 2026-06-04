@@ -35,6 +35,11 @@ type EnrollmentStatus struct {
 // When already approved with a token, returns immediately.
 func EnsureEnrolled(b Branding, st *AppState, version string) (EnrollmentStatus, error) {
 	if !b.HasConnection() {
+		// #region agent log
+		debugLog("H5", "enrollment.go:EnsureEnrolled", "no connection in branding", map[string]any{
+			"server_address": b.ServerAddress, "has_server_block": b.Server != nil,
+		})
+		// #endregion
 		return EnrollmentStatus{}, fmt.Errorf("no server address configured")
 	}
 
@@ -43,6 +48,13 @@ func EnsureEnrolled(b Branding, st *AppState, version string) (EnrollmentStatus,
 	token := st.DeviceToken
 	deviceID := st.DeviceID
 	st.mu.Unlock()
+
+	// #region agent log
+	debugLog("H4", "enrollment.go:EnsureEnrolled", "entry", map[string]any{
+		"local_status": status, "device_id": deviceID,
+		"has_local_token": token != "", "is_enrolled": st.IsEnrolled(),
+	})
+	// #endregion
 
 	if status == EnrollmentApproved {
 		if token != "" {
@@ -102,11 +114,23 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 	payload["tags"] = tags
 
 	url := apiBaseURL(b) + "/devices/register"
+	// #region agent log
+	debugLog("H1", "enrollment.go:RegisterDevice", "register request", map[string]any{
+		"url": url, "device_id": deviceID, "has_bundle_token": strings.TrimSpace(b.EnrollmentToken) != "",
+		"bundle_id": b.BundleID, "use_https": b.UseHTTPS,
+	})
+	// #endregion
 	var resp enrollmentResponse
 	code, err := apiJSON(http.MethodPost, url, payload, &resp)
 	if err != nil {
 		return EnrollmentStatus{}, err
 	}
+	// #region agent log
+	debugLog("H2", "enrollment.go:RegisterDevice", "register response", map[string]any{
+		"http_code": code, "status": resp.Status, "device_id": resp.DeviceID,
+		"token_len": len(strings.TrimSpace(resp.DeviceToken)), "message": resp.Message,
+	})
+	// #endregion
 	if code != http.StatusOK && code != http.StatusAccepted {
 		return EnrollmentStatus{}, fmt.Errorf("registration failed (HTTP %d)", code)
 	}
@@ -147,12 +171,21 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 func PollEnrollment(b Branding, st *AppState, version string) (EnrollmentStatus, error) {
 	deviceID, _, _, _ := st.Snapshot()
 	url := fmt.Sprintf("%s/devices/register/status?device_id=%s", apiBaseURL(b), deviceID)
+	// #region agent log
+	debugLog("H3", "enrollment.go:PollEnrollment", "poll request", map[string]any{"url": url, "device_id": deviceID})
+	// #endregion
 
 	var resp enrollmentResponse
 	code, err := apiJSON(http.MethodGet, url, nil, &resp)
 	if err != nil {
 		return EnrollmentStatus{}, err
 	}
+	// #region agent log
+	debugLog("H3", "enrollment.go:PollEnrollment", "poll response", map[string]any{
+		"http_code": code, "status": resp.Status, "token_len": len(strings.TrimSpace(resp.DeviceToken)),
+		"message": resp.Message,
+	})
+	// #endregion
 	if code == http.StatusNotFound {
 		// Lost pending state on server — re-register.
 		return RegisterDevice(b, st, version)
@@ -197,6 +230,9 @@ func StartEnrollmentPoll(b Branding, st *AppState, version string, interval time
 		for range ticker.C {
 			res, err := PollEnrollment(b, st, version)
 			if err != nil {
+				// #region agent log
+				debugLog("H3", "enrollment.go:StartEnrollmentPoll", "poll error", map[string]any{"error": err.Error()})
+				// #endregion
 				continue
 			}
 			if onUpdate != nil {
