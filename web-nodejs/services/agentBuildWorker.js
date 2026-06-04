@@ -95,6 +95,8 @@ let _activeBuilds = 0;
 let _pollHandle = null;
 
 const REBUILD_FLAG_FILE = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.agent_rebuild_pending');
+const AGENT_SOURCE_STAMP_FILE = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.agent_source_sha');
+const AGENT_SOURCE_PREFIXES = ['betterdesk-support-agent/', 'betterdesk-agent/'];
 
 function _agentSourceDirs() {
     const supportAgent = SOURCE_ROOT;
@@ -177,40 +179,112 @@ async function stageSourcesFromGitHub({ remoteSHA, files, download }) {
     if (!files?.length || typeof download !== 'function') {
         return { staged: 0 };
     }
-    const dirs = _agentSourceDirs();
-    await fsp.mkdir(dirs.supportAgent, { recursive: true });
-    await fsp.mkdir(dirs.agentLib, { recursive: true });
-
     const owner = process.env.UPDATE_GITHUB_OWNER || 'UNITRONIX';
     const repo = process.env.UPDATE_GITHUB_REPO || 'BetterDesk';
     let staged = 0;
-
     for (const file of files) {
         if (file.status === 'removed') continue;
-        const fp = file.path;
-        let destRoot;
-        let rel;
-        if (fp.startsWith('betterdesk-support-agent/')) {
-            destRoot = dirs.supportAgent;
-            rel = fp.slice('betterdesk-support-agent/'.length);
-        } else if (fp.startsWith('betterdesk-agent/')) {
-            destRoot = dirs.agentLib;
-            rel = fp.slice('betterdesk-agent/'.length);
-        } else {
-            continue;
+        if (await _writeAgentSourceFile(owner, repo, remoteSHA, file.path, download)) {
+            staged++;
         }
-        if (!rel) continue;
-
-        const dest = path.join(destRoot, rel);
-        const content = await download(owner, repo, remoteSHA, fp);
-        await fsp.mkdir(path.dirname(dest), { recursive: true });
-        await fsp.writeFile(dest, content);
-        if (!IS_WINDOWS && (rel.endsWith('.sh') || rel === 'build.sh')) {
-            try { await fsp.chmod(dest, 0o755); } catch (_) { /* ok */ }
-        }
-        staged++;
     }
     return { staged };
+}
+
+/**
+ * Download the full support-agent + betterdesk-agent trees at remoteSHA.
+ * Used after updates so agent-source/ stays consistent even when an individual
+ * commit diff only touches the build worker or generator routes.
+ */
+async function syncFullAgentSourceFromGitHub({ remoteSHA, download, listPaths }) {
+    if (typeof download !== 'function' || typeof listPaths !== 'function') {
+        throw new Error('download and listPaths are required');
+    }
+    const owner = process.env.UPDATE_GITHUB_OWNER || 'UNITRONIX';
+    const repo = process.env.UPDATE_GITHUB_REPO || 'BetterDesk';
+    const allPaths = await listPaths(remoteSHA);
+    const agentPaths = allPaths.filter((fp) =>
+        AGENT_SOURCE_PREFIXES.some((pref) => fp.startsWith(pref))
+    );
+
+    let staged = 0;
+    for (const fp of agentPaths) {
+        if (await _writeAgentSourceFile(owner, repo, remoteSHA, fp, download)) {
+            staged++;
+        }
+    }
+
+    if (remoteSHA) {
+        fs.mkdirSync(path.dirname(AGENT_SOURCE_STAMP_FILE), { recursive: true });
+        fs.writeFileSync(AGENT_SOURCE_STAMP_FILE, String(remoteSHA).trim());
+    }
+    return { staged, paths: agentPaths.length };
+}
+
+async function _writeAgentSourceFile(owner, repo, remoteSHA, fp, download) {
+    let destRoot;
+    let rel;
+    if (fp.startsWith('betterdesk-support-agent/')) {
+        destRoot = _agentSourceDirs().supportAgent;
+        rel = fp.slice('betterdesk-support-agent/'.length);
+    } else if (fp.startsWith('betterdesk-agent/')) {
+        destRoot = _agentSourceDirs().agentLib;
+        rel = fp.slice('betterdesk-agent/'.length);
+    } else {
+        return false;
+    }
+    if (!rel) return false;
+
+    const dest = path.join(destRoot, rel);
+    const content = await download(owner, repo, remoteSHA, fp);
+    await fsp.mkdir(path.dirname(dest), { recursive: true });
+    await fsp.writeFile(dest, content);
+    if (!IS_WINDOWS && (rel.endsWith('.sh') || rel === 'build.sh')) {
+        try { await fsp.chmod(dest, 0o755); } catch (_) { /* ok */ }
+    }
+    return true;
+}
+
+/**
+ * If agent-source was never stamped or is missing expected files while bundles
+ * exist, sync from the deployed commit SHA and queue rebuilds.
+ */
+async function reconcileAgentSourceDrift() {
+    if (fs.existsSync(REBUILD_FLAG_FILE)) return null;
+
+    const bundles = await db.listAgentBundles({ includeRevoked: false });
+    const active = bundles.filter((b) => !b.revoked);
+    if (active.length === 0) return null;
+
+    const supportRoot = _agentSourceDirs().supportAgent;
+    const missingCore = !fs.existsSync(path.join(supportRoot, 'build.sh'))
+        || !fs.existsSync(path.join(supportRoot, 'urls.go'));
+    const stampedSha = fs.existsSync(AGENT_SOURCE_STAMP_FILE)
+        ? fs.readFileSync(AGENT_SOURCE_STAMP_FILE, 'utf8').trim()
+        : '';
+
+    if (!missingCore && stampedSha) return null;
+
+    const shaFile = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.update_sha');
+    const deployedSha = fs.existsSync(shaFile)
+        ? fs.readFileSync(shaFile, 'utf8').trim()
+        : '';
+
+    if (deployedSha) {
+        try {
+            const updateService = require('./updateService');
+            const synced = await updateService.syncAgentSourceAtSha(deployedSha);
+            console.log(
+                `[agentBuildWorker] agent-source repaired from ${deployedSha.slice(0, 7)}`
+                + ` (${synced.staged}/${synced.paths} files)`
+            );
+        } catch (err) {
+            console.warn(`[agentBuildWorker] agent-source repair sync failed: ${err.message}`);
+        }
+    }
+
+    markRebuildPending('agent-source drift');
+    return processPendingRebuildOnStartup();
 }
 
 function startWorker() {
@@ -222,6 +296,9 @@ function startWorker() {
     }, POLL_INTERVAL_MS);
     processPendingRebuildOnStartup().catch((e) => {
         console.error('[agentBuildWorker] pending rebuild failed:', e.message);
+    });
+    reconcileAgentSourceDrift().catch((e) => {
+        console.warn('[agentBuildWorker] agent-source drift check skipped:', e.message);
     });
     console.log(`[agentBuildWorker] started (poll ${POLL_INTERVAL_MS}ms)`);
 }
@@ -623,7 +700,9 @@ module.exports = {
     requeueAllBundleBuilds,
     markRebuildPending,
     processPendingRebuildOnStartup,
+    reconcileAgentSourceDrift,
     stageSourcesFromGitHub,
+    syncFullAgentSourceFromGitHub,
     startWorker,
     stopWorker,
     getReadyArtifact,

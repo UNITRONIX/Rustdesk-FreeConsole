@@ -115,6 +115,35 @@ const EXCLUDE_PATTERNS = [
     /(^|\/)\.env(\.|$)/                           // .env, .env.local, etc.
 ];
 
+/** Paths in a commit diff that should refresh agent-source/ and rebuild bundles. */
+const AGENT_REBUILD_TRIGGER_PATHS = [
+    /^betterdesk-support-agent\//,
+    /^betterdesk-agent\//,
+    /^web-nodejs\/services\/agentBuildWorker\.js$/,
+    /^web-nodejs\/services\/agentBundleConnection\.js$/,
+    /^web-nodejs\/services\/agentBundleService\.js$/,
+    /^web-nodejs\/routes\/generator\.routes\.js$/,
+    /^scripts\/install-build-toolchain\.sh$/,
+    /^betterdesk\.sh$/,
+];
+
+function shouldQueueAgentRebuild(changedData) {
+    const all = Object.values(changedData?.grouped || {}).flat();
+    return all.some((f) => AGENT_REBUILD_TRIGGER_PATHS.some((rx) => rx.test(f.path)));
+}
+
+/**
+ * List all blob paths in the repo tree at ref (commit SHA or branch).
+ */
+async function ghListRepoBlobPaths(ref) {
+    const data = await ghGet(
+        `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${encodeURIComponent(ref)}?recursive=1`
+    );
+    return (data.tree || [])
+        .filter((entry) => entry.type === 'blob' && entry.path && !isExcluded(entry.path))
+        .map((entry) => entry.path);
+}
+
 // ======================== HTTP Helpers ===================================
 
 /**
@@ -1718,31 +1747,26 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         }
     }
 
-    if (changedData.grouped.agent?.length || changedData.grouped.supportAgent?.length) {
-        const agentFiles = [
-            ...(changedData.grouped.agent || []),
-            ...(changedData.grouped.supportAgent || []),
-        ];
+    // ---- Generator agent: sync agent-source/ + queue bundle rebuilds ----
+    if (shouldQueueAgentRebuild(changedData)) {
         try {
             const agentBuildWorker = require('./agentBuildWorker');
-            const stageResult = await agentBuildWorker.stageSourcesFromGitHub({
+            const stageResult = await agentBuildWorker.syncFullAgentSourceFromGitHub({
                 remoteSHA,
-                files: agentFiles,
                 download: ghDownloadFile,
+                listPaths: ghListRepoBlobPaths,
             });
             agentBuildWorker.markRebuildPending('in-app update');
             results.agentSourcesStaged = stageResult.staged;
+            results.agentSourcePaths = stageResult.paths;
             results.agentRebuildQueued = true;
-            for (const f of agentFiles) {
-                if (f.status !== 'removed') results.applied.push(f.path);
-            }
             console.log(
-                `[UPDATE] Support-agent sources staged (${stageResult.staged} file(s));`
+                `[UPDATE] Agent source tree synced (${stageResult.staged}/${stageResult.paths} file(s));`
                 + ' generator bundles queued for rebuild on console restart'
             );
         } catch (err) {
-            results.failed.push({ file: 'support-agent-source', error: err.message });
-            console.warn(`[UPDATE] Support-agent staging failed: ${err.message}`);
+            results.failed.push({ file: 'support-agent-source-sync', error: err.message });
+            console.warn(`[UPDATE] Full agent-source sync failed: ${err.message}`);
         }
     }
 
@@ -1842,6 +1866,16 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     } finally {
         _updateInProgress = false;
     }
+}
+
+/** Sync full support-agent trees from GitHub at the given commit SHA. */
+async function syncAgentSourceAtSha(remoteSHA) {
+    const agentBuildWorker = require('./agentBuildWorker');
+    return agentBuildWorker.syncFullAgentSourceFromGitHub({
+        remoteSHA,
+        download: ghDownloadFile,
+        listPaths: ghListRepoBlobPaths,
+    });
 }
 
 /**
@@ -2202,5 +2236,7 @@ module.exports = {
     rebuildServerBinary,
     mergeConsoleEnvAfterUpdate,
     patchServiceDefinitions,
+    shouldQueueAgentRebuild,
+    syncAgentSourceAtSha,
     COMPONENTS
 };
