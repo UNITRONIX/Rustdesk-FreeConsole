@@ -73,6 +73,7 @@ func Install() error {
 	if err := copyExecutable(src, dst); err != nil {
 		return fmt.Errorf("copy binary: %w", err)
 	}
+	copyMesaCompanion(src, dst)
 	if err := registerAutostart(dst); err != nil {
 		return fmt.Errorf("register autostart: %w", err)
 	}
@@ -106,6 +107,16 @@ func copyExecutable(src, dst string) error {
 		return err
 	}
 	return os.Rename(tmp, dst)
+}
+
+// copyMesaCompanion copies software OpenGL (Mesa opengl32.dll) beside the installed binary.
+func copyMesaCompanion(srcExe, dstExe string) {
+	mesa := filepath.Join(filepath.Dir(srcExe), "opengl32.dll")
+	if _, err := os.Stat(mesa); err != nil {
+		return
+	}
+	dst := filepath.Join(filepath.Dir(dstExe), "opengl32.dll")
+	_ = copyExecutable(mesa, dst)
 }
 
 // registerAutostart wires the installed binary to launch at user login.
@@ -177,8 +188,7 @@ func autostartWindows(binPath string, enable bool) error {
 		_ = cmd.Run() // ignore "value not found"
 		return nil
 	}
-	launch := fmt.Sprintf("%q -nogui", binPath)
-	cmd := exec.Command("reg", "add", key, "/v", installAppName, "/t", "REG_SZ", "/d", launch, "/f")
+	cmd := exec.Command("reg", "add", key, "/v", installAppName, "/t", "REG_SZ", "/d", binPath, "/f")
 	return cmd.Run()
 }
 

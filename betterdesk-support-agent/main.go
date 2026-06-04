@@ -14,7 +14,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"runtime"
 )
 
 var version = "0.1.0"
@@ -24,10 +23,11 @@ func main() {
 		showVer   = flag.Bool("version", false, "Print version and exit")
 		doInstall = flag.Bool("install", false, "Install to a per-user location and enable autostart")
 		doUninst  = flag.Bool("uninstall", false, "Remove autostart entry and installed binary")
-		noGUI     = flag.Bool("nogui", false, "Run without graphical interface (no OpenGL required)")
-		tryGUI    = flag.Bool("gui", false, "Try the Fyne window (Windows: requires working OpenGL/WGL)")
+		noGUI = flag.Bool("nogui", false, "Run without graphical interface (no window)")
 	)
 	flag.Parse()
+
+	prepWindowsGraphics()
 
 	if *showVer {
 		fmt.Printf("betterdesk-support-agent %s\n", version)
@@ -50,9 +50,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Fyne 2.5 on Windows always uses GLFW/WGL; VMs and RDP often lack OpenGL.
-	// Portable/installer runs default to headless so double-click works.
-	if *noGUI || os.Getenv("BETTERDESK_SUPPORT_NOGUI") == "1" || (runtime.GOOS == "windows" && !*tryGUI) {
+	if *noGUI || os.Getenv("BETTERDESK_SUPPORT_NOGUI") == "1" {
 		runHeadless()
 		return
 	}

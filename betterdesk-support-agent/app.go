@@ -404,8 +404,8 @@ func (u *ui) setupTray() {
 		fyne.NewMenuItem(t("request_help"), u.showHelpDialog),
 	)
 	deskApp.SetSystemTrayMenu(menu)
-	if data := u.brand.LogoPNGBytes(); isPNG(data) {
-		deskApp.SetSystemTrayIcon(fyne.NewStaticResource("logo.png", data))
+	if res := u.brand.TrayIconResource(); res != nil {
+		deskApp.SetSystemTrayIcon(res)
 	}
 	u.win.SetCloseIntercept(func() { u.win.Hide() })
 }

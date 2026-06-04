@@ -45,6 +45,36 @@ const VENDORED_GO_BIN = path.join(
     config.dataDir || path.join(__dirname, '..', 'data'),
     'go-toolchain', 'go', 'bin', IS_WINDOWS ? 'go.exe' : 'go'
 );
+const MESA_DLL_CANDIDATES = [
+    path.join(config.dataDir || path.join(__dirname, '..', 'data'), 'mesa-win64', 'opengl32.dll'),
+    path.join(__dirname, '..', 'vendor', 'mesa-win64', 'opengl32.dll'),
+];
+
+function _mesaDllPath() {
+    for (const p of MESA_DLL_CANDIDATES) {
+        if (fs.existsSync(p)) return p;
+    }
+    return null;
+}
+
+async function _stageWindowsOpenGL(stageDir) {
+    const mesa = _mesaDllPath();
+    if (!mesa) {
+        console.warn('[agentBuildWorker] mesa opengl32.dll not found — Windows GUI may fail on VMs/RDP. Run scripts/fetch-mesa-windows.sh');
+        return false;
+    }
+    await fsp.copyFile(mesa, path.join(stageDir, 'opengl32.dll'));
+    return true;
+}
+
+function _windowsGuiBat(exeName) {
+    return (
+        '@echo off\r\n' +
+        'set GALLIUM_DRIVER=llvmpipe\r\n' +
+        'set LIBGL_ALWAYS_SOFTWARE=1\r\n' +
+        `start "" "%~dp0${exeName}"\r\n`
+    );
+}
 
 function _resolveBin(candidates) {
     for (const c of candidates) { if (fs.existsSync(c)) return c; }
@@ -157,7 +187,7 @@ const AGENT_LIB_ROOT = _resolveAgentLibRoot();
 
 const BUILD_PROFILES = {
     'windows/x64/portable':  { os: 'windows', ext: '.zip',  pack: 'zip-portable' },
-    'windows/x64/installed': { os: 'windows', ext: '.exe',  pack: 'raw' },
+    'windows/x64/installed': { os: 'windows', ext: '.zip',  pack: 'raw' },
     'linux/x64/portable':    { os: 'linux',   ext: '.tar.gz',   pack: 'tar-portable' },
     'linux/x64/appimage':    { os: 'linux',   ext: '.AppImage', pack: 'appimage' },
     'linux/x64/installed':   { os: 'linux',   ext: '.deb',      pack: 'deb' },
@@ -621,6 +651,35 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {})
 
     switch (profile.pack) {
         case 'raw': {
+            if (profile.os === 'windows') {
+                const stage = path.join(packDir, 'stage');
+                await fsp.mkdir(stage, { recursive: true });
+                await fsp.copyFile(binaryPath, path.join(stage, baseName));
+                await _stageWindowsOpenGL(stage);
+                await fsp.writeFile(path.join(stage, 'README.txt'),
+                    'BetterDesk Support Agent (installer)\r\n\r\n' +
+                    '1. Extract all files to one folder.\r\n' +
+                    '2. Run Instaluj.bat (or betterdesk-support.exe -install).\r\n' +
+                    '3. Use Uruchom.bat for portable GUI without installing.\r\n\r\n' +
+                    'opengl32.dll provides software OpenGL on VMs/RDP.\r\n',
+                    'utf8');
+                await fsp.writeFile(path.join(stage, 'Instaluj.bat'),
+                    '@echo off\r\n"%~dp0betterdesk-support.exe" -install\r\npause\r\n',
+                    'utf8');
+                await fsp.writeFile(path.join(stage, 'Uruchom.bat'), _windowsGuiBat(baseName), 'utf8');
+                const zipPath = path.join(packDir, `betterdesk-support-${label}-installer.zip`);
+                const zipArgs = ['-j', zipPath,
+                    path.join(stage, baseName),
+                    path.join(stage, 'README.txt'),
+                    path.join(stage, 'Instaluj.bat'),
+                    path.join(stage, 'Uruchom.bat'),
+                ];
+                if (fs.existsSync(path.join(stage, 'opengl32.dll'))) {
+                    zipArgs.push(path.join(stage, 'opengl32.dll'));
+                }
+                await _runProcess('zip', zipArgs, { cwd: packDir });
+                return zipPath;
+            }
             const out = path.join(packDir, baseName);
             await fsp.copyFile(binaryPath, out);
             return out;
@@ -630,27 +689,31 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {})
             await fsp.mkdir(stage, { recursive: true });
             await fsp.copyFile(binaryPath, path.join(stage, baseName));
             await fsp.writeFile(path.join(stage, 'portable'), '', 'utf8');
+            if (profile.os === 'windows') {
+                await _stageWindowsOpenGL(stage);
+            }
             await fsp.writeFile(path.join(stage, 'README.txt'),
                 'BetterDesk Support Agent (portable)\r\n\r\n' +
-                'Uruchom.bat (or double-click the .exe) starts the agent in the background.\r\n' +
-                'No OpenGL is required on Windows.\r\n\r\n' +
-                'Optional GUI (needs OpenGL/WGL): betterdesk-support.exe -gui\r\n' +
-                'Supervised access prompts need -gui; unattended mode works headless.\r\n',
+                (profile.os === 'windows'
+                    ? 'Run Uruchom.bat for the GUI (includes software OpenGL for VMs/RDP).\r\n' +
+                      'You can also double-click betterdesk-support.exe if opengl32.dll is present.\r\n\r\n' +
+                      'Background only: betterdesk-support.exe -nogui\r\n'
+                    : 'Run betterdesk-support for the quick-help window.\r\n'),
                 'utf8');
-            await fsp.writeFile(path.join(stage, 'Uruchom.bat'),
-                '@echo off\r\nstart "" "%~dp0betterdesk-support.exe"\r\n',
-                'utf8');
-            await fsp.writeFile(path.join(stage, 'Uruchom-z-oknem.bat'),
-                '@echo off\r\nstart "" "%~dp0betterdesk-support.exe" -gui\r\n',
-                'utf8');
-            const zipPath = path.join(packDir, `betterdesk-support-${label}-portable.zip`);
-            await _runProcess('zip', ['-j', zipPath,
+            const zipEntries = [
                 path.join(stage, baseName),
                 path.join(stage, 'portable'),
                 path.join(stage, 'README.txt'),
-                path.join(stage, 'Uruchom.bat'),
-                path.join(stage, 'Uruchom-z-oknem.bat'),
-            ], { cwd: packDir });
+            ];
+            if (profile.os === 'windows') {
+                await fsp.writeFile(path.join(stage, 'Uruchom.bat'), _windowsGuiBat(baseName), 'utf8');
+                zipEntries.push(path.join(stage, 'Uruchom.bat'));
+                if (fs.existsSync(path.join(stage, 'opengl32.dll'))) {
+                    zipEntries.push(path.join(stage, 'opengl32.dll'));
+                }
+            }
+            const zipPath = path.join(packDir, `betterdesk-support-${label}-portable.zip`);
+            await _runProcess('zip', ['-j', zipPath, ...zipEntries], { cwd: packDir });
             return zipPath;
         }
         case 'tar-portable': {
