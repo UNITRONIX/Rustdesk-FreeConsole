@@ -10,7 +10,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 
 const db = require('./database');
 const bundleService = require('./agentBundleService');
@@ -37,12 +37,89 @@ const BUILD_CACHE_DIR  = process.env.BUILD_CACHE_DIR
 const WORK_ROOT        = path.join(BUILD_CACHE_DIR, 'work');
 const ARTIFACT_ROOT    = process.env.AGENT_ARTIFACT_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'agent-builds');
-const SOURCE_ROOT      = _resolveSourceRoot();
-const AGENT_LIB_ROOT   = _resolveAgentLibRoot();
 const POLL_INTERVAL_MS = parseInt(process.env.AGENT_BUILD_POLL_MS || '5000', 10);
 const WORKER_CONCURRENCY = parseInt(process.env.AGENT_BUILD_CONCURRENCY || '1', 10);
 const BUILD_TIMEOUT_MS = parseInt(process.env.AGENT_BUILD_TIMEOUT_MS || (30 * 60 * 1000), 10);
 const IS_WINDOWS = process.platform === 'win32';
+const VENDORED_GO_BIN = path.join(
+    config.dataDir || path.join(__dirname, '..', 'data'),
+    'go-toolchain', 'go', 'bin', IS_WINDOWS ? 'go.exe' : 'go'
+);
+
+function _resolveBin(candidates) {
+    for (const c of candidates) { if (fs.existsSync(c)) return c; }
+    return candidates[0];
+}
+
+function _goBinaryHealthy(goBin) {
+    if (!goBin || !fs.existsSync(goBin)) return false;
+    try {
+        execSync(`"${goBin}" list encoding/png`, {
+            timeout: 20000,
+            stdio: 'pipe',
+            env: {
+                ...process.env,
+                PATH: `${path.dirname(goBin)}:${process.env.PATH || ''}`,
+            },
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** Prefer a working Go toolchain (vendored console install beats broken /usr/local/go). */
+function _resolveGoBin() {
+    const fromEnv = process.env.GO_BIN;
+    const candidates = [
+        ...(fromEnv && _goBinaryHealthy(fromEnv) ? [fromEnv] : []),
+        VENDORED_GO_BIN,
+        '/usr/local/go/bin/go',
+        '/usr/bin/go',
+    ];
+    for (const c of candidates) {
+        if (_goBinaryHealthy(c)) return c;
+    }
+    return _resolveBin(candidates.filter(Boolean));
+}
+
+let _activeGoBin = _resolveGoBin();
+
+function getGoBin() {
+    if (_goBinaryHealthy(_activeGoBin)) return _activeGoBin;
+    _activeGoBin = _resolveGoBin();
+    return _activeGoBin;
+}
+
+async function _ensureGoToolchain() {
+    if (_goBinaryHealthy(getGoBin())) return getGoBin();
+    const updateService = require('./updateService');
+    const result = await updateService.installGoToolchain();
+    if (result.success && result.binPath && _goBinaryHealthy(result.binPath)) {
+        _activeGoBin = result.binPath;
+        process.env.GO_BIN = result.binPath;
+        console.log(`[agentBuildWorker] Go toolchain ready: ${result.version || result.binPath}`);
+        return _activeGoBin;
+    }
+    throw new Error(result.error || 'Go toolchain install failed');
+}
+
+const BASE_BUILD_ENV = {
+    HOME: `/home/${BUILD_USER}`,
+    CGO_ENABLED: '1',
+    GOPATH: process.env.GOPATH || `/home/${BUILD_USER}/go`,
+};
+
+function _buildEnv(extra = {}) {
+    const goBin = getGoBin();
+    const goDir = path.dirname(goBin);
+    return {
+        ...BASE_BUILD_ENV,
+        ...extra,
+        GO_BIN: goBin,
+        PATH: `${goDir}:/usr/local/go/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
+    };
+}
 
 function _resolveSourceRoot() {
     if (process.env.AGENT_SOURCE_DIR) return process.env.AGENT_SOURCE_DIR;
@@ -68,13 +145,8 @@ function _resolveAgentLibRoot() {
     return candidates[1];
 }
 
-const GO_BIN = process.env.GO_BIN || _resolveBin(['/usr/bin/go', '/usr/local/go/bin/go']);
-const BASE_BUILD_ENV = {
-    PATH: `/usr/local/go/bin:/usr/bin:/bin:${process.env.PATH || ''}`,
-    HOME: `/home/${BUILD_USER}`,
-    CGO_ENABLED: '1',
-    GOPATH: process.env.GOPATH || `/home/${BUILD_USER}/go`,
-};
+const SOURCE_ROOT = _resolveSourceRoot();
+const AGENT_LIB_ROOT = _resolveAgentLibRoot();
 
 const BUILD_PROFILES = {
     'windows/x64/portable':  { os: 'windows', ext: '.zip',  pack: 'zip-portable' },
@@ -84,11 +156,6 @@ const BUILD_PROFILES = {
     'linux/x64/installed':   { os: 'linux',   ext: '.deb',      pack: 'deb' },
     'linux/x64/rpm':         { os: 'linux',   ext: '.rpm',  pack: 'rpm' },
 };
-
-function _resolveBin(candidates) {
-    for (const c of candidates) { if (fs.existsSync(c)) return c; }
-    return candidates[0];
-}
 
 let _running = false;
 let _activeBuilds = 0;
@@ -142,6 +209,39 @@ async function requeueAllBundleBuilds() {
         await enqueueBuildsForHash(hash, { force: true });
     }
     return { bundles: hashes.length };
+}
+
+/** Re-queue builds that failed only because the host Go install was broken. */
+async function requeueFailedToolchainBuilds() {
+    if (!_goBinaryHealthy(getGoBin())) return { requeued: 0 };
+
+    const bundles = await db.listAgentBundles({ includeRevoked: false });
+    let requeued = 0;
+    for (const b of bundles) {
+        if (b.revoked) continue;
+        const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
+        for (const row of builds) {
+            const err = String(row.error_message || '');
+            if (row.status !== 'failed') continue;
+            if (!/encoding\/png|not in std|Go toolchain/i.test(err)) continue;
+            await db.upsertAgentBundleBuild({
+                brandingHash: row.branding_hash,
+                platform: row.platform,
+                arch: row.arch,
+                format: row.format,
+                status: 'pending',
+                artifactPath: row.artifact_path || null,
+                artifactSize: row.artifact_size || 0,
+                artifactSha256: row.artifact_sha256 || null,
+                errorMessage: '',
+            });
+            requeued++;
+        }
+    }
+    if (requeued > 0) {
+        console.log(`[agentBuildWorker] requeued ${requeued} failed build(s) after Go toolchain recovery`);
+    }
+    return { requeued };
 }
 
 function markRebuildPending(reason = 'update') {
@@ -289,7 +389,7 @@ async function reconcileAgentSourceDrift() {
 
 function startWorker() {
     if (_pollHandle) return;
-    console.log(`[agentBuildWorker] Go support-agent source=${SOURCE_ROOT}`);
+    console.log(`[agentBuildWorker] Go support-agent source=${SOURCE_ROOT} go=${getGoBin()}`);
     _ensureDirs().catch((e) => console.error('[agentBuildWorker] dir init failed:', e));
     _pollHandle = setInterval(() => {
         _tick().catch((e) => console.error('[agentBuildWorker] tick error:', e.message));
@@ -300,6 +400,14 @@ function startWorker() {
     reconcileAgentSourceDrift().catch((e) => {
         console.warn('[agentBuildWorker] agent-source drift check skipped:', e.message);
     });
+    (async () => {
+        try {
+            await _ensureGoToolchain();
+            await requeueFailedToolchainBuilds();
+        } catch (e) {
+            console.warn('[agentBuildWorker] Go toolchain preflight:', e.message);
+        }
+    })();
     console.log(`[agentBuildWorker] started (poll ${POLL_INTERVAL_MS}ms)`);
 }
 
@@ -393,6 +501,7 @@ async function _runOne(buildRow) {
         const binaryPath = path.join(workDir, 'dist', binaryName);
 
         await _materialiseWorkspace(workDir, branding);
+        await _ensureGoToolchain();
         await _runGoBuild(workDir, brandingFile, binaryPath, profile.os);
 
         const packed = await _packArtifact(workDir, binaryPath, profile, buildRow.branding_hash.slice(0, 8), branding);
@@ -649,7 +758,7 @@ function _runProcess(cmd, args, opts = {}) {
     return new Promise((resolve, reject) => {
         const child = spawn(cmd, args, {
             cwd: opts.cwd,
-            env: { ...BASE_BUILD_ENV, ...(opts.env || {}) },
+            env: _buildEnv(opts.env || {}),
             stdio: ['ignore', 'pipe', 'pipe'],
         });
         let stderrTail = '';
@@ -698,6 +807,7 @@ function _sha256OfFile(filePath) {
 module.exports = {
     enqueueBuildsForHash,
     requeueAllBundleBuilds,
+    requeueFailedToolchainBuilds,
     markRebuildPending,
     processPendingRebuildOnStartup,
     reconcileAgentSourceDrift,

@@ -122,6 +122,38 @@ case "$PKG" in
 esac
 
 # ---------------------------------------------------------------------------
+# 1b) Go toolchain (/usr/local/go) — support-agent Generator builds
+# ---------------------------------------------------------------------------
+
+install_go() {
+    local GO_VERSION="${GO_VERSION:-1.26.4}"
+    local GO_TAR="go${GO_VERSION}.linux-amd64.tar.gz"
+    local GO_URL="https://go.dev/dl/${GO_TAR}"
+    local GO_ROOT="/usr/local/go"
+
+    if [ -x "$GO_ROOT/bin/go" ] && "$GO_ROOT/bin/go" list encoding/png >/dev/null 2>&1; then
+        log "Go OK: $($GO_ROOT/bin/go version)"
+        return 0
+    fi
+
+    warn "Go missing or broken — installing ${GO_VERSION} to ${GO_ROOT}"
+    local tmp
+    tmp="$(mktemp -d)"
+    curl -fsSL "$GO_URL" -o "$tmp/$GO_TAR"
+    rm -rf "$GO_ROOT"
+    tar -C /usr/local -xzf "$tmp/$GO_TAR"
+    rm -rf "$tmp"
+
+    if ! "$GO_ROOT/bin/go" list encoding/png >/dev/null 2>&1; then
+        err "Go install verification failed (encoding/png)"
+        exit 3
+    fi
+    log "Go installed: $($GO_ROOT/bin/go version)"
+}
+
+install_go
+
+# ---------------------------------------------------------------------------
 # 2) Rust toolchain (as BUILD_USER, not root)
 # ---------------------------------------------------------------------------
 
