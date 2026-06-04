@@ -51,6 +51,7 @@ type DesktopStreamer struct {
 	once      sync.Once
 	done      chan struct{}
 	frames    atomic.Int64 // total frames sent on this session
+	monitor   atomic.Int32 // active monitor index
 }
 
 func newDesktopStreamer(sessionID string, cancel context.CancelFunc) *DesktopStreamer {
@@ -125,31 +126,30 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	}
 
 	// ── Consent gate ─────────────────────────────────────────────────────────
-	// When require_consent=true, print a request to stdout and wait up to 30s
-	// for the Tauri wrapper to respond with CONSENT_GRANTED/DENIED on stdin.
 	if a.cfg.RequireConsent {
-		ch := make(chan bool, 1)
-		a.consentWaiters.Store(p.SessionID, ch)
-
-		// Print to stdout — the Tauri sidecar.rs stdout reader picks this up
-		// and emits a "consent-request" event to the SolidJS frontend.
-		fmt.Fprintf(os.Stdout, "CONSENT_REQUEST:{\"session_id\":%q,\"operator\":%q}\n",
-			p.SessionID, p.OperatorName)
-
-		// Block until response or 30-second timeout.
 		var granted bool
-		timer := time.NewTimer(30 * time.Second)
-		select {
-		case granted = <-ch:
-		case <-timer.C:
-			granted = false
-		case <-a.ctx.Done():
-			a.consentWaiters.Delete(p.SessionID)
+		if a.cfg.ConsentHandler != nil {
+			granted = a.cfg.ConsentHandler(p.SessionID, p.OperatorName)
+		} else {
+			ch := make(chan bool, 1)
+			a.consentWaiters.Store(p.SessionID, ch)
+
+			fmt.Fprintf(os.Stdout, "CONSENT_REQUEST:{\"session_id\":%q,\"operator\":%q}\n",
+				p.SessionID, p.OperatorName)
+
+			timer := time.NewTimer(30 * time.Second)
+			select {
+			case granted = <-ch:
+			case <-timer.C:
+				granted = false
+			case <-a.ctx.Done():
+				a.consentWaiters.Delete(p.SessionID)
+				timer.Stop()
+				return
+			}
 			timer.Stop()
-			return
+			a.consentWaiters.Delete(p.SessionID)
 		}
-		timer.Stop()
-		a.consentWaiters.Delete(p.SessionID)
 
 		if !granted {
 			_ = a.sendMessage("desktop_consent_denied", map[string]any{
@@ -170,13 +170,15 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	streamer := newDesktopStreamer(p.SessionID, cancel)
 	a.desktopStreams.Store(p.SessionID, streamer)
 
-	// Notify the Tauri wrapper so it can render the on-screen overlay
-	// (border around every monitor + collapsible session widget). The
-	// Tauri sidecar stdout reader translates this into a `session-active`
-	// event consumed by the SessionOverlay component.
-	fmt.Fprintf(os.Stdout,
-		"SESSION_START:{\"session_id\":%q,\"operator\":%q,\"mode\":%q}\n",
-		p.SessionID, p.OperatorName, sessionModeLabel(a.cfg.RequireConsent))
+	// Notify embedded UI or Tauri wrapper about active session.
+	modeLabel := sessionModeLabel(a.cfg.RequireConsent)
+	if a.cfg.SessionStartHandler != nil {
+		a.cfg.SessionStartHandler(p.SessionID, p.OperatorName, modeLabel)
+	} else {
+		fmt.Fprintf(os.Stdout,
+			"SESSION_START:{\"session_id\":%q,\"operator\":%q,\"mode\":%q}\n",
+			p.SessionID, p.OperatorName, modeLabel)
+	}
 
 	// Send the monitor list as soon as the session is accepted so the
 	// operator's toolbar can populate its dropdown before any frames
@@ -208,8 +210,14 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 		// the streamer goroutine exits, no matter the reason — stop request,
 		// operator disconnect, or watchdog failure. The overlay state machine
 		// in the Tauri wrapper depends on the symmetry of these events.
-		defer fmt.Fprintf(os.Stdout,
-			"SESSION_END:{\"session_id\":%q}\n", p.SessionID)
+		defer func() {
+			if a.cfg.SessionEndHandler != nil {
+				a.cfg.SessionEndHandler(p.SessionID)
+			} else {
+				fmt.Fprintf(os.Stdout,
+					"SESSION_END:{\"session_id\":%q}\n", p.SessionID)
+			}
+		}()
 		a.streamDesktop(ctx, streamer, p.FPS, p.Quality, plan)
 	}()
 }
@@ -289,13 +297,29 @@ func (a *Agent) handleMonitorSelect(msg *Message) {
 	if active < 0 || active >= len(monitors) {
 		active = 0
 	}
+	if sess, ok := a.desktopStreams.Load(p.SessionID); ok {
+		sess.(*DesktopStreamer).monitor.Store(int32(active))
+	}
 	_ = a.sendMessage("monitor_list", map[string]any{
 		"session_id": p.SessionID,
 		"monitors":   monitors,
 		"active":     active,
 	})
-	log.Printf("[desktop] Active monitor for session %s set to %d (%s) — full virtual desktop still streamed; per-monitor capture coming in a follow-up.",
+	log.Printf("[desktop] Active monitor for session %s set to %d (%s)",
 		p.SessionID, active, monitors[active].Name)
+}
+
+// monitorCropFilter returns an ffmpeg -vf crop filter for the given monitor index.
+func monitorCropFilter(idx int) string {
+	monitors := enumerateMonitors()
+	if idx < 0 || idx >= len(monitors) {
+		return ""
+	}
+	m := monitors[idx]
+	if m.Width <= 0 || m.Height <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("crop=%d:%d:%d:%d", m.Width, m.Height, m.X, m.Y)
 }
 
 // captureAndSendScreenshot captures a single screenshot and returns a payload
@@ -332,9 +356,9 @@ func (a *Agent) handleCodecOffer(msg *Message) {
 
 	_ = a.sendMessage("codec_answer", map[string]any{
 		"session_id":   p.SessionID,
-		"video_codec":  primary, // most preferred codec the agent can produce
-		"video_codecs": caps,    // full ordered capability list
-		"audio_codec":  "",
+		"video_codec":  primary,
+		"video_codecs": caps,
+		"audio_codec":  "opus",
 	})
 }
 
@@ -368,6 +392,8 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 	if len(strategies) == 0 {
 		return false
 	}
+	monitorIdx := int(s.monitor.Load())
+	cropVF := monitorCropFilter(monitorIdx)
 
 	// ffmpeg MJPEG quality scale: 2 (best) – 31 (worst), mapped from 0–100.
 	// Used only by the FullCommand (gst-launch) MJPEG path.
@@ -400,6 +426,9 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 			// Hardware device init must precede the input.
 			args = append(args, plan.preInputArgs()...)
 			args = append(args, strat.Args...)
+			if cropVF != "" {
+				args = append(args, "-vf", cropVF)
+			}
 			if isMJPEG {
 				args = append(args,
 					"-vcodec", "mjpeg",

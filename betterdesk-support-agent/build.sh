@@ -51,6 +51,7 @@ fi
 
 echo "Building $OUTPUT (GOOS=$TARGET_OS) ..."
 GOOS="$TARGET_OS" CGO_ENABLED=1 go build -trimpath \
+    -tags release \
     -ldflags "-s -w" \
     -o "$OUTPUT" .
 

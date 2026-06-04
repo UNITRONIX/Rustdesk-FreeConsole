@@ -49,6 +49,11 @@ type Config struct {
 	// videotoolbox.
 	HwAccel string `json:"hw_accel,omitempty"`
 
+	// Lifecycle callbacks for embedded UIs (support agent, tests).
+	ConsentHandler      func(sessionID, operator string) bool
+	SessionStartHandler func(sessionID, operator, mode string)
+	SessionEndHandler   func(sessionID string)
+
 	// ── TLS hardening (Phase 4) ──────────────────────────────────────
 	// EnforceTLS rejects plaintext ws:// for any non-local host (returns an
 	// error from Validate instead of only warning). Recommended for any

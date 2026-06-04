@@ -178,18 +178,45 @@
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-    background: #0f172a;
-    color: #e2e8f0;
+    background: var(--brand-bg, #0f172a);
+    color: var(--brand-text, #e2e8f0);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
 }
 
 .agent-preview-frame .ap-header {
     background: var(--brand-accent);
+    color: var(--brand-header-text, #fff);
     padding: 14px;
     display: flex;
     gap: 12px;
     align-items: center;
+    justify-content: center;
+}
+
+.ap-body-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 72px;
+    margin-bottom: 4px;
+}
+
+.ap-body-logo img {
+    max-height: 72px;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.ap-body-logo .material-icons {
+    font-size: 48px;
+    color: var(--brand-text-muted, #94a3b8);
+}
+
+.color-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
 }
 
 .ap-logo {
@@ -246,14 +273,14 @@
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: #94a3b8;
+    color: var(--brand-text-muted, #94a3b8);
 }
 
 .ap-status-dot {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #22c55e;
+    background: var(--brand-status-ready, #22c55e);
     box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
 }
 
@@ -262,7 +289,7 @@
     flex-direction: column;
     gap: 2px;
     padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--brand-surface, rgba(255, 255, 255, 0.04));
     border-radius: 8px;
 }
 

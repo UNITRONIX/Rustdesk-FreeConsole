@@ -6,7 +6,13 @@
   "support_phone": "",
   "contact_url": "",
   "primary_color": "#2563eb",
-  "accent_color": "#0ea5e9",
+  "accent_color": "#1e293b",
+  "background_color": "#0f172a",
+  "surface_color": "#1e293b",
+  "text_color": "#e2e8f0",
+  "text_muted_color": "#94a3b8",
+  "status_ready_color": "#22c55e",
+  "header_text_color": "#ffffff",
   "logo_data_url": "",
   "default_language": "en",
   "allow_unattended": false,
@@ -16,5 +22,6 @@
     "public_key": ""
   },
   "api_key": "",
-  "bundle_id": ""
+  "bundle_id": "",
+  "enrollment_token": ""
 }

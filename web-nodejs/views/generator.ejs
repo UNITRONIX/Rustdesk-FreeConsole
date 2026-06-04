@@ -70,6 +70,30 @@
                                     <p class="form-hint">${_('generator.bundle_name_hint')}</p>
                                 </div>
 
+                                <h3 class="section-title">${_('generator.connection_section')}</h3>
+
+                                <div class="form-group">
+                                    <label class="form-label" for="gen-server-host">${_('generator.server_host')}</label>
+                                    <input type="text" id="gen-server-host" class="form-input" maxlength="253"
+                                           placeholder="${_('generator.server_host_placeholder')}" required>
+                                    <p class="form-hint">${_('generator.server_host_hint')}</p>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group form-group-checkbox">
+                                        <label class="form-label">
+                                            <input type="checkbox" id="gen-use-https" checked>
+                                            ${_('generator.use_https')}
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">${_('generator.enrollment_token')}</label>
+                                        <input type="text" id="gen-token-mask" class="form-input" readonly
+                                               placeholder="${_('generator.enrollment_token_pending')}">
+                                        <p class="form-hint">${_('generator.enrollment_token_hint')}</p>
+                                    </div>
+                                </div>
+
                                 <h3 class="section-title">${_('generator.branding_section')}</h3>
 
                                 <div class="form-group">
@@ -119,6 +143,33 @@
                                     </div>
                                 </div>
 
+                                <div class="form-row color-grid">
+                                    <div class="form-group">
+                                        <label class="form-label" for="gen-bg">${_('generator.background_color')}</label>
+                                        <input type="color" id="gen-bg" class="form-input form-color" value="#0f172a">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="gen-surface">${_('generator.surface_color')}</label>
+                                        <input type="color" id="gen-surface" class="form-input form-color" value="#1e293b">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="gen-text">${_('generator.text_color')}</label>
+                                        <input type="color" id="gen-text" class="form-input form-color" value="#e2e8f0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="gen-text-muted">${_('generator.text_muted_color')}</label>
+                                        <input type="color" id="gen-text-muted" class="form-input form-color" value="#94a3b8">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="gen-status-ready">${_('generator.status_ready_color')}</label>
+                                        <input type="color" id="gen-status-ready" class="form-input form-color" value="#22c55e">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label" for="gen-header-text">${_('generator.header_text_color')}</label>
+                                        <input type="color" id="gen-header-text" class="form-input form-color" value="#ffffff">
+                                    </div>
+                                </div>
+
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label class="form-label" for="gen-lang">${_('generator.default_lang')}</label>
@@ -161,15 +212,15 @@
                                 <div class="agent-preview" id="gen-preview">
                                     <div class="agent-preview-frame" style="--brand-primary: #2563eb; --brand-accent: #1e293b;">
                                         <div class="ap-header">
-                                            <div class="ap-logo" id="gen-prev-logo">
-                                                <span class="material-icons">support_agent</span>
-                                            </div>
-                                            <div class="ap-brand">
+                                            <div class="ap-brand ap-brand-only">
                                                 <div class="ap-brand-name" id="gen-prev-name">${_('generator.preview_default_name')}</div>
                                                 <div class="ap-brand-text" id="gen-prev-text"></div>
                                             </div>
                                         </div>
                                         <div class="ap-body">
+                                            <div class="ap-body-logo" id="gen-prev-body-logo">
+                                                <span class="material-icons">support_agent</span>
+                                            </div>
                                             <div class="ap-status">
                                                 <span class="ap-status-dot"></span>
                                                 <span class="ap-status-text">${_('generator.preview_status_ready')}</span>

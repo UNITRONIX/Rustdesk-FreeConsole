@@ -11,80 +11,110 @@ import (
 	bdagent "github.com/unitronix/betterdesk-agent/agent"
 )
 
-// Engine wraps the shared betterdesk-agent remote-desktop engine so the support
-// agent can run it in-process. The same engine powers the full agent client;
-// here it is driven entirely by the baked branding plus local AppState.
+// Engine wraps the shared betterdesk-agent remote-desktop engine.
 type Engine struct {
-	mu      sync.Mutex
-	agent   *bdagent.Agent
-	running bool
-	version string
+	mu       sync.Mutex
+	agent    *bdagent.Agent
+	running  bool
+	version  string
+	onConsent func(sessionID, operator string) bool
+	onSessionStart func(sessionID, operator, mode string)
+	onSessionEnd   func(sessionID string)
 }
 
-// NewEngine creates an engine wrapper. version is reported to the server.
+// NewEngine creates an engine wrapper.
 func NewEngine(version string) *Engine {
 	return &Engine{version: version}
 }
 
-// buildConfig assembles the engine configuration from branding + state.
-func buildConfig(b Branding, st *AppState, version string) (*bdagent.Config, error) {
+// SetCallbacks wires UI handlers for consent and session overlay.
+func (e *Engine) SetCallbacks(
+	onConsent func(sessionID, operator string) bool,
+	onSessionStart func(sessionID, operator, mode string),
+	onSessionEnd func(sessionID string),
+) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onConsent = onConsent
+	e.onSessionStart = onSessionStart
+	e.onSessionEnd = onSessionEnd
+}
+
+func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*bdagent.Config, error) {
 	if !b.HasConnection() {
 		return nil, fmt.Errorf("branding has no server address; cannot connect")
 	}
+	if !st.IsEnrolled() {
+		return nil, fmt.Errorf("device not enrolled")
+	}
+
+	_, _, _, _ = st.Snapshot()
+	st.mu.Lock()
+	token := st.DeviceToken
+	deviceID := st.DeviceID
+	st.mu.Unlock()
 
 	cfg := bdagent.DefaultConfig()
-	cfg.Server = cdapWSURL(b.ServerAddress)
-	cfg.AuthMethod = "api_key"
-	cfg.APIKey = b.APIKey
-	cfg.DeviceID = st.DeviceID
+	cfg.Server = cdapWSURL(b)
+	cfg.AuthMethod = "device_token"
+	cfg.DeviceToken = token
+	cfg.DeviceID = deviceID
 	cfg.DeviceType = "os_agent"
 	if h, err := os.Hostname(); err == nil && h != "" {
 		cfg.DeviceName = h
 	}
 
-	// Mark the device on the server's device list. The device type must stay
-	// "os_agent" (the server validates the type and the panel routes remote
-	// sessions on it), so the support-agent identity is carried via tags, which
-	// the manifest persists to peer.Tags and the panel shows in its tag column.
 	cfg.Tags = []string{"support-agent"}
 	if IsPortable() {
 		cfg.Tags = append(cfg.Tags, "portable")
 	} else {
 		cfg.Tags = append(cfg.Tags, "installed")
 	}
+	if b.BundleID != "" {
+		cfg.Tags = append(cfg.Tags, "bundle:"+b.BundleID)
+	}
 
-	// Offer the full RDclient feature set: remote desktop, terminal, clipboard
-	// sync and file transfer (file browser). These mirror the capabilities of
-	// the full agent client so a supervised quick-help session is not limited.
 	cfg.Screenshot = true
 	cfg.Terminal = true
 	cfg.Clipboard = true
 	cfg.FileBrowser = true
-
-	// Root the file browser at the user's home directory so a support operator
-	// can transfer the files the user actually needs help with. The engine
-	// enforces path-traversal protection relative to this root.
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		cfg.FileRoot = home
 	}
 
-	// Access policy → consent behaviour.
-	switch st.AccessMode {
+	_, mode, _, _ := st.Snapshot()
+	switch mode {
 	case AccessUnattended:
 		cfg.RequireConsent = false
 	case AccessDisabled:
-		// Refuse desktop sessions entirely: keep consent required and disable
-		// every interactive capability so no stream or transfer can start.
 		cfg.RequireConsent = true
 		cfg.Screenshot = false
 		cfg.Terminal = false
 		cfg.FileBrowser = false
-	default: // supervised
+	default:
 		cfg.RequireConsent = true
 	}
 
 	if b.ServerKey != "" {
 		cfg.ServerCertPin = b.ServerKey
+	}
+	if strings.HasPrefix(strings.TrimSpace(b.ServerAddress), "https://") {
+		cfg.EnforceTLS = true
+	}
+	if os.Getenv("BETTERDESK_AGENT_INSECURE_TLS") == "1" && cfg.ServerCertPin == "" {
+		cfg.TLSInsecureSkipVerify = true
+	}
+
+	if handlers != nil {
+		if handlers.onConsent != nil {
+			cfg.ConsentHandler = handlers.onConsent
+		}
+		if handlers.onSessionStart != nil {
+			cfg.SessionStartHandler = handlers.onSessionStart
+		}
+		if handlers.onSessionEnd != nil {
+			cfg.SessionEndHandler = handlers.onSessionEnd
+		}
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -93,13 +123,10 @@ func buildConfig(b Branding, st *AppState, version string) (*bdagent.Config, err
 	return cfg, nil
 }
 
-// cdapWSURL converts a console server address (e.g. https://host:5443) into the
-// CDAP gateway WebSocket URL (ws://host:21122/cdap). Mirrors the Rust agent
-// client's SidecarConfig::cdap_ws_url so both clients reach the same gateway.
-func cdapWSURL(addr string) string {
+// cdapWSURL builds the CDAP WebSocket URL from branding.
+func cdapWSURL(b Branding) string {
 	const cdapPort = 21122
-	addr = strings.TrimSpace(addr)
-
+	addr := strings.TrimSpace(b.ServerAddress)
 	withScheme := addr
 	if !strings.HasPrefix(addr, "http://") && !strings.HasPrefix(addr, "https://") &&
 		!strings.HasPrefix(addr, "ws://") && !strings.HasPrefix(addr, "wss://") {
@@ -107,7 +134,7 @@ func cdapWSURL(addr string) string {
 	}
 
 	wsScheme := "ws"
-	if os.Getenv("BETTERDESK_CDAP_TLS") == "1" {
+	if strings.HasPrefix(withScheme, "https://") || os.Getenv("BETTERDESK_CDAP_TLS") == "1" {
 		wsScheme = "wss"
 	}
 
@@ -124,16 +151,18 @@ func cdapWSURL(addr string) string {
 	return fmt.Sprintf("%s://%s:%d/cdap", wsScheme, addr, cdapPort)
 }
 
-// Start launches the engine in a background goroutine using the current
-// branding and state. It is a no-op if already running.
+// Start launches the engine when enrolled.
 func (e *Engine) Start(st *AppState) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.running {
 		return nil
 	}
+	if !st.IsEnrolled() {
+		return fmt.Errorf("enrollment required before starting engine")
+	}
 
-	cfg, err := buildConfig(GetBranding(), st, e.version)
+	cfg, err := buildConfig(GetBranding(), st, e.version, e)
 	if err != nil {
 		return err
 	}

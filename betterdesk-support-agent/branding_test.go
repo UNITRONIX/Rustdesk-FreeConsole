@@ -1,0 +1,80 @@
+package main
+
+import (
+	"encoding/json"
+	"testing"
+)
+
+func TestBrandingNormalizeDefaults(t *testing.T) {
+	b := Branding{CompanyName: "Acme"}.normalize()
+	if b.PrimaryColor != "#2563eb" {
+		t.Fatalf("primary default: %s", b.PrimaryColor)
+	}
+	if b.BackgroundColor != "#0f172a" {
+		t.Fatalf("background default: %s", b.BackgroundColor)
+	}
+	if b.StatusReadyColor != "#22c55e" {
+		t.Fatalf("status color default: %s", b.StatusReadyColor)
+	}
+}
+
+func TestBrandingServerNested(t *testing.T) {
+	raw := `{"company_name":"X","server":{"address":"https://host:5443","api_url":"https://host:5443/api","public_key":"abc"}}`
+	var b Branding
+	if err := json.Unmarshal([]byte(raw), &b); err != nil {
+		t.Fatal(err)
+	}
+	b = b.normalize()
+	if b.ServerAddress != "https://host:5443" {
+		t.Fatalf("address: %s", b.ServerAddress)
+	}
+	if b.ServerKey != "abc" {
+		t.Fatalf("key: %s", b.ServerKey)
+	}
+}
+
+func TestStateEnrollment(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BETTERDESK_AGENT_DATA_DIR", dir)
+
+	st, err := LoadState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetEnrollment(EnrollmentApproved, st.DeviceID, "tok-123", ""); err != nil {
+		t.Fatal(err)
+	}
+	if !st.IsEnrolled() {
+		t.Fatal("expected enrolled")
+	}
+
+	st2, err := LoadState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st2.IsEnrolled() || st2.DeviceToken != "tok-123" {
+		t.Fatalf("reload failed: %+v", st2)
+	}
+}
+
+func TestAPIBaseURL(t *testing.T) {
+	b := Branding{
+		ServerAddress: "https://desk.example.com:5443",
+		Server: &ServerBranding{
+			APIURL: "https://desk.example.com:5443/api",
+		},
+	}.normalize()
+	got := apiBaseURL(b)
+	want := "https://desk.example.com:5443/api"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestCdapWSURLHTTPS(t *testing.T) {
+	b := Branding{ServerAddress: "https://desk.example.com:5443"}.normalize()
+	got := cdapWSURL(b)
+	if got[:6] != "wss://" {
+		t.Fatalf("expected wss, got %q", got)
+	}
+}

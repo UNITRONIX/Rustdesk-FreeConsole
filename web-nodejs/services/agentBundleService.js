@@ -18,13 +18,16 @@
 'use strict';
 
 const crypto = require('crypto');
+const conn = require('./agentBundleConnection');
 
 // Supported delivery targets. The portal renders one card per entry.
 const PLATFORMS = [
-    { platform: 'windows', arch: 'x64', format: 'exe',     label: 'Windows (.exe)' },
-    { platform: 'linux',   arch: 'x64', format: 'deb',     label: 'Debian / Ubuntu (.deb)' },
-    { platform: 'linux',   arch: 'x64', format: 'rpm',     label: 'Fedora / RHEL (.rpm)' },
-    { platform: 'linux',   arch: 'x64', format: 'AppImage', label: 'Linux Universal (.AppImage)' },
+    { platform: 'windows', arch: 'x64', format: 'portable',  label: 'Windows portable (.zip)' },
+    { platform: 'windows', arch: 'x64', format: 'installed', label: 'Windows installed (.exe)' },
+    { platform: 'linux',   arch: 'x64', format: 'portable',  label: 'Linux universal portable (.tar.gz)' },
+    { platform: 'linux',   arch: 'x64', format: 'appimage',  label: 'Linux portable (AppImage)' },
+    { platform: 'linux',   arch: 'x64', format: 'installed', label: 'Linux Debian/Ubuntu (.deb)' },
+    { platform: 'linux',   arch: 'x64', format: 'rpm',       label: 'Linux Fedora/RHEL (.rpm)' },
 ];
 
 const SUPPORTED_LANGS = ['en', 'pl', 'zh-TW'];
@@ -117,6 +120,24 @@ function validateBranding(input = {}) {
     }
     out.accent_color = out.accent_color.toLowerCase();
 
+    const colorFields = [
+        ['background_color', '#0f172a', 'background_color'],
+        ['surface_color', '#1e293b', 'surface_color'],
+        ['text_color', '#e2e8f0', 'text_color'],
+        ['text_muted_color', '#94a3b8', 'text_muted_color'],
+        ['status_ready_color', '#22c55e', 'status_ready_color'],
+        ['header_text_color', '#ffffff', 'header_text_color'],
+    ];
+    for (const [key, fallback, errKey] of colorFields) {
+        const alt = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+        out[key] = (input[key] || input[alt] || fallback);
+        if (!HEX_COLOR.test(out[key])) {
+            errors.push(errKey + '_invalid');
+            out[key] = fallback;
+        }
+        out[key] = out[key].toLowerCase();
+    }
+
     out.allow_unattended = !!(input.allow_unattended ?? input.allowUnattended ?? false);
 
     out.default_lang = String(input.default_lang || input.defaultLang || 'en');
@@ -124,10 +145,21 @@ function validateBranding(input = {}) {
         out.default_lang = 'en';
     }
 
-    // Server-derived fields that should *not* be operator-controlled
-    // but must be baked into the binary at build time. The route layer
-    // is responsible for injecting these from the system config — we just
-    // accept them as an opaque object so the hash covers them too.
+    // Connection profile — host/TLS set by operator; URLs + token filled server-side.
+    out.server_host = clip(input.server_host || input.serverHost, 253);
+    if (out.server_host) {
+        const norm = conn.normalizeServerHost(out.server_host);
+        if (!norm.valid) {
+            errors.push(norm.error);
+        } else {
+            out.server_host = norm.host;
+        }
+    } else {
+        errors.push('server_host_required');
+    }
+    out.use_https = !!(input.use_https ?? input.useHttps ?? conn.defaultUseHttps());
+
+    // Never accept enrollment_token from the browser — issued by backend only.
     if (input.server && typeof input.server === 'object') {
         out.server = {
             address:    clip(input.server.address    || '', MAX_CONTACT),
@@ -178,8 +210,16 @@ function defaultBranding() {
         logo_data_url: '',
         primary_color: '#2563eb',
         accent_color: '#1e293b',
+        background_color: '#0f172a',
+        surface_color: '#1e293b',
+        text_color: '#e2e8f0',
+        text_muted_color: '#94a3b8',
+        status_ready_color: '#22c55e',
+        header_text_color: '#ffffff',
         allow_unattended: false,
         default_lang: 'en',
+        server_host: '',
+        use_https: conn.defaultUseHttps(),
         server: { address: '', api_url: '', public_key: '' },
     };
 }

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/events"
 )
@@ -750,4 +752,54 @@ func normalizeEnrollmentTags(raw string) string {
 		out = append(out, t)
 	}
 	return strings.Join(out, ",")
+}
+
+// handleDeviceSelfAccessPolicy lets an enrolled device push its local access
+// password and unattended flag (support agent minimal client).
+// POST /api/devices/self/access-policy
+func (s *Server) handleDeviceSelfAccessPolicy(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		DeviceID          string `json:"device_id"`
+		DeviceToken       string `json:"device_token"`
+		Password          string `json:"password"`
+		UnattendedEnabled bool   `json:"unattended_enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if body.DeviceID == "" || body.DeviceToken == "" {
+		http.Error(w, "device_id and device_token required", http.StatusBadRequest)
+		return
+	}
+
+	tokenHash := hashToken(body.DeviceToken)
+	dt, err := s.db.ValidateToken(tokenHash)
+	if err != nil || dt == nil {
+		http.Error(w, "invalid device token", http.StatusForbidden)
+		return
+	}
+	if dt.PeerID != "" && dt.PeerID != body.DeviceID {
+		http.Error(w, "token bound to another device", http.StatusForbidden)
+		return
+	}
+
+	policy := &db.AccessPolicy{
+		PeerID:            body.DeviceID,
+		UnattendedEnabled: body.UnattendedEnabled,
+		UpdatedBy:         "device:" + body.DeviceID,
+	}
+	if body.Password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+		if err != nil {
+			http.Error(w, "failed to hash password", http.StatusInternalServerError)
+			return
+		}
+		policy.PasswordHash = string(hash)
+	}
+	if err := s.db.SaveAccessPolicy(policy); err != nil {
+		http.Error(w, "failed to save policy", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

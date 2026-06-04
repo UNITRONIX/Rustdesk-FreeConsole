@@ -20,6 +20,8 @@ const buildWorker = require('../services/agentBuildWorker');
 const db = require('../services/database');
 const config = require('../config/config');
 const brandingService = require('../services/brandingService');
+const betterdeskApi = require('../services/betterdeskApi');
+const conn = require('../services/agentBundleConnection');
 
 // Branding payloads may carry a base64-encoded logo up to 10 MB; expand the
 // default 2 MB JSON body limit on the bundle CRUD + preview endpoints only.
@@ -41,7 +43,7 @@ function serializeBundle(row) {
     return {
         bundle_id:       row.bundle_id,
         name:            row.name,
-        branding:        parseBranding(row.branding),
+        branding:        publicBrandingView(parseBranding(row.branding)),
         branding_hash:   row.branding_hash,
         revoked:         !!row.revoked,
         download_count:  Number(row.download_count || 0),
@@ -52,16 +54,68 @@ function serializeBundle(row) {
 }
 
 function injectServerBranding(input) {
-    // The server address + public key are baked into the binary at build
-    // time. Operators must not be able to override them per-bundle, so we
-    // always overwrite whatever was submitted with the system config.
+    // Legacy alias — use finalizeBundleBranding for new bundles.
+    return finalizeBundleBrandingSync(input);
+}
+
+function finalizeBundleBrandingSync(input) {
     const branding = { ...(input || {}) };
+    const host = branding.server_host || conn.defaultServerHost();
+    const useHttps = branding.use_https ?? conn.defaultUseHttps();
+    const urls = conn.buildServerUrls(host, useHttps);
     branding.server = {
-        address:    config.hbbsApiUrl.replace(/\/api\/?$/, ''),
-        api_url:    config.hbbsApiUrl,
+        address: urls.address,
+        api_url: urls.api_url,
         public_key: keyService.getPublicKey() || '',
     };
+    branding.server_address = branding.server.address;
+    branding.server_key = branding.server.public_key;
     return branding;
+}
+
+/**
+ * Merge operator connection settings, inject server key, and optionally
+ * mint a new enrollment token (baked into the support-agent binary).
+ */
+async function finalizeBundleBranding(input, bundleId, { regenerateToken = true, previous = null } = {}) {
+    const branding = finalizeBundleBrandingSync(input);
+
+    if (regenerateToken || !previous?.enrollment_token) {
+        const tokenRes = await betterdeskApi.createDeviceToken({
+            name: `bundle-${bundleId}`,
+            max_uses: 0,
+            note: `Support agent bundle ${bundleId}`,
+        });
+        if (!tokenRes.success || !tokenRes.data?.token) {
+            throw new Error(tokenRes.error || 'enrollment_token_failed');
+        }
+        branding.enrollment_token = tokenRes.data.token;
+    } else {
+        branding.enrollment_token = previous.enrollment_token;
+    }
+
+    // Operator-editable fields kept for UI reload; not hashed separately from server URLs.
+    branding.server_host = input.server_host || conn.defaultServerHost();
+    branding.use_https = !!(input.use_https ?? conn.defaultUseHttps());
+    branding.has_enrollment_token = true;
+
+    return branding;
+}
+
+function maskEnrollmentToken(token) {
+    if (!token || typeof token !== 'string') return '';
+    if (token.length <= 8) return '********';
+    return `${token.slice(0, 4)}…${token.slice(-4)}`;
+}
+
+function publicBrandingView(branding) {
+    if (!branding || typeof branding !== 'object') return branding;
+    const out = { ...branding };
+    if (out.enrollment_token) {
+        out.enrollment_token_masked = maskEnrollmentToken(out.enrollment_token);
+        delete out.enrollment_token;
+    }
+    return out;
 }
 
 // =========================================================================
@@ -104,18 +158,38 @@ router.get('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
     }
 });
 
+router.get('/api/generator/defaults', requireAuth, requireAdmin, (req, res) => {
+    res.json({
+        success: true,
+        data: {
+            server_host: conn.defaultServerHost(),
+            use_https: conn.defaultUseHttps(),
+            api_port: conn.defaultApiPort(),
+            public_key: keyService.getPublicKey() || '',
+        },
+    });
+});
+
 router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res) => {
     try {
         const name = String(req.body.name || '').trim().slice(0, 100);
         if (!name) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.name_required') });
         }
-        const rawBranding = injectServerBranding(req.body.branding || {});
-        const { valid, errors, normalized } = bundleService.validateBranding(rawBranding);
+        const { valid, errors, normalized: base } = bundleService.validateBranding(req.body.branding || {});
         if (!valid) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
         const bundleId = bundleService.generateBundleId();
+        let normalized;
+        try {
+            normalized = await finalizeBundleBranding(base, bundleId, { regenerateToken: true });
+        } catch (tokErr) {
+            console.error('[generator] token mint failed:', tokErr);
+            return res.status(502).json({ success: false, error: req.t('generator.errors.token_failed') });
+        }
+        normalized.bundle_id = bundleId;
+        normalized.product_name = normalized.company_name || 'BetterDesk Support';
         const brandingHash = bundleService.hashBranding(normalized);
         const created = await db.createAgentBundle({
             bundleId,
@@ -143,11 +217,24 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
         if (!name) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.name_required') });
         }
-        const rawBranding = injectServerBranding(req.body.branding || parseBranding(existing.branding));
-        const { valid, errors, normalized } = bundleService.validateBranding(rawBranding);
+        const existingBranding = parseBranding(existing.branding);
+        const { valid, errors, normalized: base } = bundleService.validateBranding(req.body.branding || existingBranding);
         if (!valid) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
+        const connChanged = conn.connectionFingerprint(existingBranding) !== conn.connectionFingerprint(base);
+        let normalized;
+        try {
+            normalized = await finalizeBundleBranding(base, req.params.bundleId, {
+                regenerateToken: connChanged,
+                previous: existingBranding,
+            });
+        } catch (tokErr) {
+            console.error('[generator] token mint failed:', tokErr);
+            return res.status(502).json({ success: false, error: req.t('generator.errors.token_failed') });
+        }
+        normalized.bundle_id = req.params.bundleId;
+        normalized.product_name = normalized.company_name || 'BetterDesk Support';
         const brandingHash = bundleService.hashBranding(normalized);
         const updated = await db.updateAgentBundle(req.params.bundleId, {
             name,
@@ -198,9 +285,9 @@ router.delete('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, asy
  */
 router.post('/api/generator/preview', requireAuth, requireAdmin, (req, res) => {
     try {
-        const rawBranding = injectServerBranding(req.body.branding || {});
+        const rawBranding = finalizeBundleBrandingSync(req.body.branding || {});
         const { valid, errors, normalized } = bundleService.validateBranding(rawBranding);
-        res.json({ success: true, data: { valid, errors, branding: normalized }, errors });
+        res.json({ success: true, data: { valid, errors, branding: publicBrandingView(normalized) }, errors });
     } catch (err) {
         console.error('[generator] preview error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });

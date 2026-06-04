@@ -96,8 +96,11 @@ sudo apt install -y libgl1-mesa-dev xorg-dev
 
 ## Portable usage
 
-Place an empty `portable` (or `.portable`) file next to the binary; all state is
-then written to a `data/` folder beside it, leaving no trace in the user profile.
+**Tarball / bare binary:** place an empty `portable` (or `.portable`) file next to
+the binary; state is written to a `data/` folder beside it.
+
+**AppImage:** no marker needed — the runtime sets `APPIMAGE` and state is stored
+in `betterdesk-support-data/` next to the `.AppImage` file (the mount is read-only).
 
 ## Environment variables
 

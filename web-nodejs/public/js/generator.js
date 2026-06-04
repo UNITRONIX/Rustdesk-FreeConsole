@@ -46,9 +46,10 @@
         ['gen-new-bundle', 'gen-bundle-list', 'gen-editor-title', 'gen-revoke-btn', 'gen-delete-btn', 'gen-save-btn',
          'gen-empty-state', 'gen-editor-form',
          'gen-name', 'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
-         'gen-logo', 'gen-logo-clear', 'gen-primary', 'gen-accent', 'gen-lang', 'gen-unattended',
+         'gen-server-host', 'gen-use-https', 'gen-token-mask',
+         'gen-logo', 'gen-logo-clear', 'gen-primary', 'gen-accent', 'gen-bg', 'gen-surface', 'gen-text', 'gen-text-muted', 'gen-status-ready', 'gen-header-text', 'gen-lang', 'gen-unattended',
          'gen-download-info', 'gen-download-url', 'gen-copy-link', 'gen-open-link',
-         'gen-preview', 'gen-prev-logo', 'gen-prev-name', 'gen-prev-text', 'gen-prev-pw-row', 'gen-prev-contact',
+         'gen-preview', 'gen-prev-body-logo', 'gen-prev-name', 'gen-prev-text', 'gen-prev-pw-row', 'gen-prev-contact',
          'gen-validation-errors'
         ].forEach(id => { els[id] = $(id); });
     }
@@ -62,11 +63,20 @@
         logo_data_url: '',
         primary_color: '#2563eb',
         accent_color:  '#1e293b',
+        background_color: '#0f172a',
+        surface_color: '#1e293b',
+        text_color: '#e2e8f0',
+        text_muted_color: '#94a3b8',
+        status_ready_color: '#22c55e',
+        header_text_color: '#ffffff',
         allow_unattended: false,
         default_lang: 'en',
+        server_host: '',
+        use_https: true,
     };
 
     let logoDataUrl = '';
+    let connectionDefaults = { server_host: '', use_https: true };
 
     function readBranding() {
         return {
@@ -78,13 +88,27 @@
             logo_data_url: logoDataUrl,
             primary_color: els['gen-primary'].value,
             accent_color:  els['gen-accent'].value,
+            background_color: els['gen-bg'].value,
+            surface_color: els['gen-surface'].value,
+            text_color: els['gen-text'].value,
+            text_muted_color: els['gen-text-muted'].value,
+            status_ready_color: els['gen-status-ready'].value,
+            header_text_color: els['gen-header-text'].value,
             allow_unattended: !!els['gen-unattended'].checked,
             default_lang: els['gen-lang'].value,
+            server_host: els['gen-server-host'].value.trim(),
+            use_https: !!els['gen-use-https'].checked,
         };
     }
 
     function writeBranding(b) {
-        b = Object.assign({}, DEFAULT_BRANDING, b || {});
+        b = Object.assign({}, DEFAULT_BRANDING, connectionDefaults, b || {});
+        els['gen-server-host'].value = b.server_host || b.server?.address?.replace(/^https?:\/\//, '').split(':')[0] || '';
+        els['gen-use-https'].checked = b.use_https ?? (b.server?.address?.startsWith('https://') ?? true);
+        if (els['gen-token-mask']) {
+            const masked = b.enrollment_token_masked || (b.has_enrollment_token ? t('generator.enrollment_token_set', 'Generated (embedded in build)') : '');
+            els['gen-token-mask'].value = masked;
+        }
         els['gen-company'].value = b.company_name || '';
         els['gen-short-text'].value = b.short_text || '';
         els['gen-email'].value = b.contact_email || '';
@@ -92,6 +116,12 @@
         els['gen-url'].value   = b.contact_url || '';
         els['gen-primary'].value = b.primary_color || '#2563eb';
         els['gen-accent'].value  = b.accent_color  || '#1e293b';
+        els['gen-bg'].value = b.background_color || '#0f172a';
+        els['gen-surface'].value = b.surface_color || '#1e293b';
+        els['gen-text'].value = b.text_color || '#e2e8f0';
+        els['gen-text-muted'].value = b.text_muted_color || '#94a3b8';
+        els['gen-status-ready'].value = b.status_ready_color || '#22c55e';
+        els['gen-header-text'].value = b.header_text_color || '#ffffff';
         els['gen-unattended'].checked = !!b.allow_unattended;
         els['gen-lang'].value = b.default_lang || 'en';
         logoDataUrl = b.logo_data_url || '';
@@ -111,8 +141,14 @@
         if (frame) {
             frame.style.setProperty('--brand-primary', b.primary_color);
             frame.style.setProperty('--brand-accent',  b.accent_color);
+            frame.style.setProperty('--brand-bg', b.background_color || '#0f172a');
+            frame.style.setProperty('--brand-surface', b.surface_color || '#1e293b');
+            frame.style.setProperty('--brand-text', b.text_color || '#e2e8f0');
+            frame.style.setProperty('--brand-text-muted', b.text_muted_color || '#94a3b8');
+            frame.style.setProperty('--brand-status-ready', b.status_ready_color || '#22c55e');
+            frame.style.setProperty('--brand-header-text', b.header_text_color || '#ffffff');
         }
-        const logoEl = els['gen-prev-logo'];
+        const logoEl = els['gen-prev-body-logo'];
         if (b.logo_data_url) {
             logoEl.innerHTML = `<img src="${escapeText(b.logo_data_url)}" alt="">`;
         } else {
@@ -256,9 +292,15 @@
         els['gen-validation-errors'].innerHTML = '';
     }
 
+    function fmtError(key) {
+        if (!key) return '';
+        const translated = t(`generator.errors.${key}`, null);
+        return translated || key;
+    }
+
     function showErrors(errors) {
         if (!errors || !errors.length) { clearErrors(); return; }
-        const items = errors.map(e => `<li>${escapeText(e)}</li>`).join('');
+        const items = errors.map(e => `<li>${escapeText(fmtError(e))}</li>`).join('');
         els['gen-validation-errors'].innerHTML = `
             <strong>${escapeText(t('generator.errors.validation_failed', 'Validation failed'))}</strong>
             <ul>${items}</ul>
@@ -383,6 +425,19 @@
         }
     }
 
+    async function loadConnectionDefaults() {
+        try {
+            const res = await api('GET', '/api/generator/defaults');
+            const d = (res && res.data) || {};
+            connectionDefaults = {
+                server_host: d.server_host || '',
+                use_https: d.use_https !== false,
+            };
+        } catch (_) {
+            connectionDefaults = { server_host: '', use_https: true };
+        }
+    }
+
     function bindEvents() {
         els['gen-new-bundle'].addEventListener('click', () => setEditorForNew());
         els['gen-save-btn'].addEventListener('click', saveBundle);
@@ -392,8 +447,9 @@
         els['gen-logo-clear'].addEventListener('click', clearLogo);
         els['gen-copy-link'].addEventListener('click', copyDownloadLink);
 
-        ['gen-name', 'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
-         'gen-primary', 'gen-accent', 'gen-lang', 'gen-unattended'
+        [         'gen-name', 'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
+         'gen-server-host', 'gen-use-https',
+         'gen-primary', 'gen-accent', 'gen-bg', 'gen-surface', 'gen-text', 'gen-text-muted', 'gen-status-ready', 'gen-header-text', 'gen-lang', 'gen-unattended'
         ].forEach(id => {
             const el = els[id];
             if (!el) return;
@@ -402,10 +458,11 @@
         });
     }
 
-    function init() {
+    async function init() {
         cacheEls();
         if (!els['gen-bundle-list']) return;
         bindEvents();
+        await loadConnectionDefaults();
         loadBundles();
     }
 

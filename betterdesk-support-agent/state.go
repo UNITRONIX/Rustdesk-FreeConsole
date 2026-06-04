@@ -34,23 +34,26 @@ const (
 // is still exposed to the local user through the UI, where it is decrypted in
 // memory on demand. The file is additionally written with 0600 permissions.
 type AppState struct {
-	DeviceID       string `json:"device_id"`
-	AccessMode     string `json:"access_mode"`
-	AccessPassword string `json:"access_password"`
-	CustomPassword bool   `json:"custom_password"`
-	Language       string `json:"language"`
+	DeviceID          string `json:"device_id"`
+	AccessMode        string `json:"access_mode"`
+	AccessPassword    string `json:"access_password"`
+	CustomPassword    bool   `json:"custom_password"`
+	Language          string `json:"language"`
+	DeviceToken       string `json:"device_token,omitempty"`
+	EnrollmentStatus  string `json:"enrollment_status,omitempty"`
+	EnrollmentMessage string `json:"enrollment_message,omitempty"`
 
 	mu   sync.Mutex `json:"-"`
 	path string     `json:"-"`
 }
 
 // stateDir returns the directory holding the persistent state file. Portable
-// builds keep all state next to the binary (USB-friendly, leaves no trace in
-// the user profile). Detection order:
+// builds keep state in a writable location (USB-friendly tar/portable binary,
+// or beside the .AppImage file). Detection order:
 //  1. BETTERDESK_AGENT_DATA_DIR env override
-//  2. portable marker file ("portable" or ".portable") next to the executable
-//     → use a "data" subdirectory beside the binary
-//  3. default per-user config directory
+//  2. AppImage: APPIMAGE env → betterdesk-support-data/ next to the .AppImage
+//  3. portable marker ("portable" or ".portable") next to the executable → data/
+//  4. default per-user config directory
 func stateDir() string {
 	if d := os.Getenv("BETTERDESK_AGENT_DATA_DIR"); d != "" {
 		return d
@@ -66,9 +69,11 @@ func stateDir() string {
 	return filepath.Join(base, "betterdesk-support")
 }
 
-// portableDataDir reports a data directory beside the executable when a
-// portable marker file is present.
+// portableDataDir reports a writable data directory for portable distributions.
 func portableDataDir() (string, bool) {
+	if dir, ok := appImagePortableDir(); ok {
+		return dir, true
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return "", false
@@ -82,8 +87,17 @@ func portableDataDir() (string, bool) {
 	return "", false
 }
 
-// IsPortable reports whether the agent is running in portable mode (a marker
-// file sits next to the binary). Used to tag the device on the server.
+// appImagePortableDir stores state beside the .AppImage on disk. The runtime
+// mount at usr/bin/ is read-only, so data cannot live next to the binary.
+func appImagePortableDir() (string, bool) {
+	appImage := strings.TrimSpace(os.Getenv("APPIMAGE"))
+	if appImage == "" {
+		return "", false
+	}
+	return filepath.Join(filepath.Dir(appImage), "betterdesk-support-data"), true
+}
+
+// IsPortable reports portable distribution (AppImage, or marker beside binary).
 func IsPortable() bool {
 	if os.Getenv("BETTERDESK_AGENT_DATA_DIR") != "" {
 		return false
@@ -229,6 +243,41 @@ func (s *AppState) Snapshot() (deviceID, mode, password string, custom bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.DeviceID, s.AccessMode, s.AccessPassword, s.CustomPassword
+}
+
+// EnrollmentSnapshot returns enrollment-related fields.
+func (s *AppState) EnrollmentSnapshot() (status, token, message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.EnrollmentStatus, s.DeviceToken, s.EnrollmentMessage
+}
+
+// SetEnrollment persists enrollment outcome and optional device token.
+func (s *AppState) SetEnrollment(status, deviceID, token, message string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if deviceID != "" {
+		s.DeviceID = deviceID
+	}
+	s.EnrollmentStatus = status
+	s.DeviceToken = token
+	s.EnrollmentMessage = message
+	return s.save()
+}
+
+// SetEnrollmentMessage updates the pending/rejected message only.
+func (s *AppState) SetEnrollmentMessage(message string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.EnrollmentMessage = message
+	return s.save()
+}
+
+// IsEnrolled reports whether the device has an approved token.
+func (s *AppState) IsEnrolled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.EnrollmentStatus == EnrollmentApproved && s.DeviceToken != ""
 }
 
 // generateDeviceID derives a stable per-machine identifier so the device keeps

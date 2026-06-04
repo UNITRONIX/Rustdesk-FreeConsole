@@ -50,6 +50,7 @@ type Agent struct {
 	terminals      sync.Map // session_id → *TerminalSession
 	fileHandlers   sync.Map // session_id → context.CancelFunc
 	desktopStreams sync.Map // session_id → *DesktopStreamer
+	audioStreams   sync.Map // session_id → *AudioStreamer
 
 	// Consent system: when require_consent=true, handleDesktopStart prints
 	// CONSENT_REQUEST to stdout and waits on a channel stored here.
@@ -397,8 +398,12 @@ func (a *Agent) dispatch(msg *Message) {
 	case "desktop_input":
 		a.handleDesktopInput(msg)
 
-	// ── Video / Audio (not supported in os_agent) ──
-	case "video_start", "audio_start", "audio_input":
+	// ── Video / Audio ──
+	case "audio_start":
+		a.handleAudioStart(msg)
+	case "audio_stop":
+		a.handleAudioStop(msg)
+	case "video_start", "audio_input":
 		log.Printf("[agent] %s: not supported in os_agent mode", msg.Type)
 
 	// ── Codec / Media Control ──
