@@ -189,6 +189,21 @@
                                 </div>
 
                                 <div id="gen-download-info" class="download-info hidden">
+                                    <div class="builds-section" id="gen-builds-section">
+                                        <div class="builds-section-header">
+                                            <h3 class="section-title">${_('generator.builds_title')}</h3>
+                                            <button type="button" id="gen-rebuild-btn" class="btn btn-secondary btn-sm">
+                                                <span class="material-icons">sync</span>
+                                                ${_('generator.rebuild_all')}
+                                            </button>
+                                        </div>
+                                        <p class="form-hint">${_('generator.builds_hint')}</p>
+                                        <div id="gen-builds-summary" class="builds-summary hidden"></div>
+                                        <div id="gen-builds-list" class="builds-list">
+                                            <p class="text-muted">${_('generator.builds_loading')}</p>
+                                        </div>
+                                    </div>
+
                                     <h3 class="section-title">${_('generator.download_link_title')}</h3>
                                     <div class="download-link-row">
                                         <input type="text" id="gen-download-url" class="form-input" readonly>

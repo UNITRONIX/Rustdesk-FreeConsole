@@ -216,6 +216,16 @@ async function requeueAllBundleBuilds() {
     return { bundles: hashes.length };
 }
 
+/** Force-requeue every platform build for one generator bundle. */
+async function rebuildBundleById(bundleId) {
+    const row = await db.getAgentBundle(bundleId);
+    if (!row) return { success: false, error: 'not_found' };
+    if (!row.branding_hash) return { success: false, error: 'missing_hash' };
+    await enqueueBuildsForHash(row.branding_hash, { force: true });
+    const platforms = (bundleService.PLATFORMS || []).length;
+    return { success: true, platforms, brandingHash: row.branding_hash };
+}
+
 /** Re-queue builds that failed only because the host Go install was broken. */
 async function requeueFailedToolchainBuilds() {
     if (!_goBinaryHealthy(getGoBin())) return { requeued: 0 };
@@ -228,7 +238,7 @@ async function requeueFailedToolchainBuilds() {
         for (const row of builds) {
             const err = String(row.error_message || '');
             if (row.status !== 'failed') continue;
-            if (!/encoding\/png|not in std|Go toolchain/i.test(err)) continue;
+            if (!/encoding\/png|not in std|Go toolchain|stdlib verification/i.test(err)) continue;
             await db.upsertAgentBundleBuild({
                 brandingHash: row.branding_hash,
                 platform: row.platform,
@@ -812,6 +822,7 @@ function _sha256OfFile(filePath) {
 module.exports = {
     enqueueBuildsForHash,
     requeueAllBundleBuilds,
+    rebuildBundleById,
     requeueFailedToolchainBuilds,
     markRebuildPending,
     processPendingRebuildOnStartup,

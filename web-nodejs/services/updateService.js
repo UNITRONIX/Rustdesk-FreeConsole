@@ -896,7 +896,8 @@ function httpsDownload(url, redirects = 5) {
  * the canonical SHA-256 sum so the download can be verified securely.
  */
 async function resolveGoRelease(opts = {}) {
-    const maxVersion = opts.maxVersion || null;
+    // Go 1.26.x ships incomplete stdlib on some hosts; cap agent/server builds at 1.25.x.
+    const maxVersion = opts.maxVersion || '1.25.99';
     const key = getToolchainKey();
     const data = await httpsDownload('https://go.dev/dl/?mode=json');
     const releases = JSON.parse(data.toString('utf8'));

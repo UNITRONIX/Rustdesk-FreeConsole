@@ -260,6 +260,31 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
     }
 });
 
+router.post('/api/generator/bundles/:bundleId/rebuild', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const row = await db.getAgentBundle(req.params.bundleId);
+        if (!row) return res.status(404).json({ success: false, error: req.t('errors.not_found') });
+        if (row.revoked) {
+            return res.status(400).json({ success: false, error: req.t('generator.errors.rebuild_revoked') });
+        }
+        const result = await buildWorker.rebuildBundleById(req.params.bundleId);
+        if (!result.success) {
+            return res.status(404).json({ success: false, error: req.t('errors.not_found') });
+        }
+        const builds = await db.listAgentBundleBuildsForHash(row.branding_hash);
+        res.json({
+            success: true,
+            data: {
+                queued: result.platforms,
+                builds: builds || [],
+            },
+        });
+    } catch (err) {
+        console.error('[generator] rebuild bundle error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
 router.post('/api/generator/bundles/:bundleId/revoke', requireAuth, requireAdmin, async (req, res) => {
     try {
         const revoked = req.body.revoked !== false;

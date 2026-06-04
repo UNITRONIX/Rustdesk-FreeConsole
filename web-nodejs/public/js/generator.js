@@ -35,8 +35,11 @@
         bundles: [],
         currentId: null,
         currentBundle: null,
+        currentBuilds: [],
+        platformLabels: {},
         dirty: false,
         previewTimer: null,
+        buildsPollTimer: null,
     };
 
     const $ = (id) => document.getElementById(id);
@@ -44,6 +47,7 @@
 
     function cacheEls() {
         ['gen-new-bundle', 'gen-bundle-list', 'gen-editor-title', 'gen-revoke-btn', 'gen-delete-btn', 'gen-save-btn',
+         'gen-rebuild-btn', 'gen-builds-list', 'gen-builds-summary',
          'gen-empty-state', 'gen-editor-form',
          'gen-name', 'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
          'gen-server-host', 'gen-use-https', 'gen-token-mask',
@@ -182,6 +186,136 @@
         return d.toLocaleDateString();
     }
 
+    function platformKey(p, a, f) {
+        return `${p}/${a}/${f}`;
+    }
+
+    function platformLabel(p, a, f) {
+        return state.platformLabels[platformKey(p, a, f)]
+            || `${p} ${a} ${f}`;
+    }
+
+    function statusLabel(status) {
+        const map = {
+            ready: t('generator.build_status_ready', 'Ready'),
+            pending: t('generator.build_status_pending', 'Queued'),
+            building: t('generator.build_status_building', 'Building'),
+            failed: t('generator.build_status_failed', 'Failed'),
+        };
+        return map[status] || status;
+    }
+
+    function summarizeBuilds(builds) {
+        const counts = { ready: 0, pending: 0, building: 0, failed: 0 };
+        for (const b of builds || []) {
+            if (counts[b.status] != null) counts[b.status]++;
+        }
+        return counts;
+    }
+
+    function buildsNeedPoll(builds) {
+        return (builds || []).some(b => b.status === 'pending' || b.status === 'building');
+    }
+
+    function stopBuildsPoll() {
+        if (state.buildsPollTimer) {
+            clearInterval(state.buildsPollTimer);
+            state.buildsPollTimer = null;
+        }
+    }
+
+    function scheduleBuildsPoll() {
+        stopBuildsPoll();
+        if (!state.currentId || state.currentId === 'new') return;
+        if (!buildsNeedPoll(state.currentBuilds)) return;
+        state.buildsPollTimer = setInterval(() => {
+            refreshBuilds().catch(() => {});
+        }, 5000);
+    }
+
+    function renderBuilds(builds) {
+        state.currentBuilds = builds || [];
+        const listEl = els['gen-builds-list'];
+        const summaryEl = els['gen-builds-summary'];
+        if (!listEl) return;
+
+        if (!builds || !builds.length) {
+            listEl.innerHTML = `<p class="text-muted">${escapeText(t('generator.builds_empty', 'No builds queued yet'))}</p>`;
+            summaryEl.classList.add('hidden');
+            stopBuildsPoll();
+            return;
+        }
+
+        const counts = summarizeBuilds(builds);
+        summaryEl.textContent = t('generator.builds_summary', '{{ready}} ready · {{pending}} queued · {{building}} building · {{failed}} failed')
+            .replace('{{ready}}', counts.ready)
+            .replace('{{pending}}', counts.pending)
+            .replace('{{building}}', counts.building)
+            .replace('{{failed}}', counts.failed);
+        summaryEl.classList.remove('hidden');
+
+        const rows = [...builds].sort((a, b) => {
+            const la = platformLabel(a.platform, a.arch, a.format);
+            const lb = platformLabel(b.platform, b.arch, b.format);
+            return la.localeCompare(lb);
+        });
+
+        listEl.innerHTML = `
+            <table class="builds-table">
+                <thead>
+                    <tr>
+                        <th>${escapeText(t('generator.builds_title', 'Client builds'))}</th>
+                        <th>${escapeText(t('common.status', 'Status'))}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.map(b => {
+                        const err = b.error_message ? `<div class="build-error" title="${escapeText(b.error_message)}">${escapeText(b.error_message)}</div>` : '';
+                        return `
+                            <tr class="build-row build-row--${escapeText(b.status)}">
+                                <td>${escapeText(platformLabel(b.platform, b.arch, b.format))}${err}</td>
+                                <td><span class="build-badge build-badge--${escapeText(b.status)}">${escapeText(statusLabel(b.status))}</span></td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+
+        scheduleBuildsPoll();
+    }
+
+    async function refreshBuilds() {
+        if (!state.currentId || state.currentId === 'new') return;
+        const res = await api('GET', `/api/generator/bundles/${encodeURIComponent(state.currentId)}`);
+        if (res && res.data && res.data.bundle) {
+            state.currentBundle = res.data.bundle;
+            renderBuilds(res.data.bundle.builds || []);
+        }
+    }
+
+    async function rebuildAllBuilds() {
+        if (!state.currentBundle || state.currentId === 'new') return;
+        if (!confirm(t('generator.rebuild_confirm', 'Rebuild all platform installers for this bundle?'))) return;
+        const btn = els['gen-rebuild-btn'];
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = `<span class="material-icons spinning">sync</span> ${escapeText(t('generator.rebuilding_all', 'Queuing rebuilds…'))}`;
+        }
+        try {
+            const res = await api('POST', `/api/generator/bundles/${encodeURIComponent(state.currentId)}/rebuild`);
+            notify.success(t('generator.rebuild_queued', 'All platform builds queued'));
+            renderBuilds((res && res.data && res.data.builds) || []);
+        } catch (e) {
+            notify.error(e.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<span class="material-icons">sync</span> ${escapeText(t('generator.rebuild_all', 'Rebuild all'))}`;
+            }
+        }
+    }
+
     function renderBundleList() {
         const root = els['gen-bundle-list'];
         if (!state.bundles.length) {
@@ -239,7 +373,9 @@
     function setEditorForNew() {
         state.currentId = 'new';
         state.currentBundle = null;
+        state.currentBuilds = [];
         state.dirty = false;
+        stopBuildsPoll();
         els['gen-editor-title'].innerHTML = `<span class="material-icons">add_circle</span> ${escapeText(t('generator.new_bundle', 'New bundle'))}`;
         els['gen-name'].value = '';
         writeBranding(DEFAULT_BRANDING);
@@ -258,6 +394,7 @@
         state.currentId = bundle.bundle_id;
         state.currentBundle = bundle;
         state.dirty = false;
+        stopBuildsPoll();
         els['gen-editor-title'].innerHTML = `<span class="material-icons">edit</span> ${escapeText(bundle.name || bundle.bundle_id)}`;
         els['gen-name'].value = bundle.name || '';
         writeBranding(bundle.branding);
@@ -271,6 +408,7 @@
         els['gen-download-url'].value = url;
         els['gen-open-link'].href = url;
         els['gen-download-info'].classList.remove('hidden');
+        renderBuilds(bundle.builds || []);
         clearErrors();
         showEditor();
         renderBundleList();
@@ -438,9 +576,23 @@
         }
     }
 
+    async function loadPlatformLabels() {
+        try {
+            const res = await api('GET', '/api/generator/platforms');
+            const platforms = (res && res.data && res.data.platforms) || [];
+            state.platformLabels = {};
+            platforms.forEach(p => {
+                state.platformLabels[platformKey(p.platform, p.arch, p.format)] = p.label;
+            });
+        } catch (_) {
+            state.platformLabels = {};
+        }
+    }
+
     function bindEvents() {
         els['gen-new-bundle'].addEventListener('click', () => setEditorForNew());
         els['gen-save-btn'].addEventListener('click', saveBundle);
+        els['gen-rebuild-btn'].addEventListener('click', rebuildAllBuilds);
         els['gen-revoke-btn'].addEventListener('click', toggleRevoke);
         els['gen-delete-btn'].addEventListener('click', deleteBundle);
         els['gen-logo'].addEventListener('change', onLogoChange);
@@ -463,6 +615,7 @@
         if (!els['gen-bundle-list']) return;
         bindEvents();
         await loadConnectionDefaults();
+        await loadPlatformLabels();
         loadBundles();
     }
 
