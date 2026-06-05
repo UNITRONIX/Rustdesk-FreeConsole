@@ -31,8 +31,8 @@ const CONNECT_TIMEOUT_MS = 8_000;
 const ERROR_RATE_ABORT = 0.05;
 
 const TIER_THRESHOLDS = [
-    { tier: 'platinum', min: 201 },
-    { tier: 'titanium', min: 76 },
+    { tier: 'titanium', min: 201 },
+    { tier: 'platinum', min: 76 },
     { tier: 'iron', min: 26 },
     { tier: 'bronze', min: 1 }
 ];
