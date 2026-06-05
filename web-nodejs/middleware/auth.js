@@ -17,7 +17,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
 
     // Server Admin: infrastructure + read-only users
     server_admin: new Set([
-        'server.config', 'server.keys',
+        'server.config', 'server.keys', 'server.attestation',
         'blocklist.edit',
         'user.view',
         'device.view',

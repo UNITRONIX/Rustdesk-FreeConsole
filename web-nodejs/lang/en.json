@@ -2130,6 +2130,7 @@
     "perm_user_delete": "Delete users",
     "perm_server_config": "Server configuration",
     "perm_server_keys": "Manage API keys",
+    "perm_server_attestation": "Server performance attestation",
     "perm_org_create": "Create organizations",
     "perm_org_edit": "Edit organizations",
     "perm_org_delete": "Delete organizations",
@@ -3546,6 +3547,7 @@
     "starting": "Starting…",
     "complete": "Benchmark complete",
     "signal_peers": "Signal peers",
-    "relay_sessions": "Relay sessions"
+    "relay_sessions": "Relay sessions",
+    "page_error": "Failed to load the Server Attestation page"
   }
 }

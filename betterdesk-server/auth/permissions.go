@@ -24,8 +24,9 @@ const (
 	PermUserDelete = "user.delete"
 
 	// Server configuration
-	PermServerConfig = "server.config" // read/write server_config
-	PermServerKeys   = "server.keys"   // manage API keys
+	PermServerConfig     = "server.config"     // read/write server_config
+	PermServerKeys       = "server.keys"       // manage API keys
+	PermServerAttestation = "server.attestation" // run/view server performance attestation
 
 	// Organization permissions
 	PermOrgCreate        = "org.create"
@@ -61,7 +62,7 @@ var AllPermissions = []string{
 	PermDeviceView, PermDeviceConnect, PermDeviceEdit, PermDeviceDelete,
 	PermDeviceBan, PermDeviceChangeID,
 	PermUserView, PermUserCreate, PermUserEdit, PermUserDelete,
-	PermServerConfig, PermServerKeys,
+	PermServerConfig, PermServerKeys, PermServerAttestation,
 	PermOrgCreate, PermOrgEdit, PermOrgDelete, PermOrgManageUsers, PermOrgManageDevices,
 	PermAuditView, PermMetricsView, PermBlocklistEdit,
 	PermCDAPView, PermCDAPCommand, PermCDAPTerminal, PermCDAPFiles,
@@ -88,7 +89,7 @@ var DefaultRolePermissions = map[string]map[string]bool{
 	// Server Admin: infrastructure + monitoring, read-only user visibility.
 	// Cannot create/edit/delete users, cannot manage orgs.
 	RoleServerAdmin: buildPermMap([]string{
-		PermServerConfig, PermServerKeys,
+		PermServerConfig, PermServerKeys, PermServerAttestation,
 		PermBlocklistEdit,
 		PermUserView,   // read-only
 		PermDeviceView, // read-only

@@ -48,6 +48,8 @@
                     data-category="server-mgmt" title="<%= _('nav.server_management') || 'Server Management' %>">
                 <span class="material-icons">dns</span>
             </button>
+            <% } %>
+            <% if (hasPermission('server.attestation')) { %>
             <button class="sidebar-rail-btn <%= currentPage === 'server-attestation' ? 'active' : '' %>"
                     data-category="server-attest" title="<%= _('nav.server_attestation') || 'Server Attestation' %>">
                 <span class="material-icons">verified</span>
@@ -280,7 +282,7 @@
         <% } %>
 
         <!-- Server Attestation -->
-        <% if (hasPermission('server.config')) { %>
+        <% if (hasPermission('server.attestation')) { %>
         <div class="sidebar-flyout-panel" data-panel="server-attest">
             <a href="/server-attestation" class="sidebar-link <%= currentPage === 'server-attestation' ? 'active' : '' %>">
                 <span class="material-icons">verified</span>

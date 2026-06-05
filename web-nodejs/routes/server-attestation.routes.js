@@ -9,7 +9,7 @@ const router = express.Router();
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const attestation = require('../services/serverAttestation');
 
-const REQUIRED_PERMISSION = 'server.config';
+const REQUIRED_PERMISSION = 'server.attestation';
 const auth = [requireAuth, requirePermission(REQUIRED_PERMISSION)];
 
 let runPromise = null;
@@ -17,15 +17,23 @@ let runPromise = null;
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 router.get('/server-attestation', ...auth, async (req, res) => {
-    const lastResult = await attestation.getLastResult();
-    res.render('server-attestation', {
-        title: req.t('server_attestation.title'),
-        pageStyles: ['server-attestation'],
-        pageScripts: ['server-attestation'],
-        currentPage: 'server-attestation',
-        breadcrumb: [{ label: req.t('server_attestation.title') }],
-        lastResult
-    });
+    try {
+        const lastResult = await attestation.getLastResult();
+        res.render('server-attestation', {
+            title: req.t('server_attestation.title'),
+            pageStyles: ['server-attestation'],
+            pageScripts: ['server-attestation'],
+            currentPage: 'server-attestation',
+            breadcrumb: [{ label: req.t('server_attestation.title') }],
+            lastResult
+        });
+    } catch (err) {
+        console.error('[ServerAttestation] page render failed:', err);
+        res.status(500).render('errors/500', {
+            title: 'Error',
+            message: req.t('server_attestation.page_error') || 'Failed to load Server Attestation page'
+        });
+    }
 });
 
 // ─── Authenticated API ────────────────────────────────────────────────────────

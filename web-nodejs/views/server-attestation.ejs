@@ -1,3 +1,19 @@
+<%
+    var saTier = (typeof lastResult !== 'undefined' && lastResult && lastResult.tier)
+        ? String(lastResult.tier).toLowerCase() : '';
+    var saTierLabel = saTier
+        ? (_('server_attestation.tier_' + saTier) || saTier.toUpperCase())
+        : (_('server_attestation.tier_none') || 'UNRATED');
+    var saTierClass = saTier ? ('bd-attest-tier-' + saTier) : 'bd-attest-tier-none';
+    var saMaxConn = (typeof lastResult !== 'undefined' && lastResult) ? lastResult.maxConnections : null;
+    var saHasResult = typeof lastResult !== 'undefined' && lastResult;
+    var saHeroBadge = ''
+        + '<div class="bd-attest-badge bd-attest-badge--large ' + saTierClass + '" title="' + (_('server_attestation.badge_tooltip') || 'BetterDesk Server Attestation') + '">'
+        + '<div class="bd-attest-brand">Better<span class="bd-attest-i">i</span>Desk</div>'
+        + '<div class="bd-attest-tier">' + saTierLabel + '</div>'
+        + (saMaxConn ? ('<div class="bd-attest-conn">' + saMaxConn + ' ' + (_('server_attestation.connections_short') || 'conn.') + '</div>') : '')
+        + '</div>';
+%>
 <%- include('layouts/main', {
     title: _('server_attestation.title'),
     pageStyles: ['server-attestation'],
@@ -27,14 +43,9 @@
 
     <div class="sa-layout">
         <div class="sa-hero">
-            <%- include('partials/server-attestation-badge', {
-                tier: (typeof lastResult !== 'undefined' && lastResult && lastResult.tier) ? lastResult.tier : null,
-                size: 'large',
-                showConnections: true,
-                maxConnections: (typeof lastResult !== 'undefined' && lastResult) ? lastResult.maxConnections : null
-            }) %>
+            ${saHeroBadge}
             <div class="sa-hero-meta" id="sa-hero-meta">
-                ${typeof lastResult !== 'undefined' && lastResult && lastResult.testedAt
+                ${saHasResult && lastResult.testedAt
                     ? '<span>' + _('server_attestation.last_test') + ': ' + new Date(lastResult.testedAt).toLocaleString() + '</span>'
                     : '<span class="sa-muted">' + _('server_attestation.no_test_yet') + '</span>'}
             </div>
@@ -49,7 +60,7 @@
                 <span class="material-icons">stop</span>
                 ${_('server_attestation.abort')}
             </button>
-            <button type="button" class="btn btn-ghost" id="sa-download-btn" ${!(typeof lastResult !== 'undefined' && lastResult) ? 'disabled' : ''}>
+            <button type="button" class="btn btn-ghost" id="sa-download-btn" ${!saHasResult ? 'disabled' : ''}>
                 <span class="material-icons">download</span>
                 ${_('server_attestation.download_report')}
             </button>
@@ -66,7 +77,7 @@
                     <span class="material-icons">hub</span>
                     <h3>${_('server_attestation.max_connections')}</h3>
                 </div>
-                <div class="sa-stat-value" id="sa-max-conn">${(typeof lastResult !== 'undefined' && lastResult && lastResult.maxConnections) ? lastResult.maxConnections : '—'}</div>
+                <div class="sa-stat-value" id="sa-max-conn">${saHasResult && lastResult.maxConnections ? lastResult.maxConnections : '—'}</div>
                 <div class="sa-stat-detail" id="sa-conn-detail"></div>
             </div>
 
@@ -77,9 +88,9 @@
                 </div>
                 <table class="sa-threshold-table">
                     <tbody>
-                        <tr><td>CPU</td><td id="sa-th-cpu">${(typeof lastResult !== 'undefined' && lastResult && lastResult.finalMetrics) ? lastResult.finalMetrics.cpu + '%' : '—'}</td></tr>
-                        <tr><td>RAM</td><td id="sa-th-mem">${(typeof lastResult !== 'undefined' && lastResult && lastResult.finalMetrics) ? lastResult.finalMetrics.mem + '%' : '—'}</td></tr>
-                        <tr><td>${_('server_attestation.disk')}</td><td id="sa-th-disk">${(typeof lastResult !== 'undefined' && lastResult && lastResult.finalMetrics) ? lastResult.finalMetrics.disk + '%' : '—'}</td></tr>
+                        <tr><td>CPU</td><td id="sa-th-cpu">${saHasResult && lastResult.finalMetrics ? lastResult.finalMetrics.cpu + '%' : '—'}</td></tr>
+                        <tr><td>RAM</td><td id="sa-th-mem">${saHasResult && lastResult.finalMetrics ? lastResult.finalMetrics.mem + '%' : '—'}</td></tr>
+                        <tr><td>${_('server_attestation.disk')}</td><td id="sa-th-disk">${saHasResult && lastResult.finalMetrics ? lastResult.finalMetrics.disk + '%' : '—'}</td></tr>
                     </tbody>
                 </table>
             </div>

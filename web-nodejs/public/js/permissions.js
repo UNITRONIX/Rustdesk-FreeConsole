@@ -39,7 +39,7 @@
         {
             id: 'server',
             icon: 'dns',
-            permissions: ['server.config', 'server.keys']
+            permissions: ['server.config', 'server.keys', 'server.attestation']
         },
         {
             id: 'org',

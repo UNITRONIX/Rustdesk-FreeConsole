@@ -2131,6 +2131,7 @@
     "perm_user_delete": "Usuwanie użytkowników",
     "perm_server_config": "Konfiguracja serwera",
     "perm_server_keys": "Zarządzanie kluczami API",
+    "perm_server_attestation": "Atest wydajności serwera",
     "perm_org_create": "Tworzenie organizacji",
     "perm_org_edit": "Edycja organizacji",
     "perm_org_delete": "Usuwanie organizacji",
@@ -3547,6 +3548,7 @@
     "starting": "Uruchamianie…",
     "complete": "Benchmark zakończony",
     "signal_peers": "Peery signal",
-    "relay_sessions": "Sesje relay"
+    "relay_sessions": "Sesje relay",
+    "page_error": "Nie udało się załadować strony atestu serwera"
   }
 }
