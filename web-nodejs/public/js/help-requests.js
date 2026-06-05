@@ -24,20 +24,15 @@
     const statAccepted = document.getElementById('stat-accepted');
     const statResolved = document.getElementById('stat-resolved');
 
+    const csrfToken = window.BetterDesk?.csrfToken || '';
+
     // ---- Helpers ----
 
-    function getApiHeaders() {
-        // Use session cookie for panel auth, but we need an access token for
-        // the BD-API requireDeviceAuth middleware.  Panel stores one in
-        // localStorage after branding setup.  Fall back to CSRF token header.
-        const headers = {
-            'Content-Type': 'application/json',
-        };
-        const token = localStorage.getItem('bd_operator_token');
-        if (token) {
-            headers['Authorization'] = 'Bearer ' + token;
-        }
-        return headers;
+    async function apiFetch(url, options = {}) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrfToken) headers['x-csrf-token'] = csrfToken;
+        const resp = await fetch(url, { ...options, headers: { ...headers, ...options.headers } });
+        return resp.json();
     }
 
     function timeAgo(ts) {
@@ -61,17 +56,12 @@
 
     async function fetchRequests() {
         try {
-            const resp = await fetch('/api/bd/help-requests', {
-                headers: getApiHeaders(),
-            });
-            if (!resp.ok) return;
-            const data = await resp.json();
+            const data = await apiFetch('/api/help/requests');
             if (data.success && Array.isArray(data.requests)) {
                 const prevCount = requests.filter(r => r.status === 'pending').length;
                 requests = data.requests;
                 const newCount = requests.filter(r => r.status === 'pending').length;
 
-                // Play notification sound for new pending requests
                 if (newCount > prevCount) {
                     playNotificationSound();
                 }
@@ -105,11 +95,10 @@
 
     async function acceptRequest(id) {
         try {
-            const resp = await fetch(`/api/bd/help-requests/${encodeURIComponent(id)}/accept`, {
+            const data = await apiFetch(`/api/help/requests/${encodeURIComponent(id)}/accept`, {
                 method: 'POST',
-                headers: getApiHeaders(),
             });
-            if (resp.ok) await fetchRequests();
+            if (data.success) await fetchRequests();
         } catch (err) {
             console.error('[HelpRequests] Accept error:', err);
         }
@@ -117,11 +106,10 @@
 
     async function resolveRequest(id) {
         try {
-            const resp = await fetch(`/api/bd/help-requests/${encodeURIComponent(id)}/resolve`, {
+            const data = await apiFetch(`/api/help/requests/${encodeURIComponent(id)}/resolve`, {
                 method: 'POST',
-                headers: getApiHeaders(),
             });
-            if (resp.ok) await fetchRequests();
+            if (data.success) await fetchRequests();
         } catch (err) {
             console.error('[HelpRequests] Resolve error:', err);
         }
@@ -130,11 +118,10 @@
     async function deleteRequest(id) {
         if (!confirm('Delete this help request?')) return;
         try {
-            const resp = await fetch(`/api/bd/help-requests/${encodeURIComponent(id)}`, {
-                method: 'DELETE',
-                headers: getApiHeaders(),
+            const data = await apiFetch(`/api/help/requests/${encodeURIComponent(id)}/resolve`, {
+                method: 'POST',
             });
-            if (resp.ok) await fetchRequests();
+            if (data.success) await fetchRequests();
         } catch (err) {
             console.error('[HelpRequests] Delete error:', err);
         }

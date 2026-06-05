@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -84,14 +83,15 @@ func (u *ui) bootstrapConnection() {
 	go func() {
 		// #region agent log
 		debugLog("H1", "app.go:bootstrapConnection", "branding connection profile", map[string]any{
-			"server_address":  u.brand.ServerAddress,
-			"api_base":        apiBaseURL(u.brand),
-			"cdap_health":     u.brand.CDAPHealthURL(),
-			"cdap_ws":         u.brand.CDAPWebSocketURL(),
-			"use_https":       u.brand.UseHTTPS,
-			"has_bundle_token": strings.TrimSpace(u.brand.EnrollmentToken) != "",
-			"bundle_id":       u.brand.BundleID,
-			"device_id":       u.state.DeviceID,
+			"server_address":          u.brand.ServerAddress,
+			"api_base":                apiBaseURL(u.brand),
+			"cdap_health":             u.brand.CDAPHealthURL(),
+			"cdap_ws":                 u.brand.CDAPWebSocketURL(),
+			"use_https":               u.brand.UseHTTPS,
+			"sends_token":             false,
+			"branding_embed_has_token": brandingEmbedHasLegacyToken(),
+			"bundle_id":               u.brand.BundleID,
+			"device_id":               u.state.DeviceID,
 		})
 		// #endregion
 		res, err := EnsureEnrolled(u.brand, u.state, version)

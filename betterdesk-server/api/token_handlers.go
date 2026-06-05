@@ -111,10 +111,8 @@ func (s *Server) handleCreateDeviceToken(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Default to single-use if not specified
-	if req.MaxUses == 0 {
-		req.MaxUses = 1
-	}
+	// MaxUses: 0 = unlimited (bundle enrollment tokens). Ad-hoc admin tokens
+	// should pass max_uses explicitly (typically 1 for single-use invites).
 
 	// Generate secure token (32 chars)
 	plainToken, err := generateSecureToken(32)

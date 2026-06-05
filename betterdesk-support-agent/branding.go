@@ -48,7 +48,6 @@ type Branding struct {
 	ServerKey        string          `json:"server_key"`
 	APIKey           string          `json:"api_key"`
 	BundleID         string          `json:"bundle_id"`
-	EnrollmentToken  string          `json:"enrollment_token"`
 	UseHTTPS         bool            `json:"use_https"`
 	Server           *ServerBranding `json:"server,omitempty"`
 }
@@ -163,6 +162,20 @@ func (b Branding) normalize() Branding {
 		b.DefaultLanguage = d.DefaultLanguage
 	}
 	return b
+}
+
+// brandingEmbedHasLegacyToken reports whether the baked branding.json still
+// carries a non-empty enrollment_token (shared bundle key — must not be used).
+func brandingEmbedHasLegacyToken() bool {
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(brandingJSON, &probe); err != nil {
+		return false
+	}
+	raw, ok := probe["enrollment_token"]
+	if !ok {
+		return false
+	}
+	return strings.Trim(string(raw), `" \t\n\r`) != ""
 }
 
 func (b Branding) LogoBytes() []byte {

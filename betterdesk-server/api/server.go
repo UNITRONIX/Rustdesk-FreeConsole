@@ -393,6 +393,12 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/devices/self/access-policy", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfAccessPolicy))
 	mux.HandleFunc("POST /api/devices/self/help-request", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfHelpRequest))
 
+	// Help requests — operator panel (raised by agents via CDAP or REST self endpoint)
+	mux.HandleFunc("GET /api/help/requests", s.requirePermission(auth.PermChatAccess, s.handleListHelpRequests))
+	mux.HandleFunc("GET /api/help/requests/{id}", s.requirePermission(auth.PermChatAccess, s.handleGetHelpRequest))
+	mux.HandleFunc("POST /api/help/requests/{id}/acknowledge", s.requirePermission(auth.PermChatAccess, s.handleAcknowledgeHelpRequest))
+	mux.HandleFunc("POST /api/help/requests/{id}/resolve", s.requirePermission(auth.PermChatAccess, s.handleResolveHelpRequest))
+
 	// Enrollment — operator approval (admin/operator)
 	mux.HandleFunc("GET /api/enrollment/pending", s.requireRole(auth.RoleOperator, s.handleListPendingDevices))
 	mux.HandleFunc("POST /api/enrollment/approve/{id}", s.requireRole(auth.RoleOperator, s.handleApproveDevice))

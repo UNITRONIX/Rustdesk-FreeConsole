@@ -12,7 +12,7 @@ if [ -n "${BETTERDESK_UI_BACKEND:-}" ]; then
         x11|x)    BACKEND=x11 ;;
         *)        BACKEND=x11 ;;
     esac
-elif [ -n "${WAYLAND_DISPLAY:-}" ] && [ -z "${DISPLAY:-}" ]; then
+elif [ -n "${WAYLAND_DISPLAY:-}" ] || [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
     BACKEND=wayland
 else
     BACKEND=x11

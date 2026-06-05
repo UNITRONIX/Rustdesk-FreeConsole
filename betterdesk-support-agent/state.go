@@ -275,6 +275,20 @@ func (s *AppState) SetEnrollmentMessage(message string) error {
 	return s.save()
 }
 
+// ResetEnrollmentState clears enrollment fields so the next run registers fresh.
+func ResetEnrollmentState() error {
+	st, err := LoadState()
+	if err != nil {
+		return err
+	}
+	st.mu.Lock()
+	st.EnrollmentStatus = ""
+	st.DeviceToken = ""
+	st.EnrollmentMessage = ""
+	st.mu.Unlock()
+	return st.save()
+}
+
 // IsEnrolled reports whether the device has an approved token.
 func (s *AppState) IsEnrolled() bool {
 	s.mu.Lock()

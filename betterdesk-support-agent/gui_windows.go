@@ -28,3 +28,5 @@ func prepWindowsGraphics() {
 		_ = os.Setenv("LIBGL_ALWAYS_SOFTWARE", "1")
 	}
 }
+
+func prepLinuxDisplay() {}

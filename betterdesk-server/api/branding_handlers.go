@@ -173,6 +173,12 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 
 	// Check if device already exists (re-registration = always approve)
 	existing, _ := s.db.GetPeer(req.DeviceID)
+	// #region agent log
+	debugEnrollmentLog("H6", "branding_handlers.go:handleDeviceRegister", "register entry", map[string]any{
+		"device_id": req.DeviceID, "mode": mode, "existing_peer": existing != nil,
+		"has_req_token": req.Token != "", "hostname": req.Hostname,
+	})
+	// #endregion
 	if existing != nil {
 		if req.PublicKey != "" {
 			incomingCanonical, _ := canonicalizeDevicePublicKey(req.PublicKey)
@@ -243,30 +249,13 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case "managed":
-		// Check for valid token first — validate by token hash, not peer binding
-		if req.Token != "" {
-			if tok, err := s.db.GetDeviceTokenByHash(hashToken(req.Token)); err == nil && tok != nil {
-				// Valid token — activate and bind to this device, then auto-approve
-				if tok.Status == "pending" {
-					_ = s.db.BindTokenToPeer(tok.TokenHash, req.DeviceID)
-				}
-				_ = s.db.IncrementTokenUse(tok.TokenHash)
-				s.createPeerFromEnrollment(&req, clientIP)
-				resp := s.buildEnrollmentResponse("approved", req.DeviceID, "standard", "")
-				resp.DeviceToken = req.Token
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(resp)
-
-				if s.auditLog != nil {
-					s.auditLog.Log("device_enrolled", clientIP, req.DeviceID, map[string]string{
-						"mode": "managed", "method": "token", "hostname": req.Hostname,
-					})
-				}
-				return
-			}
-		}
-
-		// Store as pending
+		// Each support-agent installation registers without a shared bundle token.
+		// Operator approval issues a unique device_token per device.
+		// #region agent log
+		debugEnrollmentLog("H3", "branding_handlers.go:handleDeviceRegister", "managed pending", map[string]any{
+			"device_id": req.DeviceID, "has_token": req.Token != "", "hostname": req.Hostname,
+		})
+		// #endregion
 		s.storePendingDevice(&req, clientIP)
 		resp := EnrollmentResponse{
 			Status:       "pending",
@@ -309,7 +298,12 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 				_ = s.db.IncrementTokenUse(tok.TokenHash)
 				s.createPeerFromEnrollment(&req, clientIP)
 				resp := s.buildEnrollmentResponse("approved", req.DeviceID, "standard", "")
-				resp.DeviceToken = req.Token
+				if deviceToken, err := s.issueEnrollmentDeviceToken(req.DeviceID); err == nil {
+					resp.DeviceToken = deviceToken
+				} else {
+					log.Printf("[API] Failed to issue device token after token-enroll for %s: %v", req.DeviceID, err)
+					resp.DeviceToken = req.Token
+				}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(resp)
 

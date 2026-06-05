@@ -23,7 +23,8 @@ func main() {
 		showVer   = flag.Bool("version", false, "Print version and exit")
 		doInstall = flag.Bool("install", false, "Install to a per-user location and enable autostart")
 		doUninst  = flag.Bool("uninstall", false, "Remove autostart entry and installed binary")
-		noGUI = flag.Bool("nogui", false, "Run without graphical interface (no window)")
+		doReset   = flag.Bool("reset-enrollment", false, "Clear local enrollment state and exit")
+		noGUI     = flag.Bool("nogui", false, "Run without graphical interface (no window)")
 	)
 	flag.Parse()
 
@@ -48,6 +49,15 @@ func main() {
 			fmt.Fprintf(os.Stderr, "uninstall failed: %v\n", err)
 			os.Exit(1)
 		}
+		os.Exit(0)
+	}
+
+	if *doReset {
+		if err := ResetEnrollmentState(); err != nil {
+			fmt.Fprintf(os.Stderr, "reset-enrollment failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Local enrollment state cleared.")
 		os.Exit(0)
 	}
 

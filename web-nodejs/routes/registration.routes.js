@@ -520,4 +520,74 @@ router.post('/api/enrollment/reject/:id', requirePermission('enrollment.approve'
     }
 });
 
+// ===========================================================================
+//  Help requests — panel session auth (proxied to Go server)
+// ===========================================================================
+
+function normalizeHelpRequest(r) {
+    if (!r || typeof r !== 'object') return null;
+    const statusMap = { acknowledged: 'accepted' };
+    const createdMs = r.created_at ? Date.parse(r.created_at) : Date.now();
+    return {
+        id: String(r.id),
+        device_id: r.device_id || '',
+        hostname: r.hostname || '',
+        message: r.message || '',
+        status: statusMap[r.status] || r.status || 'pending',
+        accepted_by: r.status === 'acknowledged' ? (r.handled_by || '') : '',
+        resolved_by: r.status === 'resolved' ? (r.handled_by || '') : '',
+        created_at: Number.isFinite(createdMs) ? createdMs : Date.now(),
+    };
+}
+
+router.get('/api/help/requests', requirePermission('chat.access'), async (req, res) => {
+    try {
+        const filter = { limit: 200 };
+        if (req.query.status) filter.status = String(req.query.status);
+        if (req.query.device_id) filter.device_id = String(req.query.device_id);
+
+        const result = await betterdeskApi.listHelpRequests(filter);
+        if (!result.success) {
+            console.warn('[help] List help requests Go proxy failed:', result.error);
+            return res.json({ success: true, requests: [] });
+        }
+
+        const items = (result.data || [])
+            .map(normalizeHelpRequest)
+            .filter(Boolean)
+            .sort((a, b) => b.created_at - a.created_at);
+
+        res.json({ success: true, requests: items });
+    } catch (err) {
+        console.error('[help] List help requests error:', err.message);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+router.post('/api/help/requests/:id/accept', requirePermission('chat.access'), async (req, res) => {
+    try {
+        const result = await betterdeskApi.acknowledgeHelpRequest(req.params.id);
+        if (!result.success) {
+            return res.status(502).json({ success: false, error: result.error || 'Failed to accept' });
+        }
+        res.json({ success: true, request: result.data });
+    } catch (err) {
+        console.error('[help] Accept error:', err.message);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+router.post('/api/help/requests/:id/resolve', requirePermission('chat.access'), async (req, res) => {
+    try {
+        const result = await betterdeskApi.resolveHelpRequest(req.params.id);
+        if (!result.success) {
+            return res.status(502).json({ success: false, error: result.error || 'Failed to resolve' });
+        }
+        res.json({ success: true, request: result.data });
+    } catch (err) {
+        console.error('[help] Resolve error:', err.message);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
 module.exports = router;

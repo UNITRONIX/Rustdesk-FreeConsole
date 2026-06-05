@@ -20,7 +20,6 @@ const buildWorker = require('../services/agentBuildWorker');
 const db = require('../services/database');
 const config = require('../config/config');
 const brandingService = require('../services/brandingService');
-const betterdeskApi = require('../services/betterdeskApi');
 const conn = require('../services/agentBundleConnection');
 
 // Branding payloads may carry a base64-encoded logo up to 10 MB; expand the
@@ -77,47 +76,28 @@ function finalizeBundleBrandingSync(input) {
 }
 
 /**
- * Merge operator connection settings, inject server key, and optionally
- * mint a new enrollment token (baked into the support-agent binary).
+ * Merge operator connection settings and inject server key.
+ * Support-agent bundles do NOT embed a shared enrollment token — each
+ * installation registers on its own and receives a unique device_token
+ * after operator approval (managed enrollment).
  */
-async function finalizeBundleBranding(input, bundleId, { regenerateToken = true, previous = null } = {}) {
+function finalizeBundleBranding(input) {
     const branding = finalizeBundleBrandingSync(input);
-
-    if (regenerateToken || !previous?.enrollment_token) {
-        const tokenRes = await betterdeskApi.createDeviceToken({
-            name: `bundle-${bundleId}`,
-            max_uses: 0,
-            note: `Support agent bundle ${bundleId}`,
-        });
-        if (!tokenRes.success || !tokenRes.data?.token) {
-            throw new Error(tokenRes.error || 'enrollment_token_failed');
-        }
-        branding.enrollment_token = tokenRes.data.token;
-    } else {
-        branding.enrollment_token = previous.enrollment_token;
-    }
-
-    // Operator-editable fields kept for UI reload; not hashed separately from server URLs.
+    // Strip legacy shared tokens from older bundles on save/rebuild.
+    delete branding.enrollment_token;
+    delete branding.has_enrollment_token;
+    delete branding.enrollment_token_masked;
     branding.server_host = input.server_host || conn.defaultServerHost();
     branding.use_https = !!(input.use_https ?? conn.defaultUseHttps());
-    branding.has_enrollment_token = true;
-
     return branding;
-}
-
-function maskEnrollmentToken(token) {
-    if (!token || typeof token !== 'string') return '';
-    if (token.length <= 8) return '********';
-    return `${token.slice(0, 4)}…${token.slice(-4)}`;
 }
 
 function publicBrandingView(branding) {
     if (!branding || typeof branding !== 'object') return branding;
     const out = { ...branding };
-    if (out.enrollment_token) {
-        out.enrollment_token_masked = maskEnrollmentToken(out.enrollment_token);
-        delete out.enrollment_token;
-    }
+    delete out.enrollment_token;
+    delete out.has_enrollment_token;
+    delete out.enrollment_token_masked;
     return out;
 }
 
@@ -184,13 +164,7 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
         const bundleId = bundleService.generateBundleId();
-        let normalized;
-        try {
-            normalized = await finalizeBundleBranding(base, bundleId, { regenerateToken: true });
-        } catch (tokErr) {
-            console.error('[generator] token mint failed:', tokErr);
-            return res.status(502).json({ success: false, error: req.t('generator.errors.token_failed') });
-        }
+        const normalized = finalizeBundleBranding(base);
         normalized.bundle_id = bundleId;
         normalized.product_name = normalized.company_name || 'BetterDesk Support';
         const brandingHash = bundleService.hashBranding(normalized);
@@ -225,17 +199,7 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
         if (!valid) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
-        const connChanged = conn.connectionFingerprint(existingBranding) !== conn.connectionFingerprint(base);
-        let normalized;
-        try {
-            normalized = await finalizeBundleBranding(base, req.params.bundleId, {
-                regenerateToken: connChanged,
-                previous: existingBranding,
-            });
-        } catch (tokErr) {
-            console.error('[generator] token mint failed:', tokErr);
-            return res.status(502).json({ success: false, error: req.t('generator.errors.token_failed') });
-        }
+        const normalized = finalizeBundleBranding(base);
         normalized.bundle_id = req.params.bundleId;
         normalized.product_name = normalized.company_name || 'BetterDesk Support';
         const brandingHash = bundleService.hashBranding(normalized);

@@ -115,8 +115,7 @@
         els['gen-server-host'].value = b.server_host || b.server?.address?.replace(/^https?:\/\//, '').split(':')[0] || '';
         els['gen-use-https'].checked = b.use_https ?? (b.server?.address?.startsWith('https://') ?? true);
         if (els['gen-token-mask']) {
-            const masked = b.enrollment_token_masked || (b.has_enrollment_token ? t('generator.enrollment_token_set', 'Generated (embedded in build)') : '');
-            els['gen-token-mask'].value = masked;
+            els['gen-token-mask'].value = t('generator.enrollment_per_device', 'Per device — approve in Registrations');
         }
         els['gen-company'].value = b.company_name || '';
         els['gen-short-text'].value = b.short_text || '';

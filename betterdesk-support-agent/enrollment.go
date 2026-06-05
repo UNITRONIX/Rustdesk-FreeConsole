@@ -58,13 +58,22 @@ func EnsureEnrolled(b Branding, st *AppState, version string) (EnrollmentStatus,
 
 	if status == EnrollmentApproved {
 		if token != "" {
+			// Refresh credentials with the server on every startup. Re-register
+			// re-issues a device_token for known peers and fixes stale local state.
+			if res, err := RegisterDevice(b, st, version); err == nil {
+				return res, nil
+			}
+			// #region agent log
+			debugLog("H4", "enrollment.go:EnsureEnrolled", "refresh failed, using cached token", map[string]any{
+				"device_id": deviceID,
+			})
+			// #endregion
 			return EnrollmentStatus{
 				Status:      EnrollmentApproved,
 				DeviceID:    deviceID,
 				DeviceToken: token,
 			}, nil
 		}
-		// Approved on server but token missing locally (e.g. status poll before fix).
 		return RegisterDevice(b, st, version)
 	}
 
@@ -102,9 +111,8 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 	if b.BundleID != "" {
 		payload["bundle_id"] = b.BundleID
 	}
-	if tok := strings.TrimSpace(b.EnrollmentToken); tok != "" {
-		payload["token"] = tok
-	}
+	// Never send a shared bundle enrollment token — each device registers
+	// independently and receives a unique device_token after approval.
 	tags := []string{"support-agent"}
 	if IsPortable() {
 		tags = append(tags, "portable")
@@ -116,7 +124,7 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 	url := apiBaseURL(b) + "/devices/register"
 	// #region agent log
 	debugLog("H1", "enrollment.go:RegisterDevice", "register request", map[string]any{
-		"url": url, "device_id": deviceID, "has_bundle_token": strings.TrimSpace(b.EnrollmentToken) != "",
+		"url": url, "device_id": deviceID, "sends_token": false,
 		"bundle_id": b.BundleID, "use_https": b.UseHTTPS,
 	})
 	// #endregion

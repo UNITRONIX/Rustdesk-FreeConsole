@@ -621,9 +621,13 @@ async function _materialiseWorkspace(workDir, branding) {
     await fsp.mkdir(path.dirname(agentLibDest), { recursive: true });
     await _copyDir(AGENT_LIB_ROOT, agentLibDest);
     await fsp.mkdir(path.join(workDir, 'resources'), { recursive: true });
+    const buildBranding = { ...branding };
+    delete buildBranding.enrollment_token;
+    delete buildBranding.has_enrollment_token;
+    delete buildBranding.enrollment_token_masked;
     await fsp.writeFile(
         path.join(workDir, 'resources', 'branding.json'),
-        JSON.stringify(branding, null, 2),
+        JSON.stringify(buildBranding, null, 2),
         'utf8'
     );
 }
@@ -839,14 +843,16 @@ install -m 755 %{SOURCE0} %{buildroot}/usr/local/bin/betterdesk-support
             await fsp.writeFile(path.join(appDir, 'AppRun'), `#!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
 export PATH="$HERE/usr/bin:$PATH"
-BIN="$HERE/usr/bin/betterdesk-support"
-if [ -n "$WAYLAND_DISPLAY" ] && [ -z "$DISPLAY" ] && [ -x "$HERE/usr/bin/betterdesk-support-wayland" ]; then
-  exec "$HERE/usr/bin/betterdesk-support-wayland" "$@"
+BD_UID="$(id -u 2>/dev/null || echo 0)"
+export XDG_RUNTIME_DIR="\${XDG_RUNTIME_DIR:-/run/user/$BD_UID}"
+if [ -z "\${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "\$XDG_RUNTIME_DIR/bus" ]; then
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=\$XDG_RUNTIME_DIR/bus"
 fi
-if [ -x "$HERE/usr/bin/betterdesk-support-x11" ]; then
-  exec "$HERE/usr/bin/betterdesk-support-x11" "$@"
+LAUNCHER="$HERE/usr/bin/betterdesk-support"
+if [ -x "$LAUNCHER" ]; then
+  exec "$LAUNCHER" "$@"
 fi
-exec "$BIN" "$@"
+exec "$HERE/usr/bin/betterdesk-support-x11" "$@"
 `, { mode: 0o755 });
 
             await fsp.writeFile(path.join(appDir, 'betterdesk-support.desktop'),
