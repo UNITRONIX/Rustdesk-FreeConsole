@@ -370,6 +370,22 @@ router.patch('/api/users/:id', requireAuth, requirePermission('user.edit'), asyn
                 error: req.t('users.not_found')
             });
         }
+
+        const provider = String(user.auth_provider || 'local').trim().toLowerCase();
+        const isExternalAccount = provider === 'ldap' || provider === 'oidc';
+
+        if (isExternalAccount && password) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('users.provider_managed_hint')
+            });
+        }
+        if (isExternalAccount && role) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('users.provider_managed_hint')
+            });
+        }
         
         // Prevent self-demotion from admin-level role
         if (userId === req.session.userId && role && isSuperAdminRole(req.session.user.role) && !isSuperAdminRole(role)) {

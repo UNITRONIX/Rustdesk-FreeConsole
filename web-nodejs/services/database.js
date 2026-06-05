@@ -71,7 +71,9 @@ const facade = {
     // ---- Users ----
     getUserByUsername: (username) => adapter.getUserByUsername(username),
     getUserById:      (id) => adapter.getUserById(id),
-    createUser:       (username, passwordHash, role) => adapter.createUser(username, passwordHash, role),
+    createUser:       (username, passwordHash, role, authProvider) =>
+        adapter.createUser(username, passwordHash, role, authProvider),
+    syncUserFromGo:   (id, sync) => adapter.syncUserFromGo(id, sync),
     updateUserPassword: (id, hash) => adapter.updateUserPassword(id, hash),
     updateLastLogin:  (id) => adapter.touchLastLogin(id),
     touchLastLogin:   (id) => adapter.touchLastLogin(id),

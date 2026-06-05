@@ -355,6 +355,11 @@ function inferAuthProviderFromSSO(goResult, ssoStatus) {
     return 'local';
 }
 
+/** Random bcrypt hash that cannot match a real password (Issue #148). */
+async function unusablePasswordHash() {
+    return hashPassword(crypto.randomBytes(32).toString('hex'));
+}
+
 async function syncLocalUserFromGoResult(localUser, goResult, password, ssoStatus) {
     if (!localUser || !goResult) return localUser;
 
@@ -368,8 +373,12 @@ async function syncLocalUserFromGoResult(localUser, goResult, password, ssoStatu
     if (role && role !== localUser.role) {
         sync.role = role;
     }
-    if (password) {
+    // Never store IdP passwords in auth.db for LDAP/OIDC accounts.
+    if (password && authProvider === 'local') {
         sync.passwordHash = await hashPassword(password);
+    } else if (authProvider !== 'local'
+        && authProvider !== normalizeAuthProvider(localUser.auth_provider)) {
+        sync.passwordHash = await unusablePasswordHash();
     }
 
     if (Object.keys(sync).length === 0) {
@@ -388,20 +397,22 @@ async function syncLocalUserFromGoResult(localUser, goResult, password, ssoStatu
 async function provisionLocalUserFromGo(username, password, goResult, ssoStatus) {
     const authProvider = inferAuthProviderFromSSO(goResult, ssoStatus);
     const role = goResult.role || 'viewer';
-    const bcryptHash = await hashPassword(password);
+    const passwordHash = authProvider === 'local'
+        ? await hashPassword(password)
+        : await unusablePasswordHash();
 
     let user = await db.getUserByUsername(username);
     if (user) {
-        return syncLocalUserFromGoResult(user, goResult, password, ssoStatus);
+        return syncLocalUserFromGoResult(user, goResult, null, ssoStatus);
     }
 
     try {
-        await db.createUser(username, bcryptHash, role, authProvider);
+        await db.createUser(username, passwordHash, role, authProvider);
     } catch (err) {
         // Shared PostgreSQL users table: Go may have created the row first.
         user = await db.getUserByUsername(username);
         if (!user) throw err;
-        return syncLocalUserFromGoResult(user, goResult, password, ssoStatus);
+        return syncLocalUserFromGoResult(user, goResult, null, ssoStatus);
     }
 
     user = await db.getUserByUsername(username);
@@ -410,6 +421,32 @@ async function provisionLocalUserFromGo(username, password, goResult, ssoStatus)
         user = { ...user, auth_provider: authProvider, role };
     }
     return user;
+}
+
+/**
+ * Build a successful authenticate() response from a local user row.
+ */
+function authSuccessFromUser(user, goResult) {
+    if (user.role === 'pro') {
+        return null;
+    }
+    if (user.totp_enabled) {
+        return {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            preferred_language: user.preferred_language || null,
+            totpRequired: true,
+            goPartialToken: goResult && goResult.partial_token,
+        };
+    }
+    return {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        preferred_language: user.preferred_language || null,
+        totpRequired: !!(goResult && goResult.requires2fa),
+    };
 }
 
 /**
@@ -477,15 +514,11 @@ function tryGoServerAuth(username, password) {
 /**
  * Authenticate user with username and password.
  *
- * Local-first flow (compatible with Go server delegation):
- *   1. Check local database (auth.db) first — this is the primary source
- *   2. If user found locally → verify password locally
- *      - If local password fails → try Go server as fallback (password may
- *        have been changed on Go side, or LDAP may have accepted it)
- *      - If local password succeeds → login OK
- *   3. If user NOT found locally → try Go server
- *      - If Go accepts → auto-create local user (opt-in via BETTERDESK_AUTH_AUTOCREATE)
- *      - If Go rejects → login fails
+ * Provider-bound flow (Issue #148, mirrors Go server):
+ *   - oidc accounts: password login rejected
+ *   - ldap accounts: always authenticate via Go (role/provider synced each login)
+ *   - local accounts: local password only; never fall through to LDAP
+ *   - unknown users: provision via Go when SSO or BETTERDESK_AUTH_AUTOCREATE is on
  *
  * Returns user object with totpRequired flag if 2FA is enabled.
  */
@@ -496,13 +529,34 @@ async function authenticate(username, password) {
         return null;
     }
 
-    // ---------------------------------------------------------------
-    //  Step 1: Check local database FIRST (primary source of truth)
-    // ---------------------------------------------------------------
+    const ssoStatus = await getGoSSOStatus();
     let user = await db.getUserByUsername(username);
 
     if (user) {
-        // Diagnostic: log hash format to help debug password issues
+        const provider = normalizeAuthProvider(user.auth_provider);
+
+        if (provider === 'oidc') {
+            console.log(`[AUTH] Login failed: '${username}' is an SSO account (password login not allowed)`);
+            return null;
+        }
+
+        if (provider === 'ldap') {
+            const goResult = await tryGoServerAuth(username, password);
+            if (!goResult) {
+                console.log(`[AUTH] Login failed: LDAP credentials rejected for '${username}'`);
+                return null;
+            }
+            console.log(`[AUTH] Go server accepted LDAP login for '${username}' — syncing local account`);
+            user = await syncLocalUserFromGoResult(user, goResult, null, ssoStatus);
+            const result = authSuccessFromUser(user, goResult);
+            if (!result) return null;
+            if (!result.totpRequired) {
+                await db.updateLastLogin(user.id);
+            }
+            return result;
+        }
+
+        // Local account — verify password locally only (no LDAP fallthrough).
         const hashType = isPBKDF2Hash(user.password_hash) ? 'PBKDF2'
             : (user.password_hash && user.password_hash.startsWith('$2')) ? 'bcrypt'
             : 'unknown';
@@ -511,72 +565,40 @@ async function authenticate(username, password) {
         const { valid, needsMigration } = await verifyPasswordEx(password, user.password_hash);
 
         if (!valid) {
-            // Fallback: try Go server auth — password may have been changed
-            // on Go side, or LDAP/OIDC may have accepted it
+            // Go may hold a newer hash after a password change on the server side.
             const goResult = await tryGoServerAuth(username, password);
             if (goResult) {
-                console.log(`[AUTH] Go server accepted password for '${username}' — syncing local account`);
-                const ssoStatus = await getGoSSOStatus();
+                console.log(`[AUTH] Go server accepted password for local '${username}' — syncing hash`);
                 user = await syncLocalUserFromGoResult(user, goResult, password, ssoStatus);
-                // Fall through to TOTP check and normal success path
             } else {
                 console.log(`[AUTH] Login failed: password mismatch for '${username}' (hash type: ${hashType})`);
                 return null;
             }
-        } else if (valid) {
+        } else {
             console.log(`[AUTH] Login successful for '${username}'`);
-        }
-
-        // Auto-migrate PBKDF2 hash to bcrypt for future logins
-        if (valid && needsMigration) {
-            try {
-                const bcryptHash = await hashPassword(password);
-                await db.updateUserPassword(user.id, bcryptHash);
-                console.log(`[AUTH] Migrated password hash from PBKDF2 to bcrypt for user: ${username}`);
-            } catch (err) {
-                console.warn(`[AUTH] Failed to migrate password hash for ${username}:`, err.message);
+            if (needsMigration) {
+                try {
+                    const bcryptHash = await hashPassword(password);
+                    await db.updateUserPassword(user.id, bcryptHash);
+                    console.log(`[AUTH] Migrated password hash from PBKDF2 to bcrypt for user: ${username}`);
+                } catch (err) {
+                    console.warn(`[AUTH] Failed to migrate password hash for ${username}:`, err.message);
+                }
             }
         }
 
-        // Block pro-only accounts from web panel login
-        if (user.role === 'pro') {
-            return null;
+        const result = authSuccessFromUser(user, null);
+        if (!result) return null;
+        if (!result.totpRequired) {
+            await db.updateLastLogin(user.id);
         }
-
-        // Check if TOTP is enabled
-        if (user.totp_enabled) {
-            return {
-                id: user.id,
-                username: user.username,
-                role: user.role,
-                preferred_language: user.preferred_language || null,
-                totpRequired: true,
-            };
-        }
-
-        await db.updateLastLogin(user.id);
-        return {
-            id: user.id,
-            username: user.username,
-            role: user.role,
-            preferred_language: user.preferred_language || null,
-            totpRequired: false,
-        };
+        return result;
     }
 
-    // ---------------------------------------------------------------
-    //  Step 2: User not found locally — try Go server
-    // ---------------------------------------------------------------
-    // Timing-safe: do a real hash comparison to prevent user enumeration
+    // Unknown user — timing-safe dummy compare, then Go provisioning.
     await bcrypt.compare(password, DUMMY_HASH);
 
-    // Auto-provisioning is allowed when EITHER:
-    //   1. BETTERDESK_AUTH_AUTOCREATE=true is set explicitly (legacy opt-in)
-    //   2. Go server reports LDAP or OIDC is enabled — the admin has
-    //      intentionally configured an external identity provider so users
-    //      from that provider must be allowed to log in on first attempt (#148).
     const autoCreateEnv = process.env.BETTERDESK_AUTH_AUTOCREATE === 'true';
-    const ssoStatus = await getGoSSOStatus();
     const autoCreateEnabled = autoCreateEnv || ssoStatus.any;
 
     if (autoCreateEnabled) {
@@ -589,14 +611,12 @@ async function authenticate(username, password) {
             console.log(`[AUTH] Go server accepted credentials for '${username}' — provisioning local user (${reason})`);
             const created = await provisionLocalUserFromGo(username, password, goResult, ssoStatus);
             if (created) {
-                await db.updateLastLogin(created.id);
-                return {
-                    id: created.id,
-                    username: created.username,
-                    role: created.role,
-                    preferred_language: created.preferred_language || null,
-                    totpRequired: !!goResult.requires2fa,
-                };
+                const result = authSuccessFromUser(created, goResult);
+                if (!result) return null;
+                if (!result.totpRequired) {
+                    await db.updateLastLogin(created.id);
+                }
+                return result;
             }
         }
     }
@@ -615,20 +635,23 @@ async function authenticate(username, password) {
  * @param {string} role
  * @returns {Promise<Object|null>} — local user record
  */
-async function ensureLocalUserFromGo(username, password, role) {
+async function ensureLocalUserFromGo(username, password, role, authProvider = 'local') {
     let localUser = await db.getUserByUsername(username);
+    const provider = normalizeAuthProvider(authProvider);
 
     // Sync password hash for emergency fallback (only for admin roles)
-    const shouldSyncHash = EMERGENCY_ADMIN_ROLES.has(role);
+    const shouldSyncHash = EMERGENCY_ADMIN_ROLES.has(role) && provider === 'local';
 
     if (!localUser) {
         // Auto-create local user from Go server data
         try {
-            const bcryptHash = await hashPassword(password);
-            await db.createUser(username, bcryptHash, role, 'local');
+            const bcryptHash = provider === 'local'
+                ? await hashPassword(password)
+                : await unusablePasswordHash();
+            await db.createUser(username, bcryptHash, role, provider);
             localUser = await db.getUserByUsername(username);
             if (localUser) {
-                console.log(`[AUTH] Auto-created local user '${username}' (role: ${role}) for session storage`);
+                console.log(`[AUTH] Auto-created local user '${username}' (role: ${role}, provider: ${provider}) for session storage`);
             }
         } catch (err) {
             console.warn(`[AUTH] Failed to auto-create local user '${username}': ${err.message}`);
@@ -1200,5 +1223,8 @@ module.exports = {
     // Brute-force protection
     checkBruteForce,
     recordAttempt,
-    cleanupHousekeeping
+    cleanupHousekeeping,
+    // Issue #148 — exported for unit tests
+    normalizeAuthProvider,
+    inferAuthProviderFromSSO,
 };

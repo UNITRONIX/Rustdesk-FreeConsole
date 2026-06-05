@@ -110,18 +110,22 @@ function randomPassword() {
     return crypto.randomBytes(16).toString('hex');
 }
 
-async function findGoUserByUsername(username) {
-    if (!username) return null;
+async function readGoUsersFromApi() {
     try {
         const { data } = await apiClient.get('/users');
-        if (!Array.isArray(data)) return null;
-        const lower = normalizeUsername(username);
-        return data.find(u => normalizeUsername(u.username) === lower) || null;
+        return Array.isArray(data) ? data : [];
     } catch (err) {
         const status = err.response?.status;
-        console.warn(`[userSync] findGoUser('${username}') failed: status=${status} ${err.message}`);
-        return null;
+        console.warn(`[userSync] readGoUsersFromApi failed: status=${status} ${err.message}`);
+        return [];
     }
+}
+
+async function findGoUserByUsername(username) {
+    if (!username) return null;
+    const users = await readGoUsersFromApi();
+    const lower = normalizeUsername(username);
+    return users.find(u => normalizeUsername(u.username) === lower) || null;
 }
 
 async function resolveGoUserId(localUserId) {
@@ -269,16 +273,57 @@ async function backfillFromNode() {
 }
 
 /**
+ * PostgreSQL / shared-DB: reconcile auth_provider and role from Go REST API.
+ */
+async function backfillFromGoPostgres() {
+    const goUsers = await readGoUsersFromApi();
+    if (goUsers.length === 0) return { imported: 0, synced: 0 };
+
+    let localUsers;
+    try {
+        localUsers = await db.getAllUsers();
+    } catch (err) {
+        console.warn(`[userSync] Go->Node API sync: cannot read local users: ${err.message}`);
+        return { imported: 0, error: err.message };
+    }
+
+    let synced = 0;
+    const localByName = new Map((localUsers || []).map(u => [normalizeUsername(u.username), u]));
+
+    for (const goUser of goUsers) {
+        const local = localByName.get(normalizeUsername(goUser.username));
+        if (!local) continue;
+
+        const goProvider = String(goUser.auth_provider || 'local').trim() || 'local';
+        const goRole = normalizeRole(goUser.role);
+        const localProvider = String(local.auth_provider || 'local').trim() || 'local';
+
+        if (goProvider !== localProvider || goRole !== local.role) {
+            try {
+                await db.syncUserFromGo(local.id, { authProvider: goProvider, role: goRole });
+                synced++;
+            } catch (err) {
+                console.warn(`[userSync] Go->Node API sync failed for '${local.username}': ${err.message}`);
+            }
+        }
+    }
+
+    if (synced > 0) {
+        console.log(`[userSync] Go->Node API sync: updated auth_provider/role for ${synced} user(s)`);
+    }
+    return { imported: 0, synced };
+}
+
+/**
  * Backfill: recover Node auth.db users from the Go server SQLite database.
  *
- * This intentionally only runs in SQLite mode. PostgreSQL deployments already
- * share the same `users` table between Node and Go, while the Go REST API does
- * not expose password hashes. Reading db_v2.sqlite3 directly lets us preserve
- * bcrypt/PBKDF2 hashes and keep existing users able to log in after auth.db was
- * recreated during an update.
+ * SQLite dual-DB installs read db_v2.sqlite3 directly (preserves password hashes).
+ * PostgreSQL uses the Go REST API to reconcile auth_provider/role only.
  */
 async function backfillFromGo() {
-    if (db.type !== 'sqlite') return { imported: 0, skipped: 'shared-db' };
+    if (db.type === 'postgres') {
+        return backfillFromGoPostgres();
+    }
     if (typeof db.getAuthDb !== 'function') return { imported: 0, skipped: 'no-auth-db' };
 
     const goUsers = readGoUsersFromSqlite()

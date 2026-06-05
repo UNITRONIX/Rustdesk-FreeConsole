@@ -14,7 +14,9 @@ const mockDb = {
     getDb: jest.fn(),
     getAuthDb: jest.fn(),
     getAllUsersForBackup: jest.fn(),
+    getAllUsers: jest.fn(),
     getUserById: jest.fn(),
+    syncUserFromGo: jest.fn(),
 };
 
 jest.mock('../services/betterdeskApi', () => ({ apiClient: mockApiClient }));
@@ -110,5 +112,26 @@ describe('userSync', () => {
         });
 
         await expect(userSync.resolveGoUserId(12)).resolves.toBe(7);
+    });
+
+    it('syncs auth_provider and role from Go API in PostgreSQL mode', async () => {
+        mockDb.type = 'postgres';
+        mockApiClient.get.mockResolvedValue({
+            data: [
+                { id: 7, username: 'aduser', role: 'operator', auth_provider: 'ldap' },
+            ],
+        });
+        mockDb.getAllUsers.mockResolvedValue([
+            { id: 12, username: 'aduser', role: 'viewer', auth_provider: 'local' },
+        ]);
+        mockDb.syncUserFromGo.mockResolvedValue(undefined);
+
+        const result = await userSync.backfillFromGo();
+
+        expect(result.synced).toBe(1);
+        expect(mockDb.syncUserFromGo).toHaveBeenCalledWith(12, {
+            authProvider: 'ldap',
+            role: 'operator',
+        });
     });
 });
