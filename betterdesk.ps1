@@ -1387,8 +1387,12 @@ function Install-NodeJsConsole {
         return $false
     }
     
-    # Copy web files
+    # Copy web files (wildcard skips dotfiles — .env.example is required by merge-env.js, #166)
     Copy-Item -Path "$sourceFolder\*" -Destination $script:CONSOLE_PATH -Recurse -Force
+    $envExampleSrc = Join-Path $sourceFolder ".env.example"
+    if (Test-Path $envExampleSrc) {
+        Copy-Item -Path $envExampleSrc -Destination (Join-Path $script:CONSOLE_PATH ".env.example") -Force
+    }
     
     # Install npm dependencies
     Print-Step "Installing npm dependencies..."
@@ -3122,6 +3126,10 @@ function Update-FromGitHub {
     # Copy new console files
     $consoleSrc = Join-Path $cloneDir "web-nodejs"
     Copy-Item -Path "$consoleSrc\*" -Destination $script:CONSOLE_PATH -Recurse -Force
+    $envExampleSrc = Join-Path $consoleSrc ".env.example"
+    if (Test-Path $envExampleSrc) {
+        Copy-Item -Path $envExampleSrc -Destination (Join-Path $script:CONSOLE_PATH ".env.example") -Force
+    }
 
     # Restore preserved state files
     foreach ($item in $preserveItems) {

@@ -949,8 +949,12 @@ merge_console_env() {
     fi
 
     local merge_ok=false
+    local merge_output=""
+    local had_subst_file=false
     if [ -f "$subst_file" ]; then
-        if node "$merge_script" --target "$CONSOLE_PATH/.env" $fresh_flag --subst-file "$subst_file" > /dev/null 2>&1; then
+        had_subst_file=true
+        merge_output=$(node "$merge_script" --target "$CONSOLE_PATH/.env" $fresh_flag --subst-file "$subst_file" 2>&1) || true
+        if echo "$merge_output" | grep -q '"success":true'; then
             merge_ok=true
         fi
         rm -f "$subst_file"
@@ -958,6 +962,11 @@ merge_console_env() {
 
     if [ "$merge_ok" != true ]; then
         print_error "Failed to write .env via merge-env.js"
+        if [ -n "$merge_output" ]; then
+            print_info "$merge_output"
+        elif [ "$had_subst_file" != true ]; then
+            print_info "Substitution file was not created (check write-installer-env-subst.js)"
+        fi
         return 1
     fi
 
@@ -1874,8 +1883,11 @@ install_nodejs_console() {
         return 1
     fi
     
-    # Copy web files
+    # Copy web files (glob * skips dotfiles — .env.example is required by merge-env.js, #166)
     cp -r "$source_folder/"* "$CONSOLE_PATH/"
+    if [ -f "$source_folder/.env.example" ]; then
+        cp -a "$source_folder/.env.example" "$CONSOLE_PATH/.env.example"
+    fi
     
     # Install npm dependencies
     print_step "Installing npm dependencies..."
@@ -3180,8 +3192,11 @@ update_from_github() {
             --exclude='.force_password_update' \
             "$clone_dir/web-nodejs/" "$CONSOLE_PATH/"
     else
-        # cp fallback: copy everything then restore state
+        # cp fallback: copy everything then restore state (glob * skips dotfiles — #166)
         cp -r "$clone_dir/web-nodejs/"* "$CONSOLE_PATH/"
+        if [ -f "$clone_dir/web-nodejs/.env.example" ]; then
+            cp -a "$clone_dir/web-nodejs/.env.example" "$CONSOLE_PATH/.env.example"
+        fi
         # Restore preserved state files
         for item in "${state_files[@]}"; do
             if [ -e "$preserved_dir/$item" ]; then
