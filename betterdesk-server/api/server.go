@@ -344,6 +344,25 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/sysinfo", s.handleClientSysinfo)
 	mux.HandleFunc("POST /api/sysinfo_ver", s.handleClientSysinfoVer)
 
+	// RustDesk client compat (Phase A — handlers in client_*.go, mirrored from Node :21121)
+	mux.HandleFunc("GET /api/server-key", s.handleServerKey)
+	mux.HandleFunc("GET /api/server-key/fingerprint", s.handleServerKeyFingerprint)
+	mux.HandleFunc("GET /api/software", s.handleClientSoftware)
+	mux.HandleFunc("GET /api/software/client-download-link", s.handleClientSoftwareDownloadLink)
+	mux.HandleFunc("GET /api/user/group", s.handleClientUserGroup)
+	mux.HandleFunc("GET /api/user-groups", s.handleUserGroupsGet)
+	mux.HandleFunc("POST /api/user-groups", s.requirePanelAdmin(s.handleUserGroupsPost))
+	mux.HandleFunc("GET /api/strategies", s.handleStrategiesGet)
+	mux.HandleFunc("POST /api/strategies", s.requirePanelAdmin(s.handleStrategiesPost))
+	mux.HandleFunc("POST /api/audit/conn", s.handleAuditConnPost)
+	mux.HandleFunc("GET /api/audit/conn", s.requirePermission(auth.PermAuditView, s.handleAuditConnGet))
+	mux.HandleFunc("POST /api/audit/file", s.handleAuditFilePost)
+	mux.HandleFunc("GET /api/audit/file", s.requirePermission(auth.PermAuditView, s.handleAuditFileGet))
+	mux.HandleFunc("POST /api/audit/alarm", s.handleAuditAlarmPost)
+	mux.HandleFunc("GET /api/audit/alarm", s.requirePermission(auth.PermAuditView, s.handleAuditAlarmGet))
+	mux.HandleFunc("GET /api/audit", s.requirePermission(auth.PermAuditView, s.handleClientAuditSummary))
+	mux.HandleFunc("GET /api/peer-key/{id}", s.handlePeerKey)
+
 	// User management (permission-based)
 	// Issue #138: RustDesk client calls GET /api/users?accessible&pageSize=100
 	// with operator tokens. The _getUsers() result gates the entire group pull —

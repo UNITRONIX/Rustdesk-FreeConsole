@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/unitronix/betterdesk-server/auth"
 	"github.com/unitronix/betterdesk-server/db"
 )
 
@@ -331,6 +332,10 @@ func (s *Server) handleServerKeyFingerprint(w http.ResponseWriter, r *http.Reque
 func (s *Server) handlePeerKey(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	resp := map[string]string{"id": id, "pk": ""}
+	if auth.IsProRole(getRoleFromCtx(r)) {
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
 	peer, err := s.db.GetPeer(id)
 	if err != nil {
 		writeInternalError(w, err, "GetPeer")

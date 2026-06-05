@@ -10,7 +10,7 @@
 //   ├── server_admin — server config/logs, read-only user visibility
 //   ├── global_admin — all-org user/device management, no server access
 //   └── admin        — legacy alias for super_admin
-//       operator, viewer, pro — unchanged
+//       operator, viewer, pro — unchanged (pro = PRO activation only, no devices)
 const DEFAULT_ROLE_PERMISSIONS = {
     super_admin: null, // null = ALL permissions
     admin: null,       // legacy admin = super_admin
@@ -53,10 +53,17 @@ const DEFAULT_ROLE_PERMISSIONS = {
         'cdap.view',
         'chat.access',
     ]),
-    pro: new Set([
-        'device.view',
-    ]),
+    pro: new Set(),
 };
+
+function isProRole(role) {
+    return role === 'pro';
+}
+
+function proRoleBlocksPermission(role, permission) {
+    if (!isProRole(role)) return false;
+    return permission.startsWith('device.') || permission === 'org.manage_devices';
+}
 
 // Roles that have full admin privileges (bypass all permission checks).
 const SUPER_ADMIN_ROLES = new Set(['super_admin', 'admin']);
@@ -75,6 +82,7 @@ function isSuperAdminRole(role) {
  * @returns {boolean}
  */
 function roleHasPermission(role, permission) {
+    if (proRoleBlocksPermission(role, permission)) return false;
     if (isSuperAdminRole(role)) return true;
     const perms = DEFAULT_ROLE_PERMISSIONS[role];
     if (!perms) return false;

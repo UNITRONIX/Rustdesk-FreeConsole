@@ -319,10 +319,12 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
 			return
 		}
-		// Merge admin-set tags from peers table into AB (#76 TAG sync)
-		data = s.mergeAdminTagsIntoAB(data)
-		// RustDesk legacy AB reads tags from GET /api/ab (not /api/ab/tags).
-		data = s.syncServerTagsIntoAddressBook(data, r, username, role)
+		if !auth.IsProRole(role) {
+			// Merge admin-set tags from peers table into AB (#76 TAG sync)
+			data = s.mergeAdminTagsIntoAB(data)
+			// RustDesk legacy AB reads tags from GET /api/ab (not /api/ab/tags).
+			data = s.syncServerTagsIntoAddressBook(data, r, username, role)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"data": data, "licensed_devices": 0})
 
 	case http.MethodPost:
@@ -383,8 +385,9 @@ func (s *Server) handleClientAddressBookPersonal(w http.ResponseWriter, r *http.
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
 			return
 		}
-		// Merge admin-set tags from peers table into AB (#76 TAG sync)
-		data = s.mergeAdminTagsIntoAB(data)
+		if !auth.IsProRole(role) {
+			data = s.mergeAdminTagsIntoAB(data)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"data": data})
 
 	case http.MethodPost:

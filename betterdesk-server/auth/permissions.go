@@ -5,6 +5,8 @@
 // Custom overrides are stored in the role_permissions DB table.
 package auth
 
+import "strings"
+
 // Permission constants define every discrete action in the system.
 const (
 	// Device permissions
@@ -78,7 +80,7 @@ var AllPermissions = []string{
 //   admin        — legacy alias, equivalent to super_admin
 //   operator     — day-to-day device ops + chat
 //   viewer       — read-only dashboards
-//   pro          — API-only device view
+//   pro          — API-only RustDesk PRO activation; no device or org device access
 var DefaultRolePermissions = map[string]map[string]bool{
 	RoleSuperAdmin: buildPermMap(AllPermissions),
 	RoleAdmin:      buildPermMap(AllPermissions), // legacy admin = super_admin
@@ -123,9 +125,7 @@ var DefaultRolePermissions = map[string]map[string]bool{
 		PermCDAPView,
 		PermChatAccess,
 	}),
-	RolePro: buildPermMap([]string{
-		PermDeviceView,
-	}),
+	RolePro: buildPermMap([]string{}),
 }
 
 // buildPermMap converts a slice of permission strings into a lookup map.
@@ -137,10 +137,24 @@ func buildPermMap(perms []string) map[string]bool {
 	return m
 }
 
+// IsProRole returns true for the API-only RustDesk PRO activation role.
+func IsProRole(role string) bool {
+	return role == RolePro
+}
+
+// ProRoleBlocksPermission reports permissions the pro role must never hold,
+// even via DB overrides (device inventory and org device assignment).
+func ProRoleBlocksPermission(permission string) bool {
+	return strings.HasPrefix(permission, "device.") || permission == PermOrgManageDevices
+}
+
 // RoleHasPermission checks whether a role (by name) has a specific permission
 // according to default role mappings. Returns true for super_admin and legacy admin.
 // For DB-overridden permissions, use the Database.HasRolePermission method instead.
 func RoleHasPermission(role, permission string) bool {
+	if IsProRole(role) && ProRoleBlocksPermission(permission) {
+		return false
+	}
 	if IsSuperAdminRole(role) {
 		return true
 	}

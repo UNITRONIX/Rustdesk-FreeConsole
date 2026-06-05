@@ -83,7 +83,10 @@ func (s *Server) buildRustDeskDeviceGroupsFromContext(
 			}
 		}
 
-		folders, _ := s.panelStore.ListFolders()
+		folders, folderErr := s.panelStore.ListFolders()
+		if folderErr != nil {
+			log.Printf("[api] ListFolders user=%s: %v", user.Username, folderErr)
+		}
 		for _, folder := range folders {
 			allowedUsers, allowedGroups, _ := s.panelStore.FolderGroupAccess(folder.ID)
 			if !panelAccessAllowed(user, role, userGroupGUIDs, allowedUsers, allowedGroups) {

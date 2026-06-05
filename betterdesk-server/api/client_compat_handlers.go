@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/unitronix/betterdesk-server/auth"
 	"github.com/unitronix/betterdesk-server/db"
 )
 
@@ -29,6 +30,12 @@ func (s *Server) handleClientSoftwareDownloadLink(w http.ResponseWriter, r *http
 // {data:{name,guid,groups:[...]}} envelope the Flutter client expects.
 // GET /api/user/group — requires authentication (enforced by authMiddleware).
 func (s *Server) handleClientUserGroup(w http.ResponseWriter, r *http.Request) {
+	if getRoleFromCtx(r) == auth.RolePro {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"data": map[string]any{"name": "Default", "guid": "default"},
+		})
+		return
+	}
 	groups, err := s.db.ListUserGroups()
 	if err != nil || len(groups) == 0 {
 		writeJSON(w, http.StatusOK, map[string]any{

@@ -383,6 +383,9 @@ async function getConsoleDeviceContext(user) {
 async function buildSyncedAddressBook(user, abType) {
     const abRecord = await db.getAddressBook(user.id, abType);
     const abData = (abRecord && abRecord.data) ? String(abRecord.data) : '{}';
+    if (user.role === 'pro') {
+        return abData;
+    }
     const context = await getConsoleDeviceContext(user);
 
     // Issue #138 (2.1): Do NOT auto-include all server devices into the AB.
@@ -396,6 +399,17 @@ async function buildSyncedAddressBook(user, abType) {
 }
 
 async function getSyncedAddressBookTags(user) {
+    if (user.role === 'pro') {
+        try {
+            const tags = await db.getAddressBookTags(user.id);
+            return tags
+                .map(tag => String(tag || '').trim())
+                .filter(Boolean)
+                .sort((a, b) => a.localeCompare(b));
+        } catch (_) {
+            return [];
+        }
+    }
     const context = await getConsoleDeviceContext(user);
     const tags = addressBookSync.collectVisibleTags(context.devices, context.folders, context.assignments);
     const seen = new Set(tags.map(tag => String(tag || '').trim().toLowerCase()).filter(Boolean));
@@ -1031,6 +1045,9 @@ router.get('/api/users', async (req, res, next) => {
     const user = await authService.validateAccessToken(token);
     if (!user) {
         return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    if (user.role === 'pro') {
+        return res.json({ data: [], total: 0 });
     }
     return res.json({
         data: [{
@@ -1906,6 +1923,10 @@ router.post('/api/strategies', requireAuth, requireAdmin, async (req, res) => {
  */
 router.get('/api/peer-key/:id', requireAuth, async (req, res) => {
     try {
+        if (req.authUser && req.authUser.role === 'pro') {
+            const peerId = sanitizeStr(req.params.id, MAX_ID_LEN);
+            return res.json({ id: peerId || req.params.id, pk: '' });
+        }
         const peerId = sanitizeStr(req.params.id, MAX_ID_LEN);
         if (!peerId) {
             return res.status(400).json({ error: 'Invalid peer ID' });

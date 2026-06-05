@@ -88,11 +88,29 @@ func (s *Server) requireRole(role string, handler http.HandlerFunc) http.Handler
 	}
 }
 
+// requirePanelAdmin allows super_admin, legacy admin, and global_admin.
+// Matches Node.js requireAdmin (web-nodejs/middleware/auth.js).
+func (s *Server) requirePanelAdmin(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userRole := getRoleFromCtx(r)
+		if auth.IsSuperAdminRole(userRole) || userRole == auth.RoleGlobalAdmin {
+			handler(w, r)
+			return
+		}
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "Insufficient permissions"})
+	}
+}
+
 // requirePermission wraps a handler to enforce a specific granular permission.
 // Checks custom DB overrides first, then falls back to default role permissions.
 func (s *Server) requirePermission(perm string, handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userRole := getRoleFromCtx(r)
+
+		if auth.IsProRole(userRole) && auth.ProRoleBlocksPermission(perm) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "Insufficient permissions"})
+			return
+		}
 
 		// Super admin (and legacy admin) always has all permissions
 		if auth.IsSuperAdminRole(userRole) {
@@ -104,7 +122,7 @@ func (s *Server) requirePermission(perm string, handler http.HandlerFunc) http.H
 		if s.db != nil {
 			granted, err := s.db.HasRolePermission(userRole, perm)
 			if err == nil {
-				if granted {
+				if granted && !(auth.IsProRole(userRole) && auth.ProRoleBlocksPermission(perm)) {
 					handler(w, r)
 					return
 				}
@@ -637,6 +655,15 @@ func (s *Server) handleUsersWithClientFallback(w http.ResponseWriter, r *http.Re
 	if r.URL.Query().Has("accessible") || r.URL.Query().Has("pageSize") {
 		username := getUsernameFromCtx(r)
 		role := getRoleFromCtx(r)
+
+		// Pro accounts activate RustDesk PRO only — no device inventory sidebar.
+		if auth.IsProRole(role) {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"total": 0,
+				"data":  []any{},
+			})
+			return
+		}
 
 		// If user has user.view permission, return full list
 		if auth.IsSuperAdminRole(role) || auth.RoleHasPermission(role, auth.PermUserView) {
@@ -1248,6 +1275,11 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			path == "/api/login" || path == "/api/login-options" || path == "/api/logout" ||
 			path == "/api/heartbeat" || path == "/api/sysinfo" || path == "/api/sysinfo_ver" ||
 			path == "/api/branding" ||
+			path == "/api/server-key" || path == "/api/server-key/fingerprint" ||
+			path == "/api/software" || path == "/api/software/client-download-link" ||
+			path == "/api/audit/conn" && r.Method == http.MethodPost ||
+			path == "/api/audit/file" && r.Method == http.MethodPost ||
+			path == "/api/audit/alarm" && r.Method == http.MethodPost ||
 			path == "/api/org/login" ||
 			path == "/api/auth/oidc/status" || path == "/api/auth/oidc/authorize" || path == "/api/auth/oidc/callback" ||
 			path == "/api/auth/oidc/exchange" || path == "/api/auth/sso/status" ||

@@ -18,7 +18,7 @@ const (
 	RoleAdmin    = "admin" // maps to super_admin in permission terms
 	RoleOperator = "operator"
 	RoleViewer   = "viewer"
-	RolePro      = "pro" // API-only, no web panel access
+	RolePro      = "pro" // API-only RustDesk PRO activation; no device access
 )
 
 // RoleLevel returns the numeric privilege level for a role.

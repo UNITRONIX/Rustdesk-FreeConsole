@@ -480,7 +480,9 @@ func (s *Server) collectRustDeskTags(r *http.Request, username string, role stri
 	if err != nil {
 		data = "{}"
 	}
-	data = s.mergeAdminTagsIntoAB(data)
+	if !auth.IsProRole(role) {
+		data = s.mergeAdminTagsIntoAB(data)
+	}
 
 	var ab struct {
 		Tags []string `json:"tags"`

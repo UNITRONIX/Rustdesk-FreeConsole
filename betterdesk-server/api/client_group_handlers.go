@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/unitronix/betterdesk-server/auth"
 	"github.com/unitronix/betterdesk-server/db"
 )
 
@@ -12,7 +13,7 @@ import (
 // handleUserGroupsGet lists user groups. Auth enforced by route wrapper.
 // Role "pro" sees an empty list (matches the Node.js console behaviour).
 func (s *Server) handleUserGroupsGet(w http.ResponseWriter, r *http.Request) {
-	if getRoleFromCtx(r) == "pro" {
+	if auth.IsProRole(getRoleFromCtx(r)) {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []*db.UserGroup{}, "total": 0})
 		return
 	}
