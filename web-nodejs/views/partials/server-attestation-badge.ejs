@@ -1,0 +1,19 @@
+<%#
+  BetterDesk Server Attestation badge (Intel vPRO style)
+  locals: tier (bronze|iron|titanium|platinum|null), size ('large'|'small'), showConnections, maxConnections
+%>
+<%
+    var _tier = (typeof tier !== 'undefined' && tier) ? String(tier).toLowerCase() : '';
+    var _size = (typeof size !== 'undefined' && size === 'large') ? 'large' : 'small';
+    var _showConn = typeof showConnections !== 'undefined' && showConnections;
+    var _maxConn = typeof maxConnections !== 'undefined' ? maxConnections : null;
+    var _tierLabel = _tier ? (_('server_attestation.tier_' + _tier) || _tier.toUpperCase()) : (_('server_attestation.tier_none') || 'UNRATED');
+    var _tierClass = _tier ? ('bd-attest-tier-' + _tier) : 'bd-attest-tier-none';
+%>
+<div class="bd-attest-badge bd-attest-badge--<%= _size %> <%= _tierClass %>" title="<%= _('server_attestation.badge_tooltip') || 'BetterDesk Server Attestation' %>">
+    <div class="bd-attest-brand">Better<span class="bd-attest-i">i</span>Desk</div>
+    <div class="bd-attest-tier"><%= _tierLabel %></div>
+    <% if (_showConn && _maxConn) { %>
+    <div class="bd-attest-conn"><%= _maxConn %> <%= _('server_attestation.connections_short') || 'conn.' %></div>
+    <% } %>
+</div>

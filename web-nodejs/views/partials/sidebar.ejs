@@ -48,6 +48,10 @@
                     data-category="server-mgmt" title="<%= _('nav.server_management') || 'Server Management' %>">
                 <span class="material-icons">dns</span>
             </button>
+            <button class="sidebar-rail-btn <%= currentPage === 'server-attestation' ? 'active' : '' %>"
+                    data-category="server-attest" title="<%= _('nav.server_attestation') || 'Server Attestation' %>">
+                <span class="material-icons">verified</span>
+            </button>
             <% } %>
         </nav>
 
@@ -275,6 +279,16 @@
         </div>
         <% } %>
 
+        <!-- Server Attestation -->
+        <% if (hasPermission('server.config')) { %>
+        <div class="sidebar-flyout-panel" data-panel="server-attest">
+            <a href="/server-attestation" class="sidebar-link <%= currentPage === 'server-attestation' ? 'active' : '' %>">
+                <span class="material-icons">verified</span>
+                <span class="sidebar-link-text"><%= _('nav.server_attestation') || 'Server Attestation' %></span>
+            </a>
+        </div>
+        <% } %>
+
         <!-- Sidebar footer - User -->
         <div class="sidebar-footer">
             <div class="sidebar-user" id="user-menu-trigger">
@@ -351,7 +365,8 @@
             management: '<%= _("nav.management") || "Management" %>',
             tools: '<%= _("nav.tools") %>',
             system: '<%= _("nav.system") %>',
-            'server-mgmt': '<%= _("nav.server_management") || "Server Management" %>'
+            'server-mgmt': '<%= _("nav.server_management") || "Server Management" %>',
+            'server-attest': '<%= _("nav.server_attestation") || "Server Attestation" %>'
         };
         if (flyoutTitle) flyoutTitle.textContent = titles[category] || '';
         activeCategory = category;

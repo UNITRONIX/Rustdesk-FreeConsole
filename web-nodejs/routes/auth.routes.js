@@ -8,6 +8,7 @@ const router = express.Router();
 const authService = require('../services/authService');
 const db = require('../services/database');
 const betterdeskApi = require('../services/betterdeskApi');
+const serverAttestation = require('../services/serverAttestation');
 const { guestOnly, requireAuth } = require('../middleware/auth');
 const { loginLimiter, passwordChangeLimiter } = require('../middleware/rateLimiter');
 
@@ -33,6 +34,12 @@ function isSafeReturnUrl(u) {
 router.get('/login', guestOnly, async (req, res) => {
     const useDesktop = req.query.desktop === '1' || req.cookies.betterdesk_desktop_mode === 'true';
 
+    let attestationBadge = { tier: null, maxConnections: null };
+    try {
+        const last = await serverAttestation.getLastResult();
+        attestationBadge = serverAttestation.buildPublicSummary(last);
+    } catch (_) { /* optional */ }
+
     if (useDesktop) {
         // Fetch user list for multi-user selector (usernames + roles only, no secrets)
         let loginUsers = [];
@@ -48,13 +55,15 @@ router.get('/login', guestOnly, async (req, res) => {
         return res.render('desktop-login', {
             title: req.t('nav.login'),
             activePage: 'login',
-            loginUsers
+            loginUsers,
+            attestationBadge
         });
     }
 
     res.render('login', {
         title: req.t('nav.login'),
-        activePage: 'login'
+        activePage: 'login',
+        attestationBadge
     });
 });
 

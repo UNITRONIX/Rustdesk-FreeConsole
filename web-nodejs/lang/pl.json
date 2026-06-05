@@ -76,7 +76,8 @@
     "expand_sidebar": "Rozwiń pasek boczny",
     "toggle_theme": "Przełącz motyw",
     "login": "Logowanie",
-    "server_management": "Zarządzanie serwerem"
+    "server_management": "Zarządzanie serwerem",
+    "server_attestation": "Atest serwera"
   },
   "auth": {
     "login": "Zaloguj",
@@ -3513,5 +3514,39 @@
     "svc_enable": "Włącz",
     "svc_disable": "Wyłącz",
     "svc_status": "Status"
+  },
+  "server_attestation": {
+    "title": "Atest serwera",
+    "subtitle": "Benchmark wydajności określający pojemność równoległych połączeń zdalnych przy progu 80% obciążenia CPU, RAM i dysku.",
+    "warning_title": "Test obciążeniowy",
+    "warning_body": "Benchmark symuluje równoległe połączenia WebSocket do serwera sygnałowego i relay. Uruchamiaj poza godzinami szczytu — test obciąża produkcję.",
+    "run_benchmark": "Uruchom benchmark",
+    "abort": "Anuluj",
+    "download_report": "Pobierz raport JSON",
+    "last_test": "Ostatni test",
+    "no_test_yet": "Nie przeprowadzono jeszcze benchmarku",
+    "max_connections": "Maks. połączeń",
+    "threshold_80": "Próg 80% — metryki końcowe",
+    "disk": "Dysk",
+    "ramp_chart": "Wykres rampy obciążenia",
+    "connections": "Połączenia",
+    "connections_short": "poł.",
+    "tier_guide_title": "Co oznacza tier?",
+    "tier_bronze": "BRONZE",
+    "tier_iron": "IRON",
+    "tier_titanium": "TITANIUM",
+    "tier_platinum": "PLATINUM",
+    "tier_none": "BRAK",
+    "tier_bronze_desc": "1–25 równoległych połączeń — mały VPS (1–2 vCPU, 2–4 GB RAM).",
+    "tier_iron_desc": "26–75 połączeń — serwer średniej klasy (2–4 vCPU, 4–8 GB RAM).",
+    "tier_titanium_desc": "76–200 połączeń — serwer wydajny (4–8 vCPU, 8–16 GB RAM).",
+    "tier_platinum_desc": "201+ połączeń — infrastruktura enterprise (8+ vCPU, 16+ GB RAM).",
+    "docker_note": "Uwaga: w Dockerze metryki CPU/RAM mogą odzwierciedlać limit kontenera, nie fizycznego hosta.",
+    "badge_tooltip": "BetterDesk Server Attestation — certyfikat wydajności serwera",
+    "confirm_run": "Benchmark obciąży serwer symulując wiele połączeń. Kontynuować?",
+    "starting": "Uruchamianie…",
+    "complete": "Benchmark zakończony",
+    "signal_peers": "Peery signal",
+    "relay_sessions": "Sesje relay"
   }
 }

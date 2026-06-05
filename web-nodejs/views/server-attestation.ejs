@@ -1,0 +1,131 @@
+<%- include('layouts/main', {
+    title: _('server_attestation.title'),
+    pageStyles: ['server-attestation'],
+    pageScripts: ['server-attestation'],
+    currentPage: 'server-attestation',
+    breadcrumb: [{ label: _('server_attestation.title') }],
+    body: `
+<div class="sa-page" id="sa-page">
+
+    <div class="page-header sa-header">
+        <div class="page-title">
+            <h1>
+                <span class="material-icons">verified</span>
+                ${_('server_attestation.title')}
+            </h1>
+        </div>
+        <p class="page-subtitle">${_('server_attestation.subtitle')}</p>
+    </div>
+
+    <div class="sa-notice">
+        <span class="material-icons">warning</span>
+        <div>
+            <strong>${_('server_attestation.warning_title')}</strong>
+            <p>${_('server_attestation.warning_body')}</p>
+        </div>
+    </div>
+
+    <div class="sa-layout">
+        <div class="sa-hero">
+            <%- include('partials/server-attestation-badge', {
+                tier: (typeof lastResult !== 'undefined' && lastResult && lastResult.tier) ? lastResult.tier : null,
+                size: 'large',
+                showConnections: true,
+                maxConnections: (typeof lastResult !== 'undefined' && lastResult) ? lastResult.maxConnections : null
+            }) %>
+            <div class="sa-hero-meta" id="sa-hero-meta">
+                ${typeof lastResult !== 'undefined' && lastResult && lastResult.testedAt
+                    ? '<span>' + _('server_attestation.last_test') + ': ' + new Date(lastResult.testedAt).toLocaleString() + '</span>'
+                    : '<span class="sa-muted">' + _('server_attestation.no_test_yet') + '</span>'}
+            </div>
+        </div>
+
+        <div class="sa-controls">
+            <button type="button" class="btn btn-primary" id="sa-run-btn">
+                <span class="material-icons">speed</span>
+                ${_('server_attestation.run_benchmark')}
+            </button>
+            <button type="button" class="btn btn-secondary hidden" id="sa-abort-btn">
+                <span class="material-icons">stop</span>
+                ${_('server_attestation.abort')}
+            </button>
+            <button type="button" class="btn btn-ghost" id="sa-download-btn" ${!(typeof lastResult !== 'undefined' && lastResult) ? 'disabled' : ''}>
+                <span class="material-icons">download</span>
+                ${_('server_attestation.download_report')}
+            </button>
+        </div>
+
+        <div class="sa-progress hidden" id="sa-progress">
+            <div class="sa-progress-bar"><div class="sa-progress-fill" id="sa-progress-fill"></div></div>
+            <p class="sa-progress-text" id="sa-progress-text"></p>
+        </div>
+
+        <div class="sa-grid">
+            <div class="sa-card">
+                <div class="sa-card-header">
+                    <span class="material-icons">hub</span>
+                    <h3>${_('server_attestation.max_connections')}</h3>
+                </div>
+                <div class="sa-stat-value" id="sa-max-conn">${(typeof lastResult !== 'undefined' && lastResult && lastResult.maxConnections) ? lastResult.maxConnections : '—'}</div>
+                <div class="sa-stat-detail" id="sa-conn-detail"></div>
+            </div>
+
+            <div class="sa-card">
+                <div class="sa-card-header">
+                    <span class="material-icons">memory</span>
+                    <h3>${_('server_attestation.threshold_80')}</h3>
+                </div>
+                <table class="sa-threshold-table">
+                    <tbody>
+                        <tr><td>CPU</td><td id="sa-th-cpu">${(typeof lastResult !== 'undefined' && lastResult && lastResult.finalMetrics) ? lastResult.finalMetrics.cpu + '%' : '—'}</td></tr>
+                        <tr><td>RAM</td><td id="sa-th-mem">${(typeof lastResult !== 'undefined' && lastResult && lastResult.finalMetrics) ? lastResult.finalMetrics.mem + '%' : '—'}</td></tr>
+                        <tr><td>${_('server_attestation.disk')}</td><td id="sa-th-disk">${(typeof lastResult !== 'undefined' && lastResult && lastResult.finalMetrics) ? lastResult.finalMetrics.disk + '%' : '—'}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="sa-card sa-card-wide">
+                <div class="sa-card-header">
+                    <span class="material-icons">show_chart</span>
+                    <h3>${_('server_attestation.ramp_chart')}</h3>
+                </div>
+                <div class="sa-chart-wrap">
+                    <canvas id="sa-ramp-chart" height="200"></canvas>
+                    <div class="sa-chart-legend">
+                        <span><span class="dot dot-cpu"></span>CPU</span>
+                        <span><span class="dot dot-mem"></span>RAM</span>
+                        <span><span class="dot dot-conns"></span>${_('server_attestation.connections')}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sa-card sa-card-wide">
+                <div class="sa-card-header">
+                    <span class="material-icons">info</span>
+                    <h3>${_('server_attestation.tier_guide_title')}</h3>
+                </div>
+                <div class="sa-tier-guide">
+                    <div class="sa-tier-row">
+                        <span class="bd-attest-badge bd-attest-badge--sm bd-attest-tier-bronze"><span class="bd-attest-brand">BetterDesk</span><span class="bd-attest-tier">${_('server_attestation.tier_bronze')}</span></span>
+                        <p>${_('server_attestation.tier_bronze_desc')}</p>
+                    </div>
+                    <div class="sa-tier-row">
+                        <span class="bd-attest-badge bd-attest-badge--sm bd-attest-tier-iron"><span class="bd-attest-brand">BetterDesk</span><span class="bd-attest-tier">${_('server_attestation.tier_iron')}</span></span>
+                        <p>${_('server_attestation.tier_iron_desc')}</p>
+                    </div>
+                    <div class="sa-tier-row">
+                        <span class="bd-attest-badge bd-attest-badge--sm bd-attest-tier-titanium"><span class="bd-attest-brand">BetterDesk</span><span class="bd-attest-tier">${_('server_attestation.tier_titanium')}</span></span>
+                        <p>${_('server_attestation.tier_titanium_desc')}</p>
+                    </div>
+                    <div class="sa-tier-row">
+                        <span class="bd-attest-badge bd-attest-badge--sm bd-attest-tier-platinum"><span class="bd-attest-brand">BetterDesk</span><span class="bd-attest-tier">${_('server_attestation.tier_platinum')}</span></span>
+                        <p>${_('server_attestation.tier_platinum_desc')}</p>
+                    </div>
+                </div>
+                <p class="sa-docker-note">${_('server_attestation.docker_note')}</p>
+            </div>
+        </div>
+    </div>
+</div>
+`
+}) %>

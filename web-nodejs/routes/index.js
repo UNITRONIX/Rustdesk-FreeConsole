@@ -60,6 +60,7 @@ const cdapStudioRoutes = lazyRoute('./cdap-studio.routes');
 const permissionsRoutes = lazyRoute('./permissions.routes');
 const phase45Routes = lazyRoute('./phase4_5.routes');
 const serverManagementRoutes = lazyRoute('./server-management.routes');
+const serverAttestationRoutes = lazyRoute('./server-attestation.routes');
 
 /**
  * Middleware to require JSON Content-Type for POST/PATCH/PUT requests to API routes.
@@ -147,6 +148,7 @@ router.use('/', systemRoutes);                           // admin-facing: /api/s
 router.use('/', cdapStudioRoutes);                       // admin-facing: /cdap-studio, /api/cdap-studio/*
 router.use('/', permissionsRoutes);                      // admin-facing: /permissions, /api/panel/roles/*, /api/panel/role-permissions/*
 router.use('/', serverManagementRoutes);                 // admin-facing: /server-management, /api/server-management/* (BETA)
+router.use('/', serverAttestationRoutes);                // admin-facing: /server-attestation, /api/server-attestation/*
 router.use('/', phase45Routes);                          // Phase 4/5: /api/users/me/profile, /api/agent-templates, /portal
 
 module.exports = router;

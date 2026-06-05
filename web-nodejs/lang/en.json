@@ -75,7 +75,8 @@
     "help": "Help",
     "expand_sidebar": "Expand sidebar",
     "login": "Login",
-    "server_management": "Server Management"
+    "server_management": "Server Management",
+    "server_attestation": "Server Attestation"
   },
   "auth": {
     "login": "Login",
@@ -3512,5 +3513,39 @@
     "svc_enable": "Enable",
     "svc_disable": "Disable",
     "svc_status": "Status"
+  },
+  "server_attestation": {
+    "title": "Server Attestation",
+    "subtitle": "Performance benchmark that determines concurrent remote connection capacity at an 80% CPU, RAM, and disk threshold.",
+    "warning_title": "Load test",
+    "warning_body": "The benchmark simulates parallel WebSocket connections to the signal and relay servers. Run during off-peak hours — this test loads production.",
+    "run_benchmark": "Run benchmark",
+    "abort": "Abort",
+    "download_report": "Download JSON report",
+    "last_test": "Last test",
+    "no_test_yet": "No benchmark has been run yet",
+    "max_connections": "Max connections",
+    "threshold_80": "80% threshold — final metrics",
+    "disk": "Disk",
+    "ramp_chart": "Load ramp chart",
+    "connections": "Connections",
+    "connections_short": "conn.",
+    "tier_guide_title": "What does each tier mean?",
+    "tier_bronze": "BRONZE",
+    "tier_iron": "IRON",
+    "tier_titanium": "TITANIUM",
+    "tier_platinum": "PLATINUM",
+    "tier_none": "UNRATED",
+    "tier_bronze_desc": "1–25 concurrent connections — small VPS (1–2 vCPU, 2–4 GB RAM).",
+    "tier_iron_desc": "26–75 connections — mid-range server (2–4 vCPU, 4–8 GB RAM).",
+    "tier_titanium_desc": "76–200 connections — high-performance server (4–8 vCPU, 8–16 GB RAM).",
+    "tier_platinum_desc": "201+ connections — enterprise infrastructure (8+ vCPU, 16+ GB RAM).",
+    "docker_note": "Note: in Docker, CPU/RAM metrics may reflect container limits rather than the physical host.",
+    "badge_tooltip": "BetterDesk Server Attestation — server performance certification",
+    "confirm_run": "This benchmark will load-test the server with simulated connections. Continue?",
+    "starting": "Starting…",
+    "complete": "Benchmark complete",
+    "signal_peers": "Signal peers",
+    "relay_sessions": "Relay sessions"
   }
 }

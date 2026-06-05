@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/css/main.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/theme.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/desktop-login.css?v=<%= cacheVersion %>">
+    <link rel="stylesheet" href="/css/server-attestation.css?v=<%= cacheVersion %>">
 </head>
 <body class="desktop-login-page">
     <div class="dl-language-picker">
@@ -148,6 +149,17 @@
                 window.BetterDesk.sessionExpired = true;
             }
         </script>
+
+    <% if (typeof attestationBadge !== 'undefined' && attestationBadge && attestationBadge.valid && attestationBadge.tier) { %>
+    <div class="login-attestation-badge">
+        <%- include('partials/server-attestation-badge', {
+            tier: attestationBadge.tier,
+            size: 'small',
+            showConnections: false,
+            maxConnections: attestationBadge.maxConnections
+        }) %>
+    </div>
+    <% } %>
 
     <script nonce="<%= cspNonce %>">
         window.BetterDesk = {
