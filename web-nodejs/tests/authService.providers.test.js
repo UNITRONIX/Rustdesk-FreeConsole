@@ -46,6 +46,18 @@ describe('authService provider helpers', () => {
             { ldap: true, oidc: false, any: true }
         )).toBe('ldap');
     });
+
+    it('isExternalAuthProvider / isExternalAuthResult detect ldap/oidc', () => {
+        expect(authService.isExternalAuthProvider('ldap')).toBe(true);
+        expect(authService.isExternalAuthProvider('oidc')).toBe(true);
+        expect(authService.isExternalAuthProvider('local')).toBe(false);
+        expect(authService.isExternalAuthProvider('SAML')).toBe(false);
+
+        expect(authService.isExternalAuthResult({ auth_provider: 'ldap' })).toBe(true);
+        expect(authService.isExternalAuthResult({ auth_provider: 'oidc' })).toBe(true);
+        expect(authService.isExternalAuthResult({ auth_provider: 'local' })).toBe(false);
+        expect(authService.isExternalAuthResult(null)).toBe(false);
+    });
 });
 
 describe('database facade auth_provider', () => {

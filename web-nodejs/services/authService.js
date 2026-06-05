@@ -360,6 +360,16 @@ async function unusablePasswordHash() {
     return hashPassword(crypto.randomBytes(32).toString('hex'));
 }
 
+function isExternalAuthProvider(provider) {
+    const p = normalizeAuthProvider(provider);
+    return p === 'ldap' || p === 'oidc';
+}
+
+function isExternalAuthResult(goResult) {
+    if (!goResult) return false;
+    return isExternalAuthProvider(goResult.auth_provider);
+}
+
 async function syncLocalUserFromGoResult(localUser, goResult, password, ssoStatus) {
     if (!localUser || !goResult) return localUser;
 
@@ -568,6 +578,13 @@ async function authenticate(username, password) {
             // Go may hold a newer hash after a password change on the server side.
             const goResult = await tryGoServerAuth(username, password);
             if (goResult) {
+                // Collision hardening: never auto-convert a local account to LDAP/OIDC.
+                // If Go accepted the password via an external provider, treat this as a
+                // username collision and require admin intervention (Issue #148 follow-up).
+                if (isExternalAuthResult(goResult)) {
+                    console.log(`[AUTH] Login blocked: username collision for local '${username}' (Go provider=${normalizeAuthProvider(goResult.auth_provider)})`);
+                    return null;
+                }
                 console.log(`[AUTH] Go server accepted password for local '${username}' — syncing hash`);
                 user = await syncLocalUserFromGoResult(user, goResult, password, ssoStatus);
             } else {
@@ -1227,4 +1244,6 @@ module.exports = {
     // Issue #148 — exported for unit tests
     normalizeAuthProvider,
     inferAuthProviderFromSSO,
+    isExternalAuthProvider,
+    isExternalAuthResult,
 };
