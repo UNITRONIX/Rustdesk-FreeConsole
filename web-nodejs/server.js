@@ -38,15 +38,15 @@ const routes = require('./routes');
 const rustdeskApiRoutes = require('./routes/rustdesk-api.routes');
 const bdApiRoutes = require('./routes/bd-api.routes');
 const { getWanMiddlewareStack } = require('./middleware/wanSecurity');
+const { parseTrustProxy } = require('./lib/parseTrustProxy');
 
 // Create Express app
 const app = express();
 
 // Trust proxy (for rate limiting behind reverse proxy)
-// Configurable via TRUST_PROXY env var: 0=disabled, 1=single proxy, 'loopback'=localhost only
+// Configurable via TRUST_PROXY env var: false/0=off, 1/true=single proxy, 'loopback'=localhost only
 // Default: false (safest). Set TRUST_PROXY=1 when behind nginx/Apache/cloudflare
-const trustProxy = process.env.TRUST_PROXY !== undefined ? 
-    (isNaN(process.env.TRUST_PROXY) ? process.env.TRUST_PROXY : parseInt(process.env.TRUST_PROXY, 10)) : false;
+const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
 app.set('trust proxy', trustProxy);
 
 // View engine setup
