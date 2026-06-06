@@ -996,15 +996,18 @@ router.post('/api/ab/personal', async (req, res) => {
         return res.status(401).json({ error: 'Invalid or expired token' });
     }
     const { data } = req.body || {};
-    if (data !== undefined) {
-        const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
-        try {
-            await db.saveAddressBook(user.id, dataStr, 'personal');
-            await syncAddressBookTagsToConsole(user, dataStr, 'personal');
-            console.log(`[API:AB] Saved personal address book for user ${user.username} (${dataStr.length} bytes)`);
-        } catch (err) {
-            console.error('[API:AB] Error saving personal address book:', err.message);
-        }
+    const hasData = data !== undefined && data !== null && data !== '';
+    // RustDesk 1.4.7 probes with an empty POST body; legacy servers return 404.
+    if (!hasData) {
+        return res.status(404).end();
+    }
+    const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+    try {
+        await db.saveAddressBook(user.id, dataStr, 'personal');
+        await syncAddressBookTagsToConsole(user, dataStr, 'personal');
+        console.log(`[API:AB] Saved personal address book for user ${user.username} (${dataStr.length} bytes)`);
+    } catch (err) {
+        console.error('[API:AB] Error saving personal address book:', err.message);
     }
     return res.json({});
 });

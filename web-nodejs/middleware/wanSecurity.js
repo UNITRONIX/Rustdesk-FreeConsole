@@ -114,8 +114,8 @@ const PATH_BODY_LIMITS = {
     '/api/login': 4096,           // 4KB — login with deviceInfo payload
     '/api/sysinfo': 8192,         // 8KB — sysinfo with displays/encoding data
     '/api/sysinfo_ver': 512,      // 512B — version check (id + hash only)
-    '/api/ab': 65536,             // 64KB — address book sync
-    '/api/ab/personal': 65536,    // 64KB — personal address book
+    '/api/ab': 524288,             // 512KB — match Go address book limit
+    '/api/ab/personal': 524288,    // 512KB — personal address book
     '/api/audit/conn': 2048,      // 2KB — connection event
     '/api/audit/file': 4096,      // 4KB — file transfer event (file list)
     '/api/audit/alarm': 2048,     // 2KB — alarm event

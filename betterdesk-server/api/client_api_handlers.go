@@ -18,6 +18,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -300,6 +302,49 @@ func (s *Server) handleClientCurrentUser(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, rustdeskUserPayload(username, role))
 }
 
+type clientAbPostBody struct {
+	Data json.RawMessage `json:"data"`
+}
+
+// decodeClientAbPostBody parses RustDesk legacy address book POST envelopes.
+// emptyBody is true when the client sent no JSON (Content-Length: 0), which
+// RustDesk 1.4.x uses for /api/ab/personal legacy-mode probing.
+func decodeClientAbPostBody(r *http.Request, endpoint, username string) (clientAbPostBody, bool, error) {
+	var body clientAbPostBody
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return clientAbPostBody{}, true, nil
+		}
+		log.Printf("[api] %s JSON decode error for %s: %v (Content-Length: %s)",
+			endpoint, username, err, r.Header.Get("Content-Length"))
+		return clientAbPostBody{}, false, err
+	}
+	return body, false, nil
+}
+
+func abDataFieldPresent(data json.RawMessage) bool {
+	if len(data) == 0 {
+		return false
+	}
+	s := strings.TrimSpace(string(data))
+	return s != "" && s != "null"
+}
+
+func normalizeAbDataField(data json.RawMessage) string {
+	dataStr := string(data)
+	if len(dataStr) > 0 && dataStr[0] == '"' {
+		var unquoted string
+		if err := json.Unmarshal(data, &unquoted); err == nil {
+			dataStr = unquoted
+		}
+	}
+	if dataStr == "" || dataStr == "null" {
+		dataStr = "{}"
+	}
+	return dataStr
+}
+
 // handleClientAddressBook handles address book get/set for RustDesk clients.
 // GET /api/ab — get legacy address book
 // POST /api/ab — update legacy address book
@@ -328,24 +373,14 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusOK, map[string]any{"data": data, "licensed_devices": 0})
 
 	case http.MethodPost:
-		var body struct {
-			Data json.RawMessage `json:"data"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body, emptyBody, err := decodeClientAbPostBody(r, "POST /api/ab", username)
+		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
 			return
 		}
-		// RustDesk sends data as a JSON string or as an object; normalize to string
-		dataStr := string(body.Data)
-		if len(dataStr) > 0 && dataStr[0] == '"' {
-			// JSON-encoded string — unquote it
-			var s2 string
-			if err := json.Unmarshal(body.Data, &s2); err == nil {
-				dataStr = s2
-			}
-		}
-		if dataStr == "" || dataStr == "null" {
-			dataStr = "{}"
+		dataStr := "{}"
+		if !emptyBody {
+			dataStr = normalizeAbDataField(body.Data)
 		}
 		// Limit AB size to 512 KB
 		if len(dataStr) > 512*1024 {
@@ -391,23 +426,17 @@ func (s *Server) handleClientAddressBookPersonal(w http.ResponseWriter, r *http.
 		writeJSON(w, http.StatusOK, map[string]any{"data": data})
 
 	case http.MethodPost:
-		var body struct {
-			Data json.RawMessage `json:"data"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body, emptyBody, err := decodeClientAbPostBody(r, "POST /api/ab/personal", username)
+		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
 			return
 		}
-		dataStr := string(body.Data)
-		if len(dataStr) > 0 && dataStr[0] == '"' {
-			var s2 string
-			if err := json.Unmarshal(body.Data, &s2); err == nil {
-				dataStr = s2
-			}
+		// RustDesk 1.4.7 probes with an empty POST body; legacy servers return 404 (PR #14813).
+		if emptyBody || !abDataFieldPresent(body.Data) {
+			http.NotFound(w, r)
+			return
 		}
-		if dataStr == "" || dataStr == "null" {
-			dataStr = "{}"
-		}
+		dataStr := normalizeAbDataField(body.Data)
 		if len(dataStr) > 512*1024 {
 			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Address book too large"})
 			return

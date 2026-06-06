@@ -339,6 +339,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/device-group", s.handleClientGroupList)
 	mux.HandleFunc("GET /api/device-group/accessible", s.handleClientGroupList)
 	mux.HandleFunc("GET /api/peers/list", s.handleClientGroupPeers)
+	mux.HandleFunc("POST /api/peers/list", s.handleClientGroupPeers)
 
 	mux.HandleFunc("POST /api/heartbeat", s.handleClientHeartbeat)
 	mux.HandleFunc("POST /api/sysinfo", s.handleClientSysinfo)

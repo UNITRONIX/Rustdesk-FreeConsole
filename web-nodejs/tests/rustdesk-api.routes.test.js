@@ -400,4 +400,30 @@ describe('RustDesk Client API routes', () => {
             expect(serverBackend.setPeerTags).toHaveBeenCalledWith('OWNED1', ['ClientTag', 'Servers']);
         });
     });
+
+    describe('POST /api/ab/personal', () => {
+        it('returns 404 for RustDesk 1.4.7 legacy-mode probe (empty body)', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 1, username: 'admin', role: 'admin' });
+
+            const res = await request(app)
+                .post('/api/ab/personal')
+                .set('Authorization', 'Bearer admin-token')
+                .send({});
+
+            expect(res.status).toBe(404);
+            expect(db.saveAddressBook).not.toHaveBeenCalled();
+        });
+
+        it('saves personal AB when data is provided', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 1, username: 'admin', role: 'admin' });
+
+            const res = await request(app)
+                .post('/api/ab/personal')
+                .set('Authorization', 'Bearer admin-token')
+                .send({ data: JSON.stringify({ peers: [], tags: [] }) });
+
+            expect(res.status).toBe(200);
+            expect(db.saveAddressBook).toHaveBeenCalled();
+        });
+    });
 });
