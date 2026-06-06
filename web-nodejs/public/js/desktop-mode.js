@@ -117,12 +117,12 @@
             { id: 'generator',     icon: 'build',            route: '/generator',     color: '#bc8cff',  name: t('nav.generator'),      category: 'tools' },
             { id: 'remote',        icon: 'connected_tv',     route: '/remote',        color: '#58a6ff',  name: t('nav.remote') || 'Remote Desktop', category: 'tools' },
             { id: 'toolkit',       icon: 'handyman',         route: '/toolkit',       color: '#f0883e',  name: t('nav.toolkit') || 'Toolkit', category: 'tools' },
-            // System (always visible)
-            { id: 'settings',      icon: 'settings',         route: '/settings',      color: '#8b949e',  name: t('nav.settings'),       category: 'system' }
+            // Settings (always visible)
+            { id: 'settings',      icon: 'settings',         route: '/settings',      color: '#8b949e',  name: t('nav.settings'),       category: 'settings' }
         ];
 
         if (isAdmin) {
-            // Admin-only system apps (before settings)
+            // Admin-only system apps
             var sysIdx = apps.findIndex(function(a) { return a.id === 'settings'; });
             apps.splice(sysIdx, 0,
                 { id: 'tokens',        icon: 'token',          route: '/tokens',        color: '#e3b341', name: t('nav.tokens'),        category: 'system' },
@@ -2161,12 +2161,13 @@
         grid.innerHTML = '';
         var apps = getApps();
         var t = typeof _ === 'function' ? _ : function(k) { return k; };
-        var categories = ['main', 'management', 'tools', 'system'];
+        var categories = ['main', 'management', 'tools', 'system', 'settings'];
         var catNames = {
             main: t('nav.main'),
             management: t('nav.management') || 'Management',
             tools: t('nav.tools'),
-            system: t('nav.system')
+            system: t('nav.system'),
+            settings: t('nav.settings')
         };
 
         categories.forEach(function(cat) {

@@ -71,6 +71,11 @@
                     { id: 'permissions', icon: 'admin_panel_settings', label: t('nav.permissions', 'Permissions') },
                     { id: 'languages', icon: 'translate', label: t('nav.languages', 'Languages') },
                     { id: 'resource-control', icon: 'tune', label: t('nav.resource_control', 'Resource Control') },
+                ]
+            },
+            {
+                heading: t('nav.settings', 'Settings'),
+                items: [
                     { id: 'settings', icon: 'settings', label: t('nav.settings', 'Settings') },
                 ]
             }
