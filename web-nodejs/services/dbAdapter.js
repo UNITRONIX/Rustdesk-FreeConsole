@@ -23,6 +23,7 @@
 // ---------------------------------------------------------------------------
 
 const path = require('path');
+const agentBundleService = require('./agentBundleService');
 
 // Lazy-loaded drivers — keeps startup fast when one backend isn't installed.
 let _sqlite = null;
@@ -787,11 +788,41 @@ function createSqliteAdapter(config) {
     }
 
     // -- Agent installer bundles (Generator Agenta) ------------------------
+    function migrateAgentBundleSlugsSqlite(db) {
+        try {
+            const cols = new Set(db.prepare('PRAGMA table_info(agent_bundles)').all().map(c => c.name));
+            if (!cols.has('slug')) {
+                db.exec('ALTER TABLE agent_bundles ADD COLUMN slug TEXT DEFAULT NULL');
+                console.log('[DB] Migration: added agent_bundles.slug');
+            }
+            db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_bundles_slug ON agent_bundles (slug) WHERE slug IS NOT NULL AND slug != ''");
+
+            const taken = new Set(
+                db.prepare("SELECT slug FROM agent_bundles WHERE slug IS NOT NULL AND slug != ''").all().map(r => r.slug)
+            );
+            const missing = db.prepare("SELECT id, bundle_id, name FROM agent_bundles WHERE slug IS NULL OR slug = ''").all();
+            const update = db.prepare('UPDATE agent_bundles SET slug = ? WHERE id = ?');
+            for (const row of missing) {
+                const slug = agentBundleService.allocateUniqueSlug({
+                    preferred: null,
+                    name: row.name,
+                    fallbackId: row.bundle_id,
+                    isTaken: (s) => taken.has(s),
+                });
+                update.run(slug, row.id);
+                taken.add(slug);
+            }
+        } catch (e) {
+            console.warn('[DB] Migration agent_bundles.slug error:', e.message);
+        }
+    }
+
     function ensureAgentBundleTables(db) {
         db.exec(`
             CREATE TABLE IF NOT EXISTS agent_bundles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 bundle_id TEXT NOT NULL UNIQUE,
+                slug TEXT DEFAULT NULL,
                 name TEXT NOT NULL,
                 branding TEXT NOT NULL DEFAULT '{}',
                 branding_hash TEXT NOT NULL DEFAULT '',
@@ -824,6 +855,7 @@ function createSqliteAdapter(config) {
             CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_hash ON agent_bundle_builds (branding_hash);
             CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_status ON agent_bundle_builds (status);
         `);
+        migrateAgentBundleSlugsSqlite(db);
     }
 
     // -- Multi-tenancy tables ----------------------------------------------
@@ -2809,22 +2841,37 @@ function createSqliteAdapter(config) {
             return openMain().prepare('SELECT * FROM agent_bundles WHERE bundle_id = ?').get(bundleId) || null;
         },
 
-        async createAgentBundle({ bundleId, name, branding, brandingHash, createdBy }) {
+        async getAgentBundleByPublicId(publicId) {
+            return openMain().prepare(`
+                SELECT * FROM agent_bundles WHERE slug = ? OR bundle_id = ? LIMIT 1
+            `).get(publicId, publicId) || null;
+        },
+
+        async isAgentBundleSlugTaken(slug, excludeBundleId = null) {
+            if (!slug) return false;
+            const row = openMain().prepare(`
+                SELECT bundle_id FROM agent_bundles WHERE slug = ? LIMIT 1
+            `).get(slug);
+            if (!row) return false;
+            return excludeBundleId ? row.bundle_id !== excludeBundleId : true;
+        },
+
+        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy }) {
             const db = openMain();
             const r = db.prepare(`
-                INSERT INTO agent_bundles (bundle_id, name, branding, branding_hash, created_by)
-                VALUES (?, ?, ?, ?, ?)
-            `).run(bundleId, name, branding, brandingHash, createdBy || null);
+                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `).run(bundleId, slug || null, name, branding, brandingHash, createdBy || null);
             return db.prepare('SELECT * FROM agent_bundles WHERE id = ?').get(r.lastInsertRowid);
         },
 
-        async updateAgentBundle(bundleId, { name, branding, brandingHash }) {
+        async updateAgentBundle(bundleId, { name, slug, branding, brandingHash }) {
             const db = openMain();
             db.prepare(`
                 UPDATE agent_bundles
-                SET name = ?, branding = ?, branding_hash = ?, updated_at = datetime('now')
+                SET name = ?, slug = ?, branding = ?, branding_hash = ?, updated_at = datetime('now')
                 WHERE bundle_id = ?
-            `).run(name, branding, brandingHash, bundleId);
+            `).run(name, slug || null, branding, brandingHash, bundleId);
             return db.prepare('SELECT * FROM agent_bundles WHERE bundle_id = ?').get(bundleId) || null;
         },
 
@@ -3380,6 +3427,7 @@ function createPostgresAdapter() {
             CREATE TABLE IF NOT EXISTS agent_bundles (
                 id SERIAL PRIMARY KEY,
                 bundle_id TEXT NOT NULL UNIQUE,
+                slug TEXT DEFAULT NULL,
                 name TEXT NOT NULL,
                 branding TEXT NOT NULL DEFAULT '{}',
                 branding_hash TEXT NOT NULL DEFAULT '',
@@ -3392,6 +3440,29 @@ function createPostgresAdapter() {
         `);
         await q('CREATE INDEX IF NOT EXISTS idx_agent_bundles_bundle_id ON agent_bundles (bundle_id)');
         await q('CREATE INDEX IF NOT EXISTS idx_agent_bundles_hash ON agent_bundles (branding_hash)');
+        await q('CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_bundles_slug ON agent_bundles (slug) WHERE slug IS NOT NULL AND slug != \'\'');
+        try {
+            const slugCol = await all(`SELECT column_name FROM information_schema.columns WHERE table_name = 'agent_bundles' AND column_name = 'slug'`);
+            if (slugCol.length === 0) {
+                await q('ALTER TABLE agent_bundles ADD COLUMN slug TEXT DEFAULT NULL');
+                console.log('[DB] Migration: added agent_bundles.slug');
+            }
+            const takenRows = await all("SELECT slug FROM agent_bundles WHERE slug IS NOT NULL AND slug != ''");
+            const taken = new Set(takenRows.map(r => r.slug));
+            const missing = await all("SELECT id, bundle_id, name FROM agent_bundles WHERE slug IS NULL OR slug = ''");
+            for (const row of missing) {
+                const slug = agentBundleService.allocateUniqueSlug({
+                    preferred: null,
+                    name: row.name,
+                    fallbackId: row.bundle_id,
+                    isTaken: (s) => taken.has(s),
+                });
+                await q('UPDATE agent_bundles SET slug = $1 WHERE id = $2', [slug, row.id]);
+                taken.add(slug);
+            }
+        } catch (e) {
+            console.warn('[DB] Migration agent_bundles.slug error:', e.message);
+        }
         await q(`
             CREATE TABLE IF NOT EXISTS agent_bundle_builds (
                 id SERIAL PRIMARY KEY,
@@ -5533,21 +5604,32 @@ function createPostgresAdapter() {
             return one('SELECT * FROM agent_bundles WHERE bundle_id = $1', [bundleId]);
         },
 
-        async createAgentBundle({ bundleId, name, branding, brandingHash, createdBy }) {
-            return one(`
-                INSERT INTO agent_bundles (bundle_id, name, branding, branding_hash, created_by)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING *
-            `, [bundleId, name, branding, brandingHash, createdBy || null]);
+        async getAgentBundleByPublicId(publicId) {
+            return one('SELECT * FROM agent_bundles WHERE slug = $1 OR bundle_id = $1 LIMIT 1', [publicId]);
         },
 
-        async updateAgentBundle(bundleId, { name, branding, brandingHash }) {
+        async isAgentBundleSlugTaken(slug, excludeBundleId = null) {
+            if (!slug) return false;
+            const row = await one('SELECT bundle_id FROM agent_bundles WHERE slug = $1 LIMIT 1', [slug]);
+            if (!row) return false;
+            return excludeBundleId ? row.bundle_id !== excludeBundleId : true;
+        },
+
+        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy }) {
+            return one(`
+                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING *
+            `, [bundleId, slug || null, name, branding, brandingHash, createdBy || null]);
+        },
+
+        async updateAgentBundle(bundleId, { name, slug, branding, brandingHash }) {
             return one(`
                 UPDATE agent_bundles
-                SET name = $1, branding = $2, branding_hash = $3, updated_at = NOW()
-                WHERE bundle_id = $4
+                SET name = $1, slug = $2, branding = $3, branding_hash = $4, updated_at = NOW()
+                WHERE bundle_id = $5
                 RETURNING *
-            `, [name, branding, brandingHash, bundleId]);
+            `, [name, slug || null, branding, brandingHash, bundleId]);
         },
 
         async setAgentBundleRevoked(bundleId, revoked) {

@@ -70,6 +70,17 @@
                                     <p class="form-hint">${_('generator.bundle_name_hint')}</p>
                                 </div>
 
+                                <div class="form-group">
+                                    <label class="form-label" for="gen-slug">${_('generator.short_link')}</label>
+                                    <div class="download-link-row">
+                                        <span class="input-prefix">/d/</span>
+                                        <input type="text" id="gen-slug" class="form-input" maxlength="32"
+                                               pattern="[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?"
+                                               autocomplete="off" spellcheck="false">
+                                    </div>
+                                    <p class="form-hint">${_('generator.short_link_hint')}</p>
+                                </div>
+
                                 <h3 class="section-title">${_('generator.connection_section')}</h3>
 
                                 <div class="form-group">

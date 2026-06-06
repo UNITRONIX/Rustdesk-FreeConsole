@@ -4,7 +4,7 @@
  * Provides:
  *   - "Generator Agenta" admin panel (/generator) — branding editor + bundle list
  *   - Bundle management REST API (/api/generator/bundles/*)
- *   - Public download portal per bundle (/d/:bundleId) with platform cards
+ *   - Public download portal per bundle (/d/:slug) with platform cards
  *   - Legacy RustDesk TOML config generator (kept for backward compat,
  *     marked deprecated in code only — UI no longer exposes it)
  */
@@ -39,8 +39,11 @@ function parseBranding(raw) {
 
 function serializeBundle(row) {
     if (!row) return null;
+    const publicId = bundleService.publicBundleId(row);
     return {
         bundle_id:       row.bundle_id,
+        slug:            row.slug || '',
+        public_id:       publicId,
         name:            row.name,
         branding:        publicBrandingView(parseBranding(row.branding)),
         branding_hash:   row.branding_hash,
@@ -48,8 +51,33 @@ function serializeBundle(row) {
         download_count:  Number(row.download_count || 0),
         created_at:      row.created_at,
         updated_at:      row.updated_at,
-        download_url:    `/d/${row.bundle_id}`,
+        download_url:    `/d/${publicId}`,
     };
+}
+
+async function resolvePublicBundle(publicId) {
+    return db.getAgentBundleByPublicId(publicId);
+}
+
+async function resolveBundleSlug({ preferred, name, fallbackId, excludeBundleId = null }) {
+    const normalizedPreferred = preferred ? bundleService.normalizeSlug(preferred) : '';
+    if (normalizedPreferred) {
+        const check = bundleService.validateSlug(normalizedPreferred);
+        if (!check.valid) {
+            return { ok: false, error: check.error };
+        }
+        if (await db.isAgentBundleSlugTaken(normalizedPreferred, excludeBundleId)) {
+            return { ok: false, error: 'slug_taken' };
+        }
+        return { ok: true, slug: normalizedPreferred };
+    }
+    const slug = bundleService.allocateUniqueSlug({
+        preferred: null,
+        name,
+        fallbackId,
+        isTaken: (s) => db.isAgentBundleSlugTaken(s, excludeBundleId),
+    });
+    return { ok: true, slug };
 }
 
 function injectServerBranding(input) {
@@ -164,12 +192,26 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
         const bundleId = bundleService.generateBundleId();
+        const slugResult = await resolveBundleSlug({
+            preferred: String(req.body.slug || '').trim(),
+            name,
+            fallbackId: bundleId,
+        });
+        if (!slugResult.ok) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('generator.errors.validation_failed'),
+                errors: [slugResult.error],
+                details: [slugResult.error],
+            });
+        }
         const normalized = finalizeBundleBranding(base);
         normalized.bundle_id = bundleId;
         normalized.product_name = normalized.company_name || 'BetterDesk Support';
         const brandingHash = bundleService.hashBranding(normalized);
         const created = await db.createAgentBundle({
             bundleId,
+            slug: slugResult.slug,
             name,
             branding: JSON.stringify(normalized),
             brandingHash,
@@ -203,8 +245,35 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
         normalized.bundle_id = req.params.bundleId;
         normalized.product_name = normalized.company_name || 'BetterDesk Support';
         const brandingHash = bundleService.hashBranding(normalized);
+        let slug = existing.slug || '';
+        if (req.body.slug !== undefined) {
+            const slugResult = await resolveBundleSlug({
+                preferred: String(req.body.slug || '').trim(),
+                name,
+                fallbackId: existing.bundle_id,
+                excludeBundleId: existing.bundle_id,
+            });
+            if (!slugResult.ok) {
+                return res.status(400).json({
+                    success: false,
+                    error: req.t('generator.errors.validation_failed'),
+                    errors: [slugResult.error],
+                    details: [slugResult.error],
+                });
+            }
+            slug = slugResult.slug;
+        } else if (!slug) {
+            const slugResult = await resolveBundleSlug({
+                preferred: null,
+                name,
+                fallbackId: existing.bundle_id,
+                excludeBundleId: existing.bundle_id,
+            });
+            slug = slugResult.slug;
+        }
         const updated = await db.updateAgentBundle(req.params.bundleId, {
             name,
+            slug,
             branding: JSON.stringify(normalized),
             brandingHash,
         });
@@ -295,13 +364,12 @@ router.get('/api/generator/platforms', requireAuth, requireAdmin, (req, res) => 
 // =========================================================================
 
 /**
- * Public landing page for an issued bundle. No auth — the bundle ID itself
- * is the access token. Revoked or unknown bundles return 404 to avoid
- * leaking which IDs exist.
+ * Public landing page for an issued bundle. No auth — the slug (or legacy
+ * bundle ID) is the access token. Revoked or unknown bundles return 404.
  */
-router.get('/d/:bundleId', async (req, res) => {
+router.get('/d/:publicId', async (req, res) => {
     try {
-        const row = await db.getAgentBundle(req.params.bundleId);
+        const row = await resolvePublicBundle(req.params.publicId);
         if (!row || row.revoked) {
             return res.status(404).render('errors/404', {
                 title: req.t('errors.not_found'),
@@ -343,9 +411,9 @@ router.get('/d/:bundleId', async (req, res) => {
  * Public manifest endpoint — JSON shape the portal page polls to refresh
  * platform build status without a full reload.
  */
-router.get('/api/d/:bundleId/manifest', async (req, res) => {
+router.get('/api/d/:publicId/manifest', async (req, res) => {
     try {
-        const row = await db.getAgentBundle(req.params.bundleId);
+        const row = await resolvePublicBundle(req.params.publicId);
         if (!row || row.revoked) return res.status(404).json({ success: false });
         const builds = await db.listAgentBundleBuildsForHash(row.branding_hash);
         const buildMap = {};
@@ -362,7 +430,7 @@ router.get('/api/d/:bundleId/manifest', async (req, res) => {
         }));
         res.json({
             success: true,
-            data: { bundle_id: row.bundle_id, name: row.name, platforms },
+            data: { bundle_id: row.bundle_id, public_id: bundleService.publicBundleId(row), name: row.name, platforms },
         });
     } catch (err) {
         console.error('[generator] manifest error:', err);
@@ -375,9 +443,9 @@ router.get('/api/d/:bundleId/manifest', async (req, res) => {
  * the Phase 2 build pipeline is wired; the route exists so the portal can
  * link to it today and Phase 2 is a pure backend swap.
  */
-router.get('/api/d/:bundleId/download/:platform/:arch/:format', async (req, res) => {
+router.get('/api/d/:publicId/download/:platform/:arch/:format', async (req, res) => {
     try {
-        const row = await db.getAgentBundle(req.params.bundleId);
+        const row = await resolvePublicBundle(req.params.publicId);
         if (!row || row.revoked) return res.status(404).json({ success: false });
         const build = await db.getAgentBundleBuild({
             brandingHash: row.branding_hash,

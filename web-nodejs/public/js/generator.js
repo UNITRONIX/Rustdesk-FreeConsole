@@ -43,6 +43,7 @@
         currentBuilds: [],
         platformLabels: {},
         dirty: false,
+        slugManual: false,
         previewTimer: null,
         buildsPollTimer: null,
     };
@@ -54,7 +55,7 @@
         ['gen-new-bundle', 'gen-bundle-list', 'gen-editor-title', 'gen-revoke-btn', 'gen-delete-btn', 'gen-save-btn',
          'gen-rebuild-btn', 'gen-builds-list', 'gen-builds-summary',
          'gen-empty-state', 'gen-editor-form',
-         'gen-name', 'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
+         'gen-name', 'gen-slug', 'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
          'gen-server-host', 'gen-use-https', 'gen-token-mask',
          'gen-logo', 'gen-logo-clear', 'gen-primary', 'gen-accent', 'gen-bg', 'gen-surface', 'gen-text', 'gen-text-muted', 'gen-status-ready', 'gen-header-text', 'gen-lang', 'gen-unattended',
          'gen-download-info', 'gen-download-url', 'gen-copy-link', 'gen-open-link',
@@ -86,6 +87,52 @@
 
     let logoDataUrl = '';
     let connectionDefaults = { server_host: '', use_https: true };
+
+    const SLUG_TRANSLIT = {
+        'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+        'ä': 'a', 'ö': 'o', 'ü': 'u', 'ß': 'ss', 'æ': 'ae', 'ø': 'o', 'å': 'a',
+        'č': 'c', 'ď': 'd', 'ě': 'e', 'ň': 'n', 'ř': 'r', 'š': 's', 'ť': 't', 'ů': 'u', 'ý': 'y', 'ž': 'z',
+    };
+
+    function slugifyName(name) {
+        let slug = String(name || '').trim().toLowerCase().split('').map(ch => SLUG_TRANSLIT[ch] ?? ch).join('');
+        slug = slug.replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+        if (slug.length > 32) slug = slug.slice(0, 32).replace(/-$/, '');
+        return slug;
+    }
+
+    function readSlugInput() {
+        return (els['gen-slug'] && els['gen-slug'].value || '').trim().toLowerCase();
+    }
+
+    function updateDownloadLinkPreview() {
+        const slug = readSlugInput();
+        if (!els['gen-download-url']) return;
+        if (state.currentId === 'new') {
+            const url = slug ? `${window.location.origin}/d/${slug}` : '';
+            els['gen-download-url'].value = url;
+            if (els['gen-open-link']) {
+                els['gen-open-link'].href = url || '#';
+                els['gen-open-link'].classList.toggle('disabled', !url);
+            }
+            return;
+        }
+        if (state.currentBundle) {
+            const publicId = slug || state.currentBundle.public_id || state.currentBundle.slug || state.currentBundle.bundle_id;
+            const url = `${window.location.origin}/d/${publicId}`;
+            els['gen-download-url'].value = url;
+            if (els['gen-open-link']) {
+                els['gen-open-link'].href = url;
+                els['gen-open-link'].classList.remove('disabled');
+            }
+        }
+    }
+
+    function syncSlugFromName() {
+        if (state.slugManual || !els['gen-slug']) return;
+        els['gen-slug'].value = slugifyName(els['gen-name'].value);
+        updateDownloadLinkPreview();
+    }
 
     function readBranding() {
         return {
@@ -379,13 +426,22 @@
         state.currentBundle = null;
         state.currentBuilds = [];
         state.dirty = false;
+        state.slugManual = false;
         stopBuildsPoll();
         els['gen-editor-title'].innerHTML = `<span class="material-icons">add_circle</span> ${escapeText(t('generator.new_bundle', 'New bundle'))}`;
         els['gen-name'].value = '';
+        if (els['gen-slug']) els['gen-slug'].value = '';
         writeBranding(DEFAULT_BRANDING);
         els['gen-revoke-btn'].classList.add('hidden');
         els['gen-delete-btn'].classList.add('hidden');
-        els['gen-download-info'].classList.add('hidden');
+        els['gen-download-info'].classList.remove('hidden');
+        const buildsSection = $('gen-builds-section');
+        if (buildsSection) buildsSection.classList.add('hidden');
+        els['gen-download-url'].value = '';
+        if (els['gen-open-link']) {
+            els['gen-open-link'].href = '#';
+            els['gen-open-link'].classList.add('disabled');
+        }
         els['gen-save-btn'].disabled = false;
         clearErrors();
         showEditor();
@@ -398,9 +454,11 @@
         state.currentId = bundle.bundle_id;
         state.currentBundle = bundle;
         state.dirty = false;
+        state.slugManual = true;
         stopBuildsPoll();
         els['gen-editor-title'].innerHTML = `<span class="material-icons">edit</span> ${escapeText(bundle.name || bundle.bundle_id)}`;
         els['gen-name'].value = bundle.name || '';
+        if (els['gen-slug']) els['gen-slug'].value = bundle.slug || bundle.public_id || '';
         writeBranding(bundle.branding);
         els['gen-revoke-btn'].classList.remove('hidden');
         els['gen-revoke-btn'].innerHTML = bundle.revoked
@@ -408,10 +466,10 @@
             : `<span class="material-icons">block</span> ${escapeText(t('generator.revoke', 'Revoke'))}`;
         els['gen-delete-btn'].classList.remove('hidden');
         els['gen-save-btn'].disabled = true;
-        const url = `${window.location.origin}${bundle.download_url || '/d/' + bundle.bundle_id}`;
-        els['gen-download-url'].value = url;
-        els['gen-open-link'].href = url;
+        updateDownloadLinkPreview();
         els['gen-download-info'].classList.remove('hidden');
+        const buildsSection = $('gen-builds-section');
+        if (buildsSection) buildsSection.classList.remove('hidden');
         renderBuilds(bundle.builds || []);
         clearErrors();
         showEditor();
@@ -454,6 +512,7 @@
         clearErrors();
         const payload = {
             name: els['gen-name'].value.trim(),
+            slug: readSlugInput(),
             branding: readBranding(),
         };
         if (!payload.name) {
@@ -603,7 +662,22 @@
         els['gen-logo-clear'].addEventListener('click', clearLogo);
         els['gen-copy-link'].addEventListener('click', copyDownloadLink);
 
-        [         'gen-name', 'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
+        if (els['gen-name']) {
+            els['gen-name'].addEventListener('input', () => {
+                syncSlugFromName();
+                markDirty();
+            });
+        }
+        if (els['gen-slug']) {
+            els['gen-slug'].addEventListener('input', () => {
+                state.slugManual = true;
+                els['gen-slug'].value = els['gen-slug'].value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                updateDownloadLinkPreview();
+                markDirty();
+            });
+        }
+
+        [         'gen-company', 'gen-short-text', 'gen-email', 'gen-phone', 'gen-url',
          'gen-server-host', 'gen-use-https',
          'gen-primary', 'gen-accent', 'gen-bg', 'gen-surface', 'gen-text', 'gen-text-muted', 'gen-status-ready', 'gen-header-text', 'gen-lang', 'gen-unattended'
         ].forEach(id => {

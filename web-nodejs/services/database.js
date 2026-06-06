@@ -182,6 +182,8 @@ const facade = {
     // ---- Agent installer bundles (Generator) ----
     listAgentBundles:           (opts) => adapter.listAgentBundles(opts),
     getAgentBundle:             (bundleId) => adapter.getAgentBundle(bundleId),
+    getAgentBundleByPublicId:   (publicId) => adapter.getAgentBundleByPublicId(publicId),
+    isAgentBundleSlugTaken:     (slug, excludeBundleId) => adapter.isAgentBundleSlugTaken(slug, excludeBundleId),
     createAgentBundle:          (data) => adapter.createAgentBundle(data),
     updateAgentBundle:          (bundleId, data) => adapter.updateAgentBundle(bundleId, data),
     setAgentBundleRevoked:      (bundleId, revoked) => adapter.setAgentBundleRevoked(bundleId, revoked),

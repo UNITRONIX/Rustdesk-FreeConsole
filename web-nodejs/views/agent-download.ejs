@@ -78,7 +78,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'
                     <p class="card-arch"><%= esc(p.arch) %></p>
                     <div class="card-status" data-status-slot>
                         <% if (p.status === 'ready') { %>
-                            <a class="btn btn-primary" href="/api/d/<%= bundle.bundle_id %>/download/<%= p.platform %>/<%= p.arch %>/<%= p.format %>">
+                            <a class="btn btn-primary" href="/api/d/<%= bundle.public_id %>/download/<%= p.platform %>/<%= p.arch %>/<%= p.format %>">
                                 <%= t('download.download') %>
                             </a>
                         <% } else if (p.status === 'failed') { %>
@@ -121,7 +121,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'
     <script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>">
         // Poll manifest every 8s while at least one platform is still building.
         (function () {
-            const bundleId = <%- JSON.stringify(bundle.bundle_id) %>;
+            const publicId = <%- JSON.stringify(bundle.public_id) %>;
             const t = <%- JSON.stringify({
                 building: t('download.building'),
                 failed:   t('download.failed'),
@@ -133,7 +133,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'
                 );
                 if (!slot) return;
                 if (p.status === 'ready') {
-                    slot.innerHTML = `<a class="btn btn-primary" href="/api/d/${bundleId}/download/${p.platform}/${p.arch}/${p.format}">${t.download}</a>`;
+                    slot.innerHTML = `<a class="btn btn-primary" href="/api/d/${publicId}/download/${p.platform}/${p.arch}/${p.format}">${t.download}</a>`;
                 } else if (p.status === 'failed') {
                     slot.innerHTML = `<span class="status-badge status-failed">${t.failed}</span>`;
                 } else {
@@ -143,7 +143,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'
             let timer = null;
             async function poll() {
                 try {
-                    const r = await fetch(`/api/d/${bundleId}/manifest`, { credentials: 'omit' });
+                    const r = await fetch(`/api/d/${publicId}/manifest`, { credentials: 'omit' });
                     if (!r.ok) return;
                     const j = await r.json();
                     if (!j || !j.success) return;

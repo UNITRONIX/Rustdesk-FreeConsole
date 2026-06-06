@@ -448,6 +448,13 @@
 
 .download-link-row .form-input { flex: 1; min-width: 200px; }
 
+.download-link-row .input-prefix {
+    color: var(--text-muted, #94a3b8);
+    font-family: var(--font-mono, monospace);
+    white-space: nowrap;
+    user-select: none;
+}
+
 /* ---- Validation errors ---- */
 
 .validation-errors {

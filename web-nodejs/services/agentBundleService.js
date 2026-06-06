@@ -199,6 +199,92 @@ function generateBundleId() {
     return crypto.randomBytes(6).toString('hex');
 }
 
+const MAX_SLUG_LENGTH = 32;
+const MIN_SLUG_LENGTH = 2;
+const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
+
+const TRANSLIT_MAP = {
+    'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+    'ä': 'a', 'ö': 'o', 'ü': 'u', 'ß': 'ss', 'æ': 'ae', 'ø': 'o', 'å': 'a',
+    'č': 'c', 'ď': 'd', 'ě': 'e', 'ň': 'n', 'ř': 'r', 'š': 's', 'ť': 't', 'ů': 'u', 'ý': 'y', 'ž': 'z',
+};
+
+function transliterate(input) {
+    return String(input || '')
+        .split('')
+        .map(ch => TRANSLIT_MAP[ch] ?? TRANSLIT_MAP[ch.toLowerCase()] ?? ch)
+        .join('');
+}
+
+/** Turn a human label into a URL-safe slug segment (may be empty). */
+function slugifyName(name) {
+    let slug = transliterate(String(name || '').trim().toLowerCase());
+    slug = slug
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+    if (slug.length > MAX_SLUG_LENGTH) {
+        slug = slug.slice(0, MAX_SLUG_LENGTH).replace(/-$/, '');
+    }
+    return slug;
+}
+
+/** Normalize operator-provided slug input. */
+function normalizeSlug(input) {
+    return slugifyName(input);
+}
+
+function validateSlug(slug) {
+    if (!slug || typeof slug !== 'string') {
+        return { valid: false, error: 'slug_invalid' };
+    }
+    if (slug.length < MIN_SLUG_LENGTH) {
+        return { valid: false, error: 'slug_too_short' };
+    }
+    if (slug.length > MAX_SLUG_LENGTH) {
+        return { valid: false, error: 'slug_too_long' };
+    }
+    if (!SLUG_PATTERN.test(slug)) {
+        return { valid: false, error: 'slug_invalid' };
+    }
+    return { valid: true };
+}
+
+/**
+ * Pick a unique public slug. Uses `preferred`, then `name`, then `fallbackId`.
+ * `isTaken(slug)` must return true when the slug is unavailable.
+ */
+function allocateUniqueSlug({ preferred, name, fallbackId, isTaken }) {
+    const tryBase = (base) => {
+        if (!base) return '';
+        const normalized = normalizeSlug(base);
+        return validateSlug(normalized).valid ? normalized : '';
+    };
+
+    let base = tryBase(preferred) || tryBase(name) || tryBase(fallbackId) || '';
+    if (!base && fallbackId) {
+        base = String(fallbackId).slice(0, MAX_SLUG_LENGTH);
+    }
+    if (!base) {
+        base = generateBundleId();
+    }
+
+    let candidate = base;
+    let suffix = 2;
+    while (isTaken(candidate)) {
+        const tail = `-${suffix}`;
+        candidate = base.slice(0, Math.max(MIN_SLUG_LENGTH, MAX_SLUG_LENGTH - tail.length)) + tail;
+        suffix += 1;
+    }
+    return candidate;
+}
+
+/** Public URL segment for a bundle row — slug when set, legacy hex id otherwise. */
+function publicBundleId(row) {
+    if (!row) return '';
+    return row.slug || row.bundle_id || '';
+}
+
 /** Default branding used as a starting point in the editor. */
 function defaultBranding() {
     return {
@@ -227,8 +313,15 @@ function defaultBranding() {
 module.exports = {
     PLATFORMS,
     SUPPORTED_LANGS,
+    MAX_SLUG_LENGTH,
+    MIN_SLUG_LENGTH,
     validateBranding,
     hashBranding,
     generateBundleId,
+    slugifyName,
+    normalizeSlug,
+    validateSlug,
+    allocateUniqueSlug,
+    publicBundleId,
     defaultBranding,
 };
