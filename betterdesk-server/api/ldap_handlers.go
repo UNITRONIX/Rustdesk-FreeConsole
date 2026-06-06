@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/unitronix/betterdesk-server/auth"
 )
@@ -290,6 +291,55 @@ func (s *Server) handleSaveLDAPConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleLDAPVerifyCredentials checks username/password against LDAP only.
+// Used by the Node.js console to detect local/SSO username collisions when a
+// local account already exists but the user signs in with IdP credentials.
+// POST /api/auth/ldap/verify
+func (s *Server) handleLDAPVerifyCredentials(w http.ResponseWriter, r *http.Request) {
+	clientIP := s.remoteIP(r)
+	if s.loginLimiter != nil && !s.loginLimiter.Allow(clientIP) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{
+			"error": "Too many login attempts. Please try again later.",
+		})
+		return
+	}
+
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid JSON"})
+		return
+	}
+	if body.Username == "" || body.Password == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Username and password required"})
+		return
+	}
+
+	if s.loginLimiter != nil && !s.loginLimiter.Allow("user:"+strings.ToLower(body.Username)) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{
+			"error": "Too many login attempts. Please try again later.",
+		})
+		return
+	}
+
+	if s.ldapProvider == nil || !s.ldapProvider.IsEnabled() {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "LDAP is not enabled"})
+		return
+	}
+
+	result, err := s.ldapProvider.Authenticate(body.Username, body.Password)
+	if err != nil {
+		log.Printf("[LDAP] Verify error for %s: %v", body.Username, err)
+		writeJSON(w, http.StatusOK, map[string]any{"authenticated": false})
+		return
+	}
+
+	authenticated := result != nil && result.Authenticated
+	writeJSON(w, http.StatusOK, map[string]any{"authenticated": authenticated})
 }
 
 // handleTestLDAPConnection tests the LDAP connection with current or provided config.

@@ -97,6 +97,7 @@
     "remember_me": "Remember me",
     "login_failed": "Giriş başarısız oldu. Lütfen kimlik bilgilerinizi kontrol edin.",
     "invalid_credentials": "Geçersiz kullanıcı adı veya şifre.",
+    "username_collision": "Bu kullanıcı adına sahip yerel bir hesap zaten mevcut. Yerel şifrenizle giriş yapın veya yöneticiden çakışan hesabı yeniden adlandırmasını ya da kaldırmasını isteyin.",
     "fill_all_fields": "Lütfen tüm alanları doldurun",
     "logout_confirm": "Oturumu kapatmak istediğinizden emin misiniz?",
     "change_password": "Şifreyi Değiştir",

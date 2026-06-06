@@ -1271,6 +1271,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		// Public endpoints — no auth required
 		if path == "/api/health" || path == "/metrics" ||
 			path == "/api/auth/login" || path == "/api/auth/login/2fa" ||
+			path == "/api/auth/ldap/verify" ||
 			path == "/api/server/pubkey" || path == "/api/server/stats" ||
 			path == "/api/login" || path == "/api/login-options" || path == "/api/logout" ||
 			path == "/api/heartbeat" || path == "/api/sysinfo" || path == "/api/sysinfo_ver" ||

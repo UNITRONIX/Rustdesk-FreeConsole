@@ -91,6 +91,7 @@
     "remember_me": "Remember me",
     "login_failed": "로그인에 실패했습니다. 자격 증명을 확인하세요.",
     "invalid_credentials": "사용자 이름 또는 비밀번호가 잘못되었습니다.",
+    "username_collision": "동일한 사용자 이름의 로컬 계정이 이미 있습니다. 로컬 비밀번호로 로그인하거나 관리자에게 충돌하는 계정의 이름 변경 또는 삭제를 요청하세요.",
     "fill_all_fields": "모든 필드를 작성해 주세요.",
     "logout_confirm": "정말로 로그아웃하시겠습니까?",
     "change_password": "비밀번호 변경",

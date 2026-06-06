@@ -99,6 +99,7 @@
     "oidc_error": "An error occurred during SSO login.",
     "oidc_no_account": "Your account was not found and auto-registration is disabled.",
     "invalid_credentials": "Invalid username or password.",
+    "username_collision": "A local account with this username already exists. Sign in with your local password, or ask an administrator to rename or remove the conflicting account.",
     "pro_only_account": "This account is for RustDesk desktop client only. Please use the RustDesk app to log in.",
     "fill_all_fields": "Please fill in all fields",
     "logout_confirm": "Are you sure you want to logout?",

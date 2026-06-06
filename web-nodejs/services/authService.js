@@ -370,6 +370,14 @@ function isExternalAuthResult(goResult) {
     return isExternalAuthProvider(goResult.auth_provider);
 }
 
+function authFailure(code) {
+    return { __authFailure: code };
+}
+
+function isAuthFailure(result) {
+    return !!(result && typeof result === 'object' && result.__authFailure);
+}
+
 async function syncLocalUserFromGoResult(localUser, goResult, password, ssoStatus) {
     if (!localUser || !goResult) return localUser;
 
@@ -522,6 +530,54 @@ function tryGoServerAuth(username, password) {
 }
 
 /**
+ * LDAP-only credential check against Go (no login, no user creation).
+ * Used to detect username collisions when a local account already exists.
+ */
+function tryLdapVerifyOnGo(username, password) {
+    const apiUrl = config.betterdeskApiUrl || config.hbbsApiUrl || 'http://localhost:21114/api';
+    let verifyUrl;
+    try {
+        const base = new URL(apiUrl);
+        verifyUrl = new URL('/api/auth/ldap/verify', base.origin);
+    } catch (_) {
+        return Promise.resolve(false);
+    }
+
+    const body = JSON.stringify({ username, password });
+    const mod = verifyUrl.protocol === 'https:' ? https : http;
+    const timeout = config.betterdeskApiTimeout || 3000;
+
+    return new Promise((resolve) => {
+        const req = mod.request(verifyUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body),
+            },
+            timeout,
+            rejectUnauthorized: !config.allowSelfSignedCerts,
+        }, (res) => {
+            let data = '';
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => {
+                if (res.statusCode === 200) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        resolve(!!parsed.authenticated);
+                        return;
+                    } catch (_) { /* JSON parse error */ }
+                }
+                resolve(false);
+            });
+        });
+        req.on('error', () => resolve(false));
+        req.on('timeout', () => { req.destroy(); resolve(false); });
+        req.write(body);
+        req.end();
+    });
+}
+
+/**
  * Authenticate user with username and password.
  *
  * Provider-bound flow (Issue #148, mirrors Go server):
@@ -583,10 +639,15 @@ async function authenticate(username, password) {
                 // username collision and require admin intervention (Issue #148 follow-up).
                 if (isExternalAuthResult(goResult)) {
                     console.log(`[AUTH] Login blocked: username collision for local '${username}' (Go provider=${normalizeAuthProvider(goResult.auth_provider)})`);
-                    return null;
+                    return authFailure('username_collision');
                 }
                 console.log(`[AUTH] Go server accepted password for local '${username}' — syncing hash`);
                 user = await syncLocalUserFromGoResult(user, goResult, password, ssoStatus);
+            } else if (ssoStatus.ldap && await tryLdapVerifyOnGo(username, password)) {
+                // Go /api/auth/login skips LDAP for local-bound accounts; probe LDAP
+                // directly so users get a collision message instead of "wrong password".
+                console.log(`[AUTH] Login blocked: username collision for local '${username}' (LDAP credentials valid)`);
+                return authFailure('username_collision');
             } else {
                 console.log(`[AUTH] Login failed: password mismatch for '${username}' (hash type: ${hashType})`);
                 return null;
@@ -1219,6 +1280,8 @@ module.exports = {
     hashPassword,
     verifyPassword,
     authenticate,
+    authFailure,
+    isAuthFailure,
     ensureDefaultAdmin,
     changePassword,
     validatePasswordStrength,

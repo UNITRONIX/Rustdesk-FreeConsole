@@ -47,6 +47,14 @@ describe('authService provider helpers', () => {
         )).toBe('ldap');
     });
 
+    it('authFailure / isAuthFailure identify structured login failures', () => {
+        const failure = authService.authFailure('username_collision');
+        expect(authService.isAuthFailure(failure)).toBe(true);
+        expect(failure.__authFailure).toBe('username_collision');
+        expect(authService.isAuthFailure(null)).toBe(false);
+        expect(authService.isAuthFailure({ id: 1, username: 'u' })).toBe(false);
+    });
+
     it('isExternalAuthProvider / isExternalAuthResult detect ldap/oidc', () => {
         expect(authService.isExternalAuthProvider('ldap')).toBe(true);
         expect(authService.isExternalAuthProvider('oidc')).toBe(true);

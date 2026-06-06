@@ -97,6 +97,7 @@
     "remember_me": "Remember me",
     "login_failed": "Conectarea a eșuat. Vă rugăm să vă verificați acreditările.",
     "invalid_credentials": "Nume de utilizator sau parolă nevalidă.",
+    "username_collision": "Există deja un cont local cu acest nume de utilizator. Conectați-vă cu parola locală sau cereți unui administrator să redenumească sau să elimine contul în conflict.",
     "fill_all_fields": "Vă rugăm să completați toate câmpurile",
     "logout_confirm": "Sigur doriți să vă deconectați?",
     "change_password": "Schimbați parola",

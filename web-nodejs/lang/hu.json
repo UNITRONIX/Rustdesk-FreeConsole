@@ -97,6 +97,7 @@
     "remember_me": "Remember me",
     "login_failed": "Sikertelen bejelentkezés. Kérjük, ellenőrizze a hitelesítő adatait.",
     "invalid_credentials": "Érvénytelen felhasználónév vagy jelszó.",
+    "username_collision": "Már létezik helyi fiók ezzel a felhasználónévvel. Jelentkezzen be a helyi jelszavával, vagy kérje meg a rendszergazdát, hogy nevezze át vagy távolítsa el az ütköző fiókot.",
     "fill_all_fields": "Kérjük, töltse ki az összes mezőt",
     "logout_confirm": "Biztos, hogy ki akar jelentkezni?",
     "change_password": "Jelszó módosítása",

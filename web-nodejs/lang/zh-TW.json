@@ -91,6 +91,7 @@
     "remember_me": "記住我",
     "login_failed": "登入失敗，請檢查您的認證資訊。",
     "invalid_credentials": "使用者名稱或密碼無效。",
+    "username_collision": "已存在使用此使用者名稱的本機帳戶。請使用本機密碼登入，或請管理員重新命名或移除衝突的帳戶。",
     "fill_all_fields": "請填寫所有欄位",
     "logout_confirm": "確定要登出嗎？",
     "change_password": "修改密碼",

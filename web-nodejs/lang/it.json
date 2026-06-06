@@ -91,6 +91,7 @@
     "remember_me": "Ricordami",
     "login_failed": "Accesso fallito. Verifica le tue credenziali.",
     "invalid_credentials": "Nome utente o password non validi.",
+    "username_collision": "Esiste già un account locale con questo nome utente. Accedi con la password locale oppure chiedi a un amministratore di rinominare o rimuovere l'account in conflitto.",
     "fill_all_fields": "Compila tutti i campi",
     "logout_confirm": "Sei sicuro di voler uscire?",
     "change_password": "Cambia password",

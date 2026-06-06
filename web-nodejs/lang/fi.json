@@ -97,6 +97,7 @@
     "remember_me": "Remember me",
     "login_failed": "Kirjautuminen epäonnistui. Tarkista kirjautumistietosi.",
     "invalid_credentials": "Virheellinen käyttäjätunnus tai salasana.",
+    "username_collision": "Paikallinen tili tällä käyttäjätunnuksella on jo olemassa. Kirjaudu paikallisella salasanallasi tai pyydä järjestelmänvalvojaa nimeämään ristiriitainen tili uudelleen tai poistamaan se.",
     "fill_all_fields": "Täytä kaikki kentät",
     "logout_confirm": "Haluatko varmasti kirjautua ulos?",
     "change_password": "Vaihda salasana",

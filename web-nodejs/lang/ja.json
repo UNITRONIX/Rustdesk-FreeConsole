@@ -91,6 +91,7 @@
     "remember_me": "Remember me",
     "login_failed": "ログインに失敗しました。資格情報を確認してください。",
     "invalid_credentials": "ユーザー名またはパスワードが無効です。",
+    "username_collision": "同じユーザー名のローカルアカウントが既に存在します。ローカルパスワードでサインインするか、管理者に競合するアカウントの名前変更または削除を依頼してください。",
     "fill_all_fields": "すべてのフィールドに入力してください",
     "logout_confirm": "ログアウトしてもよろしいですか?",
     "change_password": "パスワードの変更",

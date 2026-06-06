@@ -428,6 +428,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/auth/ldap/config", s.requirePermission(auth.PermServerConfig, s.handleGetLDAPConfig))
 	mux.HandleFunc("PUT /api/auth/ldap/config", s.requirePermission(auth.PermServerConfig, s.handleSaveLDAPConfig))
 	mux.HandleFunc("POST /api/auth/ldap/test", s.requirePermission(auth.PermServerConfig, s.handleTestLDAPConnection))
+	mux.HandleFunc("POST /api/auth/ldap/verify", s.handleLDAPVerifyCredentials)
 
 	// OIDC/OAuth2 configuration (server.config permission)
 	mux.HandleFunc("GET /api/auth/oidc/config", s.requirePermission(auth.PermServerConfig, s.handleGetOIDCConfig))

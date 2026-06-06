@@ -91,6 +91,7 @@
     "remember_me": "Lembrar-me",
     "login_failed": "Falha no início de sessão. Verifique as suas credenciais.",
     "invalid_credentials": "Nome de utilizador ou palavra-passe inválidos.",
+    "username_collision": "Já existe uma conta local com este nome de utilizador. Inicie sessão com a sua palavra-passe local ou peça a um administrador para renomear ou remover a conta em conflito.",
     "fill_all_fields": "Preencha todos os campos",
     "logout_confirm": "Tem a certeza que deseja sair?",
     "change_password": "Alterar palavra-passe",

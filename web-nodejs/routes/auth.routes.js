@@ -90,6 +90,24 @@ router.post('/api/auth/login', loginLimiter, async (req, res) => {
         }
         
         const user = await authService.authenticate(username, password);
+
+        if (authService.isAuthFailure(user)) {
+            authService.recordAttempt(username, req.ip, false);
+            await db.logAction(null, 'login_failed', `Username collision: ${username}`, req.ip);
+
+            if (user.__authFailure === 'username_collision') {
+                return res.status(409).json({
+                    success: false,
+                    error: req.t('auth.username_collision'),
+                    code: 'username_collision',
+                });
+            }
+
+            return res.status(401).json({
+                success: false,
+                error: req.t('auth.invalid_credentials'),
+            });
+        }
         
         if (!user) {
             // Record failed attempt (shared brute-force tracker with /api/bd/operator/login)

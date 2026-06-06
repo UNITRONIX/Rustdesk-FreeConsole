@@ -1314,6 +1314,12 @@ router.post('/api/login', async (req, res) => {
         // Authenticate
         const user = await authService.authenticate(username, password);
 
+        if (authService.isAuthFailure(user) && user.__authFailure === 'username_collision') {
+            authService.recordAttempt(username, ip, false);
+            await db.logAction(null, 'api_login_failed', `Username collision: ${username}`, ip);
+            return res.status(409).json({ error: 'Username collision: a local account with this name already exists', code: 'username_collision' });
+        }
+
         if (!user) {
             authService.recordAttempt(username, ip, false);
             await db.logAction(null, 'api_login_failed', `User: ${username}`, ip);

@@ -91,6 +91,7 @@
     "remember_me": "Recordarme",
     "login_failed": "Error de inicio de sesión. Verifique sus credenciales.",
     "invalid_credentials": "Nombre de usuario o contraseña inválidos.",
+    "username_collision": "Ya existe una cuenta local con este nombre de usuario. Inicie sesión con su contraseña local o pida a un administrador que renombre o elimine la cuenta en conflicto.",
     "pro_only_account": "Esta cuenta es solo para el cliente de escritorio RustDesk. Use la aplicación RustDesk para iniciar sesión.",
     "fill_all_fields": "Por favor, rellene todos los campos",
     "logout_confirm": "¿Está seguro de que desea cerrar sesión?",

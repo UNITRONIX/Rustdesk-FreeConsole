@@ -97,6 +97,7 @@
     "remember_me": "Remember me",
     "login_failed": "Inloggningen misslyckades. Kontrollera dina referenser.",
     "invalid_credentials": "Ogiltigt användarnamn eller lösenord.",
+    "username_collision": "Ett lokalt konto med detta användarnamn finns redan. Logga in med ditt lokala lösenord eller be en administratör att byta namn på eller ta bort det kolliderande kontot.",
     "fill_all_fields": "Vänligen fyll i alla fält",
     "logout_confirm": "Är du säker på att du vill logga ut?",
     "change_password": "Ändra lösenord",

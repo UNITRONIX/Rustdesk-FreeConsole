@@ -91,6 +91,7 @@
     "remember_me": "Zapamatovat mě",
     "login_failed": "Přihlášení selhalo. Zkontrolujte prosím své přihlašovací údaje.",
     "invalid_credentials": "Neplatné uživatelské jméno nebo heslo.",
+    "username_collision": "Místní účet s tímto uživatelským jménem již existuje. Přihlaste se místním heslem nebo požádejte správce o přejmenování či odstranění konfliktního účtu.",
     "fill_all_fields": "Vyplňte prosím všechna pole",
     "logout_confirm": "Opravdu se chcete odhlásit?",
     "change_password": "Změnit heslo",

@@ -97,6 +97,7 @@
     "remember_me": "Remember me",
     "login_failed": "Đăng nhập không thành công. Vui lòng kiểm tra thông tin đăng nhập của bạn.",
     "invalid_credentials": "Tên người dùng hoặc mật khẩu không hợp lệ.",
+    "username_collision": "Đã tồn tại tài khoản cục bộ với tên người dùng này. Đăng nhập bằng mật khẩu cục bộ hoặc yêu cầu quản trị viên đổi tên hoặc xóa tài khoản xung đột.",
     "fill_all_fields": "Vui lòng điền vào tất cả các trường",
     "logout_confirm": "Bạn có chắc chắn muốn đăng xuất không?",
     "change_password": "Thay đổi mật khẩu",

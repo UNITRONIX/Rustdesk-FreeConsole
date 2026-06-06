@@ -91,6 +91,7 @@
     "remember_me": "Se souvenir de moi",
     "login_failed": "Échec de la connexion. Veuillez vérifier vos identifiants.",
     "invalid_credentials": "Nom d'utilisateur ou mot de passe invalide.",
+    "username_collision": "Un compte local portant ce nom d'utilisateur existe déjà. Connectez-vous avec votre mot de passe local, ou demandez à un administrateur de renommer ou supprimer le compte en conflit.",
     "pro_only_account": "Ce compte est réservé au client de bureau RustDesk. Veuillez utiliser l'application RustDesk pour vous connecter.",
     "fill_all_fields": "Veuillez remplir tous les champs",
     "logout_confirm": "Êtes-vous sûr de vouloir vous déconnecter ?",

@@ -99,6 +99,7 @@
     "oidc_error": "Wystąpił błąd podczas logowania SSO.",
     "oidc_no_account": "Twoje konto nie zostało znalezione, a automatyczna rejestracja jest wyłączona.",
     "invalid_credentials": "Nieprawidłowa nazwa użytkownika lub hasło.",
+    "username_collision": "Lokalne konto o tej nazwie już istnieje. Zaloguj się lokalnym hasłem lub poproś administratora o zmianę nazwy albo usunięcie konfliktowego konta.",
     "pro_only_account": "To konto jest przeznaczone wyłącznie dla klienta RustDesk. Użyj aplikacji RustDesk, aby się zalogować.",
     "fill_all_fields": "Wypełnij wszystkie pola",
     "logout_confirm": "Czy na pewno chcesz się wylogować?",

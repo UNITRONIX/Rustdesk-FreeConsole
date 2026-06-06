@@ -97,6 +97,7 @@
     "remember_me": "Remember me",
     "login_failed": "Login mislykkedes. Tjek venligst dine legitimationsoplysninger.",
     "invalid_credentials": "Ugyldigt brugernavn eller adgangskode.",
+    "username_collision": "En lokal konto med dette brugernavn findes allerede. Log ind med din lokale adgangskode, eller bed en administrator om at omdøbe eller fjerne den konfliktende konto.",
     "fill_all_fields": "Udfyld venligst alle felter",
     "logout_confirm": "Er du sikker på, at du vil logge ud?",
     "change_password": "Skift adgangskode",

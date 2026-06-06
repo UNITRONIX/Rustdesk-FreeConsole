@@ -15,6 +15,7 @@ jest.mock('../services/database', () => ({
 
 jest.mock('../services/authService', () => ({
     authenticate: jest.fn().mockResolvedValue(null),
+    isAuthFailure: jest.fn((result) => !!(result && result.__authFailure)),
     changePassword: jest.fn().mockResolvedValue(true),
     hashPassword: jest.fn().mockResolvedValue('hashed'),
     generateRecoveryCodes: jest.fn().mockReturnValue(['CODE1', 'CODE2']),
@@ -79,6 +80,21 @@ describe('Auth Routes', () => {
             expect(res.body.success).toBe(false);
             expect(db.logAction).toHaveBeenCalledWith(
                 null, 'login_failed', expect.stringContaining('admin'), expect.anything()
+            );
+        });
+
+        it('should return 409 when local/SSO username collision is detected', async () => {
+            authService.authenticate.mockResolvedValue({ __authFailure: 'username_collision' });
+
+            const res = await request(app)
+                .post('/api/auth/login')
+                .send({ username: 'domainuser', password: 'ad-pass' });
+
+            expect(res.status).toBe(409);
+            expect(res.body.success).toBe(false);
+            expect(res.body.code).toBe('username_collision');
+            expect(db.logAction).toHaveBeenCalledWith(
+                null, 'login_failed', expect.stringContaining('collision'), expect.anything()
             );
         });
 

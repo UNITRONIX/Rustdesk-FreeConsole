@@ -97,6 +97,7 @@
     "remember_me": "Remember me",
     "login_failed": "Gagal masuk. Silakan periksa kredensial Anda.",
     "invalid_credentials": "Nama pengguna atau kata sandi tidak valid.",
+    "username_collision": "Akun lokal dengan nama pengguna ini sudah ada. Masuk dengan kata sandi lokal Anda, atau minta administrator untuk mengganti nama atau menghapus akun yang bentrok.",
     "fill_all_fields": "Silakan isi semua kolom",
     "logout_confirm": "Apakah Anda yakin ingin logout?",
     "change_password": "Ubah Kata Sandi",

@@ -99,6 +99,7 @@
     "oidc_error": "SSO 登录时发生错误。",
     "oidc_no_account": "未找到您的帐户，且自动注册已禁用。",
     "invalid_credentials": "用户名或密码无效。",
+    "username_collision": "已存在使用此用户名的本地账户。请使用本地密码登录，或请管理员重命名或删除冲突账户。",
     "fill_all_fields": "请填写所有字段",
     "logout_confirm": "确定要退出登录吗？",
     "change_password": "修改密码",

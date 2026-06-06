@@ -91,6 +91,7 @@
     "remember_me": "Onthoud mij",
     "login_failed": "Inloggen mislukt. Controleer uw inloggegevens.",
     "invalid_credentials": "Ongeldige gebruikersnaam of wachtwoord.",
+    "username_collision": "Er bestaat al een lokaal account met deze gebruikersnaam. Log in met uw lokale wachtwoord of vraag een beheerder om het conflicterende account te hernoemen of te verwijderen.",
     "fill_all_fields": "Vul alle velden in",
     "logout_confirm": "Weet u zeker dat u wilt uitloggen?",
     "change_password": "Wachtwoord wijzigen",
