@@ -764,6 +764,9 @@ function buildEnvWithGo(goBinPath) {
         const { modCache, buildCache } = ensureGoCacheDirs();
         env.GOMODCACHE = modCache;
         env.GOCACHE = buildCache;
+        // betterdesk user's HOME is often /var/lib/betterdesk (root-owned).
+        // Go also writes toolchain/sumdb state under $HOME/go — redirect HOME.
+        env.HOME = config.dataDir;
     } catch (err) {
         console.warn(`[UPDATE] Could not prepare Go cache dirs: ${err.message}`);
     }
