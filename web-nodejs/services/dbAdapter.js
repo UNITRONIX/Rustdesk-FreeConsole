@@ -3440,13 +3440,13 @@ function createPostgresAdapter() {
         `);
         await q('CREATE INDEX IF NOT EXISTS idx_agent_bundles_bundle_id ON agent_bundles (bundle_id)');
         await q('CREATE INDEX IF NOT EXISTS idx_agent_bundles_hash ON agent_bundles (branding_hash)');
-        await q('CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_bundles_slug ON agent_bundles (slug) WHERE slug IS NOT NULL AND slug != \'\'');
         try {
             const slugCol = await all(`SELECT column_name FROM information_schema.columns WHERE table_name = 'agent_bundles' AND column_name = 'slug'`);
             if (slugCol.length === 0) {
                 await q('ALTER TABLE agent_bundles ADD COLUMN slug TEXT DEFAULT NULL');
                 console.log('[DB] Migration: added agent_bundles.slug');
             }
+            await q('CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_bundles_slug ON agent_bundles (slug) WHERE slug IS NOT NULL AND slug != \'\'');
             const takenRows = await all("SELECT slug FROM agent_bundles WHERE slug IS NOT NULL AND slug != ''");
             const taken = new Set(takenRows.map(r => r.slug));
             const missing = await all("SELECT id, bundle_id, name FROM agent_bundles WHERE slug IS NULL OR slug = ''");
