@@ -165,7 +165,7 @@ table {
     width: var(--sidebar-width-collapsed);
     min-width: var(--sidebar-width-collapsed);
     height: 100%;
-    background: var(--bg-tertiary);
+    background: var(--sidebar-rail-bg);
     border-right: 1px solid var(--border-primary);
     display: flex;
     flex-direction: column;
@@ -254,7 +254,7 @@ table {
     border: none;
     border-radius: var(--radius-md);
     background: transparent;
-    color: var(--text-secondary);
+    color: var(--sidebar-btn-color);
     cursor: pointer;
     transition: all var(--transition-fast);
     position: relative;
@@ -262,15 +262,17 @@ table {
 }
 
 .sidebar-rail-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+    background: var(--sidebar-btn-hover-bg);
+    color: var(--sidebar-btn-hover-color);
 }
 
-.sidebar-rail-btn.active {
-    color: var(--accent-blue);
+.sidebar-rail-btn:focus-visible {
+    outline: 2px solid var(--sidebar-focus-ring);
+    outline-offset: 2px;
 }
 
-.sidebar-rail-btn.active::before {
+.sidebar-rail-btn.active::before,
+.sidebar-rail-btn.selected::before {
     content: '';
     position: absolute;
     left: -10px;
@@ -279,12 +281,113 @@ table {
     width: 3px;
     height: 20px;
     border-radius: 0 3px 3px 0;
-    background: var(--accent-blue);
 }
 
-.sidebar-rail-btn.selected {
-    background: var(--accent-blue-muted);
-    color: var(--accent-blue);
+/* Neutral rail links (settings, attestation) and bottom controls */
+.sidebar-rail-btn:not([data-category]):hover,
+#sidebar-help-btn:hover {
+    background: var(--sidebar-btn-hover-bg);
+    color: var(--sidebar-btn-hover-color);
+}
+
+.sidebar-rail-btn:not([data-category]).active,
+.sidebar-rail-btn:not([data-category]).selected {
+    background: var(--sidebar-neutral-muted);
+    color: var(--sidebar-neutral-accent);
+}
+
+.sidebar-rail-btn:not([data-category]).active::before,
+.sidebar-rail-btn:not([data-category]).selected::before {
+    background: var(--sidebar-neutral-accent);
+}
+
+#sidebar-expand-btn {
+    background: var(--bg-elevated);
+}
+
+#sidebar-expand-btn:hover {
+    background: var(--sidebar-btn-hover-bg);
+    color: var(--sidebar-btn-hover-color);
+}
+
+/* Category: main */
+.sidebar-rail-btn[data-category="main"].active,
+.sidebar-rail-btn[data-category="main"].selected {
+    background: var(--sidebar-cat-main-muted);
+    color: var(--sidebar-cat-main-accent);
+}
+
+.sidebar-rail-btn[data-category="main"].active::before,
+.sidebar-rail-btn[data-category="main"].selected::before {
+    background: var(--sidebar-cat-main-accent);
+}
+
+.sidebar-rail-btn[data-category="main"]:focus-visible {
+    outline-color: var(--sidebar-cat-main-accent);
+}
+
+/* Category: management */
+.sidebar-rail-btn[data-category="management"].active,
+.sidebar-rail-btn[data-category="management"].selected {
+    background: var(--sidebar-cat-management-muted);
+    color: var(--sidebar-cat-management-accent);
+}
+
+.sidebar-rail-btn[data-category="management"].active::before,
+.sidebar-rail-btn[data-category="management"].selected::before {
+    background: var(--sidebar-cat-management-accent);
+}
+
+.sidebar-rail-btn[data-category="management"]:focus-visible {
+    outline-color: var(--sidebar-cat-management-accent);
+}
+
+/* Category: tools */
+.sidebar-rail-btn[data-category="tools"].active,
+.sidebar-rail-btn[data-category="tools"].selected {
+    background: var(--sidebar-cat-tools-muted);
+    color: var(--sidebar-cat-tools-accent);
+}
+
+.sidebar-rail-btn[data-category="tools"].active::before,
+.sidebar-rail-btn[data-category="tools"].selected::before {
+    background: var(--sidebar-cat-tools-accent);
+}
+
+.sidebar-rail-btn[data-category="tools"]:focus-visible {
+    outline-color: var(--sidebar-cat-tools-accent);
+}
+
+/* Category: system */
+.sidebar-rail-btn[data-category="system"].active,
+.sidebar-rail-btn[data-category="system"].selected {
+    background: var(--sidebar-cat-system-muted);
+    color: var(--sidebar-cat-system-accent);
+}
+
+.sidebar-rail-btn[data-category="system"].active::before,
+.sidebar-rail-btn[data-category="system"].selected::before {
+    background: var(--sidebar-cat-system-accent);
+}
+
+.sidebar-rail-btn[data-category="system"]:focus-visible {
+    outline-color: var(--sidebar-cat-system-accent);
+}
+
+/* Category: server-mgmt */
+.sidebar-rail-btn[data-category="server-mgmt"].active,
+.sidebar-rail-btn[data-category="server-mgmt"].selected {
+    background: var(--sidebar-cat-server-mgmt-muted);
+    color: var(--sidebar-cat-server-mgmt-accent);
+}
+
+.sidebar-rail-btn[data-category="server-mgmt"].active::before,
+.sidebar-rail-btn[data-category="server-mgmt"].selected::before {
+    background: var(--sidebar-cat-server-mgmt-accent);
+}
+
+.sidebar-rail-btn[data-category="server-mgmt"]:focus-visible {
+    outline-color: var(--sidebar-cat-server-mgmt-accent);
 }
 
 .sidebar-rail-btn .material-icons {
@@ -305,7 +408,7 @@ table {
 .sidebar-flyout {
     width: calc(var(--sidebar-width) - var(--sidebar-width-collapsed));
     height: 100%;
-    background: var(--bg-secondary);
+    background: var(--sidebar-flyout-bg);
     border-right: 1px solid var(--border-primary);
     display: flex;
     flex-direction: column;
@@ -338,9 +441,29 @@ table {
 .sidebar-flyout-title {
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
-    color: var(--text-tertiary);
+    color: var(--sidebar-section-title);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+}
+
+.sidebar-flyout[data-active-category="main"] .sidebar-flyout-title {
+    color: var(--sidebar-cat-main-accent);
+}
+
+.sidebar-flyout[data-active-category="management"] .sidebar-flyout-title {
+    color: var(--sidebar-cat-management-accent);
+}
+
+.sidebar-flyout[data-active-category="tools"] .sidebar-flyout-title {
+    color: var(--sidebar-cat-tools-accent);
+}
+
+.sidebar-flyout[data-active-category="system"] .sidebar-flyout-title {
+    color: var(--sidebar-cat-system-accent);
+}
+
+.sidebar-flyout[data-active-category="server-mgmt"] .sidebar-flyout-title {
+    color: var(--sidebar-cat-server-mgmt-accent);
 }
 
 .sidebar-logo-text {
@@ -376,23 +499,79 @@ table {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
+    margin: 0 var(--space-sm);
     padding: var(--space-sm) var(--space-md);
-    color: var(--text-secondary);
+    color: var(--sidebar-btn-color);
     cursor: pointer;
     transition: all var(--transition-fast);
     border-left: 3px solid transparent;
+    border-radius: var(--radius-md);
     white-space: nowrap;
 }
 
 .sidebar-link:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
+    background: var(--sidebar-btn-hover-bg);
+    color: var(--sidebar-btn-hover-color);
+}
+
+.sidebar-link:focus-visible {
+    outline: 2px solid var(--sidebar-focus-ring);
+    outline-offset: 1px;
 }
 
 .sidebar-link.active {
-    background: var(--accent-blue-muted);
-    color: var(--accent-blue);
-    border-left-color: var(--accent-blue);
+    font-weight: var(--font-weight-medium);
+}
+
+/* Flyout link colors per active category */
+.sidebar-flyout[data-active-category="main"] .sidebar-link.active {
+    background: var(--sidebar-cat-main-muted);
+    color: var(--sidebar-cat-main-accent);
+    border-left-color: var(--sidebar-cat-main-accent);
+}
+
+.sidebar-flyout[data-active-category="main"] .sidebar-link:focus-visible {
+    outline-color: var(--sidebar-cat-main-accent);
+}
+
+.sidebar-flyout[data-active-category="management"] .sidebar-link.active {
+    background: var(--sidebar-cat-management-muted);
+    color: var(--sidebar-cat-management-accent);
+    border-left-color: var(--sidebar-cat-management-accent);
+}
+
+.sidebar-flyout[data-active-category="management"] .sidebar-link:focus-visible {
+    outline-color: var(--sidebar-cat-management-accent);
+}
+
+.sidebar-flyout[data-active-category="tools"] .sidebar-link.active {
+    background: var(--sidebar-cat-tools-muted);
+    color: var(--sidebar-cat-tools-accent);
+    border-left-color: var(--sidebar-cat-tools-accent);
+}
+
+.sidebar-flyout[data-active-category="tools"] .sidebar-link:focus-visible {
+    outline-color: var(--sidebar-cat-tools-accent);
+}
+
+.sidebar-flyout[data-active-category="system"] .sidebar-link.active {
+    background: var(--sidebar-cat-system-muted);
+    color: var(--sidebar-cat-system-accent);
+    border-left-color: var(--sidebar-cat-system-accent);
+}
+
+.sidebar-flyout[data-active-category="system"] .sidebar-link:focus-visible {
+    outline-color: var(--sidebar-cat-system-accent);
+}
+
+.sidebar-flyout[data-active-category="server-mgmt"] .sidebar-link.active {
+    background: var(--sidebar-cat-server-mgmt-muted);
+    color: var(--sidebar-cat-server-mgmt-accent);
+    border-left-color: var(--sidebar-cat-server-mgmt-accent);
+}
+
+.sidebar-flyout[data-active-category="server-mgmt"] .sidebar-link:focus-visible {
+    outline-color: var(--sidebar-cat-server-mgmt-accent);
 }
 
 .sidebar-link .material-icons {

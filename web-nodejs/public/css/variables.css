@@ -100,6 +100,28 @@
     --sidebar-width-collapsed: 64px;
     --navbar-height: 60px;
     --content-max-width: 1400px;
+
+    /* Sidebar navigation — readability & category accents */
+    --sidebar-rail-bg: #1c2128;
+    --sidebar-flyout-bg: #141a21;
+    --sidebar-btn-color: #b1bac4;
+    --sidebar-btn-hover-bg: rgba(255, 255, 255, 0.10);
+    --sidebar-btn-hover-color: #f0f6fc;
+    --sidebar-section-title: #9da7b3;
+    --sidebar-neutral-accent: #b1bac4;
+    --sidebar-neutral-muted: rgba(177, 186, 196, 0.18);
+    --sidebar-focus-ring: rgba(121, 192, 255, 0.55);
+
+    --sidebar-cat-main-accent: #79c0ff;
+    --sidebar-cat-main-muted: rgba(88, 166, 255, 0.22);
+    --sidebar-cat-management-accent: #56d4c8;
+    --sidebar-cat-management-muted: rgba(63, 185, 176, 0.20);
+    --sidebar-cat-tools-accent: #e3b341;
+    --sidebar-cat-tools-muted: rgba(210, 153, 34, 0.22);
+    --sidebar-cat-system-accent: #bc8cff;
+    --sidebar-cat-system-muted: rgba(163, 113, 247, 0.20);
+    --sidebar-cat-server-mgmt-accent: #ff9b7a;
+    --sidebar-cat-server-mgmt-muted: rgba(255, 155, 122, 0.18);
     
     /* ═══════════════════════════════════════════════════════════════════════
        SHAPES & EFFECTS

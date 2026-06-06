@@ -335,6 +335,7 @@
         isCollapsed = true;
         sidebar.dataset.collapsed = 'true';
         document.documentElement.style.setProperty('--sidebar-current-width', 'var(--sidebar-width-collapsed)');
+        if (flyout) delete flyout.dataset.activeCategory;
     }
 
     function showPanel(category) {
@@ -360,6 +361,7 @@
             'server-mgmt': '<%= _("nav.server_management") || "Server Management" %>'
         };
         if (flyoutTitle) flyoutTitle.textContent = titles[category] || '';
+        if (flyout) flyout.dataset.activeCategory = category;
         activeCategory = category;
     }
 

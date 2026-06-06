@@ -34,6 +34,38 @@
     color: #0969da;
 }
 
+[data-theme="light"] .sidebar-rail,
+.theme-light .sidebar-rail {
+    background: var(--sidebar-rail-bg, #f0f3f6);
+}
+
+[data-theme="light"] .sidebar-flyout,
+.theme-light .sidebar-flyout {
+    background: var(--sidebar-flyout-bg, #ffffff);
+    border-right-color: #d0d7de;
+}
+
+[data-theme="light"] .sidebar-rail-btn,
+.theme-light .sidebar-rail-btn {
+    color: var(--sidebar-btn-color, #656d76);
+}
+
+[data-theme="light"] .sidebar-link,
+.theme-light .sidebar-link {
+    color: var(--sidebar-btn-color, #656d76);
+}
+
+[data-theme="light"] .sidebar-link:hover,
+.theme-light .sidebar-link:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: #1f2328;
+}
+
+[data-theme="light"] .sidebar-flyout-title,
+.theme-light .sidebar-flyout-title {
+    color: var(--sidebar-section-title, #656d76);
+}
+
 [data-theme="light"] .navbar,
 .theme-light .navbar {
     background: rgba(255, 255, 255, 0.9);

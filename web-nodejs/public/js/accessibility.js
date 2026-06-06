@@ -115,6 +115,7 @@
         root.style.setProperty('--bd-a11y-word-spacing', `${current.wordSpacing}em`);
 
         root.dataset.a11yActive = isDefault(current) ? 'false' : 'true';
+        root.dataset.a11yFontScaled = current.fontScale !== DEFAULTS.fontScale ? 'true' : 'false';
         root.dataset.a11yContrast = current.contrast;
         root.dataset.a11yReadableFont = String(current.readableFont);
         root.dataset.a11yDyslexia = String(current.dyslexiaFont);

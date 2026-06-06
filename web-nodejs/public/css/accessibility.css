@@ -8,15 +8,46 @@
     --bd-a11y-visual-filter: none;
 }
 
+/* Keep root font-size stable so sidebar/navbar offsets (px + --sidebar-current-width) stay aligned */
 html {
-    font-size: calc(16px * var(--bd-a11y-font-scale, 1));
+    font-size: 16px;
 }
 
-html[data-a11y-active="true"] body {
+/* Pin shell layout dimensions when any preference is active */
+html[data-a11y-active="true"] {
+    --sidebar-width: 260px;
+    --sidebar-width-collapsed: 64px;
+    --navbar-height: 60px;
+}
+
+/* Scale typography inside content regions only — not the app chrome */
+html[data-a11y-font-scaled="true"] .main-content,
+html[data-a11y-font-scaled="true"] .sidebar-flyout,
+html[data-a11y-font-scaled="true"] .bd-a11y-modal,
+html[data-a11y-font-scaled="true"] .navbar-breadcrumb {
+    --font-size-xs: calc(0.75rem * var(--bd-a11y-font-scale, 1));
+    --font-size-sm: calc(0.875rem * var(--bd-a11y-font-scale, 1));
+    --font-size-md: calc(1rem * var(--bd-a11y-font-scale, 1));
+    --font-size-lg: calc(1.125rem * var(--bd-a11y-font-scale, 1));
+    --font-size-xl: calc(1.25rem * var(--bd-a11y-font-scale, 1));
+    --font-size-2xl: calc(1.5rem * var(--bd-a11y-font-scale, 1));
+    --font-size-3xl: calc(2rem * var(--bd-a11y-font-scale, 1));
+}
+
+html[data-a11y-font-scaled="true"] .sidebar-rail-btn .material-icons {
+    font-size: calc(22px * var(--bd-a11y-font-scale, 1));
+}
+
+html[data-a11y-active="true"] .main-content,
+html[data-a11y-active="true"] .sidebar-flyout,
+html[data-a11y-active="true"] .bd-a11y-modal {
     line-height: var(--bd-a11y-line-height, var(--line-height));
 }
 
-html[data-a11y-active="true"] body :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined) {
+html[data-a11y-active="true"] .main-content :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined),
+html[data-a11y-active="true"] .sidebar-flyout :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined),
+html[data-a11y-active="true"] .bd-a11y-modal :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined),
+html[data-a11y-active="true"] .navbar-breadcrumb :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined) {
     letter-spacing: var(--bd-a11y-letter-spacing, 0);
     word-spacing: var(--bd-a11y-word-spacing, 0);
 }
@@ -37,7 +68,10 @@ html[data-a11y-dyslexia="true"] textarea {
     font-family: Trebuchet MS, Verdana, Arial, sans-serif !important;
 }
 
-html[data-a11y-dyslexia="true"] body :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined) {
+html[data-a11y-dyslexia="true"] .main-content :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined),
+html[data-a11y-dyslexia="true"] .sidebar-flyout :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined),
+html[data-a11y-dyslexia="true"] .bd-a11y-modal :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined),
+html[data-a11y-dyslexia="true"] .navbar-breadcrumb :not(.material-icons):not(.material-icons-outlined):not(.material-symbols-outlined) {
     letter-spacing: max(var(--bd-a11y-letter-spacing, 0), 0.035em);
     word-spacing: max(var(--bd-a11y-word-spacing, 0), 0.08em);
 }
@@ -62,6 +96,26 @@ html[data-a11y-contrast="high-dark"] {
     --accent-red: #ff8585;
     --bg-hover: rgba(255, 255, 255, 0.18);
     --bg-active: rgba(255, 255, 255, 0.24);
+
+    --sidebar-rail-bg: #000000;
+    --sidebar-flyout-bg: #050505;
+    --sidebar-btn-color: #ffffff;
+    --sidebar-btn-hover-bg: rgba(255, 255, 255, 0.22);
+    --sidebar-btn-hover-color: #ffffff;
+    --sidebar-section-title: #ffffff;
+    --sidebar-neutral-accent: #ffffff;
+    --sidebar-neutral-muted: rgba(255, 255, 255, 0.24);
+    --sidebar-focus-ring: #ffffff;
+    --sidebar-cat-main-accent: #80d4ff;
+    --sidebar-cat-main-muted: rgba(128, 212, 255, 0.30);
+    --sidebar-cat-management-accent: #7ff7ec;
+    --sidebar-cat-management-muted: rgba(127, 247, 236, 0.28);
+    --sidebar-cat-tools-accent: #ffe66d;
+    --sidebar-cat-tools-muted: rgba(255, 230, 109, 0.30);
+    --sidebar-cat-system-accent: #d9b8ff;
+    --sidebar-cat-system-muted: rgba(217, 184, 255, 0.28);
+    --sidebar-cat-server-mgmt-accent: #ffb89a;
+    --sidebar-cat-server-mgmt-muted: rgba(255, 184, 154, 0.28);
 }
 
 html[data-a11y-contrast="high-light"] {
@@ -84,6 +138,26 @@ html[data-a11y-contrast="high-light"] {
     --accent-red: #a40000;
     --bg-hover: rgba(0, 0, 0, 0.08);
     --bg-active: rgba(0, 0, 0, 0.12);
+
+    --sidebar-rail-bg: #ffffff;
+    --sidebar-flyout-bg: #f6f8fa;
+    --sidebar-btn-color: #1f2937;
+    --sidebar-btn-hover-bg: rgba(0, 0, 0, 0.10);
+    --sidebar-btn-hover-color: #000000;
+    --sidebar-section-title: #000000;
+    --sidebar-neutral-accent: #000000;
+    --sidebar-neutral-muted: rgba(0, 0, 0, 0.10);
+    --sidebar-focus-ring: #003f9e;
+    --sidebar-cat-main-accent: #003f9e;
+    --sidebar-cat-main-muted: rgba(0, 63, 158, 0.14);
+    --sidebar-cat-management-accent: #0a6e66;
+    --sidebar-cat-management-muted: rgba(10, 110, 102, 0.14);
+    --sidebar-cat-tools-accent: #8a5a00;
+    --sidebar-cat-tools-muted: rgba(138, 90, 0, 0.14);
+    --sidebar-cat-system-accent: #5a1f9e;
+    --sidebar-cat-system-muted: rgba(90, 31, 158, 0.14);
+    --sidebar-cat-server-mgmt-accent: #9a3b1a;
+    --sidebar-cat-server-mgmt-muted: rgba(154, 59, 26, 0.14);
 }
 
 html[data-a11y-contrast="yellow-black"] {
@@ -106,12 +180,38 @@ html[data-a11y-contrast="yellow-black"] {
     --accent-red: #ff8a80;
     --bg-hover: rgba(255, 243, 109, 0.16);
     --bg-active: rgba(255, 243, 109, 0.24);
+
+    --sidebar-rail-bg: #000000;
+    --sidebar-flyout-bg: #161200;
+    --sidebar-btn-color: #fff36d;
+    --sidebar-btn-hover-bg: rgba(255, 243, 109, 0.22);
+    --sidebar-btn-hover-color: #ffffff;
+    --sidebar-section-title: #fff36d;
+    --sidebar-neutral-accent: #fff36d;
+    --sidebar-neutral-muted: rgba(255, 243, 109, 0.24);
+    --sidebar-focus-ring: #00e5ff;
+    --sidebar-cat-main-accent: #00e5ff;
+    --sidebar-cat-main-muted: rgba(0, 229, 255, 0.28);
+    --sidebar-cat-management-accent: #8ef5ff;
+    --sidebar-cat-management-muted: rgba(142, 245, 255, 0.24);
+    --sidebar-cat-tools-accent: #fff36d;
+    --sidebar-cat-tools-muted: rgba(255, 243, 109, 0.28);
+    --sidebar-cat-system-accent: #d9b8ff;
+    --sidebar-cat-system-muted: rgba(217, 184, 255, 0.24);
+    --sidebar-cat-server-mgmt-accent: #ffb89a;
+    --sidebar-cat-server-mgmt-muted: rgba(255, 184, 154, 0.24);
 }
 
-html[data-a11y-filtered="true"] .main-wrapper,
-html[data-a11y-filtered="true"] .sidebar,
-html[data-a11y-filtered="true"] .desktop-shell {
+/* Apply color filters on body — NOT on .main-wrapper (breaks position:fixed navbar offset) */
+html[data-a11y-filtered="true"] body {
     filter: var(--bd-a11y-visual-filter, none);
+}
+
+html[data-a11y-filtered="true"] body > .bd-a11y-filter-defs,
+html[data-a11y-filtered="true"] .bd-a11y-reading-guide,
+html[data-a11y-filtered="true"] .bd-a11y-reading-mask-top,
+html[data-a11y-filtered="true"] .bd-a11y-reading-mask-bottom {
+    filter: none;
 }
 
 body.bd-a11y-modal-open {
@@ -124,8 +224,12 @@ html[data-a11y-underline-links="true"] a {
     text-underline-offset: 0.18em !important;
 }
 
-html[data-a11y-highlight-links="true"] a,
-html[data-a11y-highlight-links="true"] button:not(.modal-close) {
+html[data-a11y-highlight-links="true"] .main-content a,
+html[data-a11y-highlight-links="true"] .main-content button:not(.modal-close):not(.navbar-btn),
+html[data-a11y-highlight-links="true"] .sidebar-flyout a,
+html[data-a11y-highlight-links="true"] .sidebar-flyout button,
+html[data-a11y-highlight-links="true"] .bd-a11y-modal a,
+html[data-a11y-highlight-links="true"] .bd-a11y-modal button:not(.bd-a11y-close) {
     outline: 2px solid var(--accent-blue) !important;
     outline-offset: 2px !important;
 }
