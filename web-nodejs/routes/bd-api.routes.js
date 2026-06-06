@@ -786,44 +786,23 @@ router.delete('/help-requests/:id', requireDeviceAuth, requireOperatorRole, asyn
 //  dropdown is part of the web UI, not the desktop client.
 //
 //  Storage model: notifications are a per-user read-status overlay over
-//  helpRequests. The overlay (readByUser) lives in-memory and is cleaned up
-//  opportunistically. On restart, all help-requests appear unread again — a
-//  deliberate trade-off: persistence can be added later via DB if needed.
+//  helpRequests. Read state is persisted in notification_reads (per user).
 // ---------------------------------------------------------------------------
 
 const { requireAuth } = require('../middleware/auth');
 
-/** @type {Map<string, Set<string>>} userId → Set<helpRequestId> marked read. */
-const readByUser = new Map();
-
-function isReadBy(userId, notifId) {
-    const set = readByUser.get(String(userId));
-    return !!(set && set.has(String(notifId)));
+function sessionUserId(req) {
+    return req.session?.userId ?? req.session?.user?.id ?? null;
 }
 
-function markReadBy(userId, notifId) {
-    const key = String(userId);
-    let set = readByUser.get(key);
-    if (!set) {
-        set = new Set();
-        readByUser.set(key, set);
-    }
-    set.add(String(notifId));
-    // Cap per-user set size to avoid unbounded growth.
-    if (set.size > 500) {
-        const arr = [...set];
-        readByUser.set(key, new Set(arr.slice(-400)));
-    }
-}
-
-function helpRequestToNotif(req, userId) {
+function helpRequestToNotif(req, readIds) {
     return {
         id: req.id,
         title: req.hostname || req.device_id,
         message: req.message || '',
         icon: 'support_agent',
         link: '/help-requests',
-        read: isReadBy(userId, req.id),
+        read: readIds.has(String(req.id)),
         created_at: new Date(req.created_at).toISOString(),
         kind: 'help_request',
         status: req.status,
@@ -839,8 +818,12 @@ router.get('/notifications', requireAuth, async (req, res) => {
         const rawLimit = parseInt(req.query.limit, 10);
         const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 50) : 20;
         const unreadOnly = String(req.query.unread_only || '').toLowerCase() === 'true';
-        const userId = req.session?.user?.id;
+        const userId = sessionUserId(req);
+        if (!userId) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
 
+        const readIds = await db.getReadNotificationIds(userId);
         const result = await betterdeskApi.listHelpRequests({ limit: 200 });
         const requests = (result.success ? (result.data || []) : [])
             .map(normalizeHelpRequest)
@@ -848,12 +831,12 @@ router.get('/notifications', requireAuth, async (req, res) => {
 
         const items = requests
             .sort((a, b) => b.created_at - a.created_at)
-            .map(r => helpRequestToNotif(r, userId))
+            .map(r => helpRequestToNotif(r, readIds))
             .filter(n => (unreadOnly ? !n.read : true))
             .slice(0, limit);
 
         const unreadCount = requests
-            .filter(r => !isReadBy(userId, r.id)).length;
+            .filter(r => !readIds.has(String(r.id))).length;
 
         res.json({ success: true, items, unread_count: unreadCount });
     } catch (err) {
@@ -866,9 +849,9 @@ router.get('/notifications', requireAuth, async (req, res) => {
 //  POST /api/bd/notifications/:id/read — mark single notification read
 // ---------------------------------------------------------------------------
 
-router.post('/notifications/:id/read', requireAuth, (req, res) => {
+router.post('/notifications/:id/read', requireAuth, async (req, res) => {
     try {
-        const userId = req.session?.user?.id;
+        const userId = sessionUserId(req);
         if (!userId) {
             return res.status(401).json({ error: 'Not authenticated' });
         }
@@ -876,7 +859,7 @@ router.post('/notifications/:id/read', requireAuth, (req, res) => {
         const id = String(req.params.id || '').slice(0, 128);
         // Idempotent: the help request lives on the Go server; the read overlay
         // is a local per-user state, so we simply record it.
-        markReadBy(userId, id);
+        await db.markNotificationRead(userId, id);
         res.json({ success: true });
     } catch (err) {
         console.error('[BD-API] Mark notification read error:', err.message);
@@ -890,7 +873,7 @@ router.post('/notifications/:id/read', requireAuth, (req, res) => {
 
 router.post('/notifications/read-all', requireAuth, async (req, res) => {
     try {
-        const userId = req.session?.user?.id;
+        const userId = sessionUserId(req);
         if (!userId) {
             return res.status(401).json({ error: 'Not authenticated' });
         }
@@ -899,9 +882,7 @@ router.post('/notifications/read-all', requireAuth, async (req, res) => {
         const requests = (result.success ? (result.data || []) : [])
             .map(normalizeHelpRequest)
             .filter(Boolean);
-        for (const r of requests) {
-            markReadBy(userId, r.id);
-        }
+        await db.markAllNotificationsRead(userId, requests.map((r) => r.id));
 
         res.json({ success: true });
     } catch (err) {

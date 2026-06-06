@@ -150,6 +150,11 @@ const facade = {
     saveAddressBook:    (userId, data, abType) => adapter.saveAddressBook(userId, abType || 'legacy', data),
     getAddressBookTags: (userId) => adapter.getAddressBookTags(userId),
 
+    // ---- Notification read state (navbar bell) ----
+    getReadNotificationIds:   (userId) => adapter.getReadNotificationIds(userId),
+    markNotificationRead:     (userId, notificationId) => adapter.markNotificationRead(userId, notificationId),
+    markAllNotificationsRead: (userId, notificationIds) => adapter.markAllNotificationsRead(userId, notificationIds),
+
     // ---- Console Settings ----
     getSetting:    (key, defaultValue) => adapter.getSetting(key).then(v => v ?? defaultValue ?? null),
     setSetting:    (key, value) => adapter.setSetting(key, value),

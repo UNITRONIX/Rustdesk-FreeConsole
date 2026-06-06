@@ -450,6 +450,14 @@ function createSqliteAdapter(config) {
                 created_at TEXT DEFAULT (datetime('now')),
                 updated_at TEXT DEFAULT (datetime('now'))
             );
+            CREATE TABLE IF NOT EXISTS notification_reads (
+                user_id INTEGER NOT NULL,
+                notification_id TEXT NOT NULL,
+                read_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (user_id, notification_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON notification_reads (user_id, read_at);
         `);
 
         // Migration: Add missing columns to existing users table (for upgrades from older versions)
@@ -1393,6 +1401,59 @@ function createSqliteAdapter(config) {
                 VALUES (?, ?, ?, datetime('now'))
                 ON CONFLICT(user_id, ab_type) DO UPDATE SET data = excluded.data, updated_at = datetime('now')
             `).run(userId, abType, data);
+        },
+
+        // ---- Notification read state (navbar bell) ----
+
+        async getReadNotificationIds(userId) {
+            const rows = openAuth()
+                .prepare('SELECT notification_id FROM notification_reads WHERE user_id = ?')
+                .all(userId);
+            return new Set(rows.map((r) => String(r.notification_id)));
+        },
+        async markNotificationRead(userId, notificationId) {
+            const auth = openAuth();
+            auth.prepare(`
+                INSERT OR IGNORE INTO notification_reads (user_id, notification_id, read_at)
+                VALUES (?, ?, datetime('now'))
+            `).run(userId, String(notificationId));
+            const count = auth.prepare('SELECT COUNT(*) AS c FROM notification_reads WHERE user_id = ?').get(userId);
+            if (count && count.c > 500) {
+                auth.prepare(`
+                    DELETE FROM notification_reads
+                    WHERE user_id = ? AND rowid NOT IN (
+                        SELECT rowid FROM notification_reads
+                        WHERE user_id = ?
+                        ORDER BY read_at DESC
+                        LIMIT 400
+                    )
+                `).run(userId, userId);
+            }
+        },
+        async markAllNotificationsRead(userId, notificationIds) {
+            const auth = openAuth();
+            const insert = auth.prepare(`
+                INSERT OR IGNORE INTO notification_reads (user_id, notification_id, read_at)
+                VALUES (?, ?, datetime('now'))
+            `);
+            const txn = auth.transaction((ids) => {
+                for (const id of ids) {
+                    insert.run(userId, String(id));
+                }
+            });
+            txn(notificationIds);
+            const count = auth.prepare('SELECT COUNT(*) AS c FROM notification_reads WHERE user_id = ?').get(userId);
+            if (count && count.c > 500) {
+                auth.prepare(`
+                    DELETE FROM notification_reads
+                    WHERE user_id = ? AND rowid NOT IN (
+                        SELECT rowid FROM notification_reads
+                        WHERE user_id = ?
+                        ORDER BY read_at DESC
+                        LIMIT 400
+                    )
+                `).run(userId, userId);
+            }
         },
 
         // ---- Audit ----
@@ -3088,6 +3149,16 @@ function createPostgresAdapter() {
         `);
 
         await q(`
+            CREATE TABLE IF NOT EXISTS notification_reads (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                notification_id TEXT NOT NULL,
+                read_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (user_id, notification_id)
+            )
+        `);
+        await q('CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON notification_reads (user_id, read_at)');
+
+        await q(`
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -4131,6 +4202,70 @@ function createPostgresAdapter() {
             if (!user) return;
             await q(`INSERT INTO address_books (username, ab_type, data, updated_at) VALUES ($1, $2, $3, NOW())
                 ON CONFLICT(username, ab_type) DO UPDATE SET data = $3, updated_at = NOW()`, [user.username, abType, data]);
+        },
+
+        // ---- Notification read state (navbar bell) ----
+
+        async getReadNotificationIds(userId) {
+            const rows = await all(
+                'SELECT notification_id FROM notification_reads WHERE user_id = $1',
+                [userId]
+            );
+            return new Set(rows.map((r) => String(r.notification_id)));
+        },
+        async markNotificationRead(userId, notificationId) {
+            await q(
+                `INSERT INTO notification_reads (user_id, notification_id, read_at)
+                 VALUES ($1, $2, NOW())
+                 ON CONFLICT (user_id, notification_id) DO NOTHING`,
+                [userId, String(notificationId)]
+            );
+            const count = await one(
+                'SELECT COUNT(*)::int AS c FROM notification_reads WHERE user_id = $1',
+                [userId]
+            );
+            if (count && count.c > 500) {
+                await q(
+                    `DELETE FROM notification_reads
+                     WHERE user_id = $1
+                       AND (user_id, notification_id) NOT IN (
+                           SELECT user_id, notification_id
+                           FROM notification_reads
+                           WHERE user_id = $1
+                           ORDER BY read_at DESC
+                           LIMIT 400
+                       )`,
+                    [userId]
+                );
+            }
+        },
+        async markAllNotificationsRead(userId, notificationIds) {
+            for (const id of notificationIds) {
+                await q(
+                    `INSERT INTO notification_reads (user_id, notification_id, read_at)
+                     VALUES ($1, $2, NOW())
+                     ON CONFLICT (user_id, notification_id) DO NOTHING`,
+                    [userId, String(id)]
+                );
+            }
+            const count = await one(
+                'SELECT COUNT(*)::int AS c FROM notification_reads WHERE user_id = $1',
+                [userId]
+            );
+            if (count && count.c > 500) {
+                await q(
+                    `DELETE FROM notification_reads
+                     WHERE user_id = $1
+                       AND (user_id, notification_id) NOT IN (
+                           SELECT user_id, notification_id
+                           FROM notification_reads
+                           WHERE user_id = $1
+                           ORDER BY read_at DESC
+                           LIMIT 400
+                       )`,
+                    [userId]
+                );
+            }
         },
 
         // ---- Audit ----
