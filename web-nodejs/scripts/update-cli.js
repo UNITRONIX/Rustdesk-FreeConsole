@@ -121,11 +121,12 @@ async function main() {
     // non-critical ones (server binary not available — source was still
     // applied). See issue #154: server binary failures caused infinite
     // update loop because SHA was never saved.
-    const NON_CRITICAL_FILES = new Set([
-        'betterdesk-server', 'betterdesk-server-deploy', 'server-source'
-    ]);
-    const criticalFailures = (result.failed || []).filter(f => !NON_CRITICAL_FILES.has(f.file));
-    const nonCriticalFailures = (result.failed || []).filter(f => NON_CRITICAL_FILES.has(f.file));
+    const criticalFailures = (result.failed || []).filter(f =>
+        !updateService.isNonCriticalUpdateFailure(f.file) && !f.nonCritical
+    );
+    const nonCriticalFailures = (result.failed || []).filter(f =>
+        updateService.isNonCriticalUpdateFailure(f.file) || f.nonCritical
+    );
 
     if (criticalFailures.length) {
         console.log(`\n${criticalFailures.length} critical failure(s) — update incomplete.`);

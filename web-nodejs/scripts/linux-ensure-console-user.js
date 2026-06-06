@@ -23,7 +23,20 @@ function isRoot() {
     return typeof process.getuid === 'function' && process.getuid() === 0;
 }
 
+function canUseSudo() {
+    if (isRoot()) return true;
+    try {
+        execSync('sudo -n true', { stdio: 'pipe', timeout: 5000 });
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
 function runPrivileged(cmd, opts = {}) {
+    if (!isRoot() && !canUseSudo()) {
+        throw new Error('Privileged command requires root or passwordless sudo');
+    }
     const prefix = isRoot() ? '' : 'sudo ';
     return execSync(prefix + cmd, {
         encoding: 'utf8',
@@ -61,7 +74,7 @@ function writeServiceFile(servicePath, content) {
 
 function userExists(name) {
     try {
-        runPrivileged(`id ${name} 2>/dev/null`);
+        execSync(`getent passwd ${name}`, { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch (_) {
         return false;
@@ -69,15 +82,22 @@ function userExists(name) {
 }
 
 function ensureSystemUser() {
-    if (!userExists(SVC_USER)) {
-        runPrivileged(
-            `useradd -r -s /usr/sbin/nologin -d /var/lib/betterdesk -c "BetterDesk web console" ${SVC_USER}`
-        );
+    if (userExists(SVC_USER)) {
+        return;
     }
+    if (!isRoot() && !canUseSudo()) {
+        throw new Error(`System user ${SVC_USER} is missing and console cannot create it without root/sudo`);
+    }
+    runPrivileged(
+        `useradd -r -s /usr/sbin/nologin -d /var/lib/betterdesk -c "BetterDesk web console" ${SVC_USER}`
+    );
     runPrivileged('mkdir -p /var/lib/betterdesk');
 }
 
 function fixSharedPermissions() {
+    if (!isRoot() && !canUseSudo()) {
+        return;
+    }
     runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data'))}`);
     runPrivileged(`chown -R ${SVC_USER}:${SVC_USER} ${JSON.stringify(CONSOLE_PATH)}`);
 
@@ -126,16 +146,22 @@ function ensureLinuxConsoleServiceUser() {
     }
     try {
         ensureSystemUser();
-        fixSharedPermissions();
-        const patch = patchServiceUserLine();
-        if (patch.changed) {
-            result.changed = true;
-            result.user = patch.user;
-            result.changes.push(`console service User=${patch.user}`);
-        } else if (patch.reason) {
-            result.changes.push(patch.reason);
+        if (isRoot() || canUseSudo()) {
+            fixSharedPermissions();
+            const patch = patchServiceUserLine();
+            if (patch.changed) {
+                result.changed = true;
+                result.user = patch.user;
+                result.changes.push(`console service User=${patch.user}`);
+            } else if (patch.reason) {
+                result.changes.push(patch.reason);
+            }
+            result.changes.push('permissions synced for betterdesk console user');
+        } else if (userExists(SVC_USER)) {
+            result.changes.push(`${SVC_USER} user present; skipped privileged permission sync (no sudo)`);
+        } else {
+            result.error = `System user ${SVC_USER} is missing and cannot be created without root/sudo`;
         }
-        result.changes.push('permissions synced for betterdesk console user');
     } catch (err) {
         result.error = err.message || String(err);
     }

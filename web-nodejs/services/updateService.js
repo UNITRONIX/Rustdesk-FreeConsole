@@ -86,6 +86,28 @@ const COMPONENTS = {
     }
 };
 
+// Failures that must not block SHA tracking / console update completion.
+// Issue #154: server binary. H-7: root-owned repo scripts when console runs
+// as an unprivileged user (betterdesk cannot write /opt/betterdesk.sh).
+const NON_CRITICAL_UPDATE_FAILURES = new Set([
+    'betterdesk-server',
+    'betterdesk-server-deploy',
+    'server-source',
+    'betterdesk.sh',
+    'betterdesk.ps1',
+    'betterdesk-docker.sh',
+    'docker-compose.yml',
+    'docker-compose.single.yml',
+    'docker-compose.quick.yml',
+    'Dockerfile',
+    'Dockerfile.server',
+    'Dockerfile.console',
+]);
+
+function isNonCriticalUpdateFailure(fileKey) {
+    return NON_CRITICAL_UPDATE_FAILURES.has(fileKey);
+}
+
 // paths that are never downloaded during an update
 // CRITICAL: anything that holds local runtime state MUST be excluded here.
 // Overwriting live SQLite WAL/SHM files corrupts the database
@@ -1753,7 +1775,12 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 }
                 results.applied.push(file.path);
             } catch (err) {
-                results.failed.push({ file: file.path, error: err.message });
+                const entry = { file: file.path, error: err.message };
+                if (err.code === 'EACCES' || /permission denied/i.test(err.message || '')) {
+                    entry.nonCritical = true;
+                    console.warn(`[UPDATE] Skipping root-owned script (no write access): ${file.path}`);
+                }
+                results.failed.push(entry);
             }
         }
     }
@@ -2007,13 +2034,12 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     // fails, preventing the SHA from ever being saved. This causes the
     // same update to be reported as available after every console restart,
     // creating an infinite update loop.
-    const NON_CRITICAL_FILES = new Set([
-        'betterdesk-server',          // binary compile/download failure
-        'betterdesk-server-deploy',   // binary deployment failure
-        'server-source',              // full source tree download failure (incremental still applied)
-    ]);
-    const criticalFailures = results.failed.filter(f => !NON_CRITICAL_FILES.has(f.file));
-    const nonCriticalFailures = results.failed.filter(f => NON_CRITICAL_FILES.has(f.file));
+    const criticalFailures = results.failed.filter(f =>
+        !isNonCriticalUpdateFailure(f.file) && !f.nonCritical
+    );
+    const nonCriticalFailures = results.failed.filter(f =>
+        isNonCriticalUpdateFailure(f.file) || f.nonCritical
+    );
 
     // Security visibility: if the Go server source changed (e.g. a go.mod
     // dependency bump shipping a security fix) but the binary could not be
@@ -2495,7 +2521,9 @@ module.exports = {
     getImageEmbeddedSHA,
     bootstrapDockerImageDeployment,
     getDockerUpdateInstructions,
-    COMPONENTS
+    COMPONENTS,
+    NON_CRITICAL_UPDATE_FAILURES,
+    isNonCriticalUpdateFailure,
 };
 
 bootstrapDockerImageDeployment();
