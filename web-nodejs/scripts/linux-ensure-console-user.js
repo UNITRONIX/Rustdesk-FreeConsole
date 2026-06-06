@@ -94,31 +94,63 @@ function ensureSystemUser() {
     runPrivileged('mkdir -p /var/lib/betterdesk');
 }
 
+function ensureDataDir() {
+    const dataDir = path.join(CONSOLE_PATH, 'data');
+    fs.mkdirSync(dataDir, { recursive: true });
+    return dataDir;
+}
+
+/**
+ * @returns {{ ok: boolean, error?: string, skipped?: boolean }}
+ */
 function fixSharedPermissions() {
     if (!isRoot() && !canUseSudo()) {
-        return;
+        return { ok: false, skipped: true, error: 'no root/sudo for permission sync' };
     }
-    runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data'))}`);
-    runPrivileged(`chown -R ${SVC_USER}:${SVC_USER} ${JSON.stringify(CONSOLE_PATH)}`);
+    try {
+        runPrivileged(`mkdir -p /var/lib/betterdesk`);
+        runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data'))}`);
+        runPrivileged(`chown -R ${SVC_USER}:${SVC_USER} ${JSON.stringify(CONSOLE_PATH)}`);
 
-    const shared = [
-        path.join(RUSTDESK_PATH, '.api_key'),
-        path.join(RUSTDESK_PATH, 'id_ed25519.pub'),
-        path.join(RUSTDESK_PATH, 'db_v2.sqlite3'),
-        path.join(RUSTDESK_PATH, 'db_v2.sqlite3-wal'),
-        path.join(RUSTDESK_PATH, 'db_v2.sqlite3-shm'),
-        path.join(RUSTDESK_PATH, 'ssl', 'betterdesk.crt'),
-        path.join(RUSTDESK_PATH, 'ssl', 'betterdesk.key'),
-    ];
-    for (const filePath of shared) {
-        if (!fs.existsSync(filePath)) continue;
-        runPrivileged(`chown root:${SVC_USER} ${JSON.stringify(filePath)}`);
-        runPrivileged(`chmod g+r ${JSON.stringify(filePath)}`);
-        if (filePath.includes('db_v2') || filePath.endsWith('.api_key') || filePath.includes('/ssl/')) {
-            runPrivileged(`chmod g+rw ${JSON.stringify(filePath)}`);
-        } else {
-            runPrivileged(`chmod 640 ${JSON.stringify(filePath)}`);
+        const shared = [
+            path.join(RUSTDESK_PATH, '.api_key'),
+            path.join(RUSTDESK_PATH, 'id_ed25519.pub'),
+            path.join(RUSTDESK_PATH, 'db_v2.sqlite3'),
+            path.join(RUSTDESK_PATH, 'db_v2.sqlite3-wal'),
+            path.join(RUSTDESK_PATH, 'db_v2.sqlite3-shm'),
+            path.join(RUSTDESK_PATH, 'ssl', 'betterdesk.crt'),
+            path.join(RUSTDESK_PATH, 'ssl', 'betterdesk.key'),
+        ];
+        for (const filePath of shared) {
+            if (!fs.existsSync(filePath)) continue;
+            runPrivileged(`chown root:${SVC_USER} ${JSON.stringify(filePath)}`);
+            runPrivileged(`chmod g+r ${JSON.stringify(filePath)}`);
+            if (filePath.includes('db_v2') || filePath.endsWith('.api_key') || filePath.includes('/ssl/')) {
+                runPrivileged(`chmod g+rw ${JSON.stringify(filePath)}`);
+            } else {
+                runPrivileged(`chmod 640 ${JSON.stringify(filePath)}`);
+            }
         }
+        return { ok: true };
+    } catch (err) {
+        return { ok: false, error: err.message || String(err) };
+    }
+}
+
+/** Verify the console service user can write the data directory. */
+function verifyConsoleUserAccess() {
+    if (!userExists(SVC_USER)) {
+        return { ok: false, error: `system user ${SVC_USER} does not exist` };
+    }
+    const dataDir = path.join(CONSOLE_PATH, 'data');
+    try {
+        execSync(
+            `runuser -u ${SVC_USER} -- test -w ${JSON.stringify(dataDir)}`,
+            { stdio: 'pipe', timeout: 5000 }
+        );
+        return { ok: true };
+    } catch (_) {
+        return { ok: false, error: `${SVC_USER} cannot write ${dataDir}` };
     }
 }
 
@@ -140,14 +172,42 @@ function patchServiceUserLine() {
  * @returns {{ changed: boolean, user?: string, changes: string[], error?: string, skipped?: boolean }}
  */
 function ensureLinuxConsoleServiceUser() {
-    const result = { changed: false, changes: [] };
+    const result = { changed: false, changes: [], permissionsOk: false };
     if (process.platform !== 'linux') {
         return { ...result, skipped: true, reason: 'not-linux' };
     }
     try {
+        ensureDataDir();
         ensureSystemUser();
-        if (isRoot() || canUseSudo()) {
-            fixSharedPermissions();
+
+        const privileged = isRoot() || canUseSudo();
+        let perm = { ok: false, skipped: !privileged };
+        if (privileged) {
+            perm = fixSharedPermissions();
+            if (perm.ok) {
+                result.permissionsOk = true;
+                result.changes.push('permissions synced for betterdesk console user');
+            } else if (perm.error) {
+                result.error = perm.error;
+            }
+        } else if (userExists(SVC_USER)) {
+            const access = verifyConsoleUserAccess();
+            result.permissionsOk = access.ok;
+            if (access.ok) {
+                result.changes.push(`${SVC_USER} user present; data dir writable`);
+            } else {
+                result.changes.push(`${SVC_USER} user present; permission sync skipped (no sudo)`);
+                result.error = access.error || 'permission sync requires root/sudo';
+            }
+        } else {
+            result.error = `System user ${SVC_USER} is missing and cannot be created without root/sudo`;
+        }
+
+        const access = verifyConsoleUserAccess();
+        if (access.ok) result.permissionsOk = true;
+
+        // Only switch User=root → betterdesk when permissions are verified.
+        if (result.permissionsOk && privileged) {
             const patch = patchServiceUserLine();
             if (patch.changed) {
                 result.changed = true;
@@ -156,11 +216,8 @@ function ensureLinuxConsoleServiceUser() {
             } else if (patch.reason) {
                 result.changes.push(patch.reason);
             }
-            result.changes.push('permissions synced for betterdesk console user');
-        } else if (userExists(SVC_USER)) {
-            result.changes.push(`${SVC_USER} user present; skipped privileged permission sync (no sudo)`);
-        } else {
-            result.error = `System user ${SVC_USER} is missing and cannot be created without root/sudo`;
+        } else if (!result.permissionsOk) {
+            result.changes.push('skipped service User= patch until permissions are fixed');
         }
     } catch (err) {
         result.error = err.message || String(err);
@@ -174,4 +231,10 @@ if (require.main === module) {
     process.exit(out.error ? 1 : 0);
 }
 
-module.exports = { ensureLinuxConsoleServiceUser, SVC_USER };
+module.exports = {
+    ensureLinuxConsoleServiceUser,
+    ensureDataDir,
+    fixSharedPermissions,
+    verifyConsoleUserAccess,
+    SVC_USER,
+};

@@ -53,9 +53,15 @@ app.set('trust proxy', trustProxy);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Ensure data directory exists
-if (!fs.existsSync(config.dataDir)) {
-    fs.mkdirSync(config.dataDir, { recursive: true });
+// Ensure data directory exists (required before auth.db / session secret)
+try {
+    if (!fs.existsSync(config.dataDir)) {
+        fs.mkdirSync(config.dataDir, { recursive: true });
+    }
+} catch (err) {
+    console.error(`Failed to create data directory (${config.dataDir}): ${err.message}`);
+    console.error('If the console runs as a dedicated user, run: sudo node scripts/linux-ensure-console-user.js');
+    process.exit(1);
 }
 
 // ============ Middleware Pipeline ============

@@ -2293,6 +2293,13 @@ patch_service_definitions() {
             print_info "Patched betterdesk-console.service (User=$console_user)"
             changed=1
         fi
+        local node_path
+        node_path=$(command -v node 2>/dev/null || echo "/usr/bin/node")
+        if ! grep -q '^ExecStartPre=.*linux-ensure-console-user' <<< "$new_content"; then
+            new_content=$(printf '%s' "$new_content" | sed "s|^ExecStart=|ExecStartPre=+${node_path} ${CONSOLE_PATH}/scripts/linux-ensure-console-user.js\nExecStart=|")
+            print_info "Patched betterdesk-console.service (ExecStartPre permission sync)"
+            changed=1
+        fi
         if [ "$new_content" != "$content" ]; then
             backup="${console_svc}.bak.$(date +%Y%m%d%H%M%S)"
             cp "$console_svc" "$backup" 2>/dev/null || true
@@ -2601,6 +2608,7 @@ Type=simple
 User=$console_user
 WorkingDirectory=$CONSOLE_PATH
 EnvironmentFile=-$CONSOLE_PATH/.env
+ExecStartPre=+$node_path $CONSOLE_PATH/scripts/linux-ensure-console-user.js
 ExecStart=$node_path server.js
 StandardOutput=journal
 StandardError=journal
@@ -3669,13 +3677,30 @@ repair_services() {
 
 repair_permissions() {
     print_step "Repairing permissions..."
-    
-    chown -R root:root "$RUSTDESK_PATH" 2>/dev/null || true
-    chmod 755 "$RUSTDESK_PATH"
+
+    if [ -f "$CONSOLE_PATH/server.js" ]; then
+        local console_user
+        console_user=$(ensure_betterdesk_console_user)
+        print_info "Console tree owner: $console_user"
+        if [ -f "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" ] && command -v node &>/dev/null; then
+            node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission script reported issues"
+        fi
+    fi
+
+    chmod 755 "$RUSTDESK_PATH" 2>/dev/null || true
     chmod +x "$RUSTDESK_PATH/betterdesk-server" 2>/dev/null || true
-    chmod 644 "$DB_PATH" 2>/dev/null || true
-    
-    print_success "Permissions repaired"
+
+    if systemctl is-enabled --quiet betterdesk-console 2>/dev/null; then
+        systemctl restart betterdesk-console 2>/dev/null || true
+        sleep 2
+        if systemctl is-active --quiet betterdesk-console 2>/dev/null; then
+            print_success "Permissions repaired — console is running"
+        else
+            print_warning "Permissions synced but console still inactive — check: journalctl -u betterdesk-console -n 40 --no-pager"
+        fi
+    else
+        print_success "Permissions repaired"
+    fi
 }
 
 #===============================================================================

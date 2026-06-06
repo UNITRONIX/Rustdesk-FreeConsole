@@ -1647,8 +1647,12 @@ function patchServiceDefinitions() {
         if (consolePatch.error) {
             goPatch.consoleUserError = consolePatch.error;
         }
+        if (typeof consolePatch.permissionsOk === 'boolean') {
+            goPatch.consolePermissionsOk = consolePatch.permissionsOk;
+        }
     } catch (err) {
         goPatch.consoleUserError = err.message || String(err);
+        goPatch.consolePermissionsOk = false;
     }
     return goPatch;
 }

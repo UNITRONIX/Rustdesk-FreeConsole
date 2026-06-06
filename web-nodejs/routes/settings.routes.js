@@ -802,10 +802,21 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
 
         // Restart console after response is sent (systemd/NSSM restarts automatically)
         if (result.needsConsoleRestart) {
-            setTimeout(() => {
-                console.log(`[UPDATE] Restarting console after update to ${remoteSHA.slice(0, 7)}...`);
-                process.exit(0);
-            }, 2000);
+            const patch = result.servicePatch || {};
+            if (patch.consolePermissionsOk === false) {
+                console.warn(
+                    '[UPDATE] Skipping console restart — service user permissions not verified.'
+                    + ` Run as root: node ${path.join(__dirname, '..', 'scripts/linux-ensure-console-user.js')}`
+                    + ' && systemctl restart betterdesk-console'
+                );
+                result.consoleRestartBlocked = patch.consoleUserError
+                    || 'Console service user permissions were not verified before restart';
+            } else {
+                setTimeout(() => {
+                    console.log(`[UPDATE] Restarting console after update to ${remoteSHA.slice(0, 7)}...`);
+                    process.exit(0);
+                }, 2000);
+            }
         }
     } catch (err) {
         console.error('Update install error:', err);
