@@ -411,6 +411,7 @@ table {
     padding: var(--space-sm) var(--space-md);
     border-top: 1px solid var(--border-primary);
     flex-shrink: 0;
+    margin-top: auto;
 }
 
 

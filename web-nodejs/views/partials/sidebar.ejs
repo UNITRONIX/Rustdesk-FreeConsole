@@ -340,6 +340,11 @@
     if (activeRail) {
         activeCategory = activeRail.dataset.category;
         showPanel(activeCategory);
+    } else if ('<%= currentPage %>' === 'settings') {
+        // Settings is a direct rail link — no flyout sub-menu, keep sidebar collapsed
+        isCollapsed = true;
+        sidebar.dataset.collapsed = 'true';
+        document.documentElement.style.setProperty('--sidebar-current-width', 'var(--sidebar-width-collapsed)');
     }
 
     function showPanel(category) {
