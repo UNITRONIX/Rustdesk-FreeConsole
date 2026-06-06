@@ -309,7 +309,8 @@
     "group_deleted": "ลบกลุ่มอุปกรณ์แล้ว",
     "folder_group_readonly": "กลุ่มที่สำรองโฟลเดอร์ได้รับการจัดการจากโฟลเดอร์",
     "manage_user_groups": "จัดการกลุ่มผู้ใช้",
-    "restore_failed": "กู้คืนอุปกรณ์ไม่สำเร็จ"
+    "restore_failed": "กู้คืนอุปกรณ์ไม่สำเร็จ",
+    "no_signal_tooltip": "ไคลเอนต์ติดต่อ API เมื่อเร็ว ๆ นี้ แต่ยังไม่ได้ลงทะเบียนบนเซิร์ฟเวอร์สัญญาณ (UDP :21116) โปรดรีสตาร์ทไคลเอนต์หลังย้ายเซิร์ฟเวอร์"
   },
   "keys": {
     "title": "คีย์เซิร์ฟเวอร์",
@@ -731,7 +732,8 @@
     "stopped": "Stopped",
     "unknown": "Unknown",
     "checking": "กำลังตรวจสอบ...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "ไม่มีสัญญาณ"
   },
   "actions": {
     "refresh": "Refresh",

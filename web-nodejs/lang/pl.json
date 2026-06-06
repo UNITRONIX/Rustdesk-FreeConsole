@@ -303,7 +303,8 @@
       "no_data": "Brak danych o sprzęcie",
       "title": "Informacje sprzętowe",
       "gpu": "Karta graficzna"
-    }
+    },
+    "no_signal_tooltip": "Klient niedawno kontaktował API, ale nie jest zarejestrowany na serwerze sygnałowym (UDP :21116). Uruchom ponownie klienta po migracji serwera."
   },
   "keys": {
     "title": "Klucze serwera",
@@ -735,7 +736,8 @@
     "stopped": "Zatrzymany",
     "unknown": "Nieznany",
     "checking": "Sprawdzanie...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Brak sygnału"
   },
   "actions": {
     "refresh": "Odśwież",

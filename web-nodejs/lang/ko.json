@@ -303,7 +303,8 @@
     "group_deleted": "기기 그룹이 삭제되었습니다.",
     "folder_group_readonly": "폴더 지원 그룹은 폴더에서 관리됩니다.",
     "manage_user_groups": "사용자 그룹 관리",
-    "restore_failed": "기기 복원에 실패했습니다"
+    "restore_failed": "기기 복원에 실패했습니다",
+    "no_signal_tooltip": "클라이언트가 최근 API에 연락했지만 시그널 서버(UDP :21116)에 등록되지 않았습니다. 서버 마이그레이션 후 클라이언트를 재시작하세요."
   },
   "keys": {
     "title": "서버 키",
@@ -725,7 +726,8 @@
     "stopped": "Stopped",
     "unknown": "Unknown",
     "checking": "확인 중...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "신호 없음"
   },
   "actions": {
     "refresh": "Refresh",

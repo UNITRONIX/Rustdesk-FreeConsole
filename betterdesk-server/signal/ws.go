@@ -336,6 +336,7 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 
 	log.Printf("[signal] New WS peer registered: %s from %s", id, remoteAddr)
 	s.db.UpdatePeerStatus(id, "ONLINE", remoteAddr)
+	s.publishPeerOnline(id)
 
 	return &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_RegisterPeerResponse{

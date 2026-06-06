@@ -303,7 +303,8 @@
     "group_deleted": "デバイスグループが削除されました",
     "folder_group_readonly": "フォルダーベースのグループはフォルダーから管理されます。",
     "manage_user_groups": "ユーザーグループの管理",
-    "restore_failed": "デバイスの復元に失敗しました"
+    "restore_failed": "デバイスの復元に失敗しました",
+    "no_signal_tooltip": "クライアントは最近 API に接続しましたが、シグナルサーバー (UDP :21116) に登録されていません。サーバー移行後にクライアントを再起動してください。"
   },
   "keys": {
     "title": "サーバーキー",
@@ -725,7 +726,8 @@
     "stopped": "Stopped",
     "unknown": "Unknown",
     "checking": "確認中...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "シグナルなし"
   },
   "actions": {
     "refresh": "Refresh",

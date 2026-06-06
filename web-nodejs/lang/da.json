@@ -309,7 +309,8 @@
     "group_deleted": "Enhedsgruppen blev slettet",
     "folder_group_readonly": "Mappestøttede grupper administreres fra mapper.",
     "manage_user_groups": "Administrer brugergrupper",
-    "restore_failed": "Enhed konnte nicht wiederhergestellt werden"
+    "restore_failed": "Enhed konnte nicht wiederhergestellt werden",
+    "no_signal_tooltip": "Klienten kontaktede API'et for nylig, men er ikke registreret på signalserveren (UDP :21116). Genstart klienten efter servermigration."
   },
   "keys": {
     "title": "Servernøgler",
@@ -731,7 +732,8 @@
     "stopped": "Stopped",
     "unknown": "Unknown",
     "checking": "Tjekker...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Intet signal"
   },
   "actions": {
     "refresh": "Refresh",

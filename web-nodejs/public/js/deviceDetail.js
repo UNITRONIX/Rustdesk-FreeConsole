@@ -143,15 +143,35 @@ const DeviceDetail = (function () {
 
     // ── Header ──
 
+    function _resolveDeviceStatus(d) {
+        if (d.banned) {
+            return { className: 'banned', label: _('status.banned'), title: '' };
+        }
+        if (d.online) {
+            const tier = (d.status_tier || 'online').toLowerCase();
+            if (tier === 'degraded' || tier === 'critical') {
+                return { className: tier, label: _('status.' + tier), title: '' };
+            }
+            return { className: 'online', label: _('status.online'), title: '' };
+        }
+        if (d.no_signal) {
+            return {
+                className: 'no_signal',
+                label: _('status.no_signal'),
+                title: _('devices.no_signal_tooltip')
+            };
+        }
+        return { className: 'offline', label: _('status.offline'), title: '' };
+    }
+
     function _headerHTML() {
         const d = device;
         const platformLabel = d.platform || d.os || '-';
         const platformIcon = Utils.getPlatformIcon(d.platform || d.os);
-        const statusRaw = (d.status_tier || (d.online ? 'online' : 'offline')).toLowerCase();
-        const statusClass = d.banned ? 'banned' : statusRaw;
-        const statusLabel = d.banned
-            ? _('status.banned')
-            : (_('status.' + statusRaw));
+        const statusInfo = _resolveDeviceStatus(d);
+        const statusClass = statusInfo.className;
+        const statusLabel = statusInfo.label;
+        const statusTitle = statusInfo.title;
 
         return `
         <div class="device-panel-header">
@@ -174,7 +194,7 @@ const DeviceDetail = (function () {
                 </button>
             </div>
             <div class="device-panel-status-bar">
-                <span class="device-panel-status-badge ${statusClass}">
+                <span class="device-panel-status-badge ${statusClass}"${statusTitle ? ` title="${Utils.escapeHtml(statusTitle)}"` : ''}>
                     <span class="status-dot"></span>${statusLabel}
                 </span>
                 <span class="device-panel-platform-badge">
@@ -1301,15 +1321,16 @@ const DeviceDetail = (function () {
                     // Only re-render header status (minimal update, avoid losing form state)
                     const statusBar = overlayEl.querySelector('.device-panel-status-bar');
                     if (statusBar) {
-                        const statusRaw2 = (device.status_tier || (device.online ? 'online' : 'offline')).toLowerCase();
-                        const statusClass = device.banned ? 'banned' : statusRaw2;
-                        const statusLabel = device.banned
-                            ? _('status.banned')
-                            : (_('status.' + statusRaw2));
+                        const statusInfo = _resolveDeviceStatus(device);
                         const badge = statusBar.querySelector('.device-panel-status-badge');
                         if (badge) {
-                            badge.className = 'device-panel-status-badge ' + statusClass;
-                            badge.innerHTML = '<span class="status-dot"></span>' + statusLabel;
+                            badge.className = 'device-panel-status-badge ' + statusInfo.className;
+                            if (statusInfo.title) {
+                                badge.title = statusInfo.title;
+                            } else {
+                                badge.removeAttribute('title');
+                            }
+                            badge.innerHTML = '<span class="status-dot"></span>' + statusInfo.label;
                         }
                     }
                 }

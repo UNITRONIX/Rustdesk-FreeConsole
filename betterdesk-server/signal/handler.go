@@ -65,6 +65,19 @@ func signalLimiterKey(kind, clientHost, peerID string) string {
 	return fmt.Sprintf("%s:%s:%s", kind, clientHost, peerID)
 }
 
+func (s *Server) publishPeerOnline(id string) {
+	if s.eventBus == nil {
+		return
+	}
+	s.eventBus.Publish(events.Event{
+		Type: events.EventPeerOnline,
+		Data: map[string]string{
+			"id":     id,
+			"status": "online",
+		},
+	})
+}
+
 func (s *Server) allowRegistration(clientHost, peerID string, knownPeer bool) bool {
 	if s.limiter == nil {
 		return true
@@ -319,6 +332,7 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 
 	log.Printf("[signal] New peer registered: %s from %s (pk_loaded=%v)", id, raddr, len(entry.PK) > 0)
 	s.db.UpdatePeerStatus(id, "ONLINE", raddr.IP.String())
+	s.publishPeerOnline(id)
 }
 
 // handleRegisterPk processes a public key registration.

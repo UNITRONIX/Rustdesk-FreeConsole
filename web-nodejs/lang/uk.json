@@ -309,7 +309,8 @@
     "group_deleted": "Групу пристроїв видалено",
     "folder_group_readonly": "Групи з папками керуються з папок.",
     "manage_user_groups": "Керуйте групами користувачів",
-    "restore_failed": "Пристрій konnte nicht wiederhergestellt werden"
+    "restore_failed": "Пристрій konnte nicht wiederhergestellt werden",
+    "no_signal_tooltip": "Клієнт нещодавно звернувся до API, але не зареєстрований на сигнальному сервері (UDP :21116). Перезапустіть клієнт після міграції сервера."
   },
   "keys": {
     "title": "Ключі сервера",
@@ -731,7 +732,8 @@
     "stopped": "Stopped",
     "unknown": "Unknown",
     "checking": "Перевірка...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Немає сигналу"
   },
   "actions": {
     "refresh": "Refresh",

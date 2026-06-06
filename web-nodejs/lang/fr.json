@@ -303,7 +303,8 @@
     "group_deleted": "Groupe d’appareils supprimé",
     "folder_group_readonly": "Les groupes associés aux dossiers sont gérés depuis les dossiers.",
     "manage_user_groups": "Gérer les groupes d’utilisateurs",
-    "restore_failed": "Échec de la restauration de l'appareil"
+    "restore_failed": "Échec de la restauration de l'appareil",
+    "no_signal_tooltip": "Le client a contacté l'API récemment mais n'est pas enregistré sur le serveur de signal (UDP :21116). Redémarrez le client après la migration du serveur."
   },
   "keys": {
     "title": "Tableau de bord",
@@ -725,7 +726,8 @@
     "stopped": "Arrêté",
     "unknown": "Inconnu",
     "checking": "Vérification...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Pas de signal"
   },
   "actions": {
     "refresh": "Actualiser",

@@ -9,6 +9,7 @@ import (
 
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
 	pb "github.com/unitronix/betterdesk-server/proto"
 	"github.com/unitronix/betterdesk-server/ratelimit"
@@ -361,5 +362,29 @@ func TestOrgPolicyForcesRelayOnPunchHole(t *testing.T) {
 
 	if !srv.shouldForceRelayForPeers("INITP2P", "TARGETP2P") {
 		t.Fatal("org block_direct_p2p should force relay")
+	}
+}
+
+func TestPublishPeerOnlineEmitsEvent(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	sub := srv.eventBus.Subscribe(events.EventPeerOnline)
+	defer srv.eventBus.Unsubscribe(sub)
+
+	srv.publishPeerOnline("PEERON1")
+
+	select {
+	case evt := <-sub.Ch:
+		if evt.Type != events.EventPeerOnline {
+			t.Fatalf("event type = %s, want %s", evt.Type, events.EventPeerOnline)
+		}
+		if evt.Data["id"] != "PEERON1" {
+			t.Fatalf("event id = %q, want PEERON1", evt.Data["id"])
+		}
+		if evt.Data["status"] != "online" {
+			t.Fatalf("event status = %q, want online", evt.Data["status"])
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for peer_online event")
 	}
 }

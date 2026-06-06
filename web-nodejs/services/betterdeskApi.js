@@ -462,8 +462,20 @@ async function syncOnlineStatus(/* db */) {
  *   online (bool), banned (bool), created_at, last_online, ban_reason,
  *   folder_id, tags[], status_tier, uuid, disabled, os, version
  */
+const NO_SIGNAL_THRESHOLD_MS = 5 * 60 * 1000;
+
+function isRecentLastOnline(lastOnline) {
+    if (!lastOnline) return false;
+    const t = new Date(lastOnline).getTime();
+    return Number.isFinite(t) && (Date.now() - t) < NO_SIGNAL_THRESHOLD_MS;
+}
+
 function normalisePeer(peer) {
     if (!peer) return peer;
+
+    const liveOnline = !!(peer.live_online);
+    const banned = !!(peer.banned);
+    const lastOnline = peer.last_online || '';
 
     // Parse tags: Go server sends comma-separated string or JSON array
     let tags = [];
@@ -488,10 +500,11 @@ function normalisePeer(peer) {
         version: peer.version || '',
         ip: peer.ip || '',
         note: peer.note || '',
-        online: !!(peer.live_online),
-        banned: !!(peer.banned),
+        online: liveOnline,
+        banned,
+        no_signal: !liveOnline && !banned && isRecentLastOnline(lastOnline),
         created_at: peer.created_at || '',
-        last_online: peer.last_online || '',
+        last_online: lastOnline,
         ban_reason: peer.ban_reason || '',
         banned_at: peer.banned_at || null,
         folder_id: peer.folder_id || null,

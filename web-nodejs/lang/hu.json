@@ -309,7 +309,8 @@
     "group_deleted": "Eszközcsoport törölve",
     "folder_group_readonly": "A mappaalapú csoportok kezelése mappákból történik.",
     "manage_user_groups": "Felhasználói csoportok kezelése",
-    "restore_failed": "Eszköz konnte nicht wiederhergestellt werden"
+    "restore_failed": "Eszköz konnte nicht wiederhergestellt werden",
+    "no_signal_tooltip": "Az ügyfél nemrég elérte az API-t, de nincs regisztrálva a jelzőszerveren (UDP :21116). A szerver migrációja után indítsa újra az ügyfelet."
   },
   "keys": {
     "title": "Szerverkulcsok",
@@ -731,7 +732,8 @@
     "stopped": "Stopped",
     "unknown": "Unknown",
     "checking": "Ellenőrzés...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Nincs jel"
   },
   "actions": {
     "refresh": "Refresh",

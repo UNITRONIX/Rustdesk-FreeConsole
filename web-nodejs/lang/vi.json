@@ -309,7 +309,8 @@
     "group_deleted": "Đã xóa nhóm thiết bị",
     "folder_group_readonly": "Các nhóm được hỗ trợ bởi thư mục được quản lý từ các thư mục.",
     "manage_user_groups": "Quản lý nhóm người dùng",
-    "restore_failed": "Không thể khôi phục thiết bị"
+    "restore_failed": "Không thể khôi phục thiết bị",
+    "no_signal_tooltip": "Máy khách vừa liên hệ API nhưng chưa đăng ký trên máy chủ tín hiệu (UDP :21116). Khởi động lại máy khách sau khi di chuyển máy chủ."
   },
   "keys": {
     "title": "Khóa máy chủ",
@@ -731,7 +732,8 @@
     "stopped": "Stopped",
     "unknown": "Unknown",
     "checking": "Đang kiểm tra...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Không có tín hiệu"
   },
   "actions": {
     "refresh": "Refresh",

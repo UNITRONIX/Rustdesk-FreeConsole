@@ -303,7 +303,8 @@
     "group_deleted": "Gruppo dispositivi eliminato",
     "folder_group_readonly": "I gruppi basati su cartelle sono gestiti tramite Cartelle.",
     "manage_user_groups": "Gestisci gruppi utente",
-    "restore_failed": "Èchec de la restauration de il dispositivo"
+    "restore_failed": "Èchec de la restauration de il dispositivo",
+    "no_signal_tooltip": "Il client ha contattato l'API di recente ma non è registrato sul server di segnale (UDP :21116). Riavvia il client dopo la migrazione del server."
   },
   "keys": {
     "title": "Chiavi del server",
@@ -725,7 +726,8 @@
     "stopped": "Fermato",
     "unknown": "Sconosciuto",
     "checking": "Verifica...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Nessun segnale"
   },
   "actions": {
     "refresh": "Aggiorna",

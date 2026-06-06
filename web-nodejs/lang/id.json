@@ -309,7 +309,8 @@
     "group_deleted": "Grup perangkat dihapus",
     "folder_group_readonly": "Grup yang didukung folder dikelola dari folder.",
     "manage_user_groups": "Kelola grup pengguna",
-    "restore_failed": "Gagal memulihkan perangkat"
+    "restore_failed": "Gagal memulihkan perangkat",
+    "no_signal_tooltip": "Klien baru saja menghubungi API tetapi tidak terdaftar di server sinyal (UDP :21116). Mulai ulang klien setelah migrasi server."
   },
   "keys": {
     "title": "Kunci Server",
@@ -731,7 +732,8 @@
     "stopped": "Stopped",
     "unknown": "Unknown",
     "checking": "Memeriksa...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Tanpa sinyal"
   },
   "actions": {
     "refresh": "Refresh",

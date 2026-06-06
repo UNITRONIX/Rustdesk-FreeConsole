@@ -309,7 +309,8 @@
     "group_deleted": "Enhetsgruppen har tagits bort",
     "folder_group_readonly": "Mappstödda grupper hanteras från mappar.",
     "manage_user_groups": "Hantera användargrupper",
-    "restore_failed": "Enhet konnte nicht wiederhergestellt werden"
+    "restore_failed": "Enhet konnte nicht wiederhergestellt werden",
+    "no_signal_tooltip": "Klienten kontaktade API:et nyligen men är inte registrerad på signalservern (UDP :21116). Starta om klienten efter servermigrering."
   },
   "keys": {
     "title": "Servernycklar",
@@ -731,7 +732,8 @@
     "stopped": "Stopped",
     "unknown": "Unknown",
     "checking": "Kontrollerar...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Ingen signal"
   },
   "actions": {
     "refresh": "Refresh",

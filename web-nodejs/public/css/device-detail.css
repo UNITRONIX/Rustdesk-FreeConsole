@@ -177,6 +177,15 @@
     background: var(--text-tertiary, #6e7681);
 }
 
+.device-panel-status-badge.no_signal {
+    background: var(--accent-yellow-muted, rgba(210, 153, 34, 0.15));
+    color: var(--accent-yellow, #d29922);
+}
+
+.device-panel-status-badge.no_signal .status-dot {
+    background: var(--accent-yellow, #d29922);
+}
+
 .device-panel-status-badge.banned {
     background: var(--accent-red-muted, rgba(248, 81, 73, 0.15));
     color: var(--accent-red, #f85149);

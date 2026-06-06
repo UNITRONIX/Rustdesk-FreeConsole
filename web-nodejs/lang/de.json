@@ -303,7 +303,8 @@
     "group_deleted": "Gerätegruppe gelöscht",
     "folder_group_readonly": "Ordnerbasierte Gruppen werden über Ordner verwaltet.",
     "manage_user_groups": "Benutzergruppen verwalten",
-    "restore_failed": "Gerät konnte nicht wiederhergestellt werden"
+    "restore_failed": "Gerät konnte nicht wiederhergestellt werden",
+    "no_signal_tooltip": "Der Client hat kürzlich die API kontaktiert, ist aber nicht auf dem Signalserver registriert (UDP :21116). Starten Sie den Client nach der Servermigration neu."
   },
   "keys": {
     "title": "Dashboard",
@@ -725,7 +726,8 @@
     "stopped": "Gestoppt",
     "unknown": "Unbekannt",
     "checking": "Prüfe...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Kein Signal"
   },
   "actions": {
     "refresh": "Aktualisieren",

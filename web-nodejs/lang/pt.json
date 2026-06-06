@@ -303,7 +303,8 @@
     "group_deleted": "Grupo de dispositivos excluído",
     "folder_group_readonly": "Grupos baseados em pastas são gerenciados em Pastas.",
     "manage_user_groups": "Gerenciar grupos de usuários",
-    "restore_failed": "Erro al restaurar o dispositivo"
+    "restore_failed": "Erro al restaurar o dispositivo",
+    "no_signal_tooltip": "O cliente contactou a API recentemente, mas não está registado no servidor de sinal (UDP :21116). Reinicie o cliente após a migração do servidor."
   },
   "keys": {
     "title": "Chaves do servidor",
@@ -725,7 +726,8 @@
     "stopped": "Parado",
     "unknown": "Desconhecido",
     "checking": "A verificar...",
-    "label": "Status"
+    "label": "Status",
+    "no_signal": "Sem sinal"
   },
   "actions": {
     "refresh": "Atualizar",

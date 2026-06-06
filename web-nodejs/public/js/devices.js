@@ -12,6 +12,23 @@
         return '#808080';
     }
 
+    function deviceStatusInfo(d) {
+        if (d.banned) {
+            return { className: 'banned', label: _('status.banned'), title: '' };
+        }
+        if (d.online) {
+            return { className: 'online', label: _('status.online'), title: '' };
+        }
+        if (d.no_signal) {
+            return {
+                className: 'no_signal',
+                label: _('status.no_signal'),
+                title: _('devices.no_signal_tooltip')
+            };
+        }
+        return { className: 'offline', label: _('status.offline'), title: '' };
+    }
+
     // Map device_type to Material Icons
     function getDeviceTypeIcon(type) {
         switch ((type || '').toLowerCase()) {
@@ -147,7 +164,7 @@
         if (!row) return;
 
         const normalizedStatus = String(status || '').toLowerCase();
-        const statusClassName = ['online', 'offline', 'degraded', 'critical'].includes(normalizedStatus)
+        const statusClassName = ['online', 'offline', 'no_signal', 'degraded', 'critical'].includes(normalizedStatus)
             ? normalizedStatus
             : 'offline';
         const statusText = _('status.' + statusClassName);
@@ -173,6 +190,7 @@
             dev.live_status = statusClassName;
             dev.live_online = statusClassName === 'online';
             dev.online = statusClassName === 'online';
+            dev.no_signal = statusClassName === 'no_signal';
         }
     }
 
@@ -472,12 +490,10 @@
             return;
         }
         
-        const statusClass = (d) => d.banned ? 'banned' : d.online ? 'online' : 'offline';
-        const statusLabel = (d) => d.banned ? _('status.banned') : d.online ? _('status.online') : _('status.offline');
-
         tableBody.innerHTML = pageDevices.map(device => {
             const eid = Utils.escapeHtml(device.id);
-            const sc = statusClass(device);
+            const statusInfo = deviceStatusInfo(device);
+            const sc = statusInfo.className;
             return `
             <tr data-id="${eid}" class="${device.banned ? 'banned-row' : ''}" draggable="true">
                 <td data-column="id">
@@ -506,7 +522,7 @@
                     <span class="last-seen-text" title="${Utils.formatDate(device.last_online)}">${Utils.formatRelativeTime(device.last_online)}</span>
                 </td>
                 <td data-column="status">
-                    <span class="status-badge ${sc}"><span class="status-dot"></span>${statusLabel(device)}</span>
+                    <span class="status-badge ${sc}"${statusInfo.title ? ` title="${Utils.escapeHtml(statusInfo.title)}"` : ''}><span class="status-dot"></span>${statusInfo.label}</span>
                 </td>
                 <td data-column="tags">${renderTagsCell(device)}</td>
                 <td data-column="actions">
@@ -905,7 +921,7 @@
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">${_('status.label')}:</span>
-                        <span class="detail-value">${device.banned ? _('status.banned') : device.online ? _('status.online') : _('status.offline')}</span>
+                        <span class="detail-value">${deviceStatusInfo(device).label}</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">${_('devices.last_online')}:</span>

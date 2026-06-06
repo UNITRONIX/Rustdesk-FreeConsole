@@ -638,6 +638,10 @@ td.column-hidden {
     background: var(--text-tertiary, #6e7681);
 }
 
+.device-status-dot.no_signal {
+    background: var(--accent-yellow, #d29922);
+}
+
 .device-status-dot.banned {
     background: var(--accent-red, #f85149);
 }
@@ -715,6 +719,15 @@ td.column-hidden {
 .status-badge.offline {
     background: var(--bg-tertiary);
     color: var(--text-tertiary);
+}
+
+.status-badge.no_signal {
+    background: var(--accent-yellow-muted, rgba(210, 153, 34, 0.15));
+    color: var(--accent-yellow, #d29922);
+}
+
+.status-badge.no_signal .status-dot {
+    background: var(--accent-yellow, #d29922);
 }
 
 .status-badge.banned {
