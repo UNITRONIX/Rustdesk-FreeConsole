@@ -1,33 +1,34 @@
 'use strict';
 
-const assert = require('assert');
 const { buildEnvSubstitutions, applySubstitutions, mergeEnv } = require('../lib/envMerge');
 
-const existing = `PORT=5000
+describe('buildEnvSubstitutions', () => {
+    it('resolves template placeholders from existing env and config', () => {
+        const existing = `PORT=5000
 RUSTDESK_DIR=/opt/custom
 SESSION_SECRET=keep-me
 `;
 
-const subs = buildEnvSubstitutions({
-    existingContent: existing,
-    config: { goApiPort: 21114, apiPort: 21121, dataDir: '/app/data' }
-});
+        const subs = buildEnvSubstitutions({
+            existingContent: existing,
+            config: { goApiPort: 21114, apiPort: 21121, dataDir: '/app/data' }
+        });
 
-assert.strictEqual(subs.RUSTDESK_DIR, '/opt/custom');
-assert.strictEqual(subs.SESSION_SECRET, 'keep-me');
-assert.strictEqual(subs.GO_API_PORT, '21114');
-assert(!subs.HBBS_API_URL.includes('__'), 'HBBS_API_URL resolved');
+        expect(subs.RUSTDESK_DIR).toBe('/opt/custom');
+        expect(subs.SESSION_SECRET).toBe('keep-me');
+        expect(subs.GO_API_PORT).toBe('21114');
+        expect(subs.HBBS_API_URL.includes('__')).toBe(false);
 
-const template = applySubstitutions(`TRUST_PROXY=false
+        const template = applySubstitutions(`TRUST_PROXY=false
 HOST=0.0.0.0
 SESSION_SECRET=__SESSION_SECRET__
 `, subs);
 
-const { content, added } = mergeEnv(existing, template);
-assert(content.includes('TRUST_PROXY=false'));
-assert(content.includes('HOST=0.0.0.0'));
-assert(content.includes('SESSION_SECRET=keep-me'));
-assert(!content.includes('__SESSION_SECRET__'));
-assert(added.includes('TRUST_PROXY'));
-
-console.log('buildEnvSubstitutions tests passed');
+        const { content, added } = mergeEnv(existing, template);
+        expect(content).toContain('TRUST_PROXY=false');
+        expect(content).toContain('HOST=0.0.0.0');
+        expect(content).toContain('SESSION_SECRET=keep-me');
+        expect(content).not.toContain('__SESSION_SECRET__');
+        expect(added).toContain('TRUST_PROXY');
+    });
+});

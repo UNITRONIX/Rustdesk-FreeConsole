@@ -34,6 +34,7 @@
     "no": "No"
   },
   "nav": {
+    "main": "Main",
     "tools": "Tools",
     "system": "System",
     "dashboard": "Dashboard",
@@ -3536,11 +3537,13 @@
     "tier_iron": "IRON",
     "tier_titanium": "TITANIUM",
     "tier_platinum": "PLATINUM",
+    "tier_obsidian": "OBSIDIAN",
     "tier_none": "UNRATED",
     "tier_bronze_desc": "1–25 concurrent connections — small VPS (1–2 vCPU, 2–4 GB RAM).",
     "tier_iron_desc": "26–75 connections — mid-range server (2–4 vCPU, 4–8 GB RAM).",
     "tier_platinum_desc": "76–200 connections — high-performance server (4–8 vCPU, 8–16 GB RAM).",
-    "tier_titanium_desc": "201+ connections — top tier, enterprise infrastructure (8+ vCPU, 16+ GB RAM).",
+    "tier_titanium_desc": "201–400 connections — enterprise infrastructure (8+ vCPU, 16–32 GB RAM).",
+    "tier_obsidian_desc": "401+ connections — turbo class: dedicated hardware, 16+ vCPU, 32+ GB RAM, NVMe.",
     "docker_note": "Note: in Docker, CPU/RAM metrics may reflect container limits rather than the physical host.",
     "badge_tooltip": "BetterDesk Server Attestation — server performance certification",
     "confirm_run": "This benchmark will load-test the server with simulated connections. Continue?",
@@ -3548,6 +3551,8 @@
     "complete": "Benchmark complete",
     "signal_peers": "Signal peers",
     "relay_sessions": "Relay sessions",
-    "page_error": "Failed to load the Server Attestation page"
+    "page_error": "Failed to load the Server Attestation page",
+    "mode_estimated": "Estimated (WebSocket unreachable)",
+    "incomplete": "Benchmark finished without a valid tier"
   }
 }

@@ -3,6 +3,11 @@
 (function () {
     const _ = window._ || (k => k);
 
+    function tr(key, fallback) {
+        const v = _(key);
+        return (v && v !== key) ? v : fallback;
+    }
+
     let pollTimer = null;
     let lastResult = null;
 
@@ -31,8 +36,8 @@
     }
 
     function tierLabel(tier) {
-        if (!tier) return _('server_attestation.tier_none', 'UNRATED');
-        return _('server_attestation.tier_' + tier, tier.toUpperCase());
+        if (!tier) return tr('server_attestation.tier_none', 'UNRATED');
+        return tr('server_attestation.tier_' + tier, tier.toUpperCase());
     }
 
     function updateBadge(tier, maxConnections) {
@@ -48,77 +53,10 @@
                 connEl.className = 'bd-attest-conn';
                 hero.appendChild(connEl);
             }
-            connEl.textContent = maxConnections + ' ' + _('server_attestation.connections_short', 'conn.');
+            connEl.textContent = maxConnections + ' ' + tr('server_attestation.connections_short', 'conn.');
         } else if (connEl) {
             connEl.remove();
         }
-    }
-
-    function renderChart(steps) {
-        const canvas = document.getElementById('sa-ramp-chart');
-        if (!canvas || !steps || !steps.length) return;
-
-        const ctx = canvas.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = (rect.height || 200) * dpr;
-        ctx.scale(dpr, dpr);
-        const w = rect.width;
-        const h = rect.height || 200;
-
-        ctx.clearRect(0, 0, w, h);
-
-        const maxConn = Math.max(...steps.map(s => s.connections || 0), 1);
-        const pad = { l: 40, r: 16, t: 16, b: 28 };
-        const plotW = w - pad.l - pad.r;
-        const plotH = h - pad.t - pad.b;
-
-        function x(i) {
-            return pad.l + (i / Math.max(steps.length - 1, 1)) * plotW;
-        }
-        function yPct(v) {
-            return pad.t + plotH - (Math.min(v, 100) / 100) * plotH;
-        }
-        function yConn(v) {
-            return pad.t + plotH - (v / maxConn) * plotH;
-        }
-
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-        ctx.lineWidth = 1;
-        for (let p = 0; p <= 4; p++) {
-            const yy = pad.t + (plotH * p) / 4;
-            ctx.beginPath();
-            ctx.moveTo(pad.l, yy);
-            ctx.lineTo(pad.l + plotW, yy);
-            ctx.stroke();
-        }
-
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = 'rgba(255, 123, 114, 0.5)';
-        const y80 = yPct(80);
-        ctx.beginPath();
-        ctx.moveTo(pad.l, y80);
-        ctx.lineTo(pad.l + plotW, y80);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        function drawLine(key, color, yFn) {
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            steps.forEach((s, i) => {
-                const px = x(i);
-                const py = yFn(s[key] || 0);
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            });
-            ctx.stroke();
-        }
-
-        drawLine('cpu', '#ff7b72', yPct);
-        drawLine('mem', '#79c0ff', yPct);
-        drawLine('connections', '#56d364', yConn);
     }
 
     function applyResult(result) {
@@ -130,10 +68,10 @@
 
         const detail = [];
         if (result.signalConnections != null) {
-            detail.push(_('server_attestation.signal_peers', 'Signal peers') + ': ' + result.signalConnections);
+            detail.push(tr('server_attestation.signal_peers', 'Signal peers') + ': ' + result.signalConnections);
         }
         if (result.relaySessions != null) {
-            detail.push(_('server_attestation.relay_sessions', 'Relay sessions') + ': ' + result.relaySessions);
+            detail.push(tr('server_attestation.relay_sessions', 'Relay sessions') + ': ' + result.relaySessions);
         }
         setText('sa-conn-detail', detail.join(' · '));
 
@@ -144,10 +82,12 @@
         }
 
         if (result.testedAt) {
-            setText('sa-hero-meta', _('server_attestation.last_test', 'Last test') + ': ' + new Date(result.testedAt).toLocaleString());
+            let meta = tr('server_attestation.last_test', 'Last test') + ': ' + new Date(result.testedAt).toLocaleString();
+            if (result.mode === 'estimated') {
+                meta += ' · ' + tr('server_attestation.mode_estimated', 'Estimated (WebSocket unreachable)');
+            }
+            setText('sa-hero-meta', meta);
         }
-
-        if (result.rampSteps) renderChart(result.rampSteps);
 
         const dlBtn = document.getElementById('sa-download-btn');
         if (dlBtn) dlBtn.disabled = false;
@@ -174,7 +114,6 @@
         else if (progress.phase === 'done') pct = 100;
         if (fill) fill.style.width = pct + '%';
         if (text) text.textContent = progress.message || progress.phase || '';
-        if (progress.rampSteps) renderChart(progress.rampSteps);
     }
 
     async function pollStatus() {
@@ -192,7 +131,11 @@
                 const result = data.lastResult || (data.progress && data.progress.result);
                 if (result) {
                     applyResult(result);
-                    notify('success', _('server_attestation.complete', 'Benchmark complete'));
+                    if (result.valid) {
+                        notify('success', tr('server_attestation.complete', 'Benchmark complete'));
+                    } else {
+                        notify('warning', tr('server_attestation.incomplete', 'Benchmark finished without a valid tier'));
+                    }
                 }
             }
         } catch (err) {
@@ -201,11 +144,11 @@
     }
 
     async function runBenchmark() {
-        const confirmed = window.confirm(_('server_attestation.confirm_run', 'This will load-test the server. Continue?'));
+        const confirmed = window.confirm(tr('server_attestation.confirm_run', 'This will load-test the server. Continue?'));
         if (!confirmed) return;
 
         setRunning(true);
-        updateProgress({ phase: 'starting', message: _('server_attestation.starting', 'Starting…'), connections: 0 });
+        updateProgress({ phase: 'starting', message: tr('server_attestation.starting', 'Starting…'), connections: 0 });
 
         try {
             const res = await fetch('/api/server-attestation/run', {
@@ -262,10 +205,6 @@
                 pollTimer = setInterval(pollStatus, 2000);
             }
         } catch (_) { /* ignore */ }
-
-        window.addEventListener('resize', () => {
-            if (lastResult && lastResult.rampSteps) renderChart(lastResult.rampSteps);
-        });
     }
 
     if (document.readyState === 'loading') {
