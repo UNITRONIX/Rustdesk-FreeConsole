@@ -208,6 +208,17 @@ class RDProtocol {
     }
 
     /**
+     * Build Auth2FA message for peer TOTP verification (RustDesk unattended 2FA).
+     * @param {string} code - 6-digit TOTP code
+     * @param {Uint8Array} [hwid] - Optional hardware id for trusted-device bypass
+     */
+    buildAuth2FA(code, hwid) {
+        const auth2fa = { code: String(code || '').trim() };
+        if (hwid && hwid.length) auth2fa.hwid = hwid;
+        return { auth_2fa: auth2fa };
+    }
+
+    /**
      * Build LoginRequest message
      * @param {Uint8Array} passwordHash
      * @param {Object} opts

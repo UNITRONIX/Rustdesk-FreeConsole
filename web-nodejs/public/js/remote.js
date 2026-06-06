@@ -459,10 +459,25 @@
         });
 
         c.on('login_error', (error) => {
+            if (session.state === 'waiting_2fa' || session.tfaOverlay.style.display === 'flex') {
+                session.tfaError.textContent = error;
+                session.tfaError.style.display = 'block';
+                session.tfaInput.value = '';
+                if (isActive(session)) session.tfaInput.focus();
+                return;
+            }
             session.loginError.textContent = error;
             session.loginError.style.display = 'block';
             session.passwordInput.value = '';
             if (isActive(session)) session.passwordInput.focus();
+        });
+
+        c.on('2fa_error', (error) => {
+            session.tfaError.textContent = error || (_('remote.2fa_invalid') || 'Invalid code');
+            session.tfaError.style.display = 'block';
+            session.tfaInput.value = '';
+            session.tfaOverlay.style.display = 'flex';
+            if (isActive(session)) session.tfaInput.focus();
         });
 
         c.on('2fa_required', () => {

@@ -292,12 +292,8 @@ class RDClient {
             this._setState('authenticating');
             this._emit('log', 'Verifying 2FA code...');
 
-            const auth2fa = {
-                auth2Fa: {
-                    code: code.trim()
-                }
-            };
-            this._sendPeerMessage(auth2fa);
+            // Field must be auth_2fa — auth2Fa encodes as an empty Message (protobuf.js quirk).
+            this._sendPeerMessage(this.proto.buildAuth2FA(code.trim()));
             console.log('[RDClient] Auth2FA sent');
         } catch (err) {
             this._handleError(err);
@@ -862,6 +858,19 @@ class RDClient {
         console.log('[RDClient] Key exchange completed: encryption enabled');
     }
 
+    _is2faWrongError(error) {
+        const errLower = (error || '').toLowerCase();
+        return errLower.includes('wrong 2fa') || errLower.includes('invalid 2fa');
+    }
+
+    _is2faRequiredError(error) {
+        if (this._is2faWrongError(error)) return false;
+        const errLower = (error || '').toLowerCase();
+        return errLower.includes('2fa required')
+            || errLower.includes('totp')
+            || errLower.includes('verification code');
+    }
+
     _handleLoginResponse(resp) {
         console.log('[RDClient] LoginResponse:', JSON.stringify(resp, (k, v) => {
             if (v && v.type === 'Buffer') return '<Buffer>';
@@ -870,11 +879,16 @@ class RDClient {
         }).substring(0, 500));
 
         if (resp.error && resp.error.length > 0) {
-            const errLower = resp.error.toLowerCase();
             console.log('[RDClient] Login error: ' + resp.error);
 
-            // Detect 2FA requirement from error message
-            if (errLower.includes('2fa') || errLower.includes('totp') || errLower.includes('verification code')) {
+            // RustDesk peer errors: REQUIRE_2FA = "2FA Required", LOGIN_MSG_2FA_WRONG = "Wrong 2FA Code"
+            if (this._is2faWrongError(resp.error)) {
+                console.log('[RDClient] 2FA code rejected: ' + resp.error);
+                this._setState('waiting_2fa');
+                this._emit('2fa_error', resp.error);
+                return;
+            }
+            if (this._is2faRequiredError(resp.error)) {
                 console.log('[RDClient] 2FA required by peer');
                 this._setState('waiting_2fa');
                 this._emit('2fa_required');
