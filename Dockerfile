@@ -93,7 +93,8 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/betterdesk.conf
 
 # ---- Entrypoint ----
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY docker/wait-panel-auth-db.sh /app/docker/wait-panel-auth-db.sh
+RUN chmod +x /entrypoint.sh /app/docker/wait-panel-auth-db.sh
 
 # Environment variables (defaults)
 ENV NODE_ENV=production

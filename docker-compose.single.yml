@@ -74,6 +74,8 @@ services:
       # new devices); pre-existing volumes keep their current mode. Override with
       # "open", "managed", or "locked".
       - ENROLLMENT_MODE=${ENROLLMENT_MODE:-}
+      # Panel folders/groups for RustDesk client (SQLite — same container as console).
+      - AUTH_DB_PATH=/app/data/auth.db
       # Admin credentials (first run only):
       # - ADMIN_USERNAME=admin
       # - ADMIN_PASSWORD=YourSecurePassword123

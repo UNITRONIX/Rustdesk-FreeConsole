@@ -59,7 +59,9 @@ if [ "${DB_TYPE}" = "postgres" ] || [ "${DB_TYPE}" = "postgresql" ]; then
     fi
 else
     export DB_URL="${DB_PATH:-/opt/rustdesk/db_v2.sqlite3}"
+    export AUTH_DB_PATH="${AUTH_DB_PATH:-/app/data/auth.db}"
     echo "Database:     SQLite (${DB_URL})"
+    echo "Panel sync:   ${AUTH_DB_PATH}"
 fi
 
 # Wait for PostgreSQL if configured

@@ -35,9 +35,11 @@ services:
       - "21119:21119"           # WebSocket Relay
     volumes:
       - rustdesk-data:/opt/rustdesk
+      - console-data:/app/data:ro
     environment:
       - ENCRYPTED_ONLY=1
       - DB_URL=${DB_URL:-/opt/rustdesk/db_v2.sqlite3}
+      - AUTH_DB_PATH=/app/data/auth.db
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
       - P2P_FIRST=${P2P_FIRST:-Y}
       - ALWAYS_USE_RELAY=${ALWAYS_USE_RELAY:-N}
@@ -66,7 +68,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 60s
 
   # BetterDesk Console — Node.js Web Interface
   console:
@@ -125,7 +127,7 @@ services:
       - FOWNER
     depends_on:
       server:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:5000/health"]
       interval: 30s

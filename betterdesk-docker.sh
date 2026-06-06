@@ -843,11 +843,26 @@ EOF
             - "21119:21119"
         volumes:
             - $DATA_DIR:/opt/rustdesk
+EOF
+
+        if [ "$DB_TYPE" != "postgresql" ]; then
+                cat >> "$COMPOSE_FILE" << EOF
+            - console_data:/app/data:ro
+EOF
+        fi
+
+        cat >> "$COMPOSE_FILE" << EOF
         environment:
             - RELAY_SERVERS=$server_ip
             - INIT_ADMIN_PASS=$admin_password
             - SIGNAL_RATE_LIMIT_PER_IP=$signal_rate_limit
 EOF
+
+        if [ "$DB_TYPE" != "postgresql" ]; then
+                cat >> "$COMPOSE_FILE" << EOF
+            - AUTH_DB_PATH=/app/data/auth.db
+EOF
+        fi
 
         if [ "$DB_TYPE" = "postgresql" ]; then
                 cat >> "$COMPOSE_FILE" << EOF
@@ -918,7 +933,7 @@ EOF
                 cat >> "$COMPOSE_FILE" << EOF
         depends_on:
             server:
-                condition: service_healthy
+                condition: service_started
 EOF
         fi
 

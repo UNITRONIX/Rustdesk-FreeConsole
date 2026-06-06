@@ -14,6 +14,8 @@
 #   BETTERDESK_IMAGE_TAG=3.0.0-alpha docker compose up -d
 #
 # Web Console: http://localhost:5000
+# RustDesk client API: http://localhost:21114 (Go server — not the console port)
+# SQLite: server mounts console auth.db read-only for folder/group sync (issue #138).
 # Default credentials are written to the shared credentials file:
 #   docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
 #
@@ -40,8 +42,12 @@ services:
       - "21119:21119"           # WebSocket Relay
     volumes:
       - betterdesk-data:/opt/rustdesk
+      # Read-only: console stores folders/groups/ACL in auth.db (SQLite mode).
+      - console-data:/app/data:ro
     environment:
       - ENCRYPTED_ONLY=1
+      # RustDesk client folders/groups (issue #138). Ignored when DB_URL is postgres://.
+      - AUTH_DB_PATH=/app/data/auth.db
       # Set this when clients are outside the Docker network. Use the host's
       # public IP/DNS, or the host LAN IP for LAN-only deployments.
       # Example: RELAY_SERVERS=203.0.113.10:21117 docker compose up -d
@@ -70,7 +76,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 60s
 
   # BetterDesk Console — Web Management Interface
   console:
@@ -103,8 +109,10 @@ services:
     networks:
       - betterdesk-net
     depends_on:
+      # service_started (not healthy): server entrypoint waits for auth.db while
+      # console creates it on first boot — avoids deadlock on fresh installs.
       server:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
     # L-02: drop caps + no privilege escalation for Node.js console.
     # SETUID/SETGID needed by su-exec; CHOWN/FOWNER for volume permissions.
