@@ -50,10 +50,10 @@
                 <span class="material-icons">verified</span>
             </button>
             <% } %>
-            <button class="sidebar-rail-btn <%= currentPage === 'settings' ? 'active' : '' %>"
-                    data-category="settings" title="<%= _('nav.settings') %>">
+            <a href="/settings" class="sidebar-rail-btn <%= currentPage === 'settings' ? 'active' : '' %>"
+               title="<%= _('nav.settings') %>">
                 <span class="material-icons">settings</span>
-            </button>
+            </a>
         </nav>
 
         <!-- Bottom rail icons -->
@@ -286,14 +286,6 @@
         </div>
         <% } %>
 
-        <!-- Settings -->
-        <div class="sidebar-flyout-panel" data-panel="settings">
-            <a href="/settings" class="sidebar-link <%= currentPage === 'settings' ? 'active' : '' %>">
-                <span class="material-icons">settings</span>
-                <span class="sidebar-link-text"><%= _('nav.settings') %></span>
-            </a>
-        </div>
-
         <!-- Sidebar footer - User -->
         <div class="sidebar-footer">
             <div class="sidebar-user" id="user-menu-trigger">
@@ -344,7 +336,7 @@
         isCollapsed ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)');
 
     // Auto-show the panel for the current page's category
-    var activeRail = sidebar.querySelector('.sidebar-rail-btn.active');
+    var activeRail = sidebar.querySelector('.sidebar-rail-btn.active[data-category]');
     if (activeRail) {
         activeCategory = activeRail.dataset.category;
         showPanel(activeCategory);
@@ -371,8 +363,7 @@
             tools: '<%= _("nav.tools") %>',
             system: '<%= _("nav.system") %>',
             'server-mgmt': '<%= _("nav.server_management") || "Server Management" %>',
-            'server-attest': '<%= _("nav.server_attestation") || "Server Attestation" %>',
-            settings: '<%= _("nav.settings") %>'
+            'server-attest': '<%= _("nav.server_attestation") || "Server Attestation" %>'
         };
         if (flyoutTitle) flyoutTitle.textContent = titles[category] || '';
         activeCategory = category;

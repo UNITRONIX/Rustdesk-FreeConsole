@@ -258,6 +258,7 @@ table {
     cursor: pointer;
     transition: all var(--transition-fast);
     position: relative;
+    text-decoration: none;
 }
 
 .sidebar-rail-btn:hover {
