@@ -2,7 +2,7 @@
 
 Get BetterDesk running in **30 seconds** with pre-built images from GitHub Container Registry (ghcr.io).
 
-Versioned tags match [CHANGELOG.md](../../CHANGELOG.md) and git releases (e.g. `3.0.0-alpha`, git tag `v3.0.0-alpha`). The quick-start compose file defaults to the current alpha; override with `BETTERDESK_IMAGE_TAG`.
+Versioned tags match [CHANGELOG.md](../../CHANGELOG.md) and git releases (e.g. `3.0.0`, git tag `v3.0.0`). The quick-start compose file defaults to the current release; override with `BETTERDESK_IMAGE_TAG`.
 
 ## Prerequisites
 
@@ -16,7 +16,7 @@ Versioned tags match [CHANGELOG.md](../../CHANGELOG.md) and git releases (e.g. `
 # 1. Download docker-compose file
 curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.yml -o docker-compose.yml
 
-# 2. Pull pinned images and start (default tag: 3.0.0-alpha)
+# 2. Pull pinned images and start (default tag: 3.0.0)
 docker compose pull
 docker compose up -d
 
@@ -30,7 +30,7 @@ docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/n
 
 ```bash
 # Explicit version (recommended for production)
-export BETTERDESK_IMAGE_TAG=3.0.0-alpha
+export BETTERDESK_IMAGE_TAG=3.0.0
 docker compose pull && docker compose up -d
 
 # Track rolling latest from main branch builds
@@ -116,7 +116,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 ## 🔄 Updates
 
 ```bash
-# Stay on the same pinned tag (default 3.0.0-alpha)
+# Stay on the same pinned tag (default 3.0.0)
 docker compose pull
 docker compose up -d
 

@@ -255,7 +255,7 @@ jobs:
             echo ""
             echo "### Pin a version (production)"
             echo "\`\`\`bash"
-            echo "export BETTERDESK_IMAGE_TAG=3.0.0-alpha"
+            echo "export BETTERDESK_IMAGE_TAG=3.0.0"
             echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.quick.yml -o docker-compose.yml"
             echo "docker compose pull"
             echo "docker compose up -d"

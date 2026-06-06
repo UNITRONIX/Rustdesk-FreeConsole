@@ -233,9 +233,10 @@ function createSqliteAdapter(config) {
         const cols = new Set(db.prepare('PRAGMA table_info(access_tokens)').all().map((c) => c.name));
         if (!cols.has('token_hash')) {
             db.exec('ALTER TABLE access_tokens ADD COLUMN token_hash TEXT');
-            db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_access_tokens_hash ON access_tokens (token_hash)
-                WHERE token_hash IS NOT NULL`);
+            console.log('[DB] Migration: added access_tokens.token_hash');
         }
+        db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_access_tokens_hash ON access_tokens (token_hash)
+            WHERE token_hash IS NOT NULL`);
         const rows = db.prepare(`
             SELECT id, token FROM access_tokens
             WHERE (token_hash IS NULL OR token_hash = '') AND token != ''
@@ -287,8 +288,6 @@ function createSqliteAdapter(config) {
                 revoked INTEGER DEFAULT 0,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_access_tokens_hash ON access_tokens (token_hash)
-                WHERE token_hash IS NOT NULL;
             CREATE TABLE IF NOT EXISTS login_attempts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
