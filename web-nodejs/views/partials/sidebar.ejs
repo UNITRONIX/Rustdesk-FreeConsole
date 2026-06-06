@@ -45,10 +45,10 @@
             </button>
             <% } %>
             <% if (hasPermission('server.attestation')) { %>
-            <button class="sidebar-rail-btn <%= currentPage === 'server-attestation' ? 'active' : '' %>"
-                    data-category="server-attest" title="<%= _('nav.server_attestation') || 'Server Attestation' %>">
+            <a href="/server-attestation" class="sidebar-rail-btn <%= currentPage === 'server-attestation' ? 'active' : '' %>"
+               title="<%= _('nav.server_attestation') || 'Server Attestation' %>">
                 <span class="material-icons">verified</span>
-            </button>
+            </a>
             <% } %>
             <a href="/settings" class="sidebar-rail-btn <%= currentPage === 'settings' ? 'active' : '' %>"
                title="<%= _('nav.settings') %>">
@@ -276,16 +276,6 @@
         </div>
         <% } %>
 
-        <!-- Server Attestation -->
-        <% if (hasPermission('server.attestation')) { %>
-        <div class="sidebar-flyout-panel" data-panel="server-attest">
-            <a href="/server-attestation" class="sidebar-link <%= currentPage === 'server-attestation' ? 'active' : '' %>">
-                <span class="material-icons">verified</span>
-                <span class="sidebar-link-text"><%= _('nav.server_attestation') || 'Server Attestation' %></span>
-            </a>
-        </div>
-        <% } %>
-
         <!-- Sidebar footer - User -->
         <div class="sidebar-footer">
             <div class="sidebar-user" id="user-menu-trigger">
@@ -340,8 +330,8 @@
     if (activeRail) {
         activeCategory = activeRail.dataset.category;
         showPanel(activeCategory);
-    } else if ('<%= currentPage %>' === 'settings') {
-        // Settings is a direct rail link — no flyout sub-menu, keep sidebar collapsed
+    } else if (['settings', 'server-attestation'].includes('<%= currentPage %>')) {
+        // Direct rail links — no flyout sub-menu, keep sidebar collapsed
         isCollapsed = true;
         sidebar.dataset.collapsed = 'true';
         document.documentElement.style.setProperty('--sidebar-current-width', 'var(--sidebar-width-collapsed)');
@@ -367,8 +357,7 @@
             management: '<%= _("nav.management") || "Management" %>',
             tools: '<%= _("nav.tools") %>',
             system: '<%= _("nav.system") %>',
-            'server-mgmt': '<%= _("nav.server_management") || "Server Management" %>',
-            'server-attest': '<%= _("nav.server_attestation") || "Server Attestation" %>'
+            'server-mgmt': '<%= _("nav.server_management") || "Server Management" %>'
         };
         if (flyoutTitle) flyoutTitle.textContent = titles[category] || '';
         activeCategory = category;
