@@ -305,7 +305,8 @@
       "title": "Informacje sprzętowe",
       "gpu": "Karta graficzna"
     },
-    "no_signal_tooltip": "Klient niedawno kontaktował API, ale nie jest zarejestrowany na serwerze sygnałowym (UDP :21116). Uruchom ponownie klienta po migracji serwera."
+    "no_signal_tooltip": "Klient niedawno kontaktował API, ale nie jest zarejestrowany na serwerze sygnałowym (UDP :21116). Uruchom ponownie klienta po migracji serwera.",
+    "per_page": "Na stronę"
   },
   "keys": {
     "title": "Klucze serwera",

@@ -305,7 +305,8 @@
     "folder_group_readonly": "Mapgebaseerde groepen worden via Mappen beheerd.",
     "manage_user_groups": "Gebruikersgroepen beheren",
     "restore_failed": "Gerat konnte nicht wiederhergestellt werden",
-    "no_signal_tooltip": "De client heeft onlangs de API bereikt maar is niet geregistreerd op de signalserver (UDP :21116). Herstart de client na servermigratie."
+    "no_signal_tooltip": "De client heeft onlangs de API bereikt maar is niet geregistreerd op de signalserver (UDP :21116). Herstart de client na servermigratie.",
+    "per_page": "Per pagina"
   },
   "keys": {
     "title": "Serversleutels",

@@ -557,10 +557,68 @@
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-lg, 12px);
     overflow: hidden;
+    position: relative;
+}
+
+.devices-table-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.devices-table-scroll::-webkit-scrollbar {
+    display: none;
+    height: 0;
+}
+
+.devices-hscroll-float {
+    position: fixed;
+    z-index: calc(var(--z-sticky) + 2);
+    --devices-hscroll-height: 22px;
+    height: var(--devices-hscroll-height);
+    overflow-x: auto;
+    overflow-y: hidden;
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--border-primary);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.25);
+    display: none;
+    pointer-events: auto;
+}
+
+.devices-hscroll-float.visible {
+    display: block;
+}
+
+.devices-hscroll-float::-webkit-scrollbar {
+    height: 18px;
+}
+
+.devices-hscroll-float::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+.devices-hscroll-float::-webkit-scrollbar-thumb {
+    background: var(--text-tertiary);
+    border-radius: var(--radius-full);
+    border: 3px solid var(--bg-secondary);
+    min-height: 18px;
+}
+
+.devices-hscroll-float {
+    scrollbar-width: auto;
+    scrollbar-color: var(--text-tertiary) var(--bg-secondary);
+}
+
+.devices-hscroll-spacer {
+    height: 1px;
+    pointer-events: none;
 }
 
 .devices-table {
     width: 100%;
+    min-width: max-content;
     border-collapse: collapse;
 }
 
@@ -912,6 +970,7 @@ td.column-hidden {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--space-sm);
     padding: 8px 12px;
     border-top: 1px solid var(--border-primary);
     background: var(--bg-tertiary);
@@ -920,6 +979,49 @@ td.column-hidden {
 
 .pagination-info {
     color: var(--text-secondary);
+    flex: 1;
+    min-width: 0;
+}
+
+.pagination-per-page {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.pagination-per-page label {
+    font-size: var(--font-size-xs);
+}
+
+.pagination-per-page-select {
+    min-width: 68px;
+    padding: 4px 8px;
+    font-size: var(--font-size-xs);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.devices-context-menu {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    min-width: 180px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: var(--bg-elevated, #2d333b);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md, 8px);
+    padding: 4px 0;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.devices-context-menu.open {
+    display: block;
 }
 
 .pagination-controls {
@@ -1402,9 +1504,15 @@ td.column-hidden {
         justify-content: center;
     }
 
-    .pagination-info {
+    .pagination-info,
+    .pagination-per-page {
         width: 100%;
+        justify-content: center;
         text-align: center;
+    }
+
+    .devices-hscroll-float {
+        display: none !important;
     }
 
     /* Banned card styling */

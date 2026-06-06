@@ -183,6 +183,7 @@
     "selected": "selected",
     "showing": "Showing",
     "of": "of",
+    "per_page": "Per page",
     "sync_status": "Sync Status",
     "sync_success": "Status synchronized successfully",
     "empty_title": "No devices found",

@@ -311,7 +311,8 @@
     "folder_group_readonly": "Grup yang didukung folder dikelola dari folder.",
     "manage_user_groups": "Kelola grup pengguna",
     "restore_failed": "Gagal memulihkan perangkat",
-    "no_signal_tooltip": "Klien baru saja menghubungi API tetapi tidak terdaftar di server sinyal (UDP :21116). Mulai ulang klien setelah migrasi server."
+    "no_signal_tooltip": "Klien baru saja menghubungi API tetapi tidak terdaftar di server sinyal (UDP :21116). Mulai ulang klien setelah migrasi server.",
+    "per_page": "Per halaman"
   },
   "keys": {
     "title": "Kunci Server",

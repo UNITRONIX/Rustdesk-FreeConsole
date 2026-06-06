@@ -305,7 +305,8 @@
     "folder_group_readonly": "Les groupes associés aux dossiers sont gérés depuis les dossiers.",
     "manage_user_groups": "Gérer les groupes d’utilisateurs",
     "restore_failed": "Échec de la restauration de l'appareil",
-    "no_signal_tooltip": "Le client a contacté l'API récemment mais n'est pas enregistré sur le serveur de signal (UDP :21116). Redémarrez le client après la migration du serveur."
+    "no_signal_tooltip": "Le client a contacté l'API récemment mais n'est pas enregistré sur le serveur de signal (UDP :21116). Redémarrez le client après la migration du serveur.",
+    "per_page": "Par page"
   },
   "keys": {
     "title": "Tableau de bord",

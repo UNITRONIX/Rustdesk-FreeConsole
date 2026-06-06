@@ -305,7 +305,8 @@
     "folder_group_readonly": "Grupos baseados em pastas são gerenciados em Pastas.",
     "manage_user_groups": "Gerenciar grupos de usuários",
     "restore_failed": "Erro al restaurar o dispositivo",
-    "no_signal_tooltip": "O cliente contactou a API recentemente, mas não está registado no servidor de sinal (UDP :21116). Reinicie o cliente após a migração do servidor."
+    "no_signal_tooltip": "O cliente contactou a API recentemente, mas não está registado no servidor de sinal (UDP :21116). Reinicie o cliente após a migração do servidor.",
+    "per_page": "Por página"
   },
   "keys": {
     "title": "Chaves do servidor",

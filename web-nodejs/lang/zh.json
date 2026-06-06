@@ -305,7 +305,8 @@
     "folder_group_readonly": "文件夹关联的分组由文件夹管理。",
     "manage_user_groups": "管理用户组",
     "restore_failed": "恢复设备失败",
-    "no_signal_tooltip": "客户端最近联系了 API，但未在信号服务器（UDP :21116）上注册。服务器迁移后请重启客户端。"
+    "no_signal_tooltip": "客户端最近联系了 API，但未在信号服务器（UDP :21116）上注册。服务器迁移后请重启客户端。",
+    "per_page": "每页"
   },
   "keys": {
     "title": "服务器密钥",

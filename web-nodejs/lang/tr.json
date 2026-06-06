@@ -311,7 +311,8 @@
     "folder_group_readonly": "Klasör destekli gruplar klasörlerden yönetilir.",
     "manage_user_groups": "Kullanıcı gruplarını yönet",
     "restore_failed": "Cihaz geri yükleme başarısız",
-    "no_signal_tooltip": "İstemci yakın zamanda API ile iletişim kurdu ancak sinyal sunucusuna (UDP :21116) kayıtlı değil. Sunucu geçişinden sonra istemciyi yeniden başlatın."
+    "no_signal_tooltip": "İstemci yakın zamanda API ile iletişim kurdu ancak sinyal sunucusuna (UDP :21116) kayıtlı değil. Sunucu geçişinden sonra istemciyi yeniden başlatın.",
+    "per_page": "Sayfa başına"
   },
   "keys": {
     "title": "Sunucu Anahtarları",

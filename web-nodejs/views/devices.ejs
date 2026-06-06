@@ -109,34 +109,53 @@
 
             <!-- Table -->
             <div class="devices-table-container">
-                <table class="devices-table" id="devices-table">
-                    <thead>
-                        <tr>
-                            <th class="sortable" data-sort="id" data-column="id">${_('devices.id')}</th>
-                            <th class="sortable" data-sort="hostname" data-column="hostname">${_('devices.hostname')}</th>
-                            <th class="sortable" data-sort="device_type" data-column="device_type">${_('devices.device_type')}</th>
-                            <th class="sortable" data-sort="platform" data-column="platform">${_('devices.platform')}</th>
-                            <th class="sortable" data-sort="last_online" data-column="last_online">${_('devices.last_seen')}</th>
-                            <th data-column="status">${_('devices.status')}</th>
-                            <th data-column="tags">${_('devices.tags')}</th>
-                            <th class="col-actions" data-column="actions"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="devices-tbody">
-                        <tr class="loading-row">
-                            <td colspan=\"8\" style=\"text-align: center; padding: 40px;\">
-                                <span class="skeleton skeleton-text" style="width: 200px;"></span>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="devices-table-scroll" id="devices-table-scroll">
+                    <table class="devices-table" id="devices-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="id" data-column="id">${_('devices.id')}</th>
+                                <th class="sortable" data-sort="hostname" data-column="hostname">${_('devices.hostname')}</th>
+                                <th class="sortable" data-sort="device_type" data-column="device_type">${_('devices.device_type')}</th>
+                                <th class="sortable" data-sort="platform" data-column="platform">${_('devices.platform')}</th>
+                                <th class="sortable" data-sort="last_online" data-column="last_online">${_('devices.last_seen')}</th>
+                                <th data-column="status">${_('devices.status')}</th>
+                                <th data-column="tags">${_('devices.tags')}</th>
+                                <th class="col-actions" data-column="actions"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="devices-tbody">
+                            <tr class="loading-row">
+                                <td colspan=\"8\" style=\"text-align: center; padding: 40px;\">
+                                    <span class="skeleton skeleton-text" style="width: 200px;"></span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
                 <div class="devices-pagination" id="pagination">
                     <div class="pagination-info">
                         <span id="pagination-info">${_('devices.showing')} 0-0 ${_('devices.of')} 0</span>
                     </div>
+                    <div class="pagination-per-page">
+                        <label for="per-page-select">${_('devices.per_page')}</label>
+                        <select id="per-page-select" class="pagination-per-page-select" aria-label="${_('devices.per_page')}">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
                     <div class="pagination-controls" id="pagination-controls"></div>
                 </div>
+            </div>
+
+            <!-- Shared context menu (devices, folders, groups) -->
+            <div class="devices-context-menu" id="devices-context-menu" role="menu" hidden>            </div>
+
+            <!-- Floating horizontal scrollbar (fixed to visible content area) -->
+            <div class="devices-hscroll-float" id="devices-hscroll-float" aria-hidden="true">
+                <div class="devices-hscroll-spacer" id="devices-hscroll-spacer"></div>
             </div>
 
             <!-- Empty state -->

@@ -305,7 +305,8 @@
     "folder_group_readonly": "Los grupos basados en carpetas se administran desde Carpetas.",
     "manage_user_groups": "Administrar grupos de usuarios",
     "restore_failed": "Error al restaurar el dispositivo",
-    "no_signal_tooltip": "El cliente contactó la API recientemente, pero no está registrado en el servidor de señal (UDP :21116). Reinicie el cliente tras la migración del servidor."
+    "no_signal_tooltip": "El cliente contactó la API recientemente, pero no está registrado en el servidor de señal (UDP :21116). Reinicie el cliente tras la migración del servidor.",
+    "per_page": "Por página"
   },
   "keys": {
     "title": "Panel",

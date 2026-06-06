@@ -63,9 +63,14 @@
     let perPage = 20;
     let searchQuery = '';
     let draggedDeviceId = null;
+    const STORAGE_PER_PAGE = 'bd_devices_per_page';
+    const PER_PAGE_OPTIONS = [10, 20, 50, 100];
+    let contextMenuState = null;
+    let hScrollSyncing = false;
     
     // Elements
     let tableBody, pagination, emptyState, bulkActions, selectedCountEl;
+    let contextMenuEl, tableScrollEl, hScrollFloatEl, hScrollSpacerEl;
     
     function init() {
         // Cache elements
@@ -93,7 +98,17 @@
         initDragDrop();
         attachFolderDropEvents();  // For static folder chips
         initColumnVisibility();    // Column show/hide toggle
-        initKebabGlobalClose();    // Close kebab menus on outside click
+        initKebabGlobalClose();    // Close kebab/context menus on outside click
+        initContextMenu();
+        initPerPage();
+        initTableHScroll();
+
+        const savedPerPage = parseInt(localStorage.getItem(STORAGE_PER_PAGE) || '', 10);
+        if (PER_PAGE_OPTIONS.includes(savedPerPage)) {
+            perPage = savedPerPage;
+            const perPageSelect = document.getElementById('per-page-select');
+            if (perPageSelect) perPageSelect.value = String(perPage);
+        }
         
         // Refresh handler
         window.addEventListener('app:refresh', () => {
@@ -202,16 +217,27 @@
             if (!e.target.closest('.kebab-wrapper')) {
                 closeAllKebabMenus();
             }
+            if (!e.target.closest('.devices-context-menu')) {
+                closeContextMenu();
+            }
         });
 
-        // Close on Escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeAllKebabMenus();
+            if (e.key === 'Escape') {
+                closeAllKebabMenus();
+                closeContextMenu();
+            }
         });
 
-        // Close on scroll (position:fixed menus don't follow scroll)
-        document.addEventListener('scroll', closeAllKebabMenus, true);
-        window.addEventListener('resize', closeAllKebabMenus);
+        document.addEventListener('scroll', () => {
+            closeAllKebabMenus();
+            closeContextMenu();
+        }, true);
+        window.addEventListener('resize', () => {
+            closeAllKebabMenus();
+            closeContextMenu();
+            updateTableHScroll();
+        });
     }
 
     function closeAllKebabMenus() {
@@ -222,6 +248,241 @@
         });
         const overlay = document.getElementById('kebab-overlay');
         if (overlay) overlay.classList.remove('open');
+    }
+
+    function buildDeviceMenuItemsHtml(device) {
+        const eid = Utils.escapeHtml(device.id);
+        const banned = !!device.banned;
+        return `
+            <button type="button" class="kebab-menu-item connect-desktop" data-action="web-remote" data-id="${eid}">
+                <span class="material-icons">screen_share</span>
+                <span>${_('actions.web_remote') || 'Web Remote'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="cdap-viewer" data-id="${eid}">
+                <span class="material-icons">photo_camera</span>
+                <span>${_('actions.cdap_viewer') || 'CDAP Snapshot Viewer'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="connect-desktop" data-id="${eid}">
+                <span class="material-icons">computer</span>
+                <span>${_('actions.connect_desktop') || 'Desktop Client'}</span>
+            </button>
+            <div class="kebab-divider"></div>
+            <button type="button" class="kebab-menu-item info" data-action="details" data-id="${eid}">
+                <span class="material-icons">info</span>
+                <span>${_('actions.details')}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="edit" data-id="${eid}">
+                <span class="material-icons">edit</span>
+                <span>${_('actions.edit')}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="groups" data-id="${eid}">
+                <span class="material-icons">hub</span>
+                <span>${_('devices.manage_groups') || 'Manage Groups'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="access-policy" data-id="${eid}">
+                <span class="material-icons">lock</span>
+                <span>${_('devices.access_policy') || 'Access Policy'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item ${banned ? 'unban' : 'ban'}" data-action="toggle-ban" data-id="${eid}" data-banned="${banned}">
+                <span class="material-icons">${banned ? 'check_circle' : 'block'}</span>
+                <span>${banned ? _('actions.unban') : _('actions.ban')}</span>
+            </button>
+            <div class="kebab-divider"></div>
+            <button type="button" class="kebab-menu-item danger" data-action="delete" data-id="${eid}">
+                <span class="material-icons">delete</span>
+                <span>${_('actions.delete')}</span>
+            </button>`;
+    }
+
+    function initContextMenu() {
+        contextMenuEl = document.getElementById('devices-context-menu');
+        if (!contextMenuEl) return;
+
+        contextMenuEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn || !contextMenuState) return;
+            e.stopPropagation();
+            const action = btn.dataset.action;
+            const state = contextMenuState;
+            closeContextMenu();
+
+            if (state.type === 'device') {
+                handleAction(action, btn.dataset.id || state.id, btn.dataset);
+            } else if (state.type === 'folder') {
+                if (action === 'edit') editFolder(state.id);
+                else if (action === 'delete') deleteFolder(state.id);
+            } else if (state.type === 'group') {
+                const group = deviceGroups.find(item => item.guid === state.guid);
+                if (!group) return;
+                if (action === 'edit') showDeviceGroupModal(group);
+                else if (action === 'delete') deleteDeviceGroup(group);
+            }
+        });
+
+    }
+
+    function buildChipContextMenuHtml(type) {
+        return `
+            <button type="button" class="kebab-menu-item" data-action="edit">
+                <span class="material-icons">edit</span>
+                <span>${_('actions.edit')}</span>
+            </button>
+            <div class="kebab-divider"></div>
+            <button type="button" class="kebab-menu-item danger" data-action="delete">
+                <span class="material-icons">delete</span>
+                <span>${_('actions.delete')}</span>
+            </button>`;
+    }
+
+    function positionContextMenu(clientX, clientY) {
+        if (!contextMenuEl) return;
+        const menuWidth = contextMenuEl.offsetWidth || 180;
+        const menuHeight = contextMenuEl.offsetHeight || 120;
+        let left = clientX;
+        let top = clientY;
+        if (left + menuWidth > window.innerWidth - 8) left = window.innerWidth - menuWidth - 8;
+        if (top + menuHeight > window.innerHeight - 8) top = window.innerHeight - menuHeight - 8;
+        if (left < 8) left = 8;
+        if (top < 8) top = 8;
+        contextMenuEl.style.left = left + 'px';
+        contextMenuEl.style.top = top + 'px';
+    }
+
+    function openContextMenu(clientX, clientY, html, state) {
+        if (!contextMenuEl) return;
+        closeAllKebabMenus();
+        contextMenuState = state;
+        contextMenuEl.innerHTML = html;
+        contextMenuEl.hidden = false;
+        contextMenuEl.classList.add('open');
+        positionContextMenu(clientX, clientY);
+    }
+
+    function closeContextMenu() {
+        if (!contextMenuEl) return;
+        contextMenuEl.classList.remove('open');
+        contextMenuEl.hidden = true;
+        contextMenuEl.innerHTML = '';
+        contextMenuEl.style.left = '';
+        contextMenuEl.style.top = '';
+        contextMenuState = null;
+    }
+
+    function attachDeviceRowContextMenu() {
+        if (!tableBody) return;
+        tableBody.querySelectorAll('tr[data-id]').forEach(row => {
+            row.addEventListener('contextmenu', (e) => {
+                if (e.target.closest('.kebab-wrapper') || e.target.closest('.copy-btn')) return;
+                e.preventDefault();
+                const deviceId = row.dataset.id;
+                const device = devices.find(d => d.id === deviceId) ||
+                    filteredDevices.find(d => d.id === deviceId);
+                if (!device) return;
+                openContextMenu(e.clientX, e.clientY, buildDeviceMenuItemsHtml(device), {
+                    type: 'device',
+                    id: deviceId
+                });
+            });
+        });
+    }
+
+    function attachChipContextMenu(el, state) {
+        el.addEventListener('contextmenu', (e) => {
+            if (e.target.closest('.chip-action') || e.target.closest('.chip-actions')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            openContextMenu(e.clientX, e.clientY, buildChipContextMenuHtml(state.type), state);
+        });
+    }
+
+    function initPerPage() {
+        const select = document.getElementById('per-page-select');
+        if (!select) return;
+        select.addEventListener('change', () => {
+            const value = parseInt(select.value, 10);
+            if (!PER_PAGE_OPTIONS.includes(value)) return;
+            perPage = value;
+            currentPage = 1;
+            try { localStorage.setItem(STORAGE_PER_PAGE, String(perPage)); } catch (_) {}
+            renderDevices();
+            renderPagination();
+        });
+    }
+
+    function initTableHScroll() {
+        tableScrollEl = document.getElementById('devices-table-scroll');
+        hScrollFloatEl = document.getElementById('devices-hscroll-float');
+        hScrollSpacerEl = document.getElementById('devices-hscroll-spacer');
+        if (!tableScrollEl || !hScrollFloatEl || !hScrollSpacerEl) return;
+
+        tableScrollEl.addEventListener('scroll', () => {
+            if (hScrollSyncing) return;
+            hScrollSyncing = true;
+            hScrollFloatEl.scrollLeft = tableScrollEl.scrollLeft;
+            hScrollSyncing = false;
+        });
+
+        hScrollFloatEl.addEventListener('scroll', () => {
+            if (hScrollSyncing) return;
+            hScrollSyncing = true;
+            tableScrollEl.scrollLeft = hScrollFloatEl.scrollLeft;
+            hScrollSyncing = false;
+        });
+
+        if (typeof ResizeObserver !== 'undefined') {
+            const ro = new ResizeObserver(() => updateTableHScroll());
+            ro.observe(tableScrollEl);
+            const table = document.getElementById('devices-table');
+            if (table) ro.observe(table);
+            const tableContainer = document.querySelector('.devices-table-container');
+            if (tableContainer) ro.observe(tableContainer);
+        }
+
+        const mainContent = document.querySelector('.main-content');
+        if (mainContent) {
+            mainContent.addEventListener('scroll', updateTableHScroll, { passive: true });
+        }
+        window.addEventListener('scroll', updateTableHScroll, { passive: true });
+    }
+
+    function updateTableHScroll() {
+        if (!tableScrollEl || !hScrollFloatEl || !hScrollSpacerEl) return;
+        const table = document.getElementById('devices-table');
+        const tableContainer = document.querySelector('.devices-table-container');
+        const mainContent = document.querySelector('.main-content');
+        if (!table || !tableContainer) return;
+
+        const scrollWidth = table.scrollWidth;
+        const clientWidth = tableScrollEl.clientWidth;
+        const needsHScroll = scrollWidth > clientWidth + 1;
+        hScrollSpacerEl.style.width = scrollWidth + 'px';
+
+        if (!needsHScroll) {
+            hScrollFloatEl.classList.remove('visible');
+            hScrollFloatEl.scrollLeft = 0;
+            tableScrollEl.scrollLeft = 0;
+            return;
+        }
+
+        const containerRect = tableContainer.getBoundingClientRect();
+        const viewportRect = mainContent
+            ? mainContent.getBoundingClientRect()
+            : { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
+
+        const tableInView = containerRect.bottom > viewportRect.top + 8 &&
+            containerRect.top < viewportRect.bottom - 8;
+
+        if (!tableInView) {
+            hScrollFloatEl.classList.remove('visible');
+            return;
+        }
+
+        const barHeight = hScrollFloatEl.offsetHeight || 22;
+        hScrollFloatEl.style.left = containerRect.left + 'px';
+        hScrollFloatEl.style.width = containerRect.width + 'px';
+        hScrollFloatEl.style.top = (viewportRect.bottom - barHeight) + 'px';
+        hScrollFloatEl.style.bottom = 'auto';
+        hScrollFloatEl.classList.add('visible');
     }
 
     /**
@@ -530,46 +791,7 @@
                         <button class="kebab-btn" title="${_('devices.actions')}">
                             <span class="material-icons">more_vert</span>
                         </button>
-                        <div class="kebab-menu">
-                            <button class="kebab-menu-item connect-desktop" data-action="web-remote" data-id="${eid}">
-                                <span class="material-icons">screen_share</span>
-                                <span>${_('actions.web_remote') || 'Web Remote'}</span>
-                            </button>
-                            <button class="kebab-menu-item" data-action="cdap-viewer" data-id="${eid}">
-                                <span class="material-icons">photo_camera</span>
-                                <span>${_('actions.cdap_viewer') || 'CDAP Snapshot Viewer'}</span>
-                            </button>
-                            <button class="kebab-menu-item" data-action="connect-desktop" data-id="${eid}">
-                                <span class="material-icons">computer</span>
-                                <span>${_('actions.connect_desktop') || 'Desktop Client'}</span>
-                            </button>
-                            <div class="kebab-divider"></div>
-                            <button class="kebab-menu-item info" data-action="details" data-id="${eid}">
-                                <span class="material-icons">info</span>
-                                <span>${_('actions.details')}</span>
-                            </button>
-                            <button class="kebab-menu-item" data-action="edit" data-id="${eid}">
-                                <span class="material-icons">edit</span>
-                                <span>${_('actions.edit')}</span>
-                            </button>
-                            <button class="kebab-menu-item" data-action="groups" data-id="${eid}">
-                                <span class="material-icons">hub</span>
-                                <span>${_('devices.manage_groups') || 'Manage Groups'}</span>
-                            </button>
-                            <button class="kebab-menu-item" data-action="access-policy" data-id="${eid}">
-                                <span class="material-icons">lock</span>
-                                <span>${_('devices.access_policy') || 'Access Policy'}</span>
-                            </button>
-                            <button class="kebab-menu-item ${device.banned ? 'unban' : 'ban'}" data-action="toggle-ban" data-id="${eid}" data-banned="${device.banned}">
-                                <span class="material-icons">${device.banned ? 'check_circle' : 'block'}</span>
-                                <span>${device.banned ? _('actions.unban') : _('actions.ban')}</span>
-                            </button>
-                            <div class="kebab-divider"></div>
-                            <button class="kebab-menu-item danger" data-action="delete" data-id="${eid}">
-                                <span class="material-icons">delete</span>
-                                <span>${_('actions.delete')}</span>
-                            </button>
-                        </div>
+                        <div class="kebab-menu">${buildDeviceMenuItemsHtml(device)}</div>
                     </div>
                 </td>
             </tr>`;
@@ -580,6 +802,8 @@
         
         // Attach event listeners
         attachRowEventListeners();
+        attachDeviceRowContextMenu();
+        requestAnimationFrame(updateTableHScroll);
     }
     
     /**
@@ -1654,6 +1878,7 @@
                 event.preventDefault();
                 selectDeviceGroup(el.dataset.group);
             });
+            attachChipContextMenu(el, { type: 'group', guid: el.dataset.group });
         });
 
         container.querySelectorAll('.group-chip-action').forEach(btn => {
@@ -1782,6 +2007,7 @@
                 e.preventDefault();
                 selectFolder(el.dataset.folder);
             });
+            attachChipContextMenu(el, { type: 'folder', id: el.dataset.folder });
         });
         
         container.querySelectorAll('.folder-edit').forEach(btn => {
@@ -1976,6 +2202,7 @@
         document.querySelectorAll('.devices-table td[data-column]').forEach(td => {
             td.classList.toggle('column-hidden', hiddenColumns.includes(td.dataset.column));
         });
+        requestAnimationFrame(updateTableHScroll);
     }
     
     /**

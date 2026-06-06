@@ -311,7 +311,8 @@
     "folder_group_readonly": "Kansiota tukevia ryhmiä hallitaan kansioista.",
     "manage_user_groups": "Hallinnoi käyttäjäryhmiä",
     "restore_failed": "Laite konnte nicht wiederhergestellt werden",
-    "no_signal_tooltip": "Asiakas otti hiljattain yhteyttä API:in, mutta ei ole rekisteröitynyt signal-palvelimeen (UDP :21116). Käynnistä asiakas uudelleen palvelinsiirron jälkeen."
+    "no_signal_tooltip": "Asiakas otti hiljattain yhteyttä API:in, mutta ei ole rekisteröitynyt signal-palvelimeen (UDP :21116). Käynnistä asiakas uudelleen palvelinsiirron jälkeen.",
+    "per_page": "Per sivu"
   },
   "keys": {
     "title": "Palvelimen avaimet",

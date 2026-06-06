@@ -311,7 +311,8 @@
     "folder_group_readonly": "Các nhóm được hỗ trợ bởi thư mục được quản lý từ các thư mục.",
     "manage_user_groups": "Quản lý nhóm người dùng",
     "restore_failed": "Không thể khôi phục thiết bị",
-    "no_signal_tooltip": "Máy khách vừa liên hệ API nhưng chưa đăng ký trên máy chủ tín hiệu (UDP :21116). Khởi động lại máy khách sau khi di chuyển máy chủ."
+    "no_signal_tooltip": "Máy khách vừa liên hệ API nhưng chưa đăng ký trên máy chủ tín hiệu (UDP :21116). Khởi động lại máy khách sau khi di chuyển máy chủ.",
+    "per_page": "Mỗi trang"
   },
   "keys": {
     "title": "Khóa máy chủ",

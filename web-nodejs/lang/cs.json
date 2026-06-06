@@ -305,7 +305,8 @@
     "folder_group_readonly": "Skupiny založené na složkách se spravují ve složkách.",
     "manage_user_groups": "Spravovat skupiny uživatelů",
     "restore_failed": "Ne udalo sie przywrocic urzadzenia",
-    "no_signal_tooltip": "Klient nedávno kontaktoval API, ale není zaregistrován na signal serveru (UDP :21116). Po migraci serveru restartujte klienta."
+    "no_signal_tooltip": "Klient nedávno kontaktoval API, ale není zaregistrován na signal serveru (UDP :21116). Po migraci serveru restartujte klienta.",
+    "per_page": "Na stránku"
   },
   "keys": {
     "title": "Klíče serveru",

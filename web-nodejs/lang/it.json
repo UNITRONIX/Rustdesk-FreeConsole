@@ -305,7 +305,8 @@
     "folder_group_readonly": "I gruppi basati su cartelle sono gestiti tramite Cartelle.",
     "manage_user_groups": "Gestisci gruppi utente",
     "restore_failed": "Èchec de la restauration de il dispositivo",
-    "no_signal_tooltip": "Il client ha contattato l'API di recente ma non è registrato sul server di segnale (UDP :21116). Riavvia il client dopo la migrazione del server."
+    "no_signal_tooltip": "Il client ha contattato l'API di recente ma non è registrato sul server di segnale (UDP :21116). Riavvia il client dopo la migrazione del server.",
+    "per_page": "Per pagina"
   },
   "keys": {
     "title": "Chiavi del server",

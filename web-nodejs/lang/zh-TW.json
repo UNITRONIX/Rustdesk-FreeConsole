@@ -305,7 +305,8 @@
     "folder_group_readonly": "資料夾關聯的群組由資料夾管理。",
     "manage_user_groups": "管理使用者群組",
     "restore_failed": "還原裝置失敗",
-    "no_signal_tooltip": "用戶端最近聯絡了 API，但未在訊號伺服器（UDP :21116）上註冊。伺服器遷移後請重新啟動用戶端。"
+    "no_signal_tooltip": "用戶端最近聯絡了 API，但未在訊號伺服器（UDP :21116）上註冊。伺服器遷移後請重新啟動用戶端。",
+    "per_page": "每頁"
   },
   "keys": {
     "title": "伺服器金鑰",
