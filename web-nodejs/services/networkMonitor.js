@@ -23,6 +23,9 @@ const dns = require('dns');
 const { spawn } = require('child_process');
 const os = require('os');
 const config = require('../config/config');
+const { assertSafeResolvedHost, assertSafeMonitoringUrl, SsrfBlockedError } = require('../lib/ssrfGuard');
+
+const MONITOR_OPTS = { allowPrivate: true };
 
 // ---------------------------------------------------------------------------
 //  Config
@@ -60,10 +63,17 @@ function isValidHost(host) {
  */
 function resolveHost(host) {
     return new Promise((resolve, reject) => {
-        dns.lookup(host, (err, address) => {
-            if (err) return reject(err);
-            resolve(address);
-        });
+        if (!isValidHost(host)) {
+            return reject(new Error('Invalid host format'));
+        }
+        assertSafeResolvedHost(host, MONITOR_OPTS)
+            .then((clean) => {
+                dns.lookup(clean, (err, address) => {
+                    if (err) return reject(err);
+                    resolve(address);
+                });
+            })
+            .catch(reject);
     });
 }
 
@@ -79,45 +89,46 @@ function pingHost(host, timeoutMs = DEFAULT_TIMEOUT_MS) {
             return resolve({ success: false, rtt_ms: null, error: 'Invalid host format' });
         }
 
-        const isWin = os.platform() === 'win32';
-        const timeoutSec = Math.ceil(timeoutMs / 1000);
-        
-        // Use spawn() with array arguments instead of exec() with string
-        // This prevents command injection attacks
-        const args = isWin
-            ? ['-n', '1', '-w', String(timeoutMs), host]
-            : ['-c', '1', '-W', String(timeoutSec), host];
+        assertSafeResolvedHost(host, MONITOR_OPTS).then(() => {
+            const isWin = os.platform() === 'win32';
+            const timeoutSec = Math.ceil(timeoutMs / 1000);
 
-        const start = Date.now();
-        const proc = spawn('ping', args, { timeout: timeoutMs + 2000 });
-        
-        let stdout = '';
-        let stderr = '';
-        
-        proc.stdout.on('data', (data) => { stdout += data.toString(); });
-        proc.stderr.on('data', (data) => { stderr += data.toString(); });
-        
-        proc.on('error', (err) => {
-            resolve({ success: false, rtt_ms: null, error: err.message });
-        });
+            const args = isWin
+                ? ['-n', '1', '-w', String(timeoutMs), host]
+                : ['-c', '1', '-W', String(timeoutSec), host];
 
-        proc.on('close', (code) => {
-            const elapsed = Date.now() - start;
-            if (code !== 0) {
-                return resolve({ success: false, rtt_ms: null, error: 'Host unreachable' });
-            }
+            const start = Date.now();
+            const proc = spawn('ping', args, { timeout: timeoutMs + 2000 });
 
-            // Parse RTT from output
-            let rtt = null;
-            if (isWin) {
-                const m = stdout.match(/time[=<](\d+)ms/i);
-                if (m) rtt = parseInt(m[1], 10);
-            } else {
-                const m = stdout.match(/time=(\d+\.?\d*)\s*ms/i);
-                if (m) rtt = parseFloat(m[1]);
-            }
+            let stdout = '';
 
-            resolve({ success: true, rtt_ms: rtt ?? elapsed, error: null });
+            proc.stdout.on('data', (data) => { stdout += data.toString(); });
+            proc.stderr.on('data', () => {});
+
+            proc.on('error', (err) => {
+                resolve({ success: false, rtt_ms: null, error: err.message });
+            });
+
+            proc.on('close', (code) => {
+                const elapsed = Date.now() - start;
+                if (code !== 0) {
+                    return resolve({ success: false, rtt_ms: null, error: 'Host unreachable' });
+                }
+
+                let rtt = null;
+                if (isWin) {
+                    const m = stdout.match(/time[=<](\d+)ms/i);
+                    if (m) rtt = parseInt(m[1], 10);
+                } else {
+                    const m = stdout.match(/time=(\d+\.?\d*)\s*ms/i);
+                    if (m) rtt = parseFloat(m[1]);
+                }
+
+                resolve({ success: true, rtt_ms: rtt ?? elapsed, error: null });
+            });
+        }).catch((err) => {
+            const msg = err instanceof SsrfBlockedError ? err.message : err.message;
+            resolve({ success: false, rtt_ms: null, error: msg });
         });
     });
 }
@@ -128,28 +139,37 @@ function pingHost(host, timeoutMs = DEFAULT_TIMEOUT_MS) {
  */
 function checkTcpPort(host, port, timeoutMs = DEFAULT_TIMEOUT_MS) {
     return new Promise((resolve) => {
-        const start = Date.now();
-        const socket = new net.Socket();
+        if (!isValidHost(host)) {
+            return resolve({ success: false, rtt_ms: null, error: 'Invalid host format' });
+        }
 
-        socket.setTimeout(timeoutMs);
+        assertSafeResolvedHost(host, MONITOR_OPTS).then(() => {
+            const start = Date.now();
+            const socket = new net.Socket();
 
-        socket.on('connect', () => {
-            const rtt = Date.now() - start;
-            socket.destroy();
-            resolve({ success: true, rtt_ms: rtt, error: null });
+            socket.setTimeout(timeoutMs);
+
+            socket.on('connect', () => {
+                const rtt = Date.now() - start;
+                socket.destroy();
+                resolve({ success: true, rtt_ms: rtt, error: null });
+            });
+
+            socket.on('timeout', () => {
+                socket.destroy();
+                resolve({ success: false, rtt_ms: null, error: 'Connection timeout' });
+            });
+
+            socket.on('error', (err) => {
+                socket.destroy();
+                resolve({ success: false, rtt_ms: null, error: err.message });
+            });
+
+            socket.connect(port, host);
+        }).catch((err) => {
+            const msg = err instanceof SsrfBlockedError ? err.message : err.message;
+            resolve({ success: false, rtt_ms: null, error: msg });
         });
-
-        socket.on('timeout', () => {
-            socket.destroy();
-            resolve({ success: false, rtt_ms: null, error: 'Connection timeout' });
-        });
-
-        socket.on('error', (err) => {
-            socket.destroy();
-            resolve({ success: false, rtt_ms: null, error: err.message });
-        });
-
-        socket.connect(port, host);
     });
 }
 
@@ -159,30 +179,34 @@ function checkTcpPort(host, port, timeoutMs = DEFAULT_TIMEOUT_MS) {
  */
 function checkHttp(url, timeoutMs = DEFAULT_TIMEOUT_MS, expectedStatus = 200) {
     return new Promise((resolve) => {
-        const start = Date.now();
-        const lib = url.startsWith('https') ? https : http;
+        assertSafeMonitoringUrl(url).then((parsed) => {
+            const start = Date.now();
+            const lib = parsed.protocol === 'https:' ? https : http;
 
-        const req = lib.get(url, { timeout: timeoutMs, rejectUnauthorized: !config.allowSelfSignedCerts }, (res) => {
-            const rtt = Date.now() - start;
-            // Drain response body
-            res.resume();
-            res.on('end', () => {
-                resolve({
-                    success: res.statusCode === expectedStatus || (res.statusCode >= 200 && res.statusCode < 400),
-                    rtt_ms: rtt,
-                    status_code: res.statusCode,
-                    error: null,
+            const req = lib.get(parsed.href, { timeout: timeoutMs, rejectUnauthorized: !config.allowSelfSignedCerts }, (res) => {
+                const rtt = Date.now() - start;
+                res.resume();
+                res.on('end', () => {
+                    resolve({
+                        success: res.statusCode === expectedStatus || (res.statusCode >= 200 && res.statusCode < 400),
+                        rtt_ms: rtt,
+                        status_code: res.statusCode,
+                        error: null,
+                    });
                 });
             });
-        });
 
-        req.on('timeout', () => {
-            req.destroy();
-            resolve({ success: false, rtt_ms: null, status_code: null, error: 'Timeout' });
-        });
+            req.on('timeout', () => {
+                req.destroy();
+                resolve({ success: false, rtt_ms: null, status_code: null, error: 'Timeout' });
+            });
 
-        req.on('error', (err) => {
-            resolve({ success: false, rtt_ms: null, status_code: null, error: err.message });
+            req.on('error', (err) => {
+                resolve({ success: false, rtt_ms: null, status_code: null, error: err.message });
+            });
+        }).catch((err) => {
+            const msg = err instanceof SsrfBlockedError ? err.message : err.message;
+            resolve({ success: false, rtt_ms: null, status_code: null, error: msg });
         });
     });
 }

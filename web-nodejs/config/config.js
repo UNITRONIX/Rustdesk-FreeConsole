@@ -248,3 +248,19 @@ module.exports = {
     appName: 'BetterDesk Console',
     appVersion: pkgVersion
 };
+
+// H-2: warn when console→Go API traffic leaves localhost in production.
+if (isProduction) {
+    try {
+        const raw = module.exports.betterdeskApiUrl || '';
+        const apiUrl = new URL(raw.endsWith('/') ? raw : `${raw}/`);
+        const host = apiUrl.hostname.toLowerCase();
+        const localHosts = new Set(['127.0.0.1', 'localhost', '::1']);
+        const isDockerBridge = host === 'betterdesk-server' || host.endsWith('.betterdesk-net');
+        if (!localHosts.has(host) && !isDockerBridge) {
+            console.warn(
+                `[SECURITY] BETTERDESK_API_URL host is "${host}" — console→Go traffic should stay on localhost or the Docker internal network.`
+            );
+        }
+    } catch (_) { /* invalid URL — other startup checks will surface it */ }
+}

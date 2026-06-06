@@ -2281,16 +2281,23 @@ patch_service_definitions() {
 
     console_svc="/etc/systemd/system/betterdesk-console.service"
     if [ -f "$console_svc" ]; then
+        local console_user
+        console_user=$(ensure_betterdesk_console_user)
         local content new_content backup
         content=$(cat "$console_svc")
         new_content=$(printf '%s' "$content" \
             | sed 's|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|g' \
             | sed 's|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|g')
+        if [ "$console_user" != "root" ] && grep -q '^User=root' <<< "$new_content"; then
+            new_content=$(printf '%s' "$new_content" | sed "s/^User=root/User=$console_user/")
+            print_info "Patched betterdesk-console.service (User=$console_user)"
+            changed=1
+        fi
         if [ "$new_content" != "$content" ]; then
             backup="${console_svc}.bak.$(date +%Y%m%d%H%M%S)"
             cp "$console_svc" "$backup" 2>/dev/null || true
             printf '%s' "$new_content" > "$console_svc"
-            print_info "Patched betterdesk-console.service (Go API URLs stay HTTP)"
+            [ "$console_user" = "root" ] || print_info "Patched betterdesk-console.service (Go API URLs stay HTTP)"
             changed=1
         fi
     fi
@@ -2327,6 +2334,39 @@ maybe_update_services() {
     fi
 
     print_info "Service units present — patched in place (Repair → Repair services for full recreate)"
+}
+
+# Create a dedicated unprivileged user for the web console (audit H-7).
+# The Go server may still run as root for low-port binding; the console does not need it.
+ensure_betterdesk_console_user() {
+    local svc_user="betterdesk"
+    if ! id "$svc_user" &>/dev/null; then
+        useradd -r -s /usr/sbin/nologin -d /var/lib/betterdesk -c "BetterDesk web console" "$svc_user" 2>/dev/null \
+            || print_warning "Could not create system user '$svc_user' — console will stay on root"
+    fi
+    if ! id "$svc_user" &>/dev/null; then
+        echo "root"
+        return
+    fi
+    mkdir -p /var/lib/betterdesk "$CONSOLE_PATH/data"
+    chown -R "$svc_user:$svc_user" "$CONSOLE_PATH" 2>/dev/null || true
+    if [ -f "$RUSTDESK_PATH/.api_key" ]; then
+        chown root:"$svc_user" "$RUSTDESK_PATH/.api_key" 2>/dev/null || true
+        chmod 640 "$RUSTDESK_PATH/.api_key" 2>/dev/null || true
+    fi
+    for f in id_ed25519.pub db_v2.sqlite3 db_v2.sqlite3-wal db_v2.sqlite3-shm; do
+        if [ -e "$RUSTDESK_PATH/$f" ]; then
+            chown root:"$svc_user" "$RUSTDESK_PATH/$f" 2>/dev/null || true
+            chmod g+rw "$RUSTDESK_PATH/$f" 2>/dev/null || true
+        fi
+    done
+    for f in ssl/betterdesk.crt ssl/betterdesk.key; do
+        if [ -e "$RUSTDESK_PATH/$f" ]; then
+            chown root:"$svc_user" "$RUSTDESK_PATH/$f" 2>/dev/null || true
+            chmod 640 "$RUSTDESK_PATH/$f" 2>/dev/null || true
+        fi
+    done
+    echo "$svc_user"
 }
 
 setup_services() {
@@ -2545,6 +2585,10 @@ Environment=SSL_CERT_PATH=$ssl_dir/betterdesk.crt
         if [ ! -x "$node_path" ]; then
             print_warning "Node.js binary not found at $node_path — service may fail to start"
         fi
+
+        local console_user
+        console_user=$(ensure_betterdesk_console_user)
+        print_info "Web console service user: $console_user"
         
         cat > /etc/systemd/system/betterdesk-console.service << EOF
 [Unit]
@@ -2554,7 +2598,7 @@ After=network.target betterdesk-server.service postgresql.service
 
 [Service]
 Type=simple
-User=root
+User=$console_user
 WorkingDirectory=$CONSOLE_PATH
 EnvironmentFile=-$CONSOLE_PATH/.env
 ExecStart=$node_path server.js

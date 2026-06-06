@@ -1,0 +1,40 @@
+name: Web Console CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web-nodejs/**'
+      - '.github/workflows/web-nodejs-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web-nodejs/**'
+      - '.github/workflows/web-nodejs-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-nodejs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web-nodejs/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: npm audit (high+)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Run tests
+        run: npm run test:ci

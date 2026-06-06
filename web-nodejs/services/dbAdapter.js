@@ -24,6 +24,7 @@
 
 const path = require('path');
 const agentBundleService = require('./agentBundleService');
+const { hashAccessToken } = require('../lib/tokenHash');
 
 // Lazy-loaded drivers — keeps startup fast when one backend isn't installed.
 let _sqlite = null;
@@ -228,6 +229,25 @@ function createSqliteAdapter(config) {
         }
     }
 
+    function ensureAccessTokenHashColumnSqlite(db) {
+        const cols = new Set(db.prepare('PRAGMA table_info(access_tokens)').all().map((c) => c.name));
+        if (!cols.has('token_hash')) {
+            db.exec('ALTER TABLE access_tokens ADD COLUMN token_hash TEXT');
+            db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_access_tokens_hash ON access_tokens (token_hash)
+                WHERE token_hash IS NOT NULL`);
+        }
+        const rows = db.prepare(`
+            SELECT id, token FROM access_tokens
+            WHERE (token_hash IS NULL OR token_hash = '') AND token != ''
+        `).all();
+        if (rows.length > 0) {
+            const upd = db.prepare('UPDATE access_tokens SET token_hash = ? WHERE id = ?');
+            for (const row of rows) {
+                upd.run(hashAccessToken(row.token), row.id);
+            }
+        }
+    }
+
     function ensureAuthTables(db) {
         db.exec(`
             CREATE TABLE IF NOT EXISTS users (
@@ -256,6 +276,7 @@ function createSqliteAdapter(config) {
             CREATE TABLE IF NOT EXISTS access_tokens (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 token TEXT UNIQUE NOT NULL,
+                token_hash TEXT,
                 user_id INTEGER NOT NULL,
                 client_id TEXT DEFAULT '',
                 client_uuid TEXT DEFAULT '',
@@ -266,6 +287,8 @@ function createSqliteAdapter(config) {
                 revoked INTEGER DEFAULT 0,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_access_tokens_hash ON access_tokens (token_hash)
+                WHERE token_hash IS NOT NULL;
             CREATE TABLE IF NOT EXISTS login_attempts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
@@ -530,6 +553,8 @@ function createSqliteAdapter(config) {
                 crypto.randomUUID(), 'Default', 'Default device group'
             );
         }
+
+        ensureAccessTokenHashColumnSqlite(db);
     }
 
     function ensureInventoryTables(db) {
@@ -1292,19 +1317,37 @@ function createSqliteAdapter(config) {
         // ---- Access tokens ----
 
         async createAccessToken({ token, userId, clientId, clientUuid, expiresAt, ipAddress }) {
+            const tokenHash = hashAccessToken(token);
             openAuth().prepare(`
-                INSERT INTO access_tokens (token, user_id, client_id, client_uuid, expires_at, ip_address)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `).run(token, userId, clientId || '', clientUuid || '', expiresAt, ipAddress || '');
+                INSERT INTO access_tokens (token, token_hash, user_id, client_id, client_uuid, expires_at, ip_address)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(token, tokenHash, userId, clientId || '', clientUuid || '', expiresAt, ipAddress || '');
         },
         async getAccessToken(token) {
-            return openAuth().prepare("SELECT * FROM access_tokens WHERE token = ? AND revoked = 0 AND expires_at > datetime('now')").get(token) || null;
+            const tokenHash = hashAccessToken(token);
+            const byHash = openAuth().prepare(`
+                SELECT * FROM access_tokens
+                WHERE token_hash = ? AND revoked = 0 AND expires_at > datetime('now')
+            `).get(tokenHash);
+            if (byHash) return byHash;
+            return openAuth().prepare(`
+                SELECT * FROM access_tokens
+                WHERE token = ? AND revoked = 0 AND expires_at > datetime('now')
+            `).get(token) || null;
         },
         async touchAccessToken(token) {
-            openAuth().prepare("UPDATE access_tokens SET last_used = datetime('now') WHERE token = ?").run(token);
+            const tokenHash = hashAccessToken(token);
+            openAuth().prepare(`
+                UPDATE access_tokens SET last_used = datetime('now')
+                WHERE token_hash = ? OR token = ?
+            `).run(tokenHash, token);
         },
         async revokeAccessToken(token) {
-            openAuth().prepare('UPDATE access_tokens SET revoked = 1 WHERE token = ?').run(token);
+            const tokenHash = hashAccessToken(token);
+            openAuth().prepare(`
+                UPDATE access_tokens SET revoked = 1
+                WHERE token_hash = ? OR token = ?
+            `).run(tokenHash, token);
         },
         async revokeUserClientTokens(userId, clientUuid) {
             openAuth().prepare('UPDATE access_tokens SET revoked = 1 WHERE user_id = ? AND client_uuid = ?').run(userId, clientUuid);
@@ -3096,6 +3139,7 @@ function createPostgresAdapter() {
             CREATE TABLE IF NOT EXISTS access_tokens (
                 id SERIAL PRIMARY KEY,
                 token TEXT UNIQUE NOT NULL,
+                token_hash TEXT,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 client_id TEXT DEFAULT '',
                 client_uuid TEXT DEFAULT '',
@@ -3106,6 +3150,16 @@ function createPostgresAdapter() {
                 revoked BOOLEAN DEFAULT FALSE
             )
         `);
+        await q(`ALTER TABLE access_tokens ADD COLUMN IF NOT EXISTS token_hash TEXT`);
+        await q(`CREATE UNIQUE INDEX IF NOT EXISTS idx_access_tokens_hash ON access_tokens (token_hash)
+            WHERE token_hash IS NOT NULL`);
+        const legacyTokens = await all(`
+            SELECT id, token FROM access_tokens
+            WHERE (token_hash IS NULL OR token_hash = '') AND token <> ''
+        `);
+        for (const row of legacyTokens) {
+            await q('UPDATE access_tokens SET token_hash = $1 WHERE id = $2', [hashAccessToken(row.token), row.id]);
+        }
 
         await q(`
             CREATE TABLE IF NOT EXISTS login_attempts (
@@ -3367,6 +3421,7 @@ function createPostgresAdapter() {
         await q('CREATE INDEX IF NOT EXISTS idx_peer_online ON peer (status_online) WHERE NOT is_deleted');
         await q('CREATE INDEX IF NOT EXISTS idx_peer_deleted ON peer (is_deleted)');
         await q('CREATE INDEX IF NOT EXISTS idx_token_lookup ON access_tokens (token) WHERE NOT revoked');
+        await q('CREATE INDEX IF NOT EXISTS idx_token_hash_lookup ON access_tokens (token_hash) WHERE NOT revoked');
         await q('CREATE INDEX IF NOT EXISTS idx_relay_sessions_expires ON relay_sessions (expires_at)');
         await q('CREATE INDEX IF NOT EXISTS idx_activity_device ON activity_sessions (device_id)');
         await q('CREATE INDEX IF NOT EXISTS idx_activity_time ON activity_sessions (started_at)');
@@ -4124,12 +4179,28 @@ function createPostgresAdapter() {
         // ---- Access tokens ----
 
         async createAccessToken({ token, userId, clientId, clientUuid, expiresAt, ipAddress }) {
-            await q('INSERT INTO access_tokens (token, user_id, client_id, client_uuid, expires_at, ip_address) VALUES ($1, $2, $3, $4, $5, $6)',
-                [token, userId, clientId || '', clientUuid || '', expiresAt, ipAddress || '']);
+            const tokenHash = hashAccessToken(token);
+            await q(`INSERT INTO access_tokens (token, token_hash, user_id, client_id, client_uuid, expires_at, ip_address)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                [token, tokenHash, userId, clientId || '', clientUuid || '', expiresAt, ipAddress || '']);
         },
-        async getAccessToken(token) { return one('SELECT * FROM access_tokens WHERE token = $1 AND NOT revoked AND expires_at > NOW()', [token]); },
-        async touchAccessToken(token) { await q('UPDATE access_tokens SET last_used = NOW() WHERE token = $1', [token]); },
-        async revokeAccessToken(token) { await q('UPDATE access_tokens SET revoked = TRUE WHERE token = $1', [token]); },
+        async getAccessToken(token) {
+            const tokenHash = hashAccessToken(token);
+            const byHash = await one(`
+                SELECT * FROM access_tokens
+                WHERE token_hash = $1 AND NOT revoked AND expires_at > NOW()
+            `, [tokenHash]);
+            if (byHash) return byHash;
+            return one('SELECT * FROM access_tokens WHERE token = $1 AND NOT revoked AND expires_at > NOW()', [token]);
+        },
+        async touchAccessToken(token) {
+            const tokenHash = hashAccessToken(token);
+            await q('UPDATE access_tokens SET last_used = NOW() WHERE token_hash = $1 OR token = $2', [tokenHash, token]);
+        },
+        async revokeAccessToken(token) {
+            const tokenHash = hashAccessToken(token);
+            await q('UPDATE access_tokens SET revoked = TRUE WHERE token_hash = $1 OR token = $2', [tokenHash, token]);
+        },
         async revokeUserClientTokens(userId, clientUuid) { await q('UPDATE access_tokens SET revoked = TRUE WHERE user_id = $1 AND client_uuid = $2', [userId, clientUuid]); },
         async revokeAllUserTokens(userId) { await q('UPDATE access_tokens SET revoked = TRUE WHERE user_id = $1', [userId]); },
         async cleanupExpiredTokens() { await q('DELETE FROM access_tokens WHERE expires_at < NOW() OR revoked'); },

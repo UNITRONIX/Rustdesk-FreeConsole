@@ -26,6 +26,7 @@ const https   = require('https');
 const dgram   = require('dgram');
 const dns     = require('dns');
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { assertSafeResolvedHost, SsrfBlockedError } = require('../lib/ssrfGuard');
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
@@ -38,16 +39,22 @@ router.get('/toolkit', requireAuth, (req, res) => {
 
 // ── SSL Certificate Inspector ───────────────────────────────────────────────
 
-router.post('/api/toolkit/ssl', requireAuth, (req, res) => {
+router.post('/api/toolkit/ssl', requireAuth, async (req, res) => {
     const { host, port } = req.body;
     if (!host || typeof host !== 'string') {
         return res.status(400).json({ success: false, error: 'Host is required' });
     }
 
-    // Validate host — must be hostname or IP, no slashes/spaces
     const cleanHost = host.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].trim();
     if (!cleanHost || cleanHost.length > 253 || /[\s<>{}|\\^`]/.test(cleanHost)) {
         return res.status(400).json({ success: false, error: 'Invalid hostname' });
+    }
+
+    try {
+        await assertSafeResolvedHost(cleanHost, { allowPrivate: true });
+    } catch (err) {
+        const msg = err instanceof SsrfBlockedError ? err.message : 'Invalid hostname';
+        return res.status(400).json({ success: false, error: msg });
     }
 
     const sslPort = parseInt(port, 10) || 443;
@@ -231,7 +238,7 @@ router.post('/api/toolkit/wol', requireAuth, requirePermission('device.connect')
 
 // ── Whois Lookup (DNS-based) ────────────────────────────────────────────────
 
-router.post('/api/toolkit/whois', requireAuth, (req, res) => {
+router.post('/api/toolkit/whois', requireAuth, async (req, res) => {
     const { domain } = req.body;
     if (!domain || typeof domain !== 'string') {
         return res.status(400).json({ success: false, error: 'Domain is required' });
@@ -240,6 +247,13 @@ router.post('/api/toolkit/whois', requireAuth, (req, res) => {
     const clean = domain.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].trim().toLowerCase();
     if (!clean || clean.length > 253 || !/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(clean)) {
         return res.status(400).json({ success: false, error: 'Invalid domain' });
+    }
+
+    try {
+        await assertSafeResolvedHost(clean, { allowPrivate: true });
+    } catch (err) {
+        const msg = err instanceof SsrfBlockedError ? err.message : 'Invalid domain';
+        return res.status(400).json({ success: false, error: msg });
     }
 
     // Perform comprehensive DNS lookup

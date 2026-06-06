@@ -1609,9 +1609,44 @@ function mergeConsoleEnvAfterUpdate() {
     });
 }
 
-/** In-place service definition patch (TLS API flags, HTTP URLs). */
+/** In-place service definition patch (TLS API flags, HTTP URLs, console user). */
 function patchServiceDefinitions() {
-    return sanitizeGoServerServiceConfig();
+    const goPatch = sanitizeGoServerServiceConfig();
+    if (process.platform !== 'linux') {
+        return goPatch;
+    }
+    try {
+        const { ensureLinuxConsoleServiceUser } = require('../scripts/linux-ensure-console-user');
+        const consolePatch = ensureLinuxConsoleServiceUser();
+        if (consolePatch.changed) {
+            goPatch.changed = true;
+            goPatch.changes.push(...(consolePatch.changes || []));
+        }
+        if (consolePatch.error) {
+            goPatch.consoleUserError = consolePatch.error;
+        }
+    } catch (err) {
+        goPatch.consoleUserError = err.message || String(err);
+    }
+    return goPatch;
+}
+
+/** Run additive DB/security migrations + verify after console file update. */
+function runPostConsoleSecurityHooks() {
+    const out = { verify: null, error: null };
+    try {
+        execSync('node scripts/security-patch-verify.js', {
+            cwd: ROOT_DIR,
+            timeout: 120000,
+            stdio: 'pipe',
+        });
+        out.verify = 'ok';
+    } catch (err) {
+        out.verify = 'failed';
+        out.error = (err.stderr && err.stderr.toString()) || err.message || String(err);
+        console.warn(`[UPDATE] Security verify warning: ${out.error}`);
+    }
+    return out;
 }
 
 /**
@@ -2048,8 +2083,12 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         }
     }
 
-    if (serverSourceChanged || results.needsServerRestart) {
+    if (serverSourceChanged || results.needsServerRestart || results.needsConsoleRestart) {
         results.servicePatch = patchServiceDefinitions();
+    }
+
+    if (results.needsConsoleRestart && criticalFailures.length === 0) {
+        results.securityHooks = runPostConsoleSecurityHooks();
     }
 
     return results;
