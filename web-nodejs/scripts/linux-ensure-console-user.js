@@ -108,8 +108,10 @@ function fixSharedPermissions() {
         return { ok: false, skipped: true, error: 'no root/sudo for permission sync' };
     }
     try {
-        runPrivileged(`mkdir -p /var/lib/betterdesk`);
+        runPrivileged('mkdir -p /var/lib/betterdesk');
         runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data'))}`);
+        runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data', 'go-cache', 'mod'))}`);
+        runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data', 'go-cache', 'build'))}`);
         runPrivileged(`chown -R ${SVC_USER}:${SVC_USER} ${JSON.stringify(CONSOLE_PATH)}`);
 
         const shared = [

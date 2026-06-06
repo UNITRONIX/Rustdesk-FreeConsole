@@ -731,6 +731,26 @@ function checkGoAvailable() {
 }
 
 /**
+ * Writable Go module/build cache under the console data directory.
+ * The betterdesk system user often has HOME=/var/lib/betterdesk, which may be
+ * root-owned or missing — Go then fails with "could not create module cache".
+ */
+function getGoCacheDirs() {
+    const base = path.join(config.dataDir, 'go-cache');
+    return {
+        modCache: path.join(base, 'mod'),
+        buildCache: path.join(base, 'build'),
+    };
+}
+
+function ensureGoCacheDirs() {
+    const { modCache, buildCache } = getGoCacheDirs();
+    fs.mkdirSync(modCache, { recursive: true });
+    fs.mkdirSync(buildCache, { recursive: true });
+    return { modCache, buildCache };
+}
+
+/**
  * Wrap an exec environment so a manually located `go` binary is on PATH.
  */
 function buildEnvWithGo(goBinPath) {
@@ -739,6 +759,13 @@ function buildEnvWithGo(goBinPath) {
         const goBinDir = path.dirname(goBinPath);
         const sep = IS_WINDOWS ? ';' : ':';
         env.PATH = goBinDir + sep + (env.PATH || '');
+    }
+    try {
+        const { modCache, buildCache } = ensureGoCacheDirs();
+        env.GOMODCACHE = modCache;
+        env.GOCACHE = buildCache;
+    } catch (err) {
+        console.warn(`[UPDATE] Could not prepare Go cache dirs: ${err.message}`);
     }
     return env;
 }
