@@ -1636,6 +1636,50 @@
     line-height: 1.5;
 }
 
+.update-docker-info {
+    display: flex;
+    gap: var(--space-md);
+    align-items: flex-start;
+    padding: var(--space-md);
+    border: 1px solid var(--info, #388bfd);
+    background: rgba(56, 139, 253, 0.08);
+    border-radius: var(--radius-md);
+}
+
+.update-docker-icon .material-icons {
+    color: var(--info, #388bfd);
+    font-size: 28px;
+}
+
+.update-docker-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.update-docker-body strong {
+    display: block;
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.update-docker-body p {
+    margin: 0 0 var(--space-sm) 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.update-docker-commands {
+    margin: 0 0 var(--space-sm) 0;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary, rgba(0, 0, 0, 0.2));
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .update-progress {
     margin-top: var(--space-md);
 }

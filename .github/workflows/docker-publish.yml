@@ -53,7 +53,22 @@ env:
     type=sha,prefix=sha-,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
 jobs:
+  read-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: ver
+        run: |
+          if [ -f VERSION ]; then
+            echo "version=$(tr -d '\n\r' < VERSION)" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev" >> "$GITHUB_OUTPUT"
+          fi
+
   build-server:
+    needs: read-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -96,6 +111,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BETTERDESK_COMMIT_SHA=${{ github.sha }}
+            BETTERDESK_IMAGE_VERSION=${{ needs.read-version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
@@ -124,6 +142,7 @@ jobs:
           severity: CRITICAL,HIGH
 
   build-console:
+    needs: read-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -156,11 +175,15 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BETTERDESK_COMMIT_SHA=${{ github.sha }}
+            BETTERDESK_IMAGE_VERSION=${{ needs.read-version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
   build-allinone:
+    needs: read-version
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -193,6 +216,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BETTERDESK_COMMIT_SHA=${{ github.sha }}
+            BETTERDESK_IMAGE_VERSION=${{ needs.read-version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64

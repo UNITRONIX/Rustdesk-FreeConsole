@@ -44,6 +44,13 @@ RUN apk add --no-cache \
 COPY web-nodejs/ .
 COPY --from=build /app/node_modules ./node_modules/
 
+ARG BETTERDESK_COMMIT_SHA=unknown
+ARG BETTERDESK_IMAGE_VERSION=unknown
+ENV BETTERDESK_IMAGE_SHA=${BETTERDESK_COMMIT_SHA}
+ENV BETTERDESK_IMAGE_VERSION=${BETTERDESK_IMAGE_VERSION}
+ENV BETTERDESK_UPDATE_MODE=image
+RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /app/.image-commit
+
 # Copy entrypoint scripts
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 COPY docker/console-entrypoint.sh /console-entrypoint.sh

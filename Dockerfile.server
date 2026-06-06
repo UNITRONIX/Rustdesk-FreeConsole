@@ -48,6 +48,12 @@ RUN apk add --no-cache \
 COPY --from=builder /betterdesk-server /usr/local/bin/betterdesk-server
 RUN chmod +x /usr/local/bin/betterdesk-server
 
+ARG BETTERDESK_COMMIT_SHA=unknown
+ARG BETTERDESK_IMAGE_VERSION=unknown
+ENV BETTERDESK_IMAGE_SHA=${BETTERDESK_COMMIT_SHA}
+ENV BETTERDESK_IMAGE_VERSION=${BETTERDESK_IMAGE_VERSION}
+RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /opt/rustdesk/.image-commit
+
 # Create data directory
 RUN mkdir -p /opt/rustdesk && chown betterdesk:betterdesk /opt/rustdesk
 

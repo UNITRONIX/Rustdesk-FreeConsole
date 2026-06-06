@@ -755,6 +755,16 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
     res.setTimeout(600000);
 
     try {
+        if (updateService.isImageBasedDockerDeployment()) {
+            const dockerUpdate = updateService.getDockerUpdateInstructions();
+            return res.status(400).json({
+                success: false,
+                error: `In-app updates are disabled in Docker image deployments. Run: ${dockerUpdate.commands.join(' && ')}`,
+                dockerImageMode: true,
+                dockerUpdate
+            });
+        }
+
         const { remoteSHA, createBackup } = req.body;
         if (!remoteSHA || !/^[0-9a-f]{7,40}$/i.test(remoteSHA)) {
             return res.status(400).json({ success: false, error: 'Valid remoteSHA is required' });

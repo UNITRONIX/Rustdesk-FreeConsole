@@ -27,3 +27,14 @@ GitHub `compare` API caps `files` at 300, so large diffs are truncated and chang
 - **Passwords:** Panel login uses `users.password_hash` in `auth.db` / PostgreSQL. Updates must **not** change DB passwords.
 - **Services:** `patch_service_definitions` / `Patch-ServiceDefinitions` on every update when units exist; full `Setup-Services` only when missing or when operator confirms recreate (`[y/N]` prompt) / `UPDATE_REFRESH_SERVICES=true`.
 - **Script update failure:** GitHub update returns non-zero if Go server binary compile fails.
+
+## Docker Compose (GHCR images)
+
+When the console runs from `ghcr.io/.../betterdesk-console` (see `docker-compose.quick.yml`):
+
+- Updates are **image-based**, not in-app GitHub file download + Go compile.
+- Each console image embeds the build commit (`BETTERDESK_IMAGE_SHA` / `/app/.image-commit`). On startup the panel syncs `data/.update_sha` to that value and clears stale `.server_binary_stale` markers left by earlier in-app attempts.
+- Settings → Updates shows **pull instructions** (`docker compose pull && docker compose up -d`) instead of Install / Rebuild server binary.
+- `POST /api/settings/updates/install` and `rebuildServerBinary()` are rejected in this mode.
+
+After pulling new images, recreate containers so the console picks up the embedded commit from the new image tag.

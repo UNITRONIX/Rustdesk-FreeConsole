@@ -1572,6 +1572,10 @@
         if (!warning) return;
         try {
             const status = await Utils.api('/api/settings/updates/server-binary/status');
+            if (status && status.dockerMode) {
+                warning.style.display = 'none';
+                return;
+            }
             if (status && status.stale) {
                 const detailEl = document.getElementById('update-stale-detail');
                 if (detailEl) {
@@ -1610,6 +1614,40 @@
         }
     }
     
+    function renderDockerUpdatePanel(data) {
+        const panel = document.getElementById('update-docker-info');
+        const commandsEl = document.getElementById('update-docker-commands');
+        const imagesEl = document.getElementById('update-docker-images');
+        const installNote = document.getElementById('update-docker-install-note');
+        const installBtn = document.getElementById('update-install-btn');
+        const staleWarning = document.getElementById('update-stale-warning');
+        const dockerMode = data.deploymentMode === 'docker-image' || data.dockerImageMode;
+
+        if (!panel) return dockerMode;
+
+        if (dockerMode) {
+            panel.style.display = '';
+            if (staleWarning) staleWarning.style.display = 'none';
+            if (installBtn) installBtn.style.display = 'none';
+            if (installNote) installNote.style.display = '';
+
+            const dockerUpdate = data.dockerUpdate || {};
+            const commands = dockerUpdate.commands || ['docker compose pull', 'docker compose up -d'];
+            if (commandsEl) {
+                commandsEl.textContent = commands.join('\n');
+            }
+            if (imagesEl && Array.isArray(dockerUpdate.images) && dockerUpdate.images.length) {
+                imagesEl.textContent = `${_('updates.docker_images')}: ${dockerUpdate.images.join(', ')}`;
+            }
+        } else {
+            panel.style.display = 'none';
+            if (installBtn) installBtn.style.display = '';
+            if (installNote) installNote.style.display = 'none';
+        }
+
+        return dockerMode;
+    }
+
     async function checkForUpdates() {
         const btn = document.getElementById('update-check-btn');
         const statusRow = document.getElementById('update-status-row');
@@ -1624,6 +1662,7 @@
         
         try {
             const data = await Utils.api('/api/settings/updates/check');
+            const dockerMode = renderDockerUpdatePanel(data);
             
             // Show commit SHA + message
             if (remoteEl) {
@@ -1639,7 +1678,8 @@
                 if (installBtn) installBtn.disabled = true;
             } else if (data.updateAvailable) {
                 const behind = data.commitsBehind > 0 ? ` (${data.commitsBehind} ${_('updates.commits_behind')})` : '';
-                if (statusBadge) statusBadge.innerHTML = `<span class="badge badge-warning">${_('updates.update_available')}${behind}</span>`;
+                const badgeLabel = dockerMode ? _('updates.docker_update_available') : _('updates.update_available');
+                if (statusBadge) statusBadge.innerHTML = `<span class="badge badge-warning">${badgeLabel}${behind}</span>`;
                 
                 _updateState.remoteSHA = data.remoteSHA;
                 
@@ -1647,17 +1687,20 @@
                 try {
                     const changes = await Utils.api(`/api/settings/updates/changes?sha=${data.remoteSHA}`);
                     _updateState.changedData = changes;
-                    renderUpdateDetails(data, changes);
-                    if (installBtn) installBtn.disabled = false;
+                    renderUpdateDetails(data, changes, dockerMode);
+                    if (installBtn) installBtn.disabled = dockerMode;
                 } catch (_e) {
                     const cl = document.getElementById('update-changelog');
                     if (cl) cl.innerHTML = `<p class="text-muted">${_('updates.changes_unavailable')}</p>`;
-                    if (installBtn) installBtn.disabled = false;
+                    if (installBtn) installBtn.disabled = dockerMode;
                 }
                 
                 if (detailsSection) detailsSection.style.display = '';
             } else {
-                if (statusBadge) statusBadge.innerHTML = `<span class="badge badge-success">${_('updates.up_to_date')}</span>`;
+                if (statusBadge) {
+                    const label = data.dockerShaUnknown ? _('updates.docker_sha_unknown') : _('updates.up_to_date');
+                    statusBadge.innerHTML = `<span class="badge badge-success">${label}</span>`;
+                }
                 if (detailsSection) detailsSection.style.display = 'none';
                 if (installBtn) installBtn.disabled = true;
             }
@@ -1669,7 +1712,7 @@
         }
     }
     
-    function renderUpdateDetails(checkData, changesData) {
+    function renderUpdateDetails(checkData, changesData, dockerMode = false) {
         const changelogEl = document.getElementById('update-changelog');
         const summaryEl = document.getElementById('update-files-summary');
         
@@ -1738,7 +1781,7 @@
             summaryEl.innerHTML = html;
             
             // Check Go availability when server section is shown
-            if (grouped.server?.length > 0) {
+            if (grouped.server?.length > 0 && !dockerMode) {
                 checkServerBuildInfo();
             }
         }

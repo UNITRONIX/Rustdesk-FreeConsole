@@ -88,6 +88,13 @@ WORKDIR /app
 COPY web-nodejs/ .
 COPY --from=node-builder /app/node_modules ./node_modules/
 
+ARG BETTERDESK_COMMIT_SHA=unknown
+ARG BETTERDESK_IMAGE_VERSION=unknown
+ENV BETTERDESK_IMAGE_SHA=${BETTERDESK_COMMIT_SHA}
+ENV BETTERDESK_IMAGE_VERSION=${BETTERDESK_IMAGE_VERSION}
+ENV BETTERDESK_UPDATE_MODE=image
+RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /app/.image-commit
+
 # ---- Supervisord config ----
 COPY docker/supervisord.conf /etc/supervisor/conf.d/betterdesk.conf
 

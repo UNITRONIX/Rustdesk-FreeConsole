@@ -1516,6 +1516,19 @@
                         </button>
                     </div>
 
+                    <!-- Docker image deployment: updates via container pull -->
+                    <div class="update-docker-info" id="update-docker-info" style="display:none; margin-top:16px;">
+                        <div class="update-docker-icon">
+                            <span class="material-icons">cloud_download</span>
+                        </div>
+                        <div class="update-docker-body">
+                            <strong>${_('updates.docker_title')}</strong>
+                            <p id="update-docker-desc">${_('updates.docker_desc')}</p>
+                            <pre class="update-docker-commands" id="update-docker-commands"></pre>
+                            <p class="update-docker-images" id="update-docker-images"></p>
+                        </div>
+                    </div>
+
                     <!-- Stale server binary warning (security): server source was
                          updated but the running binary was not rebuilt. -->
                     <div class="update-stale-warning" id="update-stale-warning" style="display:none; margin-top:16px;">
@@ -1554,6 +1567,9 @@
                             <span class="material-icons">download</span>
                             ${_('updates.install')}
                         </button>
+                        <p class="update-docker-install-note text-muted" id="update-docker-install-note" style="display:none; margin-top:12px;">
+                            ${_('updates.docker_install_note')}
+                        </p>
                     </div>
                     <div class="update-progress" id="update-progress" style="display:none;">
                         <div class="update-progress-bar">

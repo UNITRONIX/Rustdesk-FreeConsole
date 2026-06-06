@@ -106,6 +106,8 @@ services:
       - WS_HBBR_HOST=betterdesk-server
       - WS_HBBR_PORT=21117
       - DOCKER=true
+      - BETTERDESK_UPDATE_MODE=image
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.0.0-alpha}
     networks:
       - betterdesk-net
     depends_on:

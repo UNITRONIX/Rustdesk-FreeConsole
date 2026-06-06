@@ -33,10 +33,11 @@ const GITHUB_BRANCH = process.env.UPDATE_GITHUB_BRANCH || 'main';
 const GITHUB_API    = 'https://api.github.com';
 const USER_AGENT    = `BetterDesk-Console/${config.appVersion}`;
 const BACKUP_DIR    = path.join(config.dataDir, 'backups');
-const SHA_FILE      = path.join(config.dataDir, '.update_sha');
-const ROOT_DIR      = path.join(__dirname, '..');          // web-nodejs/
-const PROJECT_ROOT  = path.join(ROOT_DIR, '..');           // repo root
-const IS_WINDOWS    = process.platform === 'win32';
+const SHA_FILE           = path.join(config.dataDir, '.update_sha');
+const IMAGE_COMMIT_FILE  = path.join(__dirname, '..', '.image-commit'); // baked at image build
+const ROOT_DIR           = path.join(__dirname, '..');          // web-nodejs/
+const PROJECT_ROOT       = path.join(ROOT_DIR, '..');           // repo root
+const IS_WINDOWS         = process.platform === 'win32';
 
 // Optional GitHub personal-access token  (60 req/h without, 5 000 with)
 const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN || '';
@@ -204,9 +205,109 @@ function ghDownloadFile(owner, repo, ref, filePath) {
     });
 }
 
+// ======================== Docker image deployment ========================
+
+function shasMatch(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    return a.startsWith(b.slice(0, 7)) || b.startsWith(a.slice(0, 7));
+}
+
+function isDockerDeployment() {
+    return !!config.isDocker;
+}
+
+/**
+ * Pre-built GHCR images ship console/server binaries without a full Go tree.
+ * In-app GitHub file download + compile must be disabled in that mode (#158).
+ */
+function isImageBasedDockerDeployment() {
+    if (!isDockerDeployment()) return false;
+    const mode = (process.env.BETTERDESK_UPDATE_MODE || '').trim().toLowerCase();
+    if (mode === 'source') return false;
+    if (mode === 'image') return true;
+    return !fs.existsSync(path.join(PROJECT_ROOT, 'betterdesk-server', 'go.mod'));
+}
+
+function getImageEmbeddedSHA() {
+    const fromEnv = (process.env.BETTERDESK_IMAGE_SHA || '').trim();
+    if (/^[0-9a-f]{7,40}$/i.test(fromEnv) && fromEnv !== 'unknown') return fromEnv;
+    try {
+        if (fs.existsSync(IMAGE_COMMIT_FILE)) {
+            const sha = fs.readFileSync(IMAGE_COMMIT_FILE, 'utf8').trim();
+            if (/^[0-9a-f]{7,40}$/i.test(sha) && sha !== 'unknown') return sha;
+        }
+    } catch (_e) { /* unreadable marker */ }
+    return null;
+}
+
+function getDockerUpdateInstructions() {
+    const tag = (process.env.BETTERDESK_IMAGE_TAG || 'latest').trim() || 'latest';
+    const owner = (process.env.UPDATE_GITHUB_OWNER || GITHUB_OWNER).toLowerCase();
+    return {
+        summary: 'Pull and recreate the published container images.',
+        commands: [
+            'docker compose pull',
+            'docker compose up -d'
+        ],
+        images: [
+            `ghcr.io/${owner}/betterdesk-console:${tag}`,
+            `ghcr.io/${owner}/betterdesk-server:${tag}`
+        ],
+        composeHint: 'docker-compose.quick.yml'
+    };
+}
+
+function withDeploymentMeta(result) {
+    const dockerImageMode = isImageBasedDockerDeployment();
+    if (!dockerImageMode) {
+        return { ...result, deploymentMode: 'native' };
+    }
+    return {
+        ...result,
+        deploymentMode: 'docker-image',
+        dockerImageMode: true,
+        imageSHA: getImageEmbeddedSHA(),
+        dockerUpdate: getDockerUpdateInstructions(),
+        inAppUpdateSupported: false
+    };
+}
+
+/**
+ * On Docker image startup, prefer the image-embedded commit over a stale
+ * data/.update_sha left by a previous in-app update attempt (#158).
+ */
+function bootstrapDockerImageDeployment() {
+    if (!isImageBasedDockerDeployment()) return;
+    clearServerBinaryStale();
+    const imageSha = getImageEmbeddedSHA();
+    if (!imageSha) {
+        console.warn('[UPDATE] Docker image mode: no embedded build SHA — pull a current GHCR image for accurate version checks');
+        return;
+    }
+    let volumeSha = null;
+    try {
+        if (fs.existsSync(SHA_FILE)) volumeSha = fs.readFileSync(SHA_FILE, 'utf8').trim();
+    } catch (_e) { /* ok */ }
+    if (!shasMatch(volumeSha, imageSha)) {
+        saveLocalSHA(imageSha);
+        console.log(
+            `[UPDATE] Docker: synced commit baseline to image (${imageSha.slice(0, 7)}`
+            + `${volumeSha ? `, was ${volumeSha.slice(0, 7)}` : ''})`
+        );
+    }
+}
+
 // ======================== SHA Tracking ===================================
 
 function getLocalSHA() {
+    if (isImageBasedDockerDeployment()) {
+        const imageSha = getImageEmbeddedSHA();
+        if (imageSha) return imageSha;
+        // Legacy GHCR images without an embedded commit: ignore a polluted
+        // data/.update_sha left by a previous in-app update attempt (#158).
+        return null;
+    }
     if (fs.existsSync(SHA_FILE)) {
         const sha = fs.readFileSync(SHA_FILE, 'utf8').trim();
         if (/^[0-9a-f]{7,40}$/i.test(sha)) return sha;
@@ -254,6 +355,9 @@ function clearServerBinaryStale() {
 }
 
 function getServerBinaryStatus() {
+    if (isImageBasedDockerDeployment()) {
+        return { stale: false, dockerMode: true };
+    }
     try {
         if (fs.existsSync(SERVER_STALE_FILE)) {
             const data = JSON.parse(fs.readFileSync(SERVER_STALE_FILE, 'utf8'));
@@ -1278,14 +1382,31 @@ function getAutoUpdateComponents(changedData) {
  * Check for updates by comparing local commit SHA with remote HEAD.
  */
 async function checkForUpdates() {
+    bootstrapDockerImageDeployment();
+
     const localVersion = getLocalVersion();
     const localSHA = getLocalSHA();
     const remote = await getRemoteHeadSHA();
+    const dockerImageMode = isImageBasedDockerDeployment();
 
-    // No baseline yet → establish one
+    // No baseline yet → establish one (native installs only)
     if (!localSHA) {
+        if (dockerImageMode) {
+            return withDeploymentMeta({
+                localVersion,
+                localSHA: null,
+                remoteSHA: remote.sha,
+                updateAvailable: false,
+                commitsBehind: 0,
+                latestMessage: remote.message,
+                latestDate: remote.date,
+                latestAuthor: remote.author,
+                components: {},
+                dockerShaUnknown: true
+            });
+        }
         saveLocalSHA(remote.sha);
-        return {
+        return withDeploymentMeta({
             localVersion,
             localSHA: remote.sha,
             remoteSHA: remote.sha,
@@ -1296,12 +1417,12 @@ async function checkForUpdates() {
             latestDate: remote.date,
             latestAuthor: remote.author,
             components: {}
-        };
+        });
     }
 
     // Already at HEAD
     if (localSHA.startsWith(remote.sha.slice(0, 7)) || remote.sha.startsWith(localSHA.slice(0, 7)) || localSHA === remote.sha) {
-        return {
+        return withDeploymentMeta({
             localVersion,
             localSHA,
             remoteSHA: remote.sha,
@@ -1311,7 +1432,7 @@ async function checkForUpdates() {
             latestDate: remote.date,
             latestAuthor: remote.author,
             components: {}
-        };
+        });
     }
 
     // Compare
@@ -1320,7 +1441,7 @@ async function checkForUpdates() {
         compare = await ghGet(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/compare/${localSHA}...${remote.sha}`);
     } catch (err) {
         // SHA may have been force-pushed away
-        return {
+        return withDeploymentMeta({
             localVersion,
             localSHA,
             remoteSHA: remote.sha,
@@ -1331,7 +1452,7 @@ async function checkForUpdates() {
             latestAuthor: remote.author,
             components: {},
             compareError: err.message
-        };
+        });
     }
 
     const files = (compare.files || []).filter(f => !isExcluded(f.filename));
@@ -1349,7 +1470,7 @@ async function checkForUpdates() {
         componentSummary[comp].fileCount++;
     }
 
-    return {
+    return withDeploymentMeta({
         localVersion,
         localSHA,
         remoteSHA: remote.sha,
@@ -1359,7 +1480,7 @@ async function checkForUpdates() {
         latestDate: remote.date,
         latestAuthor: remote.author,
         components: componentSummary
-    };
+    });
 }
 
 /**
@@ -1504,6 +1625,10 @@ function patchServiceDefinitions() {
  * @param {string}   opts.serverStrategy default 'auto'
  */
 async function applyUpdate(remoteSHA, changedData, opts = {}) {
+    if (isImageBasedDockerDeployment()) {
+        const hint = getDockerUpdateInstructions().commands.join(' && ');
+        throw new Error(`In-app updates are disabled in Docker image deployments. Update containers instead: ${hint}`);
+    }
     if (_updateInProgress) throw new Error('Another update is already in progress');
     _updateInProgress = true;
 
@@ -2128,6 +2253,15 @@ function restoreFromBackup(backupName) {
  * @returns {Promise<{ success: boolean, error?: string, steps: object }>}
  */
 async function rebuildServerBinary(opts = {}) {
+    if (isImageBasedDockerDeployment()) {
+        const hint = getDockerUpdateInstructions().commands.join(' && ');
+        return {
+            success: false,
+            dockerMode: true,
+            error: `Server rebuild is not available in Docker image deployments. Update the server container instead: ${hint}`,
+            steps: {}
+        };
+    }
     const result = { success: false, steps: {} };
     const remoteSHA = opts.sha || getLocalSHA();
 
@@ -2213,6 +2347,20 @@ async function runUpdatePreflight(opts = {}) {
     const issues = [];
     const warnings = [];
     const serverUpdateRequired = !!opts.serverUpdateRequired;
+
+    if (isImageBasedDockerDeployment()) {
+        const hint = getDockerUpdateInstructions().commands.join(' && ');
+        return {
+            ready: false,
+            issues: [`Docker image deployment — use "${hint}" instead of in-app install`],
+            warnings: [],
+            go: checkGoAvailable(),
+            prebuiltAvailable: false,
+            canBuildServer: false,
+            dockerImageMode: true,
+            dockerUpdate: getDockerUpdateInstructions()
+        };
+    }
 
     try {
         execSync('node --version', { timeout: 5000, stdio: 'pipe' });
@@ -2304,5 +2452,11 @@ module.exports = {
     shouldQueueAgentRebuild,
     syncAgentSourceAtSha,
     goStdlibHealthy,
+    isImageBasedDockerDeployment,
+    getImageEmbeddedSHA,
+    bootstrapDockerImageDeployment,
+    getDockerUpdateInstructions,
     COMPONENTS
 };
+
+bootstrapDockerImageDeployment();
