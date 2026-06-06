@@ -36,8 +36,23 @@ const BACKUP_DIR    = path.join(config.dataDir, 'backups');
 const SHA_FILE           = path.join(config.dataDir, '.update_sha');
 const IMAGE_COMMIT_FILE  = path.join(__dirname, '..', '.image-commit'); // baked at image build
 const ROOT_DIR           = path.join(__dirname, '..');          // web-nodejs/
-const PROJECT_ROOT       = path.join(ROOT_DIR, '..');           // repo root
 const IS_WINDOWS         = process.platform === 'win32';
+
+/**
+ * Repo checkout: ROOT_DIR = web-nodejs/, project root = parent directory.
+ * Flat Linux install: console files live directly under ROOT_DIR (e.g.
+ * /opt/BetterDeskConsole) with betterdesk-server/ beside services/.
+ */
+function resolveProjectRoot() {
+    const parentAsRepo = path.join(ROOT_DIR, '..');
+    const flatServerMod = path.join(ROOT_DIR, 'betterdesk-server', 'go.mod');
+    if (fs.existsSync(flatServerMod)) {
+        return ROOT_DIR;
+    }
+    return parentAsRepo;
+}
+
+const PROJECT_ROOT       = resolveProjectRoot();
 
 // Optional GitHub personal-access token  (60 req/h without, 5 000 with)
 const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN || '';
