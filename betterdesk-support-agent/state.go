@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 )
@@ -34,14 +33,16 @@ const (
 // is still exposed to the local user through the UI, where it is decrypted in
 // memory on demand. The file is additionally written with 0600 permissions.
 type AppState struct {
-	DeviceID          string `json:"device_id"`
-	AccessMode        string `json:"access_mode"`
-	AccessPassword    string `json:"access_password"`
-	CustomPassword    bool   `json:"custom_password"`
-	Language          string `json:"language"`
-	DeviceToken       string `json:"device_token,omitempty"`
-	EnrollmentStatus  string `json:"enrollment_status,omitempty"`
-	EnrollmentMessage string `json:"enrollment_message,omitempty"`
+	DeviceID            string `json:"device_id"`
+	InstallationSecret  string `json:"installation_secret,omitempty"`
+	MachineUUID         string `json:"machine_uuid,omitempty"`
+	AccessMode          string `json:"access_mode"`
+	AccessPassword      string `json:"access_password"`
+	CustomPassword      bool   `json:"custom_password"`
+	Language            string `json:"language"`
+	DeviceToken         string `json:"device_token,omitempty"`
+	EnrollmentStatus    string `json:"enrollment_status,omitempty"`
+	EnrollmentMessage   string `json:"enrollment_message,omitempty"`
 
 	mu   sync.Mutex `json:"-"`
 	path string     `json:"-"`
@@ -132,8 +133,24 @@ func LoadState() (*AppState, error) {
 	}
 
 	changed := legacyPlaintext // force re-encryption of legacy files
+	if s.InstallationSecret == "" {
+		s.InstallationSecret = newInstallationSecret()
+		changed = true
+	}
+	if s.MachineUUID == "" {
+		if s.DeviceID != "" {
+			// Preserve uuid anchor for devices enrolled before v2 fingerprinting.
+			s.MachineUUID = legacyMachineSeed()
+			if s.MachineUUID == "" {
+				s.MachineUUID = machineFingerprint()
+			}
+		} else {
+			s.MachineUUID = machineFingerprint()
+		}
+		changed = true
+	}
 	if s.DeviceID == "" {
-		s.DeviceID = generateDeviceID()
+		s.DeviceID = generateDeviceID(s.InstallationSecret)
 		changed = true
 	}
 	if s.AccessMode == "" {
@@ -296,44 +313,62 @@ func (s *AppState) IsEnrolled() bool {
 	return s.EnrollmentStatus == EnrollmentApproved && s.DeviceToken != ""
 }
 
-// generateDeviceID derives a stable per-machine identifier so the device keeps
-// the same ID across restarts. Falls back to random bytes when no machine ID
-// source is available.
-func generateDeviceID() string {
-	seed := machineSeed()
-	if seed == "" {
+// GetMachineUUID returns the fingerprint sent to the server during enrollment.
+func (s *AppState) GetMachineUUID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.MachineUUID
+}
+
+// SetDeviceID updates the device identifier after a server-suggested collision
+// resolution and clears enrollment so the agent re-registers.
+func (s *AppState) SetDeviceID(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.DeviceID = id
+	s.EnrollmentStatus = ""
+	s.DeviceToken = ""
+	s.EnrollmentMessage = ""
+	return s.save()
+}
+
+func newInstallationSecret() string {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return hex.EncodeToString([]byte("betterdesk-fallback-secret"))
+	}
+	return hex.EncodeToString(buf)
+}
+
+// generateDeviceID derives a stable per-installation identifier. The
+// installation secret ensures two fresh installs on the same hardware get
+// different IDs; the machine fingerprint anchors uuid sent to the server.
+func generateDeviceID(installationSecret string) string {
+	fp := machineFingerprint()
+	if fp == "" {
+		fp = legacyMachineSeed()
+	}
+	if fp == "" {
 		buf := make([]byte, 8)
 		_, _ = rand.Read(buf)
-		seed = hex.EncodeToString(buf)
+		fp = hex.EncodeToString(buf)
 	}
-	sum := sha256.Sum256([]byte("betterdesk-support|" + seed))
+	material := "betterdesk-support-v2|" + fp + "|" + installationSecret
+	sum := sha256.Sum256([]byte(material))
 	return "BD-" + strings.ToUpper(hex.EncodeToString(sum[:5]))
 }
 
-// machineSeed reads a platform-stable machine identifier.
-func machineSeed() string {
-	switch runtime.GOOS {
-	case "linux":
-		for _, p := range []string{"/etc/machine-id", "/var/lib/dbus/machine-id"} {
-			if b, err := os.ReadFile(p); err == nil {
-				if id := strings.TrimSpace(string(b)); id != "" {
-					return id
-				}
-			}
-		}
-	case "windows":
-		if v := os.Getenv("COMPUTERNAME"); v != "" {
-			return v
-		}
-	case "darwin":
-		if h, err := os.Hostname(); err == nil {
-			return h
-		}
+// deriveDeviceIDWithSuffix appends a server-suggested suffix for collision resolution.
+func deriveDeviceIDWithSuffix(baseID, suffix string) string {
+	baseID = strings.TrimSpace(baseID)
+	suffix = strings.TrimSpace(suffix)
+	if baseID == "" || suffix == "" {
+		return baseID
 	}
-	if h, err := os.Hostname(); err == nil {
-		return h
+	if strings.HasSuffix(baseID, suffix) {
+		return baseID
 	}
-	return ""
+	return baseID + suffix
 }
 
 // randomPassword returns a short, human-typable access password.

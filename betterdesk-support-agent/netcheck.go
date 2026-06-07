@@ -21,8 +21,18 @@ type ConnCheck struct {
 	API  ProbeResult
 }
 
+type ExtendedConnCheck struct {
+	CDAP       ProbeResult
+	API        ProbeResult
+	Enrollment ProbeResult
+}
+
 func (c ConnCheck) AllOK() bool {
 	return c.CDAP.OK && c.API.OK
+}
+
+func (c ExtendedConnCheck) AllOK() bool {
+	return c.CDAP.OK && c.API.OK && c.Enrollment.OK
 }
 
 // TestConnection probes the CDAP gateway and the Go management API.
@@ -31,6 +41,27 @@ func TestConnection(b Branding) ConnCheck {
 		CDAP: probeHealth(b.CDAPHealthURL()),
 		API:  probeHealth(b.APIHealthURL()),
 	}
+}
+
+// TestConnectionExtended includes enrollment reachability for the device API.
+func TestConnectionExtended(b Branding, st *AppState) ExtendedConnCheck {
+	res := ExtendedConnCheck{
+		CDAP: probeHealth(b.CDAPHealthURL()),
+		API:  probeHealth(b.APIHealthURL()),
+	}
+	if !b.HasConnection() {
+		res.Enrollment = ProbeResult{OK: false, Detail: "no server configured"}
+		return res
+	}
+	deviceID, _, _, _ := st.Snapshot()
+	url := fmt.Sprintf("%s/devices/register/status?device_id=%s", apiBaseURL(b), deviceID)
+	_, latency, err := httpGet(url)
+	if err != nil {
+		res.Enrollment = ProbeResult{OK: false, Detail: shortenErr(err.Error()), Latency: latency}
+		return res
+	}
+	res.Enrollment = ProbeResult{OK: true, Detail: "register API reachable", Latency: latency}
+	return res
 }
 
 func probeHealth(endpoint string) ProbeResult {

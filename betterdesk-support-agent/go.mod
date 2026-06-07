@@ -6,6 +6,9 @@ require (
 	fyne.io/fyne/v2 v2.7.3
 	github.com/fyne-io/image v0.1.1
 	github.com/unitronix/betterdesk-agent v0.0.0-00010101000000-000000000000
+	github.com/unitronix/betterdesk-server v0.0.0-00010101000000-000000000000
+	golang.org/x/sys v0.45.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -47,9 +50,10 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/unitronix/betterdesk-agent => ../betterdesk-agent
+
+replace github.com/unitronix/betterdesk-server => ../betterdesk-server

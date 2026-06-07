@@ -311,6 +311,25 @@
     color: var(--brand-primary);
 }
 
+.ap-help {
+    margin-top: 4px;
+    padding: 13px;
+    background: rgba(37, 99, 235, 0.12);
+    color: var(--brand-primary, #2563eb);
+    border: 1px solid var(--brand-primary, #2563eb);
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: not-allowed;
+    opacity: 0.85;
+}
+
+.ap-help .material-icons { font-size: 20px; }
+
 .ap-chat {
     margin-top: 4px;
     padding: 14px;

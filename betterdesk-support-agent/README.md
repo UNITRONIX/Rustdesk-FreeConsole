@@ -97,6 +97,16 @@ Force a backend: `BETTERDESK_UI_BACKEND=wayland` or `=x11`.
 ./betterdesk-support -uninstall   # remove autostart + installed binary
 ```
 
+## System requirements
+
+| Platform | Minimum |
+|----------|---------|
+| Windows | 10 / Server 2016+ (64-bit). Fyne requires OpenGL 2.0+; use Mesa companion DLL or `-nogui` on VMs/RDP. |
+| Linux | glibc-based distros with X11 or Wayland; dual UI binaries included. AppImage, deb, rpm, portable tar supported. |
+| macOS | 11+ (experimental cross-compile) |
+
+Portable and installed builds behave identically except for state location and autostart. A portable binary added to autostart hides to the tray on close like the installed build.
+
 ## Portable usage
 
 **Tarball / bare binary:** place an empty `portable` (or `.portable`) file next to

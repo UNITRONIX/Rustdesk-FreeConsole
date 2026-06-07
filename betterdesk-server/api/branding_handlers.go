@@ -129,16 +129,18 @@ type EnrollmentRequest struct {
 
 // EnrollmentResponse is returned to the desktop client.
 type EnrollmentResponse struct {
-	Status       string          `json:"status"` // approved, pending, rejected
-	DeviceID     string          `json:"device_id"`
-	DeviceToken  string          `json:"device_token,omitempty"`
-	ServerTime   int64           `json:"server_time"`
-	SyncMode     string          `json:"sync_mode,omitempty"`    // silent, standard, turbo
-	DisplayName  string          `json:"display_name,omitempty"` // Operator-assigned name
-	Branding     *BrandingConfig `json:"branding,omitempty"`     // Inline branding
-	ServerKey    string          `json:"server_key,omitempty"`   // Ed25519 public key (base64)
-	HeartbeatSec int             `json:"heartbeat_interval"`     // Heartbeat interval
-	Message      string          `json:"message,omitempty"`      // Human-readable message
+	Status            string          `json:"status"` // approved, pending, rejected
+	DeviceID          string          `json:"device_id"`
+	DeviceToken       string          `json:"device_token,omitempty"`
+	ServerTime        int64           `json:"server_time"`
+	SyncMode          string          `json:"sync_mode,omitempty"`    // silent, standard, turbo
+	DisplayName       string          `json:"display_name,omitempty"` // Operator-assigned name
+	Branding          *BrandingConfig `json:"branding,omitempty"`     // Inline branding
+	ServerKey         string          `json:"server_key,omitempty"`   // Ed25519 public key (base64)
+	HeartbeatSec      int             `json:"heartbeat_interval"`     // Heartbeat interval
+	Message           string          `json:"message,omitempty"`      // Human-readable message
+	Error             string          `json:"error,omitempty"`
+	SuggestedDeviceID string          `json:"suggested_device_id,omitempty"`
 }
 
 // handleDeviceRegister handles desktop client self-registration.
@@ -180,6 +182,20 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 	})
 	// #endregion
 	if existing != nil {
+		if req.UUID != "" && existing.UUID != "" && req.UUID != existing.UUID {
+			resp := EnrollmentResponse{
+				Status:            "rejected",
+				DeviceID:          req.DeviceID,
+				Error:             "identity_conflict",
+				Message:           "Device ID is already registered to a different machine",
+				SuggestedDeviceID: suggestAlternateDeviceID(req.DeviceID),
+				ServerTime:        timeNowUnixMilli(),
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
 		if req.PublicKey != "" {
 			incomingCanonical, _ := canonicalizeDevicePublicKey(req.PublicKey)
 			if bound, err := s.loadBdMgmtPublicKey(req.DeviceID); err == nil && len(bound) == 32 {
@@ -803,4 +819,19 @@ func (s *Server) handleDeviceSelfAccessPolicy(w http.ResponseWriter, r *http.Req
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// suggestAlternateDeviceID returns a collision-safe variant of a peer ID.
+func suggestAlternateDeviceID(deviceID string) string {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return ""
+	}
+	if i := strings.LastIndex(deviceID, "-"); i > 0 {
+		suffix := deviceID[i+1:]
+		if n, err := strconv.Atoi(suffix); err == nil && n >= 2 {
+			return deviceID[:i+1] + strconv.Itoa(n+1)
+		}
+	}
+	return deviceID + "-2"
 }

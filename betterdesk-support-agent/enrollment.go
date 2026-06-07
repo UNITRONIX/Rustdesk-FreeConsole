@@ -17,10 +17,12 @@ const (
 
 // enrollmentResponse mirrors betterdesk-server/api/branding_handlers.go.
 type enrollmentResponse struct {
-	Status      string `json:"status"`
-	DeviceID    string `json:"device_id"`
-	DeviceToken string `json:"device_token,omitempty"`
-	Message     string `json:"message,omitempty"`
+	Status            string `json:"status"`
+	DeviceID          string `json:"device_id"`
+	DeviceToken       string `json:"device_token,omitempty"`
+	Message           string `json:"message,omitempty"`
+	Error             string `json:"error,omitempty"`
+	SuggestedDeviceID string `json:"suggested_device_id,omitempty"`
 }
 
 // EnrollmentStatus is the outcome of register or poll.
@@ -102,7 +104,7 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 
 	payload := map[string]any{
 		"device_id":   deviceID,
-		"uuid":        machineSeed(),
+		"uuid":        st.GetMachineUUID(),
 		"hostname":    hostname,
 		"platform":    fmt.Sprintf("%s %s", runtime.GOOS, runtime.GOARCH),
 		"version":     version,
@@ -140,6 +142,16 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 	})
 	// #endregion
 	if code != http.StatusOK && code != http.StatusAccepted {
+		if code == http.StatusConflict && resp.Error == "identity_conflict" {
+			newID := strings.TrimSpace(resp.SuggestedDeviceID)
+			if newID == "" {
+				newID = deriveDeviceIDWithSuffix(deviceID, "-2")
+			}
+			if err := st.SetDeviceID(newID); err != nil {
+				return EnrollmentStatus{}, err
+			}
+			return RegisterDevice(b, st, version)
+		}
 		return EnrollmentStatus{}, fmt.Errorf("registration failed (HTTP %d)", code)
 	}
 

@@ -27,7 +27,7 @@ var stateMagic = []byte("BDSE1\x00")
 // is mixed with a domain-separation label so the key cannot collide with other
 // machine-seed uses (e.g. the device ID derivation).
 func stateKey() [32]byte {
-	seed := machineSeed()
+	seed := legacyMachineSeed()
 	if seed == "" {
 		// No stable machine identifier: fall back to a hostname-less constant.
 		// State stays encrypted but is effectively portable on this host only.

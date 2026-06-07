@@ -211,7 +211,7 @@
         }
         els['gen-prev-name'].textContent = b.company_name || t('generator.preview_default_name', 'BetterDesk Support');
         els['gen-prev-text'].textContent = b.short_text || '';
-        els['gen-prev-pw-row'].classList.toggle('hidden', !b.allow_unattended);
+        els['gen-prev-pw-row'].classList.remove('hidden');
         const parts = [];
         if (b.contact_email) parts.push(b.contact_email);
         if (b.contact_phone) parts.push(b.contact_phone);

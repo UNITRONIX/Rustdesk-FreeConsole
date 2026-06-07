@@ -12,6 +12,8 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/unitronix/betterdesk-support-agent/signalhost"
 )
 
 // ui holds the long-lived application objects shared across the window.
@@ -24,9 +26,13 @@ type ui struct {
 	overlay   *sessionOverlay
 	pwShown   bool
 	pwLabel   *widget.Label
+	pwBox     fyne.CanvasObject
 	statusLbl *widget.Label
 	statusDot *canvas.Rectangle
-	consentCh chan consentRequest
+	consentCh    chan consentRequest
+	chatMessages []string
+	chatWindow   fyne.Window
+	signalHost   *signalhost.Host
 }
 
 type consentRequest struct {
@@ -58,13 +64,11 @@ func run() {
 	u.overlay = newSessionOverlay(a, brand.ProductName)
 
 	u.engine.SetCallbacks(u.handleConsent, u.handleSessionStart, u.handleSessionEnd)
+	u.engine.SetChatHandler(u.handleChatMessage)
 
 	u.win = a.NewWindow(brand.ProductName + " — " + t("window_title"))
-	const winW, winH float32 = 480, 660
-	body := u.buildContent()
-	scroll := container.NewScroll(body)
-	scroll.SetMinSize(fyne.NewSize(winW, winH))
-	u.win.SetContent(scroll)
+	const winW, winH float32 = 480, 720
+	u.win.SetContent(u.buildMainLayout())
 	u.win.Resize(fyne.NewSize(winW, winH))
 	u.win.SetFixedSize(true)
 	u.setupTray()
@@ -76,6 +80,7 @@ func run() {
 	}
 
 	log.Printf("[support-agent] %s starting (device=%s)", version, st.DeviceID)
+	appLogInfo("startup", "support agent started", map[string]any{"device_id": st.DeviceID, "version": version})
 	u.win.ShowAndRun()
 }
 
@@ -115,6 +120,7 @@ func (u *ui) bootstrapConnection() {
 				log.Printf("[support-agent] engine start: %v", err)
 			}
 			_ = SyncAccessPassword(u.brand, u.state)
+			u.startSignalHost()
 		} else if res.Status == EnrollmentPending {
 			StartEnrollmentPoll(u.brand, u.state, version, 5*time.Second, u.onEnrollmentUpdate)
 		}
@@ -137,6 +143,7 @@ func (u *ui) onEnrollmentUpdate(res EnrollmentStatus) {
 		if !u.engine.Running() {
 			_ = u.engine.Start(u.state)
 			_ = SyncAccessPassword(u.brand, u.state)
+			u.startSignalHost()
 		}
 	case EnrollmentPending:
 		msg := t("enrollment_pending")
@@ -190,90 +197,64 @@ func (u *ui) handleSessionEnd(sessionID string) {
 	u.overlay.hide()
 }
 
-func (u *ui) buildContent() fyne.CanvasObject {
-	deviceID, mode, password, _ := u.state.Snapshot()
+func (u *ui) handleChatMessage(from, text string) {
+	line := from + ": " + text
+	u.chatMessages = append(u.chatMessages, line)
+}
 
-	header := u.buildHeader()
+
+func (u *ui) buildMainLayout() fyne.CanvasObject {
+	header := u.buildBrandedHeaderBar()
+	body := u.buildContent()
+	footer := u.buildFooterBar()
+	return container.NewBorder(header, footer, nil, nil, body)
+}
+
+func (u *ui) buildContent() fyne.CanvasObject {
+	deviceID, mode, password, custom := u.state.Snapshot()
+
 	bodyLogo := u.buildBodyLogo()
 
-	idValue := widget.NewLabelWithStyle(deviceID, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	idCopy := widget.NewButtonWithIcon(t("copy"), theme.ContentCopyIcon(), func() {
+	idBox := u.newInfoBox(t("your_id"), formatDeviceID(deviceID), false, func() {
 		u.win.Clipboard().SetContent(deviceID)
 		u.notify(t("copied"))
 	})
-	idCard := widget.NewCard(t("your_id"), "", container.NewVBox(idValue, idCopy))
 
-	u.pwLabel = widget.NewLabelWithStyle(maskPassword(password), fyne.TextAlignCenter, fyne.TextStyle{Bold: true, Monospace: true})
-	u.pwShown = false
-	showBtn := widget.NewButton(t("show"), nil)
-	showBtn.OnTapped = func() {
-		u.pwShown = !u.pwShown
-		_, _, pw, _ := u.state.Snapshot()
-		if u.pwShown {
-			u.pwLabel.SetText(pw)
-			showBtn.SetText(t("hide"))
-		} else {
-			u.pwLabel.SetText(maskPassword(pw))
-			showBtn.SetText(t("show"))
-		}
+	displayPw := maskPassword(password)
+	if u.pwShown {
+		displayPw = password
 	}
-	pwCopy := widget.NewButtonWithIcon(t("copy"), theme.ContentCopyIcon(), func() {
+	u.pwLabel = widget.NewLabel(displayPw) // kept for refreshPassword
+	u.pwBox = u.newInfoBox(t("access_password"), displayPw, true, func() {
 		_, _, pw, _ := u.state.Snapshot()
 		u.win.Clipboard().SetContent(pw)
 		u.notify(t("copied"))
 	})
-	pwRegen := widget.NewButtonWithIcon(t("regenerate"), theme.ViewRefreshIcon(), func() {
-		if err := u.state.RegeneratePassword(); err != nil {
-			u.notify(err.Error())
-			return
-		}
-		u.refreshPassword()
-		go func() { _ = SyncAccessPassword(u.brand, u.state) }()
-	})
-	pwCustom := widget.NewButton(t("set_custom"), u.showCustomPasswordDialog)
-	pwButtons := container.NewGridWithColumns(2, showBtn, pwCopy, pwRegen, pwCustom)
-	pwCard := widget.NewCard(t("access_password"), "", container.NewVBox(u.pwLabel, pwButtons))
+	if !u.shouldShowPasswordBox(mode, custom) {
+		u.pwBox.Hide()
+	}
 
-	modeOptions := u.accessModeOptions()
-	modeSelect := widget.NewSelect(modeOptions, func(sel string) {
-		u.onModeChange(sel)
-	})
-	modeSelect.SetSelected(modeLabel(mode))
-	modeCard := widget.NewCard(t("access_mode"), "", modeSelect)
+	helpBtn := newSecondaryButton(t("request_help"), theme.MailSendIcon(), u.showHelpDialog)
+	chatBtn := newPrimaryButton(t("chat_with_support"), theme.MailComposeIcon(), u.showChatWindow)
 
-	helpBtn := widget.NewButtonWithIcon(t("request_help"), theme.MailSendIcon(), u.showHelpDialog)
-	helpBtn.Importance = widget.HighImportance
-
-	testBtn := widget.NewButtonWithIcon(t("test_connection"), theme.SearchIcon(), u.showConnTest)
-
-	u.statusLbl = widget.NewLabelWithStyle(t("status_ready"), fyne.TextAlignLeading, fyne.TextStyle{Italic: true})
-	u.statusLbl.Wrapping = fyne.TextWrapOff
-
+	u.statusLbl = widget.NewLabelWithStyle(t("status_ready"), fyne.TextAlignLeading, fyne.TextStyle{})
 	u.statusDot = canvas.NewRectangle(statusColor(statusKindReady, u.brand))
 	u.statusDot.SetMinSize(fyne.NewSize(10, 10))
 	u.statusDot.CornerRadius = 5
 	dotBox := container.NewCenter(u.statusDot)
-	dotBox.Resize(fyne.NewSize(18, 18))
 	statusRow := container.NewBorder(nil, nil, dotBox, nil, u.statusLbl)
 	u.updateStatus()
 
-	items := []fyne.CanvasObject{header}
+	items := []fyne.CanvasObject{}
 	if bodyLogo != nil {
 		items = append(items, bodyLogo)
 	}
 	items = append(items,
 		statusRow,
-		widget.NewSeparator(),
-		idCard,
-	)
-	if u.brand.AllowUnattended {
-		items = append(items, pwCard)
-	}
-	items = append(items,
-		modeCard,
-		widget.NewSeparator(),
+		idBox,
+		u.pwBox,
 		helpBtn,
-		testBtn,
+		chatBtn,
 	)
 	return container.NewPadded(container.NewVBox(items...))
 }
@@ -284,19 +265,6 @@ func (u *ui) accessModeOptions() []string {
 		opts = []string{t("mode_supervised"), t("mode_unattended"), t("mode_disabled")}
 	}
 	return opts
-}
-
-func (u *ui) buildHeader() fyne.CanvasObject {
-	title := widget.NewLabelWithStyle(u.brand.CompanyName, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-	items := []fyne.CanvasObject{title}
-	tagline := u.brand.Tagline
-	if tagline == "" {
-		tagline = u.brand.ProductName
-	}
-	if tagline != "" && tagline != u.brand.CompanyName {
-		items = append(items, widget.NewLabelWithStyle(tagline, fyne.TextAlignCenter, fyne.TextStyle{Italic: true}))
-	}
-	return container.NewVBox(items...)
 }
 
 func (u *ui) buildBodyLogo() fyne.CanvasObject {
@@ -353,7 +321,8 @@ func (u *ui) showConnTest() {
 			"register_url": apiBaseURL(u.brand) + "/devices/register",
 		})
 		// #endregion
-		res := TestConnection(u.brand)
+		res := TestConnectionExtended(u.brand, u.state)
+		logConnectionTest(res)
 		progress.Hide()
 		line := func(ok bool, name string, p ProbeResult) string {
 			mark := "✕"
@@ -365,6 +334,7 @@ func (u *ui) showConnTest() {
 		content := container.NewVBox(
 			wrapLabel(line(res.CDAP.OK, t("test_gateway"), res.CDAP)),
 			wrapLabel(line(res.API.OK, t("test_api"), res.API)),
+			wrapLabel(line(res.Enrollment.OK, t("test_enrollment"), res.Enrollment)),
 		)
 		scroll := container.NewScroll(content)
 		scroll.SetMinSize(fyne.NewSize(440, 120))
@@ -399,7 +369,7 @@ func (u *ui) showCustomPasswordDialog() {
 
 func (u *ui) onModeChange(label string) {
 	mode := modeFromLabel(label)
-	_, cur, _, _ := u.state.Snapshot()
+	_, cur, _, custom := u.state.Snapshot()
 	if mode == cur {
 		return
 	}
@@ -410,6 +380,14 @@ func (u *ui) onModeChange(label string) {
 		u.notify(err.Error())
 		return
 	}
+	if u.pwBox != nil {
+		_, newMode, _, newCustom := u.state.Snapshot()
+		if u.shouldShowPasswordBox(newMode, newCustom) {
+			u.pwBox.Show()
+		} else {
+			u.pwBox.Hide()
+		}
+	}
 	if u.brand.HasConnection() && u.state.IsEnrolled() {
 		u.engine.Stop()
 		if err := u.engine.Start(u.state); err != nil {
@@ -417,15 +395,22 @@ func (u *ui) onModeChange(label string) {
 		}
 		go func() { _ = SyncAccessPassword(u.brand, u.state) }()
 	}
+	_ = custom
 }
 
 func (u *ui) refreshPassword() {
-	_, _, pw, _ := u.state.Snapshot()
+	// Password box is rebuilt on settings save; notify user when changed from settings.
+	_, mode, pw, custom := u.state.Snapshot()
+	display := maskPassword(pw)
 	if u.pwShown {
-		u.pwLabel.SetText(pw)
-	} else {
-		u.pwLabel.SetText(maskPassword(pw))
+		display = pw
 	}
+	if u.pwBox != nil {
+		if u.shouldShowPasswordBox(mode, custom) {
+			u.pwBox.Show()
+		}
+	}
+	_ = display
 }
 
 func (u *ui) setupTray() {

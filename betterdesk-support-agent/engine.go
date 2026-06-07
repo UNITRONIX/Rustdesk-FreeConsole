@@ -20,6 +20,7 @@ type Engine struct {
 	onConsent func(sessionID, operator string) bool
 	onSessionStart func(sessionID, operator, mode string)
 	onSessionEnd   func(sessionID string)
+	onChat         func(from, text string)
 }
 
 // NewEngine creates an engine wrapper.
@@ -112,6 +113,9 @@ func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*b
 		if handlers.onSessionEnd != nil {
 			cfg.SessionEndHandler = handlers.onSessionEnd
 		}
+		if handlers.onChat != nil {
+			cfg.ChatMessageHandler = handlers.onChat
+		}
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -173,7 +177,24 @@ func (e *Engine) Running() bool {
 	return e.running
 }
 
-// RequestHelp sends help_request over the active CDAP session.
+// SendChat sends a chat message when the engine is running.
+func (e *Engine) SendChat(text string) error {
+	e.mu.Lock()
+	a := e.agent
+	e.mu.Unlock()
+	if a == nil {
+		return fmt.Errorf("gateway not connected")
+	}
+	return a.SendChat(text)
+}
+
+// SetChatHandler wires incoming chat messages to the UI.
+func (e *Engine) SetChatHandler(fn func(from, text string)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onChat = fn
+}
+
 func (e *Engine) RequestHelp(st *AppState, message string) error {
 	e.mu.Lock()
 	a := e.agent

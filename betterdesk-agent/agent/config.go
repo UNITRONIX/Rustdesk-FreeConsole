@@ -53,6 +53,7 @@ type Config struct {
 	ConsentHandler      func(sessionID, operator string) bool
 	SessionStartHandler func(sessionID, operator, mode string)
 	SessionEndHandler   func(sessionID string)
+	ChatMessageHandler  func(fromName, text string)
 
 	// ── TLS hardening (Phase 4) ──────────────────────────────────────
 	// EnforceTLS rejects plaintext ws:// for any non-local host (returns an

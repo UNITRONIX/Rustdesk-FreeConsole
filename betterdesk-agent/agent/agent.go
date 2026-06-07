@@ -395,6 +395,10 @@ func (a *Agent) dispatch(msg *Message) {
 	case "clipboard_get":
 		a.handleClipboardGet(msg)
 
+	// ── Chat ──
+	case "chat_message":
+		a.handleChatMessage(msg)
+
 	// ── Desktop (Screenshot + Streaming) ──
 	case "desktop_start":
 		a.handleDesktopStart(msg)
