@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
+	"time"
 )
 
 // ── CDAP desktop_input payload ────────────────────────────────────────────
@@ -50,10 +52,35 @@ func (a *Agent) handleDesktopInput(msg *Message) {
 
 	if err := injectInput(&evt); err != nil {
 		log.Printf("[input] Injection failed (%s): %v", evt.Type, err)
-		_ = a.sendMessage("desktop_input_error", map[string]any{
-			"session_id": evt.SessionID,
-			"type":       evt.Type,
-			"message":    err.Error(),
-		})
+		if shouldEmitInputError(evt.SessionID, evt.Type, err.Error()) {
+			_ = a.sendMessage("desktop_input_error", map[string]any{
+				"session_id": evt.SessionID,
+				"type":       evt.Type,
+				"message":    err.Error(),
+			})
+		}
 	}
+}
+
+var (
+	inputErrMu   sync.Mutex
+	inputErrLast = map[string]time.Time{}
+)
+
+// shouldEmitInputError rate-limits operator-visible input failures.
+// mouse_move failures are logged locally only — they fire continuously
+// while the operator moves the pointer and would flood the RDClient console.
+func shouldEmitInputError(sessionID, eventType, message string) bool {
+	if eventType == "mouse_move" {
+		return false
+	}
+	key := sessionID + "|" + message
+	now := time.Now()
+	inputErrMu.Lock()
+	defer inputErrMu.Unlock()
+	if t, ok := inputErrLast[key]; ok && now.Sub(t) < 5*time.Second {
+		return false
+	}
+	inputErrLast[key] = now
+	return true
 }

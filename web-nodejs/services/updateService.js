@@ -158,6 +158,7 @@ const EXCLUDE_PATTERNS = [
 const AGENT_REBUILD_TRIGGER_PATHS = [
     /^betterdesk-support-agent\//,
     /^betterdesk-agent\//,
+    /^betterdesk-server\//,
     /^web-nodejs\/services\/agentBuildWorker\.js$/,
     /^web-nodejs\/services\/agentBundleConnection\.js$/,
     /^web-nodejs\/services\/agentBundleService\.js$/,
@@ -1005,12 +1006,26 @@ function compareGoVersion(a, b) {
     return 0;
 }
 
+function goBuildCacheDir() {
+    return path.join(config.dataDir || path.join(__dirname, '..', 'data'), 'build-cache');
+}
+
 function goEnvForBin(binPath) {
     const goroot = path.dirname(path.dirname(binPath));
+    const cacheRoot = goBuildCacheDir();
+    const gocache = path.join(cacheRoot, 'gocache');
+    const gomodcache = path.join(cacheRoot, 'gomod');
+    try {
+        fs.mkdirSync(gocache, { recursive: true });
+        fs.mkdirSync(gomodcache, { recursive: true });
+    } catch (_) { /* best effort */ }
     return {
         ...process.env,
         GOROOT: goroot,
         GO111MODULE: 'off',
+        GOCACHE: gocache,
+        GOMODCACHE: gomodcache,
+        HOME: cacheRoot,
         PATH: `${path.dirname(binPath)}:${process.env.PATH || ''}`,
     };
 }

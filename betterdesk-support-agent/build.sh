@@ -22,7 +22,7 @@ cd "$SCRIPT_DIR"
 
 BRANDING=""
 OUTPUT=""
-TARGET_OS="$(go env GOOS)"
+TARGET_OS=""
 DUAL_LINUX=0
 
 while getopts "b:o:p:dh" opt; do
@@ -35,6 +35,11 @@ while getopts "b:o:p:dh" opt; do
         *) exit 1 ;;
     esac
 done
+
+GO="${GO_BIN:-go}"
+if [ -z "$TARGET_OS" ]; then
+    TARGET_OS="$($GO env GOOS 2>/dev/null || uname -s | tr '[:upper:]' '[:lower:]')"
+fi
 
 # Bake branding (Console generator overwrites this before invoking build).
 if [ -n "$BRANDING" ]; then
@@ -73,10 +78,10 @@ linux_dual_build() {
     launcher="${out_dir}/betterdesk-support"
 
     echo "Building Linux X11 UI → $x11_bin ..."
-    GOOS=linux CGO_ENABLED=1 go build -trimpath -tags release -ldflags "-s -w" -o "$x11_bin" .
+    GOOS=linux CGO_ENABLED=1 "$GO" build -trimpath -tags release -ldflags "-s -w" -o "$x11_bin" .
 
     echo "Building Linux Wayland UI → $wl_bin ..."
-    GOOS=linux CGO_ENABLED=1 go build -trimpath -tags "release,wayland" -ldflags "-s -w" -o "$wl_bin" .
+    GOOS=linux CGO_ENABLED=1 "$GO" build -trimpath -tags "release,wayland" -ldflags "-s -w" -o "$wl_bin" .
 
     cp "$SCRIPT_DIR/scripts/betterdesk-support-launcher.sh" "$launcher"
     chmod +x "$launcher" "$x11_bin" "$wl_bin"
@@ -95,7 +100,7 @@ if [ "$TARGET_OS" = "linux" ] && [ "$DUAL_LINUX" = 1 ]; then
 fi
 
 echo "Building $OUTPUT (GOOS=$TARGET_OS) ..."
-GOOS="$TARGET_OS" CGO_ENABLED=1 go build -trimpath \
+GOOS="$TARGET_OS" CGO_ENABLED=1 "$GO" build -trimpath \
     -tags release \
     -ldflags "-s -w" \
     -o "$OUTPUT" .

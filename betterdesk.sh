@@ -4226,8 +4226,10 @@ stage_support_agent_source() {
 
     local support_src="$repo_root/betterdesk-support-agent"
     local agent_lib_src="$repo_root/betterdesk-agent"
+    local server_lib_src="$repo_root/betterdesk-server"
     local support_dst="$base/betterdesk-support-agent"
     local agent_lib_dst="$base/betterdesk-agent"
+    local server_lib_dst="$base/betterdesk-server"
 
     if [ ! -f "$support_src/build.sh" ]; then
         print_warning "Support agent source not found: $support_src (Generator builds will fail)"
@@ -4236,7 +4238,7 @@ stage_support_agent_source() {
 
     mkdir -p "$base"
     local staged=0
-    for pair in "$support_src:$support_dst" "$agent_lib_src:$agent_lib_dst"; do
+    for pair in "$support_src:$support_dst" "$agent_lib_src:$agent_lib_dst" "$server_lib_src:$server_lib_dst"; do
         local src="${pair%%:*}"
         local dst="${pair#*:}"
         if [ ! -d "$src" ]; then

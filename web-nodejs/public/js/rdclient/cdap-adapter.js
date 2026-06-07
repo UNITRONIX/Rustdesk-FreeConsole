@@ -198,6 +198,8 @@
             this._monitors = [];
             this._activeMonitor = 0;
             this._sessionId = null;
+            this._lastErrorText = '';
+            this._lastErrorAt = 0;
 
             // Stats counters
             this._frameCount = 0;
@@ -471,6 +473,15 @@
             // decoder for codec streams (h264/vp9/av1) or the image path for
             // MJPEG/WebP, based on the format last reported via desktop_meta.
             if (event.data instanceof ArrayBuffer) {
+                const bytes = new Uint8Array(event.data);
+                // Safety net when desktop_meta was not relayed (older servers):
+                // JPEG SOI marker 0xFF 0xD8 at the start of the payload.
+                if (!isVideoCodec(this._activeFormat)
+                    && bytes.length >= 2
+                    && bytes[0] === 0xFF
+                    && bytes[1] === 0xD8) {
+                    this._applyFormat('jpeg');
+                }
                 if (isVideoCodec(this._activeFormat)) {
                     this._feedVideoFrame(event.data);
                 } else {
@@ -538,8 +549,12 @@
                 }
 
                 case 'codec_answer':
+                    if (msg.video_codec) {
+                        this._applyFormat(String(msg.video_codec).toLowerCase(), msg.codec_string);
+                    }
+                    break;
+
                 case 'quality_adjust':
-                    // Informational only.
                     break;
 
                 case 'consent_required':
@@ -550,8 +565,16 @@
 
                 case 'error':
                     if (this._readyTimer) { clearTimeout(this._readyTimer); this._readyTimer = null; }
-                    console.error('[CDAP] error', msg);
-                    this._emit('error', msg.error || msg.message || 'CDAP error');
+                    {
+                        const text = msg.error || msg.message || 'CDAP error';
+                        const now = performance.now();
+                        if (text !== this._lastErrorText || now - this._lastErrorAt > 5000) {
+                            this._lastErrorText = text;
+                            this._lastErrorAt = now;
+                            console.error('[CDAP] error', text);
+                            this._emit('error', text);
+                        }
+                    }
                     break;
 
                 case 'end':

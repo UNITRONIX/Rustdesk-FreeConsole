@@ -30,7 +30,40 @@ const PLATFORMS = [
     { platform: 'linux',   arch: 'x64', format: 'rpm',       label: 'Linux Fedora/RHEL (.rpm)' },
 ];
 
-const SUPPORTED_LANGS = ['en', 'pl', 'zh-TW'];
+const SUPPORTED_LANGS = [
+    'ar', 'cs', 'da', 'de', 'en', 'es', 'fi', 'fr', 'hi', 'hu', 'id', 'it',
+    'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'ro', 'sv', 'th', 'tr', 'uk', 'vi',
+    'zh', 'zh-TW',
+];
+
+const LOCALE_LABELS = {
+    ar: 'العربية',
+    cs: 'Čeština',
+    da: 'Dansk',
+    de: 'Deutsch',
+    en: 'English',
+    es: 'Español',
+    fi: 'Suomi',
+    fr: 'Français',
+    hi: 'हिन्दी',
+    hu: 'Magyar',
+    id: 'Bahasa Indonesia',
+    it: 'Italiano',
+    ja: '日本語',
+    ko: '한국어',
+    nb: 'Norsk Bokmål',
+    nl: 'Nederlands',
+    pl: 'Polski',
+    pt: 'Português',
+    ro: 'Română',
+    sv: 'Svenska',
+    th: 'ไทย',
+    tr: 'Türkçe',
+    uk: 'Українська',
+    vi: 'Tiếng Việt',
+    zh: '简体中文',
+    'zh-TW': '繁體中文',
+};
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 // Reasonable upper bounds: enough room for a base64 PNG/SVG logo (~10 MB),
@@ -313,6 +346,7 @@ function defaultBranding() {
 module.exports = {
     PLATFORMS,
     SUPPORTED_LANGS,
+    LOCALE_LABELS,
     MAX_SLUG_LENGTH,
     MIN_SLUG_LENGTH,
     validateBranding,

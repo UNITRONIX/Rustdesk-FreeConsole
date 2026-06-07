@@ -355,6 +355,8 @@ func (g *Gateway) messageLoop(ctx context.Context, dc *DeviceConn) {
 			g.handleTerminalEnd(ctx, dc, msg)
 		case "desktop_frame":
 			g.handleDesktopFrame(ctx, dc, msg)
+		case "desktop_meta":
+			g.HandleDesktopMeta(ctx, dc.ID, msg.Payload)
 		case "desktop_end":
 			g.handleDesktopEnd(ctx, dc, msg)
 		case "desktop_input_error":

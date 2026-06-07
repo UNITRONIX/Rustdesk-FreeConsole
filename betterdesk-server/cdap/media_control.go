@@ -281,6 +281,56 @@ type MonitorSelectPayload struct {
 	Index     int    `json:"index"` // monitor index to stream
 }
 
+// DesktopMetaPayload is emitted by the device when a stream starts or the
+// encoding format / frame dimensions change.
+type DesktopMetaPayload struct {
+	SessionID   string `json:"session_id"`
+	Format      string `json:"format"`
+	Width       int    `json:"width"`
+	Height      int    `json:"height"`
+	Binary      bool   `json:"binary"`
+	CodecString string `json:"codec_string"`
+}
+
+// HandleDesktopMeta forwards stream format metadata to the operator browser.
+// Without this, RDClient cannot choose the JPEG vs H.264 decode path and
+// shows a black canvas even when binary frames arrive.
+func (g *Gateway) HandleDesktopMeta(ctx context.Context, deviceID string, payload json.RawMessage) {
+	var meta DesktopMetaPayload
+	if err := json.Unmarshal(payload, &meta); err != nil {
+		return
+	}
+	if meta.SessionID == "" {
+		return
+	}
+
+	val, ok := g.desktopSessions.Load(meta.SessionID)
+	if !ok {
+		return
+	}
+	ds := val.(*DesktopSession)
+	if ds.DeviceID != deviceID || ds.closed.Load() {
+		return
+	}
+
+	fwd := map[string]any{
+		"type":       "desktop_meta",
+		"session_id": meta.SessionID,
+		"format":     meta.Format,
+		"width":      meta.Width,
+		"height":     meta.Height,
+		"binary":     meta.Binary,
+	}
+	if meta.CodecString != "" {
+		fwd["codec_string"] = meta.CodecString
+	}
+	fwdMsg, _ := json.Marshal(fwd)
+
+	ds.mu.Lock()
+	_ = ds.browser.Write(ctx, websocket.MessageText, fwdMsg)
+	ds.mu.Unlock()
+}
+
 // HandleMonitorList forwards the device's monitor list to the browser.
 func (g *Gateway) HandleMonitorList(ctx context.Context, deviceID string, payload json.RawMessage) {
 	var ml MonitorListPayload

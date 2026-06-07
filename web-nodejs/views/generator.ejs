@@ -185,9 +185,10 @@
                                     <div class="form-group">
                                         <label class="form-label" for="gen-lang">${_('generator.default_lang')}</label>
                                         <select id="gen-lang" class="form-input">
-                                            <option value="en">English</option>
-                                            <option value="pl">Polski</option>
-                                            <option value="zh-TW">繁體中文</option>
+                                            ${(typeof supportedLangs !== 'undefined' ? supportedLangs : ['en', 'pl', 'zh-TW']).map(function(code) {
+                                                const label = (typeof localeLabels !== 'undefined' && localeLabels[code]) ? localeLabels[code] : code;
+                                                return '<option value="' + code + '">' + label + '</option>';
+                                            }).join('')}
                                         </select>
                                     </div>
                                     <div class="form-group form-group-checkbox">

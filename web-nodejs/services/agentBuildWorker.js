@@ -34,6 +34,8 @@ try {
 const BUILD_USER       = process.env.BUILD_USER || 'unitronix';
 const BUILD_CACHE_DIR  = process.env.BUILD_CACHE_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'build-cache');
+const GO_MOD_CACHE_DIR = path.join(BUILD_CACHE_DIR, 'gomod');
+const GO_BUILD_CACHE_DIR = path.join(BUILD_CACHE_DIR, 'gocache');
 const WORK_ROOT        = path.join(BUILD_CACHE_DIR, 'work');
 const ARTIFACT_ROOT    = process.env.AGENT_ARTIFACT_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'agent-builds');
@@ -149,9 +151,9 @@ async function _ensureGoToolchain() {
 }
 
 const BASE_BUILD_ENV = {
-    HOME: `/home/${BUILD_USER}`,
     CGO_ENABLED: '1',
-    GOPATH: process.env.GOPATH || `/home/${BUILD_USER}/go`,
+    GOMODCACHE: GO_MOD_CACHE_DIR,
+    GOCACHE: GO_BUILD_CACHE_DIR,
 };
 
 function _buildEnv(extra = {}) {
@@ -166,6 +168,7 @@ function _buildEnv(extra = {}) {
         ...extra,
         GO_BIN: goBin,
         GOROOT: goroot,
+        HOME: BUILD_CACHE_DIR,
         PATH: `${goDir}:/usr/bin:/bin:${process.env.PATH || ''}`,
     };
 }
@@ -194,8 +197,25 @@ function _resolveAgentLibRoot() {
     return candidates[1];
 }
 
+function _resolveServerLibRoot() {
+    const agentSourceBase = path.dirname(SOURCE_ROOT);
+    const consoleRoot = agentSourceBase.endsWith('agent-source')
+        ? path.dirname(agentSourceBase)
+        : agentSourceBase;
+    const candidates = [
+        path.join(path.dirname(SOURCE_ROOT), 'betterdesk-server'),
+        path.join(consoleRoot, 'betterdesk-server'),
+        path.resolve(__dirname, '..', '..', 'betterdesk-server'),
+    ];
+    for (const c of candidates) {
+        if (fs.existsSync(path.join(c, 'go.mod'))) return c;
+    }
+    return candidates[2];
+}
+
 const SOURCE_ROOT = _resolveSourceRoot();
 const AGENT_LIB_ROOT = _resolveAgentLibRoot();
+const SERVER_LIB_ROOT = _resolveServerLibRoot();
 
 const BUILD_PROFILES = {
     'windows/x64/portable':  { os: 'windows', ext: '.zip',  pack: 'zip-portable' },
@@ -212,7 +232,11 @@ let _pollHandle = null;
 
 const REBUILD_FLAG_FILE = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.agent_rebuild_pending');
 const AGENT_SOURCE_STAMP_FILE = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.agent_source_sha');
-const AGENT_SOURCE_PREFIXES = ['betterdesk-support-agent/', 'betterdesk-agent/'];
+const AGENT_SOURCE_PREFIXES = [
+    'betterdesk-support-agent/',
+    'betterdesk-agent/',
+    'betterdesk-server/',
+];
 
 function _agentSourceDirs() {
     const supportAgent = SOURCE_ROOT;
@@ -221,6 +245,7 @@ function _agentSourceDirs() {
         base,
         supportAgent,
         agentLib: path.join(base, 'betterdesk-agent'),
+        serverLib: path.join(base, 'betterdesk-server'),
     };
 }
 
@@ -389,6 +414,9 @@ async function _writeAgentSourceFile(owner, repo, remoteSHA, fp, download) {
     } else if (fp.startsWith('betterdesk-agent/')) {
         destRoot = _agentSourceDirs().agentLib;
         rel = fp.slice('betterdesk-agent/'.length);
+    } else if (fp.startsWith('betterdesk-server/')) {
+        destRoot = _agentSourceDirs().serverLib;
+        rel = fp.slice('betterdesk-server/'.length);
     } else {
         return false;
     }
@@ -416,8 +444,10 @@ async function reconcileAgentSourceDrift() {
     if (active.length === 0) return null;
 
     const supportRoot = _agentSourceDirs().supportAgent;
+    const serverRoot = _agentSourceDirs().serverLib;
     const missingCore = !fs.existsSync(path.join(supportRoot, 'build.sh'))
-        || !fs.existsSync(path.join(supportRoot, 'urls.go'));
+        || !fs.existsSync(path.join(supportRoot, 'urls.go'))
+        || !fs.existsSync(path.join(serverRoot, 'go.mod'));
     const stampedSha = fs.existsSync(AGENT_SOURCE_STAMP_FILE)
         ? fs.readFileSync(AGENT_SOURCE_STAMP_FILE, 'utf8').trim()
         : '';
@@ -448,7 +478,7 @@ async function reconcileAgentSourceDrift() {
 
 function startWorker() {
     if (_pollHandle) return;
-    console.log(`[agentBuildWorker] Go support-agent source=${SOURCE_ROOT} go=${getGoBin()}`);
+    console.log(`[agentBuildWorker] Go support-agent source=${SOURCE_ROOT} server=${SERVER_LIB_ROOT} go=${getGoBin()}`);
     _ensureDirs().catch((e) => console.error('[agentBuildWorker] dir init failed:', e));
     _pollHandle = setInterval(() => {
         _tick().catch((e) => console.error('[agentBuildWorker] tick error:', e.message));
@@ -488,6 +518,8 @@ async function getReadyArtifact({ brandingHash, platform, arch, format }) {
 async function _ensureDirs() {
     await fsp.mkdir(WORK_ROOT, { recursive: true });
     await fsp.mkdir(ARTIFACT_ROOT, { recursive: true });
+    await fsp.mkdir(GO_MOD_CACHE_DIR, { recursive: true });
+    await fsp.mkdir(GO_BUILD_CACHE_DIR, { recursive: true });
 }
 
 async function _tick() {
@@ -620,6 +652,12 @@ async function _materialiseWorkspace(workDir, branding) {
     }
     await fsp.mkdir(path.dirname(agentLibDest), { recursive: true });
     await _copyDir(AGENT_LIB_ROOT, agentLibDest);
+    const serverLibDest = path.join(workDir, '..', 'betterdesk-server');
+    if (fs.existsSync(serverLibDest)) {
+        await fsp.rm(serverLibDest, { recursive: true, force: true });
+    }
+    await fsp.mkdir(path.dirname(serverLibDest), { recursive: true });
+    await _copyDir(SERVER_LIB_ROOT, serverLibDest);
     await fsp.mkdir(path.join(workDir, 'resources'), { recursive: true });
     const buildBranding = { ...branding };
     delete buildBranding.enrollment_token;
@@ -785,7 +823,21 @@ exec "$LIB/betterdesk-support-x11" "$@"
             for (const sub of ['BUILD', 'RPMS', 'SOURCES', 'SPECS', 'SRPMS', 'BUILDROOT']) {
                 await fsp.mkdir(path.join(topdir, sub), { recursive: true });
             }
-            await fsp.copyFile(binaryPath, path.join(topdir, 'SOURCES', 'betterdesk-support'));
+            const buildDir = path.join(topdir, 'BUILD');
+            const libDir = path.join(buildDir, 'usr', 'lib', 'betterdesk-support');
+            const binDir = path.join(buildDir, 'usr', 'local', 'bin');
+            await fsp.mkdir(libDir, { recursive: true });
+            await fsp.mkdir(binDir, { recursive: true });
+            const distDir = path.dirname(binaryPath);
+            await _stageLinuxUI(distDir, libDir, 'betterdesk-support');
+            const wrapperPath = path.join(binDir, 'betterdesk-support');
+            await fsp.writeFile(wrapperPath, `#!/bin/sh
+LIB="/usr/lib/betterdesk-support"
+if [ -n "$WAYLAND_DISPLAY" ] && [ -z "$DISPLAY" ] && [ -x "$LIB/betterdesk-support-wayland" ]; then
+  exec "$LIB/betterdesk-support-wayland" "$@"
+fi
+exec "$LIB/betterdesk-support-x11" "$@"
+`, { mode: 0o755 });
             const spec = `Name:           betterdesk-support
 Version:        1.0.0
 Release:        1%{?dist}
@@ -793,25 +845,23 @@ Summary:        BetterDesk Support Agent
 License:        Proprietary
 BuildArch:      x86_64
 AutoReqProv:    no
-Source0:        betterdesk-support
 
 %description
 BetterDesk branded support agent for end-user workstations.
 
-%prep
-# binary-only package
-
-%build
-# binary-only package
-
 %install
+mkdir -p %{buildroot}/usr/lib/betterdesk-support
 mkdir -p %{buildroot}/usr/local/bin
-install -m 755 %{SOURCE0} %{buildroot}/usr/local/bin/betterdesk-support
+cp -a %{_builddir}/usr/lib/betterdesk-support/. %{buildroot}/usr/lib/betterdesk-support/
+install -m 755 %{_builddir}/usr/local/bin/betterdesk-support %{buildroot}/usr/local/bin/betterdesk-support
 
 %post
-/usr/local/bin/betterdesk-support -install || true
+/usr/lib/betterdesk-support/betterdesk-support-x11 -install || true
 
 %files
+/usr/lib/betterdesk-support/betterdesk-support
+/usr/lib/betterdesk-support/betterdesk-support-x11
+/usr/lib/betterdesk-support/betterdesk-support-wayland
 /usr/local/bin/betterdesk-support
 `;
             const specPath = path.join(topdir, 'SPECS', 'betterdesk-support.spec');
@@ -819,6 +869,7 @@ install -m 755 %{SOURCE0} %{buildroot}/usr/local/bin/betterdesk-support
             await _runProcess('rpmbuild', [
                 '-bb',
                 '--define', `_topdir ${topdir}`,
+                '--define', `_builddir ${buildDir}`,
                 specPath,
             ], { cwd: packDir });
             const rpmsDir = path.join(topdir, 'RPMS', 'x86_64');

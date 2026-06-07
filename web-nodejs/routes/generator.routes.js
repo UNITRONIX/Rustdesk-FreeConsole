@@ -137,6 +137,8 @@ router.get('/generator', requireAuth, requireAdmin, (req, res) => {
     res.render('generator', {
         title: req.t('nav.generator'),
         activePage: 'generator',
+        supportedLangs: bundleService.SUPPORTED_LANGS,
+        localeLabels: bundleService.LOCALE_LABELS,
     });
 });
 

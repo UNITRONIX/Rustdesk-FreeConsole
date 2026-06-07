@@ -143,10 +143,12 @@ func (u *ui) contactLine() string {
 }
 
 func (u *ui) shouldShowPasswordBox(mode string, custom bool) bool {
-	if mode == AccessUnattended || custom {
-		return true
+	if mode == AccessDisabled {
+		return false
 	}
-	return u.brand.AllowUnattended
+	// Supervised and unattended sessions both use the access password —
+	// operators need it to connect; the user may still get a consent prompt.
+	return true
 }
 
 func newPrimaryButton(label string, icon fyne.Resource, tapped func()) *widget.Button {

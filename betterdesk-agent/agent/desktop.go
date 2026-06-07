@@ -372,6 +372,20 @@ func (a *Agent) streamDesktop(ctx context.Context, s *DesktopStreamer, fps, qual
 	streamFallback(ctx, a, s, fps, quality)
 }
 
+// strategiesUseGstreamerMJPEGOnly reports whether every capture strategy is a
+// gst-launch pipewire pipeline (MJPEG-only on Wayland).
+func strategiesUseGstreamerMJPEGOnly(strategies []CaptureStrategy) bool {
+	if len(strategies) == 0 {
+		return false
+	}
+	for _, strat := range strategies {
+		if len(strat.FullCommand) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // streamWithFFmpeg launches ffmpeg to capture the screen and streams encoded
 // frames to the CDAP server using the negotiated codec. Returns true if
 // ffmpeg was available and ran. MJPEG keeps the original zero-regression path
@@ -402,6 +416,15 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 		mquality = 2
 	}
 	isMJPEG := plan.codec == "" || plan.codec == CodecMJPEG
+
+	// Wayland gst-pipewire capture (FullCommand strategies) only outputs MJPEG.
+	// If the operator negotiated H.264/VP9/AV1, downgrade so frames are not
+	// dropped by skipped strategies and RDClient receives decodable JPEG.
+	if !isMJPEG && strategiesUseGstreamerMJPEGOnly(strategies) {
+		log.Printf("[desktop] Wayland pipewire capture is MJPEG-only — downgrading from %s", plan.codec)
+		plan = imagePlan(CodecMJPEG)
+		isMJPEG = true
+	}
 
 	for _, strat := range strategies {
 		// FullCommand strategies (e.g. gst-launch with jpegenc) produce MJPEG
