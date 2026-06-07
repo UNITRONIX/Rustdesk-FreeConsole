@@ -1021,17 +1021,23 @@ async function ensureConsoleSource(remoteSHA, opts = {}) {
 
     let downloaded = 0;
     let skipped = 0;
+    const failed = [];
     for (const repoPath of consolePaths) {
         const localPath = repoPath.slice(prefix.length);
         if (!isConsoleDeployLocalPath(localPath)) {
             skipped++;
             continue;
         }
-        await downloadConsoleFile(remoteSHA, localPath);
-        downloaded++;
+        try {
+            await downloadConsoleFile(remoteSHA, localPath);
+            downloaded++;
+        } catch (err) {
+            failed.push({ path: repoPath, error: err.message });
+            console.error(`[UPDATE] Failed to download ${repoPath}: ${err.message}`);
+        }
     }
 
-    return { strategy: 'full-tree', filesDownloaded: downloaded, filesSkipped: skipped };
+    return { strategy: 'full-tree', filesDownloaded: downloaded, filesSkipped: skipped, failed };
 }
 
 /**
@@ -1042,14 +1048,20 @@ async function ensureConsoleSource(remoteSHA, opts = {}) {
 async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
     const required = collectConsoleRequiredFiles(changedConsoleFiles);
     const repaired = [];
+    const failed = [];
     for (const localPath of required) {
         if (!isConsoleDeployLocalPath(localPath)) continue;
         const dest = path.join(ROOT_DIR, localPath);
         if (fs.existsSync(dest)) continue;
-        await downloadConsoleFile(remoteSHA, localPath);
-        repaired.push(localPath);
+        try {
+            await downloadConsoleFile(remoteSHA, localPath);
+            repaired.push(localPath);
+        } catch (err) {
+            failed.push({ path: `web-nodejs/${localPath}`, error: err.message });
+            console.error(`[UPDATE] Failed to repair ${localPath}: ${err.message}`);
+        }
     }
-    return { repaired, checked: required.size };
+    return { repaired, checked: required.size, failed };
 }
 
 /**
@@ -1929,6 +1941,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 const sync = await ensureConsoleSource(remoteSHA, { force: true });
                 results.consoleSync = sync;
                 results.applied.push('web-nodejs/(full-tree-sync)');
+                for (const failure of sync.failed || []) {
+                    results.failed.push({ file: failure.path, error: failure.error });
+                }
             } catch (err) {
                 results.failed.push({ file: 'console-source', error: err.message });
             }
@@ -1964,6 +1979,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             results.consoleRepaired = repair;
             for (const localPath of repair.repaired || []) {
                 results.applied.push(`web-nodejs/${localPath} (repair)`);
+            }
+            for (const failure of repair.failed || []) {
+                results.failed.push({ file: failure.path, error: failure.error });
             }
         } catch (err) {
             results.failed.push({ file: 'console-repair', error: err.message });
