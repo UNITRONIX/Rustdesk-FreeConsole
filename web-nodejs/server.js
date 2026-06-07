@@ -39,6 +39,10 @@ const rustdeskApiRoutes = require('./routes/rustdesk-api.routes');
 const bdApiRoutes = require('./routes/bd-api.routes');
 const { getWanMiddlewareStack } = require('./middleware/wanSecurity');
 const { parseTrustProxy } = require('./lib/parseTrustProxy');
+const {
+    resolvePortForCurrentUser,
+    attachPrivilegedPortErrorHandler,
+} = require('./lib/privilegedPorts');
 
 // Create Express app
 const app = express();
@@ -399,10 +403,10 @@ function shouldUseRustDeskApiTls(sslOptions) {
 /**
  * Create HTTP redirect server (redirects all HTTP to HTTPS)
  */
-function createHttpRedirectServer() {
+function createHttpRedirectServer(httpsPort) {
     const redirectApp = express();
     redirectApp.use((req, res) => {
-        const httpsUrl = `https://${req.hostname}:${config.httpsPort}${req.url}`;
+        const httpsUrl = `https://${req.hostname}:${httpsPort}${req.url}`;
         res.redirect(301, httpsUrl);
     });
     
@@ -433,7 +437,9 @@ async function startServer() {
         
         let server;
         let protocol = 'http';
-        let displayPort = config.port;
+        const listenPort = resolvePortForCurrentUser(config.port, 5000, 'HTTP');
+        const listenHttpsPort = resolvePortForCurrentUser(config.httpsPort, 5443, 'HTTPS');
+        let displayPort = listenPort;
         
         // HTTPS mode
         if (config.httpsEnabled) {
@@ -443,17 +449,19 @@ async function startServer() {
                 // Create HTTPS server
                 server = https.createServer(sslOptions, app);
                 protocol = 'https';
-                displayPort = config.httpsPort;
+                displayPort = listenHttpsPort;
                 
-                server.listen(config.httpsPort, config.host, () => {
+                attachPrivilegedPortErrorHandler(server, { port: listenHttpsPort, label: 'HTTPS' });
+                server.listen(listenHttpsPort, config.host, () => {
                     printStartupBanner(protocol, displayPort);
                 });
                 
                 // Optionally start HTTP redirect server
                 if (config.httpRedirect) {
-                    const redirectServer = createHttpRedirectServer();
-                    redirectServer.listen(config.port, config.host, () => {
-                        console.log(`  HTTP -> HTTPS redirect active on port ${config.port}`);
+                    const redirectServer = createHttpRedirectServer(listenHttpsPort);
+                    attachPrivilegedPortErrorHandler(redirectServer, { port: listenPort, label: 'HTTP redirect' });
+                    redirectServer.listen(listenPort, config.host, () => {
+                        console.log(`  HTTP -> HTTPS redirect active on port ${listenPort}`);
                         console.log('');
                     });
                     
@@ -479,15 +487,17 @@ async function startServer() {
                 csrfDowngradeToHttp();
                 
                 server = http.createServer(app);
-                server.listen(config.port, config.host, () => {
-                    printStartupBanner(protocol, config.port);
+                attachPrivilegedPortErrorHandler(server, { port: listenPort, label: 'HTTP' });
+                server.listen(listenPort, config.host, () => {
+                    printStartupBanner(protocol, listenPort);
                 });
             }
         } else {
             // HTTP mode (default)
             server = http.createServer(app);
-            server.listen(config.port, config.host, () => {
-                printStartupBanner(protocol, config.port);
+            attachPrivilegedPortErrorHandler(server, { port: listenPort, label: 'HTTP' });
+            server.listen(listenPort, config.host, () => {
+                printStartupBanner(protocol, listenPort);
             });
         }
         
@@ -705,6 +715,11 @@ function startRustDeskApiServer() {
             console.error('Likely cause: hbbs API is on the same port. Client API default is 21121.');
             console.error('The admin panel continues to run normally on port ' + config.port);
             return; // Don't crash — let the panel continue running
+        }
+        if (err.code === 'EACCES') {
+            console.error(`WARNING: RustDesk Client API could not bind port ${config.apiPort} (permission denied)`);
+            console.error('Ports below 1024 require root or CAP_NET_BIND_SERVICE — set API_PORT to a high port.');
+            return;
         }
         throw err;
     });

@@ -13,6 +13,11 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const config = require('../config/config');
+const {
+    readConsoleEnvPortSettings,
+    consoleEnvUsesPrivilegedPorts,
+    ensureBindCapabilityInServiceUnit,
+} = require('../lib/privilegedPorts');
 
 const SVC_USER = 'betterdesk';
 const CONSOLE_PATH = path.join(__dirname, '..');
@@ -235,13 +240,38 @@ function patchServiceUserLine() {
     if (!servicePath || !content) {
         return { changed: false, reason: 'service unit not found' };
     }
-    if (!/^User=root/m.test(content)) {
-        return { changed: false, reason: 'User is not root (already patched or custom)' };
+
+    const envPorts = readConsoleEnvPortSettings(path.join(CONSOLE_PATH, '.env'));
+    const needsBindCapability = consoleEnvUsesPrivilegedPorts(envPorts);
+
+    let updated = content;
+    let changed = false;
+
+    if (/^User=root/m.test(updated)) {
+        updated = updated.replace(/^User=root/m, `User=${SVC_USER}`);
+        changed = true;
     }
-    const updated = content.replace(/^User=root/m, `User=${SVC_USER}`);
+
+    if (needsBindCapability) {
+        const capPatch = ensureBindCapabilityInServiceUnit(updated);
+        updated = capPatch.content;
+        changed = changed || capPatch.changed;
+    }
+
+    if (!changed) {
+        if (!/^User=root/m.test(content)) {
+            return { changed: false, reason: 'User is not root (already patched or custom)' };
+        }
+        return { changed: false, reason: 'service unit already current' };
+    }
+
     writeServiceFile(servicePath, updated);
     runPrivileged('systemctl daemon-reload');
-    return { changed: true, user: SVC_USER, servicePath };
+    const result = { changed: true, user: SVC_USER, servicePath };
+    if (needsBindCapability) {
+        result.bindCapability = true;
+    }
+    return result;
 }
 
 /**
@@ -295,6 +325,9 @@ function ensureLinuxConsoleServiceUser() {
                 result.changed = true;
                 result.user = patch.user;
                 result.changes.push(`console service User=${patch.user}`);
+                if (patch.bindCapability) {
+                    result.changes.push('CAP_NET_BIND_SERVICE added for privileged HTTPS/HTTP ports');
+                }
             } else if (patch.reason) {
                 result.changes.push(patch.reason);
             }
@@ -320,5 +353,6 @@ module.exports = {
     verifyConsoleUserAccess,
     buildUpdateSudoersContent,
     resolveSystemctlPath,
+    patchServiceUserLine,
     SVC_USER,
 };
