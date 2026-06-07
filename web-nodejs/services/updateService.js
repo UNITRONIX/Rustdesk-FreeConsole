@@ -556,7 +556,7 @@ function writeTextFilePrivileged(filePath, content) {
 }
 
 function runPrivileged(command, options = {}) {
-    const prefix = !IS_WINDOWS && typeof process.getuid === 'function' && process.getuid() !== 0 ? 'sudo ' : '';
+    const prefix = !IS_WINDOWS && typeof process.getuid === 'function' && process.getuid() !== 0 ? 'sudo -n ' : '';
     return execSync(prefix + command, options);
 }
 
@@ -1871,6 +1871,8 @@ function patchServiceDefinitions() {
         return goPatch;
     }
     try {
+        const modPath = require.resolve('../scripts/linux-ensure-console-user');
+        delete require.cache[modPath];
         const { ensureLinuxConsoleServiceUser } = require('../scripts/linux-ensure-console-user');
         const consolePatch = ensureLinuxConsoleServiceUser();
         if (consolePatch.changed) {
@@ -2016,10 +2018,23 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         // npm install when package.json changed
         if (consoleFiles.some(f => f.localPath === 'package.json')) {
             try {
-                execSync('npm install --omit=dev --no-audit --no-fund', { cwd: ROOT_DIR, timeout: 120000, stdio: 'pipe' });
+                const npmCache = path.join(config.dataDir, 'npm-cache');
+                fs.mkdirSync(npmCache, { recursive: true });
+                execSync('npm install --omit=dev --no-audit --no-fund', {
+                    cwd: ROOT_DIR,
+                    timeout: 120000,
+                    stdio: 'pipe',
+                    env: {
+                        ...process.env,
+                        npm_config_cache: npmCache,
+                        NPM_CONFIG_CACHE: npmCache,
+                    },
+                });
                 results.npmInstalled = true;
-            } catch (_e) {
-                results.failed.push({ file: 'npm install', error: 'npm install failed' });
+            } catch (err) {
+                const detail = (err.stderr && err.stderr.toString()) || err.message || 'npm install failed';
+                results.failed.push({ file: 'npm install', error: String(detail).trim().slice(0, 500) });
+                console.error(`[UPDATE] npm install failed: ${detail}`);
             }
         }
         results.needsConsoleRestart = true;
@@ -2367,6 +2382,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         }
     } else {
         results.skipped.push('SHA tracking (critical update steps incomplete)');
+        console.error(`[UPDATE] ${criticalFailures.length} critical failure(s): ${criticalFailures.map(f => `${f.file}: ${f.error}`).join(' | ')}`);
     }
 
     if (criticalFailures.length === 0) {

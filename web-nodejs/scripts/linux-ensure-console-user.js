@@ -18,6 +18,51 @@ const SVC_USER = 'betterdesk';
 const CONSOLE_PATH = path.join(__dirname, '..');
 const RUSTDESK_PATH = config.keysPath || config.rustdeskDir || '/opt/rustdesk';
 const CONSOLE_SERVICE = 'betterdesk-console';
+const SERVER_SERVICE = 'betterdesk-server';
+const UPDATE_SUDOERS_PATH = '/etc/sudoers.d/betterdesk-console-updates';
+const UPDATE_SUDOERS_MARKER = '# Managed by BetterDesk linux-ensure-console-user.js';
+
+function buildUpdateSudoersContent() {
+    return [
+        UPDATE_SUDOERS_MARKER,
+        `${SVC_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl`,
+        `${SVC_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl`,
+        '',
+    ].join('\n');
+}
+
+/** Install passwordless sudo for panel service restarts (Linux updates). */
+function ensureConsoleUpdateSudoers() {
+    if (!isRoot() && !canUseSudo()) {
+        return { changed: false, skipped: true, reason: 'no root/sudo for sudoers install' };
+    }
+    const desired = buildUpdateSudoersContent();
+    let existing = '';
+    try {
+        if (fs.existsSync(UPDATE_SUDOERS_PATH)) {
+            existing = isRoot()
+                ? fs.readFileSync(UPDATE_SUDOERS_PATH, 'utf8')
+                : runPrivileged(`cat ${JSON.stringify(UPDATE_SUDOERS_PATH)}`);
+        }
+    } catch (_) {
+        existing = '';
+    }
+    if (existing === desired) {
+        return { changed: false, reason: 'sudoers already current' };
+    }
+    const tmp = `/tmp/betterdesk-console-updates.${Date.now()}.sudoers`;
+    fs.writeFileSync(tmp, desired, 'utf8');
+    runPrivileged(`visudo -cf ${JSON.stringify(tmp)}`);
+    if (isRoot()) {
+        fs.copyFileSync(tmp, UPDATE_SUDOERS_PATH);
+        fs.chmodSync(UPDATE_SUDOERS_PATH, 0o440);
+    } else {
+        runPrivileged(`cp ${JSON.stringify(tmp)} ${JSON.stringify(UPDATE_SUDOERS_PATH)}`);
+        runPrivileged(`chmod 440 ${JSON.stringify(UPDATE_SUDOERS_PATH)}`);
+    }
+    try { fs.unlinkSync(tmp); } catch (_) { /* ok */ }
+    return { changed: true, path: UPDATE_SUDOERS_PATH };
+}
 
 function isRoot() {
     return typeof process.getuid === 'function' && process.getuid() === 0;
@@ -26,7 +71,7 @@ function isRoot() {
 function canUseSudo() {
     if (isRoot()) return true;
     try {
-        execSync('sudo -n true', { stdio: 'pipe', timeout: 5000 });
+        execSync('sudo -n systemctl --version', { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch (_) {
         return false;
@@ -112,6 +157,8 @@ function fixSharedPermissions() {
         runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data'))}`);
         runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data', 'go-cache', 'mod'))}`);
         runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data', 'go-cache', 'build'))}`);
+        runPrivileged(`mkdir -p /var/lib/betterdesk/.npm`);
+        runPrivileged(`chown -R ${SVC_USER}:${SVC_USER} /var/lib/betterdesk`);
         runPrivileged(`chown -R ${SVC_USER}:${SVC_USER} ${JSON.stringify(CONSOLE_PATH)}`);
 
         const shared = [
@@ -146,10 +193,21 @@ function verifyConsoleUserAccess() {
     }
     const dataDir = path.join(CONSOLE_PATH, 'data');
     try {
-        execSync(
-            `runuser -u ${SVC_USER} -- test -w ${JSON.stringify(dataDir)}`,
-            { stdio: 'pipe', timeout: 5000 }
-        );
+        if (typeof process.getuid === 'function' && process.getuid() === 0) {
+            execSync(
+                `runuser -u ${SVC_USER} -- test -w ${JSON.stringify(dataDir)}`,
+                { stdio: 'pipe', timeout: 5000 }
+            );
+        } else if (typeof process.getuid === 'function') {
+            const uid = execSync(`id -u ${SVC_USER}`, { encoding: 'utf8', stdio: 'pipe', timeout: 5000 }).trim();
+            if (String(process.getuid()) === uid) {
+                fs.accessSync(dataDir, fs.constants.W_OK);
+            } else {
+                return { ok: false, error: `cannot verify ${SVC_USER} access from uid ${process.getuid()}` };
+            }
+        } else {
+            fs.accessSync(dataDir, fs.constants.W_OK);
+        }
         return { ok: true };
     } catch (_) {
         return { ok: false, error: `${SVC_USER} cannot write ${dataDir}` };
@@ -186,6 +244,12 @@ function ensureLinuxConsoleServiceUser() {
         let perm = { ok: false, skipped: !privileged };
         if (privileged) {
             perm = fixSharedPermissions();
+            const sudoers = ensureConsoleUpdateSudoers();
+            if (sudoers.changed) {
+                result.changes.push('passwordless sudo for panel service restarts');
+            } else if (sudoers.reason) {
+                result.changes.push(sudoers.reason);
+            }
             if (perm.ok) {
                 result.permissionsOk = true;
                 result.changes.push('permissions synced for betterdesk console user');

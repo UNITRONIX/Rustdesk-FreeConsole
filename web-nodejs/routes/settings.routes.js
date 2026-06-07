@@ -785,7 +785,13 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
         await db.logAction(
             req.session?.userId,
             'system_update',
-            `Updated to ${remoteSHA.slice(0, 7)} (${result.applied.length} applied, ${result.failed.length} failed)`,
+            `Updated to ${remoteSHA.slice(0, 7)} (${result.applied.length} applied, ${result.failed.length} failed)`
+                + (result.failed.length
+                    ? ` — failed: ${result.failed.map(f => `${f.file}: ${f.error || ''}`).join('; ')}`
+                    : '')
+                + (result.servicesFailed?.length
+                    ? ` — services: ${result.servicesFailed.map(s => `${s.service}: ${s.error || ''}`).join('; ')}`
+                    : ''),
             req.ip
         );
 

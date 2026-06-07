@@ -2084,6 +2084,12 @@
             const failed  = result.failed?.length || 0;
             const removed = result.removed?.length || 0;
             logUpdate(`${_('updates.applied')}: ${applied} · ${_('updates.failed')}: ${failed} · ${_('updates.removed')}: ${removed}`);
+            for (const item of (result.failed || [])) {
+                logUpdate(`${item.file}: ${item.error || ''}`);
+            }
+            for (const item of (result.servicesFailed || [])) {
+                logUpdate(`${item.service}: ${item.error || ''}`);
+            }
 
             if (result.needsConsoleRestart && !result.consoleRestartBlocked) {
                 setUpdatePhase('restart', 'active', _('updates.restarting'));
@@ -2134,6 +2140,19 @@
             { label: _('updates.removed'), value: result.removed?.length || 0 }
         ];
         lines.push(`<ul style="margin:8px 0;padding-left:20px;font-size:13px;">${stats.map(s => `<li>${Utils.escapeHtml(s.label)}: <strong>${s.value}</strong></li>`).join('')}</ul>`);
+        if (result.failed?.length) {
+            lines.push(`<ul style="margin:8px 0;padding-left:20px;font-size:12px;color:var(--danger,#e34935);">${result.failed.map(f =>
+                `<li><strong>${Utils.escapeHtml(f.file || 'unknown')}</strong>${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
+            ).join('')}</ul>`);
+        }
+        if (result.servicesFailed?.length) {
+            lines.push(`<ul style="margin:8px 0;padding-left:20px;font-size:12px;color:var(--danger,#e34935);">${result.servicesFailed.map(s =>
+                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}</li>`
+            ).join('')}</ul>`);
+        }
+        if (result.consoleRestartBlocked) {
+            lines.push(`<p style="font-size:12px;color:var(--danger,#e34935);">${Utils.escapeHtml(result.consoleRestartBlocked)}</p>`);
+        }
         if (deployFailed) {
             const errMsg = result.serverDeploy.error || '';
             lines.push(`<p style="font-size:13px;color:var(--danger,#e34935);"><strong>${Utils.escapeHtml(_('updates.server_deploy_failed'))}</strong></p>`);
