@@ -512,10 +512,11 @@ func (a *Agent) handleTerminalStart(msg *Message) {
 		return
 	}
 	var p struct {
-		SessionID string `json:"session_id"`
-		Cols      int    `json:"cols"`
-		Rows      int    `json:"rows"`
-		Shell     string `json:"shell"`
+		SessionID    string `json:"session_id"`
+		Cols         int    `json:"cols"`
+		Rows         int    `json:"rows"`
+		Shell        string `json:"shell"`
+		OperatorName string `json:"operator_name"`
 	}
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
 		return
@@ -525,6 +526,17 @@ func (a *Agent) handleTerminalStart(msg *Message) {
 	}
 	if p.Rows <= 0 {
 		p.Rows = 24
+	}
+	if p.SessionID == "" {
+		p.SessionID = "default"
+	}
+
+	if !a.requestRemoteConsent(p.SessionID, p.OperatorName, "terminal") {
+		a.sendMessage("terminal_end", map[string]any{
+			"session_id": p.SessionID,
+			"reason":     "consent_denied",
+		})
+		return
 	}
 
 	ts, err := StartTerminal(p.SessionID, p.Cols, p.Rows, p.Shell, func(data []byte) {

@@ -126,40 +126,13 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	}
 
 	// ── Consent gate ─────────────────────────────────────────────────────────
-	if a.cfg.RequireConsent {
-		var granted bool
-		if a.cfg.ConsentHandler != nil {
-			granted = a.cfg.ConsentHandler(p.SessionID, p.OperatorName)
-		} else {
-			ch := make(chan bool, 1)
-			a.consentWaiters.Store(p.SessionID, ch)
-
-			fmt.Fprintf(os.Stdout, "CONSENT_REQUEST:{\"session_id\":%q,\"operator\":%q}\n",
-				p.SessionID, p.OperatorName)
-
-			timer := time.NewTimer(30 * time.Second)
-			select {
-			case granted = <-ch:
-			case <-timer.C:
-				granted = false
-			case <-a.ctx.Done():
-				a.consentWaiters.Delete(p.SessionID)
-				timer.Stop()
-				return
-			}
-			timer.Stop()
-			a.consentWaiters.Delete(p.SessionID)
-		}
-
-		if !granted {
-			_ = a.sendMessage("desktop_consent_denied", map[string]any{
-				"session_id": p.SessionID,
-			})
-			log.Printf("[desktop] Consent denied for session %s", p.SessionID)
-			return
-		}
-		log.Printf("[desktop] Consent granted for session %s", p.SessionID)
+	if !a.requestRemoteConsent(p.SessionID, p.OperatorName, "desktop") {
+		_ = a.sendMessage("desktop_consent_denied", map[string]any{
+			"session_id": p.SessionID,
+		})
+		return
 	}
+	log.Printf("[desktop] Consent granted for session %s", p.SessionID)
 
 	// Stop any existing session for this session ID.
 	if old, loaded := a.desktopStreams.LoadAndDelete(p.SessionID); loaded {

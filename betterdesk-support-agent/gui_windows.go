@@ -13,6 +13,7 @@ func init() {
 
 // prepWindowsGraphics enables Mesa software OpenGL when opengl32.dll ships next to the exe.
 func prepWindowsGraphics() {
+	ensureMesaBesideExe()
 	exe, err := os.Executable()
 	if err != nil {
 		return

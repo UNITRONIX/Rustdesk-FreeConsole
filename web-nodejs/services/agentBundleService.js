@@ -22,8 +22,8 @@ const conn = require('./agentBundleConnection');
 
 // Supported delivery targets. The portal renders one card per entry.
 const PLATFORMS = [
-    { platform: 'windows', arch: 'x64', format: 'portable',  label: 'Windows portable (.zip)' },
-    { platform: 'windows', arch: 'x64', format: 'installed', label: 'Windows installed (.exe)' },
+    { platform: 'windows', arch: 'x64', format: 'portable',  label: 'Windows portable (.exe)' },
+    { platform: 'windows', arch: 'x64', format: 'installed', label: 'Windows installed (.msi)' },
     { platform: 'linux',   arch: 'x64', format: 'portable',  label: 'Linux universal portable (.tar.gz)' },
     { platform: 'linux',   arch: 'x64', format: 'appimage',  label: 'Linux portable (AppImage)' },
     { platform: 'linux',   arch: 'x64', format: 'installed', label: 'Linux Debian/Ubuntu (.deb)' },

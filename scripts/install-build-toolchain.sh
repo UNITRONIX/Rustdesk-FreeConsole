@@ -9,8 +9,9 @@
 #   linux/x64/rpm        RPM package
 #   linux/x64/AppImage   Portable AppImage
 #
-# Cross-compiled targets (built on Linux for Windows via cargo-xwin):
-#   windows/x64/exe      NSIS installer wrapping the cross-built Tauri exe
+# Cross-compiled targets (built on Linux for Windows via mingw-w64):
+#   windows/x64/exe       Portable single-file executable
+#   windows/x64/msi       Per-user MSI installer (wixl / msitools)
 #
 # Usage:
 #   sudo ./install-build-toolchain.sh [--unattended] [--skip-windows]
@@ -89,7 +90,7 @@ install_apt() {
         libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev \
         libxinerama-dev libxi-dev libxxf86vm-dev libxkbcommon-dev \
         libwayland-dev libdecor-0-dev \
-        nsis dpkg-dev rpm fakeroot \
+        nsis dpkg-dev rpm fakeroot msitools p7zip-full \
         libfuse2t64 \
         mingw-w64 gcc-mingw-w64-x86-64
     # Node.js: prefer existing install (NodeSource bundles npm; the Ubuntu npm
@@ -110,7 +111,7 @@ install_dnf() {
         libXi-devel libXxf86vm-devel mesa-libGL-devel libxkbcommon-devel \
         wayland-devel libdecor-devel \
         mingw64-gcc mingw64-gcc-c++ \
-        nsis rpm-build dpkg fuse-libs \
+        nsis rpm-build dpkg fuse-libs msitools p7zip-full \
         nodejs npm || true
 }
 
@@ -252,7 +253,7 @@ log "Wrote $ENV_FILE"
 log "Verifying installed tools…"
 sudo -u "$BUILD_USER" -H bash -lc "
     source \"\$HOME/.cargo/env\" 2>/dev/null || true
-    for c in go cargo rustc cargo-tauri cargo-xwin pnpm node npm x86_64-w64-mingw32-gcc makensis dpkg-deb rpmbuild appimagetool; do
+    for c in go cargo rustc cargo-tauri cargo-xwin pnpm node npm x86_64-w64-mingw32-gcc makensis msibuild wixl dpkg-deb rpmbuild appimagetool; do
         if command -v \$c >/dev/null 2>&1; then
             v=\$(\$c --version 2>/dev/null | head -1 || echo '?')
             printf '  \e[32mOK\e[0m   %-26s %s\n' \"\$c\" \"\$v\"

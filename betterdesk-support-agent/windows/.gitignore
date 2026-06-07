@@ -1,0 +1,2 @@
+# Mesa software OpenGL for Windows builds (fetched by scripts/fetch-mesa-windows.sh).
+opengl32.dll

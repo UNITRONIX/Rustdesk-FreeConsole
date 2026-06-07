@@ -40,13 +40,15 @@ func InjectInputEvent(evt *InputEvent) error {
 // injection implementation.
 func (a *Agent) handleDesktopInput(msg *Message) {
 	if !a.cfg.Screenshot {
-		// Input injection requires screen capture permission as a proxy gate.
 		return
 	}
 
 	var evt InputEvent
 	if err := json.Unmarshal(msg.Payload, &evt); err != nil {
 		log.Printf("[input] Parse error: %v", err)
+		return
+	}
+	if !a.hasActiveDesktopStream(evt.SessionID) {
 		return
 	}
 

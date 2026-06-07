@@ -40,8 +40,13 @@ const WORK_ROOT        = path.join(BUILD_CACHE_DIR, 'work');
 const ARTIFACT_ROOT    = process.env.AGENT_ARTIFACT_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'agent-builds');
 const POLL_INTERVAL_MS = parseInt(process.env.AGENT_BUILD_POLL_MS || '5000', 10);
-const WORKER_CONCURRENCY = parseInt(process.env.AGENT_BUILD_CONCURRENCY || '1', 10);
+/** Always 1 — Go/Fyne builds are CPU/RAM heavy; platforms run one after another. */
+const WORKER_CONCURRENCY = 1;
+const BUILD_COOLDOWN_MS = parseInt(process.env.AGENT_BUILD_COOLDOWN_MS || '3000', 10);
 const BUILD_TIMEOUT_MS = parseInt(process.env.AGENT_BUILD_TIMEOUT_MS || (30 * 60 * 1000), 10);
+const BUILD_ORDER = (bundleService.PLATFORMS || []).map(
+    (p) => `${p.platform}/${p.arch}/${p.format}`
+);
 const IS_WINDOWS = process.platform === 'win32';
 const VENDORED_GO_BIN = path.join(
     config.dataDir || path.join(__dirname, '..', 'data'),
@@ -59,16 +64,6 @@ function _mesaDllPath() {
     return null;
 }
 
-async function _stageWindowsOpenGL(stageDir) {
-    const mesa = _mesaDllPath();
-    if (!mesa) {
-        console.warn('[agentBuildWorker] mesa opengl32.dll not found — Windows GUI may fail on VMs/RDP. Run scripts/fetch-mesa-windows.sh');
-        return false;
-    }
-    await fsp.copyFile(mesa, path.join(stageDir, 'opengl32.dll'));
-    return true;
-}
-
 async function _stageLinuxUI(distDir, stageDir, launcherName) {
     const launcher = path.join(distDir, launcherName);
     const x11 = path.join(distDir, 'betterdesk-support-x11');
@@ -79,15 +74,6 @@ async function _stageLinuxUI(distDir, stageDir, launcherName) {
     await fsp.chmod(path.join(stageDir, 'betterdesk-support-x11'), 0o755);
     await fsp.copyFile(wl, path.join(stageDir, 'betterdesk-support-wayland'));
     await fsp.chmod(path.join(stageDir, 'betterdesk-support-wayland'), 0o755);
-}
-
-function _windowsGuiBat(exeName) {
-    return (
-        '@echo off\r\n' +
-        'set GALLIUM_DRIVER=llvmpipe\r\n' +
-        'set LIBGL_ALWAYS_SOFTWARE=1\r\n' +
-        `start "" "%~dp0${exeName}"\r\n`
-    );
 }
 
 function _resolveBin(candidates) {
@@ -218,8 +204,8 @@ const AGENT_LIB_ROOT = _resolveAgentLibRoot();
 const SERVER_LIB_ROOT = _resolveServerLibRoot();
 
 const BUILD_PROFILES = {
-    'windows/x64/portable':  { os: 'windows', ext: '.zip',  pack: 'zip-portable' },
-    'windows/x64/installed': { os: 'windows', ext: '.zip',  pack: 'raw' },
+    'windows/x64/portable':  { os: 'windows', ext: '.exe',  pack: 'exe-portable' },
+    'windows/x64/installed': { os: 'windows', ext: '.msi',  pack: 'msi' },
     'linux/x64/portable':    { os: 'linux',   ext: '.tar.gz',   pack: 'tar-portable' },
     'linux/x64/appimage':    { os: 'linux',   ext: '.AppImage', pack: 'appimage' },
     'linux/x64/installed':   { os: 'linux',   ext: '.deb',      pack: 'deb' },
@@ -229,6 +215,45 @@ const BUILD_PROFILES = {
 let _running = false;
 let _activeBuilds = 0;
 let _pollHandle = null;
+let _lastBuildFinishedAt = 0;
+
+function _buildOrderIndex(row) {
+    const key = `${row.platform}/${row.arch}/${row.format}`;
+    const idx = BUILD_ORDER.indexOf(key);
+    return idx >= 0 ? idx : BUILD_ORDER.length + 1;
+}
+
+function _compileRoot(brandingHash, osName) {
+    return path.join(WORK_ROOT, brandingHash, osName);
+}
+
+function _escapeXml(text) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function _upgradeGuidFromHash(brandingHash) {
+    const hex = crypto.createHash('sha256').update(String(brandingHash)).digest('hex');
+    return `{${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}}`.toUpperCase();
+}
+
+function _resolveMsiBuilder() {
+    const candidates = ['wixl', 'msibuild', '/usr/bin/wixl', '/usr/bin/msibuild'];
+    for (const c of candidates) {
+        if (fs.existsSync(c)) return c;
+    }
+    const { execSync } = require('child_process');
+    for (const cmd of ['wixl', 'msibuild']) {
+        try {
+            const found = execSync(`command -v ${cmd} 2>/dev/null`, { encoding: 'utf8' }).trim();
+            if (found) return found;
+        } catch (_) { /* ok */ }
+    }
+    return null;
+}
 
 const REBUILD_FLAG_FILE = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.agent_rebuild_pending');
 const AGENT_SOURCE_STAMP_FILE = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.agent_source_sha');
@@ -523,23 +548,49 @@ async function _ensureDirs() {
 }
 
 async function _tick() {
-    if (_running) return;
-    if (_activeBuilds >= WORKER_CONCURRENCY) return;
+    if (_running || _activeBuilds >= WORKER_CONCURRENCY) return;
+    if (BUILD_COOLDOWN_MS > 0 && Date.now() - _lastBuildFinishedAt < BUILD_COOLDOWN_MS) {
+        return;
+    }
+    if (await _hasBuildInProgress()) return;
+
     _running = true;
     try {
         const claimed = await _claimNextBuild();
         if (!claimed) return;
         _activeBuilds++;
-        _runOne(claimed)
-            .catch((e) => console.error('[agentBuildWorker] build crashed:', e))
-            .finally(() => { _activeBuilds--; });
+        try {
+            await _runOne(claimed);
+        } catch (e) {
+            console.error('[agentBuildWorker] build crashed:', e);
+        } finally {
+            _activeBuilds--;
+            _lastBuildFinishedAt = Date.now();
+        }
     } finally {
         _running = false;
     }
 }
 
+async function _hasBuildInProgress() {
+    if (_activeBuilds > 0) return true;
+    const bundles = await db.listAgentBundles();
+    for (const b of bundles) {
+        if (b.revoked) continue;
+        const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
+        if (builds.some((r) => r.status === 'building')) return true;
+    }
+    return false;
+}
+
 async function _claimNextBuild() {
-    const candidates = await _listPendingBuilds(10);
+    if (await _hasBuildInProgress()) return null;
+    const candidates = await _listPendingBuilds(50);
+    candidates.sort((a, b) => {
+        const order = _buildOrderIndex(a) - _buildOrderIndex(b);
+        if (order !== 0) return order;
+        return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+    });
     for (const row of candidates) {
         const profile = BUILD_PROFILES[`${row.platform}/${row.arch}/${row.format}`];
         if (!profile) continue;
@@ -571,7 +622,7 @@ async function _listPendingBuilds(limit) {
         }
         if (out.length >= limit) break;
     }
-    out.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    out.sort((a, b) => _buildOrderIndex(a) - _buildOrderIndex(b));
     return out.slice(0, limit);
 }
 
@@ -586,16 +637,36 @@ async function _runOne(buildRow) {
         if (!bundleRow) throw new Error(`no bundle with hash ${buildRow.branding_hash}`);
 
         const branding = JSON.parse(bundleRow.branding || '{}');
-        const workDir = path.join(WORK_ROOT, buildRow.branding_hash, key.replace(/\//g, '_'));
-        const brandingFile = path.join(workDir, 'resources', 'branding.json');
+        const compileDir = _compileRoot(buildRow.branding_hash, profile.os);
+        const brandingFile = path.join(compileDir, 'resources', 'branding.json');
         const binaryName = profile.os === 'windows' ? 'betterdesk-support.exe' : 'betterdesk-support';
-        const binaryPath = path.join(workDir, 'dist', binaryName);
+        const binaryPath = path.join(compileDir, 'dist', binaryName);
+        const shouldCompile = await _needsCompile(
+            compileDir, buildRow.branding_hash, binaryPath, profile.os
+        );
 
-        await _materialiseWorkspace(workDir, branding);
+        await _materialiseWorkspace(compileDir, branding, { refreshSources: shouldCompile });
         await _ensureGoToolchain();
-        await _runGoBuild(workDir, brandingFile, binaryPath, profile.os);
 
-        const packed = await _packArtifact(workDir, binaryPath, profile, buildRow.branding_hash.slice(0, 8), branding);
+        if (shouldCompile) {
+            await _runGoBuild(compileDir, brandingFile, binaryPath, profile.os);
+            await fsp.writeFile(
+                path.join(compileDir, '.built_for'),
+                buildRow.branding_hash,
+                'utf8'
+            );
+        } else {
+            console.log(`[agentBuildWorker] reusing compiled ${profile.os} binary for ${key}`);
+        }
+
+        const packed = await _packArtifact(
+            compileDir,
+            binaryPath,
+            profile,
+            buildRow.branding_hash.slice(0, 8),
+            branding,
+            buildRow.branding_hash
+        );
         const finalDir = path.join(ARTIFACT_ROOT, buildRow.branding_hash);
         await fsp.mkdir(finalDir, { recursive: true });
         const dest = path.join(finalDir, `${buildRow.platform}-${buildRow.arch}-${buildRow.format}${profile.ext}`);
@@ -638,26 +709,43 @@ async function _findBundleForHash(hash) {
     return all.find(b => b.branding_hash === hash) || null;
 }
 
-async function _materialiseWorkspace(workDir, branding) {
-    if (fs.existsSync(workDir)) {
-        await fsp.rm(workDir, { recursive: true, force: true });
+async function _needsCompile(workDir, brandingHash, binaryPath, targetOS) {
+    try {
+        const stamp = (await fsp.readFile(path.join(workDir, '.built_for'), 'utf8')).trim();
+        if (stamp !== brandingHash) return true;
+        await fsp.access(binaryPath, fs.constants.R_OK);
+        if (targetOS === 'linux') {
+            const distDir = path.dirname(binaryPath);
+            await fsp.access(path.join(distDir, 'betterdesk-support-x11'), fs.constants.R_OK);
+            await fsp.access(path.join(distDir, 'betterdesk-support-wayland'), fs.constants.R_OK);
+        }
+        return false;
+    } catch {
+        return true;
     }
-    await fsp.mkdir(workDir, { recursive: true });
-    await _copyDir(SOURCE_ROOT, workDir);
-    // go.mod replace => ../betterdesk-agent — refresh sibling lib each build
-    // (legacy Tauri sidecar caches may leave binaries without go.mod here).
-    const agentLibDest = path.join(workDir, '..', 'betterdesk-agent');
-    if (fs.existsSync(agentLibDest)) {
-        await fsp.rm(agentLibDest, { recursive: true, force: true });
+}
+
+async function _materialiseWorkspace(workDir, branding, { refreshSources = true } = {}) {
+    const mustRefresh = refreshSources || !fs.existsSync(path.join(workDir, 'build.sh'));
+    if (mustRefresh) {
+        if (fs.existsSync(workDir)) {
+            await fsp.rm(workDir, { recursive: true, force: true });
+        }
+        await fsp.mkdir(workDir, { recursive: true });
+        await _copyDir(SOURCE_ROOT, workDir);
+        const agentLibDest = path.join(workDir, '..', 'betterdesk-agent');
+        if (fs.existsSync(agentLibDest)) {
+            await fsp.rm(agentLibDest, { recursive: true, force: true });
+        }
+        await fsp.mkdir(path.dirname(agentLibDest), { recursive: true });
+        await _copyDir(AGENT_LIB_ROOT, agentLibDest);
+        const serverLibDest = path.join(workDir, '..', 'betterdesk-server');
+        if (fs.existsSync(serverLibDest)) {
+            await fsp.rm(serverLibDest, { recursive: true, force: true });
+        }
+        await fsp.mkdir(path.dirname(serverLibDest), { recursive: true });
+        await _copyDir(SERVER_LIB_ROOT, serverLibDest);
     }
-    await fsp.mkdir(path.dirname(agentLibDest), { recursive: true });
-    await _copyDir(AGENT_LIB_ROOT, agentLibDest);
-    const serverLibDest = path.join(workDir, '..', 'betterdesk-server');
-    if (fs.existsSync(serverLibDest)) {
-        await fsp.rm(serverLibDest, { recursive: true, force: true });
-    }
-    await fsp.mkdir(path.dirname(serverLibDest), { recursive: true });
-    await _copyDir(SERVER_LIB_ROOT, serverLibDest);
     await fsp.mkdir(path.join(workDir, 'resources'), { recursive: true });
     const buildBranding = { ...branding };
     delete buildBranding.enrollment_token;
@@ -686,8 +774,23 @@ async function _copyDir(src, dst) {
     }
 }
 
+async function _ensureMesaForWindows(workDir) {
+    const mesa = _mesaDllPath();
+    if (!mesa) {
+        console.warn('[agentBuildWorker] mesa opengl32.dll not found — Windows GUI may fail on VMs/RDP. Run scripts/fetch-mesa-windows.sh');
+        return false;
+    }
+    const destDir = path.join(workDir, 'windows');
+    await fsp.mkdir(destDir, { recursive: true });
+    await fsp.copyFile(mesa, path.join(destDir, 'opengl32.dll'));
+    return true;
+}
+
 async function _runGoBuild(workDir, brandingPath, outputPath, targetOS) {
     await fsp.mkdir(path.dirname(outputPath), { recursive: true });
+    if (targetOS === 'windows') {
+        await _ensureMesaForWindows(workDir);
+    }
     const buildScript = path.join(workDir, 'build.sh');
     const args = ['-b', brandingPath, '-o', outputPath, '-p', targetOS];
     if (targetOS === 'linux') {
@@ -703,77 +806,76 @@ async function _runGoBuild(workDir, brandingPath, outputPath, targetOS) {
     }
 }
 
-async function _packArtifact(workDir, binaryPath, profile, label, branding = {}) {
+async function _packArtifact(workDir, binaryPath, profile, label, branding = {}, brandingHash = label) {
     const packDir = path.join(workDir, 'pack');
     await fsp.mkdir(packDir, { recursive: true });
     const baseName = path.basename(binaryPath);
 
     switch (profile.pack) {
-        case 'raw': {
-            if (profile.os === 'windows') {
-                const stage = path.join(packDir, 'stage');
-                await fsp.mkdir(stage, { recursive: true });
-                await fsp.copyFile(binaryPath, path.join(stage, baseName));
-                await _stageWindowsOpenGL(stage);
-                await fsp.writeFile(path.join(stage, 'README.txt'),
-                    'BetterDesk Support Agent (installer)\r\n\r\n' +
-                    '1. Extract all files to one folder.\r\n' +
-                    '2. Run Instaluj.bat (or betterdesk-support.exe -install).\r\n' +
-                    '3. Use Uruchom.bat for portable GUI without installing.\r\n\r\n' +
-                    'opengl32.dll provides software OpenGL on VMs/RDP.\r\n',
-                    'utf8');
-                await fsp.writeFile(path.join(stage, 'Instaluj.bat'),
-                    '@echo off\r\n"%~dp0betterdesk-support.exe" -install\r\npause\r\n',
-                    'utf8');
-                await fsp.writeFile(path.join(stage, 'Uruchom.bat'), _windowsGuiBat(baseName), 'utf8');
-                const zipPath = path.join(packDir, `betterdesk-support-${label}-installer.zip`);
-                const zipArgs = ['-j', zipPath,
-                    path.join(stage, baseName),
-                    path.join(stage, 'README.txt'),
-                    path.join(stage, 'Instaluj.bat'),
-                    path.join(stage, 'Uruchom.bat'),
-                ];
-                if (fs.existsSync(path.join(stage, 'opengl32.dll'))) {
-                    zipArgs.push(path.join(stage, 'opengl32.dll'));
-                }
-                await _runProcess('zip', zipArgs, { cwd: packDir });
-                return zipPath;
-            }
-            const out = path.join(packDir, baseName);
+        case 'exe-portable': {
+            const out = path.join(packDir, `betterdesk-support-${label}-portable.exe`);
             await fsp.copyFile(binaryPath, out);
             return out;
         }
-        case 'zip-portable': {
-            const stage = path.join(packDir, 'stage');
-            await fsp.mkdir(stage, { recursive: true });
-            await fsp.copyFile(binaryPath, path.join(stage, baseName));
-            await fsp.writeFile(path.join(stage, 'portable'), '', 'utf8');
-            if (profile.os === 'windows') {
-                await _stageWindowsOpenGL(stage);
+        case 'msi': {
+            const msiBuilder = _resolveMsiBuilder();
+            if (!msiBuilder) {
+                throw new Error(
+                    'msibuild/wixl not found — install msitools (dnf install msitools / apt install msitools) for Windows MSI builds'
+                );
             }
-            await fsp.writeFile(path.join(stage, 'README.txt'),
-                'BetterDesk Support Agent (portable)\r\n\r\n' +
-                (profile.os === 'windows'
-                    ? 'Run Uruchom.bat for the GUI (includes software OpenGL for VMs/RDP).\r\n' +
-                      'You can also double-click betterdesk-support.exe if opengl32.dll is present.\r\n\r\n' +
-                      'Background only: betterdesk-support.exe -nogui\r\n'
-                    : 'Run betterdesk-support for the quick-help window.\r\n'),
-                'utf8');
-            const zipEntries = [
-                path.join(stage, baseName),
-                path.join(stage, 'portable'),
-                path.join(stage, 'README.txt'),
-            ];
-            if (profile.os === 'windows') {
-                await fsp.writeFile(path.join(stage, 'Uruchom.bat'), _windowsGuiBat(baseName), 'utf8');
-                zipEntries.push(path.join(stage, 'Uruchom.bat'));
-                if (fs.existsSync(path.join(stage, 'opengl32.dll'))) {
-                    zipEntries.push(path.join(stage, 'opengl32.dll'));
-                }
+            const msiDir = path.join(packDir, 'msi');
+            await fsp.mkdir(msiDir, { recursive: true });
+            await fsp.copyFile(binaryPath, path.join(msiDir, 'betterdesk-support.exe'));
+            const mesa = _mesaDllPath();
+            let mesaComponent = '';
+            let mesaFeatureRef = '';
+            if (mesa) {
+                await fsp.copyFile(mesa, path.join(msiDir, 'opengl32.dll'));
+                mesaComponent = `
+      <Component Id="MesaOpenGL" Guid="*">
+        <File Id="MesaDll" Source="opengl32.dll" KeyPath="yes"/>
+      </Component>`;
+                mesaFeatureRef = '\n      <ComponentRef Id="MesaOpenGL"/>';
             }
-            const zipPath = path.join(packDir, `betterdesk-support-${label}-portable.zip`);
-            await _runProcess('zip', ['-j', zipPath, ...zipEntries], { cwd: packDir });
-            return zipPath;
+            const productName = _escapeXml(
+                branding.product_name || branding.company_name || 'BetterDesk Support'
+            );
+            const manufacturer = _escapeXml(branding.company_name || 'BetterDesk');
+            const upgradeCode = _upgradeGuidFromHash(brandingHash);
+            const wxs = `<?xml version="1.0"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="${productName}" Language="1033" Version="1.0.0.0"
+           Manufacturer="${manufacturer}" UpgradeCode="${upgradeCode}">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perUser" Platform="x64"/>
+    <MajorUpgrade DowngradeErrorMessage="A newer version is already installed."/>
+    <MediaTemplate EmbedCab="yes"/>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="INSTALLDIR" Name="BetterDeskSupport"/>
+      </Directory>
+    </Directory>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="MainExe" Guid="*">
+        <File Id="SupportExe" Source="betterdesk-support.exe" KeyPath="yes"/>
+      </Component>${mesaComponent}
+    </DirectoryRef>
+    <Feature Id="MainFeature" Title="${productName}" Level="1">
+      <ComponentRef Id="MainExe"/>${mesaFeatureRef}
+    </Feature>
+  </Product>
+</Wix>
+`;
+            const wxsPath = path.join(msiDir, 'installer.wxs');
+            await fsp.writeFile(wxsPath, wxs, 'utf8');
+            const msiPath = path.join(packDir, `betterdesk-support-${label}.msi`);
+            await _runProcess(msiBuilder, ['-o', msiPath, wxsPath], { cwd: msiDir, timeoutMs: 10 * 60 * 1000 });
+            return msiPath;
+        }
+        case 'raw': {
+            const out = path.join(packDir, baseName);
+            await fsp.copyFile(binaryPath, out);
+            return out;
         }
         case 'tar-portable': {
             const stage = path.join(packDir, 'stage');
@@ -942,10 +1044,11 @@ function _runProcess(cmd, args, opts = {}) {
         let stderrTail = '';
         child.stderr.on('data', (chunk) => { stderrTail = (stderrTail + chunk.toString()).slice(-8192); });
         child.stdout.on('data', () => {});
+        const timeoutMs = opts.timeoutMs || BUILD_TIMEOUT_MS;
         const timeout = setTimeout(() => {
             try { child.kill('SIGTERM'); } catch (_) { /* ignore */ }
-            reject(new Error(`${cmd} timed out`));
-        }, BUILD_TIMEOUT_MS);
+            reject(new Error(`${cmd} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
         child.once('error', (e) => { clearTimeout(timeout); reject(e); });
         child.once('exit', (code) => {
             clearTimeout(timeout);

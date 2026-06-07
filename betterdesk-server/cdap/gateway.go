@@ -359,6 +359,8 @@ func (g *Gateway) messageLoop(ctx context.Context, dc *DeviceConn) {
 			g.HandleDesktopMeta(ctx, dc.ID, msg.Payload)
 		case "desktop_end":
 			g.handleDesktopEnd(ctx, dc, msg)
+		case "desktop_consent_denied":
+			g.handleDesktopConsentDenied(ctx, dc, msg)
 		case "desktop_input_error":
 			g.HandleDesktopInputError(ctx, dc, msg)
 		case "video_frame":

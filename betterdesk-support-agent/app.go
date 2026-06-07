@@ -53,6 +53,9 @@ func run() {
 
 	a := app.NewWithID("com.betterdesk.supportagent")
 	a.Settings().SetTheme(newBrandedTheme(brand))
+	if icon := brand.LogoResource(); icon != nil {
+		a.SetIcon(icon)
+	}
 
 	u := &ui{
 		app:       a,
@@ -67,6 +70,9 @@ func run() {
 	u.engine.SetChatHandler(u.handleChatMessage)
 
 	u.win = a.NewWindow(brand.ProductName + " — " + t("window_title"))
+	if icon := brand.LogoResource(); icon != nil {
+		u.win.SetIcon(icon)
+	}
 	const winW, winH float32 = 480, 720
 	u.win.SetContent(u.buildMainLayout())
 	u.win.Resize(fyne.NewSize(winW, winH))

@@ -564,6 +564,18 @@ func (g *Gateway) handleDesktopEnd(ctx context.Context, dc *DeviceConn, msg *Mes
 	g.EndDesktopSession(ctx, payload.SessionID, payload.Reason)
 }
 
+// handleDesktopConsentDenied ends the operator desktop session when the end user
+// did not approve remote control.
+func (g *Gateway) handleDesktopConsentDenied(ctx context.Context, dc *DeviceConn, msg *Message) {
+	var payload struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil || payload.SessionID == "" {
+		return
+	}
+	g.EndDesktopSession(ctx, payload.SessionID, "consent_denied")
+}
+
 // handleVideoFrame forwards a video frame from device to the browser.
 func (g *Gateway) handleVideoFrame(ctx context.Context, dc *DeviceConn, msg *Message) {
 	var payload VideoFramePayload

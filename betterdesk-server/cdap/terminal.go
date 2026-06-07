@@ -54,10 +54,11 @@ type TerminalResizePayload struct {
 
 // TerminalStartRequest is sent to the device to open a terminal session.
 type TerminalStartPayload struct {
-	SessionID string `json:"session_id"`
-	Shell     string `json:"shell,omitempty"` // optional shell path
-	Cols      int    `json:"cols"`
-	Rows      int    `json:"rows"`
+	SessionID    string `json:"session_id"`
+	Shell        string `json:"shell,omitempty"` // optional shell path
+	Cols         int    `json:"cols"`
+	Rows         int    `json:"rows"`
+	OperatorName string `json:"operator_name,omitempty"`
 }
 
 // TerminalEndPayload is sent when a terminal session ends.
@@ -102,9 +103,10 @@ func (g *Gateway) StartTerminalSession(ctx context.Context, browserConn *websock
 
 	// Send terminal_start command to the device
 	startPayload := TerminalStartPayload{
-		SessionID: sessionID,
-		Cols:      cols,
-		Rows:      rows,
+		SessionID:    sessionID,
+		Cols:         cols,
+		Rows:         rows,
+		OperatorName: username,
 	}
 	data, _ := json.Marshal(startPayload)
 	msg := &Message{

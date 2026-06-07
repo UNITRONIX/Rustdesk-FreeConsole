@@ -69,6 +69,14 @@ if [ "$TARGET_OS" = "windows" ]; then
     export CXX="${CXX:-x86_64-w64-mingw32-g++}"
 fi
 
+BUILD_TAGS="release"
+if [ "$TARGET_OS" = "windows" ] && [ -f "windows/opengl32.dll" ]; then
+    BUILD_TAGS="release,mesaembed"
+    echo "Embedding Mesa opengl32.dll for software OpenGL on Windows"
+fi
+
+WIN_LDFLAGS="-s -w -H=windowsgui"
+
 linux_dual_build() {
     local out_dir launcher x11_bin wl_bin
     out_dir="$(dirname "$OUTPUT")"
@@ -100,9 +108,11 @@ if [ "$TARGET_OS" = "linux" ] && [ "$DUAL_LINUX" = 1 ]; then
 fi
 
 echo "Building $OUTPUT (GOOS=$TARGET_OS) ..."
+LDFLAGS="-s -w"
+[ "$TARGET_OS" = "windows" ] && LDFLAGS="$WIN_LDFLAGS"
 GOOS="$TARGET_OS" CGO_ENABLED=1 "$GO" build -trimpath \
-    -tags release \
-    -ldflags "-s -w" \
+    -tags "$BUILD_TAGS" \
+    -ldflags "$LDFLAGS" \
     -o "$OUTPUT" .
 
 echo "Built: $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"
