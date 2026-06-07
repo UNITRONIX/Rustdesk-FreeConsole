@@ -1565,6 +1565,43 @@
 
         loadUpdateBackups();
         loadBackupRetention();
+        loadLastUpdateResult();
+    }
+
+    async function loadLastUpdateResult() {
+        const host = document.querySelector('.update-version-info');
+        if (!host) return;
+        let banner = document.getElementById('update-last-result-banner');
+        try {
+            const payload = await Utils.api('/api/settings/updates/last-result');
+            const record = payload?.data ?? payload;
+            if (!record || (!record.failed?.length && !record.servicesFailed?.length && !record.consoleRestartBlocked)) {
+                if (banner) banner.remove();
+                return;
+            }
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'update-last-result-banner';
+                banner.className = 'update-stale-warning';
+                banner.style.marginTop = '12px';
+                host.appendChild(banner);
+            }
+            const lines = [];
+            lines.push(`<strong>${Utils.escapeHtml(_('updates.complete_with_errors'))}</strong>`);
+            lines.push(`<div style="font-size:12px;margin-top:6px;">SHA: ${Utils.escapeHtml(String(record.sha || '').slice(0, 7))} · ${Utils.escapeHtml(record.savedAt || '')}</div>`);
+            for (const f of (record.failed || [])) {
+                lines.push(`<div style="font-size:12px;color:var(--danger,#e34935);">${Utils.escapeHtml(f.file)}: ${Utils.escapeHtml(f.error || '')}</div>`);
+            }
+            for (const s of (record.servicesFailed || [])) {
+                lines.push(`<div style="font-size:12px;color:var(--danger,#e34935);">${Utils.escapeHtml(s.service)}: ${Utils.escapeHtml(s.error || '')}</div>`);
+            }
+            if (record.consoleRestartBlocked) {
+                lines.push(`<div style="font-size:12px;color:var(--danger,#e34935);">${Utils.escapeHtml(record.consoleRestartBlocked)}</div>`);
+            }
+            banner.innerHTML = lines.join('');
+        } catch (_) {
+            /* optional panel */
+        }
     }
 
     async function loadServerBinaryStatus() {
@@ -2131,7 +2168,10 @@
     function showUpdateCompletionModal(result) {
         const lines = [];
         const deployFailed = !!(result.serverDeploy && result.serverDeploy.success === false);
-        const hasFailures = (result.failed?.length || 0) > 0 || deployFailed;
+        const hasFailures = (result.failed?.length || 0) > 0
+            || (result.servicesFailed?.length || 0) > 0
+            || !!result.consoleRestartBlocked
+            || deployFailed;
         const summaryKey = hasFailures ? 'updates.complete_with_errors' : 'updates.complete_summary';
         lines.push(`<p>${Utils.escapeHtml(_(summaryKey))}</p>`);
         const stats = [
@@ -2175,8 +2215,9 @@
                 { label: _('updates.modal_close'),     class: 'btn-secondary', onClick: () => { window.Modal.close(); } },
                 { label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole }
             ],
-            closable: true
+            closable: !hasFailures
         });
+        loadLastUpdateResult();
     }
 
     function pollConsoleRestart() {

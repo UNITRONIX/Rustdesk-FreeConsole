@@ -26,6 +26,14 @@ const path = require('path');
 const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
+const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
+const { runConsoleNpmInstall } = require('../lib/consoleNpmInstall');
+const {
+    NON_CRITICAL_UPDATE_FAILURES,
+    isNonCriticalUpdateFailure,
+    isPhantomRepairFailure,
+    splitUpdateFailures,
+} = require('../lib/updateFailurePolicy');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -100,28 +108,6 @@ const COMPONENTS = {
         autoUpdate: true
     }
 };
-
-// Failures that must not block SHA tracking / console update completion.
-// Issue #154: server binary. H-7: root-owned repo scripts when console runs
-// as an unprivileged user (betterdesk cannot write /opt/betterdesk.sh).
-const NON_CRITICAL_UPDATE_FAILURES = new Set([
-    'betterdesk-server',
-    'betterdesk-server-deploy',
-    'server-source',
-    'betterdesk.sh',
-    'betterdesk.ps1',
-    'betterdesk-docker.sh',
-    'docker-compose.yml',
-    'docker-compose.single.yml',
-    'docker-compose.quick.yml',
-    'Dockerfile',
-    'Dockerfile.server',
-    'Dockerfile.console',
-]);
-
-function isNonCriticalUpdateFailure(fileKey) {
-    return NON_CRITICAL_UPDATE_FAILURES.has(fileKey);
-}
 
 // paths that are never downloaded during an update
 // CRITICAL: anything that holds local runtime state MUST be excluded here.
@@ -922,85 +908,24 @@ async function ensureServerSource(remoteSHA, opts = {}) {
 /** GitHub compare API returns at most this many changed files (issue #158, #173). */
 const GITHUB_COMPARE_FILE_LIMIT = 300;
 
-const CONSOLE_SKIP_PATH_PREFIXES = ['node_modules/', 'test/', 'tests/'];
-const CONSOLE_SKIP_FILES = new Set(['package-lock.json']);
-const CONSOLE_INTEGRITY_SEEDS = [
-    'server.js',
-    'routes/index.js',
-    'routes/auth.routes.js',
-    'routes/server-attestation.routes.js'
-];
+function getConsoleDeployGraph() {
+    const modPath = require.resolve('../lib/consoleDeployGraph');
+    delete require.cache[modPath];
+    const { createConsoleDeployGraph: createGraph } = require('../lib/consoleDeployGraph');
+    return createGraph(ROOT_DIR);
+}
+
+const _consoleDeployGraph = createConsoleDeployGraph(ROOT_DIR);
+const {
+    isConsoleDeployLocalPath,
+    resolveConsoleRequire,
+    isResolvedByIndexModule,
+    collectConsoleRequiredFiles,
+    CONSOLE_INTEGRITY_SEEDS,
+} = _consoleDeployGraph;
 
 function isCompareLikelyTruncated(fileCount) {
     return Number(fileCount) >= GITHUB_COMPARE_FILE_LIMIT;
-}
-
-function isConsoleDeployLocalPath(localPath) {
-    if (!localPath || typeof localPath !== 'string') return false;
-    if (CONSOLE_SKIP_FILES.has(localPath)) return false;
-    return !CONSOLE_SKIP_PATH_PREFIXES.some(prefix => localPath.startsWith(prefix));
-}
-
-function stripJsCommentsForRequireScan(content) {
-    return String(content || '')
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\/\/[^\n\r]*/g, '');
-}
-
-function resolveConsoleRequire(fromLocalPath, requirePath) {
-    if (!requirePath || !requirePath.startsWith('.')) return null;
-    const dir = path.posix.dirname(String(fromLocalPath || '').replace(/\\/g, '/'));
-    let resolved = path.posix.normalize(path.posix.join(dir, requirePath));
-    if (resolved.startsWith('../') || resolved.startsWith('/')) return null;
-
-    const absNoExt = path.join(ROOT_DIR, resolved);
-    if (fs.existsSync(absNoExt) && fs.statSync(absNoExt).isDirectory()) {
-        return path.posix.join(resolved, 'index.js');
-    }
-
-    if (!resolved.endsWith('.js')) resolved += '.js';
-    const absJs = path.join(ROOT_DIR, resolved);
-    if (!fs.existsSync(absJs)) {
-        const indexPath = path.posix.join(resolved.replace(/\.js$/, ''), 'index.js');
-        if (fs.existsSync(path.join(ROOT_DIR, indexPath))) return indexPath;
-    }
-    return resolved;
-}
-
-function collectConsoleRequiredFiles(changedConsoleFiles = []) {
-    const seeds = new Set(CONSOLE_INTEGRITY_SEEDS);
-    for (const file of changedConsoleFiles || []) {
-        if (file?.localPath) seeds.add(file.localPath);
-    }
-
-    const required = new Set();
-    const queue = [...seeds];
-    const visited = new Set();
-
-    while (queue.length) {
-        const localPath = queue.shift();
-        if (!localPath || visited.has(localPath)) continue;
-        visited.add(localPath);
-        required.add(localPath);
-
-        const abs = path.join(ROOT_DIR, localPath);
-        if (!fs.existsSync(abs) || !/\.(js|mjs|cjs)$/.test(localPath)) continue;
-
-        let content;
-        try {
-            content = fs.readFileSync(abs, 'utf8');
-        } catch (_) {
-            continue;
-        }
-
-        const scanContent = stripJsCommentsForRequireScan(content);
-        for (const match of scanContent.matchAll(/require\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g)) {
-            const resolved = resolveConsoleRequire(localPath, match[1]);
-            if (resolved && !visited.has(resolved)) queue.push(resolved);
-        }
-    }
-
-    return required;
 }
 
 async function downloadConsoleFile(remoteSHA, localPath) {
@@ -1058,32 +983,26 @@ async function ensureConsoleSource(remoteSHA, opts = {}) {
     return { strategy: 'full-tree', filesDownloaded: downloaded, filesSkipped: skipped, failed };
 }
 
-function isResolvedByIndexModule(localPath) {
-    if (!localPath.endsWith('.js')) return false;
-    const indexPath = `${localPath.slice(0, -3)}/index.js`;
-    return fs.existsSync(path.join(ROOT_DIR, indexPath));
-}
-
-/**
- * After an incremental console update, fetch any local require targets that are
- * still missing (e.g. auth.routes.js updated while serverAttestation.js was
- * never deployed — issue #173).
- */
 async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
-    const required = collectConsoleRequiredFiles(changedConsoleFiles);
+    const graph = getConsoleDeployGraph();
+    const required = graph.collectConsoleRequiredFiles(changedConsoleFiles);
     const repaired = [];
     const failed = [];
     for (const localPath of required) {
-        if (!isConsoleDeployLocalPath(localPath)) continue;
-        // Stale in-memory resolver may still list routes.js while routes/index.js exists.
-        if (isResolvedByIndexModule(localPath)) continue;
+        if (!graph.isConsoleDeployLocalPath(localPath)) continue;
+        if (graph.isResolvedByIndexModule(localPath)) continue;
         const dest = path.join(ROOT_DIR, localPath);
         if (fs.existsSync(dest)) continue;
         try {
             await downloadConsoleFile(remoteSHA, localPath);
             repaired.push(localPath);
         } catch (err) {
-            failed.push({ path: `web-nodejs/${localPath}`, error: err.message });
+            const repoPath = `web-nodejs/${localPath}`;
+            failed.push({
+                path: repoPath,
+                error: err.message,
+                nonCritical: isPhantomRepairFailure(repoPath, ROOT_DIR),
+            });
             console.error(`[UPDATE] Failed to repair ${localPath}: ${err.message}`);
         }
     }
@@ -2009,7 +1928,11 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 results.applied.push(`web-nodejs/${localPath} (repair)`);
             }
             for (const failure of repair.failed || []) {
-                results.failed.push({ file: failure.path, error: failure.error });
+                results.failed.push({
+                    file: failure.path,
+                    error: failure.error,
+                    nonCritical: failure.nonCritical,
+                });
             }
         } catch (err) {
             results.failed.push({ file: 'console-repair', error: err.message });
@@ -2017,24 +1940,17 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
         // npm install when package.json changed
         if (consoleFiles.some(f => f.localPath === 'package.json')) {
-            try {
-                const npmCache = path.join(config.dataDir, 'npm-cache');
-                fs.mkdirSync(npmCache, { recursive: true });
-                execSync('npm install --omit=dev --no-audit --no-fund', {
-                    cwd: ROOT_DIR,
-                    timeout: 120000,
-                    stdio: 'pipe',
-                    env: {
-                        ...process.env,
-                        npm_config_cache: npmCache,
-                        NPM_CONFIG_CACHE: npmCache,
-                    },
-                });
+            const npmResult = runConsoleNpmInstall({ rootDir: ROOT_DIR, dataDir: config.dataDir, execSync });
+            if (npmResult.success) {
                 results.npmInstalled = true;
-            } catch (err) {
-                const detail = (err.stderr && err.stderr.toString()) || err.message || 'npm install failed';
-                results.failed.push({ file: 'npm install', error: String(detail).trim().slice(0, 500) });
-                console.error(`[UPDATE] npm install failed: ${detail}`);
+            } else {
+                results.failed.push({
+                    file: 'npm install',
+                    error: npmResult.error || 'npm install failed',
+                    nodeModulesOk: npmResult.nodeModulesOk,
+                    nonCritical: npmResult.nodeModulesOk,
+                });
+                console.error(`[UPDATE] npm install failed: ${npmResult.error || 'unknown'}`);
             }
         }
         results.needsConsoleRestart = true;
@@ -2270,7 +2186,8 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 if (serviceConfig.error) {
                     results.failed.push({
                         file: 'betterdesk-server.service',
-                        error: `Service config cleanup failed: ${serviceConfig.error}`
+                        error: `Service config cleanup failed: ${serviceConfig.error}`,
+                        nonCritical: true,
                     });
                 }
                 results.needsServerRestart = true;
@@ -2301,31 +2218,20 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 + ' generator bundles queued for rebuild on console restart'
             );
         } catch (err) {
-            results.failed.push({ file: 'support-agent-source-sync', error: err.message });
+            results.failed.push({ file: 'support-agent-source-sync', error: err.message, nonCritical: true });
             console.warn(`[UPDATE] Full agent-source sync failed: ${err.message}`);
         }
     }
 
     // ---- Update SHA tracking ----
-    // Separate critical failures (file download/write errors that leave the
-    // local codebase in an inconsistent state) from non-critical ones (server
-    // binary compilation/download unavailable — source files were still
-    // applied, so the codebase is consistent, just the compiled binary is
-    // missing and can be rebuilt later).
-    //
-    // Issue #154: When pre-built binaries are not available on GitHub
-    // Releases and Go is not installed, the server binary step always
-    // fails, preventing the SHA from ever being saved. This causes the
-    // same update to be reported as available after every console restart,
-    // creating an infinite update loop.
-    const criticalFailures = results.failed.filter(f =>
-        !isNonCriticalUpdateFailure(f.file) && !f.nonCritical
+    const { critical: criticalFailures, nonCritical: nonCriticalFailures } = splitUpdateFailures(
+        results.failed,
+        ROOT_DIR
     );
-    const nonCriticalFailures = results.failed.filter(f =>
-        isNonCriticalUpdateFailure(f.file) || f.nonCritical
-    );
+    results.criticalFailures = criticalFailures;
+    results.nonCriticalFailures = nonCriticalFailures;
 
-    // Security visibility: if the Go server source changed (e.g. a go.mod
+    // Security visibility: if the Go server source changed
     // dependency bump shipping a security fix) but the binary could not be
     // rebuilt/deployed, the running process is still the OLD binary. Persist a
     // staleness marker and flag it on the result so the panel can warn the
@@ -2731,6 +2637,22 @@ async function runUpdatePreflight(opts = {}) {
         issues.push(`Console data directory is not writable: ${config.dataDir}`);
     }
 
+    try {
+        const { ensureConsoleNpmDirs } = require('../lib/consoleNpmInstall');
+        ensureConsoleNpmDirs(config.dataDir);
+        fs.accessSync(path.join(config.dataDir, 'npm-cache'), fs.constants.W_OK);
+    } catch (_e) {
+        warnings.push(`Console npm cache is not writable under ${config.dataDir}/npm-cache`);
+    }
+
+    if (process.platform === 'linux' && typeof process.getuid === 'function' && process.getuid() !== 0) {
+        try {
+            execSync('sudo -n systemctl --version', { timeout: 5000, stdio: 'pipe' });
+        } catch (_e) {
+            warnings.push('Passwordless sudo for systemctl is not configured — service restarts during update may fail until linux-ensure-console-user.js is run as root');
+        }
+    }
+
     const binaryPath = detectServerBinaryPath();
     if (binaryPath) {
         try {
@@ -2814,7 +2736,10 @@ module.exports = {
     resolveConsoleRequire,
     collectConsoleRequiredFiles,
     isResolvedByIndexModule,
+    getConsoleDeployGraph,
+    splitUpdateFailures,
     repairMissingConsoleFiles,
+    readLastUpdateResult: () => require('../lib/updateResultStore').readLastUpdateResult(config.dataDir),
     ensureConsoleSource,
 };
 

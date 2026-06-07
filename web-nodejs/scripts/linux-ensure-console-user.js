@@ -22,11 +22,27 @@ const SERVER_SERVICE = 'betterdesk-server';
 const UPDATE_SUDOERS_PATH = '/etc/sudoers.d/betterdesk-console-updates';
 const UPDATE_SUDOERS_MARKER = '# Managed by BetterDesk linux-ensure-console-user.js';
 
+function resolveSystemctlPath() {
+    for (const candidate of ['/usr/bin/systemctl', '/bin/systemctl']) {
+        if (fs.existsSync(candidate)) return candidate;
+    }
+    return '/usr/bin/systemctl';
+}
+
+function resolveJournalctlPath() {
+    for (const candidate of ['/usr/bin/journalctl', '/bin/journalctl']) {
+        if (fs.existsSync(candidate)) return candidate;
+    }
+    return '/usr/bin/journalctl';
+}
+
 function buildUpdateSudoersContent() {
+    const systemctl = resolveSystemctlPath();
+    const journalctl = resolveJournalctlPath();
     return [
         UPDATE_SUDOERS_MARKER,
-        `${SVC_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl`,
-        `${SVC_USER} ALL=(root) NOPASSWD: /usr/bin/journalctl`,
+        `${SVC_USER} ALL=(root) NOPASSWD: ${systemctl}`,
+        `${SVC_USER} ALL=(root) NOPASSWD: ${journalctl}`,
         '',
     ].join('\n');
 }
@@ -82,7 +98,7 @@ function runPrivileged(cmd, opts = {}) {
     if (!isRoot() && !canUseSudo()) {
         throw new Error('Privileged command requires root or passwordless sudo');
     }
-    const prefix = isRoot() ? '' : 'sudo ';
+    const prefix = isRoot() ? '' : 'sudo -n ';
     return execSync(prefix + cmd, {
         encoding: 'utf8',
         stdio: opts.stdio || 'pipe',
@@ -302,5 +318,7 @@ module.exports = {
     ensureDataDir,
     fixSharedPermissions,
     verifyConsoleUserAccess,
+    buildUpdateSudoersContent,
+    resolveSystemctlPath,
     SVC_USER,
 };

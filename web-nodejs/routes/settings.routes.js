@@ -15,6 +15,8 @@ const fontService = require('../services/fontService');
 const serverBackend = require('../services/serverBackend');
 const backupService = require('../services/backupService');
 const updateService = require('../services/updateService');
+const { canScheduleConsoleRestart } = require('../lib/updateFailurePolicy');
+const { persistUpdateResult, readLastUpdateResult } = require('../lib/updateResultStore');
 const advancedConfig = require('../services/advancedConfigService');
 const serverConnectionConfig = require('../services/serverConnectionConfigService');
 const { apiClient } = require('../services/betterdeskApi');
@@ -726,6 +728,18 @@ router.get('/api/settings/updates/check', requireAuth, requirePermission('server
 });
 
 /**
+ * GET /api/settings/updates/last-result - Last in-app update outcome (survives closed modal)
+ */
+router.get('/api/settings/updates/last-result', requireAuth, requirePermission('server.config'), (req, res) => {
+    try {
+        const data = readLastUpdateResult(config.dataDir);
+        res.json({ success: true, data: data || null });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
  * GET /api/settings/updates/changes - Get list of changed files between local SHA and remote
  */
 router.get('/api/settings/updates/changes', requireAuth, requirePermission('server.config'), async (req, res) => {
@@ -795,11 +809,24 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
             req.ip
         );
 
+        // Sync Linux permissions/sudoers from disk before service restarts.
+        if (process.platform === 'linux') {
+            try {
+                const modPath = require.resolve('../scripts/linux-ensure-console-user');
+                delete require.cache[modPath];
+                require('../scripts/linux-ensure-console-user').ensureLinuxConsoleServiceUser();
+            } catch (syncErr) {
+                console.warn(`[UPDATE] Pre-restart permission sync warning: ${syncErr.message}`);
+            }
+        }
+
         // Restart Go server when its binary was updated.
         if (result.needsServerRestart) {
-            const svc = updateService.restartService(
-                process.platform === 'win32' ? 'BetterDeskServer' : 'betterdesk-server'
-            );
+            const serviceName = process.platform === 'win32' ? 'BetterDeskServer' : 'betterdesk-server';
+            let svc = updateService.restartService(serviceName);
+            if (!svc.success) {
+                svc = updateService.restartService(serviceName);
+            }
             if (svc.success) result.servicesRestarted.push('server');
             else result.servicesFailed.push({ service: 'server', error: svc.error });
         }
@@ -807,9 +834,9 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
         // Restart console after response is sent (systemd/NSSM restarts automatically)
         let scheduleConsoleRestart = false;
         if (result.needsConsoleRestart) {
-            const patch = result.servicePatch || {};
-            if (patch.consolePermissionsOk === false) {
-                result.consoleRestartBlocked = patch.consoleUserError
+            const restartGate = canScheduleConsoleRestart(result, config.dataDir);
+            if (!restartGate.allowed) {
+                result.consoleRestartBlocked = restartGate.blockedReason
                     || 'Console service user permissions were not verified before restart';
                 console.warn(
                     '[UPDATE] Skipping console restart — service user permissions not verified.'
@@ -817,8 +844,26 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
                     + ' && systemctl restart betterdesk-console'
                 );
             } else {
+                if (restartGate.note) result.consoleRestartNote = restartGate.note;
                 scheduleConsoleRestart = true;
             }
+        }
+
+        try {
+            persistUpdateResult(config.dataDir, {
+                sha: remoteSHA,
+                applied: result.applied?.length || 0,
+                failed: result.failed || [],
+                servicesFailed: result.servicesFailed || [],
+                servicesRestarted: result.servicesRestarted || [],
+                shaSaved: result.shaSaved,
+                consoleRestartBlocked: result.consoleRestartBlocked || null,
+                consoleRestartNote: result.consoleRestartNote || null,
+                serverBuild: result.serverBuild || null,
+                serverDeploy: result.serverDeploy || null,
+            });
+        } catch (persistErr) {
+            console.warn(`[UPDATE] Could not persist last update result: ${persistErr.message}`);
         }
 
         res.json({ success: true, data: result });

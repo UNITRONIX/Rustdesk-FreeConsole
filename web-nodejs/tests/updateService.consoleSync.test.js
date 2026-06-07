@@ -1,10 +1,9 @@
 'use strict';
 
+const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
 const {
     GITHUB_COMPARE_FILE_LIMIT,
     isCompareLikelyTruncated,
-    resolveConsoleRequire,
-    collectConsoleRequiredFiles
 } = require('../services/updateService');
 
 describe('updateService console sync helpers', () => {
@@ -16,24 +15,26 @@ describe('updateService console sync helpers', () => {
     });
 
     test('resolves relative console require paths', () => {
-        expect(resolveConsoleRequire('routes/auth.routes.js', '../services/serverAttestation'))
+        const graph = createConsoleDeployGraph(require('path').join(__dirname, '..'));
+        expect(graph.resolveConsoleRequire('routes/auth.routes.js', '../services/serverAttestation'))
             .toBe('services/serverAttestation.js');
-        expect(resolveConsoleRequire('routes/index.js', './devices.routes'))
+        expect(graph.resolveConsoleRequire('routes/index.js', './devices.routes'))
             .toBe('routes/devices.routes.js');
-        expect(resolveConsoleRequire('server.js', './routes'))
+        expect(graph.resolveConsoleRequire('server.js', './routes'))
             .toBe('routes/index.js');
-        expect(resolveConsoleRequire('server.js', 'express')).toBeNull();
+        expect(graph.resolveConsoleRequire('server.js', 'express')).toBeNull();
     });
 
     test('skips phantom routes.js when routes/index.js exists during repair scan', () => {
-        const { isResolvedByIndexModule } = require('../services/updateService');
-        expect(isResolvedByIndexModule('routes.js')).toBe(true);
-        expect(isResolvedByIndexModule('routes/auth.routes.js')).toBe(false);
+        const graph = createConsoleDeployGraph(require('path').join(__dirname, '..'));
+        expect(graph.isResolvedByIndexModule('routes.js')).toBe(true);
+        expect(graph.isResolvedByIndexModule('routes/auth.routes.js')).toBe(false);
     });
 
     test('ignores require examples inside comments when scanning dependencies', () => {
-        const required = collectConsoleRequiredFiles([
-            { localPath: 'scripts/linux-ensure-console-user.js' }
+        const graph = createConsoleDeployGraph(require('path').join(__dirname, '..'));
+        const required = graph.collectConsoleRequiredFiles([
+            { localPath: 'scripts/linux-ensure-console-user.js' },
         ]);
         expect(required.has('scripts/linux-ensure-console-user.js')).toBe(true);
         expect(required.has('scripts/scripts/linux-ensure-console-user.js')).toBe(false);
@@ -42,8 +43,9 @@ describe('updateService console sync helpers', () => {
     });
 
     test('collects serverAttestation from auth.routes integrity seeds', () => {
-        const required = collectConsoleRequiredFiles([
-            { localPath: 'routes/auth.routes.js' }
+        const graph = createConsoleDeployGraph(require('path').join(__dirname, '..'));
+        const required = graph.collectConsoleRequiredFiles([
+            { localPath: 'routes/auth.routes.js' },
         ]);
         expect(required.has('routes/auth.routes.js')).toBe(true);
         expect(required.has('services/serverAttestation.js')).toBe(true);
