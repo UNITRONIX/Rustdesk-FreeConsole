@@ -1,3 +1,10 @@
+## [Unreleased]
+
+### Changed
+- _(none yet)_
+
+---
+
 # Changelog
 
 All notable changes to this project are documented here.
@@ -5,7 +12,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [Unreleased] — Security hardening (2026-04-26)
+## [3.0.1] — 2026-06-07 — Security hardening (2026-04-26)
 
 ### Added
 - **Czech console translation completed** — `web-nodejs/lang/cs.json` now contains Czech UI text instead of the previous English fallback content and has the correct `meta.lang` value. Community contribution by [Karel Lowprize K](https://github.com/lowprize) ([PR #133](https://github.com/UNITRONIX/BetterDesk/pull/133)).
@@ -167,3 +174,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [2.3.0]: https://github.com/UNITRONIX/BetterDesk/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/UNITRONIX/BetterDesk/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/UNITRONIX/BetterDesk/releases/tag/v2.1.0
+[3.0.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.0.0...v3.0.1
