@@ -3316,14 +3316,17 @@
     "confirm_with_backup": "Der oprettes automatisk en sikkerhedskopi på forhånd.",
     "confirm_no_backup": "Der oprettes ingen backup (fortsæt på eget ansvar).",
     "channel_title": "Opdateringskanal",
-    "channel_desc": "Stable følger main-grenen (produktionsudgivelser). Development følger dev-grenen (seneste igangværende arbejde). Skift af kanal ændrer hvilken GitHub-gren opdateringer hentes fra.",
+    "channel_desc": "Vælg hvor panelet tjekker for opdateringer. Produktion bør bruge Stable.",
     "channel_stable": "Stable (main)",
     "channel_development": "Development (dev)",
     "channel_branch_label": "GitHub-gren",
-    "channel_save": "Anvend kanal",
-    "channel_saved": "Opdateringskanal gemt. Tjek for opdateringer mod den nye gren.",
+    "channel_save": "Skift kanal",
+    "channel_saved": "Kanal skiftet. Klik Tjek for opdateringer.",
     "channel_save_failed": "Kunne ikke gemme opdateringskanal",
-    "channel_switch_warning": "Skift af opdateringskanal ændrer hvilken GitHub-gren der bruges. Sporet commit-SHA beholdes — næste tjek kan vise stor forskel. Fortsæt?"
+    "channel_switch_warning": "Skift af opdateringskanal ændrer hvilken GitHub-gren der bruges. Sporet commit-SHA beholdes — næste tjek kan vise stor forskel. Fortsæt?",
+    "channel_pick_label": "Skift til",
+    "channel_apply_hint": "Gemmes straks efter bekræftelse. Klik derefter Tjek for opdateringer.",
+    "channel_confirm_switch": "Skift kilde fra {from} til {to}? Installeret commit beholdes indtil tjek for opdateringer."
   },
   "permissions": {
     "title": "Tilladelser",

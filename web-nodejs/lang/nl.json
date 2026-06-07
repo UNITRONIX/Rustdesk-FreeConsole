@@ -3310,14 +3310,17 @@
     "rebuild_server_success": "Serverbinary opnieuw gebouwd en herstart",
     "rebuild_server_failed": "Serverbinary kon niet opnieuw worden gebouwd",
     "channel_title": "Updatekanaal",
-    "channel_desc": "Stable volgt de main-branch (productiereleases). Development volgt de dev-branch (lopend werk). Het wijzigen van het kanaal bepaalt van welke GitHub-branch updates komen.",
+    "channel_desc": "Kies waar het paneel updates controleert. Productie moet Stable gebruiken.",
     "channel_stable": "Stable (main)",
     "channel_development": "Development (dev)",
     "channel_branch_label": "GitHub-branch",
-    "channel_save": "Kanaal toepassen",
-    "channel_saved": "Updatekanaal opgeslagen. Controleer updates tegen de nieuwe branch.",
+    "channel_save": "Kanaal wisselen",
+    "channel_saved": "Kanaal gewijzigd. Klik op Controleren op updates.",
     "channel_save_failed": "Updatekanaal opslaan mislukt",
-    "channel_switch_warning": "Kanaalwijziging verandert de GitHub-branch. Bijgehouden commit-SHA blijft — volgende check kan groot verschil tonen. Doorgaan?"
+    "channel_switch_warning": "Kanaalwijziging verandert de GitHub-branch. Bijgehouden commit-SHA blijft — volgende check kan groot verschil tonen. Doorgaan?",
+    "channel_pick_label": "Overschakelen naar",
+    "channel_apply_hint": "Wordt direct opgeslagen na bevestiging. Klik daarna op Controleren op updates.",
+    "channel_confirm_switch": "Bron wijzigen van {from} naar {to}? Geïnstalleerde commit blijft tot Controleren op updates."
   },
   "permissions": {
     "title": "Machtigingen",

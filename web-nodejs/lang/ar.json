@@ -3317,14 +3317,17 @@
     "confirm_with_backup": "سيتم إنشاء نسخة احتياطية للتحديث المسبق تلقائيًا.",
     "confirm_no_backup": "لن يتم إنشاء نسخة احتياطية (تابع على مسؤوليتك الخاصة).",
     "channel_title": "قناة التحديث",
-    "channel_desc": "المستقر يتبع فرع main (إصدارات الإنتاج). التطوير يتبع فرع dev (أحدث العمل قيد التقدم). تغيير القناة يحدد فرع GitHub الذي تُسحب منه التحديثات.",
+    "channel_desc": "Choose where the panel checks for updates. Production servers should use Stable.",
     "channel_stable": "مستقر (main)",
     "channel_development": "تطوير (dev)",
     "channel_branch_label": "فرع GitHub",
-    "channel_save": "تطبيق القناة",
-    "channel_saved": "تم حفظ قناة التحديث. تحقق من التحديثات لمقارنة الفرع الجديد.",
+    "channel_save": "تبديل القناة",
+    "channel_saved": "تم تبديل القناة. انقر للتحقق من التحديثات.",
     "channel_save_failed": "فشل حفظ قناة التحديث",
-    "channel_switch_warning": "تغيير قناة التحديث يغيّر فرع GitHub المستخدم للفحص والتثبيت. يُحتفظ بـ SHA للالتزام المتتبع — قد يظهر الفحص التالي فرقًا كبيرًا. المتابعة؟"
+    "channel_switch_warning": "تغيير قناة التحديث يغيّر فرع GitHub المستخدم للفحص والتثبيت. يُحتفظ بـ SHA للالتزام المتتبع — قد يظهر الفحص التالي فرقًا كبيرًا. المتابعة؟",
+    "channel_pick_label": "Switch to",
+    "channel_apply_hint": "The change is saved immediately after you confirm. Then click Check for updates.",
+    "channel_confirm_switch": "Switch update source from {from} to {to}? Your installed commit baseline stays the same until you run Check for updates."
   },
   "permissions": {
     "title": "الأذونات",

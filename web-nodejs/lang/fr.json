@@ -3310,14 +3310,17 @@
     "confirm_with_backup": "Une sauvegarde préalable sera créée automatiquement.",
     "confirm_no_backup": "Aucune sauvegarde ne sera créée (continuez à vos risques).",
     "channel_title": "Canal de mise à jour",
-    "channel_desc": "Stable suit la branche main (versions de production). Development suit la branche dev (travail en cours). Changer de canal modifie la branche GitHub utilisée pour les mises à jour.",
+    "channel_desc": "Choisissez la source des mises à jour. En production, utilisez Stable.",
     "channel_stable": "Stable (main)",
     "channel_development": "Development (dev)",
     "channel_branch_label": "Branche GitHub",
-    "channel_save": "Appliquer le canal",
-    "channel_saved": "Canal de mise à jour enregistré. Vérifiez les mises à jour avec la nouvelle branche.",
+    "channel_save": "Changer de canal",
+    "channel_saved": "Canal changé. Cliquez sur Vérifier les mises à jour.",
     "channel_save_failed": "Échec de l’enregistrement du canal",
-    "channel_switch_warning": "Changer de canal modifie la branche GitHub utilisée. Le SHA suivi est conservé — la prochaine vérification peut montrer un grand écart. Continuer ?"
+    "channel_switch_warning": "Changer de canal modifie la branche GitHub utilisée. Le SHA suivi est conservé — la prochaine vérification peut montrer un grand écart. Continuer ?",
+    "channel_pick_label": "Basculer vers",
+    "channel_apply_hint": "Après confirmation, le changement est enregistré. Puis cliquez sur Vérifier les mises à jour.",
+    "channel_confirm_switch": "Passer la source de {from} à {to} ? Le commit installé reste jusqu’à Vérifier les mises à jour."
   },
   "permissions": {
     "title": "Autorisations",
