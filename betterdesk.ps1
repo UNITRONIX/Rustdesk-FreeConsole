@@ -1,7 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    BetterDesk Console Manager v3.0.2 - All-in-One Interactive Tool for Windows
+    BetterDesk Console Manager v3.0.3 - All-in-One Interactive Tool for Windows
 
 .DESCRIPTION
     Features:
@@ -102,7 +102,7 @@ param(
 # Configuration
 #===============================================================================
 
-$script:VERSION = "3.0.2"
+$script:VERSION = "3.0.3"
 $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Auto mode flags
