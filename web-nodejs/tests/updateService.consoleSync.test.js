@@ -25,6 +25,12 @@ describe('updateService console sync helpers', () => {
         expect(resolveConsoleRequire('server.js', 'express')).toBeNull();
     });
 
+    test('skips phantom routes.js when routes/index.js exists during repair scan', () => {
+        const { isResolvedByIndexModule } = require('../services/updateService');
+        expect(isResolvedByIndexModule('routes.js')).toBe(true);
+        expect(isResolvedByIndexModule('routes/auth.routes.js')).toBe(false);
+    });
+
     test('ignores require examples inside comments when scanning dependencies', () => {
         const required = collectConsoleRequiredFiles([
             { localPath: 'scripts/linux-ensure-console-user.js' }

@@ -1058,6 +1058,12 @@ async function ensureConsoleSource(remoteSHA, opts = {}) {
     return { strategy: 'full-tree', filesDownloaded: downloaded, filesSkipped: skipped, failed };
 }
 
+function isResolvedByIndexModule(localPath) {
+    if (!localPath.endsWith('.js')) return false;
+    const indexPath = `${localPath.slice(0, -3)}/index.js`;
+    return fs.existsSync(path.join(ROOT_DIR, indexPath));
+}
+
 /**
  * After an incremental console update, fetch any local require targets that are
  * still missing (e.g. auth.routes.js updated while serverAttestation.js was
@@ -1069,6 +1075,8 @@ async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
     const failed = [];
     for (const localPath of required) {
         if (!isConsoleDeployLocalPath(localPath)) continue;
+        // Stale in-memory resolver may still list routes.js while routes/index.js exists.
+        if (isResolvedByIndexModule(localPath)) continue;
         const dest = path.join(ROOT_DIR, localPath);
         if (fs.existsSync(dest)) continue;
         try {
@@ -2789,6 +2797,7 @@ module.exports = {
     isCompareLikelyTruncated,
     resolveConsoleRequire,
     collectConsoleRequiredFiles,
+    isResolvedByIndexModule,
     repairMissingConsoleFiles,
     ensureConsoleSource,
 };
