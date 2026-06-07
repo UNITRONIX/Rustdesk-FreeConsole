@@ -38,3 +38,16 @@ When the console runs from `ghcr.io/.../betterdesk-console` (see `docker-compose
 - `POST /api/settings/updates/install` and `rebuildServerBinary()` are rejected in this mode.
 
 After pulling new images, recreate containers so the console picks up the embedded commit from the new image tag.
+
+## Update channel (stable / development)
+
+Native installs track GitHub **branch HEAD** (not tags) via `UPDATE_GITHUB_BRANCH` in `web-nodejs/.env`:
+
+| Channel | Branch | Default |
+|---------|--------|---------|
+| Stable | `main` | Yes — production releases |
+| Development | `dev` | Opt-in — latest work-in-progress |
+
+Operators can switch in **Settings → Updates → Update channel**, or via installer scripts (Update → Switch update channel). See [branching-and-versioning.md](branching-and-versioning.md).
+
+Changing channel does **not** reset `data/.update_sha`; the next update check may show a large diff against the new branch.

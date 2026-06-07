@@ -3308,7 +3308,16 @@
     "refresh_recommended": "Statické soubory byly změněny – pro zobrazení nového rozhraní obnovte stránku.",
     "confirm_title": "Použít aktualizaci",
     "confirm_with_backup": "Před aktualizací bude automaticky vytvořena záloha.",
-    "confirm_no_backup": "Záloha nebude vytvořena (pokračujete na vlastní riziko)."
+    "confirm_no_backup": "Záloha nebude vytvořena (pokračujete na vlastní riziko).",
+    "channel_title": "Kanál aktualizací",
+    "channel_desc": "Stabilní sleduje větev main (produkční vydání). Vývoj sleduje větev dev (rozpracovaná práce). Změna kanálu ovlivní, ze které větve GitHub se stahují aktualizace.",
+    "channel_stable": "Stabilní (main)",
+    "channel_development": "Vývoj (dev)",
+    "channel_branch_label": "Větev GitHub",
+    "channel_save": "Použít kanál",
+    "channel_saved": "Kanál aktualizací uložen. Zkontrolujte aktualizace vůči nové větvi.",
+    "channel_save_failed": "Nepodařilo se uložit kanál aktualizací",
+    "channel_switch_warning": "Změna kanálu mění větev GitHub pro kontroly a instalace. Sledované SHA commitu zůstává — další kontrola může ukázat velký rozdíl. Pokračovat?"
   },
   "permissions": {
     "title": "Oprávnění",

@@ -26,7 +26,7 @@ on:
         type: string
 
   push:
-    branches: [main]
+    branches: [main, dev]
     tags: ['v*']
     paths:
       - 'Dockerfile*'
@@ -46,11 +46,12 @@ env:
   # Shared tag rules for docker/metadata-action (keep in sync across build jobs)
   DOCKER_METADATA_TAGS: |
     type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' && github.event_name == 'push' }}
     type=ref,event=tag
     type=semver,pattern={{version}}
     type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || !contains(github.event.inputs.tag, '-')) }}
     type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' && github.event.inputs.tag != 'latest' }}
-    type=sha,prefix=sha-,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    type=sha,prefix=sha-,enable=${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
 jobs:
   read-version:

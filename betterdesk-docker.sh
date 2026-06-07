@@ -1203,12 +1203,91 @@ UPDATE_GITHUB_OWNER="${UPDATE_GITHUB_OWNER:-UNITRONIX}"
 UPDATE_GITHUB_REPO="${UPDATE_GITHUB_REPO:-BetterDesk}"
 UPDATE_GITHUB_BRANCH="${UPDATE_GITHUB_BRANCH:-main}"
 
+docker_update_env_file() {
+    if [ -f "$SCRIPT_DIR/web-nodejs/.env" ]; then
+        echo "$SCRIPT_DIR/web-nodejs/.env"
+    elif [ -f "$SCRIPT_DIR/.env" ]; then
+        echo "$SCRIPT_DIR/.env"
+    else
+        echo "$SCRIPT_DIR/web-nodejs/.env"
+    fi
+}
+
+read_update_github_branch_from_env() {
+    local env_file
+    env_file=$(docker_update_env_file)
+    if [ -f "$env_file" ]; then
+        local val
+        val=$(grep -E '^UPDATE_GITHUB_BRANCH=' "$env_file" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"')
+        if [ -n "$val" ]; then
+            UPDATE_GITHUB_BRANCH="$val"
+            export UPDATE_GITHUB_BRANCH
+        fi
+    fi
+}
+
+write_update_github_branch_to_env() {
+    local branch="$1"
+    local env_file
+    env_file=$(docker_update_env_file)
+    local env_dir
+    env_dir=$(dirname "$env_file")
+    mkdir -p "$env_dir"
+    if [ ! -f "$env_file" ]; then
+        touch "$env_file"
+    fi
+    if grep -qE '^UPDATE_GITHUB_BRANCH=' "$env_file" 2>/dev/null; then
+        sed -i "s/^UPDATE_GITHUB_BRANCH=.*/UPDATE_GITHUB_BRANCH=${branch}/" "$env_file"
+    else
+        printf '\nUPDATE_GITHUB_BRANCH=%s\n' "$branch" >> "$env_file"
+    fi
+    UPDATE_GITHUB_BRANCH="$branch"
+    export UPDATE_GITHUB_BRANCH
+    print_success "Update channel saved (GitHub branch: $branch)"
+}
+
+switch_update_channel() {
+    print_header
+    echo -e "${WHITE}${BOLD}══════════ UPDATE CHANNEL ══════════${NC}"
+    echo ""
+    detect_installation
+    if [ "$INSTALL_STATUS" = "none" ]; then
+        print_error "BetterDesk Docker is not installed!"
+        press_enter
+        return
+    fi
+    read_update_github_branch_from_env
+    print_info "Current GitHub branch: $UPDATE_GITHUB_BRANCH"
+    echo ""
+    local _menu_items=(
+        $'Stable (main)\tProduction releases from the main branch'
+        $'Development (dev)\tLatest work-in-progress from the dev branch'
+        $'Back\tReturn without changes'
+    )
+    local _menu_returns=( main dev 0 )
+    menu_choose "Update Channel" "Stable is recommended for production deployments"
+    case "${MENU_CHOICE:-main}" in
+        0) return ;;
+        dev)
+            print_warning "Development channel may include unstable changes."
+            write_update_github_branch_to_env "dev"
+            ;;
+        *)
+            write_update_github_branch_to_env "main"
+            ;;
+    esac
+    print_info "Use Online update from GitHub to pull from the selected branch."
+    press_enter
+}
+
 # Pull latest project files from GitHub before rebuilding Docker images.
 # This ensures the Dockerfiles, compose files, and source code (Go server,
 # Node.js console) are up-to-date before docker compose build.
 update_docker_from_github() {
     local clone_dir="/tmp/betterdesk-docker-update-$$"
     rm -rf "$clone_dir"
+
+    read_update_github_branch_from_env
 
     print_step "Downloading latest BetterDesk from GitHub..."
     if command -v git &>/dev/null; then
@@ -1329,14 +1408,19 @@ do_update() {
     local _menu_items=(
         $'Online update from GitHub\tDownload latest code + rebuild images'
         $'Local rebuild\tRebuild images from current local files'
+        $'Switch update channel\tChoose stable (main) or development (dev) branch'
         $'Back\tReturn to the main menu'
     )
-    local _menu_returns=( 1 2 0 )
+    local _menu_returns=( 1 2 3 0 )
     menu_choose "Update Method" "Online GitHub update is recommended"
     local update_method="${MENU_CHOICE:-1}"
 
     case "$update_method" in
         0) return ;;
+        3)
+            switch_update_channel
+            return
+            ;;
         2)
             # Legacy local rebuild
             print_info "Creating backup before update..."

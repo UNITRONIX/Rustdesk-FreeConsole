@@ -3379,7 +3379,16 @@
     "refresh_recommended": "静态资源已更改，请重新加载页面以查看新界面。",
     "confirm_title": "应用更新",
     "confirm_with_backup": "将自动创建更新前备份。",
-    "confirm_no_backup": "不会创建备份（风险自担）。"
+    "confirm_no_backup": "不会创建备份（风险自担）。",
+    "channel_title": "更新通道",
+    "channel_desc": "Stable 跟踪 main 分支（生产发布）。Development 跟踪 dev 分支（进行中的最新工作）。更改通道会影响从哪个 GitHub 分支拉取更新。",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub 分支",
+    "channel_save": "应用通道",
+    "channel_saved": "更新通道已保存。请检查更新以对比新分支。",
+    "channel_save_failed": "保存更新通道失败",
+    "channel_switch_warning": "更改通道会改变 GitHub 分支。已跟踪的 commit SHA 会保留 — 下次检查可能显示较大差异。继续？"
   },
   "accessibility": {
     "title": "无障碍",

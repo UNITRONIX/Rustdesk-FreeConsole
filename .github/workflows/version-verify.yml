@@ -1,0 +1,49 @@
+name: Version Verify
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'VERSION'
+      - 'web-nodejs/package.json'
+      - 'betterdesk.sh'
+      - 'betterdesk.ps1'
+      - 'betterdesk-docker.sh'
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - 'Dockerfile*'
+      - 'docker-compose.quick.yml'
+      - 'docker/**'
+      - 'docker-entrypoint.sh'
+      - 'scripts/bump-version.js'
+      - '.github/workflows/version-verify.yml'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'VERSION'
+      - 'web-nodejs/package.json'
+      - 'betterdesk.sh'
+      - 'betterdesk.ps1'
+      - 'betterdesk-docker.sh'
+      - 'CHANGELOG.md'
+      - 'README.md'
+      - 'Dockerfile*'
+      - 'docker-compose.quick.yml'
+      - 'docker/**'
+      - 'docker-entrypoint.sh'
+      - 'scripts/bump-version.js'
+      - '.github/workflows/version-verify.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify product version parity
+        run: node scripts/bump-version.js --verify

@@ -3314,7 +3314,16 @@
     "refresh_recommended": "A statikus elemek megváltoztak – az új felhasználói felület megtekintéséhez töltse be újra az oldalt.",
     "confirm_title": "Frissítés alkalmazása",
     "confirm_with_backup": "A frissítés előtti biztonsági másolat automatikusan létrejön.",
-    "confirm_no_backup": "Nem készül biztonsági másolat (saját felelősségére folytassa)."
+    "confirm_no_backup": "Nem készül biztonsági másolat (saját felelősségére folytassa).",
+    "channel_title": "Frissítési csatorna",
+    "channel_desc": "A Stable a main ágat követi (éles kiadások). A Development a dev ágat (folyamatban lévő munka). A csatornaváltás megváltoztatja, melyik GitHub-ág frissítéseit tölti le.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub-ág",
+    "channel_save": "Csatorna alkalmazása",
+    "channel_saved": "Frissítési csatorna mentve. Ellenőrizze a frissítéseket az új ághoz.",
+    "channel_save_failed": "A frissítési csatorna mentése sikertelen",
+    "channel_switch_warning": "A csatornaváltás megváltoztatja a GitHub-ágat. A követett commit SHA megmarad — a következő ellenőrzés nagy különbséget mutathat. Folytatja?"
   },
   "permissions": {
     "title": "Engedélyek",

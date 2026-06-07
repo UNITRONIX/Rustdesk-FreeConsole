@@ -61,8 +61,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          VERSION="${GITHUB_REF_NAME:-dev}"
-          go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" \
+          VERSION="${GITHUB_REF_NAME#v}"
+          go build -trimpath -ldflags="-s -w -X main.Version=${VERSION}" \
             -o "betterdesk-server-${{ matrix.suffix }}" .
 
       - name: Upload artifact

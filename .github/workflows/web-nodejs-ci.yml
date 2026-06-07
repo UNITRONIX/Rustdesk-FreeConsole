@@ -2,12 +2,12 @@ name: Web Console CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'web-nodejs/**'
       - '.github/workflows/web-nodejs-ci.yml'
   pull_request:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'web-nodejs/**'
       - '.github/workflows/web-nodejs-ci.yml'

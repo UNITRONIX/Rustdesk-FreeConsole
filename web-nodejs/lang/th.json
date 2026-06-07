@@ -3314,7 +3314,16 @@
     "rebuild_server": "สร้างไบนารีเซิร์ฟเวอร์ใหม่",
     "rebuilding_server": "กำลังสร้างใหม่...",
     "rebuild_server_success": "ไบนารีของเซิร์ฟเวอร์สร้างใหม่และรีสตาร์ท",
-    "rebuild_server_failed": "การสร้างไบนารีของเซิร์ฟเวอร์ใหม่ล้มเหลว"
+    "rebuild_server_failed": "การสร้างไบนารีของเซิร์ฟเวอร์ใหม่ล้มเหลว",
+    "channel_title": "ช่องทางอัปเดต",
+    "channel_desc": "Stable ติดตามสาขา main (รุ่นโปรดักชัน) Development ติดตามสาขา dev (งานล่าสุด) การเปลี่ยนช่องจะเปลี่ยนสาขา GitHub ที่ดึงอัปเดต",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "สาขา GitHub",
+    "channel_save": "ใช้ช่องทาง",
+    "channel_saved": "บันทึกช่องทางอัปเดตแล้ว ตรวจสอบอัปเดตกับสาขาใหม่",
+    "channel_save_failed": "บันทึกช่องทางอัปเดตไม่สำเร็จ",
+    "channel_switch_warning": "การเปลี่ยนช่องจะเปลี่ยนสาขา GitHub SHA ที่ติดตามยังอยู่ — การตรวจครั้งถัดไปอาจแสดงความต่างมาก ดำเนินการต่อ?"
   },
   "permissions": {
     "title": "สิทธิ์",

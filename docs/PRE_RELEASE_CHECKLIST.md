@@ -63,12 +63,15 @@ Use this checklist before every tagged release to ensure quality and stability.
 
 ## 8. Documentation & Release
 
-- [ ] **CHANGELOG.md**: updated with new version section
-- [ ] **README.md**: reflects current features
-- [ ] **VERSION file**: bumped to release version
-- [ ] **Git tag**: `git tag v<version>` created and pushed (`git push origin v<version>`)
-- [ ] **GitHub Release**: published (prerelease for alpha/beta); triggers Docker publish workflow
-- [ ] **GHCR image tags**: verify `ghcr.io/unitronix/betterdesk-server`, `betterdesk-console`, and `betterdesk` show semver tag (e.g. `3.0.0-alpha`) and git ref (`v3.0.0-alpha`) after workflow completes
-- [ ] **Manual fallback**: Actions → “Build & Publish Docker Images” → Run workflow → tag input `v<version>` if release trigger was skipped
-- [ ] **No secrets in diff**: `git diff --cached` has no API keys / passwords
-- [ ] **No debug code**: no `console.log` debug statements, no `TODO` in shipped code
+Applies only to merges into **`main`** (stable). Version bump, tag, and GitHub Release are automated by [`.github/workflows/version-bump-main.yml`](../../.github/workflows/version-bump-main.yml) — see [branching-and-versioning.md](important/branching-and-versioning.md).
+
+- [ ] **PR source:** changes merged from `dev` → `main` (not direct commits to `main`)
+- [ ] **CHANGELOG.md:** `[Unreleased]` section reflects this release (CI moves it into the version section on merge)
+- [ ] **README.md:** reflects current features
+- [ ] **Version parity:** `node scripts/bump-version.js --verify` passes locally (CI enforces on version file changes)
+- [ ] **After merge:** verify CI created tag `v<version>` and GitHub Release
+- [ ] **GHCR image tags:** verify `ghcr.io/unitronix/betterdesk-server`, `betterdesk-console`, and `betterdesk` show semver tag (e.g. `3.1.0`) and git ref (`v3.1.0`) after workflow completes
+- [ ] **Sync dev:** merge `main` → `dev` so development continues from the new minor version
+- [ ] **Manual fallback:** Actions → “Build & Publish Docker Images” → Run workflow → tag input `v<version>` if release trigger was skipped
+- [ ] **No secrets in diff:** `git diff --cached` has no API keys / passwords
+- [ ] **No debug code:** no `console.log` debug statements, no `TODO` in shipped code

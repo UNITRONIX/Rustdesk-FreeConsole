@@ -37,8 +37,36 @@ const {
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
-const GITHUB_BRANCH = process.env.UPDATE_GITHUB_BRANCH || 'main';
 const GITHUB_API    = 'https://api.github.com';
+
+/** Update channel → GitHub branch mapping */
+const UPDATE_CHANNELS = Object.freeze({
+    stable: { id: 'stable', branch: 'main', label: 'Stable' },
+    development: { id: 'development', branch: 'dev', label: 'Development' },
+});
+
+function getGithubBranch() {
+    const branch = String(process.env.UPDATE_GITHUB_BRANCH || 'main').trim();
+    return branch || 'main';
+}
+
+function branchToChannel(branch) {
+    if (branch === 'dev') return 'development';
+    return 'stable';
+}
+
+function getUpdateChannelInfo() {
+    const branch = getGithubBranch();
+    const channel = branchToChannel(branch);
+    return {
+        channel,
+        branch,
+        label: UPDATE_CHANNELS[channel]?.label || channel,
+        owner: process.env.UPDATE_GITHUB_OWNER || GITHUB_OWNER,
+        repo: process.env.UPDATE_GITHUB_REPO || GITHUB_REPO,
+    };
+}
+
 const USER_AGENT    = `BetterDesk-Console/${config.appVersion}`;
 const BACKUP_DIR    = path.join(config.dataDir, 'backups');
 const SHA_FILE           = path.join(config.dataDir, '.update_sha');
@@ -61,6 +89,27 @@ function resolveProjectRoot() {
 }
 
 const PROJECT_ROOT       = resolveProjectRoot();
+
+function setUpdateChannel(channelId) {
+    const channel = UPDATE_CHANNELS[channelId];
+    if (!channel) {
+        throw new Error(`Invalid update channel: ${channelId}`);
+    }
+    const envPath = path.join(ROOT_DIR, '.env');
+    const previousBranch = getGithubBranch();
+    const existing = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+    const { upsertEnvKey } = require('../lib/envMerge');
+    const updated = upsertEnvKey(existing, 'UPDATE_GITHUB_BRANCH', channel.branch);
+    fs.writeFileSync(envPath, updated, { mode: 0o600 });
+    process.env.UPDATE_GITHUB_BRANCH = channel.branch;
+    return {
+        channel: channel.id,
+        branch: channel.branch,
+        label: channel.label,
+        previousBranch,
+        previousChannel: branchToChannel(previousBranch),
+    };
+}
 
 // Optional GitHub personal-access token  (60 req/h without, 5 000 with)
 const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN || '';
@@ -283,12 +332,20 @@ function getDockerUpdateInstructions() {
 }
 
 function withDeploymentMeta(result) {
+    const channelInfo = getUpdateChannelInfo();
+    const base = {
+        ...result,
+        updateChannel: channelInfo.channel,
+        githubBranch: channelInfo.branch,
+        githubOwner: channelInfo.owner,
+        githubRepo: channelInfo.repo,
+    };
     const dockerImageMode = isImageBasedDockerDeployment();
     if (!dockerImageMode) {
-        return { ...result, deploymentMode: 'native' };
+        return { ...base, deploymentMode: 'native' };
     }
     return {
-        ...result,
+        ...base,
         deploymentMode: 'docker-image',
         dockerImageMode: true,
         imageSHA: getImageEmbeddedSHA(),
@@ -398,7 +455,7 @@ function getServerBinaryStatus() {
 }
 
 async function getRemoteHeadSHA() {
-    const data = await ghGet(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/${GITHUB_BRANCH}`);
+    const data = await ghGet(`/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/${getGithubBranch()}`);
     return {
         sha: data.sha,
         message: (data.commit?.message || '').split('\n')[0],
@@ -862,7 +919,7 @@ async function ensureServerSource(remoteSHA, opts = {}) {
             : `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git`;
 
         execSync(
-            `git clone --depth=1 --single-branch --branch "${GITHUB_BRANCH}" "${repoUrl}" "${tmpDir}"`,
+            `git clone --depth=1 --single-branch --branch "${getGithubBranch()}" "${repoUrl}" "${tmpDir}"`,
             { timeout: 120000, stdio: 'pipe' }
         );
 
@@ -2699,6 +2756,10 @@ async function runUpdatePreflight(opts = {}) {
 }
 
 module.exports = {
+    getUpdateChannelInfo,
+    setUpdateChannel,
+    UPDATE_CHANNELS,
+    getGithubBranch,
     checkForUpdates,
     getChangedFiles,
     createPreUpdateBackup,

@@ -3314,7 +3314,16 @@
     "rebuild_server": "Sunucu ikili dosyasını yeniden oluştur",
     "rebuilding_server": "Yeniden inşa ediliyor…",
     "rebuild_server_success": "Sunucu ikili programı yeniden oluşturuldu ve yeniden başlatıldı",
-    "rebuild_server_failed": "Sunucu ikili yeniden oluşturma işlemi başarısız oldu"
+    "rebuild_server_failed": "Sunucu ikili yeniden oluşturma işlemi başarısız oldu",
+    "channel_title": "Güncelleme kanalı",
+    "channel_desc": "Stable main dalını (üretim sürümleri) izler. Development dev dalını (devam eden çalışma) izler. Kanal değişikliği güncellemelerin çekildiği GitHub dalını değiştirir.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub dalı",
+    "channel_save": "Kanalı uygula",
+    "channel_saved": "Güncelleme kanalı kaydedildi. Yeni dal için güncellemeleri kontrol edin.",
+    "channel_save_failed": "Güncelleme kanalı kaydedilemedi",
+    "channel_switch_warning": "Kanal değişikliği GitHub dalını değiştirir. İzlenen commit SHA korunur — sonraki kontrol büyük fark gösterebilir. Devam?"
   },
   "permissions": {
     "title": "İzinler",

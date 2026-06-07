@@ -3314,7 +3314,16 @@
     "refresh_recommended": "स्थैतिक परिसंपत्तियाँ बदल गईं - नया यूआई देखने के लिए पृष्ठ को पुनः लोड करें।",
     "confirm_title": "अद्यतन लागू करें",
     "confirm_with_backup": "प्री-अपडेट बैकअप स्वचालित रूप से बनाया जाएगा।",
-    "confirm_no_backup": "कोई बैकअप नहीं बनाया जाएगा (अपने जोखिम पर आगे बढ़ें)।"
+    "confirm_no_backup": "कोई बैकअप नहीं बनाया जाएगा (अपने जोखिम पर आगे बढ़ें)।",
+    "channel_title": "अपडेट चैनल",
+    "channel_desc": "Stable main शाखा (प्रोडक्शन रिलीज़) का अनुसरण करता है। Development dev शाखा (चल रहा कार्य) का अनुसरण करता है। चैनल बदलने से GitHub शाखा बदलती है।",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub शाखा",
+    "channel_save": "चैनल लागू करें",
+    "channel_saved": "अपडेट चैनल सहेजा गया। नई शाखा के लिए अपडेट जांचें।",
+    "channel_save_failed": "अपडेट चैनल सहेजना विफल",
+    "channel_switch_warning": "चैनल बदलने से GitHub शाखा बदलेगी। ट्रैक किया SHA रहेगा — अगली जांच में बड़ा अंतर दिख सकता है। जारी रखें?"
   },
   "permissions": {
     "title": "अनुमतियां",

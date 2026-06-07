@@ -3395,7 +3395,16 @@
     "refresh_recommended": "Static assets changed — reload the page to see the new UI.",
     "confirm_title": "Apply update",
     "confirm_with_backup": "A pre-update backup will be created automatically.",
-    "confirm_no_backup": "No backup will be created (proceed at your own risk)."
+    "confirm_no_backup": "No backup will be created (proceed at your own risk).",
+    "channel_title": "Update channel",
+    "channel_desc": "Stable tracks the main branch (production releases). Development tracks the dev branch (latest work-in-progress). Changing channel affects which GitHub branch updates are pulled from.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub branch",
+    "channel_save": "Apply channel",
+    "channel_saved": "Update channel saved. Check for updates to compare against the new branch.",
+    "channel_save_failed": "Failed to save update channel",
+    "channel_switch_warning": "Switching the update channel changes which GitHub branch is used for version checks and installs. Your tracked commit SHA is kept — the next check may show a large diff. Continue?"
   },
   "accessibility": {
     "title": "Accessibility",

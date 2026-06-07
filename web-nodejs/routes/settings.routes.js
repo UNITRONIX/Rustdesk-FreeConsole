@@ -715,6 +715,39 @@ router.get('/api/settings/updates/preflight', requireAuth, requirePermission('se
 });
 
 /**
+ * GET /api/settings/updates/channel - Current GitHub update channel (stable/dev)
+ */
+router.get('/api/settings/updates/channel', requireAuth, requirePermission('server.config'), (_req, res) => {
+    try {
+        const data = updateService.getUpdateChannelInfo();
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
+ * POST /api/settings/updates/channel - Switch update channel (writes .env)
+ * Body: { channel: 'stable' | 'development' }
+ */
+router.post('/api/settings/updates/channel', requireAuth, requirePermission('server.config'), (req, res) => {
+    try {
+        const { channel } = req.body || {};
+        if (!channel || !updateService.UPDATE_CHANNELS[channel]) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid channel. Use stable or development.'
+            });
+        }
+        const result = updateService.setUpdateChannel(channel);
+        res.json({ success: true, data: result });
+    } catch (err) {
+        console.error('Update channel error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+/**
  * GET /api/settings/updates/check - Check for available updates
  */
 router.get('/api/settings/updates/check', requireAuth, requirePermission('server.config'), async (req, res) => {

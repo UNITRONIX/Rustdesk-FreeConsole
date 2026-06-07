@@ -3314,7 +3314,16 @@
     "refresh_recommended": "Statiske aktiver ændret — genindlæs siden for at se den nye brugergrænseflade.",
     "confirm_title": "Anvend opdatering",
     "confirm_with_backup": "Der oprettes automatisk en sikkerhedskopi på forhånd.",
-    "confirm_no_backup": "Der oprettes ingen backup (fortsæt på eget ansvar)."
+    "confirm_no_backup": "Der oprettes ingen backup (fortsæt på eget ansvar).",
+    "channel_title": "Opdateringskanal",
+    "channel_desc": "Stable følger main-grenen (produktionsudgivelser). Development følger dev-grenen (seneste igangværende arbejde). Skift af kanal ændrer hvilken GitHub-gren opdateringer hentes fra.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub-gren",
+    "channel_save": "Anvend kanal",
+    "channel_saved": "Opdateringskanal gemt. Tjek for opdateringer mod den nye gren.",
+    "channel_save_failed": "Kunne ikke gemme opdateringskanal",
+    "channel_switch_warning": "Skift af opdateringskanal ændrer hvilken GitHub-gren der bruges. Sporet commit-SHA beholdes — næste tjek kan vise stor forskel. Fortsæt?"
   },
   "permissions": {
     "title": "Tilladelser",

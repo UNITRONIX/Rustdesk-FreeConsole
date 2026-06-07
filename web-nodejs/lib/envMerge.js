@@ -172,6 +172,33 @@ function buildFreshEnv(templateContent) {
 }
 
 /**
+ * Upsert a single key in .env content (preserve comments and order).
+ */
+function upsertEnvKey(existingContent, key, value) {
+    const safeValue = String(value ?? '');
+    const lines = String(existingContent || '').split(/\r?\n/);
+    let replaced = false;
+    const out = lines.map((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) return line;
+        const eq = line.indexOf('=');
+        if (eq <= 0) return line;
+        const lineKey = line.slice(0, eq).trim();
+        if (lineKey !== key) return line;
+        replaced = true;
+        return `${key}=${safeValue}`;
+    });
+    let content = out.join('\n');
+    if (!replaced) {
+        if (content.length && !content.endsWith('\n')) content += '\n';
+        content += `${key}=${safeValue}\n`;
+    } else if (!content.endsWith('\n')) {
+        content += '\n';
+    }
+    return content;
+}
+
+/**
  * Read template, apply substitutions, merge or replace target file.
  * @param {object} opts
  * @param {string} opts.targetPath - path to .env
@@ -207,5 +234,6 @@ module.exports = {
     assertResolvedSubstitutions,
     mergeEnv,
     buildFreshEnv,
+    upsertEnvKey,
     mergeEnvFile
 };

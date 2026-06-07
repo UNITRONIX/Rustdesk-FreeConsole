@@ -3314,7 +3314,16 @@
     "refresh_recommended": "Staattinen sisältö muutettu – lataa sivu uudelleen nähdäksesi uuden käyttöliittymän.",
     "confirm_title": "Ota päivitys käyttöön",
     "confirm_with_backup": "Päivitystä edeltävä varmuuskopio luodaan automaattisesti.",
-    "confirm_no_backup": "Varmuuskopiota ei luoda (jatka omalla vastuullasi)."
+    "confirm_no_backup": "Varmuuskopiota ei luoda (jatka omalla vastuullasi).",
+    "channel_title": "Päivityskanava",
+    "channel_desc": "Stable seuraa main-haaraa (tuotantojulkaisut). Development seuraa dev-haaraa (käynnissä oleva työ). Kanavan vaihto muuttaa mistä GitHub-haarasta päivitykset haetaan.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub-haara",
+    "channel_save": "Käytä kanavaa",
+    "channel_saved": "Päivityskanava tallennettu. Tarkista päivitykset uutta haaraa vasten.",
+    "channel_save_failed": "Päivityskanavan tallennus epäonnistui",
+    "channel_switch_warning": "Kanavan vaihto muuttaa GitHub-haaraa. Seurattu commit-SHA säilyy — seuraava tarkistus voi näyttää suuren eron. Jatketaanko?"
   },
   "permissions": {
     "title": "Käyttöoikeudet",

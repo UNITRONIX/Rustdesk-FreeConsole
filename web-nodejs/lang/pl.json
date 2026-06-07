@@ -3395,7 +3395,16 @@
     "refresh_recommended": "Zmieniły się statyczne zasoby — odśwież stronę, aby zobaczyć nowy interfejs.",
     "confirm_title": "Zastosuj aktualizację",
     "confirm_with_backup": "Kopia zapasowa zostanie utworzona automatycznie.",
-    "confirm_no_backup": "Kopia zapasowa nie zostanie utworzona (na własne ryzyko)."
+    "confirm_no_backup": "Kopia zapasowa nie zostanie utworzona (na własne ryzyko).",
+    "channel_title": "Kanał aktualizacji",
+    "channel_desc": "Stable śledzi gałąź main (wydania produkcyjne). Development śledzi gałąź dev (bieżąca praca). Zmiana kanału wpływa na to, z której gałęzi GitHub pobierane są aktualizacje.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "Gałąź GitHub",
+    "channel_save": "Zastosuj kanał",
+    "channel_saved": "Kanał aktualizacji zapisany. Sprawdź aktualizacje względem nowej gałęzi.",
+    "channel_save_failed": "Nie udało się zapisać kanału aktualizacji",
+    "channel_switch_warning": "Zmiana kanału zmienia gałąź GitHub. Śledzone SHA commita zostaje — następne sprawdzenie może pokazać dużą różnicę. Kontynuować?"
   },
   "accessibility": {
     "title": "Dostępność",

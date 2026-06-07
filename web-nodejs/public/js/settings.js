@@ -1563,9 +1563,72 @@
         rebuildBtn?.addEventListener('click', rebuildServerBinary);
         loadServerBinaryStatus();
 
+        loadUpdateChannel();
+        const channelSaveBtn = document.getElementById('update-channel-save-btn');
+        channelSaveBtn?.addEventListener('click', saveUpdateChannel);
+
         loadUpdateBackups();
         loadBackupRetention();
         loadLastUpdateResult();
+    }
+
+    async function loadUpdateChannel() {
+        const select = document.getElementById('update-channel-select');
+        const branchEl = document.getElementById('update-channel-branch');
+        if (!select) return;
+        try {
+            const payload = await Utils.api('/api/settings/updates/channel');
+            const data = payload?.data ?? payload;
+            if (data?.channel) select.value = data.channel;
+            if (branchEl) {
+                branchEl.textContent = data?.branch
+                    ? `${data.branch} (${data.owner || 'UNITRONIX'}/${data.repo || 'BetterDesk'})`
+                    : '—';
+            }
+        } catch (_e) {
+            if (branchEl) branchEl.textContent = '—';
+        }
+    }
+
+    async function saveUpdateChannel() {
+        const select = document.getElementById('update-channel-select');
+        const btn = document.getElementById('update-channel-save-btn');
+        if (!select || !btn) return;
+
+        const channel = select.value;
+        const confirmed = await new Promise((resolve) => {
+            window.Modal.open({
+                title: _('updates.channel_save'),
+                content: `<p>${Utils.escapeHtml(_('updates.channel_switch_warning'))}</p>`,
+                buttons: [
+                    { label: _('common.cancel'), class: 'btn-secondary', onClick: () => { window.Modal.close(); resolve(false); } },
+                    { label: _('updates.channel_save'), class: 'btn-primary', icon: 'alt_route', onClick: () => { window.Modal.close(); resolve(true); } }
+                ]
+            });
+        });
+        if (!confirmed) return;
+
+        btn.disabled = true;
+        try {
+            const payload = await Utils.api('/api/settings/updates/channel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channel })
+            });
+            const data = payload?.data ?? payload;
+            await loadUpdateChannel();
+            Notifications.success(_('updates.channel_saved'));
+            if (data?.previousBranch && data.previousBranch !== data.branch) {
+                _updateState.remoteSHA = null;
+                _updateState.changedData = null;
+                const detailsSection = document.getElementById('update-details-section');
+                if (detailsSection) detailsSection.style.display = 'none';
+            }
+        } catch (error) {
+            Notifications.error(error.message || _('updates.channel_save_failed'));
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     async function loadLastUpdateResult() {

@@ -3308,7 +3308,16 @@
     "refresh_recommended": "静的アセットが変更されました - ページをリロードして新しい UI を表示します。",
     "confirm_title": "アップデートを適用する",
     "confirm_with_backup": "アップデート前のバックアップが自動的に作成されます。",
-    "confirm_no_backup": "バックアップは作成されません (自己責任で行ってください)。"
+    "confirm_no_backup": "バックアップは作成されません (自己責任で行ってください)。",
+    "channel_title": "更新チャンネル",
+    "channel_desc": "Stable は main ブランチ（本番リリース）を追跡します。Development は dev ブランチ（開発中の最新版）を追跡します。チャンネル変更は更新取得元の GitHub ブランチを変えます。",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub ブランチ",
+    "channel_save": "チャンネルを適用",
+    "channel_saved": "更新チャンネルを保存しました。新しいブランチで更新を確認してください。",
+    "channel_save_failed": "更新チャンネルの保存に失敗しました",
+    "channel_switch_warning": "チャンネル変更は GitHub ブランチを変えます。追跡中の commit SHA は保持されます — 次回チェックで大きな差分が出る場合があります。続行しますか？"
   },
   "permissions": {
     "title": "権限",
