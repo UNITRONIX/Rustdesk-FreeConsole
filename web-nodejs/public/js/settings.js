@@ -1596,15 +1596,11 @@
         if (!select || !btn) return;
 
         const channel = select.value;
-        const confirmed = await new Promise((resolve) => {
-            window.Modal.open({
-                title: _('updates.channel_save'),
-                content: `<p>${Utils.escapeHtml(_('updates.channel_switch_warning'))}</p>`,
-                buttons: [
-                    { label: _('common.cancel'), class: 'btn-secondary', onClick: () => { window.Modal.close(); resolve(false); } },
-                    { label: _('updates.channel_save'), class: 'btn-primary', icon: 'alt_route', onClick: () => { window.Modal.close(); resolve(true); } }
-                ]
-            });
+        const confirmed = await Modal.confirm({
+            title: _('updates.channel_save'),
+            message: _('updates.channel_switch_warning'),
+            confirmLabel: _('updates.channel_save'),
+            confirmIcon: 'alt_route'
         });
         if (!confirmed) return;
 
