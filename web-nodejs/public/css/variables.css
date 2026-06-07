@@ -122,6 +122,8 @@
     --sidebar-cat-system-muted: rgba(163, 113, 247, 0.20);
     --sidebar-cat-server-mgmt-accent: #ff9b7a;
     --sidebar-cat-server-mgmt-muted: rgba(255, 155, 122, 0.18);
+    --sidebar-cat-commercialization-accent: #f0b429;
+    --sidebar-cat-commercialization-muted: rgba(240, 180, 41, 0.18);
     
     /* ═══════════════════════════════════════════════════════════════════════
        SHAPES & EFFECTS

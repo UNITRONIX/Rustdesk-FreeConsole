@@ -1,4 +1,5 @@
 <% const sidebarServerTab = typeof currentTab !== 'undefined' && currentTab ? currentTab : 'overview'; %>
+<% const sidebarCommercialTab = typeof currentTab !== 'undefined' && currentTab ? currentTab : 'overview'; %>
 <!-- Sidebar Navigation — TeamViewer-style icon rail + flyout -->
 <aside class="sidebar" id="sidebar" data-collapsed="true">
     <!-- Icon rail (always visible) -->
@@ -44,6 +45,13 @@
                 <span class="material-icons">dns</span>
             </button>
             <% } %>
+            <% if (hasPermission('billing.view')) { %>
+            <button class="sidebar-rail-btn sidebar-rail-btn--alpha <%= currentPage === 'commercialization' ? 'active' : '' %>"
+                    data-category="commercialization" title="<%= _('commercialization.alpha_tooltip') || _('nav.commercialization') || 'Commercialization' %>">
+                <span class="material-icons">payments</span>
+                <span class="rail-stage-badge" aria-hidden="true"><%= _('commercialization.alpha_badge') || 'ALPHA' %></span>
+            </button>
+            <% } %>
             <% if (hasPermission('server.attestation')) { %>
             <a href="/server-attestation" class="sidebar-rail-btn <%= currentPage === 'server-attestation' ? 'active' : '' %>"
                title="<%= _('nav.server_attestation') || 'Server Attestation' %>">
@@ -71,7 +79,32 @@
     <div class="sidebar-flyout" id="sidebar-flyout">
         <div class="sidebar-flyout-header">
             <span class="sidebar-flyout-title" id="sidebar-flyout-title"></span>
-            <span class="sidebar-logo-text"><%= appName %></span>
+        </div>
+
+        <!-- Commercialization category links -->
+        <div class="sidebar-flyout-panel" data-panel="commercialization">
+            <% if (hasPermission('billing.view')) { %>
+            <a href="/commercialization?tab=overview" class="sidebar-link <%= currentPage === 'commercialization' && sidebarCommercialTab === 'overview' ? 'active' : '' %>">
+                <span class="material-icons">dashboard</span>
+                <span class="sidebar-link-text"><%= _('commercialization.tabs.overview') %></span>
+            </a>
+            <a href="/commercialization?tab=packages" class="sidebar-link <%= currentPage === 'commercialization' && sidebarCommercialTab === 'packages' ? 'active' : '' %>">
+                <span class="material-icons">inventory_2</span>
+                <span class="sidebar-link-text"><%= _('commercialization.tabs.packages') %></span>
+            </a>
+            <a href="/commercialization?tab=sessions" class="sidebar-link <%= currentPage === 'commercialization' && sidebarCommercialTab === 'sessions' ? 'active' : '' %>">
+                <span class="material-icons">schedule</span>
+                <span class="sidebar-link-text"><%= _('commercialization.tabs.sessions') %></span>
+            </a>
+            <a href="/commercialization?tab=reports" class="sidebar-link <%= currentPage === 'commercialization' && sidebarCommercialTab === 'reports' ? 'active' : '' %>">
+                <span class="material-icons">description</span>
+                <span class="sidebar-link-text"><%= _('commercialization.tabs.reports') %></span>
+            </a>
+            <a href="/commercialization?tab=settings" class="sidebar-link <%= currentPage === 'commercialization' && sidebarCommercialTab === 'settings' ? 'active' : '' %>">
+                <span class="material-icons">tune</span>
+                <span class="sidebar-link-text"><%= _('commercialization.tabs.settings') %></span>
+            </a>
+            <% } %>
         </div>
 
         <!-- Main category links -->
@@ -172,9 +205,10 @@
                 <span class="material-icons">vpn_key</span>
                 <span class="sidebar-link-text"><%= _('nav.keys') %></span>
             </a>
-            <a href="/generator" class="sidebar-link <%= currentPage === 'generator' ? 'active' : '' %>">
+            <a href="/generator" class="sidebar-link <%= currentPage === 'generator' ? 'active' : '' %>" title="<%= _('generator.alpha_tooltip') || _('nav.generator') %>">
                 <span class="material-icons">build</span>
                 <span class="sidebar-link-text"><%= _('nav.generator') %></span>
+                <span class="badge-sidebar badge-sidebar--alpha"><%= _('generator.alpha_badge') || 'ALPHA' %></span>
             </a>
             <% } %>
             <% if (hasPermission('device.connect')) { %>
@@ -354,6 +388,7 @@
 
         // Title mapping
         var titles = {
+            commercialization: '<%= _("nav.commercialization") || "Commercialization" %>',
             main: '<%= _("nav.main") %>',
             management: '<%= _("nav.management") || "Management" %>',
             tools: '<%= _("nav.tools") %>',

@@ -49,6 +49,7 @@ const tokensRoutes = lazyRoute('./tokens.routes');
 const organizationsRoutes = lazyRoute('./organizations.routes');
 const policiesRoutes = lazyRoute('./policies.routes');
 const fleetRoutes = lazyRoute('./fleet.routes');
+const commercializationRoutes = lazyRoute('./commercialization.routes');
 const scalingRoutes = lazyRoute('./scaling.routes');
 const crossPlatformRoutes = lazyRoute('./cross-platform.routes');
 const toolkitRoutes = lazyRoute('./toolkit.routes');
@@ -135,6 +136,7 @@ router.use('/', organizationsRoutes);                    // admin-facing: /organ
 router.use('/', policiesRoutes);                         // admin-facing: /policies, /api/panel/policies/*, /api/bd/device-policy, /api/bd/attestation
 router.use('/api/bd', policiesRoutes);                   // device-facing: /api/bd/device-policy, /api/bd/attestation
 router.use('/', fleetRoutes);                            // admin-facing: /fleet, /api/panel/fleet/*
+router.use('/', commercializationRoutes);                // admin-facing: /commercialization, /api/panel/billing/*
 router.use('/api/bd', fleetRoutes);                      // device-facing: /api/bd/fleet/task-result, /api/bd/fleet/software
 router.use('/', scalingRoutes);                          // admin-facing: /scaling, /api/panel/scaling/*
 router.use('/api/bd', scalingRoutes);                    // device-facing: /api/bd/scaling/relay-heartbeat

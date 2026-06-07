@@ -448,6 +448,13 @@
             setSessionStatus(session, 'info', reason || _('remote.disconnected'));
             showSessionActions(session);
             if (isActive(session)) setToolbarAutoHide(false);
+            if (typeof window.BillingReport !== 'undefined') {
+                window.BillingReport.promptAfterSession(session.deviceId, session.deviceName)
+                    .then((submitted) => {
+                        if (submitted) showToast(t('commercialization.report.saved', 'Work report saved'), 'success');
+                    })
+                    .catch(() => {});
+            }
         });
 
         c.on('password_required', () => {

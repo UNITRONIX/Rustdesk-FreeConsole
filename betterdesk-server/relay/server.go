@@ -39,6 +39,9 @@ type Server struct {
 	// Stats
 	ActiveSessions atomic.Int64
 	TotalRelayed   atomic.Int64
+
+	onRelayStart func(uuid string)
+	onRelayEnd   func(uuid string)
 }
 
 // Indirection for testing.
@@ -67,6 +70,12 @@ func (s *Server) SetBandwidthLimiter(bl *ratelimit.BandwidthLimiter) {
 // SetConnLimiter sets the per-IP connection limiter for relay abuse prevention.
 func (s *Server) SetConnLimiter(cl *ratelimit.ConnLimiter) {
 	s.connLimiter = cl
+}
+
+// SetBillingCallbacks registers hooks when relay sessions start/end (commercialization).
+func (s *Server) SetBillingCallbacks(onStart, onEnd func(uuid string)) {
+	s.onRelayStart = onStart
+	s.onRelayEnd = onEnd
 }
 
 // Start launches the relay TCP listener.
@@ -230,6 +239,10 @@ func (s *Server) startRelay(conn1, conn2 net.Conn, uuid string) {
 	log.Printf("[relay] Pair established: %s <-> %s (UUID: %s)",
 		conn1.RemoteAddr(), conn2.RemoteAddr(), uuid)
 
+	if s.onRelayStart != nil {
+		s.onRelayStart(uuid)
+	}
+
 	// NOTE: Do NOT send RelayResponse confirmation to clients here.
 	// The RustDesk client's create_relay() does not read any response from
 	// the relay server after sending RequestRelay. The client's
@@ -279,6 +292,10 @@ func (s *Server) startRelay(conn1, conn2 net.Conn, uuid string) {
 
 	// Wait for one direction to finish, then clean up both
 	<-done
+
+	if s.onRelayEnd != nil {
+		s.onRelayEnd(uuid)
+	}
 
 	conn1.Close()
 	conn2.Close()

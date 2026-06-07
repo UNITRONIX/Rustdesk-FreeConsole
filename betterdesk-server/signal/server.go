@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/unitronix/betterdesk-server/audit"
+	"github.com/unitronix/betterdesk-server/billing"
 	"github.com/unitronix/betterdesk-server/codec"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
@@ -117,6 +118,8 @@ type Server struct {
 
 	// networkPolicy resolves org-level block_direct_p2p / allowed relay servers.
 	networkPolicy *policy.NetworkResolver
+
+	billing *billing.Service
 }
 
 // New creates a new signal server instance.
@@ -146,6 +149,11 @@ func (s *Server) SetRateLimiter(l *ratelimit.IPLimiter) {
 // are recorded so administrators have forensic visibility (GHSA-3v82-3gf8-fxx8).
 func (s *Server) SetAuditLogger(l *audit.Logger) {
 	s.auditLog = l
+}
+
+// SetBillingService attaches commercialization billing gates to signal handling.
+func (s *Server) SetBillingService(b *billing.Service) {
+	s.billing = b
 }
 
 // PeerMap returns the server's in-memory peer map for external access (e.g., API).

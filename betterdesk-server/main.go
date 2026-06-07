@@ -21,6 +21,7 @@ import (
 	"github.com/unitronix/betterdesk-server/api"
 	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/auth"
+	"github.com/unitronix/betterdesk-server/billing"
 	"github.com/unitronix/betterdesk-server/cdap"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
@@ -32,6 +33,7 @@ import (
 	"github.com/unitronix/betterdesk-server/reload"
 	"github.com/unitronix/betterdesk-server/security"
 	sigServer "github.com/unitronix/betterdesk-server/signal"
+	"github.com/unitronix/betterdesk-server/timesync"
 )
 
 var (
@@ -274,6 +276,20 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Time sync + billing (commercialization module)
+	timeSyncSvc := timesync.NewService(database, timesync.Config{
+		Servers:      cfg.GetNTPServers(),
+		Interval:     60 * time.Second,
+		QueryTimeout: 5 * time.Second,
+		MaxSkew:      time.Duration(cfg.BillingMaxClockSkewMS) * time.Millisecond,
+		RequireSync:  cfg.BillingRequireSyncedClock,
+	})
+	timeSyncSvc.Start(ctx)
+	defer timeSyncSvc.Stop()
+
+	billingSvc := billing.NewService(database, timeSyncSvc, cfg.BillingRoundingMinutes, cfg.BillingRequireWorkReport)
+	billingSvc.Start(ctx)
+
 	// Start SIGHUP listener in background
 	reloadDone := make(chan struct{})
 	go reloadHandler.ListenSIGHUP(reloadDone)
@@ -295,6 +311,7 @@ func main() {
 		sig.SetBlocklist(blocklist)
 		sig.SetRateLimiter(ipLimiter)
 		sig.SetAuditLogger(auditLogger)
+		sig.SetBillingService(billingSvc)
 		if err := sig.Start(ctx); err != nil {
 			log.Fatalf("Failed to start signal server: %v", err)
 		}
@@ -305,6 +322,7 @@ func main() {
 		if connLimiter != nil {
 			relaySrv.SetConnLimiter(connLimiter)
 		}
+		relaySrv.SetBillingCallbacks(billingSvc.ActivateRelay, billingSvc.EndRelay)
 		if err := relaySrv.Start(ctx); err != nil {
 			log.Fatalf("Failed to start relay server: %v", err)
 		}
@@ -319,6 +337,8 @@ func main() {
 		apiSrv.SetMetrics(mc)
 		apiSrv.SetJWTManager(jwtManager)
 		apiSrv.SetKeyPair(kp)
+		apiSrv.SetTimeSyncService(timeSyncSvc)
+		apiSrv.SetBillingService(billingSvc)
 
 		// LDAP provider (loads config from DB, hot-reloadable via API)
 		apiSrv.InitLDAP()

@@ -553,6 +553,21 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 		return
 	}
 
+	if s.billing != nil {
+		if check := s.billing.CheckConnection(targetID); !check.Allowed {
+			log.Printf("[signal] PunchHole: billing denied for target %s: %s", targetID, check.Reason)
+			resp := &pb.RendezvousMessage{
+				Union: &pb.RendezvousMessage_PunchHoleResponse{
+					PunchHoleResponse: &pb.PunchHoleResponse{
+						Failure: pb.PunchHoleResponse_OFFLINE,
+					},
+				},
+			}
+			s.sendUDP(resp, raddr)
+			return
+		}
+	}
+
 	relayServer, sameNetwork, hairpin := s.selectPeerRelayServer(s.getRelayServer(), raddr, target.UDPAddr)
 	initiatorID := s.peerIDForAddr(raddr)
 	relayServer = s.applyNetworkRelayPolicy(relayServer, initiatorID, targetID)
@@ -1025,10 +1040,39 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		return
 	}
 
+	initiatorID := s.peerIDForAddr(raddr)
+	if s.billing != nil {
+		if check := s.billing.CheckConnection(targetID); !check.Allowed {
+			log.Printf("[signal] RequestRelay: billing denied for target %s: %s", targetID, check.Reason)
+			resp := &pb.RendezvousMessage{
+				Union: &pb.RendezvousMessage_RelayResponse{
+					RelayResponse: &pb.RelayResponse{
+						RefuseReason: "Billing suspended",
+						RelayServer:  relayServer,
+					},
+				},
+			}
+			s.sendUDP(resp, raddr)
+			return
+		}
+		if err := s.billing.PrepareRelay(relayUUID, targetID, initiatorID); err != nil {
+			log.Printf("[signal] RequestRelay: billing prepare failed: %v", err)
+			resp := &pb.RendezvousMessage{
+				Union: &pb.RendezvousMessage_RelayResponse{
+					RelayResponse: &pb.RelayResponse{
+						RefuseReason: "Billing blocked",
+						RelayServer:  relayServer,
+					},
+				},
+			}
+			s.sendUDP(resp, raddr)
+			return
+		}
+	}
+
 	// LAN detection: use server's LAN IP only for genuine LAN cases. Shared
 	// public IP peers keep the public relay to avoid NAT hairpin failures (#121).
 	relayServer, sameNetwork, hairpin := s.selectPeerRelayServer(relayServer, raddr, target.UDPAddr)
-	initiatorID := s.peerIDForAddr(raddr)
 	relayServer = s.applyNetworkRelayPolicy(relayServer, initiatorID, targetID)
 	if sameNetwork {
 		log.Printf("[signal] RequestRelay LAN detected: %s and %s on same network, relay=%s", raddr.IP, target.UDPAddr.IP, relayServer)

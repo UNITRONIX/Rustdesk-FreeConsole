@@ -390,6 +390,22 @@ table {
     outline-color: var(--sidebar-cat-server-mgmt-accent);
 }
 
+/* Category: commercialization */
+.sidebar-rail-btn[data-category="commercialization"].active,
+.sidebar-rail-btn[data-category="commercialization"].selected {
+    background: var(--sidebar-cat-commercialization-muted);
+    color: var(--sidebar-cat-commercialization-accent);
+}
+
+.sidebar-rail-btn[data-category="commercialization"].active::before,
+.sidebar-rail-btn[data-category="commercialization"].selected::before {
+    background: var(--sidebar-cat-commercialization-accent);
+}
+
+.sidebar-rail-btn[data-category="commercialization"]:focus-visible {
+    outline-color: var(--sidebar-cat-commercialization-accent);
+}
+
 .sidebar-rail-btn .material-icons {
     font-size: 22px;
 }
@@ -466,19 +482,8 @@ table {
     color: var(--sidebar-cat-server-mgmt-accent);
 }
 
-.sidebar-logo-text {
-    font-weight: var(--font-weight-bold);
-    font-size: var(--font-size-md);
-    color: var(--text-primary);
-    white-space: nowrap;
-}
-
-.sidebar-flyout-header .sidebar-flyout-title + .sidebar-logo-text {
-    display: none;
-}
-
-.sidebar-flyout-header .sidebar-flyout-title:empty + .sidebar-logo-text {
-    display: inline;
+.sidebar-flyout[data-active-category="commercialization"] .sidebar-flyout-title {
+    color: var(--sidebar-cat-commercialization-accent);
 }
 
 /* Flyout panels (one per category) */
@@ -572,6 +577,16 @@ table {
 
 .sidebar-flyout[data-active-category="server-mgmt"] .sidebar-link:focus-visible {
     outline-color: var(--sidebar-cat-server-mgmt-accent);
+}
+
+.sidebar-flyout[data-active-category="commercialization"] .sidebar-link.active {
+    background: var(--sidebar-cat-commercialization-muted);
+    color: var(--sidebar-cat-commercialization-accent);
+    border-left-color: var(--sidebar-cat-commercialization-accent);
+}
+
+.sidebar-flyout[data-active-category="commercialization"] .sidebar-link:focus-visible {
+    outline-color: var(--sidebar-cat-commercialization-accent);
 }
 
 .sidebar-link .material-icons {
@@ -675,6 +690,40 @@ table {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
     line-height: 1;
+}
+
+.sidebar-flyout-stage.badge-sidebar {
+    margin-left: 0;
+    background: linear-gradient(135deg, #a371f7, #58a6ff);
+    flex-shrink: 0;
+}
+
+.sidebar-flyout-stage.hidden {
+    display: none;
+}
+
+.badge-sidebar--alpha {
+    background: linear-gradient(135deg, #a371f7, #58a6ff);
+    flex-shrink: 0;
+}
+
+.sidebar-rail-btn--alpha {
+    position: relative;
+}
+
+.sidebar-rail-btn .rail-stage-badge {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #a371f7, #58a6ff);
+    color: #fff;
+    pointer-events: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

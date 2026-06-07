@@ -347,6 +347,83 @@ func (pg *PostgresDB) Migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_alarms_type ON audit_alarms(alarm_type, created_at)`,
 
+		// Billing / commercialization module
+		`CREATE TABLE IF NOT EXISTS billing_packages (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			included_minutes INTEGER NOT NULL DEFAULT 0,
+			overage_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+			currency TEXT NOT NULL DEFAULT 'PLN',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS billing_org_contracts (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+			package_id TEXT NOT NULL REFERENCES billing_packages(id),
+			status TEXT NOT NULL DEFAULT 'active',
+			remaining_minutes INTEGER NOT NULL DEFAULT 0,
+			overage_rate DOUBLE PRECISION,
+			hourly_rate DOUBLE PRECISION NOT NULL DEFAULT 0,
+			currency TEXT NOT NULL DEFAULT 'PLN',
+			valid_from TIMESTAMPTZ,
+			valid_until TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_org ON billing_org_contracts(org_id)`,
+		`CREATE TABLE IF NOT EXISTS billing_sessions (
+			id TEXT PRIMARY KEY,
+			org_id TEXT NOT NULL,
+			contract_id TEXT NOT NULL DEFAULT '',
+			operator_id TEXT NOT NULL DEFAULT '',
+			operator_name TEXT NOT NULL DEFAULT '',
+			device_id TEXT NOT NULL,
+			device_name TEXT NOT NULL DEFAULT '',
+			relay_uuid TEXT NOT NULL DEFAULT '',
+			transport TEXT NOT NULL DEFAULT 'rustdesk',
+			status TEXT NOT NULL DEFAULT 'active',
+			billing_phase TEXT NOT NULL DEFAULT 'included',
+			started_at TIMESTAMPTZ NOT NULL,
+			ended_at TIMESTAMPTZ,
+			raw_seconds INTEGER NOT NULL DEFAULT 0,
+			billed_minutes INTEGER NOT NULL DEFAULT 0,
+			included_minutes_used INTEGER NOT NULL DEFAULT 0,
+			overage_minutes INTEGER NOT NULL DEFAULT 0,
+			amount_included DOUBLE PRECISION NOT NULL DEFAULT 0,
+			amount_overage DOUBLE PRECISION NOT NULL DEFAULT 0,
+			currency TEXT NOT NULL DEFAULT 'PLN',
+			clock_offset_ms_at_start BIGINT NOT NULL DEFAULT 0,
+			clock_synced_at_start BOOLEAN NOT NULL DEFAULT TRUE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_sessions_org ON billing_sessions(org_id, started_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_sessions_relay ON billing_sessions(relay_uuid)`,
+		`CREATE TABLE IF NOT EXISTS billing_session_ledger (
+			id BIGSERIAL PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			event_type TEXT NOT NULL,
+			details TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_ledger_session ON billing_session_ledger(session_id)`,
+		`CREATE TABLE IF NOT EXISTS billing_work_reports (
+			id BIGSERIAL PRIMARY KEY,
+			session_id TEXT NOT NULL UNIQUE,
+			operator_id TEXT NOT NULL DEFAULT '',
+			summary TEXT NOT NULL,
+			category TEXT NOT NULL DEFAULT '',
+			ticket_ref TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS billing_currencies (
+			code TEXT PRIMARY KEY,
+			symbol TEXT NOT NULL DEFAULT '',
+			exchange_rate_to_base DOUBLE PRECISION NOT NULL DEFAULT 1
+		)`,
+
 		// User/device groups + strategies (API-port consolidation Phase A)
 		`CREATE TABLE IF NOT EXISTS user_groups (
 			id BIGSERIAL PRIMARY KEY,

@@ -77,7 +77,8 @@
     "expand_sidebar": "Expand sidebar",
     "login": "Login",
     "server_management": "Server Management",
-    "server_attestation": "Server Attestation"
+    "server_attestation": "Server Attestation",
+    "commercialization": "Commercialization"
   },
   "auth": {
     "login": "Login",
@@ -598,6 +599,8 @@
   "generator": {
     "title": "Agent Generator",
     "subtitle": "Build branded BetterDesk Agent installers for your end users",
+    "alpha_badge": "ALPHA",
+    "alpha_tooltip": "Early feature — agent bundle generator is under active development.",
     "bundles_title": "Agent bundles",
     "new_bundle": "New bundle",
     "editor_title": "Bundle editor",
@@ -3573,5 +3576,95 @@
     "page_error": "Failed to load the Server Attestation page",
     "mode_estimated": "Estimated (WebSocket unreachable)",
     "incomplete": "Benchmark finished without a valid tier"
+  },
+  "commercialization": {
+    "title": "Commercialization",
+    "subtitle": "Support packages, billable sessions, and work reports",
+    "alpha_badge": "ALPHA",
+    "alpha_tooltip": "Early feature — billing and packages are under active development.",
+    "tabs": {
+      "overview": "Overview",
+      "packages": "Packages & contracts",
+      "sessions": "Sessions",
+      "reports": "Reports",
+      "settings": "Advanced settings"
+    },
+    "clock": {
+      "title": "Server time (NTP)",
+      "check_now": "Check now",
+      "unsynced": "Server clock is not synchronized — billable sessions may be blocked"
+    },
+    "stats": {
+      "active_sessions": "Active billable sessions"
+    },
+    "packages": {
+      "new": "New package",
+      "name": "Name",
+      "included_minutes": "Included minutes",
+      "overage_rate": "Overage rate / h",
+      "currency": "Currency",
+      "heading": "Support packages",
+      "prompt_name": "Package name",
+      "create_title": "New package for organization",
+      "create_submit": "Create package",
+      "select_org": "Organization",
+      "select_org_placeholder": "Select organization…"
+    },
+    "sessions": {
+      "device": "Device",
+      "operator": "Operator",
+      "duration": "Duration",
+      "phase": "Phase",
+      "amount": "Amount"
+    },
+    "reports": {
+      "session": "Session",
+      "summary": "Summary",
+      "date": "Date"
+    },
+    "contracts": {
+      "title": "Organization contracts",
+      "new": "Assign package",
+      "org": "Organization",
+      "package": "Package",
+      "remaining": "Remaining minutes",
+      "status": "Status",
+      "actions": "Actions",
+      "suspend": "Suspend",
+      "activate": "Activate",
+      "select_org": "Select organization",
+      "select_package": "Select package",
+      "no_orgs": "No organizations found",
+      "no_packages": "Create a package first"
+    },
+    "assign": {
+      "title": "Assign existing package",
+      "submit": "Assign"
+    },
+    "form": {
+      "cancel": "Cancel"
+    },
+    "export": {
+      "csv": "Export CSV",
+      "pdf": "Export PDF",
+      "sessions_csv": "Export sessions CSV"
+    },
+    "empty": {
+      "packages": "No packages yet. Create one with the button above.",
+      "contracts": "No organization contracts yet. Assign a package to an organization.",
+      "sessions": "No billable sessions recorded yet.",
+      "reports": "No work reports submitted yet."
+    },
+    "report": {
+      "title": "Work report",
+      "subtitle": "Describe the work performed during this remote session.",
+      "category": "Category",
+      "ticket_ref": "Ticket reference",
+      "summary": "Work performed",
+      "skip": "Skip for now",
+      "submit": "Submit report",
+      "summary_required": "Summary is required",
+      "saved": "Work report saved"
+    }
   }
 }

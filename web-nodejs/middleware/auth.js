@@ -36,6 +36,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
         'chat.access',
         'enrollment.manage', 'enrollment.approve',
         'branding.edit',
+        'billing.view', 'billing.manage', 'billing.reports', 'billing.export',
     ]),
 
     operator: new Set([
@@ -46,6 +47,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
         'enrollment.approve',
         'chat.access',
         'org.manage_devices',
+        'billing.view', 'billing.reports',
     ]),
     viewer: new Set([
         'device.view',

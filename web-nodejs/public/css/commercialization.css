@@ -1,0 +1,79 @@
+.commercialization-page .page-header { margin-bottom: 1.25rem; }
+.commercialization-page .page-header h1 { margin: 0 0 0.35rem; font-size: 1.5rem; color: var(--text-primary); display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.commercialization-page .page-header h1 .beta-badge { margin-left: 0; }
+.commercialization-page .beta-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    background: linear-gradient(135deg, #a371f7, #58a6ff);
+    color: #fff;
+    vertical-align: middle;
+}
+.commercialization-page .page-subtitle { margin: 0; color: var(--text-secondary); font-size: 0.9375rem; }
+/* Override global .tab-panel { display:none } — show the active section for this page */
+.commercialization-page .tab-panel { display: block; }
+.commercialization-page .tab-panel.hidden { display: none !important; }
+.commercialization-page .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.commercialization-page .stat-card,
+.commercialization-page .card {
+    padding: 1rem 1.125rem;
+    border-radius: var(--radius-lg, 8px);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+}
+.commercialization-page .stat-card h3,
+.commercialization-page .card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--text-secondary);
+}
+.commercialization-page .stat-value { font-size: 1.5rem; font-weight: 600; margin: 0.25rem 0; color: var(--text-primary); }
+.commercialization-page .stat-meta { color: var(--text-secondary); font-size: 0.875rem; }
+.timesync-banner {
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: var(--radius-md, 6px);
+    background: rgba(210, 153, 34, 0.15);
+    border: 1px solid rgba(210, 153, 34, 0.35);
+    color: #e3b341;
+}
+.timesync-banner.hidden { display: none; }
+.commercialization-page .table-wrap { overflow-x: auto; }
+.commercialization-page .panel-toolbar { margin-bottom: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.commercialization-page .section-heading {
+    margin: 1.25rem 0 0.5rem;
+    font-size: 1rem;
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--text-primary);
+}
+.commercialization-page .section-heading:first-of-type { margin-top: 0; }
+.commercialization-page .btn-link { background: none; border: none; color: var(--accent-primary, #58a6ff); cursor: pointer; padding: 0; font: inherit; }
+.commercialization-page .btn-link.danger { color: #f85149; }
+.commercialization-page .btn-link:hover { text-decoration: underline; }
+.commercialization-page .empty-state {
+    padding: 1.25rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9375rem;
+    border: 1px dashed var(--border-primary);
+    border-radius: var(--radius-lg, 8px);
+    background: var(--bg-secondary);
+}
+.commercialization-page .empty-state.hidden { display: none; }
+.commercialization-page .form-label {
+    display: block;
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+.commercialization-page .form-label .form-control { margin-top: 0.35rem; }
+.commercialization-page .form-error {
+    color: #f85149;
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+}
+.commercialization-page .form-error.hidden { display: none; }

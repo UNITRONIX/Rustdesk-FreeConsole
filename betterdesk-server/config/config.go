@@ -126,6 +126,13 @@ type Config struct {
 	CDAPEnabled   bool // Enable CDAP gateway (default false)
 	CDAPTLS       bool // Enable TLS on CDAP port
 	CDAPRateLimit int  // Max requests per minute per IP (default 30)
+
+	// Time sync / billing (commercialization module)
+	NTPServers                string // Comma-separated NTP servers
+	BillingMaxClockSkewMS     int    // Max allowed clock offset vs NTP (default 2000)
+	BillingRequireSyncedClock bool   // Block billable sessions when clock unsynced
+	BillingRoundingMinutes    int    // Billable minute rounding (1, 10, 15)
+	BillingRequireWorkReport  bool   // Require technician report before session close
 }
 
 // DefaultConfig returns a Config with sensible defaults.
@@ -146,7 +153,10 @@ func DefaultConfig() *Config {
 		SignalRateLimitPerIP: IPRateLimitRegistrations,
 		SameNATRelay:         true, // issue #121: auto-fallback to relay on shared public IP
 		P2PFirst:             true, // issue #157: give direct P2P a real chance before relay
-		P2PFallbackMs:        2000, // grace period for target hole punch before relay fallback
+		P2PFallbackMs:             2000, // grace period for target hole punch before relay fallback
+		BillingMaxClockSkewMS:     2000,
+		BillingRequireSyncedClock: true,
+		BillingRoundingMinutes:    1,
 	}
 }
 
@@ -333,6 +343,51 @@ func (c *Config) LoadEnv() {
 			c.CDAPRateLimit = n
 		}
 	}
+	if v := os.Getenv("NTP_SERVERS"); v != "" {
+		c.NTPServers = v
+	}
+	if v := os.Getenv("BILLING_MAX_CLOCK_SKEW_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.BillingMaxClockSkewMS = n
+		}
+	}
+	if v := os.Getenv("BILLING_REQUIRE_SYNCED_CLOCK"); v != "" {
+		switch strings.ToUpper(v) {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.BillingRequireSyncedClock = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.BillingRequireSyncedClock = false
+		}
+	}
+	if v := os.Getenv("BILLING_ROUNDING_MINUTES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.BillingRoundingMinutes = n
+		}
+	}
+	if v := os.Getenv("BILLING_REQUIRE_WORK_REPORT"); v != "" {
+		switch strings.ToUpper(v) {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.BillingRequireWorkReport = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.BillingRequireWorkReport = false
+		}
+	}
+}
+
+// GetNTPServers returns configured NTP server hostnames.
+func (c *Config) GetNTPServers() []string {
+	if c.NTPServers == "" {
+		return []string{"pool.ntp.org", "time.google.com", "time.cloudflare.com"}
+	}
+	parts := strings.Split(c.NTPServers, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // NATTestPort returns the NAT test port (signal port - 1).

@@ -611,4 +611,34 @@ type Database interface {
 	CreateStrategy(s *Strategy) error
 	UpdateStrategy(guid string, s *Strategy) error
 	DeleteStrategy(guid string) error
+
+	// Billing / commercialization
+	CreateBillingPackage(p *BillingPackage) error
+	GetBillingPackage(id string) (*BillingPackage, error)
+	ListBillingPackages() ([]*BillingPackage, error)
+	UpdateBillingPackage(p *BillingPackage) error
+	DeleteBillingPackage(id string) error
+
+	CreateBillingOrgContract(c *BillingOrgContract) error
+	GetBillingOrgContract(id string) (*BillingOrgContract, error)
+	GetActiveBillingOrgContract(orgID string) (*BillingOrgContract, error)
+	ListBillingOrgContracts(filter BillingContractFilter) ([]*BillingOrgContract, error)
+	UpdateBillingOrgContract(c *BillingOrgContract) error
+
+	CreateBillingSession(s *BillingSession) error
+	GetBillingSession(id string) (*BillingSession, error)
+	GetBillingSessionByRelayUUID(relayUUID string) (*BillingSession, error)
+	UpdateBillingSession(s *BillingSession) error
+	ListBillingSessions(filter BillingSessionFilter) ([]*BillingSession, error)
+
+	InsertBillingLedgerEntry(e *BillingSessionLedger) error
+	ListBillingLedger(sessionID string) ([]*BillingSessionLedger, error)
+
+	CreateBillingWorkReport(r *BillingWorkReport) error
+	GetBillingWorkReportBySession(sessionID string) (*BillingWorkReport, error)
+	ListBillingWorkReports(orgID string, limit int) ([]*BillingWorkReport, error)
+
+	ListBillingCurrencies() ([]*BillingCurrency, error)
+	UpsertBillingCurrency(c *BillingCurrency) error
+	DeleteBillingCurrency(code string) error
 }

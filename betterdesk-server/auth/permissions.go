@@ -55,6 +55,12 @@ const (
 
 	// Branding
 	PermBrandingEdit = "branding.edit"
+
+	// Billing / commercialization
+	PermBillingView   = "billing.view"
+	PermBillingManage = "billing.manage"
+	PermBillingReports = "billing.reports"
+	PermBillingExport = "billing.export"
 )
 
 // AllPermissions is the complete list of permission strings for validation.
@@ -69,6 +75,7 @@ var AllPermissions = []string{
 	PermEnrollmentManage, PermEnrollmentApprove,
 	PermChatAccess,
 	PermBrandingEdit,
+	PermBillingView, PermBillingManage, PermBillingReports, PermBillingExport,
 }
 
 // DefaultRolePermissions maps each built-in role to its default set of permissions.
@@ -109,6 +116,7 @@ var DefaultRolePermissions = map[string]map[string]bool{
 		PermChatAccess,
 		PermEnrollmentManage, PermEnrollmentApprove,
 		PermBrandingEdit,
+		PermBillingView, PermBillingManage, PermBillingReports, PermBillingExport,
 	}),
 
 	RoleOperator: buildPermMap([]string{
@@ -119,6 +127,7 @@ var DefaultRolePermissions = map[string]map[string]bool{
 		PermEnrollmentApprove,
 		PermChatAccess,
 		PermOrgManageDevices,
+		PermBillingView, PermBillingReports,
 	}),
 	RoleViewer: buildPermMap([]string{
 		PermDeviceView,

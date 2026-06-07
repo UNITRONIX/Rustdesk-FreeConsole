@@ -19,6 +19,7 @@ import (
 
 	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/auth"
+	"github.com/unitronix/betterdesk-server/billing"
 	"github.com/unitronix/betterdesk-server/cdap"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
@@ -29,6 +30,7 @@ import (
 	"github.com/unitronix/betterdesk-server/ratelimit"
 	"github.com/unitronix/betterdesk-server/relay"
 	"github.com/unitronix/betterdesk-server/security"
+	"github.com/unitronix/betterdesk-server/timesync"
 
 	"github.com/coder/websocket"
 	"golang.org/x/crypto/bcrypt"
@@ -66,6 +68,8 @@ type Server struct {
 	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
 	panelStore        db.PanelSyncStore // device groups, folders, ACL (PostgreSQL or legacy auth.db)
+	timeSync          *timesync.Service
+	billing           *billing.Service
 	httpSrv           *http.Server
 	wg                sync.WaitGroup
 	version           string
@@ -420,6 +424,26 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/help/requests/{id}", s.requirePermission(auth.PermChatAccess, s.handleGetHelpRequest))
 	mux.HandleFunc("POST /api/help/requests/{id}/acknowledge", s.requirePermission(auth.PermChatAccess, s.handleAcknowledgeHelpRequest))
 	mux.HandleFunc("POST /api/help/requests/{id}/resolve", s.requirePermission(auth.PermChatAccess, s.handleResolveHelpRequest))
+
+	// Time sync / billing (commercialization)
+	mux.HandleFunc("GET /api/timesync/status", s.requirePermission(auth.PermBillingView, s.handleTimeSyncStatus))
+	mux.HandleFunc("POST /api/timesync/check", s.requirePermission(auth.PermServerConfig, s.handleTimeSyncCheck))
+	mux.HandleFunc("GET /api/billing/check", s.requirePermission(auth.PermDeviceConnect, s.handleBillingConnectionCheck))
+	mux.HandleFunc("GET /api/billing/packages", s.requirePermission(auth.PermBillingView, s.handleListBillingPackages))
+	mux.HandleFunc("POST /api/billing/packages", s.requirePermission(auth.PermBillingManage, s.handleCreateBillingPackage))
+	mux.HandleFunc("PUT /api/billing/packages/{id}", s.requirePermission(auth.PermBillingManage, s.handleUpdateBillingPackage))
+	mux.HandleFunc("DELETE /api/billing/packages/{id}", s.requirePermission(auth.PermBillingManage, s.handleDeleteBillingPackage))
+	mux.HandleFunc("GET /api/billing/contracts", s.requirePermission(auth.PermBillingView, s.handleListBillingContracts))
+	mux.HandleFunc("POST /api/billing/contracts", s.requirePermission(auth.PermBillingManage, s.handleCreateBillingContract))
+	mux.HandleFunc("PUT /api/billing/contracts/{id}", s.requirePermission(auth.PermBillingManage, s.handleUpdateBillingContract))
+	mux.HandleFunc("GET /api/billing/sessions", s.requirePermission(auth.PermBillingView, s.handleListBillingSessions))
+	mux.HandleFunc("GET /api/billing/sessions/pending", s.requirePermission(auth.PermBillingReports, s.handleGetPendingBillingSession))
+	mux.HandleFunc("GET /api/billing/sessions/export", s.requirePermission(auth.PermBillingExport, s.handleExportBillingSessions))
+	mux.HandleFunc("GET /api/billing/reports", s.requirePermission(auth.PermBillingView, s.handleListBillingReports))
+	mux.HandleFunc("GET /api/billing/reports/export", s.requirePermission(auth.PermBillingExport, s.handleExportBillingReports))
+	mux.HandleFunc("POST /api/billing/sessions/{id}/report", s.requirePermission(auth.PermBillingReports, s.handleSubmitBillingReport))
+	mux.HandleFunc("GET /api/billing/currencies", s.requirePermission(auth.PermBillingView, s.handleListBillingCurrencies))
+	mux.HandleFunc("PUT /api/billing/currencies/{code}", s.requirePermission(auth.PermBillingManage, s.handleUpsertBillingCurrency))
 
 	// Enrollment — operator approval (admin/operator)
 	mux.HandleFunc("GET /api/enrollment/pending", s.requireRole(auth.RoleOperator, s.handleListPendingDevices))

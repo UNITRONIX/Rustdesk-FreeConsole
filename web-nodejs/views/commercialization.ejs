@@ -1,0 +1,172 @@
+<%- include('layouts/main', {
+    title: title,
+    pageStyles: pageStyles,
+    pageScripts: pageScripts,
+    currentPage: currentPage,
+    breadcrumb: breadcrumb,
+    body: `
+
+<div class="commercialization-page" data-active-tab="${typeof activeTab !== 'undefined' ? activeTab : 'overview'}">
+    <div class="page-header">
+        <h1>${activeTab === 'overview' ? _('commercialization.title') : _('commercialization.tabs.' + activeTab)} <span class="beta-badge" title="${_('commercialization.alpha_tooltip')}">${_('commercialization.alpha_badge')}</span></h1>
+        <p class="page-subtitle">${activeTab === 'overview' ? _('commercialization.subtitle') : _('commercialization.title')}</p>
+    </div>
+
+    <div id="timesync-banner" class="timesync-banner hidden"></div>
+
+    <section id="tab-overview" class="tab-panel ${activeTab === 'overview' ? '' : 'hidden'}">
+        <div class="card-grid">
+            <div class="stat-card" id="stat-clock">
+                <h3>${_('commercialization.clock.title')}</h3>
+                <p class="stat-value" id="clock-status">—</p>
+                <p class="stat-meta" id="clock-offset"></p>
+            </div>
+            <div class="stat-card">
+                <h3>${_('commercialization.stats.active_sessions')}</h3>
+                <p class="stat-value" id="stat-active-sessions">0</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="tab-packages" class="tab-panel ${activeTab === 'packages' ? '' : 'hidden'}">
+        <div class="panel-toolbar">
+            <button type="button" class="btn btn-primary" id="btn-new-package">${_('commercialization.packages.new')}</button>
+        </div>
+        <h3 class="section-heading">${_('commercialization.packages.heading')}</h3>
+        <div class="table-wrap">
+            <table class="data-table" id="packages-table">
+                <thead>
+                    <tr>
+                        <th>${_('commercialization.packages.name')}</th>
+                        <th>${_('commercialization.packages.included_minutes')}</th>
+                        <th>${_('commercialization.packages.overage_rate')}</th>
+                        <th>${_('commercialization.packages.currency')}</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <h3 class="section-heading">${_('commercialization.contracts.title')}</h3>
+        <div class="panel-toolbar">
+            <button type="button" class="btn btn-primary" id="btn-new-contract">${_('commercialization.contracts.new')}</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table" id="contracts-table">
+                <thead>
+                    <tr>
+                        <th>${_('commercialization.contracts.org')}</th>
+                        <th>${_('commercialization.contracts.package')}</th>
+                        <th>${_('commercialization.contracts.remaining')}</th>
+                        <th>${_('commercialization.contracts.status')}</th>
+                        <th>${_('commercialization.contracts.actions')}</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="tab-sessions" class="tab-panel ${activeTab === 'sessions' ? '' : 'hidden'}">
+        <div class="panel-toolbar">
+            <button type="button" class="btn btn-secondary" id="btn-export-sessions">${_('commercialization.export.sessions_csv')}</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table" id="sessions-table">
+                <thead>
+                    <tr>
+                        <th>${_('commercialization.sessions.device')}</th>
+                        <th>${_('commercialization.sessions.operator')}</th>
+                        <th>${_('commercialization.sessions.duration')}</th>
+                        <th>${_('commercialization.sessions.phase')}</th>
+                        <th>${_('commercialization.sessions.amount')}</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="tab-reports" class="tab-panel ${activeTab === 'reports' ? '' : 'hidden'}">
+        <div class="panel-toolbar">
+            <button type="button" class="btn btn-secondary" id="btn-export-reports-csv">${_('commercialization.export.csv')}</button>
+            <button type="button" class="btn btn-secondary" id="btn-export-reports-pdf">${_('commercialization.export.pdf')}</button>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table" id="reports-table">
+                <thead>
+                    <tr>
+                        <th>${_('commercialization.reports.session')}</th>
+                        <th>${_('commercialization.reports.summary')}</th>
+                        <th>${_('commercialization.reports.date')}</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+
+    <section id="tab-settings" class="tab-panel ${activeTab === 'settings' ? '' : 'hidden'}">
+        <div class="card">
+            <h3>${_('commercialization.clock.title')}</h3>
+            <p id="settings-clock-detail"></p>
+            <button type="button" class="btn btn-secondary" id="btn-timesync-check">${_('commercialization.clock.check_now')}</button>
+        </div>
+    </section>
+</div>
+
+<div class="modal-overlay" id="package-modal">
+    <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-header">
+            <h2 class="modal-title">${_('commercialization.packages.create_title')}</h2>
+            <button type="button" class="modal-close" data-close-modal="package-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label class="form-label">${_('commercialization.packages.select_org')}
+                <select id="package-org-select" class="form-control" required></select>
+            </label>
+            <label class="form-label">${_('commercialization.packages.name')}
+                <input type="text" id="package-name" class="form-control" maxlength="128" required>
+            </label>
+            <label class="form-label">${_('commercialization.packages.included_minutes')}
+                <input type="number" id="package-minutes" class="form-control" value="600" min="1" step="1" required>
+            </label>
+            <label class="form-label">${_('commercialization.packages.overage_rate')}
+                <input type="number" id="package-overage" class="form-control" value="100" min="0" step="0.01" required>
+            </label>
+            <label class="form-label">${_('commercialization.packages.currency')}
+                <input type="text" id="package-currency" class="form-control" value="PLN" maxlength="8" required>
+            </label>
+            <p id="package-modal-error" class="form-error hidden"></p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-close-modal="package-modal">${_('commercialization.form.cancel')}</button>
+            <button type="button" class="btn btn-primary" id="package-modal-submit">${_('commercialization.packages.create_submit')}</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="assign-modal">
+    <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-header">
+            <h2 class="modal-title">${_('commercialization.assign.title')}</h2>
+            <button type="button" class="modal-close" data-close-modal="assign-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label class="form-label">${_('commercialization.packages.select_org')}
+                <select id="assign-org-select" class="form-control" required></select>
+            </label>
+            <label class="form-label">${_('commercialization.contracts.package')}
+                <select id="assign-package-select" class="form-control" required></select>
+            </label>
+            <p id="assign-modal-error" class="form-error hidden"></p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-close-modal="assign-modal">${_('commercialization.form.cancel')}</button>
+            <button type="button" class="btn btn-primary" id="assign-modal-submit">${_('commercialization.assign.submit')}</button>
+        </div>
+    </div>
+</div>
+
+`
+}) %>
