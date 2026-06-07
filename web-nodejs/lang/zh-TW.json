@@ -292,6 +292,8 @@
         "group_not_found": "未找到群組",
         "group_saved": "裝置群組已儲存",
         "groups_saved": "裝置群組已儲存",
+    "group_membership_added": "已加入群組",
+    "group_membership_removed": "已從群組移除",
         "no_groups": "還沒有群組",
         "manual_groups": "手動群組",
         "dynamic_memberships": "動態成員關系",

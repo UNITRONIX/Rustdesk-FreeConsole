@@ -292,6 +292,8 @@
         "group_not_found": "그룹을 찾을 수 없습니다",
         "group_saved": "장치 그룹이 저장되었습니다.",
         "groups_saved": "장치 그룹이 저장되었습니다.",
+    "group_membership_added": "그룹에 추가됨",
+    "group_membership_removed": "그룹에서 제거됨",
         "no_groups": "아직 그룹이 없습니다.",
         "manual_groups": "수동 그룹",
         "dynamic_memberships": "동적 멤버십",

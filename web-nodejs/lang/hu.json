@@ -298,6 +298,8 @@
         "group_not_found": "Csoport nem található",
         "group_saved": "Eszközcsoport mentve",
         "groups_saved": "Eszközcsoportok mentve",
+    "group_membership_added": "Hozzáadva a csoporthoz",
+    "group_membership_removed": "Eltávolítva a csoportból",
         "no_groups": "Még nincsenek csoportok",
         "manual_groups": "Kézi csoportok",
         "dynamic_memberships": "Dinamikus tagságok",

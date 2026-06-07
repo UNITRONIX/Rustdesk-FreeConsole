@@ -292,6 +292,8 @@
         "group_not_found": "Skupina nebyla nalezena",
         "group_saved": "Skupina zařízení uložena",
         "groups_saved": "Skupiny zařízení uloženy",
+    "group_membership_added": "Přidáno do skupiny",
+    "group_membership_removed": "Odebráno ze skupiny",
         "no_groups": "Zatím žádné skupiny",
         "manual_groups": "Ruční skupiny",
         "dynamic_memberships": "Dynamická členství",

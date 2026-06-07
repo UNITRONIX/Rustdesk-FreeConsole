@@ -298,6 +298,8 @@
         "group_not_found": "Gruppen hittades inte",
         "group_saved": "Enhetsgruppen har sparats",
         "groups_saved": "Enhetsgrupper har sparats",
+    "group_membership_added": "Tillagd i grupp",
+    "group_membership_removed": "Borttagen från grupp",
         "no_groups": "Inga grupper än",
         "manual_groups": "Manuella grupper",
         "dynamic_memberships": "Dynamiska medlemskap",

@@ -747,7 +747,8 @@ const DeviceDetail = (function () {
         if (!folderId) return _('folders.unassigned');
         // Try to get folder name from the global folders list (devices.js maintains it)
         if (window._betterdesk_folders) {
-            const f = window._betterdesk_folders.find(f => f.id === folderId);
+            const target = Number(folderId);
+            const f = window._betterdesk_folders.find(item => Number(item.id) === target);
             if (f) return Utils.escapeHtml(f.name);
         }
         return '#' + folderId;

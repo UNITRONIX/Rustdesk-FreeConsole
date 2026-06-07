@@ -97,6 +97,7 @@
         initDeviceGroups();
         initDragDrop();
         attachFolderDropEvents();  // For static folder chips
+        attachGroupDropEvents();   // For static group chips
         initColumnVisibility();    // Column show/hide toggle
         initKebabGlobalClose();    // Close kebab/context menus on outside click
         initContextMenu();
@@ -634,6 +635,21 @@
         return groups.some(g => g.guid === group.guid);
     }
 
+    /** Compare folder ids from API/Postgres (number or string) with chip dataset values. */
+    function folderIdsEqual(a, b) {
+        if (a == null || a === '' || Number(a) === 0) {
+            return b == null || b === '' || Number(b) === 0;
+        }
+        return Number(a) === Number(b);
+    }
+
+    function findFolderById(folderId) {
+        if (folderId == null || folderId === '') return null;
+        const target = Number(folderId);
+        if (!Number.isFinite(target)) return null;
+        return folders.find(f => Number(f.id) === target) || null;
+    }
+
     function renderTagsCell(device) {
         const tags = normalizeTags(device.tags);
         if (tags.length === 0) {
@@ -657,7 +673,7 @@
             // Folder filter
             if (currentFolder === 'unassigned' && device.folder_id) return false;
             if (currentFolder !== 'all' && currentFolder !== 'unassigned') {
-                if (device.folder_id !== parseInt(currentFolder, 10)) return false;
+                if (!folderIdsEqual(device.folder_id, currentFolder)) return false;
             }
 
             // Device group filter (manual or dynamic)
@@ -1894,6 +1910,8 @@
                 }
             });
         });
+
+        attachGroupDropEvents();
     }
 
     async function deleteDeviceGroup(group) {
@@ -1929,9 +1947,13 @@
 
     function selectDeviceGroup(groupGuid) {
         currentGroup = groupGuid || 'all';
+        currentFolder = 'all';
         currentPage = 1;
         document.querySelectorAll('.group-chip').forEach(el => {
             el.classList.toggle('active', el.dataset.group === currentGroup);
+        });
+        document.querySelectorAll('.folder-chip').forEach(el => {
+            el.classList.toggle('active', el.dataset.folder === 'all');
         });
         applyFilters();
     }
@@ -2049,7 +2071,7 @@
         for (const folder of folders) {
             const el = document.querySelector(`.folder-chip[data-folder="${folder.id}"] .chip-count`);
             if (el) {
-                const count = devices.filter(d => d.folder_id === folder.id).length;
+                const count = devices.filter(d => folderIdsEqual(d.folder_id, folder.id)).length;
                 el.textContent = count;
             }
         }
@@ -2094,11 +2116,15 @@
      */
     function selectFolder(folderId) {
         currentFolder = folderId;
+        currentGroup = 'all';
         currentPage = 1;
         
         // Update active state
         document.querySelectorAll('.folder-chip').forEach(el => {
             el.classList.toggle('active', el.dataset.folder == folderId);
+        });
+        document.querySelectorAll('.group-chip').forEach(el => {
+            el.classList.toggle('active', el.dataset.group === 'all');
         });
         
         applyFilters();
@@ -2234,7 +2260,7 @@
      * Edit folder
      */
     async function editFolder(folderId) {
-        const folder = folders.find(f => f.id === parseInt(folderId, 10));
+        const folder = findFolderById(folderId);
         if (!folder) return;
         
         const template = document.getElementById('folder-form-template');
@@ -2317,7 +2343,7 @@
      * Delete folder
      */
     async function deleteFolder(folderId) {
-        const folder = folders.find(f => f.id === parseInt(folderId, 10));
+        const folder = findFolderById(folderId);
         if (!folder) return;
         
         const confirmed = await Modal.confirm({
@@ -2409,7 +2435,8 @@
                 } else if (targetFolder === 'unassigned') {
                     folderId = null;
                 } else {
-                    folderId = parseInt(targetFolder, 10);
+                    folderId = Number(targetFolder);
+                    if (!Number.isFinite(folderId)) return;
                 }
                 
                 try {
@@ -2423,6 +2450,80 @@
                     loadFolders();
                 } catch (error) {
                     console.error('Folder assignment failed:', error);
+                    Notifications.error(error.message || _('errors.server_error'));
+                }
+            });
+        });
+    }
+
+    async function setDeviceManualGroups(deviceId, groupGuids) {
+        await Utils.api(`/api/devices/${encodeURIComponent(deviceId)}/groups`, {
+            method: 'PUT',
+            body: { groupGuids }
+        });
+    }
+
+    async function getDeviceManualGroupGuids(deviceId) {
+        const device = devices.find(item => item.id === deviceId);
+        if (device && Array.isArray(device.groups)) {
+            return device.groups
+                .filter(group => (group.source_type || 'manual') !== 'tag')
+                .map(group => group.guid)
+                .filter(Boolean);
+        }
+        const response = await Utils.api(`/api/devices/${encodeURIComponent(deviceId)}/groups`);
+        return (response.memberships || [])
+            .filter(group => (group.source_type || 'manual') !== 'tag')
+            .map(group => group.guid)
+            .filter(Boolean);
+    }
+
+    /**
+     * Attach drag events to group chips (called after renderDeviceGroups).
+     */
+    function attachGroupDropEvents() {
+        document.querySelectorAll('.group-chip[data-group]').forEach(chip => {
+            if (chip.dataset.groupDropAttached) return;
+            chip.dataset.groupDropAttached = 'true';
+
+            chip.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                chip.classList.add('drag-over');
+            });
+
+            chip.addEventListener('dragleave', () => {
+                chip.classList.remove('drag-over');
+            });
+
+            chip.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                chip.classList.remove('drag-over');
+
+                const deviceId = e.dataTransfer.getData('text/plain');
+                if (!deviceId) return;
+
+                const targetGroup = chip.dataset.group;
+                try {
+                    if (targetGroup === 'all') {
+                        if (currentGroup === 'all') return;
+                        const manualGuids = await getDeviceManualGroupGuids(deviceId);
+                        const nextGuids = manualGuids.filter(guid => guid !== currentGroup);
+                        if (nextGuids.length === manualGuids.length) return;
+                        await setDeviceManualGroups(deviceId, nextGuids);
+                        Notifications.success(_('devices.group_membership_removed') || 'Removed from group');
+                    } else {
+                        const group = deviceGroups.find(item => item.guid === targetGroup);
+                        if (!group || (group.source_type || 'manual') === 'tag') return;
+                        const manualGuids = await getDeviceManualGroupGuids(deviceId);
+                        if (manualGuids.includes(targetGroup)) return;
+                        await setDeviceManualGroups(deviceId, [...manualGuids, targetGroup]);
+                        Notifications.success(_('devices.group_membership_added') || 'Added to group');
+                    }
+                    loadDevices();
+                    loadDeviceGroups();
+                } catch (error) {
+                    console.error('Group assignment failed:', error);
                     Notifications.error(error.message || _('errors.server_error'));
                 }
             });

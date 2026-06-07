@@ -298,6 +298,8 @@
         "group_not_found": "ไม่พบกลุ่ม",
         "group_saved": "บันทึกกลุ่มอุปกรณ์แล้ว",
         "groups_saved": "บันทึกกลุ่มอุปกรณ์แล้ว",
+    "group_membership_added": "เพิ่มในกลุ่มแล้ว",
+    "group_membership_removed": "นำออกจากกลุ่มแล้ว",
         "no_groups": "ยังไม่มีกลุ่ม",
         "manual_groups": "กลุ่มแบบแมนนวล",
         "dynamic_memberships": "การเป็นสมาชิกแบบไดนามิก",

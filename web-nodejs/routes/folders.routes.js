@@ -59,11 +59,13 @@ router.get('/api/folders', requireAuth, requirePermission('device.view'), async 
         try {
             const assignments = await db.getAllFolderAssignments();
             const countMap = {};
-            for (const [, folderId] of Object.entries(assignments)) {
+            for (const [, folderIdRaw] of Object.entries(assignments)) {
+                const folderId = Number(folderIdRaw);
+                if (!Number.isFinite(folderId)) continue;
                 countMap[folderId] = (countMap[folderId] || 0) + 1;
             }
             for (const f of folders) {
-                f.device_count = countMap[f.id] || 0;
+                f.device_count = countMap[Number(f.id)] || 0;
                 f.allowed_users = await getFolderAllowedUsers(f.id);
             }
         } catch (err) {

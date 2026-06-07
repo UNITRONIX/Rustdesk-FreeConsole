@@ -259,6 +259,8 @@
         "group_not_found": "Nie znaleziono grupy",
         "group_saved": "Grupa urządzeń zapisana",
         "groups_saved": "Grupy urządzenia zapisane",
+    "group_membership_added": "Dodano do grupy",
+    "group_membership_removed": "Usunięto z grupy",
         "no_groups": "Brak grup",
         "manual_groups": "Grupy ręczne",
         "dynamic_memberships": "Członkostwa dynamiczne",

@@ -292,6 +292,8 @@
         "group_not_found": "未找到分组",
         "group_saved": "设备分组已保存",
         "groups_saved": "设备分组已保存",
+    "group_membership_added": "已添加到分组",
+    "group_membership_removed": "已从分组移除",
         "no_groups": "还没有分组",
         "manual_groups": "手动分组",
         "dynamic_memberships": "动态成员关系",

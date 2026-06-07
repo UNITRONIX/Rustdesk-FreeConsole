@@ -299,6 +299,8 @@
         "group_not_found": "لم يتم العثور على المجموعة",
         "group_saved": "تم حفظ مجموعة الأجهزة",
         "groups_saved": "تم حفظ مجموعات الأجهزة",
+    "group_membership_added": "تمت الإضافة إلى المجموعة",
+    "group_membership_removed": "تمت الإزالة من المجموعة",
         "no_groups": "لا توجد مجموعات حتى الآن",
         "manual_groups": "المجموعات اليدوية",
         "dynamic_memberships": "العضويات الديناميكية",

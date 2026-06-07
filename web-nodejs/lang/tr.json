@@ -298,6 +298,8 @@
         "group_not_found": "Grup bulunamadı",
         "group_saved": "Cihaz grubu kaydedildi",
         "groups_saved": "Cihaz grupları kaydedildi",
+    "group_membership_added": "Gruba eklendi",
+    "group_membership_removed": "Gruptan kaldırıldı",
         "no_groups": "Henüz grup yok",
         "manual_groups": "Manuel gruplar",
         "dynamic_memberships": "Dinamik üyelikler",

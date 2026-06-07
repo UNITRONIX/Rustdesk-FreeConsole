@@ -79,7 +79,8 @@ async function getAllDevices(filters = {}) {
             const assignments = await db.getAllFolderAssignments();
             for (const peer of peers) {
                 if (assignments[peer.id] !== undefined) {
-                    peer.folder_id = assignments[peer.id];
+                    const folderId = Number(assignments[peer.id]);
+                    peer.folder_id = Number.isFinite(folderId) ? folderId : assignments[peer.id];
                 }
             }
         } catch (err) {
@@ -146,7 +147,8 @@ async function getDeviceById(id) {
         try {
             const assignments = await db.getAllFolderAssignments();
             if (assignments[peer.id] !== undefined) {
-                peer.folder_id = assignments[peer.id];
+                const folderId = Number(assignments[peer.id]);
+                peer.folder_id = Number.isFinite(folderId) ? folderId : assignments[peer.id];
             }
         } catch { /* non-critical */ }
     }

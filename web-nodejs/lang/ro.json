@@ -298,6 +298,8 @@
         "group_not_found": "Grupul nu a fost găsit",
         "group_saved": "Grupul de dispozitive a fost salvat",
         "groups_saved": "Grupuri de dispozitive salvate",
+    "group_membership_added": "Adăugat la grup",
+    "group_membership_removed": "Eliminat din grup",
         "no_groups": "Încă nu există grupuri",
         "manual_groups": "Grupuri manuale",
         "dynamic_memberships": "Membrii dinamici",

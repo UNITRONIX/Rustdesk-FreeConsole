@@ -298,6 +298,8 @@
         "group_not_found": "Групу не знайдено",
         "group_saved": "Групу пристроїв збережено",
         "groups_saved": "Групи пристроїв збережено",
+    "group_membership_added": "Додано до групи",
+    "group_membership_removed": "Вилучено з групи",
         "no_groups": "Груп ще немає",
         "manual_groups": "Ручні групи",
         "dynamic_memberships": "Динамічне членство",

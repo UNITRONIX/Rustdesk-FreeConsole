@@ -292,6 +292,8 @@
         "group_not_found": "Groupe introuvable",
         "group_saved": "Groupe d’appareils enregistré",
         "groups_saved": "Groupes d’appareils enregistrés",
+    "group_membership_added": "Ajouté au groupe",
+    "group_membership_removed": "Retiré du groupe",
         "no_groups": "Aucun groupe pour le moment",
         "manual_groups": "Groupes manuels",
         "dynamic_memberships": "Appartenances dynamiques",

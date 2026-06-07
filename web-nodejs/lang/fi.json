@@ -298,6 +298,8 @@
         "group_not_found": "Ryhmää ei löydy",
         "group_saved": "Laiteryhmä tallennettu",
         "groups_saved": "Laiteryhmät tallennettu",
+    "group_membership_added": "Lisätty ryhmään",
+    "group_membership_removed": "Poistettu ryhmästä",
         "no_groups": "Ei vielä ryhmiä",
         "manual_groups": "Manuaaliset ryhmät",
         "dynamic_memberships": "Dynaamiset jäsenyydet",

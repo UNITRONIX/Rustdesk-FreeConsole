@@ -298,6 +298,8 @@
         "group_not_found": "Không tìm thấy nhóm",
         "group_saved": "Đã lưu nhóm thiết bị",
         "groups_saved": "Đã lưu nhóm thiết bị",
+    "group_membership_added": "Đã thêm vào nhóm",
+    "group_membership_removed": "Đã xóa khỏi nhóm",
         "no_groups": "Chưa có nhóm nào",
         "manual_groups": "Nhóm thủ công",
         "dynamic_memberships": "Tư cách thành viên năng động",

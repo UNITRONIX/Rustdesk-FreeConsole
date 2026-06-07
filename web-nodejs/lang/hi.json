@@ -298,6 +298,8 @@
         "group_not_found": "समूह नहीं मिला",
         "group_saved": "डिवाइस समूह सहेजा गया",
         "groups_saved": "डिवाइस समूह सहेजे गए",
+    "group_membership_added": "समूह में जोड़ा गया",
+    "group_membership_removed": "समूह से हटाया गया",
         "no_groups": "अभी तक कोई समूह नहीं",
         "manual_groups": "मैनुअल समूह",
         "dynamic_memberships": "गतिशील सदस्यताएँ",

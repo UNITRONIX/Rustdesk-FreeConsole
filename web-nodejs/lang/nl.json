@@ -292,6 +292,8 @@
         "group_not_found": "Groep niet gevonden",
         "group_saved": "Apparaatgroep opgeslagen",
         "groups_saved": "Apparaatgroepen opgeslagen",
+    "group_membership_added": "Toegevoegd aan groep",
+    "group_membership_removed": "Verwijderd uit groep",
         "no_groups": "Nog geen groepen",
         "manual_groups": "Handmatige groepen",
         "dynamic_memberships": "Dynamische lidmaatschappen",

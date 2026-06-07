@@ -298,6 +298,8 @@
         "group_not_found": "Grup tidak ditemukan",
         "group_saved": "Grup perangkat disimpan",
         "groups_saved": "Grup perangkat disimpan",
+    "group_membership_added": "Ditambahkan ke grup",
+    "group_membership_removed": "Dihapus dari grup",
         "no_groups": "Belum ada grup",
         "manual_groups": "Grup manual",
         "dynamic_memberships": "Keanggotaan dinamis",

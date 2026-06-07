@@ -292,6 +292,8 @@
         "group_not_found": "グループが見つかりません",
         "group_saved": "デバイスグループが保存されました",
         "groups_saved": "デバイスグループが保存されました",
+    "group_membership_added": "グループに追加しました",
+    "group_membership_removed": "グループから削除しました",
         "no_groups": "まだグループがありません",
         "manual_groups": "マニュアルグループ",
         "dynamic_memberships": "動的メンバーシップ",

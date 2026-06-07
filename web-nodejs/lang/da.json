@@ -298,6 +298,8 @@
         "group_not_found": "Gruppen blev ikke fundet",
         "group_saved": "Enhedsgruppen er gemt",
         "groups_saved": "Enhedsgrupper blev gemt",
+    "group_membership_added": "Tilføjet til gruppe",
+    "group_membership_removed": "Fjernet fra gruppe",
         "no_groups": "Ingen grupper endnu",
         "manual_groups": "Manuelle grupper",
         "dynamic_memberships": "Dynamiske medlemskaber",

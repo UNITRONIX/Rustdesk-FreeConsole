@@ -292,6 +292,8 @@
         "group_not_found": "Gruppe nicht gefunden",
         "group_saved": "Gerätegruppe gespeichert",
         "groups_saved": "Gerätegruppen gespeichert",
+    "group_membership_added": "Zur Gruppe hinzugefügt",
+    "group_membership_removed": "Aus Gruppe entfernt",
         "no_groups": "Noch keine Gruppen",
         "manual_groups": "Manuelle Gruppen",
         "dynamic_memberships": "Dynamische Mitgliedschaften",

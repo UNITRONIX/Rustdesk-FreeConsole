@@ -2881,7 +2881,10 @@ function createSqliteAdapter(config) {
         async getAllFolderAssignments() {
             const rows = openAuth().prepare('SELECT device_id, folder_id FROM device_folder_assignments').all();
             const map = {};
-            for (const row of rows) map[row.device_id] = row.folder_id;
+            for (const row of rows) {
+                const folderId = Number(row.folder_id);
+                map[row.device_id] = Number.isFinite(folderId) ? folderId : row.folder_id;
+            }
             return map;
         },
 
@@ -5742,7 +5745,10 @@ function createPostgresAdapter() {
         async getAllFolderAssignments() {
             const rows = await all('SELECT device_id, folder_id FROM device_folder_assignments');
             const map = {};
-            for (const row of rows) map[row.device_id] = row.folder_id;
+            for (const row of rows) {
+                const folderId = Number(row.folder_id);
+                map[row.device_id] = Number.isFinite(folderId) ? folderId : row.folder_id;
+            }
             return map;
         },
 
