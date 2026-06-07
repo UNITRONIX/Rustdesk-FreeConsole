@@ -919,6 +919,139 @@ async function ensureServerSource(remoteSHA, opts = {}) {
     return { strategy: 'api-download', filesDownloaded: downloaded };
 }
 
+/** GitHub compare API returns at most this many changed files (issue #158, #173). */
+const GITHUB_COMPARE_FILE_LIMIT = 300;
+
+const CONSOLE_SKIP_PATH_PREFIXES = ['node_modules/', 'test/', 'tests/'];
+const CONSOLE_SKIP_FILES = new Set(['package-lock.json']);
+const CONSOLE_INTEGRITY_SEEDS = [
+    'server.js',
+    'routes/index.js',
+    'routes/auth.routes.js',
+    'routes/server-attestation.routes.js'
+];
+
+function isCompareLikelyTruncated(fileCount) {
+    return Number(fileCount) >= GITHUB_COMPARE_FILE_LIMIT;
+}
+
+function isConsoleDeployLocalPath(localPath) {
+    if (!localPath || typeof localPath !== 'string') return false;
+    if (CONSOLE_SKIP_FILES.has(localPath)) return false;
+    return !CONSOLE_SKIP_PATH_PREFIXES.some(prefix => localPath.startsWith(prefix));
+}
+
+function resolveConsoleRequire(fromLocalPath, requirePath) {
+    if (!requirePath || !requirePath.startsWith('.')) return null;
+    const dir = path.posix.dirname(String(fromLocalPath || '').replace(/\\/g, '/'));
+    let resolved = path.posix.normalize(path.posix.join(dir, requirePath));
+    if (resolved.startsWith('../') || resolved.startsWith('/')) return null;
+    if (!resolved.endsWith('.js')) resolved += '.js';
+    return resolved;
+}
+
+function collectConsoleRequiredFiles(changedConsoleFiles = []) {
+    const seeds = new Set(CONSOLE_INTEGRITY_SEEDS);
+    for (const file of changedConsoleFiles || []) {
+        if (file?.localPath) seeds.add(file.localPath);
+    }
+
+    const required = new Set();
+    const queue = [...seeds];
+    const visited = new Set();
+
+    while (queue.length) {
+        const localPath = queue.shift();
+        if (!localPath || visited.has(localPath)) continue;
+        visited.add(localPath);
+        required.add(localPath);
+
+        const abs = path.join(ROOT_DIR, localPath);
+        if (!fs.existsSync(abs) || !/\.(js|mjs|cjs)$/.test(localPath)) continue;
+
+        let content;
+        try {
+            content = fs.readFileSync(abs, 'utf8');
+        } catch (_) {
+            continue;
+        }
+
+        for (const match of content.matchAll(/require\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g)) {
+            const resolved = resolveConsoleRequire(localPath, match[1]);
+            if (resolved && !visited.has(resolved)) queue.push(resolved);
+        }
+    }
+
+    return required;
+}
+
+async function downloadConsoleFile(remoteSHA, localPath) {
+    const repoPath = `${COMPONENTS.console.prefix}${localPath}`;
+    const content = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, repoPath);
+    const dest = path.join(ROOT_DIR, localPath);
+    if (isProtectedRuntimePath(dest)) {
+        throw new Error(`Refusing to write protected runtime path: ${localPath}`);
+    }
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, content);
+    return dest;
+}
+
+/**
+ * Download the full web-nodejs tree when the GitHub compare diff is truncated.
+ * Mirrors ensureServerSource() for issue #158.
+ */
+async function ensureConsoleSource(remoteSHA, opts = {}) {
+    const marker = path.join(ROOT_DIR, 'server.js');
+    if (!opts.force && fs.existsSync(marker)) {
+        return { strategy: 'incremental', filesDownloaded: 0, filesSkipped: 0 };
+    }
+
+    const tree = await ghGet(
+        `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/git/trees/${encodeURIComponent(remoteSHA)}?recursive=1`
+    );
+    if (tree.truncated) {
+        console.warn('[UPDATE] GitHub tree listing was truncated — console full sync may be incomplete');
+    }
+
+    const prefix = COMPONENTS.console.prefix;
+    const consolePaths = (tree.tree || [])
+        .filter(entry => entry.type === 'blob' && entry.path && entry.path.startsWith(prefix))
+        .map(entry => entry.path);
+
+    let downloaded = 0;
+    let skipped = 0;
+    for (const repoPath of consolePaths) {
+        const localPath = repoPath.slice(prefix.length);
+        if (!isConsoleDeployLocalPath(localPath)) {
+            skipped++;
+            continue;
+        }
+        await downloadConsoleFile(remoteSHA, localPath);
+        downloaded++;
+    }
+
+    return { strategy: 'full-tree', filesDownloaded: downloaded, filesSkipped: skipped };
+}
+
+/**
+ * After an incremental console update, fetch any local require targets that are
+ * still missing (e.g. auth.routes.js updated while serverAttestation.js was
+ * never deployed — issue #173).
+ */
+async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
+    const required = collectConsoleRequiredFiles(changedConsoleFiles);
+    const repaired = [];
+    for (const localPath of required) {
+        if (!isConsoleDeployLocalPath(localPath)) continue;
+        const dest = path.join(ROOT_DIR, localPath);
+        if (fs.existsSync(dest)) continue;
+        await downloadConsoleFile(remoteSHA, localPath);
+        repaired.push(localPath);
+    }
+    return { repaired, checked: required.size };
+}
+
 /**
  * Build the Go server binary from local source.
  * Uses async exec to avoid blocking the Node.js event loop.
@@ -1603,6 +1736,8 @@ async function getChangedFiles(remoteSHA) {
         })),
         grouped,
         totalFiles: files.length,
+        compareTruncated: isCompareLikelyTruncated(files.length),
+        commitsBehind: compare.total_commits || (compare.commits || []).length,
         commits: (compare.commits || []).slice(-30).reverse().map(c => ({
             sha: c.sha?.slice(0, 7),
             message: (c.commit?.message || '').split('\n')[0],
@@ -1782,34 +1917,60 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
     // ---- Console files ----
     if (selectedComponents.includes('console') && changedData.grouped.console?.length) {
-        for (const file of changedData.grouped.console) {
+        const consoleFiles = changedData.grouped.console;
+        const useFullConsoleSync = !!changedData.compareTruncated;
+
+        if (useFullConsoleSync) {
+            console.warn(
+                `[UPDATE] Console compare diff hit the ${GITHUB_COMPARE_FILE_LIMIT}-file GitHub cap`
+                + ' — performing full console tree sync (#173)'
+            );
             try {
-                if (file.status === 'removed') {
-                    const localFile = path.join(ROOT_DIR, file.localPath);
-                    if (isProtectedRuntimePath(localFile)) { results.skipped.push(file.path); continue; }
-                    if (fs.existsSync(localFile)) { fs.unlinkSync(localFile); results.removed.push(file.path); }
-                    continue;
-                }
-                if (/^(node_modules|test|tests)\//.test(file.localPath) || file.localPath === 'package-lock.json') {
-                    results.skipped.push(file.path);
-                    continue;
-                }
-                const dest = path.join(ROOT_DIR, file.localPath);
-                if (isProtectedRuntimePath(dest)) {
-                    console.warn(`[UPDATE] Refusing to overwrite runtime state file: ${file.path}`);
-                    results.skipped.push(file.path);
-                    continue;
-                }
-                const content = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, file.path);
-                fs.mkdirSync(path.dirname(dest), { recursive: true });
-                fs.writeFileSync(dest, content);
-                results.applied.push(file.path);
+                const sync = await ensureConsoleSource(remoteSHA, { force: true });
+                results.consoleSync = sync;
+                results.applied.push('web-nodejs/(full-tree-sync)');
             } catch (err) {
-                results.failed.push({ file: file.path, error: err.message });
+                results.failed.push({ file: 'console-source', error: err.message });
+            }
+        } else {
+            for (const file of consoleFiles) {
+                try {
+                    if (file.status === 'removed') {
+                        const localFile = path.join(ROOT_DIR, file.localPath);
+                        if (isProtectedRuntimePath(localFile)) { results.skipped.push(file.path); continue; }
+                        if (fs.existsSync(localFile)) { fs.unlinkSync(localFile); results.removed.push(file.path); }
+                        continue;
+                    }
+                    if (!isConsoleDeployLocalPath(file.localPath)) {
+                        results.skipped.push(file.path);
+                        continue;
+                    }
+                    const dest = path.join(ROOT_DIR, file.localPath);
+                    if (isProtectedRuntimePath(dest)) {
+                        console.warn(`[UPDATE] Refusing to overwrite runtime state file: ${file.path}`);
+                        results.skipped.push(file.path);
+                        continue;
+                    }
+                    await downloadConsoleFile(remoteSHA, file.localPath);
+                    results.applied.push(file.path);
+                } catch (err) {
+                    results.failed.push({ file: file.path, error: err.message });
+                }
             }
         }
+
+        try {
+            const repair = await repairMissingConsoleFiles(remoteSHA, consoleFiles);
+            results.consoleRepaired = repair;
+            for (const localPath of repair.repaired || []) {
+                results.applied.push(`web-nodejs/${localPath} (repair)`);
+            }
+        } catch (err) {
+            results.failed.push({ file: 'console-repair', error: err.message });
+        }
+
         // npm install when package.json changed
-        if (changedData.grouped.console.some(f => f.localPath === 'package.json')) {
+        if (consoleFiles.some(f => f.localPath === 'package.json')) {
             try {
                 execSync('npm install --omit=dev --no-audit --no-fund', { cwd: ROOT_DIR, timeout: 120000, stdio: 'pipe' });
                 results.npmInstalled = true;
@@ -2588,6 +2749,12 @@ module.exports = {
     COMPONENTS,
     NON_CRITICAL_UPDATE_FAILURES,
     isNonCriticalUpdateFailure,
+    GITHUB_COMPARE_FILE_LIMIT,
+    isCompareLikelyTruncated,
+    resolveConsoleRequire,
+    collectConsoleRequiredFiles,
+    repairMissingConsoleFiles,
+    ensureConsoleSource,
 };
 
 bootstrapDockerImageDeployment();
