@@ -20,7 +20,19 @@ describe('updateService console sync helpers', () => {
             .toBe('services/serverAttestation.js');
         expect(resolveConsoleRequire('routes/index.js', './devices.routes'))
             .toBe('routes/devices.routes.js');
+        expect(resolveConsoleRequire('server.js', './routes'))
+            .toBe('routes/index.js');
         expect(resolveConsoleRequire('server.js', 'express')).toBeNull();
+    });
+
+    test('ignores require examples inside comments when scanning dependencies', () => {
+        const required = collectConsoleRequiredFiles([
+            { localPath: 'scripts/linux-ensure-console-user.js' }
+        ]);
+        expect(required.has('scripts/linux-ensure-console-user.js')).toBe(true);
+        expect(required.has('scripts/scripts/linux-ensure-console-user.js')).toBe(false);
+        expect(required.has('routes.js')).toBe(false);
+        expect(required.has('routes/index.js')).toBe(true);
     });
 
     test('collects serverAttestation from auth.routes integrity seeds', () => {

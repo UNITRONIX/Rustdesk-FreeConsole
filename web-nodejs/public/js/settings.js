@@ -2085,10 +2085,17 @@
             const removed = result.removed?.length || 0;
             logUpdate(`${_('updates.applied')}: ${applied} · ${_('updates.failed')}: ${failed} · ${_('updates.removed')}: ${removed}`);
 
-            if (result.needsConsoleRestart) {
+            if (result.needsConsoleRestart && !result.consoleRestartBlocked) {
                 setUpdatePhase('restart', 'active', _('updates.restarting'));
                 logUpdate(_('updates.console_will_restart'));
                 setTimeout(() => pollConsoleRestart(), 2500);
+            } else if (result.consoleRestartBlocked) {
+                setUpdatePhase('restart', 'error', result.consoleRestartBlocked);
+                logUpdate(result.consoleRestartBlocked);
+                setUpdatePhase('done', 'done', _('updates.complete_with_errors'));
+                showUpdateCompletionModal(result);
+                if (installBtn) installBtn.disabled = false;
+                loadServerBinaryStatus();
             } else {
                 setUpdatePhase('restart', 'skipped', _('updates.no_restart_needed'));
                 setUpdatePhase('done', 'done', _('updates.complete'));

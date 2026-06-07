@@ -6,7 +6,7 @@
  *
  * Usage:
  *   node scripts/linux-ensure-console-user.js
- *   require('./scripts/linux-ensure-console-user') from updateService
+ *   (also loaded from services/updateService.js after panel updates)
  */
 
 const fs = require('fs');

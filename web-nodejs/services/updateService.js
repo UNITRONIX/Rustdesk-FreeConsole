@@ -941,12 +941,29 @@ function isConsoleDeployLocalPath(localPath) {
     return !CONSOLE_SKIP_PATH_PREFIXES.some(prefix => localPath.startsWith(prefix));
 }
 
+function stripJsCommentsForRequireScan(content) {
+    return String(content || '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n\r]*/g, '');
+}
+
 function resolveConsoleRequire(fromLocalPath, requirePath) {
     if (!requirePath || !requirePath.startsWith('.')) return null;
     const dir = path.posix.dirname(String(fromLocalPath || '').replace(/\\/g, '/'));
     let resolved = path.posix.normalize(path.posix.join(dir, requirePath));
     if (resolved.startsWith('../') || resolved.startsWith('/')) return null;
+
+    const absNoExt = path.join(ROOT_DIR, resolved);
+    if (fs.existsSync(absNoExt) && fs.statSync(absNoExt).isDirectory()) {
+        return path.posix.join(resolved, 'index.js');
+    }
+
     if (!resolved.endsWith('.js')) resolved += '.js';
+    const absJs = path.join(ROOT_DIR, resolved);
+    if (!fs.existsSync(absJs)) {
+        const indexPath = path.posix.join(resolved.replace(/\.js$/, ''), 'index.js');
+        if (fs.existsSync(path.join(ROOT_DIR, indexPath))) return indexPath;
+    }
     return resolved;
 }
 
@@ -976,7 +993,8 @@ function collectConsoleRequiredFiles(changedConsoleFiles = []) {
             continue;
         }
 
-        for (const match of content.matchAll(/require\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g)) {
+        const scanContent = stripJsCommentsForRequireScan(content);
+        for (const match of scanContent.matchAll(/require\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g)) {
             const resolved = resolveConsoleRequire(localPath, match[1]);
             if (resolved && !visited.has(resolved)) queue.push(resolved);
         }
