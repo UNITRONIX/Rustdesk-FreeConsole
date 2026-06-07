@@ -3308,7 +3308,16 @@
     "refresh_recommended": "Aggiornamento pagina consigliato",
     "confirm_title": "Conferma aggiornamento",
     "confirm_with_backup": "Prima di installare l’aggiornamento verrà creato un backup.",
-    "confirm_no_backup": "L’aggiornamento verrà installato senza backup."
+    "confirm_no_backup": "L’aggiornamento verrà installato senza backup.",
+    "channel_title": "Canale aggiornamenti",
+    "channel_desc": "Stable segue il branch main (release di produzione). Development segue il branch dev (lavoro in corso). Cambiare canale modifica il branch GitHub da cui arrivano gli aggiornamenti.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "Branch GitHub",
+    "channel_save": "Applica canale",
+    "channel_saved": "Canale aggiornamenti salvato. Controlla gli aggiornamenti con il nuovo branch.",
+    "channel_save_failed": "Impossibile salvare il canale aggiornamenti",
+    "channel_switch_warning": "Cambiare canale modifica il branch GitHub usato. Lo SHA tracciato resta — il prossimo controllo può mostrare una grande differenza. Continuare?"
   },
   "permissions": {
     "title": "Permessi",

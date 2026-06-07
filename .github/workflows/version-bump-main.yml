@@ -1,0 +1,82 @@
+# =============================================================================
+# BetterDesk — stable release on merge to main
+# =============================================================================
+# When a PR is merged into main, bump minor version (+0.1.0), tag vX.Y.Z,
+# and publish a GitHub Release. Existing release-server and docker-publish
+# workflows run on the new tag / release event.
+# =============================================================================
+
+name: Version Bump & Release (main)
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release-stable:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bump minor version
+        id: bump
+        run: |
+          node scripts/bump-version.js --minor
+          NEW_VERSION=$(cat VERSION | tr -d '\n')
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump on main
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION web-nodejs/package.json betterdesk.sh betterdesk.ps1 betterdesk-docker.sh \
+            CHANGELOG.md README.md Dockerfile Dockerfile.server Dockerfile.console \
+            docker-compose.quick.yml docker/entrypoint.sh docker-entrypoint.sh
+          git commit -m "chore: release version ${NEW_VERSION} [version-bump]"
+          git push
+
+      - name: Create tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          TAG="v${NEW_VERSION}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists — skipping tag/release creation"
+            exit 0
+          fi
+          git tag "$TAG"
+          git push origin "$TAG"
+
+          NOTES_FILE=$(mktemp)
+          awk -v ver="${NEW_VERSION}" '
+            BEGIN { found=0 }
+            /^## \[/ {
+              if ($0 ~ "\\[" ver "\\]") { found=1; print; next }
+              if (found && /^## \[/ && $0 !~ "\\[" ver "\\]") { exit }
+            }
+            found { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "BetterDesk ${NEW_VERSION} stable release." > "$NOTES_FILE"
+          fi
+
+          gh release create "$TAG" \
+            --title "BetterDesk ${NEW_VERSION}" \
+            --notes-file "$NOTES_FILE"

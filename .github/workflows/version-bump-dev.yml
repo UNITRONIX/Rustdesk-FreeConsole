@@ -1,0 +1,52 @@
+# =============================================================================
+# BetterDesk — automatic patch version bump on dev branch
+# =============================================================================
+# Every push to dev (except [version-bump] commits) bumps product version +0.0.1
+# across Tier 1/2 files via scripts/bump-version.js.
+# =============================================================================
+
+name: Version Bump (dev)
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: write
+
+jobs:
+  bump-patch:
+    if: "!contains(github.event.head_commit.message, '[version-bump]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          node scripts/bump-version.js --patch
+          NEW_VERSION=$(cat VERSION | tr -d '\n')
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push version bump
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VERSION web-nodejs/package.json betterdesk.sh betterdesk.ps1 betterdesk-docker.sh \
+            CHANGELOG.md README.md Dockerfile Dockerfile.server Dockerfile.console \
+            docker-compose.quick.yml docker/entrypoint.sh docker-entrypoint.sh
+          if git diff --cached --quiet; then
+            echo "No version files changed — skipping commit"
+            exit 0
+          fi
+          git commit -m "chore: bump version to ${NEW_VERSION} [version-bump]"
+          git push

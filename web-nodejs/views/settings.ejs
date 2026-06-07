@@ -1493,6 +1493,28 @@
                     <p class="settings-section-desc">${_('updates.desc')}</p>
                 </div>
                 <div class="settings-section-body">
+                    <div class="update-channel-panel" id="update-channel-panel" style="margin-bottom: 20px;">
+                        <div class="update-version-row">
+                            <span class="update-label">${_('updates.channel_title')}</span>
+                            <span class="update-value">
+                                <select id="update-channel-select" class="form-input" style="max-width: 220px;">
+                                    <option value="stable">${_('updates.channel_stable')}</option>
+                                    <option value="development">${_('updates.channel_development')}</option>
+                                </select>
+                            </span>
+                        </div>
+                        <p class="settings-section-desc" style="margin-top: 8px; margin-bottom: 8px;">${_('updates.channel_desc')}</p>
+                        <div class="update-version-row">
+                            <span class="update-label">${_('updates.channel_branch_label')}</span>
+                            <span class="update-value" id="update-channel-branch">&mdash;</span>
+                        </div>
+                        <div class="update-actions" style="margin-top: 12px;">
+                            <button class="btn btn-secondary" id="update-channel-save-btn" type="button">
+                                <span class="material-icons">alt_route</span>
+                                ${_('updates.channel_save')}
+                            </button>
+                        </div>
+                    </div>
                     <div class="update-version-info">
                         <div class="update-version-row">
                             <span class="update-label">${_('updates.current_version')}</span>

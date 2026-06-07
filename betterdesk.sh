@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.0.0
+#   BetterDesk Console Manager v3.0.1
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -36,7 +36,7 @@
 set -e
 
 # Version
-VERSION="3.0.0"
+VERSION="3.0.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Auto mode flag
@@ -3078,6 +3078,76 @@ UPDATE_GITHUB_REPO="${UPDATE_GITHUB_REPO:-BetterDesk}"
 UPDATE_GITHUB_BRANCH="${UPDATE_GITHUB_BRANCH:-main}"
 UPDATE_CLONE_DIR="/tmp/betterdesk-update-$$"
 
+read_update_github_branch_from_env() {
+    local env_file="${CONSOLE_PATH:-}/.env"
+    if [ -n "$CONSOLE_PATH" ] && [ -f "$env_file" ]; then
+        local val
+        val=$(grep -E '^UPDATE_GITHUB_BRANCH=' "$env_file" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"')
+        if [ -n "$val" ]; then
+            UPDATE_GITHUB_BRANCH="$val"
+            export UPDATE_GITHUB_BRANCH
+        fi
+    fi
+}
+
+write_update_github_branch_to_env() {
+    local branch="$1"
+    local env_file="${CONSOLE_PATH:-}/.env"
+    if [ -z "$CONSOLE_PATH" ]; then
+        print_error "Console path unknown — cannot save update channel"
+        return 1
+    fi
+    if [ ! -f "$env_file" ]; then
+        touch "$env_file"
+    fi
+    if grep -qE '^UPDATE_GITHUB_BRANCH=' "$env_file" 2>/dev/null; then
+        sed -i "s/^UPDATE_GITHUB_BRANCH=.*/UPDATE_GITHUB_BRANCH=${branch}/" "$env_file"
+    else
+        printf '\nUPDATE_GITHUB_BRANCH=%s\n' "$branch" >> "$env_file"
+    fi
+    UPDATE_GITHUB_BRANCH="$branch"
+    export UPDATE_GITHUB_BRANCH
+    print_success "Update channel saved (GitHub branch: $branch)"
+    return 0
+}
+
+switch_update_channel() {
+    print_header
+    echo -e "${WHITE}${BOLD}══════════ UPDATE CHANNEL ══════════${NC}"
+    echo ""
+    detect_installation
+    if [ "$INSTALL_STATUS" = "none" ]; then
+        print_error "BetterDesk is not installed!"
+        press_enter
+        return
+    fi
+    read_update_github_branch_from_env
+    print_info "Current GitHub branch: $UPDATE_GITHUB_BRANCH"
+    echo ""
+    local _menu_items=(
+        $'Stable (main)\tProduction releases from the main branch'
+        $'Development (dev)\tLatest work-in-progress from the dev branch'
+        $'Back\tReturn without changes'
+    )
+    local _menu_returns=( main dev 0 )
+    menu_choose "Update Channel" "Stable is recommended for production servers"
+    case "${MENU_CHOICE:-main}" in
+        0) return ;;
+        main)
+            write_update_github_branch_to_env "main"
+            ;;
+        dev)
+            print_warning "Development channel may include unstable changes."
+            write_update_github_branch_to_env "dev"
+            ;;
+        *)
+            write_update_github_branch_to_env "main"
+            ;;
+    esac
+    print_info "Run 'Check for updates' in the console or use Online GitHub update to apply."
+    press_enter
+}
+
 run_terminal_project_update() {
     local cli_path="$CONSOLE_PATH/scripts/update-cli.js"
     local node_bin=""
@@ -3106,6 +3176,8 @@ run_terminal_project_update() {
 update_from_github() {
     local clone_dir="$UPDATE_CLONE_DIR"
     local server_build_failed=0
+
+    read_update_github_branch_from_env
 
     # Clean up any leftover clone from a previous failed run
     rm -rf "$clone_dir"
@@ -3378,9 +3450,8 @@ do_update() {
     preserve_database_config
 
     # ---- Update method selection ----
-    # Method 1 (preferred): Pull from GitHub, rebuild Go server, reinstall console
-    # Method 2 (fallback):  Node.js in-app updater CLI (commit-aware)
-    # Method 3 (legacy):    Copy from local SCRIPT_DIR (only works if script dir has new files)
+    read_update_github_branch_from_env
+    print_info "GitHub update branch: $UPDATE_GITHUB_BRANCH"
 
     if [ "${AUTO_MODE:-false}" = "true" ]; then
         print_info "Auto mode: using GitHub pull update"
@@ -3389,14 +3460,19 @@ do_update() {
             $'Online update from GitHub\tDownload latest code, rebuild server, update console'
             $'In-app updater\tBuilt-in Node.js commit-aware updater'
             $'Local update\tCopy files from this script\'s directory'
+            $'Switch update channel\tChoose stable (main) or development (dev) branch'
             $'Back\tReturn to the main menu'
         )
-        local _menu_returns=( 1 2 3 0 )
+        local _menu_returns=( 1 2 3 4 0 )
         menu_choose "Update Method" "Online GitHub update is recommended"
         update_method="${MENU_CHOICE:-1}"
 
         case "$update_method" in
             0)
+                return
+                ;;
+            4)
+                switch_update_channel
                 return
                 ;;
             2)

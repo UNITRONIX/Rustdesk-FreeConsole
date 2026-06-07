@@ -3314,7 +3314,16 @@
     "refresh_recommended": "Aset statis berubah — muat ulang halaman untuk melihat UI baru.",
     "confirm_title": "Terapkan pembaruan",
     "confirm_with_backup": "Cadangan pra-pembaruan akan dibuat secara otomatis.",
-    "confirm_no_backup": "Tidak ada cadangan yang akan dibuat (risiko Anda tanggung sendiri)."
+    "confirm_no_backup": "Tidak ada cadangan yang akan dibuat (risiko Anda tanggung sendiri).",
+    "channel_title": "Saluran pembaruan",
+    "channel_desc": "Stable mengikuti cabang main (rilis produksi). Development mengikuti cabang dev (pekerjaan terbaru). Mengganti saluran mengubah cabang GitHub sumber pembaruan.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "Cabang GitHub",
+    "channel_save": "Terapkan saluran",
+    "channel_saved": "Saluran pembaruan disimpan. Periksa pembaruan terhadap cabang baru.",
+    "channel_save_failed": "Gagal menyimpan saluran pembaruan",
+    "channel_switch_warning": "Mengganti saluran mengubah cabang GitHub. SHA commit yang dilacak tetap — pemeriksaan berikutnya bisa menunjukkan perbedaan besar. Lanjutkan?"
   },
   "permissions": {
     "title": "Izin",

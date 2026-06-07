@@ -3314,7 +3314,16 @@
     "refresh_recommended": "Elemente statice modificate — reîncărcați pagina pentru a vedea noua interfață de utilizare.",
     "confirm_title": "Aplicați actualizarea",
     "confirm_with_backup": "O copie de rezervă pre-actualizare va fi creată automat.",
-    "confirm_no_backup": "Nu va fi creată nicio copie de rezervă (procedați pe propriul risc)."
+    "confirm_no_backup": "Nu va fi creată nicio copie de rezervă (procedați pe propriul risc).",
+    "channel_title": "Canal de actualizare",
+    "channel_desc": "Stable urmărește ramura main (release-uri de producție). Development urmărește ramura dev (lucru în curs). Schimbarea canalului modifică ramura GitHub pentru actualizări.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "Ramură GitHub",
+    "channel_save": "Aplică canalul",
+    "channel_saved": "Canal de actualizare salvat. Verificați actualizările față de noua ramură.",
+    "channel_save_failed": "Salvarea canalului de actualizare a eșuat",
+    "channel_switch_warning": "Schimbarea canalului modifică ramura GitHub. SHA-ul urmărit rămâne — următoarea verificare poate arăta diferență mare. Continuați?"
   },
   "permissions": {
     "title": "Permisiuni",

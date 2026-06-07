@@ -1,7 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    BetterDesk Console Manager v3.0.0 - All-in-One Interactive Tool for Windows
+    BetterDesk Console Manager v3.0.1 - All-in-One Interactive Tool for Windows
 
 .DESCRIPTION
     Features:
@@ -102,7 +102,7 @@ param(
 # Configuration
 #===============================================================================
 
-$script:VERSION = "3.0.0"
+$script:VERSION = "3.0.1"
 $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Auto mode flags
@@ -2949,6 +2949,83 @@ $script:UPDATE_GITHUB_OWNER = if ($env:UPDATE_GITHUB_OWNER) { $env:UPDATE_GITHUB
 $script:UPDATE_GITHUB_REPO = if ($env:UPDATE_GITHUB_REPO) { $env:UPDATE_GITHUB_REPO } else { "BetterDesk" }
 $script:UPDATE_GITHUB_BRANCH = if ($env:UPDATE_GITHUB_BRANCH) { $env:UPDATE_GITHUB_BRANCH } else { "main" }
 
+function Read-UpdateGitHubBranchFromEnv {
+    $envFile = Join-Path $script:CONSOLE_PATH ".env"
+    if ($script:CONSOLE_PATH -and (Test-Path $envFile)) {
+        $line = Get-Content $envFile -ErrorAction SilentlyContinue |
+            Where-Object { $_ -match '^\s*UPDATE_GITHUB_BRANCH=' } |
+            Select-Object -Last 1
+        if ($line -match '^\s*UPDATE_GITHUB_BRANCH=(.+)$') {
+            $script:UPDATE_GITHUB_BRANCH = $Matches[1].Trim().Trim('"')
+            $env:UPDATE_GITHUB_BRANCH = $script:UPDATE_GITHUB_BRANCH
+        }
+    }
+}
+
+function Write-UpdateGitHubBranchToEnv {
+    param([Parameter(Mandatory = $true)][ValidateSet('main', 'dev')][string]$Branch)
+    $envFile = Join-Path $script:CONSOLE_PATH ".env"
+    if (-not $script:CONSOLE_PATH) {
+        Print-Error "Console path unknown — cannot save update channel"
+        return $false
+    }
+    if (-not (Test-Path $envFile)) {
+        New-Item -ItemType File -Path $envFile -Force | Out-Null
+    }
+    $lines = @(Get-Content $envFile -ErrorAction SilentlyContinue)
+    $found = $false
+    $updated = foreach ($line in $lines) {
+        if ($line -match '^\s*UPDATE_GITHUB_BRANCH=') {
+            $found = $true
+            "UPDATE_GITHUB_BRANCH=$Branch"
+        } else {
+            $line
+        }
+    }
+    if (-not $found) {
+        $updated = @($updated) + "UPDATE_GITHUB_BRANCH=$Branch"
+    }
+    Set-Content -Path $envFile -Value $updated -Encoding UTF8
+    $script:UPDATE_GITHUB_BRANCH = $Branch
+    $env:UPDATE_GITHUB_BRANCH = $Branch
+    Print-Success "Update channel saved (GitHub branch: $Branch)"
+    return $true
+}
+
+function Switch-UpdateChannel {
+    Print-Header
+    Write-Host "========== UPDATE CHANNEL ==========" -ForegroundColor White
+    Write-Host ""
+    Detect-Installation
+    if ($script:INSTALL_STATUS -eq "none") {
+        Print-Error "BetterDesk is not installed!"
+        Press-Enter
+        return
+    }
+    Read-UpdateGitHubBranchFromEnv
+    Print-Info "Current GitHub branch: $($script:UPDATE_GITHUB_BRANCH)"
+    Write-Host ""
+    $items = @(
+        "Stable (main)`tProduction releases from the main branch",
+        "Development (dev)`tLatest work-in-progress from the dev branch",
+        "Back`tReturn without changes"
+    )
+    $returns = @("main", "dev", "0")
+    Invoke-MenuChoose -Title "Update Channel" -Subtitle "Stable is recommended for production servers" -Items $items -Returns $returns
+    switch ($script:MENU_CHOICE) {
+        "0" { return }
+        "dev" {
+            Print-Warning "Development channel may include unstable changes."
+            Write-UpdateGitHubBranchToEnv -Branch "dev" | Out-Null
+        }
+        default {
+            Write-UpdateGitHubBranchToEnv -Branch "main" | Out-Null
+        }
+    }
+    Print-Info "Run 'Check for updates' in the console or use Online GitHub update to apply."
+    Press-Enter
+}
+
 function Invoke-TerminalProjectUpdate {
     $script:TerminalUpdateExitCode = 2
     $cliPath = Join-Path $script:CONSOLE_PATH "scripts\update-cli.js"
@@ -2974,6 +3051,8 @@ function Invoke-TerminalProjectUpdate {
 function Update-FromGitHub {
     $cloneDir = Join-Path $env:TEMP "betterdesk-update-$PID"
     $script:ServerBuildFailed = $false
+
+    Read-UpdateGitHubBranchFromEnv
 
     # Clean up any leftover clone from a previous failed run
     if (Test-Path $cloneDir) { Remove-Item -Recurse -Force $cloneDir -ErrorAction SilentlyContinue }
@@ -3255,6 +3334,9 @@ function Do-Update {
     Preserve-DatabaseConfig
 
     # ---- Update method selection ----
+    Read-UpdateGitHubBranchFromEnv
+    Print-Info "GitHub update branch: $($script:UPDATE_GITHUB_BRANCH)"
+
     if ($script:AUTO_MODE) {
         Print-Info "Auto mode: using GitHub pull update"
     } else {
@@ -3262,15 +3344,20 @@ function Do-Update {
             "Online update from GitHub`tDownload latest code + rebuild (recommended)",
             "In-app updater`tBuilt-in Node.js commit-aware updater",
             "Local update`tCopy files from this script's directory",
+            "Switch update channel`tChoose stable (main) or development (dev) branch",
             "Back`tReturn to the main menu"
         )
-        $returns = @("1", "2", "3", "0")
+        $returns = @("1", "2", "3", "4", "0")
         Invoke-MenuChoose -Title "Update Method" -Subtitle "Online GitHub update is recommended" -Items $items -Returns $returns
         $updateMethod = $script:MENU_CHOICE
         if (-not $updateMethod) { $updateMethod = "1" }
 
         switch ($updateMethod) {
             "0" {
+                return
+            }
+            "4" {
+                Switch-UpdateChannel
                 return
             }
             "2" {

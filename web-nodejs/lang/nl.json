@@ -3308,7 +3308,16 @@
     "rebuild_server": "Serverbinary opnieuw bouwen",
     "rebuilding_server": "Server opnieuw bouwen...",
     "rebuild_server_success": "Serverbinary opnieuw gebouwd en herstart",
-    "rebuild_server_failed": "Serverbinary kon niet opnieuw worden gebouwd"
+    "rebuild_server_failed": "Serverbinary kon niet opnieuw worden gebouwd",
+    "channel_title": "Updatekanaal",
+    "channel_desc": "Stable volgt de main-branch (productiereleases). Development volgt de dev-branch (lopend werk). Het wijzigen van het kanaal bepaalt van welke GitHub-branch updates komen.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub-branch",
+    "channel_save": "Kanaal toepassen",
+    "channel_saved": "Updatekanaal opgeslagen. Controleer updates tegen de nieuwe branch.",
+    "channel_save_failed": "Updatekanaal opslaan mislukt",
+    "channel_switch_warning": "Kanaalwijziging verandert de GitHub-branch. Bijgehouden commit-SHA blijft — volgende check kan groot verschil tonen. Doorgaan?"
   },
   "permissions": {
     "title": "Machtigingen",

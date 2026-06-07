@@ -3314,7 +3314,16 @@
     "refresh_recommended": "Statiske eiendeler endret – last inn siden på nytt for å se det nye brukergrensesnittet.",
     "confirm_title": "Bruk oppdatering",
     "confirm_with_backup": "En forhåndsoppdatering opprettes automatisk.",
-    "confirm_no_backup": "Ingen sikkerhetskopi vil bli opprettet (fortsett på egen risiko)."
+    "confirm_no_backup": "Ingen sikkerhetskopi vil bli opprettet (fortsett på egen risiko).",
+    "channel_title": "Oppdateringskanal",
+    "channel_desc": "Stable følger main-grenen (produksjonsutgivelser). Development følger dev-grenen (pågående arbeid). Kanalbytte endrer hvilken GitHub-gren oppdateringer hentes fra.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "GitHub-gren",
+    "channel_save": "Bruk kanal",
+    "channel_saved": "Oppdateringskanal lagret. Sjekk oppdateringer mot ny gren.",
+    "channel_save_failed": "Kunne ikke lagre oppdateringskanal",
+    "channel_switch_warning": "Kanalbytte endrer GitHub-gren. Sporet commit-SHA beholdes — neste sjekk kan vise stor forskjell. Fortsette?"
   },
   "permissions": {
     "title": "Tillatelser",

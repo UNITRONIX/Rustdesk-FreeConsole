@@ -3314,7 +3314,16 @@
     "rebuild_server": "Перебудувати двійковий файл сервера",
     "rebuilding_server": "Перебудова…",
     "rebuild_server_success": "Двійковий файл сервера перебудовано та перезапущено",
-    "rebuild_server_failed": "Помилка двійкового відновлення сервера"
+    "rebuild_server_failed": "Помилка двійкового відновлення сервера",
+    "channel_title": "Канал оновлень",
+    "channel_desc": "Stable стежить за гілкою main (продакшн-релізи). Development — за гілкою dev (поточна розробка). Зміна каналу змінює гілку GitHub для оновлень.",
+    "channel_stable": "Stable (main)",
+    "channel_development": "Development (dev)",
+    "channel_branch_label": "Гілка GitHub",
+    "channel_save": "Застосувати канал",
+    "channel_saved": "Канал оновлень збережено. Перевірте оновлення для нової гілки.",
+    "channel_save_failed": "Не вдалося зберегти канал оновлень",
+    "channel_switch_warning": "Зміна каналу змінює гілку GitHub. Відстежуваний SHA commit залишається — наступна перевірка може показати велику різницю. Продовжити?"
   },
   "permissions": {
     "title": "Дозволи",
