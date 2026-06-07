@@ -3310,14 +3310,17 @@
     "confirm_with_backup": "Se creará automáticamente una copia de seguridad previa.",
     "confirm_no_backup": "No se creará copia de seguridad (continúa bajo tu propio riesgo).",
     "channel_title": "Canal de actualización",
-    "channel_desc": "Stable sigue la rama main (versiones de producción). Development sigue la rama dev (trabajo en curso). Cambiar el canal afecta desde qué rama de GitHub se obtienen las actualizaciones.",
+    "channel_desc": "Elige de dónde el panel busca actualizaciones. En producción usa Stable.",
     "channel_stable": "Stable (main)",
     "channel_development": "Development (dev)",
     "channel_branch_label": "Rama de GitHub",
-    "channel_save": "Aplicar canal",
-    "channel_saved": "Canal de actualización guardado. Compruebe actualizaciones con la nueva rama.",
+    "channel_save": "Cambiar canal",
+    "channel_saved": "Canal cambiado. Pulse Comprobar actualizaciones.",
     "channel_save_failed": "No se pudo guardar el canal de actualización",
-    "channel_switch_warning": "Cambiar el canal modifica la rama GitHub usada. Se conserva el SHA rastreado — la próxima comprobación puede mostrar una gran diferencia. ¿Continuar?"
+    "channel_switch_warning": "Cambiar el canal modifica la rama GitHub usada. Se conserva el SHA rastreado — la próxima comprobación puede mostrar una gran diferencia. ¿Continuar?",
+    "channel_pick_label": "Cambiar a",
+    "channel_apply_hint": "Tras confirmar se guarda al instante. Luego pulse Comprobar actualizaciones.",
+    "channel_confirm_switch": "¿Cambiar origen de {from} a {to}? El commit instalado se mantiene hasta comprobar actualizaciones."
   },
   "permissions": {
     "title": "Permisos",

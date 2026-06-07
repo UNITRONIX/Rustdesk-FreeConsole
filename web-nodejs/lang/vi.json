@@ -3316,14 +3316,17 @@
     "confirm_with_backup": "Một bản sao lưu cập nhật trước sẽ được tạo tự động.",
     "confirm_no_backup": "Sẽ không có bản sao lưu nào được tạo (bạn tự chịu rủi ro khi tiếp tục).",
     "channel_title": "Kênh cập nhật",
-    "channel_desc": "Stable theo dõi nhánh main (bản phát hành production). Development theo dõi nhánh dev (công việc đang tiến hành). Đổi kênh sẽ đổi nhánh GitHub lấy bản cập nhật.",
+    "channel_desc": "Chọn nguồn panel kiểm tra cập nhật. Môi trường production nên dùng Stable.",
     "channel_stable": "Stable (main)",
     "channel_development": "Development (dev)",
     "channel_branch_label": "Nhánh GitHub",
-    "channel_save": "Áp dụng kênh",
-    "channel_saved": "Đã lưu kênh cập nhật. Kiểm tra cập nhật với nhánh mới.",
+    "channel_save": "Đổi kênh",
+    "channel_saved": "Đã đổi kênh. Bấm Kiểm tra cập nhật.",
     "channel_save_failed": "Không thể lưu kênh cập nhật",
-    "channel_switch_warning": "Đổi kênh sẽ đổi nhánh GitHub. SHA commit theo dõi được giữ — lần kiểm tra sau có thể hiện chênh lệch lớn. Tiếp tục?"
+    "channel_switch_warning": "Đổi kênh sẽ đổi nhánh GitHub. SHA commit theo dõi được giữ — lần kiểm tra sau có thể hiện chênh lệch lớn. Tiếp tục?",
+    "channel_pick_label": "Chuyển sang",
+    "channel_apply_hint": "Lưu ngay sau khi xác nhận. Sau đó bấm Kiểm tra cập nhật.",
+    "channel_confirm_switch": "Chuyển nguồn từ {from} sang {to}? Commit đã cài giữ nguyên cho đến khi kiểm tra cập nhật."
   },
   "permissions": {
     "title": "Quyền",

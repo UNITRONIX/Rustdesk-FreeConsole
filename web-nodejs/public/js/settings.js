@@ -1549,6 +1549,8 @@
     // ==================== Self-Update ====================
     
     let _updateState = { remoteSHA: null, changedData: null };
+    let _updateChannelSaved = null;
+    let _updateChannelBusy = false;
     
     function initUpdateSection() {
         const checkBtn = document.getElementById('update-check-btn');
@@ -1564,12 +1566,20 @@
         loadServerBinaryStatus();
 
         loadUpdateChannel();
-        const channelSaveBtn = document.getElementById('update-channel-save-btn');
-        channelSaveBtn?.addEventListener('click', saveUpdateChannel);
+        const channelSelect = document.getElementById('update-channel-select');
+        channelSelect?.addEventListener('change', onUpdateChannelSelectChange);
 
         loadUpdateBackups();
         loadBackupRetention();
         loadLastUpdateResult();
+    }
+
+    function renderUpdateChannelBadge(data) {
+        const badge = document.getElementById('update-channel-active-badge');
+        if (!badge || !data?.channel) return;
+        const isDev = data.channel === 'development';
+        badge.className = `badge badge-sm ${isDev ? 'badge-warning' : 'badge-success'}`;
+        badge.textContent = isDev ? _('updates.channel_development') : _('updates.channel_stable');
     }
 
     async function loadUpdateChannel() {
@@ -1579,10 +1589,12 @@
         try {
             const payload = await Utils.api('/api/settings/updates/channel');
             const data = payload?.data ?? payload;
+            _updateChannelSaved = data?.channel || 'stable';
             if (data?.channel) select.value = data.channel;
+            renderUpdateChannelBadge(data);
             if (branchEl) {
                 branchEl.textContent = data?.branch
-                    ? `${data.branch} (${data.owner || 'UNITRONIX'}/${data.repo || 'BetterDesk'})`
+                    ? `${data.branch} · ${data.owner || 'UNITRONIX'}/${data.repo || 'BetterDesk'}`
                     : '—';
             }
         } catch (_e) {
@@ -1590,21 +1602,40 @@
         }
     }
 
-    async function saveUpdateChannel() {
+    function channelToBranch(channel) {
+        return channel === 'development' ? 'dev' : 'main';
+    }
+
+    async function onUpdateChannelSelectChange() {
+        if (_updateChannelBusy) return;
         const select = document.getElementById('update-channel-select');
-        const btn = document.getElementById('update-channel-save-btn');
-        if (!select || !btn) return;
+        if (!select) return;
 
         const channel = select.value;
+        if (channel === _updateChannelSaved) return;
+
+        const previous = _updateChannelSaved || 'stable';
         const confirmed = await Modal.confirm({
             title: _('updates.channel_save'),
-            message: _('updates.channel_switch_warning'),
+            message: _('updates.channel_confirm_switch', {
+                from: channelToBranch(previous),
+                to: channelToBranch(channel)
+            }),
             confirmLabel: _('updates.channel_save'),
             confirmIcon: 'alt_route'
         });
-        if (!confirmed) return;
 
-        btn.disabled = true;
+        if (!confirmed) {
+            select.value = _updateChannelSaved || 'stable';
+            return;
+        }
+
+        await persistUpdateChannel(channel, select);
+    }
+
+    async function persistUpdateChannel(channel, selectEl) {
+        _updateChannelBusy = true;
+        if (selectEl) selectEl.disabled = true;
         try {
             const payload = await Utils.api('/api/settings/updates/channel', {
                 method: 'POST',
@@ -1612,6 +1643,7 @@
                 body: JSON.stringify({ channel })
             });
             const data = payload?.data ?? payload;
+            _updateChannelSaved = channel;
             await loadUpdateChannel();
             Notifications.success(_('updates.channel_saved'));
             if (data?.previousBranch && data.previousBranch !== data.branch) {
@@ -1619,11 +1651,17 @@
                 _updateState.changedData = null;
                 const detailsSection = document.getElementById('update-details-section');
                 if (detailsSection) detailsSection.style.display = 'none';
+                const remoteEl = document.getElementById('update-remote-version');
+                if (remoteEl) remoteEl.textContent = '—';
+                const statusRow = document.getElementById('update-status-row');
+                if (statusRow) statusRow.style.display = 'none';
             }
         } catch (error) {
+            if (selectEl) selectEl.value = _updateChannelSaved || 'stable';
             Notifications.error(error.message || _('updates.channel_save_failed'));
         } finally {
-            btn.disabled = false;
+            _updateChannelBusy = false;
+            if (selectEl) selectEl.disabled = false;
         }
     }
 

@@ -3381,14 +3381,17 @@
     "confirm_with_backup": "将自动创建更新前备份。",
     "confirm_no_backup": "不会创建备份（风险自担）。",
     "channel_title": "更新通道",
-    "channel_desc": "Stable 跟踪 main 分支（生产发布）。Development 跟踪 dev 分支（进行中的最新工作）。更改通道会影响从哪个 GitHub 分支拉取更新。",
+    "channel_desc": "选择面板检查更新的来源。生产环境请使用 Stable。",
     "channel_stable": "Stable (main)",
     "channel_development": "Development (dev)",
     "channel_branch_label": "GitHub 分支",
-    "channel_save": "应用通道",
-    "channel_saved": "更新通道已保存。请检查更新以对比新分支。",
+    "channel_save": "切换通道",
+    "channel_saved": "通道已切换。请点击检查更新。",
     "channel_save_failed": "保存更新通道失败",
-    "channel_switch_warning": "更改通道会改变 GitHub 分支。已跟踪的 commit SHA 会保留 — 下次检查可能显示较大差异。继续？"
+    "channel_switch_warning": "更改通道会改变 GitHub 分支。已跟踪的 commit SHA 会保留 — 下次检查可能显示较大差异。继续？",
+    "channel_pick_label": "切换到",
+    "channel_apply_hint": "确认后立即保存。然后点击检查更新。",
+    "channel_confirm_switch": "将更新源从 {from} 切换到 {to}？在点击检查更新之前，已安装的 commit 基准不变。"
   },
   "accessibility": {
     "title": "无障碍",

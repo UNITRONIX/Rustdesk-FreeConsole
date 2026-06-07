@@ -3310,14 +3310,17 @@
     "confirm_with_backup": "업데이트 전 백업이 자동으로 생성됩니다.",
     "confirm_no_backup": "백업이 생성되지 않습니다(진행에 따른 책임은 본인에게 있습니다).",
     "channel_title": "업데이트 채널",
-    "channel_desc": "Stable은 main 브랜치(프로덕션 릴리스)를 추적합니다. Development는 dev 브랜치(진행 중인 작업)를 추적합니다. 채널 변경 시 GitHub 브랜치가 바뀝니다.",
+    "channel_desc": "패널이 업데이트를 확인할 소스를 선택하세요. 운영 서버는 Stable을 사용하세요.",
     "channel_stable": "Stable (main)",
     "channel_development": "Development (dev)",
     "channel_branch_label": "GitHub 브랜치",
-    "channel_save": "채널 적용",
-    "channel_saved": "업데이트 채널이 저장되었습니다. 새 브랜치로 업데이트를 확인하세요.",
+    "channel_save": "채널 전환",
+    "channel_saved": "채널이 전환되었습니다. 업데이트 확인을 클릭하세요.",
     "channel_save_failed": "업데이트 채널 저장 실패",
-    "channel_switch_warning": "채널 변경 시 GitHub 브랜치가 바뀝니다. 추적 중인 commit SHA는 유지됩니다 — 다음 확인에서 큰 차이가 보일 수 있습니다. 계속할까요?"
+    "channel_switch_warning": "채널 변경 시 GitHub 브랜치가 바뀝니다. 추적 중인 commit SHA는 유지됩니다 — 다음 확인에서 큰 차이가 보일 수 있습니다. 계속할까요?",
+    "channel_pick_label": "전환",
+    "channel_apply_hint": "확인 후 즉시 저장됩니다. 그다음 업데이트 확인을 클릭하세요.",
+    "channel_confirm_switch": "{from}에서 {to}(으)로 전환할까요? 업데이트 확인 전까지 설치된 commit은 유지됩니다."
   },
   "permissions": {
     "title": "권한",

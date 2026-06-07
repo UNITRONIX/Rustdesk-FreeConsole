@@ -3316,14 +3316,17 @@
     "confirm_with_backup": "En föruppdateringssäkerhetskopia skapas automatiskt.",
     "confirm_no_backup": "Ingen säkerhetskopia kommer att skapas (fortsätt på egen risk).",
     "channel_title": "Uppdateringskanal",
-    "channel_desc": "Stable följer main-grenen (produktionsreleaser). Development följer dev-grenen (pågående arbete). Byte av kanal ändrar vilken GitHub-gren uppdateringar hämtas från.",
+    "channel_desc": "Välj var panelen söker uppdateringar. Produktion ska använda Stable.",
     "channel_stable": "Stable (main)",
     "channel_development": "Development (dev)",
     "channel_branch_label": "GitHub-gren",
-    "channel_save": "Tillämpa kanal",
-    "channel_saved": "Uppdateringskanal sparad. Kontrollera uppdateringar mot nya grenen.",
+    "channel_save": "Byt kanal",
+    "channel_saved": "Kanal bytt. Klicka Sök uppdateringar.",
     "channel_save_failed": "Kunde inte spara uppdateringskanal",
-    "channel_switch_warning": "Kanalbyte ändrar GitHub-gren. Spårat commit-SHA behålls — nästa kontroll kan visa stor skillnad. Fortsätta?"
+    "channel_switch_warning": "Kanalbyte ändrar GitHub-gren. Spårat commit-SHA behålls — nästa kontroll kan visa stor skillnad. Fortsätta?",
+    "channel_pick_label": "Byt till",
+    "channel_apply_hint": "Sparas direkt efter bekräftelse. Klicka sedan Sök uppdateringar.",
+    "channel_confirm_switch": "Byt källa från {from} till {to}? Installerad commit kvar tills du söker uppdateringar."
   },
   "permissions": {
     "title": "Behörigheter",

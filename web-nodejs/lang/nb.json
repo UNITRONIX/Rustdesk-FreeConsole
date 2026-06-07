@@ -3316,14 +3316,17 @@
     "confirm_with_backup": "En forhåndsoppdatering opprettes automatisk.",
     "confirm_no_backup": "Ingen sikkerhetskopi vil bli opprettet (fortsett på egen risiko).",
     "channel_title": "Oppdateringskanal",
-    "channel_desc": "Stable følger main-grenen (produksjonsutgivelser). Development følger dev-grenen (pågående arbeid). Kanalbytte endrer hvilken GitHub-gren oppdateringer hentes fra.",
+    "channel_desc": "Velg hvor panelet sjekker oppdateringer. Produksjon bør bruke Stable.",
     "channel_stable": "Stable (main)",
     "channel_development": "Development (dev)",
     "channel_branch_label": "GitHub-gren",
-    "channel_save": "Bruk kanal",
-    "channel_saved": "Oppdateringskanal lagret. Sjekk oppdateringer mot ny gren.",
+    "channel_save": "Bytt kanal",
+    "channel_saved": "Kanal byttet. Klikk Se etter oppdateringer.",
     "channel_save_failed": "Kunne ikke lagre oppdateringskanal",
-    "channel_switch_warning": "Kanalbytte endrer GitHub-gren. Sporet commit-SHA beholdes — neste sjekk kan vise stor forskjell. Fortsette?"
+    "channel_switch_warning": "Kanalbytte endrer GitHub-gren. Sporet commit-SHA beholdes — neste sjekk kan vise stor forskjell. Fortsette?",
+    "channel_pick_label": "Bytt til",
+    "channel_apply_hint": "Lagres etter bekreftelse. Klikk deretter Se etter oppdateringer.",
+    "channel_confirm_switch": "Bytt kilde fra {from} til {to}? Installert commit beholdes til oppdateringssjekk."
   },
   "permissions": {
     "title": "Tillatelser",
