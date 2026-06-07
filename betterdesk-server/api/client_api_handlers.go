@@ -113,7 +113,9 @@ func rustdeskUserPayload(username, role string) map[string]any {
 //
 // Response (2FA required):
 //
-//	{ "type": "tfa_check", "tfa_type": "totp", "secret": "hex..." }
+//	{ "type": "email_check", "tfa_type": "tfa_check", "secret": "hex..." }
+//
+// RustDesk 1.4.7+ expects email_check + tfa_type tfa_check (not type tfa_check).
 func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 	clientIP := s.remoteIP(r)
 
@@ -200,8 +202,8 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
-			"type":     "tfa_check",
-			"tfa_type": "totp",
+			"type":     "email_check",
+			"tfa_type": "tfa_check",
 			"secret":   tfaSecret,
 		})
 		return

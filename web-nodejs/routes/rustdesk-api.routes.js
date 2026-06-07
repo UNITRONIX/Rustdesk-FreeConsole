@@ -572,6 +572,20 @@ async function getRustDeskPeerList(user, params = {}) {
         folderNames = new Map(folders.map(folder => [Number.parseInt(folder.id, 10), folder.name]));
     } catch (_) { /* non-critical */ }
 
+    const manualGroupNameByPeer = new Map();
+    try {
+        const deviceGroups = await getRustDeskDeviceGroups(user);
+        for (const group of deviceGroups) {
+            if (folderIdFromGroupGuid(group.guid) !== null) continue;
+            for (const id of group.peer_ids || []) {
+                const key = String(id);
+                if (!manualGroupNameByPeer.has(key)) {
+                    manualGroupNameByPeer.set(key, group.name || '');
+                }
+            }
+        }
+    } catch (_) { /* non-critical */ }
+
     const allSysinfo = await db.getAllPeerSysinfo();
     const sysinfoMap = {};
     for (const sysinfo of allSysinfo) {
@@ -582,8 +596,9 @@ async function getRustDeskPeerList(user, params = {}) {
         const sysinfo = sysinfoMap[device.id] || {};
         const tags = addressBookSync.normalizeTags(device.tags);
         const folderId = getDeviceFolderId(device);
-        const deviceGroupGuid = folderId ? folderGroupGuid(folderId) : '';
-        const deviceGroupName = folderId ? (folderNames.get(folderId) || '') : '';
+        const deviceGroupName = folderId
+            ? (folderNames.get(folderId) || '')
+            : (manualGroupNameByPeer.get(String(device.id)) || '');
         const hostname = sysinfo.hostname || device.hostname || '';
         const username = sysinfo.username || device.username || device.user || '';
         const platform = sysinfo.platform || device.platform || device.os || '';
@@ -1240,7 +1255,7 @@ router.get('/api/software', (req, res) => {
  * 
  * Response types:
  *   { type: "access_token", access_token, user } — success
- *   { type: "tfa_check", tfa_type: "totp", secret } — 2FA required
+ *   { type: "email_check", tfa_type: "tfa_check", secret } — 2FA required (RustDesk 1.4.7+)
  */
 router.post('/api/login', async (req, res) => {
     const ip = getClientIp(req);
@@ -1382,8 +1397,8 @@ router.post('/api/login', async (req, res) => {
             await db.logAction(user.id, 'api_login_tfa_required', `Client: ${clientId || 'unknown'}`, ip);
 
             return res.json({
-                type: 'tfa_check',
-                tfa_type: 'totp',
+                type: 'email_check',
+                tfa_type: 'tfa_check',
                 secret: tfaSessionSecret
             });
         }
