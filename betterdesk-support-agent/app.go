@@ -25,7 +25,7 @@ type ui struct {
 	engine    *Engine
 	overlay   *sessionOverlay
 	pwShown   bool
-	pwLabel   *widget.Label
+	pwValueLbl *widget.Label
 	pwBox     fyne.CanvasObject
 	statusLbl *widget.Label
 	statusDot *canvas.Rectangle
@@ -179,13 +179,26 @@ func (u *ui) consentLoop() {
 		granted := false
 		done := make(chan struct{})
 		msg := t("consent_prompt") + " " + req.operator
-		d := dialog.NewConfirm(t("consent_title"), msg, func(ok bool) {
-			granted = ok
+		acceptBtn := widget.NewButton(t("consent_accept"), func() {
+			granted = true
 			close(done)
-		}, u.win)
+		})
+		acceptBtn.Importance = widget.HighImportance
+		denyBtn := widget.NewButton(t("consent_deny"), func() {
+			close(done)
+		})
+		body := container.NewVBox(
+			widget.NewLabel(msg),
+			container.NewGridWithColumns(2, acceptBtn, denyBtn),
+		)
+		d := dialog.NewCustom(t("consent_title"), t("cancel"), body, u.win)
 		d.Show()
 		<-done
+		d.Hide()
 		req.response <- granted
+		appLogInfo("consent", "remote access consent answered", map[string]any{
+			"session_id": req.sessionID, "operator": req.operator, "granted": granted,
+		})
 	}
 }
 
@@ -224,8 +237,8 @@ func (u *ui) buildContent() fyne.CanvasObject {
 	if u.pwShown {
 		displayPw = password
 	}
-	u.pwLabel = widget.NewLabel(displayPw) // kept for refreshPassword
-	u.pwBox = u.newInfoBox(t("access_password"), displayPw, true, func() {
+	u.pwValueLbl = widget.NewLabelWithStyle(displayPw, fyne.TextAlignLeading, fyne.TextStyle{Bold: true, Monospace: true})
+	u.pwBox = u.newInfoBox(t("access_password"), u.pwValueLbl, true, func() {
 		_, _, pw, _ := u.state.Snapshot()
 		u.win.Clipboard().SetContent(pw)
 		u.notify(t("copied"))
@@ -398,19 +411,27 @@ func (u *ui) onModeChange(label string) {
 	_ = custom
 }
 
+func (u *ui) rebuildMainLayout() {
+	u.win.SetContent(u.buildMainLayout())
+}
+
 func (u *ui) refreshPassword() {
-	// Password box is rebuilt on settings save; notify user when changed from settings.
 	_, mode, pw, custom := u.state.Snapshot()
 	display := maskPassword(pw)
 	if u.pwShown {
 		display = pw
 	}
+	if u.pwValueLbl != nil {
+		u.pwValueLbl.SetText(display)
+	}
 	if u.pwBox != nil {
 		if u.shouldShowPasswordBox(mode, custom) {
 			u.pwBox.Show()
+		} else {
+			u.pwBox.Hide()
 		}
+		u.pwBox.Refresh()
 	}
-	_ = display
 }
 
 func (u *ui) setupTray() {

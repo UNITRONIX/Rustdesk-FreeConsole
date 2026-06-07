@@ -15,6 +15,8 @@ type Config struct {
 
 	Password   func() string
 	Unattended func() bool
+	TOTPEnabled func() bool
+	TOTPVerify  func(code string) bool
 	Consent    func(operator string) bool
 	OnSession  func(start bool, operator string)
 }

@@ -17,9 +17,9 @@ func (u *ui) showSettings() {
 	modeSelect := widget.NewSelect(modeOptions, nil)
 	modeSelect.SetSelected(modeLabel(mode))
 
-	langOptions := []string{"en", "pl"}
+	langOptions := languageOptions()
 	langSelect := widget.NewSelect(langOptions, nil)
-	langSelect.SetSelected(u.state.Language)
+	langSelect.SetSelected(languageOptionForCode(u.state.Language))
 
 	content := container.NewVBox(
 		widget.NewLabelWithStyle(t("settings"), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
@@ -47,12 +47,14 @@ func (u *ui) showSettings() {
 		if sel := modeSelect.Selected; sel != "" {
 			u.onModeChange(sel)
 		}
-		if lang := langSelect.Selected; lang != "" && lang != u.state.Language {
+		langChanged := false
+		if lang := languageCodeFromOption(langSelect.Selected); lang != "" && lang != u.state.Language {
 			if err := u.state.SetLanguage(lang); err != nil {
 				u.notify(err.Error())
 				return
 			}
 			setLang(lang)
+			langChanged = true
 		}
 		_, newMode, _, newCustom := u.state.Snapshot()
 		if u.pwBox != nil {
@@ -62,8 +64,11 @@ func (u *ui) showSettings() {
 				u.pwBox.Hide()
 			}
 		}
+		if langChanged {
+			u.rebuildMainLayout()
+		}
 		log.Printf("[support-agent] settings saved device=%s mode=%s", deviceID, newMode)
 	}, u.win)
-	d.Resize(fyne.NewSize(440, 360))
+	d.Resize(fyne.NewSize(480, 380))
 	d.Show()
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"strings"
 	"unicode"
@@ -39,7 +40,7 @@ func (u *ui) brandedTheme() *brandedTheme {
 }
 
 // newInfoBox renders a large branded ID/password box matching the generator preview.
-func (u *ui) newInfoBox(title, value string, monospace bool, onCopy func()) fyne.CanvasObject {
+func (u *ui) newInfoBox(title string, value any, monospace bool, onCopy func()) fyne.CanvasObject {
 	th := u.brandedTheme()
 	bg := canvas.NewRectangle(th.surface)
 	bg.CornerRadius = 10
@@ -47,11 +48,20 @@ func (u *ui) newInfoBox(title, value string, monospace bool, onCopy func()) fyne
 	titleLbl := widget.NewLabelWithStyle(strings.ToUpper(title), fyne.TextAlignLeading, fyne.TextStyle{})
 	titleLbl.Importance = widget.LowImportance
 
-	style := fyne.TextStyle{Bold: true}
-	if monospace {
-		style.Monospace = true
+	var valueWidget fyne.CanvasObject
+	if lbl, ok := value.(*widget.Label); ok {
+		valueWidget = lbl
+	} else if s, ok := value.(string); ok {
+		style := fyne.TextStyle{Bold: true}
+		if monospace {
+			style.Monospace = true
+		}
+		valueWidget = widget.NewLabelWithStyle(s, fyne.TextAlignLeading, style)
+	} else if co, ok := value.(fyne.CanvasObject); ok {
+		valueWidget = co
+	} else {
+		valueWidget = widget.NewLabel(fmt.Sprint(value))
 	}
-	valueLbl := widget.NewLabelWithStyle(value, fyne.TextAlignLeading, style)
 
 	copyBtn := widget.NewButtonWithIcon("", theme.ContentCopyIcon(), func() {
 		if onCopy != nil {
@@ -60,7 +70,7 @@ func (u *ui) newInfoBox(title, value string, monospace bool, onCopy func()) fyne
 	})
 	copyBtn.Importance = widget.LowImportance
 
-	valueRow := container.NewBorder(nil, nil, nil, copyBtn, valueLbl)
+	valueRow := container.NewBorder(nil, nil, nil, copyBtn, valueWidget)
 	inner := container.NewVBox(titleLbl, valueRow)
 	return container.NewStack(bg, container.NewPadded(inner))
 }

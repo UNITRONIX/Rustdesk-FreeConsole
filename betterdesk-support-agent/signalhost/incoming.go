@@ -8,12 +8,17 @@ import (
 	"io"
 	"log"
 	"net"
+	"runtime"
 	"time"
 
-	bdagent "github.com/unitronix/betterdesk-agent/agent"
-	"github.com/unitronix/betterdesk-server/codec"
 	pb "github.com/unitronix/betterdesk-server/proto"
+	"github.com/unitronix/betterdesk-server/codec"
 	"google.golang.org/protobuf/proto"
+)
+
+const (
+	loginErr2FARequired = "2FA Required"
+	publicKeyWait       = 1500 * time.Millisecond
 )
 
 func (h *Host) handleIncomingRelay(relayServer, uuid string) {
@@ -45,13 +50,25 @@ func (h *Host) handleIncomingRelay(relayServer, uuid string) {
 		return
 	}
 
-	// Relay confirmation (optional)
-	if _, err := codec.ReadRawBytes(conn, 5*time.Second); err != nil {
-		log.Printf("[signalhost] relay confirm: %v", err)
-	}
+	skipRelayConfirm(conn)
 
 	if err := h.runPeerSession(conn); err != nil {
 		log.Printf("[signalhost] session ended: %v", err)
+	}
+}
+
+func skipRelayConfirm(conn net.Conn) {
+	raw, err := readPeerFrame(conn, 2*time.Second)
+	if err != nil {
+		return
+	}
+	rdz := &pb.RendezvousMessage{}
+	if err := proto.Unmarshal(raw, rdz); err != nil {
+		log.Printf("[signalhost] relay first frame not rendezvous (len=%d)", len(raw))
+		return
+	}
+	if rdz.GetRelayResponse() != nil {
+		log.Printf("[signalhost] skipped relay confirmation")
 	}
 }
 
@@ -61,28 +78,40 @@ func hasPort(hostport string) bool {
 }
 
 func (h *Host) runPeerSession(conn net.Conn) error {
-	// SignedId with ephemeral X25519 placeholder (64 zero sig + IdPk)
-	idPk := &pb.IdPk{Id: h.cfg.DeviceID, Pk: make([]byte, 32)}
-	idPkBytes, _ := proto.Marshal(idPk)
-	signed := append(make([]byte, 64), idPkBytes...)
-	msg := &pb.Message{Union: &pb.Message_SignedId{SignedId: &pb.SignedId{Id: signed}}}
-	if err := writePeerMessage(conn, msg); err != nil {
+	ephemeral, err := generateEphemeralKeyPair()
+	if err != nil {
 		return err
+	}
+
+	ps := newPeerSession(conn)
+
+	signedID, err := buildSignedID(h.cfg.DeviceID, ephemeral.public)
+	if err != nil {
+		return err
+	}
+	if err := ps.write(signedID); err != nil {
+		return err
+	}
+	log.Printf("[signalhost] sent SignedId (device=%s)", h.cfg.DeviceID)
+
+	// RustDesk initiators send PublicKey; RDClient waits for plaintext Hash.
+	if err := h.waitPublicKey(ps, ephemeral); err != nil {
+		log.Printf("[signalhost] plaintext relay mode: %v", err)
 	}
 
 	salt := randomToken()
 	challenge := randomToken()
-	if err := writePeerMessage(conn, &pb.Message{Union: &pb.Message_Hash{Hash: &pb.Hash{Salt: salt, Challenge: challenge}}}); err != nil {
+	if err := ps.write(&pb.Message{Union: &pb.Message_Hash{Hash: &pb.Hash{Salt: salt, Challenge: challenge}}}); err != nil {
 		return err
 	}
 
-	frame, err := readPeerMessage(conn)
+	frame, err := ps.read(60 * time.Second)
 	if err != nil {
 		return err
 	}
 	login := frame.GetLoginRequest()
 	if login == nil {
-		return fmt.Errorf("expected LoginRequest")
+		return fmt.Errorf("expected LoginRequest, got %T", frame.GetUnion())
 	}
 
 	operator := login.GetMyName()
@@ -96,19 +125,38 @@ func (h *Host) runPeerSession(conn net.Conn) error {
 	}
 	unattended := h.cfg.Unattended != nil && h.cfg.Unattended()
 
-	if pw != "" && !unattended {
+	if pw != "" {
 		expected := hashPassword(pw, salt, challenge)
 		if !bytes.Equal(login.GetPassword(), expected[:]) {
-			_ = writePeerMessage(conn, &pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
 				Union: &pb.LoginResponse_Error{Error: "Wrong Password"},
 			}}})
 			return fmt.Errorf("wrong password")
 		}
 	}
 
+	if h.cfg.TOTPEnabled != nil && h.cfg.TOTPEnabled() {
+		if err := ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			Union: &pb.LoginResponse_Error{Error: loginErr2FARequired},
+		}}}); err != nil {
+			return err
+		}
+		authFrame, err := ps.read(60 * time.Second)
+		if err != nil {
+			return err
+		}
+		auth2fa := authFrame.GetAuth_2Fa()
+		if auth2fa == nil || h.cfg.TOTPVerify == nil || !h.cfg.TOTPVerify(auth2fa.GetCode()) {
+			_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+				Union: &pb.LoginResponse_Error{Error: "Wrong 2FA code"},
+			}}})
+			return fmt.Errorf("wrong 2fa code")
+		}
+	}
+
 	if !unattended && h.cfg.Consent != nil {
 		if !h.cfg.Consent(operator) {
-			_ = writePeerMessage(conn, &pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
 				Union: &pb.LoginResponse_Error{Error: "Connection denied"},
 			}}})
 			return fmt.Errorf("consent denied")
@@ -120,78 +168,47 @@ func (h *Host) runPeerSession(conn net.Conn) error {
 		defer h.cfg.OnSession(false, operator)
 	}
 
-	peerInfo := &pb.PeerInfo{
-		Username: "user",
-		Hostname: h.cfg.DeviceID,
-		Platform: "linux",
-		Version:  "1",
-	}
-	if err := writePeerMessage(conn, &pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+	peerInfo, _, _ := buildPeerInfo(h.cfg.DeviceID)
+	if err := ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
 		Union: &pb.LoginResponse_PeerInfo{PeerInfo: peerInfo},
 	}}}); err != nil {
 		return err
 	}
+	log.Printf("[signalhost] authenticated operator=%s encrypted=%v platform=%s", operator, ps.encrypted, runtime.GOOS)
 
-	return h.streamScreenshots(conn)
+	return h.streamSession(ps)
 }
 
-func (h *Host) streamScreenshots(conn net.Conn) error {
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
-	var pts int64
-	for range ticker.C {
-		jpeg, err := bdagent.CaptureScreenshotJPEG()
-		if err != nil || len(jpeg) == 0 {
-			continue
+func (h *Host) waitPublicKey(ps *peerSession, ephemeral ephemeralKeyPair) error {
+	raw, err := readPeerFrame(ps.conn, publicKeyWait)
+	if err != nil {
+		if err == io.EOF {
+			return fmt.Errorf("connection closed before PublicKey")
 		}
-		vf := &pb.Message{Union: &pb.Message_VideoFrame{VideoFrame: &pb.VideoFrame{
-			Display: 0,
-			Union: &pb.VideoFrame_Vp9S{Vp9S: &pb.EncodedVideoFrames{
-				Frames: []*pb.EncodedVideoFrame{{Data: jpeg, Key: true, Pts: pts}},
-			}},
-		}}}
-		if err := writePeerMessage(conn, vf); err != nil {
-			return err
-		}
-		pts++
+		return err
 	}
-	return nil
-}
 
-func writePeerMessage(conn net.Conn, msg *pb.Message) error {
-	data, err := proto.Marshal(msg)
+	msg := &pb.Message{}
+	if err := proto.Unmarshal(raw, msg); err != nil {
+		return fmt.Errorf("decode while waiting PublicKey: %w", err)
+	}
+	pk := msg.GetPublicKey()
+	if pk == nil {
+		return fmt.Errorf("first peer frame was not PublicKey")
+	}
+	theirPK := pk.GetAsymmetricValue()
+	sealed := pk.GetSymmetricValue()
+	symKey, err := openPublicKey(ephemeral, theirPK, sealed)
 	if err != nil {
 		return err
 	}
-	return codec.WriteRawBytes(conn, data)
-}
-
-func readPeerMessage(conn net.Conn) (*pb.Message, error) {
-	data, err := codec.ReadRawBytes(conn, 60*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	out := &pb.Message{}
-	if err := proto.Unmarshal(data, out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	ps.enableEncryption(symKey)
+	log.Printf("[signalhost] RustDesk encryption enabled (peer pk %d bytes)", len(theirPK))
+	return nil
 }
 
 func randomToken() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
-}
-
-// DrainPeerInput reads and ignores input events until connection closes.
-func DrainPeerInput(conn net.Conn) {
-	for {
-		if _, err := readPeerMessage(conn); err != nil {
-			if err != io.EOF {
-				return
-			}
-			return
-		}
-	}
 }

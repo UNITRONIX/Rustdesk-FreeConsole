@@ -74,6 +74,7 @@ func (u *ui) setupTOTP() {
 		u.notify(t("totp_setup_failed"))
 		return
 	}
+	_ = u.state.SetTOTP(false, resp.Secret)
 	secretLbl := widget.NewLabel(resp.Secret)
 	uriLbl := widget.NewLabel(resp.URI)
 	codeEntry := widget.NewEntry()
@@ -107,6 +108,8 @@ func (u *ui) enableTOTP(code string) {
 		u.notify(t("totp_invalid_code"))
 		return
 	}
+	_, secret := u.state.TOTPSnapshot()
+	_ = u.state.SetTOTP(true, secret)
 	u.notify(t("totp_enabled_success"))
 }
 
@@ -130,6 +133,7 @@ func (u *ui) disableTOTP() {
 			u.notify(t("totp_invalid_code"))
 			return
 		}
+		_ = u.state.SetTOTP(false, "")
 		u.notify(t("totp_disabled_success"))
 	}, u.win).Show()
 }

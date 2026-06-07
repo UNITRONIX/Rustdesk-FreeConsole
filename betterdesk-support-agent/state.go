@@ -40,6 +40,8 @@ type AppState struct {
 	AccessPassword      string `json:"access_password"`
 	CustomPassword      bool   `json:"custom_password"`
 	Language            string `json:"language"`
+	TOTPEnabled         bool   `json:"totp_enabled,omitempty"`
+	TOTPSecret          string `json:"totp_secret,omitempty"`
 	DeviceToken         string `json:"device_token,omitempty"`
 	EnrollmentStatus    string `json:"enrollment_status,omitempty"`
 	EnrollmentMessage   string `json:"enrollment_message,omitempty"`
@@ -163,8 +165,10 @@ func LoadState() (*AppState, error) {
 		changed = true
 	}
 	if s.Language == "" {
-		s.Language = GetBranding().DefaultLanguage
+		s.Language = resolveInitialLanguage(GetBranding().DefaultLanguage)
 		changed = true
+	} else {
+		s.Language = normalizeLocale(s.Language)
 	}
 	if changed {
 		if err := s.save(); err != nil {
@@ -249,10 +253,30 @@ func (s *AppState) RegeneratePassword() error {
 
 // SetLanguage persists the UI language preference.
 func (s *AppState) SetLanguage(lang string) error {
+	lang = normalizeLocale(lang)
+	if !hasLocale(lang) {
+		lang = "en"
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Language = lang
 	return s.save()
+}
+
+// SetTOTP persists local 2FA state used by the relay host.
+func (s *AppState) SetTOTP(enabled bool, secret string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.TOTPEnabled = enabled
+	s.TOTPSecret = secret
+	return s.save()
+}
+
+// TOTPSnapshot returns device 2FA settings.
+func (s *AppState) TOTPSnapshot() (enabled bool, secret string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.TOTPEnabled, s.TOTPSecret
 }
 
 // Snapshot returns a copy of the user-facing fields without exposing the mutex.

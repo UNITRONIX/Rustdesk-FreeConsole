@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 
+	"github.com/unitronix/betterdesk-server/auth"
 	"github.com/unitronix/betterdesk-support-agent/signalhost"
 )
 
@@ -24,6 +25,14 @@ func (u *ui) startSignalHost() {
 		Unattended: func() bool {
 			_, mode, _, _ := u.state.Snapshot()
 			return mode == AccessUnattended
+		},
+		TOTPEnabled: func() bool {
+			enabled, _ := u.state.TOTPSnapshot()
+			return enabled
+		},
+		TOTPVerify: func(code string) bool {
+			_, secret := u.state.TOTPSnapshot()
+			return secret != "" && auth.ValidateTOTP(secret, code)
 		},
 		Consent: func(operator string) bool {
 			return u.handleConsent("signal", operator)

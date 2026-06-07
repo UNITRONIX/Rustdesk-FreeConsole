@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 )
 
@@ -23,6 +24,14 @@ type InputEvent struct {
 	Text      string   `json:"text"`      // text to type (for "text" event type)
 	Modifiers []string `json:"modifiers"` // ["ctrl", "shift", "alt", "super"]
 	Pressed   bool     `json:"pressed"`   // true=key down, false=key up
+}
+
+// InjectInputEvent injects a keyboard or mouse event using the platform backend.
+func InjectInputEvent(evt *InputEvent) error {
+	if evt == nil {
+		return fmt.Errorf("nil input event")
+	}
+	return injectInput(evt)
 }
 
 // handleDesktopInput dispatches a desktop input event to the platform-specific
