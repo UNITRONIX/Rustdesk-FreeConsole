@@ -8,7 +8,16 @@ const router = express.Router();
 const authService = require('../services/authService');
 const db = require('../services/database');
 const betterdeskApi = require('../services/betterdeskApi');
-const serverAttestation = require('../services/serverAttestation');
+let serverAttestation;
+try {
+    serverAttestation = require('../services/serverAttestation');
+} catch (err) {
+    console.warn('[auth] serverAttestation unavailable:', err.message);
+    serverAttestation = {
+        getLastResult: async () => null,
+        buildPublicSummary: () => ({ tier: null, maxConnections: null })
+    };
+}
 const { guestOnly, requireAuth } = require('../middleware/auth');
 const { loginLimiter, passwordChangeLimiter } = require('../middleware/rateLimiter');
 
