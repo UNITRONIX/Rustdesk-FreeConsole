@@ -278,6 +278,43 @@ func folderGroupGUID(folderID int64) string {
 	return fmt.Sprintf("folder_%d", folderID)
 }
 
+func isFolderGroupGUID(guid string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(guid)), "folder_")
+}
+
+// buildRustDeskPeerManualGroupNames maps peer IDs to panel device-group names.
+// RustDesk desktop filters Available Devices by exact device_group_name match.
+func buildRustDeskPeerManualGroupNames(groups []rustDeskGroup) map[string]string {
+	out := make(map[string]string)
+	for _, g := range groups {
+		if isFolderGroupGUID(g.guid) {
+			continue
+		}
+		for _, id := range g.peerIDs {
+			if _, ok := out[id]; !ok {
+				out[id] = g.name
+			}
+		}
+	}
+	return out
+}
+
+// rustDeskPeerDeviceGroupName is the sidebar group name RustDesk uses to filter peers.
+// Folder assignment wins over manual/tag device groups when both apply.
+func rustDeskPeerDeviceGroupName(
+	peerID string,
+	assignments map[string]int64,
+	folderNames map[int64]string,
+	manualGroupNames map[string]string,
+) string {
+	if fid, ok := assignments[peerID]; ok {
+		if name := folderNames[fid]; name != "" {
+			return name
+		}
+	}
+	return manualGroupNames[peerID]
+}
+
 // rustDeskAccessibleDeviceGroupPayload matches RustDesk DeviceGroupPayload (name only).
 func rustDeskAccessibleDeviceGroupPayload(g rustDeskGroup, index int) map[string]any {
 	return map[string]any{

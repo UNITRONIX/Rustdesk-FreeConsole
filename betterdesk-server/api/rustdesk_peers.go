@@ -83,11 +83,14 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 	params := parseRustDeskPeerListParams(r)
 	peerByID = filterPeersByRustDeskParams(s, peerByID, folderAssignments, params, user, role)
 
+	deviceGroups := s.buildRustDeskDeviceGroupsFromContext(user, role, peerByID, folderAssignments)
+	manualGroupNames := buildRustDeskPeerManualGroupNames(deviceGroups)
+
 	abPeerMap := s.loadAddressBookPeerMap(username)
 
 	result := make([]map[string]any, 0, len(peerByID))
 	for _, p := range peerByID {
-		result = append(result, rustDeskPeerPayload(s, p, folderAssignments, folderNames, sysinfoMap, abPeerMap))
+		result = append(result, rustDeskPeerPayload(s, p, folderAssignments, folderNames, manualGroupNames, sysinfoMap, abPeerMap))
 	}
 
 	total := len(result)
@@ -346,6 +349,7 @@ func rustDeskPeerPayload(
 	p *db.Peer,
 	assignments map[string]int64,
 	folderNames map[int64]string,
+	manualGroupNames map[string]string,
 	sysinfo map[string]db.ConsolePeerSysinfo,
 	abPeer map[string]map[string]any,
 ) map[string]any {
@@ -377,10 +381,7 @@ func rustDeskPeerPayload(
 	}
 
 	tags := splitPeerTags(p.Tags)
-	folderName := ""
-	if fid, ok := assignments[p.ID]; ok {
-		folderName = folderNames[fid]
-	}
+	deviceGroupName := rustDeskPeerDeviceGroupName(p.ID, assignments, folderNames, manualGroupNames)
 
 	alias := p.Note
 	if abPeer != nil {
@@ -399,7 +400,7 @@ func rustDeskPeerPayload(
 		"status": statusInt,
 		"user":   username, "user_name": username,
 		"note":              p.Note,
-		"device_group_name": folderName,
+		"device_group_name": deviceGroupName,
 		"tags":              tags,
 		"online":            online,
 		"alias":             alias,

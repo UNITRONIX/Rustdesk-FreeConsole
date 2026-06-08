@@ -34,6 +34,11 @@ const {
     isPhantomRepairFailure,
     splitUpdateFailures,
 } = require('../lib/updateFailurePolicy');
+const {
+    assessServerBinaryDeployCapability,
+    deployServerBinaryAtomic,
+    resolveDeployScriptPath,
+} = require('../lib/linuxServerBinaryDeploy');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -1376,13 +1381,71 @@ async function _installGoToolchainBody(onProgress, opts = {}) {
     }
 }
 
+/** Refresh Linux sudoers/permissions before server binary deploy (issue #182). */
+function syncLinuxPanelUpdatePrivileges() {
+    if (IS_WINDOWS) return { skipped: true, reason: 'not-linux' };
+    try {
+        const modPath = require.resolve('../scripts/linux-ensure-console-user');
+        delete require.cache[modPath];
+        return require('../scripts/linux-ensure-console-user').ensureLinuxConsoleServiceUser();
+    } catch (err) {
+        console.warn(`[UPDATE] Linux privilege sync warning: ${err.message}`);
+        return { error: err.message || String(err) };
+    }
+}
+
+function deployServerBinaryPrivileged(builtBinaryPath, targetPath) {
+    const scriptPath = resolveDeployScriptPath(ROOT_DIR);
+    if (!fs.existsSync(scriptPath)) {
+        return { success: false, error: 'Privileged deploy helper not installed' };
+    }
+
+    const payload = JSON.stringify({
+        source: builtBinaryPath,
+        target: targetPath,
+        consoleRoot: ROOT_DIR,
+        projectRoot: PROJECT_ROOT,
+        serverSourceRoot: COMPONENTS.server.localRoot,
+    });
+
+    try {
+        const prefix = !IS_WINDOWS && typeof process.getuid === 'function' && process.getuid() !== 0
+            ? 'sudo -n '
+            : '';
+        const out = execSync(`${prefix}${shellQuote(scriptPath)}`, {
+            input: payload,
+            timeout: 120000,
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'pipe'],
+        }).trim();
+        const parsed = JSON.parse(out || '{}');
+        if (!parsed.success) {
+            return { success: false, error: parsed.error || 'Privileged deploy failed' };
+        }
+        return {
+            success: true,
+            backupPath: parsed.backupPath || null,
+            method: 'privileged',
+        };
+    } catch (err) {
+        let detail = err.message || String(err);
+        if (err.stdout) {
+            try {
+                const parsed = JSON.parse(String(err.stdout).trim());
+                if (parsed.error) detail = parsed.error;
+            } catch (_e) { /* ignore */ }
+        }
+        return { success: false, error: detail };
+    }
+}
+
 /**
  * Deploy the compiled binary to the service installation path.
  * Creates a timestamped backup of the existing binary first.
  *
  * @param {string} builtBinaryPath  Path to the newly compiled binary
  * @param {string} targetPath       Service binary path
- * @returns {{ success: boolean, backupPath?: string, error?: string }}
+ * @returns {{ success: boolean, backupPath?: string, error?: string, method?: string }}
  */
 function deployServerBinary(builtBinaryPath, targetPath) {
     if (!builtBinaryPath || !fs.existsSync(builtBinaryPath)) {
@@ -1392,63 +1455,61 @@ function deployServerBinary(builtBinaryPath, targetPath) {
         return { success: false, error: 'Target binary path not detected — set BETTERDESK_SERVER_BINARY env var' };
     }
 
-    // Backup existing binary
-    let backupPath = null;
-    if (fs.existsSync(targetPath)) {
-        backupPath = targetPath + '.bak.' + Date.now();
-        try {
-            fs.copyFileSync(targetPath, backupPath);
-        } catch (err) {
-            return { success: false, error: `Backup failed: ${err.message}` };
-        }
-    }
-
-    // Atomic replace: write to staging file in same dir, then rename over the
-    // target. On Linux, rename(2) replaces a running executable's directory
-    // entry without touching the existing inode, so a live server keeps
-    // running on the old image while the new one becomes available for the
-    // next start (this avoids ETXTBSY which copyFileSync hits when the
-    // target is busy). On Windows the running .exe is locked, so we first
-    // rename the target out of the way, then move the new one in.
-    const stagingPath = targetPath + '.new.' + process.pid + '.' + Date.now();
-    try {
-        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-        fs.copyFileSync(builtBinaryPath, stagingPath);
-        if (!IS_WINDOWS) {
-            try { fs.chmodSync(stagingPath, 0o755); } catch (_e) { /* ok */ }
-        }
-
-        if (IS_WINDOWS && fs.existsSync(targetPath)) {
-            const lockedAside = targetPath + '.old.' + Date.now();
-            try { fs.renameSync(targetPath, lockedAside); } catch (_e) { /* may fail if not locked */ }
-        }
-
-        try {
-            fs.renameSync(stagingPath, targetPath);
-        } catch (renameErr) {
-            // Cross-device rename or other rename failure — fall back to copy
-            // (still wraps the ETXTBSY case for non-Linux platforms or when
-            // staging dir is on a different filesystem).
+    if (IS_WINDOWS) {
+        let backupPath = null;
+        if (fs.existsSync(targetPath)) {
+            backupPath = targetPath + '.bak.' + Date.now();
             try {
-                fs.copyFileSync(stagingPath, targetPath);
-                try { fs.unlinkSync(stagingPath); } catch (_e) { /* ok */ }
-                if (!IS_WINDOWS) {
-                    try { fs.chmodSync(targetPath, 0o755); } catch (_e) { /* ok */ }
-                }
-            } catch (copyErr) {
-                throw renameErr.code === 'ETXTBSY' ? renameErr : copyErr;
+                fs.copyFileSync(targetPath, backupPath);
+            } catch (err) {
+                return { success: false, error: `Backup failed: ${err.message}` };
             }
         }
-        return { success: true, backupPath };
-    } catch (err) {
-        // Cleanup staging if it survived
-        try { if (fs.existsSync(stagingPath)) fs.unlinkSync(stagingPath); } catch (_e) { /* ok */ }
-        // Attempt to restore backup on failure
-        if (backupPath && fs.existsSync(backupPath) && !fs.existsSync(targetPath)) {
-            try { fs.copyFileSync(backupPath, targetPath); } catch (_e) { /* critical */ }
+
+        const stagingPath = targetPath + '.new.' + process.pid + '.' + Date.now();
+        try {
+            fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+            fs.copyFileSync(builtBinaryPath, stagingPath);
+            if (fs.existsSync(targetPath)) {
+                const lockedAside = targetPath + '.old.' + Date.now();
+                try { fs.renameSync(targetPath, lockedAside); } catch (_e) { /* may fail if not locked */ }
+            }
+            try {
+                fs.renameSync(stagingPath, targetPath);
+            } catch (renameErr) {
+                try {
+                    fs.copyFileSync(stagingPath, targetPath);
+                    try { fs.unlinkSync(stagingPath); } catch (_e) { /* ok */ }
+                } catch (copyErr) {
+                    throw renameErr.code === 'ETXTBSY' ? renameErr : copyErr;
+                }
+            }
+            return { success: true, backupPath, method: 'direct' };
+        } catch (err) {
+            try { if (fs.existsSync(stagingPath)) fs.unlinkSync(stagingPath); } catch (_e) { /* ok */ }
+            if (backupPath && fs.existsSync(backupPath) && !fs.existsSync(targetPath)) {
+                try { fs.copyFileSync(backupPath, targetPath); } catch (_e) { /* critical */ }
+            }
+            return { success: false, error: `Deploy failed: ${err.message}` };
         }
-        return { success: false, error: `Deploy failed: ${err.message}` };
     }
+
+    const capability = assessServerBinaryDeployCapability(targetPath, { consoleRoot: ROOT_DIR });
+    if (capability.ready && capability.method === 'privileged') {
+        return deployServerBinaryPrivileged(builtBinaryPath, targetPath);
+    }
+
+    const direct = deployServerBinaryAtomic(builtBinaryPath, targetPath);
+    if (direct.success) {
+        return { ...direct, method: 'direct' };
+    }
+
+    if (/EACCES|EPERM|permission denied/i.test(direct.error || '')) {
+        const privileged = deployServerBinaryPrivileged(builtBinaryPath, targetPath);
+        if (privileged.success) return privileged;
+    }
+
+    return direct;
 }
 
 /**
@@ -2044,6 +2105,10 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
     // ---- Server source files + compile/download + deploy ----
     if (changedData.grouped.server?.length && selectedComponents.includes('server')) {
+        if (!IS_WINDOWS) {
+            results.linuxPrivilegeSync = syncLinuxPanelUpdatePrivileges();
+        }
+
         const strategy = opts.serverStrategy || 'auto'; // 'auto', 'compile', 'download', 'install-go'
         let goInfo = checkGoAvailable();
         let goAvailable = goInfo.available && goInfo.meetsMinimum;
@@ -2625,6 +2690,9 @@ async function rebuildServerBinary(opts = {}) {
     }
 
     // 4. Deploy to the service path.
+    if (!IS_WINDOWS) {
+        result.steps.linuxPrivilegeSync = syncLinuxPanelUpdatePrivileges();
+    }
     const targetPath = detectServerBinaryPath();
     const deploy = deployServerBinary(build.binaryPath, targetPath);
     result.steps.deploy = {
@@ -2712,10 +2780,12 @@ async function runUpdatePreflight(opts = {}) {
 
     const binaryPath = detectServerBinaryPath();
     if (binaryPath) {
-        try {
-            fs.accessSync(path.dirname(binaryPath), fs.constants.W_OK);
-        } catch (_e) {
-            warnings.push(`Server binary directory is not writable: ${path.dirname(binaryPath)}`);
+        const capability = assessServerBinaryDeployCapability(binaryPath, { consoleRoot: ROOT_DIR });
+        if (!capability.ready) {
+            warnings.push(
+                `Server binary directory is not writable: ${capability.targetDir || path.dirname(binaryPath)}`
+                + ' — run linux-ensure-console-user.js as root once to enable privileged deploy'
+            );
         }
     } else {
         warnings.push('Go server binary path could not be detected — deploy step may require manual repair');
