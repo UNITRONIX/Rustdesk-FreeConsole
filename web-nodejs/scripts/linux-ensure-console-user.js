@@ -18,6 +18,7 @@ const {
     consoleEnvUsesPrivilegedPorts,
     ensureBindCapabilityInServiceUnit,
 } = require('../lib/privilegedPorts');
+const { resolveDeployScriptPath } = require('../lib/linuxServerBinaryDeploy');
 
 const SVC_USER = 'betterdesk';
 const CONSOLE_PATH = path.join(__dirname, '..');
@@ -44,12 +45,31 @@ function resolveJournalctlPath() {
 function buildUpdateSudoersContent() {
     const systemctl = resolveSystemctlPath();
     const journalctl = resolveJournalctlPath();
+    const deployScript = resolveDeployScriptPath(CONSOLE_PATH);
     return [
         UPDATE_SUDOERS_MARKER,
         `${SVC_USER} ALL=(root) NOPASSWD: ${systemctl}`,
         `${SVC_USER} ALL=(root) NOPASSWD: ${journalctl}`,
+        `${SVC_USER} ALL=(root) NOPASSWD: ${deployScript}`,
         '',
     ].join('\n');
+}
+
+function ensureDeployScriptExecutable() {
+    const deployScript = resolveDeployScriptPath(CONSOLE_PATH);
+    if (!fs.existsSync(deployScript)) {
+        return { changed: false, reason: 'deploy script not present yet' };
+    }
+    try {
+        const mode = fs.statSync(deployScript).mode & 0o777;
+        if ((mode & 0o111) === 0) {
+            fs.chmodSync(deployScript, 0o755);
+            return { changed: true, path: deployScript };
+        }
+        return { changed: false, path: deployScript };
+    } catch (err) {
+        return { changed: false, error: err.message || String(err) };
+    }
 }
 
 /** Install passwordless sudo for panel service restarts (Linux updates). */
@@ -290,9 +310,15 @@ function ensureLinuxConsoleServiceUser() {
         let perm = { ok: false, skipped: !privileged };
         if (privileged) {
             perm = fixSharedPermissions();
+            const deployScript = ensureDeployScriptExecutable();
+            if (deployScript.changed) {
+                result.changes.push('server binary deploy helper marked executable');
+            } else if (deployScript.error) {
+                result.changes.push(`deploy helper chmod skipped: ${deployScript.error}`);
+            }
             const sudoers = ensureConsoleUpdateSudoers();
             if (sudoers.changed) {
-                result.changes.push('passwordless sudo for panel service restarts');
+                result.changes.push('passwordless sudo for panel updates (services + server binary deploy)');
             } else if (sudoers.reason) {
                 result.changes.push(sudoers.reason);
             }
@@ -352,6 +378,7 @@ module.exports = {
     fixSharedPermissions,
     verifyConsoleUserAccess,
     buildUpdateSudoersContent,
+    ensureDeployScriptExecutable,
     resolveSystemctlPath,
     patchServiceUserLine,
     SVC_USER,

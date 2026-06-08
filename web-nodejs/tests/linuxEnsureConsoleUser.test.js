@@ -5,6 +5,7 @@ const {
     resolveSystemctlPath,
     SVC_USER,
 } = require('../scripts/linux-ensure-console-user');
+const { resolveDeployScriptPath } = require('../lib/linuxServerBinaryDeploy');
 const { ensureBindCapabilityInServiceUnit } = require('../lib/privilegedPorts');
 
 describe('linux-ensure-console-user helpers', () => {
@@ -13,6 +14,7 @@ describe('linux-ensure-console-user helpers', () => {
         expect(content).toContain('# Managed by BetterDesk linux-ensure-console-user.js');
         expect(content).toContain(`${SVC_USER} ALL=(root) NOPASSWD: ${resolveSystemctlPath()}`);
         expect(content).toMatch(/NOPASSWD: \/usr\/bin\/journalctl|NOPASSWD: \/bin\/journalctl/);
+        expect(content).toContain('linux-deploy-server-binary.js');
     });
 
     test('resolveSystemctlPath returns an existing path when available', () => {
