@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.2] — 2026-06-08
+
 ### Added
 - **One-line Linux installer (`install.sh`)** — `curl -fsSL …/install.sh | sudo bash` performs a fully automated Docker quick-start (Docker engine install when missing, compose download with validation, relay IP detection, firewall rules, health wait, credential summary). Use `--native` for git clone + `betterdesk.sh --auto`, or `--uninstall` / `--purge` to tear down the Docker stack.
 
@@ -191,3 +198,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.0.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.0.0...v3.0.1
 [3.1.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.0.1...v3.1.0
 [3.1.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.0...v3.1.1
+[3.1.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.1...v3.1.2
