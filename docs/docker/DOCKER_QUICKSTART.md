@@ -10,7 +10,35 @@ Versioned tags match [CHANGELOG.md](../../CHANGELOG.md) and git releases (e.g. `
 - docker-compose v2.0+ (or `docker compose` plugin)
 - Open ports: 21114-21119, 5000
 
-## 🏃 Quick Start (3 Commands)
+## 🏃 Quick Start
+
+### One-line installer (automated)
+
+Fully automated: installs Docker if missing, downloads compose + images, auto-detects relay IP, configures firewall, waits for health checks, prints credentials.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
+```
+
+**Common variants:**
+
+```bash
+# LAN-only deployment
+curl -fsSL .../install.sh | sudo bash -s -- --relay-mode local
+
+# Pin image version + set admin password
+curl -fsSL .../install.sh | sudo bash -s -- --version 3.1.0 --admin-password 'YourSecurePass'
+
+# Uninstall (keep data volumes)
+curl -fsSL .../install.sh | sudo bash -s -- --uninstall
+
+# Uninstall and delete volumes
+curl -fsSL .../install.sh | sudo bash -s -- --uninstall --purge
+```
+
+Files are stored under `/opt/betterdesk/docker/` (`docker-compose.yml`, `.env`).
+
+### Quick Start (3 Commands)
 
 ```bash
 # 1. Download docker-compose file

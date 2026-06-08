@@ -507,6 +507,18 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 
 ### Linux
 
+**One-line install:**
+
+```bash
+# Docker (pre-built images, auto-configured)
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
+
+# Native (git clone + betterdesk.sh --auto)
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash -s -- --native
+```
+
+**Manual install:**
+
 ```bash
 git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
 cd Rustdesk-FreeConsole
@@ -554,6 +566,29 @@ cd Rustdesk-FreeConsole
 The script installs Go, compiles the server, sets up NSSM services (`BetterDeskServer` + `BetterDeskConsole`) or scheduled tasks as fallback.
 
 ### Docker
+
+**🚀 One-line install (recommended — auto-configures Docker, relay, firewall):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
+```
+
+The installer downloads pre-built GHCR images, detects your relay address, opens firewall ports (UFW/firewalld when active), starts containers, and prints admin credentials plus RustDesk client settings.
+
+**Options:**
+
+```bash
+# LAN-only server (use host LAN IP for relay)
+curl -fsSL .../install.sh | sudo bash -s -- --relay-mode local
+
+# Fixed public IP / custom admin password
+curl -fsSL .../install.sh | sudo bash -s -- --relay-servers 203.0.113.10:21117 --admin-password 'YourSecurePass'
+
+# Native install (git clone + betterdesk.sh --auto) instead of Docker
+curl -fsSL .../install.sh | sudo bash -s -- --native
+```
+
+Install files land in `/opt/betterdesk/docker` (Docker) or `/opt/betterdesk/source` (native). See `install.sh --help` for all flags.
 
 **🚀 Quick Start (no build required):**
 
