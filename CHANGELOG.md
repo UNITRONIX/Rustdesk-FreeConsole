@@ -1,7 +1,7 @@
 ## [Unreleased]
 
-### Changed
-- _(none yet)_
+### Added
+- **One-line Linux installer (`install.sh`)** — `curl -fsSL …/install.sh | sudo bash` performs a fully automated Docker quick-start (Docker engine install when missing, compose download with validation, relay IP detection, firewall rules, health wait, credential summary). Use `--native` for git clone + `betterdesk.sh --auto`, or `--uninstall` / `--purge` to tear down the Docker stack.
 
 ---
 

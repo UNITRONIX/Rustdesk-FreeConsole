@@ -6,7 +6,10 @@
 # Image tag (aligned with CHANGELOG / git tag v3.1.0):
 #   Default: 3.1.0  |  Rolling: BETTERDESK_IMAGE_TAG=latest
 #
-# Usage:
+# Usage (automated — recommended):
+#   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
+#
+# Usage (manual):
 #   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.yml -o docker-compose.yml
 #   docker compose pull && docker compose up -d
 #
