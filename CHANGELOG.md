@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.5] — 2026-06-09
+
 ### Security
 - **Path confinement (CodeQL)** — shared `safePath` helper for backup deletion, i18n language files, and server file browser (symlink-aware root checks).
 - **i18n dev toolkit** moved to `web-nodejs/scripts/dev-i18n/` (`apply-i18n-audit`, `i18n-audit-data/`, `collect-gap-keys`, `generate-gap-fill`) — not deployed to production; one-shot feature `patch-*` scripts removed (recoverable from git history).
@@ -226,3 +233,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.1.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.1...v3.1.2
 [3.1.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.2...v3.1.3
 [3.1.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.3...v3.1.4
+[3.1.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.4...v3.1.5
