@@ -930,9 +930,10 @@ async function ensureDefaultAdmin() {
     }
     
     if (!defaultPassword) {
-        console.log(`Generated admin password: ${password}`);
+        console.log(`[AUTH] Generated admin credentials written to ${path.join(config.dataDir, '.admin_credentials')} — change password immediately`);
+    } else {
+        console.log('[AUTH] Default admin account created from configured credentials');
     }
-    console.log('IMPORTANT: Change the default password immediately!');
     
     return true;
 }

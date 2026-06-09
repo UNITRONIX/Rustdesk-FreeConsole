@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Security
+- **Clear-text logging** — admin password no longer logged on first install; API login logs redacted usernames (`logRedact.js`).
+- **Path confinement** — `fontService` and `fileTransferService` use `safePath.resolveChildPath` for filesystem operations.
+- **CI** — `build.yml` default `permissions: contents: read`; write only on release/binary-update jobs.
+
 ### Changed
 - _(none yet)_
 

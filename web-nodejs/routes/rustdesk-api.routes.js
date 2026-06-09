@@ -1278,8 +1278,8 @@ router.post('/api/login', async (req, res) => {
         const username = typeof rawUsername === 'string' ? rawUsername.trim() : '';
         const password = typeof rawPassword === 'string' ? rawPassword : '';
 
-        // Debug: log extraction result for Issue #104
-        console.log(`[API:LOGIN] Extracted credentials: username=${JSON.stringify(username)} (from raw type: ${typeof rawUsername}), password=${password ? '[SET]' : '[EMPTY]'}`);
+        const { redactUsernameForLog } = require('../lib/logRedact');
+        console.log(`[API:LOGIN] Login attempt from ${ip} user=${redactUsernameForLog(username)}`);
 
         const {
             id: clientId,
