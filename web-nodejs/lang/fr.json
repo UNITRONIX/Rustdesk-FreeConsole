@@ -2291,7 +2291,7 @@
     "allow_file_transfer": "Autoriser le transfert de fichiers",
     "allow_clipboard": "Autoriser le presse-papiers",
     "max_session_duration": "Durée maximale de session (min)",
-    "role_owner": "Owner",
+    "role_owner": "Propriétaire (admin org.)",
     "role_admin": "Administrateur",
     "role_operator": "Opérateur",
     "role_user": "Membre",

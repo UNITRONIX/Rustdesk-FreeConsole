@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Salli tiedostonsiirto",
     "allow_clipboard": "Salli leikepöytä",
     "max_session_duration": "Istunnon enimmäiskesto (min)",
-    "role_owner": "Owner",
+    "role_owner": "Omistaja (org-admin)",
     "role_admin": "Järjestelmänvalvoja",
     "role_operator": "Operator",
     "role_user": "Jäsen",

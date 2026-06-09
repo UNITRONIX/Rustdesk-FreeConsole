@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Tillat filoverføring",
     "allow_clipboard": "Tillat utklippstavle",
     "max_session_duration": "Maks øktvarighet (min)",
-    "role_owner": "Owner",
+    "role_owner": "Eier (org-admin)",
     "role_admin": "Administrator",
     "role_operator": "Operator",
     "role_user": "Medlem",

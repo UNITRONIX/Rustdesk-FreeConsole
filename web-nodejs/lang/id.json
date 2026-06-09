@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Izinkan Transfer File",
     "allow_clipboard": "Izinkan Papan Klip",
     "max_session_duration": "Durasi Sesi Maks (mnt)",
-    "role_owner": "Owner",
+    "role_owner": "Pemilik (admin org)",
     "role_admin": "Administrator",
     "role_operator": "Operator",
     "role_user": "Anggota",

@@ -2291,7 +2291,7 @@
     "allow_file_transfer": "Permitir transferência de arquivos",
     "allow_clipboard": "Permitir área de transferência",
     "max_session_duration": "Duração máxima da sessão",
-    "role_owner": "Owner",
+    "role_owner": "Proprietário (admin org.)",
     "role_admin": "Administrador",
     "role_operator": "Operator",
     "role_user": "Membro",

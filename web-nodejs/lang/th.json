@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "อนุญาตให้ถ่ายโอนไฟล์",
     "allow_clipboard": "อนุญาตคลิปบอร์ด",
     "max_session_duration": "ระยะเวลาเซสชันสูงสุด (นาที)",
-    "role_owner": "Owner",
+    "role_owner": "เจ้าของ (ผู้ดูแลองค์กร)",
     "role_admin": "ผู้ดูแลระบบ",
     "role_operator": "Operator",
     "role_user": "สมาชิก",

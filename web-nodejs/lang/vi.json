@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Cho phép truyền tệp",
     "allow_clipboard": "Cho phép bảng nhớ tạm",
     "max_session_duration": "Thời lượng phiên tối đa (phút)",
-    "role_owner": "Owner",
+    "role_owner": "Chủ sở hữu (quản trị org)",
     "role_admin": "Quản trị viên",
     "role_operator": "Operator",
     "role_user": "Thành viên",

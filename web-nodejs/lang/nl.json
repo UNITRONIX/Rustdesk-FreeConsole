@@ -2291,7 +2291,7 @@
     "allow_file_transfer": "Bestandsoverdracht toestaan",
     "allow_clipboard": "Klembord toestaan",
     "max_session_duration": "Maximale sessieduur",
-    "role_owner": "Owner",
+    "role_owner": "Eigenaar (org-beheerder)",
     "role_admin": "Beheerder",
     "role_operator": "Operator",
     "role_user": "Lid",

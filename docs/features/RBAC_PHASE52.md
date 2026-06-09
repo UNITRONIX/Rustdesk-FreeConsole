@@ -75,7 +75,7 @@ Use `auth.CanAssignRole()` for role assignment boundaries instead of RoleLevel c
 | `global_admin` | 22 | user.*, org.*, device.*, audit.view, metrics.view, cdap.view/.command, chat.access, enrollment.*, branding.edit — **NO** server.config/server.keys |
 | `operator` | 12 | device.view/.connect/.edit, user.view, audit.view, metrics.view, cdap.view/.command, enrollment.approve, chat.access, org.manage_devices |
 | `viewer` | 5 | device.view, audit.view, metrics.view, cdap.view, chat.access |
-| `pro` | 1 | device.view |
+| `pro` | 0 | API-only RustDesk PRO activation — no panel permissions |
 
 ### Role Assignment Boundaries
 

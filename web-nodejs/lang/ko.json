@@ -2291,7 +2291,7 @@
     "allow_file_transfer": "파일 전송 허용",
     "allow_clipboard": "클립���드 허용",
     "max_session_duration": "최대 세션 기간(분)",
-    "role_owner": "Owner",
+    "role_owner": "소유자(조직 관리자)",
     "role_admin": "관리자",
     "role_operator": "Operator",
     "role_user": "구성원",

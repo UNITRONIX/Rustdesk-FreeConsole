@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Permite transferul de fișiere",
     "allow_clipboard": "Permite Clipboard",
     "max_session_duration": "Durata maximă a sesiunii (min.)",
-    "role_owner": "Owner",
+    "role_owner": "Proprietar (admin org.)",
     "role_admin": "Administrator",
     "role_operator": "Operator",
     "role_user": "Membru",

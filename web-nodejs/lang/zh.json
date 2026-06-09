@@ -2362,7 +2362,7 @@
     "allow_file_transfer": "允许文件传输",
     "allow_clipboard": "允许剪贴板",
     "max_session_duration": "最大会话时长 (分钟)",
-    "role_owner": "所有者",
+    "role_owner": "所有者（组织管理员）",
     "role_admin": "管理员",
     "role_operator": "操作员",
     "role_user": "成员",

@@ -2298,7 +2298,7 @@
     "allow_file_transfer": "السماح بنقل الملفات",
     "allow_clipboard": "السماح بالحافظة",
     "max_session_duration": "الحد الأقصى لمدة الجلسة (الحد الأدنى)",
-    "role_owner": "Owner",
+    "role_owner": "مالك (مسؤول المؤسسة)",
     "role_admin": "مسؤول",
     "role_operator": "Operator",
     "role_user": "عضو",

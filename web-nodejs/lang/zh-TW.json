@@ -2301,7 +2301,7 @@
     "allow_file_transfer": "允許檔案傳輸",
     "allow_clipboard": "允許剪貼簿",
     "max_session_duration": "最大工作階段時長 (分鐘)",
-    "role_owner": "所有者",
+    "role_owner": "所有者（組織管理員）",
     "role_admin": "管理員",
     "role_operator": "操作員",
     "role_user": "成員",

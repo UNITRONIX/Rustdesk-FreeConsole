@@ -2291,7 +2291,7 @@
     "allow_file_transfer": "Povolit přenos souborů",
     "allow_clipboard": "Povolit schránku",
     "max_session_duration": "Max. délka relace (min)",
-    "role_owner": "Vlastník",
+    "role_owner": "Vlastník (org. admin)",
     "role_admin": "Administrátor",
     "role_operator": "Operátor",
     "role_user": "Člen",

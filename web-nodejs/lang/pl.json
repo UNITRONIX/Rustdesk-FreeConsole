@@ -2372,7 +2372,7 @@
     "allow_file_transfer": "Zezwól na transfer plików",
     "allow_clipboard": "Zezwól na schowek",
     "max_session_duration": "Maks. czas sesji (min)",
-    "role_owner": "Właściciel",
+    "role_owner": "Właściciel (admin org.)",
     "role_admin": "Administrator",
     "role_operator": "Operator",
     "role_user": "Członek",

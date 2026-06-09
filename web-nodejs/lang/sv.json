@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Tillåt filöverföring",
     "allow_clipboard": "Tillåt Urklipp",
     "max_session_duration": "Max sessionslängd (min)",
-    "role_owner": "Owner",
+    "role_owner": "Ägare (org-admin)",
     "role_admin": "Administratör",
     "role_operator": "Operator",
     "role_user": "Medlem",

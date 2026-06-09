@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Дозволити передавання файлів",
     "allow_clipboard": "Дозволити буфер обміну",
     "max_session_duration": "Максимальна тривалість сеансу (хв.)",
-    "role_owner": "Owner",
+    "role_owner": "Власник (адмін орг.)",
     "role_admin": "Адміністратор",
     "role_operator": "Operator",
     "role_user": "Учасник",

@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Fájlátvitel engedélyezése",
     "allow_clipboard": "Vágólap engedélyezése",
     "max_session_duration": "Munkamenet maximális időtartama (perc)",
-    "role_owner": "Owner",
+    "role_owner": "Tulajdonos (org admin)",
     "role_admin": "Adminisztrátor",
     "role_operator": "Operator",
     "role_user": "Tag",

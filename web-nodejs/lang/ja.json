@@ -2291,7 +2291,7 @@
     "allow_file_transfer": "ファイル転送を許可する",
     "allow_clipboard": "クリップボードを許可する",
     "max_session_duration": "最大セッション継続時間 (分)",
-    "role_owner": "Owner",
+    "role_owner": "オーナー（組織管理者）",
     "role_admin": "管理者",
     "role_operator": "Operator",
     "role_user": "メンバー",

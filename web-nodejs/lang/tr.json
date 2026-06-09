@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Dosya Aktarımına İzin Ver",
     "allow_clipboard": "Panoya İzin Ver",
     "max_session_duration": "Maksimum Oturum Süresi (dk)",
-    "role_owner": "Owner",
+    "role_owner": "Sahip (org yöneticisi)",
     "role_admin": "Yönetici",
     "role_operator": "Operator",
     "role_user": "Üye",

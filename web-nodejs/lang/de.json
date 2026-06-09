@@ -2291,7 +2291,7 @@
     "allow_file_transfer": "Dateiübertragung erlauben",
     "allow_clipboard": "Zwischenablage erlauben",
     "max_session_duration": "Maximale Sitzungsdauer",
-    "role_owner": "Owner",
+    "role_owner": "Inhaber (Org-Admin)",
     "role_admin": "Administrator",
     "role_operator": "Operator",
     "role_user": "Mitglied",

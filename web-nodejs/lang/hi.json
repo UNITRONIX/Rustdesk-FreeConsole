@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "फ़ाइल स्थानांतरण की अनुमति दें",
     "allow_clipboard": "क्लिपबोर्ड को अनुमति दें",
     "max_session_duration": "अधिकतम सत्र अवधि (न्यूनतम)",
-    "role_owner": "Owner",
+    "role_owner": "स्वामी (Org Admin)",
     "role_admin": "व्यवस्थापक",
     "role_operator": "Operator",
     "role_user": "सदस्य",
