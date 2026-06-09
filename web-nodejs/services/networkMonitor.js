@@ -182,8 +182,20 @@ function checkHttp(url, timeoutMs = DEFAULT_TIMEOUT_MS, expectedStatus = 200) {
         assertSafeMonitoringUrl(url).then((parsed) => {
             const start = Date.now();
             const lib = parsed.protocol === 'https:' ? https : http;
+            const port = parsed.port
+                ? parseInt(parsed.port, 10)
+                : (parsed.protocol === 'https:' ? 443 : 80);
+            const reqPath = `${parsed.pathname || '/'}${parsed.search || ''}`;
 
-            const req = lib.get(parsed.href, { timeout: timeoutMs, rejectUnauthorized: !config.allowSelfSignedCerts }, (res) => {
+            const req = lib.request({
+                protocol: parsed.protocol,
+                hostname: parsed.hostname,
+                port,
+                path: reqPath,
+                method: 'GET',
+                timeout: timeoutMs,
+                rejectUnauthorized: !config.allowSelfSignedCerts,
+            }, (res) => {
                 const rtt = Date.now() - start;
                 res.resume();
                 res.on('end', () => {
@@ -204,6 +216,8 @@ function checkHttp(url, timeoutMs = DEFAULT_TIMEOUT_MS, expectedStatus = 200) {
             req.on('error', (err) => {
                 resolve({ success: false, rtt_ms: null, status_code: null, error: err.message });
             });
+
+            req.end();
         }).catch((err) => {
             const msg = err instanceof SsrfBlockedError ? err.message : err.message;
             resolve({ success: false, rtt_ms: null, status_code: null, error: msg });

@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Security
+- **Path confinement (CodeQL)** — shared `safePath` helper for backup deletion, i18n language files, and server file browser (symlink-aware root checks).
+- **Removed obsolete dev-only i18n migration scripts** (`apply-i18n-audit`, `generate-gap-fill`, `patch-generator-slug-i18n`, `patch-update-channel-i18n`, `inject-server-mgmt-i18n` and `i18n-audit-data/`) — translations already merged into `lang/*.json`; reduces CodeQL noise.
+- **SSRF hardening** — network monitor HTTP checks use `http.request` with validated hostname/port/path components.
+- **Terminal proxy** — login shells restricted to known system shell paths.
+- **Installer scripts** — `linux-ensure-console-user.js` uses `execFileSync` argv arrays instead of shell strings.
+- **OIDC discovery** — HTTP fetch uses validated URL string after SSRF checks.
+
 ### Changed
 - _(none yet)_
 

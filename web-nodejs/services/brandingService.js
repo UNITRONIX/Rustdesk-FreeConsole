@@ -42,12 +42,13 @@ function sanitizeSvg(svg) {
         sanitized = sanitized.replace(SVG_DANGEROUS_TAGS_SELFCLOSING, '');
     } while (sanitized !== prev);
 
-    // Remove event handler attributes & dangerous href schemes.
-    sanitized = sanitized.replace(SVG_DANGEROUS_ATTRS, '');
-    sanitized = sanitized.replace(SVG_JAVASCRIPT_HREF, ' href="#"');
-
-    // Defuse CSS expression() and @import inside style attributes.
-    sanitized = sanitized.replace(SVG_CSS_EXPRESSION, 'blocked-');
+    // Remove event handler attributes & dangerous href schemes (repeat until stable).
+    do {
+        prev = sanitized;
+        sanitized = sanitized.replace(SVG_DANGEROUS_ATTRS, '');
+        sanitized = sanitized.replace(SVG_JAVASCRIPT_HREF, ' href="#"');
+        sanitized = sanitized.replace(SVG_CSS_EXPRESSION, 'blocked-');
+    } while (sanitized !== prev);
 
     return sanitized;
 }

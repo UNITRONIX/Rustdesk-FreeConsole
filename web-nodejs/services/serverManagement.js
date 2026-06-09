@@ -26,6 +26,7 @@ const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
+const { resolvePathWithinAnyRoot } = require('../lib/safePath');
 
 const SERVICE_NAME_RE = /^[A-Za-z0-9_.@:-]{1,128}$/;
 const FILE_MAX_BYTES = 8 * 1024 * 1024;        // 8 MB read/write cap
@@ -205,19 +206,10 @@ function getAllowedFileRoots() {
 
 /**
  * Resolve a user-supplied path to an absolute path within allowed roots.
- * Rejects null bytes, empty strings, and paths outside configured roots.
+ * Rejects null bytes, empty strings, symlink escapes, and paths outside roots.
  */
 function resolvePath(p) {
-    if (typeof p !== 'string' || !p.length) throw new Error('Path is required');
-    if (p.indexOf('\0') !== -1) throw new Error('Invalid path');
-    const abs = path.resolve(p);
-    const allowed = getAllowedFileRoots().some(
-        (root) => abs === root || abs.startsWith(root + path.sep)
-    );
-    if (!allowed) {
-        throw new Error('Path outside allowed directory roots');
-    }
-    return abs;
+    return resolvePathWithinAnyRoot(p, getAllowedFileRoots());
 }
 
 async function listDirectory(dirPath) {

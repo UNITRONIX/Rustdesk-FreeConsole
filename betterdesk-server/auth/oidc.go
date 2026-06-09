@@ -164,11 +164,12 @@ func (p *OIDCProvider) discover() {
 	}
 
 	discoveryURL := strings.TrimRight(issuer, "/") + "/.well-known/openid-configuration"
-	if _, err := validateOIDCFetchURL(discoveryURL); err != nil {
+	validated, err := validateOIDCFetchURL(discoveryURL)
+	if err != nil {
 		log.Printf("[OIDC] Discovery URL rejected for %s: %v", issuer, err)
 		return
 	}
-	resp, err := p.client.Get(discoveryURL)
+	resp, err := p.client.Get(validated.String())
 	if err != nil {
 		log.Printf("[OIDC] Discovery failed for %s: %v", issuer, err)
 		return
@@ -729,12 +730,13 @@ type OIDCDiscoveryResult struct {
 // TestOIDCDiscovery fetches and validates an OIDC discovery document.
 func TestOIDCDiscovery(ctx context.Context, issuerURL string) (*OIDCDiscoveryResult, error) {
 	discoveryURL := strings.TrimRight(issuerURL, "/") + "/.well-known/openid-configuration"
-	if _, err := validateOIDCFetchURL(discoveryURL); err != nil {
+	validated, err := validateOIDCFetchURL(discoveryURL)
+	if err != nil {
 		return nil, fmt.Errorf("discovery URL: %w", err)
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequestWithContext(ctx, "GET", discoveryURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", validated.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}

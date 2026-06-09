@@ -27,6 +27,7 @@ const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
+const { resolveChildPath } = require('../lib/safePath');
 const { runConsoleNpmInstall } = require('../lib/consoleNpmInstall');
 const {
     NON_CRITICAL_UPDATE_FAILURES,
@@ -2544,11 +2545,8 @@ function deleteBackup(name) {
     if (!isValidBackupName(name)) {
         throw new Error('Invalid backup name');
     }
-    const target = path.resolve(BACKUP_DIR, name);
     const root = path.resolve(BACKUP_DIR);
-    if (!target.startsWith(root + path.sep) && target !== root) {
-        throw new Error('Backup path is outside the backup directory');
-    }
+    const target = resolveChildPath(root, name);
     if (target === root) {
         throw new Error('Refusing to delete the backup directory itself');
     }
