@@ -1049,9 +1049,15 @@ async function ensureConsoleSource(remoteSHA, opts = {}) {
 async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
     const graph = getConsoleDeployGraph();
     const required = graph.collectConsoleRequiredFiles(changedConsoleFiles);
+    const removedPaths = new Set(
+        (changedConsoleFiles || [])
+            .filter((f) => f?.status === 'removed' && f.localPath)
+            .map((f) => f.localPath)
+    );
     const repaired = [];
     const failed = [];
     for (const localPath of required) {
+        if (removedPaths.has(localPath)) continue;
         if (!graph.isConsoleDeployLocalPath(localPath)) continue;
         if (graph.isResolvedByIndexModule(localPath)) continue;
         const dest = path.join(ROOT_DIR, localPath);
@@ -2079,7 +2085,12 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     if (selectedComponents.includes('scripts') && changedData.grouped.scripts?.length) {
         for (const file of changedData.grouped.scripts) {
             try {
-                if (file.status === 'removed') continue;
+                if (file.status === 'removed') {
+                    const dest = path.join(PROJECT_ROOT, file.localPath);
+                    if (isProtectedRuntimePath(dest)) { results.skipped.push(file.path); continue; }
+                    if (fs.existsSync(dest)) { fs.unlinkSync(dest); results.removed.push(file.path); }
+                    continue;
+                }
                 const dest = path.join(PROJECT_ROOT, file.localPath);
                 if (isProtectedRuntimePath(dest)) {
                     console.warn(`[UPDATE] Refusing to overwrite runtime state file: ${file.path}`);

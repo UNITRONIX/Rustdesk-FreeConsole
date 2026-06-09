@@ -7,6 +7,9 @@
 
 ## [3.1.5] — 2026-06-09
 
+### Fixed
+- **Panel update (dev channel)** — after intentional removal of dev-only i18n scripts, the repair step no longer tries to re-download deleted `web-nodejs/scripts/*` paths (404 false failures).
+
 ### Security
 - **Path confinement (CodeQL)** — shared `safePath` helper for backup deletion, i18n language files, and server file browser (symlink-aware root checks).
 - **i18n dev toolkit** moved to `web-nodejs/scripts/dev-i18n/` (`apply-i18n-audit`, `i18n-audit-data/`, `collect-gap-keys`, `generate-gap-fill`) — not deployed to production; one-shot feature `patch-*` scripts removed (recoverable from git history).

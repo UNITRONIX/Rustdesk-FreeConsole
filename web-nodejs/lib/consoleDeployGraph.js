@@ -54,7 +54,8 @@ function createConsoleDeployGraph(rootDir) {
     function collectConsoleRequiredFiles(changedConsoleFiles = []) {
         const seeds = new Set(CONSOLE_INTEGRITY_SEEDS);
         for (const file of changedConsoleFiles || []) {
-            if (file?.localPath) seeds.add(file.localPath);
+            // Removed repo paths must not be re-fetched during post-update repair.
+            if (file?.localPath && file.status !== 'removed') seeds.add(file.localPath);
         }
 
         const required = new Set();
