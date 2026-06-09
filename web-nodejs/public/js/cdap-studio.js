@@ -89,6 +89,11 @@
 
     // ─── Helpers ────────────────────────────────────────────────────
 
+    function sanitizeMaterialIcon(name) {
+        const s = String(name || 'apps').trim();
+        return /^[a-z0-9_]+$/.test(s) ? s : 'apps';
+    }
+
     function esc(str) {
         const d = document.createElement('div');
         d.textContent = str;
@@ -171,7 +176,7 @@
                 el.dataset.cat = cat;
                 el.draggable = true;
                 el.title = n.desc;
-                el.innerHTML = `<span class="studio-node-dot"></span><span class="material-icons studio-node-icon">${n.icon}</span><span>${esc(n.label)}</span>`;
+                el.innerHTML = `<span class="studio-node-dot"></span><span class="material-icons studio-node-icon">${sanitizeMaterialIcon(n.icon)}</span><span>${esc(n.label)}</span>`;
                 container.appendChild(el);
             }
         }

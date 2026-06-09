@@ -933,6 +933,7 @@ async function ensureDefaultAdmin() {
     } else {
         console.error(`[AUTH] CRITICAL: createUser succeeded but getUserByUsername returned null for '${defaultUsername}'`);
     }
+    password = '';
 
     switch (verifyStatus) {
         case 'verified':

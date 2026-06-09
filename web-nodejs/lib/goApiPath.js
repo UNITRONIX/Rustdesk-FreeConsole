@@ -5,6 +5,7 @@
  * Blocks absolute URLs and traversal — requests stay on BETTERDESK_API_URL host.
  */
 
+// Superset of RustDesk peer/device IDs (^[a-zA-Z0-9_-]{1,32}$ in rustdesk-api.routes).
 const SAFE_API_SEGMENT = /^[a-zA-Z0-9._:@%+-]{1,256}$/;
 
 function assertSafeGoApiRelativePath(urlPath) {

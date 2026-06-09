@@ -117,6 +117,20 @@ func TestRedactDetailsForLog(t *testing.T) {
 	}
 }
 
+func TestRecentClampsLargeN(t *testing.T) {
+	l := NewLogger("")
+	defer l.Close()
+
+	for i := 0; i < 600; i++ {
+		l.Log(ActionConfigChanged, "test", "key", map[string]string{"i": string(rune('0' + (i % 10)))})
+	}
+
+	recent := l.Recent(10000)
+	if len(recent) != maxRecentLimit {
+		t.Fatalf("expected clamp to %d, got %d", maxRecentLimit, len(recent))
+	}
+}
+
 func TestRecentEmpty(t *testing.T) {
 	l := NewLogger("")
 	defer l.Close()

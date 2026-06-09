@@ -947,7 +947,8 @@ async function listHelpRequests(filter = {}) {
  */
 async function acknowledgeHelpRequest(id) {
     try {
-        const { data } = await apiClient.post(`/help/requests/${encodeURIComponent(id)}/acknowledge`);
+        const safeId = assertSafeApiId(id, 'requestId');
+        const { data } = await apiClient.post(`/help/requests/${encodeURIComponent(safeId)}/acknowledge`);
         return wrap(data);
     } catch (err) {
         if (err.response?.data) return wrap(err.response.data);
@@ -960,7 +961,8 @@ async function acknowledgeHelpRequest(id) {
  */
 async function resolveHelpRequest(id) {
     try {
-        const { data } = await apiClient.post(`/help/requests/${encodeURIComponent(id)}/resolve`);
+        const safeId = assertSafeApiId(id, 'requestId');
+        const { data } = await apiClient.post(`/help/requests/${encodeURIComponent(safeId)}/resolve`);
         return wrap(data);
     } catch (err) {
         if (err.response?.data) return wrap(err.response.data);

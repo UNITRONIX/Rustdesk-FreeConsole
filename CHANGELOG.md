@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Security
+- **Go API proxy hardening (phase E)** — shared `goApiProxy.js` validates path segments on fleet, commercialization, and cross-platform routes; blocks path-smuggling while accepting RustDesk peer IDs (numeric and `a-zA-Z0-9_-`).
+- **Help-request API** — `betterdeskApi` validates registration help IDs before proxying to Go.
+- **XSS** — `cross-platform.js`, `users.js`, `dataguard.js`, `cdap-studio.js` escape/sanitize dynamic HTML and CSS class names.
+- **Audit log** — `Recent` / `RecentByAction` clamp `n` to 500 to limit allocation (CodeQL).
+- **Clear-text logging** — admin self-test password cleared after use in `authService`.
+
 ### Changed
 - _(none yet)_
 

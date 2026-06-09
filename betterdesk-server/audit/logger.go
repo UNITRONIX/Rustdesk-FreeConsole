@@ -79,6 +79,7 @@ type Logger struct {
 }
 
 const defaultMaxEvents = 10000
+const maxRecentLimit = 500
 
 // NewLogger creates a new audit logger.
 // If filePath is non-empty, events are also appended to that file as JSON lines.
@@ -145,11 +146,22 @@ func redactDetailsForLog(details map[string]string) map[string]string {
 	return out
 }
 
+func clampRecentLimit(n int) int {
+	if n <= 0 {
+		return 0
+	}
+	if n > maxRecentLimit {
+		return maxRecentLimit
+	}
+	return n
+}
+
 // Recent returns the most recent n events (newest first).
 func (l *Logger) Recent(n int) []Event {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
+	n = clampRecentLimit(n)
 	count := int(l.total)
 	if count > l.maxSize {
 		count = l.maxSize
@@ -174,6 +186,7 @@ func (l *Logger) RecentByAction(action Action, n int) []Event {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
+	n = clampRecentLimit(n)
 	count := int(l.total)
 	if count > l.maxSize {
 		count = l.maxSize
