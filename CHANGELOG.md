@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.13] — 2026-06-09
+
 ### Fixed
 - **RBAC** — deleting the last `super_admin` is blocked (409), aligned with update/demotion guards; org owner label shown as Org Admin in all locales.
 - **Panel update (dev channel)** — repair step no longer re-downloads removed `web-nodejs/scripts/*` paths (404 false failures).
@@ -325,3 +332,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.1.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.9...v3.1.10
 [3.1.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.10...v3.1.11
 [3.1.12]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.11...v3.1.12
+[3.1.13]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.12...v3.1.13

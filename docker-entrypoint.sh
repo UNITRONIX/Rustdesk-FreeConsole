@@ -8,7 +8,7 @@ set -e
 
 echo "========================================"
 echo "  BetterDesk Console - Container Startup"
-echo "  Version: ${BETTERDESK_IMAGE_VERSION:-3.1.12} (Node.js)"
+echo "  Version: ${BETTERDESK_IMAGE_VERSION:-3.1.13} (Node.js)"
 echo "========================================"
 
 # Log configuration
