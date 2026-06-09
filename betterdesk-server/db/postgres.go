@@ -744,7 +744,7 @@ func (pg *PostgresDB) GetBannedPeerCount() (int, error) {
 // UpdatePeerStatus updates a peer's status and IP, plus last_online timestamp.
 func (pg *PostgresDB) UpdatePeerStatus(id string, status string, ip string) error {
 	_, err := pg.pool.Exec(pg.ctx,
-		`UPDATE peers SET status = $1, ip = $2, last_online = NOW() WHERE id = $3`,
+		`UPDATE peers SET status = $1, ip = $2, last_online = NOW() WHERE id = $3 AND soft_deleted = FALSE`,
 		status, ip, id)
 	return err
 }

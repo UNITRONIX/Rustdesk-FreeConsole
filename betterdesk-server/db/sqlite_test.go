@@ -219,6 +219,35 @@ func TestUpsertDoesNotRestoreSoftDeletedPeer(t *testing.T) {
 	}
 }
 
+func TestUpdatePeerStatusIgnoresSoftDeleted(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := db.UpsertPeer(&Peer{ID: "STATDEL1", Status: "OFFLINE", IP: "10.0.0.5"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeletePeer("STATDEL1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpdatePeerStatus("STATDEL1", "ONLINE", "10.0.0.99"); err != nil {
+		t.Fatal(err)
+	}
+
+	peers, err := db.ListPeers(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range peers {
+		if p.ID == "STATDEL1" {
+			if p.Status == "ONLINE" {
+				t.Fatal("UpdatePeerStatus must not mark soft-deleted peer ONLINE")
+			}
+			if p.IP == "10.0.0.99" {
+				t.Fatal("UpdatePeerStatus must not update IP on soft-deleted peer")
+			}
+		}
+	}
+}
+
 func TestBanSystem(t *testing.T) {
 	db := newTestDB(t)
 

@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const SERVER_BINARY_NAME = 'betterdesk-server';
 const ALLOWED_TARGET_DIRS = [
@@ -200,7 +200,7 @@ function canUsePrivilegedDeploy(scriptPath) {
         return true;
     }
     try {
-        execSync(`sudo -n ${JSON.stringify(scriptPath)} --check`, {
+        execFileSync('sudo', ['-n', scriptPath, '--check'], {
             timeout: 5000,
             stdio: 'pipe',
         });

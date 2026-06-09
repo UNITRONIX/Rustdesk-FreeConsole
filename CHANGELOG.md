@@ -1,7 +1,10 @@
 ## [Unreleased]
 
-### Changed
-- _(none yet)_
+### Security
+- **CVE-2026-50575 / GHSA-3v82-3gf8-fxx8 (device replay after delete)** — WebSocket signal registration now rejects soft-deleted peer IDs (new registration and heartbeat), matching the existing UDP/TCP path. `UpdatePeerStatus` no longer marks soft-deleted rows `ONLINE`. Restoration remains explicit via `POST /api/peers/{id}/restore` only. Ships via panel update (`betterdesk-server`).
+- **Dependency updates (Dependabot)** — `go-ntlmssp` 0.1.1 (CVE-2026-32952), `golang.org/x/image` 0.38.0 (CVE-2026-33809), `pgx/v5` 5.9.2 in Go modules; `openssl` 0.10.80 and `tauri` 2.11.2 in Tauri `Cargo.lock` files (desktop client rebuild required for Rust-side fixes).
+- **SSRF / path hardening (CodeQL)** — OIDC discovery URLs validated before fetch; language file routes confined to `lang/`; server file browser paths restricted to allowed roots (`BETTERDESK_FILE_ALLOWED_ROOTS`); network monitor TCP checks resolve DNS before connect; address-book tag merge capped to prevent allocation overflow.
+- **Shell / logging hardening** — `updateService` and deploy helpers use `execFileSync` argv arrays; auth audit logs no longer echo operator usernames on sensitive paths; system log/stats routes rate-limited.
 
 ---
 

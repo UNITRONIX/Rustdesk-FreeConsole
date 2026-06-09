@@ -16,6 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { apiLimiter } = require('../middleware/rateLimiter');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ router.get('/api/system/info', requireAuth, requirePermission('metrics.view'), (
 
 // ─── GET /api/logs/recent ─────────────────────────────────────────────────────
 
-router.get('/api/logs/recent', requireAuth, requirePermission('metrics.view'), (req, res) => {
+router.get('/api/logs/recent', apiLimiter, requireAuth, requirePermission('metrics.view'), (req, res) => {
     try {
         const source = req.query.source || 'console';
         const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
@@ -159,7 +160,7 @@ router.get('/api/logs/recent', requireAuth, requirePermission('metrics.view'), (
 
 // ─── GET /api/database/stats ──────────────────────────────────────────────────
 
-router.get('/api/database/stats', requireAuth, requirePermission('metrics.view'), async (req, res) => {
+router.get('/api/database/stats', apiLimiter, requireAuth, requirePermission('metrics.view'), async (req, res) => {
     try {
         const db = require('../services/dbAdapter');
         const config = require('../config/config');

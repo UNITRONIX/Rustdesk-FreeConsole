@@ -183,15 +183,40 @@ function getResourceSnapshot() {
 
 // ─── File browser ─────────────────────────────────────────────────────────────
 
+function getAllowedFileRoots() {
+    const roots = new Set([
+        path.resolve(process.env.BETTERDESK_PATH || '/opt/rustdesk'),
+        path.resolve(process.env.BETTERDESK_CONSOLE_PATH || process.cwd()),
+        path.resolve(os.homedir()),
+        '/var/log',
+        os.tmpdir(),
+        '/tmp',
+        '/var/tmp',
+    ]);
+    const extra = process.env.BETTERDESK_FILE_ALLOWED_ROOTS;
+    if (extra) {
+        for (const entry of extra.split(',')) {
+            const trimmed = entry.trim();
+            if (trimmed) roots.add(path.resolve(trimmed));
+        }
+    }
+    return [...roots];
+}
+
 /**
- * Resolve a user-supplied path to an absolute path.
- * Rejects null bytes and empty strings. Does NOT restrict location —
- * callers must enforce auth + audit on top.
+ * Resolve a user-supplied path to an absolute path within allowed roots.
+ * Rejects null bytes, empty strings, and paths outside configured roots.
  */
 function resolvePath(p) {
     if (typeof p !== 'string' || !p.length) throw new Error('Path is required');
     if (p.indexOf('\0') !== -1) throw new Error('Invalid path');
-    let abs = path.resolve(p);
+    const abs = path.resolve(p);
+    const allowed = getAllowedFileRoots().some(
+        (root) => abs === root || abs.startsWith(root + path.sep)
+    );
+    if (!allowed) {
+        throw new Error('Path outside allowed directory roots');
+    }
     return abs;
 }
 

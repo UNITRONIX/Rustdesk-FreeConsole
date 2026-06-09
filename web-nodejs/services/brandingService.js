@@ -34,9 +34,13 @@ function sanitizeSvg(svg) {
     sanitized = sanitized.replace(/<\?[\s\S]*?\?>/g, '');
     sanitized = sanitized.replace(/<!DOCTYPE[\s\S]*?>/gi, '');
 
-    // Remove dangerous elements.
-    sanitized = sanitized.replace(SVG_DANGEROUS_TAGS, '');
-    sanitized = sanitized.replace(SVG_DANGEROUS_TAGS_SELFCLOSING, '');
+    // Remove dangerous elements (repeat until stable — multi-pass tag stripping).
+    let prev;
+    do {
+        prev = sanitized;
+        sanitized = sanitized.replace(SVG_DANGEROUS_TAGS, '');
+        sanitized = sanitized.replace(SVG_DANGEROUS_TAGS_SELFCLOSING, '');
+    } while (sanitized !== prev);
 
     // Remove event handler attributes & dangerous href schemes.
     sanitized = sanitized.replace(SVG_DANGEROUS_ATTRS, '');
@@ -147,8 +151,12 @@ function buildBackgroundValue(type, color, gradient, imageUrl) {
 function sanitizeCustomCss(value) {
     if (value === undefined || value === null) return '';
     let css = String(value);
-    css = css.replace(/<\s*\/?\s*style[^>]*>/gi, '');     // </style> breakout
-    css = css.replace(/<[^>]*>/g, '');                    // any HTML tags
+    let prev;
+    do {
+        prev = css;
+        css = css.replace(/<\s*\/?\s*style[^>]*>/gi, '');     // </style> breakout
+        css = css.replace(/<[^>]*>/g, '');                    // any HTML tags
+    } while (css !== prev);
     css = css.replace(/@import\b[^;]*;?/gi, '');          // external imports
     css = css.replace(/expression\s*\(/gi, '');           // IE expression()
     css = css.replace(/(?:-\w+-)?behavior\s*:/gi, '');    // HTC/XBL binding

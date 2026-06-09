@@ -660,7 +660,7 @@ async function authenticate(username, password) {
                     await db.updateUserPassword(user.id, bcryptHash);
                     console.log(`[AUTH] Migrated password hash from PBKDF2 to bcrypt for user: ${username}`);
                 } catch (err) {
-                    console.warn(`[AUTH] Failed to migrate password hash for ${username}:`, err.message);
+                    console.warn('[AUTH] Failed to migrate password hash for user id', user.id, ':', err.message);
                 }
             }
         }
@@ -869,7 +869,7 @@ async function ensureDefaultAdmin() {
                     await db.updateUserPassword(admin.id, bcryptHash);
                     console.log(`[AUTH] Admin password hash force-updated to match DEFAULT_ADMIN_PASSWORD`);
                 } else {
-                    console.log(`[AUTH] Admin user '${defaultUsername}' exists (${hashType}) — password unchanged`);
+                    console.log(`[AUTH] Default admin account exists (${hashType}) — password unchanged`);
                 }
             }
         } else {

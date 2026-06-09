@@ -742,7 +742,7 @@ func (s *SQLiteDB) UpdatePeerStatus(id string, status string, ip string) error {
 	defer s.mu.Unlock()
 
 	_, err := s.db.Exec(
-		`UPDATE peers SET status = ?, ip = ?, last_online = datetime('now') WHERE id = ?`,
+		`UPDATE peers SET status = ?, ip = ?, last_online = datetime('now') WHERE id = ? AND soft_deleted = 0`,
 		status, ip, id)
 	return err
 }

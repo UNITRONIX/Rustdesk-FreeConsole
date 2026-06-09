@@ -143,7 +143,7 @@ function checkTcpPort(host, port, timeoutMs = DEFAULT_TIMEOUT_MS) {
             return resolve({ success: false, rtt_ms: null, error: 'Invalid host format' });
         }
 
-        assertSafeResolvedHost(host, MONITOR_OPTS).then(() => {
+        assertSafeResolvedHost(host, MONITOR_OPTS).then(() => resolveHost(host)).then((resolvedHost) => {
             const start = Date.now();
             const socket = new net.Socket();
 
@@ -165,7 +165,7 @@ function checkTcpPort(host, port, timeoutMs = DEFAULT_TIMEOUT_MS) {
                 resolve({ success: false, rtt_ms: null, error: err.message });
             });
 
-            socket.connect(port, host);
+            socket.connect(port, resolvedHost);
         }).catch((err) => {
             const msg = err instanceof SsrfBlockedError ? err.message : err.message;
             resolve({ success: false, rtt_ms: null, error: msg });

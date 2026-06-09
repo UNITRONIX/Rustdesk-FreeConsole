@@ -698,7 +698,7 @@ function createGoInfo(version, binPath, source) {
 function probeGoBinary(binPath, source) {
     if (!binPath) return null;
     try {
-        const version = execSync(`${quoteCommand(binPath)} version`, {
+        const version = execFileSync(binPath, ['version'], {
             timeout: 10000,
             stdio: 'pipe'
         }).toString().trim();
@@ -1187,7 +1187,7 @@ function goStdlibHealthy(binPath) {
     if (!binPath || !fs.existsSync(binPath)) return false;
     const goEnv = goEnvForBin(binPath);
     try {
-        execSync(`${quoteCommand(binPath)} version`, { timeout: 10000, stdio: 'pipe', env: goEnv });
+        execFileSync(binPath, ['version'], { timeout: 10000, stdio: 'pipe', env: goEnv });
     } catch {
         return false;
     }
@@ -1196,7 +1196,7 @@ function goStdlibHealthy(binPath) {
         const src = path.join(tmpDir, 'probe.go');
         const out = path.join(tmpDir, IS_WINDOWS ? 'probe.exe' : 'probe');
         fs.writeFileSync(src, 'package main\nimport _ "encoding/json"\nfunc main() {}\n');
-        execSync(`${quoteCommand(binPath)} build -o ${quoteCommand(out)} ${quoteCommand(src)}`, {
+        execFileSync(binPath, ['build', '-o', out, src], {
             timeout: 120000,
             stdio: 'pipe',
             env: goEnv,
