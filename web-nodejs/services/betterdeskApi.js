@@ -12,6 +12,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const config = require('../config/config');
+const { assertSafeGoApiRelativePath } = require('../lib/goApiPath');
 
 // Determine whether the Go API URL uses HTTPS so we only set the appropriate
 // agent. Setting httpsAgent on plain HTTP connections can trigger spurious
@@ -30,6 +31,13 @@ const apiClient = axios.create({
         ? { httpsAgent: new https.Agent({ rejectUnauthorized: !config.allowSelfSignedCerts }) }
         : { httpAgent: new http.Agent({ keepAlive: true }) }
     ),
+});
+
+apiClient.interceptors.request.use((requestConfig) => {
+    if (requestConfig.url) {
+        requestConfig.url = assertSafeGoApiRelativePath(String(requestConfig.url));
+    }
+    return requestConfig;
 });
 
 // Retry once on 401 by reloading API key from file (handles race condition

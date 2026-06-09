@@ -8,6 +8,8 @@
 ## [3.1.7] — 2026-06-09
 
 ### Security
+- **Go API SSRF guard** — `goApiPath` validates all relative paths on `betterdeskApi` axios client; policy routes validate org/device IDs.
+- **File browser** — directory listing uses `resolveChildPath` for each entry under an already-confined parent path.
 - **Clear-text logging** — admin password no longer logged on first install; API login logs redacted usernames (`logRedact.js`).
 - **Path confinement** — `fontService` and `fileTransferService` use `safePath.resolveChildPath` for filesystem operations.
 - **CI** — `build.yml` default `permissions: contents: read`; write only on release/binary-update jobs.

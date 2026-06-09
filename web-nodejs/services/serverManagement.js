@@ -26,7 +26,7 @@ const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
-const { resolvePathWithinAnyRoot } = require('../lib/safePath');
+const { resolvePathWithinAnyRoot, resolveChildPath } = require('../lib/safePath');
 
 const SERVICE_NAME_RE = /^[A-Za-z0-9_.@:-]{1,128}$/;
 const FILE_MAX_BYTES = 8 * 1024 * 1024;        // 8 MB read/write cap
@@ -219,7 +219,12 @@ async function listDirectory(dirPath) {
     const entries = await fsp.readdir(abs, { withFileTypes: true });
     const items = [];
     for (const e of entries) {
-        const full = path.join(abs, e.name);
+        let full;
+        try {
+            full = resolveChildPath(abs, e.name);
+        } catch (_) {
+            continue;
+        }
         let st = null;
         try { st = await fsp.lstat(full); } catch (_) { /* permission denied etc. */ }
         items.push({

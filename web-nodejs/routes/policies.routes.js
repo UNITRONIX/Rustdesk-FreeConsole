@@ -33,6 +33,7 @@
 const express = require('express');
 const router = express.Router();
 const { apiClient } = require('../services/betterdeskApi');
+const { assertSafeApiId } = require('../lib/goApiPath');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 // ---------------------------------------------------------------------------
@@ -92,48 +93,63 @@ router.get('/attestation', requireAuth, requireAdmin, (req, res) => {
 // ---------------------------------------------------------------------------
 
 // Get all policies for organization
-router.get('/api/panel/policies/:orgId', requireAuth, (req, res) =>
-    goApiProxy(req, res, 'get', `/org/${req.params.orgId}/policy`));
+router.get('/api/panel/policies/:orgId', requireAuth, (req, res) => {
+    const orgId = assertSafeApiId(req.params.orgId, 'orgId');
+    return goApiProxy(req, res, 'get', `/org/${encodeURIComponent(orgId)}/policy`);
+});
+
+function orgPolicyPath(req, suffix) {
+    const orgId = assertSafeApiId(req.params.orgId, 'orgId');
+    return `/org/${encodeURIComponent(orgId)}/policy${suffix}`;
+}
 
 // Set connection policy
 router.put('/api/panel/policies/:orgId/connection', requireAdmin, (req, res) =>
-    goApiProxy(req, res, 'put', `/org/${req.params.orgId}/policy/connection`, req.body));
+    goApiProxy(req, res, 'put', orgPolicyPath(req, '/connection'), req.body));
 
 // Set feature policy
 router.put('/api/panel/policies/:orgId/features', requireAdmin, (req, res) =>
-    goApiProxy(req, res, 'put', `/org/${req.params.orgId}/policy/features`, req.body));
+    goApiProxy(req, res, 'put', orgPolicyPath(req, '/features'), req.body));
 
 // Set security policy
 router.put('/api/panel/policies/:orgId/security', requireAdmin, (req, res) =>
-    goApiProxy(req, res, 'put', `/org/${req.params.orgId}/policy/security`, req.body));
+    goApiProxy(req, res, 'put', orgPolicyPath(req, '/security'), req.body));
 
 // Set network policy
 router.put('/api/panel/policies/:orgId/network', requireAdmin, (req, res) =>
-    goApiProxy(req, res, 'put', `/org/${req.params.orgId}/policy/network`, req.body));
+    goApiProxy(req, res, 'put', orgPolicyPath(req, '/network'), req.body));
 
 // Set update policy
 router.put('/api/panel/policies/:orgId/update', requireAdmin, (req, res) =>
-    goApiProxy(req, res, 'put', `/org/${req.params.orgId}/policy/update`, req.body));
+    goApiProxy(req, res, 'put', orgPolicyPath(req, '/update'), req.body));
 
 // Get effective (merged) policy for a device
-router.get('/api/panel/policies/:orgId/effective/:deviceId', requireAuth, (req, res) =>
-    goApiProxy(req, res, 'get', `/org/${req.params.orgId}/policy/effective/${req.params.deviceId}`));
+router.get('/api/panel/policies/:orgId/effective/:deviceId', requireAuth, (req, res) => {
+    const deviceId = assertSafeApiId(req.params.deviceId, 'deviceId');
+    return goApiProxy(req, res, 'get', `${orgPolicyPath(req, '')}/effective/${encodeURIComponent(deviceId)}`);
+});
 
 // Policy audit log
 router.get('/api/panel/policies/:orgId/audit', requireAuth, (req, res) =>
-    goApiProxy(req, res, 'get', `/org/${req.params.orgId}/policy/audit`));
+    goApiProxy(req, res, 'get', orgPolicyPath(req, '/audit')));
 
 // ---------------------------------------------------------------------------
 //  Device-facing: agent fetches its policy
 // ---------------------------------------------------------------------------
 
 router.get('/api/bd/device-policy', async (req, res) => {
-    const deviceId = req.query.device_id || req.headers['x-device-id'];
-    if (!deviceId) {
+    const rawDeviceId = req.query.device_id || req.headers['x-device-id'];
+    if (!rawDeviceId) {
         return res.status(400).json({ error: 'device_id required' });
     }
+    let deviceId;
     try {
-        const resp = await apiClient({ method: 'get', url: `/peers/${deviceId}/policy` });
+        deviceId = assertSafeApiId(rawDeviceId, 'device_id');
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+    try {
+        const resp = await apiClient({ method: 'get', url: `/peers/${encodeURIComponent(deviceId)}/policy` });
         res.json(resp.data);
     } catch (err) {
         const status = err.response?.status || 500;
@@ -165,8 +181,14 @@ router.get('/api/panel/attestation', requireAuth, requireAdmin, async (req, res)
 
 // Get attestation for specific device
 router.get('/api/panel/attestation/:deviceId', requireAuth, async (req, res) => {
+    let deviceId;
     try {
-        const resp = await apiClient({ method: 'get', url: `/attestation/${req.params.deviceId}` });
+        deviceId = assertSafeApiId(req.params.deviceId, 'deviceId');
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+    try {
+        const resp = await apiClient({ method: 'get', url: `/attestation/${encodeURIComponent(deviceId)}` });
         res.json(resp.data);
     } catch (err) {
         if (err.response?.status === 404 || err.code === 'ECONNREFUSED') {
@@ -183,10 +205,16 @@ router.post('/api/bd/attestation', async (req, res) => {
     if (!device_id || !fingerprint) {
         return res.status(400).json({ error: 'device_id and fingerprint required' });
     }
+    let deviceId;
+    try {
+        deviceId = assertSafeApiId(device_id, 'device_id');
+    } catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
     try {
         const resp = await apiClient({
             method: 'post',
-            url: `/peers/${device_id}/attestation`,
+            url: `/peers/${encodeURIComponent(deviceId)}/attestation`,
             data: { fingerprint, platform_data }
         });
         res.json(resp.data);
