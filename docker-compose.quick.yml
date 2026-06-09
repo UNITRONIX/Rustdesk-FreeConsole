@@ -3,8 +3,8 @@
 # =============================================================================
 # NO BUILD REQUIRED - uses pre-built images from GitHub Container Registry (ghcr.io).
 #
-# Image tag (aligned with CHANGELOG / git tag v3.1.11):
-#   Default: 3.1.11  |  Rolling: BETTERDESK_IMAGE_TAG=latest
+# Image tag (aligned with CHANGELOG / git tag v3.1.12):
+#   Default: 3.1.12  |  Rolling: BETTERDESK_IMAGE_TAG=latest
 #
 # Usage (automated — recommended):
 #   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
@@ -14,7 +14,7 @@
 #   docker compose pull && docker compose up -d
 #
 # Pin a specific release:
-#   BETTERDESK_IMAGE_TAG=3.1.11 docker compose up -d
+#   BETTERDESK_IMAGE_TAG=3.1.12 docker compose up -d
 #
 # Web Console: http://localhost:5000
 # RustDesk client API: http://localhost:21114 (Go server — not the console port)
@@ -31,7 +31,7 @@
 services:
   # BetterDesk Server (Go) — handles signal, relay, and API
   server:
-    image: ghcr.io/unitronix/betterdesk-server:${BETTERDESK_IMAGE_TAG:-3.1.11}
+    image: ghcr.io/unitronix/betterdesk-server:${BETTERDESK_IMAGE_TAG:-3.1.12}
     container_name: betterdesk-server
     hostname: betterdesk-server
     command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-api-port", "21114", "-key-file", "/opt/rustdesk/id_ed25519"]
@@ -53,7 +53,7 @@ services:
       - AUTH_DB_PATH=/app/data/auth.db
       # Set this when clients are outside the Docker network. Use the host's
       # public IP/DNS, or the host LAN IP for LAN-only deployments.
-      # Example: RELAY_SERVERS=203.1.1113.10:21117 docker compose up -d
+      # Example: RELAY_SERVERS=203.1.1213.10:21117 docker compose up -d
       - RELAY_SERVERS=${RELAY_SERVERS:-}
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
       # Enrollment policy. Fresh volumes default to "managed" (operator approves
@@ -83,7 +83,7 @@ services:
 
   # BetterDesk Console — Web Management Interface
   console:
-    image: ghcr.io/unitronix/betterdesk-console:${BETTERDESK_IMAGE_TAG:-3.1.11}
+    image: ghcr.io/unitronix/betterdesk-console:${BETTERDESK_IMAGE_TAG:-3.1.12}
     container_name: betterdesk-console
     hostname: betterdesk-console
     ports:
@@ -110,7 +110,7 @@ services:
       - WS_HBBR_PORT=21117
       - DOCKER=true
       - BETTERDESK_UPDATE_MODE=image
-      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.1.11}
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.1.12}
     networks:
       - betterdesk-net
     depends_on:
