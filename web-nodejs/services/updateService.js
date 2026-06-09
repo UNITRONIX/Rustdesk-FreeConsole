@@ -27,7 +27,7 @@ const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
-const { resolveChildPath } = require('../lib/safePath');
+const { resolveChildPath, resolvePathUnderRoot } = require('../lib/safePath');
 const { runConsoleNpmInstall } = require('../lib/consoleNpmInstall');
 const {
     NON_CRITICAL_UPDATE_FAILURES,
@@ -2520,8 +2520,8 @@ function listBackups() {
     return fs.readdirSync(BACKUP_DIR)
         .filter(d => d.startsWith('pre-update-'))
         .map(d => {
-            const dir = path.join(BACKUP_DIR, d);
-            const mPath = path.join(dir, 'manifest.json');
+            const dir = resolveChildPath(path.resolve(BACKUP_DIR), d);
+            const mPath = resolveChildPath(dir, 'manifest.json');
             let m = {};
             if (fs.existsSync(mPath)) {
                 try { m = JSON.parse(fs.readFileSync(mPath, 'utf8')); } catch (_e) { /* skip */ }
@@ -2599,17 +2599,17 @@ function pruneBackups(keep) {
  */
 function restoreFromBackup(backupName) {
     if (!isValidBackupName(backupName)) throw new Error('Invalid backup name');
-    const backupPath = path.join(BACKUP_DIR, backupName);
+    const backupPath = resolveChildPath(path.resolve(BACKUP_DIR), backupName);
     if (!fs.existsSync(backupPath)) throw new Error('Backup not found');
 
-    const manifestPath = path.join(backupPath, 'manifest.json');
+    const manifestPath = resolveChildPath(backupPath, 'manifest.json');
     if (!fs.existsSync(manifestPath)) throw new Error('Invalid backup — missing manifest');
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     let restored = 0;
     for (const filePath of (manifest.files || [])) {
-        const src = path.join(backupPath, filePath);
-        const dest = path.join(ROOT_DIR, filePath);
+        const src = resolvePathUnderRoot(backupPath, filePath);
+        const dest = resolvePathUnderRoot(ROOT_DIR, filePath);
         if (fs.existsSync(src)) {
             fs.mkdirSync(path.dirname(dest), { recursive: true });
             fs.copyFileSync(src, dest);

@@ -11,6 +11,13 @@
 
     const activeSessions = {};
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = String(str);
+        return div.innerHTML;
+    }
+
     // ── Mouse encoding (matching RustDesk mask format) ───────────────────
 
     const MOUSE_TYPE_DOWN  = 1;
@@ -804,7 +811,7 @@
             const dims = `${mon.width}x${mon.height}`;
             const primary = mon.primary ? ' *' : '';
             const selected = mon.index === session._activeMonitor ? ' selected' : '';
-            html += `<option value="${mon.index}"${selected}>${label} (${dims})${primary}</option>`;
+            html += `<option value="${mon.index}"${selected}>${escapeHtml(label)} (${escapeHtml(dims)})${primary}</option>`;
         }
         html += '</select>';
         selectorEl.innerHTML = html;

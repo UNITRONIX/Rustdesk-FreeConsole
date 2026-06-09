@@ -9,6 +9,7 @@ const {
     resolvePathWithinRoot,
     resolvePathWithinAnyRoot,
     resolveLangFilePath,
+    resolvePathUnderRoot,
 } = require('../lib/safePath');
 
 describe('safePath', () => {
@@ -62,5 +63,17 @@ describe('safePath', () => {
         const p = resolveLangFilePath(langDir, 'en');
         expect(p).toBe(path.join(langDir, 'en.json'));
         expect(() => resolveLangFilePath(langDir, '../secrets')).toThrow();
+    });
+
+    test('resolvePathUnderRoot follows nested relative paths', () => {
+        const sub = path.join(tmpRoot, 'a', 'b');
+        fs.mkdirSync(sub, { recursive: true });
+        const p = resolvePathUnderRoot(tmpRoot, 'a/b/file.txt');
+        expect(p).toBe(path.join(sub, 'file.txt'));
+    });
+
+    test('resolvePathUnderRoot blocks traversal', () => {
+        expect(() => resolvePathUnderRoot(tmpRoot, '../etc/passwd')).toThrow();
+        expect(() => resolvePathUnderRoot(tmpRoot, 'a/../../etc/passwd')).toThrow();
     });
 });

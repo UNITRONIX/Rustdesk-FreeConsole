@@ -94,10 +94,33 @@ function resolveLangFilePath(langDir, code) {
     return resolveChildPath(root, `${code}.json`);
 }
 
+/**
+ * Resolve a relative path (may contain slashes) under rootDir.
+ */
+function resolvePathUnderRoot(rootDir, relativePath) {
+    if (typeof relativePath !== 'string' || relativePath.length === 0) {
+        throw new Error('Relative path is required');
+    }
+    if (relativePath.includes('\0')) {
+        throw new Error('Invalid relative path');
+    }
+    const normalized = relativePath.replace(/\\/g, '/');
+    if (path.isAbsolute(normalized) || normalized.startsWith('/')) {
+        throw new Error('Invalid relative path');
+    }
+    const segments = normalized.split('/').filter((s) => s.length > 0);
+    let current = path.resolve(rootDir);
+    for (const segment of segments) {
+        current = resolveChildPath(current, segment);
+    }
+    return current;
+}
+
 module.exports = {
     isPathInsideRoot,
     resolveChildPath,
     resolvePathWithinRoot,
     resolvePathWithinAnyRoot,
     resolveLangFilePath,
+    resolvePathUnderRoot,
 };

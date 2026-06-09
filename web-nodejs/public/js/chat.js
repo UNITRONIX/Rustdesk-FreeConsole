@@ -316,7 +316,9 @@
             const name = Utils.escapeHtml(c.name || c.id);
             const presenceClass = c.online ? (c.status || 'online') : 'offline';
             const initial = (c.name || c.id).charAt(0).toUpperCase();
-            const color = c.avatar_color || '#4f6ef7';
+            const color = Utils.sanitizeColor(c.avatar_color || '#4f6ef7');
+            const roleClass = c.role ? String(c.role).replace(/[^a-z0-9_-]/gi, '') : '';
+            const roleLabel = c.role ? Utils.escapeHtml(c.role) : '';
             const lastMsg = conv && conv.messages.length > 0 ? conv.messages[conv.messages.length - 1] : null;
             const preview = lastMsg ? Utils.escapeHtml(lastMsg.text || '').slice(0, 40) : '';
 
@@ -332,7 +334,7 @@
                             ${lastMsg ? `<span class="chat-list-time">${formatTime(lastMsg.timestamp)}</span>` : ''}
                         </div>
                         <div class="chat-list-preview">
-                            ${c.role ? `<span class="chat-role-badge ${c.role}">${c.role}</span>` : ''}
+                            ${roleLabel ? `<span class="chat-role-badge ${roleClass}">${roleLabel}</span>` : ''}
                             ${preview}
                         </div>
                     </div>
@@ -483,8 +485,10 @@
     }
 
     function renderMessageHtml(msg) {
+        const msgId = Utils.escapeHtml(String(msg.id ?? ''));
+
         if (msg.system) {
-            return `<div class="chat-msg system" data-id="${msg.id}">
+            return `<div class="chat-msg system" data-id="${msgId}">
                 <span class="material-icons">info</span>
                 <span>${Utils.escapeHtml(msg.text)}</span>
             </div>`;
@@ -510,13 +514,15 @@
         if (msg.reactions && Object.keys(msg.reactions).length > 0) {
             reactionsHtml = '<div class="chat-reactions">';
             for (const [emoji, users] of Object.entries(msg.reactions)) {
-                reactionsHtml += `<span class="chat-reaction" data-emoji="${emoji}" title="${users.join(', ')}">${emoji} ${users.length}</span>`;
+                const safeEmoji = Utils.escapeHtml(emoji);
+                const safeTitle = Utils.escapeHtml((users || []).join(', '));
+                reactionsHtml += `<span class="chat-reaction" data-emoji="${safeEmoji}" title="${safeTitle}">${safeEmoji} ${users.length}</span>`;
             }
             reactionsHtml += '</div>';
         }
 
         return `
-            <div class="chat-msg ${isMe ? 'mine' : 'theirs'}" data-id="${msg.id}">
+            <div class="chat-msg ${isMe ? 'mine' : 'theirs'}" data-id="${msgId}">
                 ${!isMe ? `<div class="chat-msg-sender">${name}</div>` : ''}
                 <div class="chat-msg-bubble">
                     ${content}
@@ -823,7 +829,7 @@
             }
 
             dom.searchResults.innerHTML = msgs.map(m => `
-                <div class="chat-search-result" data-conv="${Utils.escapeHtml(m.conversation_id)}" data-id="${m.id}">
+                <div class="chat-search-result" data-conv="${Utils.escapeHtml(m.conversation_id)}" data-id="${Utils.escapeHtml(String(m.id ?? ''))}">
                     <span class="chat-search-from">${Utils.escapeHtml(m.from_name || m.from_id)}</span>
                     <span class="chat-search-text">${Utils.escapeHtml((m.text || '').slice(0, 80))}</span>
                     <span class="chat-search-time">${formatTime(m.created_at || m.timestamp)}</span>

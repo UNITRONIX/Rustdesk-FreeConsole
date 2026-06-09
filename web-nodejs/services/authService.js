@@ -266,6 +266,19 @@ async function hashPassword(password) {
 }
 
 /**
+ * Self-test stored admin hash; re-hash once on mismatch.
+ * @returns {'verified'|'recovered'|'failed'}
+ */
+async function verifyAdminPasswordHash(userId, passwordHash, plainPassword) {
+    const ok = await bcrypt.compare(plainPassword, passwordHash);
+    if (ok) return 'verified';
+    const retryHash = await hashPassword(plainPassword);
+    await db.updateUserPassword(userId, retryHash);
+    const retryOk = await bcrypt.compare(plainPassword, retryHash);
+    return retryOk ? 'recovered' : 'failed';
+}
+
+/**
  * Verify password against hash (supports both bcrypt and PBKDF2).
  * Returns { valid: boolean, needsMigration: boolean }
  */
@@ -911,22 +924,28 @@ async function ensureDefaultAdmin() {
 
     const hash = await hashPassword(password);
     await db.createUser(defaultUsername, hash, 'admin');
-    
+
     // Verify the hash was stored correctly (self-test)
     const created = await db.getUserByUsername(defaultUsername);
+    let verifyStatus = 'missing';
     if (created) {
-        const selfTest = await bcrypt.compare(password, created.password_hash);
-        if (selfTest) {
-            console.log(`[AUTH] Admin user '${defaultUsername}' created and verified successfully`);
-        } else {
-            console.error(`[AUTH] CRITICAL: Admin password self-test FAILED! Hash may be corrupted. Re-hashing...`);
-            const retryHash = await hashPassword(password);
-            await db.updateUserPassword(created.id, retryHash);
-            const retryTest = await bcrypt.compare(password, retryHash);
-            console.log(`[AUTH] Re-hash result: ${retryTest ? 'OK' : 'STILL FAILING — bcrypt may be broken'}`);
-        }
+        verifyStatus = await verifyAdminPasswordHash(created.id, created.password_hash, password);
     } else {
         console.error(`[AUTH] CRITICAL: createUser succeeded but getUserByUsername returned null for '${defaultUsername}'`);
+    }
+
+    switch (verifyStatus) {
+        case 'verified':
+            console.log(`[AUTH] Admin user '${defaultUsername}' created and verified successfully`);
+            break;
+        case 'recovered':
+            console.log(`[AUTH] Admin password self-test recovered after re-hash`);
+            break;
+        case 'failed':
+            console.error(`[AUTH] CRITICAL: Admin password self-test STILL FAILING — bcrypt may be broken`);
+            break;
+        default:
+            break;
     }
     
     if (!defaultPassword) {

@@ -409,8 +409,8 @@
             el.style.animationDelay = (index * 0.05) + 's';
 
             el.innerHTML =
-                '<div class="desktop-icon-img" style="background:' + app.color + '">' +
-                    '<span class="material-icons">' + app.icon + '</span>' +
+                '<div class="desktop-icon-img" style="background:' + sanitizeAppColor(app.color) + '">' +
+                    '<span class="material-icons">' + sanitizeMaterialIcon(app.icon) + '</span>' +
                 '</div>' +
                 '<span class="desktop-icon-label">' + escapeHtml(app.name) + '</span>';
 
@@ -568,9 +568,9 @@
         var t = typeof _ === 'function' ? _ : function(k) { return k; };
 
         el.innerHTML =
-            '<div class="window-titlebar" data-win="' + win.id + '">' +
-                '<div class="window-titlebar-icon" style="background:' + win.app.color + '">' +
-                    '<span class="material-icons">' + win.app.icon + '</span>' +
+            '<div class="window-titlebar" data-win="' + escapeAttr(win.id) + '">' +
+                '<div class="window-titlebar-icon" style="background:' + sanitizeAppColor(win.app.color) + '">' +
+                    '<span class="material-icons">' + sanitizeMaterialIcon(win.app.icon) + '</span>' +
                 '</div>' +
                 '<div class="window-titlebar-text">' + escapeHtml(win.app.name) + '</div>' +
                 '<div class="window-titlebar-controls">' +
@@ -1807,13 +1807,13 @@
             if (!win.minimized) tab.classList.add('active');
             if (win.id === focusedWindowId) tab.classList.add('focused');
 
-            tab.style.setProperty('--tab-color', win.app.color || 'rgba(88,166,255,0.7)');
+            tab.style.setProperty('--tab-color', sanitizeAppColor(win.app.color));
 
             // Slim indicator strip + hover-revealed label
             tab.innerHTML =
                 '<span class="taskbar-tab-indicator"></span>' +
                 '<span class="taskbar-tab-content">' +
-                    '<span class="material-icons taskbar-tab-icon" style="color:' + win.app.color + '">' + win.app.icon + '</span>' +
+                    '<span class="material-icons taskbar-tab-icon" style="color:' + sanitizeAppColor(win.app.color) + '">' + sanitizeMaterialIcon(win.app.icon) + '</span>' +
                     '<span class="taskbar-tab-label">' + escapeHtml(win.app.name) + '</span>' +
                 '</span>';
 
@@ -1869,6 +1869,21 @@
             width: vpWidth,
             height: vpHeight - 36 - bottomOffset - safeBottom
         };
+    }
+
+    function sanitizeAppColor(color) {
+        if (typeof Utils !== 'undefined' && Utils.sanitizeColor) {
+            return Utils.sanitizeColor(color);
+        }
+        var s = String(color || '');
+        if (/^#[0-9A-Fa-f]{3}$/.test(s) || /^#[0-9A-Fa-f]{6}$/.test(s)) return s;
+        return '#808080';
+    }
+
+    function sanitizeMaterialIcon(name) {
+        var s = String(name || 'apps').trim();
+        if (/^[a-z0-9_]+$/.test(s)) return s;
+        return 'apps';
     }
 
     function escapeHtml(str) {
@@ -2004,8 +2019,9 @@
             btn.className = 'topbar-shortcut-btn';
             btn.title = sc.name || sc.id;
             btn.setAttribute('data-shortcut-idx', idx);
-            btn.style.setProperty('--sc-color', sc.color || '#8b949e');
-            btn.innerHTML = '<span class="material-icons" style="color:' + (sc.color || '#8b949e') + '">' + (sc.icon || 'open_in_new') + '</span>';
+            var scColor = sanitizeAppColor(sc.color || '#8b949e');
+            btn.style.setProperty('--sc-color', scColor);
+            btn.innerHTML = '<span class="material-icons" style="color:' + scColor + '">' + sanitizeMaterialIcon(sc.icon || 'open_in_new') + '</span>';
 
             btn.addEventListener('click', function(e) {
                 if (_topbarEditMode) return; // In edit mode, don't open
@@ -2190,7 +2206,7 @@
                 tile.setAttribute('draggable', 'true');
                 tile.setAttribute('data-app-id', app.id);
                 tile.innerHTML =
-                    '<span class="material-icons" style="color:' + app.color + ';font-size:28px">' + app.icon + '</span>' +
+                    '<span class="material-icons" style="color:' + sanitizeAppColor(app.color) + ';font-size:28px">' + sanitizeMaterialIcon(app.icon) + '</span>' +
                     '<span class="app-drawer-tile-name">' + escapeHtml(app.name) + '</span>';
                 tile.addEventListener('click', function() {
                     closeAppDrawer();

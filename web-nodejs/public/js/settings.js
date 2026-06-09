@@ -168,11 +168,12 @@
                 var actionKey = 'audit.action_' + (log.action || '').replace(/[^a-z0-9_]/gi, '_');
                 var actionLabel = typeof _ === 'function' ? _(actionKey) : log.action;
                 if (actionLabel === actionKey) actionLabel = log.action;
+                var actionClass = String(log.action || '').replace(/[^a-z0-9_-]/gi, '');
                 return `
                 <tr>
                     <td>${Utils.formatDate(log.created_at)}</td>
                     <td>${Utils.escapeHtml(log.username || '-')}</td>
-                    <td><span class="audit-action ${log.action}">${Utils.escapeHtml(actionLabel)}</span></td>
+                    <td><span class="audit-action ${actionClass}">${Utils.escapeHtml(actionLabel)}</span></td>
                     <td>${Utils.escapeHtml(log.details || '-')}</td>
                 </tr>
             `;

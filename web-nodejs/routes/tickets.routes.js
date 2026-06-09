@@ -29,6 +29,7 @@
 'use strict';
 
 const express = require('express');
+const { resolveChildPath } = require('../lib/safePath');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
@@ -385,7 +386,7 @@ router.post('/:id(\\d+)/attachments', requireAdminOrOperator, async (req, res) =
         // Sanitize filename
         const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
         const uniqueName = `${ticket.id}_${crypto.randomBytes(8).toString('hex')}_${safeName}`;
-        const storagePath = path.join(UPLOAD_DIR, uniqueName);
+        const storagePath = resolveChildPath(UPLOAD_DIR, uniqueName);
 
         fs.writeFileSync(storagePath, buffer);
 

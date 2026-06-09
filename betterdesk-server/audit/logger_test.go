@@ -102,6 +102,21 @@ func TestFileLogging(t *testing.T) {
 	}
 }
 
+func TestRedactDetailsForLog(t *testing.T) {
+	out := redactDetailsForLog(map[string]string{
+		"reason":   "spam",
+		"password": "secret123",
+		"api_key":  "abc",
+		"token":    "jwt",
+	})
+	if out["reason"] != "spam" {
+		t.Errorf("expected reason preserved, got %q", out["reason"])
+	}
+	if out["password"] != "***" || out["api_key"] != "***" || out["token"] != "***" {
+		t.Errorf("expected sensitive fields redacted, got %v", out)
+	}
+}
+
 func TestRecentEmpty(t *testing.T) {
 	l := NewLogger("")
 	defer l.Close()

@@ -1263,15 +1263,6 @@ router.post('/api/login', async (req, res) => {
     try {
         const body = req.body || {};
 
-        // Debug: log exact body for Issue #104 investigation
-        console.log('[API:LOGIN] Request from', ip, '- body:', JSON.stringify({
-            username: body.username,
-            password: body.password ? '[REDACTED]' : body.password,
-            id: body.id,
-            type: body.type,
-            hasDeviceInfo: !!body.deviceInfo
-        }));
-
         // Extract and sanitize credentials — trim whitespace that could cause empty username issues
         const rawUsername = body.username;
         const rawPassword = body.password;

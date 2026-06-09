@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -124,7 +125,24 @@ func (l *Logger) Log(action Action, actor, target string, details map[string]str
 	}
 	l.mu.Unlock()
 
-	log.Printf("[audit] %s actor=%s target=%s %v", action, actor, target, details)
+	log.Printf("[audit] %s actor=%s target=%s %v", action, actor, target, redactDetailsForLog(details))
+}
+
+func redactDetailsForLog(details map[string]string) map[string]string {
+	if len(details) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(details))
+	for k, v := range details {
+		lk := strings.ToLower(k)
+		if strings.Contains(lk, "password") || strings.Contains(lk, "secret") ||
+			strings.Contains(lk, "token") || strings.Contains(lk, "api_key") || lk == "key" {
+			out[k] = "***"
+		} else {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // Recent returns the most recent n events (newest first).
