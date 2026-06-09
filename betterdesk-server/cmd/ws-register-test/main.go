@@ -28,7 +28,8 @@ func main() {
 	defer cancel()
 
 	dialOpts := &websocket.DialOptions{}
-	if strings.HasPrefix(wsURL, "wss://") {
+	// Opt-in only: dev/lab WSS endpoints with self-signed certs (never default in production).
+	if strings.HasPrefix(wsURL, "wss://") && os.Getenv("WS_REGISTER_TEST_INSECURE") == "1" {
 		dialOpts.HTTPClient = &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // test utility

@@ -931,13 +931,13 @@ async function ensureDefaultAdmin() {
     if (created) {
         verifyStatus = await verifyAdminPasswordHash(created.id, created.password_hash, password);
     } else {
-        console.error(`[AUTH] CRITICAL: createUser succeeded but getUserByUsername returned null for '${defaultUsername}'`);
+        console.error('[AUTH] CRITICAL: createUser succeeded but getUserByUsername returned null for default admin');
     }
     password = '';
 
     switch (verifyStatus) {
         case 'verified':
-            console.log(`[AUTH] Admin user '${defaultUsername}' created and verified successfully`);
+            console.log('[AUTH] Default admin user created and verified successfully');
             break;
         case 'recovered':
             console.log(`[AUTH] Admin password self-test recovered after re-hash`);

@@ -525,7 +525,7 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 		if data, err := os.ReadFile(apiKeyFile); err == nil {
 			apiKey = strings.TrimSpace(string(data))
 			if apiKey != "" {
-				source = apiKeyFile
+				source = ".api_key file (key directory)"
 			}
 		}
 	}
@@ -540,7 +540,7 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 		if data, err := os.ReadFile(apiKeyFile); err == nil {
 			apiKey = strings.TrimSpace(string(data))
 			if apiKey != "" {
-				source = apiKeyFile
+				source = ".api_key file (database directory)"
 			}
 		}
 	}
@@ -570,10 +570,10 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 		}
 		apiKeyFile := filepath.Join(keyDir, ".api_key")
 		if err := os.WriteFile(apiKeyFile, []byte(apiKey+"\n"), 0600); err != nil {
-			log.Printf("WARN: Auto-generated API key but failed to write %s: %v", apiKeyFile, err)
+			log.Printf("WARN: Auto-generated API key but failed to write .api_key file in key directory: %v", err)
 			// Still try to store in DB even if file write fails
 		} else {
-			log.Printf("Auto-generated API key written to %s", apiKeyFile)
+			log.Printf("Auto-generated API key written to .api_key file in key directory")
 		}
 	}
 

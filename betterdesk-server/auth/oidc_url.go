@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 )
@@ -34,4 +36,22 @@ func validateOIDCFetchURL(raw string) (*url.URL, error) {
 		}
 	}
 	return u, nil
+}
+
+// fetchValidatedHTTPGet performs an HTTP GET only after validateOIDCFetchURL succeeds.
+func fetchValidatedHTTPGet(client *http.Client, raw string) (*http.Response, error) {
+	return fetchValidatedHTTPGetContext(context.Background(), client, raw)
+}
+
+// fetchValidatedHTTPGetContext is like fetchValidatedHTTPGet but honors ctx cancellation.
+func fetchValidatedHTTPGetContext(ctx context.Context, client *http.Client, raw string) (*http.Response, error) {
+	validated, err := validateOIDCFetchURL(raw)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, validated.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	return client.Do(req)
 }

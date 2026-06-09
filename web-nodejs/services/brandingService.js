@@ -14,6 +14,10 @@ const SVG_DANGEROUS_TAGS_SELFCLOSING = /<\s*(script|foreignobject|iframe|embed|o
 
 // Dangerous attributes that can execute JavaScript or trigger external fetches.
 const SVG_DANGEROUS_ATTRS = /\s(on\w+|xlink:href\s*=\s*["']\s*(?:javascript|data|vbscript|file):)[^>]*/gi;
+// Residual HTML injection tokens stripped in a final pass (obfuscated/nested tags).
+const SVG_RESIDUAL_SCRIPT = /<\/?\s*script\b/gi;
+const SVG_RESIDUAL_STYLE = /<\/?\s*style\b/gi;
+const SVG_RESIDUAL_ON_ATTR = /\s+on[a-z]+\s*=/gi;
 // Strip javascript:/data:/vbscript: URLs in href / xlink:href.
 const SVG_JAVASCRIPT_HREF = /\b(?:xlink:)?href\s*=\s*["']\s*(?:javascript|data|vbscript|file):[^"']*/gi;
 // Strip CSS expression() and @import inside style attributes (legacy IE / SVG abuse).
@@ -49,6 +53,10 @@ function sanitizeSvg(svg) {
         sanitized = sanitized.replace(SVG_JAVASCRIPT_HREF, ' href="#"');
         sanitized = sanitized.replace(SVG_CSS_EXPRESSION, 'blocked-');
     } while (sanitized !== prev);
+
+    sanitized = sanitized.replace(SVG_RESIDUAL_SCRIPT, '');
+    sanitized = sanitized.replace(SVG_RESIDUAL_STYLE, '');
+    sanitized = sanitized.replace(SVG_RESIDUAL_ON_ATTR, ' ');
 
     return sanitized;
 }
@@ -163,6 +171,9 @@ function sanitizeCustomCss(value) {
     css = css.replace(/(?:-\w+-)?behavior\s*:/gi, '');    // HTC/XBL binding
     css = css.replace(/-moz-binding\s*:/gi, '');          // Firefox XBL binding
     css = css.replace(/url\s*\(\s*["']?\s*(?:javascript|data|vbscript|file):[^)]*\)/gi, 'none');
+    css = css.replace(/<\/?\s*script\b/gi, '');
+    css = css.replace(/<\/?\s*style\b/gi, '');
+    css = css.replace(/\s+on[a-z]+\s*=/gi, ' ');
     return css.substring(0, 20000);
 }
 
