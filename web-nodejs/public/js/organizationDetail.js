@@ -168,13 +168,13 @@
                                 <td><strong>${escHtml(u.username)}</strong></td>
                                 <td>${escHtml(u.display_name)}</td>
                                 <td>${escHtml(u.email)}</td>
-                                <td><span class="role-badge role-${u.role}">${escHtml(t('role_' + u.role) || u.role)}</span></td>
+                                <td><span class="role-badge role-${String(u.role || '').replace(/[^a-z0-9_-]/gi, '')}">${escHtml(t('role_' + u.role) || u.role)}</span></td>
                                 <td>${formatDate(u.last_login)}</td>
                                 <td>
-                                    <button class="btn btn-icon btn-sm user-role-btn" data-user-id="${u.id}" data-role="${u.role}" title="${escHtml(t('edit_role'))}">
+                                    <button class="btn btn-icon btn-sm user-role-btn" data-user-id="${escHtml(u.id)}" data-role="${escHtml(u.role)}" title="${escHtml(t('edit_role'))}">
                                         <span class="material-icons">edit</span>
                                     </button>
-                                    <button class="btn btn-icon btn-sm user-remove-btn" data-user-id="${u.id}" title="${escHtml(_('common.delete') || 'Remove')}">
+                                    <button class="btn btn-icon btn-sm user-remove-btn" data-user-id="${escHtml(u.id)}" title="${escHtml(_('common.delete') || 'Remove')}">
                                         <span class="material-icons">person_remove</span>
                                     </button>
                                 </td>
@@ -207,7 +207,7 @@
 
         const hasAvailableUsers = availableUsers.length > 0;
         const userOptions = availableUsers.map(u =>
-            `<option value="${u.id}">${escHtml(u.username)} (${escHtml(u.role)})</option>`
+            `<option value="${escHtml(u.id)}">${escHtml(u.username)} (${escHtml(u.role)})</option>`
         ).join('');
 
         Modal.show({

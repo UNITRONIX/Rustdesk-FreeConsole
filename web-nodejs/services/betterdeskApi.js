@@ -12,7 +12,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const config = require('../config/config');
-const { assertSafeGoApiRelativePath } = require('../lib/goApiPath');
+const { assertSafeGoApiRelativePath, assertSafeApiId } = require('../lib/goApiPath');
 
 // Determine whether the Go API URL uses HTTPS so we only set the appropriate
 // agent. Setting httpsAgent on plain HTTP connections can trigger spurious
@@ -651,7 +651,8 @@ async function createDeviceToken(body) {
  */
 async function getDeviceToken(id) {
     try {
-        const { data } = await apiClient.get(`/tokens/${id}`);
+        const safeId = assertSafeApiId(id, 'tokenId');
+        const { data } = await apiClient.get(`/tokens/${encodeURIComponent(safeId)}`);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -663,7 +664,8 @@ async function getDeviceToken(id) {
  */
 async function updateDeviceToken(id, body) {
     try {
-        const { data } = await apiClient.put(`/tokens/${id}`, body);
+        const safeId = assertSafeApiId(id, 'tokenId');
+        const { data } = await apiClient.put(`/tokens/${encodeURIComponent(safeId)}`, body);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -675,7 +677,8 @@ async function updateDeviceToken(id, body) {
  */
 async function revokeDeviceToken(id) {
     try {
-        const { data } = await apiClient.delete(`/tokens/${id}`);
+        const safeId = assertSafeApiId(id, 'tokenId');
+        const { data } = await apiClient.delete(`/tokens/${encodeURIComponent(safeId)}`);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -699,7 +702,9 @@ async function bulkGenerateTokens(body) {
  */
 async function bindTokenToPeer(id, peerId) {
     try {
-        const { data } = await apiClient.post(`/tokens/${id}/bind`, { peer_id: peerId });
+        const safeId = assertSafeApiId(id, 'tokenId');
+        const safePeerId = assertSafeApiId(peerId, 'peerId');
+        const { data } = await apiClient.post(`/tokens/${encodeURIComponent(safeId)}/bind`, { peer_id: safePeerId });
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -811,7 +816,8 @@ async function saveBranding(brandingData) {
  */
 async function getAccessPolicy(id) {
     try {
-        const { data } = await apiClient.get(`/peers/${id}/access-policy`);
+        const safeId = assertSafeApiId(id, 'peerId');
+        const { data } = await apiClient.get(`/peers/${encodeURIComponent(safeId)}/access-policy`);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -823,7 +829,8 @@ async function getAccessPolicy(id) {
  */
 async function saveAccessPolicy(id, policy) {
     try {
-        const { data } = await apiClient.put(`/peers/${id}/access-policy`, policy);
+        const safeId = assertSafeApiId(id, 'peerId');
+        const { data } = await apiClient.put(`/peers/${encodeURIComponent(safeId)}/access-policy`, policy);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -835,7 +842,8 @@ async function saveAccessPolicy(id, policy) {
  */
 async function deleteAccessPolicy(id) {
     try {
-        const { data } = await apiClient.delete(`/peers/${id}/access-policy`);
+        const safeId = assertSafeApiId(id, 'peerId');
+        const { data } = await apiClient.delete(`/peers/${encodeURIComponent(safeId)}/access-policy`);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -861,7 +869,8 @@ async function listRoles() {
  */
 async function getRolePermissions(role) {
     try {
-        const { data } = await apiClient.get(`/roles/${encodeURIComponent(role)}/permissions`);
+        const safeRole = assertSafeApiId(role, 'role');
+        const { data } = await apiClient.get(`/roles/${encodeURIComponent(safeRole)}/permissions`);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -889,7 +898,9 @@ async function listRolePermissionOverrides(role) {
  */
 async function setRolePermission(role, permission, granted) {
     try {
-        const { data } = await apiClient.post('/role-permissions', { role, permission, granted });
+        const safeRole = assertSafeApiId(role, 'role');
+        const safePermission = assertSafeApiId(permission, 'permission');
+        const { data } = await apiClient.post('/role-permissions', { role: safeRole, permission: safePermission, granted });
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -901,7 +912,9 @@ async function setRolePermission(role, permission, granted) {
  */
 async function deleteRolePermission(role, permission) {
     try {
-        const { data } = await apiClient.delete(`/role-permissions/${encodeURIComponent(role)}/${encodeURIComponent(permission)}`);
+        const safeRole = assertSafeApiId(role, 'role');
+        const safePermission = assertSafeApiId(permission, 'permission');
+        const { data } = await apiClient.delete(`/role-permissions/${encodeURIComponent(safeRole)}/${encodeURIComponent(safePermission)}`);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };

@@ -75,4 +75,16 @@ describe('Organizations Routes', () => {
         expect(res.body.error).toBe('Upstream failure');
         expect(apiClient).toHaveBeenCalledWith({ method: 'get', url: '/org/org-42' });
     });
+
+    it('rejects path-smuggling org ids before proxying', async () => {
+        const app = createTestApp();
+        withAuth(app);
+        app.use(organizationsRoutes);
+
+        const res = await request(app).get('/api/panel/org/foo%2Fbar');
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/Invalid orgId/i);
+        expect(apiClient).not.toHaveBeenCalled();
+    });
 });

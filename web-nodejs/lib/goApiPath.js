@@ -44,7 +44,7 @@ function assertSafeGoApiRelativePath(urlPath) {
 
 function assertSafeApiId(value, label = 'id') {
     const v = String(value || '').trim();
-    if (!v || !SAFE_API_SEGMENT.test(v)) {
+    if (!v || v === '.' || v === '..' || !SAFE_API_SEGMENT.test(v)) {
         throw new Error(`Invalid ${label}`);
     }
     return v;

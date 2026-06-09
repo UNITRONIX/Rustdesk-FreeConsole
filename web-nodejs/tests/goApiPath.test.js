@@ -22,5 +22,7 @@ describe('goApiPath', () => {
     test('assertSafeApiId validates identifiers', () => {
         expect(assertSafeApiId('device-123', 'device')).toBe('device-123');
         expect(() => assertSafeApiId('../x', 'device')).toThrow();
+        expect(() => assertSafeApiId('..', 'orgId')).toThrow();
+        expect(() => assertSafeApiId('.', 'orgId')).toThrow();
     });
 });

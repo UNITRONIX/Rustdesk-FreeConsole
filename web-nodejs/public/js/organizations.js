@@ -87,13 +87,13 @@
         }
 
         orgList.innerHTML = organizations.map(org => `
-            <div class="org-card" data-id="${org.id}">
+            <div class="org-card" data-id="${escHtml(org.id)}">
                 <div class="org-card-info">
                     <div class="org-card-icon">
                         <span class="material-icons">business</span>
                     </div>
                     <div class="org-card-text">
-                        <a href="/organizations/${org.id}" class="org-card-name">${escHtml(org.name)}</a>
+                        <a href="/organizations/${encodeURIComponent(org.id)}" class="org-card-name">${escHtml(org.name)}</a>
                         <span class="org-card-slug">${escHtml(org.slug)}</span>
                     </div>
                 </div>
@@ -101,10 +101,10 @@
                     <span class="org-card-date">${formatDate(org.created_at)}</span>
                 </div>
                 <div class="org-card-actions">
-                    <button class="btn btn-icon btn-sm org-edit-btn" data-id="${org.id}" title="Edit">
+                    <button class="btn btn-icon btn-sm org-edit-btn" data-id="${escHtml(org.id)}" title="Edit">
                         <span class="material-icons">edit</span>
                     </button>
-                    <button class="btn btn-icon btn-sm btn-danger org-delete-btn" data-id="${org.id}" title="Delete">
+                    <button class="btn btn-icon btn-sm btn-danger org-delete-btn" data-id="${escHtml(org.id)}" title="Delete">
                         <span class="material-icons">delete</span>
                     </button>
                 </div>

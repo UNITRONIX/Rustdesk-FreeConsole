@@ -231,10 +231,17 @@
         delete activeSessions[key];
     }
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = String(str);
+        return div.innerHTML;
+    }
+
     function showTerminalError(widgetId, message) {
         const container = document.querySelector(`[data-widget-id="${CSS.escape(widgetId)}"] .cdap-terminal-output`);
         if (container) {
-            container.innerHTML = `<div class="cdap-terminal-line" style="color: #ff7b72;">${message}</div>`;
+            container.innerHTML = `<div class="cdap-terminal-line" style="color: #ff7b72;">${escapeHtml(message)}</div>`;
         }
     }
 

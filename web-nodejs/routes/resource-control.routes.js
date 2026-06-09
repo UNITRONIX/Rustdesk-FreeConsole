@@ -2,6 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { assertSafeApiId } = require('../lib/goApiPath');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 
 let apiClient;
@@ -22,6 +23,23 @@ async function goApiProxy(req, res, method, path, body) {
         const status = err.response?.status || 500;
         const data = err.response?.data || { error: 'Failed to reach Go server' };
         res.status(status).json(data);
+    }
+}
+
+function deviceResourcePath(deviceId, suffix = '') {
+    const id = assertSafeApiId(deviceId, 'deviceId');
+    return `/devices/${encodeURIComponent(id)}/resources${suffix}`;
+}
+
+async function goApiProxySafe(req, res, method, pathBuilder, body) {
+    try {
+        const path = typeof pathBuilder === 'function' ? pathBuilder() : pathBuilder;
+        return goApiProxy(req, res, method, path, body);
+    } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).json({ error: err.message });
+        }
+        throw err;
     }
 }
 
@@ -67,42 +85,42 @@ router.get('/api/panel/resource-control/devices', requireAuth, requirePermission
  * GET /api/panel/resource-control/policies/:deviceId — Get resource policy for a device
  */
 router.get('/api/panel/resource-control/policies/:deviceId', requireAuth, requirePermission('server.config'), (req, res) => {
-    goApiProxy(req, res, 'get', `/devices/${req.params.deviceId}/resources`);
+    goApiProxySafe(req, res, 'get', () => deviceResourcePath(req.params.deviceId));
 });
 
 /**
  * POST /api/panel/resource-control/policies/:deviceId/usb — Set USB policy
  */
 router.post('/api/panel/resource-control/policies/:deviceId/usb', requireAuth, requirePermission('server.config'), (req, res) => {
-    goApiProxy(req, res, 'post', `/devices/${req.params.deviceId}/resources/usb`, req.body);
+    goApiProxySafe(req, res, 'post', () => deviceResourcePath(req.params.deviceId, '/usb'), req.body);
 });
 
 /**
  * POST /api/panel/resource-control/policies/:deviceId/optical — Set optical drive policy
  */
 router.post('/api/panel/resource-control/policies/:deviceId/optical', requireAuth, requirePermission('server.config'), (req, res) => {
-    goApiProxy(req, res, 'post', `/devices/${req.params.deviceId}/resources/optical`, req.body);
+    goApiProxySafe(req, res, 'post', () => deviceResourcePath(req.params.deviceId, '/optical'), req.body);
 });
 
 /**
  * POST /api/panel/resource-control/policies/:deviceId/monitors — Set monitor policy
  */
 router.post('/api/panel/resource-control/policies/:deviceId/monitors', requireAuth, requirePermission('server.config'), (req, res) => {
-    goApiProxy(req, res, 'post', `/devices/${req.params.deviceId}/resources/monitors`, req.body);
+    goApiProxySafe(req, res, 'post', () => deviceResourcePath(req.params.deviceId, '/monitors'), req.body);
 });
 
 /**
  * POST /api/panel/resource-control/policies/:deviceId/disks — Set disk policy
  */
 router.post('/api/panel/resource-control/policies/:deviceId/disks', requireAuth, requirePermission('server.config'), (req, res) => {
-    goApiProxy(req, res, 'post', `/devices/${req.params.deviceId}/resources/disks`, req.body);
+    goApiProxySafe(req, res, 'post', () => deviceResourcePath(req.params.deviceId, '/disks'), req.body);
 });
 
 /**
  * POST /api/panel/resource-control/policies/:deviceId/quotas — Set per-user quotas
  */
 router.post('/api/panel/resource-control/policies/:deviceId/quotas', requireAuth, requirePermission('server.config'), (req, res) => {
-    goApiProxy(req, res, 'post', `/devices/${req.params.deviceId}/resources/quotas`, req.body);
+    goApiProxySafe(req, res, 'post', () => deviceResourcePath(req.params.deviceId, '/quotas'), req.body);
 });
 
 /**
@@ -174,9 +192,12 @@ router.get('/api/bd/resource-policy', async (req, res) => {
         if (!apiClient) {
             return res.json({ policy: null });
         }
-        const resp = await apiClient.get(`/devices/${deviceId}/resources`);
+        const resp = await apiClient.get(deviceResourcePath(deviceId));
         res.json(resp.data);
     } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).json({ error: err.message });
+        }
         res.json({ policy: null });
     }
 });

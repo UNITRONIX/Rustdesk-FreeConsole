@@ -991,10 +991,14 @@ function isCompareLikelyTruncated(fileCount) {
     return Number(fileCount) >= GITHUB_COMPARE_FILE_LIMIT;
 }
 
+function resolveConsoleLocalPath(localPath) {
+    return resolvePathUnderRoot(ROOT_DIR, localPath);
+}
+
 async function downloadConsoleFile(remoteSHA, localPath) {
     const repoPath = `${COMPONENTS.console.prefix}${localPath}`;
     const content = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, repoPath);
-    const dest = path.join(ROOT_DIR, localPath);
+    const dest = resolveConsoleLocalPath(localPath);
     if (isProtectedRuntimePath(dest)) {
         throw new Error(`Refusing to write protected runtime path: ${localPath}`);
     }
@@ -1060,7 +1064,7 @@ async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
         if (removedPaths.has(localPath)) continue;
         if (!graph.isConsoleDeployLocalPath(localPath)) continue;
         if (graph.isResolvedByIndexModule(localPath)) continue;
-        const dest = path.join(ROOT_DIR, localPath);
+        const dest = resolveConsoleLocalPath(localPath);
         if (fs.existsSync(dest)) continue;
         try {
             await downloadConsoleFile(remoteSHA, localPath);
@@ -1834,7 +1838,8 @@ async function getChangedFiles(remoteSHA) {
  */
 async function createPreUpdateBackup(allFiles) {
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const backupPath = path.join(BACKUP_DIR, `pre-update-${ts}`);
+    const backupName = `pre-update-${ts}`;
+    const backupPath = resolveChildPath(path.resolve(BACKUP_DIR), backupName);
     fs.mkdirSync(backupPath, { recursive: true });
 
     const localVersion = getLocalVersion();
@@ -1843,16 +1848,16 @@ async function createPreUpdateBackup(allFiles) {
 
     for (const file of allFiles) {
         if (file.component !== 'console' || !file.localPath) continue;
-        const src = path.join(ROOT_DIR, file.localPath);
+        const src = resolveConsoleLocalPath(file.localPath);
         if (fs.existsSync(src)) {
-            const dest = path.join(backupPath, file.localPath);
+            const dest = resolvePathUnderRoot(backupPath, file.localPath);
             fs.mkdirSync(path.dirname(dest), { recursive: true });
             fs.copyFileSync(src, dest);
             backedUp++;
         }
     }
 
-    fs.writeFileSync(path.join(backupPath, 'manifest.json'), JSON.stringify({
+    fs.writeFileSync(resolveChildPath(backupPath, 'manifest.json'), JSON.stringify({
         version: localVersion,
         sha: localSHA,
         timestamp: new Date().toISOString(),
@@ -2023,7 +2028,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             for (const file of consoleFiles) {
                 try {
                     if (file.status === 'removed') {
-                        const localFile = path.join(ROOT_DIR, file.localPath);
+                        const localFile = resolveConsoleLocalPath(file.localPath);
                         if (isProtectedRuntimePath(localFile)) { results.skipped.push(file.path); continue; }
                         if (fs.existsSync(localFile)) { fs.unlinkSync(localFile); results.removed.push(file.path); }
                         continue;
@@ -2032,7 +2037,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                         results.skipped.push(file.path);
                         continue;
                     }
-                    const dest = path.join(ROOT_DIR, file.localPath);
+                    const dest = resolveConsoleLocalPath(file.localPath);
                     if (isProtectedRuntimePath(dest)) {
                         console.warn(`[UPDATE] Refusing to overwrite runtime state file: ${file.path}`);
                         results.skipped.push(file.path);
