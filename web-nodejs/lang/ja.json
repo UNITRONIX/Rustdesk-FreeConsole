@@ -3311,8 +3311,8 @@
     "confirm_no_backup": "バックアップは作成されません (自己責任で行ってください)。",
     "channel_title": "更新チャンネル",
     "channel_desc": "パネルが更新を確認するソースを選択します。本番は Stable を使用してください。",
-    "channel_stable": "Stable (main)",
-    "channel_development": "Development (dev)",
+    "channel_stable": "安定版 (main)",
+    "channel_development": "開発版 (dev)",
     "channel_branch_label": "GitHub ブランチ",
     "channel_save": "チャンネル切替",
     "channel_saved": "チャンネルを切り替えました。「更新を確認」をクリックしてください。",
@@ -3320,7 +3320,13 @@
     "channel_switch_warning": "チャンネル変更は GitHub ブランチを変えます。追跡中の commit SHA は保持されます — 次回チェックで大きな差分が出る場合があります。続行しますか？",
     "channel_pick_label": "切り替え",
     "channel_apply_hint": "確認後すぐに保存されます。その後「更新を確認」をクリック。",
-    "channel_confirm_switch": "更新元を {from} から {to} に切り替えますか？「更新を確認」まで現在の commit はそのままです。"
+    "channel_confirm_switch": "更新元を {from} から {to} に切り替えますか？「更新を確認」まで現在の commit はそのままです。",
+    "docker_title": "Docker イメージのデプロイ",
+    "docker_desc": "このコンソールは事前ビルド済みコンテナイメージから動作します。更新は GHCR から新しいイメージを pull して適用し、アプリ内インストールや Go 再ビルドでは行いません。",
+    "docker_install_note": "Docker ではアプリ内インストールは無効です。上記コマンドをホストで実行し、このページを更新してください。",
+    "docker_update_available": "新しいコンテナイメージが利用可能",
+    "docker_sha_unknown": "最新（イメージ commit 不明）",
+    "docker_images": "イメージ"
   },
   "permissions": {
     "title": "権限",

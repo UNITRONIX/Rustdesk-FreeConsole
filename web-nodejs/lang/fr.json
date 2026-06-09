@@ -3311,8 +3311,8 @@
     "confirm_no_backup": "Aucune sauvegarde ne sera créée (continuez à vos risques).",
     "channel_title": "Canal de mise à jour",
     "channel_desc": "Choisissez la source des mises à jour. En production, utilisez Stable.",
-    "channel_stable": "Stable (main)",
-    "channel_development": "Development (dev)",
+    "channel_stable": "Version stable (main)",
+    "channel_development": "Développement (dev)",
     "channel_branch_label": "Branche GitHub",
     "channel_save": "Changer de canal",
     "channel_saved": "Canal changé. Cliquez sur Vérifier les mises à jour.",
@@ -3320,7 +3320,13 @@
     "channel_switch_warning": "Changer de canal modifie la branche GitHub utilisée. Le SHA suivi est conservé — la prochaine vérification peut montrer un grand écart. Continuer ?",
     "channel_pick_label": "Basculer vers",
     "channel_apply_hint": "Après confirmation, le changement est enregistré. Puis cliquez sur Vérifier les mises à jour.",
-    "channel_confirm_switch": "Passer la source de {from} à {to} ? Le commit installé reste jusqu’à Vérifier les mises à jour."
+    "channel_confirm_switch": "Passer la source de {from} à {to} ? Le commit installé reste jusqu’à Vérifier les mises à jour.",
+    "docker_title": "Déploiement d'images Docker",
+    "docker_desc": "Cette console s'exécute à partir d'une image conteneur préconstruite. Les mises à jour s'appliquent en tirant de nouvelles images depuis GHCR, pas via l'installation intégrée ni la recompilation Go.",
+    "docker_install_note": "L'installation intégrée est désactivée dans Docker. Exécutez les commandes ci-dessus sur l'hôte, puis actualisez cette page.",
+    "docker_update_available": "Nouvelles images conteneur disponibles",
+    "docker_sha_unknown": "À jour (commit d'image inconnu)",
+    "docker_images": "Images"
   },
   "permissions": {
     "title": "Autorisations",
@@ -3591,7 +3597,7 @@
     "tabs": {
       "overview": "Aperçu",
       "packages": "Forfaits et contrats",
-      "sessions": "Sessions",
+      "sessions": "Séances",
       "reports": "Rapports",
       "settings": "Paramètres avancés"
     },
@@ -3624,7 +3630,7 @@
       "amount": "Montant"
     },
     "reports": {
-      "session": "Session",
+      "session": "Séance",
       "summary": "Résumé",
       "date": "Date"
     },

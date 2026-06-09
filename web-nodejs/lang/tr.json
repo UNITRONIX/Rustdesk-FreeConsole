@@ -3317,8 +3317,8 @@
     "rebuild_server_failed": "Sunucu ikili yeniden oluşturma işlemi başarısız oldu",
     "channel_title": "Güncelleme kanalı",
     "channel_desc": "Panelin güncellemeleri nereden kontrol edeceğini seçin. Üretimde Stable kullanın.",
-    "channel_stable": "Stable (main)",
-    "channel_development": "Development (dev)",
+    "channel_stable": "Kararlı (main)",
+    "channel_development": "Geliştirme (dev)",
     "channel_branch_label": "GitHub dalı",
     "channel_save": "Kanalı değiştir",
     "channel_saved": "Kanal değiştirildi. Güncellemeleri kontrol et.",
@@ -3326,7 +3326,13 @@
     "channel_switch_warning": "Kanal değişikliği GitHub dalını değiştirir. İzlenen commit SHA korunur — sonraki kontrol büyük fark gösterebilir. Devam?",
     "channel_pick_label": "Geç",
     "channel_apply_hint": "Onaydan sonra kaydedilir. Ardından Güncellemeleri kontrol et.",
-    "channel_confirm_switch": "Kaynağı {from} → {to} olarak değiştir? Yüklü commit, güncelleme kontrolüne kadar aynı kalır."
+    "channel_confirm_switch": "Kaynağı {from} → {to} olarak değiştir? Yüklü commit, güncelleme kontrolüne kadar aynı kalır.",
+    "docker_title": "Docker image dağıtımı",
+    "docker_desc": "Bu konsol önceden oluşturulmuş bir konteyner görüntüsünden çalışır. Güncellemeler uygulama içi kurulum veya Go yeniden derleme yerine GHCR'den daha yeni görüntüler çekilerek uygulanır.",
+    "docker_install_note": "Uygulama içi kurulum Docker'da devre dışıdır. Yukarıdaki komutları ana makinede çalıştırın, ardından bu sayfayı yenileyin.",
+    "docker_update_available": "Yeni konteyner görüntüleri mevcut",
+    "docker_sha_unknown": "Güncel (görüntü commit bilinmiyor)",
+    "docker_images": "Görüntüler"
   },
   "permissions": {
     "title": "İzinler",

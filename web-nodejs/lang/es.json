@@ -3311,8 +3311,8 @@
     "confirm_no_backup": "No se creará copia de seguridad (continúa bajo tu propio riesgo).",
     "channel_title": "Canal de actualización",
     "channel_desc": "Elige de dónde el panel busca actualizaciones. En producción usa Stable.",
-    "channel_stable": "Stable (main)",
-    "channel_development": "Development (dev)",
+    "channel_stable": "Estable (main)",
+    "channel_development": "Desarrollo (dev)",
     "channel_branch_label": "Rama de GitHub",
     "channel_save": "Cambiar canal",
     "channel_saved": "Canal cambiado. Pulse Comprobar actualizaciones.",
@@ -3320,7 +3320,13 @@
     "channel_switch_warning": "Cambiar el canal modifica la rama GitHub usada. Se conserva el SHA rastreado — la próxima comprobación puede mostrar una gran diferencia. ¿Continuar?",
     "channel_pick_label": "Cambiar a",
     "channel_apply_hint": "Tras confirmar se guarda al instante. Luego pulse Comprobar actualizaciones.",
-    "channel_confirm_switch": "¿Cambiar origen de {from} a {to}? El commit instalado se mantiene hasta comprobar actualizaciones."
+    "channel_confirm_switch": "¿Cambiar origen de {from} a {to}? El commit instalado se mantiene hasta comprobar actualizaciones.",
+    "docker_title": "Despliegue de imágenes Docker",
+    "docker_desc": "Esta consola se ejecuta desde una imagen de contenedor precompilada. Las actualizaciones se aplican descargando imágenes más recientes de GHCR, no mediante instalación en la app ni recompilación Go.",
+    "docker_install_note": "La instalación en la app está deshabilitada en Docker. Ejecute los comandos anteriores en el host y actualice esta página.",
+    "docker_update_available": "Nuevas imágenes de contenedor disponibles",
+    "docker_sha_unknown": "Actualizado (commit de imagen desconocido)",
+    "docker_images": "Imágenes"
   },
   "permissions": {
     "title": "Permisos",

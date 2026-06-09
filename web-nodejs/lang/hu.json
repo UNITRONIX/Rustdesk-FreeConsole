@@ -3317,8 +3317,8 @@
     "confirm_no_backup": "Nem készül biztonsági másolat (saját felelősségére folytassa).",
     "channel_title": "Frissítési csatorna",
     "channel_desc": "Válassza ki, honnan ellenőrzi a panel a frissítéseket. Éles rendszereken Stable.",
-    "channel_stable": "Stable (main)",
-    "channel_development": "Development (dev)",
+    "channel_stable": "Stabil (main)",
+    "channel_development": "Fejlesztés (dev)",
     "channel_branch_label": "GitHub-ág",
     "channel_save": "Csatorna váltása",
     "channel_saved": "Csatorna váltva. Kattintson a Frissítések ellenőrzése gombra.",
@@ -3326,7 +3326,13 @@
     "channel_switch_warning": "A csatornaváltás megváltoztatja a GitHub-ágat. A követett commit SHA megmarad — a következő ellenőrzés nagy különbséget mutathat. Folytatja?",
     "channel_pick_label": "Váltás",
     "channel_apply_hint": "Megerősítés után azonnal mentés. Ezután kattintson a Frissítések ellenőrzése gombra.",
-    "channel_confirm_switch": "Frissítési forrás váltása {from} → {to}? A telepített commit a frissítés-ellenőrzésig változatlan."
+    "channel_confirm_switch": "Frissítési forrás váltása {from} → {to}? A telepített commit a frissítés-ellenőrzésig változatlan.",
+    "docker_title": "Docker image telepítés",
+    "docker_desc": "Ez a konzol előre elkészített konténer image-ből fut. A frissítések GHCR-ből történő újabb image-ek letöltésével történnek, nem alkalmazáson belüli telepítéssel vagy Go újrafordítással.",
+    "docker_install_note": "Az alkalmazáson belüli telepítés Dockerben le van tiltva. Futtassa a fenti parancsokat a gazdagépen, majd frissítse az oldalt.",
+    "docker_update_available": "Új konténer image-ek érhetők el",
+    "docker_sha_unknown": "Naprakész (image commit ismeretlen)",
+    "docker_images": "Image-ek"
   },
   "permissions": {
     "title": "Engedélyek",

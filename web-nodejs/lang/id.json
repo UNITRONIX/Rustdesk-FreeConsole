@@ -3317,8 +3317,8 @@
     "confirm_no_backup": "Tidak ada cadangan yang akan dibuat (risiko Anda tanggung sendiri).",
     "channel_title": "Saluran pembaruan",
     "channel_desc": "Pilih sumber pembaruan panel. Server produksi gunakan Stable.",
-    "channel_stable": "Stable (main)",
-    "channel_development": "Development (dev)",
+    "channel_stable": "Stabil (main)",
+    "channel_development": "Pengembangan (dev)",
     "channel_branch_label": "Cabang GitHub",
     "channel_save": "Ganti saluran",
     "channel_saved": "Saluran diganti. Klik Periksa pembaruan.",
@@ -3326,7 +3326,13 @@
     "channel_switch_warning": "Mengganti saluran mengubah cabang GitHub. SHA commit yang dilacak tetap — pemeriksaan berikutnya bisa menunjukkan perbedaan besar. Lanjutkan?",
     "channel_pick_label": "Beralih ke",
     "channel_apply_hint": "Disimpan setelah konfirmasi. Lalu klik Periksa pembaruan.",
-    "channel_confirm_switch": "Ganti sumber dari {from} ke {to}? Commit terpasang tetap sampai periksa pembaruan."
+    "channel_confirm_switch": "Ganti sumber dari {from} ke {to}? Commit terpasang tetap sampai periksa pembaruan.",
+    "docker_title": "Penyebaran image Docker",
+    "docker_desc": "Konsol ini berjalan dari image kontainer yang sudah dibangun. Pembaruan diterapkan dengan menarik image lebih baru dari GHCR, bukan instalasi in-app atau build ulang Go.",
+    "docker_install_note": "Instalasi in-app dinonaktifkan di Docker. Jalankan perintah di atas di host, lalu muat ulang halaman ini.",
+    "docker_update_available": "Image kontainer baru tersedia",
+    "docker_sha_unknown": "Terbaru (commit image tidak diketahui)",
+    "docker_images": "Image"
   },
   "permissions": {
     "title": "Izin",
