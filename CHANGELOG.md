@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.11] — 2026-06-09
+
 ### Security
 - **Go API proxy hardening (phase E)** — shared `goApiProxy.js` validates path segments on fleet, commercialization, and cross-platform routes; blocks path-smuggling while accepting RustDesk peer IDs (numeric and `a-zA-Z0-9_-`).
 - **Help-request API** — `betterdeskApi` validates registration help IDs before proxying to Go.
@@ -291,3 +298,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.1.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.7...v3.1.8
 [3.1.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.8...v3.1.9
 [3.1.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.9...v3.1.10
+[3.1.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.10...v3.1.11
