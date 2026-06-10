@@ -278,6 +278,16 @@ func (pg *PostgresDB) Migrate() error {
 			value  TEXT NOT NULL DEFAULT '',
 			PRIMARY KEY(org_id, key)
 		)`,
+
+		// Organization shared address books (Issue #187 / #190)
+		`CREATE TABLE IF NOT EXISTS org_address_books (
+			org_id     TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+			ab_type    TEXT NOT NULL DEFAULT 'legacy',
+			data       TEXT NOT NULL DEFAULT '{}',
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_by TEXT NOT NULL DEFAULT '',
+			PRIMARY KEY(org_id, ab_type)
+		)`,
 		// Role permission overrides (RBAC Phase 52)
 		`CREATE TABLE IF NOT EXISTS role_permissions (
 			id          BIGSERIAL PRIMARY KEY,

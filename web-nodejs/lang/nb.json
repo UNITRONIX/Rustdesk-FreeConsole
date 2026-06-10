@@ -2350,7 +2350,18 @@
     "org_role": "Organisasjonsrolle",
     "link_user_hint": "Den valgte brukeren vil bli koblet til denne organisasjonen ved å bruke deres serverkontolegitimasjon.",
     "no_available_users": "Alle serverbrukere er allerede knyttet til denne organisasjonen.",
-    "user_linked": "Bruker knyttet til organisasjon"
+    "user_linked": "Bruker knyttet til organisasjon",
+    "address_book": "Adressebok",
+    "shared_address_book_hint": "Kontakter lagret her slås sammen i RustDesk-adresseboken for hvert organisasjonsmedlem ved innlogging. Personlige oppføringer forblir private.",
+    "shared_address_book_enabled": "Del adressebok med organisasjonsmedlemmer",
+    "address_book_data": "Adressebok-JSON",
+    "address_book_saved": "Delt adressebok lagret",
+    "address_book_invalid_json": "Ugyldig adressebok-JSON",
+    "import_from_devices": "Importer fra organisasjonsenheter",
+    "import_from_devices_done": "Importerte {count} enheter til den delte adresseboken",
+    "address_book_import_hint": "Legger til alle enheter tilordnet denne organisasjonen (eksisterende oppføringer beholdes).",
+    "save_address_book": "Lagre adressebok",
+    "saving": "Lagrer..."
   },
   "chat": {
     "e2e_enabled": "Ende-til-ende kryptert",

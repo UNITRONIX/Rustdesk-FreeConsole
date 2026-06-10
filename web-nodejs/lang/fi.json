@@ -2350,7 +2350,18 @@
     "org_role": "Organisaation rooli",
     "link_user_hint": "Valittu käyttäjä linkitetään tähän organisaatioon hänen palvelintilinsä tunnistetiedoilla.",
     "no_available_users": "Kaikki palvelimen käyttäjät on jo linkitetty tähän organisaatioon.",
-    "user_linked": "Käyttäjä linkitetty organisaatioon"
+    "user_linked": "Käyttäjä linkitetty organisaatioon",
+    "address_book": "Osoitekirja",
+    "shared_address_book_hint": "Tähän tallennetut yhteystiedot yhdistetään jokaisen organisaation jäsenen RustDesk-osoitekirjaan kirjautumisen yhteydessä. Henkilökohtaiset merkinnät pysyvät yksityisinä.",
+    "shared_address_book_enabled": "Jaa osoitekirja organisaation jäsenten kanssa",
+    "address_book_data": "Osoitekirjan JSON",
+    "address_book_saved": "Jaettu osoitekirja tallennettu",
+    "address_book_invalid_json": "Virheellinen osoitekirjan JSON",
+    "import_from_devices": "Tuo organisaation laitteista",
+    "import_from_devices_done": "Tuotiin {count} laitetta jaettuun osoitekirjaan",
+    "address_book_import_hint": "Lisää kaikki tälle organisaatiolle määritetyt laitteet (olemassa olevat säilyvät).",
+    "save_address_book": "Tallenna osoitekirja",
+    "saving": "Tallennetaan..."
   },
   "chat": {
     "e2e_enabled": "Päästä päähän salattu",

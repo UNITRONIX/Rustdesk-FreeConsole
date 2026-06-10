@@ -366,6 +366,7 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
 			return
 		}
+		data = s.mergeOrgAddressBooksIntoAB(r, data)
 		if !auth.IsProRole(role) {
 			// Merge admin-set tags from peers table into AB (#76 TAG sync)
 			data = s.mergeAdminTagsIntoAB(data)

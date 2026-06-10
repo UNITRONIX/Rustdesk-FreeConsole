@@ -2344,7 +2344,18 @@
     "org_role": "Ruolo organizzazione",
     "link_user_hint": "Collega un utente esistente a questa organizzazione.",
     "no_available_users": "Nessun utente disponibile",
-    "user_linked": "Utente collegato"
+    "user_linked": "Utente collegato",
+    "address_book": "Rubrica",
+    "shared_address_book_hint": "I contatti salvati qui vengono uniti alla rubrica RustDesk di ogni membro dell'organizzazione al login. Le voci personali restano private.",
+    "shared_address_book_enabled": "Condividi la rubrica con i membri dell'organizzazione",
+    "address_book_data": "JSON rubrica",
+    "address_book_saved": "Rubrica condivisa salvata",
+    "address_book_invalid_json": "JSON rubrica non valido",
+    "import_from_devices": "Importa dai dispositivi dell'organizzazione",
+    "import_from_devices_done": "Importati {count} dispositivi nella rubrica condivisa",
+    "address_book_import_hint": "Aggiunge tutti i dispositivi assegnati a questa organizzazione (le voci esistenti vengono mantenute).",
+    "save_address_book": "Salva rubrica",
+    "saving": "Salvataggio..."
   },
   "chat": {
     "e2e_enabled": "Crittografia end-to-end",

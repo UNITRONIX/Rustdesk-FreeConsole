@@ -107,6 +107,7 @@ func (s *SQLiteDB) DeleteOrganization(id string) error {
 	defer tx.Rollback()
 
 	// Cascade: remove settings, invitations, devices, users, then org
+	tx.Exec(`DELETE FROM org_address_books WHERE org_id = ?`, id)
 	tx.Exec(`DELETE FROM org_settings WHERE org_id = ?`, id)
 	tx.Exec(`DELETE FROM org_invitations WHERE org_id = ?`, id)
 	tx.Exec(`DELETE FROM org_devices WHERE org_id = ?`, id)
@@ -651,4 +652,39 @@ func (s *SQLiteDB) ListUserOrganizations(userID int64) ([]*Organization, error) 
 		orgs = append(orgs, &org)
 	}
 	return orgs, rows.Err()
+}
+
+// ---------------------------------------------------------------------------
+//  Org Address Books (shared contacts)
+// ---------------------------------------------------------------------------
+
+func (s *SQLiteDB) GetOrgAddressBook(orgID, abType string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var data string
+	err := s.db.QueryRow(
+		`SELECT data FROM org_address_books WHERE org_id = ? AND ab_type = ?`,
+		orgID, abType,
+	).Scan(&data)
+	if err == sql.ErrNoRows {
+		return "{}", nil
+	}
+	return data, err
+}
+
+func (s *SQLiteDB) SaveOrgAddressBook(orgID, abType, data, updatedBy string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.Exec(
+		`INSERT INTO org_address_books (org_id, ab_type, data, updated_at, updated_by)
+		 VALUES (?, ?, ?, datetime('now'), ?)
+		 ON CONFLICT(org_id, ab_type) DO UPDATE SET
+		   data = excluded.data,
+		   updated_at = excluded.updated_at,
+		   updated_by = excluded.updated_by`,
+		orgID, abType, data, updatedBy,
+	)
+	return err
 }

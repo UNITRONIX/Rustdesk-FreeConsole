@@ -2415,7 +2415,18 @@
     "org_role": "组织角色",
     "link_user_hint": "所选用户将使用其服务器帐户凭据链接到此组织。",
     "no_available_users": "所有服务器用户都已链接到此组织。",
-    "user_linked": "用户已链接到组织"
+    "user_linked": "用户已链接到组织",
+    "address_book": "通讯录",
+    "shared_address_book_hint": "此处保存的联系人会在成员登录时合并到其 RustDesk 通讯录中。个人条目仍保持私有。",
+    "shared_address_book_enabled": "与组织成员共享通讯录",
+    "address_book_data": "通讯录 JSON",
+    "address_book_saved": "共享通讯录已保存",
+    "address_book_invalid_json": "通讯录 JSON 无效",
+    "import_from_devices": "从组织设备导入",
+    "import_from_devices_done": "已向共享通讯录导入 {count} 台设备",
+    "address_book_import_hint": "添加分配给此组织的所有设备（保留现有条目）。",
+    "save_address_book": "保存通讯录",
+    "saving": "正在保存..."
   },
   "chat": {
     "e2e_enabled": "端到端加密",

@@ -42,6 +42,9 @@
                 <button class="org-tab" data-tab="settings">
                     <span class="material-icons">settings</span> ${_('organizations.settings') || 'Settings'}
                 </button>
+                <button class="org-tab" data-tab="address-book">
+                    <span class="material-icons">contacts</span> ${_('organizations.address_book') || 'Address Book'}
+                </button>
             </div>
 
             <!-- Tab content -->
@@ -80,6 +83,13 @@
                     <h2>${_('organizations.settings') || 'Settings'}</h2>
                 </div>
                 <div class="org-settings-container" id="settings-container"></div>
+            </div>
+
+            <div class="org-tab-content" id="tab-address-book" style="display:none;">
+                <div class="org-section-header">
+                    <h2>${_('organizations.address_book') || 'Address Book'}</h2>
+                </div>
+                <div class="org-settings-container" id="address-book-container"></div>
             </div>
         </div>
     `

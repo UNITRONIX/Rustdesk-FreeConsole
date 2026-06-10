@@ -2350,7 +2350,18 @@
     "org_role": "Vai trò của tổ chức",
     "link_user_hint": "Người dùng được chọn sẽ được liên kết với tổ chức này bằng thông tin xác thực tài khoản máy chủ của họ.",
     "no_available_users": "Tất cả người dùng máy chủ đã được liên kết với tổ chức này.",
-    "user_linked": "Người dùng được liên kết với tổ chức"
+    "user_linked": "Người dùng được liên kết với tổ chức",
+    "address_book": "Sổ địa chỉ",
+    "shared_address_book_hint": "Danh bạ lưu tại đây được hợp nhất vào sổ địa chỉ RustDesk của từng thành viên tổ chức khi đăng nhập. Mục cá nhân vẫn riêng tư.",
+    "shared_address_book_enabled": "Chia sẻ sổ địa chỉ với thành viên tổ chức",
+    "address_book_data": "JSON sổ địa chỉ",
+    "address_book_saved": "Đã lưu sổ địa chỉ dùng chung",
+    "address_book_invalid_json": "JSON sổ địa chỉ không hợp lệ",
+    "import_from_devices": "Nhập từ thiết bị tổ chức",
+    "import_from_devices_done": "Đã nhập {count} thiết bị vào sổ địa chỉ dùng chung",
+    "address_book_import_hint": "Thêm tất cả thiết bị được gán cho tổ chức này (giữ nguyên mục hiện có).",
+    "save_address_book": "Lưu sổ địa chỉ",
+    "saving": "Đang lưu..."
   },
   "chat": {
     "e2e_enabled": "Mã hóa đầu cuối",

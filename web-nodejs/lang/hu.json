@@ -2350,7 +2350,18 @@
     "org_role": "Szervezeti szerep",
     "link_user_hint": "A kiválasztott felhasználó a szerverfiók hitelesítő adataival lesz összekapcsolva ezzel a szervezettel.",
     "no_available_users": "Az összes szerverfelhasználó már kapcsolódik ehhez a szervezethez.",
-    "user_linked": "Felhasználó a szervezethez kapcsolva"
+    "user_linked": "Felhasználó a szervezethez kapcsolva",
+    "address_book": "Címjegyzék",
+    "shared_address_book_hint": "Az itt mentett névjegyek beolvasódnak minden szervezeti tag RustDesk címjegyzékébe bejelentkezéskor. A személyes bejegyzések privátok maradnak.",
+    "shared_address_book_enabled": "Címjegyzék megosztása a szervezet tagjaival",
+    "address_book_data": "Címjegyzék JSON",
+    "address_book_saved": "Megosztott címjegyzék mentve",
+    "address_book_invalid_json": "Érvénytelen címjegyzék JSON",
+    "import_from_devices": "Importálás a szervezet eszközeiből",
+    "import_from_devices_done": "{count} eszköz importálva a megosztott címjegyzékbe",
+    "address_book_import_hint": "Hozzáadja a szervezethez rendelt összes eszközt (a meglévő bejegyzések megmaradnak).",
+    "save_address_book": "Címjegyzék mentése",
+    "saving": "Mentés..."
   },
   "chat": {
     "e2e_enabled": "Végponttól végpontig titkosítva",

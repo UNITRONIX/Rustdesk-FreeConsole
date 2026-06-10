@@ -2344,7 +2344,18 @@
     "org_role": "Rôle dans l’organisation",
     "link_user_hint": "L’utilisateur sélectionné sera lié à cette organisation avec les identifiants de son compte serveur.",
     "no_available_users": "Tous les utilisateurs serveur sont déjà liés à cette organisation.",
-    "user_linked": "Utilisateur lié à l’organisation"
+    "user_linked": "Utilisateur lié à l’organisation",
+    "address_book": "Carnet d'adresses",
+    "shared_address_book_hint": "Les contacts enregistrés ici sont fusionnés dans le carnet d'adresses RustDesk de chaque membre de l'organisation à la connexion. Les entrées personnelles restent privées.",
+    "shared_address_book_enabled": "Partager le carnet d'adresses avec les membres de l'organisation",
+    "address_book_data": "JSON du carnet d'adresses",
+    "address_book_saved": "Carnet d'adresses partagé enregistré",
+    "address_book_invalid_json": "JSON du carnet d'adresses invalide",
+    "import_from_devices": "Importer depuis les appareils de l'organisation",
+    "import_from_devices_done": "{count} appareils importés dans le carnet partagé",
+    "address_book_import_hint": "Ajoute tous les appareils assignés à cette organisation (les entrées existantes sont conservées).",
+    "save_address_book": "Enregistrer le carnet d'adresses",
+    "saving": "Enregistrement..."
   },
   "chat": {
     "e2e_enabled": "Chiffré de bout en bout",

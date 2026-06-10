@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/unitronix/betterdesk-server/config"
+	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/peer"
 )
 
@@ -193,6 +195,52 @@ func TestHandleClientAddressBookGetReturnsStoredData(t *testing.T) {
 	data, ok := resp["data"].(string)
 	if !ok || data == "" {
 		t.Fatalf("expected string data field, got %#v", resp["data"])
+	}
+}
+
+func TestHandleClientAddressBookMergesOrgSharedBook(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+
+	if err := database.CreateOrganization(&db.Organization{
+		ID: "org-shared", Name: "Shared Org", Slug: "shared-org", CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	user := &db.User{Username: "alice", PasswordHash: "hash", Role: "operator"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.LinkUserToOrg("org-shared", user.ID, "operator"); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.SaveOrgAddressBook("org-shared", "legacy", `{"peers":[{"id":"999","alias":"Shared"}],"tags":["Org"]}`, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.SaveAddressBook("alice", "legacy", `{"peers":[{"id":"111","alias":"Mine"}],"tags":["Home"]}`); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(config.DefaultConfig(), database, peer.NewMap(), nil, "test")
+	req := httptest.NewRequest(http.MethodGet, "/api/ab", nil)
+	ctx := context.WithValue(req.Context(), ctxKeyUsername, "alice")
+	ctx = context.WithValue(ctx, ctxKeyRole, "operator")
+	ctx = context.WithValue(ctx, ctxKeyUser, user)
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	srv.handleClientAddressBook(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := resp["data"].(string)
+	if !bytes.Contains([]byte(data), []byte("111")) || !bytes.Contains([]byte(data), []byte("999")) {
+		t.Fatalf("expected merged org + personal peers, got %s", data)
 	}
 }
 

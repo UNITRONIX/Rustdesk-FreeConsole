@@ -2344,7 +2344,18 @@
     "org_role": "組織の役割",
     "link_user_hint": "選択したユーザーは、サーバー アカウントの資格情報を使用してこの組織にリンクされます。",
     "no_available_users": "すべてのサーバー ユーザーはすでにこの組織にリンクされています。",
-    "user_linked": "組織にリンクされたユーザー"
+    "user_linked": "組織にリンクされたユーザー",
+    "address_book": "アドレス帳",
+    "shared_address_book_hint": "ここに保存した連絡先は、ログイン時に組織の各メンバーの RustDesk アドレス帳に統合されます。個人の項目は非公開のままです。",
+    "shared_address_book_enabled": "組織メンバーとアドレス帳を共有",
+    "address_book_data": "アドレス帳 JSON",
+    "address_book_saved": "共有アドレス帳を保存しました",
+    "address_book_invalid_json": "無効なアドレス帳 JSON",
+    "import_from_devices": "組織デバイスからインポート",
+    "import_from_devices_done": "共有アドレス帳に {count} 台のデバイスをインポートしました",
+    "address_book_import_hint": "この組織に割り当てられたすべてのデバイスを追加します（既存の項目は保持されます）。",
+    "save_address_book": "アドレス帳を保存",
+    "saving": "保存中..."
   },
   "chat": {
     "e2e_enabled": "エンドツーエンド暗号化",

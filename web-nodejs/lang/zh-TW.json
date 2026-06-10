@@ -2354,7 +2354,18 @@
     "org_role": "組織角色",
     "link_user_hint": "所選使用者將使用其伺服器帐戶憑證連結到此組織。",
     "no_available_users": "所有伺服器使用者都已連結到此組織。",
-    "user_linked": "使用者已連結到組織"
+    "user_linked": "使用者已連結到組織",
+    "address_book": "通訊錄",
+    "shared_address_book_hint": "此處儲存的聯絡人會在成員登入時合併到其 RustDesk 通訊錄中。個人項目仍保持私有。",
+    "shared_address_book_enabled": "與組織成員共享通訊錄",
+    "address_book_data": "通訊錄 JSON",
+    "address_book_saved": "共享通訊錄已儲存",
+    "address_book_invalid_json": "通訊錄 JSON 無效",
+    "import_from_devices": "從組織裝置匯入",
+    "import_from_devices_done": "已向共享通訊錄匯入 {count} 台裝置",
+    "address_book_import_hint": "新增指派給此組織的所有裝置（保留現有項目）。",
+    "save_address_book": "儲存通訊錄",
+    "saving": "正在儲存..."
   },
   "chat": {
     "e2e_enabled": "端到端加密",

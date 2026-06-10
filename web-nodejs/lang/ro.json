@@ -2350,7 +2350,18 @@
     "org_role": "Rolul de organizare",
     "link_user_hint": "Utilizatorul selectat va fi conectat la această organizație folosind acreditările contului său de server.",
     "no_available_users": "Toți utilizatorii de server sunt deja conectați la această organizație.",
-    "user_linked": "Utilizator conectat la organizație"
+    "user_linked": "Utilizator conectat la organizație",
+    "address_book": "Agendă",
+    "shared_address_book_hint": "Contactele salvate aici sunt combinate în agenda RustDesk a fiecărui membru al organizației la autentificare. Intrările personale rămân private.",
+    "shared_address_book_enabled": "Partajează agenda cu membrii organizației",
+    "address_book_data": "JSON agendă",
+    "address_book_saved": "Agenda partajată salvată",
+    "address_book_invalid_json": "JSON agendă invalid",
+    "import_from_devices": "Importă din dispozitivele organizației",
+    "import_from_devices_done": "S-au importat {count} dispozitive în agenda partajată",
+    "address_book_import_hint": "Adaugă toate dispozitivele alocate acestei organizații (intrările existente sunt păstrate).",
+    "save_address_book": "Salvează agenda",
+    "saving": "Se salvează..."
   },
   "chat": {
     "e2e_enabled": "Criptat de la capăt la capăt",

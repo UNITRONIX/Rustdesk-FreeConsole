@@ -2344,7 +2344,18 @@
     "org_role": "Função na organização",
     "link_user_hint": "Vincule um usuário existente a esta organização.",
     "no_available_users": "Nenhum usuário disponível",
-    "user_linked": "Usuário vinculado"
+    "user_linked": "Usuário vinculado",
+    "address_book": "Livro de endereços",
+    "shared_address_book_hint": "Os contactos guardados aqui são combinados com o livro de endereços RustDesk de cada membro da organização ao iniciar sessão. As entradas pessoais permanecem privadas.",
+    "shared_address_book_enabled": "Partilhar livro de endereços com os membros da organização",
+    "address_book_data": "JSON do livro de endereços",
+    "address_book_saved": "Livro de endereços partilhado guardado",
+    "address_book_invalid_json": "JSON do livro de endereços inválido",
+    "import_from_devices": "Importar dos dispositivos da organização",
+    "import_from_devices_done": "Importados {count} dispositivos para o livro partilhado",
+    "address_book_import_hint": "Adiciona todos os dispositivos atribuídos a esta organização (as entradas existentes são preservadas).",
+    "save_address_book": "Guardar livro de endereços",
+    "saving": "A guardar..."
   },
   "chat": {
     "e2e_enabled": "Criptografia ponta a ponta",

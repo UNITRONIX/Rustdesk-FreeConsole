@@ -290,6 +290,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("DELETE /api/org/{id}/devices/{did}", s.requirePermission(auth.PermOrgManageDevices, s.requireOrgMembership("id", s.handleUnassignOrgDevice)))
 	mux.HandleFunc("GET /api/org/{id}/settings", s.requireOrgMembership("id", s.handleListOrgSettings))
 	mux.HandleFunc("PUT /api/org/{id}/settings", s.requirePermission(auth.PermOrgEdit, s.requireOrgMembership("id", s.handleSetOrgSetting)))
+	mux.HandleFunc("GET /api/org/{id}/address-book", s.requireOrgMembership("id", s.handleGetOrgAddressBook))
+	mux.HandleFunc("PUT /api/org/{id}/address-book", s.requirePermission(auth.PermOrgEdit, s.requireOrgMembership("id", s.handleSetOrgAddressBook)))
 	mux.HandleFunc("POST /api/org/login", s.handleOrgLogin) // public — no auth required
 
 	// User-Org Linking (Issue #106)

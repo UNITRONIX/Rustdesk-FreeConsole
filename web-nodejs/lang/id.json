@@ -2350,7 +2350,18 @@
     "org_role": "Peran Organisasi",
     "link_user_hint": "Pengguna yang dipilih akan ditautkan ke organisasi ini menggunakan kredensial akun server mereka.",
     "no_available_users": "Semua pengguna server sudah tertaut ke organisasi ini.",
-    "user_linked": "Pengguna tertaut ke organisasi"
+    "user_linked": "Pengguna tertaut ke organisasi",
+    "address_book": "Buku alamat",
+    "shared_address_book_hint": "Kontak yang disimpan di sini digabungkan ke buku alamat RustDesk setiap anggota organisasi saat login. Entri pribadi tetap privat.",
+    "shared_address_book_enabled": "Bagikan buku alamat dengan anggota organisasi",
+    "address_book_data": "JSON buku alamat",
+    "address_book_saved": "Buku alamat bersama disimpan",
+    "address_book_invalid_json": "JSON buku alamat tidak valid",
+    "import_from_devices": "Impor dari perangkat organisasi",
+    "import_from_devices_done": "Mengimpor {count} perangkat ke buku alamat bersama",
+    "address_book_import_hint": "Menambahkan semua perangkat yang ditetapkan ke organisasi ini (entri yang ada dipertahankan).",
+    "save_address_book": "Simpan buku alamat",
+    "saving": "Menyimpan..."
   },
   "chat": {
     "e2e_enabled": "Dienkripsi ujung ke ujung",

@@ -188,6 +188,13 @@
     margin: 0;
 }
 
+.org-section-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+}
+
 /* Role badges */
 .role-badge {
     display: inline-block;

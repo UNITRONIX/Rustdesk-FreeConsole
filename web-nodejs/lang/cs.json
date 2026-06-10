@@ -2344,7 +2344,18 @@
     "org_role": "Role v organizaci",
     "link_user_hint": "Vybraný uživatel bude propojen s touto organizací pomocí svých přihlašovacích údajů k serveru.",
     "no_available_users": "Všichni uživatelé serveru jsou již s touto organizací propojeni.",
-    "user_linked": "Uživatel propojen s organizací"
+    "user_linked": "Uživatel propojen s organizací",
+    "address_book": "Adresář",
+    "shared_address_book_hint": "Kontakty uložené zde se po přihlášení sloučí do adresáře RustDesk každého člena organizace. Osobní položky zůstávají soukromé.",
+    "shared_address_book_enabled": "Sdílet adresář s členy organizace",
+    "address_book_data": "JSON adresáře",
+    "address_book_saved": "Sdílený adresář uložen",
+    "address_book_invalid_json": "Neplatný JSON adresáře",
+    "import_from_devices": "Importovat ze zařízení organizace",
+    "import_from_devices_done": "Importováno {count} zařízení do sdíleného adresáře",
+    "address_book_import_hint": "Přidá všechna zařízení přiřazená této organizaci (stávající položky zůstávají).",
+    "save_address_book": "Uložit adresář",
+    "saving": "Ukládání..."
   },
   "chat": {
     "e2e_enabled": "Koncové šifrování aktivní",

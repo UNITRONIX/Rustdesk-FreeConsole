@@ -1,7 +1,7 @@
 /**
  * BetterDesk Console — Organization Detail Page JavaScript
  *
- * Handles org detail view with tabs: Users, Devices, Invitations, Settings.
+ * Handles org detail view with tabs: Users, Devices, Invitations, Settings, Address Book.
  * Uses Modal.show() for form inputs, i18n for all strings.
  */
 'use strict';
@@ -602,6 +602,116 @@
     }
 
     // -----------------------------------------------------------------------
+    //  Shared address book
+    // -----------------------------------------------------------------------
+    async function loadAddressBook() {
+        try {
+            const resp = await api('GET', '/address-book');
+            const container = document.getElementById('address-book-container');
+            if (!container) return;
+
+            let abData = { peers: [], tags: [] };
+            try {
+                const raw = resp && resp.data ? resp.data : '{}';
+                abData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            } catch (_) {
+                abData = { peers: [], tags: [] };
+            }
+            if (!Array.isArray(abData.peers)) abData.peers = [];
+            if (!Array.isArray(abData.tags)) abData.tags = [];
+
+            const enabled = resp && resp.enabled !== false;
+
+            container.innerHTML = `
+                <div class="org-settings-form">
+                    <p class="form-hint">${escHtml(t('shared_address_book_hint'))}</p>
+                    <div class="form-group">
+                        <label class="form-label">
+                            <input type="checkbox" id="org-ab-enabled" ${enabled ? 'checked' : ''} />
+                            ${escHtml(t('shared_address_book_enabled'))}
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">${escHtml(t('address_book_data'))}</label>
+                        <textarea id="org-ab-json" class="form-input" rows="14" spellcheck="false">${escHtml(JSON.stringify(abData, null, 2))}</textarea>
+                    </div>
+                    <div class="org-section-actions">
+                        <button class="btn btn-secondary" id="import-org-devices-btn">
+                            <span class="material-icons">download</span> ${escHtml(t('import_from_devices'))}
+                        </button>
+                        <button class="btn btn-primary" id="save-address-book-btn">
+                            <span class="material-icons">save</span> ${escHtml(t('save_address_book'))}
+                        </button>
+                    </div>
+                    <p class="form-hint">${escHtml(t('address_book_import_hint'))}</p>
+                </div>`;
+
+            document.getElementById('import-org-devices-btn')?.addEventListener('click', async () => {
+                try {
+                    const devicesResp = await api('GET', '/devices');
+                    const devices = devicesResp.devices || devicesResp || [];
+                    const textarea = document.getElementById('org-ab-json');
+                    let current = { peers: [], tags: [] };
+                    try {
+                        current = JSON.parse(textarea.value || '{}');
+                    } catch (_) {
+                        toast(t('address_book_invalid_json'), 'error');
+                        return;
+                    }
+                    if (!Array.isArray(current.peers)) current.peers = [];
+                    const seen = new Set(current.peers.map(p => String(p.id || '').trim()).filter(Boolean));
+                    let added = 0;
+                    for (const d of devices) {
+                        const id = String(d.device_id || d.id || '').trim();
+                        if (!id || seen.has(id)) continue;
+                        seen.add(id);
+                        current.peers.push({
+                            id,
+                            alias: d.hostname || d.device_id || id,
+                            hostname: d.hostname || '',
+                            platform: d.platform || d.os || ''
+                        });
+                        added++;
+                    }
+                    textarea.value = JSON.stringify(current, null, 2);
+                    toast(t('import_from_devices_done').replace('{count}', String(added)), 'success');
+                } catch (err) {
+                    toast(err.message || t('loading_failed'), 'error');
+                }
+            });
+
+            document.getElementById('save-address-book-btn')?.addEventListener('click', async () => {
+                const saveBtn = document.getElementById('save-address-book-btn');
+                const original = saveBtn.innerHTML;
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="material-icons rotating">sync</span> ' + escHtml(t('saving') || 'Saving...');
+                try {
+                    const textarea = document.getElementById('org-ab-json');
+                    let parsed;
+                    try {
+                        parsed = JSON.parse(textarea.value || '{}');
+                    } catch (_) {
+                        toast(t('address_book_invalid_json'), 'error');
+                        return;
+                    }
+                    await api('PUT', '/address-book', {
+                        data: parsed,
+                        enabled: document.getElementById('org-ab-enabled')?.checked !== false
+                    });
+                    toast(t('address_book_saved'), 'success');
+                } catch (err) {
+                    toast(err.message || t('loading_failed'), 'error');
+                } finally {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = original;
+                }
+            });
+        } catch (err) {
+            toast(t('loading_failed'), 'error');
+        }
+    }
+
+    // -----------------------------------------------------------------------
     //  Delete org
     // -----------------------------------------------------------------------
     document.getElementById('org-delete-btn')?.addEventListener('click', async () => {
@@ -663,5 +773,6 @@
     loadDevices();
     loadInvitations();
     loadSettings();
+    loadAddressBook();
 
 })();

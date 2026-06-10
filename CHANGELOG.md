@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **Organization shared address book** — admins can maintain a shared contact list per organization (Organizations → Address Book tab). Entries are merged into each member's RustDesk address book on `GET /api/ab` when sharing is enabled. Personal address book entries remain private and editable only by the logged-in user. Fixes [#190](https://github.com/UNITRONIX/BetterDesk/issues/190).
+
 ### Changed
 - _(none yet)_
 

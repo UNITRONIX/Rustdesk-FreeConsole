@@ -2344,7 +2344,18 @@
     "org_role": "Organisationsrolle",
     "link_user_hint": "Verknüpfen Sie einen vorhandenen Benutzer mit dieser Organisation.",
     "no_available_users": "Keine verfügbaren Benutzer",
-    "user_linked": "Benutzer verknüpft"
+    "user_linked": "Benutzer verknüpft",
+    "address_book": "Adressbuch",
+    "shared_address_book_hint": "Hier gespeicherte Kontakte werden beim Anmelden in das RustDesk-Adressbuch jedes Organisationsmitglieds eingefügt. Persönliche Einträge bleiben privat.",
+    "shared_address_book_enabled": "Adressbuch für Organisationsmitglieder freigeben",
+    "address_book_data": "Adressbuch-JSON",
+    "address_book_saved": "Gemeinsames Adressbuch gespeichert",
+    "address_book_invalid_json": "Ungültiges Adressbuch-JSON",
+    "import_from_devices": "Aus Organisationsgeräten importieren",
+    "import_from_devices_done": "{count} Geräte in das gemeinsame Adressbuch importiert",
+    "address_book_import_hint": "Fügt alle dieser Organisation zugewiesenen Geräte als Einträge hinzu (bestehende bleiben erhalten).",
+    "save_address_book": "Adressbuch speichern",
+    "saving": "Speichern..."
   },
   "chat": {
     "e2e_enabled": "Ende-zu-Ende verschlüsselt",

@@ -2425,7 +2425,18 @@
     "org_role": "Rola w organizacji",
     "link_user_hint": "Wybrany użytkownik zostanie powiązany z tą organizacją przy użyciu danych jego konta serwerowego.",
     "no_available_users": "Wszyscy użytkownicy serwera są już powiązani z tą organizacją.",
-    "user_linked": "Użytkownik powiązany z organizacją"
+    "user_linked": "Użytkownik powiązany z organizacją",
+    "address_book": "Książka adresowa",
+    "shared_address_book_hint": "Kontakty zapisane tutaj są scalane z książką adresową RustDesk każdego członka organizacji po zalogowaniu. Osobiste wpisy pozostają prywatne.",
+    "shared_address_book_enabled": "Udostępnij książkę adresową członkom organizacji",
+    "address_book_data": "JSON książki adresowej",
+    "address_book_saved": "Współdzielona książka adresowa zapisana",
+    "address_book_invalid_json": "Nieprawidłowy JSON książki adresowej",
+    "import_from_devices": "Importuj z urządzeń organizacji",
+    "import_from_devices_done": "Zaimportowano {count} urządzeń do współdzielonej książki adresowej",
+    "address_book_import_hint": "Dodaje wszystkie urządzenia przypisane do tej organizacji jako wpisy (istniejące pozostają).",
+    "save_address_book": "Zapisz książkę adresową",
+    "saving": "Zapisywanie..."
   },
   "chat": {
     "e2e_enabled": "Szyfrowanie end-to-end",

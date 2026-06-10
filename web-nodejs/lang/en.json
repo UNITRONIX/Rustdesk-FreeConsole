@@ -2425,7 +2425,18 @@
     "org_role": "Organization Role",
     "link_user_hint": "Selected user will be linked to this organization using their server account credentials.",
     "no_available_users": "All server users are already linked to this organization.",
-    "user_linked": "User linked to organization"
+    "user_linked": "User linked to organization",
+    "address_book": "Address Book",
+    "shared_address_book_hint": "Contacts saved here are merged into the RustDesk address book of every organization member when they log in. Personal entries remain private.",
+    "shared_address_book_enabled": "Share address book with organization members",
+    "address_book_data": "Address book JSON",
+    "address_book_saved": "Shared address book saved",
+    "address_book_invalid_json": "Invalid address book JSON",
+    "import_from_devices": "Import from org devices",
+    "import_from_devices_done": "Imported {count} devices into the shared address book",
+    "address_book_import_hint": "Adds all devices assigned to this organization as peers (existing entries are preserved).",
+    "save_address_book": "Save Address Book",
+    "saving": "Saving..."
   },
   "chat": {
     "e2e_enabled": "End-to-end encrypted",

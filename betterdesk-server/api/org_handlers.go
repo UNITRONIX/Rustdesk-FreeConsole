@@ -17,6 +17,8 @@
 //   DELETE /api/org/{id}/devices/{did} — unassign device
 //   GET    /api/org/{id}/settings    — list org settings
 //   PUT    /api/org/{id}/settings    — update org setting
+//   GET    /api/org/{id}/address-book — get shared org address book
+//   PUT    /api/org/{id}/address-book — update shared org address book
 //   POST   /api/org/login            — org user login (returns JWT)
 
 package api
@@ -684,6 +686,66 @@ func (s *Server) handleSetOrgSetting(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[org] SetOrgSetting error: %v", err)
 		http.Error(w, `{"error":"failed to save setting"}`, http.StatusInternalServerError)
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// GET /api/org/{id}/address-book
+func (s *Server) handleGetOrgAddressBook(w http.ResponseWriter, r *http.Request) {
+	orgID := r.PathValue("id")
+	data, err := s.db.GetOrgAddressBook(orgID, "legacy")
+	if err != nil {
+		log.Printf("[org] GetOrgAddressBook error: %v", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	enabled := s.orgSharedAddressBookEnabled(orgID)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"data":    data,
+		"enabled": enabled,
+	})
+}
+
+// PUT /api/org/{id}/address-book
+func (s *Server) handleSetOrgAddressBook(w http.ResponseWriter, r *http.Request) {
+	orgID := r.PathValue("id")
+	username := getUsernameFromCtx(r)
+
+	var body struct {
+		Data    json.RawMessage `json:"data"`
+		Enabled *bool           `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
+		return
+	}
+
+	if body.Enabled != nil {
+		value := "true"
+		if !*body.Enabled {
+			value = "false"
+		}
+		if err := s.db.SetOrgSetting(orgID, orgSharedAddressBookEnabledKey, value); err != nil {
+			log.Printf("[org] SetOrgSetting(shared_address_book_enabled) error: %v", err)
+			http.Error(w, `{"error":"failed to save setting"}`, http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if len(body.Data) > 0 && string(body.Data) != "null" {
+		dataStr := normalizeAbDataField(body.Data)
+		if len(dataStr) > 512*1024 {
+			http.Error(w, `{"error":"address book too large"}`, http.StatusRequestEntityTooLarge)
+			return
+		}
+		if err := s.db.SaveOrgAddressBook(orgID, "legacy", dataStr, username); err != nil {
+			log.Printf("[org] SaveOrgAddressBook error: %v", err)
+			http.Error(w, `{"error":"failed to save address book"}`, http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

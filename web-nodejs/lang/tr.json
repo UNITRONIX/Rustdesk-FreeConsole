@@ -2350,7 +2350,18 @@
     "org_role": "Organizasyon Rolü",
     "link_user_hint": "Seçilen kullanıcı, sunucu hesabı kimlik bilgilerini kullanarak bu kuruluşa bağlanacak.",
     "no_available_users": "Tüm sunucu kullanıcıları zaten bu kuruluşa bağlı.",
-    "user_linked": "Kullanıcı kuruluşa bağlı"
+    "user_linked": "Kullanıcı kuruluşa bağlı",
+    "address_book": "Adres defteri",
+    "shared_address_book_hint": "Buraya kaydedilen kişiler, oturum açıldığında her organizasyon üyesinin RustDesk adres defterine birleştirilir. Kişisel kayıtlar gizli kalır.",
+    "shared_address_book_enabled": "Adres defterini organizasyon üyeleriyle paylaş",
+    "address_book_data": "Adres defteri JSON",
+    "address_book_saved": "Paylaşılan adres defteri kaydedildi",
+    "address_book_invalid_json": "Geçersiz adres defteri JSON",
+    "import_from_devices": "Organizasyon cihazlarından içe aktar",
+    "import_from_devices_done": "Paylaşılan adres defterine {count} cihaz içe aktarıldı",
+    "address_book_import_hint": "Bu organizasyona atanan tüm cihazları ekler (mevcut kayıtlar korunur).",
+    "save_address_book": "Adres defterini kaydet",
+    "saving": "Kaydediliyor..."
   },
   "chat": {
     "e2e_enabled": "Uçtan uca şifrelenmiş",
