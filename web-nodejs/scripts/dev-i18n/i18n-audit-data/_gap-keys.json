@@ -1,0 +1,263 @@
+{
+  "missingByLocale": {
+    "ar": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_desc",
+      "updates.channel_pick_label",
+      "updates.channel_apply_hint",
+      "updates.channel_confirm_switch"
+    ],
+    "cs": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images"
+    ],
+    "da": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development",
+      "commercialization.reports.session"
+    ],
+    "de": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "en": [],
+    "es": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "fi": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "fr": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development",
+      "commercialization.tabs.sessions",
+      "commercialization.reports.session"
+    ],
+    "hi": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_desc",
+      "updates.channel_stable",
+      "updates.channel_development",
+      "updates.channel_pick_label",
+      "updates.channel_apply_hint",
+      "updates.channel_save",
+      "updates.channel_saved",
+      "updates.channel_confirm_switch"
+    ],
+    "hu": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "id": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "it": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "ja": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "ko": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "nb": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "nl": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "pl": [
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "pt": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "ro": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "sv": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "th": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development",
+      "updates.channel_pick_label",
+      "updates.channel_apply_hint",
+      "updates.channel_save",
+      "updates.channel_saved",
+      "updates.channel_confirm_switch"
+    ],
+    "tr": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "uk": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "vi": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "zh-TW": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ],
+    "zh": [
+      "updates.docker_title",
+      "updates.docker_desc",
+      "updates.docker_install_note",
+      "updates.docker_update_available",
+      "updates.docker_sha_unknown",
+      "updates.docker_images",
+      "updates.channel_stable",
+      "updates.channel_development"
+    ]
+  }
+}

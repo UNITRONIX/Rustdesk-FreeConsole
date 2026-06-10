@@ -1263,23 +1263,14 @@ router.post('/api/login', async (req, res) => {
     try {
         const body = req.body || {};
 
-        // Debug: log exact body for Issue #104 investigation
-        console.log('[API:LOGIN] Request from', ip, '- body:', JSON.stringify({
-            username: body.username,
-            password: body.password ? '[REDACTED]' : body.password,
-            id: body.id,
-            type: body.type,
-            hasDeviceInfo: !!body.deviceInfo
-        }));
-
         // Extract and sanitize credentials — trim whitespace that could cause empty username issues
         const rawUsername = body.username;
         const rawPassword = body.password;
         const username = typeof rawUsername === 'string' ? rawUsername.trim() : '';
         const password = typeof rawPassword === 'string' ? rawPassword : '';
 
-        // Debug: log extraction result for Issue #104
-        console.log(`[API:LOGIN] Extracted credentials: username=${JSON.stringify(username)} (from raw type: ${typeof rawUsername}), password=${password ? '[SET]' : '[EMPTY]'}`);
+        const { redactUsernameForLog } = require('../lib/logRedact');
+        console.log(`[API:LOGIN] Login attempt from ${ip} user=${redactUsernameForLog(username)}`);
 
         const {
             id: clientId,

@@ -1,6 +1,6 @@
 {
   "name": "betterdesk-console",
-  "version": "3.1.0",
+  "version": "3.1.15",
   "description": "BetterDesk Console - Professional Web Management Panel for BetterDesk Server",
   "main": "server.js",
   "scripts": {
@@ -11,8 +11,11 @@
     "i18n:check": "node scripts/i18n-check.js --system web-nodejs",
     "i18n:check:all": "node scripts/i18n-check.js",
     "i18n:commercialization": "node scripts/patch-commercialization-i18n.js",
-    "prei18n:check": "npm run i18n:commercialization",
-    "i18n:apply": "node scripts/apply-i18n-audit.js"
+    "i18n:updates-docker": "node scripts/patch-updates-docker-i18n.js",
+    "prei18n:check": "npm run i18n:commercialization && npm run i18n:updates-docker",
+    "i18n:apply": "node scripts/dev-i18n/apply-i18n-audit.js",
+    "i18n:gap-collect": "node scripts/dev-i18n/collect-gap-keys.js",
+    "i18n:gap-generate": "node scripts/dev-i18n/generate-gap-fill.js"
   },
   "keywords": [
     "rustdesk",

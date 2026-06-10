@@ -49,6 +49,9 @@ env:
   BETTERDESK_VERSION: '2.0.0'
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
 jobs:
   # ==========================================================================
   # Linux x86_64 Build
@@ -244,6 +247,8 @@ jobs:
     needs: [build-linux-x64, build-linux-arm64, build-windows-x64]
     runs-on: ubuntu-latest
     if: github.event.inputs.upload_release == 'true'
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -312,6 +317,8 @@ jobs:
     needs: [build-linux-x64, build-windows-x64]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4

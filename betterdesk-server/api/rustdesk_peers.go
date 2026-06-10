@@ -444,6 +444,7 @@ func (s *Server) syncServerTagsIntoAddressBook(data string, r *http.Request, use
 		return string(out)
 	}
 
+	const maxAddressBookTags = 4096
 	var existing []string
 	switch raw := ab["tags"].(type) {
 	case []any:
@@ -451,11 +452,22 @@ func (s *Server) syncServerTagsIntoAddressBook(data string, r *http.Request, use
 			if s, ok := t.(string); ok && s != "" {
 				existing = append(existing, s)
 			}
+			if len(existing) >= maxAddressBookTags {
+				break
+			}
 		}
 	case []string:
-		existing = append(existing, raw...)
+		if len(raw) > maxAddressBookTags {
+			existing = append(existing, raw[:maxAddressBookTags]...)
+		} else {
+			existing = append(existing, raw...)
+		}
 	}
-	seen := make(map[string]bool, len(existing)+len(serverTags))
+	if len(serverTags) > maxAddressBookTags {
+		serverTags = serverTags[:maxAddressBookTags]
+	}
+	// Both slices are capped at maxAddressBookTags; use a fixed upper bound for the map.
+	seen := make(map[string]bool, maxAddressBookTags*2)
 	for _, t := range existing {
 		seen[strings.ToLower(strings.TrimSpace(t))] = true
 	}

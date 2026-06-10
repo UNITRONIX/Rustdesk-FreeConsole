@@ -887,12 +887,12 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prevent deleting the last admin
-	if user.Role == auth.RoleAdmin {
+	// Prevent deleting the last super-admin/admin (Discussion #99).
+	if auth.IsSuperAdminRole(user.Role) {
 		users, _ := s.db.ListUsers()
 		adminCount := 0
 		for _, u := range users {
-			if u.Role == auth.RoleAdmin {
+			if auth.IsSuperAdminRole(u.Role) {
 				adminCount++
 			}
 		}

@@ -72,6 +72,13 @@
     // ── Helpers ──────────────────────────────────────────────────────
     function _(key) { return (typeof window._ === 'function') ? window._(key) : key.split('.').pop(); }
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = String(str);
+        return div.innerHTML;
+    }
+
     function statusIcon(val) {
         const map = { full: '✔', partial: '◐', none: '✖', planned: '◎' };
         return `<span class="cp-status ${val}" title="${_(('cross_platform.legend_' + val))}">${map[val] || '?'}</span>`;
@@ -79,9 +86,12 @@
 
     function barHtml(label, value, max, color) {
         const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+        const safeLabel = escapeHtml(label);
+        const safeColor = (typeof Utils !== 'undefined' && Utils.sanitizeColor)
+            ? Utils.sanitizeColor(color) : color;
         return `<div class="cp-bar-row">
-            <span class="cp-bar-label">${label}</span>
-            <span class="cp-bar-track"><span class="cp-bar-fill" style="width:${pct}%;background:${color}"></span></span>
+            <span class="cp-bar-label">${safeLabel}</span>
+            <span class="cp-bar-track"><span class="cp-bar-fill" style="width:${pct}%;background:${safeColor}"></span></span>
             <span class="cp-bar-value">${value} (${pct}%)</span>
         </div>`;
     }

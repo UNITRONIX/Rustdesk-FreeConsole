@@ -6,8 +6,20 @@ const path = require('path');
 const fs = require('fs');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 
-const LANG_DIR = path.join(__dirname, '..', 'lang');
+const LANG_DIR = path.resolve(path.join(__dirname, '..', 'lang'));
 const REFERENCE_FILES = ['en.json', 'pl.json'];
+
+function safeLangFilePath(code) {
+    const sanitized = String(code || '').replace(/[^a-z-]/gi, '');
+    if (!sanitized) {
+        throw new Error('Invalid language code');
+    }
+    const langPath = path.resolve(LANG_DIR, `${sanitized}.json`);
+    if (langPath !== LANG_DIR && !langPath.startsWith(LANG_DIR + path.sep)) {
+        throw new Error('Invalid language path');
+    }
+    return langPath;
+}
 
 /**
  * Recursively flatten nested JSON object into dot-notation keys
@@ -142,8 +154,7 @@ router.get('/api/panel/languages', requireAuth, requirePermission('server.config
  */
 router.get('/api/panel/languages/:code/missing', requireAuth, requirePermission('server.config'), (req, res) => {
     try {
-        const code = req.params.code.replace(/[^a-z-]/gi, '');
-        const langPath = path.join(LANG_DIR, `${code}.json`);
+        const langPath = safeLangFilePath(req.params.code);
 
         if (!fs.existsSync(langPath)) {
             return res.status(404).json({ error: 'Language not found' });

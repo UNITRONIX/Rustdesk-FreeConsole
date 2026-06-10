@@ -287,6 +287,13 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 			log.Printf("[signal] Rejected banned WS peer heartbeat: %s from %s", id, remoteAddr)
 			return nil
 		}
+		if s.rejectIfPeerSoftDeleted(id, clientHost) {
+			return nil
+		}
+		if banned, _ := s.db.IsPeerBanned(id); banned {
+			log.Printf("[signal] Rejected banned WS peer heartbeat: %s from %s", id, remoteAddr)
+			return nil
+		}
 
 		// Update heartbeat (WS has no real UDP addr)
 		existing.LastReg = time.Now()
@@ -306,8 +313,11 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 		}
 	}
 
-	softDeleted, _ := s.db.IsPeerSoftDeleted(id)
-	if !softDeleted && !s.checkEnrollmentPermission(id, clientHost) {
+	if s.rejectIfPeerSoftDeleted(id, clientHost) {
+		return nil
+	}
+
+	if !s.checkEnrollmentPermission(id, clientHost) {
 		log.Printf("[signal] Rejected new WS peer %s from %s (enrollment policy)", id, clientHost)
 		return nil
 	}

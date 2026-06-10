@@ -2297,7 +2297,7 @@
     "allow_file_transfer": "Tillad filoverførsel",
     "allow_clipboard": "Tillad udklipsholder",
     "max_session_duration": "Maks. sessionsvarighed (min)",
-    "role_owner": "Owner",
+    "role_owner": "Ejer (org-admin)",
     "role_admin": "Administrator",
     "role_operator": "Operator",
     "role_user": "Medlem",
@@ -3317,8 +3317,8 @@
     "confirm_no_backup": "Der oprettes ingen backup (fortsæt på eget ansvar).",
     "channel_title": "Opdateringskanal",
     "channel_desc": "Vælg hvor panelet tjekker for opdateringer. Produktion bør bruge Stable.",
-    "channel_stable": "Stable (main)",
-    "channel_development": "Development (dev)",
+    "channel_stable": "Stabil (main)",
+    "channel_development": "Udvikling (dev)",
     "channel_branch_label": "GitHub-gren",
     "channel_save": "Skift kanal",
     "channel_saved": "Kanal skiftet. Klik Tjek for opdateringer.",
@@ -3326,7 +3326,13 @@
     "channel_switch_warning": "Skift af opdateringskanal ændrer hvilken GitHub-gren der bruges. Sporet commit-SHA beholdes — næste tjek kan vise stor forskel. Fortsæt?",
     "channel_pick_label": "Skift til",
     "channel_apply_hint": "Gemmes straks efter bekræftelse. Klik derefter Tjek for opdateringer.",
-    "channel_confirm_switch": "Skift kilde fra {from} til {to}? Installeret commit beholdes indtil tjek for opdateringer."
+    "channel_confirm_switch": "Skift kilde fra {from} til {to}? Installeret commit beholdes indtil tjek for opdateringer.",
+    "docker_title": "Docker-image-udrulning",
+    "docker_desc": "Denne konsol kører fra et færdigbygget containerimage. Opdateringer anvendes ved at hente nyere images fra GHCR, ikke via in-app-installation eller Go-genopbygning.",
+    "docker_install_note": "In-app-installation er deaktiveret i Docker. Kør kommandoerne ovenfor på værten, og opdater derefter denne side.",
+    "docker_update_available": "Nye containerimages tilgængelige",
+    "docker_sha_unknown": "Opdateret (image-commit ukendt)",
+    "docker_images": "Images"
   },
   "permissions": {
     "title": "Tilladelser",
@@ -3630,7 +3636,7 @@
       "amount": "Beløb"
     },
     "reports": {
-      "session": "Session",
+      "session": "Supportsession",
       "summary": "Resumé",
       "date": "Dato"
     },

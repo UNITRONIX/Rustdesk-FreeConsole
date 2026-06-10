@@ -29,6 +29,7 @@
 'use strict';
 
 const express = require('express');
+const { resolveChildPath, resolvePathWithinRoot } = require('../lib/safePath');
 const router = express.Router();
 const path = require('path');
 const fs = require('fs');
@@ -40,6 +41,10 @@ const { getAdapter } = require('../services/dbAdapter');
 // ---------------------------------------------------------------------------
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'data', 'attachments');
+
+function confinedAttachmentPath(storagePath) {
+    return resolvePathWithinRoot(storagePath, UPLOAD_DIR);
+}
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -284,7 +289,9 @@ router.delete('/:id(\\d+)', requireAdminOrOperator, async (req, res) => {
         // Delete attachment files from disk
         const attachments = await adapter.getTicketAttachments(ticket.id);
         for (const att of attachments) {
-            try { fs.unlinkSync(att.storage_path); } catch (_) { /* ignore */ }
+            try {
+                fs.unlinkSync(confinedAttachmentPath(att.storage_path));
+            } catch (_) { /* ignore */ }
         }
 
         await adapter.deleteTicket(ticket.id);
@@ -385,7 +392,7 @@ router.post('/:id(\\d+)/attachments', requireAdminOrOperator, async (req, res) =
         // Sanitize filename
         const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
         const uniqueName = `${ticket.id}_${crypto.randomBytes(8).toString('hex')}_${safeName}`;
-        const storagePath = path.join(UPLOAD_DIR, uniqueName);
+        const storagePath = resolveChildPath(UPLOAD_DIR, uniqueName);
 
         fs.writeFileSync(storagePath, buffer);
 
@@ -438,12 +445,13 @@ router.get('/attachments/:aid(\\d+)', requireAuth, async (req, res) => {
         if (!att) {
             return res.status(404).json({ error: 'Attachment not found' });
         }
-        if (!fs.existsSync(att.storage_path)) {
+        const filePath = confinedAttachmentPath(att.storage_path);
+        if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'Attachment file missing' });
         }
         res.setHeader('Content-Disposition', `attachment; filename="${att.filename}"`);
         res.setHeader('Content-Type', att.mimetype);
-        res.sendFile(att.storage_path);
+        res.sendFile(filePath);
     } catch (err) {
         console.error('[Tickets] Attachment download error:', err.message);
         res.status(500).json({ error: 'Internal server error' });

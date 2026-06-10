@@ -21,6 +21,7 @@
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { resolveChildPath } = require('../lib/safePath');
 
 // ---------------------------------------------------------------------------
 //  Config
@@ -93,8 +94,8 @@ function createTransfer({ direction, deviceId, filename, size, mimeType, created
     }
 
     const id = crypto.randomBytes(16).toString('hex');
-    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const tempPath = path.join(TRANSFER_DIR, `${id}_${safeName}`);
+    const safeName = path.basename(String(filename || 'file')).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
+    const tempPath = resolveChildPath(TRANSFER_DIR, `${id}_${safeName}`);
     const totalChunks = Math.ceil(size / MAX_CHUNK_SIZE) || 1;
 
     const record = {

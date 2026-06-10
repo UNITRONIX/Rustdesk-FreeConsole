@@ -213,21 +213,16 @@ func main() {
 		log.Printf("  INITIAL ADMIN CREDENTIALS")
 		log.Printf("  Username: %s", adminUser)
 		if cfg.InitAdminPass == "" {
-			// Security: Write password to secure file instead of logging to console
-			// Use database directory for the credentials file
 			dbDir := filepath.Dir(cfg.DBPath)
-			if dbDir == "" || dbDir == "." {
-				dbDir = "."
-			}
-			credsFile := filepath.Join(dbDir, ".admin_credentials")
-			credsContent := fmt.Sprintf("Admin Username: %s\nAdmin Password: %s\n\nChange this password immediately and delete this file!\n", adminUser, adminPass)
-			if err := os.WriteFile(credsFile, []byte(credsContent), 0600); err != nil {
+			credsFile, err := writeBootstrapAdminCredentials(dbDir, adminUser, adminPass)
+			if err != nil {
 				log.Fatalf("Failed to write credentials file: %v", err)
 			}
 			log.Printf("  Password: written to %s (mode 0600)", credsFile)
 		} else {
 			log.Printf("  Password: *** (user-provided, not logged)")
 		}
+		adminPass = ""
 		log.Printf("  (change this password immediately!)")
 		log.Printf("========================================")
 	}
@@ -460,6 +455,52 @@ func min(a, b int) int {
 	return b
 }
 
+func writeBootstrapAdminCredentials(dbDir, adminUser, adminPass string) (string, error) {
+	if dbDir == "" || dbDir == "." {
+		dbDir = "."
+	}
+	credsFile := filepath.Join(dbDir, ".admin_credentials")
+	credsContent := fmt.Sprintf(
+		"Admin Username: %s\nAdmin Password: %s\n\nChange this password immediately and delete this file!\n",
+		adminUser, adminPass,
+	)
+	if err := os.WriteFile(credsFile, []byte(credsContent), 0600); err != nil {
+		return "", err
+	}
+	return credsFile, nil
+}
+
+func syncAPIKeyToServerConfig(database db.Database, apiKey string) (string, error) {
+	existing, _ := database.GetConfig("api_key")
+	if existing == apiKey {
+		return "unchanged", nil
+	}
+	if err := database.SetConfig("api_key", apiKey); err != nil {
+		return "failed", err
+	}
+	if existing == "" {
+		return "stored", nil
+	}
+	return "updated", nil
+}
+
+func logAPIKeySyncOutcome(source, outcome string, syncErr error) {
+	switch outcome {
+	case "unchanged":
+		log.Printf("API key loaded from %s (already in database)", source)
+	case "stored":
+		log.Printf("API key loaded from %s and stored in database", source)
+	case "updated":
+		log.Printf("API key loaded from %s and updated in database", source)
+	case "failed":
+		if syncErr != nil {
+			log.Printf("WARN: Failed to sync API key to server_config: %v", syncErr)
+		} else {
+			log.Printf("WARN: Failed to sync API key to server_config")
+		}
+	}
+}
+
 // loadAPIKey reads the API key from API_KEY environment variable or .api_key file
 // in the key file directory (and DB directory as fallback), and syncs it to the
 // database's server_config table. This ensures the Node.js console and Go server
@@ -484,7 +525,7 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 		if data, err := os.ReadFile(apiKeyFile); err == nil {
 			apiKey = strings.TrimSpace(string(data))
 			if apiKey != "" {
-				source = apiKeyFile
+				source = ".api_key file (key directory)"
 			}
 		}
 	}
@@ -499,7 +540,7 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 		if data, err := os.ReadFile(apiKeyFile); err == nil {
 			apiKey = strings.TrimSpace(string(data))
 			if apiKey != "" {
-				source = apiKeyFile
+				source = ".api_key file (database directory)"
 			}
 		}
 	}
@@ -529,27 +570,15 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 		}
 		apiKeyFile := filepath.Join(keyDir, ".api_key")
 		if err := os.WriteFile(apiKeyFile, []byte(apiKey+"\n"), 0600); err != nil {
-			log.Printf("WARN: Auto-generated API key but failed to write %s: %v", apiKeyFile, err)
+			log.Printf("WARN: Auto-generated API key but failed to write .api_key file in key directory: %v", err)
 			// Still try to store in DB even if file write fails
 		} else {
-			log.Printf("Auto-generated API key written to %s", apiKeyFile)
+			log.Printf("Auto-generated API key written to .api_key file in key directory")
 		}
 	}
 
-	// Sync to database server_config table
-	existing, _ := database.GetConfig("api_key")
-	if existing == apiKey {
-		log.Printf("API key loaded from %s (already in database)", source)
-	} else {
-		if err := database.SetConfig("api_key", apiKey); err != nil {
-			log.Printf("WARN: Failed to sync API key to server_config: %v", err)
-			// Do NOT return here — ensureScopedAPIKey below is critical for auth
-		} else if existing == "" {
-			log.Printf("API key loaded from %s and stored in database", source)
-		} else {
-			log.Printf("API key loaded from %s and updated in database", source)
-		}
-	}
+	outcome, syncErr := syncAPIKeyToServerConfig(database, apiKey)
+	logAPIKeySyncOutcome(source, outcome, syncErr)
 
 	// Always ensure the scoped API key exists in api_keys table.
 	// This is critical — authenticateRequest() checks ONLY the api_keys table.

@@ -161,6 +161,7 @@ func (a *Agent) dialOptions() *websocket.DialOptions {
 		// Pinned mode: skip the default chain check and verify the leaf
 		// public key against the configured SPKI SHA-256. This defeats MITM
 		// even when a rogue CA is trusted by the system store.
+		// #nosec G402 -- custom VerifyPeerCertificate enforces the SPKI pin below.
 		tlsCfg.InsecureSkipVerify = true
 		pin := a.cfg.ServerCertPin
 		tlsCfg.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {

@@ -240,20 +240,7 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 		return
 	}
 
-	// SECURITY (GHSA-3v82-3gf8-fxx8): A soft-deleted peer is one that an
-	// administrator explicitly removed. It must NOT silently re-enroll —
-	// otherwise an attacker who knows the deleted ID can re-register it
-	// (bypassing managed/locked enrollment policy) and take over the
-	// identity, because the old PK is no longer loaded (Trust-on-First-Use
-	// bypass). The device must be explicitly restored via the API/UI before
-	// it can come back online.
-	if softDeleted, _ := s.db.IsPeerSoftDeleted(id); softDeleted {
-		log.Printf("[signal] Rejected registration of deleted peer: %s from %s", id, raddr.IP)
-		if s.auditLog != nil {
-			s.auditLog.Log(audit.ActionPeerRegistrationRejected, raddr.IP.String(), id, map[string]string{
-				"reason": "soft_deleted",
-			})
-		}
+	if s.rejectIfPeerSoftDeleted(id, raddr.IP.String()) {
 		return
 	}
 
@@ -1773,6 +1760,22 @@ func mustParseCIDR(s string) *net.IPNet {
 		panic(err)
 	}
 	return n
+}
+
+// rejectIfPeerSoftDeleted rejects registration for administrator-removed peers.
+// SECURITY (GHSA-3v82-3gf8-fxx8): soft-deleted IDs must not re-enroll via any
+// signal path; restoration is explicit via the API/UI only.
+func (s *Server) rejectIfPeerSoftDeleted(id, clientHost string) bool {
+	if softDeleted, _ := s.db.IsPeerSoftDeleted(id); softDeleted {
+		log.Printf("[signal] Rejected registration of deleted peer: %s from %s", id, clientHost)
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionPeerRegistrationRejected, clientHost, id, map[string]string{
+				"reason": "soft_deleted",
+			})
+		}
+		return true
+	}
+	return false
 }
 
 // checkEnrollmentPermission implements the Dual Key System enrollment policy.

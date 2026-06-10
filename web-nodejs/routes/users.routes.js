@@ -8,6 +8,7 @@ const router = express.Router();
 const authService = require('../services/authService');
 const db = require('../services/database');
 const { apiClient } = require('../services/betterdeskApi');
+const { assertSafeApiId } = require('../lib/goApiPath');
 const userSync = require('../services/userSync');
 const { requireAuth, requirePermission, roleHasPermission, isSuperAdminRole } = require('../middleware/auth');
 const { passwordChangeLimiter } = require('../middleware/rateLimiter');
@@ -559,7 +560,8 @@ router.get('/api/users/:id/organizations', requireAuth, requirePermission('user.
     try {
         const goUserId = await resolveGoUserIdOrRespond(req, res);
         if (!goUserId) return;
-        goApiProxy(req, res, 'get', `/users/${goUserId}/organizations`);
+        const safeGoUserId = assertSafeApiId(goUserId, 'userId');
+        goApiProxy(req, res, 'get', `/users/${encodeURIComponent(safeGoUserId)}/organizations`);
     } catch (err) {
         console.error('Resolve user organizations error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });
@@ -573,7 +575,8 @@ router.post('/api/users/:id/organizations', requireAuth, requirePermission('org.
     try {
         const goUserId = await resolveGoUserIdOrRespond(req, res);
         if (!goUserId) return;
-        goApiProxy(req, res, 'post', `/users/${goUserId}/organizations`, req.body);
+        const safeGoUserId = assertSafeApiId(goUserId, 'userId');
+        goApiProxy(req, res, 'post', `/users/${encodeURIComponent(safeGoUserId)}/organizations`, req.body);
     } catch (err) {
         console.error('Assign user organization error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });

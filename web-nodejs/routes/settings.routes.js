@@ -15,6 +15,7 @@ const fontService = require('../services/fontService');
 const serverBackend = require('../services/serverBackend');
 const backupService = require('../services/backupService');
 const updateService = require('../services/updateService');
+const { resolveChildPath } = require('../lib/safePath');
 const { canScheduleConsoleRestart } = require('../lib/updateFailurePolicy');
 const { persistUpdateResult, readLastUpdateResult } = require('../lib/updateResultStore');
 const advancedConfig = require('../services/advancedConfigService');
@@ -388,7 +389,12 @@ router.post('/api/settings/themes/:id/apply', requireAuth, requirePermission('br
     try {
         const fs = require('fs');
         const path = require('path');
-        const themeFile = path.join(__dirname, '..', 'themes', req.params.id + '.json');
+        const themeId = req.params.id;
+        if (!/^[a-zA-Z0-9_-]+$/.test(themeId)) {
+            return res.status(400).json({ success: false, error: 'Invalid theme id' });
+        }
+        const themesDir = path.resolve(__dirname, '..', 'themes');
+        const themeFile = resolveChildPath(themesDir, `${themeId}.json`);
 
         if (!fs.existsSync(themeFile)) {
             return res.status(404).json({ success: false, error: 'Theme not found' });

@@ -337,8 +337,8 @@
                     </div>
                 </td>
                 <td>
-                    <span class="role-badge ${user.role}">
-                        ${_(roleLabelKey)}
+                    <span class="role-badge ${String(user.role || '').replace(/[^a-z0-9_-]/gi, '')}">
+                        ${Utils.escapeHtml(_(roleLabelKey))}
                     </span>
                 </td>
                 <td>

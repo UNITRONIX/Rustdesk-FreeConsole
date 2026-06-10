@@ -30,7 +30,7 @@ module.exports = {
         stats: { active_sessions: 'Aktive fakturerbare sessioner' },
         packages: { new: 'Ny pakke', name: 'Navn', included_minutes: 'Inkluderede minutter', overage_rate: 'Overforbrugssats / t', currency: 'Valuta', create_title: 'Ny pakke til organisation', create_submit: 'Opret pakke', select_org: 'Organisation', select_org_placeholder: 'Vælg organisation…' },
         sessions: { device: 'Enhed', operator: 'Operatør', duration: 'Varighed', phase: 'Fase', amount: 'Beløb' },
-        reports: { session: 'Session', summary: 'Resumé', date: 'Dato' },
+        reports: { session: 'Supportsession', summary: 'Resumé', date: 'Dato' },
         empty: { packages: 'Ingen pakker endnu. Opret en med knappen ovenfor.', contracts: 'Ingen organisationskontrakter endnu. Tildel en pakke til en organisation.', sessions: 'Ingen fakturerbare sessioner registreret endnu.', reports: 'Ingen arbejdsrapporter indsendt endnu.' },
         assign: { title: 'Tildel eksisterende pakke', submit: 'Tildel' },
         form: { cancel: 'Annuller' }
@@ -69,12 +69,12 @@ module.exports = {
         form: { cancel: 'Peruuta' }
     },
     fr: {
-        tabs: { overview: 'Aperçu', packages: 'Forfaits et contrats', sessions: 'Sessions', reports: 'Rapports', settings: 'Paramètres avancés' },
+        tabs: { overview: 'Aperçu', packages: 'Forfaits et contrats', sessions: 'Séances', reports: 'Rapports', settings: 'Paramètres avancés' },
         clock: { title: 'Heure serveur (NTP)', check_now: 'Vérifier', unsynced: 'L\'horloge du serveur n\'est pas synchronisée — les sessions facturables peuvent être bloquées' },
         stats: { active_sessions: 'Sessions facturables actives' },
         packages: { new: 'Nouveau forfait', name: 'Nom', included_minutes: 'Minutes incluses', overage_rate: 'Tarif dépassement / h', currency: 'Devise', create_title: 'Nouveau forfait pour l\'organisation', create_submit: 'Créer le forfait', select_org: 'Organisation', select_org_placeholder: 'Sélectionner une organisation…' },
         sessions: { device: 'Appareil', operator: 'Opérateur', duration: 'Durée', phase: 'Phase', amount: 'Montant' },
-        reports: { session: 'Session', summary: 'Résumé', date: 'Date' },
+        reports: { session: 'Séance', summary: 'Résumé', date: 'Date' },
         empty: { packages: 'Aucun forfait pour l\'instant. Créez-en un avec le bouton ci-dessus.', contracts: 'Aucun contrat d\'organisation pour l\'instant. Assignez un forfait à une organisation.', sessions: 'Aucune session facturable enregistrée.', reports: 'Aucun rapport de travail soumis.' },
         assign: { title: 'Assigner un forfait existant', submit: 'Assigner' },
         form: { cancel: 'Annuler' }

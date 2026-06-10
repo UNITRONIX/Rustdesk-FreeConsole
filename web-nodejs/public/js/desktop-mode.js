@@ -408,11 +408,17 @@
             el.setAttribute('data-app', app.id);
             el.style.animationDelay = (index * 0.05) + 's';
 
-            el.innerHTML =
-                '<div class="desktop-icon-img" style="background:' + app.color + '">' +
-                    '<span class="material-icons">' + app.icon + '</span>' +
-                '</div>' +
-                '<span class="desktop-icon-label">' + escapeHtml(app.name) + '</span>';
+            var imgWrap = document.createElement('div');
+            imgWrap.className = 'desktop-icon-img';
+            imgWrap.style.background = sanitizeAppColor(app.color);
+            imgWrap.appendChild(createMaterialIconSpan(app.icon));
+
+            var label = document.createElement('span');
+            label.className = 'desktop-icon-label';
+            label.textContent = app.name || '';
+
+            el.appendChild(imgWrap);
+            el.appendChild(label);
 
             el.addEventListener('dblclick', function() {
                 openApp(app);
@@ -567,41 +573,59 @@
 
         var t = typeof _ === 'function' ? _ : function(k) { return k; };
 
-        el.innerHTML =
-            '<div class="window-titlebar" data-win="' + win.id + '">' +
-                '<div class="window-titlebar-icon" style="background:' + win.app.color + '">' +
-                    '<span class="material-icons">' + win.app.icon + '</span>' +
-                '</div>' +
-                '<div class="window-titlebar-text">' + escapeHtml(win.app.name) + '</div>' +
-                '<div class="window-titlebar-controls">' +
-                    '<button class="window-ctrl-btn minimize-btn" data-action="minimize" title="' + escapeAttr(t('desktop.minimize')) + '">' +
-                        '<span class="material-icons">minimize</span>' +
-                    '</button>' +
-                    '<button class="window-ctrl-btn maximize-btn" data-action="maximize" title="' + escapeAttr(t('desktop.maximize')) + '">' +
-                        '<span class="material-icons">crop_square</span>' +
-                    '</button>' +
-                    '<button class="window-ctrl-btn close-btn" data-action="close" title="' + escapeAttr(t('desktop.close')) + '">' +
-                        '<span class="material-icons">close</span>' +
-                    '</button>' +
-                '</div>' +
-            '</div>' +
-            '<div class="window-content">' +
-                '<div class="window-loading">' +
-                    '<div class="window-loading-spinner"></div>' +
-                    '<div class="window-loading-text">' + escapeHtml(t('desktop.loading')) + '</div>' +
-                '</div>' +
-                '<iframe src="' + escapeAttr(win.app.route + '?embed=1') + '" ' +
-                    'sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals" ' +
-                    'loading="lazy"></iframe>' +
-            '</div>' +
-            '<div class="window-edge edge-n" data-dir="n"></div>' +
-            '<div class="window-edge edge-s" data-dir="s"></div>' +
-            '<div class="window-edge edge-e" data-dir="e"></div>' +
-            '<div class="window-edge edge-w" data-dir="w"></div>' +
-            '<div class="window-edge edge-ne" data-dir="ne"></div>' +
-            '<div class="window-edge edge-nw" data-dir="nw"></div>' +
-            '<div class="window-edge edge-se" data-dir="se"></div>' +
-            '<div class="window-edge edge-sw" data-dir="sw"></div>';
+        var titlebar = document.createElement('div');
+        titlebar.className = 'window-titlebar';
+        titlebar.setAttribute('data-win', win.id);
+
+        var iconWrap = document.createElement('div');
+        iconWrap.className = 'window-titlebar-icon';
+        iconWrap.style.background = sanitizeAppColor(win.app.color);
+        iconWrap.appendChild(createMaterialIconSpan(win.app.icon));
+
+        var titleText = document.createElement('div');
+        titleText.className = 'window-titlebar-text';
+        titleText.textContent = win.app.name || '';
+
+        var controls = document.createElement('div');
+        controls.className = 'window-titlebar-controls';
+        controls.appendChild(createWindowCtrlBtn('minimize', 'minimize', t('desktop.minimize')));
+        controls.appendChild(createWindowCtrlBtn('maximize', 'maximize', t('desktop.maximize')));
+        controls.appendChild(createWindowCtrlBtn('close', 'close', t('desktop.close')));
+
+        titlebar.appendChild(iconWrap);
+        titlebar.appendChild(titleText);
+        titlebar.appendChild(controls);
+
+        var content = document.createElement('div');
+        content.className = 'window-content';
+
+        var loading = document.createElement('div');
+        loading.className = 'window-loading';
+        var spinner = document.createElement('div');
+        spinner.className = 'window-loading-spinner';
+        var loadingText = document.createElement('div');
+        loadingText.className = 'window-loading-text';
+        loadingText.textContent = t('desktop.loading');
+        loading.appendChild(spinner);
+        loading.appendChild(loadingText);
+
+        var iframe = document.createElement('iframe');
+        iframe.src = win.app.route + '?embed=1';
+        iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals');
+        iframe.setAttribute('loading', 'lazy');
+
+        content.appendChild(loading);
+        content.appendChild(iframe);
+
+        el.appendChild(titlebar);
+        el.appendChild(content);
+
+        ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(function(dir) {
+            var edge = document.createElement('div');
+            edge.className = 'window-edge edge-' + dir;
+            edge.setAttribute('data-dir', dir);
+            el.appendChild(edge);
+        });
 
         // Event: focus on click
         el.addEventListener('mousedown', function(e) {
@@ -1807,15 +1831,25 @@
             if (!win.minimized) tab.classList.add('active');
             if (win.id === focusedWindowId) tab.classList.add('focused');
 
-            tab.style.setProperty('--tab-color', win.app.color || 'rgba(88,166,255,0.7)');
+            tab.style.setProperty('--tab-color', sanitizeAppColor(win.app.color));
 
-            // Slim indicator strip + hover-revealed label
-            tab.innerHTML =
-                '<span class="taskbar-tab-indicator"></span>' +
-                '<span class="taskbar-tab-content">' +
-                    '<span class="material-icons taskbar-tab-icon" style="color:' + win.app.color + '">' + win.app.icon + '</span>' +
-                    '<span class="taskbar-tab-label">' + escapeHtml(win.app.name) + '</span>' +
-                '</span>';
+            var indicator = document.createElement('span');
+            indicator.className = 'taskbar-tab-indicator';
+
+            var tabContent = document.createElement('span');
+            tabContent.className = 'taskbar-tab-content';
+            tabContent.appendChild(createMaterialIconSpan(win.app.icon, {
+                className: 'material-icons taskbar-tab-icon',
+                color: win.app.color
+            }));
+
+            var tabLabel = document.createElement('span');
+            tabLabel.className = 'taskbar-tab-label';
+            tabLabel.textContent = win.app.name || '';
+
+            tabContent.appendChild(tabLabel);
+            tab.appendChild(indicator);
+            tab.appendChild(tabContent);
 
             tab.title = win.app.name;
 
@@ -1869,6 +1903,44 @@
             width: vpWidth,
             height: vpHeight - 36 - bottomOffset - safeBottom
         };
+    }
+
+    function sanitizeAppColor(color) {
+        if (typeof Utils !== 'undefined' && Utils.sanitizeColor) {
+            return Utils.sanitizeColor(color);
+        }
+        var s = String(color || '');
+        if (/^#[0-9A-Fa-f]{3}$/.test(s) || /^#[0-9A-Fa-f]{6}$/.test(s)) return s;
+        return '#808080';
+    }
+
+    function sanitizeMaterialIcon(name) {
+        var s = String(name || 'apps').trim();
+        if (/^[a-z0-9_]+$/.test(s)) return s;
+        return 'apps';
+    }
+
+    function createMaterialIconSpan(iconName, options) {
+        options = options || {};
+        var span = document.createElement('span');
+        span.className = options.className || 'material-icons';
+        if (options.color) {
+            span.style.color = sanitizeAppColor(options.color);
+        }
+        if (options.fontSize) {
+            span.style.fontSize = options.fontSize;
+        }
+        span.textContent = sanitizeMaterialIcon(iconName);
+        return span;
+    }
+
+    function createWindowCtrlBtn(action, iconName, title) {
+        var btn = document.createElement('button');
+        btn.className = 'window-ctrl-btn ' + action + '-btn';
+        btn.setAttribute('data-action', action);
+        btn.title = title || '';
+        btn.appendChild(createMaterialIconSpan(iconName));
+        return btn;
     }
 
     function escapeHtml(str) {
@@ -2004,8 +2076,9 @@
             btn.className = 'topbar-shortcut-btn';
             btn.title = sc.name || sc.id;
             btn.setAttribute('data-shortcut-idx', idx);
-            btn.style.setProperty('--sc-color', sc.color || '#8b949e');
-            btn.innerHTML = '<span class="material-icons" style="color:' + (sc.color || '#8b949e') + '">' + (sc.icon || 'open_in_new') + '</span>';
+            var scColor = sanitizeAppColor(sc.color || '#8b949e');
+            btn.style.setProperty('--sc-color', scColor);
+            btn.appendChild(createMaterialIconSpan(sc.icon || 'open_in_new', { color: scColor }));
 
             btn.addEventListener('click', function(e) {
                 if (_topbarEditMode) return; // In edit mode, don't open
@@ -2189,9 +2262,14 @@
                 tile.className = 'app-drawer-tile';
                 tile.setAttribute('draggable', 'true');
                 tile.setAttribute('data-app-id', app.id);
-                tile.innerHTML =
-                    '<span class="material-icons" style="color:' + app.color + ';font-size:28px">' + app.icon + '</span>' +
-                    '<span class="app-drawer-tile-name">' + escapeHtml(app.name) + '</span>';
+                tile.appendChild(createMaterialIconSpan(app.icon, {
+                    color: app.color,
+                    fontSize: '28px'
+                }));
+                var tileName = document.createElement('span');
+                tileName.className = 'app-drawer-tile-name';
+                tileName.textContent = app.name || '';
+                tile.appendChild(tileName);
                 tile.addEventListener('click', function() {
                     closeAppDrawer();
                     openApp(app);

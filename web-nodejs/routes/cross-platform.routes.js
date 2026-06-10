@@ -4,22 +4,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const { apiClient } = require('../services/betterdeskApi');
-
-// ---------------------------------------------------------------------------
-// Helper — proxy to Go server
-// ---------------------------------------------------------------------------
-async function goApiProxy(req, res, method, path, body) {
-    try {
-        const opts = { method, url: path };
-        if (body) opts.data = body;
-        const resp = await apiClient(opts);
-        res.status(resp.status).json(resp.data);
-    } catch (err) {
-        const status = err.response?.status || 500;
-        const data = err.response?.data || { error: 'Go server unreachable' };
-        res.status(status).json(data);
-    }
-}
+const { proxyToGo, safeSegment } = require('../lib/goApiProxy');
 
 // ---------------------------------------------------------------------------
 // Page route
@@ -81,7 +66,8 @@ router.get('/api/panel/cross-platform/distribution', requireAuth, requirePermiss
 // Capability report for a specific device
 // ---------------------------------------------------------------------------
 router.get('/api/panel/cross-platform/capabilities/:deviceId', requireAuth, requirePermission('device.view'), (req, res) => {
-    goApiProxy(req, res, 'GET', `/peers/${encodeURIComponent(req.params.deviceId)}`);
+    // deviceId is a RustDesk peer ID (numeric string) — safeSegment accepts [a-zA-Z0-9_-]
+    proxyToGo(apiClient, req, res, 'GET', () => `/peers/${safeSegment(req.params.deviceId, 'deviceId')}`);
 });
 
 // ---------------------------------------------------------------------------

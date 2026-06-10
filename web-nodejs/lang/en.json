@@ -2372,7 +2372,7 @@
     "allow_file_transfer": "Allow File Transfer",
     "allow_clipboard": "Allow Clipboard",
     "max_session_duration": "Max Session Duration (min)",
-    "role_owner": "Owner",
+    "role_owner": "Owner (Org Admin)",
     "role_admin": "Administrator",
     "role_operator": "Operator",
     "role_user": "Member",

@@ -2,9 +2,11 @@
 /**
  * Apply i18n audit translation patches to web-nodejs/lang/*.json
  *
+ * Dev-only — not deployed to production consoles. Patches live in i18n-audit-data/.
+ *
  * Usage (from repo root):
- *   node web-nodejs/scripts/apply-i18n-audit.js
- *   node web-nodejs/scripts/apply-i18n-audit.js --dry-run
+ *   npm run i18n:apply
+ *   npm run i18n:apply -- --dry-run
  */
 
 'use strict';
@@ -12,7 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const LANG_DIR = path.join(__dirname, '..', 'lang');
+const LANG_DIR = path.join(__dirname, '..', '..', 'lang');
 const DATA_DIR = path.join(__dirname, 'i18n-audit-data');
 const dryRun = process.argv.includes('--dry-run');
 
@@ -25,23 +27,6 @@ const enFallbackFixes = require(path.join(DATA_DIR, 'en-fallback-fixes.js'));
 
 const ALL_PATCHES = { ...westEu, ...southCentralEu, ...nordicEastern, ...asiaRtl, ...gapFill };
 const FORCE_PATCHES = enFallbackFixes;
-
-const PL_FALLBACK_FIXES = {
-    settings: {
-        advanced_file_systemd_console: 'systemd: betterdesk-console',
-        advanced_file_systemd_server: 'systemd: betterdesk-server',
-        advanced_file_docker_supervisord: 'Docker: supervisord.conf',
-        advanced_file_docker_compose: 'Docker: docker-compose.yml'
-    }
-};
-
-// PL uses hyphenated keys in JSON; map dot paths for fixes
-const PL_KEY_MAP = {
-    'settings.advanced_file_systemd-console': 'settings.advanced_file_systemd_console',
-    'settings.advanced_file_systemd-server': 'settings.advanced_file_systemd_server',
-    'settings.advanced_file_docker-supervisord': 'settings.advanced_file_docker_supervisord',
-    'settings.advanced_file_docker-compose': 'settings.advanced_file_docker_compose'
-};
 
 function readJson(filePath) {
     const content = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');

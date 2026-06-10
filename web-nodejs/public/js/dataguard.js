@@ -122,7 +122,7 @@
             <tr data-id="${p.id}">
                 <td>${escapeHtml(p.name)}</td>
                 <td><span class="dg-type-badge">${escapeHtml(p.policy_type || p.type)}</span></td>
-                <td><span class="dg-action-badge ${p.action}">${_('dataguard.action_' + p.action) || p.action}</span></td>
+                <td><span class="dg-action-badge ${String(p.action || '').replace(/[^a-z0-9_-]/gi, '')}">${escapeHtml(_('dataguard.action_' + p.action) || p.action)}</span></td>
                 <td>${escapeHtml(p.scope || _('dataguard.scope_all'))}</td>
                 <td><span class="policy-status ${p.enabled ? 'active' : 'disabled'}"><span class="dot"></span> ${p.enabled ? _('dataguard.active') : _('dataguard.disabled')}</span></td>
                 <td class="violations-count ${(p.events_count || 0) > 50 ? 'high' : ''}">${p.events_count || 0}</td>

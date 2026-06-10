@@ -32,6 +32,7 @@
 const express = require('express');
 const router = express.Router();
 const { apiClient } = require('../services/betterdeskApi');
+const { assertSafeApiId } = require('../lib/goApiPath');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const userSync = require('../services/userSync');
 
@@ -49,6 +50,35 @@ async function goApiProxy(req, res, method, path, body) {
         const status = err.response?.status || 500;
         const data = err.response?.data || { error: 'Go server unreachable' };
         res.status(status).json(data);
+    }
+}
+
+function orgApiPath(orgId, suffix = '') {
+    const id = assertSafeApiId(orgId, 'orgId');
+    return `/org/${encodeURIComponent(id)}${suffix}`;
+}
+
+function orgUserApiPath(orgId, userId) {
+    return `${orgApiPath(orgId)}/users/${encodeURIComponent(assertSafeApiId(userId, 'userId'))}`;
+}
+
+function orgDeviceApiPath(orgId, deviceId) {
+    return `${orgApiPath(orgId)}/devices/${encodeURIComponent(assertSafeApiId(deviceId, 'deviceId'))}`;
+}
+
+function orgMemberApiPath(orgId, userId) {
+    return `${orgApiPath(orgId)}/members/${encodeURIComponent(assertSafeApiId(userId, 'userId'))}`;
+}
+
+async function goApiProxySafe(req, res, method, pathBuilder, body) {
+    try {
+        const path = typeof pathBuilder === 'function' ? pathBuilder() : pathBuilder;
+        return goApiProxy(req, res, method, path, body);
+    } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).json({ error: err.message });
+        }
+        throw err;
     }
 }
 
@@ -85,39 +115,58 @@ router.get('/organizations/:id', requireAuth, (req, res) => {
 // Organizations CRUD
 router.get('/api/panel/org', requireAuth, (req, res) => goApiProxy(req, res, 'get', '/org'));
 router.post('/api/panel/org', requireAuth, requirePermission('org.create'), (req, res) => goApiProxy(req, res, 'post', '/org', req.body));
-router.get('/api/panel/org/:id', requireAuth, (req, res) => goApiProxy(req, res, 'get', `/org/${req.params.id}`));
-router.put('/api/panel/org/:id', requireAuth, requirePermission('org.edit'), (req, res) => goApiProxy(req, res, 'put', `/org/${req.params.id}`, req.body));
-router.delete('/api/panel/org/:id', requireAuth, requirePermission('org.delete'), (req, res) => goApiProxy(req, res, 'delete', `/org/${req.params.id}`));
+router.get('/api/panel/org/:id', requireAuth, (req, res) =>
+    goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id)));
+router.put('/api/panel/org/:id', requireAuth, requirePermission('org.edit'), (req, res) =>
+    goApiProxySafe(req, res, 'put', () => orgApiPath(req.params.id), req.body));
+router.delete('/api/panel/org/:id', requireAuth, requirePermission('org.delete'), (req, res) =>
+    goApiProxySafe(req, res, 'delete', () => orgApiPath(req.params.id)));
 
 // Org Users
-router.get('/api/panel/org/:id/users', requireAuth, (req, res) => goApiProxy(req, res, 'get', `/org/${req.params.id}/users`));
-router.post('/api/panel/org/:id/users', requireAuth, requirePermission('org.manage_users'), (req, res) => goApiProxy(req, res, 'post', `/org/${req.params.id}/users`, req.body));
-router.put('/api/panel/org/:id/users/:uid', requireAuth, requirePermission('org.manage_users'), (req, res) => goApiProxy(req, res, 'put', `/org/${req.params.id}/users/${req.params.uid}`, req.body));
-router.delete('/api/panel/org/:id/users/:uid', requireAuth, requirePermission('org.manage_users'), (req, res) => goApiProxy(req, res, 'delete', `/org/${req.params.id}/users/${req.params.uid}`));
+router.get('/api/panel/org/:id/users', requireAuth, (req, res) =>
+    goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id, '/users')));
+router.post('/api/panel/org/:id/users', requireAuth, requirePermission('org.manage_users'), (req, res) =>
+    goApiProxySafe(req, res, 'post', () => orgApiPath(req.params.id, '/users'), req.body));
+router.put('/api/panel/org/:id/users/:uid', requireAuth, requirePermission('org.manage_users'), (req, res) =>
+    goApiProxySafe(req, res, 'put', () => orgUserApiPath(req.params.id, req.params.uid), req.body));
+router.delete('/api/panel/org/:id/users/:uid', requireAuth, requirePermission('org.manage_users'), (req, res) =>
+    goApiProxySafe(req, res, 'delete', () => orgUserApiPath(req.params.id, req.params.uid)));
 
 // User-Org Linking (Issue #106)
-router.get('/api/panel/org/:id/available-users', requireAuth, requirePermission('org.manage_users'), (req, res) => goApiProxy(req, res, 'get', `/org/${req.params.id}/available-users`));
-router.post('/api/panel/org/:id/members', requireAuth, requirePermission('org.manage_users'), (req, res) => goApiProxy(req, res, 'post', `/org/${req.params.id}/members`, req.body));
+router.get('/api/panel/org/:id/available-users', requireAuth, requirePermission('org.manage_users'), (req, res) =>
+    goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id, '/available-users')));
+router.post('/api/panel/org/:id/members', requireAuth, requirePermission('org.manage_users'), (req, res) =>
+    goApiProxySafe(req, res, 'post', () => orgApiPath(req.params.id, '/members'), req.body));
 router.delete('/api/panel/org/:id/members/:userId', requireAuth, requirePermission('org.manage_users'), async (req, res) => {
     try {
         const goUserId = await resolveGoMemberId(req.params.userId);
-        goApiProxy(req, res, 'delete', `/org/${req.params.id}/members/${goUserId}`);
+        return goApiProxySafe(req, res, 'delete', () => orgMemberApiPath(req.params.id, goUserId));
     } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).json({ error: err.message });
+        }
         res.status(500).json({ error: 'Failed to resolve user' });
     }
 });
 
 // Invitations
-router.post('/api/panel/org/:id/invite', requireAuth, requirePermission('org.manage_users'), (req, res) => goApiProxy(req, res, 'post', `/org/${req.params.id}/invite`, req.body));
-router.get('/api/panel/org/:id/invitations', requireAuth, requirePermission('org.manage_users'), (req, res) => goApiProxy(req, res, 'get', `/org/${req.params.id}/invitations`));
+router.post('/api/panel/org/:id/invite', requireAuth, requirePermission('org.manage_users'), (req, res) =>
+    goApiProxySafe(req, res, 'post', () => orgApiPath(req.params.id, '/invite'), req.body));
+router.get('/api/panel/org/:id/invitations', requireAuth, requirePermission('org.manage_users'), (req, res) =>
+    goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id, '/invitations')));
 
 // Devices
-router.post('/api/panel/org/:id/devices', requireAuth, requirePermission('org.manage_devices'), (req, res) => goApiProxy(req, res, 'post', `/org/${req.params.id}/devices`, req.body));
-router.get('/api/panel/org/:id/devices', requireAuth, (req, res) => goApiProxy(req, res, 'get', `/org/${req.params.id}/devices`));
-router.delete('/api/panel/org/:id/devices/:did', requireAuth, requirePermission('org.manage_devices'), (req, res) => goApiProxy(req, res, 'delete', `/org/${req.params.id}/devices/${req.params.did}`));
+router.post('/api/panel/org/:id/devices', requireAuth, requirePermission('org.manage_devices'), (req, res) =>
+    goApiProxySafe(req, res, 'post', () => orgApiPath(req.params.id, '/devices'), req.body));
+router.get('/api/panel/org/:id/devices', requireAuth, (req, res) =>
+    goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id, '/devices')));
+router.delete('/api/panel/org/:id/devices/:did', requireAuth, requirePermission('org.manage_devices'), (req, res) =>
+    goApiProxySafe(req, res, 'delete', () => orgDeviceApiPath(req.params.id, req.params.did)));
 
 // Settings
-router.get('/api/panel/org/:id/settings', requireAuth, (req, res) => goApiProxy(req, res, 'get', `/org/${req.params.id}/settings`));
-router.put('/api/panel/org/:id/settings', requireAuth, requirePermission('org.edit'), (req, res) => goApiProxy(req, res, 'put', `/org/${req.params.id}/settings`, req.body));
+router.get('/api/panel/org/:id/settings', requireAuth, (req, res) =>
+    goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id, '/settings')));
+router.put('/api/panel/org/:id/settings', requireAuth, requirePermission('org.edit'), (req, res) =>
+    goApiProxySafe(req, res, 'put', () => orgApiPath(req.params.id, '/settings'), req.body));
 
 module.exports = router;

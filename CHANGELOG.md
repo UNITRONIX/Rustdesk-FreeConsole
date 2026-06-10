@@ -1,7 +1,205 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.15] — 2026-06-09
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.14] — 2026-06-09
+
+Production release **3.2.0** (stable `main`). Ships via **Settings → Updates** on the **Stable** channel, or `betterdesk.sh` / `betterdesk.ps1` option 2. Panel update creates a pre-update backup by default. No database migration or manual SQL step is required.
+
+### Security
+
+- **CVE-2026-50575 / GHSA-3v82-3gf8-fxx8 (device replay after delete)** — WebSocket signal registration now rejects soft-deleted peer IDs (new registration and heartbeat), matching UDP/TCP. `UpdatePeerStatus` no longer marks soft-deleted rows `ONLINE`. Restoration is explicit only via `POST /api/peers/{id}/restore` or the Devices UI. Requires **`betterdesk-server`** update (panel rebuild/redeploy when Go sources change).
+- **Dependency updates** — `go-ntlmssp` 0.1.1 (CVE-2026-32952), `golang.org/x/image` 0.38.0 (CVE-2026-33809), `pgx/v5` 5.9.2 in Go modules; `openssl` 0.10.80 and `tauri` 2.11.2 in Tauri `Cargo.lock` (**desktop client rebuild required** for Rust-side fixes; server/console panel update alone is not enough for desktop).
+- **Go API proxy hardening** — shared `goApiProxy.js` validates path segments on fleet, commercialization, and cross-platform routes; ID guards on all proxy routes; blocks path-smuggling while accepting RustDesk peer IDs (`a-zA-Z0-9_-`).
+- **Go API SSRF guard** — `goApiPath` validates relative paths on the `betterdeskApi` client; policy routes validate org/device IDs; help-request IDs validated before proxying to Go.
+- **XSS** — `cross-platform.js`, `users.js`, `dataguard.js`, `cdap-studio.js` escape/sanitize dynamic HTML and CSS class names.
+- **Path confinement** — shared `safePath` for backup deletion, i18n language files, server file browser, `fontService`, and `fileTransferService` (symlink-aware root checks). File browser respects `BETTERDESK_FILE_ALLOWED_ROOTS`.
+- **SSRF / shell hardening** — OIDC discovery URLs validated before fetch; network monitor HTTP/TCP checks use validated hostname/port/path; terminal proxy restricted to known system shell paths; `updateService` and deploy helpers use `execFileSync` argv arrays; `linux-ensure-console-user.js` uses `execFileSync`.
+- **Clear-text logging** — admin password no longer logged on first install; API login logs redact usernames (`logRedact.js`); admin self-test password cleared after use in `authService`.
+- **Audit log** — `Recent` / `RecentByAction` clamp `n` to 500 to limit allocation.
+- **CI** — `build.yml` default `permissions: contents: read`; write only on release/binary-update jobs.
+
+### Fixed
+
+- **RBAC** — deleting the last `super_admin` / legacy admin is blocked (HTTP 409), aligned with update/demotion guards; org owner label shown as **Org Admin** in all 26 locales.
+- **Panel update (dev channel)** — repair step no longer re-downloads removed `web-nodejs/scripts/*` paths (404 false failures after dev-only i18n toolkit move).
+- **Console update channel UX** — `Modal.confirm` for channel switch dialog; clearer Stable / Development labels and Docker update UI strings in all locales.
+- **Go server deploy (Linux panel)** — privileged Go server binary deploy from the Linux panel (hotfix already on `main`).
+
+### Added
+
+- **One-line Linux installer (`install.sh`)** — `curl -fsSL …/install.sh | sudo bash` for automated Docker quick-start (engine install when missing, compose download with validation, relay IP detection, firewall rules, health wait, credential summary). Use `--native` for git clone + `betterdesk.sh --auto`, or `--uninstall` / `--purge` to tear down the Docker stack.
+
+### Changed
+
+- **i18n dev toolkit** moved to `web-nodejs/scripts/dev-i18n/` — not deployed to production consoles; one-shot `patch-*` scripts removed (recoverable from git history).
+- **Update channel switcher** — stable vs development channel selection in Settings → Updates (production servers should stay on Stable).
+
+### Upgrade notes (operators)
+
+| Topic | Action |
+|-------|--------|
+| **Native / panel update** | Settings → Updates → Stable → Check for updates → Install. Allow Go server rebuild/restart when prompted. |
+| **Docker** | Pull new GHCR tags after release (`docker compose pull && docker compose up -d`); in-app GitHub install is disabled in container mode. |
+| **Soft-deleted devices** | Do not expect deleted peers to self re-register over WebSocket; use **Restore** in Devices if intentional. |
+| **Custom file paths** | If file browser or font upload breaks, review `BETTERDESK_FILE_ALLOWED_ROOTS` in console `.env`. |
+| **Desktop client (Tauri)** | Rebuild/reinstall desktop agent after this release to pick up `openssl` / `tauri` lockfile fixes. |
+| **Rollback** | Use the automatic pre-update backup from Settings → Updates, or restore from your own snapshot. |
+
+### Verify after update
+
+1. Panel login and dashboard load.
+2. Settings → Updates shows current version; no repair 404 errors.
+3. Devices list and one test remote session.
+4. Optional: delete-user guard — last admin cannot be removed (409).
+5. Docker operators: confirm new image tag on GHCR matches `v3.2.0`.
+
+---
+
+## [3.1.13] — 2026-06-09
+
+### Fixed
+- **RBAC** — deleting the last `super_admin` is blocked (409), aligned with update/demotion guards; org owner label shown as Org Admin in all locales.
+- **Panel update (dev channel)** — repair step no longer re-downloads removed `web-nodejs/scripts/*` paths (404 false failures).
+- **Console update channel UX** — `Modal.confirm` for channel switch dialog; clearer stable/dev labels.
+
+### Security
+- **CVE-2026-50575 / GHSA-3v82-3gf8-fxx8 (device replay after delete)** — WebSocket signal registration rejects soft-deleted peer IDs; `UpdatePeerStatus` no longer marks soft-deleted rows `ONLINE`. Restoration via `POST /api/peers/{id}/restore` only. Ships via panel update (`betterdesk-server`).
+- **Dependency updates** — `go-ntlmssp` 0.1.1 (CVE-2026-32952), `golang.org/x/image` 0.38.0 (CVE-2026-33809), `pgx/v5` 5.9.2; `openssl` 0.10.80 and `tauri` 2.11.2 in Tauri `Cargo.lock` (desktop client rebuild required for Rust-side fixes).
+- **Go API proxy hardening (phases D–E)** — shared `goApiProxy.js` validates path segments on fleet, commercialization, and cross-platform routes; ID guards on all proxy routes; blocks path-smuggling while accepting RustDesk peer IDs.
+- **Go API SSRF guard** — `goApiPath` validates all relative paths on `betterdeskApi` axios client; policy routes validate org/device IDs; help-request IDs validated before proxying.
+- **XSS** — `cross-platform.js`, `users.js`, `dataguard.js`, `cdap-studio.js` escape/sanitize dynamic HTML and CSS class names.
+- **Path confinement (CodeQL)** — shared `safePath` helper for backup deletion, i18n language files, server file browser, `fontService`, and `fileTransferService` (symlink-aware root checks).
+- **SSRF / shell hardening** — OIDC discovery URLs validated before fetch; network monitor HTTP/TCP checks use validated components; terminal proxy restricted to known shell paths; `updateService` and deploy helpers use `execFileSync` argv arrays; `linux-ensure-console-user.js` uses `execFileSync`.
+- **Clear-text logging** — admin password no longer logged on first install; API login logs redact usernames (`logRedact.js`); admin self-test password cleared after use.
+- **Audit log** — `Recent` / `RecentByAction` clamp `n` to 500 to limit allocation (CodeQL).
+- **CI** — `build.yml` default `permissions: contents: read`; write only on release/binary-update jobs.
+
+### Changed
+- **i18n dev toolkit** moved to `web-nodejs/scripts/dev-i18n/` — not deployed to production; one-shot `patch-*` scripts removed (recoverable from git history).
+- **i18n** — Docker update UI strings and update-channel labels translated across all 26 locales.
+
+---
+
+## [3.1.12] — 2026-06-09
+
+### Fixed
+- **RBAC** — block deleting last `super_admin`; org owner label as Org Admin in all locales.
+
+---
+
+## [3.1.11] — 2026-06-09
+
+### Security
+- **Go API proxy hardening (phase E)** — shared `goApiProxy.js` validates path segments on fleet, commercialization, and cross-platform routes; blocks path-smuggling while accepting RustDesk peer IDs (numeric and `a-zA-Z0-9_-`).
+- **Help-request API** — `betterdeskApi` validates registration help IDs before proxying to Go.
+- **XSS** — `cross-platform.js`, `users.js`, `dataguard.js`, `cdap-studio.js` escape/sanitize dynamic HTML and CSS class names.
+- **Audit log** — `Recent` / `RecentByAction` clamp `n` to 500 to limit allocation (CodeQL).
+- **Clear-text logging** — admin self-test password cleared after use in `authService`.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.10] — 2026-06-09
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.9] — 2026-06-09
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.8] — 2026-06-09
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.7] — 2026-06-09
+
+### Security
+- **Go API SSRF guard** — `goApiPath` validates all relative paths on `betterdeskApi` axios client; policy routes validate org/device IDs.
+- **File browser** — directory listing uses `resolveChildPath` for each entry under an already-confined parent path.
+- **Clear-text logging** — admin password no longer logged on first install; API login logs redacted usernames (`logRedact.js`).
+- **Path confinement** — `fontService` and `fileTransferService` use `safePath.resolveChildPath` for filesystem operations.
+- **CI** — `build.yml` default `permissions: contents: read`; write only on release/binary-update jobs.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.6] — 2026-06-09
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.5] — 2026-06-09
+
+### Fixed
+- **Panel update (dev channel)** — after intentional removal of dev-only i18n scripts, the repair step no longer tries to re-download deleted `web-nodejs/scripts/*` paths (404 false failures).
+
+### Security
+- **Path confinement (CodeQL)** — shared `safePath` helper for backup deletion, i18n language files, and server file browser (symlink-aware root checks).
+- **i18n dev toolkit** moved to `web-nodejs/scripts/dev-i18n/` (`apply-i18n-audit`, `i18n-audit-data/`, `collect-gap-keys`, `generate-gap-fill`) — not deployed to production; one-shot feature `patch-*` scripts removed (recoverable from git history).
+- **SSRF hardening** — network monitor HTTP checks use `http.request` with validated hostname/port/path components.
+- **Terminal proxy** — login shells restricted to known system shell paths.
+- **Installer scripts** — `linux-ensure-console-user.js` uses `execFileSync` argv arrays instead of shell strings.
+- **OIDC discovery** — HTTP fetch uses validated URL string after SSRF checks.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.4] — 2026-06-09
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.1.3] — 2026-06-09
+
+### Security
+- **CVE-2026-50575 / GHSA-3v82-3gf8-fxx8 (device replay after delete)** — WebSocket signal registration now rejects soft-deleted peer IDs (new registration and heartbeat), matching the existing UDP/TCP path. `UpdatePeerStatus` no longer marks soft-deleted rows `ONLINE`. Restoration remains explicit via `POST /api/peers/{id}/restore` only. Ships via panel update (`betterdesk-server`).
+- **Dependency updates (Dependabot)** — `go-ntlmssp` 0.1.1 (CVE-2026-32952), `golang.org/x/image` 0.38.0 (CVE-2026-33809), `pgx/v5` 5.9.2 in Go modules; `openssl` 0.10.80 and `tauri` 2.11.2 in Tauri `Cargo.lock` files (desktop client rebuild required for Rust-side fixes).
+- **SSRF / path hardening (CodeQL)** — OIDC discovery URLs validated before fetch; language file routes confined to `lang/`; server file browser paths restricted to allowed roots (`BETTERDESK_FILE_ALLOWED_ROOTS`); network monitor TCP checks resolve DNS before connect; address-book tag merge capped to prevent allocation overflow.
+- **Shell / logging hardening** — `updateService` and deploy helpers use `execFileSync` argv arrays; auth audit logs no longer echo operator usernames on sensitive paths; system log/stats routes rate-limited.
+
+---
+
+## [3.1.2] — 2026-06-08
+
 ### Added
 - **One-line Linux installer (`install.sh`)** — `curl -fsSL …/install.sh | sudo bash` performs a fully automated Docker quick-start (Docker engine install when missing, compose download with validation, relay IP detection, firewall rules, health wait, credential summary). Use `--native` for git clone + `betterdesk.sh --auto`, or `--uninstall` / `--purge` to tear down the Docker stack.
+
+---
+
+## [3.1.1] — 2026-06-08
+
+### Changed
+- _(none yet)_
 
 ---
 
@@ -183,3 +381,18 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [2.1.0]: https://github.com/UNITRONIX/BetterDesk/releases/tag/v2.1.0
 [3.0.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.0.0...v3.0.1
 [3.1.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.0.1...v3.1.0
+[3.1.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.0...v3.1.1
+[3.1.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.1...v3.1.2
+[3.1.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.2...v3.1.3
+[3.1.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.3...v3.1.4
+[3.1.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.4...v3.1.5
+[3.1.6]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.5...v3.1.6
+[3.1.7]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.6...v3.1.7
+[3.1.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.7...v3.1.8
+[3.1.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.8...v3.1.9
+[3.1.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.9...v3.1.10
+[3.1.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.10...v3.1.11
+[3.1.12]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.11...v3.1.12
+[3.1.13]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.12...v3.1.13
+[3.1.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.13...v3.1.14
+[3.1.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.14...v3.1.15

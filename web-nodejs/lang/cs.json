@@ -2291,7 +2291,7 @@
     "allow_file_transfer": "Povolit přenos souborů",
     "allow_clipboard": "Povolit schránku",
     "max_session_duration": "Max. délka relace (min)",
-    "role_owner": "Vlastník",
+    "role_owner": "Vlastník (org. admin)",
     "role_admin": "Administrátor",
     "role_operator": "Operátor",
     "role_user": "Člen",
@@ -3320,7 +3320,13 @@
     "channel_switch_warning": "Změna kanálu mění větev GitHub pro kontroly a instalace. Sledované SHA commitu zůstává — další kontrola může ukázat velký rozdíl. Pokračovat?",
     "channel_pick_label": "Přepnout na",
     "channel_apply_hint": "Po potvrzení se změna uloží. Poté klikněte na Zkontrolovat aktualizace.",
-    "channel_confirm_switch": "Přepnout zdroj z {from} na {to}? Nainstalovaný commit zůstane do kontroly aktualizací."
+    "channel_confirm_switch": "Přepnout zdroj z {from} na {to}? Nainstalovaný commit zůstane do kontroly aktualizací.",
+    "docker_title": "Nasazení Docker image",
+    "docker_desc": "Tato konzole běží z předpřipraveného kontejnerového image. Aktualizace se provádějí stažením novějších image z GHCR, ne instalací v aplikaci ani překompilací Go.",
+    "docker_install_note": "Instalace v aplikaci je v Dockeru zakázána. Spusťte výše uvedené příkazy na hostiteli a poté obnovte stránku.",
+    "docker_update_available": "K dispozici jsou nové kontejnerové image",
+    "docker_sha_unknown": "Aktuální (commit image neznámý)",
+    "docker_images": "Image"
   },
   "permissions": {
     "title": "Oprávnění",

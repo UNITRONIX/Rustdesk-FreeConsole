@@ -111,7 +111,7 @@ jobs:
 
       - name: Generate checksums
         run: |
-          find . -type f -name "betterdesk-server-*" -o -name "migrate-*" | while read f; do
+          find . -type f \( -name "betterdesk-server-*" -o -name "migrate-*" \) | while read -r f; do
             sha256sum "$f" >> SERVER_CHECKSUMS.sha256
           done
           cat SERVER_CHECKSUMS.sha256

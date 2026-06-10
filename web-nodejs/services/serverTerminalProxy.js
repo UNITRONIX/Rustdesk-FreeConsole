@@ -38,6 +38,36 @@ try {
 
 const isWindows = process.platform === 'win32';
 const DEFAULT_SHELL = isWindows ? (process.env.COMSPEC || 'powershell.exe') : '/bin/bash';
+const ALLOWED_LOGIN_SHELLS = new Set([
+    '/bin/bash',
+    '/bin/sh',
+    '/bin/dash',
+    '/bin/zsh',
+    '/usr/bin/bash',
+    '/usr/bin/sh',
+    '/usr/bin/dash',
+    '/usr/bin/zsh',
+]);
+
+function resolveLoginShell(shell) {
+    if (isWindows) {
+        const winShell = shell || DEFAULT_SHELL;
+        if (typeof winShell === 'string' && !/[;&|`$()]/.test(winShell)) {
+            return winShell;
+        }
+        return DEFAULT_SHELL;
+    }
+    if (typeof shell === 'string' && ALLOWED_LOGIN_SHELLS.has(shell)) {
+        return shell;
+    }
+    if (typeof shell === 'string' && shell.startsWith('/') && !shell.includes('..')) {
+        const base = path.basename(shell);
+        if (['bash', 'sh', 'dash', 'zsh'].includes(base) && fs.existsSync(shell)) {
+            return shell;
+        }
+    }
+    return DEFAULT_SHELL;
+}
 
 const ACTIVE_SESSIONS = new Map(); // sessionId -> session
 let nextSessionId = 1;
@@ -84,7 +114,9 @@ function pickTerminalUser() {
 
     if (configured) {
         const byName = passwd.find((u) => u.username === configured || String(u.uid) === configured);
-        if (byName && validLoginShell(byName.shell)) return byName;
+        if (byName && validLoginShell(byName.shell)) {
+            return { ...byName, shell: resolveLoginShell(byName.shell) };
+        }
     }
 
     if (isRootProcess) {
@@ -94,7 +126,9 @@ function pickTerminalUser() {
             validLoginShell(u.shell) &&
             u.homedir && u.homedir !== '/'
         );
-        if (localUser) return localUser;
+        if (localUser) {
+            return { ...localUser, shell: resolveLoginShell(localUser.shell) };
+        }
     }
 
     return {
@@ -102,7 +136,7 @@ function pickTerminalUser() {
         uid: current.uid,
         gid: current.gid,
         homedir: current.homedir || os.homedir(),
-        shell: validLoginShell(process.env.SHELL) ? process.env.SHELL : DEFAULT_SHELL
+        shell: resolveLoginShell(validLoginShell(process.env.SHELL) ? process.env.SHELL : DEFAULT_SHELL),
     };
 }
 

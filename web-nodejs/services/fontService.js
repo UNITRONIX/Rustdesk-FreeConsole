@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const http = require('http');
+const { resolveChildPath } = require('../lib/safePath');
 
 const FONTS_DIR = path.join(__dirname, '..', 'public', 'fonts');
 const FONT_CACHE_FILE = path.join(__dirname, '..', 'data', 'google-fonts-cache.json');
@@ -160,7 +161,7 @@ function searchFonts(query = '', category = 'all') {
  */
 function isFontDownloaded(family) {
     const safeName = sanitizeFontName(family);
-    const fontDir = path.join(FONTS_DIR, safeName);
+    const fontDir = resolveFontDir(safeName);
     return fs.existsSync(fontDir) && fs.readdirSync(fontDir).some(f => f.endsWith('.woff2'));
 }
 
@@ -170,7 +171,26 @@ function isFontDownloaded(family) {
  * @returns {string}
  */
 function sanitizeFontName(family) {
-    return family.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').toLowerCase();
+    const safeName = String(family || '')
+        .replace(/[^a-zA-Z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .toLowerCase();
+    if (!safeName || safeName === '.' || safeName === '..') {
+        throw new Error('Invalid font family name');
+    }
+    return safeName;
+}
+
+function resolveFontDir(safeName) {
+    return resolveChildPath(FONTS_DIR, safeName);
+}
+
+function resolveFontFile(safeName, fileName) {
+    const base = path.basename(String(fileName || ''));
+    if (!base || base === '.' || base === '..') {
+        throw new Error('Invalid font file name');
+    }
+    return resolveChildPath(resolveFontDir(safeName), base);
 }
 
 /**
@@ -196,7 +216,7 @@ async function downloadFont(family, weights = ['400', '500', '600', '700']) {
     }
 
     const safeName = sanitizeFontName(family);
-    const fontDir = path.join(FONTS_DIR, safeName);
+    const fontDir = resolveFontDir(safeName);
 
     if (!fs.existsSync(fontDir)) {
         fs.mkdirSync(fontDir, { recursive: true });
@@ -225,7 +245,7 @@ async function downloadFont(family, weights = ['400', '500', '600', '700']) {
         const fileUrl = urlMatch[1];
         const weight = weightMatch ? weightMatch[1] : '400';
         const fileName = `${safeName}-${weight}.woff2`;
-        const filePath = path.join(fontDir, fileName);
+        const filePath = resolveFontFile(safeName, fileName);
 
         try {
             const fontResponse = await fetchUrl(fileUrl);
@@ -249,7 +269,7 @@ async function downloadFont(family, weights = ['400', '500', '600', '700']) {
 }`;
         }).join('\n\n');
 
-        fs.writeFileSync(path.join(fontDir, 'font.css'), cssFaces);
+        fs.writeFileSync(resolveFontFile(safeName, 'font.css'), cssFaces);
     }
 
     return {
@@ -267,8 +287,8 @@ async function downloadFont(family, weights = ['400', '500', '600', '700']) {
  */
 function getLocalFont(family) {
     const safeName = sanitizeFontName(family);
-    const fontDir = path.join(FONTS_DIR, safeName);
-    const cssFile = path.join(fontDir, 'font.css');
+    const fontDir = resolveFontDir(safeName);
+    const cssFile = resolveFontFile(safeName, 'font.css');
 
     if (!fs.existsSync(cssFile)) return null;
 
@@ -294,10 +314,16 @@ function listLocalFonts() {
 
     const fonts = [];
     for (const dir of dirs) {
-        const cssFile = path.join(FONTS_DIR, dir.name, 'font.css');
+        let fontDir;
+        try {
+            fontDir = resolveFontDir(dir.name);
+        } catch (_) {
+            continue;
+        }
+        const cssFile = resolveFontFile(dir.name, 'font.css');
         if (!fs.existsSync(cssFile)) continue;
 
-        const files = fs.readdirSync(path.join(FONTS_DIR, dir.name)).filter(f => f.endsWith('.woff2'));
+        const files = fs.readdirSync(fontDir).filter(f => f.endsWith('.woff2'));
         const weights = files.map(f => f.match(/-(\d+)\.woff2$/)?.[1]).filter(Boolean);
 
         // Find original family name from curated list
@@ -323,7 +349,7 @@ function listLocalFonts() {
  */
 function deleteLocalFont(family) {
     const safeName = sanitizeFontName(family);
-    const fontDir = path.join(FONTS_DIR, safeName);
+    const fontDir = resolveFontDir(safeName);
 
     if (!fs.existsSync(fontDir)) return false;
 

@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config/config');
+const { resolveLangFilePath } = require('../lib/safePath');
 
 // Supported languages metadata
 const LANGUAGE_META = {
@@ -115,13 +116,19 @@ class TranslationManager {
             return false;
         }
         
-        const filePath = path.join(config.langDir, `${code}.json`);
-        
+        let filePath;
+        try {
+            filePath = resolveLangFilePath(config.langDir, code);
+        } catch (_) {
+            console.warn(`i18n: Invalid language path rejected: ${code}`);
+            return false;
+        }
+
         try {
             if (!fs.existsSync(filePath)) {
                 return false;
             }
-            
+
             const content = stripBom(fs.readFileSync(filePath, 'utf8'));
             const data = JSON.parse(content);
             
@@ -296,8 +303,13 @@ class TranslationManager {
             return { success: false, error: 'Invalid language code format' };
         }
         
-        const filePath = path.join(config.langDir, `${code}.json`);
-        
+        let filePath;
+        try {
+            filePath = resolveLangFilePath(config.langDir, code);
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+
         try {
             fs.writeFileSync(filePath, JSON.stringify(translations, null, 2), 'utf8');
             this.loadLanguage(code);
@@ -321,8 +333,13 @@ class TranslationManager {
             return { success: false, error: 'Cannot delete core language' };
         }
         
-        const filePath = path.join(config.langDir, `${code}.json`);
-        
+        let filePath;
+        try {
+            filePath = resolveLangFilePath(config.langDir, code);
+        } catch (err) {
+            return { success: false, error: err.message };
+        }
+
         try {
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);

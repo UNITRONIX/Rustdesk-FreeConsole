@@ -5,6 +5,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { assertSafeApiId } = require('../lib/goApiPath');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const betterdeskApi = require('../services/betterdeskApi');
 
@@ -44,12 +45,16 @@ router.get('/api/panel/roles', requireAuth, requirePermission('user.view'), asyn
  */
 router.get('/api/panel/roles/:role/permissions', requireAuth, requirePermission('user.view'), async (req, res) => {
     try {
-        const result = await betterdeskApi.getRolePermissions(req.params.role);
+        const role = assertSafeApiId(req.params.role, 'role');
+        const result = await betterdeskApi.getRolePermissions(role);
         if (!result.success) {
             return res.status(500).json({ success: false, error: result.error });
         }
         res.json(result);
     } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).json({ success: false, error: err.message });
+        }
         console.error('Failed to get role permissions:', err);
         res.status(500).json({ success: false, error: 'Failed to get role permissions' });
     }
@@ -80,12 +85,17 @@ router.post('/api/panel/role-permissions', requireAuth, requirePermission('serve
         if (!role || !permission || typeof granted !== 'boolean') {
             return res.status(400).json({ success: false, error: 'Missing required fields: role, permission, granted' });
         }
-        const result = await betterdeskApi.setRolePermission(role, permission, granted);
+        const safeRole = assertSafeApiId(role, 'role');
+        const safePermission = assertSafeApiId(permission, 'permission');
+        const result = await betterdeskApi.setRolePermission(safeRole, safePermission, granted);
         if (!result.success) {
             return res.status(400).json({ success: false, error: result.error || 'Failed to set permission' });
         }
         res.json(result);
     } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).json({ success: false, error: err.message });
+        }
         console.error('Failed to set role permission:', err);
         res.status(500).json({ success: false, error: 'Failed to set role permission' });
     }
@@ -96,12 +106,17 @@ router.post('/api/panel/role-permissions', requireAuth, requirePermission('serve
  */
 router.delete('/api/panel/role-permissions/:role/:permission', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
-        const result = await betterdeskApi.deleteRolePermission(req.params.role, req.params.permission);
+        const role = assertSafeApiId(req.params.role, 'role');
+        const permission = assertSafeApiId(req.params.permission, 'permission');
+        const result = await betterdeskApi.deleteRolePermission(role, permission);
         if (!result.success) {
             return res.status(400).json({ success: false, error: result.error || 'Failed to delete override' });
         }
         res.json(result);
     } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).json({ success: false, error: err.message });
+        }
         console.error('Failed to delete role permission:', err);
         res.status(500).json({ success: false, error: 'Failed to delete role permission' });
     }

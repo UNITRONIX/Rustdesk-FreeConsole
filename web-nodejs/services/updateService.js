@@ -27,6 +27,7 @@ const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
+const { resolveChildPath, resolvePathUnderRoot } = require('../lib/safePath');
 const { runConsoleNpmInstall } = require('../lib/consoleNpmInstall');
 const {
     NON_CRITICAL_UPDATE_FAILURES,
@@ -698,7 +699,7 @@ function createGoInfo(version, binPath, source) {
 function probeGoBinary(binPath, source) {
     if (!binPath) return null;
     try {
-        const version = execSync(`${quoteCommand(binPath)} version`, {
+        const version = execFileSync(binPath, ['version'], {
             timeout: 10000,
             stdio: 'pipe'
         }).toString().trim();
@@ -990,10 +991,14 @@ function isCompareLikelyTruncated(fileCount) {
     return Number(fileCount) >= GITHUB_COMPARE_FILE_LIMIT;
 }
 
+function resolveConsoleLocalPath(localPath) {
+    return resolvePathUnderRoot(ROOT_DIR, localPath);
+}
+
 async function downloadConsoleFile(remoteSHA, localPath) {
     const repoPath = `${COMPONENTS.console.prefix}${localPath}`;
     const content = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, repoPath);
-    const dest = path.join(ROOT_DIR, localPath);
+    const dest = resolveConsoleLocalPath(localPath);
     if (isProtectedRuntimePath(dest)) {
         throw new Error(`Refusing to write protected runtime path: ${localPath}`);
     }
@@ -1048,12 +1053,18 @@ async function ensureConsoleSource(remoteSHA, opts = {}) {
 async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
     const graph = getConsoleDeployGraph();
     const required = graph.collectConsoleRequiredFiles(changedConsoleFiles);
+    const removedPaths = new Set(
+        (changedConsoleFiles || [])
+            .filter((f) => f?.status === 'removed' && f.localPath)
+            .map((f) => f.localPath)
+    );
     const repaired = [];
     const failed = [];
     for (const localPath of required) {
+        if (removedPaths.has(localPath)) continue;
         if (!graph.isConsoleDeployLocalPath(localPath)) continue;
         if (graph.isResolvedByIndexModule(localPath)) continue;
-        const dest = path.join(ROOT_DIR, localPath);
+        const dest = resolveConsoleLocalPath(localPath);
         if (fs.existsSync(dest)) continue;
         try {
             await downloadConsoleFile(remoteSHA, localPath);
@@ -1187,7 +1198,7 @@ function goStdlibHealthy(binPath) {
     if (!binPath || !fs.existsSync(binPath)) return false;
     const goEnv = goEnvForBin(binPath);
     try {
-        execSync(`${quoteCommand(binPath)} version`, { timeout: 10000, stdio: 'pipe', env: goEnv });
+        execFileSync(binPath, ['version'], { timeout: 10000, stdio: 'pipe', env: goEnv });
     } catch {
         return false;
     }
@@ -1196,7 +1207,7 @@ function goStdlibHealthy(binPath) {
         const src = path.join(tmpDir, 'probe.go');
         const out = path.join(tmpDir, IS_WINDOWS ? 'probe.exe' : 'probe');
         fs.writeFileSync(src, 'package main\nimport _ "encoding/json"\nfunc main() {}\n');
-        execSync(`${quoteCommand(binPath)} build -o ${quoteCommand(out)} ${quoteCommand(src)}`, {
+        execFileSync(binPath, ['build', '-o', out, src], {
             timeout: 120000,
             stdio: 'pipe',
             env: goEnv,
@@ -1827,7 +1838,8 @@ async function getChangedFiles(remoteSHA) {
  */
 async function createPreUpdateBackup(allFiles) {
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const backupPath = path.join(BACKUP_DIR, `pre-update-${ts}`);
+    const backupName = `pre-update-${ts}`;
+    const backupPath = resolveChildPath(path.resolve(BACKUP_DIR), backupName);
     fs.mkdirSync(backupPath, { recursive: true });
 
     const localVersion = getLocalVersion();
@@ -1836,16 +1848,16 @@ async function createPreUpdateBackup(allFiles) {
 
     for (const file of allFiles) {
         if (file.component !== 'console' || !file.localPath) continue;
-        const src = path.join(ROOT_DIR, file.localPath);
+        const src = resolveConsoleLocalPath(file.localPath);
         if (fs.existsSync(src)) {
-            const dest = path.join(backupPath, file.localPath);
+            const dest = resolvePathUnderRoot(backupPath, file.localPath);
             fs.mkdirSync(path.dirname(dest), { recursive: true });
             fs.copyFileSync(src, dest);
             backedUp++;
         }
     }
 
-    fs.writeFileSync(path.join(backupPath, 'manifest.json'), JSON.stringify({
+    fs.writeFileSync(resolveChildPath(backupPath, 'manifest.json'), JSON.stringify({
         version: localVersion,
         sha: localSHA,
         timestamp: new Date().toISOString(),
@@ -2016,7 +2028,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             for (const file of consoleFiles) {
                 try {
                     if (file.status === 'removed') {
-                        const localFile = path.join(ROOT_DIR, file.localPath);
+                        const localFile = resolveConsoleLocalPath(file.localPath);
                         if (isProtectedRuntimePath(localFile)) { results.skipped.push(file.path); continue; }
                         if (fs.existsSync(localFile)) { fs.unlinkSync(localFile); results.removed.push(file.path); }
                         continue;
@@ -2025,7 +2037,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                         results.skipped.push(file.path);
                         continue;
                     }
-                    const dest = path.join(ROOT_DIR, file.localPath);
+                    const dest = resolveConsoleLocalPath(file.localPath);
                     if (isProtectedRuntimePath(dest)) {
                         console.warn(`[UPDATE] Refusing to overwrite runtime state file: ${file.path}`);
                         results.skipped.push(file.path);
@@ -2078,7 +2090,12 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     if (selectedComponents.includes('scripts') && changedData.grouped.scripts?.length) {
         for (const file of changedData.grouped.scripts) {
             try {
-                if (file.status === 'removed') continue;
+                if (file.status === 'removed') {
+                    const dest = path.join(PROJECT_ROOT, file.localPath);
+                    if (isProtectedRuntimePath(dest)) { results.skipped.push(file.path); continue; }
+                    if (fs.existsSync(dest)) { fs.unlinkSync(dest); results.removed.push(file.path); }
+                    continue;
+                }
                 const dest = path.join(PROJECT_ROOT, file.localPath);
                 if (isProtectedRuntimePath(dest)) {
                     console.warn(`[UPDATE] Refusing to overwrite runtime state file: ${file.path}`);
@@ -2508,8 +2525,8 @@ function listBackups() {
     return fs.readdirSync(BACKUP_DIR)
         .filter(d => d.startsWith('pre-update-'))
         .map(d => {
-            const dir = path.join(BACKUP_DIR, d);
-            const mPath = path.join(dir, 'manifest.json');
+            const dir = resolveChildPath(path.resolve(BACKUP_DIR), d);
+            const mPath = resolveChildPath(dir, 'manifest.json');
             let m = {};
             if (fs.existsSync(mPath)) {
                 try { m = JSON.parse(fs.readFileSync(mPath, 'utf8')); } catch (_e) { /* skip */ }
@@ -2544,11 +2561,8 @@ function deleteBackup(name) {
     if (!isValidBackupName(name)) {
         throw new Error('Invalid backup name');
     }
-    const target = path.resolve(BACKUP_DIR, name);
     const root = path.resolve(BACKUP_DIR);
-    if (!target.startsWith(root + path.sep) && target !== root) {
-        throw new Error('Backup path is outside the backup directory');
-    }
+    const target = resolveChildPath(root, name);
     if (target === root) {
         throw new Error('Refusing to delete the backup directory itself');
     }
@@ -2590,17 +2604,17 @@ function pruneBackups(keep) {
  */
 function restoreFromBackup(backupName) {
     if (!isValidBackupName(backupName)) throw new Error('Invalid backup name');
-    const backupPath = path.join(BACKUP_DIR, backupName);
+    const backupPath = resolveChildPath(path.resolve(BACKUP_DIR), backupName);
     if (!fs.existsSync(backupPath)) throw new Error('Backup not found');
 
-    const manifestPath = path.join(backupPath, 'manifest.json');
+    const manifestPath = resolveChildPath(backupPath, 'manifest.json');
     if (!fs.existsSync(manifestPath)) throw new Error('Invalid backup — missing manifest');
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     let restored = 0;
     for (const filePath of (manifest.files || [])) {
-        const src = path.join(backupPath, filePath);
-        const dest = path.join(ROOT_DIR, filePath);
+        const src = resolvePathUnderRoot(backupPath, filePath);
+        const dest = resolvePathUnderRoot(ROOT_DIR, filePath);
         if (fs.existsSync(src)) {
             fs.mkdirSync(path.dirname(dest), { recursive: true });
             fs.copyFileSync(src, dest);

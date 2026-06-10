@@ -25,6 +25,7 @@
 
 const crypto = require('crypto');
 const { apiClient } = require('./betterdeskApi');
+const { assertSafeApiId } = require('../lib/goApiPath');
 const db = require('./database');
 
 // Roles supported by the Go server (auth/roles.go). Anything outside this
@@ -196,7 +197,8 @@ async function mirrorUpdate(username, { password, role } = {}) {
     if (Object.keys(body).length === 0) return;
 
     try {
-        await apiClient.put(`/users/${goUser.id}`, body);
+        const safeId = assertSafeApiId(goUser.id, 'userId');
+        await apiClient.put(`/users/${encodeURIComponent(safeId)}`, body);
         console.log(`[userSync] Mirrored update -> Go: '${username}'${body.role ? ` role=${body.role}` : ''}${body.password ? ' password=***' : ''}`);
     } catch (err) {
         const status = err.response?.status;
@@ -212,7 +214,8 @@ async function mirrorDelete(username) {
     const goUser = await findGoUserByUsername(username);
     if (!goUser) return;
     try {
-        await apiClient.delete(`/users/${goUser.id}`);
+        const safeId = assertSafeApiId(goUser.id, 'userId');
+        await apiClient.delete(`/users/${encodeURIComponent(safeId)}`);
         console.log(`[userSync] Mirrored delete -> Go: '${username}'`);
     } catch (err) {
         const status = err.response?.status;

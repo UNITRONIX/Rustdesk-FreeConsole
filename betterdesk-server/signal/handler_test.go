@@ -115,6 +115,55 @@ func TestHandleRegisterPeerWSManagedRejectsUnknownPeer(t *testing.T) {
 	}
 }
 
+func TestHandleRegisterPeerWSRejectsSoftDeletedPeer(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+
+	if err := database.UpsertPeer(&db.Peer{ID: "WSDEL1", Status: "OFFLINE", IP: "10.0.0.1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.DeletePeer("WSDEL1"); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := srv.handleRegisterPeerWS(&pb.RegisterPeer{Id: "WSDEL1", Serial: 1}, "203.0.113.12:51234")
+	if resp != nil {
+		t.Fatalf("handleRegisterPeerWS should reject soft-deleted peer, got: %+v", resp)
+	}
+	if entry := srv.peers.Get("WSDEL1"); entry != nil {
+		t.Fatalf("soft-deleted WS peer must not enter memory map: %+v", entry)
+	}
+	peer, err := database.GetPeer("WSDEL1")
+	if err != nil {
+		t.Fatalf("GetPeer: %v", err)
+	}
+	if peer != nil {
+		t.Fatal("soft-deleted peer must remain invisible to GetPeer")
+	}
+}
+
+func TestHandleRegisterPeerWSRejectsSoftDeletedHeartbeat(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{ID: "WSHB1", Status: "ONLINE", IP: "10.0.0.2"}); err != nil {
+		t.Fatal(err)
+	}
+	srv.peers.Put(&peer.Entry{
+		ID:       "WSHB1",
+		IP:       "203.0.113.13:51234",
+		Serial:   1,
+		ConnType: peer.ConnWS,
+		LastReg:  time.Now(),
+	})
+	if err := database.DeletePeer("WSHB1"); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := srv.handleRegisterPeerWS(&pb.RegisterPeer{Id: "WSHB1", Serial: 2}, "203.0.113.13:51234")
+	if resp != nil {
+		t.Fatalf("heartbeat for soft-deleted peer should be rejected, got: %+v", resp)
+	}
+}
+
 func TestRegistrationLimiterUsesPeerScopedBucket(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	limiter := ratelimit.NewIPLimiter(2, time.Minute, time.Minute)

@@ -11,7 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync, execSync } = require('child_process');
 const config = require('../config/config');
 const {
     readConsoleEnvPortSettings,
@@ -83,7 +83,7 @@ function ensureConsoleUpdateSudoers() {
         if (fs.existsSync(UPDATE_SUDOERS_PATH)) {
             existing = isRoot()
                 ? fs.readFileSync(UPDATE_SUDOERS_PATH, 'utf8')
-                : runPrivileged(`cat ${JSON.stringify(UPDATE_SUDOERS_PATH)}`);
+                : runPrivilegedArgv('cat', [UPDATE_SUDOERS_PATH]);
         }
     } catch (_) {
         existing = '';
@@ -93,13 +93,13 @@ function ensureConsoleUpdateSudoers() {
     }
     const tmp = `/tmp/betterdesk-console-updates.${Date.now()}.sudoers`;
     fs.writeFileSync(tmp, desired, 'utf8');
-    runPrivileged(`visudo -cf ${JSON.stringify(tmp)}`);
+    runPrivilegedArgv('visudo', ['-cf', tmp]);
     if (isRoot()) {
         fs.copyFileSync(tmp, UPDATE_SUDOERS_PATH);
         fs.chmodSync(UPDATE_SUDOERS_PATH, 0o440);
     } else {
-        runPrivileged(`cp ${JSON.stringify(tmp)} ${JSON.stringify(UPDATE_SUDOERS_PATH)}`);
-        runPrivileged(`chmod 440 ${JSON.stringify(UPDATE_SUDOERS_PATH)}`);
+        runPrivilegedArgv('cp', [tmp, UPDATE_SUDOERS_PATH]);
+        runPrivilegedArgv('chmod', ['440', UPDATE_SUDOERS_PATH]);
     }
     try { fs.unlinkSync(tmp); } catch (_) { /* ok */ }
     return { changed: true, path: UPDATE_SUDOERS_PATH };
@@ -112,35 +112,38 @@ function isRoot() {
 function canUseSudo() {
     if (isRoot()) return true;
     try {
-        execSync('sudo -n systemctl --version', { stdio: 'pipe', timeout: 5000 });
+        execFileSync('sudo', ['-n', resolveSystemctlPath(), '--version'], { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch (_) {
         return false;
     }
 }
 
-function runPrivileged(cmd, opts = {}) {
+function runPrivilegedArgv(binary, args, opts = {}) {
     if (!isRoot() && !canUseSudo()) {
         throw new Error('Privileged command requires root or passwordless sudo');
     }
-    const prefix = isRoot() ? '' : 'sudo -n ';
-    return execSync(prefix + cmd, {
-        encoding: 'utf8',
+    const runOpts = {
+        encoding: opts.encoding || 'utf8',
         stdio: opts.stdio || 'pipe',
         timeout: opts.timeout || 30000,
-    });
+    };
+    if (isRoot()) {
+        return execFileSync(binary, args, runOpts);
+    }
+    return execFileSync('sudo', ['-n', binary, ...args], runOpts);
 }
 
 function readServiceFile() {
     try {
-        const fragment = runPrivileged(
-            `systemctl show ${CONSOLE_SERVICE} --property=FragmentPath --value 2>/dev/null || true`
-        ).trim();
+        const fragment = runPrivilegedArgv(resolveSystemctlPath(), [
+            'show', CONSOLE_SERVICE, '--property=FragmentPath', '--value',
+        ]).trim();
         const servicePath = fragment || `/etc/systemd/system/${CONSOLE_SERVICE}.service`;
         if (!fs.existsSync(servicePath)) return { servicePath: null, content: '' };
         const content = isRoot()
             ? fs.readFileSync(servicePath, 'utf8')
-            : runPrivileged(`cat ${JSON.stringify(servicePath)}`);
+            : runPrivilegedArgv('cat', [servicePath]);
         return { servicePath, content };
     } catch (_) {
         return { servicePath: null, content: '' };
@@ -153,14 +156,14 @@ function writeServiceFile(servicePath, content) {
     } else {
         const tmp = `/tmp/${CONSOLE_SERVICE}.${Date.now()}.service`;
         fs.writeFileSync(tmp, content, 'utf8');
-        runPrivileged(`cp ${JSON.stringify(tmp)} ${JSON.stringify(servicePath)}`);
+        runPrivilegedArgv('cp', [tmp, servicePath]);
         try { fs.unlinkSync(tmp); } catch (_) { /* ok */ }
     }
 }
 
 function userExists(name) {
     try {
-        execSync(`getent passwd ${name}`, { stdio: 'pipe', timeout: 5000 });
+        execFileSync('getent', ['passwd', name], { stdio: 'pipe', timeout: 5000 });
         return true;
     } catch (_) {
         return false;
@@ -174,10 +177,11 @@ function ensureSystemUser() {
     if (!isRoot() && !canUseSudo()) {
         throw new Error(`System user ${SVC_USER} is missing and console cannot create it without root/sudo`);
     }
-    runPrivileged(
-        `useradd -r -s /usr/sbin/nologin -d /var/lib/betterdesk -c "BetterDesk web console" ${SVC_USER}`
-    );
-    runPrivileged('mkdir -p /var/lib/betterdesk');
+    runPrivilegedArgv('useradd', [
+        '-r', '-s', '/usr/sbin/nologin', '-d', '/var/lib/betterdesk',
+        '-c', 'BetterDesk web console', SVC_USER,
+    ]);
+    runPrivilegedArgv('mkdir', ['-p', '/var/lib/betterdesk']);
 }
 
 function ensureDataDir() {
@@ -194,13 +198,13 @@ function fixSharedPermissions() {
         return { ok: false, skipped: true, error: 'no root/sudo for permission sync' };
     }
     try {
-        runPrivileged('mkdir -p /var/lib/betterdesk');
-        runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data'))}`);
-        runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data', 'go-cache', 'mod'))}`);
-        runPrivileged(`mkdir -p ${JSON.stringify(path.join(CONSOLE_PATH, 'data', 'go-cache', 'build'))}`);
-        runPrivileged(`mkdir -p /var/lib/betterdesk/.npm`);
-        runPrivileged(`chown -R ${SVC_USER}:${SVC_USER} /var/lib/betterdesk`);
-        runPrivileged(`chown -R ${SVC_USER}:${SVC_USER} ${JSON.stringify(CONSOLE_PATH)}`);
+        runPrivilegedArgv('mkdir', ['-p', '/var/lib/betterdesk']);
+        runPrivilegedArgv('mkdir', ['-p', path.join(CONSOLE_PATH, 'data')]);
+        runPrivilegedArgv('mkdir', ['-p', path.join(CONSOLE_PATH, 'data', 'go-cache', 'mod')]);
+        runPrivilegedArgv('mkdir', ['-p', path.join(CONSOLE_PATH, 'data', 'go-cache', 'build')]);
+        runPrivilegedArgv('mkdir', ['-p', '/var/lib/betterdesk/.npm']);
+        runPrivilegedArgv('chown', ['-R', `${SVC_USER}:${SVC_USER}`, '/var/lib/betterdesk']);
+        runPrivilegedArgv('chown', ['-R', `${SVC_USER}:${SVC_USER}`, CONSOLE_PATH]);
 
         const shared = [
             path.join(RUSTDESK_PATH, '.api_key'),
@@ -213,12 +217,12 @@ function fixSharedPermissions() {
         ];
         for (const filePath of shared) {
             if (!fs.existsSync(filePath)) continue;
-            runPrivileged(`chown root:${SVC_USER} ${JSON.stringify(filePath)}`);
-            runPrivileged(`chmod g+r ${JSON.stringify(filePath)}`);
+            runPrivilegedArgv('chown', [`root:${SVC_USER}`, filePath]);
+            runPrivilegedArgv('chmod', ['g+r', filePath]);
             if (filePath.includes('db_v2') || filePath.endsWith('.api_key') || filePath.includes('/ssl/')) {
-                runPrivileged(`chmod g+rw ${JSON.stringify(filePath)}`);
+                runPrivilegedArgv('chmod', ['g+rw', filePath]);
             } else {
-                runPrivileged(`chmod 640 ${JSON.stringify(filePath)}`);
+                runPrivilegedArgv('chmod', ['640', filePath]);
             }
         }
         return { ok: true };
@@ -235,12 +239,16 @@ function verifyConsoleUserAccess() {
     const dataDir = path.join(CONSOLE_PATH, 'data');
     try {
         if (typeof process.getuid === 'function' && process.getuid() === 0) {
-            execSync(
-                `runuser -u ${SVC_USER} -- test -w ${JSON.stringify(dataDir)}`,
-                { stdio: 'pipe', timeout: 5000 }
-            );
+            execFileSync('runuser', ['-u', SVC_USER, '--', 'test', '-w', dataDir], {
+                stdio: 'pipe',
+                timeout: 5000,
+            });
         } else if (typeof process.getuid === 'function') {
-            const uid = execSync(`id -u ${SVC_USER}`, { encoding: 'utf8', stdio: 'pipe', timeout: 5000 }).trim();
+            const uid = execFileSync('id', ['-u', SVC_USER], {
+                encoding: 'utf8',
+                stdio: 'pipe',
+                timeout: 5000,
+            }).trim();
             if (String(process.getuid()) === uid) {
                 fs.accessSync(dataDir, fs.constants.W_OK);
             } else {
@@ -286,7 +294,7 @@ function patchServiceUserLine() {
     }
 
     writeServiceFile(servicePath, updated);
-    runPrivileged('systemctl daemon-reload');
+    runPrivilegedArgv(resolveSystemctlPath(), ['daemon-reload']);
     const result = { changed: true, user: SVC_USER, servicePath };
     if (needsBindCapability) {
         result.bindCapability = true;

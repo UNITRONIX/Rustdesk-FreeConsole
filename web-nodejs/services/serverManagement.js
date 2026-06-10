@@ -26,6 +26,7 @@ const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
+const { resolvePathWithinAnyRoot, resolveChildPath } = require('../lib/safePath');
 
 const SERVICE_NAME_RE = /^[A-Za-z0-9_.@:-]{1,128}$/;
 const FILE_MAX_BYTES = 8 * 1024 * 1024;        // 8 MB read/write cap
@@ -183,16 +184,32 @@ function getResourceSnapshot() {
 
 // ─── File browser ─────────────────────────────────────────────────────────────
 
+function getAllowedFileRoots() {
+    const roots = new Set([
+        path.resolve(process.env.BETTERDESK_PATH || '/opt/rustdesk'),
+        path.resolve(process.env.BETTERDESK_CONSOLE_PATH || process.cwd()),
+        path.resolve(os.homedir()),
+        '/var/log',
+        os.tmpdir(),
+        '/tmp',
+        '/var/tmp',
+    ]);
+    const extra = process.env.BETTERDESK_FILE_ALLOWED_ROOTS;
+    if (extra) {
+        for (const entry of extra.split(',')) {
+            const trimmed = entry.trim();
+            if (trimmed) roots.add(path.resolve(trimmed));
+        }
+    }
+    return [...roots];
+}
+
 /**
- * Resolve a user-supplied path to an absolute path.
- * Rejects null bytes and empty strings. Does NOT restrict location —
- * callers must enforce auth + audit on top.
+ * Resolve a user-supplied path to an absolute path within allowed roots.
+ * Rejects null bytes, empty strings, symlink escapes, and paths outside roots.
  */
 function resolvePath(p) {
-    if (typeof p !== 'string' || !p.length) throw new Error('Path is required');
-    if (p.indexOf('\0') !== -1) throw new Error('Invalid path');
-    let abs = path.resolve(p);
-    return abs;
+    return resolvePathWithinAnyRoot(p, getAllowedFileRoots());
 }
 
 async function listDirectory(dirPath) {
@@ -202,7 +219,12 @@ async function listDirectory(dirPath) {
     const entries = await fsp.readdir(abs, { withFileTypes: true });
     const items = [];
     for (const e of entries) {
-        const full = path.join(abs, e.name);
+        let full;
+        try {
+            full = resolveChildPath(abs, e.name);
+        } catch (_) {
+            continue;
+        }
         let st = null;
         try { st = await fsp.lstat(full); } catch (_) { /* permission denied etc. */ }
         items.push({
