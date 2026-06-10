@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.3] — 2026-06-10
+
 ### Added
 - **Organization shared address book** — admins can maintain a shared contact list per organization (Organizations → Address Book tab). Entries are merged into each member's RustDesk address book on `GET /api/ab` when sharing is enabled. Personal address book entries remain private and editable only by the logged-in user. Fixes [#190](https://github.com/UNITRONIX/BetterDesk/issues/190).
 
@@ -423,3 +430,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.2.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.15...v3.2.0
 [3.2.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.0...v3.2.1
 [3.2.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.1...v3.2.2
+[3.2.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.2...v3.2.3
