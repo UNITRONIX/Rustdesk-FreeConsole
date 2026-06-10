@@ -17,7 +17,12 @@ const backupService = require('../services/backupService');
 const updateService = require('../services/updateService');
 const { resolveChildPath } = require('../lib/safePath');
 const { canScheduleConsoleRestart } = require('../lib/updateFailurePolicy');
-const { persistUpdateResult, readLastUpdateResult } = require('../lib/updateResultStore');
+const {
+    persistUpdateResult,
+    clearLastUpdateResult,
+    resolveLastUpdateResultForDisplay,
+} = require('../lib/updateResultStore');
+const { splitUpdateFailures } = require('../lib/updateFailurePolicy');
 const advancedConfig = require('../services/advancedConfigService');
 const serverConnectionConfig = require('../services/serverConnectionConfigService');
 const { apiClient } = require('../services/betterdeskApi');
@@ -769,9 +774,19 @@ router.get('/api/settings/updates/check', requireAuth, requirePermission('server
 /**
  * GET /api/settings/updates/last-result - Last in-app update outcome (survives closed modal)
  */
-router.get('/api/settings/updates/last-result', requireAuth, requirePermission('server.config'), (req, res) => {
+router.get('/api/settings/updates/last-result', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
-        const data = readLastUpdateResult(config.dataDir);
+        let remoteSHA = null;
+        try {
+            const remote = await updateService.getRemoteHeadSHA();
+            remoteSHA = remote?.sha || null;
+        } catch (_) { /* optional for stale-banner pruning */ }
+
+        const data = resolveLastUpdateResultForDisplay(config.dataDir, {
+            rootDir: path.join(__dirname, '..'),
+            localSHA: updateService.getLocalSHA(),
+            remoteSHA,
+        });
         res.json({ success: true, data: data || null });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -889,18 +904,26 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
         }
 
         try {
-            persistUpdateResult(config.dataDir, {
-                sha: remoteSHA,
-                applied: result.applied?.length || 0,
-                failed: result.failed || [],
-                servicesFailed: result.servicesFailed || [],
-                servicesRestarted: result.servicesRestarted || [],
-                shaSaved: result.shaSaved,
-                consoleRestartBlocked: result.consoleRestartBlocked || null,
-                consoleRestartNote: result.consoleRestartNote || null,
-                serverBuild: result.serverBuild || null,
-                serverDeploy: result.serverDeploy || null,
-            });
+            const rootDir = path.join(__dirname, '..');
+            const { critical: criticalFailures } = splitUpdateFailures(result.failed || [], rootDir);
+            const servicesFailed = result.servicesFailed || [];
+            const consoleRestartBlocked = result.consoleRestartBlocked || null;
+            if (criticalFailures.length === 0 && servicesFailed.length === 0 && !consoleRestartBlocked) {
+                clearLastUpdateResult(config.dataDir);
+            } else {
+                persistUpdateResult(config.dataDir, {
+                    sha: remoteSHA,
+                    applied: result.applied?.length || 0,
+                    failed: criticalFailures,
+                    servicesFailed,
+                    servicesRestarted: result.servicesRestarted || [],
+                    shaSaved: result.shaSaved,
+                    consoleRestartBlocked,
+                    consoleRestartNote: result.consoleRestartNote || null,
+                    serverBuild: result.serverBuild || null,
+                    serverDeploy: result.serverDeploy || null,
+                });
+            }
         } catch (persistErr) {
             console.warn(`[UPDATE] Could not persist last update result: ${persistErr.message}`);
         }

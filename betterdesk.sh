@@ -3389,6 +3389,7 @@ update_from_github() {
             mkdir -p "$CONSOLE_PATH/data"
             echo "$remote_sha" > "$CONSOLE_PATH/data/.update_sha"
             echo "$remote_sha" > "$CONSOLE_PATH/data/.agent_source_sha"
+            rm -f "$CONSOLE_PATH/data/.last_update_result.json"
             print_info "SHA tracking updated: ${remote_sha:0:7}"
         fi
     fi

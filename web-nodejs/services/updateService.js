@@ -40,6 +40,7 @@ const {
     deployServerBinaryAtomic,
     resolveDeployScriptPath,
 } = require('../lib/linuxServerBinaryDeploy');
+const { resolveLastUpdateResultForDisplay } = require('../lib/updateResultStore');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -1723,6 +1724,14 @@ async function checkForUpdates() {
 
     // Already at HEAD
     if (localSHA.startsWith(remote.sha.slice(0, 7)) || remote.sha.startsWith(localSHA.slice(0, 7)) || localSHA === remote.sha) {
+        try {
+            resolveLastUpdateResultForDisplay(config.dataDir, {
+                rootDir: ROOT_DIR,
+                localSHA,
+                remoteSHA: remote.sha,
+            });
+        } catch (_) { /* best-effort stale banner cleanup */ }
+
         return withDeploymentMeta({
             localVersion,
             localSHA,
@@ -2231,7 +2240,12 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 fs.writeFileSync(dest, content);
                 results.applied.push(file.path);
             } catch (err) {
-                results.failed.push({ file: file.path, error: err.message });
+                const entry = { file: file.path, error: err.message };
+                if (err.code === 'EACCES' || /permission denied/i.test(err.message || '')) {
+                    entry.nonCritical = true;
+                    console.warn(`[UPDATE] Skipping root-owned server source file (no write access): ${file.path}`);
+                }
+                results.failed.push(entry);
             }
         }
 
@@ -2858,6 +2872,7 @@ module.exports = {
     getLocalVersion,
     getLocalSHA,
     saveLocalSHA,
+    getRemoteHeadSHA,
     getServerUpdateInfo,
     getPrebuiltInfo,
     installGoToolchain,

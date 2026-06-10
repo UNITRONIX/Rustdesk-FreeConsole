@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Panel update warning banner (#192)** — Settings → Updates no longer keeps showing stale `EACCES` errors after a successful `betterdesk.sh` update. Non-critical root-owned file failures (scripts, Dockerfiles, server source) are filtered out; the banner clears automatically when the installed SHA matches the update target.
+
 ### Changed
 - _(none yet)_
 
