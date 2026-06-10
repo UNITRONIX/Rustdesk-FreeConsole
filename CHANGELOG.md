@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.5] — 2026-06-10
+
 ### Fixed
 - **Panel update warning banner (#192)** — Settings → Updates no longer keeps showing stale `EACCES` errors after a successful `betterdesk.sh` update. Non-critical root-owned file failures (scripts, Dockerfiles, server source) are filtered out; the banner clears automatically when the installed SHA matches the update target.
 
@@ -442,3 +449,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.2.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.1...v3.2.2
 [3.2.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.2...v3.2.3
 [3.2.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.3...v3.2.4
+[3.2.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.4...v3.2.5
