@@ -1,7 +1,7 @@
 /**
  * BetterDesk Console — Organization Detail Page JavaScript
  *
- * Handles org detail view with tabs: Users, Devices, Invitations, Settings, Address Book.
+ * Handles org detail view with tabs: Users, Devices, Invitations, Settings, Device Groups.
  * Uses Modal.show() for form inputs, i18n for all strings.
  */
 'use strict';
@@ -76,6 +76,7 @@
             document.querySelectorAll('.org-tab-content').forEach(c => c.style.display = 'none');
             tab.classList.add('active');
             document.getElementById(`tab-${tab.dataset.tab}`).style.display = 'block';
+            if (tab.dataset.tab === 'device-groups') loadDeviceGroups();
         });
     });
 
@@ -602,109 +603,147 @@
     }
 
     // -----------------------------------------------------------------------
-    //  Shared address book
+    //  Device groups linked to this organization (team_id)
     // -----------------------------------------------------------------------
-    async function loadAddressBook() {
+    function groupTypeLabel(group) {
+        if ((group.source_type || 'manual') === 'tag' && group.tag_filter) {
+            return `${t('group_type_tag')}: ${group.tag_filter}`;
+        }
+        return t('group_type_manual');
+    }
+
+    function renderOrgGroupsList(groups, emptyKey) {
+        if (!groups.length) {
+            return `<p class="form-hint org-groups-empty">${escHtml(t(emptyKey))}</p>`;
+        }
+        return `
+            <table class="data-table org-groups-table">
+                <thead>
+                    <tr>
+                        <th>${escHtml(t('group_name'))}</th>
+                        <th>${escHtml(t('group_type'))}</th>
+                        <th>${escHtml(t('group_members'))}</th>
+                        <th>${escHtml(t('group_allowed_user_groups'))}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${groups.map(group => `
+                        <tr>
+                            <td>
+                                <strong>${escHtml(group.name || group.guid)}</strong>
+                                ${group.note ? `<div class="text-muted org-group-note">${escHtml(group.note)}</div>` : ''}
+                            </td>
+                            <td>${escHtml(groupTypeLabel(group))}</td>
+                            <td>${escHtml(String(group.member_count ?? 0))}</td>
+                            <td>${escHtml(
+                                (group.allowed_user_groups || [])
+                                    .map(g => g.name || g.guid)
+                                    .filter(Boolean)
+                                    .join(', ') || '—'
+                            )}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>`;
+    }
+
+    async function loadDeviceGroups() {
         try {
-            const resp = await api('GET', '/address-book');
-            const container = document.getElementById('address-book-container');
+            const data = await api('GET', '/device-groups');
+            const container = document.getElementById('device-groups-container');
             if (!container) return;
 
-            let abData = { peers: [], tags: [] };
-            try {
-                const raw = resp && resp.data ? resp.data : '{}';
-                abData = typeof raw === 'string' ? JSON.parse(raw) : raw;
-            } catch (_) {
-                abData = { peers: [], tags: [] };
-            }
-            if (!Array.isArray(abData.peers)) abData.peers = [];
-            if (!Array.isArray(abData.tags)) abData.tags = [];
-
-            const enabled = resp && resp.enabled !== false;
+            const deviceGroups = data.device_groups || [];
+            const userGroups = data.user_groups || [];
 
             container.innerHTML = `
-                <div class="org-settings-form">
-                    <p class="form-hint">${escHtml(t('shared_address_book_hint'))}</p>
-                    <div class="form-group">
-                        <label class="form-label">
-                            <input type="checkbox" id="org-ab-enabled" ${enabled ? 'checked' : ''} />
-                            ${escHtml(t('shared_address_book_enabled'))}
-                        </label>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">${escHtml(t('address_book_data'))}</label>
-                        <textarea id="org-ab-json" class="form-input" rows="14" spellcheck="false">${escHtml(JSON.stringify(abData, null, 2))}</textarea>
-                    </div>
-                    <div class="org-section-actions">
-                        <button class="btn btn-secondary" id="import-org-devices-btn">
-                            <span class="material-icons">download</span> ${escHtml(t('import_from_devices'))}
-                        </button>
-                        <button class="btn btn-primary" id="save-address-book-btn">
-                            <span class="material-icons">save</span> ${escHtml(t('save_address_book'))}
-                        </button>
-                    </div>
-                    <p class="form-hint">${escHtml(t('address_book_import_hint'))}</p>
-                </div>`;
+                <p class="form-hint">${escHtml(t('device_groups_intro'))}</p>
+                <p class="form-hint org-team-id-hint">
+                    <code>${escHtml(t('org_team_id'))}: ${escHtml(orgId)}</code>
+                </p>
+                <div class="org-section-actions">
+                    <button class="btn btn-primary btn-sm" id="create-org-device-group-btn">
+                        <span class="material-icons">add</span> ${escHtml(t('create_org_device_group'))}
+                    </button>
+                </div>
+                ${renderOrgGroupsList(deviceGroups, 'no_org_device_groups')}
+                <h3 class="org-groups-subtitle">${escHtml(t('org_user_groups_title'))}</h3>
+                <p class="form-hint">${escHtml(t('org_user_groups_intro'))}</p>
+                ${userGroups.length ? `
+                    <table class="data-table org-groups-table">
+                        <thead>
+                            <tr>
+                                <th>${escHtml(t('group_name'))}</th>
+                                <th>${escHtml(_('users.members') || 'Members')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${userGroups.map(group => `
+                                <tr>
+                                    <td>
+                                        <strong>${escHtml(group.name || group.guid)}</strong>
+                                        ${group.note ? `<div class="text-muted org-group-note">${escHtml(group.note)}</div>` : ''}
+                                    </td>
+                                    <td>${escHtml(String(group.member_count ?? 0))}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                ` : `<p class="form-hint org-groups-empty">${escHtml(t('no_org_user_groups'))}</p>`}
+            `;
 
-            document.getElementById('import-org-devices-btn')?.addEventListener('click', async () => {
-                try {
-                    const devicesResp = await api('GET', '/devices');
-                    const devices = devicesResp.devices || devicesResp || [];
-                    const textarea = document.getElementById('org-ab-json');
-                    let current = { peers: [], tags: [] };
-                    try {
-                        current = JSON.parse(textarea.value || '{}');
-                    } catch (_) {
-                        toast(t('address_book_invalid_json'), 'error');
-                        return;
-                    }
-                    if (!Array.isArray(current.peers)) current.peers = [];
-                    const seen = new Set(current.peers.map(p => String(p.id || '').trim()).filter(Boolean));
-                    let added = 0;
-                    for (const d of devices) {
-                        const id = String(d.device_id || d.id || '').trim();
-                        if (!id || seen.has(id)) continue;
-                        seen.add(id);
-                        current.peers.push({
-                            id,
-                            alias: d.hostname || d.device_id || id,
-                            hostname: d.hostname || '',
-                            platform: d.platform || d.os || ''
-                        });
-                        added++;
-                    }
-                    textarea.value = JSON.stringify(current, null, 2);
-                    toast(t('import_from_devices_done').replace('{count}', String(added)), 'success');
-                } catch (err) {
-                    toast(err.message || t('loading_failed'), 'error');
-                }
-            });
-
-            document.getElementById('save-address-book-btn')?.addEventListener('click', async () => {
-                const saveBtn = document.getElementById('save-address-book-btn');
-                const original = saveBtn.innerHTML;
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<span class="material-icons rotating">sync</span> ' + escHtml(t('saving') || 'Saving...');
-                try {
-                    const textarea = document.getElementById('org-ab-json');
-                    let parsed;
-                    try {
-                        parsed = JSON.parse(textarea.value || '{}');
-                    } catch (_) {
-                        toast(t('address_book_invalid_json'), 'error');
-                        return;
-                    }
-                    await api('PUT', '/address-book', {
-                        data: parsed,
-                        enabled: document.getElementById('org-ab-enabled')?.checked !== false
-                    });
-                    toast(t('address_book_saved'), 'success');
-                } catch (err) {
-                    toast(err.message || t('loading_failed'), 'error');
-                } finally {
-                    saveBtn.disabled = false;
-                    saveBtn.innerHTML = original;
-                }
+            document.getElementById('create-org-device-group-btn')?.addEventListener('click', () => {
+                const defaultName = currentOrg.name
+                    ? `${currentOrg.name} — ${t('group_devices_suffix')}`
+                    : t('create_org_device_group');
+                Modal.show({
+                    title: t('create_org_device_group'),
+                    content: `
+                        <div class="form-group">
+                            <label class="form-label">${escHtml(t('group_name'))}</label>
+                            <input type="text" id="modal-org-dg-name" class="form-input" value="${escHtml(defaultName)}" maxlength="80">
+                        </div>
+                        <p class="form-hint">${escHtml(t('link_team_id_hint'))}</p>
+                    `,
+                    buttons: [
+                        { label: _('actions.cancel') || 'Cancel', class: 'btn-secondary', onClick: () => Modal.close() },
+                        {
+                            label: _('actions.create') || 'Create',
+                            class: 'btn-primary',
+                            onClick: async () => {
+                                const name = document.getElementById('modal-org-dg-name')?.value?.trim();
+                                if (!name) {
+                                    toast(t('group_name_required'), 'error');
+                                    return;
+                                }
+                                try {
+                                    const csrfToken = window.BetterDesk?.csrfToken || '';
+                                    const res = await fetch('/api/device-groups', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            ...(csrfToken ? { 'x-csrf-token': csrfToken } : {})
+                                        },
+                                        body: JSON.stringify({
+                                            name,
+                                            team_id: orgId,
+                                            source_type: 'manual'
+                                        })
+                                    });
+                                    if (!res.ok) {
+                                        const err = await res.json().catch(() => ({}));
+                                        throw new Error(err.error || 'Request failed');
+                                    }
+                                    Modal.close();
+                                    toast(t('org_device_group_created'), 'success');
+                                    loadDeviceGroups();
+                                } catch (err) {
+                                    toast(err.message || t('loading_failed'), 'error');
+                                }
+                            }
+                        }
+                    ]
+                });
             });
         } catch (err) {
             toast(t('loading_failed'), 'error');
@@ -773,6 +812,6 @@
     loadDevices();
     loadInvitations();
     loadSettings();
-    loadAddressBook();
+    loadDeviceGroups();
 
 })();

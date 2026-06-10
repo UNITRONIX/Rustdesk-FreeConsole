@@ -35,6 +35,9 @@ const { apiClient } = require('../services/betterdeskApi');
 const { assertSafeApiId } = require('../lib/goApiPath');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const userSync = require('../services/userSync');
+const db = require('../services/database');
+const serverBackend = require('../services/serverBackend');
+const deviceGroupService = require('../services/deviceGroupService');
 
 // ---------------------------------------------------------------------------
 //  Helper: proxy to Go server
@@ -169,10 +172,40 @@ router.get('/api/panel/org/:id/settings', requireAuth, (req, res) =>
 router.put('/api/panel/org/:id/settings', requireAuth, requirePermission('org.edit'), (req, res) =>
     goApiProxySafe(req, res, 'put', () => orgApiPath(req.params.id, '/settings'), req.body));
 
-// Shared address book (Issue #187 / #190)
-router.get('/api/panel/org/:id/address-book', requireAuth, (req, res) =>
-    goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id, '/address-book')));
-router.put('/api/panel/org/:id/address-book', requireAuth, requirePermission('org.edit'), (req, res) =>
-    goApiProxySafe(req, res, 'put', () => orgApiPath(req.params.id, '/address-book'), req.body));
+/**
+ * GET /api/panel/org/:id/device-groups
+ * Device and user groups linked to this organization (team_id = org id).
+ */
+router.get('/api/panel/org/:id/device-groups', requireAuth, async (req, res) => {
+    try {
+        const orgId = assertSafeApiId(req.params.id, 'orgId');
+        const devices = await serverBackend.getAllDevices({});
+        const allGroups = (await db.getAllDeviceGroups())
+            .filter(group => deviceGroupService.folderIdFromGroupGuid(group.guid) === null)
+            .filter(group => String(group.team_id || '').trim() === orgId);
+
+        const deviceGroups = await deviceGroupService.enrichGroups(db, allGroups, devices);
+        const userGroups = (await db.getAllUserGroups())
+            .filter(group => String(group.team_id || '').trim() === orgId)
+            .map(group => ({
+                guid: group.guid,
+                name: group.name,
+                note: group.note || '',
+                member_count: group.member_count || 0
+            }));
+
+        res.json({
+            org_id: orgId,
+            device_groups: deviceGroups,
+            user_groups: userGroups
+        });
+    } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).json({ error: err.message });
+        }
+        console.error('[org] List org device groups error:', err);
+        res.status(500).json({ error: 'Failed to load organization groups' });
+    }
+});
 
 module.exports = router;

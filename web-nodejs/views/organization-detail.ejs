@@ -42,8 +42,8 @@
                 <button class="org-tab" data-tab="settings">
                     <span class="material-icons">settings</span> ${_('organizations.settings') || 'Settings'}
                 </button>
-                <button class="org-tab" data-tab="address-book">
-                    <span class="material-icons">contacts</span> ${_('organizations.address_book') || 'Address Book'}
+                <button class="org-tab" data-tab="device-groups">
+                    <span class="material-icons">workspaces</span> ${_('organizations.device_groups_tab') || 'Device Groups'}
                 </button>
             </div>
 
@@ -85,11 +85,14 @@
                 <div class="org-settings-container" id="settings-container"></div>
             </div>
 
-            <div class="org-tab-content" id="tab-address-book" style="display:none;">
+            <div class="org-tab-content" id="tab-device-groups" style="display:none;">
                 <div class="org-section-header">
-                    <h2>${_('organizations.address_book') || 'Address Book'}</h2>
+                    <h2>${_('organizations.device_groups_tab') || 'Device Groups'}</h2>
+                    <a href="/devices" class="btn btn-secondary btn-sm" id="org-open-devices-groups-btn">
+                        <span class="material-icons">open_in_new</span> ${_('organizations.manage_in_devices') || 'Open Devices → Groups'}
+                    </a>
                 </div>
-                <div class="org-settings-container" id="address-book-container"></div>
+                <div class="org-settings-container" id="device-groups-container"></div>
             </div>
         </div>
     `
