@@ -22,6 +22,9 @@
 # Default credentials are written to the shared credentials file:
 #   docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
 #
+# MACVLAN / dedicated LAN IP: use docker-compose.quick.macvlan.yml instead
+# (console shares the server network namespace). See docs/docker/DOCKER_QUICKSTART.md
+#
 # TROUBLESHOOTING: If you get "denied" or "pull access denied" error,
 # images may not be published yet. Build from source instead:
 #   git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git

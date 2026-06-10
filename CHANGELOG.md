@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Docker MACVLAN quick-start (issue #186)** — Added `docker-compose.quick.macvlan.yml` and MACVLAN upgrade notes in `docs/docker/DOCKER_QUICKSTART.md`. Documents `service_started` (not `service_healthy`) and `127.0.0.1` API/WS env when the console uses `network_mode: service:server`.
+
 ### Changed
 - _(none yet)_
 
