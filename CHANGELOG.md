@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.6] — 2026-06-10
+
 ### Fixed
 - **Docker MACVLAN quick-start (issue #186)** — Added `docker-compose.quick.macvlan.yml` and MACVLAN upgrade notes in `docs/docker/DOCKER_QUICKSTART.md`. Documents `service_started` (not `service_healthy`) and `127.0.0.1` API/WS env when the console uses `network_mode: service:server`.
 
@@ -453,3 +460,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.2.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.2...v3.2.3
 [3.2.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.3...v3.2.4
 [3.2.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.4...v3.2.5
+[3.2.6]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.5...v3.2.6
