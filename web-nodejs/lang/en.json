@@ -575,7 +575,9 @@
     "totp_recovery_warning": "Save these recovery codes in a safe place. Each code can only be used once. If you lose access to your authenticator app, you can use these codes to log in.",
     "totp_done": "Done",
     "totp_disable_warning": "Disabling two-factor authentication will make your account less secure. Enter your password to confirm.",
-    "totp_disabled_success": "Two-factor authentication has been disabled."
+    "totp_disabled_success": "Two-factor authentication has been disabled.",
+    "go_server_version": "Go server",
+    "go_server_version_dev_hint": "Go binary reports development build — rebuild or update the server to match the product version"
   },
   "audit": {
     "time": "Time",

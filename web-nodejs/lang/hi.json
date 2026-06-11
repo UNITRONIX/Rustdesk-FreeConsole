@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "मौजूदा डिवाइस टैग से टैग चुनें",
     "enrollment_tag_picker_hint": "ऑपरेटरों को केवल टाइप करने की बजाय डिवाइस पेज पर उपयोग की गई टैग सूची से चुनने देता है।",
     "enrollment_open_requests": "नामांकन अनुरोध खोलें",
-    "enrollment_pending_count": "{count} लंबित नामांकन अनुरोध"
+    "enrollment_pending_count": "{count} लंबित नामांकन अनुरोध",
+    "go_server_version": "Go सर्वर",
+    "go_server_version_dev_hint": "Go बाइनरी विकास बिल्ड की सूचना देता है — उत्पाद संस्करण से मेल खाने के लिए सर्वर को पुनर्निर्माण या अपडेट करें"
   },
   "audit": {
     "time": "Time",

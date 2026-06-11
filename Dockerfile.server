@@ -21,9 +21,11 @@ RUN go mod download
 # Copy full source
 COPY betterdesk-server/ .
 
+ARG BETTERDESK_PRODUCT_VERSION=dev
+
 # Build static binary (modernc.org/sqlite is pure Go — no CGO needed)
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w" \
+    -ldflags="-s -w -X main.Version=${BETTERDESK_PRODUCT_VERSION}" \
     -tags "netgo osusergo" \
     -o /betterdesk-server .
 

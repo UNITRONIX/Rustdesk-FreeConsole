@@ -117,6 +117,7 @@ jobs:
           build-args: |
             BETTERDESK_COMMIT_SHA=${{ github.sha }}
             BETTERDESK_IMAGE_VERSION=${{ needs.read-version.outputs.version }}
+            BETTERDESK_PRODUCT_VERSION=${{ needs.read-version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
@@ -222,6 +223,7 @@ jobs:
           build-args: |
             BETTERDESK_COMMIT_SHA=${{ github.sha }}
             BETTERDESK_IMAGE_VERSION=${{ needs.read-version.outputs.version }}
+            BETTERDESK_PRODUCT_VERSION=${{ needs.read-version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64

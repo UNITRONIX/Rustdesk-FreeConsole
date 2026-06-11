@@ -46,9 +46,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add VERSION web-nodejs/package.json betterdesk.sh betterdesk.ps1 betterdesk-docker.sh \
-            CHANGELOG.md README.md Dockerfile Dockerfile.server Dockerfile.console \
-            docker-compose.quick.yml docker/entrypoint.sh docker-entrypoint.sh
+          git add $(node scripts/bump-version.js --list-paths)
           BRANCH="release/v${NEW_VERSION}"
           git checkout -b "$BRANCH"
           git commit -m "chore: release version ${NEW_VERSION} [version-bump]"

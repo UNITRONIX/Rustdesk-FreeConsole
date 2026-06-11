@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Elegir etiquetas de las etiquetas de dispositivos existentes",
     "enrollment_tag_picker_hint": "Permite a los operadores seleccionar etiquetas de la lista usada en la página de Dispositivos en lugar de solo escribirlas.",
     "enrollment_open_requests": "Solicitudes de inscripción abiertas",
-    "enrollment_pending_count": "{count} solicitud(es) de inscripción pendiente(s)"
+    "enrollment_pending_count": "{count} solicitud(es) de inscripción pendiente(s)",
+    "go_server_version": "Servidor Go",
+    "go_server_version_dev_hint": "El binario Go informa compilación de desarrollo — recompile o actualice el servidor para igualar la versión del producto"
   },
   "audit": {
     "time": "Hora",

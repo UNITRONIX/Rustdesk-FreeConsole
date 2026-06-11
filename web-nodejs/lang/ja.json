@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "既存のデバイスタグからタグを選択",
     "enrollment_tag_picker_hint": "オペレーターがデバイスページで使用されるタグリストから選択できます（手動入力のみに限定されません）。",
     "enrollment_open_requests": "登録リクエストを開く",
-    "enrollment_pending_count": "{count} 件の保留中の登録リクエスト"
+    "enrollment_pending_count": "{count} 件の保留中の登録リクエスト",
+    "go_server_version": "Goサーバー",
+    "go_server_version_dev_hint": "Goバイナリが開発ビルドを報告しています — 製品バージョンに合わせてサーバーを再ビルドまたは更新してください"
   },
   "audit": {
     "time": "Time",

@@ -582,7 +582,9 @@
     "enrollment_tag_picker": "اختر علامات من علامات الأجهزة الموجودة",
     "enrollment_tag_picker_hint": "يتيح للمشغلين اختيار علامات من القائمة المستخدمة في صفحة الأجهزة بدلًا من الكتابة فقط.",
     "enrollment_open_requests": "فتح طلبات التسجيل",
-    "enrollment_pending_count": "{count} طلب تسجيل معلق"
+    "enrollment_pending_count": "{count} طلب تسجيل معلق",
+    "go_server_version": "خادم Go",
+    "go_server_version_dev_hint": "الثنائي Go يبلغ عن بناء تطويري — أعد البناء أو حدّث الخادم ليطابق إصدار المنتج"
   },
   "audit": {
     "time": "Time",

@@ -26,6 +26,7 @@ import (
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/internal/productversion"
 	"github.com/unitronix/betterdesk-server/logging"
 	"github.com/unitronix/betterdesk-server/metrics"
 	"github.com/unitronix/betterdesk-server/ratelimit"
@@ -40,6 +41,14 @@ var (
 	Version   = "dev"
 	BuildDate = "unknown"
 )
+
+func init() {
+	if Version == "dev" {
+		if v := productversion.Product(); v != "" && v != "dev" {
+			Version = v
+		}
+	}
+}
 
 func main() {
 	cfg := parseFlags()

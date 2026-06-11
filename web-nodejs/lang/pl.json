@@ -575,7 +575,9 @@
     "totp_recovery_warning": "Zapisz te kody odzyskiwania w bezpiecznym miejscu. Każdy kod może być użyty tylko raz. Jeśli stracisz dostęp do aplikacji uwierzytelniającej, możesz użyć tych kodów do zalogowania.",
     "totp_done": "Gotowe",
     "totp_disable_warning": "Wyłączenie uwierzytelniania dwuskładnikowego zmniejszy bezpieczeństwo konta. Wprowadź hasło, aby potwierdzić.",
-    "totp_disabled_success": "Uwierzytelnianie dwuskładnikowe zostało wyłączone."
+    "totp_disabled_success": "Uwierzytelnianie dwuskładnikowe zostało wyłączone.",
+    "go_server_version": "Serwer Go",
+    "go_server_version_dev_hint": "Binarny serwer Go zgłasza build deweloperski — przebuduj lub zaktualizuj serwer, aby dopasować wersję produktu"
   },
   "audit": {
     "time": "Czas",

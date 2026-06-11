@@ -39,7 +39,8 @@ Every automated bump updates these together:
 **Tier 1**
 
 - `VERSION`
-- `web-nodejs/package.json`
+- `web-nodejs/package.json` (npm mirror; panel reads root `VERSION` via `web-nodejs/lib/productVersion.js`)
+- `betterdesk-server/VERSION` and `betterdesk-server/internal/productversion/VERSION` (Go `go:embed` + builds)
 - `betterdesk.sh`, `betterdesk.ps1`, `betterdesk-docker.sh`
 - `CHANGELOG.md` (moves `[Unreleased]` → new section)
 - `README.md` (version badge)
@@ -47,8 +48,10 @@ Every automated bump updates these together:
 **Tier 2 (Docker)**
 
 - `Dockerfile`, `Dockerfile.server`, `Dockerfile.console`
-- `docker-compose.quick.yml`
+- `docker-compose.quick.yml`, `docker-compose.quick.macvlan.yml`
 - `docker/entrypoint.sh`, `docker-entrypoint.sh`
+
+The web console and Go server should report the **same product semver** after a normal install, panel update, or release build. Settings → Server Information shows both the product version and the live Go server version from `/api/health`.
 
 Sub-project versions (`betterdesk-mgmt`, `betterdesk-agent-client`, SDKs) are **not** bumped with the main product unless explicitly requested.
 
@@ -57,6 +60,9 @@ Sub-project versions (`betterdesk-mgmt`, `betterdesk-agent-client`, SDKs) are **
 ```bash
 # Verify all Tier 1/2 files match VERSION (CI runs this too)
 node scripts/bump-version.js --verify
+
+# List every path touched by automated bumps (used by CI git add)
+node scripts/bump-version.js --list-paths
 
 # Manual bump (normally CI handles this)
 node scripts/bump-version.js --patch    # +0.0.1

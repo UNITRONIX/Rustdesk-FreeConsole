@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Sèlectionner des tags parmi les tags d'dispositivi existants",
     "enrollment_tag_picker_hint": "Permet aux opèrateurs de sèlectionner des tags dall'elenco utilisèe sur la page Dispositivi plutôt que de les saisir uniquement.",
     "enrollment_open_requests": "Demandes d'inscription ouvertes",
-    "enrollment_pending_count": "{count} demande(s) d'inscription en attesa"
+    "enrollment_pending_count": "{count} demande(s) d'inscription en attesa",
+    "go_server_version": "Server Go",
+    "go_server_version_dev_hint": "Il binario Go segnala build di sviluppo — ricompilare o aggiornare il server per allineare la versione prodotto"
   },
   "audit": {
     "time": "Ora",

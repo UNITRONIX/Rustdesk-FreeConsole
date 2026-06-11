@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "從現有裝置標籤中選擇標籤",
     "enrollment_tag_picker_hint": "允許操作員從裝置頁面的標籤清單中選擇，而不僅限於手動輸入。",
     "enrollment_open_requests": "開啟註冊請求",
-    "enrollment_pending_count": "{count} 個待處理的註冊請求"
+    "enrollment_pending_count": "{count} 個待處理的註冊請求",
+    "go_server_version": "Go 伺服器",
+    "go_server_version_dev_hint": "Go 二進位報告為開發建置 — 請重新建置或更新伺服器以符合產品版本"
   },
   "audit": {
     "time": "時間",

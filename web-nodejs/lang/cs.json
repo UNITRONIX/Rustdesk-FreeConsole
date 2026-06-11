@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Wybor tagow z listy istniejacych",
     "enrollment_tag_picker_hint": "Umozliwia wybor tagow z listy uzywanej na stronie Urzadzenia zamiast samego wpisywania.",
     "enrollment_open_requests": "Otworz zadania rejestracji",
-    "enrollment_pending_count": "{count} oczekujacych zadan rejestracji"
+    "enrollment_pending_count": "{count} oczekujacych zadan rejestracji",
+    "go_server_version": "Go server",
+    "go_server_version_dev_hint": "Binární Go server hlásí vývojovou sestavu — přestavte nebo aktualizujte server, aby odpovídal verzi produktu"
   },
   "audit": {
     "time": "Čas",

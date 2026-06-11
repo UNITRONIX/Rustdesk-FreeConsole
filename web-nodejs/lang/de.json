@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Tags aus vorhandenen Geräte-Tags auswählen",
     "enrollment_tag_picker_hint": "Ermöglicht Operatoren, Tags aus der auf der Geräteseite verwendeten Liste auszuwählen, anstatt nur zu tippen.",
     "enrollment_open_requests": "Offene Registrierungsanfragen",
-    "enrollment_pending_count": "{count} ausstehende Registrierungsanfrage(n)"
+    "enrollment_pending_count": "{count} ausstehende Registrierungsanfrage(n)",
+    "go_server_version": "Go-Server",
+    "go_server_version_dev_hint": "Go-Binary meldet Entwicklungsbuild — Server neu bauen oder aktualisieren, um die Produktversion anzugleichen"
   },
   "audit": {
     "time": "Zeit",

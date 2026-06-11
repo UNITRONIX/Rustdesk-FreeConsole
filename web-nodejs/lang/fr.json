@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Sélectionner des tags parmi les tags d'appareils existants",
     "enrollment_tag_picker_hint": "Permet aux opérateurs de sélectionner des tags dans la liste utilisée sur la page Appareils plutôt que de les saisir uniquement.",
     "enrollment_open_requests": "Demandes d'inscription ouvertes",
-    "enrollment_pending_count": "{count} demande(s) d'inscription en attente"
+    "enrollment_pending_count": "{count} demande(s) d'inscription en attente",
+    "go_server_version": "Serveur Go",
+    "go_server_version_dev_hint": "Le binaire Go signale une build de développement — reconstruisez ou mettez à jour le serveur pour correspondre à la version produit"
   },
   "audit": {
     "time": "Heure",

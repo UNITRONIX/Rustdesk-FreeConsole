@@ -27,8 +27,11 @@ COPY betterdesk-server/go.mod betterdesk-server/go.sum ./
 RUN go mod download
 
 COPY betterdesk-server/ .
+
+ARG BETTERDESK_PRODUCT_VERSION=dev
+
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w" \
+    -ldflags="-s -w -X main.Version=${BETTERDESK_PRODUCT_VERSION}" \
     -tags "netgo osusergo" \
     -o /betterdesk-server .
 

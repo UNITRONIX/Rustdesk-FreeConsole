@@ -581,7 +581,9 @@
     "advanced_file_build-env": "Agent-Build-Umgebung (/etc/betterdesk/build.env)",
     "advanced_file_docker-supervisord": "Docker: supervisord.conf (supervisor-konfiguration)",
     "advanced_file_docker-compose": "Docker: docker-compose.yml (orkestrering)",
-    "advanced_restart_none": "Für diese Fil ist kein Tjenesteneustart erforderlich."
+    "advanced_restart_none": "Für diese Fil ist kein Tjenesteneustart erforderlich.",
+    "go_server_version": "Go-server",
+    "go_server_version_dev_hint": "Go-binær rapporterer udviklingsbuild — genopbyg eller opdater serveren for at matche produktversionen"
   },
   "audit": {
     "time": "Time",

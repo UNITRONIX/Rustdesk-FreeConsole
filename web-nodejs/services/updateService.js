@@ -26,6 +26,7 @@ const path = require('path');
 const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
+const { readProductVersion } = require('../lib/productVersion');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
 const { resolveChildPath, resolvePathUnderRoot, existsConfinedChild, removeConfinedChild } = require('../lib/safePath');
 const { runConsoleNpmInstall } = require('../lib/consoleNpmInstall');
@@ -483,12 +484,7 @@ async function getRemoteHeadSHA() {
 }
 
 function getLocalVersion() {
-    const versionFile = path.join(PROJECT_ROOT, 'VERSION');
-    if (fs.existsSync(versionFile)) {
-        const v = fs.readFileSync(versionFile, 'utf8').trim();
-        if (v) return v;
-    }
-    return config.appVersion;
+    return readProductVersion({ rootDir: PROJECT_ROOT }) || config.appVersion;
 }
 
 // ======================== Classify ======================================
@@ -1155,9 +1151,11 @@ async function buildGoServer(preferredGoBinPath = null) {
             env: buildEnv
         });
 
+        const productVersion = readProductVersion({ rootDir: PROJECT_ROOT });
+        const ldflags = `-s -w -X main.Version=${productVersion}`;
         await spawnPromise(
             goBin,
-            ['build', '-trimpath', '-ldflags=-s -w', '-o', binaryName, '.'],
+            ['build', '-trimpath', `-ldflags=${ldflags}`, '-o', binaryName, '.'],
             { cwd: serverDir, timeout: 600000, env: buildEnv }
         );
 

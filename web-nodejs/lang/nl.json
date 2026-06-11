@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Tags aus vorhandenen Gerate-Tags auswahlen",
     "enrollment_tag_picker_hint": "Ermoglicht Operatoren, Tags aus der auf der Gerateseite verwendeten Liste auszuwahlen, anstatt nur zu tippen.",
     "enrollment_open_requests": "Offene Registrierungsanfragen",
-    "enrollment_pending_count": "{count} ausstehende Registrierungsanfrage(n)"
+    "enrollment_pending_count": "{count} ausstehende Registrierungsanfrage(n)",
+    "go_server_version": "Go-server",
+    "go_server_version_dev_hint": "Go-binary meldt ontwikkelbuild — herbouw of werk de server bij om de productversie te matchen"
   },
   "audit": {
     "time": "Tijd",

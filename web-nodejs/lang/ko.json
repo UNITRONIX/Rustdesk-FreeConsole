@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "기존 기기 태그에서 태그 선택",
     "enrollment_tag_picker_hint": "운영자가 기기 페이지에서 사용되는 태그 목록에서 선택할 수 있습니다(입력만으로 제한되지 않음).",
     "enrollment_open_requests": "등록 요청 열기",
-    "enrollment_pending_count": "대기 중인 등록 요청 {count}건"
+    "enrollment_pending_count": "대기 중인 등록 요청 {count}건",
+    "go_server_version": "Go 서버",
+    "go_server_version_dev_hint": "Go 바이너리가 개발 빌드를 보고합니다 — 제품 버전과 일치하도록 서버를 다시 빌드하거나 업데이트하세요"
   },
   "audit": {
     "time": "Time",

@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "Chọn thẻ từ thẻ thiết bị hiện có",
     "enrollment_tag_picker_hint": "Cho phép người vận hành chọn thẻ từ danh sách trên trang Thiết bị thay vì chỉ gõ tay.",
     "enrollment_open_requests": "Mở yêu cầu đăng ký",
-    "enrollment_pending_count": "{count} yêu cầu đăng ký đang chờ"
+    "enrollment_pending_count": "{count} yêu cầu đăng ký đang chờ",
+    "go_server_version": "Máy chủ Go",
+    "go_server_version_dev_hint": "Nhị phân Go báo bản dựng phát triển — build lại hoặc cập nhật máy chủ để khớp phiên bản sản phẩm"
   },
   "audit": {
     "time": "Time",

@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "Pilih tag dari tag perangkat yang ada",
     "enrollment_tag_picker_hint": "Memungkinkan operator memilih tag dari daftar di halaman Perangkat alih-alih hanya mengetik.",
     "enrollment_open_requests": "Buka permintaan pendaftaran",
-    "enrollment_pending_count": "{count} permintaan pendaftaran tertunda"
+    "enrollment_pending_count": "{count} permintaan pendaftaran tertunda",
+    "go_server_version": "Server Go",
+    "go_server_version_dev_hint": "Biner Go melaporkan build pengembangan — bangun ulang atau perbarui server agar sesuai versi produk"
   },
   "audit": {
     "time": "Time",

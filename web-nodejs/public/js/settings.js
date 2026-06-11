@@ -193,6 +193,17 @@
             
             document.getElementById('db-path').textContent = data.paths?.database || '-';
             document.getElementById('uptime').textContent = formatUptime(data.server?.uptime);
+
+            const goVerEl = document.getElementById('go-server-version');
+            if (goVerEl) {
+                const goVer = data.goServer?.version;
+                goVerEl.textContent = goVer ? `v${goVer}` : '-';
+                if (goVer && goVer === 'dev' && data.app?.version && data.app.version !== 'dev') {
+                    goVerEl.title = typeof _ === 'function' ? _('settings.go_server_version_dev_hint') : '';
+                } else {
+                    goVerEl.title = '';
+                }
+            }
             
         } catch (error) {
             console.error('Failed to load server info:', error);

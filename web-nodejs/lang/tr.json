@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "Mevcut cihaz etiketlerinden etiket seç",
     "enrollment_tag_picker_hint": "Operatörlerin yalnızca yazmak yerine Cihazlar sayfasındaki etiket listesinden seçmesine olanak tanır.",
     "enrollment_open_requests": "Kayıt isteklerini aç",
-    "enrollment_pending_count": "{count} bekleyen kayıt isteği"
+    "enrollment_pending_count": "{count} bekleyen kayıt isteği",
+    "go_server_version": "Go sunucusu",
+    "go_server_version_dev_hint": "Go ikilisi geliştirme derlemesi bildiriyor — ürün sürümüyle eşleşmesi için sunucuyu yeniden derleyin veya güncelleyin"
   },
   "audit": {
     "time": "Time",

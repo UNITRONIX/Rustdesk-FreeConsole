@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "从现有设备标签中选择标签",
     "enrollment_tag_picker_hint": "允许操作员从设备页面标签列表中选择，而不仅限于手动输入。",
     "enrollment_open_requests": "打开注册请求",
-    "enrollment_pending_count": "{count} 个待处理注册请求"
+    "enrollment_pending_count": "{count} 个待处理注册请求",
+    "go_server_version": "Go 服务器",
+    "go_server_version_dev_hint": "Go 二进制报告为开发构建 — 请重新构建或更新服务器以匹配产品版本"
   },
   "audit": {
     "time": "时间",

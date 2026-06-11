@@ -1419,7 +1419,7 @@ compile_go_server() {
     go mod download
     
     # Build with optimizations
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o "$output_name" .
+    CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=${VERSION}" -o "$output_name" .
     
     if [ -f "$output_name" ]; then
         chmod +x "$output_name"

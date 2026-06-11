@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "เลือกแท็กจากแท็กอุปกรณ์ที่มีอยู่",
     "enrollment_tag_picker_hint": "ให้ผู้ดำเนินการเลือกแท็กจากรายการในหน้าอุปกรณ์แทนการพิมพ์เท่านั้น",
     "enrollment_open_requests": "เปิดคำขอลงทะเบียน",
-    "enrollment_pending_count": "คำขอลงทะเบียนที่รอดำเนินการ {count} รายการ"
+    "enrollment_pending_count": "คำขอลงทะเบียนที่รอดำเนินการ {count} รายการ",
+    "go_server_version": "เซิร์ฟเวอร์ Go",
+    "go_server_version_dev_hint": "ไบนารี Go รายงานว่าเป็น build พัฒนา — สร้างใหม่หรืออัปเดตเซิร์ฟเวอร์ให้ตรงกับเวอร์ชันผลิตภัณฑ์"
   },
   "audit": {
     "time": "Time",

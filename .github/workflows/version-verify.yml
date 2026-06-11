@@ -5,6 +5,8 @@ on:
     branches: [main, dev]
     paths:
       - 'VERSION'
+      - 'betterdesk-server/VERSION'
+      - 'betterdesk-server/internal/productversion/VERSION'
       - 'web-nodejs/package.json'
       - 'betterdesk.sh'
       - 'betterdesk.ps1'
@@ -21,6 +23,8 @@ on:
     branches: [main, dev]
     paths:
       - 'VERSION'
+      - 'betterdesk-server/VERSION'
+      - 'betterdesk-server/internal/productversion/VERSION'
       - 'web-nodejs/package.json'
       - 'betterdesk.sh'
       - 'betterdesk.ps1'
