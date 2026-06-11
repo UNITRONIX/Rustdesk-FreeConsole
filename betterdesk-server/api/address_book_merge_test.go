@@ -1,6 +1,9 @@
 package api
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestMergeAddressBookJSON(t *testing.T) {
 	t.Parallel()
@@ -32,5 +35,35 @@ func TestMergeAddressBookJSONEmptyOverlay(t *testing.T) {
 	base := `{"peers":[{"id":"1"}],"tags":[]}`
 	if got := mergeAddressBookJSON(base, "{}", ""); got != base {
 		t.Fatalf("expected unchanged base, got %s", got)
+	}
+}
+
+func TestOrgSharedAddressBookEnabledFromValue(t *testing.T) {
+	t.Parallel()
+
+	dbErr := errors.New("database is locked")
+
+	tests := []struct {
+		name  string
+		value string
+		err   error
+		want  bool
+	}{
+		{name: "db error fail closed", err: dbErr, want: false},
+		{name: "missing setting defaults enabled", err: errors.New("org setting not found: org1/shared_address_book_enabled"), want: true},
+		{name: "explicit true", value: "true", want: true},
+		{name: "explicit false", value: "false", want: false},
+		{name: "empty defaults enabled", value: "", want: true},
+		{name: "whitespace false", value: " FALSE ", want: false},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := orgSharedAddressBookEnabledFromValue(tc.value, tc.err); got != tc.want {
+				t.Fatalf("orgSharedAddressBookEnabledFromValue(%q, err=%v) = %v, want %v", tc.value, tc.err, got, tc.want)
+			}
+		})
 	}
 }

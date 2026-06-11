@@ -208,13 +208,27 @@ func (s *Server) resolveUserOrgIDsForAB(r *http.Request) []string {
 	return orgIDs
 }
 
+func isOrgSettingNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "org setting not found:")
+}
+
+func orgSharedAddressBookEnabledFromValue(value string, err error) bool {
+	if err != nil {
+		if isOrgSettingNotFound(err) {
+			return true
+		}
+		return false
+	}
+	return strings.ToLower(strings.TrimSpace(value)) != "false"
+}
+
 func (s *Server) orgSharedAddressBookEnabled(orgID string) bool {
 	value, err := s.db.GetOrgSetting(orgID, orgSharedAddressBookEnabledKey)
 	if err != nil {
 		log.Printf("[api] GetOrgSetting(%s, %s): %v", orgID, orgSharedAddressBookEnabledKey, err)
-		return true
+		return orgSharedAddressBookEnabledFromValue("", err)
 	}
-	return strings.ToLower(strings.TrimSpace(value)) != "false"
+	return orgSharedAddressBookEnabledFromValue(value, nil)
 }
 
 func (s *Server) mergeOrgAddressBooksIntoAB(r *http.Request, data string) string {
