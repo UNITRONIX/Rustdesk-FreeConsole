@@ -159,17 +159,11 @@ _write_readme.py
 web-nodejs/_test_*.sh
 web-nodejs/_fix_*.sh
 
-# --- BetterDesk MGMT Client (Tauri + SolidJS, build artifacts) ---
-betterdesk-mgmt/node_modules/
-betterdesk-mgmt/dist/
-betterdesk-mgmt/src-tauri/target/
-# betterdesk-mgmt/src-tauri/Cargo.lock  # committed for reproducible builds
-
-# --- BetterDesk Agent Client (Tauri + SolidJS, build artifacts) ---
-betterdesk-agent-client/node_modules/
-betterdesk-agent-client/dist/
-betterdesk-agent-client/src-tauri/target/
-# betterdesk-agent-client/src-tauri/Cargo.lock  # committed for reproducible builds
+# --- BetterDesk desktop clients (TEMPORARY — alpha, not in active use) ---
+# Whole trees excluded to avoid GitHub noise (Dependabot, i18n, stale CI). Remove
+# these two lines when agent-client / mgmt return to active development.
+betterdesk-mgmt/
+betterdesk-agent-client/
 
 # --- BetterDesk Agent binaries & config (compiled locally) ---
 betterdesk-agent/betterdesk-agent
