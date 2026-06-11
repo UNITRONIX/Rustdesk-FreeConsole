@@ -123,6 +123,16 @@ const FILE_RULES = [
             content.split(oldVersion).join(version),
     },
     {
+        id: 'docker-compose-quick-macvlan',
+        path: 'docker-compose.quick.macvlan.yml',
+        extract: (content) => {
+            const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
+            return m?.[1];
+        },
+        apply: (content, version, oldVersion) =>
+            content.split(oldVersion).join(version),
+    },
+    {
         id: 'docker-entrypoint',
         path: 'docker/entrypoint.sh',
         extract: (content) => content.match(/\$\{BETTERDESK_IMAGE_VERSION:-([^}]+)\}/)?.[1],

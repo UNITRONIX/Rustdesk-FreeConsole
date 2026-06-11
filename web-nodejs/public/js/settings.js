@@ -848,6 +848,19 @@
         if (panel) panel.classList.remove('hidden');
     }
     
+    function isSafePreviewUrl(url) {
+        const trimmed = String(url || '').trim();
+        if (!trimmed) return false;
+        if (trimmed.startsWith('//') || trimmed.includes('..')) return false;
+        if (trimmed.startsWith('/')) return true;
+        try {
+            const parsed = new URL(trimmed, window.location.origin);
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch (_) {
+            return false;
+        }
+    }
+
     /**
      * Sanitize SVG content to prevent XSS attacks.
      * Removes potentially dangerous elements and attributes.
@@ -882,9 +895,20 @@
         
         doc.querySelectorAll('*').forEach(el => {
             dangerousAttrs.forEach(attr => el.removeAttribute(attr));
-            // Remove href pointing to javascript:
-            if (el.hasAttribute('href') && el.getAttribute('href').toLowerCase().trim().startsWith('javascript:')) {
-                el.removeAttribute('href');
+            for (const attr of Array.from(el.attributes || [])) {
+                if (/^on/i.test(attr.name)) el.removeAttribute(attr.name);
+            }
+            if (el.hasAttribute('href')) {
+                const href = el.getAttribute('href').trim().toLowerCase();
+                if (/^(javascript|data|vbscript|file):/.test(href)) {
+                    el.removeAttribute('href');
+                }
+            }
+            if (el.hasAttribute('xlink:href')) {
+                const href = el.getAttribute('xlink:href').trim().toLowerCase();
+                if (/^(javascript|data|vbscript|file):/.test(href)) {
+                    el.removeAttribute('xlink:href');
+                }
             }
         });
         
@@ -921,7 +945,7 @@
             }
         } else if (type === 'image') {
             const url = document.getElementById('logo-image-url')?.value || '';
-            if (url.trim()) {
+            if (url.trim() && isSafePreviewUrl(url)) {
                 preview.innerHTML = `<img src="${Utils.escapeHtml(url)}" alt="${Utils.escapeHtml(name)}" style="max-height: 36px;">`;
             } else {
                 preview.innerHTML = `<span class="material-icons">photo</span><span class="logo-preview-text">${Utils.escapeHtml(name)}</span>`;

@@ -34,6 +34,7 @@ const MONITOR_OPTS = { allowPrivate: true };
 const DEFAULT_POLL_INTERVAL_MS = 60_000;    // 1 minute
 const DEFAULT_TIMEOUT_MS       = 5_000;     // 5 seconds
 const MAX_HISTORY_ROWS         = 10_000;    // per target
+const MAX_TARGETS_PER_POLL     = 500;       // cap poll workload
 const CLEANUP_INTERVAL_MS      = 3600_000;  // 1 hour
 
 // Security: Strict hostname/IP validation regex
@@ -237,6 +238,7 @@ class NetworkMonitor {
         this.db = dbAdapter;
         this.running = false;
         this.timer = null;
+        this._pollInFlight = false;
         this.pollInterval = DEFAULT_POLL_INTERVAL_MS;
     }
 
@@ -328,7 +330,8 @@ class NetworkMonitor {
             if (!targets || targets.length === 0) return [];
 
             const results = [];
-            for (const target of targets) {
+            const batch = targets.slice(0, MAX_TARGETS_PER_POLL);
+            for (const target of batch) {
                 const result = await this.checkTarget(target);
                 results.push(result);
             }
@@ -342,16 +345,18 @@ class NetworkMonitor {
     // --- Internal ---
 
     async _poll() {
-        if (!this.running) return;
+        if (!this.running || this._pollInFlight) return;
 
+        this._pollInFlight = true;
         try {
             await this.checkAll();
         } catch (err) {
             console.error('[NetworkMonitor] Poll error:', err.message);
-        }
-
-        if (this.running) {
-            this.timer = setTimeout(() => this._poll(), this.pollInterval);
+        } finally {
+            this._pollInFlight = false;
+            if (this.running) {
+                this.timer = setTimeout(() => this._poll(), this.pollInterval);
+            }
         }
     }
 }

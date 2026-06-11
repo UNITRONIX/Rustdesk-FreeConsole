@@ -260,8 +260,8 @@ async function downloadFont(family, weights = ['400', '500', '600', '700']) {
     if (downloadedFiles.length > 0) {
         const cssFaces = downloadedFiles.map(file => {
             const weightMatch = file.match(/-(\d+)\.woff2$/);
-            const weight = (weightMatch && weightMatch[1]) || '400';
-            const cssFamily = String(family).replace(/['\\]/g, '');
+            const weight = (weightMatch && /^\d+$/.test(weightMatch[1])) ? weightMatch[1] : '400';
+            const cssFamily = String(family).replace(/[^a-zA-Z0-9\s-]/g, '').trim() || 'sans-serif';
             return [
                 '@font-face {',
                 `    font-family: '${cssFamily}';`,

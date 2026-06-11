@@ -940,7 +940,19 @@
     }
 
     function linkify(text) {
-        return text.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+        return text.replace(/(https?:\/\/[^\s<>"']+)/gi, (rawUrl) => {
+            try {
+                const parsed = new URL(rawUrl);
+                if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                    return Utils.escapeHtml(rawUrl);
+                }
+                const safeHref = Utils.escapeHtml(parsed.href);
+                const safeLabel = Utils.escapeHtml(rawUrl);
+                return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${safeLabel}</a>`;
+            } catch (_) {
+                return Utils.escapeHtml(rawUrl);
+            }
+        });
     }
 
     function updateUnreadBadge(convId, count) {

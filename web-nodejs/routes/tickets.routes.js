@@ -35,7 +35,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { getAdapter } = require('../services/dbAdapter');
-const { uploadLimiter } = require('../middleware/rateLimiter');
+const { uploadLimiter, fileAccessLimiter } = require('../middleware/rateLimiter');
 
 // ---------------------------------------------------------------------------
 //  Config
@@ -416,7 +416,7 @@ router.post('/:id(\\d+)/attachments', uploadLimiter, requireAdminOrOperator, asy
 /**
  * GET /api/tickets/:id/attachments — List attachments.
  */
-router.get('/:id(\\d+)/attachments', requireAuth, async (req, res) => {
+router.get('/:id(\\d+)/attachments', fileAccessLimiter, requireAuth, async (req, res) => {
     try {
         const adapter = getAdapter();
         const attachments = await adapter.getTicketAttachments(+req.params.id);
@@ -439,7 +439,7 @@ router.get('/:id(\\d+)/attachments', requireAuth, async (req, res) => {
 /**
  * GET /api/tickets/attachments/:aid — Download attachment file.
  */
-router.get('/attachments/:aid(\\d+)', requireAuth, async (req, res) => {
+router.get('/attachments/:aid(\\d+)', fileAccessLimiter, requireAuth, async (req, res) => {
     try {
         const adapter = getAdapter();
         const att = await adapter.getAttachmentById(+req.params.aid);

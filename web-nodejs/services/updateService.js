@@ -535,12 +535,34 @@ let _updateInProgress = false;
 
 /**
  * Run a shell command as a promise (non-blocking unlike execSync).
+ * Prefer spawnPromise() when arguments are known — avoids shell interpolation.
  */
 function execPromise(cmd, opts = {}) {
     return new Promise((resolve, reject) => {
         const { exec } = require('child_process');
         exec(cmd, { maxBuffer: 5 * 1024 * 1024, ...opts }, (err, stdout, stderr) => {
             if (err) {
+                err.stderr = stderr;
+                err.stdout = stdout;
+                return reject(err);
+            }
+            resolve({ stdout, stderr });
+        });
+    });
+}
+
+function spawnPromise(command, args, opts = {}) {
+    return new Promise((resolve, reject) => {
+        const { spawn } = require('child_process');
+        const proc = spawn(command, args, { shell: false, ...opts });
+        let stdout = '';
+        let stderr = '';
+        proc.stdout?.on('data', (chunk) => { stdout += chunk; });
+        proc.stderr?.on('data', (chunk) => { stderr += chunk; });
+        proc.on('error', reject);
+        proc.on('close', (code) => {
+            if (code !== 0) {
+                const err = new Error(`${command} exited with code ${code}`);
                 err.stderr = stderr;
                 err.stdout = stdout;
                 return reject(err);
@@ -1125,18 +1147,17 @@ async function buildGoServer(preferredGoBinPath = null) {
     const start = Date.now();
     const goBin = goCheck.binPath || 'go';
     const buildEnv = buildEnvWithGo(goBin);
-    // Quote when path contains spaces (Windows "Program Files")
-    const goCmd = /\s/.test(goBin) ? `"${goBin}"` : goBin;
 
     try {
-        await execPromise(`${goCmd} mod download`, {
+        await spawnPromise(goBin, ['mod', 'download'], {
             cwd: serverDir,
             timeout: 120000,
             env: buildEnv
         });
 
-        await execPromise(
-            `${goCmd} build -trimpath -ldflags="-s -w" -o "${binaryName}" .`,
+        await spawnPromise(
+            goBin,
+            ['build', '-trimpath', '-ldflags=-s -w', '-o', binaryName, '.'],
             { cwd: serverDir, timeout: 600000, env: buildEnv }
         );
 
@@ -1380,7 +1401,7 @@ async function _installGoToolchainBody(onProgress, opts = {}) {
                 { timeout: 300000 }
             );
         } else {
-            await execPromise(`tar -xzf "${archivePath}" -C "${GO_TOOLCHAIN_DIR}"`, { timeout: 300000 });
+            await spawnPromise('tar', ['-xzf', archivePath, '-C', GO_TOOLCHAIN_DIR], { timeout: 300000 });
         }
 
         try { fs.unlinkSync(archivePath); } catch (_e) { /* ignore */ }
@@ -2578,6 +2599,14 @@ function isValidBackupName(name) {
     return typeof name === 'string' && /^pre-update-[\d\-T]+$/.test(name);
 }
 
+function isValidManifestRelativePath(relPath) {
+    if (typeof relPath !== 'string' || relPath.length === 0 || relPath.includes('\0')) return false;
+    const normalized = relPath.replace(/\\/g, '/');
+    if (path.isAbsolute(normalized) || normalized.startsWith('/') || normalized.startsWith('..')) return false;
+    if (normalized.split('/').some((seg) => seg === '..')) return false;
+    return true;
+}
+
 /**
  * Recursively delete a directory. Refuses to delete anything outside
  * BACKUP_DIR to defend against path-traversal bugs upstream.
@@ -2635,6 +2664,9 @@ function restoreFromBackup(backupName) {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     let restored = 0;
     for (const filePath of (manifest.files || [])) {
+        if (!isValidManifestRelativePath(filePath)) {
+            throw new Error(`Invalid path in backup manifest: ${filePath}`);
+        }
         const src = resolvePathUnderRoot(backupPath, filePath);
         const dest = resolvePathUnderRoot(ROOT_DIR, filePath);
         if (fs.existsSync(src)) {
