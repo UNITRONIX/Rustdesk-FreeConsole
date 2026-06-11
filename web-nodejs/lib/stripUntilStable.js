@@ -29,7 +29,13 @@ function stripTagName(input, tagName) {
     const open = new RegExp(`<\\s*${name}\\b[^>]*>`, 'gi');
     const close = new RegExp(`<\\s*/\\s*${name}\\b[^>]*>`, 'gi');
     const selfClose = new RegExp(`<\\s*${name}\\b[^>]*/\\s*>`, 'gi');
-    return input.replace(open, '').replace(close, '').replace(selfClose, '');
+    let result = input;
+    let prev;
+    do {
+        prev = result;
+        result = result.replace(open, '').replace(close, '').replace(selfClose, '');
+    } while (result !== prev);
+    return result;
 }
 
 module.exports = {

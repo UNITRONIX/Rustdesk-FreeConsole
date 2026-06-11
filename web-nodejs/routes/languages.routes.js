@@ -5,7 +5,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const { requireAuth, requirePermission } = require('../middleware/auth');
-const { uploadLimiter } = require('../middleware/rateLimiter');
+const { uploadLimiter, fileAccessLimiter } = require('../middleware/rateLimiter');
 
 const LANG_DIR = path.resolve(path.join(__dirname, '..', 'lang'));
 const REFERENCE_FILES = ['en.json', 'pl.json'];
@@ -75,7 +75,7 @@ router.get('/languages', requireAuth, requirePermission('server.config'), (req, 
 /**
  * GET /api/panel/languages — List all languages with coverage stats
  */
-router.get('/api/panel/languages', requireAuth, requirePermission('server.config'), (req, res) => {
+router.get('/api/panel/languages', fileAccessLimiter, requireAuth, requirePermission('server.config'), (req, res) => {
     try {
         const { keySet: refKeySet } = loadReferenceKeys();
         if (refKeySet.size === 0) {
@@ -153,7 +153,7 @@ router.get('/api/panel/languages', requireAuth, requirePermission('server.config
 /**
  * GET /api/panel/languages/:code/missing — Get missing keys for a language
  */
-router.get('/api/panel/languages/:code/missing', requireAuth, requirePermission('server.config'), (req, res) => {
+router.get('/api/panel/languages/:code/missing', fileAccessLimiter, requireAuth, requirePermission('server.config'), (req, res) => {
     try {
         const langPath = safeLangFilePath(req.params.code);
 

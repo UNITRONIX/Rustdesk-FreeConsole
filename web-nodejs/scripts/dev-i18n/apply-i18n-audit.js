@@ -56,7 +56,7 @@ function setNested(obj, dotPath, value) {
             throw new Error(`Unsafe key segment: ${p}`);
         }
         if (!cur[p] || typeof cur[p] !== 'object' || Array.isArray(cur[p])) {
-            cur[p] = {};
+            cur[p] = Object.create(null);
         }
         cur = cur[p];
     }

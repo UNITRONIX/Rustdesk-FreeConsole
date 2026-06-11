@@ -3,7 +3,12 @@
 /**
  * Coerce request body fields to safe scalar types (arrays/objects rejected).
  */
+function isPlainScalar(value) {
+    return value === null || ['string', 'number', 'boolean', 'undefined'].includes(typeof value);
+}
+
 function bodyString(value, fallback = '') {
+    if (!isPlainScalar(value)) return fallback;
     if (typeof value === 'string') return value;
     if (typeof value === 'number' && Number.isFinite(value)) return String(value);
     if (typeof value === 'boolean') return value ? 'true' : 'false';
@@ -11,6 +16,7 @@ function bodyString(value, fallback = '') {
 }
 
 function bodyInt(value, fallback = 0, { min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER } = {}) {
+    if (!isPlainScalar(value)) return fallback;
     let n;
     if (typeof value === 'number' && Number.isFinite(value)) {
         n = Math.trunc(value);
@@ -26,6 +32,7 @@ function bodyInt(value, fallback = 0, { min = Number.MIN_SAFE_INTEGER, max = Num
 }
 
 function bodyBool(value, fallback = false) {
+    if (!isPlainScalar(value)) return fallback;
     if (typeof value === 'boolean') return value;
     if (value === 'true' || value === 1 || value === '1') return true;
     if (value === 'false' || value === 0 || value === '0') return false;

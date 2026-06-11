@@ -150,36 +150,65 @@ function removeConfinedChild(rootDir, childName, options = { recursive: true, fo
 }
 
 function readTextConfinedWithinRoot(userPath, rootDir) {
-    const abs = resolvePathWithinRoot(userPath, rootDir);
+    const abs = finalizedConfinedPathWithinRoot(userPath, rootDir);
     return fs.readFileSync(abs, 'utf8');
 }
 
 function existsConfinedWithinRoot(userPath, rootDir) {
-    const abs = resolvePathWithinRoot(userPath, rootDir);
+    const abs = finalizedConfinedPathWithinRoot(userPath, rootDir);
     return fs.existsSync(abs);
 }
 
+/**
+ * Resolve and finalize a confined path (realpath when present) before fs I/O.
+ */
+function finalizedConfinedPath(userPath, roots) {
+    const abs = resolvePathWithinAnyRoot(userPath, roots);
+    const resolvedRoots = roots.map((r) => path.resolve(r));
+    if (fs.existsSync(abs)) {
+        const real = fs.realpathSync.native(abs);
+        if (!resolvedRoots.some((root) => isPathInsideRoot(real, root))) {
+            throw new Error('Path resolves outside allowed directory roots');
+        }
+        return real;
+    }
+    return abs;
+}
+
+function finalizedConfinedPathWithinRoot(userPath, rootDir) {
+    const abs = resolvePathWithinRoot(userPath, rootDir);
+    const root = path.resolve(rootDir);
+    if (fs.existsSync(abs)) {
+        const real = fs.realpathSync.native(abs);
+        if (!isPathInsideRoot(real, root)) {
+            throw new Error('Path resolves outside allowed directory');
+        }
+        return real;
+    }
+    return abs;
+}
+
 function renameConfinedWithinRoots(oldPath, newPath, roots) {
-    const a = resolvePathWithinAnyRoot(oldPath, roots);
-    const b = resolvePathWithinAnyRoot(newPath, roots);
+    const a = finalizedConfinedPath(oldPath, roots);
+    const b = finalizedConfinedPath(newPath, roots);
     fs.renameSync(a, b);
     return { from: a, to: b };
 }
 
 function unlinkConfinedWithinRoots(userPath, roots) {
-    const abs = resolvePathWithinAnyRoot(userPath, roots);
+    const abs = finalizedConfinedPath(userPath, roots);
     fs.unlinkSync(abs);
     return abs;
 }
 
 function mkdirConfinedWithinRoots(userPath, roots) {
-    const abs = resolvePathWithinAnyRoot(userPath, roots);
+    const abs = finalizedConfinedPath(userPath, roots);
     fs.mkdirSync(abs, { recursive: false });
     return abs;
 }
 
 function rmDirConfinedWithinRoots(userPath, roots) {
-    const abs = resolvePathWithinAnyRoot(userPath, roots);
+    const abs = finalizedConfinedPath(userPath, roots);
     fs.rmSync(abs, { recursive: true, force: false });
     return abs;
 }

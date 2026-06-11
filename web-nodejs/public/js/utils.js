@@ -185,6 +185,9 @@ const Utils = {
         if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
             throw new Error('Invalid API endpoint');
         }
+        if (/[\0\\]/.test(trimmed)) {
+            throw new Error('Invalid API endpoint');
+        }
         const parsed = new URL(trimmed, window.location.origin);
         if (parsed.origin !== window.location.origin) {
             throw new Error('Invalid API endpoint');

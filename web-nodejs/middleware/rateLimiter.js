@@ -90,10 +90,26 @@ const uploadLimiter = rateLimit({
     keyGenerator: defaultKeyGenerator
 });
 
+/**
+ * File-system read/download limiter (language files, theme presets, completed transfers).
+ */
+const fileAccessLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: parseInt(process.env.FILE_ACCESS_RATE_LIMIT_MAX, 10) || 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        success: false,
+        error: 'Too many file requests. Please try again later.'
+    },
+    keyGenerator: defaultKeyGenerator
+});
+
 module.exports = {
     apiLimiter,
     widgetLimiter,
     loginLimiter,
     passwordChangeLimiter,
-    uploadLimiter
+    uploadLimiter,
+    fileAccessLimiter
 };
