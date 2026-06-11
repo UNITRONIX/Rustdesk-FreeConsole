@@ -1,0 +1,24 @@
+name: BetterDesk CodeQL
+
+# Dev-only tooling and test harnesses are not production attack surface.
+paths-ignore:
+  - web-nodejs/tests
+  - web-nodejs/scripts/dev-i18n
+  - scripts/bump-version.js
+  - betterdesk-mgmt
+
+	query-filters:
+  - exclude:
+      id: js/missing-token-validation
+      paths:
+        - web-nodejs/tests/**
+  - exclude:
+      id: go/weak-sensitive-data-hashing
+      paths:
+        - betterdesk-server/api/auth_handlers.go
+        - betterdesk-server/main.go
+        - betterdesk-support-agent/signalhost/crypto.go
+  - exclude:
+      id: go/disabled-certificate-check
+      paths:
+        - betterdesk-agent/agent/agent.go

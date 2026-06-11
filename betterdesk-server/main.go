@@ -230,7 +230,11 @@ func main() {
 	// Initialize per-IP relay connection limiter
 	var connLimiter *ratelimit.ConnLimiter
 	if cfg.RelayMaxConnsIP > 0 {
-		connLimiter = ratelimit.NewConnLimiter(int32(cfg.RelayMaxConnsIP))
+		limit := cfg.RelayMaxConnsIP
+		if limit > 1<<30 {
+			limit = 1 << 30
+		}
+		connLimiter = ratelimit.NewConnLimiter(int32(limit))
 		log.Printf("Relay per-IP connection limit: %d", cfg.RelayMaxConnsIP)
 	}
 

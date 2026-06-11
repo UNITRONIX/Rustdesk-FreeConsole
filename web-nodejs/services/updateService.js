@@ -27,7 +27,7 @@ const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
-const { resolveChildPath, resolvePathUnderRoot } = require('../lib/safePath');
+const { resolveChildPath, resolvePathUnderRoot, existsConfinedChild, removeConfinedChild } = require('../lib/safePath');
 const { runConsoleNpmInstall } = require('../lib/consoleNpmInstall');
 const {
     NON_CRITICAL_UPDATE_FAILURES,
@@ -2587,14 +2587,10 @@ function deleteBackup(name) {
         throw new Error('Invalid backup name');
     }
     const root = path.resolve(BACKUP_DIR);
-    const target = resolveChildPath(root, name);
-    if (target === root) {
-        throw new Error('Refusing to delete the backup directory itself');
-    }
-    if (!fs.existsSync(target)) {
+    if (!existsConfinedChild(root, name)) {
         throw new Error('Backup not found');
     }
-    fs.rmSync(target, { recursive: true, force: true });
+    removeConfinedChild(root, name, { recursive: true, force: true });
     return { deleted: name };
 }
 
@@ -2629,8 +2625,9 @@ function pruneBackups(keep) {
  */
 function restoreFromBackup(backupName) {
     if (!isValidBackupName(backupName)) throw new Error('Invalid backup name');
-    const backupPath = resolveChildPath(path.resolve(BACKUP_DIR), backupName);
-    if (!fs.existsSync(backupPath)) throw new Error('Backup not found');
+    const backupRoot = path.resolve(BACKUP_DIR);
+    if (!existsConfinedChild(backupRoot, backupName)) throw new Error('Backup not found');
+    const backupPath = resolveChildPath(backupRoot, backupName);
 
     const manifestPath = resolveChildPath(backupPath, 'manifest.json');
     if (!fs.existsSync(manifestPath)) throw new Error('Invalid backup — missing manifest');

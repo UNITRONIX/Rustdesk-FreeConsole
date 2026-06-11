@@ -176,7 +176,10 @@ function spawnPty(cols, rows, userInfo) {
         return {
             kind: 'pty',
             child,
-            write: (data) => child.write(data),
+            write: (data) => {
+                if (typeof data !== 'string' && !Buffer.isBuffer(data)) return;
+                child.write(data);
+            },
             resize: (cols, rows) => {
                 try { child.resize(cols, rows); } catch (_) { /* ignore */ }
             },

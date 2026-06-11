@@ -9,6 +9,7 @@ const serverBackend = require('../services/serverBackend');
 const addressBookSync = require('../services/rustdeskAddressBookSync');
 const deviceGroupService = require('../services/deviceGroupService');
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { bodyInt, bodyString, bodyBool } = require('../lib/bodyScalars');
 
 /**
  * GET /devices - Devices list page
@@ -807,8 +808,8 @@ router.get('/api/devices/:id/activity', requireAuth, requirePermission('device.v
  * Body: { path: '/some/folder', show_hidden: false }
  */
 router.post('/api/devices/:id/files/browse', requireAuth, requirePermission('device.edit'), (req, res) => {
-    const path = String(req.body?.path || '').slice(0, 4096);
-    const showHidden = req.body?.show_hidden === true;
+    const path = bodyString(req.body?.path, '').slice(0, 4096);
+    const showHidden = bodyBool(req.body?.show_hidden, false);
     proxyAgentRequest(req, res, 'files.browse', { path, show_hidden: showHidden });
 });
 
@@ -817,9 +818,9 @@ router.post('/api/devices/:id/files/browse', requireAuth, requirePermission('dev
  * Body: { path, offset, length }
  */
 router.post('/api/devices/:id/files/read', requireAuth, requirePermission('device.edit'), (req, res) => {
-    const path = String(req.body?.path || '').slice(0, 4096);
-    const offset = Math.max(0, parseInt(req.body?.offset, 10) || 0);
-    const length = Math.min(1024 * 1024, Math.max(0, parseInt(req.body?.length, 10) || 65536));
+    const path = bodyString(req.body?.path, '').slice(0, 4096);
+    const offset = bodyInt(req.body?.offset, 0, { min: 0 });
+    const length = bodyInt(req.body?.length, 65536, { min: 0, max: 1024 * 1024 });
     proxyAgentRequest(req, res, 'files.read', { path, offset, length }, 30000);
 });
 

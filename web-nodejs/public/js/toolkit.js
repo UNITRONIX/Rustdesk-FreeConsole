@@ -64,8 +64,14 @@
         }
     }
 
+    function escapeJsString(text) {
+        return String(text)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'");
+    }
+
     function copyBtn(text) {
-        return '<button class="result-copy-btn" onclick="navigator.clipboard.writeText(\'' + text.replace(/'/g, "\\'").replace(/\\/g, "\\\\") + '\')"><span class="material-icons">content_copy</span> ' + t('common.copy', 'Copy') + '</button>';
+        return '<button class="result-copy-btn" onclick="navigator.clipboard.writeText(\'' + escapeJsString(text) + '\')"><span class="material-icons">content_copy</span> ' + t('common.copy', 'Copy') + '</button>';
     }
 
     // ── Tab switching ───────────────────────────────────────────────────

@@ -35,6 +35,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { getAdapter } = require('../services/dbAdapter');
+const { uploadLimiter } = require('../middleware/rateLimiter');
 
 // ---------------------------------------------------------------------------
 //  Config
@@ -143,7 +144,7 @@ router.get('/stats', requireAuth, async (req, res) => {
 /**
  * POST /api/tickets — Create ticket.
  */
-router.post('/', requireAdminOrOperator, async (req, res) => {
+router.post('/', uploadLimiter, requireAdminOrOperator, async (req, res) => {
     try {
         const { title, description, priority, category, device_id, assigned_to } = req.body;
 
@@ -315,7 +316,7 @@ router.delete('/:id(\\d+)', requireAdminOrOperator, async (req, res) => {
 /**
  * POST /api/tickets/:id/comments — Add comment to ticket.
  */
-router.post('/:id(\\d+)/comments', requireAuth, async (req, res) => {
+router.post('/:id(\\d+)/comments', uploadLimiter, requireAuth, async (req, res) => {
     try {
         const adapter = getAdapter();
         const ticket = await adapter.getTicketById(+req.params.id);
@@ -371,7 +372,7 @@ router.get('/:id(\\d+)/comments', requireAuth, async (req, res) => {
  * Expects multipart/form-data or raw binary with headers.
  * For simplicity, accepts base64-encoded body: { filename, data }
  */
-router.post('/:id(\\d+)/attachments', requireAdminOrOperator, async (req, res) => {
+router.post('/:id(\\d+)/attachments', uploadLimiter, requireAdminOrOperator, async (req, res) => {
     try {
         const adapter = getAdapter();
         const ticket = await adapter.getTicketById(+req.params.id);

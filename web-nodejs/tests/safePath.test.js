@@ -10,6 +10,8 @@ const {
     resolvePathWithinAnyRoot,
     resolveLangFilePath,
     resolvePathUnderRoot,
+    readLangFileText,
+    langFileExists,
 } = require('../lib/safePath');
 
 describe('safePath', () => {
@@ -75,5 +77,13 @@ describe('safePath', () => {
     test('resolvePathUnderRoot blocks traversal', () => {
         expect(() => resolvePathUnderRoot(tmpRoot, '../etc/passwd')).toThrow();
         expect(() => resolvePathUnderRoot(tmpRoot, 'a/../../etc/passwd')).toThrow();
+    });
+
+    test('readLangFileText reads confined language file', () => {
+        const langDir = path.join(tmpRoot, 'lang');
+        fs.mkdirSync(langDir, { recursive: true });
+        fs.writeFileSync(path.join(langDir, 'en.json'), '{"hello":"world"}');
+        expect(readLangFileText(langDir, 'en')).toBe('{"hello":"world"}');
+        expect(langFileExists(langDir, 'en')).toBe(true);
     });
 });

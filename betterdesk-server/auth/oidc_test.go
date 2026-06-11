@@ -6,10 +6,24 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	orig := oidcHostResolver
+	oidcHostResolver = func(ctx context.Context, host string) error {
+		if host == "127.0.0.1" || strings.EqualFold(host, "localhost") {
+			return nil
+		}
+		return resolveOIDCFetchHost(ctx, host)
+	}
+	code := m.Run()
+	oidcHostResolver = orig
+	os.Exit(code)
+}
 
 // TestNewOIDCProvider verifies that a provider is correctly created.
 func TestNewOIDCProvider(t *testing.T) {

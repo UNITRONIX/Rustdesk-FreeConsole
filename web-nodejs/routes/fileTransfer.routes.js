@@ -29,6 +29,7 @@ const fs = require('fs');
 const fileTransferService = require('../services/fileTransferService');
 
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { uploadLimiter } = require('../middleware/rateLimiter');
 
 // ---------------------------------------------------------------------------
 //  Middleware helpers
@@ -50,7 +51,7 @@ function identifyDevice(req, res, next) {
 /**
  * POST /api/files/transfer — Initiate a file transfer
  */
-router.post('/transfer', requireAuth, requirePermission('device.connect'), (req, res) => {
+router.post('/transfer', uploadLimiter, requireAuth, requirePermission('device.connect'), (req, res) => {
     try {
         const { direction, device_id, filename, size, mime_type } = req.body;
 

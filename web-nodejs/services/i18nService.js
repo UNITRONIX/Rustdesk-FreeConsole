@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config/config');
-const { resolveLangFilePath } = require('../lib/safePath');
+const { resolveLangFilePath, readLangFileText, langFileExists } = require('../lib/safePath');
 
 // Supported languages metadata
 const LANGUAGE_META = {
@@ -116,20 +116,12 @@ class TranslationManager {
             return false;
         }
         
-        let filePath;
         try {
-            filePath = resolveLangFilePath(config.langDir, code);
-        } catch (_) {
-            console.warn(`i18n: Invalid language path rejected: ${code}`);
-            return false;
-        }
-
-        try {
-            if (!fs.existsSync(filePath)) {
+            if (!langFileExists(config.langDir, code)) {
                 return false;
             }
 
-            const content = stripBom(fs.readFileSync(filePath, 'utf8'));
+            const content = stripBom(readLangFileText(config.langDir, code));
             const data = JSON.parse(content);
             
             this.translations[code] = data;

@@ -26,7 +26,7 @@ const fs = require('fs');
 const fsp = require('fs').promises;
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
-const { resolvePathWithinAnyRoot, resolveChildPath } = require('../lib/safePath');
+const { resolvePathWithinAnyRoot, resolveChildPath, renameConfinedWithinRoots, unlinkConfinedWithinRoots, mkdirConfinedWithinRoots, rmDirConfinedWithinRoots } = require('../lib/safePath');
 
 const SERVICE_NAME_RE = /^[A-Za-z0-9_.@:-]{1,128}$/;
 const FILE_MAX_BYTES = 8 * 1024 * 1024;        // 8 MB read/write cap
@@ -288,30 +288,28 @@ async function writeFile(filePath, content) {
 }
 
 async function deletePath(p) {
-    const abs = resolvePath(p);
+    const roots = getAllowedFileRoots();
+    const abs = resolvePathWithinAnyRoot(p, roots);
     if (abs === '/' || /^[A-Za-z]:\\?$/.test(abs)) {
         throw new Error('Refusing to delete filesystem root');
     }
     const st = await fsp.lstat(abs);
     if (st.isDirectory()) {
-        await fsp.rm(abs, { recursive: true, force: false });
+        rmDirConfinedWithinRoots(p, roots);
     } else {
-        await fsp.unlink(abs);
+        unlinkConfinedWithinRoots(p, roots);
     }
     return { path: abs };
 }
 
 async function makeDirectory(p) {
-    const abs = resolvePath(p);
-    await fsp.mkdir(abs, { recursive: false });
+    const abs = mkdirConfinedWithinRoots(p, getAllowedFileRoots());
     return { path: abs };
 }
 
 async function renamePath(oldPath, newPath) {
-    const a = resolvePath(oldPath);
-    const b = resolvePath(newPath);
-    await fsp.rename(a, b);
-    return { from: a, to: b };
+    const result = renameConfinedWithinRoots(oldPath, newPath, getAllowedFileRoots());
+    return { from: result.from, to: result.to };
 }
 
 // ─── Services ─────────────────────────────────────────────────────────────────

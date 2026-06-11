@@ -78,8 +78,8 @@ const FILE_RULES = [
             return m[1].replace(/--/g, '-');
         },
         apply: (content, version, oldVersion) => {
-            const badgeOld = oldVersion.replace(/\./g, '.').replace(/-/g, '--');
-            const badgeNew = version.replace(/\./g, '.').replace(/-/g, '--');
+            const badgeOld = oldVersion.replace(/-/g, '--');
+            const badgeNew = version.replace(/-/g, '--');
             return content
                 .replace(
                     new RegExp(`(img\\.shields\\.io\\/badge\\/version-)${escapeRegExp(badgeOld)}(-)`, 'g'),

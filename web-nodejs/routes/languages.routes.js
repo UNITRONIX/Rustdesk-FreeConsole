@@ -5,6 +5,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { uploadLimiter } = require('../middleware/rateLimiter');
 
 const LANG_DIR = path.resolve(path.join(__dirname, '..', 'lang'));
 const REFERENCE_FILES = ['en.json', 'pl.json'];
@@ -183,7 +184,7 @@ router.get('/api/panel/languages/:code/missing', requireAuth, requirePermission(
 /**
  * POST /api/panel/languages/:code/fix — Disabled by strict i18n policy
  */
-router.post('/api/panel/languages/:code/fix', requireAuth, requirePermission('server.config'), (req, res) => {
+router.post('/api/panel/languages/:code/fix', uploadLimiter, requireAuth, requirePermission('server.config'), (req, res) => {
     res.status(410).json({
         error: 'Automatic language fixing is disabled. Missing keys must be translated manually in the target language.'
     });

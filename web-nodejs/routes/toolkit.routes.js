@@ -26,6 +26,7 @@ const https   = require('https');
 const dgram   = require('dgram');
 const dns     = require('dns');
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { bodyInt, bodyBool } = require('../lib/bodyScalars');
 const { assertSafeResolvedHost, SsrfBlockedError } = require('../lib/ssrfGuard');
 
 // ── Page ────────────────────────────────────────────────────────────────────
@@ -153,21 +154,31 @@ router.post('/api/toolkit/hash', requireAuth, (req, res) => {
 
 router.post('/api/toolkit/password', requireAuth, (req, res) => {
     let { length, uppercase, lowercase, digits, symbols } = req.body;
-    length = parseInt(length, 10) || 16;
-    if (length < 4)   length = 4;
-    if (length > 128)  length = 128;
+    length = bodyInt(length, 16, { min: 4, max: 128 });
 
     let charset = '';
-    if (uppercase !== false) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    if (lowercase !== false) charset += 'abcdefghijklmnopqrstuvwxyz';
-    if (digits    !== false) charset += '0123456789';
-    if (symbols   === true)  charset += '!@#$%^&*()-_=+[]{}|;:,.<>?';
+    if (bodyBool(uppercase, true)) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    if (bodyBool(lowercase, true)) charset += 'abcdefghijklmnopqrstuvwxyz';
+    if (bodyBool(digits, true)) charset += '0123456789';
+    if (bodyBool(symbols, false)) charset += '!@#$%^&*()-_=+[]{}|;:,.<>?';
     if (!charset) charset = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
-    const bytes = crypto.randomBytes(length);
+    const charsetLen = charset.length;
+    const maxUnbiased = 256 - (256 % charsetLen);
+    const bytes = crypto.randomBytes(length * 2);
     let password = '';
-    for (let i = 0; i < length; i++) {
-        password += charset[bytes[i] % charset.length];
+    for (let i = 0; i < bytes.length && password.length < length; i++) {
+        const b = bytes[i];
+        if (b >= maxUnbiased) continue;
+        password += charset[b % charsetLen];
+    }
+    while (password.length < length) {
+        const extra = crypto.randomBytes(length);
+        for (let i = 0; i < extra.length && password.length < length; i++) {
+            const b = extra[i];
+            if (b >= maxUnbiased) continue;
+            password += charset[b % charsetLen];
+        }
     }
 
     // Calculate entropy

@@ -175,9 +175,28 @@ const Utils = {
     },
     
     /**
+     * Restrict client-side fetch targets to same-origin relative API paths.
+     */
+    resolveApiEndpoint(endpoint) {
+        if (typeof endpoint !== 'string') {
+            throw new Error('Invalid API endpoint');
+        }
+        const trimmed = endpoint.trim();
+        if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
+            throw new Error('Invalid API endpoint');
+        }
+        const parsed = new URL(trimmed, window.location.origin);
+        if (parsed.origin !== window.location.origin) {
+            throw new Error('Invalid API endpoint');
+        }
+        return parsed.pathname + parsed.search;
+    },
+
+    /**
      * API request helper with error handling
      */
     async api(endpoint, options = {}) {
+        const safeEndpoint = Utils.resolveApiEndpoint(endpoint);
         const defaults = {
             headers: {
                 'Content-Type': 'application/json'
@@ -204,7 +223,7 @@ const Utils = {
         }
         
         try {
-            const response = await fetch(endpoint, config);
+            const response = await fetch(safeEndpoint, config);
             const contentType = response.headers.get('content-type');
             
             let data;
