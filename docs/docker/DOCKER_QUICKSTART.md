@@ -210,7 +210,7 @@ If you customized an older quick-start file before **3.0.0**, apply these change
 | Server `AUTH_DB_PATH` | `/app/data/auth.db` |
 | Server volume | `console-data:/app/data:ro` |
 | `network_mode: service:server` | Use `127.0.0.1` in `BETTERDESK_API_URL`, `WS_HBBS_HOST`, `WS_HBBR_HOST` (Docker DNS is unavailable) |
-| Image tag | Pin `BETTERDESK_IMAGE_TAG` (e.g. `3.2.12`), not unversioned `latest` |
+| Image tag | Pin `BETTERDESK_IMAGE_TAG` (e.g. `3.2.14`), not unversioned `latest` |
 
 **Symptom:** server logs look healthy but the console never starts — check `docker compose ps -a` and `docker compose logs console`. The usual cause is `depends_on: service_healthy` while the server healthcheck is disabled.
 

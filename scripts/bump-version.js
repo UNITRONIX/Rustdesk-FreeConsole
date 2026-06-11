@@ -119,8 +119,8 @@ const FILE_RULES = [
             const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
             return m?.[1];
         },
-        apply: (content, version, oldVersion) =>
-            content.split(oldVersion).join(version),
+        apply: (content, version) =>
+            content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
     },
     {
         id: 'docker-compose-quick-macvlan',
@@ -129,8 +129,8 @@ const FILE_RULES = [
             const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
             return m?.[1];
         },
-        apply: (content, version, oldVersion) =>
-            content.split(oldVersion).join(version),
+        apply: (content, version) =>
+            content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
     },
     {
         id: 'docker-entrypoint',
