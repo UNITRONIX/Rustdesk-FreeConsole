@@ -52,7 +52,7 @@ FROM node:20-alpine
 
 LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk — All-in-One (Go Server + Node.js Console)"
-LABEL version="3.2.7"
+LABEL version="3.2.8"
 
 # Install runtime packages (retry for transient DNS failures)
 RUN apk add --no-cache \
