@@ -3273,6 +3273,8 @@ function Update-FromGitHub {
                 $dataDir = Join-Path $script:CONSOLE_PATH "data"
                 if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir -Force | Out-Null }
                 Set-Content -Path (Join-Path $dataDir ".update_sha") -Value $remoteSha
+                Set-Content -Path (Join-Path $dataDir ".agent_source_sha") -Value $remoteSha
+                Remove-Item -Path (Join-Path $dataDir ".last_update_result.json") -Force -ErrorAction SilentlyContinue
                 Print-Info "SHA tracking updated: $($remoteSha.Substring(0, 7))"
             }
         } catch { }

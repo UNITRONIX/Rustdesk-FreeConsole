@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Stale update warning on script / Docker paths (#192)** — `betterdesk.ps1` and `betterdesk-docker.sh` now clear `data/.last_update_result.json` when syncing `.update_sha` after a successful external update (parity with `betterdesk.sh`). GHCR image deployments clear the same stale panel banner on console startup after `docker compose pull`.
+
 ### Changed
 - _(none yet)_
 

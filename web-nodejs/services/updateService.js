@@ -384,6 +384,17 @@ function bootstrapDockerImageDeployment() {
             + `${volumeSha ? `, was ${volumeSha.slice(0, 7)}` : ''})`
         );
     }
+
+    // External image update (docker compose pull) — drop stale in-app panel errors (#192).
+    try {
+        resolveLastUpdateResultForDisplay(config.dataDir, {
+            rootDir: ROOT_DIR,
+            localSHA: imageSha,
+            remoteSHA: imageSha,
+        });
+    } catch (err) {
+        console.warn(`[UPDATE] Could not clear stale update result: ${err.message}`);
+    }
 }
 
 // ======================== SHA Tracking ===================================

@@ -64,6 +64,8 @@ COMMON_DATA_PATHS=(
 # Container names
 SERVER_CONTAINER="betterdesk-server"
 CONSOLE_CONTAINER="betterdesk-console"
+# Set by update_docker_from_github; consumed after container rebuild (#192)
+LAST_UPDATE_REMOTE_SHA=""
 # Legacy aliases for backwards compatibility in detect functions
 HBBS_CONTAINER="$SERVER_CONTAINER"
 HBBR_CONTAINER="$SERVER_CONTAINER"
@@ -1387,8 +1389,33 @@ update_docker_from_github() {
 
     print_success "$files_updated project components updated from GitHub"
 
+    # ---- Update SHA tracking for in-app updater (#192) ----
+    LAST_UPDATE_REMOTE_SHA=""
+    if command -v git &>/dev/null && [ -d "$clone_dir/.git" ]; then
+        LAST_UPDATE_REMOTE_SHA=$(git -C "$clone_dir" rev-parse HEAD 2>/dev/null || true)
+        if [ -n "$LAST_UPDATE_REMOTE_SHA" ]; then
+            mkdir -p "$SCRIPT_DIR/web-nodejs/data"
+            echo "$LAST_UPDATE_REMOTE_SHA" > "$SCRIPT_DIR/web-nodejs/data/.update_sha"
+            echo "$LAST_UPDATE_REMOTE_SHA" > "$SCRIPT_DIR/web-nodejs/data/.agent_source_sha"
+            rm -f "$SCRIPT_DIR/web-nodejs/data/.last_update_result.json"
+            print_info "SHA tracking updated: ${LAST_UPDATE_REMOTE_SHA:0:7}"
+        fi
+    fi
+
     rm -rf "$clone_dir"
     return 0
+}
+
+# Push SHA baseline into the running console volume after container rebuild (#192).
+sync_console_update_tracking_in_container() {
+    local remote_sha="${1:-}"
+    [ -n "$remote_sha" ] || return 0
+    if ! docker ps --format '{{.Names}}' | grep -q "^${CONSOLE_CONTAINER}$"; then
+        return 0
+    fi
+    docker exec "$CONSOLE_CONTAINER" sh -c \
+        "mkdir -p /app/data && printf '%s\n' '$remote_sha' > /app/data/.update_sha && rm -f /app/data/.last_update_result.json" \
+        2>/dev/null || true
 }
 
 do_update() {
@@ -1453,6 +1480,7 @@ do_update() {
     stop_containers
     build_images
     start_containers
+    sync_console_update_tracking_in_container "${LAST_UPDATE_REMOTE_SHA:-}"
     
     print_success "Docker update completed!"
     press_enter
