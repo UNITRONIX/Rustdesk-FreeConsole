@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.7] — 2026-06-11
+
 ### Fixed
 - **Stale update warning on script / Docker paths (#192)** — `betterdesk.ps1` and `betterdesk-docker.sh` now clear `data/.last_update_result.json` when syncing `.update_sha` after a successful external update (parity with `betterdesk.sh`). GHCR image deployments clear the same stale panel banner on console startup after `docker compose pull`.
 
@@ -464,3 +471,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.2.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.3...v3.2.4
 [3.2.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.4...v3.2.5
 [3.2.6]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.5...v3.2.6
+[3.2.7]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.6...v3.2.7
