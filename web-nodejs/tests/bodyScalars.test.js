@@ -1,6 +1,6 @@
 'use strict';
 
-const { bodyString, bodyInt, bodyBool } = require('../lib/bodyScalars');
+const { bodyString, bodyInt, bodyBool, plainBodyObject } = require('../lib/bodyScalars');
 
 describe('bodyScalars', () => {
     test('bodyString rejects arrays', () => {
@@ -13,6 +13,15 @@ describe('bodyScalars', () => {
         expect(bodyInt({ length: 42 }, 0)).toBe(0);
         expect(bodyInt('42', 0)).toBe(42);
         expect(bodyInt(999, 0, { max: 100 })).toBe(100);
+    });
+
+    test('plainBodyObject rejects array bodies', () => {
+        expect(plainBodyObject({ path: '/tmp' })).toEqual({ path: '/tmp' });
+        expect(plainBodyObject([1, 2, 3])).toEqual({});
+        expect(plainBodyObject(null)).toEqual({});
+        const body = plainBodyObject({ length: 42 });
+        expect(bodyInt(body.length, 0, { max: 100 })).toBe(42);
+        expect(bodyInt(plainBodyObject([1, 2, 3]).length, 99, { max: 100 })).toBe(99);
     });
 
     test('bodyString rejects objects', () => {

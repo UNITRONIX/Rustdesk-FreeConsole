@@ -9,7 +9,7 @@ const serverBackend = require('../services/serverBackend');
 const addressBookSync = require('../services/rustdeskAddressBookSync');
 const deviceGroupService = require('../services/deviceGroupService');
 const { requireAuth, requirePermission } = require('../middleware/auth');
-const { bodyInt, bodyString, bodyBool } = require('../lib/bodyScalars');
+const { bodyInt, bodyString, bodyBool, plainBodyObject } = require('../lib/bodyScalars');
 
 /**
  * GET /devices - Devices list page
@@ -818,9 +818,10 @@ router.post('/api/devices/:id/files/browse', requireAuth, requirePermission('dev
  * Body: { path, offset, length }
  */
 router.post('/api/devices/:id/files/read', requireAuth, requirePermission('device.edit'), (req, res) => {
-    const path = bodyString(req.body?.path, '').slice(0, 4096);
-    const offset = bodyInt(req.body?.offset, 0, { min: 0 });
-    const length = bodyInt(req.body?.length, 65536, { min: 0, max: 1024 * 1024 });
+    const body = plainBodyObject(req.body);
+    const path = bodyString(body.path, '').slice(0, 4096);
+    const offset = bodyInt(body.offset, 0, { min: 0 });
+    const length = bodyInt(body.length, 65536, { min: 0, max: 1024 * 1024 });
     proxyAgentRequest(req, res, 'files.read', { path, offset, length }, 30000);
 });
 

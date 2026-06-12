@@ -279,7 +279,7 @@ router.patch('/:id(\\d+)', requireAdminOrOperator, async (req, res) => {
 /**
  * DELETE /api/tickets/:id — Delete ticket.
  */
-router.delete('/:id(\\d+)', requireAdminOrOperator, async (req, res) => {
+router.delete('/:id(\\d+)', uploadLimiter, requireAdminOrOperator, async (req, res) => {
     try {
         const adapter = getAdapter();
         const ticket = await adapter.getTicketById(+req.params.id);

@@ -7,6 +7,12 @@ function isPlainScalar(value) {
     return value === null || ['string', 'number', 'boolean', 'undefined'].includes(typeof value);
 }
 
+/** Reject array bodies so `.length` / field access cannot be confused with array metadata. */
+function plainBodyObject(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    return {};
+}
+
 function bodyString(value, fallback = '') {
     if (!isPlainScalar(value)) return fallback;
     if (typeof value === 'string') return value;
@@ -43,4 +49,5 @@ module.exports = {
     bodyString,
     bodyInt,
     bodyBool,
+    plainBodyObject,
 };

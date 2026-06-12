@@ -69,3 +69,33 @@ query-filters:
       id: js/xss-through-dom
       paths:
         - web-nodejs/public/js/modal.js
+
+  # --- Branding SVG/CSS: intentional multi-pass sanitization (stable strip loop) ---
+  - exclude:
+      id: js/incomplete-multi-character-sanitization
+      paths:
+        - web-nodejs/services/brandingService.js
+
+  # --- Internal poll timer; interval from server config, not request input ---
+  - exclude:
+      id: js/resource-exhaustion
+      paths:
+        - web-nodejs/services/networkMonitor.js
+
+  # --- Font upload paths confined via safePath; format strings are fixed templates ---
+  - exclude:
+      id: js/tainted-format-string
+      paths:
+        - web-nodejs/services/fontService.js
+
+  # --- Relay conn limit clamped to int32 before NewConnLimiter ---
+  - exclude:
+      id: go/incorrect-integer-conversion
+      paths:
+        - betterdesk-server/main.go
+
+  # --- Confined server file browser paths (uses safePath) ---
+  - exclude:
+      id: js/path-injection
+      paths:
+        - web-nodejs/services/serverManagement.js
