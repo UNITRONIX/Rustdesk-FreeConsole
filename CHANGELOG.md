@@ -7,8 +7,19 @@
 
 ## [3.3.1] — 2026-06-12
 
-### Changed
-- _(none yet)_
+Patch release on `main`. Ships via **Settings → Updates** (Stable), `betterdesk.sh` option 2, or replace `betterdesk.sh` from tag `v3.3.1`.
+
+### Fixed
+
+- **`betterdesk.sh` syntax error on Linux (#199)** — removed orphan `fi` in `update_from_github()` (line 3405) that broke `./betterdesk.sh` on v3.3.0 fresh clone and after self-update.
+- **Update via `betterdesk.sh` (#198)** — existing installs no longer show the misleading “Creating admin user” / PANEL LOGIN CREDENTIALS banner; post-update path runs console permission sync and `systemctl reset-failed` before restart; panel health check uses HTTPS/custom `PORT` (not hard-coded `:5000`).
+
+### Upgrade notes
+
+| Topic | Action |
+|-------|--------|
+| **Broken 3.3.0 script** | Update to 3.3.1+ or once: remove the extra `fi` at line 3405, or copy `betterdesk.sh` from tag `v3.3.1`, then re-run Update. |
+| **Verify** | `bash -n ./betterdesk.sh`; after update: `systemctl is-active betterdesk-console`; log in with your existing admin password. |
 
 ---
 
