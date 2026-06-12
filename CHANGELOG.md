@@ -5,6 +5,13 @@
 
 ---
 
+## [3.2.20] — 2026-06-12
+
+### Changed
+- _(none yet)_
+
+---
+
 ## [3.2.19] — 2026-06-12
 
 ### Changed
@@ -600,3 +607,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.2.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.16...v3.2.17
 [3.2.18]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.17...v3.2.18
 [3.2.19]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.18...v3.2.19
+[3.2.20]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.19...v3.2.20
