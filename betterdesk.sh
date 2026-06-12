@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.3.0
+#   BetterDesk Console Manager v3.3.1
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -36,7 +36,7 @@
 set -e
 
 # Version
-VERSION="3.3.0"
+VERSION="3.3.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Auto mode flag
@@ -683,6 +683,59 @@ graceful_stop_services() {
     print_success "All services stopped"
 }
 
+# Resolve panel listen port for health checks (HTTP 5000, HTTPS 5443, or PORT= from .env).
+resolve_panel_health_port() {
+    local env_file="${CONSOLE_PATH}/.env"
+    local https_enabled="false"
+    local panel_port="5000"
+
+    if [ -f "$env_file" ]; then
+        grep -q '^HTTPS_ENABLED=true' "$env_file" 2>/dev/null && https_enabled="true"
+    fi
+    if [ "$https_enabled" = "true" ]; then
+        panel_port="5443"
+    fi
+    if [ -f "$env_file" ]; then
+        local cfg_port
+        cfg_port=$(grep -m1 '^PORT=' "$env_file" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
+        [ -n "$cfg_port" ] && panel_port="$cfg_port"
+    fi
+    echo "$panel_port"
+}
+
+# True when an existing panel auth store is present (update must not show credential banner).
+has_existing_panel_auth() {
+    if [ -f "$CONSOLE_PATH/data/auth.db" ]; then
+        return 0
+    fi
+    if [ "${USE_POSTGRESQL:-false}" = "true" ]; then
+        return 0
+    fi
+    if [ -f "$CONSOLE_PATH/.env" ] && grep -q '^DATABASE_URL=' "$CONSOLE_PATH/.env" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# On update: reset failed state and sync console service user permissions before start.
+prepare_console_after_update() {
+    if [ ! -f "$CONSOLE_PATH/server.js" ]; then
+        return 0
+    fi
+    systemctl reset-failed betterdesk-console 2>/dev/null || true
+    if [ -f "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" ] && command -v node &>/dev/null; then
+        node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission sync reported issues"
+    fi
+}
+
+maybe_create_admin_user_on_update() {
+    if has_existing_panel_auth; then
+        print_info "Existing installation — admin accounts preserved"
+        return 0
+    fi
+    create_admin_user
+}
+
 # Start services with health verification
 start_services_with_verification() {
     print_step "Starting services with health verification..."
@@ -744,11 +797,15 @@ start_services_with_verification() {
     fi
     
     # Start Node.js console
+    local panel_port console_ok=true
+    panel_port=$(resolve_panel_health_port)
+
     print_info "Starting betterdesk-console (Node.js)..."
-    systemctl start betterdesk-console
+    systemctl restart betterdesk-console
     sleep 2
-    
-    if ! verify_service_health "betterdesk-console" "5000" 10; then
+
+    if ! verify_service_health "betterdesk-console" "$panel_port" 10; then
+        console_ok=false
         print_warning "Web console may not be running correctly"
         local console_state
         console_state=$(systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null)
@@ -756,15 +813,19 @@ start_services_with_verification() {
             print_error "Console service FAILED. Possible causes:"
             print_info "  - Missing npm modules (npm install failed)"
             print_info "  - TLS certificate issue (self-signed cert rejected)"
-            print_info "  - Port 5000 conflict"
+            print_info "  - Port ${panel_port} conflict"
             print_info "Run: journalctl -u betterdesk-console -n 50 --no-pager"
         fi
-        # Don't fail for console - it's not critical
     else
-        print_success "betterdesk-console started and healthy"
+        print_success "betterdesk-console started and healthy (port ${panel_port})"
     fi
-    
-    print_success "All services started and verified"
+
+    if [ "$console_ok" = true ]; then
+        print_success "All services started and verified"
+    else
+        print_warning "Server is running but web console needs attention"
+        print_info "Run: journalctl -u betterdesk-console -n 50 --no-pager"
+    fi
     return 0
 }
 
@@ -3402,7 +3463,6 @@ update_from_github() {
         cp "$clone_dir/VERSION" "$SCRIPT_DIR/VERSION" 2>/dev/null || true
         cp "$clone_dir/VERSION" "$CONSOLE_PATH/VERSION" 2>/dev/null || true
     fi
-    fi
 
     # Cleanup
     rm -rf "$clone_dir"
@@ -3508,7 +3568,8 @@ do_update() {
                 install_console
                 run_migrations
                 maybe_update_services
-                create_admin_user
+                prepare_console_after_update
+                maybe_create_admin_user_on_update
                 start_services_with_verification
                 print_success "Local update completed!"
                 press_enter
@@ -3549,10 +3610,10 @@ do_update() {
     
     # Patch existing units or create missing; optional full recreate (issue #158)
     maybe_update_services "$svc_mode"
-    
-    # Ensure admin user exists (informational; passwords live in auth.db / PostgreSQL)
-    create_admin_user
-    
+
+    prepare_console_after_update
+    maybe_create_admin_user_on_update
+
     # Start services with verification
     start_services_with_verification
     
@@ -5614,14 +5675,11 @@ run_protocol_tests() {
     if [ -f "$env_file" ]; then
         grep -q '^HTTPS_ENABLED=true' "$env_file" 2>/dev/null && https_enabled="true"
     fi
-    local panel_scheme="http" panel_port="5000"
+    local panel_scheme="http" panel_port
+    panel_port=$(resolve_panel_health_port)
     if [ "$https_enabled" = "true" ]; then
-        panel_scheme="https"; panel_port="5443"
+        panel_scheme="https"
     fi
-    # Allow custom ports from .env
-    local cfg_port
-    cfg_port=$(grep -m1 '^PORT=' "$env_file" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
-    [ -n "$cfg_port" ] && panel_port="$cfg_port"
 
     # ── 3. Panel reachability ──
     local panel_code
