@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.17] — 2026-06-12
+
 ### Fixed
 - **Docker admin credential lookup (#195)** — `docker compose exec` as root could not read `.admin_credentials` (mode 0600) on hardened images (`cap_drop: ALL`). Added `betterdesk-show-admin-credentials` helper (re-execs as `betterdesk`); updated README, quick-start compose comments, `install.sh`, and Docker docs. Existing installs without the helper can use `docker compose exec -u betterdesk console …`.
 
@@ -550,3 +557,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.2.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.13...v3.2.14
 [3.2.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.14...v3.2.15
 [3.2.16]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.15...v3.2.16
+[3.2.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.16...v3.2.17

@@ -5,7 +5,7 @@ set -e
 
 echo "========================================"
 echo "  BetterDesk All-in-One Container"
-echo "  Version: ${BETTERDESK_IMAGE_VERSION:-3.2.16}"
+echo "  Version: ${BETTERDESK_IMAGE_VERSION:-3.2.17}"
 echo "========================================"
 echo ""
 echo "Components:"
