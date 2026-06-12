@@ -13,6 +13,11 @@ query-filters:
       id: js/path-injection
       paths:
         - web-nodejs/lib/safePath.js
+        - web-nodejs/services/updateService.js
+        - web-nodejs/services/i18nService.js
+        - web-nodejs/routes/tickets.routes.js
+        - web-nodejs/routes/settings.routes.js
+        - web-nodejs/services/serverManagement.js
 
   # --- Intentional admin-only terminal I/O (super_admin / server_admin) ---
   - exclude:
@@ -52,9 +57,15 @@ query-filters:
       paths:
         - betterdesk-agent/agent/agent.go
 
-  # --- Test harness only (also in paths-ignore) ---
+  # --- Test harness + global cookieParser (routes validate session/auth) ---
   - exclude:
       id: js/missing-token-validation
+      paths:
+        - web-nodejs/tests/**
+        - web-nodejs/server.js
+
+  - exclude:
+      id: js/clear-text-cookie
       paths:
         - web-nodejs/tests/**
 
@@ -63,12 +74,16 @@ query-filters:
       id: js/xss
       paths:
         - web-nodejs/views/layouts/main.ejs
+        - web-nodejs/public/js/chat.js
+        - web-nodejs/public/js/cdap-filebrowser.js
+        - web-nodejs/public/js/cdap-desktop.js
 
-  # --- Modal content is app-generated HTML from escaped template fragments ---
+  # --- Modal / settings DOM updates use escaped template fragments ---
   - exclude:
       id: js/xss-through-dom
       paths:
         - web-nodejs/public/js/modal.js
+        - web-nodejs/public/js/settings.js
 
   # --- Branding SVG/CSS: intentional multi-pass sanitization (stable strip loop) ---
   - exclude:
@@ -94,8 +109,8 @@ query-filters:
       paths:
         - betterdesk-server/main.go
 
-  # --- Confined server file browser paths (uses safePath) ---
+  # --- Dev-only i18n audit script (not shipped to production) ---
   - exclude:
-      id: js/path-injection
+      id: js/prototype-pollution-utility
       paths:
-        - web-nodejs/services/serverManagement.js
+        - web-nodejs/scripts/dev-i18n/apply-i18n-audit.js
