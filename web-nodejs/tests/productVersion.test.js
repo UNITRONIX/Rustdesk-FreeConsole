@@ -42,6 +42,17 @@ describe('productVersion', () => {
         expect(readProductVersion({ rootDir: tmpRoot, consoleDir })).toBe('2.0.1');
     });
 
+    test('reads VERSION from console dir when repo root VERSION is missing', () => {
+        const consoleDir = path.join(tmpRoot, 'console');
+        fs.mkdirSync(consoleDir, { recursive: true });
+        fs.writeFileSync(path.join(consoleDir, 'VERSION'), '3.3.0\n');
+        fs.writeFileSync(
+            path.join(consoleDir, 'package.json'),
+            JSON.stringify({ version: '3.2.0' })
+        );
+        expect(readProductVersion({ rootDir: tmpRoot, consoleDir })).toBe('3.3.0');
+    });
+
     test('returns fallback when no sources available', () => {
         expect(readProductVersion({ rootDir: tmpRoot, fallback: '0.0.0' })).toBe('0.0.0');
     });

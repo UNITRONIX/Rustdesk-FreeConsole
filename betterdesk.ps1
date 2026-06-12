@@ -1393,6 +1393,10 @@ function Install-NodeJsConsole {
     if (Test-Path $envExampleSrc) {
         Copy-Item -Path $envExampleSrc -Destination (Join-Path $script:CONSOLE_PATH ".env.example") -Force
     }
+    $versionSrc = Join-Path $script:ScriptDir "VERSION"
+    if (Test-Path $versionSrc) {
+        Copy-Item -Path $versionSrc -Destination (Join-Path $script:CONSOLE_PATH "VERSION") -Force -ErrorAction SilentlyContinue
+    }
     
     # Install npm dependencies
     Print-Step "Installing npm dependencies..."
@@ -3283,6 +3287,7 @@ function Update-FromGitHub {
     # ---- Step 6: Update VERSION file ----
     if ($remoteVersion -and (Test-Path (Join-Path $cloneDir "VERSION"))) {
         Copy-Item -Path (Join-Path $cloneDir "VERSION") -Destination (Join-Path $script:ScriptDir "VERSION") -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path (Join-Path $cloneDir "VERSION") -Destination (Join-Path $script:CONSOLE_PATH "VERSION") -Force -ErrorAction SilentlyContinue
     }
 
     # Cleanup

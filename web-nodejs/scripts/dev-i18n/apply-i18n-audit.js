@@ -24,9 +24,10 @@ const nordicEastern = require(path.join(DATA_DIR, 'nordic-eastern.js'));
 const asiaRtl = require(path.join(DATA_DIR, 'asia-rtl.js'));
 const gapFill = require(path.join(DATA_DIR, 'gap-fill.js'));
 const enFallbackFixes = require(path.join(DATA_DIR, 'en-fallback-fixes.js'));
+const orgDeviceGroups = require(path.join(DATA_DIR, 'org-device-groups.js'));
 
 const ALL_PATCHES = { ...westEu, ...southCentralEu, ...nordicEastern, ...asiaRtl, ...gapFill };
-const FORCE_PATCHES = enFallbackFixes;
+const FORCE_PATCHES = { ...enFallbackFixes, ...orgDeviceGroups };
 
 function readJson(filePath) {
     const content = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');

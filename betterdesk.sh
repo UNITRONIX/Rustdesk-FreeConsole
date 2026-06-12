@@ -1888,6 +1888,9 @@ install_nodejs_console() {
     if [ -f "$source_folder/.env.example" ]; then
         cp -a "$source_folder/.env.example" "$CONSOLE_PATH/.env.example"
     fi
+    if [ -f "$SCRIPT_DIR/VERSION" ]; then
+        cp -a "$SCRIPT_DIR/VERSION" "$CONSOLE_PATH/VERSION" 2>/dev/null || true
+    fi
     
     # Install npm dependencies
     print_step "Installing npm dependencies..."
@@ -3397,6 +3400,8 @@ update_from_github() {
     # ---- Step 6: Update VERSION file in project root ----
     if [ -f "$clone_dir/VERSION" ] && [ -n "$remote_version" ]; then
         cp "$clone_dir/VERSION" "$SCRIPT_DIR/VERSION" 2>/dev/null || true
+        cp "$clone_dir/VERSION" "$CONSOLE_PATH/VERSION" 2>/dev/null || true
+    fi
     fi
 
     # Cleanup

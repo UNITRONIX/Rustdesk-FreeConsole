@@ -28,8 +28,8 @@
 # (issue #186): use service_started (not service_healthy), pin image tags, and
 # set DB_PATH=/app/data/db_v2.sqlite3 plus AUTH_DB_PATH on the server.
 #
-# Image tag (aligned with CHANGELOG / git tag v3.2.15):
-#   Default: 3.2.15  |  Rolling: BETTERDESK_IMAGE_TAG=latest
+# Image tag (aligned with CHANGELOG / git tag):
+#   Default: 3.2.17  |  Rolling: BETTERDESK_IMAGE_TAG=latest
 # =============================================================================
 
 services:

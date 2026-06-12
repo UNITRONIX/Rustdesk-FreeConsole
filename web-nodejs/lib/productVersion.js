@@ -35,7 +35,16 @@ function readProductVersion({ rootDir, consoleDir, fallback = '0.0.0' } = {}) {
         }
     } catch (_e) { /* fall through */ }
 
-    const fromPkg = readPackageJsonVersion(consoleDir || path.join(projectRoot, 'web-nodejs'));
+    const resolvedConsoleDir = consoleDir || path.join(projectRoot, 'web-nodejs');
+    const consoleVersionFile = path.join(resolvedConsoleDir, 'VERSION');
+    try {
+        if (fs.existsSync(consoleVersionFile)) {
+            const v = fs.readFileSync(consoleVersionFile, 'utf8').trim();
+            if (SEMVER_RE.test(v)) return v;
+        }
+    } catch (_e) { /* fall through */ }
+
+    const fromPkg = readPackageJsonVersion(resolvedConsoleDir);
     if (fromPkg) return fromPkg;
 
     return fallback;
