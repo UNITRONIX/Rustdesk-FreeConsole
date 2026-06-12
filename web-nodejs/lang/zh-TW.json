@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "從現有裝置標籤中選擇標籤",
     "enrollment_tag_picker_hint": "允許操作員從裝置頁面的標籤清單中選擇，而不僅限於手動輸入。",
     "enrollment_open_requests": "開啟註冊請求",
-    "enrollment_pending_count": "{count} 個待處理的註冊請求"
+    "enrollment_pending_count": "{count} 個待處理的註冊請求",
+    "go_server_version": "Go 伺服器",
+    "go_server_version_dev_hint": "Go 二進位報告為開發建置 — 請重新建置或更新伺服器以符合產品版本"
   },
   "audit": {
     "time": "時間",
@@ -2354,7 +2356,26 @@
     "org_role": "組織角色",
     "link_user_hint": "所選使用者將使用其伺服器帐戶憑證連結到此組織。",
     "no_available_users": "所有伺服器使用者都已連結到此組織。",
-    "user_linked": "使用者已連結到組織"
+    "user_linked": "使用者已連結到組織",
+    "device_groups_tab": "裝置群組",
+    "device_groups_intro": "與此組織連結的裝置群組定義成員在 RustDesk 用戶端中可存取哪些機器。請在裝置頁面設定成員與存取權限。",
+    "manage_in_devices": "開啟 裝置 → 群組",
+    "no_org_device_groups": "尚未有裝置群組與此組織連結。",
+    "create_org_device_group": "建立裝置群組",
+    "org_device_group_created": "已建立裝置群組",
+    "org_user_groups_title": "使用者群組",
+    "org_user_groups_intro": "與組織連結的使用者群組可獲得上述裝置群組的存取權（裝置 → 群組 → 允許的使用者群組）。",
+    "no_org_user_groups": "沒有與此組織連結的使用者群組。",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "裝置",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "允許的使用者群組",
+    "group_devices_suffix": "裝置",
+    "group_name_required": "群組名稱為必填",
+    "org_team_id": "組織團隊 ID",
+    "link_team_id_hint": "群組將自動與此組織連結（團隊 ID = 組織 ID）。"
   },
   "chat": {
     "e2e_enabled": "端到端加密",

@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Tags aus vorhandenen Gerate-Tags auswahlen",
     "enrollment_tag_picker_hint": "Ermoglicht Operatoren, Tags aus der auf der Gerateseite verwendeten Liste auszuwahlen, anstatt nur zu tippen.",
     "enrollment_open_requests": "Offene Registrierungsanfragen",
-    "enrollment_pending_count": "{count} ausstehende Registrierungsanfrage(n)"
+    "enrollment_pending_count": "{count} ausstehende Registrierungsanfrage(n)",
+    "go_server_version": "Go-server",
+    "go_server_version_dev_hint": "Go-binary meldt ontwikkelbuild — herbouw of werk de server bij om de productversie te matchen"
   },
   "audit": {
     "time": "Tijd",
@@ -2344,7 +2346,26 @@
     "org_role": "Organisatierol",
     "link_user_hint": "Koppel een bestaande gebruiker aan deze organisatie.",
     "no_available_users": "Geen beschikbare gebruikers",
-    "user_linked": "Gebruiker gekoppeld"
+    "user_linked": "Gebruiker gekoppeld",
+    "device_groups_tab": "Apparaatgroepen",
+    "device_groups_intro": "Apparaatgroepen gekoppeld aan deze organisatie bepalen welke machines leden kunnen bereiken in de RustDesk-client. Configureer lidmaatschap en toegang op de pagina Apparaten.",
+    "manage_in_devices": "Apparaten → Groepen openen",
+    "no_org_device_groups": "Er zijn nog geen apparaatgroepen gekoppeld aan deze organisatie.",
+    "create_org_device_group": "Apparaatgroep maken",
+    "org_device_group_created": "Apparaatgroep aangemaakt",
+    "org_user_groups_title": "Gebruikersgroepen",
+    "org_user_groups_intro": "Gebruikersgroepen gekoppeld aan de organisatie kunnen toegang krijgen tot de apparaatgroepen hierboven (Apparaten → Groepen → Toegestane gebruikersgroepen).",
+    "no_org_user_groups": "Geen gebruikersgroepen gekoppeld aan deze organisatie.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Apparaten",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Toegestane gebruikersgroepen",
+    "group_devices_suffix": "apparaten",
+    "group_name_required": "Groepsnaam is verplicht",
+    "org_team_id": "Organisatie team-ID",
+    "link_team_id_hint": "De groep wordt automatisch gekoppeld aan deze organisatie (team-ID = organisatie-ID)."
   },
   "chat": {
     "e2e_enabled": "End-to-end versleuteld",

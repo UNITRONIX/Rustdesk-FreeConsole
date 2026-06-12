@@ -259,14 +259,18 @@ async function downloadFont(family, weights = ['400', '500', '600', '700']) {
     // Generate local @font-face CSS
     if (downloadedFiles.length > 0) {
         const cssFaces = downloadedFiles.map(file => {
-            const weight = file.match(/-(\d+)\.woff2$/)?.[1] || '400';
-            return `@font-face {
-    font-family: '${family}';
-    font-style: normal;
-    font-weight: ${weight};
-    font-display: swap;
-    src: url('/fonts/${safeName}/${file}') format('woff2');
-}`;
+            const weightMatch = file.match(/-(\d+)\.woff2$/);
+            const weight = (weightMatch && /^\d+$/.test(weightMatch[1])) ? weightMatch[1] : '400';
+            const cssFamily = String(family).replace(/[^a-zA-Z0-9\s-]/g, '').trim() || 'sans-serif';
+            return [
+                '@font-face {',
+                `    font-family: '${cssFamily}';`,
+                '    font-style: normal;',
+                `    font-weight: ${weight};`,
+                '    font-display: swap;',
+                `    src: url('/fonts/${safeName}/${file}') format('woff2');`,
+                '}',
+            ].join('\n');
         }).join('\n\n');
 
         fs.writeFileSync(resolveFontFile(safeName, 'font.css'), cssFaces);

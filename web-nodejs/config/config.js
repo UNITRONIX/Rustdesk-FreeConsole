@@ -30,12 +30,8 @@ if (fs.existsSync(_envFile)) {
     } catch (_e) { /* .env read failed — continue with existing env vars */ }
 }
 
-// Read version from package.json
-let pkgVersion = '2.0.0';
-try {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-    pkgVersion = pkg.version || pkgVersion;
-} catch (e) { /* use default */ }
+const { readProductVersion } = require('../lib/productVersion');
+const pkgVersion = readProductVersion({ consoleDir: path.join(__dirname, '..') });
 
 // Environment / platform detection
 const NODE_ENV = process.env.NODE_ENV || 'development';

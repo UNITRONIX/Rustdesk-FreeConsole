@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "मौजूदा डिवाइस टैग से टैग चुनें",
     "enrollment_tag_picker_hint": "ऑपरेटरों को केवल टाइप करने की बजाय डिवाइस पेज पर उपयोग की गई टैग सूची से चुनने देता है।",
     "enrollment_open_requests": "नामांकन अनुरोध खोलें",
-    "enrollment_pending_count": "{count} लंबित नामांकन अनुरोध"
+    "enrollment_pending_count": "{count} लंबित नामांकन अनुरोध",
+    "go_server_version": "Go सर्वर",
+    "go_server_version_dev_hint": "Go बाइनरी विकास बिल्ड की सूचना देता है — उत्पाद संस्करण से मेल खाने के लिए सर्वर को पुनर्निर्माण या अपडेट करें"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "संगठन की भूमिका",
     "link_user_hint": "चयनित उपयोगकर्ता को उनके सर्वर खाता क्रेडेंशियल का उपयोग करके इस संगठन से जोड़ा जाएगा।",
     "no_available_users": "सभी सर्वर उपयोगकर्ता पहले से ही इस संगठन से जुड़े हुए हैं।",
-    "user_linked": "उपयोगकर्ता संगठन से जुड़ा हुआ है"
+    "user_linked": "उपयोगकर्ता संगठन से जुड़ा हुआ है",
+    "device_groups_tab": "डिवाइस समूह",
+    "device_groups_intro": "इस संगठन से जुड़े डिवाइस समूह निर्धारित करते हैं कि सदस्य RustDesk क्लाइंट में किन मशीनों तक पहुँच सकते हैं। सदस्यता और पहुँच डिवाइस पृष्ठ पर सेट करें।",
+    "manage_in_devices": "डिवाइस → समूह खोलें",
+    "no_org_device_groups": "इस संगठन से अभी तक कोई डिवाइस समूह जुड़ा नहीं है।",
+    "create_org_device_group": "डिवाइस समूह बनाएँ",
+    "org_device_group_created": "डिवाइस समूह बनाया गया",
+    "org_user_groups_title": "उपयोगकर्ता समूह",
+    "org_user_groups_intro": "संगठन से जुड़े उपयोगकर्ता समूहों को ऊपर के डिवाइस समूहों तक पहुँच दी जा सकती है (डिवाइस → समूह → अनुमत उपयोगकर्ता समूह)।",
+    "no_org_user_groups": "इस संगठन से कोई उपयोगकर्ता समूह जुड़ा नहीं है।",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "डिवाइस",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "अनुमत उपयोगकर्ता समूह",
+    "group_devices_suffix": "डिवाइस",
+    "group_name_required": "समूह का नाम आवश्यक है",
+    "org_team_id": "संगठन टीम ID",
+    "link_team_id_hint": "समूह स्वचालित रूप से इस संगठन से जुड़ जाएगा (टीम ID = संगठन ID)।"
   },
   "chat": {
     "e2e_enabled": "एंड-टू-एंड एन्क्रिप्टेड",

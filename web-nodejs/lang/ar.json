@@ -582,7 +582,9 @@
     "enrollment_tag_picker": "اختر علامات من علامات الأجهزة الموجودة",
     "enrollment_tag_picker_hint": "يتيح للمشغلين اختيار علامات من القائمة المستخدمة في صفحة الأجهزة بدلًا من الكتابة فقط.",
     "enrollment_open_requests": "فتح طلبات التسجيل",
-    "enrollment_pending_count": "{count} طلب تسجيل معلق"
+    "enrollment_pending_count": "{count} طلب تسجيل معلق",
+    "go_server_version": "خادم Go",
+    "go_server_version_dev_hint": "الثنائي Go يبلغ عن بناء تطويري — أعد البناء أو حدّث الخادم ليطابق إصدار المنتج"
   },
   "audit": {
     "time": "Time",
@@ -2351,7 +2353,26 @@
     "org_role": "الدور التنظيمي",
     "link_user_hint": "سيتم ربط المستخدم المحدد بهذه المؤسسة باستخدام بيانات اعتماد حساب الخادم الخاص به.",
     "no_available_users": "جميع مستخدمي الخادم مرتبطون بالفعل بهذه المؤسسة.",
-    "user_linked": "المستخدم مرتبط بالمنظمة"
+    "user_linked": "المستخدم مرتبط بالمنظمة",
+    "device_groups_tab": "مجموعات الأجهزة",
+    "device_groups_intro": "تحدد مجموعات الأجهزة المرتبطة بهذه المنظمة الأجهزة التي يمكن للأعضاء الوصول إليها في عميل RustDesk. اضبط العضوية والوصول من صفحة الأجهزة.",
+    "manage_in_devices": "فتح الأجهزة → المجموعات",
+    "no_org_device_groups": "لا توجد مجموعات أجهزة مرتبطة بهذه المنظمة بعد.",
+    "create_org_device_group": "إنشاء مجموعة أجهزة",
+    "org_device_group_created": "تم إنشاء مجموعة الأجهزة",
+    "org_user_groups_title": "مجموعات المستخدمين",
+    "org_user_groups_intro": "يمكن منح مجموعات المستخدمين المرتبطة بهذه المنظمة وصولاً إلى مجموعات الأجهزة أعلاه (الأجهزة → المجموعات → مجموعات المستخدمين المسموح بها).",
+    "no_org_user_groups": "لا توجد مجموعات مستخدمين مرتبطة بهذه المنظمة.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "الأجهزة",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "مجموعات المستخدمين المسموح بها",
+    "group_devices_suffix": "أجهزة",
+    "group_name_required": "اسم المجموعة مطلوب",
+    "org_team_id": "معرّف فريق المنظمة",
+    "link_team_id_hint": "ستُربط المجموعة تلقائياً بهذه المنظمة (معرّف الفريق = معرّف المنظمة)."
   },
   "chat": {
     "e2e_enabled": "مشفرة من طرف إلى طرف",

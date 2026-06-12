@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "Mevcut cihaz etiketlerinden etiket seç",
     "enrollment_tag_picker_hint": "Operatörlerin yalnızca yazmak yerine Cihazlar sayfasındaki etiket listesinden seçmesine olanak tanır.",
     "enrollment_open_requests": "Kayıt isteklerini aç",
-    "enrollment_pending_count": "{count} bekleyen kayıt isteği"
+    "enrollment_pending_count": "{count} bekleyen kayıt isteği",
+    "go_server_version": "Go sunucusu",
+    "go_server_version_dev_hint": "Go ikilisi geliştirme derlemesi bildiriyor — ürün sürümüyle eşleşmesi için sunucuyu yeniden derleyin veya güncelleyin"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "Organizasyon Rolü",
     "link_user_hint": "Seçilen kullanıcı, sunucu hesabı kimlik bilgilerini kullanarak bu kuruluşa bağlanacak.",
     "no_available_users": "Tüm sunucu kullanıcıları zaten bu kuruluşa bağlı.",
-    "user_linked": "Kullanıcı kuruluşa bağlı"
+    "user_linked": "Kullanıcı kuruluşa bağlı",
+    "device_groups_tab": "Cihaz grupları",
+    "device_groups_intro": "Bu kuruluşa bağlı cihaz grupları, üyelerin RustDesk istemcisinde hangi makinelere erişebileceğini belirler. Üyelik ve erişimi Cihazlar sayfasından yapılandırın.",
+    "manage_in_devices": "Cihazlar → Gruplar'ı aç",
+    "no_org_device_groups": "Bu kuruluşa henüz bağlı cihaz grubu yok.",
+    "create_org_device_group": "Cihaz grubu oluştur",
+    "org_device_group_created": "Cihaz grubu oluşturuldu",
+    "org_user_groups_title": "Kullanıcı grupları",
+    "org_user_groups_intro": "Kuruluşa bağlı kullanıcı gruplarına yukarıdaki cihaz gruplarına erişim verilebilir (Cihazlar → Gruplar → İzin verilen kullanıcı grupları).",
+    "no_org_user_groups": "Bu kuruluşa bağlı kullanıcı grubu yok.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Cihazlar",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "İzin verilen kullanıcı grupları",
+    "group_devices_suffix": "cihaz",
+    "group_name_required": "Grup adı gerekli",
+    "org_team_id": "Kuruluş ekip kimliği",
+    "link_team_id_hint": "Grup otomatik olarak bu kuruluşa bağlanacaktır (ekip ID = kuruluş ID)."
   },
   "chat": {
     "e2e_enabled": "Uçtan uca şifrelenmiş",

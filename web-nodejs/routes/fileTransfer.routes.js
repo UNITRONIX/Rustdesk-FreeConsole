@@ -29,6 +29,7 @@ const fs = require('fs');
 const fileTransferService = require('../services/fileTransferService');
 
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { uploadLimiter, fileAccessLimiter } = require('../middleware/rateLimiter');
 
 // ---------------------------------------------------------------------------
 //  Middleware helpers
@@ -50,7 +51,7 @@ function identifyDevice(req, res, next) {
 /**
  * POST /api/files/transfer — Initiate a file transfer
  */
-router.post('/transfer', requireAuth, requirePermission('device.connect'), (req, res) => {
+router.post('/transfer', uploadLimiter, requireAuth, requirePermission('device.connect'), (req, res) => {
     try {
         const { direction, device_id, filename, size, mime_type } = req.body;
 
@@ -119,7 +120,7 @@ router.post('/transfers/:id/cancel', requireAuth, requirePermission('device.conn
 /**
  * GET /api/files/transfers/:id/download — Download completed file
  */
-router.get('/transfers/:id/download', requireAuth, requirePermission('device.connect'), (req, res) => {
+router.get('/transfers/:id/download', fileAccessLimiter, requireAuth, requirePermission('device.connect'), (req, res) => {
     const transfer = fileTransferService.getTransfer(req.params.id);
     if (!transfer) {
         return res.status(404).json({ error: 'Transfer not found' });

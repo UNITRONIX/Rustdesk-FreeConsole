@@ -543,6 +543,76 @@ server {
 }
 ```
 
+### Reverse Proxy with WSS (RustDesk Clients)
+
+When BetterDesk runs in Docker and a reverse proxy (Nginx, Nginx Proxy Manager,
+Caddy, Traefik) terminates HTTPS on the host, the **console** and **RustDesk WSS**
+endpoints use different upstream ports.
+
+| Public path | Host upstream | Container service | Purpose |
+|-------------|---------------|-------------------|---------|
+| `/` (panel) | `http://HOST:5000` | `console` | Web admin UI |
+| `/ws/id` | `http://HOST:21118` | `server` (Go) | RustDesk signal / rendezvous WSS |
+| `/ws/relay` | `http://HOST:21119` | `server` (Go) | RustDesk relay WSS |
+
+Docker Compose publishes `21118` and `21119` on the host by default
+(see `docker-compose.yml`). The proxy on the host should target **`127.0.0.1`**
+or the host LAN IP — not the container name — when the proxy runs outside the
+Docker bridge network.
+
+**Do not** route `/ws/id` or `/ws/relay` to port `5000`. The console exposes
+different WebSocket paths (`/ws/rendezvous`, chat, remote viewer, etc.).
+
+Example nginx locations (add to the same `server` block as the panel):
+
+```nginx
+location = /ws/id {
+    proxy_pass http://127.0.0.1:21118;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_read_timeout 120s;
+}
+
+location = /ws/relay {
+    proxy_pass http://127.0.0.1:21119;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_read_timeout 120s;
+}
+```
+
+**Nginx Proxy Manager:** create one Proxy Host for your domain with the main
+forward to `:5000` (Websockets ON), then add Custom Locations for `/ws/id` →
+`:21118` and `/ws/relay` → `:21119` (Websockets ON on each). Use `http://`
+backends unless Enterprise TLS is enabled on the Go server.
+
+**Verify from the Docker host:**
+
+```bash
+curl -i -N \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  http://127.0.0.1:21118/ws/id
+```
+
+Expected: `HTTP/1.1 101 Switching Protocols`.
+
+Full troubleshooting (TLS SNI errors, keepalive timeouts): see
+[HTTPS Setup — RustDesk WSS](../setup/HTTPS_SETUP.md#rustdesk-client-wss-through-nginx).
+
 ---
 
 **Updated:** January 2026

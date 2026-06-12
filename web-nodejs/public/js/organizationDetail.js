@@ -1,7 +1,7 @@
 /**
  * BetterDesk Console — Organization Detail Page JavaScript
  *
- * Handles org detail view with tabs: Users, Devices, Invitations, Settings.
+ * Handles org detail view with tabs: Users, Devices, Invitations, Settings, Device Groups.
  * Uses Modal.show() for form inputs, i18n for all strings.
  */
 'use strict';
@@ -76,6 +76,7 @@
             document.querySelectorAll('.org-tab-content').forEach(c => c.style.display = 'none');
             tab.classList.add('active');
             document.getElementById(`tab-${tab.dataset.tab}`).style.display = 'block';
+            if (tab.dataset.tab === 'device-groups') loadDeviceGroups();
         });
     });
 
@@ -602,6 +603,154 @@
     }
 
     // -----------------------------------------------------------------------
+    //  Device groups linked to this organization (team_id)
+    // -----------------------------------------------------------------------
+    function groupTypeLabel(group) {
+        if ((group.source_type || 'manual') === 'tag' && group.tag_filter) {
+            return `${t('group_type_tag')}: ${group.tag_filter}`;
+        }
+        return t('group_type_manual');
+    }
+
+    function renderOrgGroupsList(groups, emptyKey) {
+        if (!groups.length) {
+            return `<p class="form-hint org-groups-empty">${escHtml(t(emptyKey))}</p>`;
+        }
+        return `
+            <table class="data-table org-groups-table">
+                <thead>
+                    <tr>
+                        <th>${escHtml(t('group_name'))}</th>
+                        <th>${escHtml(t('group_type'))}</th>
+                        <th>${escHtml(t('group_members'))}</th>
+                        <th>${escHtml(t('group_allowed_user_groups'))}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${groups.map(group => `
+                        <tr>
+                            <td>
+                                <strong>${escHtml(group.name || group.guid)}</strong>
+                                ${group.note ? `<div class="text-muted org-group-note">${escHtml(group.note)}</div>` : ''}
+                            </td>
+                            <td>${escHtml(groupTypeLabel(group))}</td>
+                            <td>${escHtml(String(group.member_count ?? 0))}</td>
+                            <td>${escHtml(
+                                (group.allowed_user_groups || [])
+                                    .map(g => g.name || g.guid)
+                                    .filter(Boolean)
+                                    .join(', ') || '—'
+                            )}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>`;
+    }
+
+    async function loadDeviceGroups() {
+        try {
+            const data = await api('GET', '/device-groups');
+            const container = document.getElementById('device-groups-container');
+            if (!container) return;
+
+            const deviceGroups = data.device_groups || [];
+            const userGroups = data.user_groups || [];
+
+            container.innerHTML = `
+                <p class="form-hint">${escHtml(t('device_groups_intro'))}</p>
+                <p class="form-hint org-team-id-hint">
+                    <code>${escHtml(t('org_team_id'))}: ${escHtml(orgId)}</code>
+                </p>
+                <div class="org-section-actions">
+                    <button class="btn btn-primary btn-sm" id="create-org-device-group-btn">
+                        <span class="material-icons">add</span> ${escHtml(t('create_org_device_group'))}
+                    </button>
+                </div>
+                ${renderOrgGroupsList(deviceGroups, 'no_org_device_groups')}
+                <h3 class="org-groups-subtitle">${escHtml(t('org_user_groups_title'))}</h3>
+                <p class="form-hint">${escHtml(t('org_user_groups_intro'))}</p>
+                ${userGroups.length ? `
+                    <table class="data-table org-groups-table">
+                        <thead>
+                            <tr>
+                                <th>${escHtml(t('group_name'))}</th>
+                                <th>${escHtml(_('users.members') || 'Members')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${userGroups.map(group => `
+                                <tr>
+                                    <td>
+                                        <strong>${escHtml(group.name || group.guid)}</strong>
+                                        ${group.note ? `<div class="text-muted org-group-note">${escHtml(group.note)}</div>` : ''}
+                                    </td>
+                                    <td>${escHtml(String(group.member_count ?? 0))}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                ` : `<p class="form-hint org-groups-empty">${escHtml(t('no_org_user_groups'))}</p>`}
+            `;
+
+            document.getElementById('create-org-device-group-btn')?.addEventListener('click', () => {
+                const defaultName = currentOrg.name
+                    ? `${currentOrg.name} — ${t('group_devices_suffix')}`
+                    : t('create_org_device_group');
+                Modal.show({
+                    title: t('create_org_device_group'),
+                    content: `
+                        <div class="form-group">
+                            <label class="form-label">${escHtml(t('group_name'))}</label>
+                            <input type="text" id="modal-org-dg-name" class="form-input" value="${escHtml(defaultName)}" maxlength="80">
+                        </div>
+                        <p class="form-hint">${escHtml(t('link_team_id_hint'))}</p>
+                    `,
+                    buttons: [
+                        { label: _('actions.cancel') || 'Cancel', class: 'btn-secondary', onClick: () => Modal.close() },
+                        {
+                            label: _('actions.create') || 'Create',
+                            class: 'btn-primary',
+                            onClick: async () => {
+                                const name = document.getElementById('modal-org-dg-name')?.value?.trim();
+                                if (!name) {
+                                    toast(t('group_name_required'), 'error');
+                                    return;
+                                }
+                                try {
+                                    const csrfToken = window.BetterDesk?.csrfToken || '';
+                                    const res = await fetch('/api/device-groups', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            ...(csrfToken ? { 'x-csrf-token': csrfToken } : {})
+                                        },
+                                        body: JSON.stringify({
+                                            name,
+                                            team_id: orgId,
+                                            source_type: 'manual'
+                                        })
+                                    });
+                                    if (!res.ok) {
+                                        const err = await res.json().catch(() => ({}));
+                                        throw new Error(err.error || 'Request failed');
+                                    }
+                                    Modal.close();
+                                    toast(t('org_device_group_created'), 'success');
+                                    loadDeviceGroups();
+                                } catch (err) {
+                                    toast(err.message || t('loading_failed'), 'error');
+                                }
+                            }
+                        }
+                    ]
+                });
+            });
+        } catch (err) {
+            toast(t('loading_failed'), 'error');
+        }
+    }
+
+    // -----------------------------------------------------------------------
     //  Delete org
     // -----------------------------------------------------------------------
     document.getElementById('org-delete-btn')?.addEventListener('click', async () => {
@@ -663,5 +812,6 @@
     loadDevices();
     loadInvitations();
     loadSettings();
+    loadDeviceGroups();
 
 })();

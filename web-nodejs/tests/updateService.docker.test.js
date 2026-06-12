@@ -50,6 +50,21 @@ describe('updateService docker image deployment', () => {
         expect(fs.existsSync(path.join(dataDir, '.server_binary_stale'))).toBe(false);
     });
 
+    test('bootstrap clears stale panel update result after image pull (#192)', () => {
+        const imageSha = 'abc123def4567890abcdef1234567890abcdef';
+        fs.writeFileSync(
+            path.join(dataDir, '.last_update_result.json'),
+            JSON.stringify({
+                sha: imageSha,
+                failed: [{ file: 'betterdesk.sh', error: 'EACCES', nonCritical: true }],
+            })
+        );
+
+        loadUpdateService({ dataDir, imageSha });
+
+        expect(fs.existsSync(path.join(dataDir, '.last_update_result.json'))).toBe(false);
+    });
+
     test('applyUpdate rejects in-app installs', async () => {
         const updateService = loadUpdateService({
             dataDir,

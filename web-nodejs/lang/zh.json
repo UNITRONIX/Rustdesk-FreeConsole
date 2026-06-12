@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "从现有设备标签中选择标签",
     "enrollment_tag_picker_hint": "允许操作员从设备页面标签列表中选择，而不仅限于手动输入。",
     "enrollment_open_requests": "打开注册请求",
-    "enrollment_pending_count": "{count} 个待处理注册请求"
+    "enrollment_pending_count": "{count} 个待处理注册请求",
+    "go_server_version": "Go 服务器",
+    "go_server_version_dev_hint": "Go 二进制报告为开发构建 — 请重新构建或更新服务器以匹配产品版本"
   },
   "audit": {
     "time": "时间",
@@ -2415,7 +2417,26 @@
     "org_role": "组织角色",
     "link_user_hint": "所选用户将使用其服务器帐户凭据链接到此组织。",
     "no_available_users": "所有服务器用户都已链接到此组织。",
-    "user_linked": "用户已链接到组织"
+    "user_linked": "用户已链接到组织",
+    "device_groups_tab": "设备分组",
+    "device_groups_intro": "与此组织关联的设备分组定义成员在 RustDesk 客户端中可访问哪些机器。请在设备页面配置成员和访问权限。",
+    "manage_in_devices": "打开 设备 → 分组",
+    "no_org_device_groups": "尚未有设备分组与此组织关联。",
+    "create_org_device_group": "创建设备分组",
+    "org_device_group_created": "设备分组已创建",
+    "org_user_groups_title": "用户分组",
+    "org_user_groups_intro": "与此组织关联的用户分组可获得上述设备分组的访问权限（设备 → 分组 → 允许的用户分组）。",
+    "no_org_user_groups": "没有与此组织关联的用户分组。",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "设备",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "允许的用户分组",
+    "group_devices_suffix": "设备",
+    "group_name_required": "分组名称为必填项",
+    "org_team_id": "组织团队 ID",
+    "link_team_id_hint": "该分组将自动与此组织关联（团队 ID = 组织 ID）。"
   },
   "chat": {
     "e2e_enabled": "端到端加密",

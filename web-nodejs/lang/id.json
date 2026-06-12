@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "Pilih tag dari tag perangkat yang ada",
     "enrollment_tag_picker_hint": "Memungkinkan operator memilih tag dari daftar di halaman Perangkat alih-alih hanya mengetik.",
     "enrollment_open_requests": "Buka permintaan pendaftaran",
-    "enrollment_pending_count": "{count} permintaan pendaftaran tertunda"
+    "enrollment_pending_count": "{count} permintaan pendaftaran tertunda",
+    "go_server_version": "Server Go",
+    "go_server_version_dev_hint": "Biner Go melaporkan build pengembangan — bangun ulang atau perbarui server agar sesuai versi produk"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "Peran Organisasi",
     "link_user_hint": "Pengguna yang dipilih akan ditautkan ke organisasi ini menggunakan kredensial akun server mereka.",
     "no_available_users": "Semua pengguna server sudah tertaut ke organisasi ini.",
-    "user_linked": "Pengguna tertaut ke organisasi"
+    "user_linked": "Pengguna tertaut ke organisasi",
+    "device_groups_tab": "Grup perangkat",
+    "device_groups_intro": "Grup perangkat yang ditautkan ke organisasi ini menentukan mesin mana yang dapat diakses anggota di klien RustDesk. Atur keanggotaan dan akses di halaman Perangkat.",
+    "manage_in_devices": "Buka Perangkat → Grup",
+    "no_org_device_groups": "Belum ada grup perangkat yang ditautkan ke organisasi ini.",
+    "create_org_device_group": "Buat grup perangkat",
+    "org_device_group_created": "Grup perangkat dibuat",
+    "org_user_groups_title": "Grup pengguna",
+    "org_user_groups_intro": "Grup pengguna yang ditautkan ke organisasi dapat diberi akses ke grup perangkat di atas (Perangkat → Grup → Grup pengguna yang diizinkan).",
+    "no_org_user_groups": "Tidak ada grup pengguna yang ditautkan ke organisasi ini.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Perangkat",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Grup pengguna yang diizinkan",
+    "group_devices_suffix": "perangkat",
+    "group_name_required": "Nama grup wajib diisi",
+    "org_team_id": "ID tim organisasi",
+    "link_team_id_hint": "Grup akan otomatis ditautkan ke organisasi ini (team ID = ID organisasi)."
   },
   "chat": {
     "e2e_enabled": "Dienkripsi ujung ke ujung",

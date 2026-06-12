@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.2.0
+#   BetterDesk Console Manager v3.2.20
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -36,7 +36,7 @@
 set -e
 
 # Version
-VERSION="3.2.0"
+VERSION="3.2.20"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Auto mode flag
@@ -1419,7 +1419,7 @@ compile_go_server() {
     go mod download
     
     # Build with optimizations
-    CGO_ENABLED=0 go build -ldflags="-s -w" -o "$output_name" .
+    CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=${VERSION}" -o "$output_name" .
     
     if [ -f "$output_name" ]; then
         chmod +x "$output_name"
@@ -1887,6 +1887,9 @@ install_nodejs_console() {
     cp -r "$source_folder/"* "$CONSOLE_PATH/"
     if [ -f "$source_folder/.env.example" ]; then
         cp -a "$source_folder/.env.example" "$CONSOLE_PATH/.env.example"
+    fi
+    if [ -f "$SCRIPT_DIR/VERSION" ]; then
+        cp -a "$SCRIPT_DIR/VERSION" "$CONSOLE_PATH/VERSION" 2>/dev/null || true
     fi
     
     # Install npm dependencies
@@ -3389,6 +3392,7 @@ update_from_github() {
             mkdir -p "$CONSOLE_PATH/data"
             echo "$remote_sha" > "$CONSOLE_PATH/data/.update_sha"
             echo "$remote_sha" > "$CONSOLE_PATH/data/.agent_source_sha"
+            rm -f "$CONSOLE_PATH/data/.last_update_result.json"
             print_info "SHA tracking updated: ${remote_sha:0:7}"
         fi
     fi
@@ -3396,6 +3400,8 @@ update_from_github() {
     # ---- Step 6: Update VERSION file in project root ----
     if [ -f "$clone_dir/VERSION" ] && [ -n "$remote_version" ]; then
         cp "$clone_dir/VERSION" "$SCRIPT_DIR/VERSION" 2>/dev/null || true
+        cp "$clone_dir/VERSION" "$CONSOLE_PATH/VERSION" 2>/dev/null || true
+    fi
     fi
 
     # Cleanup

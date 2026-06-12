@@ -581,7 +581,9 @@
     "advanced_file_build-env": "Agent-Build-Umgebung (/etc/betterdesk/build.env)",
     "advanced_file_docker-supervisord": "Docker: supervisord.conf (supervisor-konfiguration)",
     "advanced_file_docker-compose": "Docker: docker-compose.yml (orkestrering)",
-    "advanced_restart_none": "Für diese Fil ist kein Tjenesteneustart erforderlich."
+    "advanced_restart_none": "Für diese Fil ist kein Tjenesteneustart erforderlich.",
+    "go_server_version": "Go-server",
+    "go_server_version_dev_hint": "Go-binær rapporterer udviklingsbuild — genopbyg eller opdater serveren for at matche produktversionen"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "Organisations rolle",
     "link_user_hint": "Den valgte bruger vil blive knyttet til denne organisation ved hjælp af deres serverkontooplysninger.",
     "no_available_users": "Alle serverbrugere er allerede knyttet til denne organisation.",
-    "user_linked": "Bruger knyttet til organisation"
+    "user_linked": "Bruger knyttet til organisation",
+    "device_groups_tab": "Enhedsgrupper",
+    "device_groups_intro": "Enhedsgrupper knyttet til denne organisation definerer, hvilke maskiner medlemmer kan nå i RustDesk-klienten. Konfigurer medlemskab og adgang på siden Enheder.",
+    "manage_in_devices": "Åbn Enheder → Grupper",
+    "no_org_device_groups": "Ingen enhedsgrupper er knyttet til denne organisation endnu.",
+    "create_org_device_group": "Opret enhedsgruppe",
+    "org_device_group_created": "Enhedsgruppe oprettet",
+    "org_user_groups_title": "Brugergrupper",
+    "org_user_groups_intro": "Brugergrupper knyttet til organisationen kan få adgang til enhedsgrupperne ovenfor (Enheder → Grupper → Tilladte brugergrupper).",
+    "no_org_user_groups": "Ingen brugergrupper knyttet til denne organisation.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Enheder",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Tilladte brugergrupper",
+    "group_devices_suffix": "enheder",
+    "group_name_required": "Gruppenavn er påkrævet",
+    "org_team_id": "Organisationens team-ID",
+    "link_team_id_hint": "Gruppen knyttes automatisk til denne organisation (team-ID = organisations-ID)."
   },
   "chat": {
     "e2e_enabled": "End-to-end krypteret",

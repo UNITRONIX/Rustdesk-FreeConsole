@@ -28,12 +28,24 @@ GitHub `compare` API caps `files` at 300, so large diffs are truncated and chang
 - **Services:** `patch_service_definitions` / `Patch-ServiceDefinitions` on every update when units exist; full `Setup-Services` only when missing or when operator confirms recreate (`[y/N]` prompt) / `UPDATE_REFRESH_SERVICES=true`.
 - **Script update failure:** GitHub update returns non-zero if Go server binary compile fails.
 
+### Stale panel warning after script / Docker update (#192)
+
+`data/.last_update_result.json` stores the last **in-panel** update outcome. A failed panel attempt (e.g. `EACCES` on root-owned `/opt/` files) can leave a red banner even when a later **script** or **Docker** update succeeded.
+
+| Update path | Clears stale banner |
+|-------------|---------------------|
+| Settings → Updates (panel, success) | Yes — or only critical failures persisted |
+| `betterdesk.sh` GitHub update | Yes — removes `.last_update_result.json` when writing `.update_sha` |
+| `betterdesk.ps1` GitHub update | Yes — same as Bash |
+| `betterdesk-docker.sh` GitHub rebuild | Yes — host `web-nodejs/data` + running console volume |
+| `docker compose pull` (GHCR images) | Yes — console startup syncs image SHA and prunes stale result |
+
 ## Docker Compose (GHCR images)
 
 When the console runs from `ghcr.io/.../betterdesk-console` (see `docker-compose.quick.yml`):
 
 - Updates are **image-based**, not in-app GitHub file download + Go compile.
-- Each console image embeds the build commit (`BETTERDESK_IMAGE_SHA` / `/app/.image-commit`). On startup the panel syncs `data/.update_sha` to that value and clears stale `.server_binary_stale` markers left by earlier in-app attempts.
+- Each console image embeds the build commit (`BETTERDESK_IMAGE_SHA` / `/app/.image-commit`). On startup the panel syncs `data/.update_sha` to that value, clears stale `.server_binary_stale` markers, and drops obsolete `data/.last_update_result.json` from earlier in-app attempts (#192).
 - Settings → Updates shows **pull instructions** (`docker compose pull && docker compose up -d`) instead of Install / Rebuild server binary.
 - `POST /api/settings/updates/install` and `rebuildServerBinary()` are rejected in this mode.
 

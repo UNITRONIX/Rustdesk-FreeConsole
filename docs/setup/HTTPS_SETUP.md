@@ -254,6 +254,32 @@ Notes:
     `host:21117` from the client or console relay settings; otherwise the client
     may still try the raw TCP relay port.
 
+### Nginx Proxy Manager (NPM) with Docker
+
+When BetterDesk runs in Docker (bridge mode) and NPM runs on the **host** (host
+network mode), TLS terminates at NPM on port 443. NPM must forward RustDesk WSS
+paths to the **published host ports**, not the console container port.
+
+| NPM setting | Value |
+|-------------|-------|
+| Domain | Your public hostname (must match RustDesk client ID server) |
+| Forward Hostname / Port | `HOST_IP:5000` (console panel) |
+| Websockets Support | **ON** |
+| Custom Location `/ws/id` | `http://HOST_IP:21118` — Websockets **ON** |
+| Custom Location `/ws/relay` | `http://HOST_IP:21119` — Websockets **ON** |
+
+Replace `HOST_IP` with `127.0.0.1` or the Docker host LAN address. Do **not**
+use the Docker container name (for example `betterdesk-server:21118`) when NPM
+runs outside the Docker network namespace.
+
+Backend scheme must be **`http://`** unless you enabled Enterprise TLS on the Go
+server (`-tls-signal` / `-tls-relay`). With default Docker images, the Go server
+listens for plain WebSocket on `21118` / `21119`; NPM handles HTTPS/WSS on 443.
+
+Keep `HTTPS_ENABLED=false` in the console `.env` when NPM terminates TLS.
+
+See also [Docker + external proxy](../docker/DOCKER_SUPPORT.md#reverse-proxy-with-wss-rustdesk-clients).
+
 ---
 
 ## Environment Variables Reference
@@ -324,6 +350,38 @@ If you access the console via HTTPS but see mixed content warnings, ensure `HTTP
 ### Behind a Reverse Proxy
 
 When using a reverse proxy (Caddy/Nginx), keep `HTTPS_ENABLED=false` and let the proxy handle TLS. The proxy should set `X-Forwarded-Proto: https` so the application knows the original protocol. Express trusts proxy headers when configured—this is handled automatically.
+
+### RustDesk WSS Symptom Guide
+
+| Client log / symptom | Likely cause | Fix |
+|----------------------|--------------|-----|
+| `AlertReceived(UnrecognisedName)` on `wss://domain/ws/id` | TLS certificate on `:443` does not match the domain (SNI mismatch) | Issue or renew NPM/nginx cert for that hostname; verify NAT forwards 443 to the proxy |
+| `An unexpected message has been received...` (native-tls) | Protocol mismatch at TLS layer (plain HTTP backend, wrong port, or double TLS) | Ensure NPM proxies to `http://HOST:21118`, not `https://`, unless Enterprise TLS is enabled on Go |
+| `Rendezvous connection is timeout` after `Client handshake done` | Keepalive / proxy timeout after successful WSS upgrade | Update BetterDesk (fix in [#144](https://github.com/UNITRONIX/BetterDesk/issues/144)); set `proxy_read_timeout` ≥ 120s on `/ws/id` |
+| `Rendezvous connection is reset by the peer` ~30s after handshake | Peer marked offline; keepalive not reaching server | Same as above; confirm `/ws/id` reaches port `21118`, not console `:5000` |
+| `HTTP/1.1 401` or `403` on WebSocket upgrade | Console session / origin check (panel paths, not RustDesk `/ws/id`) | Route `/ws/id` and `/ws/relay` to Go ports `21118` / `21119` |
+
+**Diagnostic commands** (run from the reverse-proxy host):
+
+```bash
+# 1. Certificate covers the client hostname?
+openssl s_client -connect YOUR_DOMAIN:443 -servername YOUR_DOMAIN </dev/null 2>/dev/null \
+  | openssl x509 -noout -subject -ext subjectAltName
+
+# 2. Go signal WebSocket reachable locally?
+curl -i -N \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  http://127.0.0.1:21118/ws/id
+
+# 3. Proxy forwards WSS correctly?
+curl -i -N \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  https://YOUR_DOMAIN/ws/id
+```
 
 ### Web Remote Client Not Working Through Nginx
 

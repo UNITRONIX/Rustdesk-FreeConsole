@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)
-![Version](https://img.shields.io/badge/version-3.2.0-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-3.2.20-brightgreen.svg)
 ![Security](https://img.shields.io/badge/Security-TLS%20%2B%20NaCl%20%2B%20TOTP%20%2B%20E2EE-green.svg)
 ![Database](https://img.shields.io/badge/DB-SQLite%20%2B%20PostgreSQL-blue.svg)
 ![CDAP](https://img.shields.io/badge/CDAP-v1.0-orange.svg)
@@ -597,8 +597,8 @@ Install files land in `/opt/betterdesk/docker` (Docker) or `/opt/betterdesk/sour
 curl -fsSL https://raw.githubusercontent.com/UNITRONIX/Rustdesk-FreeConsole/main/docker-compose.quick.yml -o docker-compose.yml
 docker compose up -d
 
-# Get admin password
-docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
+# Get admin password (helper re-execs as betterdesk — required with cap_drop:ALL)
+docker compose exec console betterdesk-show-admin-credentials
 ```
 
 Open http://localhost:5000 — done in 30 seconds! See [DOCKER_QUICKSTART.md](docs/docker/DOCKER_QUICKSTART.md) for more options.

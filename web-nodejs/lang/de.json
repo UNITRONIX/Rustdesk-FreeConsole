@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Tags aus vorhandenen Geräte-Tags auswählen",
     "enrollment_tag_picker_hint": "Ermöglicht Operatoren, Tags aus der auf der Geräteseite verwendeten Liste auszuwählen, anstatt nur zu tippen.",
     "enrollment_open_requests": "Offene Registrierungsanfragen",
-    "enrollment_pending_count": "{count} ausstehende Registrierungsanfrage(n)"
+    "enrollment_pending_count": "{count} ausstehende Registrierungsanfrage(n)",
+    "go_server_version": "Go-Server",
+    "go_server_version_dev_hint": "Go-Binary meldet Entwicklungsbuild — Server neu bauen oder aktualisieren, um die Produktversion anzugleichen"
   },
   "audit": {
     "time": "Zeit",
@@ -2344,7 +2346,26 @@
     "org_role": "Organisationsrolle",
     "link_user_hint": "Verknüpfen Sie einen vorhandenen Benutzer mit dieser Organisation.",
     "no_available_users": "Keine verfügbaren Benutzer",
-    "user_linked": "Benutzer verknüpft"
+    "user_linked": "Benutzer verknüpft",
+    "device_groups_tab": "Gerätegruppen",
+    "device_groups_intro": "Mit dieser Organisation verknüpfte Gerätegruppen legen fest, welche Maschinen Mitglieder im RustDesk-Client erreichen können. Mitgliedschaft und Zugriff konfigurieren Sie unter Geräte.",
+    "manage_in_devices": "Geräte → Gruppen öffnen",
+    "no_org_device_groups": "Keine Gerätegruppen mit dieser Organisation verknüpft.",
+    "create_org_device_group": "Gerätegruppe erstellen",
+    "org_device_group_created": "Gerätegruppe erstellt",
+    "org_user_groups_title": "Benutzergruppen",
+    "org_user_groups_intro": "Mit der Organisation verknüpfte Benutzergruppen können Zugriff auf die Gerätegruppen oben erhalten (Geräte → Gruppen → Erlaubte Benutzergruppen).",
+    "no_org_user_groups": "Keine Benutzergruppen mit dieser Organisation verknüpft.",
+    "group_name": "Name",
+    "group_type": "Typ",
+    "group_members": "Geräte",
+    "group_type_manual": "Manuell",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Erlaubte Benutzergruppen",
+    "group_devices_suffix": "Geräte",
+    "group_name_required": "Gruppenname erforderlich",
+    "org_team_id": "Team-ID der Organisation",
+    "link_team_id_hint": "Die Gruppe wird automatisch mit dieser Organisation verknüpft (Team-ID = Organisations-ID)."
   },
   "chat": {
     "e2e_enabled": "Ende-zu-Ende verschlüsselt",

@@ -581,7 +581,9 @@
     "advanced_file_build-env": "Agent-Build-Umgebung (/etc/betterdesk/build.env)",
     "advanced_file_docker-supervisord": "Docker: supervisord.conf (supervisor-asetukset)",
     "advanced_file_docker-compose": "Docker: docker-compose.yml (orkestrointi)",
-    "advanced_restart_none": "Für diese Tiedosto ist kein Palveluneustart erforderlich."
+    "advanced_restart_none": "Für diese Tiedosto ist kein Palveluneustart erforderlich.",
+    "go_server_version": "Go-palvelin",
+    "go_server_version_dev_hint": "Go-binääri raportoi kehitysversion — rakenna palvelin uudelleen tai päivitä se vastaamaan tuoteversiota"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "Organisaation rooli",
     "link_user_hint": "Valittu käyttäjä linkitetään tähän organisaatioon hänen palvelintilinsä tunnistetiedoilla.",
     "no_available_users": "Kaikki palvelimen käyttäjät on jo linkitetty tähän organisaatioon.",
-    "user_linked": "Käyttäjä linkitetty organisaatioon"
+    "user_linked": "Käyttäjä linkitetty organisaatioon",
+    "device_groups_tab": "Laiteryhmät",
+    "device_groups_intro": "Tähän organisaatioon linkitetyt laiteryhmät määrittävät, mihin koneisiin jäsenet pääsevät RustDesk-asiakkaassa. Jäsenyyden ja käyttöoikeudet määrität Laitteet-sivulla.",
+    "manage_in_devices": "Avaa Laitteet → Ryhmät",
+    "no_org_device_groups": "Tähän organisaatioon ei ole vielä linkitetty laiteryhmiä.",
+    "create_org_device_group": "Luo laiteryhmä",
+    "org_device_group_created": "Laiteryhmä luotu",
+    "org_user_groups_title": "Käyttäjäryhmät",
+    "org_user_groups_intro": "Organisaatioon linkitetyille käyttäjäryhmille voidaan myöntää pääsy yllä oleviin laiteryhmiin (Laitteet → Ryhmät → Sallitut käyttäjäryhmät).",
+    "no_org_user_groups": "Organisaatioon ei ole linkitetty käyttäjäryhmiä.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Laitteet",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Sallitut käyttäjäryhmät",
+    "group_devices_suffix": "laitteet",
+    "group_name_required": "Ryhmän nimi on pakollinen",
+    "org_team_id": "Organisaation tiimitunnus",
+    "link_team_id_hint": "Ryhmä linkitetään automaattisesti tähän organisaatioon (tiimitunnus = organisaation tunnus)."
   },
   "chat": {
     "e2e_enabled": "Päästä päähän salattu",

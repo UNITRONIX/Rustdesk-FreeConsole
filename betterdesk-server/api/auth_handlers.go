@@ -1174,7 +1174,8 @@ func (s *Server) handleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
 }
 
-// hashAPIKey computes the SHA-256 hash of a plaintext API key for database lookup.
+// hashAPIKey computes a SHA-256 digest used only as a stable lookup index for API keys.
+// Keys are high-entropy random tokens — this is not password storage.
 func hashAPIKey(key string) string {
 	h := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(h[:])

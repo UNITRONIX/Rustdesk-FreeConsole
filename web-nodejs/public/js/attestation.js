@@ -112,7 +112,12 @@
 
   function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
   function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-  function escapeAttr(s) { return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+  function escapeAttr(s) {
+    return String(s || '')
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '&quot;');
+  }
 
   window.Attestation = { verify, revoke };
 })();

@@ -78,8 +78,8 @@ const FILE_RULES = [
             return m[1].replace(/--/g, '-');
         },
         apply: (content, version, oldVersion) => {
-            const badgeOld = oldVersion.replace(/\./g, '.').replace(/-/g, '--');
-            const badgeNew = version.replace(/\./g, '.').replace(/-/g, '--');
+            const badgeOld = oldVersion.replace(/-/g, '--');
+            const badgeNew = version.replace(/-/g, '--');
             return content
                 .replace(
                     new RegExp(`(img\\.shields\\.io\\/badge\\/version-)${escapeRegExp(badgeOld)}(-)`, 'g'),
@@ -119,8 +119,18 @@ const FILE_RULES = [
             const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
             return m?.[1];
         },
-        apply: (content, version, oldVersion) =>
-            content.split(oldVersion).join(version),
+        apply: (content, version) =>
+            content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
+    },
+    {
+        id: 'docker-compose-quick-macvlan',
+        path: 'docker-compose.quick.macvlan.yml',
+        extract: (content) => {
+            const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
+            return m?.[1];
+        },
+        apply: (content, version) =>
+            content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
     },
     {
         id: 'docker-entrypoint',
@@ -142,7 +152,29 @@ const FILE_RULES = [
                 `\${BETTERDESK_IMAGE_VERSION:-${version}}`
             ),
     },
+    {
+        id: 'betterdesk-server-version',
+        path: 'betterdesk-server/VERSION',
+        extract: (content) => content.trim(),
+        apply: (_content, version) => `${version}\n`,
+    },
+    {
+        id: 'betterdesk-server-productversion-embed',
+        path: 'betterdesk-server/internal/productversion/VERSION',
+        extract: (content) => content.trim(),
+        apply: (_content, version) => `${version}\n`,
+    },
 ];
+
+const CHANGELOG_PATH = 'CHANGELOG.md';
+
+function getManagedPaths() {
+    const paths = FILE_RULES.map((rule) => rule.path);
+    if (!paths.includes(CHANGELOG_PATH)) {
+        paths.push(CHANGELOG_PATH);
+    }
+    return paths;
+}
 
 function escapeRegExp(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -298,12 +330,13 @@ function verifyVersions() {
 }
 
 function printUsage() {
-    console.log(`Usage: node scripts/bump-version.js [--patch | --minor | --set X.Y.Z] [--dry-run] [--verify]
+    console.log(`Usage: node scripts/bump-version.js [--patch | --minor | --set X.Y.Z] [--dry-run] [--verify] [--list-paths]
 
   --patch       Bump patch (+0.0.1)
   --minor       Bump minor (+0.1.0, reset patch)
   --set X.Y.Z   Set explicit version
   --verify      Exit 1 if Tier 1/2 files disagree with VERSION
+  --list-paths  Print managed file paths (one per line) for CI git add
   --dry-run     Print planned version without writing files`);
 }
 
@@ -311,6 +344,14 @@ function main() {
     const args = process.argv.slice(2);
     const dryRun = args.includes('--dry-run');
     const verify = args.includes('--verify');
+    const listPaths = args.includes('--list-paths');
+
+    if (listPaths) {
+        for (const filePath of getManagedPaths()) {
+            console.log(filePath);
+        }
+        return;
+    }
 
     if (verify) {
         verifyVersions();
@@ -355,6 +396,7 @@ if (require.main === module) {
 
 module.exports = {
     FILE_RULES,
+    getManagedPaths,
     readCanonicalVersion,
     bumpPatch,
     bumpMinor,

@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "Chọn thẻ từ thẻ thiết bị hiện có",
     "enrollment_tag_picker_hint": "Cho phép người vận hành chọn thẻ từ danh sách trên trang Thiết bị thay vì chỉ gõ tay.",
     "enrollment_open_requests": "Mở yêu cầu đăng ký",
-    "enrollment_pending_count": "{count} yêu cầu đăng ký đang chờ"
+    "enrollment_pending_count": "{count} yêu cầu đăng ký đang chờ",
+    "go_server_version": "Máy chủ Go",
+    "go_server_version_dev_hint": "Nhị phân Go báo bản dựng phát triển — build lại hoặc cập nhật máy chủ để khớp phiên bản sản phẩm"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "Vai trò của tổ chức",
     "link_user_hint": "Người dùng được chọn sẽ được liên kết với tổ chức này bằng thông tin xác thực tài khoản máy chủ của họ.",
     "no_available_users": "Tất cả người dùng máy chủ đã được liên kết với tổ chức này.",
-    "user_linked": "Người dùng được liên kết với tổ chức"
+    "user_linked": "Người dùng được liên kết với tổ chức",
+    "device_groups_tab": "Nhóm thiết bị",
+    "device_groups_intro": "Các nhóm thiết bị liên kết với tổ chức này xác định máy nào thành viên có thể truy cập trong client RustDesk. Cấu hình thành viên và quyền truy cập tại trang Thiết bị.",
+    "manage_in_devices": "Mở Thiết bị → Nhóm",
+    "no_org_device_groups": "Chưa có nhóm thiết bị nào liên kết với tổ chức này.",
+    "create_org_device_group": "Tạo nhóm thiết bị",
+    "org_device_group_created": "Đã tạo nhóm thiết bị",
+    "org_user_groups_title": "Nhóm người dùng",
+    "org_user_groups_intro": "Các nhóm người dùng liên kết với tổ chức có thể được cấp quyền truy cập các nhóm thiết bị ở trên (Thiết bị → Nhóm → Nhóm người dùng được phép).",
+    "no_org_user_groups": "Không có nhóm người dùng nào liên kết với tổ chức này.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Thiết bị",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Nhóm người dùng được phép",
+    "group_devices_suffix": "thiết bị",
+    "group_name_required": "Tên nhóm là bắt buộc",
+    "org_team_id": "ID nhóm tổ chức",
+    "link_team_id_hint": "Nhóm sẽ tự động liên kết với tổ chức này (team ID = ID tổ chức)."
   },
   "chat": {
     "e2e_enabled": "Mã hóa đầu cuối",

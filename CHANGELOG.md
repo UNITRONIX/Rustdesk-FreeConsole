@@ -5,6 +5,190 @@
 
 ---
 
+## [3.2.20] — 2026-06-12
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.19] — 2026-06-12
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.18] — 2026-06-12
+
+Production release **3.3.0** (stable `main`, after merge from `dev`). Ships via **Settings → Updates** on the **Stable** channel, or `betterdesk.sh` / `betterdesk.ps1` option 2 / `docker compose pull` for GHCR. Panel update creates a pre-update backup by default. No database migration or manual SQL step is required.
+
+### Added
+
+- **Organization shared address book (#190)** — admins maintain a shared contact list per organization (Organizations → Address Book). Entries merge into each member's RustDesk address book on `GET /api/ab` when sharing is enabled; personal entries stay private.
+- **Organizations → Device Groups tab** — readout of device groups and user groups linked to the organization (`team_id`), with shortcuts to Devices → Groups and one-click org-scoped group creation.
+- **Docker MACVLAN quick-start (#186)** — `docker-compose.quick.macvlan.yml` plus upgrade notes in [DOCKER_QUICKSTART.md](docs/docker/DOCKER_QUICKSTART.md). Uses `service_started` (not `service_healthy`) and `127.0.0.1` API/WS env when the console uses `network_mode: service:server`.
+- **`betterdesk-show-admin-credentials` helper (#195)** — re-execs as `betterdesk` to read `.admin_credentials` on hardened images (`cap_drop: ALL`). Bundled in all Docker images; documented in README, install.sh, and Docker troubleshooting.
+
+### Fixed
+
+- **Stale update warning banner (#192)** — Settings → Updates no longer keeps showing stale `EACCES` errors after a successful external update (`betterdesk.sh`, `betterdesk.ps1`, `betterdesk-docker.sh`, or GHCR `docker compose pull`). Non-critical root-owned file failures are filtered; the banner clears when the installed SHA matches the target. Native install/update now copies `VERSION` into the console directory (Settings reads semver from `VERSION` or `package.json`).
+- **CodeQL / security hardening** — OIDC discovery blocks private/link-local DNS; branding SVG/CSS multi-pass sanitization; same-origin restrictions on desktop iframe routes and `Utils.api()`; confined filesystem helpers; upload rate limits; type-safe device file API parsing. CodeQL config documents intentional exclusions.
+- **Go server product version in Docker builds** — `BETTERDESK_PRODUCT_VERSION` build arg embeds semver in the Go binary (Settings → Server Information matches panel version after image update).
+
+### Changed
+
+- Alpha desktop clients (`betterdesk-mgmt`, `betterdesk-agent-client`) temporarily untracked from git to reduce Dependabot / CI noise.
+- Version bump automation uses `scripts/bump-version.js --list-paths` (includes Go server VERSION files and MACVLAN compose).
+
+### Upgrade notes (operators)
+
+| Topic | Action |
+|-------|--------|
+| **Native / panel update** | Settings → Updates → Stable → Check for updates → Install. Allow Go server rebuild/restart when prompted. |
+| **Docker** | `docker compose pull && docker compose up -d` after release; use `betterdesk-show-admin-credentials` instead of `cat` as root. |
+| **MACVLAN (#186)** | Switch to `docker-compose.quick.macvlan.yml` or set `depends_on: service_started`, `DB_PATH=/app/data/db_v2.sqlite3`, `127.0.0.1` for API/WS. |
+| **Stale update banner (#192)** | Update to 3.3.0+ or once: `rm -f <console-path>/data/.last_update_result.json` and restart console. |
+
+---
+
+## [3.2.17] — 2026-06-12
+
+### Fixed
+- **Docker admin credential lookup (#195)** — `docker compose exec` as root could not read `.admin_credentials` (mode 0600) on hardened images (`cap_drop: ALL`). Added `betterdesk-show-admin-credentials` helper (re-execs as `betterdesk`); updated README, quick-start compose comments, `install.sh`, and Docker docs. Existing installs without the helper can use `docker compose exec -u betterdesk console …`.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.16] — 2026-06-11
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.15] — 2026-06-11
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.14] — 2026-06-11
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.13] — 2026-06-11
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.12] — 2026-06-11
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.11] — 2026-06-11
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.10] — 2026-06-11
+
+### Fixed
+- **CodeQL / security scan hardening** — OIDC discovery fetch blocks private/link-local DNS targets; branding SVG/CSS sanitization uses stable multi-pass stripping; desktop iframe routes and client `Utils.api()` restricted to same-origin paths; confined filesystem helpers for backups/server file browser/i18n; unbiased password generation; upload rate limits on tickets/languages/file-transfer; type-safe device file API body parsing. CodeQL config excludes dev-only scripts and documents intentional RustDesk wire-protocol hashes.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.9] — 2026-06-11
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.8] — 2026-06-11
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.7] — 2026-06-11
+
+### Fixed
+- **Stale update warning on script / Docker paths (#192)** — `betterdesk.ps1` and `betterdesk-docker.sh` now clear `data/.last_update_result.json` when syncing `.update_sha` after a successful external update (parity with `betterdesk.sh`). GHCR image deployments clear the same stale panel banner on console startup after `docker compose pull`.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.6] — 2026-06-10
+
+### Fixed
+- **Docker MACVLAN quick-start (issue #186)** — Added `docker-compose.quick.macvlan.yml` and MACVLAN upgrade notes in `docs/docker/DOCKER_QUICKSTART.md`. Documents `service_started` (not `service_healthy`) and `127.0.0.1` API/WS env when the console uses `network_mode: service:server`.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.5] — 2026-06-10
+
+### Fixed
+- **Panel update warning banner (#192)** — Settings → Updates no longer keeps showing stale `EACCES` errors after a successful `betterdesk.sh` update. Non-critical root-owned file failures (scripts, Dockerfiles, server source) are filtered out; the banner clears automatically when the installed SHA matches the update target.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.4] — 2026-06-10
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.3] — 2026-06-10
+
+### Added
+- **Organization shared address book** — admins can maintain a shared contact list per organization (Organizations → Address Book tab). Entries are merged into each member's RustDesk address book on `GET /api/ab` when sharing is enabled. Personal address book entries remain private and editable only by the logged-in user. Fixes [#190](https://github.com/UNITRONIX/BetterDesk/issues/190).
+
+### Changed
+- **Organizations → Device Groups tab** — replaced the manual JSON address book editor with a readout of device groups and user groups linked to the organization (`team_id`). Includes a shortcut to Devices → Groups and a one-click “Create device group” action scoped to the org.
+
+---
+
+## [3.2.2] — 2026-06-10
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.1] — 2026-06-10
+
+### Changed
+- _(none yet)_
+
+---
+
 ## [3.2.0] — 2026-06-10
 
 ### Changed
@@ -404,3 +588,23 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.1.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.13...v3.1.14
 [3.1.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.14...v3.1.15
 [3.2.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.1.15...v3.2.0
+[3.2.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.0...v3.2.1
+[3.2.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.1...v3.2.2
+[3.2.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.2...v3.2.3
+[3.2.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.3...v3.2.4
+[3.2.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.4...v3.2.5
+[3.2.6]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.5...v3.2.6
+[3.2.7]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.6...v3.2.7
+[3.2.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.7...v3.2.8
+[3.2.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.8...v3.2.9
+[3.2.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.9...v3.2.10
+[3.2.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.10...v3.2.11
+[3.2.12]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.11...v3.2.12
+[3.2.13]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.12...v3.2.13
+[3.2.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.13...v3.2.14
+[3.2.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.14...v3.2.15
+[3.2.16]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.15...v3.2.16
+[3.2.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.16...v3.2.17
+[3.2.18]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.17...v3.2.18
+[3.2.19]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.18...v3.2.19
+[3.2.20]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.19...v3.2.20

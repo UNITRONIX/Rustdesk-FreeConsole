@@ -258,6 +258,16 @@ func (s *SQLiteDB) Migrate() error {
 			value TEXT DEFAULT '',
 			PRIMARY KEY(org_id, key)
 		)`,
+
+		// Organization shared address books (Issue #187 / #190)
+		`CREATE TABLE IF NOT EXISTS org_address_books (
+			org_id TEXT NOT NULL REFERENCES organizations(id),
+			ab_type TEXT NOT NULL DEFAULT 'legacy',
+			data TEXT NOT NULL DEFAULT '{}',
+			updated_at TEXT DEFAULT (datetime('now')),
+			updated_by TEXT NOT NULL DEFAULT '',
+			PRIMARY KEY(org_id, ab_type)
+		)`,
 		`CREATE TABLE IF NOT EXISTS access_policies (
 			peer_id TEXT PRIMARY KEY,
 			unattended_enabled INTEGER DEFAULT 0,

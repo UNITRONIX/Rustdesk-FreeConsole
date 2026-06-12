@@ -85,6 +85,7 @@ func (pg *PostgresDB) DeleteOrganization(id string) error {
 	}
 	defer tx.Rollback(context.Background())
 
+	tx.Exec(pg.ctx, `DELETE FROM org_address_books WHERE org_id = $1`, id)
 	tx.Exec(pg.ctx, `DELETE FROM org_settings WHERE org_id = $1`, id)
 	tx.Exec(pg.ctx, `DELETE FROM org_invitations WHERE org_id = $1`, id)
 	tx.Exec(pg.ctx, `DELETE FROM org_devices WHERE org_id = $1`, id)
@@ -509,4 +510,33 @@ func (pg *PostgresDB) ListUserOrganizations(userID int64) ([]*Organization, erro
 		orgs = append(orgs, &org)
 	}
 	return orgs, rows.Err()
+}
+
+// ---------------------------------------------------------------------------
+//  Org Address Books (shared contacts)
+// ---------------------------------------------------------------------------
+
+func (pg *PostgresDB) GetOrgAddressBook(orgID, abType string) (string, error) {
+	var data string
+	err := pg.pool.QueryRow(pg.ctx,
+		`SELECT data FROM org_address_books WHERE org_id = $1 AND ab_type = $2`,
+		orgID, abType,
+	).Scan(&data)
+	if err == pgx.ErrNoRows {
+		return "{}", nil
+	}
+	return data, err
+}
+
+func (pg *PostgresDB) SaveOrgAddressBook(orgID, abType, data, updatedBy string) error {
+	_, err := pg.pool.Exec(pg.ctx,
+		`INSERT INTO org_address_books (org_id, ab_type, data, updated_at, updated_by)
+		 VALUES ($1, $2, $3, NOW(), $4)
+		 ON CONFLICT (org_id, ab_type) DO UPDATE SET
+		   data = EXCLUDED.data,
+		   updated_at = EXCLUDED.updated_at,
+		   updated_by = EXCLUDED.updated_by`,
+		orgID, abType, data, updatedBy,
+	)
+	return err
 }

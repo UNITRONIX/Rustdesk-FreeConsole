@@ -49,10 +49,12 @@ docker compose pull
 docker compose up -d
 
 # 3. Get admin password
-docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
+docker compose exec console betterdesk-show-admin-credentials
 ```
 
 **Done!** Open http://localhost:5000 and log in with `admin` / (password from step 3).
+
+If `cat /opt/rustdesk/.admin_credentials` returns **Permission denied**, use `betterdesk-show-admin-credentials` above (or `docker compose exec -u betterdesk console …`) — see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md#problem-permission-denied-reading-admin_credentials).
 
 ### Pin or change image version
 
@@ -174,6 +176,47 @@ docker compose logs console
 # Health check
 curl http://localhost:21114/api/health
 ```
+
+---
+
+## MACVLAN (dedicated LAN IP)
+
+Use this when the stack must listen on a **macvlan** address (no host port mappings). The console shares the server's network namespace so signal, relay, API, and the web panel use one IP.
+
+```bash
+# 1. Create macvlan once (adjust parent NIC and subnet)
+docker network create -d macvlan \
+  --subnet=192.168.1.0/24 --gateway=192.168.1.1 \
+  -o parent=eth0 LAN
+
+# 2. Download macvlan compose and set your free LAN IP
+export MACVLAN_IPV4=192.168.1.51
+export RELAY_SERVERS=${MACVLAN_IPV4}:21117
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.macvlan.yml -o docker-compose.yml
+
+# 3. Start
+docker compose pull && docker compose up -d
+```
+
+Web console: `http://MACVLAN_IPV4:5000`
+
+### Upgrading a custom macvlan compose (issue #186)
+
+If you customized an older quick-start file before **3.0.0**, apply these changes after pulling new images:
+
+| Setting | Required in 3.0.0+ |
+|---------|-------------------|
+| `depends_on` | `condition: service_started` — **not** `service_healthy` (avoids deadlock with `auth.db`) |
+| Server healthcheck | Keep enabled, or remove `service_healthy` from `depends_on` |
+| Console `DB_PATH` | `/app/data/db_v2.sqlite3` |
+| Server `AUTH_DB_PATH` | `/app/data/auth.db` |
+| Server volume | `console-data:/app/data:ro` |
+| `network_mode: service:server` | Use `127.0.0.1` in `BETTERDESK_API_URL`, `WS_HBBS_HOST`, `WS_HBBR_HOST` (Docker DNS is unavailable) |
+| Image tag | Pin `BETTERDESK_IMAGE_TAG` (e.g. `3.2.14`), not unversioned `latest` |
+
+**Symptom:** server logs look healthy but the console never starts — check `docker compose ps -a` and `docker compose logs console`. The usual cause is `depends_on: service_healthy` while the server healthcheck is disabled.
+
+Optional: copy `docker-compose.quick.macvlan.yml` from this repo as a maintained baseline.
 
 ---
 

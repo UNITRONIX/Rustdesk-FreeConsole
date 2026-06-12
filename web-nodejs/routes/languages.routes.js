@@ -5,6 +5,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { uploadLimiter, fileAccessLimiter } = require('../middleware/rateLimiter');
 
 const LANG_DIR = path.resolve(path.join(__dirname, '..', 'lang'));
 const REFERENCE_FILES = ['en.json', 'pl.json'];
@@ -74,7 +75,7 @@ router.get('/languages', requireAuth, requirePermission('server.config'), (req, 
 /**
  * GET /api/panel/languages — List all languages with coverage stats
  */
-router.get('/api/panel/languages', requireAuth, requirePermission('server.config'), (req, res) => {
+router.get('/api/panel/languages', fileAccessLimiter, requireAuth, requirePermission('server.config'), (req, res) => {
     try {
         const { keySet: refKeySet } = loadReferenceKeys();
         if (refKeySet.size === 0) {
@@ -152,7 +153,7 @@ router.get('/api/panel/languages', requireAuth, requirePermission('server.config
 /**
  * GET /api/panel/languages/:code/missing — Get missing keys for a language
  */
-router.get('/api/panel/languages/:code/missing', requireAuth, requirePermission('server.config'), (req, res) => {
+router.get('/api/panel/languages/:code/missing', fileAccessLimiter, requireAuth, requirePermission('server.config'), (req, res) => {
     try {
         const langPath = safeLangFilePath(req.params.code);
 
@@ -183,7 +184,7 @@ router.get('/api/panel/languages/:code/missing', requireAuth, requirePermission(
 /**
  * POST /api/panel/languages/:code/fix — Disabled by strict i18n policy
  */
-router.post('/api/panel/languages/:code/fix', requireAuth, requirePermission('server.config'), (req, res) => {
+router.post('/api/panel/languages/:code/fix', uploadLimiter, requireAuth, requirePermission('server.config'), (req, res) => {
     res.status(410).json({
         error: 'Automatic language fixing is disabled. Missing keys must be translated manually in the target language.'
     });

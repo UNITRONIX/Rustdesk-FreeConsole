@@ -581,7 +581,9 @@
     "advanced_file_build-env": "Agent-Build-Umgebung (/etc/betterdesk/build.env)",
     "advanced_file_docker-supervisord": "Docker: supervisord.conf (configurare supervisord)",
     "advanced_file_docker-compose": "Docker: docker-compose.yml (orchestrare)",
-    "advanced_restart_none": "Für diese Fișier ist kein Serviciuneustart erforderlich."
+    "advanced_restart_none": "Für diese Fișier ist kein Serviciuneustart erforderlich.",
+    "go_server_version": "Server Go",
+    "go_server_version_dev_hint": "Binarul Go raportează build de dezvoltare — reconstruiți sau actualizați serverul pentru a corespunde versiunii produsului"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "Rolul de organizare",
     "link_user_hint": "Utilizatorul selectat va fi conectat la această organizație folosind acreditările contului său de server.",
     "no_available_users": "Toți utilizatorii de server sunt deja conectați la această organizație.",
-    "user_linked": "Utilizator conectat la organizație"
+    "user_linked": "Utilizator conectat la organizație",
+    "device_groups_tab": "Grupuri de dispozitive",
+    "device_groups_intro": "Grupurile de dispozitive legate de această organizație definesc la ce mașini pot accesa membrii în clientul RustDesk. Configurați apartenența și accesul în pagina Dispozitive.",
+    "manage_in_devices": "Deschide Dispozitive → Grupuri",
+    "no_org_device_groups": "Niciun grup de dispozitive nu este legat încă de această organizație.",
+    "create_org_device_group": "Creează grup de dispozitive",
+    "org_device_group_created": "Grup de dispozitive creat",
+    "org_user_groups_title": "Grupuri de utilizatori",
+    "org_user_groups_intro": "Grupurilor de utilizatori legate de organizație li se poate acorda acces la grupurile de dispozitive de mai sus (Dispozitive → Grupuri → Grupuri de utilizatori permise).",
+    "no_org_user_groups": "Niciun grup de utilizatori legat de această organizație.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Dispozitive",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Grupuri de utilizatori permise",
+    "group_devices_suffix": "dispozitive",
+    "group_name_required": "Numele grupului este obligatoriu",
+    "org_team_id": "ID echipă organizație",
+    "link_team_id_hint": "Grupul va fi legat automat de această organizație (team ID = ID organizație)."
   },
   "chat": {
     "e2e_enabled": "Criptat de la capăt la capăt",

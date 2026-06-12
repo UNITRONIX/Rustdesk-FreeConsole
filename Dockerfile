@@ -27,8 +27,11 @@ COPY betterdesk-server/go.mod betterdesk-server/go.sum ./
 RUN go mod download
 
 COPY betterdesk-server/ .
+
+ARG BETTERDESK_PRODUCT_VERSION=dev
+
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w" \
+    -ldflags="-s -w -X main.Version=${BETTERDESK_PRODUCT_VERSION}" \
     -tags "netgo osusergo" \
     -o /betterdesk-server .
 
@@ -52,7 +55,7 @@ FROM node:20-alpine
 
 LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk — All-in-One (Go Server + Node.js Console)"
-LABEL version="3.2.0"
+LABEL version="3.2.20"
 
 # Install runtime packages (retry for transient DNS failures)
 RUN apk add --no-cache \
@@ -101,7 +104,8 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/betterdesk.conf
 # ---- Entrypoint ----
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY docker/wait-panel-auth-db.sh /app/docker/wait-panel-auth-db.sh
-RUN chmod +x /entrypoint.sh /app/docker/wait-panel-auth-db.sh
+COPY docker/show-admin-credentials.sh /usr/local/bin/betterdesk-show-admin-credentials
+RUN chmod +x /entrypoint.sh /app/docker/wait-panel-auth-db.sh /usr/local/bin/betterdesk-show-admin-credentials
 
 # Environment variables (defaults)
 ENV NODE_ENV=production

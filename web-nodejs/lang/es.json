@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Elegir etiquetas de las etiquetas de dispositivos existentes",
     "enrollment_tag_picker_hint": "Permite a los operadores seleccionar etiquetas de la lista usada en la página de Dispositivos en lugar de solo escribirlas.",
     "enrollment_open_requests": "Solicitudes de inscripción abiertas",
-    "enrollment_pending_count": "{count} solicitud(es) de inscripción pendiente(s)"
+    "enrollment_pending_count": "{count} solicitud(es) de inscripción pendiente(s)",
+    "go_server_version": "Servidor Go",
+    "go_server_version_dev_hint": "El binario Go informa compilación de desarrollo — recompile o actualice el servidor para igualar la versión del producto"
   },
   "audit": {
     "time": "Hora",
@@ -2344,7 +2346,26 @@
     "org_role": "Rol de organización",
     "link_user_hint": "Vincula un usuario existente con esta organización.",
     "no_available_users": "No hay usuarios disponibles",
-    "user_linked": "Usuario vinculado"
+    "user_linked": "Usuario vinculado",
+    "device_groups_tab": "Grupos de dispositivos",
+    "device_groups_intro": "Los grupos de dispositivos vinculados a esta organización definen a qué máquinas pueden acceder los miembros en el cliente RustDesk. Configure membresía y acceso en la página Dispositivos.",
+    "manage_in_devices": "Abrir Dispositivos → Grupos",
+    "no_org_device_groups": "Aún no hay grupos de dispositivos vinculados a esta organización.",
+    "create_org_device_group": "Crear grupo de dispositivos",
+    "org_device_group_created": "Grupo de dispositivos creado",
+    "org_user_groups_title": "Grupos de usuarios",
+    "org_user_groups_intro": "Los grupos de usuarios vinculados a la organización pueden obtener acceso a los grupos de dispositivos anteriores (Dispositivos → Grupos → Grupos de usuarios permitidos).",
+    "no_org_user_groups": "No hay grupos de usuarios vinculados a esta organización.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Dispositivos",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Grupos de usuarios permitidos",
+    "group_devices_suffix": "dispositivos",
+    "group_name_required": "El nombre del grupo es obligatorio",
+    "org_team_id": "ID de equipo de la organización",
+    "link_team_id_hint": "El grupo se vinculará automáticamente a esta organización (team ID = ID de organización)."
   },
   "chat": {
     "e2e_enabled": "Cifrado de extremo a extremo",

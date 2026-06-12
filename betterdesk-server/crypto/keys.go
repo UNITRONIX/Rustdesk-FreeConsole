@@ -49,9 +49,13 @@ func (kp *KeyPair) SignIdPk(id string, pk []byte) ([]byte, error) {
 	// NaCl combined format: [64-byte Ed25519 signature][serialized IdPk protobuf]
 	// RustDesk clients decode this with sign::verify(server_pub_key, signed_bytes)
 	// which strips the signature and returns the IdPk payload.
-	result := make([]byte, 0, len(sig)+len(data))
-	result = append(result, sig...)
-	result = append(result, data...)
+	const maxSignedPayload = 1 << 20 // 1 MiB upper bound for protobuf payload
+	if len(data) > maxSignedPayload {
+		return nil, fmt.Errorf("keys: IdPk payload too large")
+	}
+	result := make([]byte, len(sig)+len(data))
+	copy(result, sig)
+	copy(result[len(sig):], data)
 
 	return result, nil
 }

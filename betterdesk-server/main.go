@@ -26,6 +26,7 @@ import (
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/internal/productversion"
 	"github.com/unitronix/betterdesk-server/logging"
 	"github.com/unitronix/betterdesk-server/metrics"
 	"github.com/unitronix/betterdesk-server/ratelimit"
@@ -40,6 +41,14 @@ var (
 	Version   = "dev"
 	BuildDate = "unknown"
 )
+
+func init() {
+	if Version == "dev" {
+		if v := productversion.Product(); v != "" && v != "dev" {
+			Version = v
+		}
+	}
+}
 
 func main() {
 	cfg := parseFlags()
@@ -227,10 +236,15 @@ func main() {
 		log.Printf("========================================")
 	}
 
-	// Initialize per-IP relay connection limiter
+    // Initialize per-IP relay connection limiter
 	var connLimiter *ratelimit.ConnLimiter
 	if cfg.RelayMaxConnsIP > 0 {
-		connLimiter = ratelimit.NewConnLimiter(int32(cfg.RelayMaxConnsIP))
+		limit := cfg.RelayMaxConnsIP
+		const maxInt32 = 1<<31 - 1
+		if limit > maxInt32 {
+			limit = maxInt32
+		}
+		connLimiter = ratelimit.NewConnLimiter(int32(limit))
 		log.Printf("Relay per-IP connection limit: %d", cfg.RelayMaxConnsIP)
 	}
 

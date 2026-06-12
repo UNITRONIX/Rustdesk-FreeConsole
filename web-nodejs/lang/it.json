@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Sèlectionner des tags parmi les tags d'dispositivi existants",
     "enrollment_tag_picker_hint": "Permet aux opèrateurs de sèlectionner des tags dall'elenco utilisèe sur la page Dispositivi plutôt que de les saisir uniquement.",
     "enrollment_open_requests": "Demandes d'inscription ouvertes",
-    "enrollment_pending_count": "{count} demande(s) d'inscription en attesa"
+    "enrollment_pending_count": "{count} demande(s) d'inscription en attesa",
+    "go_server_version": "Server Go",
+    "go_server_version_dev_hint": "Il binario Go segnala build di sviluppo — ricompilare o aggiornare il server per allineare la versione prodotto"
   },
   "audit": {
     "time": "Ora",
@@ -2344,7 +2346,26 @@
     "org_role": "Ruolo organizzazione",
     "link_user_hint": "Collega un utente esistente a questa organizzazione.",
     "no_available_users": "Nessun utente disponibile",
-    "user_linked": "Utente collegato"
+    "user_linked": "Utente collegato",
+    "device_groups_tab": "Gruppi dispositivi",
+    "device_groups_intro": "I gruppi dispositivi collegati a questa organizzazione definiscono a quali macchine i membri possono accedere nel client RustDesk. Configura appartenenza e accesso nella pagina Dispositivi.",
+    "manage_in_devices": "Apri Dispositivi → Gruppi",
+    "no_org_device_groups": "Nessun gruppo dispositivi collegato a questa organizzazione.",
+    "create_org_device_group": "Crea gruppo dispositivi",
+    "org_device_group_created": "Gruppo dispositivi creato",
+    "org_user_groups_title": "Gruppi utenti",
+    "org_user_groups_intro": "I gruppi utenti collegati all'organizzazione possono ottenere accesso ai gruppi dispositivi sopra (Dispositivi → Gruppi → Gruppi utenti consentiti).",
+    "no_org_user_groups": "Nessun gruppo utenti collegato a questa organizzazione.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Dispositivi",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Gruppi utenti consentiti",
+    "group_devices_suffix": "dispositivi",
+    "group_name_required": "Il nome del gruppo è obbligatorio",
+    "org_team_id": "ID team organizzazione",
+    "link_team_id_hint": "Il gruppo sarà collegato automaticamente a questa organizzazione (team ID = ID organizzazione)."
   },
   "chat": {
     "e2e_enabled": "Crittografia end-to-end",

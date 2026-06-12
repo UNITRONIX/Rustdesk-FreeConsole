@@ -575,7 +575,9 @@
     "totp_recovery_warning": "Zapisz te kody odzyskiwania w bezpiecznym miejscu. Każdy kod może być użyty tylko raz. Jeśli stracisz dostęp do aplikacji uwierzytelniającej, możesz użyć tych kodów do zalogowania.",
     "totp_done": "Gotowe",
     "totp_disable_warning": "Wyłączenie uwierzytelniania dwuskładnikowego zmniejszy bezpieczeństwo konta. Wprowadź hasło, aby potwierdzić.",
-    "totp_disabled_success": "Uwierzytelnianie dwuskładnikowe zostało wyłączone."
+    "totp_disabled_success": "Uwierzytelnianie dwuskładnikowe zostało wyłączone.",
+    "go_server_version": "Serwer Go",
+    "go_server_version_dev_hint": "Binarny serwer Go zgłasza build deweloperski — przebuduj lub zaktualizuj serwer, aby dopasować wersję produktu"
   },
   "audit": {
     "time": "Czas",
@@ -2425,7 +2427,26 @@
     "org_role": "Rola w organizacji",
     "link_user_hint": "Wybrany użytkownik zostanie powiązany z tą organizacją przy użyciu danych jego konta serwerowego.",
     "no_available_users": "Wszyscy użytkownicy serwera są już powiązani z tą organizacją.",
-    "user_linked": "Użytkownik powiązany z organizacją"
+    "user_linked": "Użytkownik powiązany z organizacją",
+    "device_groups_tab": "Grupy urządzeń",
+    "device_groups_intro": "Grupy urządzeń powiązane z tą organizacją określają, do jakich maszyn członkowie mają dostęp w kliencie RustDesk. Członkostwo i uprawnienia ustawiasz na stronie Urządzenia.",
+    "manage_in_devices": "Otwórz Urządzenia → Grupy",
+    "no_org_device_groups": "Brak grup urządzeń powiązanych z tą organizacją.",
+    "create_org_device_group": "Utwórz grupę urządzeń",
+    "org_device_group_created": "Grupa urządzeń utworzona",
+    "org_user_groups_title": "Grupy użytkowników",
+    "org_user_groups_intro": "Grupy użytkowników powiązane z organizacją mogą otrzymać dostęp do grup urządzeń powyżej (Urządzenia → Grupy → Dozwolone grupy użytkowników).",
+    "no_org_user_groups": "Brak grup użytkowników powiązanych z tą organizacją.",
+    "group_name": "Nazwa",
+    "group_type": "Typ",
+    "group_members": "Urządzenia",
+    "group_type_manual": "Ręczna",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Dozwolone grupy użytkowników",
+    "group_devices_suffix": "urządzenia",
+    "group_name_required": "Nazwa grupy jest wymagana",
+    "org_team_id": "ID zespołu organizacji",
+    "link_team_id_hint": "Grupa zostanie automatycznie powiązana z tą organizacją (team ID = ID organizacji)."
   },
   "chat": {
     "e2e_enabled": "Szyfrowanie end-to-end",

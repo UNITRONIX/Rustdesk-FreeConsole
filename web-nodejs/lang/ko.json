@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "기존 기기 태그에서 태그 선택",
     "enrollment_tag_picker_hint": "운영자가 기기 페이지에서 사용되는 태그 목록에서 선택할 수 있습니다(입력만으로 제한되지 않음).",
     "enrollment_open_requests": "등록 요청 열기",
-    "enrollment_pending_count": "대기 중인 등록 요청 {count}건"
+    "enrollment_pending_count": "대기 중인 등록 요청 {count}건",
+    "go_server_version": "Go 서버",
+    "go_server_version_dev_hint": "Go 바이너리가 개발 빌드를 보고합니다 — 제품 버전과 일치하도록 서버를 다시 빌드하거나 업데이트하세요"
   },
   "audit": {
     "time": "Time",
@@ -2344,7 +2346,26 @@
     "org_role": "조직 역할",
     "link_user_hint": "선택된 사용자는 서버 계정 자격 증명을 사용하여 이 조직에 연결됩니다.",
     "no_available_users": "모든 서버 사용자는 이미 이 조직에 연결되어 있습니다.",
-    "user_linked": "조직에 연결된 사용자"
+    "user_linked": "조직에 연결된 사용자",
+    "device_groups_tab": "장치 그룹",
+    "device_groups_intro": "이 조직에 연결된 장치 그룹은 RustDesk 클라이언트에서 구성원이 접근할 수 있는 장치를 정의합니다. 구성원 및 접근 권한은 장치 페이지에서 설정하세요.",
+    "manage_in_devices": "장치 → 그룹 열기",
+    "no_org_device_groups": "이 조직에 연결된 장치 그룹이 아직 없습니다.",
+    "create_org_device_group": "장치 그룹 만들기",
+    "org_device_group_created": "장치 그룹이 생성되었습니다",
+    "org_user_groups_title": "사용자 그룹",
+    "org_user_groups_intro": "조직에 연결된 사용자 그룹은 위 장치 그룹에 대한 접근 권한을 부여받을 수 있습니다(장치 → 그룹 → 허용된 사용자 그룹).",
+    "no_org_user_groups": "이 조직에 연결된 사용자 그룹이 없습니다.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "장치",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "허용된 사용자 그룹",
+    "group_devices_suffix": "장치",
+    "group_name_required": "그룹 이름은 필수입니다",
+    "org_team_id": "조직 팀 ID",
+    "link_team_id_hint": "그룹은 자동으로 이 조직에 연결됩니다(팀 ID = 조직 ID)."
   },
   "chat": {
     "e2e_enabled": "종단 간 암호화",

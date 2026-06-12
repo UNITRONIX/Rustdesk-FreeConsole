@@ -311,7 +311,7 @@ print_docker_summary() {
     local pubkey=""
 
     creds=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T console \
-        sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials 2>/dev/null' 2>/dev/null || true)
+        betterdesk-show-admin-credentials 2>/dev/null || true)
 
     pubkey=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T server \
         sh -c 'cat /opt/rustdesk/id_ed25519.pub 2>/dev/null' 2>/dev/null || true)
@@ -340,7 +340,7 @@ print_docker_summary() {
             [ -n "$line" ] && echo -e "${C_CYAN}║${C_RESET}    ${C_WHITE}${line}${C_RESET}"
         done <<< "$creds"
     else
-        echo -e "${C_CYAN}║${C_RESET}  Admin creds:   ${C_DIM}docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml exec console sh -c 'cat /opt/rustdesk/.admin_credentials || cat /app/data/.admin_credentials'${C_RESET}"
+        echo -e "${C_CYAN}║${C_RESET}  Admin creds:   ${C_DIM}docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml exec console betterdesk-show-admin-credentials${C_RESET}"
     fi
     echo -e "${C_CYAN}╚══════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""

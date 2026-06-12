@@ -21,9 +21,11 @@ RUN go mod download
 # Copy full source
 COPY betterdesk-server/ .
 
+ARG BETTERDESK_PRODUCT_VERSION=dev
+
 # Build static binary (modernc.org/sqlite is pure Go — no CGO needed)
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w" \
+    -ldflags="-s -w -X main.Version=${BETTERDESK_PRODUCT_VERSION}" \
     -tags "netgo osusergo" \
     -o /betterdesk-server .
 
@@ -32,7 +34,7 @@ FROM alpine:3.20
 
 LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk Server - RustDesk-compatible signal + relay"
-LABEL version="3.2.0"
+LABEL version="3.2.20"
 
 RUN apk add --no-cache \
     ca-certificates \
@@ -59,7 +61,8 @@ RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /opt/rustdesk/.image-commit
 
 # Entrypoint script: fixes volume permissions, then drops to betterdesk user
 COPY docker/server-entrypoint.sh /server-entrypoint.sh
-RUN chmod +x /server-entrypoint.sh
+COPY docker/show-admin-credentials.sh /usr/local/bin/betterdesk-show-admin-credentials
+RUN chmod +x /server-entrypoint.sh /usr/local/bin/betterdesk-show-admin-credentials
 
 WORKDIR /opt/rustdesk
 

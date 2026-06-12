@@ -35,6 +35,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { getAdapter } = require('../services/dbAdapter');
+const { uploadLimiter, fileAccessLimiter } = require('../middleware/rateLimiter');
 
 // ---------------------------------------------------------------------------
 //  Config
@@ -143,7 +144,7 @@ router.get('/stats', requireAuth, async (req, res) => {
 /**
  * POST /api/tickets — Create ticket.
  */
-router.post('/', requireAdminOrOperator, async (req, res) => {
+router.post('/', uploadLimiter, requireAdminOrOperator, async (req, res) => {
     try {
         const { title, description, priority, category, device_id, assigned_to } = req.body;
 
@@ -278,7 +279,7 @@ router.patch('/:id(\\d+)', requireAdminOrOperator, async (req, res) => {
 /**
  * DELETE /api/tickets/:id — Delete ticket.
  */
-router.delete('/:id(\\d+)', requireAdminOrOperator, async (req, res) => {
+router.delete('/:id(\\d+)', uploadLimiter, requireAdminOrOperator, async (req, res) => {
     try {
         const adapter = getAdapter();
         const ticket = await adapter.getTicketById(+req.params.id);
@@ -315,7 +316,7 @@ router.delete('/:id(\\d+)', requireAdminOrOperator, async (req, res) => {
 /**
  * POST /api/tickets/:id/comments — Add comment to ticket.
  */
-router.post('/:id(\\d+)/comments', requireAuth, async (req, res) => {
+router.post('/:id(\\d+)/comments', uploadLimiter, requireAuth, async (req, res) => {
     try {
         const adapter = getAdapter();
         const ticket = await adapter.getTicketById(+req.params.id);
@@ -371,7 +372,7 @@ router.get('/:id(\\d+)/comments', requireAuth, async (req, res) => {
  * Expects multipart/form-data or raw binary with headers.
  * For simplicity, accepts base64-encoded body: { filename, data }
  */
-router.post('/:id(\\d+)/attachments', requireAdminOrOperator, async (req, res) => {
+router.post('/:id(\\d+)/attachments', uploadLimiter, requireAdminOrOperator, async (req, res) => {
     try {
         const adapter = getAdapter();
         const ticket = await adapter.getTicketById(+req.params.id);
@@ -415,7 +416,7 @@ router.post('/:id(\\d+)/attachments', requireAdminOrOperator, async (req, res) =
 /**
  * GET /api/tickets/:id/attachments — List attachments.
  */
-router.get('/:id(\\d+)/attachments', requireAuth, async (req, res) => {
+router.get('/:id(\\d+)/attachments', fileAccessLimiter, requireAuth, async (req, res) => {
     try {
         const adapter = getAdapter();
         const attachments = await adapter.getTicketAttachments(+req.params.id);
@@ -438,7 +439,7 @@ router.get('/:id(\\d+)/attachments', requireAuth, async (req, res) => {
 /**
  * GET /api/tickets/attachments/:aid — Download attachment file.
  */
-router.get('/attachments/:aid(\\d+)', requireAuth, async (req, res) => {
+router.get('/attachments/:aid(\\d+)', fileAccessLimiter, requireAuth, async (req, res) => {
     try {
         const adapter = getAdapter();
         const att = await adapter.getAttachmentById(+req.params.aid);

@@ -94,6 +94,16 @@ function resolveLangFilePath(langDir, code) {
     return resolveChildPath(root, `${code}.json`);
 }
 
+function readLangFileText(langDir, code) {
+    const filePath = resolveLangFilePath(langDir, code);
+    return fs.readFileSync(filePath, 'utf8');
+}
+
+function langFileExists(langDir, code) {
+    const filePath = resolveLangFilePath(langDir, code);
+    return fs.existsSync(filePath);
+}
+
 /**
  * Resolve a relative path (may contain slashes) under rootDir.
  */
@@ -116,6 +126,93 @@ function resolvePathUnderRoot(rootDir, relativePath) {
     return current;
 }
 
+/**
+ * Confined filesystem helpers — validation and I/O in one step so paths
+ * never leave the allowed root between check and use.
+ */
+function existsConfinedChild(rootDir, childName) {
+    const root = path.resolve(rootDir);
+    const target = resolveChildPath(root, childName);
+    return fs.existsSync(target);
+}
+
+function removeConfinedChild(rootDir, childName, options = { recursive: true, force: true }) {
+    const root = path.resolve(rootDir);
+    const target = resolveChildPath(root, childName);
+    if (target === root) {
+        throw new Error('Refusing to delete the root directory');
+    }
+    if (!fs.existsSync(target)) {
+        throw new Error('Path not found');
+    }
+    fs.rmSync(target, options);
+    return target;
+}
+
+function readTextConfinedWithinRoot(userPath, rootDir) {
+    const abs = finalizedConfinedPathWithinRoot(userPath, rootDir);
+    return fs.readFileSync(abs, 'utf8');
+}
+
+function existsConfinedWithinRoot(userPath, rootDir) {
+    const abs = finalizedConfinedPathWithinRoot(userPath, rootDir);
+    return fs.existsSync(abs);
+}
+
+/**
+ * Resolve and finalize a confined path (realpath when present) before fs I/O.
+ */
+function finalizedConfinedPath(userPath, roots) {
+    const abs = resolvePathWithinAnyRoot(userPath, roots);
+    const resolvedRoots = roots.map((r) => path.resolve(r));
+    if (fs.existsSync(abs)) {
+        const real = fs.realpathSync.native(abs);
+        if (!resolvedRoots.some((root) => isPathInsideRoot(real, root))) {
+            throw new Error('Path resolves outside allowed directory roots');
+        }
+        return real;
+    }
+    return abs;
+}
+
+function finalizedConfinedPathWithinRoot(userPath, rootDir) {
+    const abs = resolvePathWithinRoot(userPath, rootDir);
+    const root = path.resolve(rootDir);
+    if (fs.existsSync(abs)) {
+        const real = fs.realpathSync.native(abs);
+        if (!isPathInsideRoot(real, root)) {
+            throw new Error('Path resolves outside allowed directory');
+        }
+        return real;
+    }
+    return abs;
+}
+
+function renameConfinedWithinRoots(oldPath, newPath, roots) {
+    const a = finalizedConfinedPath(oldPath, roots);
+    const b = finalizedConfinedPath(newPath, roots);
+    fs.renameSync(a, b);
+    return { from: a, to: b };
+}
+
+function unlinkConfinedWithinRoots(userPath, roots) {
+    const abs = finalizedConfinedPath(userPath, roots);
+    fs.unlinkSync(abs);
+    return abs;
+}
+
+function mkdirConfinedWithinRoots(userPath, roots) {
+    const abs = finalizedConfinedPath(userPath, roots);
+    fs.mkdirSync(abs, { recursive: false });
+    return abs;
+}
+
+function rmDirConfinedWithinRoots(userPath, roots) {
+    const abs = finalizedConfinedPath(userPath, roots);
+    fs.rmSync(abs, { recursive: true, force: false });
+    return abs;
+}
+
 module.exports = {
     isPathInsideRoot,
     resolveChildPath,
@@ -123,4 +220,14 @@ module.exports = {
     resolvePathWithinAnyRoot,
     resolveLangFilePath,
     resolvePathUnderRoot,
+    readLangFileText,
+    langFileExists,
+    existsConfinedChild,
+    removeConfinedChild,
+    readTextConfinedWithinRoot,
+    existsConfinedWithinRoot,
+    renameConfinedWithinRoots,
+    unlinkConfinedWithinRoots,
+    mkdirConfinedWithinRoots,
+    rmDirConfinedWithinRoots,
 };

@@ -581,7 +581,9 @@
     "enrollment_tag_picker": "เลือกแท็กจากแท็กอุปกรณ์ที่มีอยู่",
     "enrollment_tag_picker_hint": "ให้ผู้ดำเนินการเลือกแท็กจากรายการในหน้าอุปกรณ์แทนการพิมพ์เท่านั้น",
     "enrollment_open_requests": "เปิดคำขอลงทะเบียน",
-    "enrollment_pending_count": "คำขอลงทะเบียนที่รอดำเนินการ {count} รายการ"
+    "enrollment_pending_count": "คำขอลงทะเบียนที่รอดำเนินการ {count} รายการ",
+    "go_server_version": "เซิร์ฟเวอร์ Go",
+    "go_server_version_dev_hint": "ไบนารี Go รายงานว่าเป็น build พัฒนา — สร้างใหม่หรืออัปเดตเซิร์ฟเวอร์ให้ตรงกับเวอร์ชันผลิตภัณฑ์"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "บทบาทขององค์กร",
     "link_user_hint": "ผู้ใช้ที่เลือกจะเชื่อมโยงกับองค์กรนี้โดยใช้ข้อมูลรับรองบัญชีเซิร์ฟเวอร์ของตน",
     "no_available_users": "ผู้ใช้เซิร์ฟเวอร์ทั้งหมดเชื่อมโยงกับองค์กรนี้แล้ว",
-    "user_linked": "ผู้ใช้เชื่อมโยงกับองค์กร"
+    "user_linked": "ผู้ใช้เชื่อมโยงกับองค์กร",
+    "device_groups_tab": "กลุ่มอุปกรณ์",
+    "device_groups_intro": "กลุ่มอุปกรณ์ที่เชื่อมกับองค์กรนี้กำหนดว่าสมาชิกเข้าถึงเครื่องใดได้ในไคลเอนต์ RustDesk ตั้งค่าสมาชิกและการเข้าถึงในหน้าอุปกรณ์",
+    "manage_in_devices": "เปิด อุปกรณ์ → กลุ่ม",
+    "no_org_device_groups": "ยังไม่มีกลุ่มอุปกรณ์ที่เชื่อมกับองค์กรนี้",
+    "create_org_device_group": "สร้างกลุ่มอุปกรณ์",
+    "org_device_group_created": "สร้างกลุ่มอุปกรณ์แล้ว",
+    "org_user_groups_title": "กลุ่มผู้ใช้",
+    "org_user_groups_intro": "กลุ่มผู้ใช้ที่เชื่อมกับองค์กรสามารถได้รับสิทธิ์เข้าถึงกลุ่มอุปกรณ์ด้านบน (อุปกรณ์ → กลุ่ม → กลุ่มผู้ใช้ที่อนุญาต)",
+    "no_org_user_groups": "ไม่มีกลุ่มผู้ใช้ที่เชื่อมกับองค์กรนี้",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "อุปกรณ์",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "กลุ่มผู้ใช้ที่อนุญาต",
+    "group_devices_suffix": "อุปกรณ์",
+    "group_name_required": "ต้องระบุชื่อกลุ่ม",
+    "org_team_id": "รหัสทีมองค์กร",
+    "link_team_id_hint": "กลุ่มจะเชื่อมกับองค์กรนี้โดยอัตโนมัติ (team ID = รหัสองค์กร)"
   },
   "chat": {
     "e2e_enabled": "เข้ารหัสตั้งแต่ต้นทางถึงปลายทาง",

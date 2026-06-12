@@ -1,0 +1,23 @@
+---
+description: Do not close GitHub issues without explicit operator approval
+alwaysApply: true
+---
+
+# GitHub issues — no closing without explicit command
+
+**Never close a GitHub issue** (via `gh issue close`, GitHub UI automation, or commit keywords like `Fixes #NNN` intended to auto-close) **unless the operator explicitly asks you to close that specific issue.**
+
+## Allowed without asking
+
+- Open or update issues
+- Add comments / replies (including verify steps after a release)
+- Add or change labels
+- Link issues in PRs and commit messages (`Fixes #NNN`, `Refs #NNN`)
+
+## Forbidden unless explicitly instructed
+
+- `gh issue close`
+- Closing via GitHub API or MCP
+- Any workflow step that closes reporter or tracking issues as a side effect
+
+When a fix ships, **reply on the issue** with what changed and how to verify — leave closing to the operator.

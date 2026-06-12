@@ -581,7 +581,9 @@
     "advanced_file_build-env": "Agent-Build-Umgebung (/etc/betterdesk/build.env)",
     "advanced_file_docker-supervisord": "Docker: supervisord.conf (supervisor konfiguráció)",
     "advanced_file_docker-compose": "Docker: docker-compose.yml (orchestráció)",
-    "advanced_restart_none": "Für diese Fájl ist kein Szolgáltatásneustart erforderlich."
+    "advanced_restart_none": "Für diese Fájl ist kein Szolgáltatásneustart erforderlich.",
+    "go_server_version": "Go szerver",
+    "go_server_version_dev_hint": "A Go bináris fejlesztői buildet jelez — építse újra vagy frissítse a szervert a termékverzióhoz"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "Szervezeti szerep",
     "link_user_hint": "A kiválasztott felhasználó a szerverfiók hitelesítő adataival lesz összekapcsolva ezzel a szervezettel.",
     "no_available_users": "Az összes szerverfelhasználó már kapcsolódik ehhez a szervezethez.",
-    "user_linked": "Felhasználó a szervezethez kapcsolva"
+    "user_linked": "Felhasználó a szervezethez kapcsolva",
+    "device_groups_tab": "Eszközcsoportok",
+    "device_groups_intro": "A szervezethez kapcsolt eszközcsoportok határozzák meg, mely gépekhez férhetnek hozzá a tagok a RustDesk kliensben. Tagságot és hozzáférést az Eszközök oldalon állíthat be.",
+    "manage_in_devices": "Eszközök → Csoportok megnyitása",
+    "no_org_device_groups": "Ehhez a szervezethez még nincs eszközcsoport kapcsolva.",
+    "create_org_device_group": "Eszközcsoport létrehozása",
+    "org_device_group_created": "Eszközcsoport létrehozva",
+    "org_user_groups_title": "Felhasználói csoportok",
+    "org_user_groups_intro": "A szervezethez kapcsolt felhasználói csoportok hozzáférést kaphatnak a fenti eszközcsoportokhoz (Eszközök → Csoportok → Engedélyezett felhasználói csoportok).",
+    "no_org_user_groups": "Nincs felhasználói csoport kapcsolva ehhez a szervezethez.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Eszközök",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Engedélyezett felhasználói csoportok",
+    "group_devices_suffix": "eszköz",
+    "group_name_required": "A csoport neve kötelező",
+    "org_team_id": "Szervezet csapatazonosítója",
+    "link_team_id_hint": "A csoport automatikusan ehhez a szervezethez lesz kapcsolva (csapat ID = szervezet ID)."
   },
   "chat": {
     "e2e_enabled": "Végponttól végpontig titkosítva",

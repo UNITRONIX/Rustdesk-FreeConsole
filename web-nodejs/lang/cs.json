@@ -575,7 +575,9 @@
     "enrollment_tag_picker": "Wybor tagow z listy istniejacych",
     "enrollment_tag_picker_hint": "Umozliwia wybor tagow z listy uzywanej na stronie Urzadzenia zamiast samego wpisywania.",
     "enrollment_open_requests": "Otworz zadania rejestracji",
-    "enrollment_pending_count": "{count} oczekujacych zadan rejestracji"
+    "enrollment_pending_count": "{count} oczekujacych zadan rejestracji",
+    "go_server_version": "Server Go",
+    "go_server_version_dev_hint": "Binární Go server hlásí vývojovou sestavu — přestavte nebo aktualizujte server, aby odpovídal verzi produktu"
   },
   "audit": {
     "time": "Čas",
@@ -2344,7 +2346,26 @@
     "org_role": "Role v organizaci",
     "link_user_hint": "Vybraný uživatel bude propojen s touto organizací pomocí svých přihlašovacích údajů k serveru.",
     "no_available_users": "Všichni uživatelé serveru jsou již s touto organizací propojeni.",
-    "user_linked": "Uživatel propojen s organizací"
+    "user_linked": "Uživatel propojen s organizací",
+    "device_groups_tab": "Skupiny zařízení",
+    "device_groups_intro": "Skupiny zařízení propojené s touto organizací určují, ke kterým strojům mají členové přístup v klientu RustDesk. Členství a přístup nastavíte na stránce Zařízení.",
+    "manage_in_devices": "Otevřít Zařízení → Skupiny",
+    "no_org_device_groups": "S touto organizací zatím nejsou propojeny žádné skupiny zařízení.",
+    "create_org_device_group": "Vytvořit skupinu zařízení",
+    "org_device_group_created": "Skupina zařízení vytvořena",
+    "org_user_groups_title": "Skupiny uživatelů",
+    "org_user_groups_intro": "Skupinám uživatelů propojeným s organizací lze udělit přístup ke skupinám zařízení výše (Zařízení → Skupiny → Povolené skupiny uživatelů).",
+    "no_org_user_groups": "S touto organizací nejsou propojeny žádné skupiny uživatelů.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Zařízení",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Povolené skupiny uživatelů",
+    "group_devices_suffix": "zařízení",
+    "group_name_required": "Název skupiny je povinný",
+    "org_team_id": "ID týmu organizace",
+    "link_team_id_hint": "Skupina bude automaticky propojena s touto organizací (team ID = ID organizace)."
   },
   "chat": {
     "e2e_enabled": "Koncové šifrování aktivní",

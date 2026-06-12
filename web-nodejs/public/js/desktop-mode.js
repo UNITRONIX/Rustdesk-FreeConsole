@@ -10,6 +10,24 @@
 (function() {
     'use strict';
 
+    /**
+     * Same-origin relative route for desktop iframe embeds.
+     * Rejects protocol-relative, off-origin, and javascript/data URLs.
+     */
+    function sanitizeDesktopRoute(route) {
+        if (typeof route !== 'string') return '/';
+        const trimmed = route.trim();
+        if (!trimmed || !trimmed.startsWith('/') || trimmed.startsWith('//')) return '/';
+        try {
+            const parsed = new URL(trimmed, window.location.origin);
+            if (parsed.origin !== window.location.origin) return '/';
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '/';
+            return parsed.pathname + parsed.search;
+        } catch (_) {
+            return '/';
+        }
+    }
+
     // ============ Constants ============
 
     const MIN_WIDTH = 420;
@@ -610,7 +628,7 @@
         loading.appendChild(loadingText);
 
         var iframe = document.createElement('iframe');
-        iframe.src = win.app.route + '?embed=1';
+        iframe.src = sanitizeDesktopRoute(win.app.route) + '?embed=1';
         iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals');
         iframe.setAttribute('loading', 'lazy');
 

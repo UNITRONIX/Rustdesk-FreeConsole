@@ -581,7 +581,9 @@
     "advanced_file_build-env": "Agent-Build-Umgebung (/etc/betterdesk/build.env)",
     "advanced_file_docker-supervisord": "Docker: supervisord.conf (конфігурація supervisord)",
     "advanced_file_docker-compose": "Docker: docker-compose.yml (оркестрація)",
-    "advanced_restart_none": "Für diese Файл ist kein Службаneustart erforderlich."
+    "advanced_restart_none": "Für diese Файл ist kein Службаneustart erforderlich.",
+    "go_server_version": "Go-сервер",
+    "go_server_version_dev_hint": "Go-бінарник повідомляє про dev-збірку — перезберіть або оновіть сервер, щоб відповідати версії продукту"
   },
   "audit": {
     "time": "Time",
@@ -2350,7 +2352,26 @@
     "org_role": "Роль організації",
     "link_user_hint": "Вибраного користувача буде пов’язано з цією організацією за допомогою облікових даних його сервера.",
     "no_available_users": "Усі користувачі сервера вже пов’язані з цією організацією.",
-    "user_linked": "Користувач пов'язаний з організацією"
+    "user_linked": "Користувач пов'язаний з організацією",
+    "device_groups_tab": "Групи пристроїв",
+    "device_groups_intro": "Групи пристроїв, пов'язані з цією організацією, визначають, до яких машин члени мають доступ у клієнті RustDesk. Членство та доступ налаштовуйте на сторінці Пристрої.",
+    "manage_in_devices": "Відкрити Пристрої → Групи",
+    "no_org_device_groups": "До цієї організації ще не пов'язано жодної групи пристроїв.",
+    "create_org_device_group": "Створити групу пристроїв",
+    "org_device_group_created": "Групу пристроїв створено",
+    "org_user_groups_title": "Групи користувачів",
+    "org_user_groups_intro": "Групам користувачів, пов'язаним з організацією, можна надати доступ до груп пристроїв вище (Пристрої → Групи → Дозволені групи користувачів).",
+    "no_org_user_groups": "До цієї організації не пов'язано груп користувачів.",
+    "group_name": "Name",
+    "group_type": "Type",
+    "group_members": "Пристрої",
+    "group_type_manual": "Manual",
+    "group_type_tag": "Tag",
+    "group_allowed_user_groups": "Дозволені групи користувачів",
+    "group_devices_suffix": "пристрої",
+    "group_name_required": "Назва групи обов'язкова",
+    "org_team_id": "ID команди організації",
+    "link_team_id_hint": "Група буде автоматично пов'язана з цією організацією (team ID = ID організації)."
   },
   "chat": {
     "e2e_enabled": "Наскрізне шифрування",

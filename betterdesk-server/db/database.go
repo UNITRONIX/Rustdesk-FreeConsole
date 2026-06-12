@@ -566,6 +566,10 @@ type Database interface {
 	DeleteOrgSetting(orgID, key string) error
 	ListOrgSettings(orgID string) ([]*OrgSetting, error)
 
+	// Org Address Books (shared contacts for organization members)
+	GetOrgAddressBook(orgID, abType string) (string, error)
+	SaveOrgAddressBook(orgID, abType, data, updatedBy string) error
+
 	// Access Policies (unattended access management)
 	GetAccessPolicy(peerID string) (*AccessPolicy, error)
 	SaveAccessPolicy(p *AccessPolicy) error

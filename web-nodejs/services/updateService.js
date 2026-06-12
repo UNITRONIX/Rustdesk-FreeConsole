@@ -26,8 +26,9 @@ const path = require('path');
 const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
+const { readProductVersion } = require('../lib/productVersion');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
-const { resolveChildPath, resolvePathUnderRoot } = require('../lib/safePath');
+const { resolveChildPath, resolvePathUnderRoot, existsConfinedChild, removeConfinedChild } = require('../lib/safePath');
 const { runConsoleNpmInstall } = require('../lib/consoleNpmInstall');
 const {
     NON_CRITICAL_UPDATE_FAILURES,
@@ -40,6 +41,7 @@ const {
     deployServerBinaryAtomic,
     resolveDeployScriptPath,
 } = require('../lib/linuxServerBinaryDeploy');
+const { resolveLastUpdateResultForDisplay } = require('../lib/updateResultStore');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -383,6 +385,17 @@ function bootstrapDockerImageDeployment() {
             + `${volumeSha ? `, was ${volumeSha.slice(0, 7)}` : ''})`
         );
     }
+
+    // External image update (docker compose pull) — drop stale in-app panel errors (#192).
+    try {
+        resolveLastUpdateResultForDisplay(config.dataDir, {
+            rootDir: ROOT_DIR,
+            localSHA: imageSha,
+            remoteSHA: imageSha,
+        });
+    } catch (err) {
+        console.warn(`[UPDATE] Could not clear stale update result: ${err.message}`);
+    }
 }
 
 // ======================== SHA Tracking ===================================
@@ -471,12 +484,7 @@ async function getRemoteHeadSHA() {
 }
 
 function getLocalVersion() {
-    const versionFile = path.join(PROJECT_ROOT, 'VERSION');
-    if (fs.existsSync(versionFile)) {
-        const v = fs.readFileSync(versionFile, 'utf8').trim();
-        if (v) return v;
-    }
-    return config.appVersion;
+    return readProductVersion({ rootDir: PROJECT_ROOT }) || config.appVersion;
 }
 
 // ======================== Classify ======================================
@@ -523,12 +531,34 @@ let _updateInProgress = false;
 
 /**
  * Run a shell command as a promise (non-blocking unlike execSync).
+ * Prefer spawnPromise() when arguments are known — avoids shell interpolation.
  */
 function execPromise(cmd, opts = {}) {
     return new Promise((resolve, reject) => {
         const { exec } = require('child_process');
         exec(cmd, { maxBuffer: 5 * 1024 * 1024, ...opts }, (err, stdout, stderr) => {
             if (err) {
+                err.stderr = stderr;
+                err.stdout = stdout;
+                return reject(err);
+            }
+            resolve({ stdout, stderr });
+        });
+    });
+}
+
+function spawnPromise(command, args, opts = {}) {
+    return new Promise((resolve, reject) => {
+        const { spawn } = require('child_process');
+        const proc = spawn(command, args, { shell: false, ...opts });
+        let stdout = '';
+        let stderr = '';
+        proc.stdout?.on('data', (chunk) => { stdout += chunk; });
+        proc.stderr?.on('data', (chunk) => { stderr += chunk; });
+        proc.on('error', reject);
+        proc.on('close', (code) => {
+            if (code !== 0) {
+                const err = new Error(`${command} exited with code ${code}`);
                 err.stderr = stderr;
                 err.stdout = stdout;
                 return reject(err);
@@ -1113,18 +1143,19 @@ async function buildGoServer(preferredGoBinPath = null) {
     const start = Date.now();
     const goBin = goCheck.binPath || 'go';
     const buildEnv = buildEnvWithGo(goBin);
-    // Quote when path contains spaces (Windows "Program Files")
-    const goCmd = /\s/.test(goBin) ? `"${goBin}"` : goBin;
 
     try {
-        await execPromise(`${goCmd} mod download`, {
+        await spawnPromise(goBin, ['mod', 'download'], {
             cwd: serverDir,
             timeout: 120000,
             env: buildEnv
         });
 
-        await execPromise(
-            `${goCmd} build -trimpath -ldflags="-s -w" -o "${binaryName}" .`,
+        const productVersion = readProductVersion({ rootDir: PROJECT_ROOT });
+        const ldflags = `-s -w -X main.Version=${productVersion}`;
+        await spawnPromise(
+            goBin,
+            ['build', '-trimpath', `-ldflags=${ldflags}`, '-o', binaryName, '.'],
             { cwd: serverDir, timeout: 600000, env: buildEnv }
         );
 
@@ -1368,7 +1399,7 @@ async function _installGoToolchainBody(onProgress, opts = {}) {
                 { timeout: 300000 }
             );
         } else {
-            await execPromise(`tar -xzf "${archivePath}" -C "${GO_TOOLCHAIN_DIR}"`, { timeout: 300000 });
+            await spawnPromise('tar', ['-xzf', archivePath, '-C', GO_TOOLCHAIN_DIR], { timeout: 300000 });
         }
 
         try { fs.unlinkSync(archivePath); } catch (_e) { /* ignore */ }
@@ -1723,6 +1754,14 @@ async function checkForUpdates() {
 
     // Already at HEAD
     if (localSHA.startsWith(remote.sha.slice(0, 7)) || remote.sha.startsWith(localSHA.slice(0, 7)) || localSHA === remote.sha) {
+        try {
+            resolveLastUpdateResultForDisplay(config.dataDir, {
+                rootDir: ROOT_DIR,
+                localSHA,
+                remoteSHA: remote.sha,
+            });
+        } catch (_) { /* best-effort stale banner cleanup */ }
+
         return withDeploymentMeta({
             localVersion,
             localSHA,
@@ -2231,7 +2270,12 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 fs.writeFileSync(dest, content);
                 results.applied.push(file.path);
             } catch (err) {
-                results.failed.push({ file: file.path, error: err.message });
+                const entry = { file: file.path, error: err.message };
+                if (err.code === 'EACCES' || /permission denied/i.test(err.message || '')) {
+                    entry.nonCritical = true;
+                    console.warn(`[UPDATE] Skipping root-owned server source file (no write access): ${file.path}`);
+                }
+                results.failed.push(entry);
             }
         }
 
@@ -2553,6 +2597,14 @@ function isValidBackupName(name) {
     return typeof name === 'string' && /^pre-update-[\d\-T]+$/.test(name);
 }
 
+function isValidManifestRelativePath(relPath) {
+    if (typeof relPath !== 'string' || relPath.length === 0 || relPath.includes('\0')) return false;
+    const normalized = relPath.replace(/\\/g, '/');
+    if (path.isAbsolute(normalized) || normalized.startsWith('/') || normalized.startsWith('..')) return false;
+    if (normalized.split('/').some((seg) => seg === '..')) return false;
+    return true;
+}
+
 /**
  * Recursively delete a directory. Refuses to delete anything outside
  * BACKUP_DIR to defend against path-traversal bugs upstream.
@@ -2562,14 +2614,10 @@ function deleteBackup(name) {
         throw new Error('Invalid backup name');
     }
     const root = path.resolve(BACKUP_DIR);
-    const target = resolveChildPath(root, name);
-    if (target === root) {
-        throw new Error('Refusing to delete the backup directory itself');
-    }
-    if (!fs.existsSync(target)) {
+    if (!existsConfinedChild(root, name)) {
         throw new Error('Backup not found');
     }
-    fs.rmSync(target, { recursive: true, force: true });
+    removeConfinedChild(root, name, { recursive: true, force: true });
     return { deleted: name };
 }
 
@@ -2604,8 +2652,9 @@ function pruneBackups(keep) {
  */
 function restoreFromBackup(backupName) {
     if (!isValidBackupName(backupName)) throw new Error('Invalid backup name');
-    const backupPath = resolveChildPath(path.resolve(BACKUP_DIR), backupName);
-    if (!fs.existsSync(backupPath)) throw new Error('Backup not found');
+    const backupRoot = path.resolve(BACKUP_DIR);
+    if (!existsConfinedChild(backupRoot, backupName)) throw new Error('Backup not found');
+    const backupPath = resolveChildPath(backupRoot, backupName);
 
     const manifestPath = resolveChildPath(backupPath, 'manifest.json');
     if (!fs.existsSync(manifestPath)) throw new Error('Invalid backup — missing manifest');
@@ -2613,6 +2662,9 @@ function restoreFromBackup(backupName) {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     let restored = 0;
     for (const filePath of (manifest.files || [])) {
+        if (!isValidManifestRelativePath(filePath)) {
+            throw new Error(`Invalid path in backup manifest: ${filePath}`);
+        }
         const src = resolvePathUnderRoot(backupPath, filePath);
         const dest = resolvePathUnderRoot(ROOT_DIR, filePath);
         if (fs.existsSync(src)) {
@@ -2858,6 +2910,7 @@ module.exports = {
     getLocalVersion,
     getLocalSHA,
     saveLocalSHA,
+    getRemoteHeadSHA,
     getServerUpdateInfo,
     getPrebuiltInfo,
     installGoToolchain,

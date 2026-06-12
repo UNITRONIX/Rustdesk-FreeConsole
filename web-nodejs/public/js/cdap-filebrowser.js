@@ -322,9 +322,14 @@
 
     function handleReadResponse(session, msg) {
         const requestId = msg.request_id;
-        if (requestId && session._pendingCallbacks[requestId]) {
-            session._pendingCallbacks[requestId](msg);
-            delete session._pendingCallbacks[requestId];
+        if (requestId && typeof requestId === 'string' && /^[\w-]{1,64}$/.test(requestId)) {
+            const cb = Object.prototype.hasOwnProperty.call(session._pendingCallbacks, requestId)
+                ? session._pendingCallbacks[requestId]
+                : null;
+            if (cb) {
+                cb(msg);
+                delete session._pendingCallbacks[requestId];
+            }
         }
     }
 

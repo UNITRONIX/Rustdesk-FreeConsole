@@ -24,9 +24,10 @@ const nordicEastern = require(path.join(DATA_DIR, 'nordic-eastern.js'));
 const asiaRtl = require(path.join(DATA_DIR, 'asia-rtl.js'));
 const gapFill = require(path.join(DATA_DIR, 'gap-fill.js'));
 const enFallbackFixes = require(path.join(DATA_DIR, 'en-fallback-fixes.js'));
+const orgDeviceGroups = require(path.join(DATA_DIR, 'org-device-groups.js'));
 
 const ALL_PATCHES = { ...westEu, ...southCentralEu, ...nordicEastern, ...asiaRtl, ...gapFill };
-const FORCE_PATCHES = enFallbackFixes;
+const FORCE_PATCHES = { ...enFallbackFixes, ...orgDeviceGroups };
 
 function readJson(filePath) {
     const content = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
@@ -45,17 +46,26 @@ function flattenKeys(obj, prefix = '', result = new Map()) {
     return result;
 }
 
+const UNSAFE_NESTED_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+
 function setNested(obj, dotPath, value) {
     const parts = dotPath.split('.');
     let cur = obj;
     for (let i = 0; i < parts.length - 1; i++) {
         const p = parts[i];
+        if (UNSAFE_NESTED_KEYS.has(p)) {
+            throw new Error(`Unsafe key segment: ${p}`);
+        }
         if (!cur[p] || typeof cur[p] !== 'object' || Array.isArray(cur[p])) {
-            cur[p] = {};
+            cur[p] = Object.create(null);
         }
         cur = cur[p];
     }
-    cur[parts[parts.length - 1]] = value;
+    const leaf = parts[parts.length - 1];
+    if (UNSAFE_NESTED_KEYS.has(leaf)) {
+        throw new Error(`Unsafe key segment: ${leaf}`);
+    }
+    cur[leaf] = value;
 }
 
 function collectPatchEntries(patch, prefix = '', entries = []) {

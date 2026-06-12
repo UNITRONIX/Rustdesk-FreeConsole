@@ -41,9 +41,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add VERSION web-nodejs/package.json betterdesk.sh betterdesk.ps1 betterdesk-docker.sh \
-            CHANGELOG.md README.md Dockerfile Dockerfile.server Dockerfile.console \
-            docker-compose.quick.yml docker/entrypoint.sh docker-entrypoint.sh
+          git add $(node scripts/bump-version.js --list-paths)
           if git diff --cached --quiet; then
             echo "No version files changed — skipping commit"
             exit 0

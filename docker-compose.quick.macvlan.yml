@@ -1,0 +1,132 @@
+# =============================================================================
+# BetterDesk — Quick Start (Pre-built Images, MACVLAN / shared LAN IP)
+# =============================================================================
+# Use when the stack must appear on your LAN with a dedicated IP (macvlan),
+# not via host port mappings. The console shares the server's network namespace
+# (`network_mode: service:server`) so signal, relay, API, and panel share one IP.
+#
+# Prerequisites:
+#   - External macvlan network already created on the Docker host (example below).
+#   - A free IPv4 on that subnet (MACVLAN_IPV4).
+#
+# Create macvlan (once per host — adjust parent interface and subnet):
+#   docker network create -d macvlan \
+#     --subnet=192.168.1.0/24 --gateway=192.168.1.1 \
+#     -o parent=eth0 LAN
+#
+# Usage:
+#   export MACVLAN_IPV4=192.168.1.51
+#   export RELAY_SERVERS=${MACVLAN_IPV4}:21117
+#   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.macvlan.yml -o docker-compose.yml
+#   docker compose pull && docker compose up -d
+#
+# Web console: http://MACVLAN_IPV4:5000
+# Admin password:
+#   docker compose exec console betterdesk-show-admin-credentials
+#
+# Upgraded from pre-3.0 quick-start? See docs/docker/DOCKER_QUICKSTART.md#macvlan
+# (issue #186): use service_started (not service_healthy), pin image tags, and
+# set DB_PATH=/app/data/db_v2.sqlite3 plus AUTH_DB_PATH on the server.
+#
+# Image tag (aligned with CHANGELOG / git tag):
+#   Default: 3.2.17  |  Rolling: BETTERDESK_IMAGE_TAG=latest
+# =============================================================================
+
+services:
+  server:
+    image: ghcr.io/unitronix/betterdesk-server:${BETTERDESK_IMAGE_TAG:-3.2.20}
+    container_name: betterdesk-server
+    hostname: betterdesk-server
+    command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-api-port", "21114", "-key-file", "/opt/rustdesk/id_ed25519"]
+    volumes:
+      - betterdesk-data:/opt/rustdesk
+      - console-data:/app/data:ro
+    environment:
+      - ENCRYPTED_ONLY=1
+      - AUTH_DB_PATH=/app/data/auth.db
+      # Set RELAY_SERVERS=MACVLAN_IPV4:21117 when clients are off-LAN (see DOCKER_QUICKSTART.md).
+      - RELAY_SERVERS=${RELAY_SERVERS:-}
+      - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
+      - ENROLLMENT_MODE=${ENROLLMENT_MODE:-}
+      - TZ=${TZ:-UTC}
+    networks:
+      lan:
+        ipv4_address: ${MACVLAN_IPV4:?Set MACVLAN_IPV4 e.g. 192.168.1.51}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+      - FOWNER
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:21114/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  console:
+    image: ghcr.io/unitronix/betterdesk-console:${BETTERDESK_IMAGE_TAG:-3.2.20}
+    container_name: betterdesk-console
+    # Shares server network stack — panel and RustDesk ports use MACVLAN_IPV4.
+    network_mode: service:server
+    volumes:
+      - betterdesk-data:/opt/rustdesk
+      - console-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - HOST=0.0.0.0
+      - API_HOST=0.0.0.0
+      - API_ENABLED=false
+      - SERVER_BACKEND=betterdesk
+      # 127.0.0.1 — Docker DNS hostnames are unavailable in service: network mode.
+      - BETTERDESK_API_URL=http://127.0.0.1:21114/api
+      - RUSTDESK_PATH=/opt/rustdesk
+      - DATA_DIR=/app/data
+      - DB_PATH=/app/data/db_v2.sqlite3
+      - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
+      - API_KEY_PATH=/opt/rustdesk/.api_key
+      - WS_HBBS_HOST=127.0.0.1
+      - WS_HBBS_PORT=21116
+      - WS_HBBR_HOST=127.0.0.1
+      - WS_HBBR_PORT=21117
+      - DOCKER=true
+      - BETTERDESK_UPDATE_MODE=image
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.2.20}
+      - TZ=${TZ:-UTC}
+    depends_on:
+      # service_started (not healthy): avoids deadlock with auth.db on first boot (#138, #186).
+      server:
+        condition: service_started
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+      - FOWNER
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5000/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  lan:
+    name: ${MACVLAN_NETWORK:-LAN}
+    external: true
+
+volumes:
+  betterdesk-data:
+    name: betterdesk-data
+  console-data:
+    name: betterdesk-console-data

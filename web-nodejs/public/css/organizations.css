@@ -188,6 +188,40 @@
     margin: 0;
 }
 
+.org-section-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+    margin-bottom: 16px;
+}
+
+.org-groups-subtitle {
+    margin: 28px 0 8px;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.org-groups-table {
+    margin-top: 12px;
+}
+
+.org-group-note {
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.org-groups-empty {
+    margin: 12px 0;
+}
+
+.org-team-id-hint code {
+    font-size: 0.85rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+}
+
 /* Role badges */
 .role-badge {
     display: inline-block;
