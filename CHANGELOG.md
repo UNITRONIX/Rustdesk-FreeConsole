@@ -5,23 +5,9 @@
 
 ---
 
-## [3.2.20] — 2026-06-12
+## [3.3.0] — 2026-06-12
 
-### Changed
-- _(none yet)_
-
----
-
-## [3.2.19] — 2026-06-12
-
-### Changed
-- _(none yet)_
-
----
-
-## [3.2.18] — 2026-06-12
-
-Production release **3.3.0** (stable `main`, after merge from `dev`). Ships via **Settings → Updates** on the **Stable** channel, or `betterdesk.sh` / `betterdesk.ps1` option 2 / `docker compose pull` for GHCR. Panel update creates a pre-update backup by default. No database migration or manual SQL step is required.
+Stable production release on `main` (merged from `dev`). Ships via **Settings → Updates** on the **Stable** channel, or `betterdesk.sh` / `betterdesk.ps1` option 2 / `docker compose pull` for GHCR. Panel update creates a pre-update backup by default. No database migration or manual SQL step is required.
 
 ### Added
 
@@ -49,6 +35,27 @@ Production release **3.3.0** (stable `main`, after merge from `dev`). Ships via 
 | **Docker** | `docker compose pull && docker compose up -d` after release; use `betterdesk-show-admin-credentials` instead of `cat` as root. |
 | **MACVLAN (#186)** | Switch to `docker-compose.quick.macvlan.yml` or set `depends_on: service_started`, `DB_PATH=/app/data/db_v2.sqlite3`, `127.0.0.1` for API/WS. |
 | **Stale update banner (#192)** | Update to 3.3.0+ or once: `rm -f <console-path>/data/.last_update_result.json` and restart console. |
+
+---
+
+## [3.2.20] — 2026-06-12
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.19] — 2026-06-12
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.2.18] — 2026-06-12
+
+### Changed
+- _(none yet)_
 
 ---
 
@@ -608,3 +615,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.2.18]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.17...v3.2.18
 [3.2.19]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.18...v3.2.19
 [3.2.20]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.19...v3.2.20
+[3.3.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.20...v3.3.0
