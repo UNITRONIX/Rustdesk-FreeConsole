@@ -28,6 +28,21 @@ Thank you, INSOLVE, for backing free and open remote-desktop software. 🙏
 
 ---
 
+## ☕ Individual Backers
+
+These supporters keep the project going through one-time and recurring donations.
+Thank you — every coffee counts. ☕
+
+### Marco Jakobs ([@jacotec](https://github.com/jacotec))
+
+**Marco Jakobs** backed BetterDesk development with a generous donation via
+[Buy Me a Coffee](https://buymeacoffee.com/unitronix). We are grateful for the
+support and for believing in open, self-hostable remote-management software.
+
+Thank you, Marco! 🙏
+
+---
+
 ## 💖 How to Sponsor
 
 BetterDesk has been growing rapidly — from a passion project driven by vibe
@@ -153,4 +168,4 @@ belongs to the creator.
 
 ---
 
-*Last updated: 2026-05-28*
+*Last updated: 2026-06-12*
