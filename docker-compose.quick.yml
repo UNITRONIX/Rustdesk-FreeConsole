@@ -20,7 +20,7 @@
 # RustDesk client API: http://localhost:21114 (Go server — not the console port)
 # SQLite: server mounts console auth.db read-only for folder/group sync (issue #138).
 # Default credentials are written to the shared credentials file:
-#   docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
+#   docker compose exec console betterdesk-show-admin-credentials
 #
 # MACVLAN / dedicated LAN IP: use docker-compose.quick.macvlan.yml instead
 # (console shares the server network namespace). See docs/docker/DOCKER_QUICKSTART.md

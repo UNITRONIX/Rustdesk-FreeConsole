@@ -49,10 +49,12 @@ docker compose pull
 docker compose up -d
 
 # 3. Get admin password
-docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
+docker compose exec console betterdesk-show-admin-credentials
 ```
 
 **Done!** Open http://localhost:5000 and log in with `admin` / (password from step 3).
+
+If `cat /opt/rustdesk/.admin_credentials` returns **Permission denied**, use `betterdesk-show-admin-credentials` above (or `docker compose exec -u betterdesk console …`) — see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md#problem-permission-denied-reading-admin_credentials).
 
 ### Pin or change image version
 

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Docker admin credential lookup (#195)** — `docker compose exec` as root could not read `.admin_credentials` (mode 0600) on hardened images (`cap_drop: ALL`). Added `betterdesk-show-admin-credentials` helper (re-execs as `betterdesk`); updated README, quick-start compose comments, `install.sh`, and Docker docs. Existing installs without the helper can use `docker compose exec -u betterdesk console …`.
+
 ### Changed
 - _(none yet)_
 

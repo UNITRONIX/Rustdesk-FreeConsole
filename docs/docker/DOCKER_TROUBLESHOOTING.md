@@ -402,6 +402,33 @@ The improved version automatically:
 
 ## 📋 Troubleshooting
 
+### Problem: Permission denied reading `.admin_credentials`
+
+**Symptom:** After install, this fails:
+
+```bash
+docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials'
+# cat: can't open '/opt/rustdesk/.admin_credentials': Permission denied
+```
+
+**Cause:** Hardened Docker images use `cap_drop: [ALL]`. `docker compose exec` runs as root, but without `CAP_DAC_OVERRIDE` root cannot read `.admin_credentials` (mode `0600`, owned by the `betterdesk` user). The web panel still works because Node.js runs as `betterdesk`.
+
+**Fix (recommended):**
+
+```bash
+docker compose exec console betterdesk-show-admin-credentials
+```
+
+**Fix (works on images before the helper was added):**
+
+```bash
+docker compose exec -u betterdesk console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
+```
+
+**Do not** run `chmod 777` on the credentials file — that makes the bootstrap password world-readable.
+
+If no file is found yet, wait for first boot to finish and check `docker compose logs server` for the bootstrap message.
+
 ### Problem: "Database not found"
 ```bash
 # Check volumes

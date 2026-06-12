@@ -98,6 +98,7 @@ config.local.*
 *_local.sh
 *_local.ps1
 *credentials*
+!docker/show-admin-credentials.sh
 *.password
 *.passwords
 *_password.txt

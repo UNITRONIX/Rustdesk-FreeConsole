@@ -597,8 +597,8 @@ Install files land in `/opt/betterdesk/docker` (Docker) or `/opt/betterdesk/sour
 curl -fsSL https://raw.githubusercontent.com/UNITRONIX/Rustdesk-FreeConsole/main/docker-compose.quick.yml -o docker-compose.yml
 docker compose up -d
 
-# Get admin password
-docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
+# Get admin password (helper re-execs as betterdesk — required with cap_drop:ALL)
+docker compose exec console betterdesk-show-admin-credentials
 ```
 
 Open http://localhost:5000 — done in 30 seconds! See [DOCKER_QUICKSTART.md](docs/docker/DOCKER_QUICKSTART.md) for more options.

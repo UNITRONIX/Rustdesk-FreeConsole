@@ -22,7 +22,7 @@
 #
 # Web console: http://MACVLAN_IPV4:5000
 # Admin password:
-#   docker compose exec console sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
+#   docker compose exec console betterdesk-show-admin-credentials
 #
 # Upgraded from pre-3.0 quick-start? See docs/docker/DOCKER_QUICKSTART.md#macvlan
 # (issue #186): use service_started (not service_healthy), pin image tags, and

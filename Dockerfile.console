@@ -54,7 +54,8 @@ RUN printf '%s\n' "${BETTERDESK_COMMIT_SHA}" > /app/.image-commit
 # Copy entrypoint scripts
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 COPY docker/console-entrypoint.sh /console-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh /console-entrypoint.sh
+COPY docker/show-admin-credentials.sh /usr/local/bin/betterdesk-show-admin-credentials
+RUN chmod +x /app/docker-entrypoint.sh /console-entrypoint.sh /usr/local/bin/betterdesk-show-admin-credentials
 
 # Create data directories
 RUN mkdir -p /app/data /opt/rustdesk && \
