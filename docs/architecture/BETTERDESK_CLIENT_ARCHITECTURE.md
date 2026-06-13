@@ -51,12 +51,12 @@
 | **WebRTC (Server)** | [Pion](https://github.com/pion/webrtc) | MIT | TURN server, SFU, WebRTC signaling |
 | **Desktop Shell** | [Tauri v2](https://tauri.app/) | MIT/Apache 2.0 | Cross-platform desktop app |
 | **UI Framework** | [SolidJS](https://solidjs.com/) | MIT | Reactive UI with minimal overhead |
-| **Screen Capture** | Custom Rust | Proprietary | DXGI (Win), PipeWire (Linux), CGDisplay (macOS) |
+| **Screen Capture** | Custom Rust | AGPL-3.0 | DXGI (Win), PipeWire (Linux), CGDisplay (macOS) |
 | **Video Codec** | WebCodecs API / libvpx | BSD | VP8/VP9 encode/decode in WebView |
 | **Audio** | WebRTC audio | BSD | Opus codec, echo cancellation |
-| **Input Injection** | Custom Rust | Proprietary | SendInput (Win), uinput (Linux), CGEvent (macOS) |
+| **Input Injection** | Custom Rust | AGPL-3.0 | SendInput (Win), uinput (Linux), CGEvent (macOS) |
 | **File Transfer** | WebRTC DataChannel | BSD | Encrypted P2P file transfer |
-| **Clipboard** | Custom Rust | Proprietary | Platform clipboard APIs |
+| **Clipboard** | Custom Rust | AGPL-3.0 | Platform clipboard APIs |
 | **Node.js Panel** | Express.js (existing) | MIT | Web admin panel |
 
 ### Key Libraries (all MIT/BSD/Apache 2.0)
@@ -277,9 +277,9 @@ All BetterDesk components use permissive licenses:
 
 | Component | License | Commercial Use |
 |-----------|---------|---------------|
-| BetterDesk Server (Go) | Proprietary | ✅ Full rights |
-| BetterDesk Client (Tauri) | Proprietary | ✅ Full rights |
-| BetterDesk Web Panel | Proprietary | ✅ Full rights |
+| BetterDesk Server (Go) | AGPL-3.0 | ✅ Under copyleft terms |
+| BetterDesk Client (Tauri) | AGPL-3.0 | ✅ Under copyleft terms |
+| BetterDesk Web Panel | AGPL-3.0 | ✅ Under copyleft terms |
 | Pion WebRTC (dependency) | MIT | ✅ No restrictions |
 | Tauri (dependency) | MIT/Apache 2.0 | ✅ No restrictions |
 | SolidJS (dependency) | MIT | ✅ No restrictions |
@@ -294,7 +294,7 @@ All BetterDesk components use permissive licenses:
 
 | Feature | RustDesk | BetterDesk (planned) |
 |---------|----------|---------------------|
-| License | AGPLv3 (copyleft) | Proprietary (full control) |
+| License | AGPLv3 (copyleft) | AGPL-3.0 (copyleft) |
 | Protocol | Custom TCP + NaCl | WebRTC (DTLS/SRTP) + custom signal |
 | NAT Traversal | Custom hole-punching | ICE/STUN/TURN (industry standard) |
 | Encryption | NaCl secretbox (custom) | DTLS/SRTP (standard) + E2E option |

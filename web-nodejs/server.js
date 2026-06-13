@@ -4,7 +4,7 @@
  * 
  * @author UNITRONIX
  * @version 2.1.0
- * @license Apache-2.0
+ * @license AGPL-3.0
  */
 
 const express = require('express');

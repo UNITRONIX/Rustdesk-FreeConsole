@@ -944,7 +944,7 @@ exec "$LIB/betterdesk-support-x11" "$@"
 Version:        1.0.0
 Release:        1%{?dist}
 Summary:        BetterDesk Support Agent
-License:        Proprietary
+License:        AGPL-3.0
 BuildArch:      x86_64
 AutoReqProv:    no
 

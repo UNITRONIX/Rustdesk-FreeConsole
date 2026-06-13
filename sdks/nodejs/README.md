@@ -122,4 +122,4 @@ All helpers accept `(id, label, opts?)` and return a `Widget` object.
 
 ## License
 
-MIT
+AGPL-3.0

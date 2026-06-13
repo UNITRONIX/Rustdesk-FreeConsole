@@ -1,7 +1,9 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+
+- **License:** The entire project transitions to **AGPL-3.0** on the development branch. Stable releases through v3.3.x remain under Apache 2.0. The transition is finalized when the next major server feature ships in a tagged stable release. Commercial licensing may be offered in the future.
+- **i18n:** French (`fr.json`) and Traditional Chinese (`zh-TW.json`) translations were withdrawn and recreated by the maintainer under AGPL-3.0.
 
 ---
 

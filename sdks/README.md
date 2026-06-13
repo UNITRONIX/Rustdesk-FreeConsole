@@ -87,4 +87,4 @@ Authentication methods: `api_key`, `device_token`, `user_password`.
 
 ## License
 
-MIT
+AGPL-3.0

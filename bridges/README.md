@@ -105,4 +105,4 @@ Each bridge can run as:
 
 ## License
 
-MIT
+AGPL-3.0

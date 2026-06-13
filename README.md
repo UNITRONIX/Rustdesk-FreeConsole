@@ -6,7 +6,7 @@
 
 <br><br>
 
-![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)
 ![Version](https://img.shields.io/badge/version-3.3.2-brightgreen.svg)
@@ -1739,7 +1739,9 @@ Contributions are welcome! See [CONTRIBUTING.md](docs/development/CONTRIBUTING.m
 
 ## 📄 License
 
-This project is licensed under the **Apache License 2.0** — see [LICENSE](LICENSE).
+BetterDesk is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** — see [LICENSE](LICENSE).
+
+**Development status:** AGPL-3.0 applies to the active development branch. Stable releases through v3.3.x remain under **Apache 2.0** as originally published. The license transition is finalized when the next major server feature ships in a tagged stable release.
 
 ### Clean-Room Implementation
 
@@ -1747,21 +1749,17 @@ BetterDesk Server (`betterdesk-server/`) is a **clean-room implementation** of t
 
 - **Go imports**: No `github.com/rustdesk/*` dependencies
 - **Code review**: No RustDesk copyright headers or attribution
-- **Protocol**: Uses independently authored `.proto` specifications with Apache 2.0 headers
+- **Protocol**: Uses independently authored `.proto` specifications
 
 BetterDesk Console (`web-nodejs/`) is an entirely original Node.js/Express application.
 
 ### Archive Directory
 
-The `archive/` directory (excluded from distribution via `.gitignore`) contains deprecated code from earlier development phases, including legacy Rust-based server code licensed under AGPL-3.0. These files are **not covered by the Apache 2.0 license** and are never included in releases, packages, or Docker images.
+The `archive/` directory (excluded from distribution via `.gitignore`) contains deprecated code from earlier development phases. Those files retain their original licensing and are never included in releases, packages, or Docker images.
 
 ### Trademark Notice
 
 "RustDesk" is a trademark of the RustDesk Team. BetterDesk is an independent project that implements the RustDesk protocol for client compatibility. Use of the name "RustDesk" in this project is purely descriptive (indicating protocol compatibility) and does not imply affiliation with or endorsement by the RustDesk Team.
-
-### Commercial License
-
-Commercial licensing is available for organizations requiring extended support, white-label / OEM redistribution rights, or custom integrations — contact UNITRONIX for details.
 
 ---
 
