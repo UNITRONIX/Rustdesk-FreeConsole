@@ -1741,7 +1741,9 @@ Contributions are welcome! See [CONTRIBUTING.md](docs/development/CONTRIBUTING.m
 
 BetterDesk is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** — see [LICENSE](LICENSE).
 
-**Development status:** AGPL-3.0 applies to the active development branch. Stable releases through v3.3.x remain under **Apache 2.0** as originally published. The license transition is finalized when the next major server feature ships in a tagged stable release.
+**Development status:** AGPL-3.0 applies to the active development branch (`dev`).
+Stable release **v3.4.0** will be the first version published under **AGPL-3.0**.
+Releases **v3.3.x and earlier** remain under **Apache 2.0** as originally published.
 
 ### Clean-Room Implementation
 

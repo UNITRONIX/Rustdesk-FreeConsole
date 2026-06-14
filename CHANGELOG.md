@@ -1,7 +1,8 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+
+- **License (stable):** **v3.4.0** will be the first stable release under **AGPL-3.0** (already in effect on `dev` since v3.3.3). v3.3.x and earlier remain Apache 2.0.
 
 ---
 
@@ -16,7 +17,7 @@
 
 ### Changed
 
-- **License:** The entire project transitions to **AGPL-3.0** on the development branch. Stable releases through v3.3.x remain under Apache 2.0. The transition is finalized when the next major server feature ships in a tagged stable release. Commercial licensing may be offered in the future.
+- **License:** The project transitions to **AGPL-3.0** on the development branch. **v3.4.0** will be the first stable release under AGPL-3.0; **v3.3.x and earlier** remain under Apache 2.0. See [docs/COMMERCIAL-GRANT.md](docs/COMMERCIAL-GRANT.md) for sponsor terms.
 - **i18n:** French (`fr.json`) and Traditional Chinese (`zh-TW.json`) translations were withdrawn and recreated by the maintainer under AGPL-3.0.
 
 ---
