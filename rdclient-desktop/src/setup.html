@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterDesk RdClient — Setup</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0d1117;
+            --panel: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --error: #f85149;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 24px;
+        }
+        .card {
+            width: 100%;
+            max-width: 440px;
+            padding: 28px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+        }
+        h1 {
+            margin: 0 0 8px;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        p {
+            margin: 0 0 20px;
+            color: var(--muted);
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.8125rem;
+            color: var(--muted);
+        }
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #21262d;
+            color: var(--text);
+            font-size: 0.875rem;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        button {
+            margin-top: 16px;
+            width: 100%;
+            padding: 10px 14px;
+            border: none;
+            border-radius: 8px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:disabled { opacity: 0.6; cursor: wait; }
+        .error {
+            margin-top: 12px;
+            color: var(--error);
+            font-size: 0.8125rem;
+            min-height: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>BetterDesk RdClient</h1>
+        <p>Enter the URL of your BetterDesk console panel. The dashboard will load from <code>/remote</code> on this server.</p>
+        <form id="setup-form">
+            <label for="server-url">Panel URL</label>
+            <input type="url" id="server-url" placeholder="https://desk.example.com" required autofocus>
+            <button type="submit" id="submit-btn">Continue</button>
+            <div class="error" id="error"></div>
+        </form>
+    </div>
+    <script src="setup.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "default",
+  "description": "Default RdClient desktop capabilities",
+  "windows": ["main", "session-*"],
+  "remote": {
+    "urls": [
+      "https://*",
+      "https://*/*",
+      "http://*",
+      "http://*/*"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "core:window:allow-create",
+    "core:window:allow-set-focus",
+    "core:window:allow-close",
+    "core:webview:allow-create-webview-window",
+    "shell:allow-open"
+  ]
+}

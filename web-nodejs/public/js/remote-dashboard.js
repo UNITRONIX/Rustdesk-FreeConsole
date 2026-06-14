@@ -431,8 +431,23 @@
         }
     }
 
+    function isRdClientDesktop() {
+        return !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
+    }
+
     function openRemoteSession(deviceId, deviceName) {
         if (!deviceId) return;
+
+        if (isRdClientDesktop()) {
+            window.__TAURI__.core.invoke('open_session', {
+                deviceId: deviceId,
+                deviceName: deviceName || ''
+            }).catch(function (err) {
+                console.error('RdClient desktop session failed:', err);
+            });
+            return;
+        }
+
         if (typeof BroadcastChannel === 'undefined') {
             window.open('/remote/' + encodeURIComponent(deviceId), '_blank');
             return;

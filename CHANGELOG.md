@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **RdClient desktop (Phase C — MVP):** new `rdclient-desktop/` Tauri v2 operator shell — first-run panel URL setup, main window loads `{url}/remote`, **Connect** opens a separate session window (`/remote/:id`); web dashboard uses `open_session` when `__TAURI__` is present. **Linux:** automatic X11/Wayland session detection and WebKitGTK workarounds (Gdk error 71 on Wayland). **TLS:** accepts **HTTP** and **HTTPS** with self-signed, Let's Encrypt, or incomplete-chain certs (operator panels); set `BETTERDESK_TLS_STRICT=1` for strict system CA validation only. Not yet distributed via Settings → Updates (build from source).
+
 ### Changed
 - _(none yet)_
 
