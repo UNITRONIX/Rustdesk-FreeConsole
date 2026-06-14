@@ -3817,7 +3817,22 @@
     "error_load": "Không thể tải thiết bị",
     "open_panel": "Mở bảng điều khiển",
     "devices_count": "{count} thiết bị",
-    "retry": "Thử lại"
+    "retry": "Thử lại",
+    "nav_address_book": "Sổ địa chỉ",
+    "nav_folders": "Thư mục",
+    "nav_groups": "Nhóm",
+    "nav_tags": "Thẻ",
+    "quick_connect": "Điều khiển desktop từ xa",
+    "quick_connect_placeholder": "Nhập ID từ xa…",
+    "view_grid": "Xem lưới",
+    "view_list": "Xem danh sách",
+    "sync_now": "Làm mới",
+    "last_sync": "Đã cập nhật",
+    "status_ready": "Sẵn sàng",
+    "sync_error": "Lỗi đồng bộ",
+    "unassigned": "Chưa gán",
+    "no_groups": "Không có nhóm",
+    "no_tags": "Không có thẻ"
   },
   "rdclient_login": {
     "title": "Máy khách Desktop từ xa",

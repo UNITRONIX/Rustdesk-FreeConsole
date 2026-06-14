@@ -3815,7 +3815,22 @@
     "error_load": "Échec du chargement des appareils",
     "open_panel": "Ouvrir la console",
     "devices_count": "{count} appareils",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "nav_address_book": "Carnet d'adresses",
+    "nav_folders": "Dossiers",
+    "nav_groups": "Groupes",
+    "nav_tags": "Tags",
+    "quick_connect": "Contrôler le bureau à distance",
+    "quick_connect_placeholder": "Saisir l'ID distant…",
+    "view_grid": "Vue grille",
+    "view_list": "Vue liste",
+    "sync_now": "Actualiser",
+    "last_sync": "Mis à jour",
+    "status_ready": "Prêt",
+    "sync_error": "Erreur de synchronisation",
+    "unassigned": "Non assigné",
+    "no_groups": "Aucun groupe",
+    "no_tags": "Aucun tag"
   },
   "rdclient_login": {
     "title": "Client Bureau à distance",

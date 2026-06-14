@@ -3817,7 +3817,22 @@
     "error_load": "Не вдалося завантажити пристрої",
     "open_panel": "Відкрити консоль",
     "devices_count": "{count} пристроїв",
-    "retry": "Повторити"
+    "retry": "Повторити",
+    "nav_address_book": "Адресна книга",
+    "nav_folders": "Папки",
+    "nav_groups": "Групи",
+    "nav_tags": "Теги",
+    "quick_connect": "Керувати віддаленим робочим столом",
+    "quick_connect_placeholder": "Введіть віддалений ID…",
+    "view_grid": "Сітка",
+    "view_list": "Список",
+    "sync_now": "Оновити",
+    "last_sync": "Оновлено",
+    "status_ready": "Готово",
+    "sync_error": "Помилка синхронізації",
+    "unassigned": "Не призначено",
+    "no_groups": "Немає груп",
+    "no_tags": "Немає тегів"
   },
   "rdclient_login": {
     "title": "Клієнт віддаленого робочого столу",

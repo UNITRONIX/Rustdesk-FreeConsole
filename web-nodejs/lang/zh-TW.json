@@ -3815,7 +3815,22 @@
     "error_load": "無法載入裝置",
     "open_panel": "開啟主控台",
     "devices_count": "{count} 台裝置",
-    "retry": "重試"
+    "retry": "重試",
+    "nav_address_book": "通訊錄",
+    "nav_folders": "資料夾",
+    "nav_groups": "群組",
+    "nav_tags": "標籤",
+    "quick_connect": "控制遠端桌面",
+    "quick_connect_placeholder": "輸入遠端 ID…",
+    "view_grid": "格狀檢視",
+    "view_list": "清單檢視",
+    "sync_now": "重新整理",
+    "last_sync": "已更新",
+    "status_ready": "就緒",
+    "sync_error": "同步錯誤",
+    "unassigned": "未指派",
+    "no_groups": "無群組",
+    "no_tags": "無標籤"
   },
   "rdclient_login": {
     "title": "遠端桌面用戶端",

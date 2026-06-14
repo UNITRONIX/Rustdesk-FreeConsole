@@ -3811,7 +3811,22 @@
     "error_load": "No se pudieron cargar los dispositivos",
     "open_panel": "Abrir consola",
     "devices_count": "{count} dispositivos",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "nav_address_book": "Libreta de direcciones",
+    "nav_folders": "Carpetas",
+    "nav_groups": "Grupos",
+    "nav_tags": "Etiquetas",
+    "quick_connect": "Controlar escritorio remoto",
+    "quick_connect_placeholder": "Introduzca ID remoto…",
+    "view_grid": "Vista cuadrícula",
+    "view_list": "Vista lista",
+    "sync_now": "Actualizar",
+    "last_sync": "Actualizado",
+    "status_ready": "Listo",
+    "sync_error": "Error de sincronización",
+    "unassigned": "Sin asignar",
+    "no_groups": "Sin grupos",
+    "no_tags": "Sin etiquetas"
   },
   "rdclient_login": {
     "title": "Cliente de escritorio remoto",

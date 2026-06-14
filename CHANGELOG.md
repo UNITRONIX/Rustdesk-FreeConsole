@@ -9,7 +9,7 @@
 
 ### Added
 
-- **RdClient dashboard (web):** **Tools → Remote Desktop** opens `/remote` in a new browser tab — standalone operator device list with branding, search/filters, and **Connect** (same `/remote/:id` viewer as Devices). Devices → Web Remote unchanged.
+- **RdClient dashboard (web):** **Tools → Remote Desktop** opens `/remote` in a new browser tab — standalone operator address book with folders, device groups, tags, quick-connect by ID, card grid (RustDesk-inspired layout), list toggle, 30s auto-sync, panel branding/fonts/colors. Devices → Web Remote unchanged.
 - **RdClient login (web):** `/remote/login` — dedicated operator sign-in when the panel session expires (redirects to `/remote` or viewer instead of admin `/login`); optional **Remember me** stores encrypted credentials in IndexedDB (Web Crypto AES-GCM), separate from the peer password vault planned for Phase B.
 
 ### Changed

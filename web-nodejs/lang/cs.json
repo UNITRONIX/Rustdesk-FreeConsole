@@ -3811,7 +3811,22 @@
     "error_load": "Nepodařilo se načíst zařízení",
     "open_panel": "Otevřít konzoli",
     "devices_count": "{count} zařízení",
-    "retry": "Zkusit znovu"
+    "retry": "Zkusit znovu",
+    "nav_address_book": "Adresář",
+    "nav_folders": "Složky",
+    "nav_groups": "Skupiny",
+    "nav_tags": "Štítky",
+    "quick_connect": "Ovládat vzdálenou plochu",
+    "quick_connect_placeholder": "Zadejte vzdálené ID…",
+    "view_grid": "Zobrazení mřížky",
+    "view_list": "Zobrazení seznamu",
+    "sync_now": "Obnovit",
+    "last_sync": "Aktualizováno",
+    "status_ready": "Připraveno",
+    "sync_error": "Chyba synchronizace",
+    "unassigned": "Nepřiřazeno",
+    "no_groups": "Žádné skupiny",
+    "no_tags": "Žádné štítky"
   },
   "rdclient_login": {
     "title": "Klient vzdálené plochy",

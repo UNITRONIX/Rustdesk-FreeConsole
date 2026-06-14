@@ -3811,7 +3811,22 @@
     "error_load": "Nie udało się załadować urządzeń",
     "open_panel": "Otwórz konsolę",
     "devices_count": "{count} urządzeń",
-    "retry": "Ponów"
+    "retry": "Ponów",
+    "nav_address_book": "Książka adresowa",
+    "nav_folders": "Foldery",
+    "nav_groups": "Grupy",
+    "nav_tags": "Tagi",
+    "quick_connect": "Steruj pulpitem zdalnym",
+    "quick_connect_placeholder": "Wpisz ID zdalnego urządzenia…",
+    "view_grid": "Widok siatki",
+    "view_list": "Widok listy",
+    "sync_now": "Odśwież",
+    "last_sync": "Zaktualizowano",
+    "status_ready": "Gotowe",
+    "sync_error": "Błąd synchronizacji",
+    "unassigned": "Nieprzypisane",
+    "no_groups": "Brak grup",
+    "no_tags": "Brak tagów"
   },
   "rdclient_login": {
     "title": "Klient pulpitu zdalnego",

@@ -3817,7 +3817,22 @@
     "error_load": "Kunne ikke laste enheter",
     "open_panel": "Åpne konsoll",
     "devices_count": "{count} enheter",
-    "retry": "Prøv igjen"
+    "retry": "Prøv igjen",
+    "nav_address_book": "Adressebok",
+    "nav_folders": "Mapper",
+    "nav_groups": "Grupper",
+    "nav_tags": "Tagger",
+    "quick_connect": "Styr eksternt skrivebord",
+    "quick_connect_placeholder": "Skriv inn eksternt ID…",
+    "view_grid": "Rutenettvisning",
+    "view_list": "Listevisning",
+    "sync_now": "Oppdater",
+    "last_sync": "Oppdatert",
+    "status_ready": "Klar",
+    "sync_error": "Synkroniseringsfeil",
+    "unassigned": "Ikke tildelt",
+    "no_groups": "Ingen grupper",
+    "no_tags": "Ingen tagger"
   },
   "rdclient_login": {
     "title": "Remote Desktop-klient",

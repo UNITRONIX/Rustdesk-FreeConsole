@@ -3817,7 +3817,22 @@
     "error_load": "Kunne ikke indlæse enheder",
     "open_panel": "Åbn konsol",
     "devices_count": "{count} enheder",
-    "retry": "Prøv igen"
+    "retry": "Prøv igen",
+    "nav_address_book": "Adressebog",
+    "nav_folders": "Mapper",
+    "nav_groups": "Grupper",
+    "nav_tags": "Tags",
+    "quick_connect": "Styr fjernskrivebord",
+    "quick_connect_placeholder": "Indtast fjern-ID…",
+    "view_grid": "Gittervisning",
+    "view_list": "Listevisning",
+    "sync_now": "Opdater",
+    "last_sync": "Opdateret",
+    "status_ready": "Klar",
+    "sync_error": "Synkroniseringsfejl",
+    "unassigned": "Ikke tildelt",
+    "no_groups": "Ingen grupper",
+    "no_tags": "Ingen tags"
   },
   "rdclient_login": {
     "title": "Remote Desktop-klient",

@@ -3811,7 +3811,22 @@
     "error_load": "Geräte konnten nicht geladen werden",
     "open_panel": "Konsole öffnen",
     "devices_count": "{count} Geräte",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "nav_address_book": "Adressbuch",
+    "nav_folders": "Ordner",
+    "nav_groups": "Gruppen",
+    "nav_tags": "Tags",
+    "quick_connect": "Remote-Desktop steuern",
+    "quick_connect_placeholder": "Remote-ID eingeben…",
+    "view_grid": "Rasteransicht",
+    "view_list": "Listenansicht",
+    "sync_now": "Aktualisieren",
+    "last_sync": "Aktualisiert",
+    "status_ready": "Bereit",
+    "sync_error": "Synchronisierungsfehler",
+    "unassigned": "Nicht zugewiesen",
+    "no_groups": "Keine Gruppen",
+    "no_tags": "Keine Tags"
   },
   "rdclient_login": {
     "title": "Remote-Desktop-Client",

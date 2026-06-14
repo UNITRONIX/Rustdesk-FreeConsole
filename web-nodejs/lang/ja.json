@@ -3811,7 +3811,22 @@
     "error_load": "デバイスの読み込みに失敗しました",
     "open_panel": "コンソールを開く",
     "devices_count": "{count} 台",
-    "retry": "再試行"
+    "retry": "再試行",
+    "nav_address_book": "アドレス帳",
+    "nav_folders": "フォルダ",
+    "nav_groups": "グループ",
+    "nav_tags": "タグ",
+    "quick_connect": "リモートデスクトップを操作",
+    "quick_connect_placeholder": "リモートIDを入力…",
+    "view_grid": "グリッド表示",
+    "view_list": "リスト表示",
+    "sync_now": "更新",
+    "last_sync": "更新済み",
+    "status_ready": "準備完了",
+    "sync_error": "同期エラー",
+    "unassigned": "未割り当て",
+    "no_groups": "グループなし",
+    "no_tags": "タグなし"
   },
   "rdclient_login": {
     "title": "リモートデスクトップクライアント",

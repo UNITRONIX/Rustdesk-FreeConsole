@@ -3811,7 +3811,22 @@
     "error_load": "Impossibile caricare i dispositivi",
     "open_panel": "Apri console",
     "devices_count": "{count} dispositivi",
-    "retry": "Riprova"
+    "retry": "Riprova",
+    "nav_address_book": "Rubrica",
+    "nav_folders": "Cartelle",
+    "nav_groups": "Gruppi",
+    "nav_tags": "Tag",
+    "quick_connect": "Controlla desktop remoto",
+    "quick_connect_placeholder": "Inserisci ID remoto…",
+    "view_grid": "Vista griglia",
+    "view_list": "Vista elenco",
+    "sync_now": "Aggiorna",
+    "last_sync": "Aggiornato",
+    "status_ready": "Pronto",
+    "sync_error": "Errore di sincronizzazione",
+    "unassigned": "Non assegnato",
+    "no_groups": "Nessun gruppo",
+    "no_tags": "Nessun tag"
   },
   "rdclient_login": {
     "title": "Client desktop remoto",

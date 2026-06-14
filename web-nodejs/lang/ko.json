@@ -3811,7 +3811,22 @@
     "error_load": "장치를 불러오지 못했습니다",
     "open_panel": "콘솔 열기",
     "devices_count": "{count}개 장치",
-    "retry": "다시 시도"
+    "retry": "다시 시도",
+    "nav_address_book": "주소록",
+    "nav_folders": "폴더",
+    "nav_groups": "그룹",
+    "nav_tags": "태그",
+    "quick_connect": "원격 데스크톱 제어",
+    "quick_connect_placeholder": "원격 ID 입력…",
+    "view_grid": "그리드 보기",
+    "view_list": "목록 보기",
+    "sync_now": "새로고침",
+    "last_sync": "업데이트됨",
+    "status_ready": "준비됨",
+    "sync_error": "동기화 오류",
+    "unassigned": "미할당",
+    "no_groups": "그룹 없음",
+    "no_tags": "태그 없음"
   },
   "rdclient_login": {
     "title": "원격 데스크톱 클라이언트",

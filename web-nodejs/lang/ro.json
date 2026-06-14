@@ -3817,7 +3817,22 @@
     "error_load": "Nu s-au putut încărca dispozitivele",
     "open_panel": "Deschide consola",
     "devices_count": "{count} dispozitive",
-    "retry": "Reîncearcă"
+    "retry": "Reîncearcă",
+    "nav_address_book": "Agendă",
+    "nav_folders": "Dosare",
+    "nav_groups": "Grupuri",
+    "nav_tags": "Etichete",
+    "quick_connect": "Controlează desktop la distanță",
+    "quick_connect_placeholder": "Introduceți ID-ul…",
+    "view_grid": "Vizualizare grilă",
+    "view_list": "Vizualizare listă",
+    "sync_now": "Reîmprospătează",
+    "last_sync": "Actualizat",
+    "status_ready": "Pregătit",
+    "sync_error": "Eroare de sincronizare",
+    "unassigned": "Neatribuit",
+    "no_groups": "Fără grupuri",
+    "no_tags": "Fără etichete"
   },
   "rdclient_login": {
     "title": "Client desktop la distanță",

@@ -3817,7 +3817,22 @@
     "error_load": "Cihazlar yüklenemedi",
     "open_panel": "Konsolu aç",
     "devices_count": "{count} cihaz",
-    "retry": "Yeniden dene"
+    "retry": "Yeniden dene",
+    "nav_address_book": "Adres defteri",
+    "nav_folders": "Klasörler",
+    "nav_groups": "Gruplar",
+    "nav_tags": "Etiketler",
+    "quick_connect": "Uzak masaüstünü kontrol et",
+    "quick_connect_placeholder": "Uzak ID girin…",
+    "view_grid": "Izgara görünümü",
+    "view_list": "Liste görünümü",
+    "sync_now": "Yenile",
+    "last_sync": "Güncellendi",
+    "status_ready": "Hazır",
+    "sync_error": "Senkronizasyon hatası",
+    "unassigned": "Atanmamış",
+    "no_groups": "Grup yok",
+    "no_tags": "Etiket yok"
   },
   "rdclient_login": {
     "title": "Uzak Masaüstü İstemcisi",

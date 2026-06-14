@@ -3817,7 +3817,22 @@
     "error_load": "Laitteiden lataus epäonnistui",
     "open_panel": "Avaa konsoli",
     "devices_count": "{count} laitetta",
-    "retry": "Yritä uudelleen"
+    "retry": "Yritä uudelleen",
+    "nav_address_book": "Osoitekirja",
+    "nav_folders": "Kansiot",
+    "nav_groups": "Ryhmät",
+    "nav_tags": "Tagit",
+    "quick_connect": "Hallitse etätyöpöytää",
+    "quick_connect_placeholder": "Syötä etä-ID…",
+    "view_grid": "Ruudukkonäkymä",
+    "view_list": "Listanäkymä",
+    "sync_now": "Päivitä",
+    "last_sync": "Päivitetty",
+    "status_ready": "Valmis",
+    "sync_error": "Synkronointivirhe",
+    "unassigned": "Ei määritetty",
+    "no_groups": "Ei ryhmiä",
+    "no_tags": "Ei tageja"
   },
   "rdclient_login": {
     "title": "Etätyöpöytäasiakas",

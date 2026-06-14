@@ -3811,7 +3811,22 @@
     "error_load": "Apparaten laden mislukt",
     "open_panel": "Console openen",
     "devices_count": "{count} apparaten",
-    "retry": "Opnieuw"
+    "retry": "Opnieuw",
+    "nav_address_book": "Adresboek",
+    "nav_folders": "Mappen",
+    "nav_groups": "Groepen",
+    "nav_tags": "Tags",
+    "quick_connect": "Extern bureaublad bedienen",
+    "quick_connect_placeholder": "Voer extern ID in…",
+    "view_grid": "Rasterweergave",
+    "view_list": "Lijstweergave",
+    "sync_now": "Vernieuwen",
+    "last_sync": "Bijgewerkt",
+    "status_ready": "Gereed",
+    "sync_error": "Synchronisatiefout",
+    "unassigned": "Niet toegewezen",
+    "no_groups": "Geen groepen",
+    "no_tags": "Geen tags"
   },
   "rdclient_login": {
     "title": "Remote Desktop-client",

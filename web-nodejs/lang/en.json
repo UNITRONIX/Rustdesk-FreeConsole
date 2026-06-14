@@ -1074,7 +1074,22 @@
     "error_load": "Failed to load devices",
     "open_panel": "Open console",
     "devices_count": "{count} devices",
-    "retry": "Retry"
+    "retry": "Retry",
+    "nav_address_book": "Address book",
+    "nav_folders": "Folders",
+    "nav_groups": "Groups",
+    "nav_tags": "Tags",
+    "quick_connect": "Control remote desktop",
+    "quick_connect_placeholder": "Enter remote ID…",
+    "view_grid": "Grid view",
+    "view_list": "List view",
+    "sync_now": "Refresh",
+    "last_sync": "Updated",
+    "status_ready": "Ready",
+    "sync_error": "Sync error",
+    "unassigned": "Unassigned",
+    "no_groups": "No groups",
+    "no_tags": "No tags"
   },
   "branding": {
     "identity_title": "Brand Identity",

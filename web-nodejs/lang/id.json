@@ -3817,7 +3817,22 @@
     "error_load": "Gagal memuat perangkat",
     "open_panel": "Buka konsol",
     "devices_count": "{count} perangkat",
-    "retry": "Coba lagi"
+    "retry": "Coba lagi",
+    "nav_address_book": "Buku alamat",
+    "nav_folders": "Folder",
+    "nav_groups": "Grup",
+    "nav_tags": "Tag",
+    "quick_connect": "Kendalikan desktop jarak jauh",
+    "quick_connect_placeholder": "Masukkan ID jarak jauh…",
+    "view_grid": "Tampilan grid",
+    "view_list": "Tampilan daftar",
+    "sync_now": "Segarkan",
+    "last_sync": "Diperbarui",
+    "status_ready": "Siap",
+    "sync_error": "Kesalahan sinkronisasi",
+    "unassigned": "Belum ditetapkan",
+    "no_groups": "Tidak ada grup",
+    "no_tags": "Tidak ada tag"
   },
   "rdclient_login": {
     "title": "Klien Desktop Jarak Jauh",

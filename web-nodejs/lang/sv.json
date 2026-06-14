@@ -3817,7 +3817,22 @@
     "error_load": "Kunde inte ladda enheter",
     "open_panel": "Öppna konsol",
     "devices_count": "{count} enheter",
-    "retry": "Försök igen"
+    "retry": "Försök igen",
+    "nav_address_book": "Adressbok",
+    "nav_folders": "Mappar",
+    "nav_groups": "Grupper",
+    "nav_tags": "Taggar",
+    "quick_connect": "Styr fjärrskrivbord",
+    "quick_connect_placeholder": "Ange fjärr-ID…",
+    "view_grid": "Rutnätsvy",
+    "view_list": "Listvy",
+    "sync_now": "Uppdatera",
+    "last_sync": "Uppdaterad",
+    "status_ready": "Klar",
+    "sync_error": "Synkfel",
+    "unassigned": "Otilldelad",
+    "no_groups": "Inga grupper",
+    "no_tags": "Inga taggar"
   },
   "rdclient_login": {
     "title": "Remote Desktop-klient",

@@ -3817,7 +3817,22 @@
     "error_load": "डिवाइस लोड करने में विफल",
     "open_panel": "कंसोल खोलें",
     "devices_count": "{count} डिवाइस",
-    "retry": "पुनः प्रयास"
+    "retry": "पुनः प्रयास",
+    "nav_address_book": "पता पुस्तिका",
+    "nav_folders": "फ़ोल्डर",
+    "nav_groups": "समूह",
+    "nav_tags": "टैग",
+    "quick_connect": "रिमोट डेस्कटॉप नियंत्रित करें",
+    "quick_connect_placeholder": "रिमोट ID दर्ज करें…",
+    "view_grid": "ग्रिड दृश्य",
+    "view_list": "सूची दृश्य",
+    "sync_now": "रीफ़्रेश",
+    "last_sync": "अपडेट किया गया",
+    "status_ready": "तैयार",
+    "sync_error": "सिंक त्रुटि",
+    "unassigned": "असाइन नहीं",
+    "no_groups": "कोई समूह नहीं",
+    "no_tags": "कोई टैग नहीं"
   },
   "rdclient_login": {
     "title": "रिमोट डेस्कटॉप क्लाइंट",

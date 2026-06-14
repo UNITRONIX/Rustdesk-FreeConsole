@@ -3811,7 +3811,22 @@
     "error_load": "加载设备失败",
     "open_panel": "打开控制台",
     "devices_count": "{count} 台设备",
-    "retry": "重试"
+    "retry": "重试",
+    "nav_address_book": "地址簿",
+    "nav_folders": "文件夹",
+    "nav_groups": "分组",
+    "nav_tags": "标签",
+    "quick_connect": "控制远程桌面",
+    "quick_connect_placeholder": "输入远程 ID…",
+    "view_grid": "网格视图",
+    "view_list": "列表视图",
+    "sync_now": "刷新",
+    "last_sync": "已更新",
+    "status_ready": "就绪",
+    "sync_error": "同步错误",
+    "unassigned": "未分配",
+    "no_groups": "无分组",
+    "no_tags": "无标签"
   },
   "rdclient_login": {
     "title": "远程桌面客户端",

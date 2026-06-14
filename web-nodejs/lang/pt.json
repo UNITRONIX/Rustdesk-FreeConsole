@@ -3811,7 +3811,22 @@
     "error_load": "Falha ao carregar dispositivos",
     "open_panel": "Abrir consola",
     "devices_count": "{count} dispositivos",
-    "retry": "Tentar novamente"
+    "retry": "Tentar novamente",
+    "nav_address_book": "Livro de endereços",
+    "nav_folders": "Pastas",
+    "nav_groups": "Grupos",
+    "nav_tags": "Etiquetas",
+    "quick_connect": "Controlar ambiente de trabalho remoto",
+    "quick_connect_placeholder": "Introduza ID remoto…",
+    "view_grid": "Vista em grelha",
+    "view_list": "Vista em lista",
+    "sync_now": "Atualizar",
+    "last_sync": "Atualizado",
+    "status_ready": "Pronto",
+    "sync_error": "Erro de sincronização",
+    "unassigned": "Não atribuído",
+    "no_groups": "Sem grupos",
+    "no_tags": "Sem etiquetas"
   },
   "rdclient_login": {
     "title": "Cliente de ambiente de trabalho remoto",

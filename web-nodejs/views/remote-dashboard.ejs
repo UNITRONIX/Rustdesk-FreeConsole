@@ -14,6 +14,9 @@
         </div>
         <div class="rd-desk-header-actions">
             <span class="rd-desk-user" id="rd-desk-user"></span>
+            <button type="button" class="rd-desk-icon-btn" id="rd-desk-refresh" title="${_('remote_dashboard.sync_now')}">
+                <span class="material-icons">sync</span>
+            </button>
             <a href="/devices" class="rd-desk-btn rd-desk-btn-ghost" target="_blank" rel="noopener noreferrer">
                 <span class="material-icons">dashboard</span>
                 ${_('remote_dashboard.open_panel')}
@@ -21,50 +24,118 @@
         </div>
     </header>
 
-    <div class="rd-desk-toolbar">
-        <div class="rd-desk-search-wrap">
-            <span class="material-icons rd-desk-search-icon">search</span>
-            <input type="search" id="rd-desk-search" class="rd-desk-search"
-                placeholder="${_('remote_dashboard.search_placeholder')}" autocomplete="off">
+    <section class="rd-desk-quick-connect">
+        <div class="rd-desk-quick-connect-inner">
+            <span class="material-icons rd-desk-quick-icon">connected_tv</span>
+            <label class="rd-desk-quick-label" for="rd-desk-quick-id">${_('remote_dashboard.quick_connect')}</label>
+            <input type="text" id="rd-desk-quick-id" class="rd-desk-quick-input"
+                placeholder="${_('remote_dashboard.quick_connect_placeholder')}" autocomplete="off" spellcheck="false">
+            <button type="button" class="rd-desk-btn" id="rd-desk-quick-btn">
+                <span class="material-icons">play_arrow</span>
+                ${_('remote_dashboard.connect')}
+            </button>
         </div>
-        <div class="rd-desk-filters" role="tablist">
-            <button type="button" class="rd-desk-filter active" data-filter="all">${_('remote_dashboard.filter_all')}</button>
-            <button type="button" class="rd-desk-filter" data-filter="online">${_('remote_dashboard.filter_online')}</button>
-            <button type="button" class="rd-desk-filter" data-filter="offline">${_('remote_dashboard.filter_offline')}</button>
+    </section>
+
+    <div class="rd-desk-workspace">
+        <aside class="rd-desk-sidebar" id="rd-desk-sidebar">
+            <nav class="rd-desk-nav-section">
+                <div class="rd-desk-nav-heading">${_('remote_dashboard.nav_folders')}</div>
+                <ul class="rd-desk-nav-list" id="rd-desk-folders">
+                    <li><button type="button" class="rd-desk-nav-item active" data-nav="folder" data-id="all">
+                        <span class="material-icons">devices</span>
+                        <span class="rd-desk-nav-label">${_('remote_dashboard.filter_all')}</span>
+                        <span class="rd-desk-nav-count" id="rd-count-all">0</span>
+                    </button></li>
+                    <li><button type="button" class="rd-desk-nav-item" data-nav="folder" data-id="unassigned">
+                        <span class="material-icons">folder_off</span>
+                        <span class="rd-desk-nav-label">${_('remote_dashboard.unassigned')}</span>
+                        <span class="rd-desk-nav-count" id="rd-count-unassigned">0</span>
+                    </button></li>
+                </ul>
+                <ul class="rd-desk-nav-list rd-desk-nav-custom" id="rd-desk-folders-custom"></ul>
+            </nav>
+
+            <nav class="rd-desk-nav-section">
+                <div class="rd-desk-nav-heading">${_('remote_dashboard.nav_groups')}</div>
+                <ul class="rd-desk-nav-list" id="rd-desk-groups">
+                    <li class="rd-desk-nav-empty hidden" id="rd-desk-groups-empty">${_('remote_dashboard.no_groups')}</li>
+                </ul>
+            </nav>
+
+            <nav class="rd-desk-nav-section">
+                <div class="rd-desk-nav-heading">${_('remote_dashboard.nav_tags')}</div>
+                <ul class="rd-desk-nav-list rd-desk-nav-tags" id="rd-desk-tags">
+                    <li class="rd-desk-nav-empty hidden" id="rd-desk-tags-empty">${_('remote_dashboard.no_tags')}</li>
+                </ul>
+            </nav>
+        </aside>
+
+        <div class="rd-desk-content">
+            <div class="rd-desk-toolbar">
+                <div class="rd-desk-toolbar-left">
+                    <span class="rd-desk-section-title" id="rd-desk-section-title">${_('remote_dashboard.nav_address_book')}</span>
+                </div>
+                <div class="rd-desk-search-wrap">
+                    <span class="material-icons rd-desk-search-icon">search</span>
+                    <input type="search" id="rd-desk-search" class="rd-desk-search"
+                        placeholder="${_('remote_dashboard.search_placeholder')}" autocomplete="off">
+                </div>
+                <div class="rd-desk-filters" role="tablist">
+                    <button type="button" class="rd-desk-filter active" data-filter="all">${_('remote_dashboard.filter_all')}</button>
+                    <button type="button" class="rd-desk-filter" data-filter="online">${_('remote_dashboard.filter_online')}</button>
+                    <button type="button" class="rd-desk-filter" data-filter="offline">${_('remote_dashboard.filter_offline')}</button>
+                </div>
+                <div class="rd-desk-view-toggle" role="group">
+                    <button type="button" class="rd-desk-icon-btn active" id="rd-view-grid" title="${_('remote_dashboard.view_grid')}">
+                        <span class="material-icons">grid_view</span>
+                    </button>
+                    <button type="button" class="rd-desk-icon-btn" id="rd-view-list" title="${_('remote_dashboard.view_list')}">
+                        <span class="material-icons">view_list</span>
+                    </button>
+                </div>
+                <span class="rd-desk-count" id="rd-desk-count"></span>
+            </div>
+
+            <main class="rd-desk-main">
+                <div class="rd-desk-loading" id="rd-desk-loading">
+                    <span class="material-icons rd-desk-spin">sync</span>
+                    <span>${_('remote_dashboard.loading')}</span>
+                </div>
+                <div class="rd-desk-error hidden" id="rd-desk-error">
+                    <span class="material-icons">error_outline</span>
+                    <span id="rd-desk-error-text">${_('remote_dashboard.error_load')}</span>
+                    <button type="button" class="rd-desk-btn" id="rd-desk-retry">${_('remote_dashboard.retry')}</button>
+                </div>
+                <div class="rd-desk-empty hidden" id="rd-desk-empty">
+                    <span class="material-icons">devices_other</span>
+                    <p>${_('remote_dashboard.empty')}</p>
+                </div>
+                <div class="rd-desk-grid hidden" id="rd-desk-grid"></div>
+                <div class="rd-desk-table-wrap hidden" id="rd-desk-table-wrap">
+                    <table class="rd-desk-table">
+                        <thead>
+                            <tr>
+                                <th>${_('remote_dashboard.col_status')}</th>
+                                <th>${_('remote_dashboard.col_id')}</th>
+                                <th>${_('remote_dashboard.col_hostname')}</th>
+                                <th>${_('remote_dashboard.col_platform')}</th>
+                                <th>${_('remote_dashboard.col_last_seen')}</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="rd-desk-tbody"></tbody>
+                    </table>
+                </div>
+            </main>
         </div>
-        <span class="rd-desk-count" id="rd-desk-count"></span>
     </div>
 
-    <main class="rd-desk-main">
-        <div class="rd-desk-loading" id="rd-desk-loading">
-            <span class="material-icons rd-desk-spin">sync</span>
-            <span>${_('remote_dashboard.loading')}</span>
-        </div>
-        <div class="rd-desk-error hidden" id="rd-desk-error">
-            <span class="material-icons">error_outline</span>
-            <span id="rd-desk-error-text">${_('remote_dashboard.error_load')}</span>
-            <button type="button" class="rd-desk-btn" id="rd-desk-retry">${_('remote_dashboard.retry')}</button>
-        </div>
-        <div class="rd-desk-empty hidden" id="rd-desk-empty">
-            <span class="material-icons">devices_other</span>
-            <p>${_('remote_dashboard.empty')}</p>
-        </div>
-        <div class="rd-desk-table-wrap hidden" id="rd-desk-table-wrap">
-            <table class="rd-desk-table">
-                <thead>
-                    <tr>
-                        <th>${_('remote_dashboard.col_status')}</th>
-                        <th>${_('remote_dashboard.col_id')}</th>
-                        <th>${_('remote_dashboard.col_hostname')}</th>
-                        <th>${_('remote_dashboard.col_platform')}</th>
-                        <th>${_('remote_dashboard.col_last_seen')}</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="rd-desk-tbody"></tbody>
-            </table>
-        </div>
-    </main>
+    <footer class="rd-desk-footer">
+        <span class="rd-desk-status-dot online" id="rd-desk-status-dot"></span>
+        <span id="rd-desk-status-text">${_('remote_dashboard.status_ready')}</span>
+        <span class="rd-desk-sync-time" id="rd-desk-sync-time"></span>
+    </footer>
 </div>
 `
 }) %>

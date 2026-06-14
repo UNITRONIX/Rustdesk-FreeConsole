@@ -3817,7 +3817,22 @@
     "error_load": "Az eszközök betöltése sikertelen",
     "open_panel": "Konzol megnyitása",
     "devices_count": "{count} eszköz",
-    "retry": "Újra"
+    "retry": "Újra",
+    "nav_address_book": "Címjegyzék",
+    "nav_folders": "Mappák",
+    "nav_groups": "Csoportok",
+    "nav_tags": "Címkék",
+    "quick_connect": "Távoli asztal vezérlése",
+    "quick_connect_placeholder": "Adja meg a távoli azonosítót…",
+    "view_grid": "Rácsnézet",
+    "view_list": "Listanézet",
+    "sync_now": "Frissítés",
+    "last_sync": "Frissítve",
+    "status_ready": "Kész",
+    "sync_error": "Szinkronizálási hiba",
+    "unassigned": "Nincs hozzárendelve",
+    "no_groups": "Nincs csoport",
+    "no_tags": "Nincs címke"
   },
   "rdclient_login": {
     "title": "Távoli asztal kliens",

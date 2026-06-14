@@ -3817,7 +3817,22 @@
     "error_load": "โหลดอุปกรณ์ไม่สำเร็จ",
     "open_panel": "เปิดคอนโซล",
     "devices_count": "{count} อุปกรณ์",
-    "retry": "ลองอีกครั้ง"
+    "retry": "ลองอีกครั้ง",
+    "nav_address_book": "สมุดที่อยู่",
+    "nav_folders": "โฟลเดอร์",
+    "nav_groups": "กลุ่ม",
+    "nav_tags": "แท็ก",
+    "quick_connect": "ควบคุมเดสก์ท็อประยะไกล",
+    "quick_connect_placeholder": "ป้อน ID ระยะไกล…",
+    "view_grid": "มุมมองตาราง",
+    "view_list": "มุมมองรายการ",
+    "sync_now": "รีเฟรช",
+    "last_sync": "อัปเดตแล้ว",
+    "status_ready": "พร้อม",
+    "sync_error": "ข้อผิดพลาดการซิงค์",
+    "unassigned": "ยังไม่ได้กำหนด",
+    "no_groups": "ไม่มีกลุ่ม",
+    "no_tags": "ไม่มีแท็ก"
   },
   "rdclient_login": {
     "title": "ไคลเอนต์เดสก์ท็อประยะไกล",

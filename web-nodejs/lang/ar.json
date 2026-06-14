@@ -3818,7 +3818,22 @@
     "error_load": "تعذّر تحميل الأجهزة",
     "open_panel": "فتح لوحة التحكم",
     "devices_count": "{count} أجهزة",
-    "retry": "إعادة المحاولة"
+    "retry": "إعادة المحاولة",
+    "nav_address_book": "دفتر العناوين",
+    "nav_folders": "المجلدات",
+    "nav_groups": "المجموعات",
+    "nav_tags": "الوسوم",
+    "quick_connect": "التحكم في سطح المكتب البعيد",
+    "quick_connect_placeholder": "أدخل المعرف البعيد…",
+    "view_grid": "عرض شبكي",
+    "view_list": "عرض قائمة",
+    "sync_now": "تحديث",
+    "last_sync": "تم التحديث",
+    "status_ready": "جاهز",
+    "sync_error": "خطأ في المزامنة",
+    "unassigned": "غير معيّن",
+    "no_groups": "لا توجد مجموعات",
+    "no_tags": "لا توجد وسوم"
   },
   "rdclient_login": {
     "title": "عميل سطح المكتب البعيد",
