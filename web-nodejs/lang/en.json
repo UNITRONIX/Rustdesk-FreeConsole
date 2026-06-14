@@ -3449,7 +3449,10 @@
     "channel_saved": "Update channel switched. Click Check for updates to refresh.",
     "channel_save_failed": "Failed to save update channel",
     "channel_switch_warning": "Switching the update channel changes which GitHub branch is used for version checks and installs. Your tracked commit SHA is kept — the next check may show a large diff. Continue?",
-    "channel_confirm_switch": "Switch update source from {from} to {to}? Your installed commit baseline stays the same until you run Check for updates."
+    "channel_confirm_switch": "Switch update source from {from} to {to}? Your installed commit baseline stays the same until you run Check for updates.",
+    "more_options": "More options",
+    "option_advanced": "Advanced options",
+    "option_advanced_desc": "Backup retention, Docker deployment, server rebuild, and update strategy"
   },
   "accessibility": {
     "title": "Accessibility",

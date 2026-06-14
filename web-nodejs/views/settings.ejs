@@ -1493,115 +1493,93 @@
         
         <!-- Updates Tab (server.config permission required) -->
         <div class="settings-tab-content" id="tab-updates" ${canServerConfig ? '' : 'style="display:none"'}>
-        <div class="settings-sections">
-            <!-- Version Check -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
-                        <span class="material-icons">system_update</span>
-                        ${_('updates.title')}
-                    </h2>
-                    <p class="settings-section-desc">${_('updates.desc')}</p>
+        <div class="win11-updates">
+            <h1 class="win11-updates-title">${_('updates.title')}</h1>
+
+            <!-- Hero status (Windows 11 Update style) -->
+            <section class="win11-updates-hero" aria-labelledby="update-status-headline">
+                <div class="win11-updates-hero-icon" id="update-hero-icon" data-state="idle" aria-hidden="true">
+                    <svg class="win11-updates-hero-svg" viewBox="0 0 48 48" width="72" height="72" focusable="false">
+                        <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.25"/>
+                        <path fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                              d="M24 8a16 16 0 0 1 14.5 9.2M24 40a16 16 0 0 1-14.5-9.2M8 24h6M34 24h6"/>
+                    </svg>
+                    <span class="win11-updates-hero-badge" id="update-hero-badge" hidden>
+                        <span class="material-icons">priority_high</span>
+                    </span>
                 </div>
-                <div class="settings-section-body">
-                    <div class="update-channel-panel" id="update-channel-panel" style="margin-bottom: 20px; padding: 16px; border: 1px solid var(--border-color, #333); border-radius: 8px;">
-                        <div class="update-version-row" style="margin-bottom: 8px;">
-                            <span class="update-label">${_('updates.channel_title')}</span>
-                            <span class="update-value">
-                                <span id="update-channel-active-badge" class="badge badge-success badge-sm">&mdash;</span>
-                            </span>
-                        </div>
-                        <p class="settings-section-desc" style="margin-top: 0; margin-bottom: 12px;">${_('updates.channel_desc')}</p>
+                <div class="win11-updates-hero-body">
+                    <h2 class="win11-updates-hero-headline" id="update-status-headline">${_('updates.title')}</h2>
+                    <p class="win11-updates-hero-desc" id="update-status-desc">${_('updates.desc')}</p>
+                    <dl class="update-version-info win11-updates-meta">
                         <div class="update-version-row">
-                            <span class="update-label">${_('updates.channel_pick_label')}</span>
-                            <span class="update-value">
-                                <select id="update-channel-select" class="form-input" style="max-width: 280px;">
-                                    <option value="stable">${_('updates.channel_stable')}</option>
-                                    <option value="development">${_('updates.channel_development')}</option>
-                                </select>
-                            </span>
-                        </div>
-                        <p class="text-muted" style="font-size: 12px; margin-top: 8px; margin-bottom: 0;">${_('updates.channel_apply_hint')}</p>
-                        <div class="update-version-row" style="margin-top: 10px;">
-                            <span class="update-label">${_('updates.channel_branch_label')}</span>
-                            <span class="update-value" id="update-channel-branch">&mdash;</span>
-                        </div>
-                    </div>
-                    <div class="update-version-info">
-                        <div class="update-version-row">
-                            <span class="update-label">${_('updates.current_version')}</span>
-                            <span class="update-value" id="update-local-version">v${appVersion}</span>
+                            <dt class="update-label">${_('updates.current_version')}</dt>
+                            <dd class="update-value" id="update-local-version">v${appVersion}</dd>
                         </div>
                         <div class="update-version-row">
-                            <span class="update-label">${_('updates.latest_version')}</span>
-                            <span class="update-value" id="update-remote-version">
-                                <span class="text-muted">&mdash;</span>
-                            </span>
+                            <dt class="update-label">${_('updates.latest_version')}</dt>
+                            <dd class="update-value" id="update-remote-version"><span class="text-muted">&mdash;</span></dd>
                         </div>
                         <div class="update-version-row" id="update-status-row" style="display:none;">
-                            <span class="update-label">${_('updates.status')}</span>
-                            <span class="update-value" id="update-status-badge"></span>
+                            <dt class="update-label">${_('updates.status')}</dt>
+                            <dd class="update-value" id="update-status-badge"></dd>
                         </div>
+                    </dl>
+                </div>
+                <div class="win11-updates-hero-action">
+                    <button class="btn win11-updates-primary-btn" id="update-check-btn" type="button">
+                        <span class="material-icons">refresh</span>
+                        ${_('updates.check_now')}
+                    </button>
+                </div>
+            </section>
+
+            <div class="win11-updates-alerts" id="update-alerts">
+                <!-- Docker image deployment -->
+                <div class="update-docker-info win11-updates-alert" id="update-docker-info" style="display:none;">
+                    <div class="update-docker-icon">
+                        <span class="material-icons">cloud_download</span>
                     </div>
-                    <div class="update-actions" style="margin-top: 16px;">
-                        <button class="btn btn-primary" id="update-check-btn">
-                            <span class="material-icons">refresh</span>
-                            ${_('updates.check_now')}
+                    <div class="update-docker-body">
+                        <strong>${_('updates.docker_title')}</strong>
+                        <p id="update-docker-desc">${_('updates.docker_desc')}</p>
+                        <pre class="update-docker-commands" id="update-docker-commands"></pre>
+                        <p class="update-docker-images" id="update-docker-images"></p>
+                    </div>
+                </div>
+
+                <!-- Stale server binary warning -->
+                <div class="update-stale-warning win11-updates-alert" id="update-stale-warning" style="display:none;">
+                    <div class="update-stale-icon">
+                        <span class="material-icons">gpp_maybe</span>
+                    </div>
+                    <div class="update-stale-body">
+                        <strong>${_('updates.server_stale_title')}</strong>
+                        <p id="update-stale-detail">${_('updates.server_stale_desc')}</p>
+                        <button class="btn btn-warning" id="update-rebuild-server-btn" type="button">
+                            <span class="material-icons">build</span>
+                            ${_('updates.rebuild_server')}
                         </button>
-                    </div>
-
-                    <!-- Docker image deployment: updates via container pull -->
-                    <div class="update-docker-info" id="update-docker-info" style="display:none; margin-top:16px;">
-                        <div class="update-docker-icon">
-                            <span class="material-icons">cloud_download</span>
-                        </div>
-                        <div class="update-docker-body">
-                            <strong>${_('updates.docker_title')}</strong>
-                            <p id="update-docker-desc">${_('updates.docker_desc')}</p>
-                            <pre class="update-docker-commands" id="update-docker-commands"></pre>
-                            <p class="update-docker-images" id="update-docker-images"></p>
-                        </div>
-                    </div>
-
-                    <!-- Stale server binary warning (security): server source was
-                         updated but the running binary was not rebuilt. -->
-                    <div class="update-stale-warning" id="update-stale-warning" style="display:none; margin-top:16px;">
-                        <div class="update-stale-icon">
-                            <span class="material-icons">gpp_maybe</span>
-                        </div>
-                        <div class="update-stale-body">
-                            <strong>${_('updates.server_stale_title')}</strong>
-                            <p id="update-stale-detail">${_('updates.server_stale_desc')}</p>
-                            <button class="btn btn-warning" id="update-rebuild-server-btn">
-                                <span class="material-icons">build</span>
-                                ${_('updates.rebuild_server')}
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Update Details (hidden until check completes) -->
-            <div class="settings-section" id="update-details-section" style="display:none;">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
-                        <span class="material-icons">description</span>
-                        ${_('updates.changelog')}
-                    </h2>
-                </div>
-                <div class="settings-section-body">
+
+            <!-- Available update package (shown after check) -->
+            <section class="win11-updates-available" id="update-details-section" style="display:none;" aria-labelledby="update-available-heading">
+                <h2 class="win11-updates-available-title" id="update-available-heading">${_('updates.update_available')}</h2>
+                <div class="win11-updates-available-body">
                     <div class="update-changelog" id="update-changelog"></div>
-                    <div class="update-files-summary" id="update-files-summary" style="margin-top:12px;"></div>
-                    <div class="update-actions" style="margin-top: 16px;">
-                        <label class="restore-option" style="margin-bottom: 12px;">
+                    <div class="update-files-summary" id="update-files-summary"></div>
+                    <div class="win11-updates-install-row">
+                        <label class="win11-updates-checkbox restore-option">
                             <input type="checkbox" id="update-backup-toggle" checked>
                             <span>${_('updates.create_backup')}</span>
                         </label>
-                        <button class="btn btn-primary btn-lg" id="update-install-btn" disabled>
+                        <button class="btn win11-updates-primary-btn win11-updates-install-btn" id="update-install-btn" type="button" disabled>
                             <span class="material-icons">download</span>
                             ${_('updates.install')}
                         </button>
-                        <p class="update-docker-install-note text-muted" id="update-docker-install-note" style="display:none; margin-top:12px;">
+                        <p class="update-docker-install-note text-muted" id="update-docker-install-note" style="display:none;">
                             ${_('updates.docker_install_note')}
                         </p>
                     </div>
@@ -1612,39 +1590,81 @@
                         <p class="update-progress-text" id="update-progress-text">${_('updates.installing')}</p>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Update Backups -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
-                        <span class="material-icons">history</span>
-                        ${_('updates.backups_title')}
-                    </h2>
-                    <p class="settings-section-desc">${_('updates.backups_desc')}</p>
+            </section>
+
+            <h2 class="win11-updates-section-title">${_('updates.more_options')}</h2>
+            <div class="win11-updates-options">
+
+                <!-- Update channel (inline control like Win11 pause dropdown) -->
+                <div class="win11-updates-option win11-updates-option-inline" id="update-channel-panel">
+                    <div class="win11-updates-option-row">
+                        <span class="win11-updates-option-icon material-icons" aria-hidden="true">alt_route</span>
+                        <div class="win11-updates-option-text">
+                            <span class="win11-updates-option-title">${_('updates.channel_title')}</span>
+                            <span class="win11-updates-option-desc">${_('updates.channel_desc')}</span>
+                        </div>
+                        <select id="update-channel-select" class="win11-updates-select" aria-label="${_('updates.channel_pick_label')}">
+                            <option value="stable">${_('updates.channel_stable')}</option>
+                            <option value="development">${_('updates.channel_development')}</option>
+                        </select>
+                    </div>
+                    <div class="win11-updates-option-meta">
+                        <span id="update-channel-active-badge" class="badge badge-success badge-sm">&mdash;</span>
+                        <span class="win11-updates-option-meta-sep" aria-hidden="true">&middot;</span>
+                        <span class="text-muted">${_('updates.channel_branch_label')}:</span>
+                        <span id="update-channel-branch">&mdash;</span>
+                        <p class="win11-updates-option-hint">${_('updates.channel_apply_hint')}</p>
+                    </div>
                 </div>
-                <div class="settings-section-body">
-                    <div class="backup-retention-row">
-                        <label for="backup-retention-input" class="backup-retention-label">
-                            ${_('updates.retention_label')}
-                            <small class="text-muted">${_('updates.retention_hint')}</small>
-                        </label>
-                        <div class="backup-retention-controls">
-                            <input type="number" id="backup-retention-input" min="0" max="1000" step="1" value="0">
-                            <button class="btn btn-sm btn-primary" id="backup-retention-save">
-                                ${_('common.save')}
-                            </button>
-                            <button class="btn btn-sm btn-outline" id="backup-prune-now">
-                                <span class="material-icons">cleaning_services</span>
-                                ${_('updates.prune_now')}
-                            </button>
+
+                <!-- Update history / backups -->
+                <details class="win11-updates-option">
+                    <summary class="win11-updates-option-row">
+                        <span class="win11-updates-option-icon material-icons" aria-hidden="true">history</span>
+                        <div class="win11-updates-option-text">
+                            <span class="win11-updates-option-title">${_('updates.backups_title')}</span>
+                            <span class="win11-updates-option-desc">${_('updates.backups_desc')}</span>
+                        </div>
+                        <span class="win11-updates-option-chevron material-icons" aria-hidden="true">chevron_right</span>
+                    </summary>
+                    <div class="win11-updates-option-body">
+                        <div class="backup-retention-row">
+                            <label for="backup-retention-input" class="backup-retention-label">
+                                ${_('updates.retention_label')}
+                                <small class="text-muted">${_('updates.retention_hint')}</small>
+                            </label>
+                            <div class="backup-retention-controls">
+                                <input type="number" id="backup-retention-input" min="0" max="1000" step="1" value="0">
+                                <button class="btn btn-sm btn-primary" id="backup-retention-save" type="button">
+                                    ${_('common.save')}
+                                </button>
+                                <button class="btn btn-sm btn-outline" id="backup-prune-now" type="button">
+                                    <span class="material-icons">cleaning_services</span>
+                                    ${_('updates.prune_now')}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="backup-summary text-muted" id="backup-summary"></div>
+                        <div id="update-backups-list">
+                            <p class="text-muted">${_('common.loading')}</p>
                         </div>
                     </div>
-                    <div class="backup-summary text-muted" id="backup-summary"></div>
-                    <div id="update-backups-list">
-                        <p class="text-muted">${_('common.loading')}</p>
+                </details>
+
+                <!-- Advanced options -->
+                <details class="win11-updates-option">
+                    <summary class="win11-updates-option-row">
+                        <span class="win11-updates-option-icon material-icons" aria-hidden="true">tune</span>
+                        <div class="win11-updates-option-text">
+                            <span class="win11-updates-option-title">${_('updates.option_advanced')}</span>
+                            <span class="win11-updates-option-desc">${_('updates.option_advanced_desc')}</span>
+                        </div>
+                        <span class="win11-updates-option-chevron material-icons" aria-hidden="true">chevron_right</span>
+                    </summary>
+                    <div class="win11-updates-option-body win11-updates-advanced-body">
+                        <p class="text-muted win11-updates-advanced-note">${_('updates.auto_strategy_hint')}</p>
                     </div>
-                </div>
+                </details>
             </div>
         </div>
         </div>

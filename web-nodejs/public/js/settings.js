@@ -1590,6 +1590,30 @@
     let _updateState = { remoteSHA: null, changedData: null };
     let _updateChannelSaved = null;
     let _updateChannelBusy = false;
+
+    function renderUpdateHeroStatus(state, opts = {}) {
+        const icon = document.getElementById('update-hero-icon');
+        const badge = document.getElementById('update-hero-badge');
+        const headline = document.getElementById('update-status-headline');
+        const desc = document.getElementById('update-status-desc');
+        if (!icon || !headline) return;
+
+        icon.dataset.state = state;
+        const showBadge = state === 'warning' || state === 'error';
+        if (badge) badge.hidden = !showBadge;
+
+        const messages = {
+            idle:      { h: _('updates.title'), d: _('updates.desc') },
+            checking:  { h: _('updates.checking'), d: _('updates.desc') },
+            uptodate:  { h: _('updates.up_to_date'), d: opts.detail || _('updates.desc') },
+            available: { h: _('updates.update_available'), d: opts.detail || _('updates.desc') },
+            baseline:  { h: _('updates.baseline_set'), d: _('updates.desc') },
+            error:     { h: _('updates.install_failed'), d: opts.detail || _('updates.desc') }
+        };
+        const msg = messages[state] || messages.idle;
+        headline.textContent = msg.h;
+        if (desc) desc.textContent = msg.d;
+    }
     
     function initUpdateSection() {
         const checkBtn = document.getElementById('update-check-btn');
@@ -1611,6 +1635,7 @@
         loadUpdateBackups();
         loadBackupRetention();
         loadLastUpdateResult();
+        renderUpdateHeroStatus('idle');
     }
 
     function renderUpdateChannelBadge(data) {
@@ -1705,7 +1730,7 @@
     }
 
     async function loadLastUpdateResult() {
-        const host = document.querySelector('.update-version-info');
+        const host = document.getElementById('update-alerts');
         if (!host) return;
         let banner = document.getElementById('update-last-result-banner');
         try {
@@ -1757,6 +1782,10 @@
                         : _('updates.server_stale_desc');
                 }
                 warning.style.display = '';
+                const badge = document.getElementById('update-hero-badge');
+                if (badge) badge.hidden = false;
+                const icon = document.getElementById('update-hero-icon');
+                if (icon && icon.dataset.state === 'idle') icon.dataset.state = 'warning';
             } else {
                 warning.style.display = 'none';
             }
@@ -1831,6 +1860,7 @@
         
         if (!btn) return;
         btn.disabled = true;
+        renderUpdateHeroStatus('checking');
         btn.innerHTML = `<span class="material-icons spinning">sync</span> ${_('updates.checking')}`;
         
         try {
@@ -1847,12 +1877,17 @@
             
             if (data.baselineEstablished) {
                 if (statusBadge) statusBadge.innerHTML = `<span class="badge badge-info">${_('updates.baseline_set')}</span>`;
+                renderUpdateHeroStatus('baseline');
                 if (detailsSection) detailsSection.style.display = 'none';
                 if (installBtn) installBtn.disabled = true;
             } else if (data.updateAvailable) {
                 const behind = data.commitsBehind > 0 ? ` (${data.commitsBehind} ${_('updates.commits_behind')})` : '';
                 const badgeLabel = dockerMode ? _('updates.docker_update_available') : _('updates.update_available');
                 if (statusBadge) statusBadge.innerHTML = `<span class="badge badge-warning">${badgeLabel}${behind}</span>`;
+                const detail = data.latestMessage
+                    ? `${data.latestMessage}${behind}`
+                    : `${badgeLabel}${behind}`.trim();
+                renderUpdateHeroStatus('available', { detail });
                 
                 _updateState.remoteSHA = data.remoteSHA;
                 
@@ -1874,10 +1909,13 @@
                     const label = data.dockerShaUnknown ? _('updates.docker_sha_unknown') : _('updates.up_to_date');
                     statusBadge.innerHTML = `<span class="badge badge-success">${label}</span>`;
                 }
+                const detail = data.latestMessage || (data.remoteSHA ? `SHA ${data.remoteSHA.slice(0, 7)}` : '');
+                renderUpdateHeroStatus('uptodate', { detail: detail || _('updates.desc') });
                 if (detailsSection) detailsSection.style.display = 'none';
                 if (installBtn) installBtn.disabled = true;
             }
         } catch (error) {
+            renderUpdateHeroStatus('error', { detail: error.message || _('errors.server_error') });
             Notifications.error(error.message || _('errors.server_error'));
         } finally {
             btn.disabled = false;

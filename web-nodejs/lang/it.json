@@ -3368,7 +3368,10 @@
     "docker_install_note": "L'installazione in-app è disabilitata in Docker. Esegui i comandi sopra sull'host, poi aggiorna questa pagina.",
     "docker_update_available": "Nuove immagini container disponibili",
     "docker_sha_unknown": "Aggiornato (commit immagine sconosciuto)",
-    "docker_images": "Immagini"
+    "docker_images": "Immagini",
+    "more_options": "Altre opzioni",
+    "option_advanced": "Opzioni avanzate",
+    "option_advanced_desc": "Conservazione backup, distribuzione Docker, ricostruzione server e strategia di aggiornamento"
   },
   "permissions": {
     "title": "Permessi",

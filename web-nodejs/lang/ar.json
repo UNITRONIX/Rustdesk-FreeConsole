@@ -3375,7 +3375,10 @@
     "docker_install_note": "التثبيت داخل التطبيق معطّل في Docker. نفّذ الأوامر أعلاه على المضيف ثم حدّث هذه الصفحة.",
     "docker_update_available": "صور حاويات جديدة متاحة",
     "docker_sha_unknown": "محدّث (commit الصورة غير معروف)",
-    "docker_images": "الصور"
+    "docker_images": "الصور",
+    "more_options": "المزيد من الخيارات",
+    "option_advanced": "خيارات متقدمة",
+    "option_advanced_desc": "الاحتفاظ بالنسخ الاحتياطية، نشر Docker، إعادة بناء الخادم واستراتيجية التحديث"
   },
   "permissions": {
     "title": "الأذونات",

@@ -3374,7 +3374,10 @@
     "docker_install_note": "Instalasi in-app dinonaktifkan di Docker. Jalankan perintah di atas di host, lalu muat ulang halaman ini.",
     "docker_update_available": "Image kontainer baru tersedia",
     "docker_sha_unknown": "Terbaru (commit image tidak diketahui)",
-    "docker_images": "Image"
+    "docker_images": "Image",
+    "more_options": "Opsi lainnya",
+    "option_advanced": "Opsi lanjutan",
+    "option_advanced_desc": "Retensi cadangan, penyebaran Docker, rebuild server, dan strategi pembaruan"
   },
   "permissions": {
     "title": "Izin",

@@ -3374,7 +3374,10 @@
     "docker_install_note": "Az alkalmazáson belüli telepítés Dockerben le van tiltva. Futtassa a fenti parancsokat a gazdagépen, majd frissítse az oldalt.",
     "docker_update_available": "Új konténer image-ek érhetők el",
     "docker_sha_unknown": "Naprakész (image commit ismeretlen)",
-    "docker_images": "Image-ek"
+    "docker_images": "Image-ek",
+    "more_options": "További beállítások",
+    "option_advanced": "Speciális beállítások",
+    "option_advanced_desc": "Biztonsági mentések megőrzése, Docker telepítés, szerver újraépítés és frissítési stratégia"
   },
   "permissions": {
     "title": "Engedélyek",

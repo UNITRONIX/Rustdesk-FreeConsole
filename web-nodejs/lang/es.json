@@ -3368,7 +3368,10 @@
     "docker_install_note": "La instalación en la app está deshabilitada en Docker. Ejecute los comandos anteriores en el host y actualice esta página.",
     "docker_update_available": "Nuevas imágenes de contenedor disponibles",
     "docker_sha_unknown": "Actualizado (commit de imagen desconocido)",
-    "docker_images": "Imágenes"
+    "docker_images": "Imágenes",
+    "more_options": "Más opciones",
+    "option_advanced": "Opciones avanzadas",
+    "option_advanced_desc": "Retención de copias, despliegue Docker, reconstrucción del servidor y estrategia de actualización"
   },
   "permissions": {
     "title": "Permisos",

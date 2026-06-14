@@ -3374,7 +3374,10 @@
     "docker_install_note": "การติดตั้งในแอปถูกปิดใช้งานใน Docker รันคำสั่งด้านบนบนโฮสต์ แล้วรีเฟรชหน้านี้",
     "docker_update_available": "มีอิมเมจคอนเทนเนอร์ใหม่",
     "docker_sha_unknown": "ล่าสุด (commit อิมเมจไม่ทราบ)",
-    "docker_images": "อิมเมจ"
+    "docker_images": "อิมเมจ",
+    "more_options": "ตัวเลือกเพิ่มเติม",
+    "option_advanced": "ตัวเลือกขั้นสูง",
+    "option_advanced_desc": "การเก็บสำรอง การ deploy Docker การ rebuild เซิร์ฟเวอร์ และกลยุทธ์อัปเดต"
   },
   "permissions": {
     "title": "สิทธิ์",

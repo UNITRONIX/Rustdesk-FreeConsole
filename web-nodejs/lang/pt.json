@@ -3368,7 +3368,10 @@
     "docker_install_note": "A instalação na app está desativada no Docker. Execute os comandos acima no anfitrião e atualize esta página.",
     "docker_update_available": "Novas imagens de contentor disponíveis",
     "docker_sha_unknown": "Atualizado (commit da imagem desconhecido)",
-    "docker_images": "Imagens"
+    "docker_images": "Imagens",
+    "more_options": "Mais opções",
+    "option_advanced": "Opções avançadas",
+    "option_advanced_desc": "Retenção de backups, implantação Docker, reconstrução do servidor e estratégia de atualização"
   },
   "permissions": {
     "title": "Permissões",

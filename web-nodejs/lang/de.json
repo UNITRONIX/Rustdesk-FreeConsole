@@ -3368,7 +3368,10 @@
     "docker_install_note": "In-App-Installation ist in Docker deaktiviert. Führen Sie die obigen Befehle auf dem Host aus und aktualisieren Sie dann diese Seite.",
     "docker_update_available": "Neue Container-Images verfügbar",
     "docker_sha_unknown": "Aktuell (Image-Commit unbekannt)",
-    "docker_images": "Images"
+    "docker_images": "Images",
+    "more_options": "Weitere Optionen",
+    "option_advanced": "Erweiterte Optionen",
+    "option_advanced_desc": "Backup-Aufbewahrung, Docker-Bereitstellung, Server-Neuaufbau und Update-Strategie"
   },
   "permissions": {
     "title": "Berechtigungen",

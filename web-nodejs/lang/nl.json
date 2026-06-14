@@ -3368,7 +3368,10 @@
     "docker_install_note": "In-app-installatie is uitgeschakeld in Docker. Voer de bovenstaande commando's uit op de host en vernieuw daarna deze pagina.",
     "docker_update_available": "Nieuwe containerimages beschikbaar",
     "docker_sha_unknown": "Up-to-date (image-commit onbekend)",
-    "docker_images": "Images"
+    "docker_images": "Images",
+    "more_options": "Meer opties",
+    "option_advanced": "Geavanceerde opties",
+    "option_advanced_desc": "Backupbewaring, Docker-implementatie, server herbouw en updatestrategie"
   },
   "permissions": {
     "title": "Machtigingen",

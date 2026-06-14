@@ -3439,7 +3439,10 @@
     "docker_install_note": "Docker 中已禁用应用内安装。请在主机上运行上述命令，然后刷新本页。",
     "docker_update_available": "有新的容器镜像可用",
     "docker_sha_unknown": "已是最新（镜像 commit 未知）",
-    "docker_images": "镜像"
+    "docker_images": "镜像",
+    "more_options": "更多选项",
+    "option_advanced": "高级选项",
+    "option_advanced_desc": "备份保留、Docker 部署、服务器重建和更新策略"
   },
   "accessibility": {
     "title": "无障碍",

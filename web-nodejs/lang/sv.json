@@ -3374,7 +3374,10 @@
     "docker_install_note": "In-app-installation är inaktiverad i Docker. Kör kommandona ovan på värden och uppdatera sedan sidan.",
     "docker_update_available": "Nya containerimages tillgängliga",
     "docker_sha_unknown": "Uppdaterad (image-commit okänd)",
-    "docker_images": "Images"
+    "docker_images": "Images",
+    "more_options": "Fler alternativ",
+    "option_advanced": "Avancerade alternativ",
+    "option_advanced_desc": "Backupkvarhållning, Docker-distribution, serverombyggnad och uppdateringsstrategi"
   },
   "permissions": {
     "title": "Behörigheter",

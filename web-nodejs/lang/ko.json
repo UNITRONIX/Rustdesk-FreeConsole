@@ -3368,7 +3368,10 @@
     "docker_install_note": "Docker에서는 앱 내 설치가 비활성화되어 있습니다. 위 명령을 호스트에서 실행한 뒤 이 페이지를 새로고침하세요.",
     "docker_update_available": "새 컨테이너 이미지 사용 가능",
     "docker_sha_unknown": "최신 (이미지 commit 알 수 없음)",
-    "docker_images": "이미지"
+    "docker_images": "이미지",
+    "more_options": "추가 옵션",
+    "option_advanced": "고급 옵션",
+    "option_advanced_desc": "백업 보존, Docker 배포, 서버 재빌드 및 업데이트 전략"
   },
   "permissions": {
     "title": "권한",

@@ -3368,7 +3368,10 @@
     "docker_install_note": "Docker ではアプリ内インストールは無効です。上記コマンドをホストで実行し、このページを更新してください。",
     "docker_update_available": "新しいコンテナイメージが利用可能",
     "docker_sha_unknown": "最新（イメージ commit 不明）",
-    "docker_images": "イメージ"
+    "docker_images": "イメージ",
+    "more_options": "その他のオプション",
+    "option_advanced": "詳細設定",
+    "option_advanced_desc": "バックアップ保持、Docker デプロイ、サーバー再ビルド、更新戦略"
   },
   "permissions": {
     "title": "権限",

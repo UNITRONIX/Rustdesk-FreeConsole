@@ -3453,7 +3453,10 @@
     "channel_saved": "通道已切換。請點擊檢查更新。",
     "channel_save_failed": "保存更新通道失敗",
     "channel_switch_warning": "更改通道會改變 GitHub 分支。已跟蹤的 commit SHA 會保留 — 下次檢查可能顯示較大差異。繼續？",
-    "channel_confirm_switch": "將更新源從 {from} 切換到 {to}？在點擊檢查更新之前，已安裝的 commit 基準不變。"
+    "channel_confirm_switch": "將更新源從 {from} 切換到 {to}？在點擊檢查更新之前，已安裝的 commit 基準不變。",
+    "more_options": "更多選項",
+    "option_advanced": "進階選項",
+    "option_advanced_desc": "備份保留、Docker 部署、伺服器重建與更新策略"
   },
   "accessibility": {
     "title": "無障礙",

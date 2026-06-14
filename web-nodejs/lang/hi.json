@@ -3374,7 +3374,10 @@
     "docker_install_note": "Docker में इन-ऐप इंस्टॉल अक्षम है। होस्ट पर ऊपर दिए कमांड चलाएँ, फिर यह पृष्ठ रीफ़्रेश करें।",
     "docker_update_available": "नई कंटेनर इमेज उपलब्ध",
     "docker_sha_unknown": "अद्यतन (इमेज commit अज्ञात)",
-    "docker_images": "इमेज"
+    "docker_images": "इमेज",
+    "more_options": "अधिक विकल्प",
+    "option_advanced": "उन्नत विकल्प",
+    "option_advanced_desc": "बैकअप रखना, Docker तैनाती, सर्वर पुनर्निर्माण और अपडेट रणनीति"
   },
   "permissions": {
     "title": "अनुमतियां",

@@ -3374,7 +3374,10 @@
     "docker_install_note": "In-app-installation er deaktiveret i Docker. Kør kommandoerne ovenfor på værten, og opdater derefter denne side.",
     "docker_update_available": "Nye containerimages tilgængelige",
     "docker_sha_unknown": "Opdateret (image-commit ukendt)",
-    "docker_images": "Images"
+    "docker_images": "Images",
+    "more_options": "Flere indstillinger",
+    "option_advanced": "Avancerede indstillinger",
+    "option_advanced_desc": "Backup-opbevaring, Docker-implementering, genopbygning af server og opdateringsstrategi"
   },
   "permissions": {
     "title": "Tilladelser",

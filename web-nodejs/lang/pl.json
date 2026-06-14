@@ -3449,7 +3449,10 @@
     "channel_switch_warning": "Zmiana kanału zmienia gałąź GitHub. Śledzone SHA commita zostaje — następne sprawdzenie może pokazać dużą różnicę. Kontynuować?",
     "channel_pick_label": "Przełącz na",
     "channel_apply_hint": "Po potwierdzeniu zmiana zapisuje się od razu. Następnie kliknij Sprawdź aktualizacje.",
-    "channel_confirm_switch": "Przełączyć źródło aktualizacji z {from} na {to}? Zainstalowany commit pozostaje do momentu Sprawdź aktualizacje."
+    "channel_confirm_switch": "Przełączyć źródło aktualizacji z {from} na {to}? Zainstalowany commit pozostaje do momentu Sprawdź aktualizacje.",
+    "more_options": "Więcej opcji",
+    "option_advanced": "Opcje zaawansowane",
+    "option_advanced_desc": "Retencja kopii zapasowych, wdrożenie Docker, przebudowa serwera i strategia aktualizacji"
   },
   "accessibility": {
     "title": "Dostępność",

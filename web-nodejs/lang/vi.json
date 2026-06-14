@@ -3374,7 +3374,10 @@
     "docker_install_note": "Cài đặt trong ứng dụng bị tắt trên Docker. Chạy các lệnh trên trên máy chủ, rồi làm mới trang này.",
     "docker_update_available": "Có image container mới",
     "docker_sha_unknown": "Đã cập nhật (commit image không rõ)",
-    "docker_images": "Image"
+    "docker_images": "Image",
+    "more_options": "Tùy chọn khác",
+    "option_advanced": "Tùy chọn nâng cao",
+    "option_advanced_desc": "Giữ bản sao lưu, triển khai Docker, build lại máy chủ và chiến lược cập nhật"
   },
   "permissions": {
     "title": "Quyền",

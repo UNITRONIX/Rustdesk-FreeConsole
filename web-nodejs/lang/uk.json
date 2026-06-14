@@ -3374,7 +3374,10 @@
     "docker_install_note": "Встановлення з панелі вимкнено в Docker. Виконайте команди вище на хості, потім оновіть цю сторінку.",
     "docker_update_available": "Доступні нові образи контейнерів",
     "docker_sha_unknown": "Актуально (commit образу невідомий)",
-    "docker_images": "Образи"
+    "docker_images": "Образи",
+    "more_options": "Додаткові параметри",
+    "option_advanced": "Розширені параметри",
+    "option_advanced_desc": "Зберігання резервних копій, розгортання Docker, перебудова сервера та стратегія оновлень"
   },
   "permissions": {
     "title": "Дозволи",

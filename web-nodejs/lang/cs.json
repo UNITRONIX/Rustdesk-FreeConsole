@@ -3368,7 +3368,10 @@
     "docker_install_note": "Instalace v aplikaci je v Dockeru zakázána. Spusťte výše uvedené příkazy na hostiteli a poté obnovte stránku.",
     "docker_update_available": "K dispozici jsou nové kontejnerové image",
     "docker_sha_unknown": "Aktuální (commit image neznámý)",
-    "docker_images": "Image"
+    "docker_images": "Image",
+    "more_options": "Další možnosti",
+    "option_advanced": "Upřesnit možnosti",
+    "option_advanced_desc": "Retence záloh, nasazení Docker, přestavba serveru a strategie aktualizací"
   },
   "permissions": {
     "title": "Oprávnění",
