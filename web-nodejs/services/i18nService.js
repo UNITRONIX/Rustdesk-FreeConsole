@@ -36,13 +36,15 @@ const LANGUAGE_META = {
     'th': { name: 'Thai', native: 'ไทย', flag: '🇹🇭', rtl: false },
     'vi': { name: 'Vietnamese', native: 'Tiếng Việt', flag: '🇻🇳', rtl: false },
     'id': { name: 'Indonesian', native: 'Bahasa Indonesia', flag: '🇮🇩', rtl: false },
-    'zh-TW': { name: 'Chinese (Traditional)', native: '繁體中文', flag: '🇹🇼', rtl: false }
+    'zh-TW': { name: 'Chinese (Traditional)', native: '繁體中文', flag: '🇹🇼', rtl: false },
 };
 
-// Security: Language code validation regex (prevents path traversal)
-// Supports ISO 639-1 codes (e.g. "en") and BCP 47 tags (e.g. "zh-TW")
-const VALID_LANG_CODE = /^[a-z]{2,8}(-[A-Z][a-zA-Z]{1,7})?$/;
+// ISO 639-1 base tag, optional BCP 47 region/script subtag (e.g. en, zh-TW).
+const LANG_BASE = '[a-z]{2,8}';
+const LANG_SUBTAG = '-[A-Z][a-zA-Z]{1,7}';
+const VALID_LANG_CODE = new RegExp(`^${LANG_BASE}(${LANG_SUBTAG})?$`);
 
+// Security: reject malformed codes before filesystem lookup (path traversal).
 /**
  * Validate language code format to prevent path traversal attacks.
  * @param {string} code - Language code to validate
