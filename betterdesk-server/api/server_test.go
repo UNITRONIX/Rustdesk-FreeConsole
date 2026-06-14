@@ -162,6 +162,42 @@ func TestListPeersEndpoint(t *testing.T) {
 	}
 }
 
+func TestListPeersPaginatedEndpoint(t *testing.T) {
+	cfg := config.DefaultConfig()
+	database := testSetupDB(t)
+	defer database.Close()
+
+	for i := 1; i <= 3; i++ {
+		id := fmt.Sprintf("PG%02d", i)
+		database.UpsertPeer(&db.Peer{ID: id, Hostname: id, Status: "ONLINE"})
+	}
+
+	peerMap := peer.NewMap()
+	cfg.APIPort = 19880
+	srv := New(cfg, database, peerMap, nil, "test")
+	srv.Start(t.Context())
+	defer srv.Stop()
+	time.Sleep(100 * time.Millisecond)
+
+	resp, err := testAuthGet(fmt.Sprintf("http://127.0.0.1:%d/api/peers?limit=2&page=1", cfg.APIPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if int(body["total"].(float64)) != 3 {
+		t.Fatalf("total = %v, want 3", body["total"])
+	}
+	data, ok := body["data"].([]any)
+	if !ok || len(data) != 2 {
+		t.Fatalf("data len = %d, want 2", len(data))
+	}
+}
+
 func TestBanUnbanEndpoint(t *testing.T) {
 	cfg := config.DefaultConfig()
 	database := testSetupDB(t)

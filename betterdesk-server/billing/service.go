@@ -120,6 +120,13 @@ func (s *Service) sweepStalePending() {
 	}
 }
 
+// PendingRelayCount returns billing metadata waiting for relay pairing.
+func (s *Service) PendingRelayCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
+}
+
 // CheckConnection evaluates whether a connection to deviceID may proceed.
 func (s *Service) CheckConnection(deviceID string) ConnectionCheckResult {
 	orgID, err := s.db.GetDeviceOrgID(deviceID)

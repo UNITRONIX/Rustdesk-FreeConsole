@@ -420,6 +420,9 @@ type Database interface {
 	DeletePeer(id string) error     // soft delete
 	HardDeletePeer(id string) error // permanent delete
 	ListPeers(includeDeleted bool) ([]*Peer, error)
+	// ListPeersPaginated returns peers with SQL LIMIT/OFFSET plus total row count.
+	// limit <= 0 returns all rows (offset still applied).
+	ListPeersPaginated(includeDeleted bool, limit, offset int) ([]*Peer, int, error)
 	GetPeerCount() (total int, online int, err error)
 	GetBannedPeerCount() (int, error)
 
@@ -587,6 +590,7 @@ type Database interface {
 
 	// Org-scoped device queries (RBAC Phase 52 — data scoping)
 	ListPeersForOrg(orgID string, includeDeleted bool) ([]*Peer, error)
+	ListPeersForOrgPaginated(orgID string, includeDeleted bool, limit, offset int) ([]*Peer, int, error)
 
 	// Audit logs (RustDesk client reporting — API-port consolidation Phase A)
 	InsertAuditConnection(a *AuditConnection) error

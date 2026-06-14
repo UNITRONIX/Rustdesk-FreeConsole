@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -316,6 +317,35 @@ func TestGetPeersByIDs(t *testing.T) {
 	}
 	if len(empty) != 0 {
 		t.Fatalf("empty ids should return empty map, got %d", len(empty))
+	}
+}
+
+func TestListPeersPaginated(t *testing.T) {
+	db := newTestDB(t)
+	for i := 1; i <= 5; i++ {
+		id := fmt.Sprintf("PAGE%02d", i)
+		if err := db.UpsertPeer(&Peer{ID: id, Status: "ONLINE"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	page1, total, err := db.ListPeersPaginated(false, 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 5 {
+		t.Fatalf("total = %d, want 5", total)
+	}
+	if len(page1) != 2 {
+		t.Fatalf("page1 len = %d, want 2", len(page1))
+	}
+
+	page3, total, err := db.ListPeersPaginated(false, 2, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 5 || len(page3) != 1 {
+		t.Fatalf("page3 total=%d len=%d, want total=5 len=1", total, len(page3))
 	}
 }
 

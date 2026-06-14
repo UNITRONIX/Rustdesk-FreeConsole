@@ -33,14 +33,7 @@ func (s *Server) buildRustDeskDeviceGroups(r *http.Request) []rustDeskGroup {
 		return nil
 	}
 
-	peers, _ := s.db.ListPeers(false)
-	peerByID := make(map[string]*db.Peer, len(peers))
-	for _, p := range peers {
-		if p == nil || p.Banned || p.SoftDeleted || p.Disabled {
-			continue
-		}
-		peerByID[p.ID] = p
-	}
+	peerByID, _ := s.loadRustDeskPeerByID(username, role)
 
 	assignments := map[string]int64{}
 	if s.panelStore != nil {

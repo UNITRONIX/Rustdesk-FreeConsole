@@ -765,6 +765,36 @@ func (pg *PostgresDB) ListPeers(includeDeleted bool) ([]*Peer, error) {
 	return peers, rows.Err()
 }
 
+// ListPeersPaginated returns a page of peers and the total matching row count.
+func (pg *PostgresDB) ListPeersPaginated(includeDeleted bool, limit, offset int) ([]*Peer, int, error) {
+	where := ""
+	if !includeDeleted {
+		where = ` WHERE soft_deleted = FALSE`
+	}
+
+	var total int
+	if err := pg.pool.QueryRow(pg.ctx, `SELECT COUNT(*) FROM peers`+where).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersPaginated count: %w", err)
+	}
+
+	query := `SELECT ` + peerColumns + ` FROM peers` + where + ` ORDER BY id`
+	if limit > 0 {
+		query += fmt.Sprintf(` LIMIT %d OFFSET %d`, limit, offset)
+	}
+
+	rows, err := pg.pool.Query(pg.ctx, query)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersPaginated: %w", err)
+	}
+	defer rows.Close()
+
+	peers, err := scanPeerRows(rows)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersPaginated: %w", err)
+	}
+	return peers, total, nil
+}
+
 // GetPeerCount returns total and online peer counts.
 func (pg *PostgresDB) GetPeerCount() (total int, online int, err error) {
 	err = pg.pool.QueryRow(pg.ctx,
@@ -1954,4 +1984,33 @@ func (pg *PostgresDB) ListPeersForOrg(orgID string, includeDeleted bool) ([]*Pee
 		peers = append(peers, p)
 	}
 	return peers, rows.Err()
+}
+
+func (pg *PostgresDB) ListPeersForOrgPaginated(orgID string, includeDeleted bool, limit, offset int) ([]*Peer, int, error) {
+	where := ` FROM peers p INNER JOIN org_devices od ON p.id = od.device_id WHERE od.org_id = $1`
+	if !includeDeleted {
+		where += ` AND p.soft_deleted = FALSE`
+	}
+
+	var total int
+	if err := pg.pool.QueryRow(pg.ctx, `SELECT COUNT(*)`+where, orgID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersForOrgPaginated count: %w", err)
+	}
+
+	query := `SELECT ` + peerColumns + where + ` ORDER BY p.last_online DESC NULLS LAST`
+	if limit > 0 {
+		query += fmt.Sprintf(` LIMIT %d OFFSET %d`, limit, offset)
+	}
+
+	rows, err := pg.pool.Query(pg.ctx, query, orgID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersForOrgPaginated: %w", err)
+	}
+	defer rows.Close()
+
+	peers, err := scanPeerRows(rows)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersForOrgPaginated: %w", err)
+	}
+	return peers, total, nil
 }

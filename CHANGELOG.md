@@ -3,13 +3,17 @@
 ### Changed
 
 - **Go server (performance):** batch peer lookup via `GetPeersByIDs` for address book merge and scoped RustDesk peer lists (avoids N+1 `GetPeer` queries on large fleets).
+- **Go server (performance):** SQL pagination for admin `GET /api/peers?limit=&page=`; scoped RustDesk device groups reuse batched peer loading.
 - **Go server (billing):** stale pending relay metadata is swept after 10 minutes when pairing never completes.
 - **Go server (relay):** fix pairing race when both sides connect simultaneously (LoadOrStore instead of LoadAndDelete+Store).
+- **Go server (signal):** two-phase `CheckHeartbeats` shortens peer-map write lock during heartbeat sweeps.
+- **Go server (observability):** `/api/health` and `/metrics` expose live peer tiers, relay sessions, and billing pending relay count.
 
 ### Added
 
 - **Go server (compat):** integration test covering signal relay assignment through hbbr byte relay (`TestSignalRelayWireFlow`).
 - **Go server (tests):** relay pairing tests wait for `ActiveSessions` instead of a fixed sleep.
+- **Go server (DB):** `ListPeersPaginated` / `ListPeersForOrgPaginated` for large fleet admin views.
 
 ---
 
