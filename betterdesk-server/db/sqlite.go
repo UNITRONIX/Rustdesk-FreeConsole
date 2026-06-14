@@ -757,6 +757,29 @@ func (s *SQLiteDB) UpdatePeerStatus(id string, status string, ip string) error {
 	return err
 }
 
+// BatchUpdatePeerStatus sets status for many peers in one query (empty ip preserved).
+func (s *SQLiteDB) BatchUpdatePeerStatus(ids []string, status string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, 0, len(ids)+1)
+	args = append(args, status)
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	query := fmt.Sprintf(
+		`UPDATE peers SET status = ?, last_online = datetime('now') WHERE soft_deleted = 0 AND id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	_, err := s.db.Exec(query, args...)
+	return err
+}
+
 // UpdatePeerSysinfo updates hostname, os, and version for a peer.
 // Only non-empty values overwrite existing data.
 func (s *SQLiteDB) UpdatePeerSysinfo(id, hostname, os, version string) error {

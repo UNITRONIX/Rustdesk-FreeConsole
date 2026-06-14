@@ -248,6 +248,58 @@ func TestUpdatePeerStatusIgnoresSoftDeleted(t *testing.T) {
 	}
 }
 
+func TestBatchUpdatePeerStatus(t *testing.T) {
+	db := newTestDB(t)
+
+	for _, id := range []string{"BATCH1", "BATCH2"} {
+		if err := db.UpsertPeer(&Peer{ID: id, Status: "ONLINE", IP: "10.0.0.1"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := db.BatchUpdatePeerStatus([]string{"BATCH1", "BATCH2", "MISSING1"}, "DEGRADED"); err != nil {
+		t.Fatal(err)
+	}
+
+	check := func(id, wantStatus string) {
+		t.Helper()
+		p, err := db.GetPeer(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p == nil {
+			t.Fatalf("peer %s not found", id)
+		}
+		if p.Status != wantStatus {
+			t.Fatalf("peer %s status = %q, want %q", id, p.Status, wantStatus)
+		}
+	}
+	check("BATCH1", "DEGRADED")
+	check("BATCH2", "DEGRADED")
+}
+
+func TestBatchUpdatePeerStatusIgnoresSoftDeleted(t *testing.T) {
+	db := newTestDB(t)
+	if err := db.UpsertPeer(&Peer{ID: "BATCHDEL", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeletePeer("BATCHDEL"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.BatchUpdatePeerStatus([]string{"BATCHDEL"}, "CRITICAL"); err != nil {
+		t.Fatal(err)
+	}
+	peers, err := db.ListPeers(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range peers {
+		if p.ID == "BATCHDEL" && p.Status == "CRITICAL" {
+			t.Fatal("BatchUpdatePeerStatus must not update soft-deleted peer")
+		}
+	}
+}
+
 func TestBanSystem(t *testing.T) {
 	db := newTestDB(t)
 

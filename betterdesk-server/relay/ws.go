@@ -63,6 +63,19 @@ func (s *Server) serveWS() {
 // After upgrade, the first binary frame must be a RequestRelay (with UUID).
 // Then we convert the WS to a net.Conn and feed it into the existing pairing logic.
 func (s *Server) handleWSRelayUpgrade(w http.ResponseWriter, r *http.Request) {
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	if ip == "" {
+		ip = r.RemoteAddr
+	}
+	if s.connLimiter != nil && !s.connLimiter.Acquire(ip) {
+		log.Printf("[relay] WS connection rejected from %s (per-IP limit exceeded)", ip)
+		http.Error(w, "too many connections", http.StatusServiceUnavailable)
+		return
+	}
+	if s.connLimiter != nil {
+		defer s.connLimiter.Release(ip)
+	}
+
 	opts := &websocket.AcceptOptions{}
 
 	// Secure-by-default origin validation:

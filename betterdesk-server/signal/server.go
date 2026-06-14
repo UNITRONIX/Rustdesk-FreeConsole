@@ -725,41 +725,45 @@ func (s *Server) heartbeatCleaner() {
 			)
 
 			// Update database for peers that transitioned to DEGRADED
-			for _, id := range degraded {
-				if err := s.db.UpdatePeerStatus(id, "DEGRADED", ""); err != nil {
-					log.Printf("[signal] Failed to mark %s degraded: %v", id, err)
+			if len(degraded) > 0 {
+				if err := s.db.BatchUpdatePeerStatus(degraded, "DEGRADED"); err != nil {
+					log.Printf("[signal] Failed to mark %d peers degraded: %v", len(degraded), err)
 				}
-				log.Printf("[signal] Peer %s → DEGRADED (missed heartbeats)", id)
-				s.eventBus.Publish(events.Event{
-					Type: events.EventPeerDegraded,
-					Data: map[string]string{"id": id},
-				})
+				for _, id := range degraded {
+					log.Printf("[signal] Peer %s → DEGRADED (missed heartbeats)", id)
+					s.eventBus.Publish(events.Event{
+						Type: events.EventPeerDegraded,
+						Data: map[string]string{"id": id},
+					})
+				}
 			}
 
 			// Update database for peers that transitioned to CRITICAL
-			for _, id := range critical {
-				if err := s.db.UpdatePeerStatus(id, "CRITICAL", ""); err != nil {
-					log.Printf("[signal] Failed to mark %s critical: %v", id, err)
+			if len(critical) > 0 {
+				if err := s.db.BatchUpdatePeerStatus(critical, "CRITICAL"); err != nil {
+					log.Printf("[signal] Failed to mark %d peers critical: %v", len(critical), err)
 				}
-				log.Printf("[signal] Peer %s → CRITICAL (about to go offline)", id)
-				s.eventBus.Publish(events.Event{
-					Type: events.EventPeerCritical,
-					Data: map[string]string{"id": id},
-				})
+				for _, id := range critical {
+					log.Printf("[signal] Peer %s → CRITICAL (about to go offline)", id)
+					s.eventBus.Publish(events.Event{
+						Type: events.EventPeerCritical,
+						Data: map[string]string{"id": id},
+					})
+				}
 			}
 
 			// Phase 2: Remove fully expired peers (offline)
 			expired := s.peers.CleanExpired(config.RegTimeout)
-			for _, id := range expired {
-				if err := s.db.UpdatePeerStatus(id, "OFFLINE", ""); err != nil {
-					log.Printf("[signal] Failed to mark %s offline: %v", id, err)
-				}
-				s.eventBus.Publish(events.Event{
-					Type: events.EventPeerOffline,
-					Data: map[string]string{"id": id},
-				})
-			}
 			if len(expired) > 0 {
+				if err := s.db.BatchUpdatePeerStatus(expired, "OFFLINE"); err != nil {
+					log.Printf("[signal] Failed to mark %d peers offline: %v", len(expired), err)
+				}
+				for _, id := range expired {
+					s.eventBus.Publish(events.Event{
+						Type: events.EventPeerOffline,
+						Data: map[string]string{"id": id},
+					})
+				}
 				log.Printf("[signal] Cleaned %d expired peers (→ OFFLINE)", len(expired))
 			}
 		}

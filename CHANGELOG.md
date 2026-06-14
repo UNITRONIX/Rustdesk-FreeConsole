@@ -8,7 +8,9 @@
 ## [3.3.15] — 2026-06-14
 
 ### Changed
-- _(none yet)_
+
+- **Go server (stability):** CDAP disconnect cleans all session types (terminal, video, file, audio, desktop); batch peer status DB updates on mass offline; known-peer heartbeats skip registration rate limiter; relay WebSocket uses same per-IP ConnLimiter as TCP; Postgres query timeouts on status updates; org login rate limiting.
+- **CI:** `go-server-ci.yml` runs `go vet` and `go test -race` on changes under `betterdesk-server/`.
 
 ---
 

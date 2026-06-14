@@ -422,6 +422,7 @@ type Database interface {
 
 	// Status tracking
 	UpdatePeerStatus(id string, status string, ip string) error
+	BatchUpdatePeerStatus(ids []string, status string) error
 	UpdatePeerSysinfo(id, hostname, os, version string) error
 	SetAllOffline() error
 
