@@ -55,6 +55,77 @@
     const sessions = new Map(); // deviceId → SessionInfo
     let activeSessionId = null;
 
+    const Prefs = window.RemoteViewerPrefs || {};
+    const globalViewerPrefs = typeof Prefs.loadRemoteViewerPrefs === 'function'
+        ? Prefs.loadRemoteViewerPrefs(window.BetterDesk?.user?.id)
+        : { quality: 'Best', scale: 'fit', codec: 'Auto', adaptiveQuality: true, backgroundFps: 1 };
+
+    function cloneViewerPrefs(prefs) {
+        return Object.assign({
+            quality: 'Best',
+            scale: 'fit',
+            codec: 'Auto',
+            adaptiveQuality: true,
+            backgroundFps: 1,
+        }, prefs || globalViewerPrefs);
+    }
+
+    function persistGlobalViewerPrefs(prefs) {
+        Object.assign(globalViewerPrefs, prefs);
+        if (typeof Prefs.saveRemoteViewerPrefs === 'function') {
+            Prefs.saveRemoteViewerPrefs(window.BetterDesk?.user?.id, globalViewerPrefs);
+        }
+    }
+
+    function buildClientOpts(session) {
+        const prefs = session.viewerPrefs || globalViewerPrefs;
+        const userName = (window.BetterDesk.user && (window.BetterDesk.user.display_name || window.BetterDesk.user.username)) || 'BetterDesk Web';
+        const activeFps = typeof Prefs.getActiveFpsForQuality === 'function'
+            ? Prefs.getActiveFpsForQuality(prefs.quality)
+            : 60;
+        return {
+            deviceId: session.deviceId,
+            serverPubKey: window.BetterDesk.serverPubKey || '',
+            myName: userName,
+            scaleMode: prefs.scale || 'fit',
+            fps: activeFps,
+            imageQuality: prefs.quality || 'Best',
+            qualityPreset: typeof Prefs.getPresetForQuality === 'function'
+                ? Prefs.getPresetForQuality(prefs.quality)
+                : 'best',
+            adaptiveQuality: prefs.adaptiveQuality !== false,
+            preferCodec: prefs.codec || 'Auto',
+            disableAudio: false,
+        };
+    }
+
+    function applyViewerPrefsToClient(client, prefs) {
+        if (!client || !prefs) return;
+        if (typeof client.setBackgroundFps === 'function') {
+            client.setBackgroundFps(prefs.backgroundFps || 1);
+        }
+        if (client._state === 'streaming' || client.state === 'streaming') {
+            const preset = typeof Prefs.getPresetForQuality === 'function'
+                ? Prefs.getPresetForQuality(prefs.quality)
+                : ({ Best: 'best', Balanced: 'balanced', Low: 'speed' }[prefs.quality] || 'best');
+            if (typeof client.setQualityPreset === 'function') {
+                client.setQualityPreset(preset);
+            }
+            if (typeof client.setScaleMode === 'function') {
+                client.setScaleMode(prefs.scale || 'fit');
+            }
+            if (prefs.codec && prefs.codec !== 'Auto' && typeof client.setCodec === 'function') {
+                client.setCodec(prefs.codec);
+            }
+        }
+    }
+
+    function updateSessionViewerPref(session, patch) {
+        if (!session) return;
+        session.viewerPrefs = Object.assign({}, session.viewerPrefs || cloneViewerPrefs(), patch);
+        persistGlobalViewerPrefs(session.viewerPrefs);
+    }
+
     /**
      * Session info wrapper for a single remote connection
      */
@@ -88,6 +159,7 @@
             this.latency = 0;
             this.lastStats = null;
             this.audioMuted = false;
+            this.viewerPrefs = cloneViewerPrefs();
             this.mediaRecorder = null;
             this.recordedChunks = [];
         }
@@ -298,23 +370,8 @@
             if (isInsecure) showHttpWarningBanner();
         }
 
-        // Create RDClient — start conservative; AdaptiveQuality promotes when the
-        // pipeline proves it can keep up (prevents 3–7 FPS stalls on weaker CPUs/JMuxer).
-        const userName = (window.BetterDesk.user && (window.BetterDesk.user.display_name || window.BetterDesk.user.username)) || 'BetterDesk Web';
-        session.client = createTransportClient(session.canvas, {
-            deviceId: deviceId,
-            serverPubKey: window.BetterDesk.serverPubKey || '',
-            myName: userName,
-            scaleMode: 'fit',
-            fps: 30,
-            imageQuality: 'Best',
-            adaptiveQuality: true,
-            disableAudio: false
-        });
-
-        wireSessionEvents(session);
-        wireSessionDomEvents(session);
-        wireFileTransferEvents(session);
+        // Create transport client from saved operator prefs (Best = 60fps).
+        wireNewClient(session);
         sessions.set(deviceId, session);
         createTab(deviceId, deviceName);
         switchSession(deviceId);
@@ -324,6 +381,16 @@
             setSessionStatus(session, 'error', err.message);
             showSessionActions(session);
         });
+    }
+
+    function wireNewClient(session) {
+        session.client = createTransportClient(session.canvas, buildClientOpts(session));
+        if (typeof session.client.setBackgroundFps === 'function') {
+            session.client.setBackgroundFps((session.viewerPrefs || globalViewerPrefs).backgroundFps || 1);
+        }
+        wireSessionEvents(session);
+        wireSessionDomEvents(session);
+        wireFileTransferEvents(session);
     }
 
     function switchSession(deviceId) {
@@ -342,6 +409,7 @@
 
         // Sync toolbar state
         syncToolbarToSession(session);
+        syncToolbarFromSession(session);
 
         if (session.state === 'streaming') {
             session.canvas.focus();
@@ -349,6 +417,12 @@
             setToolbarAutoHide(true);
         } else {
             setToolbarAutoHide(false);
+        }
+
+        syncSessionMediaCapture();
+
+        if (session.state === 'streaming' && session.client) {
+            session.client.setAudioMuted(session.audioMuted);
         }
     }
 
@@ -378,6 +452,8 @@
             } else {
                 returnToDevices();
             }
+        } else {
+            syncSessionMediaCapture();
         }
     }
 
@@ -391,19 +467,7 @@
         if (spinner) spinner.style.display = 'block';
         session.statusText.textContent = _('remote.connecting');
 
-        const userName = (window.BetterDesk.user && (window.BetterDesk.user.display_name || window.BetterDesk.user.username)) || 'BetterDesk Web';
-        session.client = createTransportClient(session.canvas, {
-            deviceId: session.deviceId,
-            serverPubKey: window.BetterDesk.serverPubKey || '',
-            myName: userName,
-            scaleMode: 'fit',
-            fps: 30,
-            imageQuality: 'Best',
-            adaptiveQuality: true,
-            disableAudio: false
-        });
-        wireSessionEvents(session);
-        wireFileTransferEvents(session);
+        wireNewClient(session);
         session.client.renderer.resize();
         session.client.connect().catch(err => {
             setSessionStatus(session, 'error', err.message);
@@ -506,6 +570,10 @@
             session.connectionOverlay.style.display = 'none';
             session.passwordOverlay.style.display = 'none';
             session.client.renderer.resize();
+            if (isActive(session)) {
+                applyViewerPrefsToClient(session.client, session.viewerPrefs);
+            }
+            syncSessionMediaCapture();
             if (isActive(session)) {
                 session.canvas.focus();
                 setToolbarAutoHide(true);
@@ -907,6 +975,16 @@
         return session.deviceId === activeSessionId;
     }
 
+    /**
+     * Keep keyboard/mouse capture, inbound clipboard, and audio scoped to the
+     * active streaming tab so background sessions cannot receive input.
+     */
+    function syncSessionMediaCapture() {
+        if (typeof window.syncSessionMediaCapture === 'function') {
+            window.syncSessionMediaCapture(sessions, activeSessionId);
+        }
+    }
+
     function handleSessionState(session, state) {
         switch (state) {
         case 'connecting':
@@ -919,6 +997,7 @@
             session.connectionOverlay.style.display = 'none';
             session.passwordOverlay.style.display = 'none';
             session.panel.classList.add('streaming');
+            syncSessionMediaCapture();
             if (isActive(session)) setToolbarAutoHide(true);
             break;
         case 'disconnected':
@@ -980,6 +1059,20 @@
             recBtn.classList.toggle('recording',
                 session.mediaRecorder && session.mediaRecorder.state === 'recording');
         }
+    }
+
+    function syncToolbarFromSession(session) {
+        if (!session || !session.viewerPrefs) return;
+        const p = session.viewerPrefs;
+        document.querySelectorAll('.quality-item').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.quality === p.quality);
+        });
+        document.querySelectorAll('.scale-item').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.scale === p.scale);
+        });
+        document.querySelectorAll('.codec-item').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.codec === p.codec);
+        });
     }
 
     // ---- Stats display ----
@@ -1132,7 +1225,9 @@
     document.querySelectorAll('.quality-item').forEach(btn => {
         btn.addEventListener('click', function () {
             var preset = qualityToPreset[this.dataset.quality] || 'balanced';
+            var session = getActiveSession();
             withClient(c => c.setQualityPreset(preset));
+            if (session) updateSessionViewerPref(session, { quality: this.dataset.quality });
             document.querySelectorAll('.quality-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             closeAllDropdowns();
@@ -1142,7 +1237,9 @@
     // Scale items
     document.querySelectorAll('.scale-item').forEach(btn => {
         btn.addEventListener('click', function () {
+            var session = getActiveSession();
             withClient(c => c.setScaleMode(this.dataset.scale));
+            if (session) updateSessionViewerPref(session, { scale: this.dataset.scale });
             document.querySelectorAll('.scale-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             closeAllDropdowns();
@@ -1153,7 +1250,9 @@
     document.querySelectorAll('.codec-item').forEach(btn => {
         btn.addEventListener('click', function () {
             if (this.classList.contains('disabled')) return;
+            var session = getActiveSession();
             withClient(c => c.setCodec(this.dataset.codec));
+            if (session) updateSessionViewerPref(session, { codec: this.dataset.codec });
             document.querySelectorAll('.codec-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             closeAllDropdowns();

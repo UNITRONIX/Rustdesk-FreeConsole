@@ -15,7 +15,10 @@ class RDVideo {
         /** @type {string|null} Current codec */
         this.currentCodec = null;
         /** @type {Function|null} Callback for decoded frames */
+        /** @type {Function|null} Callback for decoded frames */
         this.onFrame = null;
+        /** @type {boolean} Skip decode/render while viewer tab is in background */
+        this._backgroundMode = false;
         /** @type {Function|null} Callback for errors */
         this.onError = null;
         /** @type {number} Decoded frame counter */
@@ -348,9 +351,12 @@ class RDVideo {
                 console.warn('[RDVideo] retryPlay failed:', err.message);
             });
         }
-        // Also resume AudioContext if it exists
-        if (window._rdAudioCtx && window._rdAudioCtx.state === 'suspended') {
-            window._rdAudioCtx.resume();
+        // Also resume AudioContext if it exists for this session
+        if (typeof this.getAudioContext === 'function') {
+            const ctx = this.getAudioContext();
+            if (ctx && ctx.state === 'suspended') {
+                ctx.resume();
+            }
         }
     }
 
@@ -555,11 +561,25 @@ class RDVideo {
     }
 
     /**
+     * Pause local decode/render while the session tab is inactive.
+     * The peer should already be throttled via customFps / quality_set.
+     * @param {boolean} on
+     */
+    setBackgroundMode(on) {
+        this._backgroundMode = !!on;
+    }
+
+    /**
      * Feed an encoded frame to the decoder
      * @param {Object} frameData - { data: Uint8Array, key: boolean, pts: number, codec: string }
      */
     async decode(frameData) {
         if (!this.initialized) {
+            return;
+        }
+
+        if (this._backgroundMode) {
+            this.droppedFrames++;
             return;
         }
 
@@ -699,6 +719,10 @@ class RDVideo {
         }
 
         if (this.onFrame) {
+            if (this._backgroundMode) {
+                frame.close();
+                return;
+            }
             this.onFrame(frame);
         } else {
             // Must close frame if not consumed

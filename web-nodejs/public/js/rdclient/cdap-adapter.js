@@ -200,6 +200,11 @@
             this._sessionId = null;
             this._lastErrorText = '';
             this._lastErrorAt = 0;
+            this._sessionActive = true;
+            this._clipboardToLocalEnabled = true;
+            this._targetFps = this._normaliseFps(opts.fps || 60);
+            this._backgroundFps = 1;
+            this._streamThrottledActive = null;
 
             // Stats counters
             this._frameCount = 0;
@@ -337,13 +342,22 @@
             this._send({ type: 'quality_set', quality: q });
         }
         setQualityPreset(preset) {
-            // 'best' | 'balanced' | 'speed'
-            const map = { best: 92, balanced: 75, speed: 50 };
-            const q = map[String(preset || '').toLowerCase()] || 75;
-            this._send({ type: 'quality_set', quality: q });
+            const presets = {
+                best: { quality: 92, fps: 60 },
+                balanced: { quality: 75, fps: 30 },
+                speed: { quality: 50, fps: 60 },
+            };
+            const p = presets[String(preset || '').toLowerCase()] || presets.balanced;
+            this._targetFps = p.fps;
+            this.opts.qualityPreset = preset;
+            this._send({ type: 'quality_set', quality: p.quality, fps: p.fps });
         }
         setFps(fps) {
-            this._send({ type: 'quality_set', fps: this._normaliseFps(fps) });
+            const n = this._normaliseFps(fps);
+            if (this._sessionActive) {
+                this._targetFps = n;
+            }
+            this._send({ type: 'quality_set', fps: n });
         }
         setScaleMode(mode) {
             try { this.renderer.setScaleMode(mode); } catch { /* noop */ }
@@ -355,6 +369,59 @@
         setDisableClipboard(b)   { this._send({ type: 'disable_clipboard', enabled: !!b }); }
         setBlockInput(b)         { this._send({ type: 'block_input', enabled: !!b }); }
         setAudioMuted(_b)        { /* audio is handled via separate /audio WS */ }
+
+        /**
+         * Mark whether this client is the active tab in the multi-session viewer.
+         * @param {boolean} active
+         */
+        setSessionActive(active) {
+            const next = !!active;
+            const changed = next !== this._sessionActive;
+            this._sessionActive = next;
+            this._clipboardToLocalEnabled = next;
+            this._syncInputCapture();
+            if (this._connected) {
+                this._syncStreamThrottle();
+            } else if (changed) {
+                this._syncStreamThrottle();
+            }
+        }
+
+        setBackgroundFps(fps) {
+            const n = Number(fps);
+            if (Number.isFinite(n) && n >= 1 && n <= 5) {
+                this._backgroundFps = Math.round(n);
+            }
+        }
+
+        /** @private */
+        _syncStreamThrottle() {
+            if (!this._connected) return;
+            const wantActive = this._sessionActive;
+            if (this._streamThrottledActive === wantActive) return;
+            this._streamThrottledActive = wantActive;
+            if (wantActive) {
+                if (this._video && this._video.setBackgroundMode) {
+                    this._video.setBackgroundMode(false);
+                }
+                this.setFps(this._targetFps || this._normaliseFps(this.opts.fps || 60));
+                this._requestKeyframe();
+            } else {
+                if (this._video && this._video.setBackgroundMode) {
+                    this._video.setBackgroundMode(true);
+                }
+                this._send({ type: 'quality_set', fps: this._backgroundFps || 1 });
+            }
+        }
+
+        /** @private */
+        _syncInputCapture() {
+            if (this._sessionActive && this._connected) {
+                this._bindInput();
+            } else {
+                this._unbindInput();
+            }
+        }
 
         requestKeyframe() {
             this._send({ type: 'keyframe_request' });
@@ -502,11 +569,15 @@
                     this._sessionId = msg.session_id || null;
                     this._connected = true;
                     this._setState('streaming');
-                    this._bindInput();
+                    this._syncInputCapture();
                     this._startStats();
                     this._emit('login_success');
                     this._emit('session_start');
                     this._emit('log', 'Streaming');
+                    if (!this._sessionActive) {
+                        this._streamThrottledActive = null;
+                        this._syncStreamThrottle();
+                    }
                     console.log('[CDAP] ready, session=', this._sessionId);
                     break;
 
@@ -693,6 +764,7 @@
          * @param {ArrayBuffer} buf
          */
         _feedVideoFrame(buf) {
+            if (!this._sessionActive) return;
             const bytes = new Uint8Array(buf);
             if (bytes.length < 2) return;
             const isKey = (bytes[0] & 1) === 1;
@@ -758,6 +830,7 @@
         }
 
         _renderEncodedFrame(msg) {
+            if (!this._sessionActive) return;
             const fmt = msg.format || 'jpeg';
             const src = msg.data.startsWith('data:') ? msg.data : `data:image/${fmt};base64,${msg.data}`;
             this._frameCount++;
@@ -791,7 +864,7 @@
             // Mirror device → operator clipboard when the agent allows it.
             const text = msg.text;
             if (!text) return;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
+            if (this._clipboardToLocalEnabled && navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).catch(() => { /* permission denied */ });
             }
             this._emit('clipboard', text);
