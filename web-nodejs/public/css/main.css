@@ -4,6 +4,7 @@
  */
 
 @import url('./variables.css');
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Round');
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GLASS SURFACES — frosted panels (tokens from variables.css / branding.css)
@@ -50,9 +51,6 @@
 .form-textarea {
     border-color: var(--surface-glass-border, var(--border-primary));
 }
-
-/* Google Material Icons */
-@import url('https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Round');
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CSS RESET
