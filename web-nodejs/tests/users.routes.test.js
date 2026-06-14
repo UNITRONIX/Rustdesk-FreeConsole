@@ -16,6 +16,7 @@ const mockDb = {
     deleteUserGroup: jest.fn(),
     getUserGroupsForUser: jest.fn(),
     setUserGroupMemberships: jest.fn(),
+    updateUserProfile: jest.fn().mockResolvedValue(undefined),
     createUser: jest.fn(),
     logAction: jest.fn().mockResolvedValue(undefined),
 };
@@ -168,5 +169,45 @@ describe('Users Routes', () => {
             url: '/users/7/organizations',
             data: { org_id: 'org-1', role: 'operator' },
         });
+    });
+
+    it('updates user email via PATCH', async () => {
+        mockDb.getUserById.mockResolvedValue({
+            id: 12,
+            username: 'operator1',
+            role: 'operator',
+            auth_provider: 'local',
+        });
+
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'admin', role: 'super_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app)
+            .patch('/api/users/12')
+            .send({ email: 'operator1@example.com' });
+
+        expect(res.status).toBe(200);
+        expect(mockDb.updateUserProfile).toHaveBeenCalledWith(12, { email: 'operator1@example.com' });
+    });
+
+    it('rejects invalid email on PATCH', async () => {
+        mockDb.getUserById.mockResolvedValue({
+            id: 12,
+            username: 'operator1',
+            role: 'operator',
+            auth_provider: 'local',
+        });
+
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'admin', role: 'super_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app)
+            .patch('/api/users/12')
+            .send({ email: 'not-an-email' });
+
+        expect(res.status).toBe(400);
+        expect(mockDb.updateUserProfile).not.toHaveBeenCalled();
     });
 });

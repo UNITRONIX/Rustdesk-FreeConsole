@@ -37,6 +37,7 @@
     "express-session": "^1.18.1",
     "helmet": "^7.2.0",
     "multer": "^2.0.0",
+    "nodemailer": "^6.10.1",
     "otplib": "^12.0.1",
     "protobufjs": "^7.4.0",
     "qrcode": "^1.5.4",
@@ -45,8 +46,8 @@
     "ws": "^8.19.0"
   },
   "optionalDependencies": {
-    "pg": "^8.13.0",
-    "node-pty": "^1.0.0"
+    "node-pty": "^1.0.0",
+    "pg": "^8.13.0"
   },
   "overrides": {
     "tar": "^7.5.11",

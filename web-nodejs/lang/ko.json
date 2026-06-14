@@ -577,7 +577,25 @@
     "enrollment_open_requests": "등록 요청 열기",
     "enrollment_pending_count": "대기 중인 등록 요청 {count}건",
     "go_server_version": "Go 서버",
-    "go_server_version_dev_hint": "Go 바이너리가 개발 빌드를 보고합니다 — 제품 버전과 일치하도록 서버를 다시 빌드하거나 업데이트하세요"
+    "go_server_version_dev_hint": "Go 바이너리가 개발 빌드를 보고합니다 — 제품 버전과 일치하도록 서버를 다시 빌드하거나 업데이트하세요",
+    "tab_email": "Email",
+    "email": {
+      "title": "Email notifications",
+      "desc": "Configure SMTP delivery for operational notifications and system alert emails.",
+      "smtp_host": "SMTP host",
+      "smtp_port": "Port",
+      "smtp_secure": "Use TLS/SSL",
+      "smtp_user": "Username",
+      "smtp_pass": "Password",
+      "smtp_from": "From address",
+      "alert_email": "Alert email",
+      "alert_email_hint": "Fallback address when no operator email is available, and for system warnings.",
+      "smtp_test": "Test connection",
+      "smtp_save": "Save configuration",
+      "smtp_saved": "Email settings saved",
+      "smtp_test_success": "Connection successful",
+      "smtp_test_failed": "Connection failed"
+    }
   },
   "audit": {
     "time": "Time",
@@ -874,7 +892,10 @@
     "provider_ldap": "LDAP/AD",
     "provider_oidc": "SSO",
     "password_managed_by_provider": "ID 공급자에 의해 관리됨",
-    "provider_managed_hint": "이 계정은 외부 ID 공급자(LDAP/AD 또는 SSO)에 의해 관리됩니다. 비밀번호와 역할은 공급자가 제어하며 여기서 변경할 수 없습니다."
+    "provider_managed_hint": "이 계정은 외부 ID 공급자(LDAP/AD 또는 SSO)에 의해 관리됩니다. 비밀번호와 역할은 공급자가 제어하며 여기서 변경할 수 없습니다.",
+    "email": "Email",
+    "email_placeholder": "operator@example.com",
+    "email_hint": "Used for help request notifications when the user is assigned to device folders or groups."
   },
   "folders": {
     "title": "Folders",
@@ -3698,6 +3719,20 @@
     },
     "form": {
       "cancel": "취소"
+    },
+    "notifications": {
+      "title": "Email notifications",
+      "desc": "Notify operators by email when devices in their folders or groups submit help requests.",
+      "smtp_status": "SMTP status",
+      "smtp_configured": "SMTP is configured",
+      "smtp_missing": "SMTP is not configured — set it up in Settings → Email",
+      "smtp_link": "Open SMTP settings",
+      "help_requests_enabled": "Send email for new help requests",
+      "notify_assigned_operators": "Notify operators assigned to the device folder or group",
+      "fallback_alert_email": "Use alert email when no operator address is available",
+      "include_folder_in_subject": "Include folder name in the email subject",
+      "save": "Save notification settings",
+      "saved": "Notification settings saved"
     }
   }
 }

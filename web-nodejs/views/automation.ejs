@@ -25,9 +25,6 @@
                 <button class="tab-btn" data-tab="commands">
                     <span class="material-icons">terminal</span> ${_('automation.commands')}
                 </button>
-                <button class="tab-btn" data-tab="smtp">
-                    <span class="material-icons">email</span> ${_('automation.smtp')}
-                </button>
             </div>
 
             <!-- Rules Tab -->
@@ -120,45 +117,6 @@
                             </td></tr>
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            <!-- SMTP Tab -->
-            <div class="tab-panel" id="tab-smtp">
-                <div class="smtp-form-wrapper">
-                    <form id="smtp-form">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>${_('automation.smtp_host')}</label>
-                                <input type="text" class="form-input" id="smtp-host" placeholder="smtp.example.com">
-                            </div>
-                            <div class="form-group">
-                                <label>${_('automation.smtp_port')}</label>
-                                <input type="number" class="form-input" id="smtp-port" value="587" min="1" max="65535">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label><input type="checkbox" id="smtp-secure"> ${_('automation.smtp_secure')}</label>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>${_('automation.smtp_user')}</label>
-                                <input type="text" class="form-input" id="smtp-user">
-                            </div>
-                            <div class="form-group">
-                                <label>${_('automation.smtp_pass')}</label>
-                                <input type="password" class="form-input" id="smtp-pass">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>${_('automation.smtp_from')}</label>
-                            <input type="email" class="form-input" id="smtp-from" placeholder="alerts@example.com">
-                        </div>
-                        <div class="form-actions">
-                            <button type="button" class="btn btn-secondary" id="smtp-test-btn">${_('automation.smtp_test')}</button>
-                            <button type="button" class="btn btn-primary" id="smtp-save-btn">${_('automation.smtp_save')}</button>
-                        </div>
-                    </form>
                 </div>
             </div>
 

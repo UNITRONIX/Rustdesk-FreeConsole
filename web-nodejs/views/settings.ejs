@@ -32,6 +32,10 @@
                 <span class="material-icons">system_update</span>
                 ${_('updates.tab_title')}
             </button>
+            <button class="settings-tab" data-tab="email">
+                <span class="material-icons">email</span>
+                ${_('settings.tab_email')}
+            </button>
             <button class="settings-tab" data-tab="advanced">
                 <span class="material-icons">code</span>
                 ${_('settings.tab_advanced')}
@@ -1640,6 +1644,63 @@
                     <div id="update-backups-list">
                         <p class="text-muted">${_('common.loading')}</p>
                     </div>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- Email / SMTP Tab -->
+        <div class="settings-tab-content" id="tab-email" ${canServerConfig ? '' : 'style="display:none"'}>
+        <div class="settings-sections">
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">email</span>
+                        ${_('settings.email.title')}
+                    </h2>
+                    <p class="settings-section-desc">${_('settings.email.desc')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <form id="email-smtp-form" class="settings-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label" for="email-smtp-host">${_('settings.email.smtp_host')}</label>
+                                <input type="text" id="email-smtp-host" class="form-input" placeholder="smtp.example.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="email-smtp-port">${_('settings.email.smtp_port')}</label>
+                                <input type="number" id="email-smtp-port" class="form-input" value="587" min="1" max="65535">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="email-smtp-secure"> ${_('settings.email.smtp_secure')}
+                            </label>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label" for="email-smtp-user">${_('settings.email.smtp_user')}</label>
+                                <input type="text" id="email-smtp-user" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="email-smtp-pass">${_('settings.email.smtp_pass')}</label>
+                                <input type="password" id="email-smtp-pass" class="form-input" autocomplete="new-password">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="email-smtp-from">${_('settings.email.smtp_from')}</label>
+                            <input type="email" id="email-smtp-from" class="form-input" placeholder="alerts@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="email-smtp-alert">${_('settings.email.alert_email')}</label>
+                            <input type="email" id="email-smtp-alert" class="form-input" placeholder="ops@example.com">
+                            <span class="form-hint">${_('settings.email.alert_email_hint')}</span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" id="email-smtp-test-btn">${_('settings.email.smtp_test')}</button>
+                            <button type="button" class="btn btn-primary" id="email-smtp-save-btn">${_('settings.email.smtp_save')}</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

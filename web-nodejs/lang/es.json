@@ -577,7 +577,25 @@
     "enrollment_open_requests": "Solicitudes de inscripción abiertas",
     "enrollment_pending_count": "{count} solicitud(es) de inscripción pendiente(s)",
     "go_server_version": "Servidor Go",
-    "go_server_version_dev_hint": "El binario Go informa compilación de desarrollo — recompile o actualice el servidor para igualar la versión del producto"
+    "go_server_version_dev_hint": "El binario Go informa compilación de desarrollo — recompile o actualice el servidor para igualar la versión del producto",
+    "tab_email": "Correo",
+    "email": {
+      "title": "Notificaciones por correo",
+      "desc": "Configure SMTP para notificaciones operativas y correos de alerta del sistema.",
+      "smtp_host": "Servidor SMTP",
+      "smtp_port": "Puerto",
+      "smtp_secure": "Usar TLS/SSL",
+      "smtp_user": "Usuario",
+      "smtp_pass": "Contraseña",
+      "smtp_from": "Dirección de remitente",
+      "alert_email": "Correo de alerta",
+      "alert_email_hint": "Dirección de respaldo cuando no hay correo del operador, y para avisos del sistema.",
+      "smtp_test": "Probar conexión",
+      "smtp_save": "Guardar configuración",
+      "smtp_saved": "Ajustes de correo guardados",
+      "smtp_test_success": "Conexión correcta",
+      "smtp_test_failed": "Error de conexión"
+    }
   },
   "audit": {
     "time": "Hora",
@@ -874,7 +892,10 @@
     "provider_ldap": "LDAP/AD",
     "provider_oidc": "SSO",
     "password_managed_by_provider": "Gestionado por el proveedor de identidad",
-    "provider_managed_hint": "Esta cuenta está gestionada por un proveedor de identidad externo (LDAP/AD o SSO). La contraseña y el rol son controlados por el proveedor y no se pueden cambiar aquí."
+    "provider_managed_hint": "Esta cuenta está gestionada por un proveedor de identidad externo (LDAP/AD o SSO). La contraseña y el rol son controlados por el proveedor y no se pueden cambiar aquí.",
+    "email": "Correo",
+    "email_placeholder": "operator@example.com",
+    "email_hint": "Se usa para notificaciones de solicitudes de ayuda cuando el usuario está asignado a carpetas o grupos de dispositivos."
   },
   "folders": {
     "title": "Panel",
@@ -3698,6 +3719,20 @@
     },
     "form": {
       "cancel": "Cancelar"
+    },
+    "notifications": {
+      "title": "Notificaciones por correo",
+      "desc": "Notifique a los operadores por correo cuando dispositivos de sus carpetas o grupos soliciten ayuda.",
+      "smtp_status": "Estado SMTP",
+      "smtp_configured": "SMTP configurado",
+      "smtp_missing": "SMTP no configurado — configúrelo en Ajustes → Correo",
+      "smtp_link": "Abrir ajustes SMTP",
+      "help_requests_enabled": "Enviar correo para nuevas solicitudes de ayuda",
+      "notify_assigned_operators": "Notificar a operadores asignados a la carpeta o grupo del dispositivo",
+      "fallback_alert_email": "Usar correo de alerta si no hay dirección del operador",
+      "include_folder_in_subject": "Incluir nombre de carpeta en el asunto del correo",
+      "save": "Guardar ajustes de notificación",
+      "saved": "Ajustes de notificación guardados"
     }
   }
 }

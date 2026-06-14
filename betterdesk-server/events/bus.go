@@ -28,6 +28,7 @@ const (
 	EventBlocklistRemove EventType = "blocklist_remove"
 	EventServerStats     EventType = "server_stats"
 	EventEnrollmentPending EventType = "enrollment_pending"
+	EventHelpRequest       EventType = "help_request"
 )
 
 // Event is a single notification pushed to subscribers.

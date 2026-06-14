@@ -369,9 +369,54 @@
         triggerDownload('/api/panel/billing/reports/export?format=pdf');
     });
 
+    async function loadEmailNotificationSettings() {
+        const statusEl = document.getElementById('email-smtp-status');
+        try {
+            const smtp = await api('/api/panel/commercialization/smtp-status');
+            if (statusEl) {
+                statusEl.textContent = smtp.configured
+                    ? t('commercialization.notifications.smtp_configured', 'SMTP is configured')
+                    : t('commercialization.notifications.smtp_missing', 'SMTP is not configured');
+            }
+        } catch (_) {
+            if (statusEl) statusEl.textContent = t('commercialization.notifications.smtp_missing', 'SMTP is not configured');
+        }
+
+        try {
+            const data = await api('/api/panel/commercialization/email-config');
+            const cfg = data.config || {};
+            document.getElementById('notif-help-requests-enabled').checked = cfg.help_requests_enabled !== false;
+            document.getElementById('notif-assigned-operators').checked = cfg.notify_assigned_operators !== false;
+            document.getElementById('notif-fallback-alert').checked = cfg.fallback_alert_email !== false;
+            document.getElementById('notif-folder-subject').checked = cfg.include_folder_in_subject !== false;
+        } catch (e) {
+            console.warn('[commercialization] email config load failed', e);
+        }
+    }
+
+    document.getElementById('btn-save-email-notifications')?.addEventListener('click', async () => {
+        try {
+            await api('/api/panel/commercialization/email-config', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    help_requests_enabled: document.getElementById('notif-help-requests-enabled')?.checked !== false,
+                    notify_assigned_operators: document.getElementById('notif-assigned-operators')?.checked !== false,
+                    fallback_alert_email: document.getElementById('notif-fallback-alert')?.checked !== false,
+                    include_folder_in_subject: document.getElementById('notif-folder-subject')?.checked !== false,
+                })
+            });
+            alert(t('commercialization.notifications.saved', 'Notification settings saved'));
+        } catch (e) {
+            alert(e.message);
+        }
+    });
+
     const tab = page.dataset.activeTab || 'overview';
     if (tab === 'overview' || tab === 'settings') {
         loadTimesync();
+    }
+    if (tab === 'settings') {
+        loadEmailNotificationSettings().catch(console.warn);
     }
     if (tab === 'overview' || tab === 'sessions') {
         loadSessions().catch(console.warn);

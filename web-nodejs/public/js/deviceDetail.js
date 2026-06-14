@@ -1,6 +1,6 @@
 /**
  * BetterDesk Console - Device Detail Panel
- * Enterprise-grade slide-over panel for device management.
+ * Full workspace modal for device management.
  *
  * Usage:
  *   DeviceDetail.open(deviceId)   — opens the panel
@@ -50,6 +50,7 @@ const DeviceDetail = (function () {
         _createOverlay();
         _showLoading();
         _show();
+        document.body.classList.add('device-detail-open');
 
         try {
             device = await Utils.api('/api/devices/' + encodeURIComponent(deviceId));
@@ -69,7 +70,11 @@ const DeviceDetail = (function () {
      */
     function close() {
         _stopRefresh();
+        document.body.classList.remove('device-detail-open');
         if (overlayEl) {
+            if (overlayEl._escHandler) {
+                document.removeEventListener('keydown', overlayEl._escHandler);
+            }
             overlayEl.classList.remove('open');
             setTimeout(() => {
                 if (overlayEl) {

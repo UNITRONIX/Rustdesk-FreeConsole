@@ -584,7 +584,25 @@
     "enrollment_open_requests": "فتح طلبات التسجيل",
     "enrollment_pending_count": "{count} طلب تسجيل معلق",
     "go_server_version": "خادم Go",
-    "go_server_version_dev_hint": "الثنائي Go يبلغ عن بناء تطويري — أعد البناء أو حدّث الخادم ليطابق إصدار المنتج"
+    "go_server_version_dev_hint": "الثنائي Go يبلغ عن بناء تطويري — أعد البناء أو حدّث الخادم ليطابق إصدار المنتج",
+    "tab_email": "Email",
+    "email": {
+      "title": "Email notifications",
+      "desc": "Configure SMTP delivery for operational notifications and system alert emails.",
+      "smtp_host": "SMTP host",
+      "smtp_port": "Port",
+      "smtp_secure": "Use TLS/SSL",
+      "smtp_user": "Username",
+      "smtp_pass": "Password",
+      "smtp_from": "From address",
+      "alert_email": "Alert email",
+      "alert_email_hint": "Fallback address when no operator email is available, and for system warnings.",
+      "smtp_test": "Test connection",
+      "smtp_save": "Save configuration",
+      "smtp_saved": "Email settings saved",
+      "smtp_test_success": "Connection successful",
+      "smtp_test_failed": "Connection failed"
+    }
   },
   "audit": {
     "time": "Time",
@@ -881,7 +899,10 @@
     "provider_ldap": "LDAP/AD",
     "provider_oidc": "SSO",
     "password_managed_by_provider": "تُدار بواسطة موفر الهوية",
-    "provider_managed_hint": "يُدار هذا الحساب بواسطة موفر هوية خارجي (LDAP/AD أو SSO). تتحكم الجهة الموفرة في كلمة المرور والدور، ولا يمكن تغييرهما هنا."
+    "provider_managed_hint": "يُدار هذا الحساب بواسطة موفر هوية خارجي (LDAP/AD أو SSO). تتحكم الجهة الموفرة في كلمة المرور والدور، ولا يمكن تغييرهما هنا.",
+    "email": "Email",
+    "email_placeholder": "operator@example.com",
+    "email_hint": "Used for help request notifications when the user is assigned to device folders or groups."
   },
   "folders": {
     "title": "Folders",
@@ -3705,6 +3726,20 @@
     },
     "form": {
       "cancel": "إلغاء"
+    },
+    "notifications": {
+      "title": "Email notifications",
+      "desc": "Notify operators by email when devices in their folders or groups submit help requests.",
+      "smtp_status": "SMTP status",
+      "smtp_configured": "SMTP is configured",
+      "smtp_missing": "SMTP is not configured — set it up in Settings → Email",
+      "smtp_link": "Open SMTP settings",
+      "help_requests_enabled": "Send email for new help requests",
+      "notify_assigned_operators": "Notify operators assigned to the device folder or group",
+      "fallback_alert_email": "Use alert email when no operator address is available",
+      "include_folder_in_subject": "Include folder name in the email subject",
+      "save": "Save notification settings",
+      "saved": "Notification settings saved"
     }
   }
 }

@@ -32,7 +32,6 @@
             if (btn.dataset.tab === 'rules') loadRules();
             else if (btn.dataset.tab === 'alerts') loadAlerts();
             else if (btn.dataset.tab === 'commands') loadCommands();
-            else if (btn.dataset.tab === 'smtp') loadSmtp();
         });
     });
 
@@ -282,41 +281,6 @@
 
     sendCmdBtn.addEventListener('click', () => { cmdModal.style.display = 'flex'; });
     cmdSendBtn.addEventListener('click', sendCommand);
-
-    // ==== SMTP ====
-
-    async function loadSmtp() {
-        try {
-            const config = await apiFetch('/api/automation/smtp');
-            document.getElementById('smtp-host').value = config.host || '';
-            document.getElementById('smtp-port').value = config.port || 587;
-            document.getElementById('smtp-secure').checked = !!config.secure;
-            document.getElementById('smtp-user').value = config.user || '';
-            document.getElementById('smtp-from').value = config.from || '';
-        } catch (_e) { /* smtp not configured yet */ }
-    }
-
-    document.getElementById('smtp-save-btn').addEventListener('click', async () => {
-        const body = {
-            host: document.getElementById('smtp-host').value.trim(),
-            port: parseInt(document.getElementById('smtp-port').value, 10) || 587,
-            secure: document.getElementById('smtp-secure').checked,
-            user: document.getElementById('smtp-user').value.trim(),
-            pass: document.getElementById('smtp-pass').value,
-            from: document.getElementById('smtp-from').value.trim(),
-        };
-        try {
-            await apiFetch('/api/automation/smtp', { method: 'PUT', body: JSON.stringify(body) });
-            showToast(_('common.saved'), 'success');
-        } catch (err) { showToast(err.message, 'error'); }
-    });
-
-    document.getElementById('smtp-test-btn').addEventListener('click', async () => {
-        try {
-            const result = await apiFetch('/api/automation/smtp/test', { method: 'POST' });
-            showToast(result.success ? _('automation.smtp_test_success') : _('automation.smtp_test_failed'), result.success ? 'success' : 'error');
-        } catch (err) { showToast(_('automation.smtp_test_failed'), 'error'); }
-    });
 
     // ---- Helpers ----
 

@@ -28,6 +28,9 @@
         if (document.getElementById('tab-advanced') && document.getElementById('tab-advanced').style.display !== 'none') {
             initAdvancedSection();
         }
+        if (document.getElementById('tab-email') && document.getElementById('tab-email').style.display !== 'none') {
+            initEmailSection();
+        }
 
         initTutorialSection();
         loadAuditLog();
@@ -57,7 +60,7 @@
         
         // Check URL hash for direct tab navigation
         const hash = window.location.hash.replace('#', '');
-        if (['branding', 'server', 'backup', 'updates', 'auth', 'advanced'].includes(hash)) {
+        if (['branding', 'server', 'backup', 'updates', 'auth', 'advanced', 'email'].includes(hash)) {
             const tab = document.querySelector(`[data-tab="${hash}"]`);
             if (tab) tab.click();
         }
@@ -3327,6 +3330,73 @@
                 Notifications.warning(_('settings.advanced_restart_timeout'));
             }
         }, 2000);
+    }
+
+    // ==================== Email / SMTP ====================
+
+    function initEmailSection() {
+        const saveBtn = document.getElementById('email-smtp-save-btn');
+        const testBtn = document.getElementById('email-smtp-test-btn');
+        if (!saveBtn || !testBtn) return;
+
+        loadEmailSmtpConfig();
+
+        saveBtn.addEventListener('click', async () => {
+            const body = {
+                host: document.getElementById('email-smtp-host')?.value.trim() || '',
+                port: parseInt(document.getElementById('email-smtp-port')?.value, 10) || 587,
+                secure: !!document.getElementById('email-smtp-secure')?.checked,
+                user: document.getElementById('email-smtp-user')?.value.trim() || '',
+                pass: document.getElementById('email-smtp-pass')?.value || '',
+                from: document.getElementById('email-smtp-from')?.value.trim() || '',
+                alert_email: document.getElementById('email-smtp-alert')?.value.trim() || '',
+            };
+            try {
+                const res = await fetch('/api/settings/email/smtp', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.BetterDesk?.csrfToken || '' },
+                    body: JSON.stringify(body),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Save failed');
+                Notifications.success(_('settings.email.smtp_saved'));
+                document.getElementById('email-smtp-pass').value = '';
+                await loadEmailSmtpConfig();
+            } catch (err) {
+                Notifications.error(err.message || _('errors.server_error'));
+            }
+        });
+
+        testBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch('/api/settings/email/smtp/test', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-Token': window.BetterDesk?.csrfToken || '' },
+                });
+                const data = await res.json();
+                if (data.success) {
+                    Notifications.success(_('settings.email.smtp_test_success'));
+                } else {
+                    Notifications.error(data.error || _('settings.email.smtp_test_failed'));
+                }
+            } catch (_) {
+                Notifications.error(_('settings.email.smtp_test_failed'));
+            }
+        });
+    }
+
+    async function loadEmailSmtpConfig() {
+        try {
+            const res = await fetch('/api/settings/email/smtp');
+            const config = await res.json();
+            if (!config.configured) return;
+            document.getElementById('email-smtp-host').value = config.host || '';
+            document.getElementById('email-smtp-port').value = config.port || 587;
+            document.getElementById('email-smtp-secure').checked = !!config.secure;
+            document.getElementById('email-smtp-user').value = config.user || '';
+            document.getElementById('email-smtp-from').value = config.from || '';
+            document.getElementById('email-smtp-alert').value = config.alert_email || '';
+        } catch (_) { /* not configured yet */ }
     }
     
 })();

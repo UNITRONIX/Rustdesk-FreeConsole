@@ -577,7 +577,25 @@
     "totp_disable_warning": "Disabling two-factor authentication will make your account less secure. Enter your password to confirm.",
     "totp_disabled_success": "Two-factor authentication has been disabled.",
     "go_server_version": "Go server",
-    "go_server_version_dev_hint": "Go binary reports development build — rebuild or update the server to match the product version"
+    "go_server_version_dev_hint": "Go binary reports development build — rebuild or update the server to match the product version",
+    "tab_email": "Email",
+    "email": {
+      "title": "Email notifications",
+      "desc": "Configure SMTP delivery for operational notifications and system alert emails.",
+      "smtp_host": "SMTP host",
+      "smtp_port": "Port",
+      "smtp_secure": "Use TLS/SSL",
+      "smtp_user": "Username",
+      "smtp_pass": "Password",
+      "smtp_from": "From address",
+      "alert_email": "Alert email",
+      "alert_email_hint": "Fallback address when no operator email is available, and for system warnings.",
+      "smtp_test": "Test connection",
+      "smtp_save": "Save configuration",
+      "smtp_saved": "Email settings saved",
+      "smtp_test_success": "Connection successful",
+      "smtp_test_failed": "Connection failed"
+    }
   },
   "audit": {
     "time": "Time",
@@ -884,7 +902,10 @@
     "no_orgs_short": "—",
     "org_count_one": "{count} organization",
     "org_count_many": "{count} organizations",
-    "all_orgs_assigned": "User is already a member of every organization."
+    "all_orgs_assigned": "User is already a member of every organization.",
+    "email": "Email",
+    "email_placeholder": "operator@example.com",
+    "email_hint": "Used for help request notifications when the user is assigned to device folders or groups."
   },
   "folders": {
     "title": "Folders",
@@ -1377,7 +1398,7 @@
   },
   "automation": {
     "title": "Automation & Alerts",
-    "subtitle": "Alert rules, remote commands, and SMTP configuration",
+    "subtitle": "Alert rules, remote commands",
     "rules": "Alert Rules",
     "rules_subtitle": "Define conditions that trigger notifications",
     "alerts": "Alert History",
@@ -3698,6 +3719,20 @@
       "submit": "Submit report",
       "summary_required": "Summary is required",
       "saved": "Work report saved"
+    },
+    "notifications": {
+      "title": "Email notifications",
+      "desc": "Notify operators by email when devices in their folders or groups submit help requests.",
+      "smtp_status": "SMTP status",
+      "smtp_configured": "SMTP is configured",
+      "smtp_missing": "SMTP is not configured — set it up in Settings → Email",
+      "smtp_link": "Open SMTP settings",
+      "help_requests_enabled": "Send email for new help requests",
+      "notify_assigned_operators": "Notify operators assigned to the device folder or group",
+      "fallback_alert_email": "Use alert email when no operator address is available",
+      "include_folder_in_subject": "Include folder name in the email subject",
+      "save": "Save notification settings",
+      "saved": "Notification settings saved"
     }
   }
 }

@@ -57,6 +57,7 @@
                     <thead>
                         <tr>
                             <th>${_('users.username')}</th>
+                            <th>${_('users.email')}</th>
                             <th>${_('users.role')}</th>
                             <th>${_('users.provider')}</th>
                             <th>${_('users.column_organizations')}</th>
@@ -67,7 +68,7 @@
                     </thead>
                     <tbody id="users-tbody">
                         <tr class="loading-row">
-                            <td colspan="6" style="text-align: center; padding: 40px;">
+                            <td colspan="7" style="text-align: center; padding: 40px;">
                                 <span class="skeleton skeleton-text" style="width: 200px;"></span>
                             </td>
                         </tr>
@@ -107,6 +108,13 @@
                     <span class="form-hint">${_('users.password_hint')}</span>
                 </div>
                 
+                <div class="form-group">
+                    <label for="user-email">${_('users.email')}</label>
+                    <input type="email" id="user-email" name="email" class="form-input"
+                        placeholder="${_('users.email_placeholder')}">
+                    <span class="form-hint">${_('users.email_hint')}</span>
+                </div>
+
                 <div class="form-group">
                     <label for="user-role">${_('users.server_role_label')}</label>
                     <select id="user-role" name="role" class="form-select">

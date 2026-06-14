@@ -581,7 +581,25 @@
     "totp_disable_warning": "Désactiver l'authentification à deux facteurs rendra votre compte moins sécurisé. Entrez votre mot de passe pour confirmer.",
     "totp_disabled_success": "L'authentification à deux facteurs a été désactivée.",
     "go_server_version": "Go-Server",
-    "go_server_version_dev_hint": "Go-Binary meldet Entwicklungsbuild — Server neu bauen oder aktualisieren, um die Produktversion anzugleichen"
+    "go_server_version_dev_hint": "Go-Binary meldet Entwicklungsbuild — Server neu bauen oder aktualisieren, um die Produktversion anzugleichen",
+    "tab_email": "E-mail",
+    "email": {
+      "title": "Notifications e-mail",
+      "desc": "Configurez SMTP pour les notifications opérationnelles et les e-mails d'alerte système.",
+      "smtp_host": "Hôte SMTP",
+      "smtp_port": "Port",
+      "smtp_secure": "Utiliser TLS/SSL",
+      "smtp_user": "Nom d'utilisateur",
+      "smtp_pass": "Mot de passe",
+      "smtp_from": "Adresse d'expéditeur",
+      "alert_email": "E-mail d'alerte",
+      "alert_email_hint": "Adresse de secours lorsqu'aucun e-mail opérateur n'est disponible, et pour les avertissements système.",
+      "smtp_test": "Tester la connexion",
+      "smtp_save": "Enregistrer la configuration",
+      "smtp_saved": "Paramètres e-mail enregistrés",
+      "smtp_test_success": "Connexion réussie",
+      "smtp_test_failed": "Échec de la connexion"
+    }
   },
   "audit": {
     "time": "Heure",
@@ -888,7 +906,10 @@
     "no_orgs_short": "—",
     "org_count_one": "{count} Organisation",
     "org_count_many": "{count} Organisationen",
-    "all_orgs_assigned": "Der Benutzer ist bereits Mitglied jeder Organisation."
+    "all_orgs_assigned": "Der Benutzer ist bereits Mitglied jeder Organisation.",
+    "email": "E-mail",
+    "email_placeholder": "operator@example.com",
+    "email_hint": "Utilisé pour les notifications de demande d'aide lorsque l'utilisateur est assigné à des dossiers ou groupes d'appareils."
   },
   "folders": {
     "title": "Tableau de bord",
@@ -3702,6 +3723,20 @@
       "submit": "Bericht senden",
       "summary_required": "Zusammenfassung ist erforderlich",
       "saved": "Arbeitsbericht gespeichert"
+    },
+    "notifications": {
+      "title": "Notifications e-mail",
+      "desc": "Notifier les opérateurs par e-mail lorsque des appareils de leurs dossiers ou groupes demandent de l'aide.",
+      "smtp_status": "État SMTP",
+      "smtp_configured": "SMTP est configuré",
+      "smtp_missing": "SMTP n'est pas configuré — configurez-le dans Paramètres → E-mail",
+      "smtp_link": "Ouvrir les paramètres SMTP",
+      "help_requests_enabled": "Envoyer un e-mail pour les nouvelles demandes d'aide",
+      "notify_assigned_operators": "Notifier les opérateurs assignés au dossier ou groupe de l'appareil",
+      "fallback_alert_email": "Utiliser l'e-mail d'alerte si aucune adresse opérateur n'est disponible",
+      "include_folder_in_subject": "Inclure le nom du dossier dans l'objet de l'e-mail",
+      "save": "Enregistrer les paramètres de notification",
+      "saved": "Paramètres de notification enregistrés"
     }
   }
 }

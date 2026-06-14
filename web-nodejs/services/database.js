@@ -84,6 +84,13 @@ const facade = {
         ? adapter.updateUserLanguage(id, lang)
         : Promise.resolve(),
     deleteUser:       (id) => adapter.deleteUser(id),
+    updateUserProfile: (id, fields) => adapter.updateUserProfile(id, fields),
+    getUsersEmailsByUsernames: (usernames) => adapter.getUsersEmailsByUsernames(usernames),
+    getUsernamesByUserGroupGuid: (guid) => adapter.getUsernamesByUserGroupGuid(guid),
+    hasEmailNotificationSent: (eventType, eventId, recipient) =>
+        adapter.hasEmailNotificationSent(eventType, eventId, recipient),
+    logEmailNotificationSent: (eventType, eventId, recipient) =>
+        adapter.logEmailNotificationSent(eventType, eventId, recipient),
     countAdmins:      () => adapter.countAdmins(),
     resetAdminPassword: (hash) => adapter.resetAdminPassword(hash),
     deleteAllUsers:   () => adapter.deleteAllUsers(),

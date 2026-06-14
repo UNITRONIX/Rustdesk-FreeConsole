@@ -577,7 +577,25 @@
     "enrollment_open_requests": "Offene Registrierungsanfragen",
     "enrollment_pending_count": "{count} ausstehende Registrierungsanfrage(n)",
     "go_server_version": "Go-Server",
-    "go_server_version_dev_hint": "Go-Binary meldet Entwicklungsbuild — Server neu bauen oder aktualisieren, um die Produktversion anzugleichen"
+    "go_server_version_dev_hint": "Go-Binary meldet Entwicklungsbuild — Server neu bauen oder aktualisieren, um die Produktversion anzugleichen",
+    "tab_email": "E-Mail",
+    "email": {
+      "title": "E-Mail-Benachrichtigungen",
+      "desc": "SMTP für Betriebsbenachrichtigungen und System-Warn-E-Mails konfigurieren.",
+      "smtp_host": "SMTP-Host",
+      "smtp_port": "Port",
+      "smtp_secure": "TLS/SSL verwenden",
+      "smtp_user": "Benutzername",
+      "smtp_pass": "Passwort",
+      "smtp_from": "Absenderadresse",
+      "alert_email": "Warn-E-Mail",
+      "alert_email_hint": "Fallback-Adresse, wenn kein Operator-E-Mail vorhanden ist, und für Systemwarnungen.",
+      "smtp_test": "Verbindung testen",
+      "smtp_save": "Konfiguration speichern",
+      "smtp_saved": "E-Mail-Einstellungen gespeichert",
+      "smtp_test_success": "Verbindung erfolgreich",
+      "smtp_test_failed": "Verbindung fehlgeschlagen"
+    }
   },
   "audit": {
     "time": "Zeit",
@@ -874,7 +892,10 @@
     "provider_ldap": "LDAP/AD",
     "provider_oidc": "SSO",
     "password_managed_by_provider": "Vom Identitätsanbieter verwaltet",
-    "provider_managed_hint": "Dieses Konto wird von einem externen Identitätsanbieter (LDAP/AD oder SSO) verwaltet. Passwort und Rolle werden vom Anbieter gesteuert und können hier nicht geändert werden."
+    "provider_managed_hint": "Dieses Konto wird von einem externen Identitätsanbieter (LDAP/AD oder SSO) verwaltet. Passwort und Rolle werden vom Anbieter gesteuert und können hier nicht geändert werden.",
+    "email": "E-Mail",
+    "email_placeholder": "operator@example.com",
+    "email_hint": "Für Hilfeanfragen-Benachrichtigungen, wenn der Benutzer Geräteordnern oder -gruppen zugewiesen ist."
   },
   "folders": {
     "title": "Dashboard",
@@ -3698,6 +3719,20 @@
     },
     "form": {
       "cancel": "Abbrechen"
+    },
+    "notifications": {
+      "title": "E-Mail-Benachrichtigungen",
+      "desc": "Operatoren per E-Mail benachrichtigen, wenn Geräte in ihren Ordnern oder Gruppen Hilfe anfordern.",
+      "smtp_status": "SMTP-Status",
+      "smtp_configured": "SMTP ist konfiguriert",
+      "smtp_missing": "SMTP ist nicht konfiguriert — einrichten unter Einstellungen → E-Mail",
+      "smtp_link": "SMTP-Einstellungen öffnen",
+      "help_requests_enabled": "E-Mail bei neuen Hilfeanfragen senden",
+      "notify_assigned_operators": "Zugewiesene Operatoren des Geräteordners oder der Gruppe benachrichtigen",
+      "fallback_alert_email": "Warn-E-Mail verwenden, wenn keine Operator-Adresse verfügbar ist",
+      "include_folder_in_subject": "Ordnernamen in den E-Mail-Betreff aufnehmen",
+      "save": "Benachrichtigungseinstellungen speichern",
+      "saved": "Benachrichtigungseinstellungen gespeichert"
     }
   }
 }

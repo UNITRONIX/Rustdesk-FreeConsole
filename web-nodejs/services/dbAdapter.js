@@ -480,6 +480,15 @@ function createSqliteAdapter(config) {
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON notification_reads (user_id, read_at);
+            CREATE TABLE IF NOT EXISTS email_notification_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                recipient TEXT NOT NULL,
+                sent_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(event_type, event_id, recipient)
+            );
+            CREATE INDEX IF NOT EXISTS idx_email_notification_log_event ON email_notification_log (event_type, event_id);
         `);
 
         // Migration: Add missing columns to existing users table (for upgrades from older versions)
@@ -1263,7 +1272,7 @@ function createSqliteAdapter(config) {
             return (openAuth().prepare('SELECT COUNT(*) as c FROM users').get().c) > 0;
         },
         async getAllUsers() {
-            return openAuth().prepare('SELECT id, username, role, auth_provider, created_at, last_login, preferred_language, totp_enabled FROM users ORDER BY id').all();
+            return openAuth().prepare('SELECT id, username, role, auth_provider, created_at, last_login, preferred_language, totp_enabled, email FROM users ORDER BY id').all();
         },
         async updateUserRole(id, role) {
             openAuth().prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
@@ -1496,6 +1505,40 @@ function createSqliteAdapter(config) {
                     )
                 `).run(userId, userId);
             }
+        },
+
+        async hasEmailNotificationSent(eventType, eventId, recipient) {
+            const row = openAuth().prepare(`
+                SELECT 1 FROM email_notification_log
+                WHERE event_type = ? AND event_id = ? AND recipient = ?
+            `).get(String(eventType), String(eventId), String(recipient));
+            return !!row;
+        },
+        async logEmailNotificationSent(eventType, eventId, recipient) {
+            openAuth().prepare(`
+                INSERT OR IGNORE INTO email_notification_log (event_type, event_id, recipient, sent_at)
+                VALUES (?, ?, ?, datetime('now'))
+            `).run(String(eventType), String(eventId), String(recipient));
+        },
+        async getUsersEmailsByUsernames(usernames = []) {
+            const list = Array.from(new Set((usernames || []).map(u => String(u || '').trim()).filter(Boolean)));
+            if (!list.length) return [];
+            const placeholders = list.map(() => '?').join(',');
+            return openAuth().prepare(`
+                SELECT username, email FROM users
+                WHERE username IN (${placeholders}) AND email IS NOT NULL AND email != ''
+            `).all(...list);
+        },
+        async getUsernamesByUserGroupGuid(guid) {
+            const groupGuid = String(guid || '').trim();
+            if (!groupGuid) return [];
+            return openAuth().prepare(`
+                SELECT u.username FROM users u
+                INNER JOIN user_group_members ugm ON ugm.user_id = u.id
+                INNER JOIN user_groups ug ON ug.id = ugm.user_group_id
+                WHERE ug.guid = ?
+                ORDER BY u.username ASC
+            `).all(groupGuid).map(r => r.username);
         },
 
         // ---- Audit ----
@@ -3215,6 +3258,18 @@ function createPostgresAdapter() {
         await q('CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON notification_reads (user_id, read_at)');
 
         await q(`
+            CREATE TABLE IF NOT EXISTS email_notification_log (
+                id SERIAL PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                recipient TEXT NOT NULL,
+                sent_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(event_type, event_id, recipient)
+            )
+        `);
+        await q('CREATE INDEX IF NOT EXISTS idx_email_notification_log_event ON email_notification_log (event_type, event_id)');
+
+        await q(`
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -4146,7 +4201,7 @@ function createPostgresAdapter() {
         async updateUserPassword(id, passwordHash) { await q('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, id]); },
         async touchLastLogin(id) { await q('UPDATE users SET last_login = NOW() WHERE id = $1', [id]); },
         async hasUsers() { return +(await one('SELECT COUNT(*) as c FROM users')).c > 0; },
-        async getAllUsers() { return all('SELECT id, username, role, auth_provider, created_at, last_login, preferred_language, totp_enabled FROM users ORDER BY id'); },
+        async getAllUsers() { return all('SELECT id, username, role, auth_provider, created_at, last_login, preferred_language, totp_enabled, email FROM users ORDER BY id'); },
         async updateUserRole(id, role) { await q('UPDATE users SET role = $1 WHERE id = $2', [role, id]); },
         async updateUserLanguage(id, lang) { await q('UPDATE users SET preferred_language = $1 WHERE id = $2', [lang, id]); },
         async updateUserProfile(id, fields) {
@@ -4339,6 +4394,46 @@ function createPostgresAdapter() {
                     [userId]
                 );
             }
+        },
+
+        async hasEmailNotificationSent(eventType, eventId, recipient) {
+            const row = await one(
+                `SELECT 1 AS ok FROM email_notification_log
+                 WHERE event_type = $1 AND event_id = $2 AND recipient = $3`,
+                [String(eventType), String(eventId), String(recipient)]
+            );
+            return !!row;
+        },
+        async logEmailNotificationSent(eventType, eventId, recipient) {
+            await q(
+                `INSERT INTO email_notification_log (event_type, event_id, recipient, sent_at)
+                 VALUES ($1, $2, $3, NOW())
+                 ON CONFLICT (event_type, event_id, recipient) DO NOTHING`,
+                [String(eventType), String(eventId), String(recipient)]
+            );
+        },
+        async getUsersEmailsByUsernames(usernames = []) {
+            const list = Array.from(new Set((usernames || []).map(u => String(u || '').trim()).filter(Boolean)));
+            if (!list.length) return [];
+            const placeholders = list.map((_, i) => `$${i + 1}`).join(',');
+            return all(
+                `SELECT username, email FROM users
+                 WHERE username IN (${placeholders}) AND email IS NOT NULL AND email != ''`,
+                list
+            );
+        },
+        async getUsernamesByUserGroupGuid(guid) {
+            const groupGuid = String(guid || '').trim();
+            if (!groupGuid) return [];
+            const rows = await all(
+                `SELECT u.username FROM users u
+                 INNER JOIN user_group_members ugm ON ugm.user_id = u.id
+                 INNER JOIN user_groups ug ON ug.id = ugm.user_group_id
+                 WHERE ug.guid = $1
+                 ORDER BY u.username ASC`,
+                [groupGuid]
+            );
+            return rows.map(r => r.username);
         },
 
         // ---- Audit ----

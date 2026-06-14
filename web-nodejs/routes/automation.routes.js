@@ -41,7 +41,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../services/database');
 const { getAdapter } = require('../services/dbAdapter');
-const emailService = require('../services/emailService');
+const { getSmtpSettings, putSmtpSettings, testSmtpSettings } = require('../lib/smtpSettingsHandlers');
 
 // ---------------------------------------------------------------------------
 //  Valid values
@@ -397,65 +397,8 @@ router.post('/commands/:id(\\d+)/result', identifyDevice, async (req, res) => {
 /**
  * GET /api/automation/smtp — Get SMTP config (password masked).
  */
-router.get('/smtp', requireAuth, requirePermission('server.config'), async (req, res) => {
-    try {
-        const config = await emailService.loadSmtpConfig();
-        if (!config) {
-            return res.json({ configured: false });
-        }
-        res.json({
-            configured: true,
-            host: config.host,
-            port: config.port,
-            secure: config.secure,
-            user: config.user,
-            pass: config.pass ? '********' : '',
-            from: config.from,
-        });
-    } catch (err) {
-        console.error('[Automation] SMTP get error:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-/**
- * PUT /api/automation/smtp — Update SMTP configuration.
- */
-router.put('/smtp', requireAuth, requirePermission('server.config'), async (req, res) => {
-    try {
-        const { host, port, secure, user, pass, from } = req.body;
-        if (!host) {
-            return res.status(400).json({ error: 'SMTP host is required' });
-        }
-
-        const adapter = getAdapter();
-        const config = { host, port: port || 587, secure: !!secure, user: user || '', pass: pass || '', from: from || 'betterdesk@localhost' };
-        await adapter.setSetting('smtp_config', JSON.stringify(config));
-        emailService.resetTransporter();
-
-        try {
-            await adapter.logAction(req.session.user.id, 'smtp_config_updated', `SMTP: ${host}:${port}`, req.ip);
-        } catch (_) { /* ignore */ }
-
-        console.log(`[Automation] SMTP config updated: ${host}:${port}`);
-        res.json({ success: true });
-    } catch (err) {
-        console.error('[Automation] SMTP update error:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-/**
- * POST /api/automation/smtp/test — Test SMTP connection.
- */
-router.post('/smtp/test', requireAuth, requirePermission('server.config'), async (req, res) => {
-    try {
-        const result = await emailService.testConnection();
-        res.json(result);
-    } catch (err) {
-        console.error('[Automation] SMTP test error:', err.message);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
+router.get('/smtp', requireAuth, requirePermission('server.config'), getSmtpSettings);
+router.put('/smtp', requireAuth, requirePermission('server.config'), putSmtpSettings);
+router.post('/smtp/test', requireAuth, requirePermission('server.config'), testSmtpSettings);
 
 module.exports = router;

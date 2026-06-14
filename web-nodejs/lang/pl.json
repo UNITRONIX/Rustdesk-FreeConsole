@@ -577,7 +577,25 @@
     "totp_disable_warning": "Wyłączenie uwierzytelniania dwuskładnikowego zmniejszy bezpieczeństwo konta. Wprowadź hasło, aby potwierdzić.",
     "totp_disabled_success": "Uwierzytelnianie dwuskładnikowe zostało wyłączone.",
     "go_server_version": "Serwer Go",
-    "go_server_version_dev_hint": "Binarny serwer Go zgłasza build deweloperski — przebuduj lub zaktualizuj serwer, aby dopasować wersję produktu"
+    "go_server_version_dev_hint": "Binarny serwer Go zgłasza build deweloperski — przebuduj lub zaktualizuj serwer, aby dopasować wersję produktu",
+    "tab_email": "E-mail",
+    "email": {
+      "title": "Powiadomienia e-mail",
+      "desc": "Skonfiguruj SMTP dla powiadomień operacyjnych i adresu ostrzegawczego.",
+      "smtp_host": "Host SMTP",
+      "smtp_port": "Port",
+      "smtp_secure": "Użyj TLS/SSL",
+      "smtp_user": "Nazwa użytkownika",
+      "smtp_pass": "Hasło",
+      "smtp_from": "Adres nadawcy",
+      "alert_email": "Adres ostrzegawczy",
+      "alert_email_hint": "Adres zapasowy, gdy operator nie ma e-maila, oraz dla ostrzeżeń systemowych.",
+      "smtp_test": "Test połączenia",
+      "smtp_save": "Zapisz konfigurację",
+      "smtp_saved": "Ustawienia e-mail zapisane",
+      "smtp_test_success": "Połączenie udane",
+      "smtp_test_failed": "Połączenie nieudane"
+    }
   },
   "audit": {
     "time": "Czas",
@@ -884,7 +902,10 @@
     "no_orgs_short": "—",
     "org_count_one": "{count} organizacja",
     "org_count_many": "{count} organizacji",
-    "all_orgs_assigned": "Użytkownik jest już członkiem każdej organizacji."
+    "all_orgs_assigned": "Użytkownik jest już członkiem każdej organizacji.",
+    "email": "E-mail",
+    "email_placeholder": "operator@example.com",
+    "email_hint": "Używany do powiadomień o prośbach o pomoc, gdy użytkownik jest przypisany do folderów lub grup urządzeń."
   },
   "folders": {
     "title": "Foldery",
@@ -3698,6 +3719,20 @@
       "submit": "Wyślij raport",
       "summary_required": "Podsumowanie jest wymagane",
       "saved": "Raport pracy zapisany"
+    },
+    "notifications": {
+      "title": "Powiadomienia e-mail",
+      "desc": "Powiadamiaj operatorów e-mailem, gdy urządzenia z ich folderów lub grup wysyłają prośby o pomoc.",
+      "smtp_status": "Status SMTP",
+      "smtp_configured": "SMTP jest skonfigurowany",
+      "smtp_missing": "SMTP nie jest skonfigurowany — ustaw w Ustawienia → E-mail",
+      "smtp_link": "Otwórz ustawienia SMTP",
+      "help_requests_enabled": "Wysyłaj e-mail przy nowych prośbach o pomoc",
+      "notify_assigned_operators": "Powiadamiaj operatorów przypisanych do folderu lub grupy urządzenia",
+      "fallback_alert_email": "Użyj adresu ostrzegawczego, gdy brak e-maila operatora",
+      "include_folder_in_subject": "Dołącz nazwę folderu w temacie wiadomości",
+      "save": "Zapisz ustawienia powiadomień",
+      "saved": "Ustawienia powiadomień zapisane"
     }
   }
 }

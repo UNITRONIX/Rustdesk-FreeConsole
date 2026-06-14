@@ -336,6 +336,7 @@
                         </div>
                     </div>
                 </td>
+                <td>${user.email ? Utils.escapeHtml(user.email) : '<span class="text-muted">—</span>'}</td>
                 <td>
                     <span class="role-badge ${String(user.role || '').replace(/[^a-z0-9_-]/gi, '')}">
                         ${Utils.escapeHtml(_(roleLabelKey))}
@@ -469,6 +470,8 @@
                     usernameInput.classList.add('readonly');
                 }
                 if (roleSelect) roleSelect.value = user.role;
+                const emailInput = document.getElementById('user-email');
+                if (emailInput) emailInput.value = user.email || '';
                 if (passwordInput) passwordInput.placeholder = _('users.password_leave_empty');
                 // LDAP/OIDC accounts are managed by the identity provider:
                 // password cannot be set locally and the role is provider-mapped.
@@ -567,6 +570,7 @@
         const username = document.getElementById('user-username')?.value.trim();
         const password = document.getElementById('user-password')?.value;
         const role = document.getElementById('user-role')?.value;
+        const email = document.getElementById('user-email')?.value.trim();
         const groupGuids = selectedUserGroupGuids();
         
         // Validate
@@ -591,7 +595,7 @@
         try {
             if (editingUserId) {
                 // Update existing user
-                const data = { role };
+                const data = { role, email };
                 if (password) data.password = password;
                 data.groupGuids = groupGuids;
                 
@@ -604,7 +608,7 @@
                 // Create new user
                 await Utils.api('/api/users', {
                     method: 'POST',
-                    body: { username, password, role, groupGuids }
+                    body: { username, password, role, email, groupGuids }
                 });
                 Notifications.success(_('users.user_created'));
             }

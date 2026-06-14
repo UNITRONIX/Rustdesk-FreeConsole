@@ -121,7 +121,6 @@ table {
     margin-top: var(--navbar-height);
     height: calc(100vh - var(--navbar-height));
     min-height: 0;
-    max-width: var(--content-max-width);
     width: 100%;
     overflow-x: hidden;
     overflow-y: auto;

@@ -25,6 +25,7 @@ const {
 const { splitUpdateFailures } = require('../lib/updateFailurePolicy');
 const advancedConfig = require('../services/advancedConfigService');
 const serverConnectionConfig = require('../services/serverConnectionConfigService');
+const { getSmtpSettings, putSmtpSettings, testSmtpSettings } = require('../lib/smtpSettingsHandlers');
 const { apiClient } = require('../services/betterdeskApi');
 const { requireAuth, requirePermission, roleHasPermission } = require('../middleware/auth');
 const os = require('os');
@@ -1573,5 +1574,20 @@ router.post('/api/settings/connection-mode/restart', requireAuth, requirePermiss
         res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
     }
 });
+
+/**
+ * GET /api/settings/email/smtp — SMTP configuration (masked secrets).
+ */
+router.get('/api/settings/email/smtp', requireAuth, requirePermission('server.config'), getSmtpSettings);
+
+/**
+ * PUT /api/settings/email/smtp — Update SMTP configuration.
+ */
+router.put('/api/settings/email/smtp', requireAuth, requirePermission('server.config'), putSmtpSettings);
+
+/**
+ * POST /api/settings/email/smtp/test — Test SMTP connection.
+ */
+router.post('/api/settings/email/smtp/test', requireAuth, requirePermission('server.config'), testSmtpSettings);
 
 module.exports = router;
