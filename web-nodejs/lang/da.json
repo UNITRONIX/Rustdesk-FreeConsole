@@ -1441,7 +1441,7 @@
   },
   "automation": {
     "title": "Automatisering og advarsler",
-    "subtitle": "Advarselsregler, fjernkommandoer og SMTP-konfiguration",
+    "subtitle": "Advarselsregler og fjernkommandoer",
     "rules": "Alert Rules",
     "rules_subtitle": "Definer betingelser, der udløser meddelelser",
     "alerts": "Alarmhistorik",

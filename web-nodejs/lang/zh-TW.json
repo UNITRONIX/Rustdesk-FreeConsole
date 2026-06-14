@@ -1449,7 +1449,7 @@
   },
   "automation": {
     "title": "自動化與告警",
-    "subtitle": "告警規則、遠程命令和 SMTP 配置",
+    "subtitle": "告警規則、遠端命令",
     "rules": "告警規則",
     "rules_subtitle": "定義觸發通知的條件",
     "alerts": "告警歷史",

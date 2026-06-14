@@ -1435,7 +1435,7 @@
   },
   "automation": {
     "title": "Automatisering en waarschuwingen",
-    "subtitle": "Alarmregels, externe commando's en SMTP-configuratie",
+    "subtitle": "Alarmregels en externe opdrachten",
     "rules": "Alarmregels",
     "rules_subtitle": "Definieer voorwaarden die meldingen activeren",
     "alerts": "Waarschuwingsgeschiedenis",

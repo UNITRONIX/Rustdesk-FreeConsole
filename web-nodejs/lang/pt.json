@@ -1435,7 +1435,7 @@
   },
   "automation": {
     "title": "Automação e alertas",
-    "subtitle": "Regras de alarme, comandos remotos e configuração SMTP",
+    "subtitle": "Regras de alarme e comandos remotos",
     "rules": "Regras de alarme",
     "rules_subtitle": "Defina condições que acionam notificações",
     "alerts": "Histórico de alertas",

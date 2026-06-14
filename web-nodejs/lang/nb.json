@@ -1441,7 +1441,7 @@
   },
   "automation": {
     "title": "Automatisering og varsler",
-    "subtitle": "Varselregler, fjernkommandoer og SMTP-konfigurasjon",
+    "subtitle": "Varselregler og fjernkommandoer",
     "rules": "Alert Rules",
     "rules_subtitle": "Definer forhold som utløser varsler",
     "alerts": "Varslingshistorikk",

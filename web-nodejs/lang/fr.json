@@ -1449,7 +1449,7 @@
   },
   "automation": {
     "title": "Tableau de bord",
-    "subtitle": "Vue d'ensemble de votre serveur RustDesk",
+    "subtitle": "Règles d'alerte, commandes à distance",
     "rules": "Règles d'alerte",
     "rules_subtitle": "Définir les conditions qui déclenchent des notifications",
     "alerts": "Historique des alertes",

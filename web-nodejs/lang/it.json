@@ -1435,7 +1435,7 @@
   },
   "automation": {
     "title": "Automazione e avvisi",
-    "subtitle": "Regole di allarme, comandi remoti e configurazione SMTP",
+    "subtitle": "Regole di allarme, comandi remoti",
     "rules": "Regole di allarme",
     "rules_subtitle": "Definisci condizioni che attivano notifiche",
     "alerts": "Storico avvisi",

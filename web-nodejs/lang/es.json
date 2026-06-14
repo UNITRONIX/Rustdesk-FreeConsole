@@ -1435,7 +1435,7 @@
   },
   "automation": {
     "title": "Panel",
-    "subtitle": "Resumen de su servidor RustDesk",
+    "subtitle": "Reglas de alerta, comandos remotos",
     "rules": "Reglas de alerta",
     "rules_subtitle": "Definir condiciones que activan notificaciones",
     "alerts": "Historial de alertas",

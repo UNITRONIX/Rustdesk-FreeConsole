@@ -1441,7 +1441,7 @@
   },
   "automation": {
     "title": "Otomasyon ve Uyarılar",
-    "subtitle": "Uyarı kuralları, uzak komutlar ve SMTP yapılandırması",
+    "subtitle": "Uyarı kuralları ve uzak komutlar",
     "rules": "Alert Rules",
     "rules_subtitle": "Bildirimleri tetikleyen koşulları tanımlayın",
     "alerts": "Uyarı Geçmişi",

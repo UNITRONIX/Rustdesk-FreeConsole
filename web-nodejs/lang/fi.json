@@ -1441,7 +1441,7 @@
   },
   "automation": {
     "title": "Automaatio ja hälytykset",
-    "subtitle": "Varoitussäännöt, etäkomennot ja SMTP-määritykset",
+    "subtitle": "Varoitussäännöt ja etäkomennot",
     "rules": "Alert Rules",
     "rules_subtitle": "Määritä ehdot, jotka käynnistävät ilmoitukset",
     "alerts": "Varoitushistoria",

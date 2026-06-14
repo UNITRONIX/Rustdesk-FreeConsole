@@ -1445,7 +1445,7 @@
   },
   "automation": {
     "title": "Automatyzacja i alerty",
-    "subtitle": "Reguły alertów, zdalne polecenia i konfiguracja SMTP",
+    "subtitle": "Reguły alertów, zdalne polecenia",
     "rules": "Reguły alertów",
     "rules_subtitle": "Definiuj warunki wyzwalające powiadomienia",
     "alerts": "Historia alertów",

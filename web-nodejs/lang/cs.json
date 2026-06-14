@@ -1435,7 +1435,7 @@
   },
   "automation": {
     "title": "Automatizace a upozornění",
-    "subtitle": "Pravidla upozornění, vzdálené příkazy a konfigurace SMTP",
+    "subtitle": "Pravidla upozornění, vzdálené příkazy",
     "rules": "Pravidla upozornění",
     "rules_subtitle": "Definujte podmínky, které spouštějí oznámení",
     "alerts": "Historie upozornění",

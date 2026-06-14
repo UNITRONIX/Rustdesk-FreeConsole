@@ -1441,7 +1441,7 @@
   },
   "automation": {
     "title": "Automatizare și alerte",
-    "subtitle": "Reguli de alertă, comenzi de la distanță și configurație SMTP",
+    "subtitle": "Reguli de alertă și comenzi la distanță",
     "rules": "Alert Rules",
     "rules_subtitle": "Definiți condițiile care declanșează notificări",
     "alerts": "Istoricul alertelor",

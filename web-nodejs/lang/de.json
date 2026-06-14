@@ -1435,7 +1435,7 @@
   },
   "automation": {
     "title": "Dashboard",
-    "subtitle": "Übersicht Ihres RustDesk-Servers",
+    "subtitle": "Alarmregeln, Remote-Befehle",
     "rules": "Alarmregeln",
     "rules_subtitle": "Bedingungen definieren, die Benachrichtigungen auslösen",
     "alerts": "Alarmverlauf",

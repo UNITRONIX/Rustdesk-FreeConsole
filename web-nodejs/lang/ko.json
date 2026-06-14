@@ -1435,7 +1435,7 @@
   },
   "automation": {
     "title": "자동화 및 경고",
-    "subtitle": "경고 규칙, 원격 명령 및 SMTP 구성",
+    "subtitle": "경고 규칙, 원격 명령",
     "rules": "Alert Rules",
     "rules_subtitle": "알림을 트리거하는 조건 정의",
     "alerts": "경고 기록",

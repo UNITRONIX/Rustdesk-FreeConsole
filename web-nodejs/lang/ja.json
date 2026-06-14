@@ -1435,7 +1435,7 @@
   },
   "automation": {
     "title": "自動化とアラート",
-    "subtitle": "アラート ルール、リモート コマンド、および SMTP 構成",
+    "subtitle": "アラート ルール、リモート コマンド",
     "rules": "Alert Rules",
     "rules_subtitle": "通知をトリガーする条件を定義する",
     "alerts": "アラート履歴",

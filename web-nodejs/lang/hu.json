@@ -1441,7 +1441,7 @@
   },
   "automation": {
     "title": "Automatizálás és riasztások",
-    "subtitle": "Riasztási szabályok, távoli parancsok és SMTP-konfiguráció",
+    "subtitle": "Riasztási szabályok, távoli parancsok",
     "rules": "Alert Rules",
     "rules_subtitle": "Határozza meg az értesítéseket kiváltó feltételeket",
     "alerts": "Riasztási előzmények",

@@ -1441,7 +1441,7 @@
   },
   "automation": {
     "title": "Otomatisasi & Peringatan",
-    "subtitle": "Aturan peringatan, perintah jarak jauh, dan konfigurasi SMTP",
+    "subtitle": "Aturan peringatan, perintah jarak jauh",
     "rules": "Alert Rules",
     "rules_subtitle": "Tentukan kondisi yang memicu notifikasi",
     "alerts": "Riwayat Peringatan",

@@ -1441,7 +1441,7 @@
   },
   "automation": {
     "title": "Automatisering",
-    "subtitle": "Varningsregler, fjärrkommandon och SMTP-konfiguration",
+    "subtitle": "Varningsregler och fjärrkommandon",
     "rules": "Alert Rules",
     "rules_subtitle": "Definiera villkor som utlöser aviseringar",
     "alerts": "Varningshistorik",

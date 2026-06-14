@@ -1441,7 +1441,7 @@
   },
   "automation": {
     "title": "Tự động hóa & Cảnh báo",
-    "subtitle": "Quy tắc cảnh báo, lệnh từ xa và cấu hình SMTP",
+    "subtitle": "Quy tắc cảnh báo và lệnh từ xa",
     "rules": "Alert Rules",
     "rules_subtitle": "Xác định các điều kiện kích hoạt thông báo",
     "alerts": "Lịch sử cảnh báo",
