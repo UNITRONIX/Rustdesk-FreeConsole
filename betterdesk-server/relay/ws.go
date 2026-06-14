@@ -154,33 +154,7 @@ func isLoopbackOrigin(origin string) bool {
 
 // pairWSConn pairs a WebSocket-derived net.Conn using the same UUID logic as TCP.
 func (s *Server) pairWSConn(conn net.Conn, uuid string) {
-	// Try to find a pending connection with same UUID
-	if val, loaded := s.pending.LoadAndDelete(uuid); loaded {
-		pc := val.(*pendingConn)
-		close(pc.done)
-		s.startRelay(pc.conn, conn, uuid)
-		return
-	}
-
-	// No pair yet — register as pending and wait
-	pc := &pendingConn{
-		conn:    conn,
-		created: timeNow(),
-		done:    make(chan struct{}),
-	}
-	s.pending.Store(uuid, pc)
-
-	select {
-	case <-pc.done:
-		return
-	case <-timeAfter(config.RelayPairTimeout):
-		s.pending.Delete(uuid)
-		log.Printf("[relay] WS pair timeout for UUID %s", uuid)
-		conn.Close()
-	case <-s.ctx.Done():
-		s.pending.Delete(uuid)
-		conn.Close()
-	}
+	s.pairIncomingConn(conn, uuid)
 }
 
 // NOTE: confirmRelay was removed — the RustDesk client does not expect

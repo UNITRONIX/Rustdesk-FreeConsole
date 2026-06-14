@@ -278,6 +278,47 @@ func TestBatchUpdatePeerStatus(t *testing.T) {
 	check("BATCH2", "DEGRADED")
 }
 
+func TestGetPeersByIDs(t *testing.T) {
+	db := newTestDB(t)
+
+	for _, id := range []string{"GPID1", "GPID2", "GPID3"} {
+		if err := db.UpsertPeer(&Peer{ID: id, Status: "ONLINE", Tags: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.DeletePeer("GPID3"); err != nil {
+		t.Fatal(err)
+	}
+
+	peers, err := db.GetPeersByIDs([]string{"GPID1", "GPID2", "GPID3", "MISSING"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(peers) != 2 {
+		t.Fatalf("GetPeersByIDs len = %d, want 2", len(peers))
+	}
+	if peers["GPID1"] == nil || peers["GPID2"] == nil {
+		t.Fatal("expected GPID1 and GPID2")
+	}
+	if peers["GPID1"].Tags != "GPID1" {
+		t.Fatalf("GPID1 tags = %q", peers["GPID1"].Tags)
+	}
+	if _, ok := peers["GPID3"]; ok {
+		t.Fatal("soft-deleted GPID3 must be omitted")
+	}
+	if _, ok := peers["MISSING"]; ok {
+		t.Fatal("missing ID must be omitted")
+	}
+
+	empty, err := db.GetPeersByIDs(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(empty) != 0 {
+		t.Fatalf("empty ids should return empty map, got %d", len(empty))
+	}
+}
+
 func TestBatchUpdatePeerStatusIgnoresSoftDeleted(t *testing.T) {
 	db := newTestDB(t)
 	if err := db.UpsertPeer(&Peer{ID: "BATCHDEL", Status: "ONLINE"}); err != nil {

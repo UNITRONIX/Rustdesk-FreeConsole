@@ -197,37 +197,41 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 
 	log.Printf("[relay] Connection from %s for UUID %s", conn.RemoteAddr(), uuid)
+	s.pairIncomingConn(conn, uuid)
+}
 
-	// Try to find a pending connection with the same UUID
-	if val, loaded := s.pending.LoadAndDelete(uuid); loaded {
-		// Found a pair — start relaying
-		pc := val.(*pendingConn)
-		close(pc.done) // signal that pairing succeeded
-		s.startRelay(pc.conn, conn, uuid)
-		return
-	}
-
-	// No pair yet — register as pending and wait
+// pairIncomingConn pairs two relay connections sharing the same session UUID.
+// LoadOrStore avoids a race where simultaneous connections both miss LoadAndDelete
+// and overwrite each other in pending without ever pairing.
+func (s *Server) pairIncomingConn(conn net.Conn, uuid string) {
 	pc := &pendingConn{
 		conn:    conn,
-		created: time.Now(),
+		created: timeNow(),
 		done:    make(chan struct{}),
 	}
-	s.pending.Store(uuid, pc)
 
-	// Wait for pair or timeout
+	if val, loaded := s.pending.LoadOrStore(uuid, pc); loaded {
+		existing := val.(*pendingConn)
+		s.pending.Delete(uuid)
+		close(existing.done)
+		s.startRelay(existing.conn, conn, uuid)
+		return
+	}
+
 	select {
 	case <-pc.done:
-		// Paired — the pairing goroutine handles relay
 		return
-	case <-time.After(config.RelayPairTimeout):
-		// Timeout — remove from pending and close
-		s.pending.Delete(uuid)
-		log.Printf("[relay] Pair timeout for UUID %s", uuid)
-		conn.Close()
+	case <-timeAfter(config.RelayPairTimeout):
+		if val, ok := s.pending.Load(uuid); ok && val.(*pendingConn) == pc {
+			s.pending.Delete(uuid)
+			conn.Close()
+			log.Printf("[relay] Pair timeout for UUID %s", uuid)
+		}
 	case <-s.ctx.Done():
-		s.pending.Delete(uuid)
-		conn.Close()
+		if val, ok := s.pending.Load(uuid); ok && val.(*pendingConn) == pc {
+			s.pending.Delete(uuid)
+			conn.Close()
+		}
 	}
 }
 

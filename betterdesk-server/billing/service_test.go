@@ -17,6 +17,21 @@ func TestRoundUpMinutes(t *testing.T) {
 	}
 }
 
+func TestSweepStalePendingRelays(t *testing.T) {
+	svc := NewService(nil, nil, 1, false)
+	svc.pending["old"] = &pendingRelay{OrgID: "org1", createdAt: time.Now().Add(-11 * time.Minute)}
+	svc.pending["fresh"] = &pendingRelay{OrgID: "org1", createdAt: time.Now()}
+
+	svc.sweepStalePending()
+
+	if _, ok := svc.pending["old"]; ok {
+		t.Fatal("stale pending relay should be removed")
+	}
+	if _, ok := svc.pending["fresh"]; !ok {
+		t.Fatal("fresh pending relay should remain")
+	}
+}
+
 func TestOverageSplit(t *testing.T) {
 	remaining := 5
 	billed := 12

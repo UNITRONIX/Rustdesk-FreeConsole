@@ -1,7 +1,15 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+
+- **Go server (performance):** batch peer lookup via `GetPeersByIDs` for address book merge and scoped RustDesk peer lists (avoids N+1 `GetPeer` queries on large fleets).
+- **Go server (billing):** stale pending relay metadata is swept after 10 minutes when pairing never completes.
+- **Go server (relay):** fix pairing race when both sides connect simultaneously (LoadOrStore instead of LoadAndDelete+Store).
+
+### Added
+
+- **Go server (compat):** integration test covering signal relay assignment through hbbr byte relay (`TestSignalRelayWireFlow`).
+- **Go server (tests):** relay pairing tests wait for `ActiveSessions` instead of a fixed sleep.
 
 ---
 

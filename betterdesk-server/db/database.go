@@ -412,6 +412,9 @@ type Database interface {
 
 	// Peer operations
 	GetPeer(id string) (*Peer, error)
+	// GetPeersByIDs returns active (non-soft-deleted) peers for the given IDs.
+	// Missing IDs are omitted; an empty ids slice returns an empty map.
+	GetPeersByIDs(ids []string) (map[string]*Peer, error)
 	GetPeerByUUID(uuid string) (*Peer, error)
 	UpsertPeer(p *Peer) error
 	DeletePeer(id string) error     // soft delete

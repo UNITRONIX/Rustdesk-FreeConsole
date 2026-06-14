@@ -651,6 +651,30 @@ func (pg *PostgresDB) GetPeer(id string) (*Peer, error) {
 	return p, nil
 }
 
+// GetPeersByIDs returns active peers for the given IDs in one query.
+func (pg *PostgresDB) GetPeersByIDs(ids []string) (map[string]*Peer, error) {
+	if len(ids) == 0 {
+		return map[string]*Peer{}, nil
+	}
+
+	rows, err := pg.pool.Query(pg.ctx,
+		`SELECT `+peerColumns+` FROM peers WHERE soft_deleted = FALSE AND id = ANY($1)`, ids)
+	if err != nil {
+		return nil, fmt.Errorf("db: GetPeersByIDs: %w", err)
+	}
+	defer rows.Close()
+
+	peers, err := scanPeerRows(rows)
+	if err != nil {
+		return nil, fmt.Errorf("db: GetPeersByIDs: %w", err)
+	}
+	out := make(map[string]*Peer, len(peers))
+	for _, p := range peers {
+		out[p.ID] = p
+	}
+	return out, nil
+}
+
 // GetPeerByUUID returns a peer by UUID, or nil if not found.
 func (pg *PostgresDB) GetPeerByUUID(uuid string) (*Peer, error) {
 	row := pg.pool.QueryRow(pg.ctx,
