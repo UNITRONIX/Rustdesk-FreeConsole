@@ -3818,5 +3818,24 @@
     "open_panel": "Åpne konsoll",
     "devices_count": "{count} enheter",
     "retry": "Prøv igjen"
+  },
+  "rdclient_login": {
+    "title": "Remote Desktop-klient",
+    "subtitle": "Logg inn for å koble til enhetene dine",
+    "username_placeholder": "Brukernavn",
+    "password_placeholder": "Passord",
+    "remember_me": "Husk meg på denne enheten",
+    "sign_in": "Logg inn",
+    "totp_title": "Tofaktorautentisering",
+    "totp_subtitle": "Skriv inn 6-sifret kode fra autentiseringsappen",
+    "verify": "Bekreft",
+    "back_to_login": "Tilbake til innlogging",
+    "open_console_login": "Åpne konsollinnlogging",
+    "session_expired": "Økten har utløpt. Logg inn på nytt.",
+    "fill_all_fields": "Fyll ut alle felt",
+    "invalid_credentials": "Ugyldige påloggingsdetaljer",
+    "network_error": "Nettverksfeil",
+    "enter_6_digits": "Skriv inn alle 6 sifre",
+    "invalid_code": "Ugyldig kode"
   }
 }

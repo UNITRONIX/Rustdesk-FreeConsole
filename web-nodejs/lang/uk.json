@@ -3818,5 +3818,24 @@
     "open_panel": "Відкрити консоль",
     "devices_count": "{count} пристроїв",
     "retry": "Повторити"
+  },
+  "rdclient_login": {
+    "title": "Клієнт віддаленого робочого столу",
+    "subtitle": "Увійдіть, щоб підключитися до ваших пристроїв",
+    "username_placeholder": "Ім'я користувача",
+    "password_placeholder": "Пароль",
+    "remember_me": "Запам'ятати мене на цьому пристрої",
+    "sign_in": "Увійти",
+    "totp_title": "Двофакторна автентифікація",
+    "totp_subtitle": "Введіть 6-значний код з вашого додатку автентифікації",
+    "verify": "Підтвердити",
+    "back_to_login": "Назад до входу",
+    "open_console_login": "Відкрити вхід у консоль",
+    "session_expired": "Сесію закінчено. Увійдіть знову.",
+    "fill_all_fields": "Заповніть усі поля",
+    "invalid_credentials": "Невірні облікові дані",
+    "network_error": "Помилка мережі",
+    "enter_6_digits": "Введіть усі 6 цифр",
+    "invalid_code": "Невірний код"
   }
 }

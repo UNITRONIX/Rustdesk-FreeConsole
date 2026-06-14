@@ -3812,5 +3812,24 @@
     "open_panel": "Otwórz konsolę",
     "devices_count": "{count} urządzeń",
     "retry": "Ponów"
+  },
+  "rdclient_login": {
+    "title": "Klient pulpitu zdalnego",
+    "subtitle": "Zaloguj się, aby połączyć się ze swoimi urządzeniami",
+    "username_placeholder": "Nazwa użytkownika",
+    "password_placeholder": "Hasło",
+    "remember_me": "Zapamiętaj mnie na tym urządzeniu",
+    "sign_in": "Zaloguj się",
+    "totp_title": "Uwierzytelnianie dwuskładnikowe",
+    "totp_subtitle": "Wprowadź 6-cyfrowy kod z aplikacji uwierzytelniającej",
+    "verify": "Weryfikuj",
+    "back_to_login": "Wróć do logowania",
+    "open_console_login": "Otwórz logowanie do konsoli",
+    "session_expired": "Sesja wygasła. Zaloguj się ponownie.",
+    "fill_all_fields": "Wypełnij wszystkie pola",
+    "invalid_credentials": "Nieprawidłowe dane logowania",
+    "network_error": "Błąd sieci",
+    "enter_6_digits": "Wprowadź wszystkie 6 cyfr",
+    "invalid_code": "Nieprawidłowy kod"
   }
 }

@@ -3818,5 +3818,24 @@
     "open_panel": "Konzol megnyitása",
     "devices_count": "{count} eszköz",
     "retry": "Újra"
+  },
+  "rdclient_login": {
+    "title": "Távoli asztal kliens",
+    "subtitle": "Jelentkezzen be az eszközeihez való csatlakozáshoz",
+    "username_placeholder": "Felhasználónév",
+    "password_placeholder": "Jelszó",
+    "remember_me": "Emlékezzen rám ezen az eszközön",
+    "sign_in": "Bejelentkezés",
+    "totp_title": "Kétlépcsős hitelesítés",
+    "totp_subtitle": "Adja meg a 6 számjegyű kódot a hitelesítő alkalmazásból",
+    "verify": "Ellenőrzés",
+    "back_to_login": "Vissza a bejelentkezéshez",
+    "open_console_login": "Konzol bejelentkezés megnyitása",
+    "session_expired": "A munkamenet lejárt. Jelentkezzen be újra.",
+    "fill_all_fields": "Töltse ki az összes mezőt",
+    "invalid_credentials": "Érvénytelen hitelesítő adatok",
+    "network_error": "Hálózati hiba",
+    "enter_6_digits": "Adja meg mind a 6 számjegyet",
+    "invalid_code": "Érvénytelen kód"
   }
 }

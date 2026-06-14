@@ -252,8 +252,13 @@ const Utils = {
             return data;
         } catch (error) {
             if (error.status === 401) {
-                // Redirect to login on auth error
-                window.location.href = '/login';
+                var path = window.location.pathname || '';
+                if (path.startsWith('/remote') && !path.startsWith('/remote/login')) {
+                    window.location.href = '/remote/login?return=' +
+                        encodeURIComponent(path + (window.location.search || '')) + '&expired=1';
+                } else {
+                    window.location.href = '/login';
+                }
             }
             throw error;
         }

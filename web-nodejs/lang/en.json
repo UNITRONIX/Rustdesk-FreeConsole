@@ -3812,5 +3812,24 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "rdclient_login": {
+    "title": "Remote Desktop Client",
+    "subtitle": "Sign in to connect to your devices",
+    "username_placeholder": "Username",
+    "password_placeholder": "Password",
+    "remember_me": "Remember me on this device",
+    "sign_in": "Sign in",
+    "totp_title": "Two-factor authentication",
+    "totp_subtitle": "Enter the 6-digit code from your authenticator app",
+    "verify": "Verify",
+    "back_to_login": "Back to sign in",
+    "open_console_login": "Open console login",
+    "session_expired": "Session expired. Please sign in again.",
+    "fill_all_fields": "Please fill in all fields",
+    "invalid_credentials": "Invalid credentials",
+    "network_error": "Network error",
+    "enter_6_digits": "Enter all 6 digits",
+    "invalid_code": "Invalid code"
   }
 }

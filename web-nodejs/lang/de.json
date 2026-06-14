@@ -3812,5 +3812,24 @@
     "open_panel": "Konsole öffnen",
     "devices_count": "{count} Geräte",
     "retry": "Erneut versuchen"
+  },
+  "rdclient_login": {
+    "title": "Remote-Desktop-Client",
+    "subtitle": "Melden Sie sich an, um eine Verbindung zu Ihren Geräten herzustellen",
+    "username_placeholder": "Benutzername",
+    "password_placeholder": "Passwort",
+    "remember_me": "Auf diesem Gerät merken",
+    "sign_in": "Anmelden",
+    "totp_title": "Zwei-Faktor-Authentifizierung",
+    "totp_subtitle": "Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein",
+    "verify": "Bestätigen",
+    "back_to_login": "Zurück zur Anmeldung",
+    "open_console_login": "Konsolen-Anmeldung öffnen",
+    "session_expired": "Sitzung abgelaufen. Bitte erneut anmelden.",
+    "fill_all_fields": "Bitte alle Felder ausfüllen",
+    "invalid_credentials": "Ungültige Anmeldedaten",
+    "network_error": "Netzwerkfehler",
+    "enter_6_digits": "Alle 6 Ziffern eingeben",
+    "invalid_code": "Ungültiger Code"
   }
 }

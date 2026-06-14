@@ -3812,5 +3812,24 @@
     "open_panel": "Otevřít konzoli",
     "devices_count": "{count} zařízení",
     "retry": "Zkusit znovu"
+  },
+  "rdclient_login": {
+    "title": "Klient vzdálené plochy",
+    "subtitle": "Přihlaste se pro připojení k vašim zařízením",
+    "username_placeholder": "Uživatelské jméno",
+    "password_placeholder": "Heslo",
+    "remember_me": "Zapamatovat si mě na tomto zařízení",
+    "sign_in": "Přihlásit se",
+    "totp_title": "Dvoufaktorové ověření",
+    "totp_subtitle": "Zadejte 6místný kód z vaší autentizační aplikace",
+    "verify": "Ověřit",
+    "back_to_login": "Zpět k přihlášení",
+    "open_console_login": "Otevřít přihlášení konzole",
+    "session_expired": "Relace vypršela. Přihlaste se znovu.",
+    "fill_all_fields": "Vyplňte všechna pole",
+    "invalid_credentials": "Neplatné přihlašovací údaje",
+    "network_error": "Chyba sítě",
+    "enter_6_digits": "Zadejte všech 6 číslic",
+    "invalid_code": "Neplatný kód"
   }
 }

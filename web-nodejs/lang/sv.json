@@ -3818,5 +3818,24 @@
     "open_panel": "Öppna konsol",
     "devices_count": "{count} enheter",
     "retry": "Försök igen"
+  },
+  "rdclient_login": {
+    "title": "Remote Desktop-klient",
+    "subtitle": "Logga in för att ansluta till dina enheter",
+    "username_placeholder": "Användarnamn",
+    "password_placeholder": "Lösenord",
+    "remember_me": "Kom ihåg mig på den här enheten",
+    "sign_in": "Logga in",
+    "totp_title": "Tvåfaktorsautentisering",
+    "totp_subtitle": "Ange den 6-siffriga koden från din autentiseringsapp",
+    "verify": "Verifiera",
+    "back_to_login": "Tillbaka till inloggning",
+    "open_console_login": "Öppna konsolinloggning",
+    "session_expired": "Sessionen har gått ut. Logga in igen.",
+    "fill_all_fields": "Fyll i alla fält",
+    "invalid_credentials": "Ogiltiga inloggningsuppgifter",
+    "network_error": "Nätverksfel",
+    "enter_6_digits": "Ange alla 6 siffror",
+    "invalid_code": "Ogiltig kod"
   }
 }

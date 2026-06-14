@@ -3816,5 +3816,24 @@
     "open_panel": "Ouvrir la console",
     "devices_count": "{count} appareils",
     "retry": "Réessayer"
+  },
+  "rdclient_login": {
+    "title": "Client Bureau à distance",
+    "subtitle": "Connectez-vous pour accéder à vos appareils",
+    "username_placeholder": "Nom d'utilisateur",
+    "password_placeholder": "Mot de passe",
+    "remember_me": "Se souvenir de moi sur cet appareil",
+    "sign_in": "Se connecter",
+    "totp_title": "Authentification à deux facteurs",
+    "totp_subtitle": "Entrez le code à 6 chiffres de votre application d'authentification",
+    "verify": "Vérifier",
+    "back_to_login": "Retour à la connexion",
+    "open_console_login": "Ouvrir la connexion console",
+    "session_expired": "Session expirée. Veuillez vous reconnecter.",
+    "fill_all_fields": "Veuillez remplir tous les champs",
+    "invalid_credentials": "Identifiants invalides",
+    "network_error": "Erreur réseau",
+    "enter_6_digits": "Entrez les 6 chiffres",
+    "invalid_code": "Code invalide"
   }
 }

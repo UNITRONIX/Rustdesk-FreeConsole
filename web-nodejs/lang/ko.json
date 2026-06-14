@@ -3812,5 +3812,24 @@
     "open_panel": "콘솔 열기",
     "devices_count": "{count}개 장치",
     "retry": "다시 시도"
+  },
+  "rdclient_login": {
+    "title": "원격 데스크톱 클라이언트",
+    "subtitle": "기기에 연결하려면 로그인하세요",
+    "username_placeholder": "사용자 이름",
+    "password_placeholder": "비밀번호",
+    "remember_me": "이 기기에서 로그인 정보 저장",
+    "sign_in": "로그인",
+    "totp_title": "2단계 인증",
+    "totp_subtitle": "인증 앱의 6자리 코드를 입력하세요",
+    "verify": "확인",
+    "back_to_login": "로그인으로 돌아가기",
+    "open_console_login": "콘솔 로그인 열기",
+    "session_expired": "세션이 만료되었습니다. 다시 로그인하세요.",
+    "fill_all_fields": "모든 항목을 입력하세요",
+    "invalid_credentials": "잘못된 자격 증명",
+    "network_error": "네트워크 오류",
+    "enter_6_digits": "6자리 모두 입력하세요",
+    "invalid_code": "잘못된 코드"
   }
 }

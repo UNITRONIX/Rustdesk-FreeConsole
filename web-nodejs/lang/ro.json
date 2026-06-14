@@ -3818,5 +3818,24 @@
     "open_panel": "Deschide consola",
     "devices_count": "{count} dispozitive",
     "retry": "Reîncearcă"
+  },
+  "rdclient_login": {
+    "title": "Client desktop la distanță",
+    "subtitle": "Autentificați-vă pentru a vă conecta la dispozitive",
+    "username_placeholder": "Nume utilizator",
+    "password_placeholder": "Parolă",
+    "remember_me": "Ține-mă minte pe acest dispozitiv",
+    "sign_in": "Autentificare",
+    "totp_title": "Autentificare cu doi factori",
+    "totp_subtitle": "Introduceți codul de 6 cifre din aplicația de autentificare",
+    "verify": "Verifică",
+    "back_to_login": "Înapoi la autentificare",
+    "open_console_login": "Deschide autentificarea consolă",
+    "session_expired": "Sesiunea a expirat. Autentificați-vă din nou.",
+    "fill_all_fields": "Completați toate câmpurile",
+    "invalid_credentials": "Date de autentificare invalide",
+    "network_error": "Eroare de rețea",
+    "enter_6_digits": "Introduceți toate cele 6 cifre",
+    "invalid_code": "Cod invalid"
   }
 }

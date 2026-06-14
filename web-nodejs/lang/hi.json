@@ -3818,5 +3818,24 @@
     "open_panel": "कंसोल खोलें",
     "devices_count": "{count} डिवाइस",
     "retry": "पुनः प्रयास"
+  },
+  "rdclient_login": {
+    "title": "रिमोट डेस्कटॉप क्लाइंट",
+    "subtitle": "अपने उपकरणों से कनेक्ट करने के लिए साइन इन करें",
+    "username_placeholder": "उपयोगकर्ता नाम",
+    "password_placeholder": "पासवर्ड",
+    "remember_me": "इस उपकरण पर मुझे याद रखें",
+    "sign_in": "साइन इन",
+    "totp_title": "दो-कारक प्रमाणीकरण",
+    "totp_subtitle": "अपने प्रमाणीकरण ऐप से 6-अंकीय कोड दर्ज करें",
+    "verify": "सत्यापित करें",
+    "back_to_login": "साइन इन पर वापस",
+    "open_console_login": "कंसोल लॉगिन खोलें",
+    "session_expired": "सत्र समाप्त हो गया। कृपया फिर से साइन इन करें।",
+    "fill_all_fields": "कृपया सभी फ़ील्ड भरें",
+    "invalid_credentials": "अमान्य क्रेडेंशियल",
+    "network_error": "नेटवर्क त्रुटि",
+    "enter_6_digits": "सभी 6 अंक दर्ज करें",
+    "invalid_code": "अमान्य कोड"
   }
 }

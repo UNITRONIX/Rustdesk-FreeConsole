@@ -3812,5 +3812,24 @@
     "open_panel": "Console openen",
     "devices_count": "{count} apparaten",
     "retry": "Opnieuw"
+  },
+  "rdclient_login": {
+    "title": "Remote Desktop-client",
+    "subtitle": "Meld u aan om verbinding te maken met uw apparaten",
+    "username_placeholder": "Gebruikersnaam",
+    "password_placeholder": "Wachtwoord",
+    "remember_me": "Onthoud mij op dit apparaat",
+    "sign_in": "Aanmelden",
+    "totp_title": "Tweefactorauthenticatie",
+    "totp_subtitle": "Voer de 6-cijferige code uit uw authenticator-app in",
+    "verify": "Verifiëren",
+    "back_to_login": "Terug naar aanmelden",
+    "open_console_login": "Console-aanmelding openen",
+    "session_expired": "Sessie verlopen. Meld u opnieuw aan.",
+    "fill_all_fields": "Vul alle velden in",
+    "invalid_credentials": "Ongeldige inloggegevens",
+    "network_error": "Netwerkfout",
+    "enter_6_digits": "Voer alle 6 cijfers in",
+    "invalid_code": "Ongeldige code"
   }
 }

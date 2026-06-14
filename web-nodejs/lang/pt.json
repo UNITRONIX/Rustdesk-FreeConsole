@@ -3812,5 +3812,24 @@
     "open_panel": "Abrir consola",
     "devices_count": "{count} dispositivos",
     "retry": "Tentar novamente"
+  },
+  "rdclient_login": {
+    "title": "Cliente de ambiente de trabalho remoto",
+    "subtitle": "Inicie sessão para ligar aos seus dispositivos",
+    "username_placeholder": "Nome de utilizador",
+    "password_placeholder": "Palavra-passe",
+    "remember_me": "Lembrar-me neste dispositivo",
+    "sign_in": "Iniciar sessão",
+    "totp_title": "Autenticação de dois fatores",
+    "totp_subtitle": "Introduza o código de 6 dígitos da sua aplicação de autenticação",
+    "verify": "Verificar",
+    "back_to_login": "Voltar ao início de sessão",
+    "open_console_login": "Abrir início de sessão da consola",
+    "session_expired": "Sessão expirada. Inicie sessão novamente.",
+    "fill_all_fields": "Preencha todos os campos",
+    "invalid_credentials": "Credenciais inválidas",
+    "network_error": "Erro de rede",
+    "enter_6_digits": "Introduza os 6 dígitos",
+    "invalid_code": "Código inválido"
   }
 }

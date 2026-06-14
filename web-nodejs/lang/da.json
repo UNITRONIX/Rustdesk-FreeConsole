@@ -3818,5 +3818,24 @@
     "open_panel": "Åbn konsol",
     "devices_count": "{count} enheder",
     "retry": "Prøv igen"
+  },
+  "rdclient_login": {
+    "title": "Remote Desktop-klient",
+    "subtitle": "Log ind for at oprette forbindelse til dine enheder",
+    "username_placeholder": "Brugernavn",
+    "password_placeholder": "Adgangskode",
+    "remember_me": "Husk mig på denne enhed",
+    "sign_in": "Log ind",
+    "totp_title": "To-faktor-godkendelse",
+    "totp_subtitle": "Indtast den 6-cifrede kode fra din godkendelsesapp",
+    "verify": "Bekræft",
+    "back_to_login": "Tilbage til login",
+    "open_console_login": "Åbn konsol-login",
+    "session_expired": "Session udløbet. Log ind igen.",
+    "fill_all_fields": "Udfyld alle felter",
+    "invalid_credentials": "Ugyldige loginoplysninger",
+    "network_error": "Netværksfejl",
+    "enter_6_digits": "Indtast alle 6 cifre",
+    "invalid_code": "Ugyldig kode"
   }
 }

@@ -3818,5 +3818,24 @@
     "open_panel": "Avaa konsoli",
     "devices_count": "{count} laitetta",
     "retry": "Yritä uudelleen"
+  },
+  "rdclient_login": {
+    "title": "Etätyöpöytäasiakas",
+    "subtitle": "Kirjaudu sisään yhdistääksesi laitteisiisi",
+    "username_placeholder": "Käyttäjätunnus",
+    "password_placeholder": "Salasana",
+    "remember_me": "Muista minut tällä laitteella",
+    "sign_in": "Kirjaudu sisään",
+    "totp_title": "Kaksivaiheinen tunnistautuminen",
+    "totp_subtitle": "Syötä 6-numeroinen koodi tunnistussovelluksestasi",
+    "verify": "Vahvista",
+    "back_to_login": "Takaisin kirjautumiseen",
+    "open_console_login": "Avaa konsolin kirjautuminen",
+    "session_expired": "Istunto vanhentui. Kirjaudu uudelleen.",
+    "fill_all_fields": "Täytä kaikki kentät",
+    "invalid_credentials": "Virheelliset tunnistetiedot",
+    "network_error": "Verkkovirhe",
+    "enter_6_digits": "Syötä kaikki 6 numeroa",
+    "invalid_code": "Virheellinen koodi"
   }
 }

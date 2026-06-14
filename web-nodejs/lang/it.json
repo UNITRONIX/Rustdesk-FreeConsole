@@ -3812,5 +3812,24 @@
     "open_panel": "Apri console",
     "devices_count": "{count} dispositivi",
     "retry": "Riprova"
+  },
+  "rdclient_login": {
+    "title": "Client desktop remoto",
+    "subtitle": "Accedi per connetterti ai tuoi dispositivi",
+    "username_placeholder": "Nome utente",
+    "password_placeholder": "Password",
+    "remember_me": "Ricordami su questo dispositivo",
+    "sign_in": "Accedi",
+    "totp_title": "Autenticazione a due fattori",
+    "totp_subtitle": "Inserisci il codice a 6 cifre dalla tua app di autenticazione",
+    "verify": "Verifica",
+    "back_to_login": "Torna all'accesso",
+    "open_console_login": "Apri accesso console",
+    "session_expired": "Sessione scaduta. Accedi di nuovo.",
+    "fill_all_fields": "Compila tutti i campi",
+    "invalid_credentials": "Credenziali non valide",
+    "network_error": "Errore di rete",
+    "enter_6_digits": "Inserisci tutte le 6 cifre",
+    "invalid_code": "Codice non valido"
   }
 }

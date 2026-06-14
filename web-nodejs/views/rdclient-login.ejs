@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="<%= lang || 'en' %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title><%= _('rdclient_login.title') %> - <%= appName %></title>
+
+    <link rel="icon" type="image/svg+xml" href="/branding/favicon.svg">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="/css/theme.css?v=<%= cacheVersion %>">
+    <link rel="stylesheet" href="/css/branding.css?v=<%= typeof brandingRevision !== 'undefined' ? brandingRevision : cacheVersion %>">
+    <link rel="stylesheet" href="/css/desktop-login.css?v=<%= cacheVersion %>">
+    <link rel="stylesheet" href="/css/rdclient-login.css?v=<%= cacheVersion %>">
+</head>
+<body class="desktop-login-page rdclient-login-page">
+    <div class="dl-wallpaper rdclient-login-wallpaper" id="rdclient-wallpaper">
+        <div class="dl-wallpaper-overlay"></div>
+    </div>
+
+    <div class="rdclient-login-shell">
+        <div class="rdclient-login-brand" id="rdclient-login-brand">
+            <span class="material-icons">connected_tv</span>
+            <span><%= appName %></span>
+        </div>
+
+        <div class="dl-card-wrapper rdclient-login-card-wrap">
+            <div class="dl-card" id="rdclient-login-card">
+                <div class="rdclient-login-heading">
+                    <h1><%= _('rdclient_login.title') %></h1>
+                    <p><%= _('rdclient_login.subtitle') %></p>
+                </div>
+
+                <div class="dl-avatar" id="rdclient-avatar">
+                    <span class="material-icons">person</span>
+                </div>
+
+                <form class="dl-form" id="rdclient-login-form">
+                    <div class="dl-field">
+                        <input type="text" id="rdclient-username" class="dl-input"
+                            placeholder="<%= _('rdclient_login.username_placeholder') %>"
+                            autocomplete="username" required autofocus>
+                    </div>
+                    <div class="dl-field">
+                        <div class="dl-password-wrapper">
+                            <input type="password" id="rdclient-password" class="dl-input"
+                                placeholder="<%= _('rdclient_login.password_placeholder') %>"
+                                autocomplete="current-password" required>
+                            <button type="button" class="dl-password-toggle" id="rdclient-password-toggle">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <label class="rdclient-remember">
+                        <input type="checkbox" id="rdclient-remember" checked>
+                        <span><%= _('rdclient_login.remember_me') %></span>
+                    </label>
+
+                    <div class="dl-error hidden" id="rdclient-error">
+                        <span class="material-icons">error</span>
+                        <span id="rdclient-error-text"></span>
+                    </div>
+
+                    <button type="submit" class="dl-submit" id="rdclient-submit-btn">
+                        <span class="dl-submit-text"><%= _('rdclient_login.sign_in') %></span>
+                        <span class="dl-submit-arrow"><span class="material-icons">arrow_forward</span></span>
+                    </button>
+                </form>
+
+                <form class="dl-form hidden" id="rdclient-totp-form">
+                    <div class="dl-totp-header">
+                        <span class="material-icons dl-totp-icon">security</span>
+                        <div class="dl-totp-title"><%= _('rdclient_login.totp_title') %></div>
+                        <div class="dl-totp-subtitle"><%= _('rdclient_login.totp_subtitle') %></div>
+                    </div>
+                    <div class="dl-totp-inputs" id="rdclient-totp-inputs">
+                        <input type="text" class="dl-totp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="0">
+                        <input type="text" class="dl-totp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="1">
+                        <input type="text" class="dl-totp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="2">
+                        <span class="dl-totp-separator">–</span>
+                        <input type="text" class="dl-totp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="3">
+                        <input type="text" class="dl-totp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="4">
+                        <input type="text" class="dl-totp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="5">
+                    </div>
+                    <div class="dl-error hidden" id="rdclient-totp-error">
+                        <span class="material-icons">error</span>
+                        <span id="rdclient-totp-error-text"></span>
+                    </div>
+                    <button type="submit" class="dl-submit" id="rdclient-totp-submit">
+                        <span class="dl-submit-text"><%= _('rdclient_login.verify') %></span>
+                        <span class="dl-submit-arrow"><span class="material-icons">verified_user</span></span>
+                    </button>
+                    <div class="dl-totp-back">
+                        <a href="#" id="rdclient-totp-back-link">
+                            <span class="material-icons" style="font-size:16px">arrow_back</span>
+                            <%= _('rdclient_login.back_to_login') %>
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="rdclient-login-footer">
+            <a href="/login" class="rdclient-login-console-link"><%= _('rdclient_login.open_console_login') %></a>
+            <span><%= appName %> v<%= appVersion %></span>
+        </div>
+    </div>
+
+    <script nonce="<%= cspNonce %>">
+        window.BetterDesk = {
+            csrfToken: '<%= csrfToken || "" %>',
+            lang: '<%= lang || "en" %>',
+            translations: <%- JSON.stringify(translations || {}) %>,
+            branding: <%- JSON.stringify(branding || {}) %>,
+            returnUrl: <%- JSON.stringify(typeof returnUrl !== 'undefined' ? returnUrl : '/remote') %>,
+            sessionExpired: <%= sessionExpired ? 'true' : 'false' %>
+        };
+    </script>
+    <script src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclientSecureStore.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclient-login.js?v=<%= cacheVersion %>"></script>
+</body>
+</html>

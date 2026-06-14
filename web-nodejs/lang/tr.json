@@ -3818,5 +3818,24 @@
     "open_panel": "Konsolu aç",
     "devices_count": "{count} cihaz",
     "retry": "Yeniden dene"
+  },
+  "rdclient_login": {
+    "title": "Uzak Masaüstü İstemcisi",
+    "subtitle": "Cihazlarınıza bağlanmak için oturum açın",
+    "username_placeholder": "Kullanıcı adı",
+    "password_placeholder": "Parola",
+    "remember_me": "Bu cihazda beni hatırla",
+    "sign_in": "Oturum aç",
+    "totp_title": "İki faktörlü kimlik doğrulama",
+    "totp_subtitle": "Kimlik doğrulama uygulamanızdaki 6 haneli kodu girin",
+    "verify": "Doğrula",
+    "back_to_login": "Oturum açmaya dön",
+    "open_console_login": "Konsol oturum açmayı aç",
+    "session_expired": "Oturum süresi doldu. Lütfen tekrar oturum açın.",
+    "fill_all_fields": "Lütfen tüm alanları doldurun",
+    "invalid_credentials": "Geçersiz kimlik bilgileri",
+    "network_error": "Ağ hatası",
+    "enter_6_digits": "6 hanenin tamamını girin",
+    "invalid_code": "Geçersiz kod"
   }
 }

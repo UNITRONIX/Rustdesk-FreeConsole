@@ -3819,5 +3819,24 @@
     "open_panel": "فتح لوحة التحكم",
     "devices_count": "{count} أجهزة",
     "retry": "إعادة المحاولة"
+  },
+  "rdclient_login": {
+    "title": "عميل سطح المكتب البعيد",
+    "subtitle": "سجّل الدخول للاتصال بأجهزتك",
+    "username_placeholder": "اسم المستخدم",
+    "password_placeholder": "كلمة المرور",
+    "remember_me": "تذكرني على هذا الجهاز",
+    "sign_in": "تسجيل الدخول",
+    "totp_title": "المصادقة الثنائية",
+    "totp_subtitle": "أدخل الرمز المكون من 6 أرقام من تطبيق المصادقة",
+    "verify": "تحقق",
+    "back_to_login": "العودة إلى تسجيل الدخول",
+    "open_console_login": "فتح تسجيل دخول وحدة التحكم",
+    "session_expired": "انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.",
+    "fill_all_fields": "يرجى ملء جميع الحقول",
+    "invalid_credentials": "بيانات اعتماد غير صالحة",
+    "network_error": "خطأ في الشبكة",
+    "enter_6_digits": "أدخل جميع الأرقام الستة",
+    "invalid_code": "رمز غير صالح"
   }
 }

@@ -3818,5 +3818,24 @@
     "open_panel": "Mở bảng điều khiển",
     "devices_count": "{count} thiết bị",
     "retry": "Thử lại"
+  },
+  "rdclient_login": {
+    "title": "Máy khách Desktop từ xa",
+    "subtitle": "Đăng nhập để kết nối với thiết bị của bạn",
+    "username_placeholder": "Tên người dùng",
+    "password_placeholder": "Mật khẩu",
+    "remember_me": "Ghi nhớ tôi trên thiết bị này",
+    "sign_in": "Đăng nhập",
+    "totp_title": "Xác thực hai yếu tố",
+    "totp_subtitle": "Nhập mã 6 chữ số từ ứng dụng xác thực của bạn",
+    "verify": "Xác minh",
+    "back_to_login": "Quay lại đăng nhập",
+    "open_console_login": "Mở đăng nhập bảng điều khiển",
+    "session_expired": "Phiên đã hết hạn. Vui lòng đăng nhập lại.",
+    "fill_all_fields": "Vui lòng điền đầy đủ các trường",
+    "invalid_credentials": "Thông tin đăng nhập không hợp lệ",
+    "network_error": "Lỗi mạng",
+    "enter_6_digits": "Nhập đủ 6 chữ số",
+    "invalid_code": "Mã không hợp lệ"
   }
 }

@@ -3818,5 +3818,24 @@
     "open_panel": "Buka konsol",
     "devices_count": "{count} perangkat",
     "retry": "Coba lagi"
+  },
+  "rdclient_login": {
+    "title": "Klien Desktop Jarak Jauh",
+    "subtitle": "Masuk untuk terhubung ke perangkat Anda",
+    "username_placeholder": "Nama pengguna",
+    "password_placeholder": "Kata sandi",
+    "remember_me": "Ingat saya di perangkat ini",
+    "sign_in": "Masuk",
+    "totp_title": "Autentikasi dua faktor",
+    "totp_subtitle": "Masukkan kode 6 digit dari aplikasi autentikator Anda",
+    "verify": "Verifikasi",
+    "back_to_login": "Kembali ke masuk",
+    "open_console_login": "Buka login konsol",
+    "session_expired": "Sesi berakhir. Silakan masuk lagi.",
+    "fill_all_fields": "Harap isi semua bidang",
+    "invalid_credentials": "Kredensial tidak valid",
+    "network_error": "Kesalahan jaringan",
+    "enter_6_digits": "Masukkan semua 6 digit",
+    "invalid_code": "Kode tidak valid"
   }
 }

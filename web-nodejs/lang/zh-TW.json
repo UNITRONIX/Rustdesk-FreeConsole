@@ -3816,5 +3816,24 @@
     "open_panel": "開啟主控台",
     "devices_count": "{count} 台裝置",
     "retry": "重試"
+  },
+  "rdclient_login": {
+    "title": "遠端桌面用戶端",
+    "subtitle": "登入以連線至您的裝置",
+    "username_placeholder": "使用者名稱",
+    "password_placeholder": "密碼",
+    "remember_me": "在此裝置上記住我",
+    "sign_in": "登入",
+    "totp_title": "雙因素驗證",
+    "totp_subtitle": "輸入驗證器應用程式中的6位數代碼",
+    "verify": "驗證",
+    "back_to_login": "返回登入",
+    "open_console_login": "開啟主控台登入",
+    "session_expired": "工作階段已過期，請重新登入。",
+    "fill_all_fields": "請填寫所有欄位",
+    "invalid_credentials": "憑證無效",
+    "network_error": "網路錯誤",
+    "enter_6_digits": "請輸入全部6位數字",
+    "invalid_code": "代碼無效"
   }
 }

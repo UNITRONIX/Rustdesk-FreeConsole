@@ -3812,5 +3812,24 @@
     "open_panel": "打开控制台",
     "devices_count": "{count} 台设备",
     "retry": "重试"
+  },
+  "rdclient_login": {
+    "title": "远程桌面客户端",
+    "subtitle": "登录以连接您的设备",
+    "username_placeholder": "用户名",
+    "password_placeholder": "密码",
+    "remember_me": "在此设备上记住我",
+    "sign_in": "登录",
+    "totp_title": "双因素认证",
+    "totp_subtitle": "输入身份验证应用中的6位代码",
+    "verify": "验证",
+    "back_to_login": "返回登录",
+    "open_console_login": "打开控制台登录",
+    "session_expired": "会话已过期，请重新登录。",
+    "fill_all_fields": "请填写所有字段",
+    "invalid_credentials": "凭据无效",
+    "network_error": "网络错误",
+    "enter_6_digits": "请输入全部6位数字",
+    "invalid_code": "代码无效"
   }
 }

@@ -92,6 +92,81 @@ function roleHasPermission(role, permission) {
 }
 
 /**
+ * Safe relative return URL for RdClient pages only (/remote…).
+ */
+function isSafeRdClientReturnUrl(u) {
+    if (typeof u !== 'string' || u.length === 0) return false;
+    if (/[\r\n\x00]/.test(u)) return false;
+    if (!u.startsWith('/remote')) return false;
+    if (u.startsWith('//') || u.startsWith('/\\')) return false;
+    if (u.startsWith('/remote/login')) return false;
+    return true;
+}
+
+function rdClientLoginRedirect(req) {
+    const requested = req.originalUrl || req.url || '/remote';
+    const returnParam = isSafeRdClientReturnUrl(requested)
+        ? requested
+        : (isSafeRdClientReturnUrl(req.query.return) ? req.query.return : '/remote');
+    return `/remote/login?return=${encodeURIComponent(returnParam)}`;
+}
+
+/**
+ * RdClient auth — redirects to /remote/login instead of panel /login.
+ * @param {string} [permission] - optional permission (e.g. device.connect)
+ */
+function requireRdClientAuth(permission) {
+    return function (req, res, next) {
+        if (!req.session || !req.session.userId) {
+            if (req.path.startsWith('/api/')) {
+                return res.status(401).json({ success: false, error: 'Unauthorized. Please log in.' });
+            }
+            return res.redirect(rdClientLoginRedirect(req));
+        }
+
+        if (req.session.user && req.session.user.role === 'pro') {
+            req.session.destroy();
+            if (req.path.startsWith('/api/')) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Pro accounts can only access the RustDesk desktop client API'
+                });
+            }
+            return res.redirect(rdClientLoginRedirect(req));
+        }
+
+        if (permission) {
+            const role = req.session.user && req.session.user.role;
+            if (!roleHasPermission(role, permission)) {
+                if (req.path.startsWith('/api/')) {
+                    return res.status(403).json({ success: false, error: `Permission denied: ${permission}` });
+                }
+                return res.status(403).render('errors/403', {
+                    title: 'Forbidden',
+                    message: 'You do not have permission to access this resource'
+                });
+            }
+        }
+
+        res.locals.user = req.session.user;
+        res.locals.emergencyMode = !!req.session.emergencyMode;
+        next();
+    };
+}
+
+/**
+ * RdClient login page — redirect away if already authenticated with device.connect.
+ */
+function rdClientGuestOnly(req, res, next) {
+    const role = req.session && req.session.user && req.session.user.role;
+    if (req.session && req.session.userId && role !== 'pro' && roleHasPermission(role, 'device.connect')) {
+        const dest = isSafeRdClientReturnUrl(req.query.return) ? req.query.return : '/remote';
+        return res.redirect(dest);
+    }
+    next();
+}
+
+/**
  * Require authentication middleware
  * Redirects to login page for HTML requests, returns 401 for API requests
  */
@@ -247,6 +322,9 @@ module.exports = {
     requireRole,
     requireAdmin,
     requirePermission,
+    requireRdClientAuth,
+    rdClientGuestOnly,
+    isSafeRdClientReturnUrl,
     optionalAuth,
     guestOnly,
     roleHasPermission,

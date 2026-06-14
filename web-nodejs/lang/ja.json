@@ -3812,5 +3812,24 @@
     "open_panel": "コンソールを開く",
     "devices_count": "{count} 台",
     "retry": "再試行"
+  },
+  "rdclient_login": {
+    "title": "リモートデスクトップクライアント",
+    "subtitle": "デバイスに接続するにはサインインしてください",
+    "username_placeholder": "ユーザー名",
+    "password_placeholder": "パスワード",
+    "remember_me": "このデバイスでログイン情報を保存",
+    "sign_in": "サインイン",
+    "totp_title": "二要素認証",
+    "totp_subtitle": "認証アプリの6桁のコードを入力してください",
+    "verify": "確認",
+    "back_to_login": "サインインに戻る",
+    "open_console_login": "コンソールログインを開く",
+    "session_expired": "セッションの有効期限が切れました。再度サインインしてください。",
+    "fill_all_fields": "すべての項目を入力してください",
+    "invalid_credentials": "認証情報が無効です",
+    "network_error": "ネットワークエラー",
+    "enter_6_digits": "6桁すべてを入力してください",
+    "invalid_code": "無効なコード"
   }
 }
