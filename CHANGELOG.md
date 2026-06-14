@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.3.5] — 2026-06-14
+
+### Changed
 
 - **License (stable):** **v3.4.0** will be the first stable release under **AGPL-3.0** (already in effect on `dev` since v3.3.3). v3.3.x and earlier remain Apache 2.0.
 
@@ -662,3 +669,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.1...v3.3.2
 [3.3.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.2...v3.3.3
 [3.3.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.3...v3.3.4
+[3.3.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.4...v3.3.5
