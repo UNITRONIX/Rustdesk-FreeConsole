@@ -84,7 +84,8 @@
     "permissions": "Behörigheter",
     "server_management": "Serverhantering",
     "server_attestation": "Serverattest",
-    "commercialization": "Kommersialisering"
+    "commercialization": "Kommersialisering",
+    "remote_open_tab": "Öppna fjärrskrivbordsklient i ny flik"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Fjärrskrivbordsklient",
+    "subtitle": "Anslut till dina enheter från webbläsaren",
+    "search_placeholder": "Sök efter ID, värdnamn eller anteckning…",
+    "filter_all": "Alla",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "Enhets-ID",
+    "col_hostname": "Värdnamn",
+    "col_platform": "Plattform",
+    "col_status": "Status",
+    "col_last_seen": "Senast sedd",
+    "connect": "Anslut",
+    "empty": "Inga enheter matchar filtren",
+    "loading": "Laddar enheter…",
+    "error_load": "Kunde inte ladda enheter",
+    "open_panel": "Öppna konsol",
+    "devices_count": "{count} enheter",
+    "retry": "Försök igen"
   }
 }

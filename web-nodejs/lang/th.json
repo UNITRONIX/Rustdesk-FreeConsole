@@ -84,7 +84,8 @@
     "permissions": "สิทธิ์",
     "server_management": "จัดการเซิร์ฟเวอร์",
     "server_attestation": "การรับรองประสิทธิภาพเซิร์ฟเวอร์",
-    "commercialization": "การทำให้เป็นเชิงพาณิชย์"
+    "commercialization": "การทำให้เป็นเชิงพาณิชย์",
+    "remote_open_tab": "เปิดไคลเอนต์เดสก์ท็อประยะไกลในแท็บใหม่"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "ไคลเอนต์เดสก์ท็อประยะไกล",
+    "subtitle": "เชื่อมต่ออุปกรณ์ของคุณจากเบราว์เซอร์",
+    "search_placeholder": "ค้นหาตาม ID ชื่อโฮสต์ หรือหมายเหตุ…",
+    "filter_all": "ทั้งหมด",
+    "filter_online": "ออนไลน์",
+    "filter_offline": "ออฟไลน์",
+    "col_id": "ID อุปกรณ์",
+    "col_hostname": "ชื่อโฮสต์",
+    "col_platform": "แพลตฟอร์ม",
+    "col_status": "สถานะ",
+    "col_last_seen": "เห็นล่าสุด",
+    "connect": "เชื่อมต่อ",
+    "empty": "ไม่มีอุปกรณ์ที่ตรงกับตัวกรอง",
+    "loading": "กำลังโหลดอุปกรณ์…",
+    "error_load": "โหลดอุปกรณ์ไม่สำเร็จ",
+    "open_panel": "เปิดคอนโซล",
+    "devices_count": "{count} อุปกรณ์",
+    "retry": "ลองอีกครั้ง"
   }
 }

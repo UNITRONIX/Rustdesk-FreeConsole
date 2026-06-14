@@ -78,7 +78,8 @@
     "permissions": "Machtigingen",
     "server_management": "Serverbeheer",
     "server_attestation": "Serverattestering",
-    "commercialization": "Commercialisatie"
+    "commercialization": "Commercialisatie",
+    "remote_open_tab": "Externe-bureaubladclient openen in nieuw tabblad"
   },
   "auth": {
     "login": "Inloggen",
@@ -3791,5 +3792,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Externe-bureaubladclient",
+    "subtitle": "Maak verbinding met uw apparaten vanuit de browser",
+    "search_placeholder": "Zoeken op ID, hostnaam of notitie…",
+    "filter_all": "Alle",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "Apparaat-ID",
+    "col_hostname": "Hostnaam",
+    "col_platform": "Platform",
+    "col_status": "Status",
+    "col_last_seen": "Laatst gezien",
+    "connect": "Verbinden",
+    "empty": "Geen apparaten komen overeen met de filters",
+    "loading": "Apparaten laden…",
+    "error_load": "Apparaten laden mislukt",
+    "open_panel": "Console openen",
+    "devices_count": "{count} apparaten",
+    "retry": "Opnieuw"
   }
 }

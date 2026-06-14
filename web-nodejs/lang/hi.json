@@ -84,7 +84,8 @@
     "permissions": "अनुमतियां",
     "server_management": "सर्वर प्रबंधन",
     "server_attestation": "सर्वर प्रमाणीकरण",
-    "commercialization": "व्यावसायीकरण"
+    "commercialization": "व्यावसायीकरण",
+    "remote_open_tab": "नए टैब में रिमोट डेस्कटॉप क्लाइंट खोलें"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "रिमोट डेस्कटॉप क्लाइंट",
+    "subtitle": "ब्राउज़र से अपने उपकरणों से कनेक्ट करें",
+    "search_placeholder": "ID, होस्टनाम या नोट से खोजें…",
+    "filter_all": "सभी",
+    "filter_online": "ऑनलाइन",
+    "filter_offline": "ऑफ़लाइन",
+    "col_id": "डिवाइस ID",
+    "col_hostname": "होस्टनाम",
+    "col_platform": "प्लेटफ़ॉर्म",
+    "col_status": "स्थिति",
+    "col_last_seen": "अंतिम बार",
+    "connect": "कनेक्ट",
+    "empty": "कोई डिवाइस फ़िल्टर से मेल नहीं खाता",
+    "loading": "डिवाइस लोड हो रहे हैं…",
+    "error_load": "डिवाइस लोड करने में विफल",
+    "open_panel": "कंसोल खोलें",
+    "devices_count": "{count} डिवाइस",
+    "retry": "पुनः प्रयास"
   }
 }

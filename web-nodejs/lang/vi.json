@@ -84,7 +84,8 @@
     "permissions": "Quyền",
     "server_management": "Quản lý máy chủ",
     "server_attestation": "Chứng nhận máy chủ",
-    "commercialization": "Thương mại hóa"
+    "commercialization": "Thương mại hóa",
+    "remote_open_tab": "Mở client máy tính để bàn từ xa trong tab mới"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Client máy tính để bàn từ xa",
+    "subtitle": "Kết nối với thiết bị từ trình duyệt",
+    "search_placeholder": "Tìm theo ID, tên máy chủ hoặc ghi chú…",
+    "filter_all": "Tất cả",
+    "filter_online": "Trực tuyến",
+    "filter_offline": "Ngoại tuyến",
+    "col_id": "ID thiết bị",
+    "col_hostname": "Tên máy chủ",
+    "col_platform": "Nền tảng",
+    "col_status": "Trạng thái",
+    "col_last_seen": "Lần cuối",
+    "connect": "Kết nối",
+    "empty": "Không có thiết bị khớp bộ lọc",
+    "loading": "Đang tải thiết bị…",
+    "error_load": "Không thể tải thiết bị",
+    "open_panel": "Mở bảng điều khiển",
+    "devices_count": "{count} thiết bị",
+    "retry": "Thử lại"
   }
 }

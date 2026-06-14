@@ -78,7 +78,8 @@
     "permissions": "Permissões",
     "server_management": "Gestão do servidor",
     "server_attestation": "Atestação do servidor",
-    "commercialization": "Comercialização"
+    "commercialization": "Comercialização",
+    "remote_open_tab": "Abrir cliente de ambiente de trabalho remoto num novo separador"
   },
   "auth": {
     "login": "Entrar",
@@ -3791,5 +3792,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Cliente de ambiente de trabalho remoto",
+    "subtitle": "Ligue-se aos seus dispositivos a partir do browser",
+    "search_placeholder": "Pesquisar por ID, hostname ou nota…",
+    "filter_all": "Todos",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "ID do dispositivo",
+    "col_hostname": "Nome do host",
+    "col_platform": "Plataforma",
+    "col_status": "Estado",
+    "col_last_seen": "Última atividade",
+    "connect": "Ligar",
+    "empty": "Nenhum dispositivo corresponde aos filtros",
+    "loading": "A carregar dispositivos…",
+    "error_load": "Falha ao carregar dispositivos",
+    "open_panel": "Abrir consola",
+    "devices_count": "{count} dispositivos",
+    "retry": "Tentar novamente"
   }
 }

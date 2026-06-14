@@ -84,7 +84,8 @@
     "permissions": "Engedélyek",
     "server_management": "Kiszolgáló-kezelés",
     "server_attestation": "Szerver tanúsítás",
-    "commercialization": "Kereskedelmi modul"
+    "commercialization": "Kereskedelmi modul",
+    "remote_open_tab": "Távoli asztal kliens megnyitása új lapon"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Távoli asztal kliens",
+    "subtitle": "Csatlakozzon eszközeihez a böngészőből",
+    "search_placeholder": "Keresés ID, gazdagépnév vagy megjegyzés alapján…",
+    "filter_all": "Összes",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "Eszközazonosító",
+    "col_hostname": "Gazdagépnév",
+    "col_platform": "Platform",
+    "col_status": "Állapot",
+    "col_last_seen": "Utoljára látva",
+    "connect": "Csatlakozás",
+    "empty": "Nincs a szűrőknek megfelelő eszköz",
+    "loading": "Eszközök betöltése…",
+    "error_load": "Az eszközök betöltése sikertelen",
+    "open_panel": "Konzol megnyitása",
+    "devices_count": "{count} eszköz",
+    "retry": "Újra"
   }
 }

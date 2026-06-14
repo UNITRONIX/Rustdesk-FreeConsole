@@ -78,7 +78,8 @@
     "login": "登录",
     "server_management": "服务器管理",
     "server_attestation": "服务器性能认证",
-    "commercialization": "商业化"
+    "commercialization": "商业化",
+    "remote_open_tab": "在新标签页中打开远程桌面客户端"
   },
   "auth": {
     "login": "登录",
@@ -3791,5 +3792,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "远程桌面客户端",
+    "subtitle": "从浏览器连接到您的设备",
+    "search_placeholder": "按 ID、主机名或备注搜索…",
+    "filter_all": "全部",
+    "filter_online": "在线",
+    "filter_offline": "离线",
+    "col_id": "设备 ID",
+    "col_hostname": "主机名",
+    "col_platform": "平台",
+    "col_status": "状态",
+    "col_last_seen": "最后在线",
+    "connect": "连接",
+    "empty": "没有符合筛选条件的设备",
+    "loading": "正在加载设备…",
+    "error_load": "加载设备失败",
+    "open_panel": "打开控制台",
+    "devices_count": "{count} 台设备",
+    "retry": "重试"
   }
 }

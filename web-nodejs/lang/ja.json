@@ -78,7 +78,8 @@
     "permissions": "権限",
     "server_management": "サーバー管理",
     "server_attestation": "サーバー性能認定",
-    "commercialization": "商用化"
+    "commercialization": "商用化",
+    "remote_open_tab": "新しいタブでリモートデスクトップクライアントを開く"
   },
   "auth": {
     "login": "Login",
@@ -3791,5 +3792,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "リモートデスクトップクライアント",
+    "subtitle": "ブラウザからデバイスに接続",
+    "search_placeholder": "ID、ホスト名、メモで検索…",
+    "filter_all": "すべて",
+    "filter_online": "オンライン",
+    "filter_offline": "オフライン",
+    "col_id": "デバイス ID",
+    "col_hostname": "ホスト名",
+    "col_platform": "プラットフォーム",
+    "col_status": "状態",
+    "col_last_seen": "最終確認",
+    "connect": "接続",
+    "empty": "フィルターに一致するデバイスがありません",
+    "loading": "デバイスを読み込み中…",
+    "error_load": "デバイスの読み込みに失敗しました",
+    "open_panel": "コンソールを開く",
+    "devices_count": "{count} 台",
+    "retry": "再試行"
   }
 }

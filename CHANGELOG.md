@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **RdClient dashboard (web):** **Tools → Remote Desktop** opens `/remote` in a new browser tab — standalone operator device list with branding, search/filters, and **Connect** (same `/remote/:id` viewer as Devices). Devices → Web Remote unchanged.
+
 ### Changed
 - _(none yet)_
 

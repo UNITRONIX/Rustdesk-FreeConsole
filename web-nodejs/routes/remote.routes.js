@@ -8,7 +8,7 @@ const router = express.Router();
 const fs = require('fs');
 const db = require('../services/database');
 const config = require('../config/config');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requirePermission } = require('../middleware/auth');
 
 // Lazy-loaded relay helper — avoid circular require at module load time
 function getRemoteRelay() {
@@ -26,10 +26,13 @@ try {
 }
 
 /**
- * GET /remote - Redirect to devices page (device ID required for remote)
+ * GET /remote - RdClient operator dashboard (device list + connect)
  */
-router.get('/remote', requireAuth, (req, res) => {
-    res.redirect('/devices');
+router.get('/remote', requireAuth, requirePermission('device.connect'), (req, res) => {
+    res.render('remote-dashboard', {
+        title: req.t('remote_dashboard.title'),
+        activePage: 'remote',
+    });
 });
 
 /**

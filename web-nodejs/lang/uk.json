@@ -84,7 +84,8 @@
     "permissions": "Дозволи",
     "server_management": "Керування сервером",
     "server_attestation": "Атестація сервера",
-    "commercialization": "Комерціалізація"
+    "commercialization": "Комерціалізація",
+    "remote_open_tab": "Відкрити клієнт віддаленого робочого столу в новій вкладці"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Клієнт віддаленого робочого столу",
+    "subtitle": "Підключайтеся до пристроїв із браузера",
+    "search_placeholder": "Пошук за ID, ім'ям хоста або нотаткою…",
+    "filter_all": "Усі",
+    "filter_online": "Онлайн",
+    "filter_offline": "Офлайн",
+    "col_id": "ID пристрою",
+    "col_hostname": "Ім'я хоста",
+    "col_platform": "Платформа",
+    "col_status": "Статус",
+    "col_last_seen": "Остання активність",
+    "connect": "Підключити",
+    "empty": "Жоден пристрій не відповідає фільтрам",
+    "loading": "Завантаження пристроїв…",
+    "error_load": "Не вдалося завантажити пристрої",
+    "open_panel": "Відкрити консоль",
+    "devices_count": "{count} пристроїв",
+    "retry": "Повторити"
   }
 }

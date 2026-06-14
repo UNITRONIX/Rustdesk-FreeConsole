@@ -82,7 +82,8 @@
     "login": "Connexion",
     "server_management": "Server-Verwaltung",
     "server_attestation": "Server-Attestierung",
-    "commercialization": "Kommerzialisierung"
+    "commercialization": "Kommerzialisierung",
+    "remote_open_tab": "Ouvrir le client Bureau à distance dans un nouvel onglet"
   },
   "auth": {
     "login": "Connexion",
@@ -3795,5 +3796,25 @@
       "save": "Enregistrer les paramètres de notification",
       "saved": "Paramètres de notification enregistrés"
     }
+  },
+  "remote_dashboard": {
+    "title": "Client Bureau à distance",
+    "subtitle": "Connectez-vous à vos appareils depuis le navigateur",
+    "search_placeholder": "Rechercher par ID, nom d'hôte ou note…",
+    "filter_all": "Tous",
+    "filter_online": "En ligne",
+    "filter_offline": "Hors ligne",
+    "col_id": "ID appareil",
+    "col_hostname": "Nom d'hôte",
+    "col_platform": "Plateforme",
+    "col_status": "Statut",
+    "col_last_seen": "Dernière activité",
+    "connect": "Connecter",
+    "empty": "Aucun appareil ne correspond aux filtres",
+    "loading": "Chargement des appareils…",
+    "error_load": "Échec du chargement des appareils",
+    "open_panel": "Ouvrir la console",
+    "devices_count": "{count} appareils",
+    "retry": "Réessayer"
   }
 }

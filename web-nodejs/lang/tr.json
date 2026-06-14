@@ -84,7 +84,8 @@
     "permissions": "İzinler",
     "server_management": "Sunucu Yönetimi",
     "server_attestation": "Sunucu Performans Onayı",
-    "commercialization": "Ticarileştirme"
+    "commercialization": "Ticarileştirme",
+    "remote_open_tab": "Uzak masaüstü istemcisini yeni sekmede aç"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Uzak masaüstü istemcisi",
+    "subtitle": "Tarayıcıdan cihazlarınıza bağlanın",
+    "search_placeholder": "ID, ana bilgisayar adı veya nota göre ara…",
+    "filter_all": "Tümü",
+    "filter_online": "Çevrimiçi",
+    "filter_offline": "Çevrimdışı",
+    "col_id": "Cihaz ID",
+    "col_hostname": "Ana bilgisayar",
+    "col_platform": "Platform",
+    "col_status": "Durum",
+    "col_last_seen": "Son görülme",
+    "connect": "Bağlan",
+    "empty": "Filtrelere uyan cihaz yok",
+    "loading": "Cihazlar yükleniyor…",
+    "error_load": "Cihazlar yüklenemedi",
+    "open_panel": "Konsolu aç",
+    "devices_count": "{count} cihaz",
+    "retry": "Yeniden dene"
   }
 }

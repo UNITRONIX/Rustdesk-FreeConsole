@@ -78,7 +78,8 @@
     "permissions": "Permessi",
     "server_management": "Gestione server",
     "server_attestation": "Attestazione server",
-    "commercialization": "Commercializzazione"
+    "commercialization": "Commercializzazione",
+    "remote_open_tab": "Apri client desktop remoto in una nuova scheda"
   },
   "auth": {
     "login": "Accedi",
@@ -3791,5 +3792,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Client desktop remoto",
+    "subtitle": "Connettiti ai tuoi dispositivi dal browser",
+    "search_placeholder": "Cerca per ID, hostname o nota…",
+    "filter_all": "Tutti",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "ID dispositivo",
+    "col_hostname": "Hostname",
+    "col_platform": "Piattaforma",
+    "col_status": "Stato",
+    "col_last_seen": "Ultima attività",
+    "connect": "Connetti",
+    "empty": "Nessun dispositivo corrisponde ai filtri",
+    "loading": "Caricamento dispositivi…",
+    "error_load": "Impossibile caricare i dispositivi",
+    "open_panel": "Apri console",
+    "devices_count": "{count} dispositivi",
+    "retry": "Riprova"
   }
 }

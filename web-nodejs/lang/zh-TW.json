@@ -82,7 +82,8 @@
     "login": "登錄",
     "server_management": "服務器管理",
     "server_attestation": "服務器性能認證",
-    "commercialization": "商業化"
+    "commercialization": "商業化",
+    "remote_open_tab": "在新分頁中開啟遠端桌面用戶端"
   },
   "auth": {
     "login": "登錄",
@@ -3795,5 +3796,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "遠端桌面用戶端",
+    "subtitle": "從瀏覽器連線到您的裝置",
+    "search_placeholder": "依 ID、主機名稱或備註搜尋…",
+    "filter_all": "全部",
+    "filter_online": "線上",
+    "filter_offline": "離線",
+    "col_id": "裝置 ID",
+    "col_hostname": "主機名稱",
+    "col_platform": "平台",
+    "col_status": "狀態",
+    "col_last_seen": "最後上線",
+    "connect": "連線",
+    "empty": "沒有符合篩選條件的裝置",
+    "loading": "正在載入裝置…",
+    "error_load": "無法載入裝置",
+    "open_panel": "開啟主控台",
+    "devices_count": "{count} 台裝置",
+    "retry": "重試"
   }
 }

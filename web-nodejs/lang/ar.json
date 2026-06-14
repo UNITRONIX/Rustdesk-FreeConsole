@@ -85,7 +85,8 @@
     "permissions": "الأذونات",
     "server_management": "إدارة الخادم",
     "server_attestation": "اعتماد أداء الخادم",
-    "commercialization": "التسويق"
+    "commercialization": "التسويق",
+    "remote_open_tab": "فتح عميل سطح المكتب البعيد في علامة تبويب جديدة"
   },
   "auth": {
     "login": "Login",
@@ -3798,5 +3799,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "عميل سطح المكتب البعيد",
+    "subtitle": "اتصل بأجهزتك من المتصفح",
+    "search_placeholder": "البحث بالمعرّف أو اسم المضيف أو الملاحظة…",
+    "filter_all": "الكل",
+    "filter_online": "متصل",
+    "filter_offline": "غير متصل",
+    "col_id": "معرّف الجهاز",
+    "col_hostname": "اسم المضيف",
+    "col_platform": "المنصة",
+    "col_status": "الحالة",
+    "col_last_seen": "آخر ظهور",
+    "connect": "اتصال",
+    "empty": "لا توجد أجهزة تطابق عوامل التصفية",
+    "loading": "جارٍ تحميل الأجهزة…",
+    "error_load": "تعذّر تحميل الأجهزة",
+    "open_panel": "فتح لوحة التحكم",
+    "devices_count": "{count} أجهزة",
+    "retry": "إعادة المحاولة"
   }
 }

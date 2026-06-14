@@ -1,0 +1,70 @@
+<%- include('layouts/remote-desk', {
+    title: typeof title !== 'undefined' ? title : _('remote_dashboard.title'),
+    pageStyles: ['remote-dashboard'],
+    pageScripts: ['remote-dashboard'],
+    body: `
+<div class="rd-desk-app" id="rd-desk-app">
+    <header class="rd-desk-header">
+        <div class="rd-desk-brand">
+            <div class="rd-desk-logo" id="rd-desk-logo"></div>
+            <div class="rd-desk-brand-text">
+                <h1 class="rd-desk-title">${_('remote_dashboard.title')}</h1>
+                <p class="rd-desk-subtitle">${_('remote_dashboard.subtitle')}</p>
+            </div>
+        </div>
+        <div class="rd-desk-header-actions">
+            <span class="rd-desk-user" id="rd-desk-user"></span>
+            <a href="/devices" class="rd-desk-btn rd-desk-btn-ghost" target="_blank" rel="noopener noreferrer">
+                <span class="material-icons">dashboard</span>
+                ${_('remote_dashboard.open_panel')}
+            </a>
+        </div>
+    </header>
+
+    <div class="rd-desk-toolbar">
+        <div class="rd-desk-search-wrap">
+            <span class="material-icons rd-desk-search-icon">search</span>
+            <input type="search" id="rd-desk-search" class="rd-desk-search"
+                placeholder="${_('remote_dashboard.search_placeholder')}" autocomplete="off">
+        </div>
+        <div class="rd-desk-filters" role="tablist">
+            <button type="button" class="rd-desk-filter active" data-filter="all">${_('remote_dashboard.filter_all')}</button>
+            <button type="button" class="rd-desk-filter" data-filter="online">${_('remote_dashboard.filter_online')}</button>
+            <button type="button" class="rd-desk-filter" data-filter="offline">${_('remote_dashboard.filter_offline')}</button>
+        </div>
+        <span class="rd-desk-count" id="rd-desk-count"></span>
+    </div>
+
+    <main class="rd-desk-main">
+        <div class="rd-desk-loading" id="rd-desk-loading">
+            <span class="material-icons rd-desk-spin">sync</span>
+            <span>${_('remote_dashboard.loading')}</span>
+        </div>
+        <div class="rd-desk-error hidden" id="rd-desk-error">
+            <span class="material-icons">error_outline</span>
+            <span id="rd-desk-error-text">${_('remote_dashboard.error_load')}</span>
+            <button type="button" class="rd-desk-btn" id="rd-desk-retry">${_('remote_dashboard.retry')}</button>
+        </div>
+        <div class="rd-desk-empty hidden" id="rd-desk-empty">
+            <span class="material-icons">devices_other</span>
+            <p>${_('remote_dashboard.empty')}</p>
+        </div>
+        <div class="rd-desk-table-wrap hidden" id="rd-desk-table-wrap">
+            <table class="rd-desk-table">
+                <thead>
+                    <tr>
+                        <th>${_('remote_dashboard.col_status')}</th>
+                        <th>${_('remote_dashboard.col_id')}</th>
+                        <th>${_('remote_dashboard.col_hostname')}</th>
+                        <th>${_('remote_dashboard.col_platform')}</th>
+                        <th>${_('remote_dashboard.col_last_seen')}</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="rd-desk-tbody"></tbody>
+            </table>
+        </div>
+    </main>
+</div>
+`
+}) %>

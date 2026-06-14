@@ -78,7 +78,8 @@
     "permissions": "Berechtigungen",
     "server_management": "Server-Verwaltung",
     "server_attestation": "Server-Attestierung",
-    "commercialization": "Kommerzialisierung"
+    "commercialization": "Kommerzialisierung",
+    "remote_open_tab": "Remote-Desktop-Client in neuem Tab öffnen"
   },
   "auth": {
     "login": "Anmelden",
@@ -3791,5 +3792,25 @@
       "save": "Benachrichtigungseinstellungen speichern",
       "saved": "Benachrichtigungseinstellungen gespeichert"
     }
+  },
+  "remote_dashboard": {
+    "title": "Remote-Desktop-Client",
+    "subtitle": "Verbinden Sie sich im Browser mit Ihren Geräten",
+    "search_placeholder": "Suche nach ID, Hostname oder Notiz…",
+    "filter_all": "Alle",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "Geräte-ID",
+    "col_hostname": "Hostname",
+    "col_platform": "Plattform",
+    "col_status": "Status",
+    "col_last_seen": "Zuletzt gesehen",
+    "connect": "Verbinden",
+    "empty": "Keine Geräte entsprechen den Filtern",
+    "loading": "Geräte werden geladen…",
+    "error_load": "Geräte konnten nicht geladen werden",
+    "open_panel": "Konsole öffnen",
+    "devices_count": "{count} Geräte",
+    "retry": "Erneut versuchen"
   }
 }

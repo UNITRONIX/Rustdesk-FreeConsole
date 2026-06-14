@@ -84,7 +84,8 @@
     "permissions": "Permisiuni",
     "server_management": "Gestionare server",
     "server_attestation": "Atestare server",
-    "commercialization": "Comercializare"
+    "commercialization": "Comercializare",
+    "remote_open_tab": "Deschide clientul desktop la distanță într-o filă nouă"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Client desktop la distanță",
+    "subtitle": "Conectați-vă la dispozitivele dvs. din browser",
+    "search_placeholder": "Căutați după ID, hostname sau notă…",
+    "filter_all": "Toate",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "ID dispozitiv",
+    "col_hostname": "Hostname",
+    "col_platform": "Platformă",
+    "col_status": "Stare",
+    "col_last_seen": "Ultima activitate",
+    "connect": "Conectare",
+    "empty": "Niciun dispozitiv nu corespunde filtrelor",
+    "loading": "Se încarcă dispozitivele…",
+    "error_load": "Nu s-au putut încărca dispozitivele",
+    "open_panel": "Deschide consola",
+    "devices_count": "{count} dispozitive",
+    "retry": "Reîncearcă"
   }
 }

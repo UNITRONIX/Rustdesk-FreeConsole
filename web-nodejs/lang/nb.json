@@ -84,7 +84,8 @@
     "permissions": "Tillatelser",
     "server_management": "Serveradministrasjon",
     "server_attestation": "Serverattest",
-    "commercialization": "Kommersialisering"
+    "commercialization": "Kommersialisering",
+    "remote_open_tab": "Åpne eksternt skrivebordsklient i ny fane"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Eksternt skrivebordsklient",
+    "subtitle": "Koble til enhetene dine fra nettleseren",
+    "search_placeholder": "Søk etter ID, vertsnavn eller notat…",
+    "filter_all": "Alle",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "Enhets-ID",
+    "col_hostname": "Vertsnavn",
+    "col_platform": "Plattform",
+    "col_status": "Status",
+    "col_last_seen": "Sist sett",
+    "connect": "Koble til",
+    "empty": "Ingen enheter matcher filtrene",
+    "loading": "Laster enheter…",
+    "error_load": "Kunne ikke laste enheter",
+    "open_panel": "Åpne konsoll",
+    "devices_count": "{count} enheter",
+    "retry": "Prøv igjen"
   }
 }

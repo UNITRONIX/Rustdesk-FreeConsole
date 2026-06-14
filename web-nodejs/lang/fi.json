@@ -84,7 +84,8 @@
     "permissions": "Käyttöoikeudet",
     "server_management": "Palvelimen hallinta",
     "server_attestation": "Palvelintodistus",
-    "commercialization": "Kaupallistaminen"
+    "commercialization": "Kaupallistaminen",
+    "remote_open_tab": "Avaa etätyöpöytäasiakas uuteen välilehteen"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Etätyöpöytäasiakas",
+    "subtitle": "Yhdistä laitteisiisi selaimesta",
+    "search_placeholder": "Hae tunnuksella, isäntänimellä tai muistiinpanolla…",
+    "filter_all": "Kaikki",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "Laitetunnus",
+    "col_hostname": "Isäntänimi",
+    "col_platform": "Alusta",
+    "col_status": "Tila",
+    "col_last_seen": "Viimeksi nähty",
+    "connect": "Yhdistä",
+    "empty": "Yksikään laite ei vastaa suodattimia",
+    "loading": "Ladataan laitteita…",
+    "error_load": "Laitteiden lataus epäonnistui",
+    "open_panel": "Avaa konsoli",
+    "devices_count": "{count} laitetta",
+    "retry": "Yritä uudelleen"
   }
 }

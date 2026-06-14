@@ -78,7 +78,8 @@
     "permissions": "권한",
     "server_management": "서버 관리",
     "server_attestation": "서버 성능 인증",
-    "commercialization": "상용화"
+    "commercialization": "상용화",
+    "remote_open_tab": "새 탭에서 원격 데스크톱 클라이언트 열기"
   },
   "auth": {
     "login": "Login",
@@ -3791,5 +3792,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "원격 데스크톱 클라이언트",
+    "subtitle": "브라우저에서 장치에 연결",
+    "search_placeholder": "ID, 호스트명 또는 메모로 검색…",
+    "filter_all": "전체",
+    "filter_online": "온라인",
+    "filter_offline": "오프라인",
+    "col_id": "장치 ID",
+    "col_hostname": "호스트명",
+    "col_platform": "플랫폼",
+    "col_status": "상태",
+    "col_last_seen": "마지막 확인",
+    "connect": "연결",
+    "empty": "필터와 일치하는 장치가 없습니다",
+    "loading": "장치 불러오는 중…",
+    "error_load": "장치를 불러오지 못했습니다",
+    "open_panel": "콘솔 열기",
+    "devices_count": "{count}개 장치",
+    "retry": "다시 시도"
   }
 }

@@ -557,6 +557,17 @@ table {
     white-space: nowrap;
 }
 
+.sidebar-link-external {
+    margin-left: auto;
+    font-size: 14px;
+    opacity: 0.55;
+    flex-shrink: 0;
+}
+
+.sidebar-link:hover .sidebar-link-external {
+    opacity: 0.85;
+}
+
 .sidebar-link:hover {
     background: var(--sidebar-btn-hover-bg);
     color: var(--sidebar-btn-hover-color);

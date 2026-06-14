@@ -84,7 +84,8 @@
     "permissions": "Izin",
     "server_management": "Manajemen Server",
     "server_attestation": "Sertifikasi Server",
-    "commercialization": "Komersialisasi"
+    "commercialization": "Komersialisasi",
+    "remote_open_tab": "Buka klien desktop jarak jauh di tab baru"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Klien desktop jarak jauh",
+    "subtitle": "Hubungkan ke perangkat Anda dari browser",
+    "search_placeholder": "Cari berdasarkan ID, hostname, atau catatan…",
+    "filter_all": "Semua",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "ID perangkat",
+    "col_hostname": "Hostname",
+    "col_platform": "Platform",
+    "col_status": "Status",
+    "col_last_seen": "Terakhir terlihat",
+    "connect": "Hubungkan",
+    "empty": "Tidak ada perangkat yang cocok dengan filter",
+    "loading": "Memuat perangkat…",
+    "error_load": "Gagal memuat perangkat",
+    "open_panel": "Buka konsol",
+    "devices_count": "{count} perangkat",
+    "retry": "Coba lagi"
   }
 }

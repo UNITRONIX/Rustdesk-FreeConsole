@@ -78,7 +78,8 @@
     "permissions": "Oprávnění",
     "server_management": "Správa serveru",
     "server_attestation": "Atestace serveru",
-    "commercialization": "Komerce"
+    "commercialization": "Komerce",
+    "remote_open_tab": "Otevřít klienta vzdálené plochy v nové kartě"
   },
   "auth": {
     "login": "Přihlášení",
@@ -3791,5 +3792,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Klient vzdálené plochy",
+    "subtitle": "Připojte se ke svým zařízením z prohlížeče",
+    "search_placeholder": "Hledat podle ID, hostname nebo poznámky…",
+    "filter_all": "Vše",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "ID zařízení",
+    "col_hostname": "Hostname",
+    "col_platform": "Platforma",
+    "col_status": "Stav",
+    "col_last_seen": "Naposledy viděno",
+    "connect": "Připojit",
+    "empty": "Žádná zařízení neodpovídají filtrům",
+    "loading": "Načítání zařízení…",
+    "error_load": "Nepodařilo se načíst zařízení",
+    "open_panel": "Otevřít konzoli",
+    "devices_count": "{count} zařízení",
+    "retry": "Zkusit znovu"
   }
 }

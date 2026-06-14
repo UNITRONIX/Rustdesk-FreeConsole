@@ -84,7 +84,8 @@
     "permissions": "Tilladelser",
     "server_management": "Serveradministration",
     "server_attestation": "Serverattest",
-    "commercialization": "Kommercialisering"
+    "commercialization": "Kommercialisering",
+    "remote_open_tab": "Åbn fjernskrivebordsklient i ny fane"
   },
   "auth": {
     "login": "Login",
@@ -3797,5 +3798,25 @@
       "save": "Save notification settings",
       "saved": "Notification settings saved"
     }
+  },
+  "remote_dashboard": {
+    "title": "Fjernskrivebordsklient",
+    "subtitle": "Opret forbindelse til dine enheder fra browseren",
+    "search_placeholder": "Søg efter ID, værtsnavn eller note…",
+    "filter_all": "Alle",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "Enheds-ID",
+    "col_hostname": "Værtsnavn",
+    "col_platform": "Platform",
+    "col_status": "Status",
+    "col_last_seen": "Sidst set",
+    "connect": "Forbind",
+    "empty": "Ingen enheder matcher filtrene",
+    "loading": "Indlæser enheder…",
+    "error_load": "Kunne ikke indlæse enheder",
+    "open_panel": "Åbn konsol",
+    "devices_count": "{count} enheder",
+    "retry": "Prøv igen"
   }
 }

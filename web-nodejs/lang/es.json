@@ -78,7 +78,8 @@
     "permissions": "Permisos",
     "server_management": "Gestión del servidor",
     "server_attestation": "Certificación del servidor",
-    "commercialization": "Comercialización"
+    "commercialization": "Comercialización",
+    "remote_open_tab": "Abrir cliente de escritorio remoto en una pestaña nueva"
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -3791,5 +3792,25 @@
       "save": "Guardar ajustes de notificación",
       "saved": "Ajustes de notificación guardados"
     }
+  },
+  "remote_dashboard": {
+    "title": "Cliente de escritorio remoto",
+    "subtitle": "Conéctese a sus dispositivos desde el navegador",
+    "search_placeholder": "Buscar por ID, hostname o nota…",
+    "filter_all": "Todos",
+    "filter_online": "En línea",
+    "filter_offline": "Desconectado",
+    "col_id": "ID del dispositivo",
+    "col_hostname": "Nombre de host",
+    "col_platform": "Plataforma",
+    "col_status": "Estado",
+    "col_last_seen": "Última conexión",
+    "connect": "Conectar",
+    "empty": "Ningún dispositivo coincide con los filtros",
+    "loading": "Cargando dispositivos…",
+    "error_load": "No se pudieron cargar los dispositivos",
+    "open_panel": "Abrir consola",
+    "devices_count": "{count} dispositivos",
+    "retry": "Reintentar"
   }
 }

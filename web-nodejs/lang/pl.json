@@ -78,7 +78,8 @@
     "login": "Logowanie",
     "server_management": "Zarządzanie serwerem",
     "server_attestation": "Atest serwera",
-    "commercialization": "Komercjalizacja"
+    "commercialization": "Komercjalizacja",
+    "remote_open_tab": "Otwórz klienta pulpitu zdalnego w nowej karcie"
   },
   "auth": {
     "login": "Zaloguj",
@@ -3791,5 +3792,25 @@
       "save": "Zapisz ustawienia powiadomień",
       "saved": "Ustawienia powiadomień zapisane"
     }
+  },
+  "remote_dashboard": {
+    "title": "Klient pulpitu zdalnego",
+    "subtitle": "Połącz się ze swoimi urządzeniami z przeglądarki",
+    "search_placeholder": "Szukaj po ID, nazwie hosta lub notatce…",
+    "filter_all": "Wszystkie",
+    "filter_online": "Online",
+    "filter_offline": "Offline",
+    "col_id": "ID urządzenia",
+    "col_hostname": "Nazwa hosta",
+    "col_platform": "Platforma",
+    "col_status": "Status",
+    "col_last_seen": "Ostatnio widziany",
+    "connect": "Połącz",
+    "empty": "Brak urządzeń pasujących do filtrów",
+    "loading": "Ładowanie urządzeń…",
+    "error_load": "Nie udało się załadować urządzeń",
+    "open_panel": "Otwórz konsolę",
+    "devices_count": "{count} urządzeń",
+    "retry": "Ponów"
   }
 }
