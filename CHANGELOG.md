@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.20] — 2026-06-14
+
 ### Fixed
 
 - **RdClient dashboard (web):** address book list/grid scrolls inside the workspace instead of stretching the whole page (fixed-height flex layout).
@@ -822,3 +829,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.16...v3.3.17
 [3.3.18]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.17...v3.3.18
 [3.3.19]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.18...v3.3.19
+[3.3.20]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.19...v3.3.20
