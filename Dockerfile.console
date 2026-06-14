@@ -25,7 +25,7 @@ FROM node:20-alpine
 
 LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk Console - Web Management Panel"
-LABEL version="3.3.7"
+LABEL version="3.3.8"
 
 WORKDIR /app
 
