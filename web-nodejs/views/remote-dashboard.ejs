@@ -39,8 +39,12 @@
 
     <div class="rd-desk-workspace">
         <aside class="rd-desk-sidebar" id="rd-desk-sidebar">
-            <nav class="rd-desk-nav-section">
-                <div class="rd-desk-nav-heading">${_('remote_dashboard.nav_folders')}</div>
+            <nav class="rd-desk-nav-section" data-collapsible="folders">
+                <button type="button" class="rd-desk-nav-heading rd-desk-nav-heading-btn" id="rd-desk-nav-folders-toggle" aria-expanded="true">
+                    <span>${_('remote_dashboard.nav_folders')}</span>
+                    <span class="material-icons rd-desk-nav-chevron" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="rd-desk-nav-body" id="rd-desk-nav-folders-body">
                 <ul class="rd-desk-nav-list" id="rd-desk-folders">
                     <li><button type="button" class="rd-desk-nav-item active" data-nav="folder" data-id="all">
                         <span class="material-icons">devices</span>
@@ -54,26 +58,41 @@
                     </button></li>
                 </ul>
                 <ul class="rd-desk-nav-list rd-desk-nav-custom" id="rd-desk-folders-custom"></ul>
+                </div>
             </nav>
 
-            <nav class="rd-desk-nav-section">
-                <div class="rd-desk-nav-heading">${_('remote_dashboard.nav_groups')}</div>
+            <nav class="rd-desk-nav-section" data-collapsible="groups">
+                <button type="button" class="rd-desk-nav-heading rd-desk-nav-heading-btn" id="rd-desk-nav-groups-toggle" aria-expanded="true">
+                    <span>${_('remote_dashboard.nav_groups')}</span>
+                    <span class="material-icons rd-desk-nav-chevron" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="rd-desk-nav-body" id="rd-desk-nav-groups-body">
                 <ul class="rd-desk-nav-list" id="rd-desk-groups">
                     <li class="rd-desk-nav-empty hidden" id="rd-desk-groups-empty">${_('remote_dashboard.no_groups')}</li>
                 </ul>
+                </div>
             </nav>
 
-            <nav class="rd-desk-nav-section">
-                <div class="rd-desk-nav-heading">${_('remote_dashboard.nav_tags')}</div>
+            <nav class="rd-desk-nav-section" data-collapsible="tags">
+                <button type="button" class="rd-desk-nav-heading rd-desk-nav-heading-btn" id="rd-desk-nav-tags-toggle" aria-expanded="true">
+                    <span>${_('remote_dashboard.nav_tags')}</span>
+                    <span class="material-icons rd-desk-nav-chevron" aria-hidden="true">expand_more</span>
+                </button>
+                <div class="rd-desk-nav-body" id="rd-desk-nav-tags-body">
                 <ul class="rd-desk-nav-list rd-desk-nav-tags" id="rd-desk-tags">
                     <li class="rd-desk-nav-empty hidden" id="rd-desk-tags-empty">${_('remote_dashboard.no_tags')}</li>
                 </ul>
+                </div>
             </nav>
         </aside>
 
         <div class="rd-desk-content">
             <div class="rd-desk-toolbar">
                 <div class="rd-desk-toolbar-left">
+                    <button type="button" class="rd-desk-icon-btn rd-desk-panel-toggle" id="rd-desk-devices-toggle"
+                        title="${_('remote_dashboard.collapse_devices')}" aria-expanded="true" aria-controls="rd-desk-devices-scroll">
+                        <span class="material-icons" id="rd-desk-devices-toggle-icon">expand_more</span>
+                    </button>
                     <span class="rd-desk-section-title" id="rd-desk-section-title">${_('remote_dashboard.nav_address_book')}</span>
                 </div>
                 <div class="rd-desk-search-wrap">
@@ -98,6 +117,8 @@
             </div>
 
             <main class="rd-desk-main">
+                <div class="rd-desk-devices-panel" id="rd-desk-devices-panel">
+                <div class="rd-desk-devices-scroll" id="rd-desk-devices-scroll">
                 <div class="rd-desk-loading" id="rd-desk-loading">
                     <span class="material-icons rd-desk-spin">sync</span>
                     <span>${_('remote_dashboard.loading')}</span>
@@ -126,6 +147,8 @@
                         </thead>
                         <tbody id="rd-desk-tbody"></tbody>
                     </table>
+                </div>
+                </div>
                 </div>
             </main>
         </div>

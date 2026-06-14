@@ -3832,7 +3832,9 @@
     "sync_error": "Kesalahan sinkronisasi",
     "unassigned": "Belum ditetapkan",
     "no_groups": "Tidak ada grup",
-    "no_tags": "Tidak ada tag"
+    "no_tags": "Tidak ada tag",
+    "collapse_devices": "Ciutkan daftar perangkat",
+    "expand_devices": "Perluas daftar perangkat"
   },
   "rdclient_login": {
     "title": "Klien Desktop Jarak Jauh",

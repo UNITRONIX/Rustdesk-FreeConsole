@@ -331,11 +331,12 @@
             var st = deviceStatusInfo(d);
             var name = displayName(d);
             var platform = d.platform || d.os || '';
-            var canConnect = d.online && !d.banned;
+            var canConnect = !d.banned;
+            var isOffline = !d.online;
             var tags = normalizeTags(d.tags);
             var bg = cardColorForId(d.id);
 
-            return '<article class="rd-desk-card' + (canConnect ? '' : ' rd-desk-card-disabled') + '" style="--rd-card-bg:' + bg + '" data-id="' + esc(d.id) + '">' +
+            return '<article class="rd-desk-card' + (isOffline ? ' rd-desk-card-offline' : '') + (canConnect ? '' : ' rd-desk-card-disabled') + '" style="--rd-card-bg:' + bg + '" data-id="' + esc(d.id) + '">' +
                 '<div class="rd-desk-card-top">' +
                 '<span class="material-icons rd-desk-card-os">' + platformIcon(platform) + '</span>' +
                 '</div>' +
@@ -356,12 +357,6 @@
                 '</article>';
         }).join('');
 
-        grid.querySelectorAll('.rd-desk-card-connect').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                openRemoteSession(btn.getAttribute('data-id'), btn.getAttribute('data-name'));
-            });
-        });
         grid.querySelectorAll('.rd-desk-card:not(.rd-desk-card-disabled)').forEach(function (card) {
             card.addEventListener('dblclick', function () {
                 openRemoteSession(card.getAttribute('data-id'), displayName({ id: card.getAttribute('data-id') }));
@@ -382,9 +377,10 @@
                 : (window.Utils && Utils.formatRelativeTime
                     ? Utils.formatRelativeTime(d.last_online)
                     : (d.last_online || '—'));
-            var canConnect = d.online && !d.banned;
+            var canConnect = !d.banned;
+            var isOffline = !d.online;
 
-            return '<tr data-id="' + esc(d.id) + '">' +
+            return '<tr data-id="' + esc(d.id) + '"' + (isOffline ? ' class="rd-desk-row-offline"' : '') + '>' +
                 '<td><span class="rd-desk-status">' +
                 '<span class="rd-desk-status-dot ' + st.className + '"></span>' +
                 esc(st.label) + '</span></td>' +
@@ -404,12 +400,6 @@
                       esc(t('remote_dashboard.connect', 'Connect')) + '</button>') +
                 '</td></tr>';
         }).join('');
-
-        tbody.querySelectorAll('.rd-desk-connect').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                openRemoteSession(btn.getAttribute('data-id'), btn.getAttribute('data-name'));
-            });
-        });
     }
 
     function renderDevices() {
@@ -432,7 +422,82 @@
     }
 
     function isRdClientDesktop() {
-        return !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
+        if (window.__BETTERDESK_RDCLIENT_DESKTOP__) return true;
+        return !!(window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function');
+    }
+
+    function markDesktopLayout() {
+        if (!isRdClientDesktop()) return;
+        document.documentElement.classList.add('rd-desk-desktop');
+        document.body.classList.add('rd-desk-desktop');
+        var app = document.getElementById('rd-desk-app');
+        if (app) app.classList.add('rd-desk-desktop');
+    }
+
+    function setDevicesPanelCollapsed(collapsed) {
+        var panel = document.getElementById('rd-desk-devices-panel');
+        var toggle = document.getElementById('rd-desk-devices-toggle');
+        if (!panel || !toggle) return;
+        panel.classList.toggle('is-collapsed', collapsed);
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        toggle.title = collapsed
+            ? t('remote_dashboard.expand_devices', 'Expand device list')
+            : t('remote_dashboard.collapse_devices', 'Collapse device list');
+    }
+
+    function setNavSectionCollapsed(section, collapsed) {
+        if (!section) return;
+        section.classList.toggle('is-collapsed', collapsed);
+        var btn = section.querySelector('.rd-desk-nav-heading-btn');
+        if (btn) btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+
+    function bindCollapseUi() {
+        var devicesToggle = document.getElementById('rd-desk-devices-toggle');
+        if (devicesToggle) {
+            devicesToggle.addEventListener('click', function () {
+                var panel = document.getElementById('rd-desk-devices-panel');
+                var collapsed = panel && !panel.classList.contains('is-collapsed');
+                setDevicesPanelCollapsed(collapsed);
+                try {
+                    sessionStorage.setItem('rd-desk-devices-collapsed', collapsed ? '1' : '0');
+                } catch (_) { /* ignore */ }
+            });
+        }
+
+        document.querySelectorAll('.rd-desk-nav-section[data-collapsible]').forEach(function (section) {
+            var btn = section.querySelector('.rd-desk-nav-heading-btn');
+            if (!btn) return;
+            btn.addEventListener('click', function () {
+                var collapsed = !section.classList.contains('is-collapsed');
+                setNavSectionCollapsed(section, collapsed);
+                try {
+                    var key = 'rd-desk-nav-' + (section.getAttribute('data-collapsible') || 'section') + '-collapsed';
+                    sessionStorage.setItem(key, collapsed ? '1' : '0');
+                } catch (_) { /* ignore */ }
+            });
+        });
+
+        try {
+            if (sessionStorage.getItem('rd-desk-devices-collapsed') === '1') {
+                setDevicesPanelCollapsed(true);
+            }
+            document.querySelectorAll('.rd-desk-nav-section[data-collapsible]').forEach(function (section) {
+                var id = section.getAttribute('data-collapsible') || 'section';
+                if (sessionStorage.getItem('rd-desk-nav-' + id + '-collapsed') === '1') {
+                    setNavSectionCollapsed(section, true);
+                }
+            });
+        } catch (_) { /* ignore */ }
+    }
+
+    function showConnectError(message) {
+        var text = message || t('remote_dashboard.connect_failed', 'Could not open remote session');
+        if (typeof window.showToast === 'function') {
+            window.showToast(text, 'error');
+            return;
+        }
+        window.alert(text);
     }
 
     function openRemoteSession(deviceId, deviceName) {
@@ -440,10 +505,11 @@
 
         if (isRdClientDesktop()) {
             window.__TAURI__.core.invoke('open_session', {
-                device_id: deviceId,
-                device_name: deviceName || ''
+                deviceId: deviceId,
+                deviceName: deviceName || ''
             }).catch(function (err) {
                 console.error('RdClient desktop session failed:', err);
+                showConnectError(String(err && err.message ? err.message : err));
             });
             return;
         }
@@ -616,6 +682,14 @@
             if (e.key === 'Enter') { e.preventDefault(); quickConnect(); }
         });
 
+        document.getElementById('rd-desk-app')?.addEventListener('click', function (e) {
+            var btn = e.target.closest('.rd-desk-card-connect, .rd-desk-connect');
+            if (!btn || btn.disabled) return;
+            e.preventDefault();
+            e.stopPropagation();
+            openRemoteSession(btn.getAttribute('data-id'), btn.getAttribute('data-name'));
+        });
+
         var gridBtn = document.getElementById('rd-view-grid');
         var listBtn = document.getElementById('rd-view-list');
         if (gridBtn && listBtn) {
@@ -640,9 +714,11 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        markDesktopLayout();
         renderBrandLogo();
         renderUser();
         bindUi();
+        bindCollapseUi();
         loadAll(false);
         startAutoRefresh();
     });

@@ -3826,7 +3826,9 @@
     "sync_error": "Chyba synchronizace",
     "unassigned": "Nepřiřazeno",
     "no_groups": "Žádné skupiny",
-    "no_tags": "Žádné štítky"
+    "no_tags": "Žádné štítky",
+    "collapse_devices": "Sbalit seznam zařízení",
+    "expand_devices": "Rozbalit seznam zařízení"
   },
   "rdclient_login": {
     "title": "Klient vzdálené plochy",

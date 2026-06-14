@@ -3826,7 +3826,9 @@
     "sync_error": "Erro de sincronização",
     "unassigned": "Não atribuído",
     "no_groups": "Sem grupos",
-    "no_tags": "Sem etiquetas"
+    "no_tags": "Sem etiquetas",
+    "collapse_devices": "Recolher lista de dispositivos",
+    "expand_devices": "Expandir lista de dispositivos"
   },
   "rdclient_login": {
     "title": "Cliente de ambiente de trabalho remoto",

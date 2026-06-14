@@ -3832,7 +3832,9 @@
     "sync_error": "Synkroniseringsfeil",
     "unassigned": "Ikke tildelt",
     "no_groups": "Ingen grupper",
-    "no_tags": "Ingen tagger"
+    "no_tags": "Ingen tagger",
+    "collapse_devices": "Skjul enhetsliste",
+    "expand_devices": "Vis enhetsliste"
   },
   "rdclient_login": {
     "title": "Remote Desktop-klient",

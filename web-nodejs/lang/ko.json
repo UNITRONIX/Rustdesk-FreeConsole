@@ -3826,7 +3826,9 @@
     "sync_error": "동기화 오류",
     "unassigned": "미할당",
     "no_groups": "그룹 없음",
-    "no_tags": "태그 없음"
+    "no_tags": "태그 없음",
+    "collapse_devices": "장치 목록 접기",
+    "expand_devices": "장치 목록 펼치기"
   },
   "rdclient_login": {
     "title": "원격 데스크톱 클라이언트",

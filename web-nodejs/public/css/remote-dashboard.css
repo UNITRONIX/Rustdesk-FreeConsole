@@ -7,6 +7,13 @@ html {
     height: 100%;
 }
 
+html.rd-desk-desktop {
+    height: 100%;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+}
+
 .rd-desk-body {
     margin: 0;
     height: 100%;
@@ -19,6 +26,12 @@ html {
     line-height: var(--line-height, 1.5);
 }
 
+.rd-desk-desktop.rd-desk-body {
+    height: 100vh;
+    max-height: 100vh;
+    min-height: 0;
+}
+
 .rd-desk-app {
     display: flex;
     flex-direction: column;
@@ -27,6 +40,11 @@ html {
     min-height: 0;
     overflow: hidden;
     width: 100%;
+}
+
+.rd-desk-desktop .rd-desk-app {
+    height: 100vh;
+    max-height: 100vh;
 }
 
 /* ── Header ── */
@@ -187,14 +205,25 @@ html {
 .rd-desk-sidebar {
     width: 240px;
     flex-shrink: 0;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     border-right: 1px solid var(--border-primary, #30363d);
     background: var(--surface-glass-bg-secondary, var(--bg-secondary, #161b22));
-    padding: 12px 0 20px;
+    padding: 12px 0 12px;
 }
 
 .rd-desk-nav-section {
-    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+
+.rd-desk-nav-section.is-collapsed {
+    flex-shrink: 0;
 }
 
 .rd-desk-nav-heading {
@@ -204,6 +233,52 @@ html {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-tertiary, #6e7681);
+}
+
+.rd-desk-nav-heading-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: color 0.12s;
+}
+
+.rd-desk-nav-heading-btn:hover {
+    color: var(--text-secondary, #8b949e);
+}
+
+.rd-desk-nav-chevron {
+    font-size: 18px !important;
+    color: var(--text-tertiary, #6e7681);
+    transition: transform 0.15s ease;
+    flex-shrink: 0;
+}
+
+.rd-desk-nav-section.is-collapsed .rd-desk-nav-chevron {
+    transform: rotate(-90deg);
+}
+
+.rd-desk-nav-body {
+    min-height: 0;
+    max-height: min(220px, 28vh);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+}
+
+.rd-desk-nav-section.is-collapsed .rd-desk-nav-body {
+    display: none;
+}
+
+.rd-desk-desktop .rd-desk-nav-body {
+    max-height: min(180px, 24vh);
 }
 
 .rd-desk-nav-list {
@@ -308,7 +383,22 @@ html {
 }
 
 .rd-desk-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     margin-right: 4px;
+}
+
+.rd-desk-panel-toggle {
+    flex-shrink: 0;
+}
+
+.rd-desk-panel-toggle .material-icons {
+    transition: transform 0.15s ease;
+}
+
+.rd-desk-devices-panel.is-collapsed .rd-desk-panel-toggle .material-icons {
+    transform: rotate(-90deg);
 }
 
 .rd-desk-search-wrap {
@@ -395,10 +485,42 @@ html {
 .rd-desk-main {
     flex: 1;
     min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.rd-desk-devices-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.rd-desk-devices-panel.is-collapsed {
+    flex: 0 0 auto;
+}
+
+.rd-desk-devices-scroll {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior: contain;
     padding: 16px;
-    position: relative;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rd-desk-devices-panel.is-collapsed .rd-desk-devices-scroll {
+    display: none;
+}
+
+.rd-desk-devices-scroll .rd-desk-table-wrap {
+    overflow-x: auto;
+    overflow-y: visible;
+    max-height: none;
 }
 
 .rd-desk-loading,
@@ -461,6 +583,19 @@ html {
 
 .rd-desk-card-disabled {
     opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.rd-desk-card-offline {
+    opacity: 0.78;
+}
+
+.rd-desk-card-offline:not(.rd-desk-card-disabled):hover {
+    opacity: 1;
+}
+
+.rd-desk-row-offline {
+    opacity: 0.85;
 }
 
 .rd-desk-card-top {
@@ -738,9 +873,13 @@ html {
 
     .rd-desk-sidebar {
         width: 100%;
-        max-height: 200px;
+        max-height: min(240px, 35vh);
         border-right: none;
         border-bottom: 1px solid var(--border-primary, #30363d);
+    }
+
+    .rd-desk-nav-body {
+        max-height: min(140px, 18vh);
     }
 
     .rd-desk-quick-label {

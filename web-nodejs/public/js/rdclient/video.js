@@ -94,6 +94,52 @@ class RDVideo {
     }
 
     /**
+     * Codec string candidates per logical codec (broadest / HW-friendly first).
+     * @param {string} codecName
+     * @returns {string[]}
+     */
+    static codecCandidates(codecName) {
+        const map = {
+            vp9: ['vp09.00.10.08', 'vp09.00.40.08', 'vp09.00.50.08'],
+            h264: ['avc1.640028', 'avc1.4d4028', 'avc1.42E01E'],
+            av1: ['av01.0.08M.08', 'av01.0.05M.08', 'av01.0.04M.08', 'av01.0.01M.08', 'av01.0.15M.08'],
+            vp8: ['vp8'],
+            h265: ['hev1.1.6.L93.B0', 'hvc1.1.6.L93.B0']
+        };
+        return map[codecName] || [];
+    }
+
+    /**
+     * Pick the first VideoDecoder-supported config from codec candidates.
+     * @param {string} codecName
+     * @param {string} [accel] hardwareAcceleration preference
+     * @returns {Promise<Object|null>} supported VideoDecoderConfig
+     */
+    static async resolveCodecConfig(codecName, accel) {
+        const candidates = RDVideo.codecCandidates(codecName);
+        if (!candidates.length) return null;
+
+        const probes = accel
+            ? [{ hardwareAcceleration: accel }, {}]
+            : [{ hardwareAcceleration: 'prefer-hardware' }, { hardwareAcceleration: 'prefer-software' }, {}];
+
+        for (const codec of candidates) {
+            for (const extra of probes) {
+                try {
+                    const cfg = { codec, optimizeForLatency: true, ...extra };
+                    const support = await VideoDecoder.isConfigSupported(cfg);
+                    if (support && support.supported === true) {
+                        return support.config || cfg;
+                    }
+                } catch {
+                    /* try next */
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Get supported codecs
      * @returns {Object} Map of codec name to boolean
      */
@@ -109,37 +155,10 @@ class RDVideo {
             };
         }
 
-        const codecs = {
-            vp9: 'vp09.00.10.08',
-            h264: 'avc1.42E01E',
-            av1: 'av01.0.01M.08',
-            vp8: 'vp8',
-            h265: 'hev1.1.6.L93.B0'
-        };
-
+        const names = ['vp9', 'h264', 'av1', 'vp8', 'h265'];
         const result = {};
-        for (const [name, codec] of Object.entries(codecs)) {
-            result[name] = false;
-            // A codec is "selectable" if the browser can decode it AT ALL — either
-            // via hardware or software. Probing only with prefer-hardware wrongly
-            // marks software-decodable codecs (VP9/AV1/VP8/H265) as unsupported,
-            // which left the codec menu with nothing but "Auto" selectable.
-            const probes = [
-                { codec, hardwareAcceleration: 'prefer-hardware' },
-                { codec, hardwareAcceleration: 'prefer-software' },
-                { codec }
-            ];
-            for (const cfg of probes) {
-                try {
-                    const support = await VideoDecoder.isConfigSupported(cfg);
-                    if (support && support.supported === true) {
-                        result[name] = true;
-                        break;
-                    }
-                } catch {
-                    /* try next probe variant */
-                }
-            }
+        for (const name of names) {
+            result[name] = !!(await RDVideo.resolveCodecConfig(name));
         }
         return result;
     }
@@ -179,13 +198,12 @@ class RDVideo {
         const codecMap = {
             vp9: 'vp09.00.10.08',
             h264: 'avc1.42E01E',
-            av1: 'av01.0.01M.08',
+            av1: 'av01.0.08M.08',
             vp8: 'vp8',
             h265: 'hev1.1.6.L93.B0'
         };
 
-        const codecString = codecMap[codecName];
-        if (!codecString) {
+        if (!codecMap[codecName]) {
             throw new Error(`Unsupported codec: ${codecName}`);
         }
 
@@ -194,23 +212,8 @@ class RDVideo {
         // hardware H.264 paths that silently stop producing frames).
         const accel = this._softwareRetry ? 'prefer-software' : 'prefer-hardware';
 
-        // Verify codec is supported. If the preferred acceleration is not
-        // available, retry the probe without a preference so software-only
-        // environments still pass.
-        let support;
-        try {
-            support = await VideoDecoder.isConfigSupported({ codec: codecString, hardwareAcceleration: accel });
-        } catch {
-            support = { supported: false };
-        }
-        if (!support.supported) {
-            try {
-                support = await VideoDecoder.isConfigSupported({ codec: codecString });
-            } catch {
-                support = { supported: false };
-            }
-        }
-        if (!support.supported) {
+        const resolved = await RDVideo.resolveCodecConfig(codecName, accel);
+        if (!resolved || !resolved.codec) {
             throw new Error(`Codec ${codecName} not supported by browser`);
         }
 
@@ -221,8 +224,8 @@ class RDVideo {
 
         // Remember the configuration so the decoder can be rebuilt on error.
         this._codecConfig = {
-            codec: codecString,
-            hardwareAcceleration: accel,
+            codec: resolved.codec,
+            hardwareAcceleration: resolved.hardwareAcceleration || accel,
             optimizeForLatency: true
         };
         this.decoder.configure(this._codecConfig);

@@ -3826,7 +3826,9 @@
     "sync_error": "Błąd synchronizacji",
     "unassigned": "Nieprzypisane",
     "no_groups": "Brak grup",
-    "no_tags": "Brak tagów"
+    "no_tags": "Brak tagów",
+    "collapse_devices": "Zwiń listę urządzeń",
+    "expand_devices": "Rozwiń listę urządzeń"
   },
   "rdclient_login": {
     "title": "Klient pulpitu zdalnego",

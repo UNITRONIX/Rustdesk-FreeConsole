@@ -3832,7 +3832,9 @@
     "sync_error": "Senkronizasyon hatası",
     "unassigned": "Atanmamış",
     "no_groups": "Grup yok",
-    "no_tags": "Etiket yok"
+    "no_tags": "Etiket yok",
+    "collapse_devices": "Cihaz listesini daralt",
+    "expand_devices": "Cihaz listesini genişlet"
   },
   "rdclient_login": {
     "title": "Uzak Masaüstü İstemcisi",

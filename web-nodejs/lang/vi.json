@@ -3832,7 +3832,9 @@
     "sync_error": "Lỗi đồng bộ",
     "unassigned": "Chưa gán",
     "no_groups": "Không có nhóm",
-    "no_tags": "Không có thẻ"
+    "no_tags": "Không có thẻ",
+    "collapse_devices": "Thu gọn danh sách thiết bị",
+    "expand_devices": "Mở rộng danh sách thiết bị"
   },
   "rdclient_login": {
     "title": "Máy khách Desktop từ xa",

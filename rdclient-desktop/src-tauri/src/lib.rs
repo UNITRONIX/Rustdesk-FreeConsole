@@ -6,8 +6,72 @@ pub mod tls_policy;
 
 use config::{load_config, save_config};
 use tls_policy::apply_window_builder;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::ipc::CapabilityBuilder;
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri_utils::config::BackgroundThrottlingPolicy;
+
 const MAIN_LABEL: &str = "main";
+const CLIENT_BUILD: &str = "0.1.0-connect-bridge";
+
+/// Injected before page JS — desktop flag + Connect bridge (works even if panel JS is older).
+const DESKTOP_INIT_SCRIPT: &str = r#"
+window.__BETTERDESK_RDCLIENT_DESKTOP__=true;
+(function(){function m(){document.documentElement.classList.add('rd-desk-desktop');if(document.body)document.body.classList.add('rd-desk-desktop');var a=document.getElementById('rd-desk-app');if(a)a.classList.add('rd-desk-desktop');}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',m,{once:true});else m();})();
+function __rdDesktopInvoke(){return window.__TAURI__&&window.__TAURI__.core&&window.__TAURI__.core.invoke;}
+function __rdIsSessionViewer(){return /\/remote\/[^/?#]+/.test(location.pathname);}
+function __rdCloseWindow(){
+  var invoke=__rdDesktopInvoke();
+  if(!invoke)return;
+  invoke('close_current_window').catch(function(){
+    var w=window.__TAURI__&&window.__TAURI__.window&&window.__TAURI__.window.getCurrentWindow;
+    if(w)w().close().catch(function(){});
+  });
+}
+document.addEventListener('click',function(e){
+  var back=e.target&&e.target.closest?e.target.closest('#btn-back-devices,.tab-bar-back'):null;
+  if(back&&__rdIsSessionViewer()){
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    __rdCloseWindow();
+    return;
+  }
+  var t=e.target&&e.target.closest?e.target.closest('.rd-desk-card-connect,.rd-desk-connect,#rd-desk-quick-btn'):null;
+  if(!t||t.disabled)return;
+  var invoke=__rdDesktopInvoke();
+  if(!invoke)return;
+  if(t.id==='rd-desk-quick-btn'){
+    var input=document.getElementById('rd-desk-quick-id');
+    var id=input&&input.value?input.value.trim().replace(/\s/g,''):'';
+    if(!id||!/^[A-Za-z0-9_-]{3,64}$/.test(id))return;
+    e.preventDefault();e.stopPropagation();
+    invoke('open_session',{deviceId:id,deviceName:id}).catch(function(err){
+      alert(String(err&&err.message?err.message:err||'Connect failed'));
+    });
+    return;
+  }
+  if(t.matches('.rd-desk-card-connect,.rd-desk-connect')){
+    var deviceId=t.getAttribute('data-id');
+    if(!deviceId)return;
+    e.preventDefault();e.stopPropagation();
+    invoke('open_session',{deviceId:deviceId,deviceName:t.getAttribute('data-name')||''}).catch(function(err){
+      alert(String(err&&err.message?err.message:err||'Connect failed'));
+    });
+  }
+},true);
+"#;
+
+const PANEL_INVOKE_PERMISSIONS: &[&str] = &[
+    "core:default",
+    "core:window:allow-create",
+    "core:window:allow-set-focus",
+    "core:window:allow-close",
+    "core:webview:allow-create-webview-window",
+    "shell:allow-open",
+    "allow-get-server-url",
+    "allow-set-server-url",
+    "allow-open-session",
+    "allow-close-current-window",
+    "allow-get-client-info",
+];
 
 fn normalize_server_url(raw: &str) -> Result<String, String> {
     let trimmed = raw.trim();
@@ -30,7 +94,6 @@ fn normalize_server_url(raw: &str) -> Result<String, String> {
 
 mod url {
     pub fn parse_helper(input: &str) -> Result<String, String> {
-        // Minimal validation without extra dependency — use tauri Url if available
         use std::str::FromStr;
         match tauri::Url::from_str(input) {
             Ok(url) => {
@@ -51,6 +114,32 @@ mod url {
             Err(_) => Err("Invalid server URL".into()),
         }
     }
+}
+
+fn panel_remote_url_patterns(base: &str) -> Result<Vec<String>, String> {
+    let parsed = Url::parse(base.trim_end_matches('/'))
+        .map_err(|_| "Invalid server URL".to_string())?;
+    let origin = parsed.origin().ascii_serialization();
+    Ok(vec![origin.clone(), format!("{origin}/*")])
+}
+
+fn register_panel_remote_capability(app: &AppHandle, base: &str) -> Result<(), String> {
+    let patterns = panel_remote_url_patterns(base)?;
+    let mut builder = CapabilityBuilder::new("panel-operator")
+        .local(true)
+        .window(MAIN_LABEL)
+        .window("session-*");
+
+    for pattern in patterns {
+        builder = builder.remote(pattern);
+    }
+
+    for permission in PANEL_INVOKE_PERMISSIONS {
+        builder = builder.permission(*permission);
+    }
+
+    app.add_capability(builder)
+        .map_err(|e| format!("Failed to register panel IPC capability: {e}"))
 }
 
 fn is_valid_device_id(device_id: &str) -> bool {
@@ -81,6 +170,16 @@ fn session_url(base: &str, device_id: &str) -> Result<tauri::Url, String> {
     .map_err(|_| "Failed to build session URL".to_string())
 }
 
+fn apply_desktop_window<R: tauri::Runtime, M: tauri::Manager<R>>(
+    builder: WebviewWindowBuilder<'_, R, M>,
+) -> WebviewWindowBuilder<'_, R, M> {
+    apply_window_builder(
+        builder
+            .initialization_script(DESKTOP_INIT_SCRIPT)
+            .background_throttling(BackgroundThrottlingPolicy::Disabled),
+    )
+}
+
 fn open_main_window(app: &AppHandle, url: WebviewUrl) -> Result<(), String> {
     if let Some(existing) = app.get_webview_window(MAIN_LABEL) {
         if let WebviewUrl::External(parsed) = url {
@@ -95,7 +194,7 @@ fn open_main_window(app: &AppHandle, url: WebviewUrl) -> Result<(), String> {
         existing.close().map_err(|e| e.to_string())?;
     }
 
-    apply_window_builder(
+    apply_desktop_window(
         WebviewWindowBuilder::new(app, MAIN_LABEL, url)
             .title("BetterDesk RdClient")
             .inner_size(1280.0, 800.0)
@@ -118,6 +217,14 @@ fn launch_main(app: &AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_client_info() -> serde_json::Value {
+    serde_json::json!({
+        "client": "rdclient-desktop",
+        "build": CLIENT_BUILD,
+    })
+}
+
+#[tauri::command]
 fn get_server_url(app: AppHandle) -> Result<Option<String>, String> {
     Ok(load_config(&app)?.server_url)
 }
@@ -125,6 +232,7 @@ fn get_server_url(app: AppHandle) -> Result<Option<String>, String> {
 #[tauri::command]
 fn set_server_url(app: AppHandle, url: String) -> Result<(), String> {
     let normalized = normalize_server_url(&url)?;
+    register_panel_remote_capability(&app, &normalized)?;
     let mut cfg = load_config(&app)?;
     cfg.server_url = Some(normalized.clone());
     save_config(&app, &cfg)?;
@@ -156,7 +264,7 @@ fn open_session(app: AppHandle, device_id: String, device_name: Option<String>) 
         .filter(|n| !n.trim().is_empty())
         .unwrap_or_else(|| device_id.clone());
 
-    apply_window_builder(
+    apply_desktop_window(
         WebviewWindowBuilder::new(
             &app,
             &label,
@@ -173,6 +281,11 @@ fn open_session(app: AppHandle, device_id: String, device_name: Option<String>) 
     Ok(())
 }
 
+#[tauri::command]
+fn close_current_window(window: WebviewWindow) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tls_policy::init();
@@ -180,11 +293,16 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
+            get_client_info,
             get_server_url,
             set_server_url,
-            open_session
+            open_session,
+            close_current_window
         ])
         .setup(|app| {
+            if let Some(base) = load_config(app.handle())?.server_url {
+                register_panel_remote_capability(app.handle(), &base)?;
+            }
             launch_main(app.handle())?;
             Ok(())
         })

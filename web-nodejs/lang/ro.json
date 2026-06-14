@@ -3832,7 +3832,9 @@
     "sync_error": "Eroare de sincronizare",
     "unassigned": "Neatribuit",
     "no_groups": "Fără grupuri",
-    "no_tags": "Fără etichete"
+    "no_tags": "Fără etichete",
+    "collapse_devices": "Restrânge lista de dispozitive",
+    "expand_devices": "Extinde lista de dispozitive"
   },
   "rdclient_login": {
     "title": "Client desktop la distanță",

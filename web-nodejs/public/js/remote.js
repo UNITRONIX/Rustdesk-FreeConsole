@@ -235,7 +235,26 @@
     // tabs that accumulated over time. Instead, close this tab and re-focus the
     // opener; only fall back to navigation when there is no opener (e.g. the
     // page was opened directly via URL).
+    function isRdClientDesktop() {
+        if (window.__BETTERDESK_RDCLIENT_DESKTOP__) return true;
+        return !!(window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function');
+    }
+
     function returnToDevices() {
+        if (isRdClientDesktop()) {
+            const invoke = window.__TAURI__?.core?.invoke;
+            if (invoke) {
+                invoke('close_current_window').catch(() => {
+                    window.__TAURI__?.window?.getCurrentWindow?.()?.close?.().catch(() => {});
+                });
+                return;
+            }
+            // Desktop shell injected flag but IPC not ready — never navigate to /devices.
+            if (window.__BETTERDESK_RDCLIENT_DESKTOP__ && /\/remote\/[^/?#]+/.test(location.pathname)) {
+                return;
+            }
+        }
+
         try {
             if (window.opener && !window.opener.closed) {
                 try { window.opener.focus(); } catch { /* ignore */ }

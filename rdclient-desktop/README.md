@@ -55,11 +55,26 @@ the app already applies common fixes automatically. You can override:
 |----------|--------|
 | `BETTERDESK_UI_BACKEND=x11` | Force XWayland / X11 (`GDK_BACKEND=x11`) |
 | `BETTERDESK_UI_BACKEND=wayland` | Force native Wayland |
-| `BETTERDESK_WEBKIT_DISABLE_DMABUF=1` | Set `WEBKIT_DISABLE_DMABUF_RENDERER=1` (most reliable on Wayland) |
+| `BETTERDESK_WEBKIT_DISABLE_DMABUF=1` | Set `WEBKIT_DISABLE_DMABUF_RENDERER=1` (disables GPU compositing — use if blank window / flicker) |
+| `BETTERDESK_WEBKIT_NO_MEDIA_ACCEL=1` | Skip GStreamer VA-API hints for WebKit media decode |
 | `BETTERDESK_WEBKIT_NO_WORKAROUND=1` | Skip all automatic WebKit/GDK tweaks |
 | `BETTERDESK_WEBKIT_NO_COMPOSITING=1` | Set `WEBKIT_DISABLE_COMPOSITING_MODE=1` (last resort) |
 
-**NVIDIA + Wayland:** the binary sets `__NV_DISABLE_EXPLICIT_SYNC=1` when `/proc/driver/nvidia/version` exists.
+**NVIDIA + Wayland:** the binary sets `__NV_DISABLE_EXPLICIT_SYNC=1` when `/proc/driver/nvidia/version` exists and keeps DMA-BUF enabled for GPU compositing. **NVIDIA + X11:** DMA-BUF is disabled automatically (blank-window workaround).
+
+**GPU / codecs:** Wayland keeps WebKit DMA-BUF/GPU compositing enabled by default. Vendor-specific VA-API drivers are auto-selected (Intel `iHD`, AMD `radeonsi`, NVIDIA when `nvidia-vaapi-driver` is installed). GStreamer ranks hardware decoders (`vaav1dec`, `vah264dec`, …) above software. WebView2 on Windows enables GPU rasterization, AV1/HEVC HW decode, and WebCodecs.
+
+**Linux packages (recommended for AV1 / smooth remote):**
+
+| GPU | Packages (Fedora example) |
+|-----|-----------------------------|
+| **Intel** | `libva-intel-media-driver`, `gstreamer1-vaapi`, `gstreamer1-plugins-bad-free` |
+| **AMD** | `mesa-va-drivers`, `gstreamer1-vaapi`, `gstreamer1-plugins-bad-free` |
+| **NVIDIA** | `nvidia-vaapi-driver` (optional VA-API), `gstreamer1-plugins-bad-free` |
+
+Verify VA-API: `vainfo` (should list AV1/H264/VP9 profiles). WebKitGTK **2.44+** and GStreamer **1.24+** are required for WebCodecs + DMA-BUF zero-copy.
+
+If the window is blank or flickers, set `BETTERDESK_WEBKIT_DISABLE_DMABUF=1`.
 
 Examples:
 
@@ -78,6 +93,23 @@ cd rdclient-desktop
 npm install
 npm run dev
 ```
+
+### Clean rebuild (no Cargo cache)
+
+If Connect still does nothing after pulling changes, force a full rebuild:
+
+```bash
+cd rdclient-desktop
+./scripts/rebuild-clean.sh
+```
+
+Production bundle instead of dev:
+
+```bash
+./scripts/rebuild-clean.sh build
+```
+
+**Important:** the dashboard HTML/JS is loaded from your **panel URL** (`/remote`). Updating only the desktop binary is not enough for UI tweaks — run **Settings → Updates** on the panel (or deploy `web-nodejs`) so `/js/remote-dashboard.js` is current. The desktop shell also injects a Connect bridge, so **Connect works even before the panel JS update** once you run a freshly built binary.
 
 1. On first launch, enter your panel base URL (e.g. `https://desk.example.com`).
 2. Sign in at **`/remote/login`** when prompted (same as the web RdClient).

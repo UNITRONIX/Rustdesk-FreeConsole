@@ -3826,7 +3826,9 @@
     "sync_error": "Synchronisierungsfehler",
     "unassigned": "Nicht zugewiesen",
     "no_groups": "Keine Gruppen",
-    "no_tags": "Keine Tags"
+    "no_tags": "Keine Tags",
+    "collapse_devices": "Geräteliste einklappen",
+    "expand_devices": "Geräteliste ausklappen"
   },
   "rdclient_login": {
     "title": "Remote-Desktop-Client",

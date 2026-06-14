@@ -9,8 +9,9 @@
 
 ### Fixed
 
-- **RdClient dashboard (web):** address book list/grid scrolls inside the workspace instead of stretching the whole page (fixed-height flex layout).
-- **RdClient desktop:** **Connect** from the loaded `/remote` dashboard — Tauri ACL permissions for remote `open_session` invoke and correct `device_id` / `device_name` payload.
+- **RdClient dashboard (web):** address book list/grid scrolls inside the workspace instead of stretching the whole page (fixed-height flex layout); collapsible device list panel and sidebar sections (Folders/Groups/Tags) with internal scroll; desktop shell applies stricter viewport height.
+- **RdClient desktop:** **Connect** from the loaded `/remote` dashboard — runtime ACL for the configured panel origin (fixes LAN IP:port invoke), injected Connect bridge in the desktop shell (works before panel JS update), correct Tauri invoke args (`deviceId` / `deviceName`), and a new app window loading the same `/remote/:id` viewer as the web panel; session window **Back** closes the desktop window (injected handler + no `/devices` fallback).
+- **RdClient desktop (performance):** Linux Wayland keeps WebKit DMA-BUF/GPU compositing enabled by default; vendor-specific VA-API (Intel `iHD`, AMD `radeonsi`, NVIDIA when `nvidia-vaapi-driver` is present); GStreamer hardware decoder rank for AV1/H264/VP9/H265; session windows disable background throttling; Windows WebView2 AV1/HEVC GPU decode flags; WebCodecs probes multiple AV1/H264 profiles for WebKitGTK compatibility.
 
 ### Changed
 - _(none yet)_

@@ -3826,7 +3826,9 @@
     "sync_error": "同步错误",
     "unassigned": "未分配",
     "no_groups": "无分组",
-    "no_tags": "无标签"
+    "no_tags": "无标签",
+    "collapse_devices": "折叠设备列表",
+    "expand_devices": "展开设备列表"
   },
   "rdclient_login": {
     "title": "远程桌面客户端",

@@ -3826,7 +3826,9 @@
     "sync_error": "Error de sincronización",
     "unassigned": "Sin asignar",
     "no_groups": "Sin grupos",
-    "no_tags": "Sin etiquetas"
+    "no_tags": "Sin etiquetas",
+    "collapse_devices": "Contraer lista de dispositivos",
+    "expand_devices": "Expandir lista de dispositivos"
   },
   "rdclient_login": {
     "title": "Cliente de escritorio remoto",

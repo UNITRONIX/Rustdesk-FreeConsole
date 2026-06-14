@@ -3832,7 +3832,9 @@
     "sync_error": "सिंक त्रुटि",
     "unassigned": "असाइन नहीं",
     "no_groups": "कोई समूह नहीं",
-    "no_tags": "कोई टैग नहीं"
+    "no_tags": "कोई टैग नहीं",
+    "collapse_devices": "डिवाइस सूची संक्षिप्त करें",
+    "expand_devices": "डिवाइस सूची विस्तृत करें"
   },
   "rdclient_login": {
     "title": "रिमोट डेस्कटॉप क्लाइंट",

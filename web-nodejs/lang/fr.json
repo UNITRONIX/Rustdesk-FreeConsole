@@ -3830,7 +3830,9 @@
     "sync_error": "Erreur de synchronisation",
     "unassigned": "Non assigné",
     "no_groups": "Aucun groupe",
-    "no_tags": "Aucun tag"
+    "no_tags": "Aucun tag",
+    "collapse_devices": "Réduire la liste des appareils",
+    "expand_devices": "Développer la liste des appareils"
   },
   "rdclient_login": {
     "title": "Client Bureau à distance",

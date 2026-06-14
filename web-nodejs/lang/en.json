@@ -1089,7 +1089,9 @@
     "sync_error": "Sync error",
     "unassigned": "Unassigned",
     "no_groups": "No groups",
-    "no_tags": "No tags"
+    "no_tags": "No tags",
+    "collapse_devices": "Collapse device list",
+    "expand_devices": "Expand device list"
   },
   "branding": {
     "identity_title": "Brand Identity",

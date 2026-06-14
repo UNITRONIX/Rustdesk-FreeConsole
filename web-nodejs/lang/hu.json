@@ -3832,7 +3832,9 @@
     "sync_error": "Szinkronizálási hiba",
     "unassigned": "Nincs hozzárendelve",
     "no_groups": "Nincs csoport",
-    "no_tags": "Nincs címke"
+    "no_tags": "Nincs címke",
+    "collapse_devices": "Eszközlista összecsukása",
+    "expand_devices": "Eszközlista kibontása"
   },
   "rdclient_login": {
     "title": "Távoli asztal kliens",

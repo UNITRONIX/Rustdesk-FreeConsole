@@ -3832,7 +3832,9 @@
     "sync_error": "Synkronointivirhe",
     "unassigned": "Ei määritetty",
     "no_groups": "Ei ryhmiä",
-    "no_tags": "Ei tageja"
+    "no_tags": "Ei tageja",
+    "collapse_devices": "Tiivistä laiteluettelo",
+    "expand_devices": "Laajenna laiteluettelo"
   },
   "rdclient_login": {
     "title": "Etätyöpöytäasiakas",

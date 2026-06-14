@@ -3826,7 +3826,9 @@
     "sync_error": "Synchronisatiefout",
     "unassigned": "Niet toegewezen",
     "no_groups": "Geen groepen",
-    "no_tags": "Geen tags"
+    "no_tags": "Geen tags",
+    "collapse_devices": "Apparaatlijst inklappen",
+    "expand_devices": "Apparaatlijst uitklappen"
   },
   "rdclient_login": {
     "title": "Remote Desktop-client",

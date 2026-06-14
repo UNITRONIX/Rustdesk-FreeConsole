@@ -3826,7 +3826,9 @@
     "sync_error": "同期エラー",
     "unassigned": "未割り当て",
     "no_groups": "グループなし",
-    "no_tags": "タグなし"
+    "no_tags": "タグなし",
+    "collapse_devices": "デバイス一覧を折りたたむ",
+    "expand_devices": "デバイス一覧を展開"
   },
   "rdclient_login": {
     "title": "リモートデスクトップクライアント",

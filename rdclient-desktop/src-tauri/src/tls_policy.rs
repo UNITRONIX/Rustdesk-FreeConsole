@@ -7,26 +7,34 @@
 
 use tauri::{Runtime, WebviewWindowBuilder};
 
+const WEBVIEW2_MEDIA_ARGS: &str = "\
+--enable-gpu-rasterization \
+--enable-accelerated-video-decode \
+--enable-features=PlatformAV1VideoDecoder,PlatformHEVCDecoderSupport,VaapiVideoDecoder,WebCodecs \
+--disable-features=UseSurfaceLayerForVideo";
+
 pub fn tls_strict() -> bool {
     std::env::var("BETTERDESK_TLS_STRICT")
         .ok()
         .is_some_and(|v| matches!(v.trim(), "1" | "true" | "yes"))
 }
 
+fn webview2_browser_args() -> String {
+    let mut parts = Vec::new();
+    if !tls_strict() {
+        parts.push("--ignore-certificate-errors");
+    }
+    parts.push(WEBVIEW2_MEDIA_ARGS);
+    parts.join(" ")
+}
+
 /// Call before `tauri::Builder::run` (Windows WebView2 environment).
 pub fn init() {
-    if tls_strict() {
-        return;
-    }
-
     #[cfg(windows)]
     if std::env::var_os("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").is_none() {
         // SAFETY: single-threaded before WebView2 starts.
         unsafe {
-            std::env::set_var(
-                "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                "--ignore-certificate-errors",
-            );
+            std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", webview2_browser_args());
         }
     }
 }
@@ -34,13 +42,9 @@ pub fn init() {
 pub fn apply_window_builder<'a, R: Runtime, M: tauri::Manager<R>>(
     builder: WebviewWindowBuilder<'a, R, M>,
 ) -> WebviewWindowBuilder<'a, R, M> {
-    if tls_strict() {
-        return builder;
-    }
-
     #[cfg(windows)]
     {
-        builder.additional_browser_args("--ignore-certificate-errors")
+        builder.additional_browser_args(webview2_browser_args())
     }
 
     #[cfg(not(windows))]

@@ -3833,7 +3833,9 @@
     "sync_error": "خطأ في المزامنة",
     "unassigned": "غير معيّن",
     "no_groups": "لا توجد مجموعات",
-    "no_tags": "لا توجد وسوم"
+    "no_tags": "لا توجد وسوم",
+    "collapse_devices": "طي قائمة الأجهزة",
+    "expand_devices": "توسيع قائمة الأجهزة"
   },
   "rdclient_login": {
     "title": "عميل سطح المكتب البعيد",

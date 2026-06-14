@@ -3830,7 +3830,9 @@
     "sync_error": "同步錯誤",
     "unassigned": "未指派",
     "no_groups": "無群組",
-    "no_tags": "無標籤"
+    "no_tags": "無標籤",
+    "collapse_devices": "摺疊裝置清單",
+    "expand_devices": "展開裝置清單"
   },
   "rdclient_login": {
     "title": "遠端桌面用戶端",
