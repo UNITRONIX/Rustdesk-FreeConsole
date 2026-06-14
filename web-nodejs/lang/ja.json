@@ -1192,7 +1192,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "ガラス表面",
+    "glass_desc": "カード、モーダル、フォームなどのパネル要素にすりガラス風の背景を適用します。",
+    "glass_enabled": "ガラス表面を有効にする",
+    "glass_color": "ガラスの色調",
+    "glass_color_hint": "すりガラスパネルの基準色。空欄の場合は副背景色を使用します。",
+    "glass_blur": "表面のぼかし",
+    "glass_opacity": "ガラスの不透明度"
   },
   "device_detail": {
     "tab_overview": "概要",

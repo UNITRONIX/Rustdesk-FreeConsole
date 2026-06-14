@@ -1198,7 +1198,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "Скляні поверхні",
+    "glass_desc": "Матове скляне тло для карток, модальних вікон, форм та інших елементів панелі.",
+    "glass_enabled": "Увімкнути скляні поверхні",
+    "glass_color": "Колір відтінку скла",
+    "glass_color_hint": "Базовий колір для матових панелей. Якщо порожньо — використовує вторинний колір фону.",
+    "glass_blur": "Розмиття поверхні",
+    "glass_opacity": "Непрозорість скла"
   },
   "device_detail": {
     "tab_overview": "Огляд",

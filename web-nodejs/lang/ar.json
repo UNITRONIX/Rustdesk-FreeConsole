@@ -1199,7 +1199,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "أسطح زجاجية",
+    "glass_desc": "خلفية زجاجية ضبابية للبطاقات والنوافذ المنبثقة والنماذج وعناصر اللوحة الأخرى.",
+    "glass_enabled": "تفعيل الأسطح الزجاجية",
+    "glass_color": "لون التظليل الزجاجي",
+    "glass_color_hint": "اللون الأساسي للوحات الضبابية. يستخدم لون الخلفية الثانوي عند تركه فارغًا.",
+    "glass_blur": "ضبابية السطح",
+    "glass_opacity": "شفافية الزجاج"
   },
   "device_detail": {
     "tab_overview": "ملخص",

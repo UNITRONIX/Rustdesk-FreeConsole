@@ -1206,7 +1206,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "玻璃表面",
+    "glass_desc": "為卡片、模態框、表單及其他面板元素套用磨砂玻璃背景。",
+    "glass_enabled": "啟用玻璃表面",
+    "glass_color": "玻璃色調",
+    "glass_color_hint": "磨砂面板的基礎顏色。留空時使用次要背景色。",
+    "glass_blur": "表面模糊",
+    "glass_opacity": "玻璃不透明度"
   },
   "device_detail": {
     "tab_overview": "概覽",

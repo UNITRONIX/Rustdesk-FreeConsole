@@ -1202,7 +1202,14 @@
     "font_upload_name": "Nazwa rodziny czcionki",
     "font_upload_success": "Czcionka wgrana.",
     "font_local_empty": "Brak pobranych czcionek.",
-    "font_delete": "Usuń czcionkę"
+    "font_delete": "Usuń czcionkę",
+    "glass_title": "Szklane powierzchnie",
+    "glass_desc": "Matowe szkło dla kart, modali, formularzy i innych elementów panelu.",
+    "glass_enabled": "Włącz szklane powierzchnie",
+    "glass_color": "Kolor odcienia szkła",
+    "glass_color_hint": "Kolor bazowy matowych paneli. Puste pole = kolor tła drugorzędnego.",
+    "glass_blur": "Rozmycie powierzchni",
+    "glass_opacity": "Krycie szkła"
   },
   "device_detail": {
     "tab_overview": "Przegląd",

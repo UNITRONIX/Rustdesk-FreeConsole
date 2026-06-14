@@ -181,7 +181,6 @@
 }
 
 .settings-section {
-    background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-lg);
 }
@@ -1169,6 +1168,23 @@
     font-weight: 600;
 }
 
+.branding-glass-config {
+    margin-top: var(--space-lg);
+    padding-top: var(--space-lg);
+    border-top: 1px solid var(--border-primary);
+}
+
+.branding-subsection-title {
+    margin: 0 0 var(--space-xs);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+.branding-subsection-desc {
+    margin: 0 0 var(--space-md);
+}
+
 .branding-studio-body {
     display: grid;
     grid-template-columns: 180px minmax(0, 1fr) 300px;
@@ -1301,7 +1317,6 @@
 
 .branding-mockup-card {
     width: 100%;
-    background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-sm);
     padding: var(--space-sm);

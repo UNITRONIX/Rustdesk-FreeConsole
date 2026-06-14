@@ -1206,7 +1206,14 @@
     "font_upload_name": "Nom de la police",
     "font_upload_success": "Police importée.",
     "font_local_empty": "Aucune police téléchargée.",
-    "font_delete": "Supprimer la police"
+    "font_delete": "Supprimer la police",
+    "glass_title": "Surfaces en verre",
+    "glass_desc": "Arrière-plan en verre dépoli pour les cartes, modales, formulaires et autres éléments du panneau.",
+    "glass_enabled": "Activer les surfaces en verre",
+    "glass_color": "Couleur de teinte du verre",
+    "glass_color_hint": "Couleur de base des panneaux dépolis. Utilise la couleur de fond secondaire si vide.",
+    "glass_blur": "Flou de surface",
+    "glass_opacity": "Opacité du verre"
   },
   "device_detail": {
     "tab_overview": "Vue d'ensemble",

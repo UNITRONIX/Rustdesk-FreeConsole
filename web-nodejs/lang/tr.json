@@ -1198,7 +1198,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "Cam yüzeyler",
+    "glass_desc": "Kartlar, modallar, formlar ve diğer panel öğeleri için buzlu cam arka plan.",
+    "glass_enabled": "Cam yüzeyleri etkinleştir",
+    "glass_color": "Cam ton rengi",
+    "glass_color_hint": "Buzlu paneller için temel renk. Boşsa ikincil arka plan rengini kullanır.",
+    "glass_blur": "Yüzey bulanıklığı",
+    "glass_opacity": "Cam opaklığı"
   },
   "device_detail": {
     "tab_overview": "Genel Bakış",

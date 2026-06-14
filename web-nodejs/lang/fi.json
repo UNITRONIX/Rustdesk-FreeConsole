@@ -1198,7 +1198,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "Lasipinnat",
+    "glass_desc": "Huurrettu lasitausta korteille, modaaleille, lomakkeille ja muille paneelin elementeille.",
+    "glass_enabled": "Ota lasipinnat käyttöön",
+    "glass_color": "Lasin sävyväri",
+    "glass_color_hint": "Huurrettujen paneelien perusväri. Käyttää toissijaista taustaväriä, jos tyhjä.",
+    "glass_blur": "Pinnan sumennus",
+    "glass_opacity": "Lasin läpinäkyvyys"
   },
   "device_detail": {
     "tab_overview": "Yleiskatsaus",

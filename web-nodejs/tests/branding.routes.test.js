@@ -84,7 +84,7 @@ describe('Branding routes', () => {
             expect(res.status).toBe(200);
             expect(res.headers['content-type']).toMatch(/text\/css/);
             expect(res.text).toMatch(/:root/);
-            expect(res.text).toMatch(/--bg-primary/);
+            expect(res.text).toMatch(/--surface-glass-blur|--bg-primary/);
 
             brandingService.generateThemeCss.mockRestore();
         });
@@ -104,5 +104,11 @@ describe('brandingService.generateThemeCss', () => {
     it('returns a CSS string', () => {
         const css = brandingService.generateThemeCss();
         expect(typeof css).toBe('string');
+    });
+
+    it('includes glass surface CSS variables by default', () => {
+        const css = brandingService.generateThemeCss();
+        expect(css).toMatch(/--surface-glass-blur/);
+        expect(css).toMatch(/--surface-glass-bg-secondary/);
     });
 });

@@ -1192,7 +1192,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "Glazen oppervlakken",
+    "glass_desc": "Matglazen achtergrond voor kaarten, modals, formulieren en andere panelelementen.",
+    "glass_enabled": "Glazen oppervlakken inschakelen",
+    "glass_color": "Glazen tintkleur",
+    "glass_color_hint": "Basiskleur voor matglazen panelen. Gebruikt secundaire achtergrondkleur indien leeg.",
+    "glass_blur": "Oppervlaktevervaging",
+    "glass_opacity": "Glasdekking"
   },
   "device_detail": {
     "tab_overview": "Overzicht",

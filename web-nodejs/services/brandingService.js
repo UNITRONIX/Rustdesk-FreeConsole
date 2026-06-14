@@ -206,6 +206,12 @@ const DEFAULT_BRANDING = {
     bgOverlay: '',      // dark overlay opacity 0-100 (%) for readability
     bgSize: 'cover',    // 'cover' | 'contain' | 'repeat' | 'center'
 
+    // Glass surfaces (cards, modals, forms, navbar, etc.)
+    glassEnabled: 'true',   // 'true' | 'false'
+    glassColor: '#161b22',  // tint color (hex); empty = use bgSecondary
+    glassBlur: '16',        // backdrop-filter blur px (0-40)
+    glassOpacity: '55',     // tint opacity 0-100 (%)
+
     // Login page branding
     loginBgType: 'inherit', // 'inherit' | 'none' | 'color' | 'gradient' | 'image'
     loginBgColor: '',
@@ -375,7 +381,8 @@ async function saveBranding(updates) {
                 entries.push({ key, value: normalized });
             } else if (key === 'bgColor' || key === 'bgGradient' ||
                        key === 'loginBgColor' || key === 'loginBgGradient' ||
-                       key === 'agentBgColor' || key === 'agentBgGradient') {
+                       key === 'agentBgColor' || key === 'agentBgGradient' ||
+                       key === 'glassColor') {
                 // Security: Restrict to a safe CSS color/gradient charset.
                 entries.push({ key, value: sanitizeCssColorValue(value) });
             } else if (key === 'customCss') {
@@ -541,6 +548,9 @@ function generateThemeCss() {
         css += `:root {\n${overrides.join('\n')}\n}\n`;
     }
 
+    // Glass surface tokens
+    css += generateGlassCss(branding);
+
     // Background wallpaper (console + login) and custom CSS
     css += generateBackgroundCss(branding);
 
@@ -557,6 +567,61 @@ function clampNumber(value, min, max) {
     const n = parseFloat(value);
     if (!Number.isFinite(n)) return null;
     return Math.min(max, Math.max(min, n));
+}
+
+/** Parse a 6-digit hex color into RGB components. */
+function hexToRgb(hex) {
+    const h = String(hex || '').replace('#', '').trim();
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+    return {
+        r: parseInt(h.substring(0, 2), 16),
+        g: parseInt(h.substring(2, 4), 16),
+        b: parseInt(h.substring(4, 6), 16)
+    };
+}
+
+/**
+ * Generate CSS variables for frosted-glass panel surfaces.
+ * @param {Object} branding
+ * @returns {string}
+ */
+function generateGlassCss(branding) {
+    const enabled = branding.glassEnabled !== 'false';
+    if (!enabled) {
+        return `:root {
+    --surface-glass-blur: 0px;
+    --surface-glass-saturate: 1;
+    --surface-glass-bg-secondary: var(--bg-secondary);
+    --surface-glass-bg-tertiary: var(--bg-tertiary);
+    --surface-glass-bg-elevated: var(--bg-elevated);
+    --surface-glass-border: var(--border-primary);
+    --card-bg: var(--bg-secondary);
+}\n`;
+    }
+
+    const blur = clampNumber(branding.glassBlur, 0, 40) ?? 16;
+    const opacity = (clampNumber(branding.glassOpacity, 0, 100) ?? 55) / 100;
+    let color = (branding.glassColor || '').trim();
+    if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) {
+        const fallback = (branding.colors && branding.colors.bgSecondary) || '';
+        color = /^#[0-9a-fA-F]{6}$/.test(fallback) ? fallback : '#161b22';
+    }
+    const rgb = hexToRgb(color);
+    if (!rgb) return '';
+
+    const tertiaryAlpha = Math.min(1, opacity + 0.08).toFixed(2);
+    const elevatedAlpha = Math.min(1, opacity + 0.15).toFixed(2);
+    const borderAlpha = Math.min(1, opacity + 0.35).toFixed(2);
+
+    return `:root {
+    --surface-glass-blur: ${blur}px;
+    --surface-glass-saturate: 1.2;
+    --surface-glass-bg-secondary: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity.toFixed(2)});
+    --surface-glass-bg-tertiary: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${tertiaryAlpha});
+    --surface-glass-bg-elevated: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${elevatedAlpha});
+    --surface-glass-border: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${borderAlpha});
+    --card-bg: var(--surface-glass-bg-secondary);
+}\n`;
 }
 
 /**

@@ -1198,7 +1198,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "Suprafețe din sticlă",
+    "glass_desc": "Fundal din sticlă mată pentru carduri, modale, formulare și alte elemente ale panoului.",
+    "glass_enabled": "Activează suprafețele din sticlă",
+    "glass_color": "Culoarea nuanței de sticlă",
+    "glass_color_hint": "Culoarea de bază pentru panourile mate. Folosește culoarea secundară de fundal dacă este goală.",
+    "glass_blur": "Estompare suprafață",
+    "glass_opacity": "Opacitatea sticlei"
   },
   "device_detail": {
     "tab_overview": "Prezentare generală",

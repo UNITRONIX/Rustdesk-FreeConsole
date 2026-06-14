@@ -1198,7 +1198,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "Glasoverflader",
+    "glass_desc": "Frostet glasbaggrund til kort, modaler, formularer og andre panelelementer.",
+    "glass_enabled": "Aktivér glasoverflader",
+    "glass_color": "Glasfarvetone",
+    "glass_color_hint": "Grundfarve for frostede paneler. Bruger sekundær baggrundsfarve, når den er tom.",
+    "glass_blur": "Overfladeblur",
+    "glass_opacity": "Glasgennemsigtighed"
   },
   "device_detail": {
     "tab_overview": "Oversigt",

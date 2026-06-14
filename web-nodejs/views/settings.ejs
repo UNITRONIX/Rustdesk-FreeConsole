@@ -817,6 +817,34 @@
                             <input type="range" id="bg-overlay" class="form-range" min="0" max="90" step="5" value="0">
                             <small class="form-hint">${_('branding.bg_overlay_hint')}</small>
                         </div>
+
+                        <div class="branding-glass-config">
+                            <h3 class="branding-subsection-title">${_('branding.glass_title')}</h3>
+                            <p class="form-hint branding-subsection-desc">${_('branding.glass_desc')}</p>
+                            <div class="form-group">
+                                <label class="form-check">
+                                    <input type="checkbox" id="glass-enabled" checked>
+                                    <span>${_('branding.glass_enabled')}</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="glass-color">${_('branding.glass_color')}</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" id="glass-color-picker" value="#161b22">
+                                    <input type="text" class="form-input color-hex" id="glass-color"
+                                           placeholder="#161b22" maxlength="7">
+                                </div>
+                                <small class="form-hint">${_('branding.glass_color_hint')}</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="glass-blur">${_('branding.glass_blur')} (<span id="glass-blur-value">16</span>px)</label>
+                                <input type="range" id="glass-blur" class="form-range" min="0" max="40" step="1" value="16">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="glass-opacity">${_('branding.glass_opacity')} (<span id="glass-opacity-value">55</span>%)</label>
+                                <input type="range" id="glass-opacity" class="form-range" min="0" max="100" step="5" value="55">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

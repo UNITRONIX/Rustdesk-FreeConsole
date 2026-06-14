@@ -1192,7 +1192,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "Skleněné povrchy",
+    "glass_desc": "Matné skleněné pozadí pro karty, modální okna, formuláře a další prvky panelu.",
+    "glass_enabled": "Povolit skleněné povrchy",
+    "glass_color": "Barva skleněného tónu",
+    "glass_color_hint": "Základní barva pro matné panely. Při prázdném poli se použije sekundární barva pozadí.",
+    "glass_blur": "Rozmazání povrchu",
+    "glass_opacity": "Průhlednost skla"
   },
   "device_detail": {
     "tab_overview": "Přehled",

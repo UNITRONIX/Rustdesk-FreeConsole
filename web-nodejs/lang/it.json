@@ -1192,7 +1192,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "Superfici in vetro",
+    "glass_desc": "Sfondo in vetro satinato per schede, modali, moduli e altri elementi del pannello.",
+    "glass_enabled": "Abilita superfici in vetro",
+    "glass_color": "Colore tinta vetro",
+    "glass_color_hint": "Colore base per i pannelli satinati. Usa il colore di sfondo secondario se vuoto.",
+    "glass_blur": "Sfocatura superficie",
+    "glass_opacity": "Opacità del vetro"
   },
   "device_detail": {
     "tab_overview": "Panoramica",

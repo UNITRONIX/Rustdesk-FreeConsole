@@ -1059,6 +1059,19 @@
         const bgOverlayVal = document.getElementById('bg-overlay-value');
         if (bgOverlayVal) bgOverlayVal.textContent = data.bgOverlay || '0';
         showBackgroundPanel('bg', data.bgType || 'none');
+
+        // Glass surfaces
+        setChecked('glass-enabled', data.glassEnabled !== 'false');
+        setVal('glass-color', data.glassColor || '#161b22');
+        setVal('glass-blur', data.glassBlur || '16');
+        setVal('glass-opacity', data.glassOpacity || '55');
+        if (data.glassColor && document.getElementById('glass-color-picker') && /^#[0-9a-fA-F]{6}$/.test(data.glassColor)) {
+            document.getElementById('glass-color-picker').value = data.glassColor;
+        }
+        const glassBlurVal = document.getElementById('glass-blur-value');
+        if (glassBlurVal) glassBlurVal.textContent = data.glassBlur || '16';
+        const glassOpacityVal = document.getElementById('glass-opacity-value');
+        if (glassOpacityVal) glassOpacityVal.textContent = data.glassOpacity || '55';
         
         // Login page
         setVal('login-title', data.loginTitle || '');
@@ -1121,7 +1134,7 @@
         });
         
         // Color picker <-> hex text sync for the standalone background pickers
-        [['bg-color-picker', 'bg-color'], ['login-bg-color-picker', 'login-bg-color'], ['agent-bg-color-picker', 'agent-bg-color']].forEach(([pickerId, textId]) => {
+        [['bg-color-picker', 'bg-color'], ['login-bg-color-picker', 'login-bg-color'], ['agent-bg-color-picker', 'agent-bg-color'], ['glass-color-picker', 'glass-color']].forEach(([pickerId, textId]) => {
             const picker = document.getElementById(pickerId);
             const text = document.getElementById(textId);
             if (picker && text) {
@@ -1133,7 +1146,7 @@
         });
         
         // Range value labels
-        [['bg-blur', 'bg-blur-value'], ['bg-overlay', 'bg-overlay-value'], ['login-bg-overlay', 'login-bg-overlay-value']].forEach(([rangeId, labelId]) => {
+        [['bg-blur', 'bg-blur-value'], ['bg-overlay', 'bg-overlay-value'], ['login-bg-overlay', 'login-bg-overlay-value'], ['glass-blur', 'glass-blur-value'], ['glass-opacity', 'glass-opacity-value']].forEach(([rangeId, labelId]) => {
             const range = document.getElementById(rangeId);
             const label = document.getElementById(labelId);
             if (range && label) {
@@ -1443,6 +1456,12 @@
         data.bgBlur = document.getElementById('bg-blur')?.value || '';
         data.bgOverlay = document.getElementById('bg-overlay')?.value || '';
         data.bgSize = document.getElementById('bg-size')?.value || 'cover';
+
+        // Glass surfaces
+        data.glassEnabled = document.getElementById('glass-enabled')?.checked ? 'true' : 'false';
+        data.glassColor = document.getElementById('glass-color')?.value.trim() || '';
+        data.glassBlur = document.getElementById('glass-blur')?.value || '';
+        data.glassOpacity = document.getElementById('glass-opacity')?.value || '';
         
         // Login page
         data.loginBgType = document.querySelector('input[name="login-bg-type"]:checked')?.value || 'inherit';

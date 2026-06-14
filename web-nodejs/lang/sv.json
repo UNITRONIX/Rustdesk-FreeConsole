@@ -1198,7 +1198,14 @@
     "font_upload_name": "Font family name",
     "font_upload_success": "Font uploaded successfully.",
     "font_local_empty": "No fonts downloaded yet.",
-    "font_delete": "Remove font"
+    "font_delete": "Remove font",
+    "glass_title": "Glasytor",
+    "glass_desc": "Frostat glasbakgrund för kort, modaler, formulär och andra panelelement.",
+    "glass_enabled": "Aktivera glasytor",
+    "glass_color": "Glasfärgston",
+    "glass_color_hint": "Grundfärg för frostade paneler. Använder sekundär bakgrundsfärg om tom.",
+    "glass_blur": "Ytoblur",
+    "glass_opacity": "Glasopacitet"
   },
   "device_detail": {
     "tab_overview": "Översikt",

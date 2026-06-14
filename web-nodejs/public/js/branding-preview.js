@@ -86,6 +86,44 @@
         _fontLinks[key] = link;
     }
 
+    function hexToRgb(hex) {
+        const h = String(hex || '').replace('#', '').trim();
+        if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+        return {
+            r: parseInt(h.substring(0, 2), 16),
+            g: parseInt(h.substring(2, 4), 16),
+            b: parseInt(h.substring(4, 6), 16)
+        };
+    }
+
+    function glassOverrides(data) {
+        const lines = [];
+        const enabled = data.glassEnabled !== 'false';
+        if (!enabled) {
+            lines.push('--surface-glass-blur: 0px;');
+            lines.push('--surface-glass-saturate: 1;');
+            lines.push('--surface-glass-bg-secondary: var(--bg-secondary);');
+            lines.push('--surface-glass-bg-tertiary: var(--bg-tertiary);');
+            lines.push('--card-bg: var(--bg-secondary);');
+            return lines;
+        }
+        const blur = clampNumber(data.glassBlur, 0, 40) ?? 16;
+        const opacity = (clampNumber(data.glassOpacity, 0, 100) ?? 55) / 100;
+        let color = (data.glassColor || '').trim();
+        if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) {
+            const fallback = (data.colors && data.colors.bgSecondary) || '';
+            color = /^#[0-9a-fA-F]{6}$/.test(fallback) ? fallback : '#161b22';
+        }
+        const rgb = hexToRgb(color);
+        if (!rgb) return lines;
+        lines.push(`--surface-glass-blur: ${blur}px;`);
+        lines.push('--surface-glass-saturate: 1.2;');
+        lines.push(`--surface-glass-bg-secondary: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity.toFixed(2)});`);
+        lines.push(`--surface-glass-bg-tertiary: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${Math.min(1, opacity + 0.08).toFixed(2)});`);
+        lines.push('--card-bg: var(--surface-glass-bg-secondary);');
+        return lines;
+    }
+
     function colorOverrides(colors) {
         const lines = [];
         if (!colors) return lines;
@@ -107,6 +145,7 @@
 
     function generatePreviewCss(data) {
         const overrides = colorOverrides(data.colors);
+        overrides.push(...glassOverrides(data));
         let css = '';
 
         if (data.fontHeading) loadFontPreview(data.fontHeading);
