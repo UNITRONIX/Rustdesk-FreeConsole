@@ -440,8 +440,8 @@
 
         if (isRdClientDesktop()) {
             window.__TAURI__.core.invoke('open_session', {
-                deviceId: deviceId,
-                deviceName: deviceName || ''
+                device_id: deviceId,
+                device_name: deviceName || ''
             }).catch(function (err) {
                 console.error('RdClient desktop session failed:', err);
             });

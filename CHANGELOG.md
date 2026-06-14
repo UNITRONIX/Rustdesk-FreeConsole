@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Fixed
+
+- **RdClient dashboard (web):** address book list/grid scrolls inside the workspace instead of stretching the whole page (fixed-height flex layout).
+- **RdClient desktop:** **Connect** from the loaded `/remote` dashboard — Tauri ACL permissions for remote `open_session` invoke and correct `device_id` / `device_name` payload.
+
 ### Changed
 - _(none yet)_
 

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-session"
+description = "Enables the open_session command without any pre-configured scope."
+commands.allow = ["open_session"]
+
+[[permission]]
+identifier = "deny-open-session"
+description = "Denies the open_session command without any pre-configured scope."
+commands.deny = ["open_session"]
