@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.3.14
+#   BetterDesk Console Manager v3.3.15
 #   All-in-One Interactive Tool for Docker
 #
 #   Features:
@@ -25,7 +25,7 @@
 set -e
 
 # Version
-VERSION="3.3.14"
+VERSION="3.3.15"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Default paths (can be overridden by environment variables)
