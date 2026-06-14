@@ -744,7 +744,11 @@
     "build_status_failed": "विफल",
     "builds_summary": "{{ready}} तैयार · {{pending}} कतार में · {{building}} बिल्ड हो रहा है · {{failed}} विफल",
     "build_error_hint": "बिल्ड त्रुटि",
-    "preview_help": "सहायता का अनुरोध"
+    "preview_help": "सहायता का अनुरोध",
+    "rdclient_tab": "RdClient डेस्कटॉप",
+    "rdclient_new_bundle": "नया RdClient बंडल",
+    "rdclient_subtitle": "एम्बेडेड पैनल URL के साथ RdClient इंस्टॉलर बनाएं",
+    "rdclient_server_url_hint": "BetterDesk कंसोल का सार्वजनिक URL (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "लोड हो रहा है...",
     "file_timeout": "रिमोट डिवाइस ने प्रतिक्रिया नहीं दी. फ़ाइल स्थानांतरण समर्थित नहीं हो सकता है या रिमोट मशीन पर अक्षम है।",
     "codec": "वीडियो कोडेक",
-    "codec_auto": "ऑटो (अनुशंसित)"
+    "codec_auto": "ऑटो (अनुशंसित)",
+    "remember_peer_password": "इस डिवाइस पर डिवाइस पासवर्ड याद रखें",
+    "save_peer_password": "पासवर्ड सहेजें"
   },
   "branding": {
     "identity_title": "ब्रांड पहचान",
@@ -3834,7 +3840,8 @@
     "no_groups": "कोई समूह नहीं",
     "no_tags": "कोई टैग नहीं",
     "collapse_devices": "डिवाइस सूची संक्षिप्त करें",
-    "expand_devices": "डिवाइस सूची विस्तृत करें"
+    "expand_devices": "डिवाइस सूची विस्तृत करें",
+    "open_settings": "सेटिंग्स"
   },
   "rdclient_login": {
     "title": "रिमोट डेस्कटॉप क्लाइंट",
@@ -3854,5 +3861,15 @@
     "network_error": "नेटवर्क त्रुटि",
     "enter_6_digits": "सभी 6 अंक दर्ज करें",
     "invalid_code": "अमान्य कोड"
+  },
+  "rdclient_settings": {
+    "title": "RdClient सेटिंग्स",
+    "open": "सेटिंग्स",
+    "server_url": "पैनल URL",
+    "tls_strict": "सख्त TLS",
+    "sign_out": "साइन आउट",
+    "reset_client": "क्लाइंट रीसेट करें",
+    "discovery_refresh": "रीफ़्रेश",
+    "discovery_empty": "स्थानीय नेटवर्क पर कोई सर्वर नहीं मिला"
   }
 }

@@ -592,6 +592,8 @@ async function _claimNextBuild() {
         return String(a.created_at || '').localeCompare(String(b.created_at || ''));
     });
     for (const row of candidates) {
+        const bundleRow = await _findBundleForHash(row.branding_hash);
+        if (bundleRow && (bundleRow.product_type || 'agent') === 'rdclient') continue;
         const profile = BUILD_PROFILES[`${row.platform}/${row.arch}/${row.format}`];
         if (!profile) continue;
         await db.upsertAgentBundleBuild({
@@ -615,6 +617,7 @@ async function _listPendingBuilds(limit) {
     const out = [];
     for (const b of bundles) {
         if (b.revoked) continue;
+        if ((b.product_type || 'agent') === 'rdclient') continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         for (const r of builds) {
             if (r.status === 'pending') out.push(r);

@@ -62,6 +62,7 @@ class RDClient {
         this._codecAbilities = null;          // probed VideoDecoder support map
         this._preferCodec = opts.preferCodec || 'Auto';
         this._adaptivePaused = false;         // true once the user picks codec/quality manually
+        this._codecFallbackDone = false;      // one automatic downgrade per session
 
         // Relay state tracking
         this._relayFrameIdx = 0;         // Counter for relay frames (debugging)
@@ -1052,6 +1053,7 @@ class RDClient {
      */
     _startSession() {
         this._setState('streaming');
+        this._codecFallbackDone = false;
         this.conn.setConnected();
 
         // Enable file transfer
@@ -1067,6 +1069,9 @@ class RDClient {
             if (this._state === 'streaming') {
                 this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
             }
+        };
+        this.video.onCodecFailed = (failedCodec) => {
+            this._handleCodecFallback(failedCodec);
         };
 
         // Request keyframe on resize/fullscreen to fix blur
@@ -1325,6 +1330,7 @@ class RDClient {
         this.audio.close();
         this.fileTransfer.disable();
         this.conn.close();
+        this._codecFallbackDone = false;
     }
 
     // ---- Public Utility Methods ----
@@ -1649,6 +1655,33 @@ class RDClient {
         this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
         this.opts.preferCodec = name;
         this._emit('codec_changed', name);
+    }
+
+    /**
+     * Downgrade to the next working codec when WebCodecs fails at runtime.
+     * @param {string} failedCodec
+     */
+    _handleCodecFallback(failedCodec) {
+        const failed = String(failedCodec || '').toLowerCase();
+        if (!failed || this._codecFallbackDone || this._state !== 'streaming') return;
+        this._codecFallbackDone = true;
+
+        if (!this._codecAbilities) this._codecAbilities = {};
+        this._codecAbilities[failed] = false;
+
+        const order = ['vp9', 'h264', 'vp8'];
+        let next = 'H264';
+        for (let i = 0; i < order.length; i++) {
+            const candidate = order[i];
+            if (candidate === failed) continue;
+            if (this._codecAbilities[candidate] !== false) {
+                next = candidate === 'h264' ? 'H264' : candidate.toUpperCase();
+                break;
+            }
+        }
+
+        this._emit('log', 'Codec ' + failed.toUpperCase() + ' failed — switching to ' + next);
+        this.setCodec(next);
     }
 
     /**

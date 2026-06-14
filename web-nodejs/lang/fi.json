@@ -744,7 +744,11 @@
     "rebuild_queued": "Alle Plattform-Builds in der Warteschlange",
     "builds_summary": "{{ready}} bereit · {{pending}} in Warteschlange · {{building}} wird erstellt · {{failed}} epäonnistui",
     "build_error_hint": "Koonnosvirhe",
-    "preview_help": "Pyydä apua"
+    "preview_help": "Pyydä apua",
+    "rdclient_tab": "RdClient-työpöytä",
+    "rdclient_new_bundle": "Uusi RdClient-paketti",
+    "rdclient_subtitle": "Rakenna RdClient-asentajat upotetulla paneelin URL:llä",
+    "rdclient_server_url_hint": "BetterDesk-konsolin julkinen URL (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "Ladataan...",
     "file_timeout": "Etälaite ei vastannut. Tiedostonsiirtoa ei ehkä tueta tai se on poistettu käytöstä etäkoneessa.",
     "codec": "Video Codec",
-    "codec_auto": "Automaattinen (suositus)"
+    "codec_auto": "Automaattinen (suositus)",
+    "remember_peer_password": "Muista laitteen salasana tällä tietokoneella",
+    "save_peer_password": "Tallenna salasana"
   },
   "branding": {
     "identity_title": "Brändin identiteetti",
@@ -3834,7 +3840,8 @@
     "no_groups": "Ei ryhmiä",
     "no_tags": "Ei tageja",
     "collapse_devices": "Tiivistä laiteluettelo",
-    "expand_devices": "Laajenna laiteluettelo"
+    "expand_devices": "Laajenna laiteluettelo",
+    "open_settings": "Asetukset"
   },
   "rdclient_login": {
     "title": "Etätyöpöytäasiakas",
@@ -3854,5 +3861,15 @@
     "network_error": "Verkkovirhe",
     "enter_6_digits": "Syötä kaikki 6 numeroa",
     "invalid_code": "Virheellinen koodi"
+  },
+  "rdclient_settings": {
+    "title": "RdClient-asetukset",
+    "open": "Asetukset",
+    "server_url": "Paneelin URL",
+    "tls_strict": "Tiukka TLS",
+    "sign_out": "Kirjaudu ulos",
+    "reset_client": "Nollaa asiakas",
+    "discovery_refresh": "Päivitä",
+    "discovery_empty": "Paikallisesta verkosta ei löytynyt palvelimia"
   }
 }

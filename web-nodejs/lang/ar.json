@@ -745,7 +745,11 @@
     "build_status_failed": "فشل",
     "builds_summary": "{{ready}} جاهز · {{pending}} في الانتظار · {{building}} جارٍ البناء · {{failed}} فشل",
     "build_error_hint": "خطأ في البناء",
-    "preview_help": "طلب المساعدة"
+    "preview_help": "طلب المساعدة",
+    "rdclient_tab": "RdClient سطح المكتب",
+    "rdclient_new_bundle": "حزمة RdClient جديدة",
+    "rdclient_subtitle": "إنشاء مثبتات RdClient مع رابط اللوحة المضمن",
+    "rdclient_server_url_hint": "الرابط العام لوحة BetterDesk (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1051,7 +1055,9 @@
     "file_loading": "تحميل...",
     "file_timeout": "الجهاز البعيد لم يستجب. قد لا يكون نقل الملفات مدعومًا أو معطلاً على الجهاز البعيد.",
     "codec": "ترميز الفيديو",
-    "codec_auto": "تلقائي (مستحسن)"
+    "codec_auto": "تلقائي (مستحسن)",
+    "remember_peer_password": "تذكر كلمة مرور الجهاز على هذا الحاسوب",
+    "save_peer_password": "حفظ كلمة المرور"
   },
   "branding": {
     "identity_title": "هوية العلامة التجارية",
@@ -3835,7 +3841,8 @@
     "no_groups": "لا توجد مجموعات",
     "no_tags": "لا توجد وسوم",
     "collapse_devices": "طي قائمة الأجهزة",
-    "expand_devices": "توسيع قائمة الأجهزة"
+    "expand_devices": "توسيع قائمة الأجهزة",
+    "open_settings": "الإعدادات"
   },
   "rdclient_login": {
     "title": "عميل سطح المكتب البعيد",
@@ -3855,5 +3862,15 @@
     "network_error": "خطأ في الشبكة",
     "enter_6_digits": "أدخل جميع الأرقام الستة",
     "invalid_code": "رمز غير صالح"
+  },
+  "rdclient_settings": {
+    "title": "إعدادات RdClient",
+    "open": "الإعدادات",
+    "server_url": "رابط اللوحة",
+    "tls_strict": "TLS صارم",
+    "sign_out": "تسجيل الخروج",
+    "reset_client": "إعادة ضبط العميل",
+    "discovery_refresh": "تحديث",
+    "discovery_empty": "لم يتم العثور على خوادم في الشبكة المحلية"
   }
 }

@@ -2,7 +2,7 @@
 
 Tauri v2 desktop shell for the RdClient operator UI. The app loads your panel’s **`/remote`** dashboard in the main window and opens each remote session in a **separate window** (`/remote/:deviceId`), similar to RustDesk.
 
-This is **Phase C (MVP)** of the RdClient roadmap. It reuses the web dashboard and login flow; JWT/keychain auth is planned for a later phase.
+This is **production-ready Phase C+** of the RdClient roadmap: server validation, LAN discovery, settings/reset, encrypted peer passwords, full panel i18n, codec fallbacks on Linux, and generator-built installers with embedded panel URL.
 
 ## Prerequisites
 
@@ -111,9 +111,28 @@ Production bundle instead of dev:
 
 **Important:** the dashboard HTML/JS is loaded from your **panel URL** (`/remote`). Updating only the desktop binary is not enough for UI tweaks — run **Settings → Updates** on the panel (or deploy `web-nodejs`) so `/js/remote-dashboard.js` is current. The desktop shell also injects a Connect bridge, so **Connect works even before the panel JS update** once you run a freshly built binary.
 
-1. On first launch, enter your panel base URL (e.g. `https://desk.example.com`).
+1. On first launch, enter your panel base URL (e.g. `https://desk.example.com`) or pick a server from **LAN discovery**.
 2. Sign in at **`/remote/login`** when prompted (same as the web RdClient).
 3. Use **Connect** on a device — the desktop opens a new window instead of a browser tab.
+4. Open **Settings** (gear icon in the dashboard header) to change URL, TLS mode, language, sign out, or **Reset client** (clears config, cookies, and saved passwords).
+
+### Environment & embedded URL
+
+| Source | Purpose |
+|--------|---------|
+| `BETTERDESK_SERVER_URL` | Auto-configure panel URL before setup UI |
+| `betterdesk-rdclient.json` next to the binary | Installer-embedded `{ "server_url": "https://…" }` from Generator |
+| UDP / mDNS LAN discovery | Setup UI lists panels on the local network |
+
+### Password storage
+
+- **Operator login (“Remember me”):** `RdClientSecureStore` in IndexedDB (AES-GCM).
+- **Device password (“Remember device password”):** same vault, per `deviceId` (`peer:{id}` keys). Passwords never leave the device.
+- **Reset client:** clears `config.json`, WebView cookies/storage, and the vault.
+
+### LAN discovery
+
+The panel publishes itself via UDP (port **21119**, always on) and optionally mDNS `_betterdesk._tcp` when `bonjour-service` is installed and `PANEL_MDNS` is not `off`.
 
 ## Build
 
@@ -127,9 +146,12 @@ Installers/binaries are under `src-tauri/target/release/bundle/`.
 
 | Piece | Role |
 |-------|------|
-| `src/setup.html` | First-run local page to save the panel URL |
-| `src-tauri/src/lib.rs` | Tauri commands: `get_server_url`, `set_server_url`, `open_session` |
-| `src-tauri/src/config.rs` | Persists `server_url` in the app config dir |
+| `src/setup.html` | First-run: LAN discovery list + manual panel URL |
+| `src/settings.html` | Local settings: URL, TLS, language, sign out, reset |
+| `src-tauri/src/lib.rs` | Tauri commands: probe, discover, settings, sign out, reset, sessions |
+| `src-tauri/src/config.rs` | Persists extended config + embedded/env URL helpers |
+| `src-tauri/src/server_probe.rs` | Validates panel via `/api/bd/server-info` |
+| `src-tauri/src/discovery.rs` | UDP LAN browse (BetterDesk announce protocol) |
 | `src-tauri/src/linux_display.rs` | Linux X11/Wayland session + WebKitGTK workarounds |
 | `src-tauri/src/tls_policy.rs` | Windows WebView2 + strict-mode env |
 | `scripts/rdclient-launcher.sh` | Optional wrapper for release binaries |
@@ -146,12 +168,20 @@ Config file: **`config.json`** in the OS app config directory (`com.betterdesk.r
 cargo update -p alloc-no-stdlib@2.0.4 --precise 3.0.0
 ```
 
-## Roadmap (not in this MVP)
+## Verify matrix (manual)
+
+| Platform | Check |
+|----------|--------|
+| **Linux Wayland** | Setup discovery, login, VP9/H.264 session (no AV1 loop), settings reset |
+| **Linux X11** | Same as Wayland; test `BETTERDESK_UI_BACKEND=x11` if needed |
+| **Windows x64** | WebView2 present, Connect, remember passwords, MSI/portable from Generator |
+| **Fedora deb/rpm** | Installed bundle from Generator when build host has toolchain |
+
+## Roadmap (not in this release)
 
 - Operator JWT + OS keychain login (`POST /api/bd/operator/login`)
 - WebSocket relay Bearer auth for long-lived desktop sessions
-- Settings → change server URL / sign out
-- CI release artifacts (replacing legacy `betterdesk-mgmt`)
+- Native Rust video decoder (if WebCodecs insufficient on Linux)
 
 ## License
 

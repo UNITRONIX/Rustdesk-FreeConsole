@@ -744,7 +744,11 @@
     "build_status_failed": "Gagal",
     "builds_summary": "{{ready}} siap · {{pending}} antrian · {{building}} membangun · {{failed}} gagal",
     "build_error_hint": "Kesalahan build",
-    "preview_help": "Minta bantuan"
+    "preview_help": "Minta bantuan",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Paket RdClient baru",
+    "rdclient_subtitle": "Buat installer RdClient dengan URL panel tertanam",
+    "rdclient_server_url_hint": "URL publik konsol BetterDesk (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "Memuat...",
     "file_timeout": "Perangkat jarak jauh tidak merespons. Transfer file mungkin tidak didukung atau dinonaktifkan pada mesin jarak jauh.",
     "codec": "Kodek Video",
-    "codec_auto": "Otomatis (disarankan)"
+    "codec_auto": "Otomatis (disarankan)",
+    "remember_peer_password": "Ingat kata sandi perangkat di komputer ini",
+    "save_peer_password": "Simpan kata sandi"
   },
   "branding": {
     "identity_title": "Identitas Merek",
@@ -3834,7 +3840,8 @@
     "no_groups": "Tidak ada grup",
     "no_tags": "Tidak ada tag",
     "collapse_devices": "Ciutkan daftar perangkat",
-    "expand_devices": "Perluas daftar perangkat"
+    "expand_devices": "Perluas daftar perangkat",
+    "open_settings": "Pengaturan"
   },
   "rdclient_login": {
     "title": "Klien Desktop Jarak Jauh",
@@ -3854,5 +3861,15 @@
     "network_error": "Kesalahan jaringan",
     "enter_6_digits": "Masukkan semua 6 digit",
     "invalid_code": "Kode tidak valid"
+  },
+  "rdclient_settings": {
+    "title": "Pengaturan RdClient",
+    "open": "Pengaturan",
+    "server_url": "URL panel",
+    "tls_strict": "TLS ketat",
+    "sign_out": "Keluar",
+    "reset_client": "Reset klien",
+    "discovery_refresh": "Segarkan",
+    "discovery_empty": "Tidak ada server di jaringan lokal"
   }
 }

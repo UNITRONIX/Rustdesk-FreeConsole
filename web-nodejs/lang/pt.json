@@ -738,7 +738,11 @@
     "build_status_failed": "Falhou",
     "builds_summary": "{{ready}} pronto · {{pending}} en fila · {{building}} compilando · {{failed}} falhou",
     "build_error_hint": "Erro de compilação",
-    "preview_help": "Solicitar ajuda"
+    "preview_help": "Solicitar ajuda",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Novo pacote RdClient",
+    "rdclient_subtitle": "Criar instaladores RdClient com URL do painel incorporado",
+    "rdclient_server_url_hint": "URL pública da consola BetterDesk (/remote)."
   },
   "server": {
     "port": "Porta",
@@ -1044,7 +1048,9 @@
     "file_loading": "Carregando...",
     "file_timeout": "O dispositivo remoto não respondeu. A transferência de arquivos pode não ser compatível ou pode estar desativada no computador remoto.",
     "codec": "Codec de vídeo",
-    "codec_auto": "Automático (recomendado)"
+    "codec_auto": "Automático (recomendado)",
+    "remember_peer_password": "Lembrar senha do dispositivo neste computador",
+    "save_peer_password": "Guardar senha"
   },
   "branding": {
     "identity_title": "Identidade da marca",
@@ -3828,7 +3834,8 @@
     "no_groups": "Sem grupos",
     "no_tags": "Sem etiquetas",
     "collapse_devices": "Recolher lista de dispositivos",
-    "expand_devices": "Expandir lista de dispositivos"
+    "expand_devices": "Expandir lista de dispositivos",
+    "open_settings": "Definições"
   },
   "rdclient_login": {
     "title": "Cliente de ambiente de trabalho remoto",
@@ -3848,5 +3855,15 @@
     "network_error": "Erro de rede",
     "enter_6_digits": "Introduza os 6 dígitos",
     "invalid_code": "Código inválido"
+  },
+  "rdclient_settings": {
+    "title": "Definições RdClient",
+    "open": "Definições",
+    "server_url": "URL do painel",
+    "tls_strict": "TLS estrito",
+    "sign_out": "Terminar sessão",
+    "reset_client": "Repor cliente",
+    "discovery_refresh": "Atualizar",
+    "discovery_empty": "Nenhum servidor encontrado na rede local"
   }
 }

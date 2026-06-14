@@ -738,7 +738,11 @@
     "text_color": "Color del texto",
     "text_muted_color": "Color de texto atenuado",
     "use_https": "Usar HTTPS / WSS (recomendado)",
-    "preview_help": "Solicitar ayuda"
+    "preview_help": "Solicitar ayuda",
+    "rdclient_tab": "RdClient escritorio",
+    "rdclient_new_bundle": "Nuevo paquete RdClient",
+    "rdclient_subtitle": "Generar instaladores RdClient con URL del panel integrada",
+    "rdclient_server_url_hint": "URL pública de la consola BetterDesk (/remote)."
   },
   "server": {
     "port": "Puerto",
@@ -1044,7 +1048,9 @@
     "file_loading": "Cargando...",
     "file_timeout": "El dispositivo remoto no respondió. Es posible que la transferencia de archivos no sea compatible o esté deshabilitada en el equipo remoto.",
     "codec": "Códec de vídeo",
-    "codec_auto": "Automático (recomendado)"
+    "codec_auto": "Automático (recomendado)",
+    "remember_peer_password": "Recordar contraseña del dispositivo en este equipo",
+    "save_peer_password": "Guardar contraseña"
   },
   "branding": {
     "identity_title": "Identidad de marca",
@@ -3828,7 +3834,8 @@
     "no_groups": "Sin grupos",
     "no_tags": "Sin etiquetas",
     "collapse_devices": "Contraer lista de dispositivos",
-    "expand_devices": "Expandir lista de dispositivos"
+    "expand_devices": "Expandir lista de dispositivos",
+    "open_settings": "Ajustes"
   },
   "rdclient_login": {
     "title": "Cliente de escritorio remoto",
@@ -3848,5 +3855,15 @@
     "network_error": "Error de red",
     "enter_6_digits": "Introduzca los 6 dígitos",
     "invalid_code": "Código inválido"
+  },
+  "rdclient_settings": {
+    "title": "Ajustes de RdClient",
+    "open": "Ajustes",
+    "server_url": "URL del panel",
+    "tls_strict": "TLS estricto",
+    "sign_out": "Cerrar sesión",
+    "reset_client": "Restablecer cliente",
+    "discovery_refresh": "Actualizar",
+    "discovery_empty": "No se encontraron servidores en la red local"
   }
 }

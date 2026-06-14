@@ -744,7 +744,11 @@
     "rebuild_queued": "Alle Plattform-Builds in der Warteschlange",
     "builds_summary": "{{ready}} bereit · {{pending}} in Warteschlange · {{building}} wird erstellt · {{failed}} misslyckades",
     "build_error_hint": "Byggfel",
-    "preview_help": "Begär hjälp"
+    "preview_help": "Begär hjälp",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Nytt RdClient-paket",
+    "rdclient_subtitle": "Bygg RdClient-installerare med inbäddad panel-URL",
+    "rdclient_server_url_hint": "Offentlig URL till BetterDesk-konsolen (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "Laddar...",
     "file_timeout": "Fjärrenheten svarade inte. Filöverföring kanske inte stöds eller är inaktiverad på fjärrmaskinen.",
     "codec": "Video Codec",
-    "codec_auto": "Auto (rekommenderas)"
+    "codec_auto": "Auto (rekommenderas)",
+    "remember_peer_password": "Kom ihåg enhetslösenord på den här datorn",
+    "save_peer_password": "Spara lösenord"
   },
   "branding": {
     "identity_title": "Varumärkesidentitet",
@@ -3834,7 +3840,8 @@
     "no_groups": "Inga grupper",
     "no_tags": "Inga taggar",
     "collapse_devices": "Fäll ihop enhetslista",
-    "expand_devices": "Expandera enhetslista"
+    "expand_devices": "Expandera enhetslista",
+    "open_settings": "Inställningar"
   },
   "rdclient_login": {
     "title": "Remote Desktop-klient",
@@ -3854,5 +3861,15 @@
     "network_error": "Nätverksfel",
     "enter_6_digits": "Ange alla 6 siffror",
     "invalid_code": "Ogiltig kod"
+  },
+  "rdclient_settings": {
+    "title": "RdClient-inställningar",
+    "open": "Inställningar",
+    "server_url": "Panel-URL",
+    "tls_strict": "Strikt TLS",
+    "sign_out": "Logga ut",
+    "reset_client": "Återställ klient",
+    "discovery_refresh": "Uppdatera",
+    "discovery_empty": "Inga servrar hittades i det lokala nätverket"
   }
 }

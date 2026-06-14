@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-ui-lang"
+description = "Enables the set_ui_lang command without any pre-configured scope."
+commands.allow = ["set_ui_lang"]
+
+[[permission]]
+identifier = "deny-set-ui-lang"
+description = "Denies the set_ui_lang command without any pre-configured scope."
+commands.deny = ["set_ui_lang"]

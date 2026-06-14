@@ -744,7 +744,11 @@
     "rebuild_queued": "Alle Plattform-Builds in der Warteschlange",
     "builds_summary": "{{ready}} bereit · {{pending}} in Warteschlange · {{building}} wird erstellt · {{failed}} mislyktes",
     "build_error_hint": "Byggfeil",
-    "preview_help": "Be om hjelp"
+    "preview_help": "Be om hjelp",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Nytt RdClient-pakke",
+    "rdclient_subtitle": "Bygg RdClient-installere med innebygd panel-URL",
+    "rdclient_server_url_hint": "Offentlig URL til BetterDesk-konsollen (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "Laster inn...",
     "file_timeout": "Ekstern enhet svarte ikke. Filoverføring støttes kanskje ikke eller er deaktivert på den eksterne maskinen.",
     "codec": "Videokodek",
-    "codec_auto": "Auto (anbefalt)"
+    "codec_auto": "Auto (anbefalt)",
+    "remember_peer_password": "Husk enhetspassord på denne datamaskinen",
+    "save_peer_password": "Lagre passord"
   },
   "branding": {
     "identity_title": "Merkeidentitet",
@@ -3834,7 +3840,8 @@
     "no_groups": "Ingen grupper",
     "no_tags": "Ingen tagger",
     "collapse_devices": "Skjul enhetsliste",
-    "expand_devices": "Vis enhetsliste"
+    "expand_devices": "Vis enhetsliste",
+    "open_settings": "Innstillinger"
   },
   "rdclient_login": {
     "title": "Remote Desktop-klient",
@@ -3854,5 +3861,15 @@
     "network_error": "Nettverksfeil",
     "enter_6_digits": "Skriv inn alle 6 sifre",
     "invalid_code": "Ugyldig kode"
+  },
+  "rdclient_settings": {
+    "title": "RdClient-innstillinger",
+    "open": "Innstillinger",
+    "server_url": "Panel-URL",
+    "tls_strict": "Streng TLS",
+    "sign_out": "Logg ut",
+    "reset_client": "Tilbakestill klient",
+    "discovery_refresh": "Oppdater",
+    "discovery_empty": "Ingen servere funnet på det lokale nettverket"
   }
 }

@@ -738,7 +738,11 @@
     "text_color": "Textfarbe",
     "text_muted_color": "Gedämpfte Textfarbe",
     "use_https": "HTTPS / WSS verwenden (empfohlen)",
-    "preview_help": "Hilfe anfordern"
+    "preview_help": "Hilfe anfordern",
+    "rdclient_tab": "RdClient Desktop",
+    "rdclient_new_bundle": "Neues RdClient-Paket",
+    "rdclient_subtitle": "Branded RdClient-Installer mit eingebetteter Panel-URL erstellen",
+    "rdclient_server_url_hint": "Öffentliche URL der BetterDesk-Konsole (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1044,7 +1048,9 @@
     "file_loading": "Wird geladen...",
     "file_timeout": "Das entfernte Gerät hat nicht geantwortet. Dateiübertragung wird möglicherweise nicht unterstützt oder ist auf dem entfernten Computer deaktiviert.",
     "codec": "Video-Codec",
-    "codec_auto": "Automatisch (empfohlen)"
+    "codec_auto": "Automatisch (empfohlen)",
+    "remember_peer_password": "Gerätepasswort auf diesem Gerät merken",
+    "save_peer_password": "Passwort speichern"
   },
   "branding": {
     "identity_title": "Markenidentität",
@@ -3828,7 +3834,8 @@
     "no_groups": "Keine Gruppen",
     "no_tags": "Keine Tags",
     "collapse_devices": "Geräteliste einklappen",
-    "expand_devices": "Geräteliste ausklappen"
+    "expand_devices": "Geräteliste ausklappen",
+    "open_settings": "Einstellungen"
   },
   "rdclient_login": {
     "title": "Remote-Desktop-Client",
@@ -3848,5 +3855,15 @@
     "network_error": "Netzwerkfehler",
     "enter_6_digits": "Alle 6 Ziffern eingeben",
     "invalid_code": "Ungültiger Code"
+  },
+  "rdclient_settings": {
+    "title": "RdClient-Einstellungen",
+    "open": "Einstellungen",
+    "server_url": "Panel-URL",
+    "tls_strict": "Striktes TLS",
+    "sign_out": "Abmelden",
+    "reset_client": "Client zurücksetzen",
+    "discovery_refresh": "Aktualisieren",
+    "discovery_empty": "Keine Server im lokalen Netzwerk gefunden"
   }
 }

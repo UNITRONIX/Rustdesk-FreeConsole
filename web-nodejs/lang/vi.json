@@ -744,7 +744,11 @@
     "build_status_failed": "Thất bại",
     "builds_summary": "{{ready}} sẵn sàng · {{pending}} đang chờ · {{building}} đang build · {{failed}} thất bại",
     "build_error_hint": "Lỗi build",
-    "preview_help": "Yêu cầu trợ giúp"
+    "preview_help": "Yêu cầu trợ giúp",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Gói RdClient mới",
+    "rdclient_subtitle": "Tạo trình cài RdClient với URL bảng điều khiển nhúng",
+    "rdclient_server_url_hint": "URL công khai của bảng điều khiển BetterDesk (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "Đang tải...",
     "file_timeout": "Thiết bị từ xa không phản hồi. Truyền tệp có thể không được hỗ trợ hoặc bị tắt trên máy từ xa.",
     "codec": "Bộ giải mã video",
-    "codec_auto": "Tự động (được khuyến nghị)"
+    "codec_auto": "Tự động (được khuyến nghị)",
+    "remember_peer_password": "Ghi nhớ mật khẩu thiết bị trên máy này",
+    "save_peer_password": "Lưu mật khẩu"
   },
   "branding": {
     "identity_title": "Nhận diện thương hiệu",
@@ -3834,7 +3840,8 @@
     "no_groups": "Không có nhóm",
     "no_tags": "Không có thẻ",
     "collapse_devices": "Thu gọn danh sách thiết bị",
-    "expand_devices": "Mở rộng danh sách thiết bị"
+    "expand_devices": "Mở rộng danh sách thiết bị",
+    "open_settings": "Cài đặt"
   },
   "rdclient_login": {
     "title": "Máy khách Desktop từ xa",
@@ -3854,5 +3861,15 @@
     "network_error": "Lỗi mạng",
     "enter_6_digits": "Nhập đủ 6 chữ số",
     "invalid_code": "Mã không hợp lệ"
+  },
+  "rdclient_settings": {
+    "title": "Cài đặt RdClient",
+    "open": "Cài đặt",
+    "server_url": "URL bảng điều khiển",
+    "tls_strict": "TLS nghiêm ngặt",
+    "sign_out": "Đăng xuất",
+    "reset_client": "Đặt lại client",
+    "discovery_refresh": "Làm mới",
+    "discovery_empty": "Không tìm thấy máy chủ trên mạng cục bộ"
   }
 }

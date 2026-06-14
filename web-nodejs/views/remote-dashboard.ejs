@@ -13,6 +13,10 @@
             </div>
         </div>
         <div class="rd-desk-header-actions">
+            <select id="rd-desk-lang" class="rd-desk-lang-select" data-language-select aria-label="${_('settings.language')}"></select>
+            <button type="button" class="rd-desk-icon-btn" id="rd-desk-settings" title="${_('rdclient_settings.open') || 'Settings'}" style="display:none;">
+                <span class="material-icons">settings</span>
+            </button>
             <span class="rd-desk-user" id="rd-desk-user"></span>
             <button type="button" class="rd-desk-icon-btn" id="rd-desk-refresh" title="${_('remote_dashboard.sync_now')}">
                 <span class="material-icons">sync</span>
@@ -39,6 +43,7 @@
 
     <div class="rd-desk-workspace">
         <aside class="rd-desk-sidebar" id="rd-desk-sidebar">
+            <div class="rd-desk-sidebar-scroll" id="rd-desk-sidebar-scroll">
             <nav class="rd-desk-nav-section" data-collapsible="folders">
                 <button type="button" class="rd-desk-nav-heading rd-desk-nav-heading-btn" id="rd-desk-nav-folders-toggle" aria-expanded="true">
                     <span>${_('remote_dashboard.nav_folders')}</span>
@@ -84,6 +89,7 @@
                 </ul>
                 </div>
             </nav>
+            </div>
         </aside>
 
         <div class="rd-desk-content">

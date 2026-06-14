@@ -1,7 +1,17 @@
 ## [Unreleased]
 
+### Added
+
+- **RdClient desktop (production hardening):** server URL validation via `GET /api/bd/server-info` and `probe_server_url`; extended `config.json` (`tls_strict`, `ui_lang`, `discovered_via`); `BETTERDESK_SERVER_URL` env and embedded `betterdesk-rdclient.json` on first launch; LAN discovery (UDP port 21119 + optional mDNS `_betterdesk._tcp`); local **Settings** window (change URL, TLS, sign out, factory reset); peer **Remember device password** vault (IndexedDB AES-GCM per device); language switcher on `/remote/login`, dashboard, and viewer (26 locales); **Generator → RdClient desktop** bundles with `rdclientBuildWorker` (6 platform variants, embedded panel URL).
+
 ### Changed
-- _(none yet)_
+
+- **RdClient codecs (Linux):** WebKitGTK skips unreliable AV1 negotiation; runtime fallback to VP9/H.264 on decode failure.
+- **RdClient dashboard:** unified sidebar + device panel scrolling; desktop settings button in header.
+
+### Manual steps (build host)
+
+- RdClient installer builds require **Rust stable**, **npm**, **@tauri-apps/cli**, and Linux deps (`webkit2gtk4.1-devel`, `openssl-devel`, …) on the panel build host. Optional: `npm install bonjour-service` in `web-nodejs` for mDNS panel publish (`PANEL_MDNS=off` to disable).
 
 ---
 
@@ -16,7 +26,8 @@
 
 ### Fixed
 
-- **RdClient dashboard (web):** address book list/grid scrolls inside the workspace instead of stretching the whole page (fixed-height flex layout); collapsible device list panel and sidebar sections (Folders/Groups/Tags) with internal scroll; desktop shell applies stricter viewport height.
+- **RdClient dashboard (web):** address book and sidebar scroll inside fixed columns with hidden scrollbars; `.rd-desk-content` flex chain fixed so the device grid no longer stretches the window.
+- **RdClient video (AV1):** WebKit uses software AV1 decode; agent `codec_string` is passed to `VideoDecoder`; AV1 keyframes build `description` (av1C); failed codecs auto-reconnect with VP9/H.264.
 - **RdClient desktop:** **Connect** from the loaded `/remote` dashboard — runtime ACL for the configured panel origin (fixes LAN IP:port invoke), injected Connect bridge in the desktop shell (works before panel JS update), correct Tauri invoke args (`deviceId` / `deviceName`), and a new app window loading the same `/remote/:id` viewer as the web panel; session window **Back** closes the desktop window (injected handler + no `/devices` fallback).
 - **RdClient desktop (performance):** Linux Wayland keeps WebKit DMA-BUF/GPU compositing enabled by default; vendor-specific VA-API (Intel `iHD`, AMD `radeonsi`, NVIDIA when `nvidia-vaapi-driver` is present); GStreamer hardware decoder rank for AV1/H264/VP9/H265; session windows disable background throttling; Windows WebView2 AV1/HEVC GPU decode flags; WebCodecs probes multiple AV1/H264 profiles for WebKitGTK compatibility.
 

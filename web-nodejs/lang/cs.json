@@ -738,7 +738,11 @@
     "build_status_failed": "Neudany",
     "builds_summary": "{{ready}} gotowych · {{pending}} w kolejce · {{building}} sestavování · {{failed}} nieudanych",
     "build_error_hint": "Blad buildu",
-    "preview_help": "Požádat o pomoc"
+    "preview_help": "Požádat o pomoc",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Nový balíček RdClient",
+    "rdclient_subtitle": "Sestavit instalátory RdClient s vloženou URL panelu",
+    "rdclient_server_url_hint": "Veřejná URL konzole BetterDesk (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1044,7 +1048,9 @@
     "file_loading": "Načítání...",
     "file_timeout": "Vzdálené zařízení neodpovědělo. Přenos souborů nemusí být podporován nebo je na vzdáleném zařízení zakázán.",
     "codec": "Kodek videa",
-    "codec_auto": "Automaticky (doporučeno)"
+    "codec_auto": "Automaticky (doporučeno)",
+    "remember_peer_password": "Zapamatovat heslo zařízení na tomto počítači",
+    "save_peer_password": "Uložit heslo"
   },
   "branding": {
     "identity_title": "Identita značky",
@@ -3828,7 +3834,8 @@
     "no_groups": "Žádné skupiny",
     "no_tags": "Žádné štítky",
     "collapse_devices": "Sbalit seznam zařízení",
-    "expand_devices": "Rozbalit seznam zařízení"
+    "expand_devices": "Rozbalit seznam zařízení",
+    "open_settings": "Nastavení"
   },
   "rdclient_login": {
     "title": "Klient vzdálené plochy",
@@ -3848,5 +3855,15 @@
     "network_error": "Chyba sítě",
     "enter_6_digits": "Zadejte všech 6 číslic",
     "invalid_code": "Neplatný kód"
+  },
+  "rdclient_settings": {
+    "title": "Nastavení RdClient",
+    "open": "Nastavení",
+    "server_url": "URL panelu",
+    "tls_strict": "Přísné TLS",
+    "sign_out": "Odhlásit",
+    "reset_client": "Resetovat klienta",
+    "discovery_refresh": "Obnovit",
+    "discovery_empty": "V místní síti nebyly nalezeny žádné servery"
   }
 }

@@ -744,7 +744,11 @@
     "build_status_failed": "ล้มเหลว",
     "builds_summary": "{{ready}} พร้อม · {{pending}} รอคิว · {{building}} กำลัง Build · {{failed}} ล้มเหลว",
     "build_error_hint": "ข้อผิดพลาด Build",
-    "preview_help": "ขอความช่วยเหลือ"
+    "preview_help": "ขอความช่วยเหลือ",
+    "rdclient_tab": "RdClient เดสก์ท็อป",
+    "rdclient_new_bundle": "ชุด RdClient ใหม่",
+    "rdclient_subtitle": "สร้างตัวติดตั้ง RdClient พร้อม URL แผงควบคุมฝังตัว",
+    "rdclient_server_url_hint": "URL สาธารณะของคอนโซล BetterDesk (/remote)"
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "กำลังโหลด...",
     "file_timeout": "อุปกรณ์ระยะไกลไม่ตอบสนอง การถ่ายโอนไฟล์อาจไม่รองรับหรือถูกปิดใช้งานบนเครื่องระยะไกล",
     "codec": "ตัวแปลงสัญญาณวิดีโอ",
-    "codec_auto": "อัตโนมัติ (แนะนำ)"
+    "codec_auto": "อัตโนมัติ (แนะนำ)",
+    "remember_peer_password": "จดจำรหัสผ่านอุปกรณ์บนคอมพิวเตอร์นี้",
+    "save_peer_password": "บันทึกรหัสผ่าน"
   },
   "branding": {
     "identity_title": "เอกลักษณ์ของแบรนด์",
@@ -3834,7 +3840,8 @@
     "no_groups": "ไม่มีกลุ่ม",
     "no_tags": "ไม่มีแท็ก",
     "collapse_devices": "ยุบรายการอุปกรณ์",
-    "expand_devices": "ขยายรายการอุปกรณ์"
+    "expand_devices": "ขยายรายการอุปกรณ์",
+    "open_settings": "การตั้งค่า"
   },
   "rdclient_login": {
     "title": "ไคลเอนต์เดสก์ท็อประยะไกล",
@@ -3854,5 +3861,15 @@
     "network_error": "ข้อผิดพลาดเครือข่าย",
     "enter_6_digits": "ป้อนตัวเลขครบ 6 หลัก",
     "invalid_code": "รหัสไม่ถูกต้อง"
+  },
+  "rdclient_settings": {
+    "title": "การตั้งค่า RdClient",
+    "open": "การตั้งค่า",
+    "server_url": "URL แผงควบคุม",
+    "tls_strict": "TLS เข้มงวด",
+    "sign_out": "ออกจากระบบ",
+    "reset_client": "รีเซ็ตไคลเอนต์",
+    "discovery_refresh": "รีเฟรช",
+    "discovery_empty": "ไม่พบเซิร์ฟเวอร์ในเครือข่ายท้องถิ่น"
   }
 }

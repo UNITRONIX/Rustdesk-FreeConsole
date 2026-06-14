@@ -738,7 +738,11 @@
     "build_status_failed": "Mislukt",
     "builds_summary": "{{ready}} bereit · {{pending}} in Warteschlange · {{building}} wird erstellt · {{failed}} mislukt",
     "build_error_hint": "Build-Fout",
-    "preview_help": "Hulp vragen"
+    "preview_help": "Hulp vragen",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Nieuw RdClient-pakket",
+    "rdclient_subtitle": "RdClient-installers bouwen met ingebedde paneel-URL",
+    "rdclient_server_url_hint": "Publieke URL van het BetterDesk-paneel (/remote)."
   },
   "server": {
     "port": "Poort",
@@ -1044,7 +1048,9 @@
     "file_loading": "Laden...",
     "file_timeout": "Het externe apparaat reageerde niet. Bestandsoverdracht wordt mogelijk niet ondersteund of is uitgeschakeld op de externe computer.",
     "codec": "Videocodec",
-    "codec_auto": "Automatisch (aanbevolen)"
+    "codec_auto": "Automatisch (aanbevolen)",
+    "remember_peer_password": "Apparaatwachtwoord onthouden op dit apparaat",
+    "save_peer_password": "Wachtwoord opslaan"
   },
   "branding": {
     "identity_title": "Merkidentiteit",
@@ -3828,7 +3834,8 @@
     "no_groups": "Geen groepen",
     "no_tags": "Geen tags",
     "collapse_devices": "Apparaatlijst inklappen",
-    "expand_devices": "Apparaatlijst uitklappen"
+    "expand_devices": "Apparaatlijst uitklappen",
+    "open_settings": "Instellingen"
   },
   "rdclient_login": {
     "title": "Remote Desktop-client",
@@ -3848,5 +3855,15 @@
     "network_error": "Netwerkfout",
     "enter_6_digits": "Voer alle 6 cijfers in",
     "invalid_code": "Ongeldige code"
+  },
+  "rdclient_settings": {
+    "title": "RdClient-instellingen",
+    "open": "Instellingen",
+    "server_url": "Paneel-URL",
+    "tls_strict": "Strikte TLS",
+    "sign_out": "Afmelden",
+    "reset_client": "Client resetten",
+    "discovery_refresh": "Vernieuwen",
+    "discovery_empty": "Geen servers gevonden op het lokale netwerk"
   }
 }

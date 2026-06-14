@@ -65,9 +65,12 @@ class RDVideo {
         this._codecConfig = null;
         /** @type {boolean} Whether we already retried software decoding after a hardware failure */
         this._softwareRetry = false;
-        /** @type {number} Last decoder error timestamp (ms) for throttled recovery */
-        this._lastDecodeErrorTime = 0;
-    }
+        /** @type {Function|null} Called when decoder cannot recover (codec switch needed) */
+        this.onCodecFailed = null;
+        /** @type {number} Decode attempts since last successful frame */
+        this._decodeErrorsSinceFrame = 0;
+        /** @type {boolean} Whether AV1 description was applied from a keyframe */
+        this._av1DescriptionApplied = false;
 
     /**
      * Check if hardware WebCodecs is supported (requires secure context)
@@ -83,6 +86,56 @@ class RDVideo {
      */
     static isSecureContext() {
         return window.isSecureContext === true;
+    }
+
+    /** WebKitGTK / Safari — AV1 HW decode is often broken; prefer software. */
+    static isWebKit() {
+        const ua = navigator.userAgent || '';
+        return /AppleWebKit/i.test(ua) && !/Edg\//.test(ua) && !/Chrome\//.test(ua);
+    }
+
+    /** Chromium / WebView2 — full WebCodecs stack (incl. AV1 on recent builds). */
+    static isChromiumWebView() {
+        const ua = navigator.userAgent || '';
+        return /Chrome\//.test(ua) || /Edg\//.test(ua);
+    }
+
+    /** Tauri RdClient desktop shell (WebKitGTK on Linux, WKWebView on macOS, WebView2 on Windows). */
+    static isRdClientDesktop() {
+        return window.__BETTERDESK_RDCLIENT_DESKTOP__ === true
+            || !!(window.__TAURI__ && window.__TAURI__.core);
+    }
+
+    /** Linux WebKitGTK — WebCodecs AV1 is advertised but fails at decode time. */
+    static isWebKitGTK() {
+        if (RDVideo.isChromiumWebView()) return false;
+        const ua = navigator.userAgent || '';
+        if (!/AppleWebKit/i.test(ua)) return false;
+        if (/Linux/i.test(ua)) return true;
+        return RDVideo.isRdClientDesktop() && !/Macintosh|Windows|CrOS/i.test(ua);
+    }
+
+    /**
+     * Whether AV1 should be offered to the encoder. WebKit runtimes often pass
+     * VideoDecoder.isConfigSupported for AV1 but fail with "Decode error" at runtime.
+     * @returns {boolean}
+     */
+    static av1ReliableOnRuntime() {
+        if (RDVideo.isWebKitGTK()) return false;
+        if (RDVideo.isWebKit() && !RDVideo.isChromiumWebView()) return false;
+        return true;
+    }
+
+    /**
+     * Default hardwareAcceleration for a logical codec on this runtime.
+     * @param {string} codecName
+     * @returns {string|undefined}
+     */
+    static defaultAcceleration(codecName) {
+        if (codecName === 'av1' && RDVideo.isWebKit()) {
+            return 'prefer-software';
+        }
+        return 'prefer-hardware';
     }
 
     /**
@@ -102,7 +155,7 @@ class RDVideo {
         const map = {
             vp9: ['vp09.00.10.08', 'vp09.00.40.08', 'vp09.00.50.08'],
             h264: ['avc1.640028', 'avc1.4d4028', 'avc1.42E01E'],
-            av1: ['av01.0.08M.08', 'av01.0.05M.08', 'av01.0.04M.08', 'av01.0.01M.08', 'av01.0.15M.08'],
+            av1: ['av01.0.04M.08', 'av01.0.08M.08', 'av01.0.05M.08', 'av01.0.01M.08', 'av01.0.15M.08'],
             vp8: ['vp8'],
             h265: ['hev1.1.6.L93.B0', 'hvc1.1.6.L93.B0']
         };
@@ -115,12 +168,15 @@ class RDVideo {
      * @param {string} [accel] hardwareAcceleration preference
      * @returns {Promise<Object|null>} supported VideoDecoderConfig
      */
-    static async resolveCodecConfig(codecName, accel) {
-        const candidates = RDVideo.codecCandidates(codecName);
+    static async resolveCodecConfig(codecName, accel, explicitCodec) {
+        const candidates = explicitCodec
+            ? [explicitCodec].concat(RDVideo.codecCandidates(codecName).filter((c) => c !== explicitCodec))
+            : RDVideo.codecCandidates(codecName);
         if (!candidates.length) return null;
 
-        const probes = accel
-            ? [{ hardwareAcceleration: accel }, {}]
+        const baseAccel = accel || RDVideo.defaultAcceleration(codecName);
+        const probes = baseAccel
+            ? [{ hardwareAcceleration: baseAccel }, { hardwareAcceleration: 'prefer-software' }, {}]
             : [{ hardwareAcceleration: 'prefer-hardware' }, { hardwareAcceleration: 'prefer-software' }, {}];
 
         for (const codec of candidates) {
@@ -158,17 +214,44 @@ class RDVideo {
         const names = ['vp9', 'h264', 'av1', 'vp8', 'h265'];
         const result = {};
         for (const name of names) {
-            result[name] = !!(await RDVideo.resolveCodecConfig(name));
+            if (name === 'av1' && !RDVideo.av1ReliableOnRuntime()) {
+                result[name] = false;
+                continue;
+            }
+            result[name] = !!(await RDVideo.resolveCodecConfig(name, RDVideo.defaultAcceleration(name)));
         }
         return result;
+    }
+
+    /**
+     * Ordered wire codecs safe to advertise to the agent (most efficient first).
+     * AV1 is omitted when the runtime cannot decode it reliably (WebKit HW bugs).
+     * @returns {Promise<string[]>}
+     */
+    static async probeDecodableWireCodecs() {
+        const list = [];
+        if (!RDVideo.isSupported()) {
+            if (RDVideo.isJMuxerAvailable()) list.push('h264');
+            list.push('webp', 'jpeg');
+            return list;
+        }
+        const support = await RDVideo.getSupportedCodecs();
+        if (support.av1 && RDVideo.av1ReliableOnRuntime()) list.push('av1');
+        if (support.vp9) list.push('vp9');
+        if (support.h264) list.push('h264');
+        list.push('webp', 'jpeg');
+        return list;
     }
 
     /**
      * Initialize decoder for a specific codec.
      * Uses WebCodecs if available, otherwise falls back to JMuxer for H.264.
      * @param {string} codecName - vp9, h264, av1, vp8
+     * @param {Object} [opts]
+     * @param {string} [opts.codecString] WebCodecs codec string from agent
      */
-    async init(codecName) {
+    async init(codecName, opts) {
+        opts = opts || {};
         if (this.decoder || this._jmuxer) {
             this.close();
         }
@@ -207,15 +290,17 @@ class RDVideo {
             throw new Error(`Unsupported codec: ${codecName}`);
         }
 
-        // Choose acceleration: prefer hardware, but fall back to software after
-        // a hardware decode failure (some Linux/Chrome setups have flaky
-        // hardware H.264 paths that silently stop producing frames).
-        const accel = this._softwareRetry ? 'prefer-software' : 'prefer-hardware';
+        const accel = this._softwareRetry
+            ? 'prefer-software'
+            : RDVideo.defaultAcceleration(codecName);
 
-        const resolved = await RDVideo.resolveCodecConfig(codecName, accel);
+        const resolved = await RDVideo.resolveCodecConfig(codecName, accel, opts.codecString || null);
         if (!resolved || !resolved.codec) {
             throw new Error(`Codec ${codecName} not supported by browser`);
         }
+
+        this._softwareRetry = resolved.hardwareAcceleration === 'prefer-software'
+            || resolved.hardwareAcceleration === 'no-preference';
 
         this.decoder = new VideoDecoder({
             output: (frame) => this._handleDecodedFrame(frame),
@@ -228,7 +313,15 @@ class RDVideo {
             hardwareAcceleration: resolved.hardwareAcceleration || accel,
             optimizeForLatency: true
         };
+        if (opts.description) {
+            this._codecConfig.description = opts.description;
+        }
         this.decoder.configure(this._codecConfig);
+
+        console.log('[RDVideo] Configured', codecName, this._codecConfig.codec,
+            'hw=' + (this._codecConfig.hardwareAcceleration || 'default'),
+            'runtime=' + (RDVideo.isWebKitGTK() ? 'webkitgtk'
+                : (RDVideo.isChromiumWebView() ? 'chromium' : 'other')));
 
         this.fallbackMode = false;
         this.currentCodec = codecName;
@@ -239,6 +332,8 @@ class RDVideo {
         // frame. Drop deltas until one arrives and proactively request one.
         this._needKeyframe = true;
         this._decodeInputCount = 0;
+        this._decodeErrorsSinceFrame = 0;
+        this._av1DescriptionApplied = false;
         if (this.onNeedKeyframe) {
             this.onNeedKeyframe();
         }
@@ -588,7 +683,24 @@ class RDVideo {
 
         // Switch codec if needed
         if (frameData.codec && frameData.codec !== this.currentCodec) {
-            await this.init(frameData.codec);
+            await this.init(frameData.codec, { codecString: frameData.codecString });
+        }
+
+        // AV1: apply codec description from the first keyframe (WebKitGTK needs this).
+        if (this.currentCodec === 'av1' && frameData.key && !this._av1DescriptionApplied) {
+            const desc = RDVideo.av1DescriptionFromKeyframe(frameData.data);
+            if (desc) {
+                try {
+                    this._codecConfig.description = desc;
+                    if (this.decoder && this.decoder.state === 'configured') {
+                        this.decoder.configure(this._codecConfig);
+                    }
+                    this._av1DescriptionApplied = true;
+                    this._needKeyframe = false;
+                } catch (e) {
+                    console.warn('[RDVideo] AV1 description configure failed:', e && e.message);
+                }
+            }
         }
 
         // JMuxer fallback mode
@@ -710,6 +822,7 @@ class RDVideo {
      */
     _handleDecodedFrame(frame) {
         this.frameCount++;
+        this._decodeErrorsSinceFrame = 0;
         // Record timestamp so getStats() can report real FPS on the WebCodecs
         // path (previously only the JMuxer fallback fed this array, so HTTPS
         // sessions always reported 0 FPS).
@@ -742,11 +855,21 @@ class RDVideo {
      */
     _handleError(err) {
         console.error('[RDVideo] Decoder error:', err && err.message ? err.message : err);
+        this._decodeErrorsSinceFrame++;
         if (this.onError) {
             this.onError(err);
         }
 
         if (this.fallbackMode || !RDVideo.isSupported()) {
+            return;
+        }
+
+        // WebKitGTK / Safari: AV1 passes isConfigSupported but fails at runtime — switch codec immediately.
+        if (this.currentCodec === 'av1' && !RDVideo.av1ReliableOnRuntime()) {
+            console.warn('[RDVideo] AV1 decode failed on WebKit runtime — requesting VP9/H.264 fallback');
+            if (this.onCodecFailed) {
+                this.onCodecFailed(this.currentCodec, err);
+            }
             return;
         }
 
@@ -761,9 +884,14 @@ class RDVideo {
         if (!this._softwareRetry) {
             this._softwareRetry = true;
             console.warn('[RDVideo] Rebuilding decoder with software decoding fallback');
+        } else if (this._decodeErrorsSinceFrame > 8 && this.onCodecFailed) {
+            console.warn('[RDVideo] Codec', this.currentCodec, 'unrecoverable — requesting fallback');
+            this.onCodecFailed(this.currentCodec, err);
+            return;
         }
 
         this._needKeyframe = true;
+        this._av1DescriptionApplied = false;
 
         try {
             if (this.decoder && this.decoder.state !== 'closed') {
@@ -774,13 +902,106 @@ class RDVideo {
         }
 
         const codecName = this.currentCodec;
+        const savedCodecString = this._codecConfig && this._codecConfig.codec;
         this.decoder = null;
         this.initialized = false;
         if (codecName) {
-            this.init(codecName).catch((e) => {
+            this.init(codecName, { codecString: savedCodecString }).catch((e) => {
                 console.error('[RDVideo] Decoder rebuild failed:', e && e.message ? e.message : e);
+                if (this.onCodecFailed) {
+                    this.onCodecFailed(codecName, e);
+                }
             });
         }
+    }
+
+    /**
+     * Build WebCodecs AV1CodecConfigurationRecord (av1C) from a keyframe OBU stream.
+     * @param {Uint8Array} data
+     * @returns {Uint8Array|null}
+     */
+    static av1DescriptionFromKeyframe(data) {
+        if (!data || data.length < 2) return null;
+        let i = 0;
+        let fullSeqObu = null;
+        let seqPayload = null;
+        while (i < data.length) {
+            const obuStart = i;
+            const hdr = data[i++];
+            const obuType = (hdr >> 3) & 0x0F;
+            const extFlag = (hdr >> 2) & 0x01;
+            const hasSize = (hdr >> 1) & 0x01;
+            if (extFlag === 1 && i < data.length) i++;
+            let size;
+            if (hasSize === 1) {
+                const parsed = RDVideo._readLeb128(data, i);
+                if (!parsed) break;
+                size = parsed.value;
+                i += parsed.bytes;
+            } else {
+                size = data.length - i;
+            }
+            if (i + size > data.length) break;
+            if (obuType === 1) {
+                fullSeqObu = data.subarray(obuStart, i + size);
+                seqPayload = data.subarray(i, i + size);
+            }
+            i += size;
+        }
+        if (!fullSeqObu || !seqPayload || seqPayload.length < 4) return null;
+
+        const br = { data: seqPayload, pos: 0 };
+        const read = (n) => RDVideo._readBits(br, n);
+        const profile = read(3);
+        const level = read(5);
+        const tier = read(1);
+        const highBitdepth = read(1);
+        const twelveBit = read(1);
+        const monochrome = read(1);
+        const subsamplingX = read(1);
+        const subsamplingY = read(1);
+        const samplePos = read(2);
+        read(3); // reserved
+
+        const out = new Uint8Array(4 + fullSeqObu.length);
+        out[0] = 0x81;
+        out[1] = (profile << 5) | (level & 0x1F);
+        out[2] = ((level >> 5) & 0xFF) | (tier << 7) | (highBitdepth << 6)
+            | (twelveBit << 5) | (monochrome << 4) | (subsamplingX << 3)
+            | (subsamplingY << 2) | (samplePos >> 1);
+        out[3] = ((samplePos & 1) << 7);
+        out.set(fullSeqObu, 4);
+        return out;
+    }
+
+    /** @private */
+    static _readLeb128(b, start) {
+        let v = 0;
+        for (let i = 0; i < 8 && start + i < b.length; i++) {
+            const byte = b[start + i];
+            v |= (byte & 0x7F) << (7 * i);
+            if ((byte & 0x80) === 0) {
+                return { value: v, bytes: i + 1 };
+            }
+        }
+        return null;
+    }
+
+    /** @private */
+    static _readBits(br, n) {
+        let v = 0;
+        for (let i = 0; i < n; i++) {
+            const bytePos = br.pos >> 3;
+            if (bytePos >= br.data.length) {
+                br.pos++;
+                v <<= 1;
+                continue;
+            }
+            const bit = (br.data[bytePos] >> (7 - (br.pos & 7))) & 1;
+            v = (v << 1) | bit;
+            br.pos++;
+        }
+        return v;
     }
 
     /**
@@ -874,6 +1095,8 @@ class RDVideo {
         this.fallbackMode = false;
         this.currentCodec = null;
         this.initialized = false;
+        this._softwareRetry = false;
+        this._av1DescriptionApplied = false;
     }
 }
 

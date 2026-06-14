@@ -29,29 +29,16 @@
         }
         .card {
             width: 100%;
-            max-width: 440px;
+            max-width: 480px;
             padding: 28px;
             border-radius: 12px;
             border: 1px solid var(--border);
             background: var(--panel);
         }
-        h1 {
-            margin: 0 0 8px;
-            font-size: 1.25rem;
-            font-weight: 600;
-        }
-        p {
-            margin: 0 0 20px;
-            color: var(--muted);
-            font-size: 0.875rem;
-            line-height: 1.5;
-        }
-        label {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 0.8125rem;
-            color: var(--muted);
-        }
+        h1 { margin: 0 0 8px; font-size: 1.25rem; font-weight: 600; }
+        h2 { margin: 20px 0 8px; font-size: 0.875rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+        p { margin: 0 0 16px; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
+        label { display: block; margin-bottom: 6px; font-size: 0.8125rem; color: var(--muted); }
         input {
             width: 100%;
             padding: 10px 12px;
@@ -61,13 +48,8 @@
             color: var(--text);
             font-size: 0.875rem;
         }
-        input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
+        input:focus { outline: none; border-color: var(--accent); }
         button {
-            margin-top: 16px;
-            width: 100%;
             padding: 10px 14px;
             border: none;
             border-radius: 8px;
@@ -77,23 +59,47 @@
             font-weight: 600;
             cursor: pointer;
         }
+        button.secondary { background: #21262d; border: 1px solid var(--border); color: var(--text); }
         button:disabled { opacity: 0.6; cursor: wait; }
-        .error {
-            margin-top: 12px;
-            color: var(--error);
-            font-size: 0.8125rem;
-            min-height: 1.2em;
+        .row { display: flex; gap: 8px; margin-top: 16px; }
+        .row button { flex: 1; }
+        .error { margin-top: 12px; color: var(--error); font-size: 0.8125rem; min-height: 1.2em; }
+        .discovered-list { list-style: none; margin: 0; padding: 0; }
+        .discovered-list li { margin-bottom: 8px; }
+        .discovered-list button {
+            width: 100%;
+            text-align: left;
+            background: #21262d;
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-weight: 500;
         }
+        .discovered-list button:hover { border-color: var(--accent); }
+        .discovered-name { display: block; font-size: 0.875rem; }
+        .discovered-url { display: block; font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+        .empty-hint { font-size: 0.8125rem; color: var(--muted); font-style: italic; }
     </style>
 </head>
 <body>
     <div class="card">
         <h1>BetterDesk RdClient</h1>
-        <p>Enter the URL of your BetterDesk console panel. The dashboard will load from <code>/remote</code> on this server.</p>
+        <p>Connect to your BetterDesk console panel. The dashboard loads from <code>/remote</code> on the server you choose.</p>
+
+        <h2>Servers on your network</h2>
+        <ul class="discovered-list" id="discovered-list">
+            <li class="empty-hint" id="discovered-empty">Scanning…</li>
+        </ul>
+        <div class="row">
+            <button type="button" class="secondary" id="refresh-btn">Refresh</button>
+        </div>
+
+        <h2>Manual URL</h2>
         <form id="setup-form">
             <label for="server-url">Panel URL</label>
-            <input type="url" id="server-url" placeholder="https://desk.example.com" required autofocus>
-            <button type="submit" id="submit-btn">Continue</button>
+            <input type="url" id="server-url" placeholder="https://desk.example.com" required>
+            <div class="row">
+                <button type="submit" id="submit-btn">Continue</button>
+            </div>
             <div class="error" id="error"></div>
         </form>
     </div>

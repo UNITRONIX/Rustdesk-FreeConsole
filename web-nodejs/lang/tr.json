@@ -744,7 +744,11 @@
     "build_status_failed": "Başarısız",
     "builds_summary": "{{ready}} hazır · {{pending}} sırada · {{building}} derleniyor · {{failed}} başarısız",
     "build_error_hint": "Derleme hatası",
-    "preview_help": "Yardım iste"
+    "preview_help": "Yardım iste",
+    "rdclient_tab": "RdClient masaüstü",
+    "rdclient_new_bundle": "Yeni RdClient paketi",
+    "rdclient_subtitle": "Gömülü panel URL’li RdClient yükleyicileri oluştur",
+    "rdclient_server_url_hint": "BetterDesk konsolunun genel URL’si (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "Yükleniyor...",
     "file_timeout": "Uzak aygıt yanıt vermedi. Uzak makinede dosya aktarımı desteklenmiyor veya devre dışı bırakılmış olabilir.",
     "codec": "Video Codec'i",
-    "codec_auto": "Otomatik (önerilen)"
+    "codec_auto": "Otomatik (önerilen)",
+    "remember_peer_password": "Cihaz parolasını bu bilgisayarda hatırla",
+    "save_peer_password": "Parolayı kaydet"
   },
   "branding": {
     "identity_title": "Marka Kimliği",
@@ -3834,7 +3840,8 @@
     "no_groups": "Grup yok",
     "no_tags": "Etiket yok",
     "collapse_devices": "Cihaz listesini daralt",
-    "expand_devices": "Cihaz listesini genişlet"
+    "expand_devices": "Cihaz listesini genişlet",
+    "open_settings": "Ayarlar"
   },
   "rdclient_login": {
     "title": "Uzak Masaüstü İstemcisi",
@@ -3854,5 +3861,15 @@
     "network_error": "Ağ hatası",
     "enter_6_digits": "6 hanenin tamamını girin",
     "invalid_code": "Geçersiz kod"
+  },
+  "rdclient_settings": {
+    "title": "RdClient ayarları",
+    "open": "Ayarlar",
+    "server_url": "Panel URL",
+    "tls_strict": "Katı TLS",
+    "sign_out": "Oturumu kapat",
+    "reset_client": "İstemciyi sıfırla",
+    "discovery_refresh": "Yenile",
+    "discovery_empty": "Yerel ağda sunucu bulunamadı"
   }
 }

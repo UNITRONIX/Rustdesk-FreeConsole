@@ -738,7 +738,11 @@
     "build_status_failed": "실패",
     "builds_summary": "{{ready}} 준비 완료 · {{pending}} 대기 중 · {{building}} 빌드 중 · {{failed}} 실패",
     "build_error_hint": "빌드 오류",
-    "preview_help": "도움 요청"
+    "preview_help": "도움 요청",
+    "rdclient_tab": "RdClient 데스크톱",
+    "rdclient_new_bundle": "새 RdClient 번들",
+    "rdclient_subtitle": "패널 URL이 포함된 RdClient 설치 프로그램 빌드",
+    "rdclient_server_url_hint": "BetterDesk 콘솔 공개 URL (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1044,7 +1048,9 @@
     "file_loading": "로드 중...",
     "file_timeout": "원격 장치가 응답하지 않았습니다. 원격 시스템에서 파일 전송이 지원되지 않거나 비활성화되어 있을 수 있습니다.",
     "codec": "비디오 코덱",
-    "codec_auto": "자동(권장)"
+    "codec_auto": "자동(권장)",
+    "remember_peer_password": "이 기기에서 장치 비밀번호 기억",
+    "save_peer_password": "비밀번호 저장"
   },
   "branding": {
     "identity_title": "브랜드 아이덴티티",
@@ -3828,7 +3834,8 @@
     "no_groups": "그룹 없음",
     "no_tags": "태그 없음",
     "collapse_devices": "장치 목록 접기",
-    "expand_devices": "장치 목록 펼치기"
+    "expand_devices": "장치 목록 펼치기",
+    "open_settings": "설정"
   },
   "rdclient_login": {
     "title": "원격 데스크톱 클라이언트",
@@ -3848,5 +3855,15 @@
     "network_error": "네트워크 오류",
     "enter_6_digits": "6자리 모두 입력하세요",
     "invalid_code": "잘못된 코드"
+  },
+  "rdclient_settings": {
+    "title": "RdClient 설정",
+    "open": "설정",
+    "server_url": "패널 URL",
+    "tls_strict": "엄격 TLS",
+    "sign_out": "로그아웃",
+    "reset_client": "클라이언트 재설정",
+    "discovery_refresh": "새로고침",
+    "discovery_empty": "로컬 네트워크에서 서버를 찾을 수 없습니다"
   }
 }

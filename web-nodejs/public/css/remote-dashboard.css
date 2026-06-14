@@ -8,16 +8,16 @@ html {
 }
 
 html.rd-desk-desktop {
-    height: 100%;
-    height: 100vh;
-    max-height: 100vh;
+    height: var(--rd-desk-vh, 100vh);
+    max-height: var(--rd-desk-vh, 100vh);
     overflow: hidden;
+    overscroll-behavior: none;
 }
 
 .rd-desk-body {
     margin: 0;
     height: 100%;
-    min-height: 100%;
+    min-height: 0;
     overflow: hidden;
     background: var(--bg-primary, #0d1117);
     color: var(--text-primary, #e6edf3);
@@ -27,9 +27,14 @@ html.rd-desk-desktop {
 }
 
 .rd-desk-desktop.rd-desk-body {
-    height: 100vh;
-    max-height: 100vh;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: var(--rd-desk-vh, 100vh) !important;
+    max-height: var(--rd-desk-vh, 100vh);
     min-height: 0;
+    overflow: hidden !important;
+    overscroll-behavior: none;
 }
 
 .rd-desk-app {
@@ -43,8 +48,10 @@ html.rd-desk-desktop {
 }
 
 .rd-desk-desktop .rd-desk-app {
-    height: 100vh;
-    max-height: 100vh;
+    position: absolute;
+    inset: 0;
+    height: 100% !important;
+    max-height: 100% !important;
 }
 
 /* ── Header ── */
@@ -193,6 +200,35 @@ html.rd-desk-desktop {
     75% { transform: translateX(4px); }
 }
 
+/* ── Scroll areas (independent sidebar + device list) ── */
+.rd-desk-sidebar-scroll,
+.rd-desk-devices-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb, var(--bg-elevated, #30363d)) var(--scrollbar-track, var(--bg-secondary, #161b22));
+}
+
+.rd-desk-sidebar-scroll::-webkit-scrollbar,
+.rd-desk-devices-scroll::-webkit-scrollbar {
+    width: var(--scrollbar-width, 8px);
+    height: var(--scrollbar-width, 8px);
+}
+
+.rd-desk-sidebar-scroll::-webkit-scrollbar-track,
+.rd-desk-devices-scroll::-webkit-scrollbar-track {
+    background: var(--scrollbar-track, var(--bg-secondary, #161b22));
+}
+
+.rd-desk-sidebar-scroll::-webkit-scrollbar-thumb,
+.rd-desk-devices-scroll::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, var(--bg-elevated, #30363d));
+    border-radius: 999px;
+}
+
+.rd-desk-sidebar-scroll::-webkit-scrollbar-thumb:hover,
+.rd-desk-devices-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover, var(--border-hover, #484f58));
+}
+
 /* ── Workspace ── */
 .rd-desk-workspace {
     display: flex;
@@ -204,14 +240,24 @@ html.rd-desk-desktop {
 /* ── Sidebar ── */
 .rd-desk-sidebar {
     width: 240px;
-    flex-shrink: 0;
+    flex: 0 0 240px;
     display: flex;
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
     border-right: 1px solid var(--border-primary, #30363d);
     background: var(--surface-glass-bg-secondary, var(--bg-secondary, #161b22));
-    padding: 12px 0 12px;
+    padding: 0;
+}
+
+.rd-desk-sidebar-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px 0;
+    -webkit-overflow-scrolling: touch;
 }
 
 .rd-desk-nav-section {
@@ -267,18 +313,11 @@ html.rd-desk-desktop {
 
 .rd-desk-nav-body {
     min-height: 0;
-    max-height: min(220px, 28vh);
-    overflow-y: auto;
-    overflow-x: hidden;
-    overscroll-behavior: contain;
+    overflow: visible;
 }
 
 .rd-desk-nav-section.is-collapsed .rd-desk-nav-body {
     display: none;
-}
-
-.rd-desk-desktop .rd-desk-nav-body {
-    max-height: min(180px, 24vh);
 }
 
 .rd-desk-nav-list {
@@ -359,6 +398,7 @@ html.rd-desk-desktop {
 /* ── Content ── */
 .rd-desk-content {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -872,14 +912,11 @@ html.rd-desk-desktop {
     }
 
     .rd-desk-sidebar {
+        flex: 0 0 auto;
         width: 100%;
         max-height: min(240px, 35vh);
         border-right: none;
         border-bottom: 1px solid var(--border-primary, #30363d);
-    }
-
-    .rd-desk-nav-body {
-        max-height: min(140px, 18vh);
     }
 
     .rd-desk-quick-label {

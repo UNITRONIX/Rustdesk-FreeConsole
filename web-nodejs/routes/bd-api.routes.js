@@ -27,6 +27,7 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const config = require('../config/config');
 const db = require('../services/database');
 const bdRelay = require('../services/bdRelay');
 const brandingService = require('../services/brandingService');
@@ -146,6 +147,19 @@ function buildSessionHistory(entries, limit) {
         .sort((a, b) => toTimestamp(b.started_at || b.ended_at) - toTimestamp(a.started_at || a.ended_at))
         .slice(0, limit);
 }
+
+// ---------------------------------------------------------------------------
+//  GET /api/bd/server-info — Public panel identity (RdClient URL validation)
+// ---------------------------------------------------------------------------
+
+router.get('/server-info', (_req, res) => {
+    res.json({
+        ok: true,
+        product: 'betterdesk-panel',
+        version: config.appVersion,
+        panel_name: config.appName,
+    });
+});
 
 // ---------------------------------------------------------------------------
 //  Middleware — authenticate desktop client via access token or session cookie

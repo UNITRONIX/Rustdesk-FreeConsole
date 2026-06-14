@@ -738,7 +738,11 @@
     "build_status_failed": "失败",
     "builds_summary": "{{ready}} 就绪 · {{pending}} 排队中 · {{building}} 构建中 · {{failed}} 失败",
     "build_error_hint": "构建错误",
-    "preview_help": "请求帮助"
+    "preview_help": "请求帮助",
+    "rdclient_tab": "RdClient 桌面版",
+    "rdclient_new_bundle": "新建 RdClient 包",
+    "rdclient_subtitle": "构建嵌入面板 URL 的 RdClient 安装程序",
+    "rdclient_server_url_hint": "BetterDesk 控制台的公开 URL (/remote)。"
   },
   "server": {
     "port": "端口",
@@ -1044,7 +1048,9 @@
     "use_cdap_fallback": "使用 CDAP 查看器",
     "cdap_fallback_hint": "Open the lightweight JPEG-polling viewer that uses bd-signal/CDAP instead of the RustDesk relay. Useful when the peer is offline on the relay but reachable via the agent management channel.",
     "codec": "视频编解码器",
-    "codec_auto": "自动（推荐）"
+    "codec_auto": "自动（推荐）",
+    "remember_peer_password": "在此设备上记住设备密码",
+    "save_peer_password": "保存密码"
   },
   "branding": {
     "identity_title": "品牌标识",
@@ -3828,7 +3834,8 @@
     "no_groups": "无分组",
     "no_tags": "无标签",
     "collapse_devices": "折叠设备列表",
-    "expand_devices": "展开设备列表"
+    "expand_devices": "展开设备列表",
+    "open_settings": "设置"
   },
   "rdclient_login": {
     "title": "远程桌面客户端",
@@ -3848,5 +3855,15 @@
     "network_error": "网络错误",
     "enter_6_digits": "请输入全部6位数字",
     "invalid_code": "代码无效"
+  },
+  "rdclient_settings": {
+    "title": "RdClient 设置",
+    "open": "设置",
+    "server_url": "面板 URL",
+    "tls_strict": "严格 TLS",
+    "sign_out": "退出登录",
+    "reset_client": "重置客户端",
+    "discovery_refresh": "刷新",
+    "discovery_empty": "在本地网络中未找到服务器"
   }
 }

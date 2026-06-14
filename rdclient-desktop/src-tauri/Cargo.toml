@@ -18,6 +18,9 @@ tauri-plugin-shell = "2"
 tauri-utils = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+sys-locale = "0.3"
 
 # brotli 8.0.3 on crates.io pulls conflicting alloc-no-stdlib 2.x/3.x; git brotli + unified allocator crate.
 # wry: accept operator-panel TLS (self-signed / incomplete chain) on Linux WebKitGTK.

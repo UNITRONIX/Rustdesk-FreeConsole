@@ -738,7 +738,11 @@
     "generated": "Konfiguracja wygenerowana",
     "server_required": "Adres serwera jest wymagany",
     "nothing_to_copy": "Najpierw wygeneruj konfigurację",
-    "preview_help": "Poproś o pomoc"
+    "preview_help": "Poproś o pomoc",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Nowy pakiet RdClient",
+    "rdclient_subtitle": "Buduj instalatory RdClient z wbudowanym adresem panelu",
+    "rdclient_server_url_hint": "Publiczny URL panelu BetterDesk (dashboard /remote)."
   },
   "download": {
     "title": "Pobierz Agenta BetterDesk",
@@ -1054,7 +1058,9 @@
     "2fa_required": "Wymagana weryfikacja 2FA",
     "2fa_hint": "Wprowadź 6-cyfrowy kod z aplikacji uwierzytelniającej",
     "2fa_invalid": "Wprowadź prawidłowy 6-cyfrowy kod",
-    "verify": "Weryfikuj"
+    "verify": "Weryfikuj",
+    "remember_peer_password": "Zapamiętaj hasło urządzenia na tym komputerze",
+    "save_peer_password": "Zapisz hasło"
   },
   "branding": {
     "identity_title": "Identyfikacja marki",
@@ -3828,7 +3834,8 @@
     "no_groups": "Brak grup",
     "no_tags": "Brak tagów",
     "collapse_devices": "Zwiń listę urządzeń",
-    "expand_devices": "Rozwiń listę urządzeń"
+    "expand_devices": "Rozwiń listę urządzeń",
+    "open_settings": "Ustawienia"
   },
   "rdclient_login": {
     "title": "Klient pulpitu zdalnego",
@@ -3848,5 +3855,15 @@
     "network_error": "Błąd sieci",
     "enter_6_digits": "Wprowadź wszystkie 6 cyfr",
     "invalid_code": "Nieprawidłowy kod"
+  },
+  "rdclient_settings": {
+    "title": "Ustawienia RdClient",
+    "open": "Ustawienia",
+    "server_url": "URL panelu",
+    "tls_strict": "Ścisłe TLS",
+    "sign_out": "Wyloguj",
+    "reset_client": "Resetuj klienta",
+    "discovery_refresh": "Odśwież",
+    "discovery_empty": "Nie znaleziono serwerów w sieci lokalnej"
   }
 }

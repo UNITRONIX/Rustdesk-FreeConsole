@@ -138,6 +138,7 @@
             this.connectionOverlay = panel.querySelector('.session-connection-overlay');
             this.passwordOverlay = panel.querySelector('.session-password-overlay');
             this.passwordInput = panel.querySelector('.session-password-input');
+            this.rememberPeerCheckbox = panel.querySelector('.session-remember-peer-checkbox');
             this.loginError = panel.querySelector('.session-login-error');
             this.statusText = panel.querySelector('.session-status-text');
             this.overlayActions = panel.querySelector('.session-overlay-actions');
@@ -545,6 +546,14 @@
             session.passwordOverlay.style.display = 'flex';
             session.loginError.style.display = 'none';
             session.passwordInput.value = '';
+            if (window.RdClientSecureStore && session.deviceId) {
+                window.RdClientSecureStore.loadPeerPassword(session.deviceId).then(function (saved) {
+                    if (saved) {
+                        session.passwordInput.value = saved;
+                        if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;
+                    }
+                }).catch(function () { /* ignore */ });
+            }
             if (isActive(session)) session.passwordInput.focus();
         });
 
@@ -583,6 +592,14 @@
             session.passwordOverlay.style.display = 'none';
             session.tfaOverlay.style.display = 'none';
             session.passwordInput.blur();
+            if (window.RdClientSecureStore && session.rememberPeerCheckbox) {
+                var pw = session.passwordInput.value;
+                if (session.rememberPeerCheckbox.checked && pw) {
+                    window.RdClientSecureStore.savePeerPassword(session.deviceId, pw).catch(function () { /* ignore */ });
+                } else if (!session.rememberPeerCheckbox.checked) {
+                    window.RdClientSecureStore.clearPeerPassword(session.deviceId).catch(function () { /* ignore */ });
+                }
+            }
         });
 
         c.on('session_start', () => {
@@ -1708,7 +1725,21 @@
 
     // ---- Initialize ----
 
+    function populateViewerLanguageSelect() {
+        var sel = document.getElementById('viewer-language-select');
+        if (!sel || sel.options.length > 0) return;
+        var langs = (window.BetterDesk && window.BetterDesk.availableLanguages) || [];
+        langs.forEach(function (lang) {
+            var opt = document.createElement('option');
+            opt.value = lang.code;
+            opt.textContent = lang.native || lang.name || lang.code;
+            if (lang.code === (window.BetterDesk && window.BetterDesk.lang)) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    }
+
     function init() {
+        populateViewerLanguageSelect();
         const deviceId = window.__initialDeviceId;
         const deviceName = window.__initialDeviceName || '';
         if (deviceId) {

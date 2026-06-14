@@ -744,7 +744,11 @@
     "rebuild_queued": "Alle Plattform-Builds in der Warteschlange",
     "builds_summary": "{{ready}} bereit · {{pending}} in Warteschlange · {{building}} wird erstellt · {{failed}} не вдалося",
     "build_error_hint": "Помилка збірки",
-    "preview_help": "Запросити допомогу"
+    "preview_help": "Запросити допомогу",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Новий пакет RdClient",
+    "rdclient_subtitle": "Збирати інсталятори RdClient із вбудованою URL панелі",
+    "rdclient_server_url_hint": "Публічна URL консолі BetterDesk (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "Завантаження...",
     "file_timeout": "Віддалений пристрій не відповідає. Передача файлів може не підтримуватися або вимкнена на віддаленій машині.",
     "codec": "Відеокодек",
-    "codec_auto": "Авто (рекомендовано)"
+    "codec_auto": "Авто (рекомендовано)",
+    "remember_peer_password": "Запам’ятати пароль пристрою на цьому комп’ютері",
+    "save_peer_password": "Зберегти пароль"
   },
   "branding": {
     "identity_title": "Ідентичність бренду",
@@ -3834,7 +3840,8 @@
     "no_groups": "Немає груп",
     "no_tags": "Немає тегів",
     "collapse_devices": "Згорнути список пристроїв",
-    "expand_devices": "Розгорнути список пристроїв"
+    "expand_devices": "Розгорнути список пристроїв",
+    "open_settings": "Налаштування"
   },
   "rdclient_login": {
     "title": "Клієнт віддаленого робочого столу",
@@ -3854,5 +3861,15 @@
     "network_error": "Помилка мережі",
     "enter_6_digits": "Введіть усі 6 цифр",
     "invalid_code": "Невірний код"
+  },
+  "rdclient_settings": {
+    "title": "Налаштування RdClient",
+    "open": "Налаштування",
+    "server_url": "URL панелі",
+    "tls_strict": "Суворий TLS",
+    "sign_out": "Вийти",
+    "reset_client": "Скинути клієнт",
+    "discovery_refresh": "Оновити",
+    "discovery_empty": "Серверів у локальній мережі не знайдено"
   }
 }

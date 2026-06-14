@@ -742,7 +742,11 @@
     "usage_title": "Détails de connexion",
     "generated": "Configuration générée",
     "server_required": "L'adresse du serveur est requise",
-    "nothing_to_copy": "Générez d'abord une configuration"
+    "nothing_to_copy": "Générez d'abord une configuration",
+    "rdclient_tab": "RdClient bureau",
+    "rdclient_new_bundle": "Nouveau bundle RdClient",
+    "rdclient_subtitle": "Créer des installateurs RdClient avec URL du panel intégrée",
+    "rdclient_server_url_hint": "URL publique de la console BetterDesk (/remote)."
   },
   "download": {
     "title": "BetterDesk Agent herunterladen",
@@ -1058,7 +1062,9 @@
     "2fa_required": "2FA Verification Required",
     "2fa_hint": "Enter the 6-digit code from your authenticator app",
     "2fa_invalid": "Enter a valid 6-digit code",
-    "verify": "Verify"
+    "verify": "Verify",
+    "remember_peer_password": "Mémoriser le mot de passe de l’appareil sur cet ordinateur",
+    "save_peer_password": "Enregistrer le mot de passe"
   },
   "branding": {
     "identity_title": "Identité de marque",
@@ -3832,7 +3838,8 @@
     "no_groups": "Aucun groupe",
     "no_tags": "Aucun tag",
     "collapse_devices": "Réduire la liste des appareils",
-    "expand_devices": "Développer la liste des appareils"
+    "expand_devices": "Développer la liste des appareils",
+    "open_settings": "Paramètres"
   },
   "rdclient_login": {
     "title": "Client Bureau à distance",
@@ -3852,5 +3859,15 @@
     "network_error": "Erreur réseau",
     "enter_6_digits": "Entrez les 6 chiffres",
     "invalid_code": "Code invalide"
+  },
+  "rdclient_settings": {
+    "title": "Paramètres RdClient",
+    "open": "Paramètres",
+    "server_url": "URL du panel",
+    "tls_strict": "TLS strict",
+    "sign_out": "Se déconnecter",
+    "reset_client": "Réinitialiser le client",
+    "discovery_refresh": "Actualiser",
+    "discovery_empty": "Aucun serveur trouvé sur le réseau local"
   }
 }

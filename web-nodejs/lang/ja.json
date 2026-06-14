@@ -738,7 +738,11 @@
     "build_status_failed": "失敗",
     "builds_summary": "{{ready}} 準備完了 · {{pending}} キュー中 · {{building}} ビルド中 · {{failed}} 失敗",
     "build_error_hint": "ビルドエラー",
-    "preview_help": "ヘルプを依頼"
+    "preview_help": "ヘルプを依頼",
+    "rdclient_tab": "RdClient デスクトップ",
+    "rdclient_new_bundle": "新規 RdClient バンドル",
+    "rdclient_subtitle": "パネル URL を埋め込んだ RdClient インストーラーをビルド",
+    "rdclient_server_url_hint": "BetterDesk コンソールの公開 URL (/remote)。"
   },
   "server": {
     "port": "Port",
@@ -1044,7 +1048,9 @@
     "file_loading": "読み込み中...",
     "file_timeout": "リモートデバイスが応答しませんでした。ファイル転送がサポートされていないか、リモート マシンで無効になっている可能性があります。",
     "codec": "ビデオコーデック",
-    "codec_auto": "自動 (推奨)"
+    "codec_auto": "自動 (推奨)",
+    "remember_peer_password": "このデバイスでデバイスパスワードを記憶",
+    "save_peer_password": "パスワードを保存"
   },
   "branding": {
     "identity_title": "ブランドアイデンティティ",
@@ -3828,7 +3834,8 @@
     "no_groups": "グループなし",
     "no_tags": "タグなし",
     "collapse_devices": "デバイス一覧を折りたたむ",
-    "expand_devices": "デバイス一覧を展開"
+    "expand_devices": "デバイス一覧を展開",
+    "open_settings": "設定"
   },
   "rdclient_login": {
     "title": "リモートデスクトップクライアント",
@@ -3848,5 +3855,15 @@
     "network_error": "ネットワークエラー",
     "enter_6_digits": "6桁すべてを入力してください",
     "invalid_code": "無効なコード"
+  },
+  "rdclient_settings": {
+    "title": "RdClient 設定",
+    "open": "設定",
+    "server_url": "パネル URL",
+    "tls_strict": "厳格 TLS",
+    "sign_out": "サインアウト",
+    "reset_client": "クライアントをリセット",
+    "discovery_refresh": "更新",
+    "discovery_empty": "ローカルネットワークにサーバーが見つかりません"
   }
 }

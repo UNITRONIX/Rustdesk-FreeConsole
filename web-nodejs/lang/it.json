@@ -738,7 +738,11 @@
     "build_status_failed": "Èchouè",
     "builds_summary": "{{ready}} prèt · {{pending}} en file d'attesa · {{building}} en compilation · {{failed}} èchouè",
     "build_error_hint": "Erreur de compilation",
-    "preview_help": "Richiedi aiuto"
+    "preview_help": "Richiedi aiuto",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Nuovo bundle RdClient",
+    "rdclient_subtitle": "Crea installer RdClient con URL pannello incorporato",
+    "rdclient_server_url_hint": "URL pubblica della console BetterDesk (/remote)."
   },
   "server": {
     "port": "Porta",
@@ -1044,7 +1048,9 @@
     "file_loading": "Caricamento...",
     "file_timeout": "Il dispositivo remoto non ha risposto in tempo. Il trasferimento file potrebbe non essere supportato o potrebbe essere disabilitato.",
     "codec": "Codec video",
-    "codec_auto": "Automatico (consigliato)"
+    "codec_auto": "Automatico (consigliato)",
+    "remember_peer_password": "Ricorda password dispositivo su questo computer",
+    "save_peer_password": "Salva password"
   },
   "branding": {
     "identity_title": "Identità del marchio",
@@ -3828,7 +3834,8 @@
     "no_groups": "Nessun gruppo",
     "no_tags": "Nessun tag",
     "collapse_devices": "Comprimi elenco dispositivi",
-    "expand_devices": "Espandi elenco dispositivi"
+    "expand_devices": "Espandi elenco dispositivi",
+    "open_settings": "Impostazioni"
   },
   "rdclient_login": {
     "title": "Client desktop remoto",
@@ -3848,5 +3855,15 @@
     "network_error": "Errore di rete",
     "enter_6_digits": "Inserisci tutte le 6 cifre",
     "invalid_code": "Codice non valido"
+  },
+  "rdclient_settings": {
+    "title": "Impostazioni RdClient",
+    "open": "Impostazioni",
+    "server_url": "URL pannello",
+    "tls_strict": "TLS rigoroso",
+    "sign_out": "Esci",
+    "reset_client": "Reimposta client",
+    "discovery_refresh": "Aggiorna",
+    "discovery_empty": "Nessun server trovato nella rete locale"
   }
 }

@@ -19,6 +19,14 @@
     </div>
 
     <div class="rdclient-login-shell">
+        <div class="rdclient-login-lang">
+            <span class="material-icons" aria-hidden="true">language</span>
+            <select id="rdclient-language-select" data-language-select aria-label="<%= _('settings.language') %>">
+                <% (availableLanguageList || []).forEach(function(language) { %>
+                    <option value="<%= language.code %>" <%= lang === language.code ? 'selected' : '' %>><%= language.native || language.name || language.code %></option>
+                <% }); %>
+            </select>
+        </div>
         <div class="rdclient-login-brand" id="rdclient-login-brand">
             <span class="material-icons">connected_tv</span>
             <span><%= appName %></span>
@@ -114,7 +122,8 @@
             translations: <%- JSON.stringify(translations || {}) %>,
             branding: <%- JSON.stringify(branding || {}) %>,
             returnUrl: <%- JSON.stringify(typeof returnUrl !== 'undefined' ? returnUrl : '/remote') %>,
-            sessionExpired: <%= sessionExpired ? 'true' : 'false' %>
+            sessionExpired: <%= sessionExpired ? 'true' : 'false' %>,
+            availableLanguages: <%- JSON.stringify(availableLanguageList || []) %>
         };
     </script>
     <script src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>

@@ -6,7 +6,7 @@ var RdClientSecureStore = (function () {
     'use strict';
 
     var DB_NAME = 'betterdesk-rdclient';
-    var DB_VERSION = 1;
+    var DB_VERSION = 2;
     var STORE = 'vault';
     var KEY_ID = 'device-key';
     var CRED_ID = 'credentials';
@@ -198,13 +198,84 @@ var RdClientSecureStore = (function () {
         }
     }
 
+    function peerKey(deviceId) {
+        return 'peer:' + String(deviceId || '').trim();
+    }
+
+    async function savePeerPassword(deviceId, password) {
+        if (!deviceId || !password || !window.crypto || !window.crypto.subtle) return;
+        var db = await openDb();
+        try {
+            var key = await getOrCreateDeviceKey(db);
+            var encrypted = await encryptPassword(key, password);
+            await idbPut(db, peerKey(deviceId), {
+                encrypted: encrypted,
+                updatedAt: Date.now()
+            });
+        } finally {
+            db.close();
+        }
+    }
+
+    async function loadPeerPassword(deviceId) {
+        if (!deviceId || !window.crypto || !window.crypto.subtle || !window.indexedDB) return '';
+        var db = await openDb();
+        try {
+            var record = await idbGet(db, peerKey(deviceId));
+            if (!record || !record.encrypted) return '';
+            var key = await getOrCreateDeviceKey(db);
+            return await decryptPassword(key, record.encrypted);
+        } catch (_) {
+            return '';
+        } finally {
+            db.close();
+        }
+    }
+
+    async function clearPeerPassword(deviceId) {
+        if (!deviceId || !window.indexedDB) return;
+        var db = await openDb();
+        try {
+            await idbDelete(db, peerKey(deviceId));
+        } finally {
+            db.close();
+        }
+    }
+
+    async function clearAllPeerPasswords() {
+        if (!window.indexedDB) return;
+        var db = await openDb();
+        try {
+            var tx = db.transaction(STORE, 'readwrite');
+            var store = tx.objectStore(STORE);
+            var req = store.openCursor();
+            await new Promise(function (resolve, reject) {
+                req.onsuccess = function () {
+                    var cursor = req.result;
+                    if (!cursor) { resolve(); return; }
+                    if (String(cursor.key).indexOf('peer:') === 0) {
+                        cursor.delete();
+                    }
+                    cursor.continue();
+                };
+                req.onerror = function () { reject(req.error); };
+            });
+        } finally {
+            db.close();
+        }
+    }
+
     return {
         saveCredentials: saveCredentials,
         loadCredentials: loadCredentials,
         clearCredentials: clearCredentials,
         clearStoredPassword: clearStoredPassword,
         hasStoredPassword: hasStoredPassword,
-        loadLastUsername: loadLastUsername
+        loadLastUsername: loadLastUsername,
+        savePeerPassword: savePeerPassword,
+        loadPeerPassword: loadPeerPassword,
+        clearPeerPassword: clearPeerPassword,
+        clearAllPeerPasswords: clearAllPeerPasswords
     };
 })();
 

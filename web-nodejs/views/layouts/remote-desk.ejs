@@ -27,7 +27,8 @@
             cacheVersion: '<%= cacheVersion %>',
             csrfToken: '<%= typeof csrfToken !== "undefined" ? csrfToken : "" %>',
             user: <%- JSON.stringify(user || null) %>,
-            branding: <%- JSON.stringify(branding || {}) %>
+            branding: <%- JSON.stringify(branding || {}) %>,
+            availableLanguages: <%- JSON.stringify(availableLanguageList || []) %>
         };
     </script>
     <script src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>

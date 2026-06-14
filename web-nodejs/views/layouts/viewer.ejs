@@ -29,7 +29,8 @@
             csrfToken: '<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>',
             user: <%- JSON.stringify(user || null) %>,
             serverPubKey: '<%= typeof serverPubKey !== 'undefined' ? serverPubKey : '' %>',
-            branding: <%- JSON.stringify(branding || {}) %>
+            branding: <%- JSON.stringify(branding || {}) %>,
+            availableLanguages: <%- JSON.stringify(availableLanguageList || []) %>
         };
     </script>
 
@@ -37,6 +38,7 @@
     
     <!-- Translation helper -->
     <script src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclientSecureStore.js?v=<%= cacheVersion %>"></script>
     
     <!-- Vendor libraries for remote client -->
     <script src="/js/vendor/protobuf.min.js?v=<%= cacheVersion %>"></script>

@@ -738,7 +738,11 @@
     "usage_title": "Connection Details",
     "generated": "Configuration generated",
     "server_required": "Server address is required",
-    "nothing_to_copy": "Generate a configuration first"
+    "nothing_to_copy": "Generate a configuration first",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "New RdClient bundle",
+    "rdclient_subtitle": "Build branded RdClient desktop installers with embedded panel URL",
+    "rdclient_server_url_hint": "Public URL where operators reach the BetterDesk console (/remote dashboard)."
   },
   "download": {
     "title": "Download BetterDesk Agent",
@@ -1054,7 +1058,9 @@
     "2fa_required": "2FA Verification Required",
     "2fa_hint": "Enter the 6-digit code from your authenticator app",
     "2fa_invalid": "Enter a valid 6-digit code",
-    "verify": "Verify"
+    "verify": "Verify",
+    "remember_peer_password": "Remember device password on this device",
+    "save_peer_password": "Save password"
   },
   "remote_dashboard": {
     "title": "Remote Desktop Client",
@@ -1091,7 +1097,8 @@
     "no_groups": "No groups",
     "no_tags": "No tags",
     "collapse_devices": "Collapse device list",
-    "expand_devices": "Expand device list"
+    "expand_devices": "Expand device list",
+    "open_settings": "Settings"
   },
   "branding": {
     "identity_title": "Brand Identity",
@@ -3848,5 +3855,15 @@
     "network_error": "Network error",
     "enter_6_digits": "Enter all 6 digits",
     "invalid_code": "Invalid code"
+  },
+  "rdclient_settings": {
+    "title": "RdClient Settings",
+    "open": "Settings",
+    "server_url": "Panel URL",
+    "tls_strict": "Strict TLS",
+    "sign_out": "Sign out",
+    "reset_client": "Reset client",
+    "discovery_refresh": "Refresh",
+    "discovery_empty": "No servers found on the local network"
   }
 }

@@ -742,7 +742,11 @@
     "usage_title": "連接詳情",
     "generated": "配置已生成",
     "server_required": "服務器地址爲必填項",
-    "nothing_to_copy": "請先生成配置"
+    "nothing_to_copy": "請先生成配置",
+    "rdclient_tab": "RdClient 桌面版",
+    "rdclient_new_bundle": "新增 RdClient 套件",
+    "rdclient_subtitle": "建置內嵌面板 URL 的 RdClient 安裝程式",
+    "rdclient_server_url_hint": "BetterDesk 主控台的公開 URL (/remote)。"
   },
   "download": {
     "title": "下載 BetterDesk 代理",
@@ -1058,7 +1062,9 @@
     "2fa_required": "需要雙因素驗證",
     "2fa_hint": "輸入驗證器應用中的6位數代碼",
     "2fa_invalid": "請輸入有效的6位數代碼",
-    "verify": "驗證"
+    "verify": "驗證",
+    "remember_peer_password": "在此裝置上記住裝置密碼",
+    "save_peer_password": "儲存密碼"
   },
   "branding": {
     "identity_title": "品牌標識",
@@ -3832,7 +3838,8 @@
     "no_groups": "無群組",
     "no_tags": "無標籤",
     "collapse_devices": "摺疊裝置清單",
-    "expand_devices": "展開裝置清單"
+    "expand_devices": "展開裝置清單",
+    "open_settings": "設定"
   },
   "rdclient_login": {
     "title": "遠端桌面用戶端",
@@ -3852,5 +3859,15 @@
     "network_error": "網路錯誤",
     "enter_6_digits": "請輸入全部6位數字",
     "invalid_code": "代碼無效"
+  },
+  "rdclient_settings": {
+    "title": "RdClient 設定",
+    "open": "設定",
+    "server_url": "面板 URL",
+    "tls_strict": "嚴格 TLS",
+    "sign_out": "登出",
+    "reset_client": "重設用戶端",
+    "discovery_refresh": "重新整理",
+    "discovery_empty": "區域網路中找不到伺服器"
   }
 }

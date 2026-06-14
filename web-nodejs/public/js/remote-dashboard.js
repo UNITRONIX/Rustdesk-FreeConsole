@@ -419,6 +419,7 @@
             renderGrid();
             showState('grid');
         }
+        syncDesktopViewport();
     }
 
     function isRdClientDesktop() {
@@ -426,12 +427,36 @@
         return !!(window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === 'function');
     }
 
+    function syncDesktopViewport() {
+        var h = window.innerHeight;
+        if (h < 1) return;
+        document.documentElement.style.setProperty('--rd-desk-vh', h + 'px');
+    }
+
+    function ensureSidebarScroll() {
+        var sidebar = document.getElementById('rd-desk-sidebar');
+        if (!sidebar || document.getElementById('rd-desk-sidebar-scroll')) return;
+        var scroll = document.createElement('div');
+        scroll.className = 'rd-desk-sidebar-scroll';
+        scroll.id = 'rd-desk-sidebar-scroll';
+        while (sidebar.firstChild) {
+            scroll.appendChild(sidebar.firstChild);
+        }
+        sidebar.appendChild(scroll);
+    }
+
     function markDesktopLayout() {
+        syncDesktopViewport();
+        ensureSidebarScroll();
         if (!isRdClientDesktop()) return;
         document.documentElement.classList.add('rd-desk-desktop');
         document.body.classList.add('rd-desk-desktop');
         var app = document.getElementById('rd-desk-app');
         if (app) app.classList.add('rd-desk-desktop');
+        if (!window.__rdDeskViewportBound) {
+            window.__rdDeskViewportBound = true;
+            window.addEventListener('resize', syncDesktopViewport);
+        }
     }
 
     function setDevicesPanelCollapsed(collapsed) {
@@ -708,6 +733,30 @@
         }
     }
 
+    function populateLanguageSelect() {
+        var sel = document.getElementById('rd-desk-lang');
+        if (!sel || sel.options.length > 0) return;
+        var langs = (window.BetterDesk && window.BetterDesk.availableLanguages) || [];
+        langs.forEach(function (lang) {
+            var opt = document.createElement('option');
+            opt.value = lang.code;
+            opt.textContent = lang.native || lang.name || lang.code;
+            if (lang.code === (window.BetterDesk && window.BetterDesk.lang)) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    }
+
+    function bindDesktopSettings() {
+        if (!isRdClientDesktop()) return;
+        var btn = document.getElementById('rd-desk-settings');
+        if (!btn) return;
+        btn.style.display = '';
+        btn.addEventListener('click', function () {
+            var invoke = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+            if (invoke) invoke('open_settings').catch(function () { /* ignore */ });
+        });
+    }
+
     function startAutoRefresh() {
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(function () { loadAll(true); }, REFRESH_MS);
@@ -715,6 +764,8 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         markDesktopLayout();
+        populateLanguageSelect();
+        bindDesktopSettings();
         renderBrandLogo();
         renderUser();
         bindUi();

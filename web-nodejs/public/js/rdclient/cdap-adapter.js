@@ -88,28 +88,55 @@
             && typeof window.VideoDecoder !== 'undefined';
     }
 
+    /** @type {Promise<string[]>|null} */
+    let _decodableCodecsPromise = null;
+    /** Codecs confirmed broken at runtime (e.g. AV1 on WebKit HW). */
+    const _blockedWireCodecs = new Set();
+
     /**
-     * Build the ordered list of codecs the operator can decode, advertised to
-     * the agent in the `desktop_start` payload. The agent intersects this with
-     * its own GPU/encoder ability and picks the first match in its own
-     * preference order (AV1 → VP9 → H264 → WebP).
-     *
-     * - Secure context (WebCodecs): advertise AV1/VP9/H264 for max quality.
-     * - Plain HTTP with MSE H.264: advertise H264 so the agent still sends a
-     *   GPU-encoded video stream (decoded via JMuxer/MSE) instead of falling
-     *   back to MJPEG — this is the key to smooth video without HTTPS.
-     * - Otherwise: image formats only (WebP/JPEG).
+     * Sync fallback before async probe completes.
      * @returns {string[]}
      */
-    function decodableCodecs() {
+    function decodableCodecsSync() {
         const list = [];
         if (hasWebCodecs()) {
-            list.push('av1', 'vp9', 'h264');
+            const allowAv1 = typeof RDVideo !== 'undefined'
+                && RDVideo.av1ReliableOnRuntime
+                && RDVideo.av1ReliableOnRuntime();
+            if (allowAv1 && !_blockedWireCodecs.has('av1')) list.push('av1');
+            list.push('vp9', 'h264');
         } else if (hasMseH264()) {
             list.push('h264');
         }
         list.push('webp', 'jpeg');
         return list;
+    }
+
+    /**
+     * Probe WebCodecs support and return wire codecs safe to advertise.
+     * @returns {Promise<string[]>}
+     */
+    function decodableCodecs() {
+        if (!_decodableCodecsPromise) {
+            _decodableCodecsPromise = (async () => {
+                if (typeof RDVideo !== 'undefined' && RDVideo.probeDecodableWireCodecs) {
+                    try {
+                        const probed = await RDVideo.probeDecodableWireCodecs();
+                        return probed.filter((c) => !_blockedWireCodecs.has(c));
+                    } catch { /* fall through */ }
+                }
+                return decodableCodecsSync();
+            })();
+        }
+        return _decodableCodecsPromise.then((list) =>
+            list.filter((c) => !_blockedWireCodecs.has(c))
+        );
+    }
+
+    function blockWireCodec(codec) {
+        if (!codec) return;
+        _blockedWireCodecs.add(String(codec).toLowerCase());
+        _decodableCodecsPromise = null;
     }
 
     /**
@@ -217,6 +244,8 @@
             // from `desktop_meta` and defaults to the legacy MJPEG path.
             this._activeFormat = 'jpeg';
             this._codecString = null;
+            this._codecFallbackDone = false;
+            this._videoRenderedFrames = 0;
             this._video = null;          // RDVideo instance (lazy)
             this._gotKeyframe = false;
             this._keyframeRequestedAt = 0;
@@ -268,6 +297,7 @@
 
         async connect() {
             this._setState('connecting');
+            this._codecFallbackDone = false;
             this._emit('log', 'Opening CDAP desktop session…');
             console.log('[CDAP] connect()', this.deviceId);
 
@@ -495,6 +525,17 @@
         // ── Internal: WS lifecycle ───────────────────────────────────────
 
         _handleOpen() {
+            const self = this;
+            decodableCodecs().then(function (codecs) {
+                if (!self._ws || self._ws.readyState !== WebSocket.OPEN) return;
+                self._sendDesktopStart(codecs);
+            }).catch(function () {
+                if (!self._ws || self._ws.readyState !== WebSocket.OPEN) return;
+                self._sendDesktopStart(decodableCodecsSync());
+            });
+        }
+
+        _sendDesktopStart(codecs) {
             const dpr = window.devicePixelRatio || 1;
             const rect = this.canvas.getBoundingClientRect();
             const screenW = (window.screen && window.screen.width)  || 1920;
@@ -515,7 +556,7 @@
                 // sends a GPU-encoded video stream. Over plain HTTP this still
                 // includes H.264 (decoded via JMuxer/MSE), avoiding the slow
                 // MJPEG fallback. See decodableCodecs().
-                codecs: decodableCodecs(),
+                codecs: codecs,
                 video_codec: 'auto',
             });
 
@@ -742,19 +783,43 @@
                 return;
             }
             this._closeVideoDecoder();
+            this._videoRenderedFrames = 0;
             const v = new RDVideo();
             this._video = v;
-            v.onFrame = (frame) => this._drawVideoFrame(frame);
+            v.onFrame = (frame) => {
+                this._videoRenderedFrames++;
+                this._drawVideoFrame(frame);
+            };
             v.onError = () => {
-                // A decode error usually means we fed a delta frame before the
-                // first keyframe — ask the agent for a fresh keyframe.
                 this._gotKeyframe = false;
                 this._requestKeyframe();
             };
-            v.init(codecName).catch((err) => {
+            v.onCodecFailed = (failedCodec) => {
+                this._handleCodecFailed(failedCodec);
+            };
+            v.onNeedKeyframe = () => this._requestKeyframe();
+            v.init(codecName, { codecString: this._codecString || null }).catch((err) => {
                 console.warn('[CDAP] video decoder init failed:', err && err.message);
-                this._video = null;
+                this._handleCodecFailed(codecName);
             });
+        }
+
+        _handleCodecFailed(codec) {
+            const c = String(codec || '').toLowerCase();
+            if (!c || this._codecFallbackDone) return;
+            blockWireCodec(c);
+            this._codecFallbackDone = true;
+            this._closeVideoDecoder();
+            this._gotKeyframe = false;
+            this._emit('log', 'Codec ' + c.toUpperCase() + ' failed — reconnecting with VP9/H.264…');
+            const ws = this._ws;
+            const deviceId = this.deviceId;
+            try { if (ws) ws.close(4002, 'codec_fallback'); } catch { /* noop */ }
+            setTimeout(() => {
+                if (this._state === 'disconnected' || this._state === 'error') {
+                    this.connect().catch(() => {});
+                }
+            }, 400);
         }
 
         /**
@@ -788,7 +853,12 @@
                 this._gotKeyframe = true;
             }
 
-            this._video.decode({ data: payload, key: isKey, codec: this._activeFormat });
+            this._video.decode({
+                data: payload,
+                key: isKey,
+                codec: this._activeFormat,
+                codecString: this._codecString || null
+            });
         }
 
         /**

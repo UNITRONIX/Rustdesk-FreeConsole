@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-probe-server-url"
+description = "Enables the probe_server_url command without any pre-configured scope."
+commands.allow = ["probe_server_url"]
+
+[[permission]]
+identifier = "deny-probe-server-url"
+description = "Denies the probe_server_url command without any pre-configured scope."
+commands.deny = ["probe_server_url"]

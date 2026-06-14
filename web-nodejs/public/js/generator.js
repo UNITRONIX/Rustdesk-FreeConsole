@@ -46,6 +46,7 @@
         slugManual: false,
         previewTimer: null,
         buildsPollTimer: null,
+        productType: 'agent',
     };
 
     const $ = (id) => document.getElementById(id);
@@ -421,14 +422,16 @@
         els['gen-save-btn'].disabled = true;
     }
 
-    function setEditorForNew() {
+    function setEditorForNew(productType) {
         state.currentId = 'new';
         state.currentBundle = null;
         state.currentBuilds = [];
         state.dirty = false;
         state.slugManual = false;
+        state.productType = productType || 'agent';
         stopBuildsPoll();
-        els['gen-editor-title'].innerHTML = `<span class="material-icons">add_circle</span> ${escapeText(t('generator.new_bundle', 'New bundle'))}`;
+        const titleKey = state.productType === 'rdclient' ? 'generator.rdclient_new_bundle' : 'generator.new_bundle';
+        els['gen-editor-title'].innerHTML = `<span class="material-icons">add_circle</span> ${escapeText(t(titleKey, 'New bundle'))}`;
         els['gen-name'].value = '';
         if (els['gen-slug']) els['gen-slug'].value = '';
         writeBranding(DEFAULT_BRANDING);
@@ -453,6 +456,7 @@
     function setEditorForBundle(bundle) {
         state.currentId = bundle.bundle_id;
         state.currentBundle = bundle;
+        state.productType = bundle.product_type || 'agent';
         state.dirty = false;
         state.slugManual = true;
         stopBuildsPoll();
@@ -514,6 +518,7 @@
             name: els['gen-name'].value.trim(),
             slug: readSlugInput(),
             branding: readBranding(),
+            product_type: state.productType || 'agent',
         };
         if (!payload.name) {
             showErrors([t('generator.errors.name_required', 'Bundle name is required')]);
@@ -653,7 +658,9 @@
     }
 
     function bindEvents() {
-        els['gen-new-bundle'].addEventListener('click', () => setEditorForNew());
+        els['gen-new-bundle'].addEventListener('click', () => setEditorForNew('agent'));
+        const rdBtn = $('gen-new-rdclient');
+        if (rdBtn) rdBtn.addEventListener('click', () => setEditorForNew('rdclient'));
         els['gen-save-btn'].addEventListener('click', saveBundle);
         els['gen-rebuild-btn'].addEventListener('click', rebuildAllBuilds);
         els['gen-revoke-btn'].addEventListener('click', toggleRevoke);

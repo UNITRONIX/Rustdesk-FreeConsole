@@ -920,6 +920,15 @@ function createSqliteAdapter(config) {
             CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_status ON agent_bundle_builds (status);
         `);
         migrateAgentBundleSlugsSqlite(db);
+        try {
+            const cols = new Set(db.prepare('PRAGMA table_info(agent_bundles)').all().map(c => c.name));
+            if (!cols.has('product_type')) {
+                db.exec("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'agent'");
+                console.log('[DB] Migration: added agent_bundles.product_type');
+            }
+        } catch (e) {
+            console.warn('[DB] Migration agent_bundles.product_type error:', e.message);
+        }
     }
 
     // -- Multi-tenancy tables ----------------------------------------------
@@ -3074,12 +3083,12 @@ function createSqliteAdapter(config) {
             return excludeBundleId ? row.bundle_id !== excludeBundleId : true;
         },
 
-        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy }) {
+        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy, productType }) {
             const db = openMain();
             const r = db.prepare(`
-                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `).run(bundleId, slug || null, name, branding, brandingHash, createdBy || null);
+                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by, product_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(bundleId, slug || null, name, branding, brandingHash, createdBy || null, productType || 'agent');
             return db.prepare('SELECT * FROM agent_bundles WHERE id = ?').get(r.lastInsertRowid);
         },
 

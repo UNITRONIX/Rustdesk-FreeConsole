@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BetterDesk RdClient — Settings</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0d1117;
+            --panel: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --error: #f85149;
+            --warn: #d29922;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding: 20px;
+        }
+        .card {
+            max-width: 480px;
+            margin: 0 auto;
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+        }
+        h1 { margin: 0 0 4px; font-size: 1.125rem; }
+        .subtitle { margin: 0 0 20px; color: var(--muted); font-size: 0.8125rem; }
+        section { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+        section:last-of-type { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        h2 { margin: 0 0 12px; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+        label { display: block; margin-bottom: 6px; font-size: 0.8125rem; color: var(--muted); }
+        input, select {
+            width: 100%;
+            padding: 9px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #21262d;
+            color: var(--text);
+            font-size: 0.875rem;
+        }
+        .hint { margin-top: 6px; font-size: 0.75rem; color: var(--muted); line-height: 1.4; }
+        .warn { color: var(--warn); }
+        button {
+            margin-top: 10px;
+            padding: 9px 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary { background: var(--accent); color: #fff; width: 100%; }
+        .btn-secondary { background: #21262d; border: 1px solid var(--border); color: var(--text); width: 100%; }
+        .btn-danger { background: #3d1214; border: 1px solid var(--error); color: #ffb4b0; width: 100%; }
+        button:disabled { opacity: 0.6; cursor: wait; }
+        .checkbox-row { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; }
+        .checkbox-row input { width: auto; margin-top: 3px; }
+        .checkbox-row label { margin: 0; color: var(--text); }
+        .status { margin-top: 8px; font-size: 0.8125rem; min-height: 1.2em; }
+        .status.error { color: var(--error); }
+        .status.ok { color: #3fb950; }
+        .server-meta { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>RdClient Settings</h1>
+        <p class="subtitle">Local desktop preferences and account actions.</p>
+
+        <section>
+            <h2>Server</h2>
+            <label for="server-url">Panel URL</label>
+            <input type="url" id="server-url" placeholder="https://desk.example.com">
+            <div class="server-meta" id="server-meta"></div>
+            <button type="button" class="btn-primary" id="save-url-btn">Save &amp; reconnect</button>
+            <div class="status" id="url-status"></div>
+        </section>
+
+        <section>
+            <h2>Security</h2>
+            <div class="checkbox-row">
+                <input type="checkbox" id="tls-strict">
+                <label for="tls-strict">Strict TLS (reject self-signed certificates)</label>
+            </div>
+            <p class="hint warn">Only enable if your panel uses a trusted CA certificate. Self-signed panels require this to stay off.</p>
+            <button type="button" class="btn-secondary" id="save-tls-btn">Save TLS setting</button>
+        </section>
+
+        <section>
+            <h2>Language</h2>
+            <label for="ui-lang">Preferred UI language (panel pages)</label>
+            <select id="ui-lang">
+                <option value="">System default</option>
+            </select>
+            <p class="hint">Applied on next panel page load. Use the language menu in the dashboard for immediate change.</p>
+        </section>
+
+        <section>
+            <h2>Session</h2>
+            <button type="button" class="btn-secondary" id="sign-out-btn">Sign out</button>
+            <p class="hint">Clears panel login cookies and opens the login page.</p>
+        </section>
+
+        <section>
+            <h2>Reset</h2>
+            <button type="button" class="btn-danger" id="reset-btn">Reset client</button>
+            <p class="hint">Removes server URL, cookies, saved passwords, and returns to setup.</p>
+        </section>
+    </div>
+    <script src="settings.js"></script>
+</body>
+</html>

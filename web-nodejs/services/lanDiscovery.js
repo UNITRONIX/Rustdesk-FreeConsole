@@ -49,6 +49,12 @@ function buildAnnouncement() {
         }
     }
 
+    const host = process.env.PANEL_PUBLIC_HOST || config.host || 'localhost';
+    const port = config.port;
+    const protocol = config.httpsEnabled ? 'https' : 'http';
+    const panelUrl = process.env.PANEL_PUBLIC_URL
+        || `${protocol}://${host}${(protocol === 'https' && port === 443) || (protocol === 'http' && port === 80) ? '' : `:${port}`}`;
+
     return {
         type: 'betterdesk-announce',
         version: PROTOCOL_VERSION,
@@ -57,10 +63,11 @@ function buildAnnouncement() {
             version: config.appVersion,
             port: config.port,
             apiPort: config.apiPort,
-            protocol: config.httpsEnabled ? 'https' : 'http',
+            protocol,
             publicKey,
             addresses,
             discoveryPort: DISCOVERY_PORT,
+            panelUrl,
         },
     };
 }

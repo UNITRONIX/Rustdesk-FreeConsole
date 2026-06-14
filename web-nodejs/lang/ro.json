@@ -744,7 +744,11 @@
     "rebuild_queued": "Alle Plattform-Builds in der Warteschlange",
     "builds_summary": "{{ready}} bereit · {{pending}} in Warteschlange · {{building}} wird erstellt · {{failed}} eșuat",
     "build_error_hint": "Eroare build",
-    "preview_help": "Solicită ajutor"
+    "preview_help": "Solicită ajutor",
+    "rdclient_tab": "RdClient desktop",
+    "rdclient_new_bundle": "Pachet RdClient nou",
+    "rdclient_subtitle": "Construiește instalatoare RdClient cu URL panou integrat",
+    "rdclient_server_url_hint": "URL public al consolei BetterDesk (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "Se încarcă...",
     "file_timeout": "Dispozitivul de la distanță nu a răspuns. Este posibil ca transferul de fișiere să nu fie acceptat sau să fie dezactivat pe computerul de la distanță.",
     "codec": "Codec video",
-    "codec_auto": "Auto (recomandat)"
+    "codec_auto": "Auto (recomandat)",
+    "remember_peer_password": "Memorează parola dispozitivului pe acest computer",
+    "save_peer_password": "Salvează parola"
   },
   "branding": {
     "identity_title": "Identitatea de marcă",
@@ -3834,7 +3840,8 @@
     "no_groups": "Fără grupuri",
     "no_tags": "Fără etichete",
     "collapse_devices": "Restrânge lista de dispozitive",
-    "expand_devices": "Extinde lista de dispozitive"
+    "expand_devices": "Extinde lista de dispozitive",
+    "open_settings": "Setări"
   },
   "rdclient_login": {
     "title": "Client desktop la distanță",
@@ -3854,5 +3861,15 @@
     "network_error": "Eroare de rețea",
     "enter_6_digits": "Introduceți toate cele 6 cifre",
     "invalid_code": "Cod invalid"
+  },
+  "rdclient_settings": {
+    "title": "Setări RdClient",
+    "open": "Setări",
+    "server_url": "URL panou",
+    "tls_strict": "TLS strict",
+    "sign_out": "Deconectare",
+    "reset_client": "Resetează clientul",
+    "discovery_refresh": "Reîmprospătează",
+    "discovery_empty": "Nu s-au găsit servere în rețeaua locală"
   }
 }

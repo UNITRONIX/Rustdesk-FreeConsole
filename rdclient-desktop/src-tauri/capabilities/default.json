@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "default",
   "description": "Default RdClient desktop capabilities",
-  "windows": ["main", "session-*"],
+  "windows": ["main", "settings", "session-*"],
   "remote": {
     "urls": [
       "http://*",
@@ -33,9 +33,19 @@
     "core:window:allow-set-focus",
     "core:window:allow-close",
     "core:webview:allow-create-webview-window",
+    "core:webview:allow-clear-all-browsing-data",
     "shell:allow-open",
     "allow-get-server-url",
     "allow-set-server-url",
+    "allow-probe-server-url",
+    "allow-discover-servers",
+    "allow-get-config",
+    "allow-set-tls-strict",
+    "allow-set-ui-lang",
+    "allow-get-system-locale",
+    "allow-open-settings",
+    "allow-sign-out",
+    "allow-reset-client",
     "allow-open-session",
     "allow-close-current-window",
     "allow-get-client-info"

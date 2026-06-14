@@ -1,22 +1,35 @@
 mod config;
+mod discovery;
+mod server_probe;
 
 #[cfg(target_os = "linux")]
 pub mod linux_display;
 pub mod tls_policy;
 
-use config::{load_config, save_config};
+use config::{
+    apply_tls_from_config, clear_config, env_server_url, load_config, load_embedded_server_url,
+    save_config, AppConfig,
+};
+use discovery::discover_udp;
+use server_probe::probe_panel_url;
 use tls_policy::apply_window_builder;
 use tauri::ipc::CapabilityBuilder;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_utils::config::BackgroundThrottlingPolicy;
 
 const MAIN_LABEL: &str = "main";
-const CLIENT_BUILD: &str = "0.1.0-connect-bridge";
+const SETTINGS_LABEL: &str = "settings";
+const CLIENT_BUILD: &str = "0.1.0-production";
 
 /// Injected before page JS — desktop flag + Connect bridge (works even if panel JS is older).
 const DESKTOP_INIT_SCRIPT: &str = r#"
 window.__BETTERDESK_RDCLIENT_DESKTOP__=true;
-(function(){function m(){document.documentElement.classList.add('rd-desk-desktop');if(document.body)document.body.classList.add('rd-desk-desktop');var a=document.getElementById('rd-desk-app');if(a)a.classList.add('rd-desk-desktop');}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',m,{once:true});else m();})();
+(function(){
+  function syncVh(){var h=window.innerHeight;if(h<1)return;document.documentElement.style.setProperty('--rd-desk-vh',h+'px');}
+  function mark(){document.documentElement.classList.add('rd-desk-desktop');if(document.body)document.body.classList.add('rd-desk-desktop');var a=document.getElementById('rd-desk-app');if(a)a.classList.add('rd-desk-desktop');syncVh();if(!window.__rdDeskViewportBound){window.__rdDeskViewportBound=true;window.addEventListener('resize',syncVh);}}
+  syncVh();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mark,{once:true});else mark();
+})();
 function __rdDesktopInvoke(){return window.__TAURI__&&window.__TAURI__.core&&window.__TAURI__.core.invoke;}
 function __rdIsSessionViewer(){return /\/remote\/[^/?#]+/.test(location.pathname);}
 function __rdCloseWindow(){
@@ -57,6 +70,21 @@ document.addEventListener('click',function(e){
     });
   }
 },true);
+(function(){
+  if(document.cookie.indexOf('betterdesk_lang=')>=0)return;
+  var inv=window.__TAURI__&&window.__TAURI__.core&&window.__TAURI__.core.invoke;
+  if(!inv)return;
+  inv('get_config').then(function(cfg){
+    var pref=cfg&&cfg.ui_lang;
+    if(pref){document.cookie='betterdesk_lang='+encodeURIComponent(pref)+';path=/;max-age=31536000';return;}
+    return inv('get_system_locale').then(function(locale){
+      if(!locale)return;
+      var code=String(locale).split(/[-_]/)[0].toLowerCase();
+      if(!code)return;
+      return fetch('/api/i18n/set/'+encodeURIComponent(code),{method:'POST',credentials:'include',headers:{'X-Requested-With':'XMLHttpRequest'}});
+    });
+  }).catch(function(){});
+})();
 "#;
 
 const PANEL_INVOKE_PERMISSIONS: &[&str] = &[
@@ -65,15 +93,25 @@ const PANEL_INVOKE_PERMISSIONS: &[&str] = &[
     "core:window:allow-set-focus",
     "core:window:allow-close",
     "core:webview:allow-create-webview-window",
+    "core:webview:allow-clear-all-browsing-data",
     "shell:allow-open",
+    "allow-get-client-info",
     "allow-get-server-url",
     "allow-set-server-url",
+    "allow-probe-server-url",
+    "allow-discover-servers",
+    "allow-get-config",
+    "allow-set-tls-strict",
+    "allow-set-ui-lang",
+    "allow-open-settings",
+    "allow-sign-out",
+    "allow-reset-client",
+    "allow-get-system-locale",
     "allow-open-session",
     "allow-close-current-window",
-    "allow-get-client-info",
 ];
 
-fn normalize_server_url(raw: &str) -> Result<String, String> {
+pub fn normalize_server_url(raw: &str) -> Result<String, String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err("Server URL is required".into());
@@ -88,8 +126,7 @@ fn normalize_server_url(raw: &str) -> Result<String, String> {
         format!("https://{trimmed}")
     };
 
-    let parsed = url::parse_helper(&with_scheme)?;
-    Ok(parsed)
+    url::parse_helper(&with_scheme)
 }
 
 mod url {
@@ -128,6 +165,7 @@ fn register_panel_remote_capability(app: &AppHandle, base: &str) -> Result<(), S
     let mut builder = CapabilityBuilder::new("panel-operator")
         .local(true)
         .window(MAIN_LABEL)
+        .window(SETTINGS_LABEL)
         .window("session-*");
 
     for pattern in patterns {
@@ -180,15 +218,57 @@ fn apply_desktop_window<R: tauri::Runtime, M: tauri::Manager<R>>(
     )
 }
 
+fn close_session_windows(app: &AppHandle) {
+    for label in app
+        .webview_windows()
+        .keys()
+        .filter(|l| l.starts_with("session-"))
+        .cloned()
+        .collect::<Vec<_>>()
+    {
+        if let Some(w) = app.get_webview_window(&label) {
+            let _ = w.close();
+        }
+    }
+}
+
+fn clear_all_webview_data(app: &AppHandle) -> Result<(), String> {
+    for (_label, window) in app.webview_windows() {
+        window
+            .clear_all_browsing_data()
+            .map_err(|e| format!("Failed to clear browsing data: {e}"))?;
+    }
+    Ok(())
+}
+
+async fn save_server_url(app: &AppHandle, url: String, via: Option<&str>) -> Result<(), String> {
+    let cfg = load_config(app)?;
+    let result = probe_panel_url(&url, cfg.tls_strict).await;
+    if !result.ok {
+        return Err(
+            result
+                .error
+                .unwrap_or_else(|| "Server did not respond as a BetterDesk panel".into()),
+        );
+    }
+
+    let normalized = result.normalized_url;
+    register_panel_remote_capability(app, &normalized)?;
+    let mut cfg = load_config(app)?;
+    cfg.server_url = Some(normalized.clone());
+    if let Some(source) = via {
+        cfg.discovered_via = Some(source.to_string());
+    }
+    save_config(app, &cfg)?;
+    open_main_window(app, WebviewUrl::External(dashboard_url(&normalized)?))?;
+    Ok(())
+}
+
 fn open_main_window(app: &AppHandle, url: WebviewUrl) -> Result<(), String> {
     if let Some(existing) = app.get_webview_window(MAIN_LABEL) {
         if let WebviewUrl::External(parsed) = url {
-            existing
-                .navigate(parsed)
-                .map_err(|e| e.to_string())?;
-            existing
-                .set_focus()
-                .map_err(|e| e.to_string())?;
+            existing.navigate(parsed).map_err(|e| e.to_string())?;
+            existing.set_focus().map_err(|e| e.to_string())?;
             return Ok(());
         }
         existing.close().map_err(|e| e.to_string())?;
@@ -206,10 +286,47 @@ fn open_main_window(app: &AppHandle, url: WebviewUrl) -> Result<(), String> {
     Ok(())
 }
 
+fn try_auto_configure_server(app: &AppHandle) -> Result<bool, String> {
+    let cfg = load_config(app)?;
+    if cfg.server_url.is_some() {
+        return Ok(false);
+    }
+
+    let candidate = match env_server_url().or_else(load_embedded_server_url) {
+        Some(c) => c,
+        None => return Ok(false),
+    };
+
+    let rt = tokio::runtime::Handle::current();
+    let probe = rt.block_on(probe_panel_url(&candidate, cfg.tls_strict));
+    if !probe.ok {
+        return Ok(false);
+    }
+
+    register_panel_remote_capability(app, &probe.normalized_url)?;
+    let mut updated = load_config(app)?;
+    updated.server_url = Some(probe.normalized_url);
+    updated.discovered_via = Some(
+        if env_server_url().is_some() {
+            "env"
+        } else {
+            "embedded"
+        }
+        .into(),
+    );
+    save_config(app, &updated)?;
+    Ok(true)
+}
+
 fn launch_main(app: &AppHandle) -> Result<(), String> {
     let cfg = load_config(app)?;
-    let url = if let Some(base) = cfg.server_url {
-        WebviewUrl::External(dashboard_url(&base)?)
+    apply_tls_from_config(&cfg);
+
+    let url = if cfg.server_url.is_some() {
+        WebviewUrl::External(dashboard_url(cfg.server_url.as_ref().unwrap())?)
+    } else if try_auto_configure_server(app)? {
+        let updated = load_config(app)?;
+        WebviewUrl::External(dashboard_url(updated.server_url.as_ref().unwrap())?)
     } else {
         WebviewUrl::App("setup.html".into())
     };
@@ -230,16 +347,104 @@ fn get_server_url(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-fn set_server_url(app: AppHandle, url: String) -> Result<(), String> {
-    let normalized = normalize_server_url(&url)?;
-    register_panel_remote_capability(&app, &normalized)?;
+fn get_config(app: AppHandle) -> Result<AppConfig, String> {
+    load_config(&app)
+}
+
+#[tauri::command]
+async fn probe_server_url(app: AppHandle, url: String) -> Result<server_probe::ServerProbeResult, String> {
+    let cfg = load_config(&app)?;
+    Ok(probe_panel_url(&url, cfg.tls_strict).await)
+}
+
+#[tauri::command]
+fn discover_servers() -> Vec<discovery::DiscoveredServer> {
+    discover_udp(2500)
+}
+
+#[tauri::command]
+async fn set_server_url(app: AppHandle, url: String) -> Result<(), String> {
+    save_server_url(&app, url, Some("manual")).await
+}
+
+#[tauri::command]
+fn set_tls_strict(app: AppHandle, strict: bool) -> Result<(), String> {
     let mut cfg = load_config(&app)?;
-    cfg.server_url = Some(normalized.clone());
+    cfg.tls_strict = strict;
     save_config(&app, &cfg)?;
-    open_main_window(
-        &app,
-        WebviewUrl::External(dashboard_url(&normalized)?),
+    if strict {
+        unsafe {
+            std::env::set_var("BETTERDESK_TLS_STRICT", "1");
+        }
+    } else {
+        unsafe {
+            std::env::remove_var("BETTERDESK_TLS_STRICT");
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn set_ui_lang(app: AppHandle, lang: Option<String>) -> Result<(), String> {
+    let mut cfg = load_config(&app)?;
+    cfg.ui_lang = lang.filter(|s| !s.trim().is_empty());
+    save_config(&app, &cfg)
+}
+
+#[tauri::command]
+fn get_system_locale() -> Option<String> {
+    sys_locale::get_locale()
+}
+
+#[tauri::command]
+fn open_settings(app: AppHandle) -> Result<(), String> {
+    if let Some(existing) = app.get_webview_window(SETTINGS_LABEL) {
+        existing.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    apply_desktop_window(
+        WebviewWindowBuilder::new(&app, SETTINGS_LABEL, WebviewUrl::App("settings.html".into()))
+            .title("BetterDesk RdClient — Settings")
+            .inner_size(520.0, 640.0)
+            .resizable(true)
+            .center(),
     )
+    .build()
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn sign_out(app: AppHandle) -> Result<(), String> {
+    close_session_windows(&app);
+    clear_all_webview_data(&app)?;
+
+    let cfg = load_config(&app)?;
+    if let Some(base) = cfg.server_url {
+        open_main_window(
+            &app,
+            WebviewUrl::External(
+                tauri::Url::parse(&format!("{}/remote/login", base.trim_end_matches('/')))
+                    .map_err(|e| e.to_string())?,
+            ),
+        )?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn reset_client(app: AppHandle) -> Result<(), String> {
+    close_session_windows(&app);
+    clear_all_webview_data(&app)?;
+    clear_config(&app)?;
+
+    if let Some(settings) = app.get_webview_window(SETTINGS_LABEL) {
+        let _ = settings.close();
+    }
+
+    open_main_window(&app, WebviewUrl::App("setup.html".into()))?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -295,12 +500,21 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_client_info,
             get_server_url,
+            get_config,
+            probe_server_url,
+            discover_servers,
             set_server_url,
+            set_tls_strict,
+            set_ui_lang,
+            get_system_locale,
+            open_settings,
+            sign_out,
+            reset_client,
             open_session,
             close_current_window
         ])
         .setup(|app| {
-            if let Some(base) = load_config(app.handle())?.server_url {
+            if let Some(base) = load_config(app.handle())?.server_url.clone() {
                 register_panel_remote_capability(app.handle(), &base)?;
             }
             launch_main(app.handle())?;

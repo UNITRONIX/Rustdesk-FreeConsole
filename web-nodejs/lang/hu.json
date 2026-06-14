@@ -744,7 +744,11 @@
     "rebuild_queued": "Alle Plattform-Builds in der Warteschlange",
     "builds_summary": "{{ready}} bereit · {{pending}} in Warteschlange · {{building}} wird erstellt · {{failed}} sikertelen",
     "build_error_hint": "Build hiba",
-    "preview_help": "Segítség kérése"
+    "preview_help": "Segítség kérése",
+    "rdclient_tab": "RdClient asztali",
+    "rdclient_new_bundle": "Új RdClient csomag",
+    "rdclient_subtitle": "RdClient telepítők készítése beágyazott panel URL-lel",
+    "rdclient_server_url_hint": "A BetterDesk konzol nyilvános URL-je (/remote)."
   },
   "server": {
     "port": "Port",
@@ -1050,7 +1054,9 @@
     "file_loading": "Betöltés...",
     "file_timeout": "A távoli eszköz nem válaszolt. Előfordulhat, hogy a fájlátvitel nem támogatott vagy le van tiltva a távoli gépen.",
     "codec": "Video Codec",
-    "codec_auto": "Automatikus (ajánlott)"
+    "codec_auto": "Automatikus (ajánlott)",
+    "remember_peer_password": "Eszköz jelszó megjegyzése ezen a gépen",
+    "save_peer_password": "Jelszó mentése"
   },
   "branding": {
     "identity_title": "Márkaidentitás",
@@ -3834,7 +3840,8 @@
     "no_groups": "Nincs csoport",
     "no_tags": "Nincs címke",
     "collapse_devices": "Eszközlista összecsukása",
-    "expand_devices": "Eszközlista kibontása"
+    "expand_devices": "Eszközlista kibontása",
+    "open_settings": "Beállítások"
   },
   "rdclient_login": {
     "title": "Távoli asztal kliens",
@@ -3854,5 +3861,15 @@
     "network_error": "Hálózati hiba",
     "enter_6_digits": "Adja meg mind a 6 számjegyet",
     "invalid_code": "Érvénytelen kód"
+  },
+  "rdclient_settings": {
+    "title": "RdClient beállítások",
+    "open": "Beállítások",
+    "server_url": "Panel URL",
+    "tls_strict": "Szigorú TLS",
+    "sign_out": "Kijelentkezés",
+    "reset_client": "Kliens visszaállítása",
+    "discovery_refresh": "Frissítés",
+    "discovery_empty": "Nem található szerver a helyi hálózaton"
   }
 }
