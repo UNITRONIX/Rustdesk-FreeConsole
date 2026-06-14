@@ -169,8 +169,15 @@ const facade = {
 
     // ---- Branding Config ----
     getBrandingConfig:        () => adapter.getBrandingConfig(),
+    getBrandingConfigRevision: () => adapter.getBrandingConfigRevision(),
     saveBrandingConfigBatch:  (entries) => adapter.saveBrandingConfigBatch(entries),
     resetBrandingConfig:      () => adapter.resetBrandingConfig(),
+    listBrandingProfiles:     () => adapter.listBrandingProfiles(),
+    getBrandingProfile:       (id) => adapter.getBrandingProfile(id),
+    createBrandingProfile:    (name, description, data) => adapter.createBrandingProfile(name, description, data),
+    updateBrandingProfile:    (id, name, description, data) => adapter.updateBrandingProfile(id, name, description, data),
+    setActiveBrandingProfile: (id) => adapter.setActiveBrandingProfile(id),
+    deleteBrandingProfile:    (id) => adapter.deleteBrandingProfile(id),
 
     // ---- Backup Helpers ----
     getAllUsersForBackup: () => adapter.getAllUsersForBackup(),

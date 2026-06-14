@@ -329,6 +329,15 @@ function createSqliteAdapter(config) {
                 value TEXT NOT NULL,
                 updated_at TEXT DEFAULT (datetime('now'))
             );
+            CREATE TABLE IF NOT EXISTS branding_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT DEFAULT '',
+                data TEXT NOT NULL,
+                is_active INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
             CREATE TABLE IF NOT EXISTS relay_sessions (
                 id TEXT PRIMARY KEY,
                 initiator_id TEXT NOT NULL,
@@ -535,6 +544,20 @@ function createSqliteAdapter(config) {
                 console.log('[DB] Migration: added branding_config.updated_at');
             }
         } catch (e) { console.warn('[DB] Migration branding_config columns error:', e.message); }
+
+        try {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS branding_profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT DEFAULT '',
+                    data TEXT NOT NULL,
+                    is_active INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )
+            `);
+        } catch (e) { console.warn('[DB] Migration branding_profiles error:', e.message); }
 
         try {
             const groupCols = new Set(db.prepare('PRAGMA table_info(device_groups)').all().map(c => c.name));
@@ -1596,6 +1619,52 @@ function createSqliteAdapter(config) {
         },
         async resetBrandingConfig() {
             openAuth().prepare('DELETE FROM branding_config').run();
+        },
+
+        async getBrandingConfigRevision() {
+            const row = openAuth().prepare('SELECT MAX(updated_at) AS rev FROM branding_config').get();
+            return row?.rev || null;
+        },
+
+        async listBrandingProfiles() {
+            return openAuth().prepare(
+                'SELECT id, name, description, is_active, created_at, updated_at FROM branding_profiles ORDER BY name COLLATE NOCASE'
+            ).all();
+        },
+
+        async getBrandingProfile(id) {
+            return openAuth().prepare('SELECT * FROM branding_profiles WHERE id = ?').get(id);
+        },
+
+        async createBrandingProfile(name, description, data) {
+            const json = typeof data === 'string' ? data : JSON.stringify(data);
+            const r = openAuth().prepare(`
+                INSERT INTO branding_profiles (name, description, data, created_at, updated_at)
+                VALUES (?, ?, ?, datetime('now'), datetime('now'))
+            `).run(name, description || '', json);
+            return r.lastInsertRowid;
+        },
+
+        async updateBrandingProfile(id, name, description, data) {
+            const json = typeof data === 'string' ? data : JSON.stringify(data);
+            openAuth().prepare(`
+                UPDATE branding_profiles
+                SET name = ?, description = ?, data = ?, updated_at = datetime('now')
+                WHERE id = ?
+            `).run(name, description || '', json, id);
+        },
+
+        async setActiveBrandingProfile(id) {
+            const db = openAuth();
+            const tx = db.transaction((profileId) => {
+                db.prepare('UPDATE branding_profiles SET is_active = 0').run();
+                db.prepare('UPDATE branding_profiles SET is_active = 1, updated_at = datetime(\'now\') WHERE id = ?').run(profileId);
+            });
+            tx(id);
+        },
+
+        async deleteBrandingProfile(id) {
+            openAuth().prepare('DELETE FROM branding_profiles WHERE id = ?').run(id);
         },
 
         // ---- Backup Helpers ----
@@ -3286,6 +3355,18 @@ function createPostgresAdapter() {
         `);
 
         await q(`
+            CREATE TABLE IF NOT EXISTS branding_profiles (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT DEFAULT '',
+                data TEXT NOT NULL,
+                is_active INTEGER DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        `);
+
+        await q(`
             CREATE TABLE IF NOT EXISTS relay_sessions (
                 id TEXT PRIMARY KEY,
                 initiator_id TEXT NOT NULL,
@@ -4493,6 +4574,64 @@ function createPostgresAdapter() {
         },
         async resetBrandingConfig() {
             await q('DELETE FROM branding_config');
+        },
+
+        async getBrandingConfigRevision() {
+            const rows = await all('SELECT MAX(updated_at) AS rev FROM branding_config');
+            return rows[0]?.rev || null;
+        },
+
+        async listBrandingProfiles() {
+            return all(
+                'SELECT id, name, description, is_active, created_at, updated_at FROM branding_profiles ORDER BY name'
+            );
+        },
+
+        async getBrandingProfile(id) {
+            const rows = await all('SELECT * FROM branding_profiles WHERE id = $1', [id]);
+            return rows[0] || null;
+        },
+
+        async createBrandingProfile(name, description, data) {
+            const json = typeof data === 'string' ? data : JSON.stringify(data);
+            const rows = await all(
+                `INSERT INTO branding_profiles (name, description, data, created_at, updated_at)
+                 VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id`,
+                [name, description || '', json]
+            );
+            return rows[0]?.id;
+        },
+
+        async updateBrandingProfile(id, name, description, data) {
+            const json = typeof data === 'string' ? data : JSON.stringify(data);
+            await q(
+                `UPDATE branding_profiles
+                 SET name = $1, description = $2, data = $3, updated_at = NOW()
+                 WHERE id = $4`,
+                [name, description || '', json, id]
+            );
+        },
+
+        async setActiveBrandingProfile(id) {
+            const client = await getPool().connect();
+            try {
+                await client.query('BEGIN');
+                await client.query('UPDATE branding_profiles SET is_active = 0');
+                await client.query(
+                    'UPDATE branding_profiles SET is_active = 1, updated_at = NOW() WHERE id = $1',
+                    [id]
+                );
+                await client.query('COMMIT');
+            } catch (err) {
+                await client.query('ROLLBACK');
+                throw err;
+            } finally {
+                client.release();
+            }
+        },
+
+        async deleteBrandingProfile(id) {
+            await q('DELETE FROM branding_profiles WHERE id = $1', [id]);
         },
 
         // ---- Backup Helpers ----

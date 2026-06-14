@@ -286,6 +286,22 @@ const COLOR_TO_CSS_VAR = {
 
 // In-memory cache
 let brandingCache = null;
+let brandingRevision = '0';
+
+/**
+ * Bump cache-bust token after branding mutations.
+ */
+function bumpBrandingRevision() {
+    brandingRevision = Date.now().toString(36);
+}
+
+/**
+ * Revision string for branding.css cache busting (EJS + autosave).
+ * @returns {string}
+ */
+function getBrandingRevision() {
+    return brandingRevision;
+}
 
 /**
  * Load branding configuration from database into cache (async).
@@ -313,10 +329,17 @@ async function loadBranding() {
         }
 
         brandingCache = branding;
+        try {
+            const rev = await db.getBrandingConfigRevision();
+            brandingRevision = rev ? String(rev).replace(/[^a-zA-Z0-9._-]/g, '') : Date.now().toString(36);
+        } catch (_) {
+            bumpBrandingRevision();
+        }
         return branding;
     } catch (err) {
         console.error('[Branding] Failed to load from DB, using defaults:', err.message);
         brandingCache = JSON.parse(JSON.stringify(DEFAULT_BRANDING));
+        bumpBrandingRevision();
         return brandingCache;
     }
 }
@@ -377,9 +400,108 @@ async function saveBranding(updates) {
  */
 async function resetBranding() {
     await db.resetBrandingConfig();
-
-    // Clear cache — next getBranding() will return defaults
     brandingCache = null;
+    await loadBranding();
+}
+
+// ==================== Branding Profiles ====================
+
+/**
+ * List saved branding profiles (metadata only).
+ * @returns {Promise<Array>}
+ */
+async function listProfiles() {
+    return db.listBrandingProfiles();
+}
+
+/**
+ * Create a profile snapshot from branding data.
+ * @param {string} name
+ * @param {string} [description]
+ * @param {Object} [brandingData] - defaults to current branding export
+ * @returns {Promise<number>} profile id
+ */
+async function createProfile(name, description = '', brandingData = null) {
+    const trimmed = String(name || '').trim().substring(0, 80);
+    if (!trimmed) throw new Error('Profile name is required');
+    const preset = brandingData && brandingData.type === 'betterdesk-theme'
+        ? brandingData
+        : exportPreset();
+    return db.createBrandingProfile(trimmed, String(description || '').substring(0, 200), preset);
+}
+
+/**
+ * Update profile data from current or supplied branding.
+ * @param {number} id
+ * @param {Object} updates - { name?, description?, branding? }
+ */
+async function updateProfile(id, updates = {}) {
+    const profile = await db.getBrandingProfile(id);
+    if (!profile) throw new Error('Profile not found');
+    const name = updates.name != null ? String(updates.name).trim().substring(0, 80) : profile.name;
+    const description = updates.description != null
+        ? String(updates.description).substring(0, 200)
+        : (profile.description || '');
+    const data = updates.branding
+        ? { version: '1.0', type: 'betterdesk-theme', branding: updates.branding }
+        : JSON.parse(profile.data);
+    await db.updateBrandingProfile(id, name, description, data);
+}
+
+/**
+ * Apply a saved profile to active branding_config.
+ * @param {number} id
+ */
+async function applyProfile(id) {
+    const profile = await db.getBrandingProfile(id);
+    if (!profile) return false;
+    let preset;
+    try {
+        preset = JSON.parse(profile.data);
+    } catch (_) {
+        return false;
+    }
+    const ok = await importPreset(preset);
+    if (!ok) return false;
+    await db.setActiveBrandingProfile(id);
+    return true;
+}
+
+/**
+ * Delete a branding profile (not allowed for active profile).
+ * @param {number} id
+ */
+async function deleteProfile(id) {
+    const profile = await db.getBrandingProfile(id);
+    if (!profile) return false;
+    if (profile.is_active) throw new Error('Cannot delete the active profile');
+    await db.deleteBrandingProfile(id);
+    return true;
+}
+
+/**
+ * Duplicate an existing profile.
+ * @param {number} id
+ * @param {string} [newName]
+ */
+async function duplicateProfile(id, newName = '') {
+    const profile = await db.getBrandingProfile(id);
+    if (!profile) throw new Error('Profile not found');
+    const baseName = newName.trim() || `${profile.name} (copy)`;
+    let name = baseName.substring(0, 80);
+    const existing = await db.listBrandingProfiles();
+    let suffix = 2;
+    while (existing.some(p => p.name === name)) {
+        name = `${baseName.substring(0, 70)} ${suffix}`;
+        suffix += 1;
+    }
+    let data;
+    try {
+        data = JSON.parse(profile.data);
+    } catch (_) {
+        data = exportPreset();
+    }
+    return db.createBrandingProfile(name, profile.description || '', data);
 }
 
 /**
@@ -599,6 +721,13 @@ module.exports = {
     exportPreset,
     importPreset,
     invalidateCache,
+    getBrandingRevision,
+    listProfiles,
+    createProfile,
+    updateProfile,
+    applyProfile,
+    deleteProfile,
+    duplicateProfile,
     sanitizeSvg,
     sanitizeCssColorValue,
     sanitizeCustomCss,

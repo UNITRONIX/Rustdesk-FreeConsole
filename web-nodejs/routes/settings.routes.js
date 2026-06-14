@@ -184,7 +184,11 @@ router.post('/api/settings/branding', requireAuth, requirePermission('branding.e
         
         await db.logAction(req.session?.userId, 'branding_update', 'Updated branding configuration', req.ip);
         
-        res.json({ success: true, message: 'Branding saved' });
+        res.json({
+            success: true,
+            data: brandingService.getBranding(),
+            revision: brandingService.getBrandingRevision()
+        });
     } catch (err) {
         console.error('Save branding error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });
@@ -354,6 +358,123 @@ router.post('/api/settings/branding/import', requireAuth, requirePermission('bra
     }
 });
 
+// ==================== Branding Profiles ====================
+
+/**
+ * GET /api/settings/branding/profiles - List saved appearance profiles
+ */
+router.get('/api/settings/branding/profiles', requireAuth, async (req, res) => {
+    try {
+        const profiles = await brandingService.listProfiles();
+        res.json({ success: true, data: profiles });
+    } catch (err) {
+        console.error('List branding profiles error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/branding/profiles - Create profile from current branding
+ */
+router.post('/api/settings/branding/profiles', requireAuth, requirePermission('branding.edit'), async (req, res) => {
+    try {
+        const name = String(req.body?.name || '').trim();
+        const description = String(req.body?.description || '').trim();
+        if (!name) {
+            return res.status(400).json({ success: false, error: 'Profile name is required' });
+        }
+        let preset = null;
+        if (req.body?.branding && typeof req.body.branding === 'object') {
+            preset = { version: '1.0', type: 'betterdesk-theme', branding: req.body.branding };
+        }
+        const id = await brandingService.createProfile(name, description, preset);
+        await db.logAction(req.session?.userId, 'branding_profile_create', `Created profile: ${name}`, req.ip);
+        res.json({ success: true, data: { id } });
+    } catch (err) {
+        const msg = err.message?.includes('UNIQUE') ? 'Profile name already exists' : (err.message || req.t('errors.server_error'));
+        console.error('Create branding profile error:', err);
+        res.status(400).json({ success: false, error: msg });
+    }
+});
+
+/**
+ * PUT /api/settings/branding/profiles/:id - Update profile metadata/data
+ */
+router.put('/api/settings/branding/profiles/:id', requireAuth, requirePermission('branding.edit'), async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) {
+            return res.status(400).json({ success: false, error: 'Invalid profile id' });
+        }
+        await brandingService.updateProfile(id, {
+            name: req.body?.name,
+            description: req.body?.description,
+            branding: req.body?.branding
+        });
+        await db.logAction(req.session?.userId, 'branding_profile_update', `Updated profile #${id}`, req.ip);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Update branding profile error:', err);
+        res.status(400).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/branding/profiles/:id/apply - Apply profile to active branding
+ */
+router.post('/api/settings/branding/profiles/:id/apply', requireAuth, requirePermission('branding.edit'), async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) {
+            return res.status(400).json({ success: false, error: 'Invalid profile id' });
+        }
+        const ok = await brandingService.applyProfile(id);
+        if (!ok) {
+            return res.status(404).json({ success: false, error: 'Profile not found or invalid' });
+        }
+        await db.logAction(req.session?.userId, 'branding_profile_apply', `Applied profile #${id}`, req.ip);
+        res.json({ success: true, data: brandingService.getBranding(), revision: brandingService.getBrandingRevision() });
+    } catch (err) {
+        console.error('Apply branding profile error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/branding/profiles/:id/duplicate - Duplicate profile
+ */
+router.post('/api/settings/branding/profiles/:id/duplicate', requireAuth, requirePermission('branding.edit'), async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) {
+            return res.status(400).json({ success: false, error: 'Invalid profile id' });
+        }
+        const newId = await brandingService.duplicateProfile(id, req.body?.name || '');
+        res.json({ success: true, data: { id: newId } });
+    } catch (err) {
+        console.error('Duplicate branding profile error:', err);
+        res.status(400).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * DELETE /api/settings/branding/profiles/:id - Delete profile
+ */
+router.delete('/api/settings/branding/profiles/:id', requireAuth, requirePermission('branding.edit'), async (req, res) => {
+    try {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id)) {
+            return res.status(400).json({ success: false, error: 'Invalid profile id' });
+        }
+        await brandingService.deleteProfile(id);
+        await db.logAction(req.session?.userId, 'branding_profile_delete', `Deleted profile #${id}`, req.ip);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Delete branding profile error:', err);
+        res.status(400).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
 /**
  * GET /api/settings/themes - List available theme presets
  */
@@ -433,7 +554,10 @@ router.get('/api/settings/fonts', requireAuth, (req, res) => {
     try {
         const query = String(req.query.q || '').substring(0, 100);
         const category = String(req.query.category || 'all').substring(0, 20);
-        const fonts = fontService.searchFonts(query, category);
+        const source = String(req.query.source || 'curated').substring(0, 20);
+        const fonts = source === 'google'
+            ? fontService.searchGoogleFonts(query, category)
+            : fontService.searchFonts(query, category);
         res.json({ success: true, data: fonts });
     } catch (err) {
         console.error('Font search error:', err);
@@ -495,17 +619,75 @@ router.delete('/api/settings/fonts/:family', requireAuth, requirePermission('bra
     }
 });
 
+const fontUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        const ok = /\.(woff2|ttf)$/i.test(file.originalname)
+            || file.mimetype === 'font/woff2'
+            || file.mimetype === 'font/ttf'
+            || file.mimetype === 'application/font-woff2'
+            || file.mimetype === 'application/x-font-ttf';
+        cb(ok ? null : new Error('Invalid font file type'), ok);
+    }
+});
+
 /**
- * GET /css/theme.css - Dynamic CSS theme overrides (no auth required, cached)
+ * POST /api/settings/fonts/upload - Upload a custom font (woff2/ttf)
+ */
+router.post('/api/settings/fonts/upload', requireAuth, requirePermission('branding.edit'), (req, res) => {
+    fontUpload.single('font')(req, res, async (err) => {
+        if (err) {
+            const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 5 MB)' : (err.message || 'Upload failed');
+            return res.status(400).json({ success: false, error: msg });
+        }
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: 'No file provided' });
+        }
+        try {
+            const family = String(req.body?.family || path.basename(req.file.originalname, path.extname(req.file.originalname))).trim();
+            const ext = path.extname(req.file.originalname).toLowerCase() === '.ttf' ? '.ttf' : '.woff2';
+            const tmpDir = path.join(__dirname, '..', 'data', 'tmp');
+            if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+            const tmpPath = path.join(tmpDir, `font-upload-${Date.now()}${ext}`);
+            fs.writeFileSync(tmpPath, req.file.buffer);
+            const result = await fontService.registerUploadedFont(family, tmpPath, path.basename(tmpPath));
+            await db.logAction(req.session?.userId, 'font_upload', `Uploaded font: ${family}`, req.ip);
+            res.json({ success: true, data: result });
+        } catch (uploadErr) {
+            console.error('Font upload error:', uploadErr);
+            res.status(400).json({ success: false, error: uploadErr.message || 'Upload failed' });
+        }
+    });
+});
+
+/**
+ * GET /css/branding.css - Dynamic branding overrides (no auth required, short cache)
+ */
+router.get('/css/branding.css', (req, res) => {
+    try {
+        const css = brandingService.generateThemeCss();
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        res.setHeader('X-Branding-Revision', brandingService.getBrandingRevision());
+        res.send(css);
+    } catch (err) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        res.send('/* branding error */');
+    }
+});
+
+/**
+ * GET /css/theme.css - Legacy alias (prefer /css/branding.css)
  */
 router.get('/css/theme.css', (req, res) => {
     try {
         const css = brandingService.generateThemeCss();
-        res.setHeader('Content-Type', 'text/css');
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
         res.setHeader('Cache-Control', 'public, max-age=60');
         res.send(css);
     } catch (err) {
-        res.setHeader('Content-Type', 'text/css');
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
         res.send('/* theme error */');
     }
 });

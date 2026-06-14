@@ -603,24 +603,389 @@
     // ==================== Branding / Theming Section ====================
     
     let brandingData = null;
+    let _brandingSnapshot = null;
+    let _brandingDirty = false;
+    let _previewDebounce = null;
+    let _autosaveDebounce = null;
+    let _canBrandingEdit = true;
+    let _fontSource = 'google';
+    let _brandingProfiles = [];
     
     /**
      * Initialize branding configuration section
      */
     async function initBrandingSection() {
+        const tab = document.getElementById('tab-branding');
+        if (!tab) return;
+
+        _canBrandingEdit = tab.dataset.canBrandingEdit !== '0';
+
         try {
             const response = await Utils.api('/api/settings/branding');
             brandingData = response.data || response;
+            _brandingSnapshot = JSON.stringify(collectBrandingData());
             
             populateBrandingForm(brandingData);
+            initBrandingModules();
             initLogoTypeSelector();
             initColorPickers();
             initFontPickers();
+            initFontSourceTabs();
             initBackgroundSelectors();
+            initBrandingProfiles();
+            initBuiltinThemes();
             initBrandingActions();
+            initBrandingLivePreview();
+            setBrandingStatus('saved');
             
         } catch (error) {
             console.error('Failed to load branding:', error);
+        }
+    }
+
+    function initBrandingModules() {
+        const nav = document.getElementById('branding-module-nav');
+        if (!nav) return;
+        nav.querySelectorAll('.branding-module-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const module = btn.dataset.brandingModule;
+                nav.querySelectorAll('.branding-module-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.branding-module-panel').forEach(panel => {
+                    panel.classList.toggle('active', panel.dataset.brandingModule === module);
+                });
+            });
+        });
+    }
+
+    function setBrandingStatus(state, message) {
+        const statusEl = document.getElementById('branding-save-status');
+        const textEl = document.getElementById('branding-status-text');
+        if (!statusEl || !textEl) return;
+        statusEl.classList.remove('is-dirty', 'is-saving', 'is-saved', 'is-error');
+        const map = {
+            saved: [_('branding.status_saved'), 'is-saved', 'check_circle'],
+            dirty: [_('branding.status_dirty'), 'is-dirty', 'edit'],
+            saving: [_('branding.status_saving'), 'is-saving', 'sync'],
+            error: [_('branding.status_error'), 'is-error', 'error']
+        };
+        const cfg = map[state] || map.saved;
+        textEl.textContent = message || cfg[0];
+        statusEl.classList.add(cfg[1]);
+        const icon = statusEl.querySelector('.branding-status-icon');
+        if (icon) icon.textContent = cfg[2];
+        if (state === 'saving' && icon) icon.classList.add('spinning');
+        else if (icon) icon.classList.remove('spinning');
+    }
+
+    function onBrandingFieldChange() {
+        const current = JSON.stringify(collectBrandingData());
+        _brandingDirty = current !== _brandingSnapshot;
+        if (_brandingDirty) setBrandingStatus('dirty');
+        scheduleBrandingPreview();
+        if (_canBrandingEdit) scheduleBrandingAutosave();
+    }
+
+    function scheduleBrandingPreview() {
+        clearTimeout(_previewDebounce);
+        _previewDebounce = setTimeout(() => {
+            if (typeof BrandingPreview !== 'undefined') {
+                const applyPage = document.getElementById('branding-preview-page-toggle')?.checked;
+                BrandingPreview.apply(collectBrandingData(), { applyToPage: !!applyPage });
+            }
+            updateLogoPreview();
+        }, 100);
+    }
+
+    function scheduleBrandingAutosave() {
+        if (!_canBrandingEdit) return;
+        clearTimeout(_autosaveDebounce);
+        _autosaveDebounce = setTimeout(() => saveBrandingNow({ silent: true }), 1500);
+    }
+
+    async function saveBrandingNow(options = {}) {
+        if (!_canBrandingEdit) return;
+        setBrandingStatus('saving');
+        try {
+            const data = collectBrandingData();
+            const resp = await Utils.api('/api/settings/branding', {
+                method: 'POST',
+                body: data
+            });
+            brandingData = resp.data || data;
+            _brandingSnapshot = JSON.stringify(collectBrandingData());
+            _brandingDirty = false;
+            setBrandingStatus('saved', options.silent ? _('branding.autosaved') : _('branding.saved'));
+            if (typeof BrandingPreview !== 'undefined') {
+                const rev = resp.revision || Date.now();
+                BrandingPreview.refreshBrandingStylesheet(rev);
+            }
+            applyBrandingToChrome(data);
+            if (!options.silent) {
+                Notifications.success(_('branding.saved'));
+            }
+        } catch (error) {
+            setBrandingStatus('error', error.message || _('errors.server_error'));
+            if (!options.silent) Notifications.error(error.message || _('errors.server_error'));
+        }
+    }
+
+    function revertBrandingChanges() {
+        if (!_brandingSnapshot) return;
+        try {
+            const data = JSON.parse(_brandingSnapshot);
+            populateBrandingForm(data);
+            _brandingDirty = false;
+            setBrandingStatus('saved');
+            scheduleBrandingPreview();
+            if (typeof BrandingPreview !== 'undefined') BrandingPreview.clearPagePreview();
+        } catch (e) {
+            console.error('Revert failed:', e);
+        }
+    }
+
+    function applyBrandingToChrome(data) {
+        const name = data.appName || 'BetterDesk';
+        document.querySelectorAll('.sidebar-logo-text, .brand-text-logo').forEach(el => {
+            if (data.logoType === 'text' && data.logoText) {
+                el.textContent = data.logoText;
+            }
+        });
+        document.title = document.title.replace(/^[^-]+/, name);
+        const favicon = document.querySelector('link[rel="icon"]');
+        if (favicon) favicon.href = `/branding/favicon.svg?v=${Date.now()}`;
+    }
+
+    function initBrandingLivePreview() {
+        document.getElementById('branding-preview-page-toggle')?.addEventListener('change', scheduleBrandingPreview);
+        const tab = document.getElementById('tab-branding');
+        if (!tab) return;
+        tab.addEventListener('input', (e) => {
+            if (e.target.closest('#tab-branding')) onBrandingFieldChange();
+        });
+        tab.addEventListener('change', (e) => {
+            if (e.target.closest('#tab-branding')) onBrandingFieldChange();
+        });
+        scheduleBrandingPreview();
+    }
+
+    async function initBrandingProfiles() {
+        const select = document.getElementById('branding-profile-select');
+        if (!select) return;
+        await refreshBrandingProfiles(select);
+
+        document.getElementById('branding-profile-apply-btn')?.addEventListener('click', async () => {
+            const id = parseInt(select.value, 10);
+            if (!id) return;
+            try {
+                const resp = await Utils.api(`/api/settings/branding/profiles/${id}/apply`, { method: 'POST' });
+                brandingData = resp.data || brandingData;
+                populateBrandingForm(brandingData);
+                _brandingSnapshot = JSON.stringify(collectBrandingData());
+                _brandingDirty = false;
+                setBrandingStatus('saved');
+                scheduleBrandingPreview();
+                if (typeof BrandingPreview !== 'undefined') {
+                    BrandingPreview.refreshBrandingStylesheet(resp.revision || Date.now());
+                }
+                Notifications.success(_('branding.profile_applied'));
+            } catch (e) {
+                Notifications.error(e.message || _('errors.server_error'));
+            }
+        });
+
+        document.getElementById('branding-profile-new-btn')?.addEventListener('click', async () => {
+            const name = prompt(_('branding.profile_name_prompt'));
+            if (!name || !name.trim()) return;
+            try {
+                await Utils.api('/api/settings/branding/profiles', {
+                    method: 'POST',
+                    body: { name: name.trim(), description: '', branding: collectBrandingData() }
+                });
+                await refreshBrandingProfiles(select);
+                Notifications.success(_('branding.profile_created'));
+            } catch (e) {
+                Notifications.error(e.message || _('errors.server_error'));
+            }
+        });
+
+        document.getElementById('branding-profile-save-btn')?.addEventListener('click', async () => {
+            const id = parseInt(select.value, 10);
+            if (!id) {
+                Notifications.error(_('branding.profile_select_first'));
+                return;
+            }
+            try {
+                await Utils.api(`/api/settings/branding/profiles/${id}`, {
+                    method: 'PUT',
+                    body: { branding: collectBrandingData() }
+                });
+                Notifications.success(_('branding.profile_updated'));
+            } catch (e) {
+                Notifications.error(e.message || _('errors.server_error'));
+            }
+        });
+
+        document.getElementById('branding-profile-duplicate-btn')?.addEventListener('click', async () => {
+            const id = parseInt(select.value, 10);
+            if (!id) return;
+            try {
+                await Utils.api(`/api/settings/branding/profiles/${id}/duplicate`, { method: 'POST', body: {} });
+                await refreshBrandingProfiles(select);
+                Notifications.success(_('branding.profile_duplicated'));
+            } catch (e) {
+                Notifications.error(e.message || _('errors.server_error'));
+            }
+        });
+
+        document.getElementById('branding-profile-delete-btn')?.addEventListener('click', async () => {
+            const id = parseInt(select.value, 10);
+            if (!id) return;
+            if (!confirm(_('branding.profile_delete_confirm'))) return;
+            try {
+                await Utils.api(`/api/settings/branding/profiles/${id}`, { method: 'DELETE' });
+                await refreshBrandingProfiles(select);
+                Notifications.success(_('branding.profile_deleted'));
+            } catch (e) {
+                Notifications.error(e.message || _('errors.server_error'));
+            }
+        });
+    }
+
+    async function refreshBrandingProfiles(select) {
+        try {
+            const resp = await Utils.api('/api/settings/branding/profiles');
+            _brandingProfiles = resp.data || resp || [];
+            select.innerHTML = `<option value="">${_('branding.profile_none')}</option>`;
+            _brandingProfiles.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.is_active ? `${p.name} (${_('branding.profile_active')})` : p.name;
+                if (p.is_active) opt.selected = true;
+                select.appendChild(opt);
+            });
+        } catch (e) {
+            console.warn('Failed to load profiles:', e);
+        }
+    }
+
+    async function initBuiltinThemes() {
+        const gallery = document.getElementById('branding-theme-gallery');
+        if (!gallery) return;
+        try {
+            const resp = await Utils.api('/api/settings/themes');
+            const themes = resp.data || resp || [];
+            gallery.innerHTML = '';
+            themes.forEach(theme => {
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'branding-theme-card';
+                card.title = theme.description || theme.name;
+                const colors = theme.colors || {};
+                const swatches = ['bgPrimary', 'bgSecondary', 'accentBlue', 'accentGreen']
+                    .map(k => colors[k] || '#30363d')
+                    .map(c => `<span class="branding-theme-swatch" style="background:${Utils.escapeHtml(c)}"></span>`)
+                    .join('');
+                card.innerHTML = `<div class="branding-theme-swatches">${swatches}</div><span class="branding-theme-name">${Utils.escapeHtml(theme.name || theme.id)}</span>`;
+                card.addEventListener('click', async () => {
+                    if (!_canBrandingEdit) return;
+                    if (!confirm(_('branding.theme_apply_confirm'))) return;
+                    try {
+                        await Utils.api(`/api/settings/themes/${encodeURIComponent(theme.id)}/apply`, { method: 'POST' });
+                        const fresh = await Utils.api('/api/settings/branding');
+                        brandingData = fresh.data || fresh;
+                        populateBrandingForm(brandingData);
+                        _brandingSnapshot = JSON.stringify(collectBrandingData());
+                        _brandingDirty = false;
+                        setBrandingStatus('saved');
+                        scheduleBrandingPreview();
+                        if (typeof BrandingPreview !== 'undefined') BrandingPreview.refreshBrandingStylesheet(Date.now());
+                        Notifications.success(_('branding.theme_applied'));
+                    } catch (e) {
+                        Notifications.error(e.message || _('errors.server_error'));
+                    }
+                });
+                gallery.appendChild(card);
+            });
+        } catch (e) {
+            console.warn('Builtin themes failed:', e);
+        }
+    }
+
+    function initFontSourceTabs() {
+        document.querySelectorAll('.font-source-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                _fontSource = tab.dataset.fontSource || 'google';
+                document.querySelectorAll('.font-source-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelectorAll('.font-source-panel').forEach(p => p.classList.remove('active'));
+                const panel = document.getElementById(`font-source-${_fontSource}`);
+                if (panel) panel.classList.add('active');
+                if (_fontSource === 'local') renderLocalFontList();
+            });
+        });
+
+        document.getElementById('font-upload-file')?.addEventListener('change', handleFontUpload);
+
+        renderLocalFontList();
+    }
+
+    async function renderLocalFontList() {
+        const list = document.getElementById('font-local-list');
+        if (!list) return;
+        try {
+            const fonts = await Utils.api('/api/settings/fonts/local');
+            list.innerHTML = '';
+            if (!fonts || !fonts.length) {
+                list.innerHTML = `<div class="font-dropdown-empty">${_('branding.font_local_empty')}</div>`;
+                return;
+            }
+            fonts.forEach(font => {
+                const row = document.createElement('div');
+                row.className = 'font-local-item';
+                row.innerHTML = `
+                    <span style="font-family:'${Utils.escapeHtml(font.family)}',sans-serif">${Utils.escapeHtml(font.family)}</span>
+                    <button type="button" class="btn btn-ghost btn-sm font-local-delete" data-family="${Utils.escapeHtml(font.family)}" title="${_('branding.font_delete')}">
+                        <span class="material-icons">delete</span>
+                    </button>`;
+                row.querySelector('.font-local-delete')?.addEventListener('click', async () => {
+                    try {
+                        await Utils.api(`/api/settings/fonts/${encodeURIComponent(font.family)}`, { method: 'DELETE' });
+                        renderLocalFontList();
+                        loadLocalFontCount();
+                    } catch (e) {
+                        Notifications.error(e.message || _('errors.server_error'));
+                    }
+                });
+                list.appendChild(row);
+            });
+        } catch (e) {
+            list.innerHTML = `<div class="font-dropdown-empty">${_('errors.server_error')}</div>`;
+        }
+    }
+
+    async function handleFontUpload(e) {
+        const file = e.target.files[0];
+        if (!file || !_canBrandingEdit) return;
+        const family = document.getElementById('font-upload-name')?.value.trim() || file.name.replace(/\.[^.]+$/, '');
+        const formData = new FormData();
+        formData.append('font', file);
+        formData.append('family', family);
+        try {
+            const resp = await fetch('/api/settings/fonts/upload', {
+                method: 'POST',
+                headers: { 'x-csrf-token': window.BetterDesk?.csrfToken || '' },
+                body: formData
+            });
+            const result = await resp.json();
+            if (!resp.ok || !result.success) throw new Error(result.error || 'Upload failed');
+            Notifications.success(_('branding.font_upload_success'));
+            renderLocalFontList();
+            loadLocalFontCount();
+            e.target.value = '';
+        } catch (err) {
+            Notifications.error(err.message || _('errors.server_error'));
+            e.target.value = '';
         }
     }
     
@@ -1022,16 +1387,15 @@
      * Initialize color picker sync (picker <-> hex input)
      */
     function initColorPickers() {
-        // Sync color picker → hex input
         document.querySelectorAll('.color-picker').forEach(picker => {
             picker.addEventListener('input', () => {
                 const key = picker.dataset.color;
                 const hex = document.querySelector(`.color-hex[data-color="${key}"]`);
                 if (hex) hex.value = picker.value;
+                onBrandingFieldChange();
             });
         });
         
-        // Sync hex input → color picker
         document.querySelectorAll('.color-hex').forEach(hex => {
             hex.addEventListener('input', () => {
                 const key = hex.dataset.color;
@@ -1039,6 +1403,7 @@
                 if (picker && /^#[0-9a-fA-F]{6}$/.test(hex.value)) {
                     picker.value = hex.value;
                 }
+                onBrandingFieldChange();
             });
         });
     }
@@ -1220,6 +1585,7 @@
             const params = new URLSearchParams();
             if (query) params.set('q', query);
             if (_fontCategory) params.set('category', _fontCategory);
+            if (_fontSource === 'google') params.set('source', 'google');
             
             const fonts = await Utils.api(`/api/settings/fonts?${params}`);
             
@@ -1297,25 +1663,9 @@
      * Initialize branding action buttons
      */
     function initBrandingActions() {
-        // Save
-        document.getElementById('branding-save-btn')?.addEventListener('click', async () => {
-            try {
-                const data = collectBrandingData();
-                await Utils.api('/api/settings/branding', {
-                    method: 'POST',
-                    body: data
-                });
-                Notifications.success(_('branding.saved'));
-                
-                // Reload page to apply changes
-                setTimeout(() => window.location.reload(), 800);
-                
-            } catch (error) {
-                Notifications.error(error.message || _('errors.server_error'));
-            }
-        });
+        document.getElementById('branding-save-btn')?.addEventListener('click', () => saveBrandingNow());
+        document.getElementById('branding-revert-btn')?.addEventListener('click', revertBrandingChanges);
         
-        // Export
         document.getElementById('branding-export-btn')?.addEventListener('click', async () => {
             try {
                 const response = await Utils.api('/api/settings/branding/export');
@@ -1346,8 +1696,15 @@
                     body: preset
                 });
                 
+                const fresh = await Utils.api('/api/settings/branding');
+                brandingData = fresh.data || fresh;
+                populateBrandingForm(brandingData);
+                _brandingSnapshot = JSON.stringify(collectBrandingData());
+                _brandingDirty = false;
+                setBrandingStatus('saved');
+                scheduleBrandingPreview();
+                if (typeof BrandingPreview !== 'undefined') BrandingPreview.refreshBrandingStylesheet(Date.now());
                 Notifications.success(_('branding.imported'));
-                setTimeout(() => window.location.reload(), 800);
                 
             } catch (error) {
                 Notifications.error(error.message || _('branding.import_error'));
@@ -1363,8 +1720,15 @@
             
             try {
                 await Utils.api('/api/settings/branding/reset', { method: 'POST' });
+                const fresh = await Utils.api('/api/settings/branding');
+                brandingData = fresh.data || fresh;
+                populateBrandingForm(brandingData);
+                _brandingSnapshot = JSON.stringify(collectBrandingData());
+                _brandingDirty = false;
+                setBrandingStatus('saved');
+                scheduleBrandingPreview();
+                if (typeof BrandingPreview !== 'undefined') BrandingPreview.refreshBrandingStylesheet(Date.now());
                 Notifications.success(_('branding.reset_success'));
-                setTimeout(() => window.location.reload(), 800);
             } catch (error) {
                 Notifications.error(error.message || _('errors.server_error'));
             }

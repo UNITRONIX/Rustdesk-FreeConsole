@@ -1,7 +1,7 @@
 <%- include('layouts/main', {
     title: _('nav.settings'),
     pageStyles: ['pages'],
-    pageScripts: ['settings'],
+    pageScripts: ['branding-preview', 'settings'],
     currentPage: 'settings',
     breadcrumb: [{ label: _('nav.settings') }],
     body: `
@@ -269,10 +269,90 @@
         </div>
         
         <!-- Branding Tab -->
-        <div class="settings-tab-content" id="tab-branding">
-        <div class="settings-sections">
+        <div class="settings-tab-content" id="tab-branding" data-can-branding-edit="<%= canBrandingEdit ? '1' : '0' %>">
+        <div class="branding-studio">
+            <div class="branding-studio-toolbar">
+                <div class="branding-save-status" id="branding-save-status" aria-live="polite">
+                    <span class="material-icons branding-status-icon">check_circle</span>
+                    <span id="branding-status-text">${_('branding.status_saved')}</span>
+                </div>
+                <div class="branding-toolbar-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="branding-revert-btn" title="${_('branding.revert_changes')}">
+                        <span class="material-icons">undo</span>
+                        ${_('branding.revert_changes')}
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm" id="branding-save-btn">
+                        <span class="material-icons">save</span>
+                        ${_('branding.save_now')}
+                    </button>
+                </div>
+            </div>
+
+            <div class="branding-profiles-bar">
+                <div class="branding-profiles-main">
+                    <label class="form-label" for="branding-profile-select">${_('branding.profiles_label')}</label>
+                    <select id="branding-profile-select" class="form-input form-select branding-profile-select"></select>
+                    <button type="button" class="btn btn-secondary btn-sm" id="branding-profile-apply-btn">
+                        <span class="material-icons">play_arrow</span>
+                        ${_('branding.profile_apply')}
+                    </button>
+                </div>
+                <div class="branding-profiles-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="branding-profile-new-btn">
+                        <span class="material-icons">add</span>
+                        ${_('branding.profile_new')}
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="branding-profile-save-btn">
+                        <span class="material-icons">save_as</span>
+                        ${_('branding.profile_save')}
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="branding-profile-duplicate-btn">
+                        <span class="material-icons">content_copy</span>
+                        ${_('branding.profile_duplicate')}
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm btn-danger-text" id="branding-profile-delete-btn">
+                        <span class="material-icons">delete</span>
+                        ${_('branding.profile_delete')}
+                    </button>
+                </div>
+            </div>
+
+            <div class="branding-builtin-themes" id="branding-builtin-themes">
+                <h3 class="branding-builtin-title">${_('branding.builtin_themes')}</h3>
+                <div class="branding-theme-gallery" id="branding-theme-gallery"></div>
+            </div>
+
+            <div class="branding-studio-body">
+                <nav class="branding-module-nav" id="branding-module-nav" aria-label="${_('branding.modules_nav')}">
+                    <button type="button" class="branding-module-btn active" data-branding-module="identity">
+                        <span class="material-icons">badge</span>
+                        ${_('branding.module_identity')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="colors">
+                        <span class="material-icons">palette</span>
+                        ${_('branding.module_colors')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="typography">
+                        <span class="material-icons">text_format</span>
+                        ${_('branding.module_typography')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="backgrounds">
+                        <span class="material-icons">wallpaper</span>
+                        ${_('branding.module_backgrounds')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="pages">
+                        <span class="material-icons">web</span>
+                        ${_('branding.module_pages')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="advanced">
+                        <span class="material-icons">tune</span>
+                        ${_('branding.module_advanced')}
+                    </button>
+                </nav>
+
+                <div class="settings-sections branding-modules" id="branding-modules">
             <!-- Brand Identity -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel active" data-branding-module="identity">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">badge</span>
@@ -297,7 +377,7 @@
             </div>
             
             <!-- Logo Configuration -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel active" data-branding-module="identity">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">image</span>
@@ -409,7 +489,7 @@
             </div>
             
             <!-- Color Scheme -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="colors">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">palette</span>
@@ -543,7 +623,7 @@
             </div>
             
             <!-- Typography -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="typography">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">text_format</span>
@@ -599,6 +679,27 @@
                             </div>
                         </div>
                         
+                        <!-- Font source tabs -->
+                        <div class="font-source-tabs" role="tablist">
+                            <button type="button" class="font-source-tab active" data-font-source="google">${_('branding.font_google')}</button>
+                            <button type="button" class="font-source-tab" data-font-source="local">${_('branding.font_local')}</button>
+                            <button type="button" class="font-source-tab" data-font-source="upload">${_('branding.font_upload')}</button>
+                        </div>
+                        <div class="font-source-panel active" id="font-source-google"></div>
+                        <div class="font-source-panel" id="font-source-local">
+                            <div class="font-local-list" id="font-local-list"></div>
+                        </div>
+                        <div class="font-source-panel" id="font-source-upload">
+                            <div class="font-upload-area">
+                                <input type="file" id="font-upload-file" accept=".woff2,.ttf,font/woff2,font/ttf" class="font-upload-input">
+                                <label for="font-upload-file" class="btn btn-secondary btn-sm">
+                                    <span class="material-icons">upload_file</span>
+                                    ${_('branding.font_upload_choose')}
+                                </label>
+                                <input type="text" id="font-upload-name" class="form-input" placeholder="${_('branding.font_upload_name')}" maxlength="80">
+                            </div>
+                        </div>
+
                         <!-- Category filter -->
                         <div class="font-category-filter">
                             <button class="btn btn-ghost btn-sm font-cat-btn active" data-category="all">${_('branding.font_cat_all')}</button>
@@ -618,7 +719,7 @@
             </div>
             
             <!-- Background & Appearance -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="backgrounds">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">wallpaper</span>
@@ -721,7 +822,7 @@
             </div>
 
             <!-- Login Page -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="pages">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">login</span>
@@ -821,7 +922,7 @@
             </div>
 
             <!-- Agent Download Page -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="pages">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">download</span>
@@ -912,7 +1013,7 @@
             </div>
 
             <!-- Footer & Copyright -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="advanced">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">copyright</span>
@@ -940,7 +1041,7 @@
             </div>
 
             <!-- Custom CSS -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="advanced">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">code</span>
@@ -958,7 +1059,7 @@
             </div>
 
             <!-- Import / Export -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="advanced">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">swap_horiz</span>
@@ -984,13 +1085,38 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Save Branding Button -->
-            <div class="branding-save-bar">
-                <button class="btn btn-primary btn-lg" id="branding-save-btn">
-                    <span class="material-icons">save</span>
-                    ${_('branding.save_branding')}
-                </button>
+                </div>
+
+                <aside class="branding-live-preview" id="branding-live-preview">
+                    <div class="branding-live-preview-header">
+                        <h3>${_('branding.live_preview')}</h3>
+                        <label class="branding-preview-page-toggle">
+                            <input type="checkbox" id="branding-preview-page-toggle">
+                            <span>${_('branding.preview_apply_page')}</span>
+                        </label>
+                    </div>
+                    <div class="branding-preview-mockup" id="branding-live-mockup">
+                        <div class="branding-mockup-sidebar">
+                            <div class="branding-mockup-logo" id="branding-mockup-logo">
+                                <span class="material-icons">dns</span>
+                                <span class="branding-mockup-title">BetterDesk</span>
+                            </div>
+                            <div class="branding-mockup-nav-item active"></div>
+                            <div class="branding-mockup-nav-item"></div>
+                            <div class="branding-mockup-nav-item"></div>
+                        </div>
+                        <div class="branding-mockup-main">
+                            <div class="branding-mockup-card">
+                                <h4 class="branding-mockup-heading">${_('branding.preview_card_title')}</h4>
+                                <p class="branding-mockup-body">${_('branding.preview_card_body')}</p>
+                                <div class="branding-mockup-actions">
+                                    <button type="button" class="branding-mockup-btn primary">${_('branding.preview_btn_primary')}</button>
+                                    <button type="button" class="branding-mockup-btn secondary">${_('branding.preview_btn_secondary')}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
             </div>
         </div>
         </div>

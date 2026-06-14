@@ -84,6 +84,7 @@ function i18nMiddleware(req, res, next) {
     res.locals.appName = branding.appName || config.appName;
     res.locals.appDescription = branding.appDescription || 'BetterDesk Server Management';
     res.locals.branding = branding;
+    res.locals.brandingRevision = brandingService.getBrandingRevision();
     
     // Full translations object for client-side JS
     res.locals.translations = manager.getMergedTranslations(lang);
