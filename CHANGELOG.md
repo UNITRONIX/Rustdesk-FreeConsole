@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.19] — 2026-06-14
+
 ### Added
 
 - **RdClient desktop (Phase C — MVP):** new `rdclient-desktop/` Tauri v2 operator shell — first-run panel URL setup, main window loads `{url}/remote`, **Connect** opens a separate session window (`/remote/:id`); web dashboard uses `open_session` when `__TAURI__` is present. **Linux:** automatic X11/Wayland session detection and WebKitGTK workarounds (Gdk error 71 on Wayland). **TLS:** accepts **HTTP** and **HTTPS** with self-signed, Let's Encrypt, or incomplete-chain certs (operator panels); set `BETTERDESK_TLS_STRICT=1` for strict system CA validation only. Not yet distributed via Settings → Updates (build from source).
@@ -809,3 +816,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.16]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.15...v3.3.16
 [3.3.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.16...v3.3.17
 [3.3.18]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.17...v3.3.18
+[3.3.19]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.18...v3.3.19
