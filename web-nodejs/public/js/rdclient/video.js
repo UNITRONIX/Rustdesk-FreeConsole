@@ -71,6 +71,9 @@ class RDVideo {
         this._decodeErrorsSinceFrame = 0;
         /** @type {boolean} Whether AV1 description was applied from a keyframe */
         this._av1DescriptionApplied = false;
+        /** @type {number} Last decoder error timestamp (ms) for throttled recovery */
+        this._lastDecodeErrorTime = 0;
+    }
 
     /**
      * Check if hardware WebCodecs is supported (requires secure context)
