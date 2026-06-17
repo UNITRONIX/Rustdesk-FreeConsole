@@ -1058,6 +1058,18 @@ async function getOIDCStatus() {
     }
 }
 
+/**
+ * POST /api/auth/oidc/exchange — Exchange OIDC code for JWT and user info
+ */
+async function exchangeOIDCCode(code) {
+    try {
+        const { data } = await apiClient.post('/auth/oidc/exchange', { code });
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
 module.exports = {
     // Health / Stats
     getHealth,
@@ -1140,6 +1152,7 @@ module.exports = {
     saveOIDCConfig,
     testOIDCDiscovery,
     getOIDCStatus,
+    exchangeOIDCCode,
     // Help Requests
     listHelpRequests,
     acknowledgeHelpRequest,
