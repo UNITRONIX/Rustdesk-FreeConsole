@@ -24,7 +24,7 @@ jest.mock('../services/database', () => mockDb);
 
 const userSync = require('../services/userSync');
 
-function createSqliteMock(goUsers = [], inserts = []) {
+function createSqliteMock(goUsers = [], inserts = [], updates = []) {
     const goDb = {
         prepare: jest.fn((sql) => {
             if (sql.includes('sqlite_master')) return { get: jest.fn(() => ({ name: 'users' })) };
@@ -32,10 +32,21 @@ function createSqliteMock(goUsers = [], inserts = []) {
                 return { all: jest.fn(() => [
                     { name: 'id' }, { name: 'username' }, { name: 'password_hash' },
                     { name: 'role' }, { name: 'auth_provider' }, { name: 'totp_secret' }, { name: 'totp_enabled' },
-                    { name: 'created_at' }, { name: 'last_login' },
+                    { name: 'totp_recovery_codes' }, { name: 'created_at' }, { name: 'last_login' },
                 ]) };
             }
+            if (sql.startsWith('SELECT id FROM users')) {
+                return {
+                    get: jest.fn((username) => {
+                        const user = goUsers.find(u => String(u.username || '').toLowerCase() === username);
+                        return user ? { id: user.id } : undefined;
+                    })
+                };
+            }
             if (sql.startsWith('SELECT')) return { all: jest.fn(() => goUsers) };
+            if (sql.startsWith('UPDATE users SET totp_')) {
+                return { run: jest.fn((...args) => updates.push({ sql, args })) };
+            }
             throw new Error(`Unexpected Go DB SQL: ${sql}`);
         }),
     };
@@ -133,5 +144,51 @@ describe('userSync', () => {
             authProvider: 'ldap',
             role: 'operator',
         });
+    });
+
+    it('mirrors TOTP enable directly to the existing Go SQLite user', async () => {
+        const updates = [];
+        const { goDb } = createSqliteMock([
+            { id: 7, username: 'Admin', password_hash: 'hash', role: 'admin' },
+        ], [], updates);
+        mockDb.getDb.mockReturnValue(goDb);
+
+        await userSync.mirrorTotpEnable('admin', { secret: 'SECRET123' });
+
+        expect(updates).toHaveLength(1);
+        expect(updates[0].sql).toContain('totp_enabled = 1');
+        expect(updates[0].sql).toContain('totp_recovery_codes = NULL');
+        expect(updates[0].args).toEqual(['SECRET123', 7]);
+        expect(mockApiClient.post).not.toHaveBeenCalled();
+        expect(mockApiClient.put).not.toHaveBeenCalled();
+    });
+
+    it('does not create a Go user when TOTP enable cannot find one', async () => {
+        const updates = [];
+        const { goDb } = createSqliteMock([], [], updates);
+        mockDb.getDb.mockReturnValue(goDb);
+
+        await userSync.mirrorTotpEnable('missing', { secret: 'SECRET123' });
+
+        expect(updates).toHaveLength(0);
+        expect(mockApiClient.post).not.toHaveBeenCalled();
+        expect(mockApiClient.put).not.toHaveBeenCalled();
+    });
+
+    it('mirrors TOTP disable directly to the existing Go SQLite user', async () => {
+        const updates = [];
+        const { goDb } = createSqliteMock([
+            { id: 7, username: 'admin', password_hash: 'hash', role: 'admin' },
+        ], [], updates);
+        mockDb.getDb.mockReturnValue(goDb);
+
+        await userSync.mirrorTotpDisable('admin');
+
+        expect(updates).toHaveLength(1);
+        expect(updates[0].sql).toContain("totp_secret = ''");
+        expect(updates[0].sql).toContain('totp_enabled = 0');
+        expect(updates[0].args).toEqual([7]);
+        expect(mockApiClient.post).not.toHaveBeenCalled();
+        expect(mockApiClient.put).not.toHaveBeenCalled();
     });
 });

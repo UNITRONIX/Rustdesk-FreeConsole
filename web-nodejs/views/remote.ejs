@@ -32,6 +32,7 @@
         <span class="toolbar-stats" id="toolbar-stats"></span>
     </div>
     <div class="toolbar-right">
+        <select id="viewer-language-select" class="toolbar-lang-select" data-language-select aria-label="${_('settings.language')}"></select>
         <!-- Actions Menu -->
         <div class="toolbar-dropdown">
             <button class="toolbar-btn" id="btn-actions" title="${_('remote.actions')}">
@@ -249,6 +250,10 @@
                                placeholder="${_('remote.password_placeholder')}" autocomplete="off">
                     </div>
                     <p class="login-error session-login-error" style="display:none;"></p>
+                    <label class="form-check session-remember-peer" style="display:flex;align-items:center;gap:8px;margin:10px 0 0;font-size:0.875rem;">
+                        <input type="checkbox" class="session-remember-peer-checkbox">
+                        <span>${_('remote.remember_peer_password') || 'Remember device password on this device'}</span>
+                    </label>
                     <button class="btn btn-primary btn-full session-btn-authenticate">
                         <span class="material-icons">login</span>
                         ${_('remote.connect')}

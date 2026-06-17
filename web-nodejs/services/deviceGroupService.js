@@ -183,6 +183,87 @@ async function userCanAccessDevice(db, user, device, allDevices) {
     return device && scope.has(String(device.id));
 }
 
+async function collectAclUsernames(db, group, targetSet) {
+    if (!group || !targetSet) return;
+    const allowedUsers = normalizeUsernames(group.allowed_users);
+    const allowedGroups = normalizeGroupGuids(group.allowed_groups || group.allowed_user_groups);
+    if (allowedUsers.length === 0 && allowedGroups.length === 0) return;
+    for (const username of allowedUsers) targetSet.add(username);
+    for (const guid of allowedGroups) {
+        if (typeof db.getUsernamesByUserGroupGuid !== 'function') continue;
+        const members = await db.getUsernamesByUserGroupGuid(guid);
+        for (const username of members || []) targetSet.add(username);
+    }
+}
+
+async function resolveOperatorUsernamesForDevice(db, deviceId) {
+    const cleanId = String(deviceId || '').trim();
+    if (!cleanId) return [];
+
+    const usernames = new Set();
+    const assignments = await db.getAllFolderAssignments();
+    let folderId = null;
+    for (const row of assignments || []) {
+        if (String(row.device_id) === cleanId) {
+            folderId = row.folder_id;
+            break;
+        }
+    }
+
+    if (folderId != null && typeof db.getDeviceGroupByGuid === 'function') {
+        const folderGroup = await db.getDeviceGroupByGuid(`folder_${folderId}`);
+        await collectAclUsernames(db, folderGroup, usernames);
+    }
+
+    if (typeof db.getAllDeviceGroups === 'function') {
+        const groups = await db.getAllDeviceGroups();
+        let devices = [];
+        if (typeof db.getAllPeers === 'function') {
+            devices = await db.getAllPeers();
+        }
+        for (const group of groups || []) {
+            const peerIds = await getGroupPeerIds(db, group, devices);
+            if (!peerIds.has(cleanId)) continue;
+            await collectAclUsernames(db, group, usernames);
+        }
+    }
+
+    return [...usernames];
+}
+
+async function resolveOperatorEmailsForDevice(db, deviceId) {
+    const usernames = await resolveOperatorUsernamesForDevice(db, deviceId);
+    if (!usernames.length || typeof db.getUsersEmailsByUsernames !== 'function') return [];
+    const rows = await db.getUsersEmailsByUsernames(usernames);
+    const seen = new Set();
+    const result = [];
+    for (const row of rows || []) {
+        const email = String(row.email || '').trim();
+        if (!email || seen.has(email)) continue;
+        seen.add(email);
+        result.push({ username: row.username, email });
+    }
+    return result;
+}
+
+async function resolveFolderNameForDevice(db, deviceId) {
+    const cleanId = String(deviceId || '').trim();
+    if (!cleanId || typeof db.getAllFolderAssignments !== 'function' || typeof db.getFolderById !== 'function') {
+        return '';
+    }
+    const assignments = await db.getAllFolderAssignments();
+    let folderId = null;
+    for (const row of assignments || []) {
+        if (String(row.device_id) === cleanId) {
+            folderId = row.folder_id;
+            break;
+        }
+    }
+    if (folderId == null) return '';
+    const folder = await db.getFolderById(folderId);
+    return folder && folder.name ? String(folder.name) : '';
+}
+
 module.exports = {
     normalizeTags,
     normalizeUsernames,
@@ -196,5 +277,8 @@ module.exports = {
     enrichGroups,
     getDeviceScopeForUser,
     filterDevicesByScope,
-    userCanAccessDevice
+    userCanAccessDevice,
+    resolveOperatorUsernamesForDevice,
+    resolveOperatorEmailsForDevice,
+    resolveFolderNameForDevice,
 };

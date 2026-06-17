@@ -11,6 +11,18 @@ import (
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
 
+func waitRelayPairing(t *testing.T, srv *Server) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if srv.ActiveSessions.Load() >= 1 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("relay pairing did not complete within 3s, active sessions = %d", srv.ActiveSessions.Load())
+}
+
 func TestRelayPairing(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.RelayPort = 0 // let OS pick a free port
@@ -81,7 +93,7 @@ func TestRelayPairing(t *testing.T) {
 	// RelayResponse confirmation — it immediately starts transparent
 	// bidirectional byte copy after pairing (sending RelayResponse would
 	// break the E2E encryption handshake in production).
-	time.Sleep(500 * time.Millisecond)
+	waitRelayPairing(t, srv)
 
 	// Test bidirectional data relay (no confirmation message expected)
 	testData := []byte("Hello from A to B!")
@@ -122,6 +134,52 @@ func TestRelayPairing(t *testing.T) {
 	if srv.TotalRelayed.Load() != 1 {
 		t.Errorf("total relayed: got %d, want 1", srv.TotalRelayed.Load())
 	}
+}
+
+func TestRelaySimultaneousPairing(t *testing.T) {
+	cfg := config.DefaultConfig()
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	cfg.RelayPort = port
+	srv := New(cfg)
+	if err := srv.Start(t.Context()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer srv.Stop()
+
+	uuid := "simul-pair-uuid-789"
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	dialAndRequest := func(id string) net.Conn {
+		conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+		if err != nil {
+			t.Fatalf("dial %s: %v", id, err)
+		}
+		req := &pb.RendezvousMessage{
+			Union: &pb.RendezvousMessage_RequestRelay{
+				RequestRelay: &pb.RequestRelay{Uuid: uuid, Id: id},
+			},
+		}
+		if err := codec.WriteRawProto(conn, req); err != nil {
+			t.Fatalf("write %s: %v", id, err)
+		}
+		return conn
+	}
+
+	done := make(chan net.Conn, 2)
+	go func() { done <- dialAndRequest("PEER_A") }()
+	go func() { done <- dialAndRequest("PEER_B") }()
+
+	connA := <-done
+	connB := <-done
+	defer connA.Close()
+	defer connB.Close()
+
+	waitRelayPairing(t, srv)
 }
 
 func TestRelayHealthCheck(t *testing.T) {

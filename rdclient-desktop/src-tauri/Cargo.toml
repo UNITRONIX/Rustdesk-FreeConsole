@@ -1,0 +1,36 @@
+[package]
+name = "rdclient-desktop"
+version = "0.1.0"
+description = "BetterDesk RdClient operator desktop client"
+authors = ["UNITRONIX"]
+edition = "2021"
+
+[lib]
+name = "rdclient_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-utils = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+sys-locale = "0.3"
+
+# brotli 8.0.3 on crates.io pulls conflicting alloc-no-stdlib 2.x/3.x; git brotli + unified allocator crate.
+# wry: accept operator-panel TLS (self-signed / incomplete chain) on Linux WebKitGTK.
+[patch.crates-io]
+brotli = { git = "https://github.com/dropbox/rust-brotli" }
+alloc-no-stdlib = { git = "https://github.com/dropbox/rust-alloc-no-stdlib", tag = "3.0.0" }
+wry = { path = "../vendor/wry" }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+strip = true

@@ -131,6 +131,23 @@ function runBestEffortUserSync(operation) {
     }
 }
 
+function normalizeUserEmail(value) {
+    if (value === undefined || value === null) return undefined;
+    const trimmed = String(value).trim();
+    if (!trimmed) return '';
+    if (trimmed.length > 200) {
+        const err = new Error('email_too_long');
+        err.status = 400;
+        throw err;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+        const err = new Error('invalid_email');
+        err.status = 400;
+        throw err;
+    }
+    return trimmed;
+}
+
 function requireAnyPermission(...permissions) {
     return function(req, res, next) {
         const role = req.session && req.session.user && req.session.user.role;
@@ -162,6 +179,7 @@ router.get('/api/users', requireAuth, requirePermission('user.view'), async (req
             id: u.id,
             username: u.username,
             role: u.role,
+            email: u.email || '',
             auth_provider: u.auth_provider || 'local',
             created_at: u.created_at,
             last_login: u.last_login,
@@ -278,7 +296,7 @@ router.delete('/api/panel/user-groups/:guid', requireAuth, requirePermission('us
  */
 router.post('/api/users', requireAuth, requirePermission('user.create'), passwordChangeLimiter, async (req, res) => {
     try {
-        const { username, password, role } = req.body;
+        const { username, password, role, email } = req.body;
         
         // Validate input
         if (!username || !password) {
@@ -328,6 +346,12 @@ router.post('/api/users', requireAuth, requirePermission('user.create'), passwor
         const result = await db.createUser(username, passwordHash, userRole);
         await db.setUserGroupMemberships(result.id, groupGuids);
 
+        let savedEmail = '';
+        if (email !== undefined) {
+            savedEmail = normalizeUserEmail(email);
+            await db.updateUserProfile(result.id, { email: savedEmail });
+        }
+
         // Mirror to Go server so the user is linkable to organizations
         // (Issue #125). Best-effort — does not fail panel-side creation.
         runBestEffortUserSync(() => userSync.mirrorCreate(username, password, userRole));
@@ -341,6 +365,7 @@ router.post('/api/users', requireAuth, requirePermission('user.create'), passwor
                 id: result.id,
                 username,
                 role: userRole,
+                email: savedEmail,
                 user_groups: groupGuids
             }
         });
@@ -362,7 +387,7 @@ router.patch('/api/users/:id', requireAuth, requirePermission('user.edit'), asyn
         if (isNaN(userId) || userId <= 0) {
             return res.status(400).json({ success: false, error: 'Invalid user ID' });
         }
-        const { role, password } = req.body;
+        const { role, password, email } = req.body;
         
         const user = await db.getUserById(userId);
         if (!user) {
@@ -428,6 +453,11 @@ router.patch('/api/users/:id', requireAuth, requirePermission('user.edit'), asyn
         }
 
         await updateUserGroupMembershipsFromBody(userId, req.body);
+
+        if (email !== undefined) {
+            const normalizedEmail = normalizeUserEmail(email);
+            await db.updateUserProfile(userId, { email: normalizedEmail });
+        }
         
         // Log action
         await db.logAction(req.session.userId, 'user_updated', `Updated user: ${user.username}`, req.ip);

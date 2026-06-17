@@ -8,7 +8,7 @@ This document describes the organization of the BetterDesk Console project.
 BetterDeskConsole/
 │
 ├── 📄 README.md                    # Main project documentation
-├── 📄 LICENSE                      # Apache-2.0 License
+├── 📄 LICENSE                      # AGPL-3.0 License
 ├── 📄 VERSION                      # Current version (1.2.0-v8)
 ├── 📄 .gitignore                   # Git ignore rules
 ├── 📄 CHANGELOG.md                 # Version history

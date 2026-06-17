@@ -603,6 +603,24 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"uptime":       time.Since(startTime).String(),
 		"tls":          s.cfg.TLSCertFile != "" && s.cfg.TLSKeyFile != "",
 	}
+	if s.peers != nil {
+		peerStats := s.peers.GetStats(config.DegradedThreshold, config.CriticalThreshold)
+		payload["peers_in_memory"] = peerStats.Total
+		payload["peers_degraded"] = peerStats.Degraded
+		payload["peers_critical"] = peerStats.Critical
+		payload["peers_udp"] = peerStats.UDP
+		payload["peers_tcp"] = peerStats.TCP
+		payload["peers_ws"] = peerStats.WS
+	}
+	if s.relay != nil {
+		payload["relay_active_sessions"] = s.relay.ActiveSessions.Load()
+	}
+	if s.billing != nil {
+		payload["billing_pending_relays"] = s.billing.PendingRelayCount()
+	}
+	if s.timeSync != nil {
+		payload["clock_synced"] = s.timeSync.IsSynced()
+	}
 	if s.cfg != nil {
 		payload["connection"] = map[string]any{
 			"p2p_first":        s.cfg.P2PFirst,
@@ -703,12 +721,20 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	includeDeleted := r.URL.Query().Get("include_deleted") == "true"
+	limit, offset, paginated := parsePeerListPagination(r)
 
 	// Data scoping: org-scoped users only see their org's devices
 	orgID := getOrgIDFromCtx(r)
 	var peers []*db.Peer
+	var total int
 	var err error
-	if orgID != "" {
+	if paginated {
+		if orgID != "" {
+			peers, total, err = s.db.ListPeersForOrgPaginated(orgID, includeDeleted, limit, offset)
+		} else {
+			peers, total, err = s.db.ListPeersPaginated(includeDeleted, limit, offset)
+		}
+	} else if orgID != "" {
 		peers, err = s.db.ListPeersForOrg(orgID, includeDeleted)
 	} else {
 		peers, err = s.db.ListPeers(includeDeleted)
@@ -763,7 +789,37 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if paginated {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"total": total,
+			"data":  result,
+		})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, result)
+}
+
+func parsePeerListPagination(r *http.Request) (limit, offset int, paginated bool) {
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = r.URL.Query().Get("page_size")
+	}
+	if limitStr == "" {
+		return 0, 0, false
+	}
+	limit, _ = strconv.Atoi(limitStr)
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	return limit, (page - 1) * limit, true
 }
 
 // handleClientPeersList returns peers in the {total,data} envelope format
@@ -1567,6 +1623,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 
 	// Refresh gauge values from current state
 	if s.peers != nil {
+		peerStats := s.peers.GetStats(config.DegradedThreshold, config.CriticalThreshold)
 		snap := s.peers.GetAllSnapshots(
 			config.DegradedThreshold,
 			config.CriticalThreshold,
@@ -1589,6 +1646,18 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		s.metrics.PeersDegraded.Store(degraded)
 		s.metrics.PeersCritical.Store(critical)
 		s.metrics.PeersOffline.Store(offline)
+		s.metrics.PeersUDP.Store(int64(peerStats.UDP))
+		s.metrics.PeersTCP.Store(int64(peerStats.TCP))
+		s.metrics.PeersWS.Store(int64(peerStats.WS))
+	}
+
+	if s.relay != nil {
+		s.metrics.RelayActiveSessions.Store(s.relay.ActiveSessions.Load())
+		s.metrics.TotalRelaySessions.Store(s.relay.TotalRelayed.Load())
+	}
+
+	if s.billing != nil {
+		s.metrics.BillingPendingRelays.Store(int64(s.billing.PendingRelayCount()))
 	}
 
 	if s.blocklist != nil {

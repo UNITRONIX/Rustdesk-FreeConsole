@@ -1,5 +1,5 @@
 /* Security Audit Dashboard — Phase 8 */
-.secaudit-container { max-width: 1400px; margin: 0 auto; padding: 0 24px 32px; }
+.secaudit-container { padding: 0 24px 32px; }
 
 /* Tabs */
 .secaudit-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border-primary); margin-bottom: 24px; padding-bottom: 0; overflow-x: auto; }

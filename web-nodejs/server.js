@@ -4,7 +4,7 @@
  * 
  * @author UNITRONIX
  * @version 2.1.0
- * @license Apache-2.0
+ * @license AGPL-3.0
  */
 
 const express = require('express');
@@ -34,6 +34,7 @@ const { initCdapTerminalProxy } = require('./services/cdapTerminalProxy');
 const { initCdapMediaProxies } = require('./services/cdapMediaProxy');
 const { startDiscoveryService } = require('./services/lanDiscovery');
 const { initDeviceStatusPush } = require('./services/deviceStatusPush');
+const { initHelpRequestEmailService } = require('./services/helpRequestEmailService');
 const routes = require('./routes');
 const rustdeskApiRoutes = require('./routes/rustdesk-api.routes');
 const bdApiRoutes = require('./routes/bd-api.routes');
@@ -521,9 +522,16 @@ async function startServer() {
 
         // Initialize real-time device status push (Go event bus → browser)
         initDeviceStatusPush(server, sessionMiddleware, config.betterdeskApiUrl, config.betterdeskApiKey);
+        initHelpRequestEmailService(config.betterdeskApiUrl, config.betterdeskApiKey);
 
         // Start LAN Discovery UDP service
         startDiscoveryService();
+        try {
+            const panelDiscovery = require('./services/panelDiscovery');
+            panelDiscovery.startPanelMdns();
+        } catch (err) {
+            console.warn('[server] mDNS panel discovery disabled:', err.message);
+        }
 
         // Start branded agent installer build worker (Generator Agenta / Phase 2).
         // Disabled when AGENT_BUILD_WORKER=off — useful for hosts without the
@@ -534,6 +542,14 @@ async function startServer() {
                 agentBuildWorker.startWorker();
             } catch (err) {
                 console.warn('[server] agent build worker disabled:', err.message);
+            }
+        }
+        if (process.env.RDCLIENT_BUILD_WORKER !== 'off') {
+            try {
+                const rdclientBuildWorker = require('./services/rdclientBuildWorker');
+                rdclientBuildWorker.startWorker();
+            } catch (err) {
+                console.warn('[server] rdclient build worker disabled:', err.message);
             }
         }
         

@@ -309,22 +309,34 @@ func (m *Map) IDs() []string {
 	return ids
 }
 
-// CheckHeartbeats increments missed beat counters for all peers that haven't
-// sent a heartbeat within the expected interval. Returns lists of IDs that
-// transitioned to each status tier.
+// CheckHeartbeats increments missed beat counters for peers due for a status check.
+// Phase 1 collects due peer IDs under a read lock; phase 2 updates each entry
+// under a short write lock so registration traffic is not blocked for the full scan.
 func (m *Map) CheckHeartbeats(interval time.Duration, degradedThreshold, criticalThreshold int32) (degraded, critical []string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	now := time.Now()
-	for _, e := range m.entries {
-		// Only increment if enough time has passed since last check
+
+	m.mu.RLock()
+	due := make([]string, 0, len(m.entries))
+	for id, e := range m.entries {
+		if now.Sub(e.LastStatusCheck) >= interval {
+			due = append(due, id)
+		}
+	}
+	m.mu.RUnlock()
+
+	for _, id := range due {
+		m.mu.Lock()
+		e, ok := m.entries[id]
+		if !ok {
+			m.mu.Unlock()
+			continue
+		}
 		if now.Sub(e.LastStatusCheck) < interval {
+			m.mu.Unlock()
 			continue
 		}
 		e.LastStatusCheck = now
 
-		// If heartbeat is older than the expected interval, increment miss counter
 		if now.Sub(e.LastReg) > interval {
 			oldStatus := e.ComputeStatus(degradedThreshold, criticalThreshold)
 			e.MissedBeats++
@@ -343,6 +355,7 @@ func (m *Map) CheckHeartbeats(interval time.Duration, degradedThreshold, critica
 			e.MissedBeats = 0
 			e.StatusTier = StatusOnline
 		}
+		m.mu.Unlock()
 	}
 	return
 }

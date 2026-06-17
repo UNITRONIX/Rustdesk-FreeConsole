@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unitronix/betterdesk-server/auth"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/peer"
@@ -63,6 +64,131 @@ func TestDecodeClientAbPostBodyEmpty(t *testing.T) {
 	}
 	if len(body.Data) != 0 {
 		t.Fatalf("expected empty data field, got %q", body.Data)
+	}
+}
+
+func createClientLoginTestUser(t *testing.T, database db.Database, username, password string, totpEnabled bool) {
+	t.Helper()
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := &db.User{
+		Username:     username,
+		PasswordHash: hash,
+		Role:         auth.RoleAdmin,
+		AuthProvider: db.AuthProviderLocal,
+	}
+	if totpEnabled {
+		user.TOTPSecret = auth.GenerateTOTPSecret()
+		user.TOTPEnabled = true
+	}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func postClientLogin(t *testing.T, srv *Server, body map[string]any) (*httptest.ResponseRecorder, map[string]any) {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.handleClientLogin(rec, req)
+
+	var resp map[string]any
+	if rec.Body.Len() > 0 {
+		if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode response: %v; body=%s", err, rec.Body.String())
+		}
+	}
+	return rec, resp
+}
+
+func newClientLoginTestServer(database db.Database) *Server {
+	srv := New(config.DefaultConfig(), database, peer.NewMap(), nil, "test")
+	srv.SetJWTManager(auth.NewJWTManager("client-login-test-secret", 24*time.Hour))
+	return srv
+}
+
+func TestHandleClientLoginRejectsWrongPassword(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	createClientLoginTestUser(t, database, "admin", "correct-password", false)
+
+	srv := newClientLoginTestServer(database)
+	rec, resp := postClientLogin(t, srv, map[string]any{
+		"username": "admin",
+		"password": "wrong-password",
+		"type":     "account",
+		"id":       "test",
+		"uuid":     "test",
+	})
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401; body=%s", rec.Code, rec.Body.String())
+	}
+	if resp["error"] != "Invalid credentials" {
+		t.Fatalf("error = %#v, want Invalid credentials", resp["error"])
+	}
+}
+
+func TestHandleClientLoginWithoutTOTPReturnsAccessToken(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	createClientLoginTestUser(t, database, "admin", "correct-password", false)
+
+	srv := newClientLoginTestServer(database)
+	rec, resp := postClientLogin(t, srv, map[string]any{
+		"username": "admin",
+		"password": "correct-password",
+		"type":     "account",
+		"id":       "test",
+		"uuid":     "test",
+	})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if resp["type"] != "access_token" {
+		t.Fatalf("type = %#v, want access_token", resp["type"])
+	}
+	if resp["access_token"] == "" {
+		t.Fatal("expected access_token")
+	}
+}
+
+func TestHandleClientLoginWithTOTPReturnsTFAChallenge(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	createClientLoginTestUser(t, database, "admin", "correct-password", true)
+
+	srv := newClientLoginTestServer(database)
+	rec, resp := postClientLogin(t, srv, map[string]any{
+		"username": "admin",
+		"password": "correct-password",
+		"type":     "account",
+		"id":       "test",
+		"uuid":     "test",
+	})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if resp["type"] != "email_check" {
+		t.Fatalf("type = %#v, want email_check", resp["type"])
+	}
+	if resp["tfa_type"] != "tfa_check" {
+		t.Fatalf("tfa_type = %#v, want tfa_check", resp["tfa_type"])
+	}
+	if resp["secret"] == "" {
+		t.Fatal("expected TFA session secret")
+	}
+	if _, ok := resp["access_token"]; ok {
+		t.Fatal("TOTP challenge response must not include access_token")
 	}
 }
 

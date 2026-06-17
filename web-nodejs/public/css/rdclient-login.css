@@ -1,0 +1,103 @@
+/**
+ * RdClient operator login — extends desktop-login styles
+ */
+
+.rdclient-login-page .dl-login-layer {
+    display: none;
+}
+
+.rdclient-login-page .dl-lock-screen {
+    display: none;
+}
+
+.rdclient-login-shell {
+    position: relative;
+    z-index: 2;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px 32px;
+}
+
+.rdclient-login-wallpaper {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 40%, #1a1a2e 70%, #0f3460 100%);
+}
+
+.rdclient-login-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    color: var(--text-primary, #e6edf3);
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.rdclient-login-brand .material-icons {
+    font-size: 28px;
+    color: var(--accent-blue, #388bfd);
+}
+
+.rdclient-login-card-wrap {
+    width: 100%;
+    max-width: 420px;
+}
+
+.rdclient-login-heading {
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.rdclient-login-heading h1 {
+    margin: 0 0 6px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary, #e6edf3);
+}
+
+.rdclient-login-heading p {
+    margin: 0 0 16px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary, #8b949e);
+}
+
+.rdclient-remember {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 12px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    user-select: none;
+}
+
+.rdclient-remember input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-blue, #388bfd);
+}
+
+.rdclient-login-footer {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #8b949e);
+}
+
+.rdclient-login-console-link {
+    color: var(--accent-blue, #388bfd);
+    text-decoration: none;
+}
+
+.rdclient-login-console-link:hover {
+    text-decoration: underline;
+}

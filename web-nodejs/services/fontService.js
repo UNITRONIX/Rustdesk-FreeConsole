@@ -203,16 +203,16 @@ function resolveFontFile(safeName, fileName) {
 async function downloadFont(family, weights = ['400', '500', '600', '700']) {
     ensureFontsDir();
 
-    // Validate font exists in curated list
     const fontInfo = CURATED_FONTS.find(f => f.family === family);
-    if (!fontInfo) {
-        throw new Error(`Font "${family}" not found in available fonts`);
-    }
-
-    // Filter to available weights
-    const availableWeights = weights.filter(w => fontInfo.variants.includes(w));
-    if (availableWeights.length === 0) {
-        availableWeights.push(fontInfo.variants[0] || '400');
+    let availableWeights = weights;
+    if (fontInfo) {
+        availableWeights = weights.filter(w => fontInfo.variants.includes(w));
+        if (availableWeights.length === 0) {
+            availableWeights.push(fontInfo.variants[0] || '400');
+        }
+    } else {
+        availableWeights = weights.filter(w => /^\d{3}$/.test(String(w)));
+        if (availableWeights.length === 0) availableWeights = ['400', '700'];
     }
 
     const safeName = sanitizeFontName(family);
@@ -285,6 +285,103 @@ async function downloadFont(family, weights = ['400', '500', '600', '700']) {
 }
 
 /**
+ * Search Google Fonts catalog (curated + cache + optional API key).
+ * @param {string} query
+ * @param {string} category
+ * @returns {Array}
+ */
+function searchGoogleFonts(query = '', category = 'all') {
+    let fonts = searchFonts(query, category);
+
+    if (query && query.trim()) {
+        const q = query.trim();
+        const exact = fonts.find(f => f.family.toLowerCase() === q.toLowerCase());
+        if (!exact && /^[a-zA-Z0-9][a-zA-Z0-9\s.'-]{1,60}$/.test(q)) {
+            fonts.unshift({
+                family: q,
+                category: 'sans-serif',
+                variants: ['400', '700'],
+                downloaded: isFontDownloaded(q),
+                source: 'google-custom'
+            });
+        }
+    }
+
+    if (fs.existsSync(FONT_CACHE_FILE)) {
+        try {
+            const cached = JSON.parse(fs.readFileSync(FONT_CACHE_FILE, 'utf8'));
+            if (Array.isArray(cached)) {
+                const q = query.toLowerCase().trim();
+                const extra = cached.filter(f => {
+                    if (category && category !== 'all' && f.category !== category) return false;
+                    if (!q) return true;
+                    return f.family.toLowerCase().includes(q);
+                });
+                const seen = new Set(fonts.map(f => f.family.toLowerCase()));
+                for (const f of extra) {
+                    if (!seen.has(f.family.toLowerCase())) {
+                        fonts.push({
+                            ...f,
+                            downloaded: isFontDownloaded(f.family)
+                        });
+                        seen.add(f.family.toLowerCase());
+                    }
+                }
+            }
+        } catch (_) { /* ignore cache parse errors */ }
+    }
+
+    return fonts.slice(0, 80);
+}
+
+/**
+ * Register an uploaded custom font file and generate local @font-face CSS.
+ * @param {string} family - Display family name
+ * @param {string} filePath - Temp uploaded path
+ * @param {string} fileName - Destination filename
+ */
+async function registerUploadedFont(family, filePath, fileName) {
+    ensureFontsDir();
+    const displayFamily = String(family || 'Custom Font').trim().substring(0, 80);
+    if (!displayFamily) throw new Error('Font family name is required');
+
+    const safeName = sanitizeFontName(displayFamily);
+    const fontDir = resolveFontDir(safeName);
+    if (!fs.existsSync(fontDir)) fs.mkdirSync(fontDir, { recursive: true });
+
+    const ext = path.extname(fileName).toLowerCase();
+    const destName = ext === '.ttf' ? `${safeName}.ttf` : `${safeName}-400.woff2`;
+    const destPath = resolveFontFile(safeName, destName);
+    fs.copyFileSync(filePath, destPath);
+    try { fs.unlinkSync(filePath); } catch (_) { /* temp cleanup */ }
+
+    const format = ext === '.ttf' ? 'truetype' : 'woff2';
+    const cssFamily = displayFamily.replace(/'/g, "\\'");
+    const css = [
+        '@font-face {',
+        `    font-family: '${cssFamily}';`,
+        '    font-style: normal;',
+        '    font-weight: 400;',
+        '    font-display: swap;',
+        `    src: url('/fonts/${safeName}/${destName}') format('${format}');`,
+        '}',
+    ].join('\n');
+    fs.writeFileSync(resolveFontFile(safeName, 'font.css'), css);
+    fs.writeFileSync(resolveFontFile(safeName, 'meta.json'), JSON.stringify({
+        family: displayFamily,
+        category: 'custom',
+        source: 'upload'
+    }));
+
+    return {
+        family: displayFamily,
+        safeName,
+        cssPath: `/fonts/${safeName}/font.css`,
+        downloaded: true
+    };
+}
+
+/**
  * Get locally downloaded font info
  * @param {string} family
  * @returns {{available: boolean, cssPath: string, weights: string[]}|null}
@@ -330,13 +427,28 @@ function listLocalFonts() {
         const files = fs.readdirSync(fontDir).filter(f => f.endsWith('.woff2'));
         const weights = files.map(f => f.match(/-(\d+)\.woff2$/)?.[1]).filter(Boolean);
 
-        // Find original family name from curated list
-        const match = CURATED_FONTS.find(f => sanitizeFontName(f.family) === dir.name);
+        // Find original family name from curated list or meta.json
+        let displayFamily = dir.name;
+        let category = 'sans-serif';
+        const metaFile = resolveFontFile(dir.name, 'meta.json');
+        if (fs.existsSync(metaFile)) {
+            try {
+                const meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+                if (meta.family) displayFamily = meta.family;
+                if (meta.category) category = meta.category;
+            } catch (_) { /* ignore */ }
+        } else {
+            const match = CURATED_FONTS.find(f => sanitizeFontName(f.family) === dir.name);
+            if (match) {
+                displayFamily = match.family;
+                category = match.category;
+            }
+        }
 
         fonts.push({
-            family: match ? match.family : dir.name,
+            family: displayFamily,
             safeName: dir.name,
-            category: match ? match.category : 'sans-serif',
+            category,
             cssPath: `/fonts/${dir.name}/font.css`,
             weights,
             fileCount: files.length
@@ -413,11 +525,13 @@ function generateFontCss(headingFont, bodyFont) {
 module.exports = {
     CURATED_FONTS,
     searchFonts,
+    searchGoogleFonts,
     isFontDownloaded,
     downloadFont,
     getLocalFont,
     listLocalFonts,
     deleteLocalFont,
+    registerUploadedFont,
     generateFontCss,
     sanitizeFontName
 };

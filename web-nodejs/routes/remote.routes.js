@@ -8,7 +8,7 @@ const router = express.Router();
 const fs = require('fs');
 const db = require('../services/database');
 const config = require('../config/config');
-const { requireAuth } = require('../middleware/auth');
+const { requireRdClientAuth, rdClientGuestOnly, isSafeRdClientReturnUrl } = require('../middleware/auth');
 
 // Lazy-loaded relay helper — avoid circular require at module load time
 function getRemoteRelay() {
@@ -26,33 +26,36 @@ try {
 }
 
 /**
- * GET /remote - Redirect to devices page (device ID required for remote)
+ * GET /remote/login - RdClient operator login (when panel session expired)
  */
-router.get('/remote', requireAuth, (req, res) => {
-    res.redirect('/devices');
+router.get('/remote/login', rdClientGuestOnly, (req, res) => {
+    const returnUrl = isSafeRdClientReturnUrl(req.query.return) ? req.query.return : '/remote';
+    const sessionExpired = req.query.expired === '1' || req.query.expired === 'true';
+    res.render('rdclient-login', {
+        title: req.t('rdclient_login.title'),
+        activePage: 'remote',
+        returnUrl,
+        sessionExpired,
+    });
+});
+
+/**
+ * GET /remote - RdClient operator dashboard (device list + connect)
+ */
+router.get('/remote', requireRdClientAuth('device.connect'), (req, res) => {
+    res.render('remote-dashboard', {
+        title: req.t('remote_dashboard.title'),
+        activePage: 'remote',
+    });
 });
 
 /**
  * GET /remote/:deviceId - Unified remote desktop viewer (single entry point).
- *
- * Phase 2.1 of the unification plan: this route is now the only canonical
- * URL for browser-based remote desktop. The transport (RustDesk relay vs.
- * CDAP WebSocket) is auto-detected on the server by probing the Go server
- * for `device_type` and `cdap_connected`. The decision is then passed to
- * the appropriate template.
- *
- * Query overrides:
- *   ?transport=cdap   → force CDAP transport (skip auto-probe)
- *   ?transport=rd     → force RustDesk transport
- *
- * Until the unified `remote.ejs` shell lands (PR 2.2 / 2.3) we still render
- * the existing two templates underneath. Operators get a single URL and
- * shareable links work regardless of which transport is active.
  */
-router.get('/remote/:deviceId', requireAuth, async (req, res) => {
+router.get('/remote/:deviceId', requireRdClientAuth('device.connect'), async (req, res) => {
     const deviceId = req.params.deviceId;
 
-    if (!deviceId || !/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
+    if (!deviceId || deviceId === 'login' || !/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
         return res.redirect('/devices');
     }
 
@@ -63,8 +66,6 @@ router.get('/remote/:deviceId', requireAuth, async (req, res) => {
         // Database lookup failure is non-blocking - viewer can still work
     }
 
-    // Probe Go server for authoritative transport hint. Local panel DB
-    // does not carry `device_type` or `cdap_connected`.
     let isOsAgent = false;
     let isCdapConnected = false;
     let goPeer = null;
@@ -77,7 +78,6 @@ router.get('/remote/:deviceId', requireAuth, async (req, res) => {
         }
     } catch { /* non-fatal: degrade to standard viewer */ }
 
-    // Resolve transport: explicit query param wins, then auto-detect.
     const forced = String(req.query.transport || '').toLowerCase();
     let transport;
     if (forced === 'cdap' || forced === 'rd') {
@@ -88,8 +88,6 @@ router.get('/remote/:deviceId', requireAuth, async (req, res) => {
         transport = 'rd';
     }
 
-    // Capability hints exposed to the browser so the unified UI can light
-    // up the right toolbar buttons.
     const capabilities = {
         transport,
         os_agent: isOsAgent,
@@ -97,11 +95,6 @@ router.get('/remote/:deviceId', requireAuth, async (req, res) => {
         device_type: goPeer && goPeer.device_type ? String(goPeer.device_type) : '',
     };
 
-    // PR 2.2/2.3 unification: a single canonical web client (`remote.ejs`)
-    // serves both transports. The browser branches on
-    // `window.__capabilities.transport`. The legacy `remote-cdap` template
-    // is no longer rendered; its inline widget remains usable from
-    // device-detail panels via `cdap-desktop.js` directly.
     res.render('remote', {
         title: `${req.t('remote.title')} - ${deviceId}`,
         activePage: 'remote',
@@ -115,12 +108,8 @@ router.get('/remote/:deviceId', requireAuth, async (req, res) => {
 
 /**
  * GET /remote-cdap/:deviceId - Legacy alias, redirects to unified entry.
- *
- * Kept for backwards compatibility with existing bookmarks, deep links, and
- * the `devices.js` "Connect" button. New code should link to
- * `/remote/:deviceId` directly.
  */
-router.get('/remote-cdap/:deviceId', requireAuth, (req, res) => {
+router.get('/remote-cdap/:deviceId', requireRdClientAuth('device.connect'), (req, res) => {
     const deviceId = req.params.deviceId;
     if (deviceId && /^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
         return res.redirect(`/remote/${encodeURIComponent(deviceId)}?transport=cdap`);
@@ -130,12 +119,8 @@ router.get('/remote-cdap/:deviceId', requireAuth, (req, res) => {
 
 /**
  * GET /remote-desktop/:deviceId - Legacy route, redirects to unified /remote/:deviceId
- *
- * Previously served a separate JPEG stream viewer. The web remote client has
- * been unified: `/remote/:deviceId` is now the only canonical entry point for
- * browser-based remote desktop.
  */
-router.get('/remote-desktop/:deviceId', requireAuth, (req, res) => {
+router.get('/remote-desktop/:deviceId', requireRdClientAuth('device.connect'), (req, res) => {
     const deviceId = req.params.deviceId;
     if (deviceId && /^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
         return res.redirect(`/remote/${encodeURIComponent(deviceId)}`);
@@ -146,7 +131,7 @@ router.get('/remote-desktop/:deviceId', requireAuth, (req, res) => {
 /**
  * GET /api/remote/sessions - List active native remote sessions
  */
-router.get('/api/remote/sessions', requireAuth, (req, res) => {
+router.get('/api/remote/sessions', requireRdClientAuth(), (req, res) => {
     const relay = getRemoteRelay();
     if (!relay) return res.json({ sessions: [] });
     const sessions = relay.getActiveSessions();
@@ -156,7 +141,7 @@ router.get('/api/remote/sessions', requireAuth, (req, res) => {
 /**
  * GET /api/remote/session/:deviceId - Get state of a single native remote session
  */
-router.get('/api/remote/session/:deviceId', requireAuth, (req, res) => {
+router.get('/api/remote/session/:deviceId', requireRdClientAuth(), (req, res) => {
     const relay = getRemoteRelay();
     if (!relay) return res.status(404).json({ error: 'Remote relay not available' });
     const state = relay.getSessionState(req.params.deviceId);

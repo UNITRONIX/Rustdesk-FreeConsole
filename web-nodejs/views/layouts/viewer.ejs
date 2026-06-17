@@ -16,6 +16,7 @@
     <!-- Stylesheets -->
     <link rel="stylesheet" href="/css/variables.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/theme.css?v=<%= cacheVersion %>">
+    <link rel="stylesheet" href="/css/branding.css?v=<%= typeof brandingRevision !== 'undefined' ? brandingRevision : cacheVersion %>">
     <link rel="stylesheet" href="/css/remote.css?v=<%= cacheVersion %>">
 </head>
 <body class="viewer-body">
@@ -28,7 +29,8 @@
             csrfToken: '<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>',
             user: <%- JSON.stringify(user || null) %>,
             serverPubKey: '<%= typeof serverPubKey !== 'undefined' ? serverPubKey : '' %>',
-            branding: <%- JSON.stringify(branding || {}) %>
+            branding: <%- JSON.stringify(branding || {}) %>,
+            availableLanguages: <%- JSON.stringify(availableLanguageList || []) %>
         };
     </script>
 
@@ -36,6 +38,7 @@
     
     <!-- Translation helper -->
     <script src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclientSecureStore.js?v=<%= cacheVersion %>"></script>
     
     <!-- Vendor libraries for remote client -->
     <script src="/js/vendor/protobuf.min.js?v=<%= cacheVersion %>"></script>
@@ -55,6 +58,8 @@
     <script src="/js/rdclient/client.js?v=<%= cacheVersion %>"></script>
     <!-- CDAP transport adapter (RDClient-compatible surface for OS-agent devices) -->
     <script src="/js/rdclient/cdap-adapter.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/lib/sessionMediaSync.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/remoteViewerPrefs.js?v=<%= cacheVersion %>"></script>
     
     <!-- Page-specific scripts -->
     <% if (typeof pageScripts !== 'undefined' && pageScripts) { %>

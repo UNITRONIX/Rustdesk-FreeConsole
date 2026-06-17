@@ -4,9 +4,53 @@
  */
 
 @import url('./variables.css');
-
-/* Google Material Icons */
 @import url('https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined|Material+Icons+Round');
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLASS SURFACES — frosted panels (tokens from variables.css / branding.css)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.bd-glass-surface,
+.card,
+.stat-card,
+.modal,
+.toast,
+.settings-section,
+.navbar,
+.sidebar-rail,
+.sidebar-flyout,
+.form-input,
+.form-select,
+.form-textarea {
+    background: var(--surface-glass-bg-secondary, var(--bg-secondary));
+    backdrop-filter: blur(var(--surface-glass-blur, 0px)) saturate(var(--surface-glass-saturate, 1));
+    -webkit-backdrop-filter: blur(var(--surface-glass-blur, 0px)) saturate(var(--surface-glass-saturate, 1));
+}
+
+.card-footer,
+.modal-close:hover {
+    background: var(--surface-glass-bg-tertiary, var(--bg-tertiary));
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+    background: var(--surface-glass-bg-tertiary, var(--bg-tertiary));
+}
+
+.card,
+.stat-card,
+.modal,
+.toast,
+.settings-section,
+.navbar,
+.sidebar-rail,
+.sidebar-flyout,
+.form-input,
+.form-select,
+.form-textarea {
+    border-color: var(--surface-glass-border, var(--border-primary));
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CSS RESET
@@ -121,7 +165,6 @@ table {
     margin-top: var(--navbar-height);
     height: calc(100vh - var(--navbar-height));
     min-height: 0;
-    max-width: var(--content-max-width);
     width: 100%;
     overflow-x: hidden;
     overflow-y: auto;
@@ -514,6 +557,17 @@ table {
     white-space: nowrap;
 }
 
+.sidebar-link-external {
+    margin-left: auto;
+    font-size: 14px;
+    opacity: 0.55;
+    flex-shrink: 0;
+}
+
+.sidebar-link:hover .sidebar-link-external {
+    opacity: 0.85;
+}
+
 .sidebar-link:hover {
     background: var(--sidebar-btn-hover-bg);
     color: var(--sidebar-btn-hover-color);
@@ -758,7 +812,6 @@ table {
     right: 0;
     height: var(--navbar-height);
     transition: left var(--transition-normal);
-    background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-primary);
     display: flex;
     align-items: center;
@@ -1019,7 +1072,6 @@ table {
     padding: var(--space-sm) var(--space-md);
     font-size: var(--font-size-md);
     color: var(--text-primary);
-    background: var(--bg-tertiary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-md);
     transition: all var(--transition-fast);
@@ -1113,7 +1165,6 @@ table {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .card {
-    background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-lg);
     overflow: hidden;
@@ -1147,7 +1198,6 @@ table {
 .card-footer {
     padding: var(--space-md) var(--space-lg);
     border-top: 1px solid var(--border-primary);
-    background: var(--bg-tertiary);
 }
 
 /* Stat cards */
@@ -1158,7 +1208,6 @@ table {
 }
 
 .stat-card {
-    background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-lg);
     padding: var(--space-lg);
@@ -1515,7 +1564,6 @@ table {
 }
 
 .modal {
-    background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-lg);
     width: 90%;
@@ -1557,7 +1605,6 @@ table {
 
 .modal-close:hover {
     color: var(--text-primary);
-    background: var(--bg-tertiary);
 }
 
 .modal-body {

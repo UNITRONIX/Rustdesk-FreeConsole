@@ -9,6 +9,7 @@ const { createTestApp } = require('./helpers');
 jest.mock('../services/database', () => ({
     logAction: jest.fn().mockResolvedValue(undefined),
     getUser: jest.fn().mockResolvedValue(null),
+    getUserById: jest.fn().mockResolvedValue({ id: 1, username: 'admin', role: 'admin', password_hash: 'hash', totp_secret: 'SECRET' }),
     enableTotp: jest.fn().mockResolvedValue(undefined),
     disableTotp: jest.fn().mockResolvedValue(undefined)
 }));
@@ -16,10 +17,21 @@ jest.mock('../services/database', () => ({
 jest.mock('../services/authService', () => ({
     authenticate: jest.fn().mockResolvedValue(null),
     isAuthFailure: jest.fn((result) => !!(result && result.__authFailure)),
-    changePassword: jest.fn().mockResolvedValue(true),
+    changePassword: jest.fn().mockResolvedValue({ success: true }),
     hashPassword: jest.fn().mockResolvedValue('hashed'),
+    verifyPassword: jest.fn().mockResolvedValue(true),
+    verifyAndEnableTotp: jest.fn().mockResolvedValue({ success: true, recoveryCodes: ['CODE1', 'CODE2'] }),
+    disableTotp: jest.fn().mockResolvedValue({ success: true }),
+    isTotpEnabled: jest.fn().mockResolvedValue(false),
+    generateTotpSetup: jest.fn().mockResolvedValue({ success: true, qrCode: 'qr', secret: 'SECRET', otpauthUrl: 'otpauth://totp/test' }),
     generateRecoveryCodes: jest.fn().mockReturnValue(['CODE1', 'CODE2']),
     recordAttempt: jest.fn().mockResolvedValue(undefined)
+}));
+
+jest.mock('../services/userSync', () => ({
+    mirrorUpdate: jest.fn().mockResolvedValue(undefined),
+    mirrorTotpEnable: jest.fn().mockResolvedValue(undefined),
+    mirrorTotpDisable: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../middleware/rateLimiter', () => ({
@@ -30,6 +42,7 @@ jest.mock('../middleware/rateLimiter', () => ({
 
 const authService = require('../services/authService');
 const db = require('../services/database');
+const userSync = require('../services/userSync');
 const authRoutes = require('../routes/auth.routes');
 
 describe('Auth Routes', () => {
@@ -40,6 +53,17 @@ describe('Auth Routes', () => {
         app.use('/', authRoutes);
         jest.clearAllMocks();
     });
+
+    function authenticatedApp(user = { id: 1, username: 'admin', role: 'admin' }) {
+        const authed = createTestApp();
+        authed.use((req, _res, next) => {
+            req.session.userId = user.id;
+            req.session.user = user;
+            next();
+        });
+        authed.use('/', authRoutes);
+        return authed;
+    }
 
     describe('POST /api/auth/login', () => {
         it('should return 400 when username is missing', async () => {
@@ -154,6 +178,62 @@ describe('Auth Routes', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
+        });
+    });
+
+    describe('POST /api/auth/password', () => {
+        it('mirrors successful self-service password changes to Go', async () => {
+            const res = await request(authenticatedApp())
+                .post('/api/auth/password')
+                .send({
+                    currentPassword: 'old-password',
+                    newPassword: 'new-password-123',
+                    confirmPassword: 'new-password-123'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(userSync.mirrorUpdate).toHaveBeenCalledWith('admin', { password: 'new-password-123' });
+        });
+
+        it('does not fail password changes when Go mirror is unavailable', async () => {
+            userSync.mirrorUpdate.mockRejectedValueOnce(new Error('go offline'));
+
+            const res = await request(authenticatedApp())
+                .post('/api/auth/password')
+                .send({
+                    currentPassword: 'old-password',
+                    newPassword: 'new-password-123',
+                    confirmPassword: 'new-password-123'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+        });
+    });
+
+    describe('POST /api/auth/totp/enable', () => {
+        it('mirrors enabled TOTP state to Go without issuing tokens', async () => {
+            const res = await request(authenticatedApp())
+                .post('/api/auth/totp/enable')
+                .send({ code: '123456' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(userSync.mirrorTotpEnable).toHaveBeenCalledWith('admin', { secret: 'SECRET' });
+        });
+    });
+
+    describe('POST /api/auth/totp/disable', () => {
+        it('mirrors disabled TOTP state to Go after password verification', async () => {
+            const res = await request(authenticatedApp())
+                .post('/api/auth/totp/disable')
+                .send({ password: 'current-password' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(authService.verifyPassword).toHaveBeenCalledWith('current-password', expect.anything());
+            expect(userSync.mirrorTotpDisable).toHaveBeenCalledWith('admin');
         });
     });
 });

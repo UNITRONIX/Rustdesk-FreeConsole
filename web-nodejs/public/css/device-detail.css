@@ -1,6 +1,6 @@
 /**
- * BetterDesk Console - Device Detail Slide-Over Panel
- * Enterprise-grade device management panel
+ * BetterDesk Console - Device Detail Workspace Modal
+ * Full workspace modal for device management
  */
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -9,11 +9,18 @@
 
 .device-panel-overlay {
     position: fixed;
-    inset: 0;
+    left: var(--sidebar-current-width, var(--sidebar-width-collapsed));
+    top: var(--navbar-height);
+    right: 0;
+    bottom: 0;
+    padding: var(--space-lg);
     background: rgba(0, 0, 0, 0.5);
     z-index: 1000;
     opacity: 0;
     visibility: hidden;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
     transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
@@ -23,24 +30,36 @@
 }
 
 .device-panel {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 640px;
-    max-width: 100vw;
-    height: 100vh;
+    position: relative;
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    max-width: none;
     background: var(--bg-secondary, #161b22);
-    border-left: 1px solid var(--border-primary, #30363d);
-    box-shadow: -8px 0 40px rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-primary, #30363d);
+    border-radius: var(--radius-lg, 12px);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
     z-index: 1001;
     display: flex;
     flex-direction: column;
-    transform: translateX(100%);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    min-height: 0;
+    transform: scale(0.97);
+    opacity: 0;
+    transition: transform 0.25s ease, opacity 0.25s ease;
 }
 
 .device-panel-overlay.open .device-panel {
-    transform: translateX(0);
+    transform: scale(1);
+    opacity: 1;
+}
+
+body.embed-mode .device-panel-overlay {
+    left: 0;
+    top: 0;
+}
+
+body.device-detail-open .main-content {
+    overflow: hidden;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -700,8 +719,16 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
+    .device-panel-overlay {
+        left: 0;
+        top: 0;
+        padding: 0;
+    }
+
     .device-panel {
-        width: 100vw;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
     }
     
     .device-panel-actions-grid {

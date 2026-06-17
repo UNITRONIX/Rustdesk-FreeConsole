@@ -5,20 +5,236 @@
 
 ---
 
-## [3.3.2] — 2026-06-17
+## [3.3.26] — 2026-06-17
 
-Patch release on `main`. Ships via **Settings → Updates** (Stable), `betterdesk.sh` option 2 (Update / Repair permissions), or panel update on the stable channel.
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.25] — 2026-06-17
+
+### Fixed
+- **RustDesk client login with console 2FA (#203)** — console password changes now mirror to the Go user store, and SQLite installs mirror console TOTP enable/disable state into the Go `users` row used by `/api/login`. RustDesk clients should now receive the expected `email_check` / `tfa_check` challenge instead of `Invalid credentials` or password-only login when console 2FA is enabled. No TOTP bypass endpoint was added.
+
+---
+
+## [3.3.24] — 2026-06-17
+
+### Fixed
+- **Bare-metal console startup (#206)** — `betterdesk-console` failed with `SQLITE_READONLY_DIRECTORY` on `db_v2.sqlite3` because the unprivileged `betterdesk` user could not write to the Go server data directory. Installer and `linux-ensure-console-user.js` now apply setgid group-write on `$RUSTDESK_PATH`, re-sync permissions after the Go server starts, and verify both console `data/` and Go data dirs before marking permissions OK. **Verify:** `systemctl status betterdesk-console` is `active`; panel loads on port 5000 or 5443. Ships via Settings → Updates or `betterdesk.sh` update/repair.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.23] — 2026-06-15
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.22] — 2026-06-14
+
+### Added
+
+- **RdClient desktop (production hardening):** server URL validation via `GET /api/bd/server-info` and `probe_server_url`; extended `config.json` (`tls_strict`, `ui_lang`, `discovered_via`); `BETTERDESK_SERVER_URL` env and embedded `betterdesk-rdclient.json` on first launch; LAN discovery (UDP port 21119 + optional mDNS `_betterdesk._tcp`); local **Settings** window (change URL, TLS, sign out, factory reset); peer **Remember device password** vault (IndexedDB AES-GCM per device); language switcher on `/remote/login`, dashboard, and viewer (26 locales); **Generator → RdClient desktop** bundles with `rdclientBuildWorker` (6 platform variants, embedded panel URL).
+
+### Changed
+
+- **RdClient codecs (Linux):** WebKitGTK skips unreliable AV1 negotiation; runtime fallback to VP9/H.264 on decode failure.
+- **RdClient dashboard:** unified sidebar + device panel scrolling; desktop settings button in header.
+
+### Manual steps (build host)
+
+- RdClient installer builds require **Rust stable**, **npm**, **@tauri-apps/cli**, and Linux deps (`webkit2gtk4.1-devel`, `openssl-devel`, …) on the panel build host. Optional: `npm install bonjour-service` in `web-nodejs` for mDNS panel publish (`PANEL_MDNS=off` to disable).
+
+---
+
+## [3.3.21] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.20] — 2026-06-14
 
 ### Fixed
 
-- **Bare-metal console startup (#206)** — `betterdesk-console` failed with `SQLITE_READONLY_DIRECTORY` on `db_v2.sqlite3` because the unprivileged `betterdesk` user could not write to the Go server data directory. Installer and `linux-ensure-console-user.js` now apply setgid group-write on `$RUSTDESK_PATH`, re-sync permissions after the Go server starts, and verify both console `data/` and Go data dirs before marking permissions OK.
+- **RdClient dashboard (web):** address book and sidebar scroll inside fixed columns with hidden scrollbars; `.rd-desk-content` flex chain fixed so the device grid no longer stretches the window.
+- **RdClient video (AV1):** WebKit uses software AV1 decode; agent `codec_string` is passed to `VideoDecoder`; AV1 keyframes build `description` (av1C); failed codecs auto-reconnect with VP9/H.264.
+- **RdClient desktop:** **Connect** from the loaded `/remote` dashboard — runtime ACL for the configured panel origin (fixes LAN IP:port invoke), injected Connect bridge in the desktop shell (works before panel JS update), correct Tauri invoke args (`deviceId` / `deviceName`), and a new app window loading the same `/remote/:id` viewer as the web panel; session window **Back** closes the desktop window (injected handler + no `/devices` fallback).
+- **RdClient desktop (performance):** Linux Wayland keeps WebKit DMA-BUF/GPU compositing enabled by default; vendor-specific VA-API (Intel `iHD`, AMD `radeonsi`, NVIDIA when `nvidia-vaapi-driver` is present); GStreamer hardware decoder rank for AV1/H264/VP9/H265; session windows disable background throttling; Windows WebView2 AV1/HEVC GPU decode flags; WebCodecs probes multiple AV1/H264 profiles for WebKitGTK compatibility.
 
-### Upgrade notes
+### Changed
+- _(none yet)_
 
-| Topic | Action |
-|-------|--------|
-| **Broken console on bare metal** | Update to 3.3.2+ via Settings → Updates (Stable) or `betterdesk.sh` → Update. Or once as root: `chown root:betterdesk /opt/betterdesk && chmod 2775 /opt/betterdesk`, then `systemctl restart betterdesk-console`. |
-| **Verify** | `systemctl is-active betterdesk-console`; panel loads on port 5000 or 5443; `journalctl -u betterdesk-console -n 20` shows no `SQLITE_READONLY_DIRECTORY`. |
+---
+
+## [3.3.19] — 2026-06-14
+
+### Added
+
+- **RdClient desktop (Phase C — MVP):** new `rdclient-desktop/` Tauri v2 operator shell — first-run panel URL setup, main window loads `{url}/remote`, **Connect** opens a separate session window (`/remote/:id`); web dashboard uses `open_session` when `__TAURI__` is present. **Linux:** automatic X11/Wayland session detection and WebKitGTK workarounds (Gdk error 71 on Wayland). **TLS:** accepts **HTTP** and **HTTPS** with self-signed, Let's Encrypt, or incomplete-chain certs (operator panels); set `BETTERDESK_TLS_STRICT=1` for strict system CA validation only. Not yet distributed via Settings → Updates (build from source).
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.18] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.17] — 2026-06-14
+
+### Added
+
+- **RdClient dashboard (web):** **Tools → Remote Desktop** opens `/remote` in a new browser tab — standalone operator address book with folders, device groups, tags, quick-connect by ID, card grid (RustDesk-inspired layout), list toggle, 30s auto-sync, panel branding/fonts/colors. Devices → Web Remote unchanged.
+- **RdClient login (web):** `/remote/login` — dedicated operator sign-in when the panel session expires (redirects to `/remote` or viewer instead of admin `/login`); optional **Remember me** stores encrypted credentials in IndexedDB (Web Crypto AES-GCM), separate from the peer password vault planned for Phase B.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.16] — 2026-06-14
+
+### Changed
+
+- **Go server (performance):** batch peer lookup via `GetPeersByIDs` for address book merge and scoped RustDesk peer lists (avoids N+1 `GetPeer` queries on large fleets).
+- **Go server (performance):** SQL pagination for admin `GET /api/peers?limit=&page=`; scoped RustDesk device groups reuse batched peer loading.
+- **Go server (billing):** stale pending relay metadata is swept after 10 minutes when pairing never completes.
+- **Go server (relay):** fix pairing race when both sides connect simultaneously (LoadOrStore instead of LoadAndDelete+Store).
+- **Go server (signal):** two-phase `CheckHeartbeats` shortens peer-map write lock during heartbeat sweeps.
+- **Go server (observability):** `/api/health` and `/metrics` expose live peer tiers, relay sessions, and billing pending relay count.
+
+### Added
+
+- **Go server (compat):** integration test covering signal relay assignment through hbbr byte relay (`TestSignalRelayWireFlow`).
+- **Go server (tests):** relay pairing tests wait for `ActiveSessions` instead of a fixed sleep.
+- **Go server (DB):** `ListPeersPaginated` / `ListPeersForOrgPaginated` for large fleet admin views.
+
+---
+
+## [3.3.15] — 2026-06-14
+
+### Changed
+
+- **Go server (stability):** CDAP disconnect cleans all session types (terminal, video, file, audio, desktop); batch peer status DB updates on mass offline; known-peer heartbeats skip registration rate limiter; relay WebSocket uses same per-IP ConnLimiter as TCP; Postgres query timeouts on status updates; org login rate limiting.
+- **CI:** `go-server-ci.yml` runs `go vet` and `go test -race` on changes under `betterdesk-server/`.
+
+---
+
+## [3.3.14] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.13] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.12] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.11] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.10] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.9] — 2026-06-14
+
+### Added
+
+- **Settings → Appearance (branding):** Modular studio layout with live preview panel, autosave, server-side appearance profiles, built-in theme gallery, Google Fonts picker (expanded catalog), custom font upload (woff2/ttf), and dynamic branding CSS at `/css/branding.css` (fixes theme overrides not applying when static `theme.css` took precedence).
+
+### Changed
+
+- **Appearance tab:** Changes apply without full page reload; optional “preview on this page” toggle; read-only mode when the user lacks `branding.edit`.
+
+---
+
+## [3.3.8] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.7] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.6] — 2026-06-14
+
+### Added
+
+- **Email notifications:** SMTP configuration moved to **Settings → Email** (host, credentials, from address, alert/warning email). Each panel user can have an **email address** in User Management (used for routing notifications).
+- **Help request emails:** When a device submits a help request, operators assigned to the device **folder or device group** receive an email (configurable under **Commercialization → Advanced settings**). Falls back to the alert email when no operator address is available. Requires `nodemailer` (now a declared dependency).
+
+### Changed
+
+- **Automation:** SMTP tab removed; use **Settings → Email** instead. Legacy `/api/automation/smtp*` endpoints still proxy to the shared SMTP handlers for one release cycle.
+- **Console layout:** Main content now uses the full workspace width (removed the 1400px cap on all panel pages). Device details open as a large workspace modal between the sidebar and the right edge instead of a 640px slide-over from the viewport edge.
+
+---
+
+## [3.3.5] — 2026-06-14
+
+### Changed
+
+- **License (stable):** **v3.4.0** will be the first stable release under **AGPL-3.0** (already in effect on `dev` since v3.3.3). v3.3.x and earlier remain Apache 2.0.
+
+---
+
+## [3.3.4] — 2026-06-14
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.3] — 2026-06-13
+
+### Changed
+
+- **License:** The project transitions to **AGPL-3.0** on the development branch. **v3.4.0** will be the first stable release under AGPL-3.0; **v3.3.x and earlier** remain under Apache 2.0. See [docs/COMMERCIAL-GRANT.md](docs/COMMERCIAL-GRANT.md) for sponsor terms.
+- **i18n:** French (`fr.json`) and Traditional Chinese (`zh-TW.json`) translations were withdrawn and recreated by the maintainer under AGPL-3.0.
+
+---
+
+## [3.3.2] — 2026-06-12
+
+### Changed
+- _(none yet)_
 
 ---
 
@@ -652,3 +868,28 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.2.20]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.19...v3.2.20
 [3.3.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.2.20...v3.3.0
 [3.3.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.0...v3.3.1
+[3.3.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.1...v3.3.2
+[3.3.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.2...v3.3.3
+[3.3.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.3...v3.3.4
+[3.3.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.4...v3.3.5
+[3.3.6]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.5...v3.3.6
+[3.3.7]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.6...v3.3.7
+[3.3.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.7...v3.3.8
+[3.3.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.8...v3.3.9
+[3.3.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.9...v3.3.10
+[3.3.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.10...v3.3.11
+[3.3.12]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.11...v3.3.12
+[3.3.13]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.12...v3.3.13
+[3.3.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.13...v3.3.14
+[3.3.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.14...v3.3.15
+[3.3.16]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.15...v3.3.16
+[3.3.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.16...v3.3.17
+[3.3.18]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.17...v3.3.18
+[3.3.19]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.18...v3.3.19
+[3.3.20]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.19...v3.3.20
+[3.3.21]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.20...v3.3.21
+[3.3.22]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.21...v3.3.22
+[3.3.23]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.22...v3.3.23
+[3.3.24]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.23...v3.3.24
+[3.3.25]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.24...v3.3.25
+[3.3.26]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.25...v3.3.26

@@ -1,0 +1,34 @@
+# BetterDesk Go server — vet + tests on push/PR
+name: Go Server CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'betterdesk-server/**'
+      - '.github/workflows/go-server-ci.yml'
+  pull_request:
+    paths:
+      - 'betterdesk-server/**'
+      - '.github/workflows/go-server-ci.yml'
+
+defaults:
+  run:
+    working-directory: betterdesk-server
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-server/go.mod
+          cache-dependency-path: betterdesk-server/go.sum
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test -race -count=1 ./...

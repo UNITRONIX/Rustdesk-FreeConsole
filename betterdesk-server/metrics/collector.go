@@ -37,6 +37,7 @@ type Collector struct {
 	RelayActiveSessions atomic.Int64
 	BlocklistCount      atomic.Int64
 	EventSubscribers    atomic.Int64
+	BillingPendingRelays atomic.Int64
 	Goroutines          atomic.Int64
 	MemAllocBytes       atomic.Int64
 	MemSysBytes         atomic.Int64
@@ -109,6 +110,9 @@ func (c *Collector) WritePrometheus(w io.Writer) {
 		c.EventSubscribers.Load())
 	writeCounter(w, "betterdesk_audit_events_total", "Total audit events logged",
 		c.AuditEvents.Load())
+
+	writeGaugeInt(w, "betterdesk_billing_pending_relays", "Billing relay UUIDs awaiting pairing",
+		c.BillingPendingRelays.Load())
 
 	// Go runtime
 	writeGaugeInt(w, "betterdesk_goroutines", "Number of goroutines",

@@ -62,6 +62,7 @@ class RDClient {
         this._codecAbilities = null;          // probed VideoDecoder support map
         this._preferCodec = opts.preferCodec || 'Auto';
         this._adaptivePaused = false;         // true once the user picks codec/quality manually
+        this._codecFallbackDone = false;      // one automatic downgrade per session
 
         // Relay state tracking
         this._relayFrameIdx = 0;         // Counter for relay frames (debugging)
@@ -72,6 +73,14 @@ class RDClient {
 
         // Settings
         this.renderer.setScaleMode(opts.scaleMode || 'fit');
+
+        // Multi-session viewer: remote.js toggles these when switching tabs
+        this._sessionActive = true;
+        this._clipboardToLocalEnabled = true;
+        this._savedActiveFps = null;
+        this._backgroundFps = 1;
+        this._streamThrottledActive = null;
+        this.video.getAudioContext = () => this.audio.audioCtx;
     }
 
     get state() { return this._state; }
@@ -978,8 +987,8 @@ class RDClient {
             const text = decoder.decode(clipboard.content);
             this._emit('clipboard', text);
 
-            // Copy to local clipboard if permitted
-            if (navigator.clipboard && navigator.clipboard.writeText) {
+            // Copy to local clipboard only for the active viewer tab
+            if (this._clipboardToLocalEnabled && navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).catch(() => {
                     // Clipboard write permission denied - ignore
                 });
@@ -1044,6 +1053,7 @@ class RDClient {
      */
     _startSession() {
         this._setState('streaming');
+        this._codecFallbackDone = false;
         this.conn.setConnected();
 
         // Enable file transfer
@@ -1059,6 +1069,9 @@ class RDClient {
             if (this._state === 'streaming') {
                 this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
             }
+        };
+        this.video.onCodecFailed = (failedCodec) => {
+            this._handleCodecFallback(failedCodec);
         };
 
         // Request keyframe on resize/fullscreen to fix blur
@@ -1077,8 +1090,7 @@ class RDClient {
         // Start render loop
         this.renderer.startRenderLoop();
 
-        // Start input capture
-        this.input.start();
+        // Input capture is started by remote.js via setSessionActive() for the active tab only
 
         // Initialize audio (will actually start on first audio data)
         if (!this.opts.disableAudio && RDAudio.isSupported()) {
@@ -1089,6 +1101,7 @@ class RDClient {
 
         // Tell peer our desired FPS and image quality after session establishment
         const fps = this.opts.fps || 60;
+        this._savedActiveFps = fps;
         const quality = this.opts.imageQuality || 'Best';
         this._sendPeerMessage(this.proto.buildOptionMisc({
             customFps: fps,
@@ -1157,6 +1170,10 @@ class RDClient {
         }
 
         this._emit('session_start');
+        if (!this._sessionActive) {
+            this._streamThrottledActive = null;
+            this._syncStreamThrottle();
+        }
     }
 
     /**
@@ -1191,6 +1208,7 @@ class RDClient {
 
         this._adaptiveInterval = setInterval(() => {
             if (this._state !== 'streaming') return;
+            if (!this._sessionActive) return;
             if (this._adaptivePaused) return; // user took manual control of quality/codec
             const stats = this.video.getStats();
             const fps = stats.videoFps || 0;
@@ -1312,6 +1330,7 @@ class RDClient {
         this.audio.close();
         this.fileTransfer.disable();
         this.conn.close();
+        this._codecFallbackDone = false;
     }
 
     // ---- Public Utility Methods ----
@@ -1610,8 +1629,9 @@ class RDClient {
 
         var c = config[preset] || config.balanced;
         this._adaptivePaused = true; // explicit user choice — stop auto-adjusting
-        this._sendPeerMessage(this.proto.buildOptionMisc({ imageQuality: c.imageQuality, customFps: c.customFps }));
+        this._savedActiveFps = c.customFps;
         this.opts.qualityPreset = preset;
+        this._sendPeerMessage(this.proto.buildOptionMisc({ imageQuality: c.imageQuality, customFps: c.customFps }));
         this._emit('quality_changed', preset);
     }
 
@@ -1635,6 +1655,33 @@ class RDClient {
         this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
         this.opts.preferCodec = name;
         this._emit('codec_changed', name);
+    }
+
+    /**
+     * Downgrade to the next working codec when WebCodecs fails at runtime.
+     * @param {string} failedCodec
+     */
+    _handleCodecFallback(failedCodec) {
+        const failed = String(failedCodec || '').toLowerCase();
+        if (!failed || this._codecFallbackDone || this._state !== 'streaming') return;
+        this._codecFallbackDone = true;
+
+        if (!this._codecAbilities) this._codecAbilities = {};
+        this._codecAbilities[failed] = false;
+
+        const order = ['vp9', 'h264', 'vp8'];
+        let next = 'H264';
+        for (let i = 0; i < order.length; i++) {
+            const candidate = order[i];
+            if (candidate === failed) continue;
+            if (this._codecAbilities[candidate] !== false) {
+                next = candidate === 'h264' ? 'H264' : candidate.toUpperCase();
+                break;
+            }
+        }
+
+        this._emit('log', 'Codec ' + failed.toUpperCase() + ' failed — switching to ' + next);
+        this.setCodec(next);
     }
 
     /**
@@ -1733,12 +1780,92 @@ class RDClient {
      */
     setViewOnly(on) {
         this._viewOnly = on;
-        if (on) {
-            this.input.stop();
-        } else if (this._state === 'streaming') {
-            this.input.start();
-        }
+        this._syncInputCapture();
         this._emit('view_only', on);
+    }
+
+    /**
+     * Mark whether this client is the active tab in the multi-session viewer.
+     * Gates keyboard/mouse capture, inbound clipboard, and audio playback.
+     * @param {boolean} active
+     */
+    setSessionActive(active) {
+        const next = !!active;
+        const changed = next !== this._sessionActive;
+        this._sessionActive = next;
+        this._clipboardToLocalEnabled = next;
+        if (this.audio.setSessionActive) {
+            this.audio.setSessionActive(next);
+        }
+        this._syncInputCapture();
+        if (this._state === 'streaming') {
+            this._syncStreamThrottle();
+        } else if (changed) {
+            this._syncStreamThrottle();
+        }
+    }
+
+    /**
+     * Background FPS for inactive viewer tabs (RustDesk customFps option).
+     * @param {number} fps
+     */
+    setBackgroundFps(fps) {
+        const n = Number(fps);
+        if (Number.isFinite(n) && n >= 1 && n <= 5) {
+            this._backgroundFps = Math.round(n);
+        }
+    }
+
+    /** @private Target FPS for the active tab based on quality preset */
+    _getActiveStreamFps() {
+        if (this._savedActiveFps) return this._savedActiveFps;
+        const preset = this.opts.qualityPreset || 'best';
+        const map = { speed: 60, balanced: 30, quality: 30, best: 60 };
+        return map[preset] || this.opts.fps || 60;
+    }
+
+    /** @private Throttle peer encode rate and pause local decode when tab is hidden */
+    _syncStreamThrottle() {
+        if (this._state !== 'streaming') return;
+        const wantActive = this._sessionActive;
+        if (this._streamThrottledActive === wantActive) return;
+        this._streamThrottledActive = wantActive;
+        if (wantActive) {
+            this._resumeActiveStream();
+        } else {
+            this._throttleBackgroundStream();
+        }
+    }
+
+    _throttleBackgroundStream() {
+        if (!this._savedActiveFps) {
+            this._savedActiveFps = this._getActiveStreamFps();
+        }
+        this.renderer.stopRenderLoop();
+        if (this.video.setBackgroundMode) {
+            this.video.setBackgroundMode(true);
+        }
+        this.setCustomFps(this._backgroundFps || 1);
+    }
+
+    _resumeActiveStream() {
+        if (this.video.setBackgroundMode) {
+            this.video.setBackgroundMode(false);
+        }
+        this.renderer.startRenderLoop();
+        const fps = this._getActiveStreamFps();
+        this.setCustomFps(fps);
+        this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
+    }
+
+    /** @private Sync input listeners with session/tab and view-only state */
+    _syncInputCapture() {
+        const shouldCapture = this._sessionActive && !this._viewOnly && this._state === 'streaming';
+        if (shouldCapture) {
+            this.input.start();
+        } else {
+            this.input.stop();
+        }
     }
 
     /** @returns {boolean} Whether view-only mode is active */

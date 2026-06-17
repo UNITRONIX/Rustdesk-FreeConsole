@@ -1,6 +1,6 @@
 /* scaling.css — Scaling & Relay Nodes Management */
 
-.scaling-page { max-width: 1400px; margin: 0 auto; padding: 0 16px; }
+.scaling-page { padding: 0 16px; }
 
 /* Tab bar */
 .scaling-tabs {

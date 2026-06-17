@@ -112,6 +112,27 @@
             <p id="settings-clock-detail"></p>
             <button type="button" class="btn btn-secondary" id="btn-timesync-check">${_('commercialization.clock.check_now')}</button>
         </div>
+        <div class="card" style="margin-top: 1rem;">
+            <h3>${_('commercialization.notifications.title')}</h3>
+            <p class="text-muted">${_('commercialization.notifications.desc')}</p>
+            <p id="email-smtp-status" class="smtp-status-line"></p>
+            <p><a href="/settings#email">${_('commercialization.notifications.smtp_link')}</a></p>
+            <form id="email-notifications-form" class="settings-form">
+                <div class="form-group">
+                    <label><input type="checkbox" id="notif-help-requests-enabled"> ${_('commercialization.notifications.help_requests_enabled')}</label>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="notif-assigned-operators"> ${_('commercialization.notifications.notify_assigned_operators')}</label>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="notif-fallback-alert"> ${_('commercialization.notifications.fallback_alert_email')}</label>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="notif-folder-subject"> ${_('commercialization.notifications.include_folder_in_subject')}</label>
+                </div>
+                <button type="button" class="btn btn-primary" id="btn-save-email-notifications">${_('commercialization.notifications.save')}</button>
+            </form>
+        </div>
     </section>
 </div>
 

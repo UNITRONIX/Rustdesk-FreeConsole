@@ -88,28 +88,55 @@
             && typeof window.VideoDecoder !== 'undefined';
     }
 
+    /** @type {Promise<string[]>|null} */
+    let _decodableCodecsPromise = null;
+    /** Codecs confirmed broken at runtime (e.g. AV1 on WebKit HW). */
+    const _blockedWireCodecs = new Set();
+
     /**
-     * Build the ordered list of codecs the operator can decode, advertised to
-     * the agent in the `desktop_start` payload. The agent intersects this with
-     * its own GPU/encoder ability and picks the first match in its own
-     * preference order (AV1 → VP9 → H264 → WebP).
-     *
-     * - Secure context (WebCodecs): advertise AV1/VP9/H264 for max quality.
-     * - Plain HTTP with MSE H.264: advertise H264 so the agent still sends a
-     *   GPU-encoded video stream (decoded via JMuxer/MSE) instead of falling
-     *   back to MJPEG — this is the key to smooth video without HTTPS.
-     * - Otherwise: image formats only (WebP/JPEG).
+     * Sync fallback before async probe completes.
      * @returns {string[]}
      */
-    function decodableCodecs() {
+    function decodableCodecsSync() {
         const list = [];
         if (hasWebCodecs()) {
-            list.push('av1', 'vp9', 'h264');
+            const allowAv1 = typeof RDVideo !== 'undefined'
+                && RDVideo.av1ReliableOnRuntime
+                && RDVideo.av1ReliableOnRuntime();
+            if (allowAv1 && !_blockedWireCodecs.has('av1')) list.push('av1');
+            list.push('vp9', 'h264');
         } else if (hasMseH264()) {
             list.push('h264');
         }
         list.push('webp', 'jpeg');
         return list;
+    }
+
+    /**
+     * Probe WebCodecs support and return wire codecs safe to advertise.
+     * @returns {Promise<string[]>}
+     */
+    function decodableCodecs() {
+        if (!_decodableCodecsPromise) {
+            _decodableCodecsPromise = (async () => {
+                if (typeof RDVideo !== 'undefined' && RDVideo.probeDecodableWireCodecs) {
+                    try {
+                        const probed = await RDVideo.probeDecodableWireCodecs();
+                        return probed.filter((c) => !_blockedWireCodecs.has(c));
+                    } catch { /* fall through */ }
+                }
+                return decodableCodecsSync();
+            })();
+        }
+        return _decodableCodecsPromise.then((list) =>
+            list.filter((c) => !_blockedWireCodecs.has(c))
+        );
+    }
+
+    function blockWireCodec(codec) {
+        if (!codec) return;
+        _blockedWireCodecs.add(String(codec).toLowerCase());
+        _decodableCodecsPromise = null;
     }
 
     /**
@@ -200,6 +227,11 @@
             this._sessionId = null;
             this._lastErrorText = '';
             this._lastErrorAt = 0;
+            this._sessionActive = true;
+            this._clipboardToLocalEnabled = true;
+            this._targetFps = this._normaliseFps(opts.fps || 60);
+            this._backgroundFps = 1;
+            this._streamThrottledActive = null;
 
             // Stats counters
             this._frameCount = 0;
@@ -212,6 +244,8 @@
             // from `desktop_meta` and defaults to the legacy MJPEG path.
             this._activeFormat = 'jpeg';
             this._codecString = null;
+            this._codecFallbackDone = false;
+            this._videoRenderedFrames = 0;
             this._video = null;          // RDVideo instance (lazy)
             this._gotKeyframe = false;
             this._keyframeRequestedAt = 0;
@@ -263,6 +297,7 @@
 
         async connect() {
             this._setState('connecting');
+            this._codecFallbackDone = false;
             this._emit('log', 'Opening CDAP desktop session…');
             console.log('[CDAP] connect()', this.deviceId);
 
@@ -337,13 +372,22 @@
             this._send({ type: 'quality_set', quality: q });
         }
         setQualityPreset(preset) {
-            // 'best' | 'balanced' | 'speed'
-            const map = { best: 92, balanced: 75, speed: 50 };
-            const q = map[String(preset || '').toLowerCase()] || 75;
-            this._send({ type: 'quality_set', quality: q });
+            const presets = {
+                best: { quality: 92, fps: 60 },
+                balanced: { quality: 75, fps: 30 },
+                speed: { quality: 50, fps: 60 },
+            };
+            const p = presets[String(preset || '').toLowerCase()] || presets.balanced;
+            this._targetFps = p.fps;
+            this.opts.qualityPreset = preset;
+            this._send({ type: 'quality_set', quality: p.quality, fps: p.fps });
         }
         setFps(fps) {
-            this._send({ type: 'quality_set', fps: this._normaliseFps(fps) });
+            const n = this._normaliseFps(fps);
+            if (this._sessionActive) {
+                this._targetFps = n;
+            }
+            this._send({ type: 'quality_set', fps: n });
         }
         setScaleMode(mode) {
             try { this.renderer.setScaleMode(mode); } catch { /* noop */ }
@@ -355,6 +399,59 @@
         setDisableClipboard(b)   { this._send({ type: 'disable_clipboard', enabled: !!b }); }
         setBlockInput(b)         { this._send({ type: 'block_input', enabled: !!b }); }
         setAudioMuted(_b)        { /* audio is handled via separate /audio WS */ }
+
+        /**
+         * Mark whether this client is the active tab in the multi-session viewer.
+         * @param {boolean} active
+         */
+        setSessionActive(active) {
+            const next = !!active;
+            const changed = next !== this._sessionActive;
+            this._sessionActive = next;
+            this._clipboardToLocalEnabled = next;
+            this._syncInputCapture();
+            if (this._connected) {
+                this._syncStreamThrottle();
+            } else if (changed) {
+                this._syncStreamThrottle();
+            }
+        }
+
+        setBackgroundFps(fps) {
+            const n = Number(fps);
+            if (Number.isFinite(n) && n >= 1 && n <= 5) {
+                this._backgroundFps = Math.round(n);
+            }
+        }
+
+        /** @private */
+        _syncStreamThrottle() {
+            if (!this._connected) return;
+            const wantActive = this._sessionActive;
+            if (this._streamThrottledActive === wantActive) return;
+            this._streamThrottledActive = wantActive;
+            if (wantActive) {
+                if (this._video && this._video.setBackgroundMode) {
+                    this._video.setBackgroundMode(false);
+                }
+                this.setFps(this._targetFps || this._normaliseFps(this.opts.fps || 60));
+                this._requestKeyframe();
+            } else {
+                if (this._video && this._video.setBackgroundMode) {
+                    this._video.setBackgroundMode(true);
+                }
+                this._send({ type: 'quality_set', fps: this._backgroundFps || 1 });
+            }
+        }
+
+        /** @private */
+        _syncInputCapture() {
+            if (this._sessionActive && this._connected) {
+                this._bindInput();
+            } else {
+                this._unbindInput();
+            }
+        }
 
         requestKeyframe() {
             this._send({ type: 'keyframe_request' });
@@ -428,6 +525,17 @@
         // ── Internal: WS lifecycle ───────────────────────────────────────
 
         _handleOpen() {
+            const self = this;
+            decodableCodecs().then(function (codecs) {
+                if (!self._ws || self._ws.readyState !== WebSocket.OPEN) return;
+                self._sendDesktopStart(codecs);
+            }).catch(function () {
+                if (!self._ws || self._ws.readyState !== WebSocket.OPEN) return;
+                self._sendDesktopStart(decodableCodecsSync());
+            });
+        }
+
+        _sendDesktopStart(codecs) {
             const dpr = window.devicePixelRatio || 1;
             const rect = this.canvas.getBoundingClientRect();
             const screenW = (window.screen && window.screen.width)  || 1920;
@@ -448,7 +556,7 @@
                 // sends a GPU-encoded video stream. Over plain HTTP this still
                 // includes H.264 (decoded via JMuxer/MSE), avoiding the slow
                 // MJPEG fallback. See decodableCodecs().
-                codecs: decodableCodecs(),
+                codecs: codecs,
                 video_codec: 'auto',
             });
 
@@ -502,11 +610,15 @@
                     this._sessionId = msg.session_id || null;
                     this._connected = true;
                     this._setState('streaming');
-                    this._bindInput();
+                    this._syncInputCapture();
                     this._startStats();
                     this._emit('login_success');
                     this._emit('session_start');
                     this._emit('log', 'Streaming');
+                    if (!this._sessionActive) {
+                        this._streamThrottledActive = null;
+                        this._syncStreamThrottle();
+                    }
                     console.log('[CDAP] ready, session=', this._sessionId);
                     break;
 
@@ -671,19 +783,43 @@
                 return;
             }
             this._closeVideoDecoder();
+            this._videoRenderedFrames = 0;
             const v = new RDVideo();
             this._video = v;
-            v.onFrame = (frame) => this._drawVideoFrame(frame);
+            v.onFrame = (frame) => {
+                this._videoRenderedFrames++;
+                this._drawVideoFrame(frame);
+            };
             v.onError = () => {
-                // A decode error usually means we fed a delta frame before the
-                // first keyframe — ask the agent for a fresh keyframe.
                 this._gotKeyframe = false;
                 this._requestKeyframe();
             };
-            v.init(codecName).catch((err) => {
+            v.onCodecFailed = (failedCodec) => {
+                this._handleCodecFailed(failedCodec);
+            };
+            v.onNeedKeyframe = () => this._requestKeyframe();
+            v.init(codecName, { codecString: this._codecString || null }).catch((err) => {
                 console.warn('[CDAP] video decoder init failed:', err && err.message);
-                this._video = null;
+                this._handleCodecFailed(codecName);
             });
+        }
+
+        _handleCodecFailed(codec) {
+            const c = String(codec || '').toLowerCase();
+            if (!c || this._codecFallbackDone) return;
+            blockWireCodec(c);
+            this._codecFallbackDone = true;
+            this._closeVideoDecoder();
+            this._gotKeyframe = false;
+            this._emit('log', 'Codec ' + c.toUpperCase() + ' failed — reconnecting with VP9/H.264…');
+            const ws = this._ws;
+            const deviceId = this.deviceId;
+            try { if (ws) ws.close(4002, 'codec_fallback'); } catch { /* noop */ }
+            setTimeout(() => {
+                if (this._state === 'disconnected' || this._state === 'error') {
+                    this.connect().catch(() => {});
+                }
+            }, 400);
         }
 
         /**
@@ -693,6 +829,7 @@
          * @param {ArrayBuffer} buf
          */
         _feedVideoFrame(buf) {
+            if (!this._sessionActive) return;
             const bytes = new Uint8Array(buf);
             if (bytes.length < 2) return;
             const isKey = (bytes[0] & 1) === 1;
@@ -716,7 +853,12 @@
                 this._gotKeyframe = true;
             }
 
-            this._video.decode({ data: payload, key: isKey, codec: this._activeFormat });
+            this._video.decode({
+                data: payload,
+                key: isKey,
+                codec: this._activeFormat,
+                codecString: this._codecString || null
+            });
         }
 
         /**
@@ -758,6 +900,7 @@
         }
 
         _renderEncodedFrame(msg) {
+            if (!this._sessionActive) return;
             const fmt = msg.format || 'jpeg';
             const src = msg.data.startsWith('data:') ? msg.data : `data:image/${fmt};base64,${msg.data}`;
             this._frameCount++;
@@ -791,7 +934,7 @@
             // Mirror device → operator clipboard when the agent allows it.
             const text = msg.text;
             if (!text) return;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
+            if (this._clipboardToLocalEnabled && navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).catch(() => { /* permission denied */ });
             }
             this._emit('clipboard', text);

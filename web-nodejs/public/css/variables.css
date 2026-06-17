@@ -14,6 +14,15 @@
     --bg-tertiary: #21262d;
     --bg-elevated: #30363d;
     --bg-overlay: rgba(0, 0, 0, 0.7);
+
+    /* Glass surface tokens (overridden by branding.css) */
+    --surface-glass-blur: 16px;
+    --surface-glass-saturate: 1.2;
+    --surface-glass-bg-secondary: rgba(22, 27, 34, 0.55);
+    --surface-glass-bg-tertiary: rgba(33, 38, 45, 0.62);
+    --surface-glass-bg-elevated: rgba(48, 54, 61, 0.7);
+    --surface-glass-border: rgba(48, 54, 61, 0.5);
+    --card-bg: var(--surface-glass-bg-secondary);
     
     /* Text colors */
     --text-primary: #e6edf3;

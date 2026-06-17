@@ -12,6 +12,46 @@ import (
 	"github.com/unitronix/betterdesk-server/db"
 )
 
+// loadRustDeskPeerByID loads peers for RustDesk group/peer APIs.
+// allowedIDs is non-nil when the role is limited to address-book inventory.
+func (s *Server) loadRustDeskPeerByID(username, role string) (peerByID map[string]*db.Peer, allowedIDs map[string]bool) {
+	peerByID = make(map[string]*db.Peer)
+	if !canBrowseRustDeskInventory(role) {
+		allowedIDs = s.addressBookPeerIDs(username)
+		if len(allowedIDs) == 0 {
+			return peerByID, allowedIDs
+		}
+		ids := make([]string, 0, len(allowedIDs))
+		for id := range allowedIDs {
+			ids = append(ids, id)
+		}
+		peers, err := s.db.GetPeersByIDs(ids)
+		if err != nil {
+			return make(map[string]*db.Peer), allowedIDs
+		}
+		for id, p := range peers {
+			if p == nil || p.Banned || p.SoftDeleted || p.Disabled {
+				continue
+			}
+			peerByID[id] = p
+		}
+		return peerByID, allowedIDs
+	}
+
+	allPeers, err := s.db.ListPeers(false)
+	if err != nil {
+		return peerByID, nil
+	}
+	peerByID = make(map[string]*db.Peer, len(allPeers))
+	for _, p := range allPeers {
+		if p == nil || p.Banned || p.SoftDeleted || p.Disabled {
+			continue
+		}
+		peerByID[p.ID] = p
+	}
+	return peerByID, nil
+}
+
 // buildRustDeskPeerList mirrors web-nodejs getRustDeskPeerList (folders, groups, tags, ACL).
 func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) {
 	username := getUsernameFromCtx(r)
@@ -25,17 +65,10 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 		return nil, 0
 	}
 
-	allPeers, err := s.db.ListPeers(false)
-	if err != nil {
+	var allowedIDs map[string]bool
+	peerByID, allowedIDs := s.loadRustDeskPeerByID(username, role)
+	if !canBrowseRustDeskInventory(role) && len(allowedIDs) == 0 {
 		return nil, 0
-	}
-
-	peerByID := make(map[string]*db.Peer, len(allPeers))
-	for _, p := range allPeers {
-		if p == nil || p.Banned || p.SoftDeleted || p.Disabled {
-			continue
-		}
-		peerByID[p.ID] = p
 	}
 
 	folderAssignments := map[string]int64{}
@@ -60,9 +93,8 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 
 	visiblePeer := s.rustDeskVisiblePeerSet(user, role, peerByID)
 	if !canBrowseRustDeskInventory(role) {
-		allowed := s.addressBookPeerIDs(username)
-		filtered := make(map[string]*db.Peer, len(allowed))
-		for id := range allowed {
+		filtered := make(map[string]*db.Peer, len(allowedIDs))
+		for id := range allowedIDs {
 			if p, ok := peerByID[id]; ok {
 				if visiblePeer == nil || visiblePeer[id] {
 					filtered[id] = p

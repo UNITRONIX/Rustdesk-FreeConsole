@@ -380,7 +380,7 @@ func (g *Gateway) handleHelpRequest(ctx context.Context, dc *DeviceConn, msg *Me
 
 	if g.eventBus != nil {
 		g.eventBus.Publish(events.Event{
-			Type: "help_request",
+			Type: events.EventHelpRequest,
 			Data: map[string]string{
 				"id":        fmt.Sprintf("%d", id),
 				"device_id": dc.ID,

@@ -7,7 +7,7 @@ name = "betterdesk-cdap"
 version = "1.0.0"
 description = "Python SDK for BetterDesk CDAP (Connected Device Automation Protocol)"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "AGPL-3.0"}
 requires-python = ">=3.9"
 dependencies = [
     "websockets>=12.0",

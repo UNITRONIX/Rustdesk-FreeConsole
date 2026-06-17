@@ -84,6 +84,13 @@ const facade = {
         ? adapter.updateUserLanguage(id, lang)
         : Promise.resolve(),
     deleteUser:       (id) => adapter.deleteUser(id),
+    updateUserProfile: (id, fields) => adapter.updateUserProfile(id, fields),
+    getUsersEmailsByUsernames: (usernames) => adapter.getUsersEmailsByUsernames(usernames),
+    getUsernamesByUserGroupGuid: (guid) => adapter.getUsernamesByUserGroupGuid(guid),
+    hasEmailNotificationSent: (eventType, eventId, recipient) =>
+        adapter.hasEmailNotificationSent(eventType, eventId, recipient),
+    logEmailNotificationSent: (eventType, eventId, recipient) =>
+        adapter.logEmailNotificationSent(eventType, eventId, recipient),
     countAdmins:      () => adapter.countAdmins(),
     resetAdminPassword: (hash) => adapter.resetAdminPassword(hash),
     deleteAllUsers:   () => adapter.deleteAllUsers(),
@@ -162,8 +169,15 @@ const facade = {
 
     // ---- Branding Config ----
     getBrandingConfig:        () => adapter.getBrandingConfig(),
+    getBrandingConfigRevision: () => adapter.getBrandingConfigRevision(),
     saveBrandingConfigBatch:  (entries) => adapter.saveBrandingConfigBatch(entries),
     resetBrandingConfig:      () => adapter.resetBrandingConfig(),
+    listBrandingProfiles:     () => adapter.listBrandingProfiles(),
+    getBrandingProfile:       (id) => adapter.getBrandingProfile(id),
+    createBrandingProfile:    (name, description, data) => adapter.createBrandingProfile(name, description, data),
+    updateBrandingProfile:    (id, name, description, data) => adapter.updateBrandingProfile(id, name, description, data),
+    setActiveBrandingProfile: (id) => adapter.setActiveBrandingProfile(id),
+    deleteBrandingProfile:    (id) => adapter.deleteBrandingProfile(id),
 
     // ---- Backup Helpers ----
     getAllUsersForBackup: () => adapter.getAllUsersForBackup(),

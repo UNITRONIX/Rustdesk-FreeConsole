@@ -164,24 +164,17 @@ func TestHandleRegisterPeerWSRejectsSoftDeletedHeartbeat(t *testing.T) {
 	}
 }
 
-func TestRegistrationLimiterUsesPeerScopedBucket(t *testing.T) {
+func TestRegistrationLimiterSkipsKnownPeerHeartbeats(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	limiter := ratelimit.NewIPLimiter(2, time.Minute, time.Minute)
 	t.Cleanup(limiter.Stop)
 	srv.SetRateLimiter(limiter)
 
 	clientHost := "172.29.1.20"
-	if !srv.allowRegistration(clientHost, "PROXYA1", true) {
-		t.Fatal("first registration for PROXYA1 should be allowed")
-	}
-	if !srv.allowRegistration(clientHost, "PROXYA1", true) {
-		t.Fatal("second registration for PROXYA1 should be allowed")
-	}
-	if srv.allowRegistration(clientHost, "PROXYA1", true) {
-		t.Fatal("third registration for the same peer should be rate limited")
-	}
-	if !srv.allowRegistration(clientHost, "PROXYB1", true) {
-		t.Fatal("different peer behind the same proxy should use a separate registration bucket")
+	for i := 0; i < 10; i++ {
+		if !srv.allowRegistration(clientHost, "PROXYA1", true) {
+			t.Fatalf("known peer heartbeat %d must not be rate limited", i+1)
+		}
 	}
 }
 

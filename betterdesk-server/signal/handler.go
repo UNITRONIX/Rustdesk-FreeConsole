@@ -79,13 +79,15 @@ func (s *Server) publishPeerOnline(id string) {
 }
 
 func (s *Server) allowRegistration(clientHost, peerID string, knownPeer bool) bool {
+	// Registered peers send heartbeats every ~12s — rate-limiting those adds
+	// lock contention without abuse benefit (peer ID is already validated in memory).
+	if knownPeer {
+		return true
+	}
 	if s.limiter == nil {
 		return true
 	}
-	if !knownPeer {
-		return s.limiter.Allow(signalLimiterKey("reg-new", clientHost, ""))
-	}
-	return s.limiter.Allow(signalLimiterKey("reg", clientHost, peerID))
+	return s.limiter.Allow(signalLimiterKey("reg-new", clientHost, ""))
 }
 
 func (s *Server) allowSignalConnection(clientHost string) bool {

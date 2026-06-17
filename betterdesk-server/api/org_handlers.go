@@ -758,6 +758,12 @@ func (s *Server) handleSetOrgAddressBook(w http.ResponseWriter, r *http.Request)
 
 // POST /api/org/login
 func (s *Server) handleOrgLogin(w http.ResponseWriter, r *http.Request) {
+	clientIP := s.remoteIP(r)
+	if s.loginLimiter != nil && !s.loginLimiter.Allow(clientIP) {
+		http.Error(w, `{"error":"too many login attempts"}`, http.StatusTooManyRequests)
+		return
+	}
+
 	var body struct {
 		OrgSlug  string `json:"org_slug"`
 		OrgID    string `json:"org_id"`

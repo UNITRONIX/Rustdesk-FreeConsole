@@ -18,9 +18,9 @@ const (
 	PhaseIncluded = "included"
 	PhaseOverage  = "overage"
 
-	StatusActive         = "active"
-	StatusPendingReport  = "pending_report"
-	StatusClosed         = "closed"
+	StatusActive        = "active"
+	StatusPendingReport = "pending_report"
+	StatusClosed        = "closed"
 
 	ContractActive    = "active"
 	ContractSuspended = "suspended"
@@ -28,6 +28,8 @@ const (
 	LedgerSessionStart = "session_start"
 	LedgerPhaseChange  = "phase_change"
 	LedgerSessionEnd   = "session_end"
+
+	pendingRelayTTL = 10 * time.Minute
 )
 
 // ConnectionCheckResult is returned before allowing a remote session.
@@ -56,6 +58,7 @@ type pendingRelay struct {
 	OperatorID string
 	ContractID string
 	Currency   string
+	createdAt  time.Time
 }
 
 type activeSession struct {
@@ -101,8 +104,27 @@ func (s *Service) ticker(ctx context.Context) {
 			return
 		case <-tick.C:
 			s.tickActive()
+			s.sweepStalePending()
 		}
 	}
+}
+
+func (s *Service) sweepStalePending() {
+	cutoff := time.Now().Add(-pendingRelayTTL)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for uuid, meta := range s.pending {
+		if meta.createdAt.Before(cutoff) {
+			delete(s.pending, uuid)
+		}
+	}
+}
+
+// PendingRelayCount returns billing metadata waiting for relay pairing.
+func (s *Service) PendingRelayCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
 }
 
 // CheckConnection evaluates whether a connection to deviceID may proceed.
@@ -157,6 +179,7 @@ func (s *Service) PrepareRelay(relayUUID, deviceID, operatorID string) error {
 		OperatorID: operatorID,
 		ContractID: contract.ID,
 		Currency:   contract.Currency,
+		createdAt:  time.Now(),
 	}
 	s.mu.Unlock()
 	return nil

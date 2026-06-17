@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -244,6 +245,128 @@ func TestUpdatePeerStatusIgnoresSoftDeleted(t *testing.T) {
 			if p.IP == "10.0.0.99" {
 				t.Fatal("UpdatePeerStatus must not update IP on soft-deleted peer")
 			}
+		}
+	}
+}
+
+func TestBatchUpdatePeerStatus(t *testing.T) {
+	db := newTestDB(t)
+
+	for _, id := range []string{"BATCH1", "BATCH2"} {
+		if err := db.UpsertPeer(&Peer{ID: id, Status: "ONLINE", IP: "10.0.0.1"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := db.BatchUpdatePeerStatus([]string{"BATCH1", "BATCH2", "MISSING1"}, "DEGRADED"); err != nil {
+		t.Fatal(err)
+	}
+
+	check := func(id, wantStatus string) {
+		t.Helper()
+		p, err := db.GetPeer(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p == nil {
+			t.Fatalf("peer %s not found", id)
+		}
+		if p.Status != wantStatus {
+			t.Fatalf("peer %s status = %q, want %q", id, p.Status, wantStatus)
+		}
+	}
+	check("BATCH1", "DEGRADED")
+	check("BATCH2", "DEGRADED")
+}
+
+func TestGetPeersByIDs(t *testing.T) {
+	db := newTestDB(t)
+
+	for _, id := range []string{"GPID1", "GPID2", "GPID3"} {
+		if err := db.UpsertPeer(&Peer{ID: id, Status: "ONLINE", Tags: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.DeletePeer("GPID3"); err != nil {
+		t.Fatal(err)
+	}
+
+	peers, err := db.GetPeersByIDs([]string{"GPID1", "GPID2", "GPID3", "MISSING"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(peers) != 2 {
+		t.Fatalf("GetPeersByIDs len = %d, want 2", len(peers))
+	}
+	if peers["GPID1"] == nil || peers["GPID2"] == nil {
+		t.Fatal("expected GPID1 and GPID2")
+	}
+	if peers["GPID1"].Tags != "GPID1" {
+		t.Fatalf("GPID1 tags = %q", peers["GPID1"].Tags)
+	}
+	if _, ok := peers["GPID3"]; ok {
+		t.Fatal("soft-deleted GPID3 must be omitted")
+	}
+	if _, ok := peers["MISSING"]; ok {
+		t.Fatal("missing ID must be omitted")
+	}
+
+	empty, err := db.GetPeersByIDs(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(empty) != 0 {
+		t.Fatalf("empty ids should return empty map, got %d", len(empty))
+	}
+}
+
+func TestListPeersPaginated(t *testing.T) {
+	db := newTestDB(t)
+	for i := 1; i <= 5; i++ {
+		id := fmt.Sprintf("PAGE%02d", i)
+		if err := db.UpsertPeer(&Peer{ID: id, Status: "ONLINE"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	page1, total, err := db.ListPeersPaginated(false, 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 5 {
+		t.Fatalf("total = %d, want 5", total)
+	}
+	if len(page1) != 2 {
+		t.Fatalf("page1 len = %d, want 2", len(page1))
+	}
+
+	page3, total, err := db.ListPeersPaginated(false, 2, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 5 || len(page3) != 1 {
+		t.Fatalf("page3 total=%d len=%d, want total=5 len=1", total, len(page3))
+	}
+}
+
+func TestBatchUpdatePeerStatusIgnoresSoftDeleted(t *testing.T) {
+	db := newTestDB(t)
+	if err := db.UpsertPeer(&Peer{ID: "BATCHDEL", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeletePeer("BATCHDEL"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.BatchUpdatePeerStatus([]string{"BATCHDEL"}, "CRITICAL"); err != nil {
+		t.Fatal(err)
+	}
+	peers, err := db.ListPeers(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range peers {
+		if p.ID == "BATCHDEL" && p.Status == "CRITICAL" {
+			t.Fatal("BatchUpdatePeerStatus must not update soft-deleted peer")
 		}
 	}
 }

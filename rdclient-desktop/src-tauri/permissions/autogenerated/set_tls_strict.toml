@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-tls-strict"
+description = "Enables the set_tls_strict command without any pre-configured scope."
+commands.allow = ["set_tls_strict"]
+
+[[permission]]
+identifier = "deny-set-tls-strict"
+description = "Denies the set_tls_strict command without any pre-configured scope."
+commands.deny = ["set_tls_strict"]

@@ -212,9 +212,10 @@
             </a>
             <% } %>
             <% if (hasPermission('device.connect')) { %>
-            <a href="/remote" class="sidebar-link <%= currentPage === 'remote' ? 'active' : '' %>">
+            <a href="/remote" class="sidebar-link <%= currentPage === 'remote' ? 'active' : '' %>" target="_blank" rel="noopener noreferrer" title="<%= _('nav.remote_open_tab') || _('nav.remote') %>">
                 <span class="material-icons">connected_tv</span>
                 <span class="sidebar-link-text"><%= _('nav.remote') || 'Remote Desktop' %></span>
+                <span class="material-icons sidebar-link-external" aria-hidden="true">open_in_new</span>
             </a>
             <a href="/toolkit" class="sidebar-link <%= currentPage === 'toolkit' ? 'active' : '' %>">
                 <span class="material-icons">handyman</span>

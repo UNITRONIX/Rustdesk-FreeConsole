@@ -1,7 +1,7 @@
 <%- include('layouts/main', {
     title: _('nav.settings'),
     pageStyles: ['pages'],
-    pageScripts: ['settings'],
+    pageScripts: ['branding-preview', 'settings'],
     currentPage: 'settings',
     breadcrumb: [{ label: _('nav.settings') }],
     body: `
@@ -31,6 +31,10 @@
             <button class="settings-tab" data-tab="updates">
                 <span class="material-icons">system_update</span>
                 ${_('updates.tab_title')}
+            </button>
+            <button class="settings-tab" data-tab="email">
+                <span class="material-icons">email</span>
+                ${_('settings.tab_email')}
             </button>
             <button class="settings-tab" data-tab="advanced">
                 <span class="material-icons">code</span>
@@ -265,10 +269,90 @@
         </div>
         
         <!-- Branding Tab -->
-        <div class="settings-tab-content" id="tab-branding">
-        <div class="settings-sections">
+        <div class="settings-tab-content" id="tab-branding" data-can-branding-edit="${canBrandingEdit ? '1' : '0'}">
+        <div class="branding-studio">
+            <div class="branding-studio-toolbar">
+                <div class="branding-save-status" id="branding-save-status" aria-live="polite">
+                    <span class="material-icons branding-status-icon">check_circle</span>
+                    <span id="branding-status-text">${_('branding.status_saved')}</span>
+                </div>
+                <div class="branding-toolbar-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="branding-revert-btn" title="${_('branding.revert_changes')}">
+                        <span class="material-icons">undo</span>
+                        ${_('branding.revert_changes')}
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm" id="branding-save-btn">
+                        <span class="material-icons">save</span>
+                        ${_('branding.save_now')}
+                    </button>
+                </div>
+            </div>
+
+            <div class="branding-profiles-bar">
+                <div class="branding-profiles-main">
+                    <label class="form-label" for="branding-profile-select">${_('branding.profiles_label')}</label>
+                    <select id="branding-profile-select" class="form-input form-select branding-profile-select"></select>
+                    <button type="button" class="btn btn-secondary btn-sm" id="branding-profile-apply-btn">
+                        <span class="material-icons">play_arrow</span>
+                        ${_('branding.profile_apply')}
+                    </button>
+                </div>
+                <div class="branding-profiles-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" id="branding-profile-new-btn">
+                        <span class="material-icons">add</span>
+                        ${_('branding.profile_new')}
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="branding-profile-save-btn">
+                        <span class="material-icons">save_as</span>
+                        ${_('branding.profile_save')}
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="branding-profile-duplicate-btn">
+                        <span class="material-icons">content_copy</span>
+                        ${_('branding.profile_duplicate')}
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm btn-danger-text" id="branding-profile-delete-btn">
+                        <span class="material-icons">delete</span>
+                        ${_('branding.profile_delete')}
+                    </button>
+                </div>
+            </div>
+
+            <div class="branding-builtin-themes" id="branding-builtin-themes">
+                <h3 class="branding-builtin-title">${_('branding.builtin_themes')}</h3>
+                <div class="branding-theme-gallery" id="branding-theme-gallery"></div>
+            </div>
+
+            <div class="branding-studio-body">
+                <nav class="branding-module-nav" id="branding-module-nav" aria-label="${_('branding.modules_nav')}">
+                    <button type="button" class="branding-module-btn active" data-branding-module="identity">
+                        <span class="material-icons">badge</span>
+                        ${_('branding.module_identity')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="colors">
+                        <span class="material-icons">palette</span>
+                        ${_('branding.module_colors')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="typography">
+                        <span class="material-icons">text_format</span>
+                        ${_('branding.module_typography')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="backgrounds">
+                        <span class="material-icons">wallpaper</span>
+                        ${_('branding.module_backgrounds')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="pages">
+                        <span class="material-icons">web</span>
+                        ${_('branding.module_pages')}
+                    </button>
+                    <button type="button" class="branding-module-btn" data-branding-module="advanced">
+                        <span class="material-icons">tune</span>
+                        ${_('branding.module_advanced')}
+                    </button>
+                </nav>
+
+                <div class="settings-sections branding-modules" id="branding-modules">
             <!-- Brand Identity -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel active" data-branding-module="identity">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">badge</span>
@@ -293,7 +377,7 @@
             </div>
             
             <!-- Logo Configuration -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel active" data-branding-module="identity">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">image</span>
@@ -405,7 +489,7 @@
             </div>
             
             <!-- Color Scheme -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="colors">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">palette</span>
@@ -539,7 +623,7 @@
             </div>
             
             <!-- Typography -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="typography">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">text_format</span>
@@ -595,6 +679,27 @@
                             </div>
                         </div>
                         
+                        <!-- Font source tabs -->
+                        <div class="font-source-tabs" role="tablist">
+                            <button type="button" class="font-source-tab active" data-font-source="google">${_('branding.font_google')}</button>
+                            <button type="button" class="font-source-tab" data-font-source="local">${_('branding.font_local')}</button>
+                            <button type="button" class="font-source-tab" data-font-source="upload">${_('branding.font_upload')}</button>
+                        </div>
+                        <div class="font-source-panel active" id="font-source-google"></div>
+                        <div class="font-source-panel" id="font-source-local">
+                            <div class="font-local-list" id="font-local-list"></div>
+                        </div>
+                        <div class="font-source-panel" id="font-source-upload">
+                            <div class="font-upload-area">
+                                <input type="file" id="font-upload-file" accept=".woff2,.ttf,font/woff2,font/ttf" class="font-upload-input">
+                                <label for="font-upload-file" class="btn btn-secondary btn-sm">
+                                    <span class="material-icons">upload_file</span>
+                                    ${_('branding.font_upload_choose')}
+                                </label>
+                                <input type="text" id="font-upload-name" class="form-input" placeholder="${_('branding.font_upload_name')}" maxlength="80">
+                            </div>
+                        </div>
+
                         <!-- Category filter -->
                         <div class="font-category-filter">
                             <button class="btn btn-ghost btn-sm font-cat-btn active" data-category="all">${_('branding.font_cat_all')}</button>
@@ -614,7 +719,7 @@
             </div>
             
             <!-- Background & Appearance -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="backgrounds">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">wallpaper</span>
@@ -712,12 +817,40 @@
                             <input type="range" id="bg-overlay" class="form-range" min="0" max="90" step="5" value="0">
                             <small class="form-hint">${_('branding.bg_overlay_hint')}</small>
                         </div>
+
+                        <div class="branding-glass-config">
+                            <h3 class="branding-subsection-title">${_('branding.glass_title')}</h3>
+                            <p class="form-hint branding-subsection-desc">${_('branding.glass_desc')}</p>
+                            <div class="form-group">
+                                <label class="form-check">
+                                    <input type="checkbox" id="glass-enabled" checked>
+                                    <span>${_('branding.glass_enabled')}</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="glass-color">${_('branding.glass_color')}</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" id="glass-color-picker" value="#161b22">
+                                    <input type="text" class="form-input color-hex" id="glass-color"
+                                           placeholder="#161b22" maxlength="7">
+                                </div>
+                                <small class="form-hint">${_('branding.glass_color_hint')}</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="glass-blur">${_('branding.glass_blur')} (<span id="glass-blur-value">16</span>px)</label>
+                                <input type="range" id="glass-blur" class="form-range" min="0" max="40" step="1" value="16">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="glass-opacity">${_('branding.glass_opacity')} (<span id="glass-opacity-value">55</span>%)</label>
+                                <input type="range" id="glass-opacity" class="form-range" min="0" max="100" step="5" value="55">
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Login Page -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="pages">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">login</span>
@@ -817,7 +950,7 @@
             </div>
 
             <!-- Agent Download Page -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="pages">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">download</span>
@@ -908,7 +1041,7 @@
             </div>
 
             <!-- Footer & Copyright -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="advanced">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">copyright</span>
@@ -936,7 +1069,7 @@
             </div>
 
             <!-- Custom CSS -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="advanced">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">code</span>
@@ -954,7 +1087,7 @@
             </div>
 
             <!-- Import / Export -->
-            <div class="settings-section">
+            <div class="settings-section branding-module-panel" data-branding-module="advanced">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
                         <span class="material-icons">swap_horiz</span>
@@ -980,13 +1113,38 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Save Branding Button -->
-            <div class="branding-save-bar">
-                <button class="btn btn-primary btn-lg" id="branding-save-btn">
-                    <span class="material-icons">save</span>
-                    ${_('branding.save_branding')}
-                </button>
+                </div>
+
+                <aside class="branding-live-preview" id="branding-live-preview">
+                    <div class="branding-live-preview-header">
+                        <h3>${_('branding.live_preview')}</h3>
+                        <label class="branding-preview-page-toggle">
+                            <input type="checkbox" id="branding-preview-page-toggle">
+                            <span>${_('branding.preview_apply_page')}</span>
+                        </label>
+                    </div>
+                    <div class="branding-preview-mockup" id="branding-live-mockup">
+                        <div class="branding-mockup-sidebar">
+                            <div class="branding-mockup-logo" id="branding-mockup-logo">
+                                <span class="material-icons">dns</span>
+                                <span class="branding-mockup-title">BetterDesk</span>
+                            </div>
+                            <div class="branding-mockup-nav-item active"></div>
+                            <div class="branding-mockup-nav-item"></div>
+                            <div class="branding-mockup-nav-item"></div>
+                        </div>
+                        <div class="branding-mockup-main">
+                            <div class="branding-mockup-card">
+                                <h4 class="branding-mockup-heading">${_('branding.preview_card_title')}</h4>
+                                <p class="branding-mockup-body">${_('branding.preview_card_body')}</p>
+                                <div class="branding-mockup-actions">
+                                    <button type="button" class="branding-mockup-btn primary">${_('branding.preview_btn_primary')}</button>
+                                    <button type="button" class="branding-mockup-btn secondary">${_('branding.preview_btn_secondary')}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
             </div>
         </div>
         </div>
@@ -1489,115 +1647,93 @@
         
         <!-- Updates Tab (server.config permission required) -->
         <div class="settings-tab-content" id="tab-updates" ${canServerConfig ? '' : 'style="display:none"'}>
-        <div class="settings-sections">
-            <!-- Version Check -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
-                        <span class="material-icons">system_update</span>
-                        ${_('updates.title')}
-                    </h2>
-                    <p class="settings-section-desc">${_('updates.desc')}</p>
+        <div class="win11-updates">
+            <h1 class="win11-updates-title">${_('updates.title')}</h1>
+
+            <!-- Hero status (Windows 11 Update style) -->
+            <section class="win11-updates-hero" aria-labelledby="update-status-headline">
+                <div class="win11-updates-hero-icon" id="update-hero-icon" data-state="idle" aria-hidden="true">
+                    <svg class="win11-updates-hero-svg" viewBox="0 0 48 48" width="72" height="72" focusable="false">
+                        <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.25"/>
+                        <path fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                              d="M24 8a16 16 0 0 1 14.5 9.2M24 40a16 16 0 0 1-14.5-9.2M8 24h6M34 24h6"/>
+                    </svg>
+                    <span class="win11-updates-hero-badge" id="update-hero-badge" hidden>
+                        <span class="material-icons">priority_high</span>
+                    </span>
                 </div>
-                <div class="settings-section-body">
-                    <div class="update-channel-panel" id="update-channel-panel" style="margin-bottom: 20px; padding: 16px; border: 1px solid var(--border-color, #333); border-radius: 8px;">
-                        <div class="update-version-row" style="margin-bottom: 8px;">
-                            <span class="update-label">${_('updates.channel_title')}</span>
-                            <span class="update-value">
-                                <span id="update-channel-active-badge" class="badge badge-success badge-sm">&mdash;</span>
-                            </span>
-                        </div>
-                        <p class="settings-section-desc" style="margin-top: 0; margin-bottom: 12px;">${_('updates.channel_desc')}</p>
+                <div class="win11-updates-hero-body">
+                    <h2 class="win11-updates-hero-headline" id="update-status-headline">${_('updates.title')}</h2>
+                    <p class="win11-updates-hero-desc" id="update-status-desc">${_('updates.desc')}</p>
+                    <dl class="update-version-info win11-updates-meta">
                         <div class="update-version-row">
-                            <span class="update-label">${_('updates.channel_pick_label')}</span>
-                            <span class="update-value">
-                                <select id="update-channel-select" class="form-input" style="max-width: 280px;">
-                                    <option value="stable">${_('updates.channel_stable')}</option>
-                                    <option value="development">${_('updates.channel_development')}</option>
-                                </select>
-                            </span>
-                        </div>
-                        <p class="text-muted" style="font-size: 12px; margin-top: 8px; margin-bottom: 0;">${_('updates.channel_apply_hint')}</p>
-                        <div class="update-version-row" style="margin-top: 10px;">
-                            <span class="update-label">${_('updates.channel_branch_label')}</span>
-                            <span class="update-value" id="update-channel-branch">&mdash;</span>
-                        </div>
-                    </div>
-                    <div class="update-version-info">
-                        <div class="update-version-row">
-                            <span class="update-label">${_('updates.current_version')}</span>
-                            <span class="update-value" id="update-local-version">v${appVersion}</span>
+                            <dt class="update-label">${_('updates.current_version')}</dt>
+                            <dd class="update-value" id="update-local-version">v${appVersion}</dd>
                         </div>
                         <div class="update-version-row">
-                            <span class="update-label">${_('updates.latest_version')}</span>
-                            <span class="update-value" id="update-remote-version">
-                                <span class="text-muted">&mdash;</span>
-                            </span>
+                            <dt class="update-label">${_('updates.latest_version')}</dt>
+                            <dd class="update-value" id="update-remote-version"><span class="text-muted">&mdash;</span></dd>
                         </div>
                         <div class="update-version-row" id="update-status-row" style="display:none;">
-                            <span class="update-label">${_('updates.status')}</span>
-                            <span class="update-value" id="update-status-badge"></span>
+                            <dt class="update-label">${_('updates.status')}</dt>
+                            <dd class="update-value" id="update-status-badge"></dd>
                         </div>
+                    </dl>
+                </div>
+                <div class="win11-updates-hero-action">
+                    <button class="btn win11-updates-primary-btn" id="update-check-btn" type="button">
+                        <span class="material-icons">refresh</span>
+                        ${_('updates.check_now')}
+                    </button>
+                </div>
+            </section>
+
+            <div class="win11-updates-alerts" id="update-alerts">
+                <!-- Docker image deployment -->
+                <div class="update-docker-info win11-updates-alert" id="update-docker-info" style="display:none;">
+                    <div class="update-docker-icon">
+                        <span class="material-icons">cloud_download</span>
                     </div>
-                    <div class="update-actions" style="margin-top: 16px;">
-                        <button class="btn btn-primary" id="update-check-btn">
-                            <span class="material-icons">refresh</span>
-                            ${_('updates.check_now')}
+                    <div class="update-docker-body">
+                        <strong>${_('updates.docker_title')}</strong>
+                        <p id="update-docker-desc">${_('updates.docker_desc')}</p>
+                        <pre class="update-docker-commands" id="update-docker-commands"></pre>
+                        <p class="update-docker-images" id="update-docker-images"></p>
+                    </div>
+                </div>
+
+                <!-- Stale server binary warning -->
+                <div class="update-stale-warning win11-updates-alert" id="update-stale-warning" style="display:none;">
+                    <div class="update-stale-icon">
+                        <span class="material-icons">gpp_maybe</span>
+                    </div>
+                    <div class="update-stale-body">
+                        <strong>${_('updates.server_stale_title')}</strong>
+                        <p id="update-stale-detail">${_('updates.server_stale_desc')}</p>
+                        <button class="btn btn-warning" id="update-rebuild-server-btn" type="button">
+                            <span class="material-icons">build</span>
+                            ${_('updates.rebuild_server')}
                         </button>
-                    </div>
-
-                    <!-- Docker image deployment: updates via container pull -->
-                    <div class="update-docker-info" id="update-docker-info" style="display:none; margin-top:16px;">
-                        <div class="update-docker-icon">
-                            <span class="material-icons">cloud_download</span>
-                        </div>
-                        <div class="update-docker-body">
-                            <strong>${_('updates.docker_title')}</strong>
-                            <p id="update-docker-desc">${_('updates.docker_desc')}</p>
-                            <pre class="update-docker-commands" id="update-docker-commands"></pre>
-                            <p class="update-docker-images" id="update-docker-images"></p>
-                        </div>
-                    </div>
-
-                    <!-- Stale server binary warning (security): server source was
-                         updated but the running binary was not rebuilt. -->
-                    <div class="update-stale-warning" id="update-stale-warning" style="display:none; margin-top:16px;">
-                        <div class="update-stale-icon">
-                            <span class="material-icons">gpp_maybe</span>
-                        </div>
-                        <div class="update-stale-body">
-                            <strong>${_('updates.server_stale_title')}</strong>
-                            <p id="update-stale-detail">${_('updates.server_stale_desc')}</p>
-                            <button class="btn btn-warning" id="update-rebuild-server-btn">
-                                <span class="material-icons">build</span>
-                                ${_('updates.rebuild_server')}
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Update Details (hidden until check completes) -->
-            <div class="settings-section" id="update-details-section" style="display:none;">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
-                        <span class="material-icons">description</span>
-                        ${_('updates.changelog')}
-                    </h2>
-                </div>
-                <div class="settings-section-body">
+
+            <!-- Available update package (shown after check) -->
+            <section class="win11-updates-available" id="update-details-section" style="display:none;" aria-labelledby="update-available-heading">
+                <h2 class="win11-updates-available-title" id="update-available-heading">${_('updates.update_available')}</h2>
+                <div class="win11-updates-available-body">
                     <div class="update-changelog" id="update-changelog"></div>
-                    <div class="update-files-summary" id="update-files-summary" style="margin-top:12px;"></div>
-                    <div class="update-actions" style="margin-top: 16px;">
-                        <label class="restore-option" style="margin-bottom: 12px;">
+                    <div class="update-files-summary" id="update-files-summary"></div>
+                    <div class="win11-updates-install-row">
+                        <label class="win11-updates-checkbox restore-option">
                             <input type="checkbox" id="update-backup-toggle" checked>
                             <span>${_('updates.create_backup')}</span>
                         </label>
-                        <button class="btn btn-primary btn-lg" id="update-install-btn" disabled>
+                        <button class="btn win11-updates-primary-btn win11-updates-install-btn" id="update-install-btn" type="button" disabled>
                             <span class="material-icons">download</span>
                             ${_('updates.install')}
                         </button>
-                        <p class="update-docker-install-note text-muted" id="update-docker-install-note" style="display:none; margin-top:12px;">
+                        <p class="update-docker-install-note text-muted" id="update-docker-install-note" style="display:none;">
                             ${_('updates.docker_install_note')}
                         </p>
                     </div>
@@ -1608,38 +1744,137 @@
                         <p class="update-progress-text" id="update-progress-text">${_('updates.installing')}</p>
                     </div>
                 </div>
+            </section>
+
+            <h2 class="win11-updates-section-title">${_('updates.more_options')}</h2>
+            <div class="win11-updates-options">
+
+                <!-- Update channel (inline control like Win11 pause dropdown) -->
+                <div class="win11-updates-option win11-updates-option-inline" id="update-channel-panel">
+                    <div class="win11-updates-option-row">
+                        <span class="win11-updates-option-icon material-icons" aria-hidden="true">alt_route</span>
+                        <div class="win11-updates-option-text">
+                            <span class="win11-updates-option-title">${_('updates.channel_title')}</span>
+                            <span class="win11-updates-option-desc">${_('updates.channel_desc')}</span>
+                        </div>
+                        <select id="update-channel-select" class="win11-updates-select" aria-label="${_('updates.channel_pick_label')}">
+                            <option value="stable">${_('updates.channel_stable')}</option>
+                            <option value="development">${_('updates.channel_development')}</option>
+                        </select>
+                    </div>
+                    <div class="win11-updates-option-meta">
+                        <span id="update-channel-active-badge" class="badge badge-success badge-sm">&mdash;</span>
+                        <span class="win11-updates-option-meta-sep" aria-hidden="true">&middot;</span>
+                        <span class="text-muted">${_('updates.channel_branch_label')}:</span>
+                        <span id="update-channel-branch">&mdash;</span>
+                        <p class="win11-updates-option-hint">${_('updates.channel_apply_hint')}</p>
+                    </div>
+                </div>
+
+                <!-- Update history / backups -->
+                <details class="win11-updates-option">
+                    <summary class="win11-updates-option-row">
+                        <span class="win11-updates-option-icon material-icons" aria-hidden="true">history</span>
+                        <div class="win11-updates-option-text">
+                            <span class="win11-updates-option-title">${_('updates.backups_title')}</span>
+                            <span class="win11-updates-option-desc">${_('updates.backups_desc')}</span>
+                        </div>
+                        <span class="win11-updates-option-chevron material-icons" aria-hidden="true">chevron_right</span>
+                    </summary>
+                    <div class="win11-updates-option-body">
+                        <div class="backup-retention-row">
+                            <label for="backup-retention-input" class="backup-retention-label">
+                                ${_('updates.retention_label')}
+                                <small class="text-muted">${_('updates.retention_hint')}</small>
+                            </label>
+                            <div class="backup-retention-controls">
+                                <input type="number" id="backup-retention-input" min="0" max="1000" step="1" value="0">
+                                <button class="btn btn-sm btn-primary" id="backup-retention-save" type="button">
+                                    ${_('common.save')}
+                                </button>
+                                <button class="btn btn-sm btn-outline" id="backup-prune-now" type="button">
+                                    <span class="material-icons">cleaning_services</span>
+                                    ${_('updates.prune_now')}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="backup-summary text-muted" id="backup-summary"></div>
+                        <div id="update-backups-list">
+                            <p class="text-muted">${_('common.loading')}</p>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Advanced options -->
+                <details class="win11-updates-option">
+                    <summary class="win11-updates-option-row">
+                        <span class="win11-updates-option-icon material-icons" aria-hidden="true">tune</span>
+                        <div class="win11-updates-option-text">
+                            <span class="win11-updates-option-title">${_('updates.option_advanced')}</span>
+                            <span class="win11-updates-option-desc">${_('updates.option_advanced_desc')}</span>
+                        </div>
+                        <span class="win11-updates-option-chevron material-icons" aria-hidden="true">chevron_right</span>
+                    </summary>
+                    <div class="win11-updates-option-body win11-updates-advanced-body">
+                        <p class="text-muted win11-updates-advanced-note">${_('updates.auto_strategy_hint')}</p>
+                    </div>
+                </details>
             </div>
-            
-            <!-- Update Backups -->
+        </div>
+        </div>
+
+        <!-- Email / SMTP Tab -->
+        <div class="settings-tab-content" id="tab-email" ${canServerConfig ? '' : 'style="display:none"'}>
+        <div class="settings-sections">
             <div class="settings-section">
                 <div class="settings-section-header">
                     <h2 class="settings-section-title">
-                        <span class="material-icons">history</span>
-                        ${_('updates.backups_title')}
+                        <span class="material-icons">email</span>
+                        ${_('settings.email.title')}
                     </h2>
-                    <p class="settings-section-desc">${_('updates.backups_desc')}</p>
+                    <p class="settings-section-desc">${_('settings.email.desc')}</p>
                 </div>
                 <div class="settings-section-body">
-                    <div class="backup-retention-row">
-                        <label for="backup-retention-input" class="backup-retention-label">
-                            ${_('updates.retention_label')}
-                            <small class="text-muted">${_('updates.retention_hint')}</small>
-                        </label>
-                        <div class="backup-retention-controls">
-                            <input type="number" id="backup-retention-input" min="0" max="1000" step="1" value="0">
-                            <button class="btn btn-sm btn-primary" id="backup-retention-save">
-                                ${_('common.save')}
-                            </button>
-                            <button class="btn btn-sm btn-outline" id="backup-prune-now">
-                                <span class="material-icons">cleaning_services</span>
-                                ${_('updates.prune_now')}
-                            </button>
+                    <form id="email-smtp-form" class="settings-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label" for="email-smtp-host">${_('settings.email.smtp_host')}</label>
+                                <input type="text" id="email-smtp-host" class="form-input" placeholder="smtp.example.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="email-smtp-port">${_('settings.email.smtp_port')}</label>
+                                <input type="number" id="email-smtp-port" class="form-input" value="587" min="1" max="65535">
+                            </div>
                         </div>
-                    </div>
-                    <div class="backup-summary text-muted" id="backup-summary"></div>
-                    <div id="update-backups-list">
-                        <p class="text-muted">${_('common.loading')}</p>
-                    </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="email-smtp-secure"> ${_('settings.email.smtp_secure')}
+                            </label>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label" for="email-smtp-user">${_('settings.email.smtp_user')}</label>
+                                <input type="text" id="email-smtp-user" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="email-smtp-pass">${_('settings.email.smtp_pass')}</label>
+                                <input type="password" id="email-smtp-pass" class="form-input" autocomplete="new-password">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="email-smtp-from">${_('settings.email.smtp_from')}</label>
+                            <input type="email" id="email-smtp-from" class="form-input" placeholder="alerts@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="email-smtp-alert">${_('settings.email.alert_email')}</label>
+                            <input type="email" id="email-smtp-alert" class="form-input" placeholder="ops@example.com">
+                            <span class="form-hint">${_('settings.email.alert_email_hint')}</span>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" id="email-smtp-test-btn">${_('settings.email.smtp_test')}</button>
+                            <button type="button" class="btn btn-primary" id="email-smtp-save-btn">${_('settings.email.smtp_save')}</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

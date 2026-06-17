@@ -329,6 +329,15 @@ function createSqliteAdapter(config) {
                 value TEXT NOT NULL,
                 updated_at TEXT DEFAULT (datetime('now'))
             );
+            CREATE TABLE IF NOT EXISTS branding_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT DEFAULT '',
+                data TEXT NOT NULL,
+                is_active INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
             CREATE TABLE IF NOT EXISTS relay_sessions (
                 id TEXT PRIMARY KEY,
                 initiator_id TEXT NOT NULL,
@@ -480,6 +489,15 @@ function createSqliteAdapter(config) {
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON notification_reads (user_id, read_at);
+            CREATE TABLE IF NOT EXISTS email_notification_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                recipient TEXT NOT NULL,
+                sent_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(event_type, event_id, recipient)
+            );
+            CREATE INDEX IF NOT EXISTS idx_email_notification_log_event ON email_notification_log (event_type, event_id);
         `);
 
         // Migration: Add missing columns to existing users table (for upgrades from older versions)
@@ -526,6 +544,20 @@ function createSqliteAdapter(config) {
                 console.log('[DB] Migration: added branding_config.updated_at');
             }
         } catch (e) { console.warn('[DB] Migration branding_config columns error:', e.message); }
+
+        try {
+            db.exec(`
+                CREATE TABLE IF NOT EXISTS branding_profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT DEFAULT '',
+                    data TEXT NOT NULL,
+                    is_active INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )
+            `);
+        } catch (e) { console.warn('[DB] Migration branding_profiles error:', e.message); }
 
         try {
             const groupCols = new Set(db.prepare('PRAGMA table_info(device_groups)').all().map(c => c.name));
@@ -888,6 +920,15 @@ function createSqliteAdapter(config) {
             CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_status ON agent_bundle_builds (status);
         `);
         migrateAgentBundleSlugsSqlite(db);
+        try {
+            const cols = new Set(db.prepare('PRAGMA table_info(agent_bundles)').all().map(c => c.name));
+            if (!cols.has('product_type')) {
+                db.exec("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'agent'");
+                console.log('[DB] Migration: added agent_bundles.product_type');
+            }
+        } catch (e) {
+            console.warn('[DB] Migration agent_bundles.product_type error:', e.message);
+        }
     }
 
     // -- Multi-tenancy tables ----------------------------------------------
@@ -1263,7 +1304,7 @@ function createSqliteAdapter(config) {
             return (openAuth().prepare('SELECT COUNT(*) as c FROM users').get().c) > 0;
         },
         async getAllUsers() {
-            return openAuth().prepare('SELECT id, username, role, auth_provider, created_at, last_login, preferred_language, totp_enabled FROM users ORDER BY id').all();
+            return openAuth().prepare('SELECT id, username, role, auth_provider, created_at, last_login, preferred_language, totp_enabled, email FROM users ORDER BY id').all();
         },
         async updateUserRole(id, role) {
             openAuth().prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
@@ -1498,6 +1539,40 @@ function createSqliteAdapter(config) {
             }
         },
 
+        async hasEmailNotificationSent(eventType, eventId, recipient) {
+            const row = openAuth().prepare(`
+                SELECT 1 FROM email_notification_log
+                WHERE event_type = ? AND event_id = ? AND recipient = ?
+            `).get(String(eventType), String(eventId), String(recipient));
+            return !!row;
+        },
+        async logEmailNotificationSent(eventType, eventId, recipient) {
+            openAuth().prepare(`
+                INSERT OR IGNORE INTO email_notification_log (event_type, event_id, recipient, sent_at)
+                VALUES (?, ?, ?, datetime('now'))
+            `).run(String(eventType), String(eventId), String(recipient));
+        },
+        async getUsersEmailsByUsernames(usernames = []) {
+            const list = Array.from(new Set((usernames || []).map(u => String(u || '').trim()).filter(Boolean)));
+            if (!list.length) return [];
+            const placeholders = list.map(() => '?').join(',');
+            return openAuth().prepare(`
+                SELECT username, email FROM users
+                WHERE username IN (${placeholders}) AND email IS NOT NULL AND email != ''
+            `).all(...list);
+        },
+        async getUsernamesByUserGroupGuid(guid) {
+            const groupGuid = String(guid || '').trim();
+            if (!groupGuid) return [];
+            return openAuth().prepare(`
+                SELECT u.username FROM users u
+                INNER JOIN user_group_members ugm ON ugm.user_id = u.id
+                INNER JOIN user_groups ug ON ug.id = ugm.user_group_id
+                WHERE ug.guid = ?
+                ORDER BY u.username ASC
+            `).all(groupGuid).map(r => r.username);
+        },
+
         // ---- Audit ----
 
         async logAction(userId, action, details, ipAddress) {
@@ -1553,6 +1628,52 @@ function createSqliteAdapter(config) {
         },
         async resetBrandingConfig() {
             openAuth().prepare('DELETE FROM branding_config').run();
+        },
+
+        async getBrandingConfigRevision() {
+            const row = openAuth().prepare('SELECT MAX(updated_at) AS rev FROM branding_config').get();
+            return row?.rev || null;
+        },
+
+        async listBrandingProfiles() {
+            return openAuth().prepare(
+                'SELECT id, name, description, is_active, created_at, updated_at FROM branding_profiles ORDER BY name COLLATE NOCASE'
+            ).all();
+        },
+
+        async getBrandingProfile(id) {
+            return openAuth().prepare('SELECT * FROM branding_profiles WHERE id = ?').get(id);
+        },
+
+        async createBrandingProfile(name, description, data) {
+            const json = typeof data === 'string' ? data : JSON.stringify(data);
+            const r = openAuth().prepare(`
+                INSERT INTO branding_profiles (name, description, data, created_at, updated_at)
+                VALUES (?, ?, ?, datetime('now'), datetime('now'))
+            `).run(name, description || '', json);
+            return r.lastInsertRowid;
+        },
+
+        async updateBrandingProfile(id, name, description, data) {
+            const json = typeof data === 'string' ? data : JSON.stringify(data);
+            openAuth().prepare(`
+                UPDATE branding_profiles
+                SET name = ?, description = ?, data = ?, updated_at = datetime('now')
+                WHERE id = ?
+            `).run(name, description || '', json, id);
+        },
+
+        async setActiveBrandingProfile(id) {
+            const db = openAuth();
+            const tx = db.transaction((profileId) => {
+                db.prepare('UPDATE branding_profiles SET is_active = 0').run();
+                db.prepare('UPDATE branding_profiles SET is_active = 1, updated_at = datetime(\'now\') WHERE id = ?').run(profileId);
+            });
+            tx(id);
+        },
+
+        async deleteBrandingProfile(id) {
+            openAuth().prepare('DELETE FROM branding_profiles WHERE id = ?').run(id);
         },
 
         // ---- Backup Helpers ----
@@ -2962,12 +3083,12 @@ function createSqliteAdapter(config) {
             return excludeBundleId ? row.bundle_id !== excludeBundleId : true;
         },
 
-        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy }) {
+        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy, productType }) {
             const db = openMain();
             const r = db.prepare(`
-                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `).run(bundleId, slug || null, name, branding, brandingHash, createdBy || null);
+                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by, product_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            `).run(bundleId, slug || null, name, branding, brandingHash, createdBy || null, productType || 'agent');
             return db.prepare('SELECT * FROM agent_bundles WHERE id = ?').get(r.lastInsertRowid);
         },
 
@@ -3215,6 +3336,18 @@ function createPostgresAdapter() {
         await q('CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON notification_reads (user_id, read_at)');
 
         await q(`
+            CREATE TABLE IF NOT EXISTS email_notification_log (
+                id SERIAL PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                recipient TEXT NOT NULL,
+                sent_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(event_type, event_id, recipient)
+            )
+        `);
+        await q('CREATE INDEX IF NOT EXISTS idx_email_notification_log_event ON email_notification_log (event_type, event_id)');
+
+        await q(`
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
@@ -3226,6 +3359,18 @@ function createPostgresAdapter() {
             CREATE TABLE IF NOT EXISTS branding_config (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        `);
+
+        await q(`
+            CREATE TABLE IF NOT EXISTS branding_profiles (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT DEFAULT '',
+                data TEXT NOT NULL,
+                is_active INTEGER DEFAULT 0,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
         `);
@@ -4146,7 +4291,7 @@ function createPostgresAdapter() {
         async updateUserPassword(id, passwordHash) { await q('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, id]); },
         async touchLastLogin(id) { await q('UPDATE users SET last_login = NOW() WHERE id = $1', [id]); },
         async hasUsers() { return +(await one('SELECT COUNT(*) as c FROM users')).c > 0; },
-        async getAllUsers() { return all('SELECT id, username, role, auth_provider, created_at, last_login, preferred_language, totp_enabled FROM users ORDER BY id'); },
+        async getAllUsers() { return all('SELECT id, username, role, auth_provider, created_at, last_login, preferred_language, totp_enabled, email FROM users ORDER BY id'); },
         async updateUserRole(id, role) { await q('UPDATE users SET role = $1 WHERE id = $2', [role, id]); },
         async updateUserLanguage(id, lang) { await q('UPDATE users SET preferred_language = $1 WHERE id = $2', [lang, id]); },
         async updateUserProfile(id, fields) {
@@ -4341,6 +4486,46 @@ function createPostgresAdapter() {
             }
         },
 
+        async hasEmailNotificationSent(eventType, eventId, recipient) {
+            const row = await one(
+                `SELECT 1 AS ok FROM email_notification_log
+                 WHERE event_type = $1 AND event_id = $2 AND recipient = $3`,
+                [String(eventType), String(eventId), String(recipient)]
+            );
+            return !!row;
+        },
+        async logEmailNotificationSent(eventType, eventId, recipient) {
+            await q(
+                `INSERT INTO email_notification_log (event_type, event_id, recipient, sent_at)
+                 VALUES ($1, $2, $3, NOW())
+                 ON CONFLICT (event_type, event_id, recipient) DO NOTHING`,
+                [String(eventType), String(eventId), String(recipient)]
+            );
+        },
+        async getUsersEmailsByUsernames(usernames = []) {
+            const list = Array.from(new Set((usernames || []).map(u => String(u || '').trim()).filter(Boolean)));
+            if (!list.length) return [];
+            const placeholders = list.map((_, i) => `$${i + 1}`).join(',');
+            return all(
+                `SELECT username, email FROM users
+                 WHERE username IN (${placeholders}) AND email IS NOT NULL AND email != ''`,
+                list
+            );
+        },
+        async getUsernamesByUserGroupGuid(guid) {
+            const groupGuid = String(guid || '').trim();
+            if (!groupGuid) return [];
+            const rows = await all(
+                `SELECT u.username FROM users u
+                 INNER JOIN user_group_members ugm ON ugm.user_id = u.id
+                 INNER JOIN user_groups ug ON ug.id = ugm.user_group_id
+                 WHERE ug.guid = $1
+                 ORDER BY u.username ASC`,
+                [groupGuid]
+            );
+            return rows.map(r => r.username);
+        },
+
         // ---- Audit ----
 
         async logAction(userId, action, details, ipAddress) {
@@ -4398,6 +4583,64 @@ function createPostgresAdapter() {
         },
         async resetBrandingConfig() {
             await q('DELETE FROM branding_config');
+        },
+
+        async getBrandingConfigRevision() {
+            const rows = await all('SELECT MAX(updated_at) AS rev FROM branding_config');
+            return rows[0]?.rev || null;
+        },
+
+        async listBrandingProfiles() {
+            return all(
+                'SELECT id, name, description, is_active, created_at, updated_at FROM branding_profiles ORDER BY name'
+            );
+        },
+
+        async getBrandingProfile(id) {
+            const rows = await all('SELECT * FROM branding_profiles WHERE id = $1', [id]);
+            return rows[0] || null;
+        },
+
+        async createBrandingProfile(name, description, data) {
+            const json = typeof data === 'string' ? data : JSON.stringify(data);
+            const rows = await all(
+                `INSERT INTO branding_profiles (name, description, data, created_at, updated_at)
+                 VALUES ($1, $2, $3, NOW(), NOW()) RETURNING id`,
+                [name, description || '', json]
+            );
+            return rows[0]?.id;
+        },
+
+        async updateBrandingProfile(id, name, description, data) {
+            const json = typeof data === 'string' ? data : JSON.stringify(data);
+            await q(
+                `UPDATE branding_profiles
+                 SET name = $1, description = $2, data = $3, updated_at = NOW()
+                 WHERE id = $4`,
+                [name, description || '', json, id]
+            );
+        },
+
+        async setActiveBrandingProfile(id) {
+            const client = await getPool().connect();
+            try {
+                await client.query('BEGIN');
+                await client.query('UPDATE branding_profiles SET is_active = 0');
+                await client.query(
+                    'UPDATE branding_profiles SET is_active = 1, updated_at = NOW() WHERE id = $1',
+                    [id]
+                );
+                await client.query('COMMIT');
+            } catch (err) {
+                await client.query('ROLLBACK');
+                throw err;
+            } finally {
+                client.release();
+            }
+        },
+
+        async deleteBrandingProfile(id) {
+            await q('DELETE FROM branding_profiles WHERE id = $1', [id]);
         },
 
         // ---- Backup Helpers ----

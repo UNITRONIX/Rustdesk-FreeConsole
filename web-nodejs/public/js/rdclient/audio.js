@@ -14,8 +14,10 @@ class RDAudio {
         this.sampleRate = 48000;
         /** @type {number} Number of channels */
         this.channels = 2;
-        /** @type {boolean} */
-        this.enabled = true;
+        /** @type {boolean} Toolbar mute toggle */
+        this._userMuted = false;
+        /** @type {boolean} Active tab in multi-session viewer */
+        this._sessionActive = true;
         /** @type {boolean} */
         this.initialized = false;
         /** @type {number} Next scheduled playback time */
@@ -64,8 +66,12 @@ class RDAudio {
             latencyHint: 'interactive'
         });
 
-        // Expose for video.js retryPlay() to resume
-        window._rdAudioCtx = this.audioCtx;
+        // Expose for video.js retryPlay() to resume this session's context
+        this._resumeHook = () => {
+            if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
+        };
 
         // Create gain node for volume control
         this.gainNode = this.audioCtx.createGain();
@@ -171,7 +177,7 @@ class RDAudio {
      * @param {Object} audioFrame - { data: Uint8Array, timestamp: number }
      */
     play(audioFrame) {
-        if (!this.initialized || !this.enabled || !this.audioCtx) return;
+        if (!this.initialized || !this._sessionActive || this._userMuted || !this.audioCtx) return;
 
         // Resume audio context if suspended (auto-play policy)
         if (this.audioCtx.state === 'suspended') {
@@ -243,20 +249,32 @@ class RDAudio {
      */
     setVolume(vol) {
         this.volume = Math.max(0, Math.min(1, vol));
-        if (this.gainNode) {
-            this.gainNode.gain.value = this.volume;
-        }
+        this._updateGain();
     }
 
     /**
-     * Mute/unmute audio
+     * Mute/unmute audio (toolbar toggle)
      * @param {boolean} muted
      */
     setMuted(muted) {
-        this.enabled = !muted;
-        if (this.gainNode) {
-            this.gainNode.gain.value = muted ? 0 : this.volume;
-        }
+        this._userMuted = !!muted;
+        this._updateGain();
+    }
+
+    /**
+     * Enable/disable playback for inactive viewer tabs
+     * @param {boolean} active
+     */
+    setSessionActive(active) {
+        this._sessionActive = active !== false;
+        this._updateGain();
+    }
+
+    /** @private */
+    _updateGain() {
+        if (!this.gainNode) return;
+        const silent = this._userMuted || !this._sessionActive;
+        this.gainNode.gain.value = silent ? 0 : this.volume;
     }
 
     /**
@@ -265,7 +283,7 @@ class RDAudio {
     getStats() {
         return {
             initialized: this.initialized,
-            enabled: this.enabled,
+            enabled: this._sessionActive && !this._userMuted,
             sampleRate: this.sampleRate,
             channels: this.channels,
             framesPlayed: this.framesPlayed,
@@ -298,7 +316,7 @@ class RDAudio {
             }
         }
         this.audioCtx = null;
-        window._rdAudioCtx = null;
+        this._resumeHook = null;
         this.gainNode = null;
         this.initialized = false;
         this.framesPlayed = 0;

@@ -608,9 +608,12 @@ func (s *Server) mergeAdminTagsIntoAB(data string) string {
 	adminTags := make(map[string][]string)
 	peerInfo := make(map[string]*db.Peer)
 	bannedPeers := make(map[string]bool)
-	for _, id := range ids {
-		peer, err := s.db.GetPeer(id)
-		if err != nil || peer == nil {
+	peerMap, err := s.db.GetPeersByIDs(ids)
+	if err != nil {
+		return data
+	}
+	for id, peer := range peerMap {
+		if peer == nil {
 			continue
 		}
 		// Issue #138: track banned/deleted peers so they can be stripped from the AB

@@ -602,6 +602,62 @@ func (s *SQLiteDB) GetPeer(id string) (*Peer, error) {
 	return p, nil
 }
 
+// GetPeersByIDs returns active peers for the given IDs in one query.
+func (s *SQLiteDB) GetPeersByIDs(ids []string) (map[string]*Peer, error) {
+	if len(ids) == 0 {
+		return map[string]*Peer{}, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := fmt.Sprintf(`SELECT id, uuid, pk, ip, user, hostname, os, version,
+	                  status, nat_type, last_online, created_at,
+	                  disabled, banned, ban_reason, banned_at,
+	                  soft_deleted, deleted_at, note, tags, heartbeat_seq,
+	                  device_type, linked_peer_id, display_name
+	           FROM peers
+	           WHERE (soft_deleted IS NULL OR soft_deleted = 0) AND id IN (%s)`,
+		strings.Join(placeholders, ","))
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("db: GetPeersByIDs: %w", err)
+	}
+	defer rows.Close()
+
+	out := make(map[string]*Peer, len(ids))
+	for rows.Next() {
+		p := &Peer{}
+		var lastOnline, createdAt, bannedAt, deletedAt sql.NullString
+		if err := rows.Scan(
+			&p.ID, &p.UUID, &p.PK, &p.IP, &p.User, &p.Hostname,
+			&p.OS, &p.Version, &p.Status, &p.NATType,
+			&lastOnline, &createdAt, &p.Disabled, &p.Banned,
+			&p.BanReason, &bannedAt, &p.SoftDeleted, &deletedAt,
+			&p.Note, &p.Tags, &p.HeartbeatSeq,
+			&p.DeviceType, &p.LinkedPeerID, &p.DisplayName,
+		); err != nil {
+			return nil, fmt.Errorf("db: GetPeersByIDs scan: %w", err)
+		}
+		p.LastOnline = parseTime(lastOnline)
+		p.CreatedAt = parseTime(createdAt)
+		p.BannedAt = parseTimePtr(bannedAt)
+		p.DeletedAt = parseTimePtr(deletedAt)
+		out[p.ID] = p
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: GetPeersByIDs: %w", err)
+	}
+	return out, nil
+}
+
 // GetPeerByUUID returns a peer by UUID, or nil if not found.
 func (s *SQLiteDB) GetPeerByUUID(uuid string) (*Peer, error) {
 	s.mu.RLock()
@@ -721,6 +777,60 @@ func (s *SQLiteDB) ListPeers(includeDeleted bool) ([]*Peer, error) {
 	return peers, rows.Err()
 }
 
+// ListPeersPaginated returns a page of peers and the total matching row count.
+func (s *SQLiteDB) ListPeersPaginated(includeDeleted bool, limit, offset int) ([]*Peer, int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	where := ""
+	if !includeDeleted {
+		where = ` WHERE soft_deleted = 0`
+	}
+
+	var total int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM peers` + where).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersPaginated count: %w", err)
+	}
+
+	query := `SELECT id, uuid, pk, ip, user, hostname, os, version,
+	                  status, nat_type, last_online, created_at,
+	                  disabled, banned, ban_reason, banned_at,
+	                  soft_deleted, deleted_at, note, tags, heartbeat_seq,
+	                  device_type, linked_peer_id, display_name
+	           FROM peers` + where + ` ORDER BY id`
+	if limit > 0 {
+		query += fmt.Sprintf(` LIMIT %d OFFSET %d`, limit, offset)
+	}
+
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersPaginated: %w", err)
+	}
+	defer rows.Close()
+
+	var peers []*Peer
+	for rows.Next() {
+		p := &Peer{}
+		var lastOnline, createdAt, bannedAt, deletedAt sql.NullString
+		if err := rows.Scan(
+			&p.ID, &p.UUID, &p.PK, &p.IP, &p.User, &p.Hostname,
+			&p.OS, &p.Version, &p.Status, &p.NATType,
+			&lastOnline, &createdAt, &p.Disabled, &p.Banned,
+			&p.BanReason, &bannedAt, &p.SoftDeleted, &deletedAt,
+			&p.Note, &p.Tags, &p.HeartbeatSeq,
+			&p.DeviceType, &p.LinkedPeerID, &p.DisplayName,
+		); err != nil {
+			return nil, 0, fmt.Errorf("db: ListPeersPaginated scan: %w", err)
+		}
+		p.LastOnline = parseTime(lastOnline)
+		p.CreatedAt = parseTime(createdAt)
+		p.BannedAt = parseTimePtr(bannedAt)
+		p.DeletedAt = parseTimePtr(deletedAt)
+		peers = append(peers, p)
+	}
+	return peers, total, rows.Err()
+}
+
 // GetPeerCount returns total and online peer counts.
 func (s *SQLiteDB) GetPeerCount() (total int, online int, err error) {
 	s.mu.RLock()
@@ -754,6 +864,29 @@ func (s *SQLiteDB) UpdatePeerStatus(id string, status string, ip string) error {
 	_, err := s.db.Exec(
 		`UPDATE peers SET status = ?, ip = ?, last_online = datetime('now') WHERE id = ? AND soft_deleted = 0`,
 		status, ip, id)
+	return err
+}
+
+// BatchUpdatePeerStatus sets status for many peers in one query (empty ip preserved).
+func (s *SQLiteDB) BatchUpdatePeerStatus(ids []string, status string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, 0, len(ids)+1)
+	args = append(args, status)
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	query := fmt.Sprintf(
+		`UPDATE peers SET status = ?, last_online = datetime('now') WHERE soft_deleted = 0 AND id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	_, err := s.db.Exec(query, args...)
 	return err
 }
 
@@ -2061,4 +2194,68 @@ func (s *SQLiteDB) ListPeersForOrg(orgID string, includeDeleted bool) ([]*Peer, 
 		peers = append(peers, p)
 	}
 	return peers, rows.Err()
+}
+
+// ListPeersForOrgPaginated returns an org-scoped peer page and total count.
+func (s *SQLiteDB) ListPeersForOrgPaginated(orgID string, includeDeleted bool, limit, offset int) ([]*Peer, int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	where := ` FROM peers p INNER JOIN org_devices od ON p.id = od.device_id WHERE od.org_id = ?`
+	args := []any{orgID}
+	if !includeDeleted {
+		where += ` AND p.soft_deleted = 0`
+	}
+
+	var total int
+	if err := s.db.QueryRow(`SELECT COUNT(*)`+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersForOrgPaginated count: %w", err)
+	}
+
+	query := `SELECT p.id, p.uuid, p.pk, p.ip, p.user, p.hostname, p.os, p.version,
+		p.status, p.nat_type, p.last_online, p.created_at, p.disabled,
+		p.banned, p.ban_reason, p.banned_at, p.soft_deleted, p.deleted_at,
+		p.note, p.tags, p.heartbeat_seq, COALESCE(p.display_name, ''),
+		COALESCE(p.device_type, ''), COALESCE(p.linked_peer_id, '')` + where +
+		` ORDER BY p.last_online DESC`
+	if limit > 0 {
+		query += fmt.Sprintf(` LIMIT %d OFFSET %d`, limit, offset)
+	}
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersForOrgPaginated: %w", err)
+	}
+	defer rows.Close()
+
+	var peers []*Peer
+	for rows.Next() {
+		p := &Peer{}
+		var lastOnline, createdAt, bannedAt, deletedAt sql.NullString
+		if err := rows.Scan(
+			&p.ID, &p.UUID, &p.PK, &p.IP, &p.User, &p.Hostname, &p.OS, &p.Version,
+			&p.Status, &p.NATType, &lastOnline, &createdAt, &p.Disabled,
+			&p.Banned, &p.BanReason, &bannedAt, &p.SoftDeleted, &deletedAt,
+			&p.Note, &p.Tags, &p.HeartbeatSeq, &p.DisplayName,
+			&p.DeviceType, &p.LinkedPeerID,
+		); err != nil {
+			return nil, 0, err
+		}
+		if lastOnline.Valid {
+			p.LastOnline, _ = time.Parse("2006-01-02 15:04:05", lastOnline.String)
+		}
+		if createdAt.Valid {
+			p.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt.String)
+		}
+		if bannedAt.Valid {
+			t, _ := time.Parse("2006-01-02 15:04:05", bannedAt.String)
+			p.BannedAt = &t
+		}
+		if deletedAt.Valid {
+			t, _ := time.Parse("2006-01-02 15:04:05", deletedAt.String)
+			p.DeletedAt = &t
+		}
+		peers = append(peers, p)
+	}
+	return peers, total, rows.Err()
 }

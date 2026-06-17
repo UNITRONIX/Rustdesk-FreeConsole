@@ -206,6 +206,12 @@ const DEFAULT_BRANDING = {
     bgOverlay: '',      // dark overlay opacity 0-100 (%) for readability
     bgSize: 'cover',    // 'cover' | 'contain' | 'repeat' | 'center'
 
+    // Glass surfaces (cards, modals, forms, navbar, etc.)
+    glassEnabled: 'true',   // 'true' | 'false'
+    glassColor: '#161b22',  // tint color (hex); empty = use bgSecondary
+    glassBlur: '16',        // backdrop-filter blur px (0-40)
+    glassOpacity: '55',     // tint opacity 0-100 (%)
+
     // Login page branding
     loginBgType: 'inherit', // 'inherit' | 'none' | 'color' | 'gradient' | 'image'
     loginBgColor: '',
@@ -286,6 +292,22 @@ const COLOR_TO_CSS_VAR = {
 
 // In-memory cache
 let brandingCache = null;
+let brandingRevision = '0';
+
+/**
+ * Bump cache-bust token after branding mutations.
+ */
+function bumpBrandingRevision() {
+    brandingRevision = Date.now().toString(36);
+}
+
+/**
+ * Revision string for branding.css cache busting (EJS + autosave).
+ * @returns {string}
+ */
+function getBrandingRevision() {
+    return brandingRevision;
+}
 
 /**
  * Load branding configuration from database into cache (async).
@@ -313,10 +335,17 @@ async function loadBranding() {
         }
 
         brandingCache = branding;
+        try {
+            const rev = await db.getBrandingConfigRevision();
+            brandingRevision = rev ? String(rev).replace(/[^a-zA-Z0-9._-]/g, '') : Date.now().toString(36);
+        } catch (_) {
+            bumpBrandingRevision();
+        }
         return branding;
     } catch (err) {
         console.error('[Branding] Failed to load from DB, using defaults:', err.message);
         brandingCache = JSON.parse(JSON.stringify(DEFAULT_BRANDING));
+        bumpBrandingRevision();
         return brandingCache;
     }
 }
@@ -352,7 +381,8 @@ async function saveBranding(updates) {
                 entries.push({ key, value: normalized });
             } else if (key === 'bgColor' || key === 'bgGradient' ||
                        key === 'loginBgColor' || key === 'loginBgGradient' ||
-                       key === 'agentBgColor' || key === 'agentBgGradient') {
+                       key === 'agentBgColor' || key === 'agentBgGradient' ||
+                       key === 'glassColor') {
                 // Security: Restrict to a safe CSS color/gradient charset.
                 entries.push({ key, value: sanitizeCssColorValue(value) });
             } else if (key === 'customCss') {
@@ -377,9 +407,108 @@ async function saveBranding(updates) {
  */
 async function resetBranding() {
     await db.resetBrandingConfig();
-
-    // Clear cache — next getBranding() will return defaults
     brandingCache = null;
+    await loadBranding();
+}
+
+// ==================== Branding Profiles ====================
+
+/**
+ * List saved branding profiles (metadata only).
+ * @returns {Promise<Array>}
+ */
+async function listProfiles() {
+    return db.listBrandingProfiles();
+}
+
+/**
+ * Create a profile snapshot from branding data.
+ * @param {string} name
+ * @param {string} [description]
+ * @param {Object} [brandingData] - defaults to current branding export
+ * @returns {Promise<number>} profile id
+ */
+async function createProfile(name, description = '', brandingData = null) {
+    const trimmed = String(name || '').trim().substring(0, 80);
+    if (!trimmed) throw new Error('Profile name is required');
+    const preset = brandingData && brandingData.type === 'betterdesk-theme'
+        ? brandingData
+        : exportPreset();
+    return db.createBrandingProfile(trimmed, String(description || '').substring(0, 200), preset);
+}
+
+/**
+ * Update profile data from current or supplied branding.
+ * @param {number} id
+ * @param {Object} updates - { name?, description?, branding? }
+ */
+async function updateProfile(id, updates = {}) {
+    const profile = await db.getBrandingProfile(id);
+    if (!profile) throw new Error('Profile not found');
+    const name = updates.name != null ? String(updates.name).trim().substring(0, 80) : profile.name;
+    const description = updates.description != null
+        ? String(updates.description).substring(0, 200)
+        : (profile.description || '');
+    const data = updates.branding
+        ? { version: '1.0', type: 'betterdesk-theme', branding: updates.branding }
+        : JSON.parse(profile.data);
+    await db.updateBrandingProfile(id, name, description, data);
+}
+
+/**
+ * Apply a saved profile to active branding_config.
+ * @param {number} id
+ */
+async function applyProfile(id) {
+    const profile = await db.getBrandingProfile(id);
+    if (!profile) return false;
+    let preset;
+    try {
+        preset = JSON.parse(profile.data);
+    } catch (_) {
+        return false;
+    }
+    const ok = await importPreset(preset);
+    if (!ok) return false;
+    await db.setActiveBrandingProfile(id);
+    return true;
+}
+
+/**
+ * Delete a branding profile (not allowed for active profile).
+ * @param {number} id
+ */
+async function deleteProfile(id) {
+    const profile = await db.getBrandingProfile(id);
+    if (!profile) return false;
+    if (profile.is_active) throw new Error('Cannot delete the active profile');
+    await db.deleteBrandingProfile(id);
+    return true;
+}
+
+/**
+ * Duplicate an existing profile.
+ * @param {number} id
+ * @param {string} [newName]
+ */
+async function duplicateProfile(id, newName = '') {
+    const profile = await db.getBrandingProfile(id);
+    if (!profile) throw new Error('Profile not found');
+    const baseName = newName.trim() || `${profile.name} (copy)`;
+    let name = baseName.substring(0, 80);
+    const existing = await db.listBrandingProfiles();
+    let suffix = 2;
+    while (existing.some(p => p.name === name)) {
+        name = `${baseName.substring(0, 70)} ${suffix}`;
+        suffix += 1;
+    }
+    let data;
+    try {
+        data = JSON.parse(profile.data);
+    } catch (_) {
+        data = exportPreset();
+    }
+    return db.createBrandingProfile(name, profile.description || '', data);
 }
 
 /**
@@ -419,6 +548,9 @@ function generateThemeCss() {
         css += `:root {\n${overrides.join('\n')}\n}\n`;
     }
 
+    // Glass surface tokens
+    css += generateGlassCss(branding);
+
     // Background wallpaper (console + login) and custom CSS
     css += generateBackgroundCss(branding);
 
@@ -435,6 +567,61 @@ function clampNumber(value, min, max) {
     const n = parseFloat(value);
     if (!Number.isFinite(n)) return null;
     return Math.min(max, Math.max(min, n));
+}
+
+/** Parse a 6-digit hex color into RGB components. */
+function hexToRgb(hex) {
+    const h = String(hex || '').replace('#', '').trim();
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+    return {
+        r: parseInt(h.substring(0, 2), 16),
+        g: parseInt(h.substring(2, 4), 16),
+        b: parseInt(h.substring(4, 6), 16)
+    };
+}
+
+/**
+ * Generate CSS variables for frosted-glass panel surfaces.
+ * @param {Object} branding
+ * @returns {string}
+ */
+function generateGlassCss(branding) {
+    const enabled = branding.glassEnabled !== 'false';
+    if (!enabled) {
+        return `:root {
+    --surface-glass-blur: 0px;
+    --surface-glass-saturate: 1;
+    --surface-glass-bg-secondary: var(--bg-secondary);
+    --surface-glass-bg-tertiary: var(--bg-tertiary);
+    --surface-glass-bg-elevated: var(--bg-elevated);
+    --surface-glass-border: var(--border-primary);
+    --card-bg: var(--bg-secondary);
+}\n`;
+    }
+
+    const blur = clampNumber(branding.glassBlur, 0, 40) ?? 16;
+    const opacity = (clampNumber(branding.glassOpacity, 0, 100) ?? 55) / 100;
+    let color = (branding.glassColor || '').trim();
+    if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) {
+        const fallback = (branding.colors && branding.colors.bgSecondary) || '';
+        color = /^#[0-9a-fA-F]{6}$/.test(fallback) ? fallback : '#161b22';
+    }
+    const rgb = hexToRgb(color);
+    if (!rgb) return '';
+
+    const tertiaryAlpha = Math.min(1, opacity + 0.08).toFixed(2);
+    const elevatedAlpha = Math.min(1, opacity + 0.15).toFixed(2);
+    const borderAlpha = Math.min(1, opacity + 0.35).toFixed(2);
+
+    return `:root {
+    --surface-glass-blur: ${blur}px;
+    --surface-glass-saturate: 1.2;
+    --surface-glass-bg-secondary: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity.toFixed(2)});
+    --surface-glass-bg-tertiary: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${tertiaryAlpha});
+    --surface-glass-bg-elevated: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${elevatedAlpha});
+    --surface-glass-border: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${borderAlpha});
+    --card-bg: var(--surface-glass-bg-secondary);
+}\n`;
 }
 
 /**
@@ -599,6 +786,13 @@ module.exports = {
     exportPreset,
     importPreset,
     invalidateCache,
+    getBrandingRevision,
+    listProfiles,
+    createProfile,
+    updateProfile,
+    applyProfile,
+    deleteProfile,
+    duplicateProfile,
     sanitizeSvg,
     sanitizeCssColorValue,
     sanitizeCustomCss,

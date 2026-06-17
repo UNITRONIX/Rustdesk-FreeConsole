@@ -367,13 +367,50 @@ func (g *Gateway) HandleDesktopInputError(ctx context.Context, _ *DeviceConn, ms
 }
 
 func (g *Gateway) cleanupDeviceSessions(deviceID, reason string) {
+	ctx := context.Background()
+
 	g.desktopSessions.Range(func(key, value any) bool {
 		ds, ok := value.(*DesktopSession)
 		if !ok || ds.DeviceID != deviceID {
 			return true
 		}
-		g.EndDesktopSession(context.Background(), ds.ID, reason)
-		g.desktopSessions.Delete(key)
+		g.EndDesktopSession(ctx, ds.ID, reason)
+		return true
+	})
+
+	g.terminalSessions.Range(func(key, value any) bool {
+		ts, ok := value.(*TerminalSession)
+		if !ok || ts.DeviceID != deviceID {
+			return true
+		}
+		g.EndTerminalSession(ctx, ts.ID, reason)
+		return true
+	})
+
+	g.videoSessions.Range(func(key, value any) bool {
+		vs, ok := value.(*VideoSession)
+		if !ok || vs.DeviceID != deviceID {
+			return true
+		}
+		g.EndVideoSession(ctx, vs.ID, reason)
+		return true
+	})
+
+	g.fileSessions.Range(func(key, value any) bool {
+		fs, ok := value.(*FileSession)
+		if !ok || fs.DeviceID != deviceID {
+			return true
+		}
+		g.EndFileSession(ctx, fs.ID, reason)
+		return true
+	})
+
+	g.audioSessions.Range(func(key, value any) bool {
+		as, ok := value.(*AudioSession)
+		if !ok || as.DeviceID != deviceID {
+			return true
+		}
+		g.EndAudioSession(ctx, as.ID, reason)
 		return true
 	})
 }

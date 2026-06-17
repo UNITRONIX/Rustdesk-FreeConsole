@@ -18,6 +18,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const config = require('../config/config');
 const conn = require('./agentBundleConnection');
 
 // Supported delivery targets. The portal renders one card per entry.
@@ -343,6 +344,39 @@ function defaultBranding() {
     };
 }
 
+/**
+ * Validate branding for RdClient desktop bundles (panel URL embedded in installer).
+ */
+function validateRdclientBranding(input = {}) {
+    const errors = [];
+    const out = {};
+
+    out.company_name = clip(input.company_name || input.companyName || 'BetterDesk RdClient', MAX_NAME);
+    out.server_host = clip(input.server_host || input.serverHost, 253);
+    out.use_https = input.use_https !== false && input.useHttps !== false;
+
+    const hostNorm = conn.normalizeServerHost(out.server_host);
+    if (!hostNorm.valid) {
+        errors.push(hostNorm.error || 'server_host_invalid');
+    } else {
+        out.server_host = hostNorm.host;
+    }
+
+    const scheme = out.use_https ? 'https' : 'http';
+    const port = config.port;
+    const omitPort = (scheme === 'https' && port === 443) || (scheme === 'http' && port === 80);
+    out.panel_url = omitPort
+        ? `${scheme}://${out.server_host}`
+        : `${scheme}://${out.server_host}:${port}`;
+
+    out.default_lang = clip(input.default_lang || input.defaultLang || 'en', 10);
+    if (!SUPPORTED_LANGS.includes(out.default_lang)) {
+        out.default_lang = 'en';
+    }
+
+    return { valid: errors.length === 0, errors, normalized: out };
+}
+
 module.exports = {
     PLATFORMS,
     SUPPORTED_LANGS,
@@ -350,6 +384,7 @@ module.exports = {
     MAX_SLUG_LENGTH,
     MIN_SLUG_LENGTH,
     validateBranding,
+    validateRdclientBranding,
     hashBranding,
     generateBundleId,
     slugifyName,

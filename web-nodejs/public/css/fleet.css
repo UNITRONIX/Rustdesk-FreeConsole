@@ -1,6 +1,6 @@
 /* fleet.css — Fleet Management (resources, tasks, builder, compliance) */
 
-.fleet-page { max-width: 1400px; margin: 0 auto; padding: 0 16px; }
+.fleet-page { padding: 0 16px; }
 
 /* Tab bar */
 .fleet-tabs {

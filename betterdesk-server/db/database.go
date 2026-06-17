@@ -412,16 +412,23 @@ type Database interface {
 
 	// Peer operations
 	GetPeer(id string) (*Peer, error)
+	// GetPeersByIDs returns active (non-soft-deleted) peers for the given IDs.
+	// Missing IDs are omitted; an empty ids slice returns an empty map.
+	GetPeersByIDs(ids []string) (map[string]*Peer, error)
 	GetPeerByUUID(uuid string) (*Peer, error)
 	UpsertPeer(p *Peer) error
 	DeletePeer(id string) error     // soft delete
 	HardDeletePeer(id string) error // permanent delete
 	ListPeers(includeDeleted bool) ([]*Peer, error)
+	// ListPeersPaginated returns peers with SQL LIMIT/OFFSET plus total row count.
+	// limit <= 0 returns all rows (offset still applied).
+	ListPeersPaginated(includeDeleted bool, limit, offset int) ([]*Peer, int, error)
 	GetPeerCount() (total int, online int, err error)
 	GetBannedPeerCount() (int, error)
 
 	// Status tracking
 	UpdatePeerStatus(id string, status string, ip string) error
+	BatchUpdatePeerStatus(ids []string, status string) error
 	UpdatePeerSysinfo(id, hostname, os, version string) error
 	SetAllOffline() error
 
@@ -583,6 +590,7 @@ type Database interface {
 
 	// Org-scoped device queries (RBAC Phase 52 — data scoping)
 	ListPeersForOrg(orgID string, includeDeleted bool) ([]*Peer, error)
+	ListPeersForOrgPaginated(orgID string, includeDeleted bool, limit, offset int) ([]*Peer, int, error)
 
 	// Audit logs (RustDesk client reporting — API-port consolidation Phase A)
 	InsertAuditConnection(a *AuditConnection) error

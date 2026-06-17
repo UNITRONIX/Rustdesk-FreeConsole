@@ -18,6 +18,8 @@ type PostgresDB struct {
 	pool *pgxpool.Pool
 	ctx  context.Context
 
+	queryTimeout time.Duration
+
 	// LISTEN/NOTIFY callback (nil = disabled). Set via OnNotify().
 	notifyFunc func(channel, payload string)
 }
@@ -55,7 +57,15 @@ func OpenPostgres(dsn string) (*PostgresDB, error) {
 		return nil, fmt.Errorf("db: PostgreSQL ping: %w", err)
 	}
 
-	return &PostgresDB{pool: pool, ctx: ctx}, nil
+	return &PostgresDB{pool: pool, ctx: ctx, queryTimeout: 30 * time.Second}, nil
+}
+
+// opCtx returns a context for database operations with optional query timeout.
+func (pg *PostgresDB) opCtx() (context.Context, context.CancelFunc) {
+	if pg.queryTimeout <= 0 {
+		return pg.ctx, func() {}
+	}
+	return context.WithTimeout(pg.ctx, pg.queryTimeout)
 }
 
 // Close closes the connection pool.
@@ -641,6 +651,30 @@ func (pg *PostgresDB) GetPeer(id string) (*Peer, error) {
 	return p, nil
 }
 
+// GetPeersByIDs returns active peers for the given IDs in one query.
+func (pg *PostgresDB) GetPeersByIDs(ids []string) (map[string]*Peer, error) {
+	if len(ids) == 0 {
+		return map[string]*Peer{}, nil
+	}
+
+	rows, err := pg.pool.Query(pg.ctx,
+		`SELECT `+peerColumns+` FROM peers WHERE soft_deleted = FALSE AND id = ANY($1)`, ids)
+	if err != nil {
+		return nil, fmt.Errorf("db: GetPeersByIDs: %w", err)
+	}
+	defer rows.Close()
+
+	peers, err := scanPeerRows(rows)
+	if err != nil {
+		return nil, fmt.Errorf("db: GetPeersByIDs: %w", err)
+	}
+	out := make(map[string]*Peer, len(peers))
+	for _, p := range peers {
+		out[p.ID] = p
+	}
+	return out, nil
+}
+
 // GetPeerByUUID returns a peer by UUID, or nil if not found.
 func (pg *PostgresDB) GetPeerByUUID(uuid string) (*Peer, error) {
 	row := pg.pool.QueryRow(pg.ctx,
@@ -731,6 +765,36 @@ func (pg *PostgresDB) ListPeers(includeDeleted bool) ([]*Peer, error) {
 	return peers, rows.Err()
 }
 
+// ListPeersPaginated returns a page of peers and the total matching row count.
+func (pg *PostgresDB) ListPeersPaginated(includeDeleted bool, limit, offset int) ([]*Peer, int, error) {
+	where := ""
+	if !includeDeleted {
+		where = ` WHERE soft_deleted = FALSE`
+	}
+
+	var total int
+	if err := pg.pool.QueryRow(pg.ctx, `SELECT COUNT(*) FROM peers`+where).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersPaginated count: %w", err)
+	}
+
+	query := `SELECT ` + peerColumns + ` FROM peers` + where + ` ORDER BY id`
+	if limit > 0 {
+		query += fmt.Sprintf(` LIMIT %d OFFSET %d`, limit, offset)
+	}
+
+	rows, err := pg.pool.Query(pg.ctx, query)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersPaginated: %w", err)
+	}
+	defer rows.Close()
+
+	peers, err := scanPeerRows(rows)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersPaginated: %w", err)
+	}
+	return peers, total, nil
+}
+
 // GetPeerCount returns total and online peer counts.
 func (pg *PostgresDB) GetPeerCount() (total int, online int, err error) {
 	err = pg.pool.QueryRow(pg.ctx,
@@ -753,9 +817,24 @@ func (pg *PostgresDB) GetBannedPeerCount() (int, error) {
 
 // UpdatePeerStatus updates a peer's status and IP, plus last_online timestamp.
 func (pg *PostgresDB) UpdatePeerStatus(id string, status string, ip string) error {
-	_, err := pg.pool.Exec(pg.ctx,
+	ctx, cancel := pg.opCtx()
+	defer cancel()
+	_, err := pg.pool.Exec(ctx,
 		`UPDATE peers SET status = $1, ip = $2, last_online = NOW() WHERE id = $3 AND soft_deleted = FALSE`,
 		status, ip, id)
+	return err
+}
+
+// BatchUpdatePeerStatus sets status for many peers in one query.
+func (pg *PostgresDB) BatchUpdatePeerStatus(ids []string, status string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	ctx, cancel := pg.opCtx()
+	defer cancel()
+	_, err := pg.pool.Exec(ctx,
+		`UPDATE peers SET status = $1, last_online = NOW() WHERE soft_deleted = FALSE AND id = ANY($2)`,
+		status, ids)
 	return err
 }
 
@@ -1905,4 +1984,33 @@ func (pg *PostgresDB) ListPeersForOrg(orgID string, includeDeleted bool) ([]*Pee
 		peers = append(peers, p)
 	}
 	return peers, rows.Err()
+}
+
+func (pg *PostgresDB) ListPeersForOrgPaginated(orgID string, includeDeleted bool, limit, offset int) ([]*Peer, int, error) {
+	where := ` FROM peers p INNER JOIN org_devices od ON p.id = od.device_id WHERE od.org_id = $1`
+	if !includeDeleted {
+		where += ` AND p.soft_deleted = FALSE`
+	}
+
+	var total int
+	if err := pg.pool.QueryRow(pg.ctx, `SELECT COUNT(*)`+where, orgID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersForOrgPaginated count: %w", err)
+	}
+
+	query := `SELECT ` + peerColumns + where + ` ORDER BY p.last_online DESC NULLS LAST`
+	if limit > 0 {
+		query += fmt.Sprintf(` LIMIT %d OFFSET %d`, limit, offset)
+	}
+
+	rows, err := pg.pool.Query(pg.ctx, query, orgID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersForOrgPaginated: %w", err)
+	}
+	defer rows.Close()
+
+	peers, err := scanPeerRows(rows)
+	if err != nil {
+		return nil, 0, fmt.Errorf("db: ListPeersForOrgPaginated: %w", err)
+	}
+	return peers, total, nil
 }

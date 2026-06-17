@@ -17,6 +17,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const keyService = require('../services/keyService');
 const bundleService = require('../services/agentBundleService');
 const buildWorker = require('../services/agentBuildWorker');
+const rdclientBuildWorker = require('../services/rdclientBuildWorker');
 const db = require('../services/database');
 const config = require('../config/config');
 const brandingService = require('../services/brandingService');
@@ -52,6 +53,7 @@ function serializeBundle(row) {
         created_at:      row.created_at,
         updated_at:      row.updated_at,
         download_url:    `/d/${publicId}`,
+        product_type:    row.product_type || 'agent',
     };
 }
 
@@ -189,7 +191,11 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
         if (!name) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.name_required') });
         }
-        const { valid, errors, normalized: base } = bundleService.validateBranding(req.body.branding || {});
+        const productType = String(req.body.product_type || 'agent').toLowerCase() === 'rdclient' ? 'rdclient' : 'agent';
+        const validateFn = productType === 'rdclient'
+            ? bundleService.validateRdclientBranding
+            : bundleService.validateBranding;
+        const { valid, errors, normalized: base } = validateFn(req.body.branding || {});
         if (!valid) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
@@ -207,9 +213,13 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
                 details: [slugResult.error],
             });
         }
-        const normalized = finalizeBundleBranding(base);
-        normalized.bundle_id = bundleId;
-        normalized.product_name = normalized.company_name || 'BetterDesk Support';
+        const normalized = productType === 'rdclient'
+            ? { ...base, bundle_id: bundleId, server_url: base.panel_url }
+            : finalizeBundleBranding(base);
+        if (productType !== 'rdclient') {
+            normalized.bundle_id = bundleId;
+            normalized.product_name = normalized.company_name || 'BetterDesk Support';
+        }
         const brandingHash = bundleService.hashBranding(normalized);
         const created = await db.createAgentBundle({
             bundleId,
@@ -218,9 +228,12 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
             branding: JSON.stringify(normalized),
             brandingHash,
             createdBy: req.session?.userId || null,
+            productType,
         });
-        // Phase 2: queue installer builds for every supported platform.
-        buildWorker.enqueueBuildsForHash(brandingHash).catch((e) => {
+        const enqueue = productType === 'rdclient'
+            ? rdclientBuildWorker.enqueueBuildsForHash
+            : buildWorker.enqueueBuildsForHash;
+        enqueue(brandingHash).catch((e) => {
             console.error('[generator] enqueue builds failed:', e.message);
         });
         res.json({ success: true, data: { bundle: serializeBundle(created) } });

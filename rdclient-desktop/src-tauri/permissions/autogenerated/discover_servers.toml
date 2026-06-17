@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-discover-servers"
+description = "Enables the discover_servers command without any pre-configured scope."
+commands.allow = ["discover_servers"]
+
+[[permission]]
+identifier = "deny-discover-servers"
+description = "Denies the discover_servers command without any pre-configured scope."
+commands.deny = ["discover_servers"]

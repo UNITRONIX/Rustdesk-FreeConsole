@@ -73,38 +73,46 @@ used for:
 
 ## 🎁 Supporter Perks & Tiers
 
-### ☕ Individual Backers
+Perks match the tiers configured on
+**[GitHub Sponsors](https://github.com/sponsors/UNITRONIX)** and
+**[Buy Me a Coffee](https://buymeacoffee.com/unitronix)** (see also
+[`.github/funding.yml`](.github/funding.yml)).
 
-*One-time or small monthly donations*
+### ☕ Buy Me a Coffee — one-time
 
-- **A Huge Thank You** — Every coffee matters and keeps the vibe coding going!
-- **Supporter Badge** — Show off your support directly on your GitHub profile.
-- **Your Name in the Repo** — Backers will be mentioned in this file's special
-  thanks section (with permission).
+| | |
+|---|---|
+| **Platform** | [buymeacoffee.com/unitronix](https://buymeacoffee.com/unitronix) |
+| **License** | AGPL-3.0 (same as everyone) |
+| **Commercial Grant** | ❌ Not included |
 
-### 🏢 Corporate Sponsors
+**Perks:** thank you, optional mention in this file (with permission).
 
-*Monthly tiers for companies*
+### GitHub Sponsors — monthly tiers
 
-If your business relies on BetterDesk, supporting the project ensures its
-long-term viability:
+| Tier | Price | Perks | Commercial Grant |
+|------|-------|-------|------------------|
+| ☕ **Buy me a Coffee** | **$5 / month** | Sponsor badge on GitHub, gratitude | ❌ |
+| 🍕 **Pizza Fuel** | **$15 / month** | Badge + your name in the repo thanks section | ❌ |
+| 🏢 **Bronze Sponsor** (Backer) | **$50 / month** | Company link or small logo in README; priority triage (best-effort, no SLA) | ✅ |
+| 🚀 **Silver Sponsor** (Priority Support) | **$100 / month** | Medium logo + backlink in README/docs; priority triage; email for bugs/config; roadmap input; sponsor-funded upstream features stay open under **AGPL-3.0** | ✅ |
+| 👑 **Gold Sponsor** (Core Partner) | **$200 / month** | Large prominent logo in README/docs; all Silver perks | ✅ |
 
-- **Priority Triage** — Your bug reports and feature requests will jump to the
-  front of the queue and be reviewed first.
-- **Roadmap Advisory** — Have a voice in the project's future direction. If your
-  required feature aligns with the project's vision, it gets top priority.
-- **Brand Visibility** — Your company logo and a link to your website will be
-  proudly displayed in the main `README.md` and project documentation.
-- **Guaranteed Open Source** — Any feature developed thanks to your sponsorship
-  will be merged directly into the main repository under the Apache 2.0 license
-  for everyone to use.
+Individual tiers ($5 / $15) fund tools and maintainer time. **Bronze and above**
+are corporate tiers — they include the self-service
+[Commercial Grant](docs/COMMERCIAL-GRANT.md) (private deployment patches without
+copyleft, while sponsoring).
+
+> [!TIP]
+> If a tier description on GitHub Sponsors still mentions Apache 2.0, the
+> repository policy is **AGPL-3.0** — see [LICENSE](LICENSE).
 
 ### 🥇 Honorary Supporters
 
-*Reserved for organizations that have made a significant non-monetary
-contribution (audits, infrastructure, sustained mentorship).*
+*Significant non-monetary contribution (audits, infrastructure, mentorship).*
 
-- Logo + dedicated section in `SPONSORS.md` and README badge.
+- Logo + dedicated section in `SPONSORS.md` and README badge
+- **Commercial Grant** included ([docs/COMMERCIAL-GRANT.md](docs/COMMERCIAL-GRANT.md))
 
 > [!NOTE]
 > **Governance:** To maintain maximum security and architectural consistency,
@@ -114,26 +122,31 @@ contribution (audits, infrastructure, sustained mentorship).*
 
 ---
 
-## � Sponsorship Terms & Boundaries
+## Sponsorship Terms & Boundaries
 
 By becoming a Sponsor you acknowledge and accept the following terms. These
 rules exist to ensure high code quality, full transparency, and to protect the
 long-term health of the project and its creator.
 
-### No Hiding or Commercializing Changes
+### No Hiding or Commercializing Upstream Changes
 
-No modification, feature, or fix introduced into the project during a
-sponsorship engagement may be hidden from the community, locked in a private
-(closed-source) repository, or commercialized as a paid add-on unavailable to
-others. Everything built with sponsorship support is available to everyone under
-the Apache 2.0 license.
+No modification, feature, or fix **merged into the public BetterDesk
+repository** during a sponsorship engagement may be hidden from the community,
+locked away from upstream, or sold as a paid add-on unavailable to others.
+Everything built with sponsorship support and merged upstream is available to
+everyone under the AGPL-3.0 license.
+
+This rule applies to **upstream project code**. It does **not** require sponsors
+to publish private patches that exist only in their own deployment — that is
+what the optional [Commercial Grant](docs/COMMERCIAL-GRANT.md) covers for
+eligible tiers.
 
 ### Best-Effort Model (No Guaranteed SLA)
 
-Due to the limited time budget of an independent maintainer, the project does
-**not** offer a guaranteed response time for issues (no Service Level
-Agreement). Development and fixes are delivered asynchronously, as the
-maintainer's schedule allows.
+This is a **solo, spare-time project**. There is no guaranteed response time,
+no license audits, and no admin overhead for sponsor grants — GitHub Sponsors
+billing is the only check. Development, fixes, and replies happen when the
+maintainer has time.
 
 ### Communication
 
@@ -159,13 +172,15 @@ belongs to the creator.
 
 ---
 
-## �📋 Other ways to contribute
+## Other ways to contribute
 
 - **Code contributions:** see [CONTRIBUTING.md](docs/development/CONTRIBUTING.md)
 - **Security disclosures:** see [docs/security/](docs/security/)
-- **Corporate partnership / honorary supporter status:** open an issue or
-  contact the maintainers via the repository.
+- **Commercial Grant / corporate partnership:** see
+  [docs/COMMERCIAL-GRANT.md](docs/COMMERCIAL-GRANT.md) or open an issue.
+- **Honorary supporter status:** open an issue or contact the maintainers via
+  the repository.
 
 ---
 
-*Last updated: 2026-06-12*
+*Last updated: 2026-06-13*
