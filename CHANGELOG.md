@@ -1,7 +1,7 @@
 ## [Unreleased]
 
-### Changed
-- _(none yet)_
+### Fixed
+- **Web Console CI / dependency audit:** bump `nodemailer`, `multer`, `ws`, and transitive `form-data` minimums so `npm audit --omit=dev --audit-level=high` passes on the release branch.
 
 ---
 
