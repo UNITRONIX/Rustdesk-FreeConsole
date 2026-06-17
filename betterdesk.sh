@@ -795,6 +795,9 @@ start_services_with_verification() {
     if ! verify_service_health "betterdesk-server" "21117" 5; then
         print_warning "Relay port 21117 may not be ready yet"
     fi
+
+    # Re-sync permissions after Go server may have created root-owned DB/WAL files (#206)
+    prepare_console_after_update
     
     # Start Node.js console
     local panel_port console_ok=true
@@ -2419,8 +2422,15 @@ ensure_betterdesk_console_user() {
         echo "root"
         return
     fi
-    mkdir -p /var/lib/betterdesk "$CONSOLE_PATH/data"
+    mkdir -p /var/lib/betterdesk "$CONSOLE_PATH/data" "$RUSTDESK_PATH" "$RUSTDESK_PATH/ssl"
     chown -R "$svc_user:$svc_user" "$CONSOLE_PATH" 2>/dev/null || true
+    # Shared Go data dir: setgid so root Go server files inherit group betterdesk (#206)
+    chown root:"$svc_user" "$RUSTDESK_PATH" 2>/dev/null || true
+    chmod 2775 "$RUSTDESK_PATH" 2>/dev/null || true
+    if [ -d "$RUSTDESK_PATH/ssl" ]; then
+        chown root:"$svc_user" "$RUSTDESK_PATH/ssl" 2>/dev/null || true
+        chmod 2750 "$RUSTDESK_PATH/ssl" 2>/dev/null || true
+    fi
     if [ -f "$RUSTDESK_PATH/.api_key" ]; then
         chown root:"$svc_user" "$RUSTDESK_PATH/.api_key" 2>/dev/null || true
         chmod 640 "$RUSTDESK_PATH/.api_key" 2>/dev/null || true
@@ -3830,7 +3840,6 @@ repair_permissions() {
         fi
     fi
 
-    chmod 755 "$RUSTDESK_PATH" 2>/dev/null || true
     chmod +x "$RUSTDESK_PATH/betterdesk-server" 2>/dev/null || true
 
     if systemctl is-enabled --quiet betterdesk-console 2>/dev/null; then
