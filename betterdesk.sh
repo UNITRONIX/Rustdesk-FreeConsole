@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.3.26
+#   BetterDesk Console Manager v3.3.27
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -36,7 +36,7 @@
 set -e
 
 # Version
-VERSION="3.3.26"
+VERSION="3.3.27"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Auto mode flag
