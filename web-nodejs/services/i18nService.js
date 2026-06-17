@@ -35,6 +35,7 @@ const LANGUAGE_META = {
     'ro': { name: 'Romanian', native: 'Română', flag: '🇷🇴', rtl: false },
     'th': { name: 'Thai', native: 'ไทย', flag: '🇹🇭', rtl: false },
     'vi': { name: 'Vietnamese', native: 'Tiếng Việt', flag: '🇻🇳', rtl: false },
+    'ru': { name: 'Russian', native: 'Русский', flag: '🇷🇺', rtl: false },
     'id': { name: 'Indonesian', native: 'Bahasa Indonesia', flag: '🇮🇩', rtl: false },
     'zh-TW': { name: 'Chinese (Traditional)', native: '繁體中文', flag: '🇹🇼', rtl: false },
 };
