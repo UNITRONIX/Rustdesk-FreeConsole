@@ -166,6 +166,41 @@ const COMPONENTS = {
     }
 };
 
+function canWriteDirOrParent(dirPath) {
+    let current = path.resolve(dirPath);
+    while (!fs.existsSync(current)) {
+        const parent = path.dirname(current);
+        if (parent === current) return false;
+        current = parent;
+    }
+    try {
+        fs.accessSync(current, fs.constants.W_OK);
+        return true;
+    } catch (_e) {
+        return false;
+    }
+}
+
+function resolveServerSourceRootForUpdate(preferredRoot = COMPONENTS.server.localRoot, opts = {}) {
+    const fallbackRoot = opts.fallbackRoot || path.join(ROOT_DIR, 'betterdesk-server');
+    const canWriteDir = opts.canWriteDir || canWriteDirOrParent;
+    const preferred = path.resolve(preferredRoot);
+    const fallback = path.resolve(fallbackRoot);
+
+    if (IS_WINDOWS || canWriteDir(preferred) || preferred === fallback) {
+        return preferred;
+    }
+
+    if (canWriteDir(fallback)) {
+        console.warn(
+            `[UPDATE] Server source root is not writable (${preferred}); using console-local source root ${fallback}`
+        );
+        return fallback;
+    }
+
+    return preferred;
+}
+
 // paths that are never downloaded during an update
 // CRITICAL: anything that holds local runtime state MUST be excluded here.
 // Overwriting live SQLite WAL/SHM files corrupts the database
@@ -937,7 +972,7 @@ function detectServerBinaryPath() {
  * @returns {Promise<{ strategy: string, filesDownloaded: number }>}
  */
 async function ensureServerSource(remoteSHA, opts = {}) {
-    const serverDir = COMPONENTS.server.localRoot;
+    const serverDir = resolveServerSourceRootForUpdate();
     const goModPath = path.join(serverDir, 'go.mod');
     if (!opts.force && fs.existsSync(goModPath)) {
         return { strategy: 'incremental', filesDownloaded: 0 };
@@ -1119,7 +1154,7 @@ async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
  * @returns {Promise<{ success: boolean, binaryPath: string|null, error?: string, duration?: number }>}
  */
 async function buildGoServer(preferredGoBinPath = null) {
-    const serverDir = COMPONENTS.server.localRoot;
+    const serverDir = resolveServerSourceRootForUpdate();
     if (!fs.existsSync(path.join(serverDir, 'go.mod'))) {
         return { success: false, binaryPath: null, error: 'go.mod not found — server source incomplete' };
     }
@@ -1447,7 +1482,7 @@ function deployServerBinaryPrivileged(builtBinaryPath, targetPath) {
         target: targetPath,
         consoleRoot: ROOT_DIR,
         projectRoot: PROJECT_ROOT,
-        serverSourceRoot: COMPONENTS.server.localRoot,
+        serverSourceRoot: resolveServerSourceRootForUpdate(),
     });
 
     try {
@@ -1616,7 +1651,7 @@ async function downloadPrebuiltBinary(downloadUrl) {
         return { success: false, binaryPath: null, error: 'Invalid download URL' };
     }
 
-    const serverDir = COMPONENTS.server.localRoot;
+    const serverDir = resolveServerSourceRootForUpdate();
     fs.mkdirSync(serverDir, { recursive: true });
 
     const binaryName = IS_WINDOWS ? 'betterdesk-server.exe' : 'betterdesk-server';
@@ -1671,7 +1706,8 @@ async function downloadPrebuiltBinary(downloadUrl) {
 function getServerUpdateInfo() {
     const goInfo = checkGoAvailable();
     const binaryPath = detectServerBinaryPath();
-    const sourcePresent = fs.existsSync(path.join(COMPONENTS.server.localRoot || '', 'go.mod'));
+    const sourceRoot = resolveServerSourceRootForUpdate();
+    const sourcePresent = fs.existsSync(path.join(sourceRoot || '', 'go.mod'));
     const vendoredGoPath = path.join(GO_TOOLCHAIN_DIR, 'go', 'bin', IS_WINDOWS ? 'go.exe' : 'go');
     const vendoredGoInstalled = fs.existsSync(vendoredGoPath);
 
@@ -2250,7 +2286,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             results.failed.push({ file: 'server-source', error: `Source download failed: ${err.message}` });
         }
 
-        const serverDir = COMPONENTS.server.localRoot;
+        const serverDir = resolveServerSourceRootForUpdate();
         for (const file of changedData.grouped.server) {
             try {
                 const localPath = file.path.slice(COMPONENTS.server.prefix.length);
@@ -2315,7 +2351,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     console.log(`[UPDATE] Trying raw binary download from repo: ${repoPath}`);
                     const data = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, repoPath);
                     if (data && data.length > 1024 * 1024) {
-                        const serverDir = COMPONENTS.server.localRoot;
+                        const serverDir = resolveServerSourceRootForUpdate();
                         fs.mkdirSync(serverDir, { recursive: true });
                         const outName = IS_WINDOWS ? 'betterdesk-server.exe' : 'betterdesk-server';
                         const outputPath = path.join(serverDir, outName);
@@ -2937,6 +2973,7 @@ module.exports = {
     getConsoleDeployGraph,
     splitUpdateFailures,
     repairMissingConsoleFiles,
+    resolveServerSourceRootForUpdate,
     readLastUpdateResult: () => require('../lib/updateResultStore').readLastUpdateResult(config.dataDir),
     ensureConsoleSource,
 };
