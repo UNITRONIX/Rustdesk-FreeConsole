@@ -104,6 +104,60 @@ function readGoUsersFromSqlite() {
     }
 }
 
+function getGoSqliteDbForWrite() {
+    if (db.type !== 'sqlite') return null;
+    if (typeof db.getDb !== 'function') return null;
+
+    try {
+        return db.getDb();
+    } catch (err) {
+        console.warn(`[userSync] Go SQLite write unavailable: ${err.message}`);
+        return null;
+    }
+}
+
+function localUserHasTotp(user) {
+    return !!(user && user.totp_enabled && String(user.totp_secret || '').trim() !== '');
+}
+
+function mirrorTotpToGoSqlite(username, { enabled, secret } = {}) {
+    const normalized = normalizeUsername(username);
+    if (!normalized) return false;
+
+    const goDb = getGoSqliteDbForWrite();
+    if (!goDb) return false;
+    if (!sqliteTableExists(goDb, 'users')) return false;
+
+    const cols = sqliteColumns(goDb, 'users');
+    if (!cols.has('username') || !cols.has('totp_secret') || !cols.has('totp_enabled')) {
+        console.warn('[userSync] TOTP mirror skipped: Go users table lacks TOTP columns');
+        return false;
+    }
+
+    const row = goDb.prepare('SELECT id FROM users WHERE lower(username) = ?').get(normalized);
+    if (!row) {
+        console.warn(`[userSync] TOTP mirror skipped: Go user '${username}' not found`);
+        return false;
+    }
+
+    if (enabled) {
+        const totpSecret = String(secret || '').trim();
+        if (!totpSecret) {
+            console.warn(`[userSync] TOTP enable mirror skipped for '${username}': missing secret`);
+            return false;
+        }
+        const recoverySql = cols.has('totp_recovery_codes') ? ', totp_recovery_codes = NULL' : '';
+        goDb.prepare(`UPDATE users SET totp_secret = ?, totp_enabled = 1${recoverySql} WHERE id = ?`).run(totpSecret, row.id);
+        console.log(`[userSync] Mirrored TOTP enable -> Go SQLite: '${username}'`);
+        return true;
+    }
+
+    const recoverySql = cols.has('totp_recovery_codes') ? ', totp_recovery_codes = NULL' : '';
+    goDb.prepare(`UPDATE users SET totp_secret = '', totp_enabled = 0${recoverySql} WHERE id = ?`).run(row.id);
+    console.log(`[userSync] Mirrored TOTP disable -> Go SQLite: '${username}'`);
+    return true;
+}
+
 function randomPassword() {
     // 32 hex chars — used only as a Go-side placeholder. Panel login keeps
     // using the Node bcrypt hash; admin can later reset the password through
@@ -225,6 +279,24 @@ async function mirrorDelete(username) {
     }
 }
 
+async function mirrorTotpEnable(username, { secret } = {}) {
+    if (!username || !secret) return;
+    if (db.type === 'postgres') {
+        // PostgreSQL uses the shared users table; the local enable already
+        // updates the row read by the Go API.
+        return;
+    }
+    mirrorTotpToGoSqlite(username, { enabled: true, secret });
+}
+
+async function mirrorTotpDisable(username) {
+    if (!username) return;
+    if (db.type === 'postgres') {
+        return;
+    }
+    mirrorTotpToGoSqlite(username, { enabled: false });
+}
+
 /**
  * Backfill: ensure every Node panel user has a matching Go-side user record.
  * Called once at startup. Missing users are created on the Go side with a
@@ -271,6 +343,14 @@ async function backfillFromNode() {
             const status = err.response?.status;
             if (status === 409) continue; // race — already exists, fine.
             console.warn(`[userSync] backfill: failed to create '${u.username}': status=${status} ${err.message}`);
+        }
+    }
+
+    if (db.type === 'sqlite') {
+        for (const u of nodeUsers) {
+            if (localUserHasTotp(u)) {
+                mirrorTotpToGoSqlite(u.username, { enabled: true, secret: u.totp_secret });
+            }
         }
     }
 }
@@ -437,6 +517,8 @@ module.exports = {
     mirrorCreate,
     mirrorUpdate,
     mirrorDelete,
+    mirrorTotpEnable,
+    mirrorTotpDisable,
     backfillFromGo,
     backfillFromNode,
 };

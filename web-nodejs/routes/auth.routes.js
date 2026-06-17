@@ -8,6 +8,7 @@ const router = express.Router();
 const authService = require('../services/authService');
 const db = require('../services/database');
 const betterdeskApi = require('../services/betterdeskApi');
+const userSync = require('../services/userSync');
 let serverAttestation;
 try {
     serverAttestation = require('../services/serverAttestation');
@@ -33,6 +34,14 @@ function isSafeReturnUrl(u) {
     if (!u.startsWith('/')) return false;
     if (u.startsWith('//') || u.startsWith('/\\')) return false;
     return true;
+}
+
+async function bestEffortUserSync(action, label) {
+    try {
+        await action();
+    } catch (err) {
+        console.warn(`[auth] ${label} sync failed:`, err.message);
+    }
 }
 
 /**
@@ -260,6 +269,14 @@ router.post('/api/auth/password', requireAuth, passwordChangeLimiter, async (req
                 error: result.error
             });
         }
+
+        await bestEffortUserSync(
+            async () => {
+                const user = req.session.user?.username ? req.session.user : await db.getUserById(req.session.userId);
+                await userSync.mirrorUpdate(user?.username, { password: newPassword });
+            },
+            'password change'
+        );
         
         // Log password change
         await db.logAction(req.session.userId, 'password_changed', 'Password changed', req.ip);
@@ -604,6 +621,14 @@ router.post('/api/auth/totp/enable', requireAuth, async (req, res) => {
                 error: result.error
             });
         }
+
+        await bestEffortUserSync(
+            async () => {
+                const user = await db.getUserById(req.session.userId);
+                await userSync.mirrorTotpEnable(user?.username, { secret: user?.totp_secret });
+            },
+            'TOTP enable'
+        );
         
         // Log action
         await db.logAction(req.session.userId, 'totp_enabled', '2FA enabled', req.ip);
@@ -653,6 +678,10 @@ router.post('/api/auth/totp/disable', requireAuth, async (req, res) => {
         }
         
         await authService.disableTotp(req.session.userId);
+        await bestEffortUserSync(
+            () => userSync.mirrorTotpDisable(user.username),
+            'TOTP disable'
+        );
         
         // Log action
         await db.logAction(req.session.userId, 'totp_disabled', '2FA disabled', req.ip);
