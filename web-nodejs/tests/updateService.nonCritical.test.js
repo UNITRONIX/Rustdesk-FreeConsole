@@ -1,6 +1,12 @@
 'use strict';
 
-const { isNonCriticalUpdateFailure, NON_CRITICAL_UPDATE_FAILURES } = require('../lib/updateFailurePolicy');
+const path = require('path');
+const {
+    isNonCriticalUpdateFailure,
+    NON_CRITICAL_UPDATE_FAILURES,
+    splitUpdateFailures,
+} = require('../lib/updateFailurePolicy');
+const { resolveServerSourceRootForUpdate } = require('../services/updateService');
 
 describe('updateService non-critical failures', () => {
     test('treats root-owned installer scripts as non-critical', () => {
@@ -20,5 +26,31 @@ describe('updateService non-critical failures', () => {
     test('keeps server binary failures non-critical', () => {
         expect(NON_CRITICAL_UPDATE_FAILURES.has('betterdesk-server')).toBe(true);
         expect(NON_CRITICAL_UPDATE_FAILURES.has('server-source')).toBe(true);
+    });
+
+    test('falls back to console-local server source when legacy root-owned source is not writable', () => {
+        const legacyRoot = '/opt/betterdesk-server';
+        const consoleRoot = path.join('/opt', 'BetterDeskConsole', 'betterdesk-server');
+
+        const selected = resolveServerSourceRootForUpdate(legacyRoot, {
+            fallbackRoot: consoleRoot,
+            canWriteDir: (candidate) => candidate === consoleRoot,
+        });
+
+        expect(selected).toBe(consoleRoot);
+    });
+
+    test('keeps legacy server-source failures non-critical while console file failures stay critical', () => {
+        const { critical, nonCritical } = splitUpdateFailures([
+            { file: 'server-source', error: 'Source download failed: EACCES' },
+            { file: 'betterdesk-server/api/auth_handlers.go', error: 'EACCES', nonCritical: true },
+            { file: 'web-nodejs/services/dbAdapter.js', error: 'disk full' },
+        ]);
+
+        expect(nonCritical.map(f => f.file)).toEqual([
+            'server-source',
+            'betterdesk-server/api/auth_handlers.go',
+        ]);
+        expect(critical.map(f => f.file)).toEqual(['web-nodejs/services/dbAdapter.js']);
     });
 });
