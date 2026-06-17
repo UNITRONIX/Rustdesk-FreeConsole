@@ -27,6 +27,10 @@ const CONSOLE_SERVICE = 'betterdesk-console';
 const SERVER_SERVICE = 'betterdesk-server';
 const UPDATE_SUDOERS_PATH = '/etc/sudoers.d/betterdesk-console-updates';
 const UPDATE_SUDOERS_MARKER = '# Managed by BetterDesk linux-ensure-console-user.js';
+/** setgid + group rwx — new Go-server files inherit group betterdesk (#206) */
+const SHARED_GO_DATA_DIR_MODE = '2775';
+/** setgid + group rx — console reads TLS material written by root */
+const SHARED_GO_SSL_DIR_MODE = '2750';
 
 function resolveSystemctlPath() {
     for (const candidate of ['/usr/bin/systemctl', '/bin/systemctl']) {
@@ -191,6 +195,51 @@ function ensureDataDir() {
 }
 
 /**
+ * Privileged argv steps for shared Go data directory group access (#206).
+ * Exported for unit tests.
+ * @param {string} rustdeskPath
+ * @param {string} [svcUser]
+ * @returns {Array<{ bin: string, args: string[] }>}
+ */
+function getSharedGoDataDirPermissionSteps(rustdeskPath, svcUser = SVC_USER) {
+    const sslDir = path.join(rustdeskPath, 'ssl');
+    return [
+        { bin: 'mkdir', args: ['-p', rustdeskPath] },
+        { bin: 'chown', args: [`root:${svcUser}`, rustdeskPath] },
+        { bin: 'chmod', args: [SHARED_GO_DATA_DIR_MODE, rustdeskPath] },
+        { bin: 'mkdir', args: ['-p', sslDir] },
+        { bin: 'chown', args: [`root:${svcUser}`, sslDir] },
+        { bin: 'chmod', args: [SHARED_GO_SSL_DIR_MODE, sslDir] },
+    ];
+}
+
+function listSharedGoDataFiles(rustdeskPath) {
+    const files = [
+        path.join(rustdeskPath, '.api_key'),
+        path.join(rustdeskPath, 'id_ed25519.pub'),
+        path.join(rustdeskPath, 'ssl', 'betterdesk.crt'),
+        path.join(rustdeskPath, 'ssl', 'betterdesk.key'),
+    ];
+    const dbBase = path.join(rustdeskPath, 'db_v2.sqlite3');
+    files.push(dbBase);
+    for (const suffix of ['-wal', '-shm', '-journal']) {
+        files.push(dbBase + suffix);
+    }
+    return files;
+}
+
+function applySharedGoFilePermissions(filePath, svcUser, runFn = runPrivilegedArgv) {
+    if (!fs.existsSync(filePath)) return;
+    runFn('chown', [`root:${svcUser}`, filePath]);
+    runFn('chmod', ['g+r', filePath]);
+    if (filePath.includes('db_v2') || filePath.endsWith('.api_key') || filePath.includes(`${path.sep}ssl${path.sep}`)) {
+        runFn('chmod', ['g+rw', filePath]);
+    } else {
+        runFn('chmod', ['640', filePath]);
+    }
+}
+
+/**
  * @returns {{ ok: boolean, error?: string, skipped?: boolean }}
  */
 function fixSharedPermissions() {
@@ -206,24 +255,11 @@ function fixSharedPermissions() {
         runPrivilegedArgv('chown', ['-R', `${SVC_USER}:${SVC_USER}`, '/var/lib/betterdesk']);
         runPrivilegedArgv('chown', ['-R', `${SVC_USER}:${SVC_USER}`, CONSOLE_PATH]);
 
-        const shared = [
-            path.join(RUSTDESK_PATH, '.api_key'),
-            path.join(RUSTDESK_PATH, 'id_ed25519.pub'),
-            path.join(RUSTDESK_PATH, 'db_v2.sqlite3'),
-            path.join(RUSTDESK_PATH, 'db_v2.sqlite3-wal'),
-            path.join(RUSTDESK_PATH, 'db_v2.sqlite3-shm'),
-            path.join(RUSTDESK_PATH, 'ssl', 'betterdesk.crt'),
-            path.join(RUSTDESK_PATH, 'ssl', 'betterdesk.key'),
-        ];
-        for (const filePath of shared) {
-            if (!fs.existsSync(filePath)) continue;
-            runPrivilegedArgv('chown', [`root:${SVC_USER}`, filePath]);
-            runPrivilegedArgv('chmod', ['g+r', filePath]);
-            if (filePath.includes('db_v2') || filePath.endsWith('.api_key') || filePath.includes('/ssl/')) {
-                runPrivilegedArgv('chmod', ['g+rw', filePath]);
-            } else {
-                runPrivilegedArgv('chmod', ['640', filePath]);
-            }
+        for (const step of getSharedGoDataDirPermissionSteps(RUSTDESK_PATH, SVC_USER)) {
+            runPrivilegedArgv(step.bin, step.args);
+        }
+        for (const filePath of listSharedGoDataFiles(RUSTDESK_PATH)) {
+            applySharedGoFilePermissions(filePath, SVC_USER);
         }
         return { ok: true };
     } catch (err) {
@@ -231,15 +267,11 @@ function fixSharedPermissions() {
     }
 }
 
-/** Verify the console service user can write the data directory. */
-function verifyConsoleUserAccess() {
-    if (!userExists(SVC_USER)) {
-        return { ok: false, error: `system user ${SVC_USER} does not exist` };
-    }
-    const dataDir = path.join(CONSOLE_PATH, 'data');
+/** @returns {{ ok: boolean, error?: string }} */
+function verifyDirWritableByUser(dirPath, label = 'directory') {
     try {
         if (typeof process.getuid === 'function' && process.getuid() === 0) {
-            execFileSync('runuser', ['-u', SVC_USER, '--', 'test', '-w', dataDir], {
+            execFileSync('runuser', ['-u', SVC_USER, '--', 'test', '-w', dirPath], {
                 stdio: 'pipe',
                 timeout: 5000,
             });
@@ -250,17 +282,28 @@ function verifyConsoleUserAccess() {
                 timeout: 5000,
             }).trim();
             if (String(process.getuid()) === uid) {
-                fs.accessSync(dataDir, fs.constants.W_OK);
+                fs.accessSync(dirPath, fs.constants.W_OK);
             } else {
-                return { ok: false, error: `cannot verify ${SVC_USER} access from uid ${process.getuid()}` };
+                return { ok: false, error: `cannot verify ${SVC_USER} access to ${label} from uid ${process.getuid()}` };
             }
         } else {
-            fs.accessSync(dataDir, fs.constants.W_OK);
+            fs.accessSync(dirPath, fs.constants.W_OK);
         }
         return { ok: true };
     } catch (_) {
-        return { ok: false, error: `${SVC_USER} cannot write ${dataDir}` };
+        return { ok: false, error: `${SVC_USER} cannot write ${label} (${dirPath})` };
     }
+}
+
+/** Verify the console service user can write console data and Go server data dirs. */
+function verifyConsoleUserAccess() {
+    if (!userExists(SVC_USER)) {
+        return { ok: false, error: `system user ${SVC_USER} does not exist` };
+    }
+    const dataDir = path.join(CONSOLE_PATH, 'data');
+    const dataCheck = verifyDirWritableByUser(dataDir, 'console data');
+    if (!dataCheck.ok) return dataCheck;
+    return verifyDirWritableByUser(RUSTDESK_PATH, 'Go server data');
 }
 
 function patchServiceUserLine() {
@@ -385,9 +428,15 @@ module.exports = {
     ensureDataDir,
     fixSharedPermissions,
     verifyConsoleUserAccess,
+    verifyDirWritableByUser,
+    getSharedGoDataDirPermissionSteps,
+    listSharedGoDataFiles,
+    applySharedGoFilePermissions,
     buildUpdateSudoersContent,
     ensureDeployScriptExecutable,
     resolveSystemctlPath,
     patchServiceUserLine,
+    SHARED_GO_DATA_DIR_MODE,
+    SHARED_GO_SSL_DIR_MODE,
     SVC_USER,
 };

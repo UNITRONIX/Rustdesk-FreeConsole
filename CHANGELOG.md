@@ -5,6 +5,23 @@
 
 ---
 
+## [3.3.2] — 2026-06-17
+
+Patch release on `main`. Ships via **Settings → Updates** (Stable), `betterdesk.sh` option 2 (Update / Repair permissions), or panel update on the stable channel.
+
+### Fixed
+
+- **Bare-metal console startup (#206)** — `betterdesk-console` failed with `SQLITE_READONLY_DIRECTORY` on `db_v2.sqlite3` because the unprivileged `betterdesk` user could not write to the Go server data directory. Installer and `linux-ensure-console-user.js` now apply setgid group-write on `$RUSTDESK_PATH`, re-sync permissions after the Go server starts, and verify both console `data/` and Go data dirs before marking permissions OK.
+
+### Upgrade notes
+
+| Topic | Action |
+|-------|--------|
+| **Broken console on bare metal** | Update to 3.3.2+ via Settings → Updates (Stable) or `betterdesk.sh` → Update. Or once as root: `chown root:betterdesk /opt/betterdesk && chmod 2775 /opt/betterdesk`, then `systemctl restart betterdesk-console`. |
+| **Verify** | `systemctl is-active betterdesk-console`; panel loads on port 5000 or 5443; `journalctl -u betterdesk-console -n 20` shows no `SQLITE_READONLY_DIRECTORY`. |
+
+---
+
 ## [3.3.1] — 2026-06-12
 
 Patch release on `main`. Ships via **Settings → Updates** (Stable), `betterdesk.sh` option 2, or replace `betterdesk.sh` from tag `v3.3.1`.
