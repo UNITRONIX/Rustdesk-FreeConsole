@@ -4,271 +4,344 @@
     pageScripts: ['dashboard'],
     currentPage: 'dashboard',
     body: `
-        <div class="dashboard-welcome" id="welcome-section">
-            <div class="welcome-greeting">
-                <h1 id="welcome-greeting-text"><span class="skeleton skeleton-text" style="width:260px;display:inline-block"></span></h1>
-                <p class="welcome-subtitle">${_('dashboard.subtitle')}</p>
-            </div>
-            <div class="welcome-tip" id="welcome-tip">
+        <div class="dashboard-shell" id="welcome-section">
+            <section class="dashboard-hero" aria-labelledby="welcome-greeting-text">
+                <div class="dashboard-hero-copy">
+                    <span class="dashboard-eyebrow">${_('dashboard.title')}</span>
+                    <h1 id="welcome-greeting-text"><span class="skeleton skeleton-text" style="width:260px;display:inline-block"></span></h1>
+                    <p class="welcome-subtitle">${_('dashboard.subtitle')}</p>
+                </div>
+                <div class="dashboard-hero-actions">
+                    <div class="system-pill" id="dashboard-system-pill" aria-live="polite">
+                        <span class="status-dot"></span>
+                        <span id="dashboard-system-status">${_('status.checking')}</span>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" id="refresh-status-btn">
+                        <span class="material-icons">refresh</span>
+                        ${_('actions.refresh')}
+                    </button>
+                </div>
+            </section>
+
+            <div class="dashboard-tip" id="welcome-tip">
                 <span class="material-icons tip-icon">lightbulb</span>
                 <span class="tip-text" id="tip-text"></span>
-                <button class="tip-dismiss" id="tip-dismiss" title="${_('actions.dismiss')}">
+                <button class="tip-dismiss" id="tip-dismiss" title="${_('actions.dismiss')}" aria-label="${_('actions.dismiss')}">
                     <span class="material-icons">close</span>
                 </button>
             </div>
-        </div>
 
-        <div class="dashboard-layout">
-            <div class="dashboard-primary">
-        
-        <!-- Stats Cards -->
-        <div class="dashboard-stats">
-            <div class="dashboard-stat-card">
-                <div class="dashboard-stat-icon devices">
-                    <span class="material-icons">devices</span>
-                </div>
-                <div class="dashboard-stat-content">
-                    <div class="dashboard-stat-value" id="stat-total">
-                        <span class="skeleton skeleton-text"></span>
-                    </div>
-                    <div class="dashboard-stat-label">${_('dashboard.total_devices')}</div>
-                </div>
-            </div>
-            
-            <div class="dashboard-stat-card">
-                <div class="dashboard-stat-icon online">
-                    <span class="material-icons">wifi</span>
-                </div>
-                <div class="dashboard-stat-content">
-                    <div class="dashboard-stat-value" id="stat-online">
-                        <span class="skeleton skeleton-text"></span>
-                    </div>
-                    <div class="dashboard-stat-label">${_('dashboard.online_now')}</div>
-                </div>
-            </div>
-            
-            <div class="dashboard-stat-card">
-                <div class="dashboard-stat-icon banned">
-                    <span class="material-icons">block</span>
-                </div>
-                <div class="dashboard-stat-content">
-                    <div class="dashboard-stat-value" id="stat-banned">
-                        <span class="skeleton skeleton-text"></span>
-                    </div>
-                    <div class="dashboard-stat-label">${_('dashboard.banned')}</div>
-                </div>
-            </div>
-            
-            <div class="dashboard-stat-card">
-                <div class="dashboard-stat-icon offline">
-                    <span class="material-icons">cloud_off</span>
-                </div>
-                <div class="dashboard-stat-content">
-                    <div class="dashboard-stat-value" id="stat-connections">
-                        <span class="skeleton skeleton-text"></span>
-                    </div>
-                    <div class="dashboard-stat-label">${_('dashboard.offline_devices')}</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Server Status -->
-        <section class="server-status-section">
-            <div class="section-header">
-                <h2 class="section-title">
-                    <span class="material-icons">dns</span>
-                    ${_('dashboard.server_status')}
-                </h2>
-                <button class="btn btn-secondary btn-sm" id="refresh-status-btn">
-                    <span class="material-icons">refresh</span>
-                    ${_('actions.refresh')}
-                </button>
-            </div>
-            
-            <div class="server-status-grid">
-                <!-- Signal Server -->
-                <div class="server-status-card">
-                    <div class="server-status-header">
-                        <span class="server-status-title">
-                            <span class="material-icons">router</span>
-                            Signal Server
-                        </span>
-                        <span class="server-status-indicator" id="hbbs-status">
-                            <span class="status-dot"></span>
-                            <span class="status-text">${_('status.checking')}</span>
-                        </span>
-                    </div>
-                    <div class="server-status-details">
-                        <div class="server-detail-row">
-                            <span class="server-detail-label">Signal (TCP/UDP)</span>
-                            <span class="server-detail-value" id="hbbs-port">-</span>
-                        </div>
-                        <div class="server-detail-row">
-                            <span class="server-detail-label">NAT Test (TCP)</span>
-                            <span class="server-detail-value" id="nat-port">-</span>
-                        </div>
-                        <div class="server-detail-row">
-                            <span class="server-detail-label">WS Signal</span>
-                            <span class="server-detail-value" id="ws-signal-port">-</span>
-                        </div>
-                        <div class="server-detail-row">
-                            <span class="server-detail-label">REST API (HTTP)</span>
-                            <span class="server-detail-value" id="api-port">-</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Relay Server -->
-                <div class="server-status-card">
-                    <div class="server-status-header">
-                        <span class="server-status-title">
-                            <span class="material-icons">swap_horiz</span>
-                            Relay Server
-                        </span>
-                        <span class="server-status-indicator" id="hbbr-status">
-                            <span class="status-dot"></span>
-                            <span class="status-text">${_('status.checking')}</span>
-                        </span>
-                    </div>
-                    <div class="server-status-details">
-                        <div class="server-detail-row">
-                            <span class="server-detail-label">Relay (TCP)</span>
-                            <span class="server-detail-value" id="hbbr-port">-</span>
-                        </div>
-                        <div class="server-detail-row">
-                            <span class="server-detail-label">WS Relay</span>
-                            <span class="server-detail-value" id="ws-relay-port">-</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Web Console  -->
-                <div class="server-status-card">
-                    <div class="server-status-header">
-                        <span class="server-status-title">
-                            <span class="material-icons">web</span>
-                            Web Console
-                        </span>
-                        <span class="server-status-indicator running">
-                            <span class="status-dot"></span>
-                            <span class="status-text">${_('status.running')}</span>
-                        </span>
-                    </div>
-                    <div class="server-status-details">
-                        <div class="server-detail-row">
-                            <span class="server-detail-label">Console (HTTP)</span>
-                            <span class="server-detail-value" id="console-port">-</span>
-                        </div>
-                        <div class="server-detail-row">
-                            <span class="server-detail-label">Client API (HTTP)</span>
-                            <span class="server-detail-value" id="client-api-port">-</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-        
-        <!-- Quick Actions -->
-        <section class="quick-actions-section">
-            <div class="section-header">
-                <h2 class="section-title">
-                    <span class="material-icons">flash_on</span>
-                    ${_('dashboard.quick_actions')}
-                </h2>
-            </div>
-            
-            <div class="quick-actions">
-                <a href="/devices" class="quick-action-card">
-                    <div class="quick-action-icon">
-                        <span class="material-icons">devices</span>
-                    </div>
-                    <div class="quick-action-title">${_('nav.devices')}</div>
-                    <div class="quick-action-desc">${_('dashboard.manage_devices')}</div>
-                </a>
-                
-                <a href="/keys" class="quick-action-card">
-                    <div class="quick-action-icon">
-                        <span class="material-icons">vpn_key</span>
-                    </div>
-                    <div class="quick-action-title">${_('nav.keys')}</div>
-                    <div class="quick-action-desc">${_('dashboard.view_keys')}</div>
-                </a>
-                
-                <a href="/generator" class="quick-action-card">
-                    <div class="quick-action-icon">
-                        <span class="material-icons">build</span>
-                    </div>
-                    <div class="quick-action-title">${_('nav.generator')}</div>
-                    <div class="quick-action-desc">${_('dashboard.generate_config')}</div>
-                </a>
-                
-                <a href="/settings" class="quick-action-card">
-                    <div class="quick-action-icon">
-                        <span class="material-icons">settings</span>
-                    </div>
-                    <div class="quick-action-title">${_('nav.settings')}</div>
-                    <div class="quick-action-desc">${_('dashboard.server_settings')}</div>
-                </a>
-            </div>
-        </section>
+            <div class="dashboard-layout">
+                <main class="dashboard-primary" aria-label="${_('dashboard.title')}">
+                    <section class="dashboard-stats" aria-label="${_('dashboard.health_overview')}">
+                        <article class="dashboard-stat-card">
+                            <div class="dashboard-stat-icon devices">
+                                <span class="material-icons">devices</span>
+                            </div>
+                            <div class="dashboard-stat-content">
+                                <div class="dashboard-stat-value" id="stat-total">
+                                    <span class="skeleton skeleton-text"></span>
+                                </div>
+                                <div class="dashboard-stat-label">${_('dashboard.total_devices')}</div>
+                            </div>
+                        </article>
 
+                        <article class="dashboard-stat-card">
+                            <div class="dashboard-stat-icon online">
+                                <span class="material-icons">wifi</span>
+                            </div>
+                            <div class="dashboard-stat-content">
+                                <div class="dashboard-stat-value" id="stat-online">
+                                    <span class="skeleton skeleton-text"></span>
+                                </div>
+                                <div class="dashboard-stat-label">${_('dashboard.online_now')}</div>
+                            </div>
+                        </article>
+
+                        <article class="dashboard-stat-card">
+                            <div class="dashboard-stat-icon banned">
+                                <span class="material-icons">block</span>
+                            </div>
+                            <div class="dashboard-stat-content">
+                                <div class="dashboard-stat-value" id="stat-banned">
+                                    <span class="skeleton skeleton-text"></span>
+                                </div>
+                                <div class="dashboard-stat-label">${_('dashboard.banned')}</div>
+                            </div>
+                        </article>
+
+                        <article class="dashboard-stat-card">
+                            <div class="dashboard-stat-icon offline">
+                                <span class="material-icons">cloud_off</span>
+                            </div>
+                            <div class="dashboard-stat-content">
+                                <div class="dashboard-stat-value" id="stat-connections">
+                                    <span class="skeleton skeleton-text"></span>
+                                </div>
+                                <div class="dashboard-stat-label">${_('dashboard.offline_devices')}</div>
+                            </div>
+                        </article>
+                    </section>
+
+                    <section class="client-config-card" aria-labelledby="client-config-title">
+                        <div class="client-config-header">
+                            <div>
+                                <span class="dashboard-eyebrow">${_('dashboard.client_config_eyebrow')}</span>
+                                <h2 class="section-title" id="client-config-title">
+                                    <span class="material-icons">integration_instructions</span>
+                                    ${_('dashboard.client_config_title')}
+                                </h2>
+                                <p class="client-config-subtitle">${_('dashboard.client_config_subtitle')}</p>
+                            </div>
+                            <div class="client-config-actions">
+                                <button type="button" class="btn btn-secondary btn-sm" id="copy-client-config-btn">
+                                    <span class="material-icons">content_copy</span>
+                                    ${_('dashboard.copy_all_config')}
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="show-client-qr-btn">
+                                    <span class="material-icons">qr_code_2</span>
+                                    ${_('dashboard.show_config_qr')}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="client-config-grid">
+                            <div class="client-config-field">
+                                <span class="client-config-label">${_('dashboard.config_server_id')}</span>
+                                <code class="client-config-value" id="client-config-server-id"><span class="skeleton skeleton-text"></span></code>
+                                <button type="button" class="client-config-copy" data-copy-target="client-config-server-id" title="${_('actions.copy')}" aria-label="${_('actions.copy')} ${_('dashboard.config_server_id')}">
+                                    <span class="material-icons">content_copy</span>
+                                </button>
+                            </div>
+                            <div class="client-config-field">
+                                <span class="client-config-label">${_('dashboard.config_relay_server')}</span>
+                                <code class="client-config-value" id="client-config-relay-server"><span class="skeleton skeleton-text"></span></code>
+                                <button type="button" class="client-config-copy" data-copy-target="client-config-relay-server" title="${_('actions.copy')}" aria-label="${_('actions.copy')} ${_('dashboard.config_relay_server')}">
+                                    <span class="material-icons">content_copy</span>
+                                </button>
+                            </div>
+                            <div class="client-config-field">
+                                <span class="client-config-label">${_('dashboard.config_api_server')}</span>
+                                <code class="client-config-value" id="client-config-api-url"><span class="skeleton skeleton-text"></span></code>
+                                <button type="button" class="client-config-copy" data-copy-target="client-config-api-url" title="${_('actions.copy')}" aria-label="${_('actions.copy')} ${_('dashboard.config_api_server')}">
+                                    <span class="material-icons">content_copy</span>
+                                </button>
+                            </div>
+                            <div class="client-config-field client-config-field-wide">
+                                <span class="client-config-label">${_('dashboard.config_key')}</span>
+                                <code class="client-config-value" id="client-config-public-key"><span class="skeleton skeleton-text"></span></code>
+                                <button type="button" class="client-config-copy" data-copy-target="client-config-public-key" title="${_('actions.copy')}" aria-label="${_('actions.copy')} ${_('dashboard.config_key')}">
+                                    <span class="material-icons">content_copy</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="client-config-footer">
+                            <p>${_('dashboard.client_config_hint')}</p>
+                            <div class="client-config-links">
+                                <a class="btn btn-primary btn-sm" href="/generator">
+                                    <span class="material-icons">build</span>
+                                    ${_('dashboard.open_generator')}
+                                </a>
+                                <a class="btn btn-secondary btn-sm" href="/keys">
+                                    <span class="material-icons">vpn_key</span>
+                                    ${_('dashboard.open_keys')}
+                                </a>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="server-status-section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">dns</span>
+                                ${_('dashboard.server_status')}
+                            </h2>
+                        </div>
+
+                        <div class="server-status-grid">
+                            <article class="server-status-card">
+                                <div class="server-status-header">
+                                    <span class="server-status-title">
+                                        <span class="material-icons">router</span>
+                                        Signal Server
+                                    </span>
+                                    <span class="server-status-indicator" id="hbbs-status">
+                                        <span class="status-dot"></span>
+                                        <span class="status-text">${_('status.checking')}</span>
+                                    </span>
+                                </div>
+                                <div class="server-status-details">
+                                    <div class="server-detail-row">
+                                        <span class="server-detail-label">Signal (TCP/UDP)</span>
+                                        <span class="server-detail-value" id="hbbs-port">-</span>
+                                    </div>
+                                    <div class="server-detail-row">
+                                        <span class="server-detail-label">NAT Test (TCP)</span>
+                                        <span class="server-detail-value" id="nat-port">-</span>
+                                    </div>
+                                    <div class="server-detail-row">
+                                        <span class="server-detail-label">WS Signal</span>
+                                        <span class="server-detail-value" id="ws-signal-port">-</span>
+                                    </div>
+                                    <div class="server-detail-row">
+                                        <span class="server-detail-label">REST API (HTTP)</span>
+                                        <span class="server-detail-value" id="api-port">-</span>
+                                    </div>
+                                </div>
+                            </article>
+
+                            <article class="server-status-card">
+                                <div class="server-status-header">
+                                    <span class="server-status-title">
+                                        <span class="material-icons">swap_horiz</span>
+                                        Relay Server
+                                    </span>
+                                    <span class="server-status-indicator" id="hbbr-status">
+                                        <span class="status-dot"></span>
+                                        <span class="status-text">${_('status.checking')}</span>
+                                    </span>
+                                </div>
+                                <div class="server-status-details">
+                                    <div class="server-detail-row">
+                                        <span class="server-detail-label">Relay (TCP)</span>
+                                        <span class="server-detail-value" id="hbbr-port">-</span>
+                                    </div>
+                                    <div class="server-detail-row">
+                                        <span class="server-detail-label">WS Relay</span>
+                                        <span class="server-detail-value" id="ws-relay-port">-</span>
+                                    </div>
+                                </div>
+                            </article>
+
+                            <article class="server-status-card">
+                                <div class="server-status-header">
+                                    <span class="server-status-title">
+                                        <span class="material-icons">web</span>
+                                        Web Console
+                                    </span>
+                                    <span class="server-status-indicator running">
+                                        <span class="status-dot"></span>
+                                        <span class="status-text">${_('status.running')}</span>
+                                    </span>
+                                </div>
+                                <div class="server-status-details">
+                                    <div class="server-detail-row">
+                                        <span class="server-detail-label">Console (HTTP)</span>
+                                        <span class="server-detail-value" id="console-port">-</span>
+                                    </div>
+                                    <div class="server-detail-row">
+                                        <span class="server-detail-label">Client API (HTTP)</span>
+                                        <span class="server-detail-value" id="client-api-port">-</span>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+
+                    <section class="quick-actions-section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">flash_on</span>
+                                ${_('dashboard.quick_actions')}
+                            </h2>
+                        </div>
+
+                        <div class="quick-actions">
+                            <a href="/devices" class="quick-action-card">
+                                <div class="quick-action-icon">
+                                    <span class="material-icons">devices</span>
+                                </div>
+                                <div class="quick-action-title">${_('nav.devices')}</div>
+                                <div class="quick-action-desc">${_('dashboard.manage_devices')}</div>
+                            </a>
+
+                            <a href="/generator" class="quick-action-card">
+                                <div class="quick-action-icon">
+                                    <span class="material-icons">build</span>
+                                </div>
+                                <div class="quick-action-title">${_('nav.generator')}</div>
+                                <div class="quick-action-desc">${_('dashboard.generate_config')}</div>
+                            </a>
+
+                            <a href="/remote" class="quick-action-card">
+                                <div class="quick-action-icon">
+                                    <span class="material-icons">desktop_windows</span>
+                                </div>
+                                <div class="quick-action-title">${_('nav.remote')}</div>
+                                <div class="quick-action-desc">${_('dashboard.open_remote')}</div>
+                            </a>
+
+                            <a href="/settings" class="quick-action-card">
+                                <div class="quick-action-icon">
+                                    <span class="material-icons">settings</span>
+                                </div>
+                                <div class="quick-action-title">${_('nav.settings')}</div>
+                                <div class="quick-action-desc">${_('dashboard.server_settings')}</div>
+                            </a>
+                        </div>
+                    </section>
+                </main>
+
+                <aside class="dashboard-side-panel" aria-label="${_('dashboard.attention_panel')} ${_('dashboard.activity_feed')}">
+                    <section class="attention-section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">priority_high</span>
+                                ${_('dashboard.attention_panel')}
+                            </h2>
+                        </div>
+                        <div class="attention-list">
+                            <div class="attention-item attention-online">
+                                <span class="material-icons">cloud_done</span>
+                                <div>
+                                    <strong id="health-online">-</strong>
+                                    <span>${_('dashboard.devices_online')}</span>
+                                </div>
+                            </div>
+                            <div class="attention-item attention-alerts">
+                                <span class="material-icons">warning</span>
+                                <div>
+                                    <strong id="health-alerts">-</strong>
+                                    <span>${_('dashboard.active_alerts')}</span>
+                                </div>
+                            </div>
+                            <div class="attention-item attention-connections">
+                                <span class="material-icons">sync_alt</span>
+                                <div>
+                                    <strong id="health-connections">-</strong>
+                                    <span>${_('dashboard.recent_connections')}</span>
+                                </div>
+                            </div>
+                            <div class="attention-item attention-uptime">
+                                <span class="material-icons">schedule</span>
+                                <div>
+                                    <strong id="health-uptime">-</strong>
+                                    <span>${_('dashboard.server_uptime')}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="activity-feed-section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                <span class="material-icons">history</span>
+                                ${_('dashboard.activity_feed')}
+                            </h2>
+                            <a href="/security-audit" class="btn btn-secondary btn-sm">
+                                <span class="material-icons">open_in_new</span>
+                                ${_('actions.view_all')}
+                            </a>
+                        </div>
+                        <div class="activity-list" id="activity-feed">
+                            <div class="activity-empty">
+                                <span class="skeleton skeleton-text" style="width:200px;display:inline-block"></span>
+                            </div>
+                        </div>
+                    </section>
+                </aside>
             </div>
-            <aside class="dashboard-side-panel" aria-label="${_('dashboard.health_overview')} ${_('dashboard.activity_feed')}">
-        
-        <!-- Health Overview + Activity Feed -->
-        <div class="dashboard-bottom-grid">
-            <!-- Health Overview -->
-            <section class="health-overview-section">
-                <div class="section-header">
-                    <h2 class="section-title">
-                        <span class="material-icons">monitor_heart</span>
-                        ${_('dashboard.health_overview')}
-                    </h2>
-                </div>
-                <div class="health-cards">
-                    <div class="health-card health-online">
-                        <span class="material-icons">cloud_done</span>
-                        <div class="health-card-value" id="health-online">-</div>
-                        <div class="health-card-label">${_('dashboard.devices_online')}</div>
-                    </div>
-                    <div class="health-card health-alerts">
-                        <span class="material-icons">warning</span>
-                        <div class="health-card-value" id="health-alerts">-</div>
-                        <div class="health-card-label">${_('dashboard.active_alerts')}</div>
-                    </div>
-                    <div class="health-card health-connections">
-                        <span class="material-icons">sync_alt</span>
-                        <div class="health-card-value" id="health-connections">-</div>
-                        <div class="health-card-label">${_('dashboard.recent_connections')}</div>
-                    </div>
-                    <div class="health-card health-uptime">
-                        <span class="material-icons">schedule</span>
-                        <div class="health-card-value" id="health-uptime">-</div>
-                        <div class="health-card-label">${_('dashboard.server_uptime')}</div>
-                    </div>
-                </div>
-            </section>
-            
-            <!-- Activity Feed -->
-            <section class="activity-feed-section">
-                <div class="section-header">
-                    <h2 class="section-title">
-                        <span class="material-icons">history</span>
-                        ${_('dashboard.activity_feed')}
-                    </h2>
-                    <a href="/security-audit" class="btn btn-secondary btn-sm">
-                        <span class="material-icons">open_in_new</span>
-                        ${_('actions.view_all')}
-                    </a>
-                </div>
-                <div class="activity-list" id="activity-feed">
-                    <div class="activity-empty">
-                        <span class="skeleton skeleton-text" style="width:200px;display:inline-block"></span>
-                    </div>
-                </div>
-            </section>
-        </div>
-            </aside>
         </div>
     `
 }) %>

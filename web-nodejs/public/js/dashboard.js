@@ -16,6 +16,13 @@
     let statusButtonHandler = null;
     let tipDismissButton = null;
     let tipDismissHandler = null;
+    let copyAllConfigButton = null;
+    let copyAllConfigHandler = null;
+    let showClientQrButton = null;
+    let showClientQrHandler = null;
+    let clientConfigCopyButtons = [];
+    const clientConfigCopyHandlers = new Map();
+    let clientConfig = null;
     const pendingRequests = new Map();
     
     // Tips pool — rotated daily
@@ -41,6 +48,7 @@
         renderTip();
         loadActivityFeed();
         loadOverview();
+        loadClientConfig();
         
         // Auto-refresh every 30 seconds
         refreshInterval = setInterval(() => {
@@ -54,6 +62,7 @@
         refreshHandler = () => {
             loadActivityFeed();
             loadOverview();
+            loadClientConfig();
         };
         window.addEventListener('app:refresh', refreshHandler);
         
@@ -72,6 +81,21 @@
             }
         };
         tipDismissButton?.addEventListener('click', tipDismissHandler);
+
+        copyAllConfigButton = findById('copy-client-config-btn');
+        copyAllConfigHandler = copyFullClientConfig;
+        copyAllConfigButton?.addEventListener('click', copyAllConfigHandler);
+
+        showClientQrButton = findById('show-client-qr-btn');
+        showClientQrHandler = showClientConfigQr;
+        showClientQrButton?.addEventListener('click', showClientQrHandler);
+
+        clientConfigCopyButtons = Array.from(rootEl.querySelectorAll?.('.client-config-copy') || []);
+        clientConfigCopyButtons.forEach(button => {
+            const handler = () => copyClientConfigField(button.dataset.copyTarget, button);
+            clientConfigCopyHandlers.set(button, handler);
+            button.addEventListener('click', handler);
+        });
         
         // Cleanup on page leave
         window.addEventListener('beforeunload', destroy, { once: true });
@@ -83,6 +107,13 @@
         if (refreshHandler) window.removeEventListener('app:refresh', refreshHandler);
         if (statusButton && statusButtonHandler) statusButton.removeEventListener('click', statusButtonHandler);
         if (tipDismissButton && tipDismissHandler) tipDismissButton.removeEventListener('click', tipDismissHandler);
+        if (copyAllConfigButton && copyAllConfigHandler) copyAllConfigButton.removeEventListener('click', copyAllConfigHandler);
+        if (showClientQrButton && showClientQrHandler) showClientQrButton.removeEventListener('click', showClientQrHandler);
+        clientConfigCopyButtons.forEach(button => {
+            const handler = clientConfigCopyHandlers.get(button);
+            if (handler) button.removeEventListener('click', handler);
+        });
+        clientConfigCopyHandlers.clear();
 
         refreshInterval = null;
         activityInterval = null;
@@ -91,6 +122,12 @@
         statusButtonHandler = null;
         tipDismissButton = null;
         tipDismissHandler = null;
+        copyAllConfigButton = null;
+        copyAllConfigHandler = null;
+        showClientQrButton = null;
+        showClientQrHandler = null;
+        clientConfigCopyButtons = [];
+        clientConfig = null;
         initialized = false;
     }
 
@@ -219,6 +256,7 @@
             
             updateServerStatus('hbbs-status', status.hbbs);
             updateServerStatus('hbbr-status', status.hbbr);
+            updateSystemStatus(status);
             
             // Populate all port values from server response
             const portMap = {
@@ -242,6 +280,7 @@
             console.error('Failed to load server status:', error);
             updateServerStatus('hbbs-status', { status: 'unknown' });
             updateServerStatus('hbbr-status', { status: 'unknown' });
+            updateSystemStatus(null);
             return null;
         }
     }
@@ -269,6 +308,107 @@
             element.classList.add('unknown');
             statusText.textContent = _('status.unknown');
         }
+    }
+
+    function updateSystemStatus(status) {
+        const pill = findById('dashboard-system-pill');
+        const text = findById('dashboard-system-status');
+        if (!pill || !text) return;
+
+        pill.classList.remove('running', 'stopped', 'unknown');
+
+        const signalRunning = status?.hbbs?.status === 'running' || status?.hbbs?.online === true;
+        const relayRunning = status?.hbbr?.status === 'running' || status?.hbbr?.online === true;
+
+        if (signalRunning && relayRunning) {
+            pill.classList.add('running');
+            text.textContent = _('dashboard.system_ready');
+        } else if (status) {
+            pill.classList.add('stopped');
+            text.textContent = _('dashboard.system_attention');
+        } else {
+            pill.classList.add('unknown');
+            text.textContent = _('status.unknown');
+        }
+    }
+
+    async function loadClientConfig() {
+        try {
+            const data = await fetchApi('/api/dashboard/client-config');
+            clientConfig = data || {};
+
+            setText('client-config-server-id', clientConfig.server_id || '-');
+            setText('client-config-relay-server', clientConfig.relay_server || '-');
+            setText('client-config-api-url', clientConfig.api_url || '-');
+            setText('client-config-public-key', clientConfig.public_key || _('keys.no_key'));
+        } catch (err) {
+            console.error('Client config load error:', err);
+            clientConfig = null;
+            setText('client-config-server-id', window.location.hostname || '-');
+            setText('client-config-relay-server', window.location.hostname || '-');
+            setText('client-config-api-url', '-');
+            setText('client-config-public-key', _('errors.load_key_failed'));
+        }
+    }
+
+    async function copyClientConfigField(elementId, button) {
+        const el = elementId ? findById(elementId) : null;
+        const value = el?.textContent?.trim();
+        if (!value || value === '-' || value === _('keys.no_key') || value === _('errors.load_key_failed')) {
+            Notifications.warning(_('dashboard.config_not_ready'));
+            return;
+        }
+
+        await Utils.copyToClipboard(value);
+        markCopied(button);
+        Notifications.success(_('common.copied'));
+    }
+
+    async function copyFullClientConfig() {
+        if (!clientConfig) {
+            Notifications.warning(_('dashboard.config_not_ready'));
+            return;
+        }
+
+        const lines = [
+            `${_('dashboard.config_server_id')}: ${clientConfig.server_id || '-'}`,
+            `${_('dashboard.config_relay_server')}: ${clientConfig.relay_server || '-'}`,
+            `${_('dashboard.config_api_server')}: ${clientConfig.api_url || '-'}`,
+            `${_('dashboard.config_key')}: ${clientConfig.public_key || '-'}`
+        ];
+
+        await Utils.copyToClipboard(lines.join('\n'));
+        markCopied(copyAllConfigButton);
+        Notifications.success(_('common.copied'));
+    }
+
+    function showClientConfigQr() {
+        if (!clientConfig?.qr) {
+            Notifications.warning(_('keys.no_qr'));
+            return;
+        }
+
+        Modal.show({
+            title: _('dashboard.client_config_qr_title'),
+            content: `
+                <div class="client-config-qr-modal">
+                    <div class="client-config-qr-frame">
+                        <img src="${escapeHtml(clientConfig.qr)}" alt="${escapeHtml(_('dashboard.client_config_qr_title'))}" width="300" height="300">
+                    </div>
+                    <p>${escapeHtml(_('dashboard.client_config_qr_hint'))}</p>
+                </div>
+            `,
+            buttons: [
+                { label: _('actions.close'), class: 'btn-secondary', onClick: () => Modal.close() }
+            ],
+            size: 'medium'
+        });
+    }
+
+    function markCopied(button) {
+        if (!button) return;
+        button.classList.add('copied');
+        setTimeout(() => button.classList.remove('copied'), 1600);
     }
     
     /**

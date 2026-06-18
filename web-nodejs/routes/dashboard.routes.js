@@ -10,6 +10,23 @@ const config = require('../config/config');
 const serverBackend = require('../services/serverBackend');
 const { requireAuth } = require('../middleware/auth');
 
+function getRequestHost(req) {
+    const rawHost = String(req.headers['x-forwarded-host'] || req.headers.host || req.hostname || 'localhost');
+    const firstHost = rawHost.split(',')[0].trim();
+
+    if (firstHost.startsWith('[')) {
+        const end = firstHost.indexOf(']');
+        return end > 0 ? firstHost.slice(1, end) : firstHost;
+    }
+
+    const colonCount = (firstHost.match(/:/g) || []).length;
+    if (colonCount === 1) {
+        return firstHost.split(':')[0];
+    }
+
+    return firstHost;
+}
+
 /**
  * GET / - Dashboard page
  */
@@ -133,6 +150,31 @@ router.get('/api/server/status', requireAuth, async (req, res) => {
         });
     } catch (err) {
         console.error('Server status error:', err);
+        res.status(500).json({
+            success: false,
+            error: req.t('errors.server_error')
+        });
+    }
+});
+
+/**
+ * GET /api/dashboard/client-config - RustDesk client fields for the dashboard
+ */
+router.get('/api/dashboard/client-config', requireAuth, async (req, res) => {
+    try {
+        const serverHost = getRequestHost(req);
+        const clientConfig = keyService.getClientConfig(serverHost);
+        const qr = await keyService.getServerConfigQR(serverHost);
+
+        res.json({
+            success: true,
+            data: {
+                ...clientConfig,
+                qr
+            }
+        });
+    } catch (err) {
+        console.error('Dashboard client config error:', err);
         res.status(500).json({
             success: false,
             error: req.t('errors.server_error')

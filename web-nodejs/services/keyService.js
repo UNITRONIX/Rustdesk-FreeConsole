@@ -86,6 +86,23 @@ async function getServerConfigQR(serverHost) {
 }
 
 /**
+ * Build the RustDesk client fields operators need to enter manually.
+ * Public Docker examples and the legacy client API use :21121 by default.
+ */
+function getClientConfig(serverHost) {
+    const host = serverHost || 'localhost';
+    const publicKey = getPublicKey();
+
+    return {
+        server_id: host,
+        relay_server: host,
+        api_url: `http://${host}:${config.apiPort}`,
+        public_key: publicKey || '',
+        has_public_key: Boolean(publicKey)
+    };
+}
+
+/**
  * Generate QR code for public key (legacy — raw key text)
  */
 async function getPublicKeyQR() {
@@ -131,5 +148,6 @@ module.exports = {
     getApiKey,
     getPublicKeyQR,
     getServerConfigQR,
+    getClientConfig,
     getServerConfig
 };
