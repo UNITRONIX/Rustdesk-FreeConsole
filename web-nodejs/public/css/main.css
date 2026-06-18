@@ -208,7 +208,7 @@ table {
     width: var(--sidebar-width-collapsed);
     min-width: var(--sidebar-width-collapsed);
     height: 100%;
-    background: var(--sidebar-rail-bg);
+    background: var(--sidebar-glass-bg-rail, var(--surface-glass-bg-secondary, var(--sidebar-rail-bg)));
     border-right: 1px solid var(--border-primary);
     display: flex;
     flex-direction: column;
@@ -467,7 +467,7 @@ table {
 .sidebar-flyout {
     width: calc(var(--sidebar-width) - var(--sidebar-width-collapsed));
     height: 100%;
-    background: var(--sidebar-flyout-bg);
+    background: var(--sidebar-glass-bg-flyout, var(--surface-glass-bg-secondary, var(--sidebar-flyout-bg)));
     border-right: 1px solid var(--border-primary);
     display: flex;
     flex-direction: column;

@@ -3,6 +3,8 @@
  */
 
 const request = require('supertest');
+const fs = require('fs');
+const path = require('path');
 const { createTestApp } = require('./helpers');
 
 const mockBranding = {
@@ -53,6 +55,7 @@ jest.mock('../services/fontService', () => ({
 }));
 
 const brandingService = require('../services/brandingService');
+const database = require('../services/database');
 const settingsRoutes = require('../routes/settings.routes');
 
 describe('Branding routes', () => {
@@ -110,5 +113,37 @@ describe('brandingService.generateThemeCss', () => {
         const css = brandingService.generateThemeCss();
         expect(css).toMatch(/--surface-glass-blur/);
         expect(css).toMatch(/--surface-glass-bg-secondary/);
+        expect(css).toMatch(/--sidebar-glass-bg-rail/);
+        expect(css).toMatch(/--sidebar-glass-bg-flyout/);
+    });
+
+    it('places console wallpaper behind the whole app shell', async () => {
+        database.getBrandingConfig.mockResolvedValueOnce([
+            { key: 'bgType', value: 'image' },
+            { key: 'bgImageUrl', value: '/uploads/bg-test.jpg' },
+            { key: 'bgOverlay', value: '20' },
+            { key: 'bgSize', value: 'cover' }
+        ]);
+        brandingService.invalidateCache();
+        await brandingService.loadBranding();
+
+        try {
+            const css = brandingService.generateThemeCss();
+            expect(css).toMatch(/body\.app-page::before/);
+            expect(css).toMatch(/background: url\("\/uploads\/bg-test\.jpg"\)/);
+            expect(css).toMatch(/z-index: 0/);
+            expect(css).toMatch(/body\.app-page \.app-layout/);
+            expect(css).toMatch(/body\.app-page \.main-content \{ background: transparent; \}/);
+        } finally {
+            database.getBrandingConfig.mockResolvedValue([]);
+            brandingService.invalidateCache();
+            await brandingService.loadBranding();
+        }
+    });
+
+    it('uses glass tokens for the sidebar backgrounds', () => {
+        const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'main.css'), 'utf8');
+        expect(css).toMatch(/\.sidebar-rail\s*\{[\s\S]*background: var\(--sidebar-glass-bg-rail/);
+        expect(css).toMatch(/\.sidebar-flyout\s*\{[\s\S]*background: var\(--sidebar-glass-bg-flyout/);
     });
 });

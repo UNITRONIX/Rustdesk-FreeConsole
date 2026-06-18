@@ -105,6 +105,8 @@
             lines.push('--surface-glass-bg-secondary: var(--bg-secondary);');
             lines.push('--surface-glass-bg-tertiary: var(--bg-tertiary);');
             lines.push('--card-bg: var(--bg-secondary);');
+            lines.push('--sidebar-glass-bg-rail: var(--sidebar-rail-bg);');
+            lines.push('--sidebar-glass-bg-flyout: var(--sidebar-flyout-bg);');
             return lines;
         }
         const blur = clampNumber(data.glassBlur, 0, 40) ?? 16;
@@ -121,6 +123,8 @@
         lines.push(`--surface-glass-bg-secondary: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${opacity.toFixed(2)});`);
         lines.push(`--surface-glass-bg-tertiary: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${Math.min(1, opacity + 0.08).toFixed(2)});`);
         lines.push('--card-bg: var(--surface-glass-bg-secondary);');
+        lines.push(`--sidebar-glass-bg-rail: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${Math.max(0.32, Math.min(0.78, opacity - 0.07)).toFixed(2)});`);
+        lines.push(`--sidebar-glass-bg-flyout: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${Math.max(0.42, Math.min(0.84, opacity + 0.03)).toFixed(2)});`);
         return lines;
     }
 

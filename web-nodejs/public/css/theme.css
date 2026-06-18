@@ -13,7 +13,7 @@
 
 [data-theme="light"] .sidebar-rail,
 .theme-light .sidebar-rail {
-    background: #f0f3f6;
+    background: var(--sidebar-glass-bg-rail, rgba(255, 255, 255, 0.72));
     border-right-color: #d0d7de;
 }
 
@@ -36,12 +36,12 @@
 
 [data-theme="light"] .sidebar-rail,
 .theme-light .sidebar-rail {
-    background: var(--sidebar-rail-bg, #f0f3f6);
+    background: var(--sidebar-glass-bg-rail, rgba(255, 255, 255, 0.72));
 }
 
 [data-theme="light"] .sidebar-flyout,
 .theme-light .sidebar-flyout {
-    background: var(--sidebar-flyout-bg, #ffffff);
+    background: var(--sidebar-glass-bg-flyout, rgba(255, 255, 255, 0.82));
     border-right-color: #d0d7de;
 }
 
@@ -258,7 +258,12 @@
 
 @media (prefers-color-scheme: light) {
     [data-theme="auto"] .sidebar-rail {
-        background: #f0f3f6;
+        background: var(--sidebar-glass-bg-rail, rgba(255, 255, 255, 0.72));
+        border-right-color: #d0d7de;
+    }
+
+    [data-theme="auto"] .sidebar-flyout {
+        background: var(--sidebar-glass-bg-flyout, rgba(255, 255, 255, 0.82));
         border-right-color: #d0d7de;
     }
 

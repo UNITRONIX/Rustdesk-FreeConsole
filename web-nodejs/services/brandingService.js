@@ -596,6 +596,8 @@ function generateGlassCss(branding) {
     --surface-glass-bg-elevated: var(--bg-elevated);
     --surface-glass-border: var(--border-primary);
     --card-bg: var(--bg-secondary);
+    --sidebar-glass-bg-rail: var(--sidebar-rail-bg);
+    --sidebar-glass-bg-flyout: var(--sidebar-flyout-bg);
 }\n`;
     }
 
@@ -612,6 +614,8 @@ function generateGlassCss(branding) {
     const tertiaryAlpha = Math.min(1, opacity + 0.08).toFixed(2);
     const elevatedAlpha = Math.min(1, opacity + 0.15).toFixed(2);
     const borderAlpha = Math.min(1, opacity + 0.35).toFixed(2);
+    const railAlpha = Math.max(0.32, Math.min(0.78, opacity - 0.07)).toFixed(2);
+    const flyoutAlpha = Math.max(0.42, Math.min(0.84, opacity + 0.03)).toFixed(2);
 
     return `:root {
     --surface-glass-blur: ${blur}px;
@@ -621,6 +625,8 @@ function generateGlassCss(branding) {
     --surface-glass-bg-elevated: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${elevatedAlpha});
     --surface-glass-border: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${borderAlpha});
     --card-bg: var(--surface-glass-bg-secondary);
+    --sidebar-glass-bg-rail: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${railAlpha});
+    --sidebar-glass-bg-flyout: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${flyoutAlpha});
 }\n`;
 }
 
@@ -651,17 +657,19 @@ function generateBackgroundCss(branding) {
         const blur = clampNumber(branding.bgBlur, 0, 40);
         const overlay = clampNumber(branding.bgOverlay, 0, 95);
         out += `body.app-page::before {\n` +
-               `    content: '';\n    position: fixed;\n    inset: 0;\n    z-index: -2;\n` +
+               `    content: '';\n    position: fixed;\n    inset: 0;\n    z-index: 0;\n    pointer-events: none;\n` +
                `    background: ${consoleBg};\n    ${branding.bgType === 'image' ? sizeRule(branding.bgSize) : ''}\n` +
                (blur ? `    filter: blur(${blur}px);\n    transform: scale(1.05);\n` : '') +
                `}\n`;
         if (overlay) {
             out += `body.app-page::after {\n` +
-                   `    content: '';\n    position: fixed;\n    inset: 0;\n    z-index: -1;\n` +
+                   `    content: '';\n    position: fixed;\n    inset: 0;\n    z-index: 0;\n` +
                    `    background: rgba(0, 0, 0, ${(overlay / 100).toFixed(2)});\n    pointer-events: none;\n}\n`;
         }
         // Let the wallpaper show behind floating cards in the content area.
-        out += `body.app-page { background-color: transparent; }\n`;
+        out += `body.app-page { background-color: transparent; position: relative; isolation: isolate; }\n`;
+        out += `body.app-page .app-layout,\nbody.app-page #desktop-shell,\nbody.app-page #modal-container,\nbody.app-page #toast-container { position: relative; z-index: 1; }\n`;
+        out += `body.app-page .main-wrapper,\nbody.app-page .app-layout { background: transparent; }\n`;
         out += `body.app-page .main-content { background: transparent; }\n`;
     }
 

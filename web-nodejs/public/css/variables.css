@@ -23,6 +23,8 @@
     --surface-glass-bg-elevated: rgba(48, 54, 61, 0.7);
     --surface-glass-border: rgba(48, 54, 61, 0.5);
     --card-bg: var(--surface-glass-bg-secondary);
+    --sidebar-glass-bg-rail: rgba(22, 27, 34, 0.48);
+    --sidebar-glass-bg-flyout: rgba(22, 27, 34, 0.58);
     
     /* Text colors */
     --text-primary: #e6edf3;

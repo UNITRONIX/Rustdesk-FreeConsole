@@ -610,6 +610,7 @@
     let _canBrandingEdit = true;
     let _fontSource = 'google';
     let _brandingProfiles = [];
+    const _backgroundUploads = new Map();
     
     /**
      * Initialize branding configuration section
@@ -623,9 +624,9 @@
         try {
             const response = await Utils.api('/api/settings/branding');
             brandingData = response.data || response;
-            _brandingSnapshot = JSON.stringify(collectBrandingData());
             
             populateBrandingForm(brandingData);
+            _brandingSnapshot = JSON.stringify(collectBrandingData());
             initBrandingModules();
             initLogoTypeSelector();
             initColorPickers();
@@ -707,6 +708,7 @@
         if (!_canBrandingEdit) return;
         setBrandingStatus('saving');
         try {
+            await waitForBackgroundUploads();
             const data = collectBrandingData();
             const resp = await Utils.api('/api/settings/branding', {
                 method: 'POST',
@@ -728,6 +730,12 @@
             setBrandingStatus('error', error.message || _('errors.server_error'));
             if (!options.silent) Notifications.error(error.message || _('errors.server_error'));
         }
+    }
+
+    async function waitForBackgroundUploads() {
+        const pending = Array.from(_backgroundUploads.values());
+        if (!pending.length) return;
+        await Promise.all(pending);
     }
 
     function revertBrandingChanges() {
@@ -1188,8 +1196,9 @@
         
         const formData = new FormData();
         formData.append('background', file);
-        
-        try {
+
+        const uploadKey = targetId || e.target.id;
+        const uploadPromise = (async () => {
             const resp = await fetch('/api/settings/branding/upload-background', {
                 method: 'POST',
                 headers: { 'x-csrf-token': window.BetterDesk?.csrfToken || '' },
@@ -1201,9 +1210,38 @@
             }
             const urlInput = document.getElementById(targetId);
             if (urlInput) urlInput.value = result.url;
+            selectBackgroundImageType(targetId);
+            onBrandingFieldChange();
             Notifications.success(_('branding.bg_upload_success'));
+            return result.url;
+        })();
+
+        _backgroundUploads.set(uploadKey, uploadPromise);
+
+        try {
+            await uploadPromise;
         } catch (err) {
             Utils.showNotification(err.message || _('errors.server_error'), 'error');
+        } finally {
+            if (_backgroundUploads.get(uploadKey) === uploadPromise) {
+                _backgroundUploads.delete(uploadKey);
+            }
+        }
+    }
+
+    function selectBackgroundImageType(targetId) {
+        const map = {
+            'bg-image-url': ['bg-type', 'bg'],
+            'login-bg-image-url': ['login-bg-type', 'login-bg'],
+            'agent-bg-image-url': ['agent-bg-type', 'agent-bg']
+        };
+        const cfg = map[targetId];
+        if (!cfg) return;
+        const [radioName, prefix] = cfg;
+        const imageRadio = document.querySelector(`input[name="${radioName}"][value="image"]`);
+        if (imageRadio && !imageRadio.checked) {
+            imageRadio.checked = true;
+            showBackgroundPanel(prefix, 'image');
         }
     }
     
