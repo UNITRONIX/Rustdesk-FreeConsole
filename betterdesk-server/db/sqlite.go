@@ -1057,7 +1057,11 @@ func (s *SQLiteDB) ChangePeerID(oldID, newID string) error {
 	if err != nil {
 		return fmt.Errorf("db: ChangePeerID insert: %w", err)
 	}
-	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("db: ChangePeerID rows affected: %w", err)
+	}
+	if rows == 0 {
 		return ErrPeerNotFound
 	}
 
