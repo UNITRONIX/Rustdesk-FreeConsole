@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.3.37] — 2026-06-18
+
+### Changed
 - **Docker admin password seeding (#204):** `ADMIN_PASSWORD` now maps to the internal Go and Node.js first-run admin seed variables in quick-start, MACVLAN, and single-container Docker deployments. Existing admin accounts are still left unchanged on restart; use the password reset flow or fresh volumes to change an already-created admin.
 
 ---
@@ -976,3 +983,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.34]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.33...v3.3.34
 [3.3.35]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.34...v3.3.35
 [3.3.36]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.35...v3.3.36
+[3.3.37]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.36...v3.3.37
