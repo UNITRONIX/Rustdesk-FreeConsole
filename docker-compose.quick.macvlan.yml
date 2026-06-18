@@ -44,6 +44,9 @@ services:
     environment:
       - ENCRYPTED_ONLY=1
       - AUTH_DB_PATH=/app/data/auth.db
+      # Admin credentials (first run only; existing users are not overwritten).
+      - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
+      - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}
       # Set RELAY_SERVERS=MACVLAN_IPV4:21117 when clients are off-LAN (see DOCKER_QUICKSTART.md).
       - RELAY_SERVERS=${RELAY_SERVERS:-}
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
@@ -89,6 +92,9 @@ services:
       - RUSTDESK_PATH=/opt/rustdesk
       - DATA_DIR=/app/data
       - DB_PATH=/app/data/db_v2.sqlite3
+      # Admin credentials (first run only; existing users are not overwritten).
+      - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
       - API_KEY_PATH=/opt/rustdesk/.api_key
       - WS_HBBS_HOST=127.0.0.1

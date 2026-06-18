@@ -19,7 +19,7 @@
 #
 # Access:
 #   Web Console: http://localhost:5000
-#   Default login: admin / admin
+#   Admin password: auto-generated unless ADMIN_PASSWORD is set before first start
 
 services:
   # BetterDesk All-in-One (Go server + Node.js console)
@@ -76,9 +76,12 @@ services:
       - ENROLLMENT_MODE=${ENROLLMENT_MODE:-}
       # Panel folders/groups for RustDesk client (SQLite — same container as console).
       - AUTH_DB_PATH=/app/data/auth.db
-      # Admin credentials (first run only):
-      # - ADMIN_USERNAME=admin
-      # - ADMIN_PASSWORD=YourSecurePassword123
+      # Admin credentials (first run only; existing users are not overwritten):
+      #   ADMIN_PASSWORD=YourSecurePassword123 docker compose -f docker-compose.single.yml up -d --build
+      - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
+      - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}
+      - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
     restart: unless-stopped
     # SECURITY (audit fix L-02, 2026-04-10): drop all capabilities except
     # those needed by the entrypoint to chown volumes + su-exec to non-root.

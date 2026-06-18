@@ -11,6 +11,14 @@ echo "  BetterDesk Console - Container Startup"
 echo "  Version: ${BETTERDESK_IMAGE_VERSION:-3.3.36} (Node.js)"
 echo "========================================"
 
+# Public Docker examples use ADMIN_*; the Node.js console seeds from DEFAULT_ADMIN_*.
+if [ -n "${ADMIN_USERNAME:-}" ] && [ -z "${DEFAULT_ADMIN_USERNAME:-}" ]; then
+    export DEFAULT_ADMIN_USERNAME="$ADMIN_USERNAME"
+fi
+if [ -n "${ADMIN_PASSWORD:-}" ] && [ -z "${DEFAULT_ADMIN_PASSWORD:-}" ]; then
+    export DEFAULT_ADMIN_PASSWORD="$ADMIN_PASSWORD"
+fi
+
 # Log configuration
 echo ""
 echo "Configuration:"

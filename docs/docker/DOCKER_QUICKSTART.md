@@ -101,9 +101,14 @@ Use the Docker host address, not the container IP. Make sure TCP port `21117` is
 ### Custom Admin Password
 
 ```bash
-# Set before first start
+# Set before first start, while the Docker volumes are still empty
 ADMIN_PASSWORD=YourSecurePass123 docker compose up -d
 ```
+
+`ADMIN_PASSWORD` only seeds the first admin account. If the container has
+already created `auth.db` / the admin user, changing the environment variable on
+restart will not overwrite the stored password. Use the panel password reset
+flow, or recreate the Docker volumes for a fresh install.
 
 ### PostgreSQL Instead of SQLite
 

@@ -5,6 +5,14 @@ set -e
 
 DATA_DIR="/opt/rustdesk"
 
+# Public Docker examples use ADMIN_*; the Go server seeds from INIT_ADMIN_*.
+if [ -n "${ADMIN_USERNAME:-}" ] && [ -z "${INIT_ADMIN_USER:-}" ]; then
+    export INIT_ADMIN_USER="$ADMIN_USERNAME"
+fi
+if [ -n "${ADMIN_PASSWORD:-}" ] && [ -z "${INIT_ADMIN_PASS:-}" ]; then
+    export INIT_ADMIN_PASS="$ADMIN_PASSWORD"
+fi
+
 # SQLite Docker: wait for the console to create auth.db (folders/groups ACL).
 # Skipped for PostgreSQL — panel sync uses the shared DATABASE_URL instead.
 panel_auth_db_ready() {

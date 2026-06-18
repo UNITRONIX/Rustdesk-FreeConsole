@@ -20,6 +20,24 @@ echo "  ENCRYPTED_ONLY: ${ENCRYPTED_ONLY:-1}"
 echo "  DATA_DIR:      ${DATA_DIR:-/app/data}"
 echo ""
 
+# Public Docker examples use ADMIN_*; seed both the Go API and Node.js console.
+if [ -n "${ADMIN_USERNAME:-}" ]; then
+    if [ -z "${INIT_ADMIN_USER:-}" ]; then
+        export INIT_ADMIN_USER="$ADMIN_USERNAME"
+    fi
+    if [ -z "${DEFAULT_ADMIN_USERNAME:-}" ]; then
+        export DEFAULT_ADMIN_USERNAME="$ADMIN_USERNAME"
+    fi
+fi
+if [ -n "${ADMIN_PASSWORD:-}" ]; then
+    if [ -z "${INIT_ADMIN_PASS:-}" ]; then
+        export INIT_ADMIN_PASS="$ADMIN_PASSWORD"
+    fi
+    if [ -z "${DEFAULT_ADMIN_PASSWORD:-}" ]; then
+        export DEFAULT_ADMIN_PASSWORD="$ADMIN_PASSWORD"
+    fi
+fi
+
 # Ensure data directories exist and have correct permissions
 mkdir -p /opt/rustdesk /app/data /var/log/betterdesk 2>/dev/null || true
 chown -R betterdesk:betterdesk /opt/rustdesk /app/data /var/log/betterdesk 2>/dev/null || true
