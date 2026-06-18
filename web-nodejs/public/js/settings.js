@@ -1108,6 +1108,7 @@
             document.getElementById('agent-bg-color-picker').value = data.agentBgColor;
         }
         showBackgroundPanel('agent-bg', data.agentBgType || 'none');
+        syncExistingBackgroundUploadStatuses(data);
         
         // Footer & custom CSS
         setVal('footer-text', data.footerText || '');
@@ -1167,6 +1168,11 @@
         // Background image uploads (shared route, data-target picks the URL field)
         document.querySelectorAll('.branding-bg-file').forEach(input => {
             input.addEventListener('change', handleBackgroundFileUpload);
+            const label = document.querySelector(`label[for="${input.id}"]`);
+            label?.addEventListener('click', (event) => {
+                event.preventDefault();
+                input.click();
+            });
         });
     }
     
@@ -1248,6 +1254,7 @@
             if (_backgroundUploads.get(uploadKey) === uploadPromise) {
                 _backgroundUploads.delete(uploadKey);
             }
+            e.target.value = '';
         }
 
         if (uploadedUrl) {
@@ -1288,13 +1295,41 @@
         el.title = el.textContent;
     }
 
+    function syncExistingBackgroundUploadStatuses(data) {
+        [
+            { targetId: 'bg-image-url', type: data.bgType, url: data.bgImageUrl, labelId: 'bg-file-name' },
+            { targetId: 'login-bg-image-url', type: data.loginBgType, url: data.loginBgImageUrl, labelId: 'login-bg-file-name' },
+            { targetId: 'agent-bg-image-url', type: data.agentBgType, url: data.agentBgImageUrl, labelId: 'agent-bg-file-name' }
+        ].forEach(item => {
+            const statusEl = getBackgroundUploadStatusElementByTarget(item.targetId);
+            const labelEl = document.getElementById(item.labelId);
+            if (!item.url || item.type !== 'image') {
+                if (statusEl) statusEl.hidden = true;
+                if (labelEl) labelEl.textContent = '';
+                return;
+            }
+            const fileName = item.url.split('/').pop() || item.url;
+            setBackgroundUploadStatus(labelEl, fileName, item.url);
+            updateBackgroundUploadPanel(statusEl, {
+                state: 'success',
+                icon: 'check_circle',
+                message: `${_('branding.status_saved')}: ${item.url}`,
+                percent: 100
+            });
+        });
+    }
+
     function getBackgroundUploadStatusElement(input) {
+        return getBackgroundUploadStatusElementByTarget(input.dataset.target);
+    }
+
+    function getBackgroundUploadStatusElementByTarget(targetId) {
         const map = {
-            'bg-image-file': 'bg-upload-status',
-            'login-bg-image-file': 'login-bg-upload-status',
-            'agent-bg-image-file': 'agent-bg-upload-status'
+            'bg-image-url': 'bg-upload-status',
+            'login-bg-image-url': 'login-bg-upload-status',
+            'agent-bg-image-url': 'agent-bg-upload-status'
         };
-        return document.getElementById(map[input.id]);
+        return document.getElementById(map[targetId]);
     }
 
     function updateBackgroundUploadPanel(el, { state, icon, message, percent }) {
