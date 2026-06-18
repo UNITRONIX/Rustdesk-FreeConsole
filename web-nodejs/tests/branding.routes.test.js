@@ -56,6 +56,7 @@ jest.mock('../services/fontService', () => ({
 
 const brandingService = require('../services/brandingService');
 const database = require('../services/database');
+const config = require('../config/config');
 const settingsRoutes = require('../routes/settings.routes');
 
 describe('Branding routes', () => {
@@ -99,6 +100,24 @@ describe('Branding routes', () => {
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
             expect(Array.isArray(res.body.data)).toBe(true);
+        });
+    });
+
+    describe('POST /api/settings/branding/upload-background', () => {
+        it('accepts a multipart background image upload', async () => {
+            const res = await request(app)
+                .post('/api/settings/branding/upload-background')
+                .attach('background', Buffer.from('not-a-real-png-but-valid-route-test'), {
+                    filename: 'wallpaper.png',
+                    contentType: 'image/png'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.url).toMatch(/^\/uploads\/bg-[0-9a-f]{16}\.png$/);
+
+            const uploaded = path.join(config.dataDir, 'uploads', path.basename(res.body.url));
+            if (fs.existsSync(uploaded)) fs.unlinkSync(uploaded);
         });
     });
 });

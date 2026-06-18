@@ -1190,26 +1190,20 @@
         }
         
         const targetId = e.target.dataset.target;
-        const nameElId = e.target.id.replace('-file', '-file-name');
-        const nameEl = document.getElementById(nameElId);
-        if (nameEl) nameEl.textContent = file.name;
+        const nameEl = getBackgroundFileNameElement(e.target);
+        setBackgroundUploadStatus(nameEl, file.name, _('branding.status_saving'));
         
         const formData = new FormData();
         formData.append('background', file);
 
         const uploadKey = targetId || e.target.id;
         const uploadPromise = (async () => {
-            const resp = await fetch('/api/settings/branding/upload-background', {
-                method: 'POST',
-                headers: { 'x-csrf-token': window.BetterDesk?.csrfToken || '' },
-                body: formData
+            const result = await uploadBackgroundImage(formData, (percent) => {
+                setBackgroundUploadStatus(nameEl, file.name, `${percent}%`);
             });
-            const result = await resp.json();
-            if (!resp.ok || !result.success) {
-                throw new Error(result.error || 'Upload failed');
-            }
             const urlInput = document.getElementById(targetId);
             if (urlInput) urlInput.value = result.url;
+            setBackgroundUploadStatus(nameEl, file.name, result.url || 'OK');
             selectBackgroundImageType(targetId);
             onBrandingFieldChange();
             Notifications.success(_('branding.bg_upload_success'));
@@ -1221,11 +1215,68 @@
         try {
             await uploadPromise;
         } catch (err) {
+            setBackgroundUploadStatus(nameEl, file.name, err.message || _('errors.server_error'));
             Utils.showNotification(err.message || _('errors.server_error'), 'error');
         } finally {
             if (_backgroundUploads.get(uploadKey) === uploadPromise) {
                 _backgroundUploads.delete(uploadKey);
             }
+        }
+    }
+
+    function getBackgroundFileNameElement(input) {
+        const map = {
+            'bg-image-file': 'bg-file-name',
+            'login-bg-image-file': 'login-bg-file-name',
+            'agent-bg-image-file': 'agent-bg-file-name'
+        };
+        return document.getElementById(map[input.id])
+            || document.getElementById(input.id.replace('-file', '-file-name'));
+    }
+
+    function setBackgroundUploadStatus(el, fileName, status) {
+        if (!el) return;
+        el.textContent = status ? `${fileName} (${status})` : fileName;
+        el.title = el.textContent;
+    }
+
+    function uploadBackgroundImage(formData, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/settings/branding/upload-background');
+            xhr.withCredentials = true;
+            const token = window.BetterDesk?.csrfToken || '';
+            if (token) xhr.setRequestHeader('x-csrf-token', token);
+            xhr.responseType = 'json';
+
+            xhr.upload.onprogress = (event) => {
+                if (!event.lengthComputable || typeof onProgress !== 'function') return;
+                const percent = Math.max(1, Math.min(99, Math.round((event.loaded / event.total) * 100)));
+                onProgress(percent);
+            };
+
+            xhr.onload = () => {
+                const result = xhr.response || parseUploadJsonResponse(xhr.responseText);
+                if (xhr.status < 200 || xhr.status >= 300 || !result?.success) {
+                    reject(new Error(result?.error || `Upload failed (${xhr.status})`));
+                    return;
+                }
+                if (typeof onProgress === 'function') onProgress(100);
+                resolve(result);
+            };
+
+            xhr.onerror = () => reject(new Error('Upload failed'));
+            xhr.onabort = () => reject(new Error('Upload cancelled'));
+            xhr.send(formData);
+        });
+    }
+
+    function parseUploadJsonResponse(text) {
+        if (!text) return null;
+        try {
+            return JSON.parse(text);
+        } catch (_) {
+            return null;
         }
     }
 
