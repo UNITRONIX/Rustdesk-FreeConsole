@@ -18,6 +18,9 @@
 #   --admin-password PASS          Set admin password (Docker: ADMIN_PASSWORD env)
 #   --skip-docker-install          Do not install Docker when missing
 #   --skip-firewall                Skip UFW/firewalld/iptables configuration
+#   --rescue                       Safe repair: permissions, restart, health checks
+#   --diagnose                     Read-only diagnostics for Docker deployments
+#   --repair-permissions           Only repair Docker data/volume permissions
 #   --purge                        With --uninstall: also remove Docker volumes
 #   --uninstall                    Remove BetterDesk Docker installation
 #   --help                         Show usage
@@ -43,6 +46,8 @@ SKIP_DOCKER_INSTALL=false
 SKIP_FIREWALL=false
 DO_UNINSTALL=false
 DO_PURGE=false
+DO_RESCUE=false
+RESCUE_ACTION="rescue"
 
 # Docker quick-start ports (docker-compose.quick.yml)
 DOCKER_PORTS="21114 21115 21116 21117 21118 21119 5000"
@@ -86,6 +91,9 @@ while [ $# -gt 0 ]; do
         --admin-password) ADMIN_PASSWORD="$2"; shift 2 ;;
         --skip-docker-install) SKIP_DOCKER_INSTALL=true; shift ;;
         --skip-firewall) SKIP_FIREWALL=true; shift ;;
+        --rescue) DO_RESCUE=true; RESCUE_ACTION="rescue"; shift ;;
+        --diagnose|--diagnostics) DO_RESCUE=true; RESCUE_ACTION="diagnose"; shift ;;
+        --repair-permissions) DO_RESCUE=true; RESCUE_ACTION="repair-permissions"; shift ;;
         --purge) DO_PURGE=true; shift ;;
         --uninstall) DO_UNINSTALL=true; shift ;;
         -h|--help) usage ;;
@@ -400,6 +408,36 @@ EOF
     print_docker_summary "$relay"
 }
 
+rescue_docker_mode() {
+    local rescue_dir="${INSTALL_DIR}/rescue"
+    local rescue_script="${rescue_dir}/betterdesk-docker.sh"
+    local rescue_url="${BETTERDESK_RAW_BASE}/betterdesk-docker.sh"
+    local rescue_flag
+
+    case "$RESCUE_ACTION" in
+        diagnose) rescue_flag="--diagnose" ;;
+        repair-permissions) rescue_flag="--repair-permissions" ;;
+        rescue|*) rescue_flag="--rescue" ;;
+    esac
+
+    log "Preparing BetterDesk Docker rescue toolkit..."
+    require_command curl
+    if [ "$RESCUE_ACTION" != "diagnose" ]; then
+        check_docker || die "Docker is not available or the daemon is not running"
+        check_docker_compose || die "Docker Compose plugin is not available"
+    fi
+
+    mkdir -p "$rescue_dir"
+    fetch_url_to_file "$rescue_url" "$rescue_script.tmp" 4096 524288
+    install -m 0755 "$rescue_script.tmp" "$rescue_script"
+    rm -f "$rescue_script.tmp"
+    ok "Rescue script ready: $rescue_script"
+
+    log "Running Docker rescue action: $RESCUE_ACTION"
+    DATA_DIR="${DATA_DIR:-}" COMPOSE_FILE="${COMPOSE_FILE:-}" \
+        "$rescue_script" "$rescue_flag"
+}
+
 uninstall_docker_mode() {
     local compose_dir="${INSTALL_DIR}/docker"
     local compose_file="${compose_dir}/docker-compose.yml"
@@ -456,6 +494,20 @@ install_native_mode() {
     ok "Native installation finished. See ${repo_dir} for logs and credentials."
 }
 
+rescue_native_mode() {
+    local repo_dir="${INSTALL_DIR}/source"
+
+    warn "Native rescue is handled by betterdesk.sh on the installed host."
+    if [ -x "$repo_dir/betterdesk.sh" ]; then
+        echo "Run the interactive native repair toolkit with:"
+        echo "  sudo ${repo_dir}/betterdesk.sh"
+        echo "Then choose: Repair Installation or Diagnostics."
+        return 0
+    fi
+
+    die "Native checkout not found at ${repo_dir}. Re-run without --rescue to install, or use --docker for Docker rescue."
+}
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 main() {
@@ -469,6 +521,15 @@ main() {
     fi
 
     require_root
+
+    if [ "$DO_RESCUE" = true ]; then
+        case "$INSTALL_MODE" in
+            docker) rescue_docker_mode ;;
+            native) rescue_native_mode ;;
+            *) die "Unknown install mode: $INSTALL_MODE" ;;
+        esac
+        exit 0
+    fi
 
     case "$INSTALL_MODE" in
         docker) install_docker_mode ;;

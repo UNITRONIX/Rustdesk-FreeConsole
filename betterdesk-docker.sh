@@ -19,6 +19,9 @@
 #     - CDAP (Custom Device API Protocol) support
 #
 #   Usage: ./betterdesk-docker.sh
+#          ./betterdesk-docker.sh --rescue
+#          ./betterdesk-docker.sh --diagnose
+#          ./betterdesk-docker.sh --repair-permissions
 #
 #===============================================================================
 
@@ -84,6 +87,8 @@ DIM='\033[2m'
 
 # Logging
 LOG_FILE="/tmp/betterdesk_docker_$(date +%Y%m%d_%H%M%S).log"
+CLI_ACTION=""
+NONINTERACTIVE=false
 
 #===============================================================================
 # SELinux / Volume Helper Functions
@@ -125,7 +130,7 @@ log() {
 }
 
 print_header() {
-    clear
+    clear 2>/dev/null || true
     echo -e "${CYAN}"
     echo "╔══════════════════════════════════════════════════════════════════╗"
     echo "║                                                                  ║"
@@ -153,7 +158,53 @@ print_warning() { echo -e "${YELLOW}!${NC} $1"; log "WARNING: $1"; }
 print_info() { echo -e "${BLUE}ℹ${NC} $1"; log "INFO: $1"; }
 print_step() { echo -e "${MAGENTA}▶${NC} $1"; log "STEP: $1"; }
 
+usage() {
+    sed -n '4,22p' "$0" | sed 's/^# \?//'
+    cat <<'EOF'
+
+Non-interactive rescue options:
+  --rescue              Safe repair: permissions, restart containers, health checks
+  --diagnose            Read-only diagnostics without interactive prompts
+  --repair-permissions  Only repair Docker bind/volume permissions and SELinux context
+  --help                Show this help
+EOF
+}
+
+parse_cli_args() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --rescue)
+                CLI_ACTION="rescue"
+                NONINTERACTIVE=true
+                shift
+                ;;
+            --diagnose|--diagnostics)
+                CLI_ACTION="diagnose"
+                NONINTERACTIVE=true
+                shift
+                ;;
+            --repair-permissions)
+                CLI_ACTION="repair-permissions"
+                NONINTERACTIVE=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                print_error "Unknown option: $1"
+                usage
+                exit 1
+                ;;
+        esac
+    done
+}
+
 press_enter() {
+    if [ "$NONINTERACTIVE" = true ]; then
+        return 0
+    fi
     echo ""
     echo -e "${CYAN}Press Enter to continue...${NC}"
     read -r
@@ -1497,11 +1548,12 @@ do_repair() {
         $'Rebuild images\tRecreate the Docker images'
         $'Restart containers\tStop and start the stack'
         $'Repair database\tRun database repair routines'
+        $'Repair permissions\tFix Docker bind/volume ownership and SELinux context'
         $'Clean Docker\tPrune images and volumes'
         $'Full repair\tDo everything above'
         $'Back\tReturn to the main menu'
     )
-    local _menu_returns=( 1 2 3 4 5 0 )
+    local _menu_returns=( 1 2 3 4 5 6 0 )
     menu_choose "Docker Repair" "Choose what to repair"
     local repair_choice="$MENU_CHOICE"
     
@@ -1521,12 +1573,15 @@ do_repair() {
             repair_database_docker
             ;;
         4)
+            repair_docker_permissions
+            ;;
+        5)
             if confirm "Are you sure you want to clean up unused Docker resources?"; then
                 docker system prune -f
                 print_success "Docker cleaned"
             fi
             ;;
-        5)
+        6)
             preserve_compose_database_config
             create_compose_file
             stop_containers
@@ -1534,6 +1589,7 @@ do_repair() {
             build_images
             start_containers
             repair_database_docker
+            repair_docker_permissions
             print_success "Full repair completed!"
             ;;
         0) return ;;
@@ -1560,6 +1616,207 @@ repair_database_docker() {
     else
         print_warning "Console restarted but health check failed"
     fi
+}
+
+repair_named_volume_permissions() {
+    local volume="$1"
+    [ -n "$volume" ] || return 0
+
+    if ! docker volume inspect "$volume" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    print_info "Repairing Docker volume permissions: $volume"
+    docker run --rm -v "$volume:/target" alpine:3.20 sh -c '
+        set -e
+        mkdir -p /target
+        chown -R 10001:10001 /target
+        chmod -R u+rwX,g+rwX /target
+    ' >/dev/null 2>&1 || {
+        print_warning "Could not repair volume $volume (Docker may need to pull alpine:3.20)"
+        return 1
+    }
+}
+
+repair_docker_permissions() {
+    print_step "Repairing Docker data permissions..."
+
+    auto_detect_docker_paths
+
+    if [ -n "$DATA_DIR" ]; then
+        create_data_directory "$DATA_DIR" || {
+            print_error "Failed to repair data directory: $DATA_DIR"
+            return 1
+        }
+
+        # Containers drop to uid/gid 10001. Keep secrets readable to the
+        # container user without making them world-readable.
+        chown -R 10001:10001 "$DATA_DIR" 2>/dev/null || true
+        chmod 755 "$DATA_DIR" 2>/dev/null || true
+        for secret in ".api_key" ".admin_credentials" "id_ed25519"; do
+            if [ -f "$DATA_DIR/$secret" ]; then
+                chmod 600 "$DATA_DIR/$secret" 2>/dev/null || true
+            fi
+        done
+        if [ -f "$DATA_DIR/id_ed25519.pub" ]; then
+            chmod 644 "$DATA_DIR/id_ed25519.pub" 2>/dev/null || true
+        fi
+        print_success "Host data directory permissions repaired: $DATA_DIR"
+    fi
+
+    local repaired_volumes=0
+    local volume
+    while IFS= read -r volume; do
+        [ -n "$volume" ] || continue
+        if repair_named_volume_permissions "$volume"; then
+            repaired_volumes=$((repaired_volumes + 1))
+        fi
+    done < <(docker volume ls --format '{{.Name}}' 2>/dev/null | grep -E '(^|_)(betterdesk-data|console-data|console_data|betterdesk.*data)$' || true)
+
+    if [ "$repaired_volumes" -gt 0 ]; then
+        print_success "Repaired $repaired_volumes Docker volume(s)"
+    else
+        print_info "No BetterDesk named Docker volumes found to repair"
+    fi
+}
+
+run_compose_safe() {
+    local action="$1"
+    local compose_dir compose_name
+
+    if [ ! -f "$COMPOSE_FILE" ]; then
+        print_warning "Compose file not found: $COMPOSE_FILE"
+        return 1
+    fi
+
+    compose_dir="$(cd "$(dirname "$COMPOSE_FILE")" && pwd)"
+    compose_name="$(basename "$COMPOSE_FILE")"
+    (cd "$compose_dir" && $COMPOSE_CMD -f "$compose_name" "$action")
+}
+
+restart_containers_safe() {
+    print_step "Restarting BetterDesk containers safely..."
+
+    if [ ! -f "$COMPOSE_FILE" ]; then
+        print_warning "Compose file not found; trying docker restart for known containers"
+        docker restart "$SERVER_CONTAINER" "$CONSOLE_CONTAINER" >/dev/null 2>&1 || {
+            print_warning "Could not restart known containers"
+            return 1
+        }
+        return 0
+    fi
+
+    local compose_dir compose_name
+    compose_dir="$(cd "$(dirname "$COMPOSE_FILE")" && pwd)"
+    compose_name="$(basename "$COMPOSE_FILE")"
+    (cd "$compose_dir" && $COMPOSE_CMD -f "$compose_name" up -d) || {
+        print_warning "docker compose up -d failed"
+        return 1
+    }
+}
+
+check_local_http() {
+    local label="$1"
+    local url="$2"
+
+    printf "  %-28s " "$label:"
+    if curl -sfo /dev/null --connect-timeout 3 "$url" 2>/dev/null; then
+        echo -e "${GREEN}OK${NC} ($url)"
+        return 0
+    fi
+    echo -e "${YELLOW}UNREACHABLE${NC} ($url)"
+    return 1
+}
+
+print_rescue_diagnostics() {
+    echo -e "${WHITE}${BOLD}══════════ DOCKER RESCUE DIAGNOSTICS ══════════${NC}"
+    echo ""
+
+    auto_detect_docker_paths
+
+    if ! command -v docker >/dev/null 2>&1; then
+        print_warning "Docker CLI is not installed or not in PATH"
+        echo "  Compose file: $COMPOSE_FILE"
+        echo "  DATA_DIR: $DATA_DIR"
+        echo "  Next step: install Docker, then rerun --rescue"
+        return 0
+    fi
+
+    if ! check_docker; then
+        print_warning "Docker daemon is not running or not accessible"
+        echo "  Compose file: $COMPOSE_FILE"
+        echo "  DATA_DIR: $DATA_DIR"
+        echo "  Next step: start Docker, then rerun --rescue"
+        return 0
+    fi
+
+    detect_installation
+    print_status
+
+    echo ""
+    echo -e "${WHITE}${BOLD}═══ Compose and volumes ═══${NC}"
+    echo "  Compose file: $COMPOSE_FILE"
+    if [ -f "$COMPOSE_FILE" ]; then
+        echo -e "  Compose file exists: ${GREEN}yes${NC}"
+    else
+        echo -e "  Compose file exists: ${YELLOW}no${NC}"
+    fi
+    echo "  DATA_DIR: $DATA_DIR"
+    if [ -d "$DATA_DIR" ]; then
+        echo -e "  DATA_DIR writable: $(test -w "$DATA_DIR" && echo "${GREEN}yes${NC}" || echo "${YELLOW}no${NC}")"
+    fi
+    echo "  Docker volumes:"
+    docker volume ls --format '    - {{.Name}}' 2>/dev/null | grep -E 'betterdesk|console' || echo "    none detected"
+
+    echo ""
+    echo -e "${WHITE}${BOLD}═══ Container logs (last 15 lines) ═══${NC}"
+    for container in "$SERVER_CONTAINER" "$CONSOLE_CONTAINER"; do
+        echo ""
+        echo -e "${CYAN}--- $container ---${NC}"
+        docker logs --tail 15 "$container" 2>&1 || echo "Container does not exist"
+    done
+
+    echo ""
+    echo -e "${WHITE}${BOLD}═══ Local health checks ═══${NC}"
+    check_local_http "Go API 21114" "http://127.0.0.1:21114/api/health" || true
+    check_local_http "Go API 21121" "http://127.0.0.1:21121/api/health" || true
+    check_local_http "Web console" "http://127.0.0.1:5000/health" || true
+
+    echo ""
+    echo -e "${WHITE}${BOLD}═══ Port listeners ═══${NC}"
+    for port in 21114 21115 21116 21117 21121 5000; do
+        printf "  Port %-5s " "$port"
+        if ss -tulnp 2>/dev/null | grep -q ":${port} "; then
+            echo -e "${GREEN}LISTENING${NC}"
+        else
+            echo -e "${YELLOW}NOT LISTENING${NC}"
+        fi
+    done
+}
+
+do_safe_rescue() {
+    print_header
+    echo -e "${WHITE}${BOLD}══════════ SAFE DOCKER RESCUE ══════════${NC}"
+    echo ""
+
+    check_docker || {
+        print_error "Docker is not installed or the daemon is not running"
+        return 1
+    }
+    check_docker_compose || {
+        print_error "Docker Compose is not available"
+        return 1
+    }
+
+    repair_docker_permissions || true
+    restart_containers_safe || true
+    sleep 3
+    repair_database_docker || true
+
+    echo ""
+    print_rescue_diagnostics
+    echo ""
+    print_success "Safe rescue completed. No data or volumes were deleted."
 }
 
 #===============================================================================
@@ -3159,17 +3416,41 @@ main() {
         print_warning "Some operations may require root privileges (sudo)"
     fi
     
-    # Check docker compose
+    # Check docker compose. Diagnostics can still return useful evidence without
+    # Compose, but repair actions need it for safe stack restarts.
     if ! check_docker_compose; then
-        print_error "Docker Compose is not available!"
-        exit 1
+        if [ "$CLI_ACTION" = "diagnose" ]; then
+            print_warning "Docker Compose is not available; diagnostics will be partial"
+            COMPOSE_CMD="docker compose"
+        else
+            print_error "Docker Compose is not available!"
+            exit 1
+        fi
     fi
     
     # Auto-detect paths on startup
     echo -e "${CYAN}Detecting installation...${NC}"
     auto_detect_docker_paths
     echo ""
-    sleep 1
+
+    if [ "$NONINTERACTIVE" != true ]; then
+        sleep 1
+    fi
+
+    case "$CLI_ACTION" in
+        rescue)
+            do_safe_rescue
+            exit $?
+            ;;
+        diagnose)
+            print_rescue_diagnostics
+            exit $?
+            ;;
+        repair-permissions)
+            repair_docker_permissions
+            exit $?
+            ;;
+    esac
     
     # Action tokens map 1:1 to the classic case dispatch below, so both the
     # arrow-key TUI and the numeric fallback share the exact same handlers.
@@ -3234,4 +3515,5 @@ main() {
 }
 
 # Run
+parse_cli_args "$@"
 main "$@"
