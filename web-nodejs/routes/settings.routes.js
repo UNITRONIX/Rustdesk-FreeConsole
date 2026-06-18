@@ -301,8 +301,38 @@ router.post('/api/settings/branding/upload-background', requireAuth, requirePerm
             return res.status(400).json({ success: false, error: 'No file provided' });
         }
         const url = `/uploads/${req.file.filename}`;
-        await db.logAction(req.session?.userId, 'branding_bg_upload', `Uploaded background: ${req.file.filename}`, req.ip);
-        res.json({ success: true, url });
+        const targetMap = {
+            bgImageUrl: 'bgType',
+            loginBgImageUrl: 'loginBgType',
+            agentBgImageUrl: 'agentBgType'
+        };
+        const target = String(req.body?.target || '').trim();
+        let branding = null;
+
+        if (target && targetMap[target]) {
+            const updates = {
+                [target]: url,
+                [targetMap[target]]: 'image'
+            };
+            await brandingService.saveBranding(updates);
+            branding = brandingService.getBranding();
+        }
+
+        await db.logAction(
+            req.session?.userId,
+            'branding_bg_upload',
+            target && targetMap[target]
+                ? `Uploaded and applied background: ${req.file.filename} (${target})`
+                : `Uploaded background: ${req.file.filename}`,
+            req.ip
+        );
+        res.json({
+            success: true,
+            url,
+            applied: !!branding,
+            data: branding,
+            revision: branding ? brandingService.getBrandingRevision() : undefined
+        });
     });
 });
 

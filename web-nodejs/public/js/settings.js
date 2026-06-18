@@ -1210,6 +1210,7 @@
         
         const formData = new FormData();
         formData.append('background', file);
+        formData.append('target', backgroundTargetToBrandingKey(targetId));
 
         const uploadKey = targetId || e.target.id;
         const uploadPromise = (async () => {
@@ -1232,7 +1233,18 @@
                 percent: 100
             });
             selectBackgroundImageType(targetId);
-            onBrandingFieldChange();
+            if (result.data && typeof result.data === 'object') {
+                brandingData = result.data;
+                populateBrandingForm(brandingData);
+                _brandingSnapshot = JSON.stringify(collectBrandingData());
+                _brandingDirty = false;
+                setBrandingStatus('saved', _('branding.autosaved'));
+                if (typeof BrandingPreview !== 'undefined') {
+                    BrandingPreview.refreshBrandingStylesheet(result.revision || Date.now());
+                }
+            } else {
+                onBrandingFieldChange();
+            }
             return result.url;
         })();
 
@@ -1259,23 +1271,13 @@
 
         if (uploadedUrl) {
             clearTimeout(_autosaveDebounce);
-            const saved = await saveBrandingNow({ silent: true });
-            if (saved) {
-                updateBackgroundUploadPanel(statusEl, {
-                    state: 'success',
-                    icon: 'check_circle',
-                    message: `${_('branding.bg_upload_success')} ${_('branding.autosaved')}`,
-                    percent: 100
-                });
-                Notifications.success(`${_('branding.bg_upload_success')} ${_('branding.autosaved')}`);
-            } else {
-                updateBackgroundUploadPanel(statusEl, {
-                    state: 'error',
-                    icon: 'error',
-                    message: _('branding.status_error'),
-                    percent: 100
-                });
-            }
+            updateBackgroundUploadPanel(statusEl, {
+                state: 'success',
+                icon: 'check_circle',
+                message: `${_('branding.bg_upload_success')} ${_('branding.autosaved')}`,
+                percent: 100
+            });
+            Notifications.success(`${_('branding.bg_upload_success')} ${_('branding.autosaved')}`);
         }
     }
 
@@ -1401,6 +1403,15 @@
             imageRadio.checked = true;
             showBackgroundPanel(prefix, 'image');
         }
+    }
+
+    function backgroundTargetToBrandingKey(targetId) {
+        const map = {
+            'bg-image-url': 'bgImageUrl',
+            'login-bg-image-url': 'loginBgImageUrl',
+            'agent-bg-image-url': 'agentBgImageUrl'
+        };
+        return map[targetId] || '';
     }
     
     /**

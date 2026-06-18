@@ -119,6 +119,27 @@ describe('Branding routes', () => {
             const uploaded = path.join(config.dataDir, 'uploads', path.basename(res.body.url));
             if (fs.existsSync(uploaded)) fs.unlinkSync(uploaded);
         });
+
+        it('applies uploaded console background atomically when target is provided', async () => {
+            const res = await request(app)
+                .post('/api/settings/branding/upload-background')
+                .field('target', 'bgImageUrl')
+                .attach('background', Buffer.from('new-wallpaper-content'), {
+                    filename: 'new-wallpaper.png',
+                    contentType: 'image/png'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.applied).toBe(true);
+            expect(database.saveBrandingConfigBatch).toHaveBeenCalledWith(expect.arrayContaining([
+                expect.objectContaining({ key: 'bgImageUrl', value: res.body.url }),
+                expect.objectContaining({ key: 'bgType', value: 'image' })
+            ]));
+
+            const uploaded = path.join(config.dataDir, 'uploads', path.basename(res.body.url));
+            if (fs.existsSync(uploaded)) fs.unlinkSync(uploaded);
+        });
     });
 });
 
