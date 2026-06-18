@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.29] — 2026-06-18
+
 ### Fixed
 - **Device ID reuse after deletion (#213):** changing a device ID to a value reserved by a soft-deleted peer now returns a clear conflict instead of a generic server error. The panel also explains that normal delete keeps the ID reserved and offers permanent deletion when an operator intentionally wants to release the ID for reuse.
 
@@ -912,3 +919,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.26]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.25...v3.3.26
 [3.3.27]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.26...v3.3.27
 [3.3.28]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.27...v3.3.28
+[3.3.29]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.28...v3.3.29
