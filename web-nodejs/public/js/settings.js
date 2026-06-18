@@ -726,9 +726,11 @@
             if (!options.silent) {
                 Notifications.success(_('branding.saved'));
             }
+            return true;
         } catch (error) {
             setBrandingStatus('error', error.message || _('errors.server_error'));
             if (!options.silent) Notifications.error(error.message || _('errors.server_error'));
+            return false;
         }
     }
 
@@ -1191,7 +1193,14 @@
         
         const targetId = e.target.dataset.target;
         const nameEl = getBackgroundFileNameElement(e.target);
+        const statusEl = getBackgroundUploadStatusElement(e.target);
         setBackgroundUploadStatus(nameEl, file.name, _('branding.status_saving'));
+        updateBackgroundUploadPanel(statusEl, {
+            state: 'uploading',
+            icon: 'sync',
+            message: `${file.name} — ${_('branding.status_saving')}`,
+            percent: 1
+        });
         
         const formData = new FormData();
         formData.append('background', file);
@@ -1200,26 +1209,65 @@
         const uploadPromise = (async () => {
             const result = await uploadBackgroundImage(formData, (percent) => {
                 setBackgroundUploadStatus(nameEl, file.name, `${percent}%`);
+                updateBackgroundUploadPanel(statusEl, {
+                    state: 'uploading',
+                    icon: 'sync',
+                    message: `${file.name} — ${percent}%`,
+                    percent
+                });
             });
             const urlInput = document.getElementById(targetId);
             if (urlInput) urlInput.value = result.url;
             setBackgroundUploadStatus(nameEl, file.name, result.url || 'OK');
+            updateBackgroundUploadPanel(statusEl, {
+                state: 'saving',
+                icon: 'sync',
+                message: `${_('branding.bg_upload_success')} ${_('branding.status_saving')}`,
+                percent: 100
+            });
             selectBackgroundImageType(targetId);
             onBrandingFieldChange();
-            Notifications.success(_('branding.bg_upload_success'));
             return result.url;
         })();
 
         _backgroundUploads.set(uploadKey, uploadPromise);
 
+        let uploadedUrl = '';
         try {
-            await uploadPromise;
+            uploadedUrl = await uploadPromise;
         } catch (err) {
             setBackgroundUploadStatus(nameEl, file.name, err.message || _('errors.server_error'));
+            updateBackgroundUploadPanel(statusEl, {
+                state: 'error',
+                icon: 'error',
+                message: err.message || _('errors.server_error'),
+                percent: 100
+            });
             Utils.showNotification(err.message || _('errors.server_error'), 'error');
         } finally {
             if (_backgroundUploads.get(uploadKey) === uploadPromise) {
                 _backgroundUploads.delete(uploadKey);
+            }
+        }
+
+        if (uploadedUrl) {
+            clearTimeout(_autosaveDebounce);
+            const saved = await saveBrandingNow({ silent: true });
+            if (saved) {
+                updateBackgroundUploadPanel(statusEl, {
+                    state: 'success',
+                    icon: 'check_circle',
+                    message: `${_('branding.bg_upload_success')} ${_('branding.autosaved')}`,
+                    percent: 100
+                });
+                Notifications.success(`${_('branding.bg_upload_success')} ${_('branding.autosaved')}`);
+            } else {
+                updateBackgroundUploadPanel(statusEl, {
+                    state: 'error',
+                    icon: 'error',
+                    message: _('branding.status_error'),
+                    percent: 100
+                });
             }
         }
     }
@@ -1238,6 +1286,30 @@
         if (!el) return;
         el.textContent = status ? `${fileName} (${status})` : fileName;
         el.title = el.textContent;
+    }
+
+    function getBackgroundUploadStatusElement(input) {
+        const map = {
+            'bg-image-file': 'bg-upload-status',
+            'login-bg-image-file': 'login-bg-upload-status',
+            'agent-bg-image-file': 'agent-bg-upload-status'
+        };
+        return document.getElementById(map[input.id]);
+    }
+
+    function updateBackgroundUploadPanel(el, { state, icon, message, percent }) {
+        if (!el) return;
+        el.hidden = false;
+        el.classList.remove('is-uploading', 'is-saving', 'is-success', 'is-error');
+        if (state) el.classList.add(`is-${state}`);
+        const iconEl = el.querySelector('.branding-upload-status-icon');
+        const messageEl = el.querySelector('.branding-upload-message');
+        const fillEl = el.querySelector('.branding-upload-progress-fill');
+        if (iconEl && icon) iconEl.textContent = icon;
+        if (messageEl) messageEl.textContent = message || '';
+        if (fillEl && Number.isFinite(percent)) {
+            fillEl.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+        }
     }
 
     function uploadBackgroundImage(formData, onProgress) {
