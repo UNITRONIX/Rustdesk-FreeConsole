@@ -197,6 +197,7 @@
     "edit_title": "Laitteen tiedot",
     "delete_title": "Poista laite",
     "delete_confirm": "Haluatko varmasti poistaa laitteen {id}?",
+    "delete_reserved_hint": "Laite piilotetaan ja sen ID pysyy varattuna. Valitse pysyvä poisto vapauttaaksesi ID:n uudelleenkäyttöön.",
     "delete_warning": "Olet poistamassa tämän laitteen pysyvästi:",
     "delete_permanent": "Tätä toimintoa ei voi kumota. Kaikki tähän laitteeseen liittyvät tiedot poistetaan pysyvästi tietokannasta.",
     "delete_success": "Laitteen poistaminen onnistui",

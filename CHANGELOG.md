@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Device ID reuse after deletion (#213):** changing a device ID to a value reserved by a soft-deleted peer now returns a clear conflict instead of a generic server error. The panel also explains that normal delete keeps the ID reserved and offers permanent deletion when an operator intentionally wants to release the ID for reuse.
+
 ### Changed
 - _(none yet)_
 

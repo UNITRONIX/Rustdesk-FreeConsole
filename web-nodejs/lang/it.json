@@ -191,6 +191,7 @@
     "edit_title": "Dettagli dispositivo",
     "delete_title": "Elimina dispositivo",
     "delete_confirm": "Sei sicuro di voler eliminare il dispositivo {id}?",
+    "delete_reserved_hint": "Il dispositivo verrà nascosto e il suo ID resterà riservato. Seleziona l’eliminazione permanente per liberare l’ID e riutilizzarlo.",
     "delete_warning": "Stai per eliminare permanentemente questo dispositivo:",
     "delete_permanent": "Questa azione non può essere annullata. Tutti i dati associati a questo dispositivo verranno rimossi permanentemente dal database.",
     "delete_success": "Dispositivo eliminato con successo",

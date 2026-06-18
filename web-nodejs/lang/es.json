@@ -191,6 +191,7 @@
     "edit_title": "Detalles del dispositivo",
     "delete_title": "Eliminar usuario",
     "delete_confirm": "¿Está seguro de que desea eliminar el dispositivo {id}?",
+    "delete_reserved_hint": "El dispositivo se ocultará y su ID permanecerá reservada. Seleccione la eliminación permanente para liberar el ID y reutilizarlo.",
     "delete_warning": "Esta acción elimina el dispositivo de la consola.",
     "delete_permanent": "Esta acción no se puede deshacer. Todos los datos asociados a este dispositivo se eliminarán permanentemente de la base de datos.",
     "delete_success": "Dispositivo eliminado correctamente",

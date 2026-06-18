@@ -2,6 +2,7 @@ package signal
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -474,14 +475,23 @@ func (s *Server) processIDChange(msg *pb.RegisterPk) *pb.RendezvousMessage {
 		return registerPkResponse(pb.RegisterPkResponse_ID_EXISTS)
 	}
 
-	// Check in database too
-	dbPeer, _ := s.db.GetPeer(newID)
-	if dbPeer != nil {
+	targetState, err := s.db.GetPeerIDState(newID)
+	if err != nil {
+		log.Printf("[signal] Failed to check target ID %s before ID change: %v", newID, err)
+		return registerPkResponse(pb.RegisterPkResponse_SERVER_ERROR)
+	}
+	if targetState == db.PeerIDActive || targetState == db.PeerIDSoftDeleted {
 		return registerPkResponse(pb.RegisterPkResponse_ID_EXISTS)
 	}
 
 	// Perform the change
 	if err := s.db.ChangePeerID(oldID, newID); err != nil {
+		if errors.Is(err, db.ErrPeerIDExists) || errors.Is(err, db.ErrPeerIDSoftDeleted) {
+			return registerPkResponse(pb.RegisterPkResponse_ID_EXISTS)
+		}
+		if errors.Is(err, db.ErrPeerNotFound) {
+			return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+		}
 		log.Printf("[signal] ID change %s → %s failed: %v", oldID, newID, err)
 		return registerPkResponse(pb.RegisterPkResponse_SERVER_ERROR)
 	}

@@ -193,6 +193,7 @@
     "edit_title": "Device Details",
     "delete_title": "Delete Device",
     "delete_confirm": "Are you sure you want to delete device {id}?",
+    "delete_reserved_hint": "The device will be hidden and its ID will stay reserved. Select permanent deletion to release the ID for reuse.",
     "delete_warning": "You are about to permanently delete this device:",
     "delete_permanent": "This action cannot be undone. All data associated with this device will be permanently removed from the database.",
     "delete_success": "Device deleted successfully",

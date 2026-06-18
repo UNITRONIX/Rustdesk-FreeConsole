@@ -409,6 +409,7 @@ router.delete('/api/devices/:id', requireAuth, requirePermission('device.delete'
         const id = req.params.id;
         const revoke = req.query.revoke === 'true';
         const cascade = req.query.cascade === 'true';
+        const hard = req.query.hard === 'true';
         
         const device = await serverBackend.getDeviceById(id);
         if (!device) {
@@ -419,7 +420,7 @@ router.delete('/api/devices/:id', requireAuth, requirePermission('device.delete'
         }
         if (await rejectIfDeviceOutOfScope(req, res, device)) return;
         
-        const result = await serverBackend.deleteDevice(id, { revoke, cascade });
+        const result = await serverBackend.deleteDevice(id, { revoke, cascade, hard });
         
         if (!result || !result.success) {
             return res.status(500).json({
@@ -437,12 +438,13 @@ router.delete('/api/devices/:id', requireAuth, requirePermission('device.delete'
         const action = revoke ? 'device_revoked' : 'device_deleted';
         const details = revoke
             ? `Device ${id} revoked (blocklist + disconnect)${cascade ? ' + cascade' : ''}`
-            : `Device ${id} deleted`;
+            : `Device ${id} deleted${hard ? ' permanently' : ''}`;
         await db.logAction(req.session.userId, action, details, req.ip);
         
         res.json({
             success: true,
             revoked: revoke,
+            hard,
             cascaded: result.cascaded || [],
         });
     } catch (err) {

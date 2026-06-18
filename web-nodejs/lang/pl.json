@@ -191,6 +191,7 @@
     "edit_title": "Szczegóły urządzenia",
     "delete_title": "Usuń urządzenie",
     "delete_confirm": "Czy na pewno chcesz usunąć urządzenie {id}?",
+    "delete_reserved_hint": "Urządzenie zostanie ukryte, a jego ID pozostanie zarezerwowane. Wybierz trwałe usunięcie, aby zwolnić ID do ponownego użycia.",
     "delete_warning": "Za chwilę trwale usuniesz to urządzenie:",
     "delete_permanent": "Ta operacja jest nieodwracalna. Wszystkie dane powiązane z tym urządzeniem zostaną trwale usunięte z bazy danych.",
     "delete_success": "Urządzenie usunięte",

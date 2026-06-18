@@ -197,6 +197,7 @@
     "edit_title": "Enhetsdetaljer",
     "delete_title": "Ta bort enhet",
     "delete_confirm": "Är du säker på att du vill ta bort enheten {id}?",
+    "delete_reserved_hint": "Enheten döljs och dess ID förblir reserverat. Välj permanent borttagning för att frigöra ID:t för återanvändning.",
     "delete_warning": "Du håller på att ta bort den här enheten permanent:",
     "delete_permanent": "Denna åtgärd kan inte ångras. All data som är associerad med den här enheten kommer att tas bort permanent från databasen.",
     "delete_success": "Enheten har raderats",

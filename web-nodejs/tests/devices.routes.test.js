@@ -33,7 +33,9 @@ jest.mock('../services/serverBackend', () => ({
     getAllDevices: jest.fn().mockResolvedValue([]),
     getDeviceById: jest.fn().mockResolvedValue(null),
     updateDevice: jest.fn().mockResolvedValue(undefined),
-    deleteDevice: jest.fn().mockResolvedValue(undefined)
+    deleteDevice: jest.fn().mockResolvedValue(undefined),
+    restoreDevice: jest.fn().mockResolvedValue({ success: true }),
+    changePeerId: jest.fn().mockResolvedValue({ success: true })
 }));
 
 const serverBackend = require('../services/serverBackend');
@@ -324,6 +326,40 @@ describe('Devices Routes', () => {
             expect(res.body.success).toBe(true);
             expect(warnSpy).toHaveBeenCalledWith('Device update audit log failed:', 'audit unavailable');
             warnSpy.mockRestore();
+        });
+    });
+
+    describe('POST /api/devices/:id/change-id', () => {
+        it('should propagate soft-deleted ID conflicts from the backend', async () => {
+            const message = 'This ID belongs to a deleted device. Restore or permanently delete that device before reusing the ID.';
+            serverBackend.getDeviceById.mockResolvedValue(null);
+            serverBackend.changePeerId.mockResolvedValue({ success: false, error: message });
+
+            const res = await request(app)
+                .post('/api/devices/NEWCLIENT/change-id')
+                .send({ newId: 'MACPRO' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+            expect(res.body.error).toBe(message);
+        });
+    });
+
+    describe('DELETE /api/devices/:id', () => {
+        it('should pass hard delete option through to the backend', async () => {
+            serverBackend.getDeviceById.mockResolvedValue({ id: 'MACPRO', hostname: 'Mac Pro' });
+            serverBackend.deleteDevice.mockResolvedValue({ success: true });
+
+            const res = await request(app).delete('/api/devices/MACPRO?hard=true');
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.hard).toBe(true);
+            expect(serverBackend.deleteDevice).toHaveBeenCalledWith('MACPRO', {
+                revoke: false,
+                cascade: false,
+                hard: true
+            });
         });
     });
 

@@ -235,6 +235,27 @@ func TestProcessRegisterPkManagedAllowsExistingPeer(t *testing.T) {
 	}
 }
 
+func TestProcessIDChangeSoftDeletedTargetReturnsIDExists(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{ID: "OLD213", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UpsertPeer(&db.Peer{ID: "MACPRO", Status: "OFFLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.DeletePeer("MACPRO"); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := newRegisterPk("MACPRO")
+	msg.OldId = "OLD213"
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_ID_EXISTS {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_ID_EXISTS)
+	}
+}
+
 func TestProcessRegisterPkManagedAllowsTokenBoundPeer(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
 

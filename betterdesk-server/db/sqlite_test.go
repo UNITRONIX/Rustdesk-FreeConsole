@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -443,6 +444,44 @@ func TestChangePeerIDDuplicate(t *testing.T) {
 	err := db.ChangePeerID("A1", "B1")
 	if err == nil {
 		t.Error("expected error when changing to existing ID")
+	}
+}
+
+func TestChangePeerIDSoftDeletedTarget(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := db.UpsertPeer(&Peer{ID: "NEWCLIENT", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertPeer(&Peer{ID: "MACPRO", Status: "OFFLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeletePeer("MACPRO"); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := db.GetPeerIDState("MACPRO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != PeerIDSoftDeleted {
+		t.Fatalf("MACPRO state = %s, want %s", state, PeerIDSoftDeleted)
+	}
+
+	err = db.ChangePeerID("NEWCLIENT", "MACPRO")
+	if !errors.Is(err, ErrPeerIDSoftDeleted) {
+		t.Fatalf("ChangePeerID to soft-deleted target error = %v, want ErrPeerIDSoftDeleted", err)
+	}
+
+	if err := db.ChangePeerID("NEWCLIENT", "MACPRO1"); err != nil {
+		t.Fatalf("ChangePeerID to free target: %v", err)
+	}
+	peer, err := db.GetPeer("MACPRO1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if peer == nil {
+		t.Fatal("MACPRO1 should exist after successful ID change")
 	}
 }
 

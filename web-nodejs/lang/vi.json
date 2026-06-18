@@ -197,6 +197,7 @@
     "edit_title": "Chi tiết thiết bị",
     "delete_title": "Xóa thiết bị",
     "delete_confirm": "Bạn có chắc chắn muốn xóa thiết bị {id} không?",
+    "delete_reserved_hint": "Thiết bị sẽ bị ẩn và ID của nó vẫn được giữ lại. Chọn xóa vĩnh viễn để giải phóng ID cho việc sử dụng lại.",
     "delete_warning": "Bạn sắp xóa vĩnh viễn thiết bị này:",
     "delete_permanent": "Không thể hoàn tác hành động này. Tất cả dữ liệu liên quan đến thiết bị này sẽ bị xóa vĩnh viễn khỏi cơ sở dữ liệu.",
     "delete_success": "Đã xóa thiết bị thành công",

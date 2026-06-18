@@ -651,6 +651,23 @@ func (pg *PostgresDB) GetPeer(id string) (*Peer, error) {
 	return p, nil
 }
 
+// GetPeerIDState returns whether an ID is missing, active, or soft-deleted.
+func (pg *PostgresDB) GetPeerIDState(id string) (PeerIDState, error) {
+	var deleted bool
+	err := pg.pool.QueryRow(pg.ctx,
+		`SELECT soft_deleted FROM peers WHERE id = $1`, id).Scan(&deleted)
+	if err == pgx.ErrNoRows {
+		return PeerIDMissing, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("db: GetPeerIDState(%q): %w", id, err)
+	}
+	if deleted {
+		return PeerIDSoftDeleted, nil
+	}
+	return PeerIDActive, nil
+}
+
 // GetPeersByIDs returns active peers for the given IDs in one query.
 func (pg *PostgresDB) GetPeersByIDs(ids []string) (map[string]*Peer, error) {
 	if len(ids) == 0 {
@@ -944,18 +961,19 @@ func (pg *PostgresDB) ChangePeerID(oldID, newID string) error {
 	}
 	defer tx.Rollback(pg.ctx)
 
-	// Check new ID doesn't exist
-	var count int
+	var targetDeleted bool
 	if err := tx.QueryRow(pg.ctx,
-		`SELECT COUNT(*) FROM peers WHERE id = $1`, newID).Scan(&count); err != nil {
+		`SELECT soft_deleted FROM peers WHERE id = $1`, newID).Scan(&targetDeleted); err != nil && err != pgx.ErrNoRows {
 		return err
-	}
-	if count > 0 {
-		return fmt.Errorf("db: peer ID %q already exists", newID)
+	} else if err == nil {
+		if targetDeleted {
+			return ErrPeerIDSoftDeleted
+		}
+		return ErrPeerIDExists
 	}
 
 	// Lock and copy the old row with FOR UPDATE
-	_, err = tx.Exec(pg.ctx, `
+	tag, err := tx.Exec(pg.ctx, `
 		INSERT INTO peers (id, uuid, pk, ip, "user", hostname, os, version,
 		                    status, nat_type, last_online, created_at,
 		                    disabled, banned, ban_reason, banned_at,
@@ -969,6 +987,9 @@ func (pg *PostgresDB) ChangePeerID(oldID, newID string) error {
 		FROM peers WHERE id = $2 FOR UPDATE`, newID, oldID)
 	if err != nil {
 		return fmt.Errorf("db: ChangePeerID insert: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrPeerNotFound
 	}
 
 	if _, err := tx.Exec(pg.ctx, `DELETE FROM peers WHERE id = $1`, oldID); err != nil {

@@ -2,7 +2,10 @@
 // Implementations: sqlite.go (default), postgres.go (PostgreSQL via pgx/v5).
 package db
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // Peer represents a registered RustDesk device.
 type Peer struct {
@@ -92,6 +95,22 @@ type IDChangeHistory struct {
 	ChangedAt time.Time `json:"changed_at"`
 	Reason    string    `json:"reason,omitempty"`
 }
+
+// PeerIDState describes whether an ID is available, active, or reserved by a
+// soft-deleted peer row.
+type PeerIDState string
+
+const (
+	PeerIDMissing     PeerIDState = "missing"
+	PeerIDActive      PeerIDState = "active"
+	PeerIDSoftDeleted PeerIDState = "soft_deleted"
+)
+
+var (
+	ErrPeerNotFound      = errors.New("db: peer not found")
+	ErrPeerIDExists      = errors.New("db: peer ID already exists")
+	ErrPeerIDSoftDeleted = errors.New("db: peer ID belongs to a deleted peer")
+)
 
 // PeerMetric represents a single heartbeat metric data point.
 type PeerMetric struct {
@@ -412,6 +431,7 @@ type Database interface {
 
 	// Peer operations
 	GetPeer(id string) (*Peer, error)
+	GetPeerIDState(id string) (PeerIDState, error)
 	// GetPeersByIDs returns active (non-soft-deleted) peers for the given IDs.
 	// Missing IDs are omitted; an empty ids slice returns an empty map.
 	GetPeersByIDs(ids []string) (map[string]*Peer, error)

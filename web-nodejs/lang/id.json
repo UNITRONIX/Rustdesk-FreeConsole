@@ -197,6 +197,7 @@
     "edit_title": "Detail Perangkat",
     "delete_title": "Hapus Perangkat",
     "delete_confirm": "Apakah Anda yakin ingin menghapus perangkat {id}?",
+    "delete_reserved_hint": "Perangkat akan disembunyikan dan ID-nya tetap dicadangkan. Pilih penghapusan permanen untuk melepas ID agar dapat digunakan kembali.",
     "delete_warning": "Anda akan menghapus perangkat ini secara permanen:",
     "delete_permanent": "Tindakan ini tidak dapat dibatalkan. Semua data yang terkait dengan perangkat ini akan dihapus secara permanen dari database.",
     "delete_success": "Perangkat berhasil dihapus",

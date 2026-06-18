@@ -191,6 +191,7 @@
     "edit_title": "设备详情",
     "delete_title": "删除设备",
     "delete_confirm": "确定要删除设备 {id} 吗？",
+    "delete_reserved_hint": "设备将被隐藏，其 ID 会保持保留状态。选择永久删除可释放该 ID 以便重新使用。",
     "delete_warning": "您即将永久删除此设备：",
     "delete_permanent": "此操作无法撤销。与该设备关联的所有数据将从数据库中永久删除。",
     "delete_success": "设备删除成功",

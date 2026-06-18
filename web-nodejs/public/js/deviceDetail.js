@@ -1295,16 +1295,46 @@ const DeviceDetail = (function () {
         const deviceId = device && device.id;
         if (!deviceId) return;
 
-        const confirmed = await Modal.confirm({
-            title: _('devices.delete_title'),
-            message: _('devices.delete_confirm', { id: deviceId }),
-            confirmLabel: _('actions.delete'),
-            confirmIcon: 'delete',
-            danger: true
+        const releaseIdInput = Utils.generateId();
+        const deleteChoice = await new Promise((resolve) => {
+            Modal.show({
+                title: _('devices.delete_title'),
+                content: `
+                    <p>${Utils.escapeHtml(_('devices.delete_confirm', { id: deviceId }))}</p>
+                    <p class="form-hint">${Utils.escapeHtml(_('devices.delete_reserved_hint'))}</p>
+                    <label class="form-check" for="${releaseIdInput}">
+                        <input type="checkbox" id="${releaseIdInput}">
+                        <span>${Utils.escapeHtml(_('devices.delete_permanent'))}</span>
+                    </label>
+                `,
+                buttons: [
+                    {
+                        label: _('actions.cancel'),
+                        class: 'btn-secondary',
+                        onClick: () => {
+                            Modal.close();
+                            resolve(null);
+                        }
+                    },
+                    {
+                        label: _('actions.delete'),
+                        class: 'btn-danger',
+                        icon: 'delete',
+                        onClick: () => {
+                            const hard = !!document.getElementById(releaseIdInput)?.checked;
+                            Modal.close();
+                            resolve({ hard });
+                        }
+                    }
+                ],
+                closable: true,
+                onClose: () => resolve(null)
+            });
         });
-        if (!confirmed) return;
+        if (!deleteChoice) return;
         try {
-            await Utils.api('/api/devices/' + encodeURIComponent(deviceId), { method: 'DELETE' });
+            const query = deleteChoice.hard ? '?hard=true' : '';
+            await Utils.api('/api/devices/' + encodeURIComponent(deviceId) + query, { method: 'DELETE' });
             Notifications.success(_('devices.delete_success'));
             close();
             _notifyChanged();

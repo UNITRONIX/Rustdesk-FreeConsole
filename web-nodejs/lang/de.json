@@ -191,6 +191,7 @@
     "edit_title": "Gerätedetails",
     "delete_title": "Gerät löschen",
     "delete_confirm": "Sind Sie sicher, dass Sie Gerät {id} löschen möchten?",
+    "delete_reserved_hint": "Das Gerät wird ausgeblendet und seine ID bleibt reserviert. Wählen Sie dauerhaftes Löschen, um die ID wieder freizugeben.",
     "delete_warning": "Sie sind dabei, dieses Gerät dauerhaft zu löschen:",
     "delete_permanent": "Diese Aktion kann nicht rückgängig gemacht werden. Alle mit diesem Gerät verknüpften Daten werden dauerhaft aus der Datenbank entfernt.",
     "delete_success": "Gerät erfolgreich gelöscht",

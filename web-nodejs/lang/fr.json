@@ -197,6 +197,7 @@
     "edit_title": "Détails de l'appareil",
     "delete_title": "Supprimer l'utilisateur",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer l'appareil {id} ?",
+    "delete_reserved_hint": "L’appareil sera masqué et son ID restera réservé. Sélectionnez la suppression définitive pour libérer l’ID et le réutiliser.",
     "delete_warning": "You are about to permanently delete this device:",
     "delete_permanent": "Cette action est irréversible. Toutes les données associées à cet appareil seront définitivement supprimées de la base de données.",
     "delete_success": "Appareil supprimé avec succès",

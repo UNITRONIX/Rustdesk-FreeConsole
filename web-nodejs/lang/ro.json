@@ -197,6 +197,7 @@
     "edit_title": "Detalii despre dispozitiv",
     "delete_title": "Ștergeți dispozitivul",
     "delete_confirm": "Sigur doriți să ștergeți dispozitivul {id}?",
+    "delete_reserved_hint": "Dispozitivul va fi ascuns, iar ID-ul său va rămâne rezervat. Selectați ștergerea permanentă pentru a elibera ID-ul pentru reutilizare.",
     "delete_warning": "Sunteți pe cale să ștergeți definitiv acest dispozitiv:",
     "delete_permanent": "Această acțiune nu poate fi anulată. Toate datele asociate cu acest dispozitiv vor fi șterse definitiv din baza de date.",
     "delete_success": "Dispozitivul a fost șters cu succes",

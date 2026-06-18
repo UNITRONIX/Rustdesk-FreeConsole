@@ -602,6 +602,25 @@ func (s *SQLiteDB) GetPeer(id string) (*Peer, error) {
 	return p, nil
 }
 
+// GetPeerIDState returns whether an ID is missing, active, or soft-deleted.
+func (s *SQLiteDB) GetPeerIDState(id string) (PeerIDState, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var deleted bool
+	err := s.db.QueryRow(`SELECT soft_deleted FROM peers WHERE id = ?`, id).Scan(&deleted)
+	if err == sql.ErrNoRows {
+		return PeerIDMissing, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("db: GetPeerIDState(%q): %w", id, err)
+	}
+	if deleted {
+		return PeerIDSoftDeleted, nil
+	}
+	return PeerIDActive, nil
+}
+
 // GetPeersByIDs returns active peers for the given IDs in one query.
 func (s *SQLiteDB) GetPeersByIDs(ids []string) (map[string]*Peer, error) {
 	if len(ids) == 0 {
@@ -1012,17 +1031,18 @@ func (s *SQLiteDB) ChangePeerID(oldID, newID string) error {
 	}
 	defer tx.Rollback()
 
-	// Check new ID doesn't exist
-	var count int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM peers WHERE id = ?`, newID).Scan(&count); err != nil {
+	var targetDeleted bool
+	if err := tx.QueryRow(`SELECT soft_deleted FROM peers WHERE id = ?`, newID).Scan(&targetDeleted); err != nil && err != sql.ErrNoRows {
 		return err
-	}
-	if count > 0 {
-		return fmt.Errorf("db: peer ID %q already exists", newID)
+	} else if err == nil {
+		if targetDeleted {
+			return ErrPeerIDSoftDeleted
+		}
+		return ErrPeerIDExists
 	}
 
 	// Create new row with new ID, copy data from old
-	_, err = tx.Exec(`
+	result, err := tx.Exec(`
 		INSERT INTO peers (id, uuid, pk, ip, user, hostname, os, version,
 		                    status, nat_type, last_online, created_at,
 		                    disabled, banned, ban_reason, banned_at,
@@ -1036,6 +1056,9 @@ func (s *SQLiteDB) ChangePeerID(oldID, newID string) error {
 		FROM peers WHERE id = ?`, newID, oldID)
 	if err != nil {
 		return fmt.Errorf("db: ChangePeerID insert: %w", err)
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return ErrPeerNotFound
 	}
 
 	// Delete old row

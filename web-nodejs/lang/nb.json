@@ -197,6 +197,7 @@
     "edit_title": "Enhetsdetaljer",
     "delete_title": "Slett enhet",
     "delete_confirm": "Er du sikker på at du vil slette enheten {id}?",
+    "delete_reserved_hint": "Enheten skjules, og ID-en forblir reservert. Velg permanent sletting for å frigjøre ID-en for gjenbruk.",
     "delete_warning": "Du er i ferd med å slette denne enheten permanent:",
     "delete_permanent": "Denne handlingen kan ikke angres. Alle data knyttet til denne enheten vil bli permanent fjernet fra databasen.",
     "delete_success": "Enheten ble slettet",

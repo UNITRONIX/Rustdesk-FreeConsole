@@ -197,6 +197,7 @@
     "edit_title": "Eszköz részletei",
     "delete_title": "Eszköz törlése",
     "delete_confirm": "Biztosan törli a {id} eszközt?",
+    "delete_reserved_hint": "Az eszköz rejtve lesz, az azonosítója pedig foglalt marad. Az azonosító újrafelhasználásához válassza a végleges törlést.",
     "delete_warning": "Az eszköz végleges törlésére készül:",
     "delete_permanent": "Ez a művelet nem vonható vissza. Az eszközhöz kapcsolódó összes adat véglegesen törlődik az adatbázisból.",
     "delete_success": "Az eszköz sikeresen törölve",

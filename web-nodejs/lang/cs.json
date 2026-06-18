@@ -191,6 +191,7 @@
     "edit_title": "Podrobnosti zařízení",
     "delete_title": "Smazat zařízení",
     "delete_confirm": "Opravdu chcete smazat zařízení {id}?",
+    "delete_reserved_hint": "Zařízení bude skryto a jeho ID zůstane rezervované. Pro uvolnění ID k opětovnému použití vyberte trvalé smazání.",
     "delete_warning": "Chystáte se natrvalo smazat toto zařízení:",
     "delete_permanent": "Tato akce je nevratná. Všechna data spojená s tímto zařízením budou natrvalo odstraněna z databáze.",
     "delete_success": "Zařízení úspěšně smazáno",

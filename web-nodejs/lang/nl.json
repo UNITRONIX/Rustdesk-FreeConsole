@@ -191,6 +191,7 @@
     "edit_title": "Apparaatdetails",
     "delete_title": "Apparaat verwijderen",
     "delete_confirm": "Weet u zeker dat u apparaat {id} wilt verwijderen?",
+    "delete_reserved_hint": "Het apparaat wordt verborgen en de ID blijft gereserveerd. Kies permanent verwijderen om de ID vrij te geven voor hergebruik.",
     "delete_warning": "U staat op het punt om dit apparaat permanent te verwijderen:",
     "delete_permanent": "Deze actie kan niet ongedaan worden gemaakt. Alle gegevens die aan dit apparaat zijn gekoppeld, worden permanent uit de database verwijderd.",
     "delete_success": "Apparaat succesvol verwijderd",

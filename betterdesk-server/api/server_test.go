@@ -301,6 +301,50 @@ func TestBanRemovesPeerFromMap(t *testing.T) {
 	}
 }
 
+func TestChangePeerIDSoftDeletedTargetReturnsConflict(t *testing.T) {
+	cfg := config.DefaultConfig()
+	database := testSetupDB(t)
+	defer database.Close()
+
+	if err := database.UpsertPeer(&db.Peer{ID: "OLD213", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UpsertPeer(&db.Peer{ID: "MACPRO", Status: "OFFLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.DeletePeer("MACPRO"); err != nil {
+		t.Fatal(err)
+	}
+
+	peerMap := peer.NewMap()
+	cfg.APIPort = 19886
+	srv := New(cfg, database, peerMap, nil, "test")
+	srv.Start(t.Context())
+	defer srv.Stop()
+	time.Sleep(100 * time.Millisecond)
+
+	req, _ := http.NewRequest("POST", fmt.Sprintf("http://127.0.0.1:%d/api/peers/OLD213/change-id", cfg.APIPort),
+		strings.NewReader(`{"new_id":"MACPRO"}`))
+	req.Header.Set("Content-Type", "application/json")
+	testAuthReq(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusConflict)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body["error"], "deleted device") {
+		t.Fatalf("error = %q, want deleted-device conflict", body["error"])
+	}
+}
+
 func TestStatusSummaryEndpoint(t *testing.T) {
 	cfg := config.DefaultConfig()
 	database := testSetupDB(t)

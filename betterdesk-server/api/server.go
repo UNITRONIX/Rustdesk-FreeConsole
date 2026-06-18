@@ -6,6 +6,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -62,8 +63,8 @@ type Server struct {
 	// branding endpoints to deter device-ID enumeration and config probing.
 	enrollmentLimiter *ratelimit.IPLimiter
 	brandingLimiter   *ratelimit.IPLimiter
-	keyPair           *crypto.KeyPair // Ed25519 keypair for signing
-	cdapGw            *cdap.Gateway   // CDAP gateway (nil if CDAP disabled)
+	keyPair           *crypto.KeyPair    // Ed25519 keypair for signing
+	cdapGw            *cdap.Gateway      // CDAP gateway (nil if CDAP disabled)
 	ldapProvider      *auth.LDAPProvider // LDAP auth provider (nil if not configured)
 	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
@@ -1212,7 +1213,33 @@ func (s *Server) handleChangePeerID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	targetState, err := s.db.GetPeerIDState(body.NewID)
+	if err != nil {
+		writeInternalError(w, err, "GetPeerIDState")
+		return
+	}
+	switch targetState {
+	case db.PeerIDActive:
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "Device ID already exists"})
+		return
+	case db.PeerIDSoftDeleted:
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "This ID belongs to a deleted device. Restore or permanently delete that device before reusing the ID."})
+		return
+	}
+
 	if err := s.db.ChangePeerID(oldID, body.NewID); err != nil {
+		if errors.Is(err, db.ErrPeerIDExists) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "Device ID already exists"})
+			return
+		}
+		if errors.Is(err, db.ErrPeerIDSoftDeleted) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "This ID belongs to a deleted device. Restore or permanently delete that device before reusing the ID."})
+			return
+		}
+		if errors.Is(err, db.ErrPeerNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "peer not found"})
+			return
+		}
 		// Log the actual error but return a generic message to prevent leakage
 		log.Printf("[API] ChangePeerID %s -> %s: %v", oldID, body.NewID, err)
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "Failed to change peer ID (ID conflict or not found)"})
