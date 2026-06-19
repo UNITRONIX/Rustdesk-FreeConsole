@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.3.39] — 2026-06-19
+
+### Changed
 - **Organization shared address book panel (#190):** the organization detail page now exposes the missing Address Book tab, including JSON editing, sharing toggle, and import from assigned org devices. Members still receive the shared contacts through RustDesk address book sync while personal entries remain private.
 
 ---
@@ -992,3 +999,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.36]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.35...v3.3.36
 [3.3.37]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.36...v3.3.37
 [3.3.38]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.37...v3.3.38
+[3.3.39]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.38...v3.3.39
