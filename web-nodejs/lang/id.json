@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "perangkat",
     "group_name_required": "Nama grup wajib diisi",
     "org_team_id": "ID tim organisasi",
-    "link_team_id_hint": "Grup akan otomatis ditautkan ke organisasi ini (team ID = ID organisasi)."
+    "link_team_id_hint": "Grup akan otomatis ditautkan ke organisasi ini (team ID = ID organisasi).",
+    "address_book": "Buku alamat",
+    "address_book_import_devices": "Impor perangkat organisasi",
+    "address_book_save": "Simpan buku alamat",
+    "address_book_intro": "Kelola kontak yang dibagikan dengan anggota organisasi ini. Entri buku alamat pribadi tetap privat dan diprioritaskan saat terjadi konflik.",
+    "address_book_enabled": "Bagikan buku alamat ini dengan anggota organisasi",
+    "address_book_json": "JSON buku alamat",
+    "address_book_json_hint": "Format lama RustDesk, misalnya: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC kantor\"}],\"tags\":[\"Kantor\"]}",
+    "address_book_invalid_json": "Buku alamat harus berupa JSON yang valid",
+    "address_book_peers_array_required": "Peers buku alamat harus berupa array",
+    "address_book_tags_array_required": "Tags buku alamat harus berupa array",
+    "address_book_saved": "Buku alamat disimpan",
+    "address_book_save_failed": "Gagal menyimpan buku alamat",
+    "address_book_imported": "Perangkat organisasi diimpor",
+    "address_book_import_none": "Tidak ada perangkat organisasi baru untuk diimpor"
   },
   "chat": {
     "e2e_enabled": "Dienkripsi ujung ke ujung",

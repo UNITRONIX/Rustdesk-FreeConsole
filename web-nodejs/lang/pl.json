@@ -2548,7 +2548,21 @@
     "group_devices_suffix": "urządzenia",
     "group_name_required": "Nazwa grupy jest wymagana",
     "org_team_id": "ID zespołu organizacji",
-    "link_team_id_hint": "Grupa zostanie automatycznie powiązana z tą organizacją (team ID = ID organizacji)."
+    "link_team_id_hint": "Grupa zostanie automatycznie powiązana z tą organizacją (team ID = ID organizacji).",
+    "address_book": "Książka adresowa",
+    "address_book_import_devices": "Importuj urządzenia organizacji",
+    "address_book_save": "Zapisz książkę adresową",
+    "address_book_intro": "Zarządzaj kontaktami udostępnianymi członkom tej organizacji. Osobiste wpisy książki adresowej pozostają prywatne i mają pierwszeństwo przy konflikcie.",
+    "address_book_enabled": "Udostępniaj tę książkę adresową członkom organizacji",
+    "address_book_json": "JSON książki adresowej",
+    "address_book_json_hint": "Starszy format RustDesk, na przykład: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Komputer biurowy\"}],\"tags\":[\"Biuro\"]}",
+    "address_book_invalid_json": "Książka adresowa musi być poprawnym JSON",
+    "address_book_peers_array_required": "Pole peers w książce adresowej musi być tablicą",
+    "address_book_tags_array_required": "Pole tags w książce adresowej musi być tablicą",
+    "address_book_saved": "Książka adresowa zapisana",
+    "address_book_save_failed": "Nie udało się zapisać książki adresowej",
+    "address_book_imported": "Urządzenia organizacji zaimportowane",
+    "address_book_import_none": "Brak nowych urządzeń organizacji do importu"
   },
   "chat": {
     "e2e_enabled": "Szyfrowanie end-to-end",

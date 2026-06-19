@@ -2467,7 +2467,21 @@
     "group_devices_suffix": "デバイス",
     "group_name_required": "グループ名は必須です",
     "org_team_id": "組織チーム ID",
-    "link_team_id_hint": "グループは自動的にこの組織にリンクされます（チーム ID = 組織 ID）。"
+    "link_team_id_hint": "グループは自動的にこの組織にリンクされます（チーム ID = 組織 ID）。",
+    "address_book": "アドレス帳",
+    "address_book_import_devices": "組織のデバイスをインポート",
+    "address_book_save": "アドレス帳を保存",
+    "address_book_intro": "この組織のメンバーと共有する連絡先を管理します。個人のアドレス帳エントリは非公開のままで、競合時には優先されます。",
+    "address_book_enabled": "このアドレス帳を組織メンバーと共有する",
+    "address_book_json": "アドレス帳 JSON",
+    "address_book_json_hint": "RustDesk レガシー形式の例: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"オフィスPC\"}],\"tags\":[\"オフィス\"]}",
+    "address_book_invalid_json": "アドレス帳は有効な JSON である必要があります",
+    "address_book_peers_array_required": "アドレス帳の peers は配列である必要があります",
+    "address_book_tags_array_required": "アドレス帳の tags は配列である必要があります",
+    "address_book_saved": "アドレス帳を保存しました",
+    "address_book_save_failed": "アドレス帳の保存に失敗しました",
+    "address_book_imported": "組織のデバイスをインポートしました",
+    "address_book_import_none": "インポートする新しい組織デバイスはありません"
   },
   "chat": {
     "e2e_enabled": "エンドツーエンド暗号化",

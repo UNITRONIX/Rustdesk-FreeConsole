@@ -2474,7 +2474,21 @@
     "group_devices_suffix": "أجهزة",
     "group_name_required": "اسم المجموعة مطلوب",
     "org_team_id": "معرّف فريق المنظمة",
-    "link_team_id_hint": "ستُربط المجموعة تلقائياً بهذه المنظمة (معرّف الفريق = معرّف المنظمة)."
+    "link_team_id_hint": "ستُربط المجموعة تلقائياً بهذه المنظمة (معرّف الفريق = معرّف المنظمة).",
+    "address_book": "دفتر العناوين",
+    "address_book_import_devices": "استيراد أجهزة المنظمة",
+    "address_book_save": "حفظ دفتر العناوين",
+    "address_book_intro": "إدارة جهات الاتصال المشتركة مع أعضاء هذه المنظمة. تبقى إدخالات دفتر العناوين الشخصية خاصة وتتجاوز الإدخالات المشتركة عند التعارض.",
+    "address_book_enabled": "مشاركة دفتر العناوين هذا مع أعضاء المنظمة",
+    "address_book_json": "JSON دفتر العناوين",
+    "address_book_json_hint": "تنسيق RustDesk القديم، مثال: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"حاسوب المكتب\"}],\"tags\":[\"المكتب\"]}",
+    "address_book_invalid_json": "يجب أن يكون دفتر العناوين JSON صالحاً",
+    "address_book_peers_array_required": "يجب أن تكون peers في دفتر العناوين مصفوفة",
+    "address_book_tags_array_required": "يجب أن تكون tags في دفتر العناوين مصفوفة",
+    "address_book_saved": "تم حفظ دفتر العناوين",
+    "address_book_save_failed": "فشل حفظ دفتر العناوين",
+    "address_book_imported": "تم استيراد أجهزة المنظمة",
+    "address_book_import_none": "لا توجد أجهزة منظمة جديدة للاستيراد"
   },
   "chat": {
     "e2e_enabled": "مشفرة من طرف إلى طرف",

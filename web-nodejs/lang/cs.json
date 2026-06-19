@@ -2467,7 +2467,21 @@
     "group_devices_suffix": "zařízení",
     "group_name_required": "Název skupiny je povinný",
     "org_team_id": "ID týmu organizace",
-    "link_team_id_hint": "Skupina bude automaticky propojena s touto organizací (team ID = ID organizace)."
+    "link_team_id_hint": "Skupina bude automaticky propojena s touto organizací (team ID = ID organizace).",
+    "address_book": "Adresář",
+    "address_book_import_devices": "Importovat zařízení organizace",
+    "address_book_save": "Uložit adresář",
+    "address_book_intro": "Spravujte kontakty sdílené se členy této organizace. Osobní položky adresáře zůstávají soukromé a při konfliktu mají přednost.",
+    "address_book_enabled": "Sdílet tento adresář se členy organizace",
+    "address_book_json": "JSON adresáře",
+    "address_book_json_hint": "Starší formát RustDesk, například: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Kancelářský PC\"}],\"tags\":[\"Kancelář\"]}",
+    "address_book_invalid_json": "Adresář musí být platný JSON",
+    "address_book_peers_array_required": "Peers v adresáři musí být pole",
+    "address_book_tags_array_required": "Tagy v adresáři musí být pole",
+    "address_book_saved": "Adresář uložen",
+    "address_book_save_failed": "Adresář se nepodařilo uložit",
+    "address_book_imported": "Zařízení organizace importována",
+    "address_book_import_none": "Žádná nová zařízení organizace k importu"
   },
   "chat": {
     "e2e_enabled": "Koncové šifrování aktivní",

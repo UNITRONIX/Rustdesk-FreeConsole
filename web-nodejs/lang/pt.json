@@ -2467,7 +2467,21 @@
     "group_devices_suffix": "dispositivos",
     "group_name_required": "O nome do grupo é obrigatório",
     "org_team_id": "ID de equipa da organização",
-    "link_team_id_hint": "O grupo será ligado automaticamente a esta organização (team ID = ID da organização)."
+    "link_team_id_hint": "O grupo será ligado automaticamente a esta organização (team ID = ID da organização).",
+    "address_book": "Livro de endereços",
+    "address_book_import_devices": "Importar dispositivos da organização",
+    "address_book_save": "Guardar livro de endereços",
+    "address_book_intro": "Gerencie os contatos compartilhados com os membros desta organização. As entradas pessoais continuam privadas e têm prioridade em caso de conflito.",
+    "address_book_enabled": "Compartilhar este livro de endereços com os membros da organização",
+    "address_book_json": "JSON do livro de endereços",
+    "address_book_json_hint": "Formato legado do RustDesk, por exemplo: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC escritório\"}],\"tags\":[\"Escritório\"]}",
+    "address_book_invalid_json": "O livro de endereços deve ser um JSON válido",
+    "address_book_peers_array_required": "Os peers do livro de endereços devem ser um array",
+    "address_book_tags_array_required": "As tags do livro de endereços devem ser um array",
+    "address_book_saved": "Livro de endereços guardado",
+    "address_book_save_failed": "Falha ao guardar o livro de endereços",
+    "address_book_imported": "Dispositivos da organização importados",
+    "address_book_import_none": "Nenhum novo dispositivo da organização para importar"
   },
   "chat": {
     "e2e_enabled": "Criptografia ponta a ponta",

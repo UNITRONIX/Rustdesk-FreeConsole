@@ -2467,7 +2467,21 @@
     "group_devices_suffix": "장치",
     "group_name_required": "그룹 이름은 필수입니다",
     "org_team_id": "조직 팀 ID",
-    "link_team_id_hint": "그룹은 자동으로 이 조직에 연결됩니다(팀 ID = 조직 ID)."
+    "link_team_id_hint": "그룹은 자동으로 이 조직에 연결됩니다(팀 ID = 조직 ID).",
+    "address_book": "주소록",
+    "address_book_import_devices": "조직 장치 가져오기",
+    "address_book_save": "주소록 저장",
+    "address_book_intro": "이 조직의 구성원과 공유할 연락처를 관리합니다. 개인 주소록 항목은 계속 비공개이며 충돌 시 우선 적용됩니다.",
+    "address_book_enabled": "이 주소록을 조직 구성원과 공유",
+    "address_book_json": "주소록 JSON",
+    "address_book_json_hint": "RustDesk 레거시 형식 예: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"사무실 PC\"}],\"tags\":[\"사무실\"]}",
+    "address_book_invalid_json": "주소록은 유효한 JSON이어야 합니다",
+    "address_book_peers_array_required": "주소록 peers는 배열이어야 합니다",
+    "address_book_tags_array_required": "주소록 tags는 배열이어야 합니다",
+    "address_book_saved": "주소록이 저장되었습니다",
+    "address_book_save_failed": "주소록 저장에 실패했습니다",
+    "address_book_imported": "조직 장치를 가져왔습니다",
+    "address_book_import_none": "가져올 새 조직 장치가 없습니다"
   },
   "chat": {
     "e2e_enabled": "종단 간 암호화",

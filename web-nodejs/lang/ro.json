@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "dispozitive",
     "group_name_required": "Numele grupului este obligatoriu",
     "org_team_id": "ID echipă organizație",
-    "link_team_id_hint": "Grupul va fi legat automat de această organizație (team ID = ID organizație)."
+    "link_team_id_hint": "Grupul va fi legat automat de această organizație (team ID = ID organizație).",
+    "address_book": "Agendă de adrese",
+    "address_book_import_devices": "Importă dispozitivele organizației",
+    "address_book_save": "Salvează agenda de adrese",
+    "address_book_intro": "Gestionați contactele partajate cu membrii acestei organizații. Intrările personale din agenda de adrese rămân private și au prioritate în caz de conflict.",
+    "address_book_enabled": "Partajează această agendă de adrese cu membrii organizației",
+    "address_book_json": "JSON agendă de adrese",
+    "address_book_json_hint": "Format RustDesk vechi, de exemplu: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC birou\"}],\"tags\":[\"Birou\"]}",
+    "address_book_invalid_json": "Agenda de adrese trebuie să fie JSON valid",
+    "address_book_peers_array_required": "Peer-urile din agenda de adrese trebuie să fie un array",
+    "address_book_tags_array_required": "Tagurile din agenda de adrese trebuie să fie un array",
+    "address_book_saved": "Agenda de adrese a fost salvată",
+    "address_book_save_failed": "Nu s-a putut salva agenda de adrese",
+    "address_book_imported": "Dispozitivele organizației au fost importate",
+    "address_book_import_none": "Nu există dispozitive noi ale organizației de importat"
   },
   "chat": {
     "e2e_enabled": "Criptat de la capăt la capăt",

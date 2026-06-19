@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "cihaz",
     "group_name_required": "Grup adı gerekli",
     "org_team_id": "Kuruluş ekip kimliği",
-    "link_team_id_hint": "Grup otomatik olarak bu kuruluşa bağlanacaktır (ekip ID = kuruluş ID)."
+    "link_team_id_hint": "Grup otomatik olarak bu kuruluşa bağlanacaktır (ekip ID = kuruluş ID).",
+    "address_book": "Adres defteri",
+    "address_book_import_devices": "Kuruluş cihazlarını içe aktar",
+    "address_book_save": "Adres defterini kaydet",
+    "address_book_intro": "Bu kuruluşun üyeleriyle paylaşılan kişileri yönetin. Kişisel adres defteri kayıtları gizli kalır ve çakışma durumunda önceliklidir.",
+    "address_book_enabled": "Bu adres defterini kuruluş üyeleriyle paylaş",
+    "address_book_json": "Adres defteri JSON",
+    "address_book_json_hint": "RustDesk eski formatı, örneğin: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Ofis PC\"}],\"tags\":[\"Ofis\"]}",
+    "address_book_invalid_json": "Adres defteri geçerli JSON olmalıdır",
+    "address_book_peers_array_required": "Adres defteri peers alanı bir dizi olmalıdır",
+    "address_book_tags_array_required": "Adres defteri tags alanı bir dizi olmalıdır",
+    "address_book_saved": "Adres defteri kaydedildi",
+    "address_book_save_failed": "Adres defteri kaydedilemedi",
+    "address_book_imported": "Kuruluş cihazları içe aktarıldı",
+    "address_book_import_none": "İçe aktarılacak yeni kuruluş cihazı yok"
   },
   "chat": {
     "e2e_enabled": "Uçtan uca şifrelenmiş",

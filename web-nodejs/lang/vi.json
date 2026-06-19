@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "thiết bị",
     "group_name_required": "Tên nhóm là bắt buộc",
     "org_team_id": "ID nhóm tổ chức",
-    "link_team_id_hint": "Nhóm sẽ tự động liên kết với tổ chức này (team ID = ID tổ chức)."
+    "link_team_id_hint": "Nhóm sẽ tự động liên kết với tổ chức này (team ID = ID tổ chức).",
+    "address_book": "Sổ địa chỉ",
+    "address_book_import_devices": "Nhập thiết bị của tổ chức",
+    "address_book_save": "Lưu sổ địa chỉ",
+    "address_book_intro": "Quản lý liên hệ được chia sẻ với thành viên của tổ chức này. Mục sổ địa chỉ cá nhân vẫn riêng tư và được ưu tiên khi có xung đột.",
+    "address_book_enabled": "Chia sẻ sổ địa chỉ này với thành viên tổ chức",
+    "address_book_json": "JSON sổ địa chỉ",
+    "address_book_json_hint": "Định dạng RustDesk cũ, ví dụ: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC văn phòng\"}],\"tags\":[\"Văn phòng\"]}",
+    "address_book_invalid_json": "Sổ địa chỉ phải là JSON hợp lệ",
+    "address_book_peers_array_required": "Peers trong sổ địa chỉ phải là một mảng",
+    "address_book_tags_array_required": "Tags trong sổ địa chỉ phải là một mảng",
+    "address_book_saved": "Đã lưu sổ địa chỉ",
+    "address_book_save_failed": "Không thể lưu sổ địa chỉ",
+    "address_book_imported": "Đã nhập thiết bị của tổ chức",
+    "address_book_import_none": "Không có thiết bị tổ chức mới để nhập"
   },
   "chat": {
     "e2e_enabled": "Mã hóa đầu cuối",

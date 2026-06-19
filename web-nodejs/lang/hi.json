@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "डिवाइस",
     "group_name_required": "समूह का नाम आवश्यक है",
     "org_team_id": "संगठन टीम ID",
-    "link_team_id_hint": "समूह स्वचालित रूप से इस संगठन से जुड़ जाएगा (टीम ID = संगठन ID)।"
+    "link_team_id_hint": "समूह स्वचालित रूप से इस संगठन से जुड़ जाएगा (टीम ID = संगठन ID)।",
+    "address_book": "पता पुस्तिका",
+    "address_book_import_devices": "संगठन डिवाइस आयात करें",
+    "address_book_save": "पता पुस्तिका सहेजें",
+    "address_book_intro": "इस संगठन के सदस्यों के साथ साझा संपर्क प्रबंधित करें। व्यक्तिगत पता पुस्तिका प्रविष्टियां निजी रहती हैं और टकराव होने पर प्राथमिकता रखती हैं।",
+    "address_book_enabled": "यह पता पुस्तिका संगठन सदस्यों के साथ साझा करें",
+    "address_book_json": "पता पुस्तिका JSON",
+    "address_book_json_hint": "RustDesk पुराना प्रारूप, उदाहरण: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"ऑफिस PC\"}],\"tags\":[\"ऑफिस\"]}",
+    "address_book_invalid_json": "पता पुस्तिका मान्य JSON होनी चाहिए",
+    "address_book_peers_array_required": "पता पुस्तिका peers एक array होना चाहिए",
+    "address_book_tags_array_required": "पता पुस्तिका tags एक array होना चाहिए",
+    "address_book_saved": "पता पुस्तिका सहेजी गई",
+    "address_book_save_failed": "पता पुस्तिका सहेजने में विफल",
+    "address_book_imported": "संगठन डिवाइस आयात किए गए",
+    "address_book_import_none": "आयात करने के लिए कोई नया संगठन डिवाइस नहीं"
   },
   "chat": {
     "e2e_enabled": "एंड-टू-एंड एन्क्रिप्टेड",

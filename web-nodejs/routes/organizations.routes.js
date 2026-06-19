@@ -25,6 +25,8 @@
  *   DELETE /api/panel/org/:id/devices/:did — Unassign device
  *   GET    /api/panel/org/:id/settings — List org settings
  *   PUT    /api/panel/org/:id/settings — Set org setting
+ *   GET    /api/panel/org/:id/address-book — Get shared org address book
+ *   PUT    /api/panel/org/:id/address-book — Update shared org address book
  */
 
 'use strict';
@@ -171,6 +173,12 @@ router.get('/api/panel/org/:id/settings', requireAuth, (req, res) =>
     goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id, '/settings')));
 router.put('/api/panel/org/:id/settings', requireAuth, requirePermission('org.edit'), (req, res) =>
     goApiProxySafe(req, res, 'put', () => orgApiPath(req.params.id, '/settings'), req.body));
+
+// Shared organization address book (Issue #190)
+router.get('/api/panel/org/:id/address-book', requireAuth, (req, res) =>
+    goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id, '/address-book')));
+router.put('/api/panel/org/:id/address-book', requireAuth, requirePermission('org.edit'), (req, res) =>
+    goApiProxySafe(req, res, 'put', () => orgApiPath(req.params.id, '/address-book'), req.body));
 
 /**
  * GET /api/panel/org/:id/device-groups

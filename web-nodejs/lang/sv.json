@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "enheter",
     "group_name_required": "Gruppnamn krävs",
     "org_team_id": "Organisationens team-ID",
-    "link_team_id_hint": "Gruppen kopplas automatiskt till denna organisation (team-ID = organisations-ID)."
+    "link_team_id_hint": "Gruppen kopplas automatiskt till denna organisation (team-ID = organisations-ID).",
+    "address_book": "Adressbok",
+    "address_book_import_devices": "Importera organisationsenheter",
+    "address_book_save": "Spara adressbok",
+    "address_book_intro": "Hantera kontakter som delas med medlemmar i denna organisation. Personliga adressboksposter förblir privata och har företräde vid konflikt.",
+    "address_book_enabled": "Dela denna adressbok med organisationsmedlemmar",
+    "address_book_json": "Adressbok JSON",
+    "address_book_json_hint": "RustDesk legacy-format, till exempel: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Kontors-PC\"}],\"tags\":[\"Kontor\"]}",
+    "address_book_invalid_json": "Adressboken måste vara giltig JSON",
+    "address_book_peers_array_required": "Adressbokens peers måste vara en lista",
+    "address_book_tags_array_required": "Adressbokens taggar måste vara en lista",
+    "address_book_saved": "Adressbok sparad",
+    "address_book_save_failed": "Kunde inte spara adressboken",
+    "address_book_imported": "Organisationsenheter importerade",
+    "address_book_import_none": "Inga nya organisationsenheter att importera"
   },
   "chat": {
     "e2e_enabled": "End-to-end krypterad",

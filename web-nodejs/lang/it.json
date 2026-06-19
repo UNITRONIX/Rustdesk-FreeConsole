@@ -2467,7 +2467,21 @@
     "group_devices_suffix": "dispositivi",
     "group_name_required": "Il nome del gruppo è obbligatorio",
     "org_team_id": "ID team organizzazione",
-    "link_team_id_hint": "Il gruppo sarà collegato automaticamente a questa organizzazione (team ID = ID organizzazione)."
+    "link_team_id_hint": "Il gruppo sarà collegato automaticamente a questa organizzazione (team ID = ID organizzazione).",
+    "address_book": "Rubrica",
+    "address_book_import_devices": "Importa dispositivi dell'organizzazione",
+    "address_book_save": "Salva rubrica",
+    "address_book_intro": "Gestisci i contatti condivisi con i membri di questa organizzazione. Le voci personali restano private e hanno la precedenza in caso di conflitto.",
+    "address_book_enabled": "Condividi questa rubrica con i membri dell'organizzazione",
+    "address_book_json": "JSON della rubrica",
+    "address_book_json_hint": "Formato legacy RustDesk, ad esempio: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC ufficio\"}],\"tags\":[\"Ufficio\"]}",
+    "address_book_invalid_json": "La rubrica deve essere JSON valido",
+    "address_book_peers_array_required": "I peer della rubrica devono essere un array",
+    "address_book_tags_array_required": "I tag della rubrica devono essere un array",
+    "address_book_saved": "Rubrica salvata",
+    "address_book_save_failed": "Impossibile salvare la rubrica",
+    "address_book_imported": "Dispositivi dell'organizzazione importati",
+    "address_book_import_none": "Nessun nuovo dispositivo dell'organizzazione da importare"
   },
   "chat": {
     "e2e_enabled": "Crittografia end-to-end",

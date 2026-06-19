@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "пристрої",
     "group_name_required": "Назва групи обов'язкова",
     "org_team_id": "ID команди організації",
-    "link_team_id_hint": "Група буде автоматично пов'язана з цією організацією (team ID = ID організації)."
+    "link_team_id_hint": "Група буде автоматично пов'язана з цією організацією (team ID = ID організації).",
+    "address_book": "Адресна книга",
+    "address_book_import_devices": "Імпортувати пристрої організації",
+    "address_book_save": "Зберегти адресну книгу",
+    "address_book_intro": "Керуйте контактами, спільними для членів цієї організації. Особисті записи адресної книги залишаються приватними та мають пріоритет у разі конфлікту.",
+    "address_book_enabled": "Ділитися цією адресною книгою з членами організації",
+    "address_book_json": "JSON адресної книги",
+    "address_book_json_hint": "Застарілий формат RustDesk, наприклад: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Офісний ПК\"}],\"tags\":[\"Офіс\"]}",
+    "address_book_invalid_json": "Адресна книга має бути коректним JSON",
+    "address_book_peers_array_required": "Peers адресної книги мають бути масивом",
+    "address_book_tags_array_required": "Tags адресної книги мають бути масивом",
+    "address_book_saved": "Адресну книгу збережено",
+    "address_book_save_failed": "Не вдалося зберегти адресну книгу",
+    "address_book_imported": "Пристрої організації імпортовано",
+    "address_book_import_none": "Немає нових пристроїв організації для імпорту"
   },
   "chat": {
     "e2e_enabled": "Наскрізне шифрування",

@@ -2586,7 +2586,21 @@
     "group_devices_suffix": "devices",
     "group_name_required": "Group name is required",
     "org_team_id": "Organization team ID",
-    "link_team_id_hint": "The group will be linked to this organization automatically (team ID = organization ID)."
+    "link_team_id_hint": "The group will be linked to this organization automatically (team ID = organization ID).",
+    "address_book": "Address Book",
+    "address_book_import_devices": "Import org devices",
+    "address_book_save": "Save address book",
+    "address_book_intro": "Manage contacts shared with members of this organization. Personal address book entries still stay private and override shared entries on conflict.",
+    "address_book_enabled": "Share this address book with organization members",
+    "address_book_json": "Address book JSON",
+    "address_book_json_hint": "RustDesk legacy format, for example: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Office PC\"}],\"tags\":[\"Office\"]}",
+    "address_book_invalid_json": "Address book must be valid JSON",
+    "address_book_peers_array_required": "Address book peers must be an array",
+    "address_book_tags_array_required": "Address book tags must be an array",
+    "address_book_saved": "Address book saved",
+    "address_book_save_failed": "Failed to save address book",
+    "address_book_imported": "Organization devices imported",
+    "address_book_import_none": "No new organization devices to import"
   },
   "chat": {
     "e2e_enabled": "End-to-end encrypted",

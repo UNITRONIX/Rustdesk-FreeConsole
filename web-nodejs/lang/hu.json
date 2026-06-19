@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "eszköz",
     "group_name_required": "A csoport neve kötelező",
     "org_team_id": "Szervezet csapatazonosítója",
-    "link_team_id_hint": "A csoport automatikusan ehhez a szervezethez lesz kapcsolva (csapat ID = szervezet ID)."
+    "link_team_id_hint": "A csoport automatikusan ehhez a szervezethez lesz kapcsolva (csapat ID = szervezet ID).",
+    "address_book": "Címjegyzék",
+    "address_book_import_devices": "Szervezeti eszközök importálása",
+    "address_book_save": "Címjegyzék mentése",
+    "address_book_intro": "Kezelje a szervezet tagjaival megosztott névjegyeket. A személyes címjegyzék bejegyzései privátak maradnak, és ütközés esetén elsőbbséget élveznek.",
+    "address_book_enabled": "Címjegyzék megosztása a szervezet tagjaival",
+    "address_book_json": "Címjegyzék JSON",
+    "address_book_json_hint": "RustDesk régi formátum, például: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Irodai PC\"}],\"tags\":[\"Iroda\"]}",
+    "address_book_invalid_json": "A címjegyzéknek érvényes JSON-nak kell lennie",
+    "address_book_peers_array_required": "A címjegyzék peers mezőjének tömbnek kell lennie",
+    "address_book_tags_array_required": "A címjegyzék tags mezőjének tömbnek kell lennie",
+    "address_book_saved": "Címjegyzék mentve",
+    "address_book_save_failed": "Nem sikerült menteni a címjegyzéket",
+    "address_book_imported": "Szervezeti eszközök importálva",
+    "address_book_import_none": "Nincs importálható új szervezeti eszköz"
   },
   "chat": {
     "e2e_enabled": "Végponttól végpontig titkosítva",

@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "laitteet",
     "group_name_required": "Ryhmän nimi on pakollinen",
     "org_team_id": "Organisaation tiimitunnus",
-    "link_team_id_hint": "Ryhmä linkitetään automaattisesti tähän organisaatioon (tiimitunnus = organisaation tunnus)."
+    "link_team_id_hint": "Ryhmä linkitetään automaattisesti tähän organisaatioon (tiimitunnus = organisaation tunnus).",
+    "address_book": "Osoitekirja",
+    "address_book_import_devices": "Tuo organisaation laitteet",
+    "address_book_save": "Tallenna osoitekirja",
+    "address_book_intro": "Hallitse kontakteja, jotka jaetaan tämän organisaation jäsenille. Henkilökohtaiset osoitekirjamerkinnät pysyvät yksityisinä ja ohittavat jaetut merkinnät ristiriitatilanteessa.",
+    "address_book_enabled": "Jaa tämä osoitekirja organisaation jäsenille",
+    "address_book_json": "Osoitekirjan JSON",
+    "address_book_json_hint": "RustDesk legacy -muoto, esimerkiksi: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Toimisto-PC\"}],\"tags\":[\"Toimisto\"]}",
+    "address_book_invalid_json": "Osoitekirjan on oltava kelvollista JSONia",
+    "address_book_peers_array_required": "Osoitekirjan peers-kentän on oltava taulukko",
+    "address_book_tags_array_required": "Osoitekirjan tags-kentän on oltava taulukko",
+    "address_book_saved": "Osoitekirja tallennettu",
+    "address_book_save_failed": "Osoitekirjan tallennus epäonnistui",
+    "address_book_imported": "Organisaation laitteet tuotu",
+    "address_book_import_none": "Ei uusia organisaation laitteita tuotavaksi"
   },
   "chat": {
     "e2e_enabled": "Päästä päähän salattu",

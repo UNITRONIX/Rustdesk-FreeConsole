@@ -1,7 +1,8 @@
 /**
  * BetterDesk Console — Organization Detail Page JavaScript
  *
- * Handles org detail view with tabs: Users, Devices, Invitations, Settings, Device Groups.
+ * Handles org detail view with tabs: Users, Devices, Invitations, Settings,
+ * Address Book, and Device Groups.
  * Uses Modal.show() for form inputs, i18n for all strings.
  */
 'use strict';
@@ -76,6 +77,7 @@
             document.querySelectorAll('.org-tab-content').forEach(c => c.style.display = 'none');
             tab.classList.add('active');
             document.getElementById(`tab-${tab.dataset.tab}`).style.display = 'block';
+            if (tab.dataset.tab === 'address-book') loadAddressBook();
             if (tab.dataset.tab === 'device-groups') loadDeviceGroups();
         });
     });
@@ -603,6 +605,115 @@
     }
 
     // -----------------------------------------------------------------------
+    //  Shared organization address book
+    // -----------------------------------------------------------------------
+    let addressBookEnabled = true;
+
+    function parseAddressBook(raw) {
+        if (!raw || raw === '{}') return { peers: [], tags: [] };
+        if (typeof raw === 'object') return raw;
+        return JSON.parse(raw);
+    }
+
+    function formatAddressBook(ab) {
+        const normalized = ab && typeof ab === 'object' ? ab : { peers: [], tags: [] };
+        if (!Array.isArray(normalized.peers)) normalized.peers = [];
+        if (!Array.isArray(normalized.tags)) normalized.tags = [];
+        return JSON.stringify(normalized, null, 2);
+    }
+
+    function currentAddressBookJSON() {
+        const textarea = document.getElementById('org-address-book-json');
+        const raw = textarea?.value?.trim() || '{}';
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error(t('address_book_invalid_json'));
+        }
+        if (parsed.peers && !Array.isArray(parsed.peers)) {
+            throw new Error(t('address_book_peers_array_required'));
+        }
+        if (parsed.tags && !Array.isArray(parsed.tags)) {
+            throw new Error(t('address_book_tags_array_required'));
+        }
+        return parsed;
+    }
+
+    async function saveAddressBook() {
+        let data;
+        try {
+            data = currentAddressBookJSON();
+        } catch (err) {
+            toast(err.message || t('address_book_invalid_json'), 'error');
+            return;
+        }
+
+        try {
+            const enabled = !!document.getElementById('org-address-book-enabled')?.checked;
+            await api('PUT', '/address-book', { data, enabled });
+            addressBookEnabled = enabled;
+            toast(t('address_book_saved'), 'success');
+        } catch (err) {
+            toast(err.message || t('address_book_save_failed'), 'error');
+        }
+    }
+
+    async function importOrgDevicesIntoAddressBook() {
+        try {
+            const data = currentAddressBookJSON();
+            const deviceResp = await api('GET', '/devices');
+            const devices = deviceResp.devices || [];
+            const peers = Array.isArray(data.peers) ? data.peers : [];
+            const seen = new Set(peers.map(peer => String(peer.id || '').trim()).filter(Boolean));
+            let imported = 0;
+
+            devices.forEach(device => {
+                const id = String(device.device_id || '').trim();
+                if (!id || seen.has(id)) return;
+                const alias = device.assigned_user_id || device.department || device.location || device.building || id;
+                peers.push({ id, alias });
+                seen.add(id);
+                imported += 1;
+            });
+
+            data.peers = peers;
+            data.tags = Array.isArray(data.tags) ? data.tags : [];
+            document.getElementById('org-address-book-json').value = formatAddressBook(data);
+            toast(imported ? t('address_book_imported') : t('address_book_import_none'), imported ? 'success' : 'info');
+        } catch (err) {
+            toast(err.message || t('loading_failed'), 'error');
+        }
+    }
+
+    async function loadAddressBook() {
+        try {
+            const container = document.getElementById('address-book-container');
+            if (!container) return;
+            const data = await api('GET', '/address-book');
+            const parsed = parseAddressBook(data.data);
+            addressBookEnabled = data.enabled !== false;
+            container.innerHTML = `
+                <p class="form-hint">${escHtml(t('address_book_intro'))}</p>
+                <label class="org-address-book-toggle">
+                    <input type="checkbox" id="org-address-book-enabled" ${addressBookEnabled ? 'checked' : ''}>
+                    <span>${escHtml(t('address_book_enabled'))}</span>
+                </label>
+                <div class="form-group">
+                    <label class="form-label" for="org-address-book-json">${escHtml(t('address_book_json'))}</label>
+                    <textarea id="org-address-book-json" class="form-input org-address-book-json" spellcheck="false">${escHtml(formatAddressBook(parsed))}</textarea>
+                    <p class="form-hint">${escHtml(t('address_book_json_hint'))}</p>
+                </div>
+            `;
+
+            const saveBtn = document.getElementById('save-address-book-btn');
+            const importBtn = document.getElementById('import-org-devices-btn');
+            if (saveBtn) saveBtn.onclick = saveAddressBook;
+            if (importBtn) importBtn.onclick = importOrgDevicesIntoAddressBook;
+        } catch (err) {
+            toast(t('loading_failed'), 'error');
+        }
+    }
+
+    // -----------------------------------------------------------------------
     //  Device groups linked to this organization (team_id)
     // -----------------------------------------------------------------------
     function groupTypeLabel(group) {
@@ -812,6 +923,7 @@
     loadDevices();
     loadInvitations();
     loadSettings();
+    loadAddressBook();
     loadDeviceGroups();
 
 })();

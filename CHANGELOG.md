@@ -1,7 +1,7 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- **Organization shared address book panel (#190):** the organization detail page now exposes the missing Address Book tab, including JSON editing, sharing toggle, and import from assigned org devices. Members still receive the shared contacts through RustDesk address book sync while personal entries remain private.
 
 ---
 

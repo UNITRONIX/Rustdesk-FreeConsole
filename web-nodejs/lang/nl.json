@@ -2467,7 +2467,21 @@
     "group_devices_suffix": "apparaten",
     "group_name_required": "Groepsnaam is verplicht",
     "org_team_id": "Organisatie team-ID",
-    "link_team_id_hint": "De groep wordt automatisch gekoppeld aan deze organisatie (team-ID = organisatie-ID)."
+    "link_team_id_hint": "De groep wordt automatisch gekoppeld aan deze organisatie (team-ID = organisatie-ID).",
+    "address_book": "Adresboek",
+    "address_book_import_devices": "Organisatieapparaten importeren",
+    "address_book_save": "Adresboek opslaan",
+    "address_book_intro": "Beheer contacten die met leden van deze organisatie worden gedeeld. Persoonlijke adresboekitems blijven privé en krijgen voorrang bij conflicten.",
+    "address_book_enabled": "Dit adresboek delen met organisatieleden",
+    "address_book_json": "Adresboek-JSON",
+    "address_book_json_hint": "RustDesk legacy-indeling, bijvoorbeeld: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Kantoor-pc\"}],\"tags\":[\"Kantoor\"]}",
+    "address_book_invalid_json": "Het adresboek moet geldige JSON zijn",
+    "address_book_peers_array_required": "Adresboek-peers moeten een array zijn",
+    "address_book_tags_array_required": "Adresboek-tags moeten een array zijn",
+    "address_book_saved": "Adresboek opgeslagen",
+    "address_book_save_failed": "Adresboek opslaan mislukt",
+    "address_book_imported": "Organisatieapparaten geïmporteerd",
+    "address_book_import_none": "Geen nieuwe organisatieapparaten om te importeren"
   },
   "chat": {
     "e2e_enabled": "End-to-end versleuteld",

@@ -2538,7 +2538,21 @@
     "group_devices_suffix": "设备",
     "group_name_required": "分组名称为必填项",
     "org_team_id": "组织团队 ID",
-    "link_team_id_hint": "该分组将自动与此组织关联（团队 ID = 组织 ID）。"
+    "link_team_id_hint": "该分组将自动与此组织关联（团队 ID = 组织 ID）。",
+    "address_book": "通讯录",
+    "address_book_import_devices": "导入组织设备",
+    "address_book_save": "保存通讯录",
+    "address_book_intro": "管理与此组织成员共享的联系人。个人通讯录条目仍保持私有，并在冲突时优先。",
+    "address_book_enabled": "与组织成员共享此通讯录",
+    "address_book_json": "通讯录 JSON",
+    "address_book_json_hint": "RustDesk 旧格式，例如：{\"peers\":[{\"id\":\"123456789\",\"alias\":\"办公室电脑\"}],\"tags\":[\"办公室\"]}",
+    "address_book_invalid_json": "通讯录必须是有效的 JSON",
+    "address_book_peers_array_required": "通讯录 peers 必须是数组",
+    "address_book_tags_array_required": "通讯录 tags 必须是数组",
+    "address_book_saved": "通讯录已保存",
+    "address_book_save_failed": "无法保存通讯录",
+    "address_book_imported": "已导入组织设备",
+    "address_book_import_none": "没有新的组织设备可导入"
   },
   "chat": {
     "e2e_enabled": "端到端加密",

@@ -2473,7 +2473,21 @@
     "group_devices_suffix": "enheder",
     "group_name_required": "Gruppenavn er påkrævet",
     "org_team_id": "Organisationens team-ID",
-    "link_team_id_hint": "Gruppen knyttes automatisk til denne organisation (team-ID = organisations-ID)."
+    "link_team_id_hint": "Gruppen knyttes automatisk til denne organisation (team-ID = organisations-ID).",
+    "address_book": "Adressebog",
+    "address_book_import_devices": "Importér organisationsenheder",
+    "address_book_save": "Gem adressebog",
+    "address_book_intro": "Administrer kontakter, der deles med medlemmer af denne organisation. Personlige adressebogsposter forbliver private og har forrang ved konflikt.",
+    "address_book_enabled": "Del denne adressebog med organisationsmedlemmer",
+    "address_book_json": "Adressebog JSON",
+    "address_book_json_hint": "RustDesk legacy-format, for eksempel: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Kontor-PC\"}],\"tags\":[\"Kontor\"]}",
+    "address_book_invalid_json": "Adressebogen skal være gyldig JSON",
+    "address_book_peers_array_required": "Adressebogens peers skal være en liste",
+    "address_book_tags_array_required": "Adressebogens tags skal være en liste",
+    "address_book_saved": "Adressebog gemt",
+    "address_book_save_failed": "Kunne ikke gemme adressebog",
+    "address_book_imported": "Organisationsenheder importeret",
+    "address_book_import_none": "Ingen nye organisationsenheder at importere"
   },
   "chat": {
     "e2e_enabled": "End-to-end krypteret",

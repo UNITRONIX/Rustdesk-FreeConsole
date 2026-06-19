@@ -253,6 +253,28 @@
     margin-bottom: 12px;
 }
 
+/* Shared address book */
+.org-address-book-container {
+    max-width: 960px;
+}
+
+.org-address-book-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 18px;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.org-address-book-json {
+    min-height: 360px;
+    font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    resize: vertical;
+}
+
 /* Empty state */
 .empty-state {
     text-align: center;
