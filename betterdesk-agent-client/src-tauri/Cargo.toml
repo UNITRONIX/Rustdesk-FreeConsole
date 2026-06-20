@@ -36,6 +36,7 @@ machine-uid = "0.5"
 sysinfo = { version = "0.32", default-features = false, features = ["system", "disk", "network"] }
 reqwest = { version = "0.12", features = ["json", "native-tls"] }
 keyring = "3"
+bcrypt = "0.15"
 url = "2"
 sha2 = "0.10"
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }

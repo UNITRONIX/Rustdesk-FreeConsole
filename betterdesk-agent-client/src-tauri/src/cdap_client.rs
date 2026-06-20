@@ -258,19 +258,8 @@ impl CdapClient {
         let url_str = cfg.cdap_ws_url();
         let url = url::Url::parse(&url_str).context("Invalid CDAP URL")?;
 
-        // Build TLS connector (accept self-signed in dev).
-        let allow_invalid = std::env::var("BETTERDESK_STRICT_TLS").as_deref() != Ok("1");
-
-        // Build WS connector — accept self-signed certs in dev mode.
-        let connector = if allow_invalid {
-            let tls = NativeTlsConnector::builder()
-                .danger_accept_invalid_certs(true)
-                .build()
-                .context("Failed to build TLS connector")?;
-            Some(tokio_tungstenite::Connector::NativeTls(tls))
-        } else {
-            None
-        };
+        // Build WS connector — honour BETTERDESK_STRICT_TLS via shared tls helper.
+        let connector = crate::tls::build_ws_connector();
 
         let (ws_stream, _response) = if let Some(c) = connector {
             connect_async_tls_with_config(url.as_str(), None, false, Some(c))

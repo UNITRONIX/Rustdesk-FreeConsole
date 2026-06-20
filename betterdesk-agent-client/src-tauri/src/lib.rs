@@ -13,11 +13,14 @@ pub mod cdap_client;
 pub mod chat_crypto;
 pub mod commands;
 pub mod config;
+pub mod policy_sync;
 pub mod privileges;
 pub mod registration;
 pub mod session_overlay;
+pub mod settings_lock;
 pub mod sidecar;
 pub mod sysinfo_collect;
+pub mod tls;
 
 use log::info;
 use std::sync::Mutex;
@@ -365,6 +368,10 @@ pub fn run() {
             commands::set_access_mode,
             commands::get_active_sessions,
             commands::disconnect_active_session,
+            commands::run_system_preflight,
+            commands::get_settings_lock_status,
+            commands::enable_settings_lock,
+            commands::disable_settings_lock,
         ])
         .setup(move |app| {
             info!("Tauri setup complete");

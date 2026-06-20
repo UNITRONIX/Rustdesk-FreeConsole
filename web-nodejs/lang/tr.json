@@ -768,7 +768,14 @@
     "rdclient_tab": "RdClient masaüstü",
     "rdclient_new_bundle": "Yeni RdClient paketi",
     "rdclient_subtitle": "Gömülü panel URL’li RdClient yükleyicileri oluştur",
-    "rdclient_server_url_hint": "BetterDesk konsolunun genel URL’si (/remote)."
+    "rdclient_server_url_hint": "BetterDesk konsolunun genel URL’si (/remote).",
+    "agent_client_tab": "Agent Client",
+    "agent_client_new_bundle": "New Agent Client bundle",
+    "support_agent_tab": "Support Agent",
+    "support_agent_new_bundle": "New Support Agent bundle",
+    "product_agent_client": "Agent Client",
+    "product_support_agent": "Support",
+    "product_rdclient": "RdClient"
   },
   "server": {
     "port": "Port",
@@ -3694,7 +3701,10 @@
     "building": "Bina…",
     "failed": "Derleme başarısız oldu",
     "need_help": "Yardıma mı ihtiyacınız var?",
-    "powered_by": "Tarafından desteklenmektedir"
+    "powered_by": "Tarafından desteklenmektedir",
+    "product_agent_client": "BetterDesk Agent Client — full managed endpoint agent",
+    "product_support_agent": "BetterDesk Support Agent — lightweight end-user client",
+    "product_rdclient": "BetterDesk RdClient — operator remote desktop client"
   },
   "server_attestation": {
     "title": "Sunucu Performans Onayı",

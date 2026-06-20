@@ -768,7 +768,14 @@
     "rdclient_tab": "RdClient desktop",
     "rdclient_new_bundle": "Ny RdClient-pakke",
     "rdclient_subtitle": "Byg RdClient-installere med indlejret panel-URL",
-    "rdclient_server_url_hint": "Offentlig URL til BetterDesk-konsollen (/remote)."
+    "rdclient_server_url_hint": "Offentlig URL til BetterDesk-konsollen (/remote).",
+    "agent_client_tab": "Agent Client",
+    "agent_client_new_bundle": "New Agent Client bundle",
+    "support_agent_tab": "Support Agent",
+    "support_agent_new_bundle": "New Support Agent bundle",
+    "product_agent_client": "Agent Client",
+    "product_support_agent": "Support",
+    "product_rdclient": "RdClient"
   },
   "server": {
     "port": "Port",
@@ -3694,7 +3701,10 @@
     "building": "Bygning…",
     "failed": "Byg mislykkedes",
     "need_help": "Har du brug for hjælp?",
-    "powered_by": "Drevet af"
+    "powered_by": "Drevet af",
+    "product_agent_client": "BetterDesk Agent Client — full managed endpoint agent",
+    "product_support_agent": "BetterDesk Support Agent — lightweight end-user client",
+    "product_rdclient": "BetterDesk RdClient — operator remote desktop client"
   },
   "server_attestation": {
     "title": "Serverattest",

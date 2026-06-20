@@ -1,7 +1,8 @@
 /**
- * BetterDesk Console — Agent Build Worker (Go support-agent)
+ * BetterDesk Console — Support Agent Build Worker (Go Fyne)
  *
- * Compiles branded betterdesk-support-agent binaries per bundle.
+ * Builds branded betterdesk-support-agent binaries for product_type=support-agent.
+ * Agent-client (Tauri) builds are handled by agentClientBuildWorker.js.
  */
 
 'use strict';
@@ -593,7 +594,8 @@ async function _claimNextBuild() {
     });
     for (const row of candidates) {
         const bundleRow = await _findBundleForHash(row.branding_hash);
-        if (bundleRow && (bundleRow.product_type || 'agent') === 'rdclient') continue;
+        const pt = bundleRow?.product_type || 'support-agent';
+        if (pt === 'rdclient' || pt === 'agent-client') continue;
         const profile = BUILD_PROFILES[`${row.platform}/${row.arch}/${row.format}`];
         if (!profile) continue;
         await db.upsertAgentBundleBuild({
@@ -617,7 +619,8 @@ async function _listPendingBuilds(limit) {
     const out = [];
     for (const b of bundles) {
         if (b.revoked) continue;
-        if ((b.product_type || 'agent') === 'rdclient') continue;
+        const pt = b.product_type || 'support-agent';
+        if (pt === 'rdclient' || pt === 'agent-client') continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         for (const r of builds) {
             if (r.status === 'pending') out.push(r);
@@ -1101,5 +1104,6 @@ module.exports = {
     startWorker,
     stopWorker,
     getReadyArtifact,
+    getGoBin,
     _internals: { BUILD_PROFILES, BUILD_CACHE_DIR, ARTIFACT_ROOT, SOURCE_ROOT },
 };

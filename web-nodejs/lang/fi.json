@@ -768,7 +768,14 @@
     "rdclient_tab": "RdClient-työpöytä",
     "rdclient_new_bundle": "Uusi RdClient-paketti",
     "rdclient_subtitle": "Rakenna RdClient-asentajat upotetulla paneelin URL:llä",
-    "rdclient_server_url_hint": "BetterDesk-konsolin julkinen URL (/remote)."
+    "rdclient_server_url_hint": "BetterDesk-konsolin julkinen URL (/remote).",
+    "agent_client_tab": "Agent Client",
+    "agent_client_new_bundle": "New Agent Client bundle",
+    "support_agent_tab": "Support Agent",
+    "support_agent_new_bundle": "New Support Agent bundle",
+    "product_agent_client": "Agent Client",
+    "product_support_agent": "Support",
+    "product_rdclient": "RdClient"
   },
   "server": {
     "port": "Port",
@@ -3694,7 +3701,10 @@
     "building": "Rakennus…",
     "failed": "Rakennus epäonnistui",
     "need_help": "Tarvitsetko apua?",
-    "powered_by": "Voimanlähteenä"
+    "powered_by": "Voimanlähteenä",
+    "product_agent_client": "BetterDesk Agent Client — full managed endpoint agent",
+    "product_support_agent": "BetterDesk Support Agent — lightweight end-user client",
+    "product_rdclient": "BetterDesk RdClient — operator remote desktop client"
   },
   "server_attestation": {
     "title": "Palvelintodistus",

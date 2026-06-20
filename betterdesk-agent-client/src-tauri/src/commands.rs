@@ -84,6 +84,25 @@ pub struct AgentSettings {
     pub language: String,
     pub autostart: bool,
     pub start_minimized: bool,
+    /// Required when settings_lock is enabled and caller is not OS admin.
+    #[serde(default)]
+    pub unlock_password: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PreflightReport {
+    pub ffmpeg_available: bool,
+    pub ffmpeg_path: String,
+    pub hw_encoders: Vec<String>,
+    pub input_tools: Vec<String>,
+    pub warnings: Vec<String>,
+    pub ready: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SettingsLockStatus {
+    pub enabled: bool,
+    pub locked: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -815,6 +834,23 @@ pub fn save_agent_settings(
     state: State<'_, AgentState>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    let is_admin = crate::privileges::is_os_admin();
+    {
+        let config = state.config.lock().map_err(|e| e.to_string())?;
+        let unlock = if settings.unlock_password.is_empty() {
+            None
+        } else {
+            Some(settings.unlock_password.as_str())
+        };
+        if !crate::settings_lock::may_change_settings(
+            is_admin,
+            &config.settings_lock,
+            unlock,
+        ) {
+            return Err("Settings are locked — OS administrator or master password required".into());
+        }
+    }
+
     let autostart_desired = {
         let mut config = state.config.lock().map_err(|e| e.to_string())?;
 
@@ -1127,6 +1163,17 @@ pub async fn set_access_mode(
     }
 
     let _ = app.emit("access-mode-changed", mode);
+
+    let cfg_snapshot = {
+        let config = state.config.lock().map_err(|e| e.to_string())?;
+        config.clone()
+    };
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = crate::policy_sync::sync_access_policy(&cfg_snapshot).await {
+            log::warn!("[access-mode] policy sync failed: {}", e);
+        }
+    });
+
     Ok(())
 }
 
@@ -1162,5 +1209,104 @@ pub async fn disconnect_active_session(
 ) -> Result<(), String> {
     record_session_end(&state, &session_id);
     state.sidecar.send_disconnect(&session_id);
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Preflight + settings lock
+// ---------------------------------------------------------------------------
+
+fn find_in_path(name: &str) -> Option<String> {
+    std::env::var_os("PATH").and_then(|paths| {
+        std::env::split_paths(&paths).find_map(|dir| {
+            let candidate = dir.join(name);
+            candidate.is_file().then(|| candidate.display().to_string())
+        })
+    })
+}
+
+#[tauri::command]
+pub fn run_system_preflight() -> PreflightReport {
+    let mut warnings = Vec::new();
+    let mut hw_encoders = Vec::new();
+    let mut input_tools = Vec::new();
+
+    let ffmpeg_path = find_in_path("ffmpeg").unwrap_or_default();
+    let ffmpeg_available = !ffmpeg_path.is_empty();
+
+    if !ffmpeg_available {
+        warnings.push("ffmpeg not found — install ffmpeg for remote desktop video".into());
+    } else if let Ok(out) = std::process::Command::new(&ffmpeg_path)
+        .args(["-hide_banner", "-encoders"])
+        .output()
+    {
+        let text = String::from_utf8_lossy(&out.stdout);
+        for enc in ["h264_vaapi", "h264_nvenc", "h264_qsv", "h264_amf", "libx264", "libvpx-vp9", "libsvtav1"] {
+            if text.contains(enc) {
+                hw_encoders.push(enc.to_string());
+            }
+        }
+        if hw_encoders.is_empty() {
+            warnings.push("No known H.264/VP9/AV1 encoders detected in ffmpeg".into());
+        }
+    }
+
+    for tool in ["xdotool", "ydotool", "wtype"] {
+        if find_in_path(tool).is_some() {
+            input_tools.push(tool.to_string());
+        }
+    }
+    if input_tools.is_empty() {
+        warnings.push("No remote input tool found (xdotool/ydotool) — mouse/keyboard may fail on some sessions".into());
+    }
+
+    let ready = ffmpeg_available;
+    PreflightReport {
+        ffmpeg_available,
+        ffmpeg_path,
+        hw_encoders,
+        input_tools,
+        warnings,
+        ready,
+    }
+}
+
+#[tauri::command]
+pub fn get_settings_lock_status(state: State<AgentState>) -> Result<SettingsLockStatus, String> {
+    let config = state.config.lock().map_err(|e| e.to_string())?;
+    Ok(SettingsLockStatus {
+        enabled: config.settings_lock.enabled,
+        locked: config.settings_lock.is_locked(),
+    })
+}
+
+#[tauri::command]
+pub fn enable_settings_lock(
+    master_password: String,
+    state: State<AgentState>,
+) -> Result<(), String> {
+    if !crate::privileges::is_os_admin() {
+        return Err("OS administrator privileges required".into());
+    }
+    let mut config = state.config.lock().map_err(|e| e.to_string())?;
+    config
+        .settings_lock
+        .set_master_password(&master_password)
+        .map_err(|e| e.to_string())?;
+    config.save().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn disable_settings_lock(
+    master_password: String,
+    state: State<AgentState>,
+) -> Result<(), String> {
+    let mut config = state.config.lock().map_err(|e| e.to_string())?;
+    config
+        .settings_lock
+        .disable_with_password(&master_password)
+        .map_err(|e| e.to_string())?;
+    config.save().map_err(|e| e.to_string())?;
     Ok(())
 }

@@ -4,7 +4,6 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use url::Url;
 
@@ -77,55 +76,14 @@ struct DiscoveryServerInfo {
     protocol: String,
 }
 
-/// AGENT-C1: central flag for TLS hardening. Defaults to allow self-signed (preserves
-/// backwards compatibility with existing deployments). Set `BETTERDESK_STRICT_TLS=1`
-/// to enforce strict certificate validation (recommended for production).
-fn strict_tls_enabled() -> bool {
-    matches!(
-        std::env::var("BETTERDESK_STRICT_TLS").as_deref(),
-        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
-    )
-}
-
-/// Emit a single warning per process when self-signed certs are accepted.
-fn warn_self_signed_once() {
-    static WARNED: AtomicBool = AtomicBool::new(false);
-    if !WARNED.swap(true, Ordering::SeqCst) {
-        warn!(
-            "TLS certificate validation is DISABLED for BetterDesk API calls. \
-             This is insecure against MITM. Set BETTERDESK_STRICT_TLS=1 to enforce \
-             strict validation once the server has a proper certificate."
-        );
-    }
-}
-
 /// Build a reqwest client honouring the BETTERDESK_STRICT_TLS gate.
 pub(crate) fn build_http_client(timeout_secs: u64) -> Result<Client> {
-    let mut builder = Client::builder().timeout(Duration::from_secs(timeout_secs));
-    if !strict_tls_enabled() {
-        warn_self_signed_once();
-        builder = builder.danger_accept_invalid_certs(true);
-    }
-    builder.build().map_err(Into::into)
+    crate::tls::build_http_client(timeout_secs).map_err(Into::into)
 }
 
 /// Build a reqwest client with automatic redirect following DISABLED.
-///
-/// The production console enforces HTTPS by issuing a `301 Moved Permanently`
-/// from the plain-HTTP port (`:5000`) to the TLS port (`:5443`). reqwest's
-/// default redirect policy downgrades `POST`/`DELETE` to `GET` on a 301 and
-/// drops the request body and custom headers (e.g. `X-Device-Id`), which the
-/// server then rejects. Callers use this client to follow such redirects
-/// manually while preserving the original method, body and headers.
 pub(crate) fn build_http_client_no_redirect(timeout_secs: u64) -> Result<Client> {
-    let mut builder = Client::builder()
-        .timeout(Duration::from_secs(timeout_secs))
-        .redirect(reqwest::redirect::Policy::none());
-    if !strict_tls_enabled() {
-        warn_self_signed_once();
-        builder = builder.danger_accept_invalid_certs(true);
-    }
-    builder.build().map_err(Into::into)
+    crate::tls::build_http_client_no_redirect(timeout_secs).map_err(Into::into)
 }
 
 /// Result of a single validation step.
@@ -334,7 +292,8 @@ pub async fn resolve_server_origin(address: &str) -> Result<String> {
     Ok(try_resolve_api_endpoint(address).await?.origin())
 }
 
-async fn resolve_api_base_url(address: &str) -> Result<String> {
+/// Resolve the REST API base URL (`scheme://host:port/api`) for a server address.
+pub async fn resolve_api_base_url(address: &str) -> Result<String> {
     Ok(try_resolve_api_endpoint(address).await?.base_url())
 }
 

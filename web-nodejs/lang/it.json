@@ -762,7 +762,14 @@
     "rdclient_tab": "RdClient desktop",
     "rdclient_new_bundle": "Nuovo bundle RdClient",
     "rdclient_subtitle": "Crea installer RdClient con URL pannello incorporato",
-    "rdclient_server_url_hint": "URL pubblica della console BetterDesk (/remote)."
+    "rdclient_server_url_hint": "URL pubblica della console BetterDesk (/remote).",
+    "agent_client_tab": "Agent Client",
+    "agent_client_new_bundle": "New Agent Client bundle",
+    "support_agent_tab": "Support Agent",
+    "support_agent_new_bundle": "New Support Agent bundle",
+    "product_agent_client": "Agent Client",
+    "product_support_agent": "Support",
+    "product_rdclient": "RdClient"
   },
   "server": {
     "port": "Porta",
@@ -3688,7 +3695,10 @@
     "building": "Compilazione…",
     "failed": "Build non riuscita",
     "need_help": "Hai bisogno di aiuto?",
-    "powered_by": "Basato su"
+    "powered_by": "Basato su",
+    "product_agent_client": "BetterDesk Agent Client — full managed endpoint agent",
+    "product_support_agent": "BetterDesk Support Agent — lightweight end-user client",
+    "product_rdclient": "BetterDesk RdClient — operator remote desktop client"
   },
   "server_attestation": {
     "title": "Attestazione server",

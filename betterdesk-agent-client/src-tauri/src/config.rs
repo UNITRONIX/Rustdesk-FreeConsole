@@ -177,6 +177,10 @@ pub struct AgentConfig {
     /// rogue CA is trusted by the OS. Empty disables pinning.
     #[serde(default)]
     pub server_cert_pin: String,
+
+    /// Tamper resistance — lock sensitive settings from non-admin users.
+    #[serde(default)]
+    pub settings_lock: crate::settings_lock::SettingsLock,
 }
 
 fn default_cdap_port() -> u16 { 21122 }fn default_true() -> bool { true }
@@ -209,6 +213,7 @@ impl Default for AgentConfig {
             unattended_password: String::new(),
             enforce_tls: false,
             server_cert_pin: String::new(),
+            settings_lock: crate::settings_lock::SettingsLock::default(),
         }
     }
 }

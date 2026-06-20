@@ -762,7 +762,14 @@
     "rdclient_tab": "RdClient desktop",
     "rdclient_new_bundle": "Nowy pakiet RdClient",
     "rdclient_subtitle": "Buduj instalatory RdClient z wbudowanym adresem panelu",
-    "rdclient_server_url_hint": "Publiczny URL panelu BetterDesk (dashboard /remote)."
+    "rdclient_server_url_hint": "Publiczny URL panelu BetterDesk (dashboard /remote).",
+    "agent_client_tab": "Klient Agent",
+    "agent_client_new_bundle": "Nowy bundle Agent Client",
+    "support_agent_tab": "Support Agent",
+    "support_agent_new_bundle": "Nowy bundle Support Agent",
+    "product_agent_client": "Agent Client",
+    "product_support_agent": "Support",
+    "product_rdclient": "RdClient"
   },
   "download": {
     "title": "Pobierz Agenta BetterDesk",
@@ -772,7 +779,10 @@
     "building": "Budowanie…",
     "failed": "Budowanie nieudane",
     "need_help": "Potrzebujesz pomocy?",
-    "powered_by": "Napędzane przez"
+    "powered_by": "Napędzane przez",
+    "product_agent_client": "BetterDesk Agent Client — pełny agent zarządzany",
+    "product_support_agent": "BetterDesk Support Agent — lekki klient użytkownika",
+    "product_rdclient": "BetterDesk RdClient — klient pulpitu operatora"
   },
   "server": {
     "port": "Port",

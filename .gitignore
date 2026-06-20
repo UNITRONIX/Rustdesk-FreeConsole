@@ -162,10 +162,9 @@ web-nodejs/_test_*.sh
 web-nodejs/_fix_*.sh
 
 # --- BetterDesk desktop clients (TEMPORARY — alpha, not in active use) ---
-# Whole trees excluded to avoid GitHub noise (Dependabot, i18n, stale CI). Remove
-# these two lines when agent-client / mgmt return to active development.
+# Whole tree excluded to avoid GitHub noise (Dependabot, i18n, stale CI).
 betterdesk-mgmt/
-betterdesk-agent-client/
+# betterdesk-agent-client/ — restored to git (production readiness plan)
 
 # --- BetterDesk Agent binaries & config (compiled locally) ---
 betterdesk-agent/betterdesk-agent

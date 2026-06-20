@@ -768,7 +768,14 @@
     "rdclient_tab": "RdClient डेस्कटॉप",
     "rdclient_new_bundle": "नया RdClient बंडल",
     "rdclient_subtitle": "एम्बेडेड पैनल URL के साथ RdClient इंस्टॉलर बनाएं",
-    "rdclient_server_url_hint": "BetterDesk कंसोल का सार्वजनिक URL (/remote)."
+    "rdclient_server_url_hint": "BetterDesk कंसोल का सार्वजनिक URL (/remote).",
+    "agent_client_tab": "Agent Client",
+    "agent_client_new_bundle": "New Agent Client bundle",
+    "support_agent_tab": "Support Agent",
+    "support_agent_new_bundle": "New Support Agent bundle",
+    "product_agent_client": "Agent Client",
+    "product_support_agent": "Support",
+    "product_rdclient": "RdClient"
   },
   "server": {
     "port": "Port",
@@ -3694,7 +3701,10 @@
     "building": "इमारत…",
     "failed": "निर्माण विफल",
     "need_help": "मदद की ज़रूरत है?",
-    "powered_by": "द्वारा संचालित"
+    "powered_by": "द्वारा संचालित",
+    "product_agent_client": "BetterDesk Agent Client — full managed endpoint agent",
+    "product_support_agent": "BetterDesk Support Agent — lightweight end-user client",
+    "product_rdclient": "BetterDesk RdClient — operator remote desktop client"
   },
   "server_attestation": {
     "title": "सर्वर प्रदर्शन प्रमाणीकरण",

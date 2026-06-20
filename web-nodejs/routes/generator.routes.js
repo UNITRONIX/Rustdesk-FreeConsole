@@ -17,6 +17,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const keyService = require('../services/keyService');
 const bundleService = require('../services/agentBundleService');
 const buildWorker = require('../services/agentBuildWorker');
+const agentClientBuildWorker = require('../services/agentClientBuildWorker');
 const rdclientBuildWorker = require('../services/rdclientBuildWorker');
 const db = require('../services/database');
 const config = require('../config/config');
@@ -131,6 +132,21 @@ function publicBrandingView(branding) {
     return out;
 }
 
+function normalizeProductType(raw) {
+    const v = String(raw || 'agent-client').toLowerCase();
+    if (v === 'rdclient') return 'rdclient';
+    if (v === 'agent-client' || v === 'agent_client') return 'agent-client';
+    if (v === 'support-agent' || v === 'support_agent' || v === 'agent') return 'support-agent';
+    return 'agent-client';
+}
+
+function resolveBuildWorker(productType) {
+    const pt = normalizeProductType(productType);
+    if (pt === 'rdclient') return rdclientBuildWorker;
+    if (pt === 'agent-client') return agentClientBuildWorker;
+    return buildWorker;
+}
+
 // =========================================================================
 //  Generator page
 // =========================================================================
@@ -191,7 +207,7 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
         if (!name) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.name_required') });
         }
-        const productType = String(req.body.product_type || 'agent').toLowerCase() === 'rdclient' ? 'rdclient' : 'agent';
+        const productType = normalizeProductType(req.body.product_type);
         const validateFn = productType === 'rdclient'
             ? bundleService.validateRdclientBranding
             : bundleService.validateBranding;
@@ -218,7 +234,9 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
             : finalizeBundleBranding(base);
         if (productType !== 'rdclient') {
             normalized.bundle_id = bundleId;
-            normalized.product_name = normalized.company_name || 'BetterDesk Support';
+            normalized.product_name = productType === 'agent-client'
+                ? (normalized.company_name ? `${normalized.company_name} Agent` : 'BetterDesk Agent')
+                : (normalized.company_name || 'BetterDesk Support');
         }
         const brandingHash = bundleService.hashBranding(normalized);
         const created = await db.createAgentBundle({
@@ -230,10 +248,7 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
             createdBy: req.session?.userId || null,
             productType,
         });
-        const enqueue = productType === 'rdclient'
-            ? rdclientBuildWorker.enqueueBuildsForHash
-            : buildWorker.enqueueBuildsForHash;
-        enqueue(brandingHash).catch((e) => {
+        resolveBuildWorker(productType).enqueueBuildsForHash(brandingHash).catch((e) => {
             console.error('[generator] enqueue builds failed:', e.message);
         });
         res.json({ success: true, data: { bundle: serializeBundle(created) } });
@@ -258,7 +273,9 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
         }
         const normalized = finalizeBundleBranding(base);
         normalized.bundle_id = req.params.bundleId;
-        normalized.product_name = normalized.company_name || 'BetterDesk Support';
+        normalized.product_name = normalizeProductType(existing.product_type) === 'agent-client'
+            ? (normalized.company_name ? `${normalized.company_name} Agent` : 'BetterDesk Agent')
+            : (normalized.company_name || 'BetterDesk Support');
         const brandingHash = bundleService.hashBranding(normalized);
         let slug = existing.slug || '';
         if (req.body.slug !== undefined) {
@@ -295,7 +312,7 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
         // Phase 2: if branding hash changed, queue new builds; cached artifacts
         // for the previous hash remain reusable for prior portal links.
         if (existing.branding_hash !== brandingHash) {
-            buildWorker.enqueueBuildsForHash(brandingHash).catch((e) => {
+            resolveBuildWorker(existing.product_type).enqueueBuildsForHash(brandingHash).catch((e) => {
                 console.error('[generator] enqueue builds failed:', e.message);
             });
         }
@@ -313,7 +330,7 @@ router.post('/api/generator/bundles/:bundleId/rebuild', requireAuth, requireAdmi
         if (row.revoked) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.rebuild_revoked') });
         }
-        const result = await buildWorker.rebuildBundleById(req.params.bundleId);
+        const result = await resolveBuildWorker(row.product_type).rebuildBundleById(req.params.bundleId);
         if (!result.success) {
             return res.status(404).json({ success: false, error: req.t('errors.not_found') });
         }
@@ -414,6 +431,7 @@ router.get('/d/:publicId', async (req, res) => {
             bundle,
             platforms,
             globalBranding,
+            productType: normalizeProductType(row.product_type),
             t: req.t.bind(req),
         });
     } catch (err) {
@@ -445,7 +463,13 @@ router.get('/api/d/:publicId/manifest', async (req, res) => {
         }));
         res.json({
             success: true,
-            data: { bundle_id: row.bundle_id, public_id: bundleService.publicBundleId(row), name: row.name, platforms },
+            data: {
+                bundle_id: row.bundle_id,
+                public_id: bundleService.publicBundleId(row),
+                name: row.name,
+                product_type: normalizeProductType(row.product_type),
+                platforms,
+            },
         });
     } catch (err) {
         console.error('[generator] manifest error:', err);

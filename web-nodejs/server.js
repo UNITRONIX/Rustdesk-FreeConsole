@@ -552,6 +552,14 @@ async function startServer() {
                 console.warn('[server] rdclient build worker disabled:', err.message);
             }
         }
+        if (process.env.AGENT_CLIENT_BUILD_WORKER !== 'off') {
+            try {
+                const agentClientBuildWorker = require('./services/agentClientBuildWorker');
+                agentClientBuildWorker.startWorker();
+            } catch (err) {
+                console.warn('[server] agent-client build worker disabled:', err.message);
+            }
+        }
         
         // ============ RustDesk Client API (WAN :21121 → Go :21114 proxy) ============
         let apiServer = null;

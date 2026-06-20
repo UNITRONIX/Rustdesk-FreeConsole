@@ -25,6 +25,15 @@ interface SidecarStatus {
   cdap_url: string;
 }
 
+interface PreflightReport {
+  ffmpeg_available: boolean;
+  ffmpeg_path: string;
+  hw_encoders: string[];
+  input_tools: string[];
+  warnings: string[];
+  ready: boolean;
+}
+
 const StatusPanel: Component = () => {
   const [status, setStatus] = createSignal<AgentStatus | null>(null);
   const [sidecar, setSidecar] = createSignal<SidecarStatus | null>(null);
@@ -38,6 +47,7 @@ const StatusPanel: Component = () => {
   const [unattendedPassword, setUnattendedPassword] = createSignal("");
   const [pwCopyFeedback, setPwCopyFeedback] = createSignal(false);
   const [accessMode, setAccessMode] = createSignal<string>("");
+  const [preflight, setPreflight] = createSignal<PreflightReport | null>(null);
   let initialSnapshotLogged = false;
 
   let pollInterval: ReturnType<typeof setInterval>;
@@ -93,6 +103,9 @@ const StatusPanel: Component = () => {
         }
       })
       .catch((error) => frontendLog("warn", "status", "get_agent_settings failed", error));
+    invoke<PreflightReport>("run_system_preflight")
+      .then(setPreflight)
+      .catch((error) => frontendLog("warn", "status", "run_system_preflight failed", error));
     fetchStatus();
     pollInterval = setInterval(fetchStatus, 5000);
   });
@@ -371,6 +384,30 @@ const StatusPanel: Component = () => {
 
           <Show when={isAdmin() && showAdvanced()}>
             <div class="ap-advanced">
+              <Show when={preflight()}>
+                {(pf) => (
+                  <div class="preflight-card">
+                    <div class="section-header">
+                      <span class="material-symbols-rounded">verified</span>
+                      {t("status.preflight_title")}
+                    </div>
+                    <div class="info-value">
+                      {pf().ready ? t("status.preflight_ready") : t("status.preflight_issues")}
+                    </div>
+                    <Show when={pf().hw_encoders.length > 0}>
+                      <div class="info-label">{t("status.preflight_encoders")}</div>
+                      <div class="info-value">{pf().hw_encoders.join(", ")}</div>
+                    </Show>
+                    <Show when={pf().warnings.length > 0}>
+                      <ul class="preflight-warnings">
+                        {pf().warnings.map((w) => (
+                          <li>{w}</li>
+                        ))}
+                      </ul>
+                    </Show>
+                  </div>
+                )}
+              </Show>
               <div class="info-grid">
                 <div class="info-card">
                   <div class="info-label">{t("status.device_id")}</div>

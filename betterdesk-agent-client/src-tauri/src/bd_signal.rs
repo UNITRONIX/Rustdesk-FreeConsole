@@ -341,12 +341,7 @@ fn extract_host(server_address: &str) -> String {
 async fn probe_panel_origin(server_address: &str) -> Option<String> {
     let host = extract_host(server_address);
     let probe = format!("http://{}:5000/", host);
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(std::time::Duration::from_secs(3))
-        .build()
-        .ok()?;
+    let client = crate::tls::build_http_client_no_redirect(3).ok()?;
     let resp = client.get(&probe).send().await.ok()?;
     if resp.status().is_redirection() {
         if let Some(loc) = resp.headers().get(reqwest::header::LOCATION) {
@@ -390,13 +385,8 @@ type WsStream = tokio_tungstenite::WebSocketStream<
 
 async fn try_connect(url: &str) -> Result<WsStream> {
     info!("[bd-signal] Trying {}", redact_token(url));
-    let allow_invalid = std::env::var("BETTERDESK_STRICT_TLS").as_deref() != Ok("1");
-    let connector = if url.starts_with("wss://") && allow_invalid {
-        let tls = NativeTlsConnector::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .context("Failed to build TLS connector")?;
-        Some(tokio_tungstenite::Connector::NativeTls(tls))
+    let connector = if url.starts_with("wss://") {
+        crate::tls::build_ws_connector()
     } else {
         None
     };

@@ -882,7 +882,17 @@ func (s *Server) handleClientHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"modified_at": time.Now().UTC().Format(time.RFC3339)})
+	resp := map[string]any{
+		"modified_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	if policy, err := s.db.GetAccessPolicy(deviceID); err == nil && policy != nil {
+		resp["access_policy"] = map[string]any{
+			"unattended_enabled": policy.UnattendedEnabled,
+			"password_set":       policy.PasswordSet,
+			"schedule_enabled":   policy.ScheduleEnabled,
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleClientSysinfo receives hardware/software info from RustDesk clients.
