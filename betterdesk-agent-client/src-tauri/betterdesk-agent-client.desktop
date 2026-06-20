@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name={{name}}
+Comment={{short_description}}
+Exec={{exec}}
+Icon={{icon}}
+StartupWMClass={{name}}
+Type=Application
+Terminal=false
+Categories=Network;RemoteAccess;System;
+Keywords=remote;desktop;agent;management;betterdesk;
+NoDisplay=false

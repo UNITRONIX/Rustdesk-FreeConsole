@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>BetterDesk Agent needs Screen Recording to allow remote desktop access by operators.</string>
+  <key>NSAccessibilityUsageDescription</key>
+  <string>BetterDesk Agent needs Accessibility access to inject keyboard and mouse input during remote sessions.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>BetterDesk Agent may capture microphone audio during remote sessions when explicitly requested by an operator.</string>
+</dict>
+</plist>
