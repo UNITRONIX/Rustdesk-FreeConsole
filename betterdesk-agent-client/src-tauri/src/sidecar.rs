@@ -241,7 +241,8 @@ impl SidecarManager {
 
         // Spawn the process.
         self.spawn_process(&binary, &config_path)?;
-        self.start_stdout_reader(app);
+        self.start_stdout_reader(app.clone());
+        self.start_stderr_reader();
 
         // Start monitor task (async).
         let manager = self.clone();
@@ -305,12 +306,15 @@ impl SidecarManager {
     // ── Private helpers ────────────────────────────────────────────────────
 
     fn spawn_process(&self, binary: &PathBuf, config_path: &PathBuf) -> Result<()> {
-        let mut child = Command::new(binary)
-            .arg("-config")
+        let mut cmd = Command::new(binary);
+        cmd.arg("-config")
             .arg(config_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::piped());
+        apply_linux_session_env(&mut cmd);
+
+        let mut child = cmd
             .spawn()
             .with_context(|| format!("spawn betterdesk-agent from {}", binary.display()))?;
 
@@ -444,6 +448,28 @@ impl SidecarManager {
         });
     }
 
+    /// Forward Go agent stderr (log.Printf output) to the Rust log so capture
+    /// and input failures are visible when debugging remote desktop issues.
+    fn start_stderr_reader(&self) {
+        let stderr = {
+            let mut guard = self.inner.child.lock().unwrap();
+            guard.as_mut().and_then(|c| c.stderr.take())
+        };
+        let Some(stderr) = stderr else { return };
+
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            let reader = BufReader::new(stderr);
+            for line in reader.lines() {
+                match line {
+                    Ok(l) if l.contains("[desktop]") || l.contains("[input]") => warn!("[go-agent] {}", l),
+                    Ok(l) => debug!("[go-agent] {}", l),
+                    Err(_) => break,
+                }
+            }
+        });
+    }
+
     fn terminate_child(&self) {
         let mut guard = self.inner.child.lock().unwrap();
         self.inner.child_stdin.lock().unwrap().take();
@@ -531,8 +557,11 @@ impl SidecarManager {
 
                 if let Err(e) = self.spawn_process(binary, config_path) {
                     error!("[sidecar] Restart failed: {}", e);
-                } else if let Some(app) = self.inner.app_handle.lock().unwrap().clone() {
-                    self.start_stdout_reader(app);
+                } else {
+                    if let Some(app) = self.inner.app_handle.lock().unwrap().clone() {
+                        self.start_stdout_reader(app);
+                    }
+                    self.start_stderr_reader();
                 }
             }
         }
@@ -546,6 +575,108 @@ impl Drop for Inner {
             let _ = child.kill();
         }
     }
+}
+
+// ── Linux session environment for the Go sidecar ───────────────────────────
+
+/// Session variables the Go agent needs for Wayland portal capture, PipeWire,
+/// and X11/XWayland input injection. AppImage/Tauri may inherit these from the
+/// desktop launcher, but DBUS and XDG_RUNTIME_DIR are often missing unless set
+/// explicitly — without them xdg-desktop-portal screencast fails and ffmpeg
+/// falls back to x11grab (black screen on Wayland).
+#[cfg(target_os = "linux")]
+fn apply_linux_session_env(cmd: &mut Command) {
+    const KEYS: &[&str] = &[
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XDG_RUNTIME_DIR",
+        "DBUS_SESSION_BUS_ADDRESS",
+        "XDG_SESSION_TYPE",
+        "XDG_CURRENT_DESKTOP",
+        "DESKTOP_SESSION",
+        "XDG_SESSION_DESKTOP",
+        "GDK_BACKEND",
+        "QT_QPA_PLATFORM",
+        "SSH_AUTH_SOCK",
+    ];
+
+    for key in KEYS {
+        if let Ok(val) = std::env::var(key) {
+            if !val.is_empty() {
+                cmd.env(key, val);
+            }
+        }
+    }
+
+    let runtime = std::env::var("XDG_RUNTIME_DIR")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(default_xdg_runtime_dir);
+
+    if let Some(ref rt) = runtime {
+        if std::env::var("XDG_RUNTIME_DIR")
+            .map(|v| v.is_empty())
+            .unwrap_or(true)
+        {
+            cmd.env("XDG_RUNTIME_DIR", rt);
+        }
+
+        if std::env::var("DBUS_SESSION_BUS_ADDRESS")
+            .map(|v| v.is_empty())
+            .unwrap_or(true)
+        {
+            cmd.env(
+                "DBUS_SESSION_BUS_ADDRESS",
+                format!("unix:path={}/bus", rt),
+            );
+        }
+
+        if std::env::var("WAYLAND_DISPLAY")
+            .map(|v| v.is_empty())
+            .unwrap_or(true)
+        {
+            if let Some(wl) = discover_wayland_display(rt) {
+                cmd.env("WAYLAND_DISPLAY", wl);
+            }
+        }
+    }
+
+    if std::env::var("DISPLAY")
+        .map(|v| v.is_empty())
+        .unwrap_or(true)
+    {
+        // XWayland is almost always :0 on modern Linux desktops.
+        cmd.env("DISPLAY", ":0");
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn apply_linux_session_env(_cmd: &mut Command) {}
+
+#[cfg(target_os = "linux")]
+fn default_xdg_runtime_dir() -> Option<String> {
+    let uid = unsafe { libc::getuid() };
+    let path = format!("/run/user/{}", uid);
+    if std::path::Path::new(&path).exists() {
+        Some(path)
+    } else {
+        None
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn discover_wayland_display(runtime_dir: &str) -> Option<String> {
+    let dir = std::path::Path::new(runtime_dir);
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return None;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with("wayland-") {
+            return Some(name);
+        }
+    }
+    None
 }
 
 // ── Binary discovery ──────────────────────────────────────────────────────

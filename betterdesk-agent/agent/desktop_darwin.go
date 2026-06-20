@@ -28,7 +28,7 @@ func captureFFmpegInputArgs(fps int) []string {
 }
 
 // captureFFmpegStrategies returns the (single) macOS capture strategy.
-func captureFFmpegStrategies(fps int) []CaptureStrategy {
+func captureFFmpegStrategies(fps int, _ *DesktopStreamer) []CaptureStrategy {
 	return []CaptureStrategy{{
 		Name: "avfoundation",
 		Args: captureFFmpegInputArgs(fps),

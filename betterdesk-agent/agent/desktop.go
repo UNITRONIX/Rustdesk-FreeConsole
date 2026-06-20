@@ -40,6 +40,10 @@ type CaptureStrategy struct {
 	Name        string
 	Args        []string
 	FullCommand []string
+	// PortalBacked is true for xdg-desktop-portal / PipeWire capture on
+	// Linux. The streamer keeps the portal session open until every
+	// portal-backed strategy has been tried or the desktop session ends.
+	PortalBacked bool
 }
 
 // ── Desktop Streamer ─────────────────────────────────────────────────────
@@ -52,6 +56,9 @@ type DesktopStreamer struct {
 	done      chan struct{}
 	frames    atomic.Int64 // total frames sent on this session
 	monitor   atomic.Int32 // active monitor index
+
+	portalMu      sync.Mutex
+	portalCleanup func() // closes xdg-desktop-portal ScreenCast on Linux
 }
 
 func newDesktopStreamer(sessionID string, cancel context.CancelFunc) *DesktopStreamer {
@@ -66,9 +73,32 @@ func newDesktopStreamer(sessionID string, cancel context.CancelFunc) *DesktopStr
 // watchdog can tell whether the pipeline is producing output.
 func (d *DesktopStreamer) recordFrame() { d.frames.Add(1) }
 
+// setPortalCleanup registers a one-shot cleanup for an xdg-desktop-portal
+// ScreenCast session opened for this desktop stream.
+func (d *DesktopStreamer) setPortalCleanup(fn func()) {
+	d.portalMu.Lock()
+	d.portalCleanup = fn
+	d.portalMu.Unlock()
+}
+
+// releasePortalCapture closes any active portal screencast and clears the
+// cleanup hook. Safe to call multiple times.
+func (d *DesktopStreamer) releasePortalCapture() {
+	d.portalMu.Lock()
+	fn := d.portalCleanup
+	d.portalCleanup = nil
+	d.portalMu.Unlock()
+	if fn != nil {
+		fn()
+	}
+}
+
 // Stop signals the streamer to stop and waits for the goroutine to exit.
 func (d *DesktopStreamer) Stop() {
-	d.once.Do(func() { d.cancel() })
+	d.once.Do(func() {
+		d.releasePortalCapture()
+		d.cancel()
+	})
 	<-d.done
 }
 
@@ -375,7 +405,9 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 	// one that produces frames — this lets us prefer kmsgrab/pipewire on
 	// Wayland (where x11grab captures only the empty XWayland root) while
 	// still falling back to x11grab on classic X11.
-	strategies := captureFFmpegStrategies(fps)
+	defer s.releasePortalCapture()
+
+	strategies := captureFFmpegStrategies(fps, s)
 	if len(strategies) == 0 {
 		return false
 	}
@@ -400,6 +432,13 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 	}
 
 	for _, strat := range strategies {
+		// Portal / PipeWire capture is session-scoped. Once we move to a
+		// fallback that does not use the portal stream, close it so the
+		// compositor removes the "screen sharing" indicator from the taskbar.
+		if !strat.PortalBacked {
+			s.releasePortalCapture()
+		}
+
 		// FullCommand strategies (e.g. gst-launch with jpegenc) produce MJPEG
 		// only; skip them for non-MJPEG codecs and rely on the raw ffmpeg
 		// capture + codec tail instead.

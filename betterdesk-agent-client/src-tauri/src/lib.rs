@@ -245,6 +245,10 @@ fn install_shutdown_signal_handlers(app: &tauri::AppHandle) {
         }
 
         if let Some(state) = app_handle.try_state::<commands::AgentState>() {
+            commands::disconnect_all_desktop_sessions(&state);
+            // Give the Go sidecar a moment to CloseSession on the portal
+            // before SIGTERM tears the process down.
+            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
             state.sidecar.stop();
             state.cdap.stop();
         }

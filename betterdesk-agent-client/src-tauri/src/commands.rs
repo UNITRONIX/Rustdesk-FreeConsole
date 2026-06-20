@@ -1200,15 +1200,42 @@ pub fn record_session_end(state: &AgentState, session_id: &str) {
     }
 }
 
+/// Tear down every tracked remote-desktop session and ask the Go sidecar to
+/// stop capture (including xdg-desktop-portal screencast on Wayland).
+pub fn disconnect_all_desktop_sessions(state: &AgentState) {
+    let ids: Vec<String> = state
+        .active_sessions
+        .lock()
+        .map(|sessions| sessions.iter().map(|s| s.session_id.clone()).collect())
+        .unwrap_or_default();
+    for id in ids {
+        record_session_end(state, &id);
+        state.sidecar.send_disconnect(&id);
+    }
+}
+
 /// Requests the sidecar to terminate the given remote-desktop session.
 /// This is intended for the "Disconnect" button on the on-screen overlay.
 #[tauri::command]
 pub async fn disconnect_active_session(
     session_id: String,
+    app: tauri::AppHandle,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
     record_session_end(&state, &session_id);
     state.sidecar.send_disconnect(&session_id);
+
+    let hide_overlay = state
+        .active_sessions
+        .lock()
+        .map(|sessions| sessions.is_empty())
+        .unwrap_or(true);
+    if hide_overlay {
+        app.run_on_main_thread(|handle| {
+            crate::session_overlay::hide(handle);
+        })
+        .map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -1258,6 +1285,39 @@ pub fn run_system_preflight() -> PreflightReport {
     }
     if input_tools.is_empty() {
         warnings.push("No remote input tool found (xdotool/ydotool) — mouse/keyboard may fail on some sessions".into());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let wayland = std::env::var("WAYLAND_DISPLAY")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .is_some()
+            || std::env::var("XDG_SESSION_TYPE")
+                .map(|v| v.eq_ignore_ascii_case("wayland"))
+                .unwrap_or(false);
+
+        if wayland {
+            if find_in_path("gst-launch-1.0").is_none() {
+                warnings.push(
+                    "gst-launch-1.0 not found — install gstreamer1 for Wayland screen capture (e.g. sudo dnf install gstreamer1)".into(),
+                );
+            } else if let Ok(out) = std::process::Command::new("gst-inspect-1.0")
+                .arg("pipewiresrc")
+                .output()
+            {
+                if !out.status.success() {
+                    warnings.push(
+                        "GStreamer pipewiresrc plugin missing — install gstreamer1-plugin-pipewire for Wayland capture".into(),
+                    );
+                }
+            }
+            if find_in_path("ydotool").is_none() && !input_tools.iter().any(|t| t == "xdotool") {
+                warnings.push(
+                    "Wayland input needs ydotool (+ ydotoold) or xdotool — install ydotool for remote mouse/keyboard".into(),
+                );
+            }
+        }
     }
 
     let ready = ffmpeg_available;

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -87,15 +88,15 @@ func captureFFmpegInputArgs(fps int) []string {
 //
 // Order on bare TTY:
 //  1. kmsgrab
-func captureFFmpegStrategies(fps int) []CaptureStrategy {
+func captureFFmpegStrategies(fps int, streamer *DesktopStreamer) []CaptureStrategy {
 	var out []CaptureStrategy
 
 	if isWaylandSession() {
 		// 1. Native Wayland via xdg-desktop-portal → PipeWire.
-		// We open the screencast portal here, get a PipeWire node ID, and
-		// hand it to ffmpeg's pipewire demuxer. This is the same path KDE,
-		// GNOME and OBS use; works on Wayland regardless of compositor.
-		if node, restoreToken, err := openScreenCastPortal(); err == nil {
+		if node, _, portal, err := openScreenCastPortal(); err == nil {
+			if streamer != nil {
+				streamer.setPortalCleanup(portal.close)
+			}
 			// Prefer gst-launch-1.0 — its pipewiresrc plugin is shipped with
 			// every standard Wayland install (gstreamer1-plugins-good +
 			// gstreamer1-plugin-pipewire). ffmpeg's `-f pipewire` demuxer is
@@ -113,6 +114,7 @@ func captureFFmpegStrategies(fps int) []CaptureStrategy {
 						"!", "jpegenc", "quality=%QUALITY%",
 						"!", "fdsink", "fd=1",
 					},
+					PortalBacked: true,
 				})
 			}
 			// ffmpeg pipewire (only works if ffmpeg was built --enable-libpipewire).
@@ -123,13 +125,9 @@ func captureFFmpegStrategies(fps int) []CaptureStrategy {
 					"-i", fmt.Sprintf("%d", node),
 					"-vf", fmt.Sprintf("fps=%d", fps),
 				},
+				PortalBacked: true,
 			})
-			// The portal returns a restore token we could persist to skip
-			// the consent prompt next time. For now we just log it; persisting
-			// it across sessions requires user opt-in.
-			if restoreToken != "" {
-				_ = restoreToken
-			}
+			_ = portal // restore token persistence is a follow-up
 		}
 
 		// 2. KMS direct capture (requires permissions; usually root).
@@ -213,17 +211,45 @@ func hasKMSAccess() bool {
 // portalCallTimeout caps the total round-trip for a single portal call.
 const portalCallTimeout = 12 * time.Second
 
+// portalScreenCastSession tracks an active xdg-desktop-portal ScreenCast
+// session so it can be closed when the remote desktop stream ends.
+type portalScreenCastSession struct {
+	sessionPath dbus.ObjectPath
+}
+
+func (p *portalScreenCastSession) close() {
+	if p == nil || p.sessionPath == "" {
+		return
+	}
+	conn, err := dbus.SessionBus()
+	if err != nil {
+		log.Printf("[desktop] portal CloseSession: session bus: %v", err)
+		return
+	}
+	portal := conn.Object(
+		"org.freedesktop.portal.Desktop",
+		dbus.ObjectPath("/org/freedesktop/portal/desktop"),
+	)
+	if err := portal.Call(
+		"org.freedesktop.portal.ScreenCast.CloseSession", 0, p.sessionPath,
+	).Err; err != nil {
+		log.Printf("[desktop] portal CloseSession: %v", err)
+		return
+	}
+	log.Printf("[desktop] portal screencast session closed (%s)", p.sessionPath)
+}
+
 // openScreenCastPortal opens an xdg-desktop-portal ScreenCast session,
 // negotiates a single monitor stream, and returns the PipeWire node ID for
-// ffmpeg's `-f pipewire -i <node>` input plus an optional restore token.
+// ffmpeg's `-f pipewire -i <node>` input plus a handle for CloseSession.
 //
 // Returns an error if the portal is unreachable, the user denies the prompt,
 // or any step in the handshake times out. The caller is expected to fall
 // back to another capture strategy in that case.
-func openScreenCastPortal() (uint32, string, error) {
+func openScreenCastPortal() (uint32, string, *portalScreenCastSession, error) {
 	conn, err := dbus.SessionBus()
 	if err != nil {
-		return 0, "", fmt.Errorf("dbus session: %w", err)
+		return 0, "", nil, fmt.Errorf("dbus session: %w", err)
 	}
 
 	portal := conn.Object(
@@ -248,22 +274,23 @@ func openScreenCastPortal() (uint32, string, error) {
 	if err := portal.Call(
 		"org.freedesktop.portal.ScreenCast.CreateSession", 0, createOpts,
 	).Store(&createReply); err != nil {
-		return 0, "", fmt.Errorf("CreateSession: %w", err)
+		return 0, "", nil, fmt.Errorf("CreateSession: %w", err)
 	}
 
 	createResp, err := waitPortalResponse(createCh, portalCallTimeout)
 	if err != nil {
-		return 0, "", fmt.Errorf("CreateSession response: %w", err)
+		return 0, "", nil, fmt.Errorf("CreateSession response: %w", err)
 	}
 	sessionHandleVar, ok := createResp["session_handle"]
 	if !ok {
-		return 0, "", fmt.Errorf("CreateSession: no session_handle")
+		return 0, "", nil, fmt.Errorf("CreateSession: no session_handle")
 	}
 	sessionHandle, ok := sessionHandleVar.Value().(string)
 	if !ok || sessionHandle == "" {
-		return 0, "", fmt.Errorf("CreateSession: bad session_handle type")
+		return 0, "", nil, fmt.Errorf("CreateSession: bad session_handle type")
 	}
 	sessionPath := dbus.ObjectPath(sessionHandle)
+	portalHandle := &portalScreenCastSession{sessionPath: sessionPath}
 
 	// 2. SelectSources ----------------------------------------------------
 	selectReqToken := newPortalToken()
@@ -280,17 +307,17 @@ func openScreenCastPortal() (uint32, string, error) {
 		"types":        dbus.MakeVariant(uint32(1)),
 		"multiple":     dbus.MakeVariant(false),
 		"cursor_mode":  dbus.MakeVariant(uint32(2)),
-		"persist_mode": dbus.MakeVariant(uint32(2)),
+		"persist_mode": dbus.MakeVariant(uint32(0)),
 	}
 
 	if err := portal.Call(
 		"org.freedesktop.portal.ScreenCast.SelectSources", 0,
 		sessionPath, selectOpts,
 	).Store(&createReply); err != nil {
-		return 0, "", fmt.Errorf("SelectSources: %w", err)
+		return 0, "", nil, fmt.Errorf("SelectSources: %w", err)
 	}
 	if _, err := waitPortalResponse(selectCh, portalCallTimeout); err != nil {
-		return 0, "", fmt.Errorf("SelectSources response: %w", err)
+		return 0, "", nil, fmt.Errorf("SelectSources response: %w", err)
 	}
 
 	// 3. Start ------------------------------------------------------------
@@ -308,16 +335,16 @@ func openScreenCastPortal() (uint32, string, error) {
 		"org.freedesktop.portal.ScreenCast.Start", 0,
 		sessionPath, "", startOpts,
 	).Store(&createReply); err != nil {
-		return 0, "", fmt.Errorf("Start: %w", err)
+		return 0, "", nil, fmt.Errorf("Start: %w", err)
 	}
 	startResp, err := waitPortalResponse(startCh, portalCallTimeout)
 	if err != nil {
-		return 0, "", fmt.Errorf("Start response: %w", err)
+		return 0, "", nil, fmt.Errorf("Start response: %w", err)
 	}
 
 	streamsVar, ok := startResp["streams"]
 	if !ok {
-		return 0, "", fmt.Errorf("Start: no streams in response")
+		return 0, "", nil, fmt.Errorf("Start: no streams in response")
 	}
 	streams, ok := streamsVar.Value().([][]interface{})
 	if !ok {
@@ -327,26 +354,26 @@ func openScreenCastPortal() (uint32, string, error) {
 			if pair, ok := s.([]interface{}); ok && len(pair) >= 1 {
 				if node, ok := pair[0].(uint32); ok {
 					rt, _ := startResp["restore_token"].Value().(string)
-					return node, rt, nil
+					return node, rt, portalHandle, nil
 				}
 			}
 		}
 		// Some bindings unmarshal as []struct{ uint32; map[string]variant }
 		if raw, err := json.Marshal(streamsVar.Value()); err == nil {
-			return 0, "", fmt.Errorf("Start: unsupported streams shape (%s)", raw)
+			return 0, "", nil, fmt.Errorf("Start: unsupported streams shape (%s)", raw)
 		}
-		return 0, "", fmt.Errorf("Start: unsupported streams shape")
+		return 0, "", nil, fmt.Errorf("Start: unsupported streams shape")
 	}
 	if len(streams) == 0 {
-		return 0, "", fmt.Errorf("Start: empty streams")
+		return 0, "", nil, fmt.Errorf("Start: empty streams")
 	}
 	first := streams[0]
 	if len(first) < 1 {
-		return 0, "", fmt.Errorf("Start: bad stream tuple")
+		return 0, "", nil, fmt.Errorf("Start: bad stream tuple")
 	}
 	node, ok := first[0].(uint32)
 	if !ok {
-		return 0, "", fmt.Errorf("Start: bad node type")
+		return 0, "", nil, fmt.Errorf("Start: bad node type")
 	}
 
 	restoreToken := ""
@@ -356,7 +383,7 @@ func openScreenCastPortal() (uint32, string, error) {
 		}
 	}
 
-	return node, restoreToken, nil
+	return node, restoreToken, portalHandle, nil
 }
 
 // newPortalToken returns a unique per-call handle token.
