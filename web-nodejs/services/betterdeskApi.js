@@ -510,7 +510,10 @@ function normalisePeer(peer) {
         note: peer.note || '',
         online: liveOnline,
         banned,
-        no_signal: !liveOnline && !banned && isRecentLastOnline(lastOnline),
+        // os_agent / CDAP endpoints use HTTP heartbeat + CDAP WS, not RustDesk UDP
+        // :21116 — don't show "No signal" when CDAP is connected.
+        no_signal: !liveOnline && !banned && isRecentLastOnline(lastOnline)
+            && !(peer.device_type === 'os_agent' && peer.cdap_connected),
         created_at: peer.created_at || '',
         last_online: lastOnline,
         ban_reason: peer.ban_reason || '',

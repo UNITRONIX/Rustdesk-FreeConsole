@@ -304,7 +304,7 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 			log.Printf("[signal] Loaded PK from database for %s (%d bytes)", id, len(entry.PK))
 		}
 		if dbPeer.UUID != "" {
-			entry.UUID = []byte(dbPeer.UUID)
+			entry.UUID = peerUUIDFromDB(dbPeer.UUID)
 		}
 	}
 
@@ -430,7 +430,7 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 
 	// Check UUID consistency (prevent hijacking)
 	if len(entry.UUID) > 0 && len(msg.Uuid) > 0 {
-		if string(entry.UUID) != string(msg.Uuid) {
+		if !peerUUIDEqual(entry.UUID, msg.Uuid) {
 			log.Printf("[signal] UUID mismatch for %s: registered=%x, received=%x",
 				id, entry.UUID, msg.Uuid)
 			return registerPkResponse(pb.RegisterPkResponse_UUID_MISMATCH)
