@@ -242,17 +242,17 @@ function _upgradeGuidFromHash(brandingHash) {
 }
 
 function _resolveMsiBuilder() {
-    const candidates = ['wixl', 'msibuild', '/usr/bin/wixl', '/usr/bin/msibuild'];
+    // wixl compiles .wxs → .msi. msibuild (same msitools package) is a different
+    // tool for editing MSI databases and must not be used here.
+    const candidates = ['wixl', '/usr/bin/wixl'];
     for (const c of candidates) {
         if (fs.existsSync(c)) return c;
     }
     const { execSync } = require('child_process');
-    for (const cmd of ['wixl', 'msibuild']) {
-        try {
-            const found = execSync(`command -v ${cmd} 2>/dev/null`, { encoding: 'utf8' }).trim();
-            if (found) return found;
-        } catch (_) { /* ok */ }
-    }
+    try {
+        const found = execSync('command -v wixl 2>/dev/null', { encoding: 'utf8' }).trim();
+        if (found) return found;
+    } catch (_) { /* ok */ }
     return null;
 }
 
@@ -827,7 +827,7 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {},
             const msiBuilder = _resolveMsiBuilder();
             if (!msiBuilder) {
                 throw new Error(
-                    'msibuild/wixl not found — install msitools (dnf install msitools / apt install msitools) for Windows MSI builds'
+                    'wixl not found — install wixl (apt install wixl / dnf install msitools wixl) for Windows MSI builds'
                 );
             }
             const msiDir = path.join(packDir, 'msi');
