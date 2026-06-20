@@ -64,6 +64,12 @@ function isUnsafeObjectKey(key) {
     return key === '__proto__' || key === 'prototype' || key === 'constructor';
 }
 
+function sanitizeLogValue(value) {
+    return String(value || '')
+        .replace(/[\r\n\x00]/g, ' ')
+        .slice(0, 120);
+}
+
 function deepMerge(base, overlay) {
     if (!base || typeof base !== 'object') return overlay;
     if (!overlay || typeof overlay !== 'object') return base;
@@ -91,7 +97,7 @@ class TranslationManager {
      */
     init() {
         this.loadAll();
-        console.log(`i18n: Loaded ${Object.keys(this.availableLanguages).length} languages`);
+        console.log('i18n: Loaded languages', Object.keys(this.availableLanguages).length);
     }
     
     /**
@@ -101,7 +107,7 @@ class TranslationManager {
         const langDir = config.langDir;
         
         if (!fs.existsSync(langDir)) {
-            console.warn(`Language directory not found: ${langDir}`);
+            console.warn('Language directory not found', sanitizeLogValue(langDir));
             return;
         }
         
@@ -119,7 +125,7 @@ class TranslationManager {
     loadLanguage(code) {
         // Security: Validate language code to prevent path traversal
         if (!isValidLangCode(code)) {
-            console.warn(`i18n: Invalid language code rejected: ${code}`);
+            console.warn('i18n: Invalid language code rejected', sanitizeLogValue(code));
             return false;
         }
         
@@ -151,7 +157,7 @@ class TranslationManager {
             
             return true;
         } catch (err) {
-            console.warn(`Failed to load language ${code}:`, err.message);
+            console.warn('Failed to load language', sanitizeLogValue(code), err.message);
             return false;
         }
     }
