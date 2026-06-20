@@ -9,62 +9,65 @@
             <h1 class="page-title">${_('settings.title')}</h1>
             <p class="page-subtitle">${_('settings.subtitle')}</p>
         </div>
-        
-        <!-- Settings Tab Navigation -->
-        <div class="settings-tabs">
-            <button class="settings-tab active" data-tab="general">
-                <span class="material-icons">tune</span>
-                ${_('settings.tab_general')}
-            </button>
-            <button class="settings-tab" data-tab="branding">
-                <span class="material-icons">palette</span>
-                ${_('settings.tab_branding')}
-            </button>
-            ${canServerConfig ? `<button class="settings-tab" data-tab="auth">
-                <span class="material-icons">admin_panel_settings</span>
-                ${_('settings.tab_auth')}
-            </button>
-            <button class="settings-tab" data-tab="backup">
-                <span class="material-icons">backup</span>
-                ${_('settings.tab_backup')}
-            </button>
-            <button class="settings-tab" data-tab="updates">
-                <span class="material-icons">system_update</span>
-                ${_('updates.tab_title')}
-            </button>
-            <button class="settings-tab" data-tab="email">
-                <span class="material-icons">email</span>
-                ${_('settings.tab_email')}
-            </button>
-            <button class="settings-tab" data-tab="advanced">
-                <span class="material-icons">code</span>
-                ${_('settings.tab_advanced')}
-            </button>` : ''}
-        </div>
 
-        <div class="settings-search" role="search">
-            <span class="material-icons" aria-hidden="true">search</span>
-            <input type="search" id="settings-search-input" class="form-input"
-                   placeholder="${_('desktop.search_placeholder')}">
-            <button type="button" class="btn btn-ghost btn-sm" id="settings-search-clear" hidden>
-                <span class="material-icons">close</span>
-                ${_('actions.clear')}
-            </button>
-        </div>
+        <div class="settings-shell">
+            <nav class="settings-shell-nav" role="tablist" aria-label="${_('settings.title')}">
+                <button type="button" class="settings-shell-tab settings-tab active" role="tab" aria-selected="true" id="settings-tab-general" data-tab="general" aria-controls="tab-general">
+                    <span class="material-icons" aria-hidden="true">tune</span>
+                    ${_('settings.tab_general')}
+                </button>
+                <button type="button" class="settings-shell-tab settings-tab" role="tab" aria-selected="false" id="settings-tab-branding" data-tab="branding" aria-controls="tab-branding">
+                    <span class="material-icons" aria-hidden="true">palette</span>
+                    ${_('settings.tab_branding')}
+                </button>
+                ${canServerConfig ? `<button type="button" class="settings-shell-tab settings-tab" role="tab" aria-selected="false" id="settings-tab-auth" data-tab="auth" aria-controls="tab-auth">
+                    <span class="material-icons" aria-hidden="true">admin_panel_settings</span>
+                    ${_('settings.tab_auth')}
+                </button>
+                <button type="button" class="settings-shell-tab settings-tab" role="tab" aria-selected="false" id="settings-tab-backup" data-tab="backup" aria-controls="tab-backup">
+                    <span class="material-icons" aria-hidden="true">backup</span>
+                    ${_('settings.tab_backup')}
+                </button>
+                <button type="button" class="settings-shell-tab settings-tab" role="tab" aria-selected="false" id="settings-tab-updates" data-tab="updates" aria-controls="tab-updates">
+                    <span class="material-icons" aria-hidden="true">system_update</span>
+                    ${_('updates.tab_title')}
+                </button>
+                <button type="button" class="settings-shell-tab settings-tab" role="tab" aria-selected="false" id="settings-tab-email" data-tab="email" aria-controls="tab-email">
+                    <span class="material-icons" aria-hidden="true">email</span>
+                    ${_('settings.tab_email')}
+                </button>
+                <button type="button" class="settings-shell-tab settings-tab" role="tab" aria-selected="false" id="settings-tab-advanced" data-tab="advanced" aria-controls="tab-advanced">
+                    <span class="material-icons" aria-hidden="true">code</span>
+                    ${_('settings.tab_advanced')}
+                </button>` : ''}
+            </nav>
+
+            <div class="settings-shell-main">
+                <div class="settings-search" role="search">
+                    <span class="material-icons" aria-hidden="true">search</span>
+                    <input type="search" id="settings-search-input" class="form-input"
+                           placeholder="${_('settings.ui.search_placeholder')}"
+                           aria-controls="settings-search-status">
+                    <button type="button" class="btn btn-ghost btn-sm" id="settings-search-clear" hidden>
+                        <span class="material-icons">close</span>
+                        ${_('actions.clear')}
+                    </button>
+                </div>
+                <div id="settings-search-status" class="settings-search-status" aria-live="polite" hidden></div>
         
         <!-- General Tab -->
-        <div class="settings-tab-content active" id="tab-general">
-        <div class="settings-sections">
+        <div class="settings-tab-content active" id="tab-general" role="tabpanel" aria-labelledby="settings-tab-general">
+        <div class="settings-stack">
             <!-- Password Change Section -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">lock</span>
                         ${_('settings.change_password')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.password_desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.password_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <form class="settings-form" id="password-form">
                         <div class="form-group">
                             <label class="form-label" for="current-password">${_('settings.current_password')}</label>
@@ -98,14 +101,14 @@
             </div>
             
             <!-- Server Information Section -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">info</span>
                         ${_('settings.server_info')}
                     </h2>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="server-info-grid">
                         <div class="server-info-item">
                             <span class="server-info-label">
@@ -141,31 +144,36 @@
 
             ${canServerConfig ? `
             <!-- Connection Strategy (P2P / Relay) -->
-            <div class="settings-section" id="connection-mode-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel" id="connection-mode-section">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">swap_horiz</span>
                         ${_('settings.connection_mode_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.connection_mode_desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.connection_mode_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="alert alert-info" id="connection-mode-info">
                         <span class="material-icons">info</span>
                         <span>${_('settings.connection_mode_network_hint')}</span>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">${_('settings.connection_mode_label')}</label>
-                        <div class="radio-group">
-                            <label class="radio-label">
-                                <input type="radio" name="connection-mode" value="p2p_first" id="conn-mode-p2p">
-                                <span>${_('settings.connection_mode_p2p_first')}</span>
-                            </label>
-                            <label class="radio-label">
-                                <input type="radio" name="connection-mode" value="relay_only" id="conn-mode-relay">
-                                <span>${_('settings.connection_mode_relay_only')}</span>
-                            </label>
-                        </div>
+                    <div class="settings-choice-grid" role="radiogroup" aria-label="${_('settings.connection_mode_label')}">
+                        <label class="settings-choice-card">
+                            <input type="radio" name="connection-mode" value="p2p_first" id="conn-mode-p2p">
+                            <span class="settings-choice-card-inner">
+                                <span class="material-icons settings-choice-card-icon">swap_horiz</span>
+                                <span class="settings-choice-card-title">${_('settings.connection_mode_p2p_first')}</span>
+                                <span class="settings-choice-card-desc">${_('settings.ui.connection_p2p_hint')}</span>
+                            </span>
+                        </label>
+                        <label class="settings-choice-card">
+                            <input type="radio" name="connection-mode" value="relay_only" id="conn-mode-relay">
+                            <span class="settings-choice-card-inner">
+                                <span class="material-icons settings-choice-card-icon">hub</span>
+                                <span class="settings-choice-card-title">${_('settings.connection_mode_relay_only')}</span>
+                                <span class="settings-choice-card-desc">${_('settings.ui.connection_relay_hint')}</span>
+                            </span>
+                        </label>
                     </div>
                     <details class="connection-mode-advanced">
                         <summary>${_('settings.connection_mode_advanced')}</summary>
@@ -199,15 +207,15 @@
             ` : ''}
             
             <!-- Two-Factor Authentication Section -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">security</span>
                         ${_('settings.totp_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.totp_desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.totp_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div id="totp-status-container">
                         <div class="totp-status-loading">
                             <span class="material-icons spin">sync</span>
@@ -218,15 +226,15 @@
             </div>
             
             <!-- Audit Log Section -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">history</span>
                         ${_('settings.audit_log')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.audit_desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.audit_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="audit-log-container">
                         <table class="audit-log-table">
                             <thead>
@@ -250,28 +258,35 @@
             </div>
             
             <!-- Tutorials Section -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">school</span>
                         ${_('settings.tutorials_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.tutorials_desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.tutorials_desc')}</p>
                 </div>
-                <div class="settings-section-body">
-                    <div class="form-group" style="max-width: 600px; display: flex; align-items: center; gap: 12px;">
-                        <input type="checkbox" id="tutorials-enabled" class="toggle-switch">
-                        <div>
-                            <label class="form-label" for="tutorials-enabled" style="margin-bottom: 0; cursor: pointer;">${_('settings.tutorials_enabled')}</label>
-                            <small class="form-hint" style="display: block; margin-top: 2px;">${_('settings.tutorials_enabled_hint')}</small>
+                <div class="settings-panel-body">
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <label class="form-label" for="tutorials-enabled">${_('settings.tutorials_enabled')}</label>
+                            <p class="settings-row-hint">${_('settings.tutorials_enabled_hint')}</p>
+                        </div>
+                        <div class="settings-row-control">
+                            <input type="checkbox" id="tutorials-enabled" class="toggle-switch" aria-describedby="tutorials-enabled-hint">
                         </div>
                     </div>
-                    <div class="form-group" style="max-width: 600px;">
-                        <button class="btn btn-secondary btn-sm" id="tutorials-reset-btn">
-                            <span class="material-icons">refresh</span>
-                            ${_('tutorial.reset_all')}
-                        </button>
-                        <small class="form-hint" style="display: block; margin-top: 6px;">${_('settings.tutorials_reset_hint')}</small>
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <span class="form-label">${_('tutorial.reset_all')}</span>
+                            <p class="settings-row-hint" id="tutorials-reset-hint">${_('settings.tutorials_reset_hint')}</p>
+                        </div>
+                        <div class="settings-row-control">
+                            <button type="button" class="btn btn-secondary btn-sm" id="tutorials-reset-btn">
+                                <span class="material-icons">refresh</span>
+                                ${_('tutorial.reset_all')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -279,18 +294,18 @@
         </div>
         
         <!-- Branding Tab -->
-        <div class="settings-tab-content" id="tab-branding" data-can-branding-edit="${canBrandingEdit ? '1' : '0'}">
+        <div class="settings-tab-content" id="tab-branding" role="tabpanel" aria-labelledby="settings-tab-branding" data-can-branding-edit="${canBrandingEdit ? '1' : '0'}">
         <div class="branding-studio">
-            <section class="branding-hero">
+            <section class="branding-panel-hero branding-hero">
                 <div class="branding-hero-copy">
-                    <span class="branding-hero-kicker">${_('settings.tab_branding')}</span>
+                    <span class="branding-panel-hero-kicker branding-hero-kicker">${_('settings.tab_branding')}</span>
                     <h2>${_('branding.live_preview')}</h2>
                     <p>${_('branding.background_desc')}</p>
-                </div>
-                <div class="branding-hero-steps" aria-hidden="true">
-                    <span><span class="material-icons">palette</span>${_('branding.module_colors')}</span>
-                    <span><span class="material-icons">wallpaper</span>${_('branding.module_backgrounds')}</span>
-                    <span><span class="material-icons">connected_tv</span>RdClient</span>
+                    <div class="branding-panel-hero-steps branding-hero-steps">
+                        <span><span class="material-icons" aria-hidden="true">palette</span>${_('branding.module_colors')}</span>
+                        <span><span class="material-icons" aria-hidden="true">wallpaper</span>${_('branding.module_backgrounds')}</span>
+                        <span><span class="material-icons" aria-hidden="true">connected_tv</span>${_('settings.ui.branding_rdclient')}</span>
+                    </div>
                 </div>
             </section>
             <div class="branding-studio-toolbar">
@@ -380,17 +395,17 @@
                     </button>
                 </nav>
 
-                <div class="settings-sections branding-modules" id="branding-modules">
+                <div class="settings-stack branding-modules" id="branding-modules">
             <!-- Brand Identity -->
-            <div class="settings-section branding-module-panel active" data-branding-module="identity">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel active" data-branding-module="identity">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">badge</span>
                         ${_('branding.identity_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.identity_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.identity_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <form class="settings-form branding-form" id="branding-identity-form" style="max-width: 600px;">
                         <div class="form-group">
                             <label class="form-label" for="brand-name">${_('branding.app_name')}</label>
@@ -407,15 +422,15 @@
             </div>
             
             <!-- Logo Configuration -->
-            <div class="settings-section branding-module-panel active" data-branding-module="identity">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel active" data-branding-module="identity">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">image</span>
                         ${_('branding.logo_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.logo_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.logo_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="branding-logo-config">
                         <div class="logo-type-selector">
                             <label class="logo-type-option">
@@ -519,15 +534,15 @@
             </div>
             
             <!-- Color Scheme -->
-            <div class="settings-section branding-module-panel" data-branding-module="colors">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel" data-branding-module="colors">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">palette</span>
                         ${_('branding.colors_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.colors_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.colors_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="color-grid">
                         <div class="color-group">
                             <h3 class="color-group-title">${_('branding.colors_backgrounds')}</h3>
@@ -653,15 +668,15 @@
             </div>
             
             <!-- Typography -->
-            <div class="settings-section branding-module-panel" data-branding-module="typography">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel" data-branding-module="typography">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">text_format</span>
                         ${_('branding.typography_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.typography_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.typography_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="font-config">
                         <!-- Heading Font -->
                         <div class="font-slot" id="font-heading-slot">
@@ -749,15 +764,15 @@
             </div>
             
             <!-- Background & Appearance -->
-            <div class="settings-section branding-module-panel" data-branding-module="backgrounds">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel" data-branding-module="backgrounds">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">wallpaper</span>
                         ${_('branding.background_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.background_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.background_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="branding-bg-config">
                         <div class="logo-type-selector">
                             <label class="logo-type-option">
@@ -896,15 +911,15 @@
             </div>
 
             <!-- Login Page -->
-            <div class="settings-section branding-module-panel" data-branding-module="pages">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel" data-branding-module="pages">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">login</span>
                         ${_('branding.login_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.login_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.login_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <form class="settings-form branding-form" style="max-width: 600px;">
                         <div class="form-group">
                             <label class="form-label" for="login-title">${_('branding.login_heading')}</label>
@@ -1005,15 +1020,15 @@
             </div>
 
             <!-- Agent Download Page -->
-            <div class="settings-section branding-module-panel" data-branding-module="pages">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel" data-branding-module="pages">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">download</span>
                         ${_('branding.agent_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.agent_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.agent_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="branding-bg-config">
                         <div class="logo-type-selector">
                             <label class="logo-type-option">
@@ -1105,15 +1120,15 @@
             </div>
 
             <!-- RdClient / Remote Dashboard -->
-            <div class="settings-section branding-module-panel" data-branding-module="pages">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel" data-branding-module="pages">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">connected_tv</span>
                         RdClient
                     </h2>
-                    <p class="settings-section-desc">${_('remote_dashboard.subtitle')}</p>
+                    <p class="settings-panel-desc">${_('remote_dashboard.subtitle')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="branding-bg-config">
                         <div class="logo-type-selector">
                             <label class="logo-type-option">
@@ -1218,15 +1233,15 @@
             </div>
 
             <!-- Footer & Copyright -->
-            <div class="settings-section branding-module-panel" data-branding-module="advanced">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel" data-branding-module="advanced">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">copyright</span>
                         ${_('branding.footer_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.footer_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.footer_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <form class="settings-form branding-form" style="max-width: 600px;">
                         <div class="form-group">
                             <label class="form-label" for="footer-text">${_('branding.footer_text')}</label>
@@ -1246,15 +1261,15 @@
             </div>
 
             <!-- Custom CSS -->
-            <div class="settings-section branding-module-panel" data-branding-module="advanced">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel" data-branding-module="advanced">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">code</span>
                         ${_('branding.custom_css_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.custom_css_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.custom_css_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="form-group" style="max-width: 800px;">
                         <textarea id="custom-css" class="form-input form-textarea code-textarea" rows="10"
                                   placeholder=".sidebar { box-shadow: 0 0 20px rgba(0,0,0,.4); }"></textarea>
@@ -1264,15 +1279,15 @@
             </div>
 
             <!-- Import / Export -->
-            <div class="settings-section branding-module-panel" data-branding-module="advanced">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel branding-module-panel" data-branding-module="advanced">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">swap_horiz</span>
                         ${_('branding.import_export_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('branding.import_export_desc')}</p>
+                    <p class="settings-panel-desc">${_('branding.import_export_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="branding-actions-row">
                         <button class="btn btn-secondary" id="branding-export-btn">
                             <span class="material-icons">download</span>
@@ -1327,58 +1342,88 @@
         </div>
         
         <!-- Authentication Tab (server.config permission required) -->
-        <div class="settings-tab-content" id="tab-auth" ${canServerConfig ? '' : 'style="display:none"'}>
-        <div class="settings-sections">
+        <div class="settings-tab-content" id="tab-auth" role="tabpanel" aria-labelledby="settings-tab-auth" ${canServerConfig ? '' : 'style="display:none"'}>
+        <nav class="settings-auth-subnav" role="tablist" aria-label="${_('settings.tab_auth')}">
+            <button type="button" class="settings-auth-subtab active" role="tab" aria-selected="true" data-auth-panel="enrollment" id="settings-auth-tab-enrollment">
+                <span class="material-icons" aria-hidden="true">how_to_reg</span>
+                ${_('settings.ui.auth_sub_enrollment')}
+            </button>
+            <button type="button" class="settings-auth-subtab" role="tab" aria-selected="false" data-auth-panel="ldap" id="settings-auth-tab-ldap">
+                <span class="material-icons" aria-hidden="true">domain</span>
+                ${_('settings.ui.auth_sub_ldap')}
+            </button>
+            <button type="button" class="settings-auth-subtab" role="tab" aria-selected="false" data-auth-panel="oidc" id="settings-auth-tab-oidc">
+                <span class="material-icons" aria-hidden="true">login</span>
+                ${_('settings.ui.auth_sub_oidc')}
+            </button>
+        </nav>
+        <div class="settings-auth-panel active" id="auth-panel-enrollment" role="tabpanel" aria-labelledby="settings-auth-tab-enrollment">
+        <div class="settings-stack">
             <!-- Device enrollment -->
-            <div class="settings-section" id="enrollment-settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel" id="enrollment-settings-section">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">how_to_reg</span>
                         ${_('settings.enrollment_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.enrollment_desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.enrollment_desc')}</p>
                 </div>
-                <div class="settings-section-body" style="max-width: 720px;">
-                    <div class="enrollment-mode-options settings-enrollment-modes">
-                        <label class="enrollment-option">
+                <div class="settings-panel-body">
+                    <div class="settings-choice-grid settings-enrollment-modes" role="radiogroup" aria-label="${_('tokens.enrollment_mode')}">
+                        <label class="settings-choice-card enrollment-option">
                             <input type="radio" name="settings_enrollment_mode" value="open">
-                            <span class="option-label">${_('tokens.mode_open')}</span>
-                            <span class="option-desc">${_('tokens.mode_open_desc')}</span>
+                            <span class="settings-choice-card-inner">
+                                <span class="material-icons settings-choice-card-icon">lock_open</span>
+                                <span class="settings-choice-card-title option-label">${_('tokens.mode_open')}</span>
+                                <span class="settings-choice-card-desc option-desc">${_('tokens.mode_open_desc')}</span>
+                            </span>
                         </label>
-                        <label class="enrollment-option">
+                        <label class="settings-choice-card enrollment-option">
                             <input type="radio" name="settings_enrollment_mode" value="managed">
-                            <span class="option-label">${_('tokens.mode_managed')}</span>
-                            <span class="option-desc">${_('tokens.mode_managed_desc')}</span>
+                            <span class="settings-choice-card-inner">
+                                <span class="material-icons settings-choice-card-icon">supervisor_account</span>
+                                <span class="settings-choice-card-title option-label">${_('tokens.mode_managed')}</span>
+                                <span class="settings-choice-card-desc option-desc">${_('tokens.mode_managed_desc')}</span>
+                            </span>
                         </label>
-                        <label class="enrollment-option">
+                        <label class="settings-choice-card enrollment-option">
                             <input type="radio" name="settings_enrollment_mode" value="locked">
-                            <span class="option-label">${_('tokens.mode_locked')}</span>
-                            <span class="option-desc">${_('tokens.mode_locked_desc')}</span>
+                            <span class="settings-choice-card-inner">
+                                <span class="material-icons settings-choice-card-icon">lock</span>
+                                <span class="settings-choice-card-title option-label">${_('tokens.mode_locked')}</span>
+                                <span class="settings-choice-card-desc option-desc">${_('tokens.mode_locked_desc')}</span>
+                            </span>
                         </label>
                     </div>
-                    <div class="form-group form-check" style="margin-top: 16px;">
-                        <label class="check-label">
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <label class="form-label" for="enrollment-require-approval">${_('settings.enrollment_require_approval')}</label>
+                            <p class="settings-row-hint">${_('settings.enrollment_require_approval_hint')}</p>
+                        </div>
+                        <div class="settings-row-control">
                             <input type="checkbox" id="enrollment-require-approval" class="toggle-switch">
-                            <span>${_('settings.enrollment_require_approval')}</span>
-                        </label>
-                        <p class="form-hint">${_('settings.enrollment_require_approval_hint')}</p>
+                        </div>
                     </div>
-                    <div class="form-group form-check">
-                        <label class="check-label">
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <label class="form-label" for="enrollment-rich-approve">${_('settings.enrollment_rich_approve')}</label>
+                            <p class="settings-row-hint">${_('settings.enrollment_rich_approve_hint')}</p>
+                        </div>
+                        <div class="settings-row-control">
                             <input type="checkbox" id="enrollment-rich-approve" class="toggle-switch">
-                            <span>${_('settings.enrollment_rich_approve')}</span>
-                        </label>
-                        <p class="form-hint">${_('settings.enrollment_rich_approve_hint')}</p>
+                        </div>
                     </div>
-                    <div class="form-group form-check">
-                        <label class="check-label">
+                    <div class="settings-row">
+                        <div class="settings-row-label">
+                            <label class="form-label" for="enrollment-tag-picker">${_('settings.enrollment_tag_picker')}</label>
+                            <p class="settings-row-hint">${_('settings.enrollment_tag_picker_hint')}</p>
+                        </div>
+                        <div class="settings-row-control">
                             <input type="checkbox" id="enrollment-tag-picker" class="toggle-switch">
-                            <span>${_('settings.enrollment_tag_picker')}</span>
-                        </label>
-                        <p class="form-hint">${_('settings.enrollment_tag_picker_hint')}</p>
+                        </div>
                     </div>
-                    <p class="form-hint" id="enrollment-pending-hint" style="margin-top: 8px;"></p>
-                    <div style="margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap;">
+                    <p class="form-hint" id="enrollment-pending-hint"></p>
+                    <div class="form-actions">
                         <a href="/registrations" class="btn btn-secondary btn-sm">
                             <span class="material-icons">pending_actions</span>
                             ${_('settings.enrollment_open_requests')}
@@ -1386,17 +1431,19 @@
                     </div>
                 </div>
             </div>
-
-            <!-- LDAP / Active Directory -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+        </div>
+        </div>
+        <div class="settings-auth-panel" id="auth-panel-ldap" role="tabpanel" aria-labelledby="settings-auth-tab-ldap" hidden>
+        <div class="settings-stack">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">domain</span>
                         ${_('settings.ldap_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.ldap_desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.ldap_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <form class="settings-form" id="ldap-form" style="max-width: 700px;">
                         <!-- Enable toggle -->
                         <div class="form-group" style="display: flex; align-items: center; gap: 12px;">
@@ -1551,17 +1598,21 @@
                     </form>
                 </div>
             </div>
+        </div>
+        </div>
+        <div class="settings-auth-panel" id="auth-panel-oidc" role="tabpanel" aria-labelledby="settings-auth-tab-oidc" hidden>
+        <div class="settings-stack">
 
             <!-- OIDC / OAuth2 / SSO -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">key</span>
                         ${_('settings.oidc_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.oidc_desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.oidc_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <form class="settings-form" id="oidc-form" style="max-width: 700px;">
                         <!-- Enable toggle -->
                         <div class="form-group" style="display: flex; align-items: center; gap: 12px;">
@@ -1699,58 +1750,59 @@
             </div>
         </div>
         </div>
+        </div>
 
         <!-- Backup & Restore Tab (server.config permission required) -->
-        <div class="settings-tab-content" id="tab-backup" ${canServerConfig ? '' : 'style="display:none"'}>
-        <div class="settings-sections">
+        <div class="settings-tab-content" id="tab-backup" role="tabpanel" aria-labelledby="settings-tab-backup" ${canServerConfig ? '' : 'style="display:none"'}>
+        <div class="settings-stack">
             <!-- Backup Info -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">backup</span>
                         ${_('backup.title')}
                     </h2>
-                    <p class="settings-section-desc">${_('backup.desc')}</p>
+                    <p class="settings-panel-desc">${_('backup.desc')}</p>
                 </div>
-                <div class="settings-section-body">
-                    <div class="backup-stats" id="backup-stats">
-                        <div class="backup-stat-row">
+                <div class="settings-panel-body">
+                    <div class="backup-stats-grid" id="backup-stats">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_users')}</span>
                             <span class="backup-stat-value" id="backup-stat-users">-</span>
                         </div>
-                        <div class="backup-stat-row">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_settings')}</span>
                             <span class="backup-stat-value" id="backup-stat-settings">-</span>
                         </div>
-                        <div class="backup-stat-row">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_folders')}</span>
                             <span class="backup-stat-value" id="backup-stat-folders">-</span>
                         </div>
-                        <div class="backup-stat-row">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_groups')}</span>
                             <span class="backup-stat-value" id="backup-stat-groups">-</span>
                         </div>
-                        <div class="backup-stat-row">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_strategies')}</span>
                             <span class="backup-stat-value" id="backup-stat-strategies">-</span>
                         </div>
-                        <div class="backup-stat-row">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_backend')}</span>
                             <span class="backup-stat-value" id="backup-stat-backend">-</span>
                         </div>
-                        <div class="backup-stat-row">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_database')}</span>
                             <span class="backup-stat-value" id="backup-stat-database">-</span>
                         </div>
-                        <div class="backup-stat-row">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_keys')}</span>
                             <span class="backup-stat-value" id="backup-stat-keys">-</span>
                         </div>
-                        <div class="backup-stat-row">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_env')}</span>
                             <span class="backup-stat-value" id="backup-stat-env">-</span>
                         </div>
-                        <div class="backup-stat-row">
+                        <div class="backup-stat-card">
                             <span class="backup-stat-label">${_('backup.stat_uploads')}</span>
                             <span class="backup-stat-value" id="backup-stat-uploads">-</span>
                         </div>
@@ -1769,15 +1821,15 @@
             </div>
             
             <!-- Restore -->
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">restore</span>
                         ${_('backup.restore_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('backup.restore_desc')}</p>
+                    <p class="settings-panel-desc">${_('backup.restore_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="restore-options">
                         <label class="restore-option">
                             <input type="checkbox" id="restore-database" checked>
@@ -1823,7 +1875,7 @@
         </div>
         
         <!-- Updates Tab (server.config permission required) -->
-        <div class="settings-tab-content" id="tab-updates" ${canServerConfig ? '' : 'style="display:none"'}>
+        <div class="settings-tab-content" id="tab-updates" role="tabpanel" aria-labelledby="settings-tab-updates" ${canServerConfig ? '' : 'style="display:none"'}>
         <div class="win11-updates">
             <h1 class="win11-updates-title">${_('updates.title')}</h1>
 
@@ -2001,17 +2053,17 @@
         </div>
 
         <!-- Email / SMTP Tab -->
-        <div class="settings-tab-content" id="tab-email" ${canServerConfig ? '' : 'style="display:none"'}>
-        <div class="settings-sections">
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+        <div class="settings-tab-content" id="tab-email" role="tabpanel" aria-labelledby="settings-tab-email" ${canServerConfig ? '' : 'style="display:none"'}>
+        <div class="settings-stack">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">email</span>
                         ${_('settings.email.title')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.email.desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.email.desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <form id="email-smtp-form" class="settings-form">
                         <div class="form-row">
                             <div class="form-group">
@@ -2058,17 +2110,17 @@
         </div>
 
         <!-- Advanced config files (server.config permission required) -->
-        <div class="settings-tab-content" id="tab-advanced" ${canServerConfig ? '' : 'style="display:none"'}>
-        <div class="settings-sections">
-            <div class="settings-section">
-                <div class="settings-section-header">
-                    <h2 class="settings-section-title">
+        <div class="settings-tab-content" id="tab-advanced" role="tabpanel" aria-labelledby="settings-tab-advanced" ${canServerConfig ? '' : 'style="display:none"'}>
+        <div class="settings-stack">
+            <div class="settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
                         <span class="material-icons">code</span>
                         ${_('settings.advanced_title')}
                     </h2>
-                    <p class="settings-section-desc">${_('settings.advanced_desc')}</p>
+                    <p class="settings-panel-desc">${_('settings.advanced_desc')}</p>
                 </div>
-                <div class="settings-section-body">
+                <div class="settings-panel-body">
                     <div class="restore-warning-box">
                         <span class="material-icons">warning</span>
                         <span>${_('settings.advanced_warning')}</span>
@@ -2110,5 +2162,7 @@
             </div>
         </div>
         </div>
+            </div><!-- .settings-shell-main -->
+        </div><!-- .settings-shell -->
     `
 }) %>

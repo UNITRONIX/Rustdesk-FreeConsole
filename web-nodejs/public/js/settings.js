@@ -4,6 +4,10 @@
 
 (function() {
     'use strict';
+
+    let _ldapWasEnabled = false;
+    let _oidcWasEnabled = false;
+    let _smtpWasConfigured = false;
     
     document.addEventListener('DOMContentLoaded', init);
     
@@ -37,23 +41,101 @@
         loadAuditLog();
         loadServerInfo();
         initConnectionModeSection();
+        initAuthSubnav();
         
         // Refresh handler
         window.addEventListener('app:refresh', loadAuditLog);
+    }
+
+    // ==================== Settings UI helpers ====================
+
+    const _settingsSaveTimers = {};
+
+    function tSettings(key, fallback) {
+        const val = _('settings.' + key);
+        if (!val || val === 'settings.' + key) return fallback || key;
+        return val;
+    }
+
+    async function settingsConfirmCritical(options) {
+        if (window.Modal && typeof Modal.confirm === 'function') {
+            return Modal.confirm({
+                title: options.title || _('common.confirm'),
+                message: options.message || '',
+                confirmLabel: options.confirmLabel || _('actions.confirm'),
+                cancelLabel: options.cancelLabel,
+                confirmIcon: options.icon || 'warning',
+                danger: options.danger
+            });
+        }
+        return confirm(options.message || options.title || '');
+    }
+
+    function scheduleSettingsSave(key, saveFn, debounceMs = 400) {
+        clearTimeout(_settingsSaveTimers[key]);
+        _settingsSaveTimers[key] = setTimeout(() => {
+            saveFn().catch((err) => {
+                console.error('Settings save failed:', err);
+            });
+        }, debounceMs);
+    }
+
+    async function applyWithConfirm({ previousValue, newValue, setUiValue, confirmOptions, save }) {
+        if (!(await settingsConfirmCritical(confirmOptions))) {
+            if (setUiValue) setUiValue(previousValue);
+            return false;
+        }
+        try {
+            await save(newValue);
+            return true;
+        } catch (err) {
+            if (setUiValue) setUiValue(previousValue);
+            throw err;
+        }
+    }
+
+    function initAuthSubnav() {
+        const subtabs = document.querySelectorAll('.settings-auth-subtab');
+        const panels = document.querySelectorAll('.settings-auth-panel');
+        if (!subtabs.length) return;
+
+        subtabs.forEach((tab) => {
+            tab.addEventListener('click', () => {
+                const panelId = tab.dataset.authPanel;
+                if (!panelId) return;
+
+                subtabs.forEach((t) => {
+                    t.classList.remove('active');
+                    t.setAttribute('aria-selected', 'false');
+                });
+                tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
+
+                panels.forEach((panel) => {
+                    const isActive = panel.id === 'auth-panel-' + panelId;
+                    panel.classList.toggle('active', isActive);
+                    panel.hidden = !isActive;
+                });
+
+                applySettingsSearchFilter();
+            });
+        });
     }
     
     // ==================== Tab Navigation ====================
     
     function initTabs() {
-        const tabs = document.querySelectorAll('.settings-tab');
+        const tabs = document.querySelectorAll('.settings-shell-tab, .settings-tab');
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
-                // Deactivate all
-                tabs.forEach(t => t.classList.remove('active'));
+                tabs.forEach(t => {
+                    t.classList.remove('active');
+                    t.setAttribute('aria-selected', 'false');
+                });
                 document.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
                 
-                // Activate selected
                 tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
                 const target = document.getElementById('tab-' + tab.dataset.tab);
                 if (target) target.classList.add('active');
                 window.history.replaceState(null, '', '#' + tab.dataset.tab);
@@ -61,10 +143,10 @@
             });
         });
         
-        // Check URL hash for direct tab navigation
         const hash = window.location.hash.replace('#', '');
-        if (['branding', 'server', 'backup', 'updates', 'auth', 'advanced', 'email'].includes(hash)) {
-            const tab = document.querySelector(`[data-tab="${hash}"]`);
+        if (['general', 'branding', 'server', 'backup', 'updates', 'auth', 'advanced', 'email'].includes(hash)) {
+            const tabName = hash === 'server' ? 'general' : hash;
+            const tab = document.querySelector(`[data-tab="${tabName}"]`);
             if (tab) tab.click();
         }
     }
@@ -84,16 +166,37 @@
     function applySettingsSearchFilter() {
         const input = document.getElementById('settings-search-input');
         const clear = document.getElementById('settings-search-clear');
+        const status = document.getElementById('settings-search-status');
         const query = (input?.value || '').trim().toLowerCase();
         if (clear) clear.hidden = !query;
-        document.querySelectorAll('.settings-tab-content.active .settings-section').forEach(section => {
+
+        const activeTab = document.querySelector('.settings-tab-content.active');
+        if (!activeTab) return;
+
+        const panels = activeTab.querySelectorAll('.settings-panel, .settings-auth-panel.active .settings-panel');
+        let visible = 0;
+        panels.forEach(panel => {
             if (!query) {
-                section.hidden = false;
+                panel.hidden = false;
+                visible++;
                 return;
             }
-            const haystack = section.textContent.toLowerCase();
-            section.hidden = !haystack.includes(query);
+            const haystack = panel.textContent.toLowerCase();
+            const match = haystack.includes(query);
+            panel.hidden = !match;
+            if (match) visible++;
         });
+
+        if (status) {
+            if (query) {
+                const tpl = tSettings('ui.search_results', '{count} matching sections');
+                status.textContent = tpl.replace('{count}', String(visible));
+                status.hidden = false;
+            } else {
+                status.textContent = '';
+                status.hidden = true;
+            }
+        }
     }
     
     /**
@@ -334,6 +437,22 @@
     }
 
     async function saveConnectionMode(restart) {
+        const confirmKey = restart
+            ? 'confirm.connection_restart'
+            : 'confirm.connection_mode';
+        const confirmed = await settingsConfirmCritical({
+            title: tSettings(confirmKey + '_title', restart ? 'Restart server?' : 'Save connection strategy?'),
+            message: tSettings(confirmKey, restart
+                ? 'Save connection settings and restart the BetterDesk server? Active sessions may disconnect briefly.'
+                : 'Apply the new connection strategy for RustDesk clients?'),
+            confirmLabel: restart
+                ? _('settings.connection_mode_save_restart')
+                : _('settings.connection_mode_save'),
+            icon: restart ? 'restart_alt' : 'swap_horiz',
+            danger: restart
+        });
+        if (!confirmed) return;
+
         const saveBtn = document.getElementById('connection-mode-save');
         const saveRestartBtn = document.getElementById('connection-mode-save-restart');
         [saveBtn, saveRestartBtn].forEach((b) => { if (b) b.disabled = true; });
@@ -2191,7 +2310,13 @@
                 return;
             }
             
-            if (!confirm(_('backup.restore_confirm'))) {
+            if (!await settingsConfirmCritical({
+                title: tSettings('confirm.backup_restore_title', 'Restore backup?'),
+                message: tSettings('confirm.backup_restore', _('backup.restore_confirm')),
+                confirmLabel: _('backup.upload'),
+                icon: 'restore',
+                danger: true
+            })) {
                 e.target.value = '';
                 return;
             }
@@ -2329,7 +2454,15 @@
         });
 
         if (resetBtn) {
-            resetBtn.addEventListener('click', function() {
+            resetBtn.addEventListener('click', async function() {
+                const confirmed = await settingsConfirmCritical({
+                    title: tSettings('confirm.tutorials_reset_title', 'Reset tutorials?'),
+                    message: tSettings('confirm.tutorials_reset', 'Reset all tutorial progress? Guided tips will show again on each page.'),
+                    confirmLabel: _('tutorial.reset_all'),
+                    icon: 'refresh'
+                });
+                if (!confirmed) return;
+
                 if (typeof Tutorial !== 'undefined') {
                     Tutorial.resetTutorial();
                 } else {
@@ -3397,11 +3530,14 @@
 
         let saveTimer = null;
 
+        let enrollmentMode = 'open';
+
         async function loadEnrollmentSettings() {
             try {
                 const res = await Utils.api('/api/settings/enrollment');
                 const data = res.data || res;
                 const mode = data.mode || 'open';
+                enrollmentMode = mode;
                 modeRadios.forEach(r => { r.checked = r.value === mode; });
                 if (requireCb) requireCb.checked = mode === 'managed';
                 if (richCb) richCb.checked = data.rich_approve !== false;
@@ -3436,10 +3572,40 @@
         }
 
         modeRadios.forEach(radio => {
-            radio.addEventListener('change', () => {
+            radio.addEventListener('change', async () => {
                 if (!radio.checked) return;
-                if (requireCb) requireCb.checked = radio.value === 'managed';
-                scheduleSave({ mode: radio.value });
+                const previous = enrollmentMode;
+                const next = radio.value;
+                if (next === previous) return;
+
+                const modeLabel = (window.BetterDesk?.translations?.tokens?.['mode_' + next]
+                    || next);
+                const ok = await applyWithConfirm({
+                    previousValue: previous,
+                    newValue: next,
+                    setUiValue: (val) => {
+                        modeRadios.forEach(r => { r.checked = r.value === val; });
+                        if (requireCb) requireCb.checked = val === 'managed';
+                    },
+                    confirmOptions: {
+                        title: tSettings('confirm.enrollment_mode_title', 'Change enrollment mode?'),
+                        message: tSettings('confirm.enrollment_mode', 'Switch enrollment to “{mode}”? This affects how new RustDesk clients can register.')
+                            .replace('{mode}', modeLabel),
+                        confirmLabel: _('actions.save'),
+                        icon: 'how_to_reg'
+                    },
+                    save: async (mode) => {
+                        if (requireCb) requireCb.checked = mode === 'managed';
+                        await Utils.api('/api/settings/enrollment', {
+                            method: 'PUT',
+                            body: { mode },
+                        });
+                        enrollmentMode = mode;
+                        Notifications?.success?.(window.BetterDesk?.translations?.common?.saved || 'Saved');
+                        await loadEnrollmentSettings();
+                    }
+                });
+                if (!ok && requireCb) requireCb.checked = previous === 'managed';
             });
         });
 
@@ -3466,11 +3632,24 @@
         const form = document.getElementById('ldap-form');
         if (!form) return;
 
-        // Toggle config fields visibility based on enabled checkbox
         const enabledCb = document.getElementById('ldap-enabled');
         const configFields = document.getElementById('ldap-config-fields');
+
         if (enabledCb && configFields) {
-            enabledCb.addEventListener('change', () => {
+            enabledCb.addEventListener('change', async () => {
+                if (enabledCb.checked && !_ldapWasEnabled) {
+                    const ok = await settingsConfirmCritical({
+                        title: tSettings('confirm.ldap_enable_title', 'Enable LDAP?'),
+                        message: tSettings('confirm.ldap_enable', 'Enable LDAP / Active Directory sign-in? Console users may authenticate against your directory.'),
+                        confirmLabel: _('settings.ldap_enabled'),
+                        icon: 'domain'
+                    });
+                    if (!ok) {
+                        enabledCb.checked = false;
+                        configFields.style.display = 'none';
+                        return;
+                    }
+                }
                 configFields.style.display = enabledCb.checked ? '' : 'none';
             });
         }
@@ -3509,6 +3688,16 @@
         // Form submission
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const data = collectLdapData();
+            if (data.enabled) {
+                const confirmed = await settingsConfirmCritical({
+                    title: tSettings('confirm.ldap_save_title', 'Save LDAP settings?'),
+                    message: tSettings('confirm.ldap_save', 'Save LDAP configuration? Incorrect settings can block directory sign-in.'),
+                    confirmLabel: _('settings.ldap_save'),
+                    icon: 'save'
+                });
+                if (!confirmed) return;
+            }
             await saveLdapConfig();
         });
     }
@@ -3541,6 +3730,7 @@
         };
 
         setChecked('ldap-enabled', data.enabled);
+        _ldapWasEnabled = !!data.enabled;
         setVal('ldap-host', data.host);
         setVal('ldap-port', data.port || 389);
         setChecked('ldap-use-tls', data.use_tls);
@@ -3621,6 +3811,7 @@
                 body: data
             });
             Notifications.success(_('settings.ldap_saved'));
+            _ldapWasEnabled = data.enabled;
         } catch (error) {
             Notifications.error(error.message || _('errors.server_error'));
         }
@@ -3678,7 +3869,20 @@
         const enabledCb = document.getElementById('oidc-enabled');
         const configFields = document.getElementById('oidc-config-fields');
         if (enabledCb && configFields) {
-            enabledCb.addEventListener('change', () => {
+            enabledCb.addEventListener('change', async () => {
+                if (enabledCb.checked && !_oidcWasEnabled) {
+                    const ok = await settingsConfirmCritical({
+                        title: tSettings('confirm.oidc_enable_title', 'Enable SSO?'),
+                        message: tSettings('confirm.oidc_enable', 'Enable OIDC / SSO sign-in? Users may authenticate through your identity provider.'),
+                        confirmLabel: _('settings.oidc_enabled'),
+                        icon: 'login'
+                    });
+                    if (!ok) {
+                        enabledCb.checked = false;
+                        configFields.style.display = 'none';
+                        return;
+                    }
+                }
                 configFields.style.display = enabledCb.checked ? '' : 'none';
             });
         }
@@ -3701,6 +3905,16 @@
         // Form submission
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const data = collectOidcData();
+            if (data.enabled) {
+                const confirmed = await settingsConfirmCritical({
+                    title: tSettings('confirm.oidc_save_title', 'Save SSO settings?'),
+                    message: tSettings('confirm.oidc_save', 'Save OIDC / SSO configuration? Incorrect settings can block SSO sign-in.'),
+                    confirmLabel: _('settings.oidc_save'),
+                    icon: 'save'
+                });
+                if (!confirmed) return;
+            }
             await saveOidcConfig();
         });
     }
@@ -3727,6 +3941,7 @@
         };
 
         setChecked('oidc-enabled', data.enabled);
+        _oidcWasEnabled = !!data.enabled;
         setVal('oidc-display-name', data.display_name);
         setVal('oidc-issuer-url', data.issuer_url);
         setVal('oidc-client-id', data.client_id);
@@ -3794,6 +4009,7 @@
                 body: data
             });
             Notifications.success(_('settings.oidc_saved'));
+            _oidcWasEnabled = data.enabled;
         } catch (error) {
             Notifications.error(error.message || _('errors.server_error'));
         }
@@ -3920,7 +4136,13 @@
                 btn.addEventListener('click', () => {
                     const id = btn.getAttribute('data-id');
                     if (!id) return;
-                    if (advancedState.dirty && !confirm(_('settings.advanced_unsaved_confirm'))) return;
+                    if (advancedState.dirty && !await settingsConfirmCritical({
+                        title: tSettings('confirm.advanced_discard_title', 'Discard changes?'),
+                        message: _('settings.advanced_unsaved_confirm'),
+                        confirmLabel: _('actions.confirm'),
+                        icon: 'undo',
+                        danger: true
+                    })) return;
                     loadAdvancedFile(id);
                 });
             });
@@ -3949,7 +4171,13 @@
     }
 
     async function loadAdvancedFile(id, force) {
-        if (!force && advancedState.dirty && !confirm(_('settings.advanced_unsaved_confirm'))) return;
+        if (!force && advancedState.dirty && !await settingsConfirmCritical({
+            title: tSettings('confirm.advanced_discard_title', 'Discard changes?'),
+            message: _('settings.advanced_unsaved_confirm'),
+            confirmLabel: _('actions.confirm'),
+            icon: 'undo',
+            danger: true
+        })) return;
 
         const placeholder = document.getElementById('advanced-config-placeholder');
         const toolbar = document.getElementById('advanced-config-toolbar');
@@ -4031,7 +4259,12 @@
             return;
         }
 
-        if (!confirm(_('settings.advanced_save_confirm'))) return;
+        if (!await settingsConfirmCritical({
+            title: tSettings('confirm.advanced_save_title', 'Save configuration file?'),
+            message: _('settings.advanced_save_confirm'),
+            confirmLabel: _('settings.advanced_save'),
+            icon: 'save'
+        })) return;
 
         const saveBtn = document.getElementById('advanced-config-save');
         if (saveBtn) saveBtn.disabled = true;
@@ -4051,7 +4284,12 @@
             await loadAdvancedFileList();
             loadAdvancedFile(id, true);
 
-            if (confirm(_('settings.advanced_restart_after_save'))) {
+            if (await settingsConfirmCritical({
+                title: tSettings('confirm.advanced_restart_after_title', 'Restart service?'),
+                message: _('settings.advanced_restart_after_save'),
+                confirmLabel: _('settings.advanced_apply_restart'),
+                icon: 'restart_alt'
+            })) {
                 await restartAdvancedServices(true);
             }
         } catch (err) {
@@ -4064,7 +4302,13 @@
         const id = advancedState.activeId;
         if (!id) return;
 
-        if (advancedState.dirty && !confirm(_('settings.advanced_unsaved_confirm'))) return;
+        if (advancedState.dirty && !await settingsConfirmCritical({
+            title: tSettings('confirm.advanced_discard_title', 'Discard changes?'),
+            message: _('settings.advanced_unsaved_confirm'),
+            confirmLabel: _('actions.confirm'),
+            icon: 'undo',
+            danger: true
+        })) return;
 
         const catalog = advancedState.files.find((f) => f.id === id);
         const isConsole = catalog && (catalog.requiresRestart === 'console' || id === 'systemd-console'
@@ -4072,7 +4316,13 @@
         const confirmKey = isConsole
             ? 'settings.advanced_restart_console_confirm'
             : 'settings.advanced_restart_confirm';
-        if (!skipConfirm && !confirm(_(confirmKey))) return;
+        if (!skipConfirm && !await settingsConfirmCritical({
+            title: tSettings('confirm.advanced_restart_title', 'Restart service?'),
+            message: _(confirmKey),
+            confirmLabel: _('settings.advanced_apply_restart'),
+            icon: 'restart_alt',
+            danger: true
+        })) return;
 
         const restartBtn = document.getElementById('advanced-config-restart');
         if (restartBtn) restartBtn.disabled = true;
@@ -4146,6 +4396,15 @@
                 from: document.getElementById('email-smtp-from')?.value.trim() || '',
                 alert_email: document.getElementById('email-smtp-alert')?.value.trim() || '',
             };
+            if (!_smtpWasConfigured || body.host) {
+                const confirmed = await settingsConfirmCritical({
+                    title: tSettings('confirm.smtp_save_title', 'Save SMTP settings?'),
+                    message: tSettings('confirm.smtp_save', 'Save SMTP configuration? Alert emails and notifications will use this mail server.'),
+                    confirmLabel: _('settings.email.smtp_save') || _('actions.save'),
+                    icon: 'email'
+                });
+                if (!confirmed) return;
+            }
             try {
                 const res = await fetch('/api/settings/email/smtp', {
                     method: 'PUT',
@@ -4184,7 +4443,11 @@
         try {
             const res = await fetch('/api/settings/email/smtp');
             const config = await res.json();
-            if (!config.configured) return;
+            if (!config.configured) {
+                _smtpWasConfigured = false;
+                return;
+            }
+            _smtpWasConfigured = true;
             document.getElementById('email-smtp-host').value = config.host || '';
             document.getElementById('email-smtp-port').value = config.port || 587;
             document.getElementById('email-smtp-secure').checked = !!config.secure;

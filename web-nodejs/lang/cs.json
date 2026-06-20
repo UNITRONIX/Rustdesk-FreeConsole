@@ -625,6 +625,42 @@
       "smtp_saved": "Email settings saved",
       "smtp_test_success": "Connection successful",
       "smtp_test_failed": "Connection failed"
+    },
+    "ui": {
+      "search_placeholder": "Hledat v nastavení…",
+      "search_results": "{count} odpovídajících sekcí",
+      "auth_sub_enrollment": "Registrace",
+      "auth_sub_ldap": "LDAP / AD",
+      "auth_sub_oidc": "OIDC / SSO",
+      "branding_rdclient": "Klient RdClient",
+      "connection_p2p_hint": "Nejprve P2P; při selhání přepnutí na relay.",
+      "connection_relay_hint": "Veškerý provoz klientů přes relay server."
+    },
+    "confirm": {
+      "connection_mode_title": "Uložit strategii připojení?",
+      "connection_mode": "Použít novou strategii pro klienty RustDesk?",
+      "connection_restart_title": "Uložit a restartovat server?",
+      "connection_restart": "Uložit nastavení a restartovat server BetterDesk? Aktivní relace se mohou krátce odpojit.",
+      "enrollment_mode_title": "Změnit režim registrace?",
+      "enrollment_mode": "Přepnout registraci na „{mode}“? Ovlivní registraci nových klientů RustDesk.",
+      "ldap_enable_title": "Povolit LDAP?",
+      "ldap_enable": "Povolit přihlášení přes LDAP / Active Directory?",
+      "ldap_save_title": "Uložit nastavení LDAP?",
+      "ldap_save": "Uložit konfiguraci LDAP? Chybná nastavení mohou zablokovat přihlášení.",
+      "oidc_enable_title": "Povolit SSO?",
+      "oidc_enable": "Povolit přihlášení přes OIDC / SSO?",
+      "oidc_save_title": "Uložit nastavení SSO?",
+      "oidc_save": "Uložit konfiguraci OIDC / SSO?",
+      "smtp_save_title": "Uložit nastavení SMTP?",
+      "smtp_save": "Uložit konfiguraci SMTP? Upozornění budou používat tento server.",
+      "backup_restore_title": "Obnovit zálohu?",
+      "backup_restore": "Obnovit z tohoto souboru? Vybraná data budou nahrazena.",
+      "tutorials_reset_title": "Resetovat návody?",
+      "tutorials_reset": "Resetovat postup všech návodů?",
+      "advanced_save_title": "Uložit konfigurační soubor?",
+      "advanced_restart_after_title": "Restartovat službu?",
+      "advanced_restart_title": "Restartovat službu?",
+      "advanced_discard_title": "Zahodit změny?"
     }
   },
   "audit": {

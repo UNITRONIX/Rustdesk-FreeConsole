@@ -625,6 +625,42 @@
       "smtp_saved": "E-Mail-Einstellungen gespeichert",
       "smtp_test_success": "Verbindung erfolgreich",
       "smtp_test_failed": "Verbindung fehlgeschlagen"
+    },
+    "ui": {
+      "search_placeholder": "Einstellungen durchsuchen…",
+      "search_results": "{count} passende Bereiche",
+      "auth_sub_enrollment": "Registrierung",
+      "auth_sub_ldap": "LDAP / AD",
+      "auth_sub_oidc": "OIDC / SSO",
+      "branding_rdclient": "RdClient",
+      "connection_p2p_hint": "Zuerst direkte P2P-Verbindung; Relay bei P2P-Fehler.",
+      "connection_relay_hint": "Gesamten Client-Traffic über den Relay-Server leiten."
+    },
+    "confirm": {
+      "connection_mode_title": "Verbindungsstrategie speichern?",
+      "connection_mode": "Neue Verbindungsstrategie für RustDesk-Clients anwenden?",
+      "connection_restart_title": "Speichern und Server neu starten?",
+      "connection_restart": "Verbindungseinstellungen speichern und BetterDesk-Server neu starten? Aktive Sitzungen können kurz getrennt werden.",
+      "enrollment_mode_title": "Registrierungsmodus ändern?",
+      "enrollment_mode": "Registrierung auf „{mode}“ umschalten? Betrifft die Registrierung neuer RustDesk-Clients.",
+      "ldap_enable_title": "LDAP aktivieren?",
+      "ldap_enable": "LDAP-/Active-Directory-Anmeldung aktivieren?",
+      "ldap_save_title": "LDAP-Einstellungen speichern?",
+      "ldap_save": "LDAP-Konfiguration speichern? Falsche Einstellungen können die Anmeldung blockieren.",
+      "oidc_enable_title": "SSO aktivieren?",
+      "oidc_enable": "OIDC-/SSO-Anmeldung aktivieren?",
+      "oidc_save_title": "SSO-Einstellungen speichern?",
+      "oidc_save": "OIDC-/SSO-Konfiguration speichern?",
+      "smtp_save_title": "SMTP-Einstellungen speichern?",
+      "smtp_save": "SMTP-Konfiguration speichern? Warnungen nutzen diesen Mailserver.",
+      "backup_restore_title": "Backup wiederherstellen?",
+      "backup_restore": "Aus dieser Backup-Datei wiederherstellen? Ausgewählte Daten werden überschrieben.",
+      "tutorials_reset_title": "Tutorials zurücksetzen?",
+      "tutorials_reset": "Gesamten Tutorial-Fortschritt zurücksetzen?",
+      "advanced_save_title": "Konfigurationsdatei speichern?",
+      "advanced_restart_after_title": "Dienst neu starten?",
+      "advanced_restart_title": "Dienst neu starten?",
+      "advanced_discard_title": "Änderungen verwerfen?"
     }
   },
   "audit": {

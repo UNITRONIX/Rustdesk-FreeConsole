@@ -625,6 +625,42 @@
       "smtp_saved": "Ustawienia e-mail zapisane",
       "smtp_test_success": "Połączenie udane",
       "smtp_test_failed": "Połączenie nieudane"
+    },
+    "ui": {
+      "search_placeholder": "Szukaj w ustawieniach…",
+      "search_results": "{count} pasujących sekcji",
+      "auth_sub_enrollment": "Rejestracja",
+      "auth_sub_ldap": "LDAP / Active Directory",
+      "auth_sub_oidc": "OIDC / logowanie SSO",
+      "branding_rdclient": "Klient RdClient",
+      "connection_p2p_hint": "Najpierw połączenie P2P; przełączenie na relay, gdy P2P nie działa.",
+      "connection_relay_hint": "Cały ruch klientów przez serwer relay."
+    },
+    "confirm": {
+      "connection_mode_title": "Zapisać strategię połączenia?",
+      "connection_mode": "Zastosować nową strategię połączenia dla klientów RustDesk?",
+      "connection_restart_title": "Zapisać i zrestartować serwer?",
+      "connection_restart": "Zapisać ustawienia połączenia i zrestartować serwer BetterDesk? Aktywne sesje mogą się na chwilę rozłączyć.",
+      "enrollment_mode_title": "Zmienić tryb rejestracji?",
+      "enrollment_mode": "Przełączyć rejestrację na „{mode}”? Wpływa na sposób rejestracji nowych klientów RustDesk.",
+      "ldap_enable_title": "Włączyć LDAP?",
+      "ldap_enable": "Włączyć logowanie LDAP / Active Directory? Użytkownicy konsoli mogą uwierzytelniać się w katalogu.",
+      "ldap_save_title": "Zapisać ustawienia LDAP?",
+      "ldap_save": "Zapisać konfigurację LDAP? Błędne ustawienia mogą zablokować logowanie przez katalog.",
+      "oidc_enable_title": "Włączyć SSO?",
+      "oidc_enable": "Włączyć logowanie OIDC / SSO? Użytkownicy mogą logować się przez dostawcę tożsamości.",
+      "oidc_save_title": "Zapisać ustawienia SSO?",
+      "oidc_save": "Zapisać konfigurację OIDC / SSO? Błędne ustawienia mogą zablokować logowanie SSO.",
+      "smtp_save_title": "Zapisać ustawienia SMTP?",
+      "smtp_save": "Zapisać konfigurację SMTP? Alerty i powiadomienia będą wysyłane przez ten serwer poczty.",
+      "backup_restore_title": "Przywrócić kopię zapasową?",
+      "backup_restore": "Przywrócić z tego pliku kopii? Wybrane dane zostaną zastąpione.",
+      "tutorials_reset_title": "Resetować samouczki?",
+      "tutorials_reset": "Resetować postęp wszystkich samouczków? Wskazówki pojawią się ponownie na każdej stronie.",
+      "advanced_save_title": "Zapisać plik konfiguracji?",
+      "advanced_restart_after_title": "Zrestartować usługę?",
+      "advanced_restart_title": "Zrestartować usługę?",
+      "advanced_discard_title": "Odrzucić zmiany?"
     }
   },
   "audit": {

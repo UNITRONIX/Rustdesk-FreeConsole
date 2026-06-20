@@ -632,6 +632,42 @@
       "smtp_saved": "Email settings saved",
       "smtp_test_success": "Connection successful",
       "smtp_test_failed": "Connection failed"
+    },
+    "ui": {
+      "search_placeholder": "البحث في الإعدادات…",
+      "search_results": "{count} أقسام مطابقة",
+      "auth_sub_enrollment": "التسجيل",
+      "auth_sub_ldap": "LDAP / AD",
+      "auth_sub_oidc": "OIDC / SSO",
+      "branding_rdclient": "عميل RdClient",
+      "connection_p2p_hint": "محاولة P2P أولاً؛ التحويل إلى relay عند الفشل.",
+      "connection_relay_hint": "توجيه كل حركة العملاء عبر خادم relay."
+    },
+    "confirm": {
+      "connection_mode_title": "حفظ استراتيجية الاتصال؟",
+      "connection_mode": "تطبيق استراتيجية الاتصال الجديدة لعملاء RustDesk؟",
+      "connection_restart_title": "حفظ وإعادة تشغيل الخادم؟",
+      "connection_restart": "حفظ إعدادات الاتصال وإعادة تشغيل خادم BetterDesk؟ قد تُقطع الجلسات النشطة مؤقتاً.",
+      "enrollment_mode_title": "تغيير وضع التسجيل؟",
+      "enrollment_mode": "التبديل إلى «{mode}»؟ يؤثر على تسجيل عملاء RustDesk الجدد.",
+      "ldap_enable_title": "تفعيل LDAP؟",
+      "ldap_enable": "تفعيل تسجيل الدخول عبر LDAP / Active Directory؟",
+      "ldap_save_title": "حفظ إعدادات LDAP؟",
+      "ldap_save": "حفظ تكوين LDAP؟ الإعدادات الخاطئة قد تعطل تسجيل الدخول.",
+      "oidc_enable_title": "تفعيل SSO؟",
+      "oidc_enable": "تفعيل تسجيل الدخول عبر OIDC / SSO؟",
+      "oidc_save_title": "حفظ إعدادات SSO؟",
+      "oidc_save": "حفظ تكوين OIDC / SSO؟",
+      "smtp_save_title": "حفظ إعدادات SMTP؟",
+      "smtp_save": "حفظ تكوين SMTP؟ ستستخدم التنبيهات هذا الخادم.",
+      "backup_restore_title": "استعادة النسخة الاحتياطية؟",
+      "backup_restore": "الاستعادة من هذا الملف؟ سيتم استبدال البيانات المحددة.",
+      "tutorials_reset_title": "إعادة تعيين الدروس؟",
+      "tutorials_reset": "إعادة تعيين تقدم جميع الدروس؟",
+      "advanced_save_title": "حفظ ملف التكوين؟",
+      "advanced_restart_after_title": "إعادة تشغيل الخدمة؟",
+      "advanced_restart_title": "إعادة تشغيل الخدمة؟",
+      "advanced_discard_title": "تجاهل التغييرات؟"
     }
   },
   "audit": {
