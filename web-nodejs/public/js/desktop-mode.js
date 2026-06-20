@@ -165,9 +165,8 @@
 
         setupGlobalListeners();
 
-        if (localStorage.getItem(STORAGE_KEY) === 'true' && window.innerWidth >= BREAKPOINT) {
-            activate(true);
-        }
+        // Desktop beta mode retired — clear persisted state, do not auto-restore
+        localStorage.removeItem(STORAGE_KEY);
     }
 
     // ============ Foldable Phone Detection ============
