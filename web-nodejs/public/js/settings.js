@@ -1197,6 +1197,7 @@
         if (rdclientOverlayVal) rdclientOverlayVal.textContent = data.rdclientBgOverlay || '0';
         showBackgroundPanel('rdclient-bg', data.rdclientBgType || 'inherit');
         syncExistingBackgroundUploadStatuses(data);
+        markSelectedBackgroundImage(data.bgImageUrl || '');
         
         // Footer & custom CSS
         setVal('footer-text', data.footerText || '');
@@ -1261,6 +1262,69 @@
                 event.preventDefault();
                 input.click();
             });
+        });
+        initBackgroundLibrary();
+    }
+
+    async function initBackgroundLibrary() {
+        const library = document.getElementById('bg-image-library');
+        if (!library) return;
+        library.addEventListener('click', (event) => {
+            const item = event.target.closest('.background-library-item');
+            if (!item) return;
+            selectBackgroundLibraryImage(item.dataset.url || '');
+        });
+        await loadBackgroundLibrary(document.getElementById('bg-image-url')?.value || '');
+    }
+
+    async function loadBackgroundLibrary(selectedUrl = '') {
+        const library = document.getElementById('bg-image-library');
+        if (!library) return;
+        library.innerHTML = `<div class="background-library-empty">${_('common.loading')}</div>`;
+        try {
+            const resp = await Utils.api('/api/settings/branding/backgrounds');
+            const items = Array.isArray(resp.data) ? resp.data : [];
+            renderBackgroundLibrary(items, selectedUrl || document.getElementById('bg-image-url')?.value || '');
+        } catch (err) {
+            library.innerHTML = `<div class="background-library-empty">${Utils.escapeHtml(err.message || _('errors.server_error'))}</div>`;
+        }
+    }
+
+    function renderBackgroundLibrary(items, selectedUrl = '') {
+        const library = document.getElementById('bg-image-library');
+        if (!library) return;
+        if (!items.length) {
+            library.innerHTML = `<div class="background-library-empty">${_('desktop.wp_unavailable')}</div>`;
+            return;
+        }
+        library.innerHTML = items.map(item => {
+            const url = String(item.url || '');
+            const name = String(item.name || url.split('/').pop() || '');
+            const isActive = url === selectedUrl;
+            return `
+                <button type="button" class="background-library-item${isActive ? ' active' : ''}" data-url="${Utils.escapeHtml(url)}" title="${Utils.escapeHtml(name)}">
+                    <span class="background-library-thumb" style="background-image:url('${Utils.escapeHtml(url).replace(/'/g, '%27')}')"></span>
+                    <span class="background-library-name">${Utils.escapeHtml(name)}</span>
+                </button>
+            `;
+        }).join('');
+    }
+
+    function selectBackgroundLibraryImage(url) {
+        if (!url) return;
+        const input = document.getElementById('bg-image-url');
+        if (input) input.value = url;
+        selectBackgroundImageType('bg-image-url');
+        setBackgroundUploadStatus(document.getElementById('bg-file-name'), url.split('/').pop() || url, url);
+        markSelectedBackgroundImage(url);
+        onBrandingFieldChange();
+    }
+
+    function markSelectedBackgroundImage(url) {
+        const library = document.getElementById('bg-image-library');
+        if (!library) return;
+        library.querySelectorAll('.background-library-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.url === url);
         });
     }
     
@@ -1359,6 +1423,8 @@
 
         if (uploadedUrl) {
             clearTimeout(_autosaveDebounce);
+            await loadBackgroundLibrary(uploadedUrl);
+            markSelectedBackgroundImage(uploadedUrl);
             updateBackgroundUploadPanel(statusEl, {
                 state: 'success',
                 icon: 'check_circle',

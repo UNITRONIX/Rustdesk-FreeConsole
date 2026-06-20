@@ -811,16 +811,20 @@
                         </div>
 
                         <div class="logo-config-panel hidden" id="bg-image-panel">
-                            <div class="form-group">
-                                <label class="form-label">${_('branding.bg_image_upload')}</label>
-                                <div class="logo-upload-area">
+                            <div class="background-picker">
+                                <div class="background-picker-head">
+                                    <div>
+                                        <label class="form-label">${_('desktop.wp_images')}</label>
+                                        <small class="form-hint">${_('branding.bg_image_hint')}</small>
+                                    </div>
                                     <input type="file" id="bg-image-file" data-target="bg-image-url" accept="image/png,image/jpeg,image/webp,image/gif" class="logo-file-input branding-bg-file">
                                     <label for="bg-image-file" class="logo-upload-btn">
                                         <span class="material-icons">upload_file</span>
                                         <span>${_('branding.bg_image_choose')}</span>
                                     </label>
-                                    <span id="bg-file-name" class="logo-file-name"></span>
                                 </div>
+                                <div class="background-library" id="bg-image-library" aria-label="${_('desktop.wp_images')}"></div>
+                                <span id="bg-file-name" class="logo-file-name background-current-file"></span>
                                 <div class="branding-upload-status" id="bg-upload-status" hidden>
                                     <div class="branding-upload-status-row">
                                         <span class="material-icons branding-upload-status-icon">sync</span>
@@ -830,12 +834,15 @@
                                         <div class="branding-upload-progress-fill"></div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="bg-image-url">${_('branding.bg_image_url')}</label>
-                                <input type="text" id="bg-image-url" class="form-input"
-                                       placeholder="https://example.com/wallpaper.jpg">
-                                <small class="form-hint">${_('branding.bg_image_hint')}</small>
+                                <details class="background-advanced-url">
+                                    <summary>${_('settings.tab_advanced')}</summary>
+                                    <div class="form-group">
+                                        <label class="form-label" for="bg-image-url">${_('branding.bg_image_url')}</label>
+                                        <input type="text" id="bg-image-url" class="form-input"
+                                               placeholder="https://example.com/wallpaper.jpg">
+                                        <small class="form-hint">${_('branding.bg_image_hint')}</small>
+                                    </div>
+                                </details>
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="bg-size">${_('branding.bg_size')}</label>

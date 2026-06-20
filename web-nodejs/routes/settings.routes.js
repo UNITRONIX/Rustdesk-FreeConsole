@@ -314,6 +314,37 @@ const bgUpload = multer({
 });
 
 /**
+ * GET /api/settings/branding/backgrounds - List uploaded background images.
+ */
+router.get('/api/settings/branding/backgrounds', requireAuth, (req, res) => {
+    try {
+        const uploadsRoot = path.resolve(UPLOADS_DIR);
+        const managedPattern = /^bg-[0-9a-f]{16}\.(png|jpg|jpeg|gif|webp)$/i;
+        const files = fs.readdirSync(uploadsRoot)
+            .filter((name) => managedPattern.test(name))
+            .map((name) => {
+                const fullPath = path.resolve(uploadsRoot, name);
+                if (!fullPath.startsWith(uploadsRoot + path.sep)) return null;
+                const stat = fs.lstatSync(fullPath);
+                if (!stat.isFile() || stat.isSymbolicLink()) return null;
+                return {
+                    name,
+                    url: `/uploads/${name}`,
+                    size: stat.size,
+                    updatedAt: stat.mtime.toISOString()
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+        res.json({ success: true, data: files });
+    } catch (err) {
+        console.error('List branding backgrounds error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
  * POST /api/settings/branding/upload-background - Upload a background image.
  * Used by the console / login / agent-portal wallpaper pickers. Returns the
  * served URL; the caller decides which branding field to assign it to. Old

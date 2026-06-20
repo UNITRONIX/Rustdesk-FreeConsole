@@ -256,6 +256,30 @@ func TestProcessIDChangeSoftDeletedTargetReturnsIDExists(t *testing.T) {
 	}
 }
 
+func TestProcessIDChangeRejectsInvalidNewID(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{ID: "OLD213", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := newRegisterPk("bad/id")
+	msg.OldId = "OLD213"
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	if peer, err := database.GetPeer("OLD213"); err != nil {
+		t.Fatal(err)
+	} else if peer == nil {
+		t.Fatal("OLD213 should remain active after rejected invalid target ID")
+	}
+	if entry := srv.peers.Get("bad/id"); entry != nil {
+		t.Fatalf("invalid target ID must not enter memory map: %+v", entry)
+	}
+}
+
 func TestProcessIDChangeRejectsSoftDeletedSource(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
 

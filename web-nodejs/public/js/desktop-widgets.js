@@ -227,6 +227,7 @@
             el.style.backgroundImage = String(branding.bgGradient);
             el.style.backgroundColor = '';
             el.style.backgroundSize = 'cover';
+            el.style.backgroundRepeat = 'no-repeat';
             el.style.backgroundPosition = 'center';
             return true;
         }
@@ -234,11 +235,18 @@
             _wallpaperPath = branding.bgImageUrl;
             el.style.backgroundImage = 'url("' + String(branding.bgImageUrl).replace(/"/g, '%22') + '")';
             el.style.backgroundColor = '';
-            el.style.backgroundSize = (branding.bgSize === 'contain') ? 'contain' : 'cover';
-            el.style.backgroundPosition = 'center';
+            applyBackgroundSizeMode(el, branding.bgSize);
             return true;
         }
         return false;
+    }
+
+    function applyBackgroundSizeMode(el, size) {
+        var mode = String(size || 'cover').trim();
+        if (['cover', 'contain', 'auto', 'center', 'repeat'].indexOf(mode) === -1) mode = 'cover';
+        el.style.backgroundSize = (mode === 'cover' || mode === 'contain') ? mode : 'auto';
+        el.style.backgroundRepeat = mode === 'repeat' ? 'repeat' : 'no-repeat';
+        el.style.backgroundPosition = mode === 'repeat' ? 'top left' : 'center';
     }
 
     /** Check if wallpaper files are available on server */
@@ -258,6 +266,7 @@
         el.style.backgroundImage = DEFAULT_GRADIENT;
         el.style.backgroundColor = '#0d1117';
         el.style.backgroundSize = 'cover';
+        el.style.backgroundRepeat = 'no-repeat';
         el.style.backgroundPosition = 'center';
     }
 
@@ -281,6 +290,7 @@
             el.style.backgroundImage = 'none';
             el.style.backgroundColor = color;
             el.style.backgroundSize = '';
+            el.style.backgroundRepeat = '';
             el.style.backgroundPosition = '';
             localStorage.setItem(STORAGE_WALL, url);
             localStorage.setItem(STORAGE_WALL_FIT, fit);
@@ -296,6 +306,7 @@
             el.style.backgroundColor = '';
             el.style.backgroundImage = 'url("' + url + '")';
             el.style.backgroundSize = bgSize;
+            el.style.backgroundRepeat = 'no-repeat';
             el.style.backgroundPosition = bgPos;
             localStorage.setItem(STORAGE_WALL, url);
             localStorage.setItem(STORAGE_WALL_FIT, fit);
@@ -308,6 +319,7 @@
             newLayer.className = 'desktop-wallpaper-new';
             newLayer.style.backgroundImage = 'url("' + url + '")';
             newLayer.style.backgroundSize = bgSize;
+            newLayer.style.backgroundRepeat = 'no-repeat';
             newLayer.style.backgroundPosition = bgPos;
             el.appendChild(newLayer);
 
@@ -319,6 +331,7 @@
                 el.style.backgroundColor = '';
                 el.style.backgroundImage = 'url("' + url + '")';
                 el.style.backgroundSize = bgSize;
+                el.style.backgroundRepeat = 'no-repeat';
                 el.style.backgroundPosition = bgPos;
                 if (newLayer.parentElement) newLayer.remove();
             }, 600);

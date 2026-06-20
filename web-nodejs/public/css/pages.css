@@ -1033,6 +1033,96 @@
     background: var(--accent-red);
 }
 
+.background-picker {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.background-picker-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.background-library {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-sm);
+}
+
+.background-library-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-xs);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.background-library-item:hover {
+    border-color: var(--accent-blue);
+    transform: translateY(-1px);
+}
+
+.background-library-item.active {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px var(--accent-blue-muted);
+    color: var(--text-primary);
+}
+
+.background-library-thumb {
+    display: block;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius-md);
+    background-color: var(--bg-secondary);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+.background-library-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-xs);
+}
+
+.background-library-empty {
+    grid-column: 1 / -1;
+    padding: var(--space-md);
+    border: 1px dashed var(--border-primary);
+    border-radius: var(--radius-lg);
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+}
+
+.background-current-file {
+    max-width: none;
+}
+
+.background-advanced-url {
+    border-top: 1px solid var(--border-primary);
+    padding-top: var(--space-sm);
+}
+
+.background-advanced-url summary {
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.background-advanced-url .form-group {
+    margin-top: var(--space-sm);
+}
+
 /* Color grid */
 .color-grid {
     display: grid;
@@ -1216,9 +1306,6 @@
     background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-lg);
-    position: sticky;
-    top: 0;
-    z-index: 5;
     box-shadow: var(--shadow-sm);
 }
 

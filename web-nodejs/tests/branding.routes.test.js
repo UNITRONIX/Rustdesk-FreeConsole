@@ -117,6 +117,29 @@ describe('Branding routes', () => {
     });
 
     describe('POST /api/settings/branding/upload-background', () => {
+        it('lists uploaded managed background images', async () => {
+            const uploadsDir = path.join(config.dataDir, 'uploads');
+            fs.mkdirSync(uploadsDir, { recursive: true });
+            const fileName = 'bg-0123456789abcdef.png';
+            const filePath = path.join(uploadsDir, fileName);
+            fs.writeFileSync(filePath, Buffer.from('managed-background'));
+
+            try {
+                const res = await request(app).get('/api/settings/branding/backgrounds');
+
+                expect(res.status).toBe(200);
+                expect(res.body.success).toBe(true);
+                expect(res.body.data).toEqual(expect.arrayContaining([
+                    expect.objectContaining({
+                        name: fileName,
+                        url: `/uploads/${fileName}`
+                    })
+                ]));
+            } finally {
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            }
+        });
+
         it('accepts a multipart background image upload', async () => {
             const res = await request(app)
                 .post('/api/settings/branding/upload-background')

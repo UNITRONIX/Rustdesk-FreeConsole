@@ -474,6 +474,10 @@ func (s *Server) processIDChange(msg *pb.RegisterPk) *pb.RendezvousMessage {
 		log.Printf("[signal] Rejected invalid old peer ID in ID change: %q", oldID)
 		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
 	}
+	if !isValidPeerID(newID) {
+		log.Printf("[signal] Rejected invalid new peer ID in ID change: %q", newID)
+		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+	}
 
 	oldPeer, err := s.db.GetPeer(oldID)
 	if err != nil {

@@ -56,6 +56,14 @@
         return /^#[0-9a-fA-F]{6}$/.test(v) ? v : fallback;
     }
 
+    function applyBackgroundSizeMode(target, size) {
+        var mode = String(size || 'cover').trim();
+        if (['cover', 'contain', 'auto', 'center', 'repeat'].indexOf(mode) === -1) mode = 'cover';
+        target.style.backgroundSize = (mode === 'cover' || mode === 'contain') ? mode : 'auto';
+        target.style.backgroundRepeat = mode === 'repeat' ? 'repeat' : 'no-repeat';
+        target.style.backgroundPosition = mode === 'repeat' ? 'top left' : 'center';
+    }
+
     function applyAppearancePayload(payload, baseUrl) {
         var data = payload && (payload.data || payload.appearance || payload);
         if (!data || typeof data !== 'object') return;
@@ -79,16 +87,23 @@
         if (bg.type === 'image' && bg.imageUrl && baseUrl) {
             var absolute = new URL(bg.imageUrl, baseUrl).toString();
             document.body.style.backgroundImage = 'linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url("' + absolute.replace(/"/g, '%22') + '")';
-            document.body.style.backgroundSize = bg.size === 'contain' ? 'contain' : 'cover';
-            document.body.style.backgroundPosition = 'center';
+            document.body.style.backgroundColor = '';
+            applyBackgroundSizeMode(document.body, bg.size);
             document.querySelectorAll('.card').forEach(function (card) {
                 card.style.backdropFilter = 'blur(18px)';
             });
         } else if (bg.type === 'gradient' && bg.gradient) {
             document.body.style.backgroundImage = bg.gradient;
+            document.body.style.backgroundColor = '';
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundRepeat = 'no-repeat';
+            document.body.style.backgroundPosition = 'center';
         } else if (bg.type === 'color' && bg.color) {
             document.body.style.backgroundImage = 'none';
             document.body.style.backgroundColor = safeColor(bg.color, 'var(--bg)');
+            document.body.style.backgroundSize = '';
+            document.body.style.backgroundRepeat = '';
+            document.body.style.backgroundPosition = '';
         }
     }
 
