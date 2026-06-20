@@ -183,7 +183,16 @@
     "system_attention": "Dikkat gerekiyor",
     "config_not_ready": "İstemci yapılandırması henüz hazır değil.",
     "client_config_qr_title": "RustDesk Yapılandırma QR",
-    "client_config_qr_hint": "Bu kodu yapılandırma QR kodlarını destekleyen bir RustDesk istemcisinden tarayın."
+    "client_config_qr_hint": "Bu kodu yapılandırma QR kodlarını destekleyen bir RustDesk istemcisinden tarayın.",
+    "client_server_host_label": "İstemci sunucu adresi",
+    "client_server_host_placeholder": "örn. 203.0.113.10 veya desk.example.com",
+    "client_server_host_hint": "RustDesk istemcilerinin bu sunucuya ulaşmak için kullandığı adres. Panel URL’si genel IP/DNS’ten farklıysa değiştirin.",
+    "apply_client_host": "Uygula",
+    "copy_deploy_string": "Dağıtım dizesini kopyala",
+    "show_intune_script": "Intune / PSADT betiği",
+    "intune_script_title": "Windows dağıtım parçacığı",
+    "intune_script_hint": "RustDesk MSI tamamlandıktan sonra yönetici olarak çalıştırın. Dağıtım dizesini kopyala ile aynı config dizesini kullanır.",
+    "deploy_string_not_ready": "Sunucu genel anahtarı yüklenene kadar dağıtım dizesi kullanılamaz."
   },
   "devices": {
     "title": "Cihazlar",

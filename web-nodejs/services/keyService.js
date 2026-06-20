@@ -6,6 +6,7 @@
 const fs = require('fs');
 const QRCode = require('qrcode');
 const config = require('../config/config');
+const conn = require('./agentBundleConnection');
 
 /**
  * Read public key from file
@@ -41,10 +42,65 @@ function getApiKey(masked = true) {
     }
 }
 
+function normalizeHostInput(serverHost) {
+    if (!serverHost) {
+        return 'localhost';
+    }
+    const normalized = conn.normalizeServerHost(serverHost);
+    return normalized.valid ? normalized.host : String(serverHost).trim() || 'localhost';
+}
+
+function apiUrlForHost(host, useHttps) {
+    const port = String(config.goApiPort || config.apiPort || 21114);
+    const scheme = useHttps ? 'https' : 'http';
+    if (useHttps && port === '443') {
+        return `https://${host}`;
+    }
+    if (!useHttps && port === '80') {
+        return `http://${host}`;
+    }
+    return `${scheme}://${host}:${port}`;
+}
+
+/**
+ * RustDesk client config JSON payload: { host, relay, api, key }
+ * @param {string} serverHost
+ * @param {{ useHttps?: boolean }} [options]
+ */
+function buildRustDeskConfigPayload(serverHost, options = {}) {
+    const host = normalizeHostInput(serverHost);
+    const pubKey = getPublicKey() || '';
+    const useHttps = options.useHttps ?? conn.defaultUseHttps();
+    return {
+        host,
+        relay: host,
+        api: apiUrlForHost(host, useHttps),
+        key: pubKey,
+    };
+}
+
+/**
+ * QR / deep-link format: rustdesk://config/<standard-base64-json>
+ */
+function encodeRustDeskConfigUri(payload) {
+    const jsonStr = JSON.stringify(payload);
+    const b64 = Buffer.from(jsonStr).toString('base64');
+    return `rustdesk://config/${b64}`;
+}
+
+/**
+ * CLI / Import format for `rustdesk.exe --config`: reverse(base64(json)) without padding.
+ */
+function encodeRustDeskCliConfigString(payload) {
+    const jsonStr = JSON.stringify(payload);
+    let b64 = Buffer.from(jsonStr).toString('base64');
+    b64 = b64.replace(/=+$/, '');
+    return b64.split('').reverse().join('');
+}
+
 /**
  * Generate QR code containing the RustDesk configuration URI.
  * Format: rustdesk://config/<base64-encoded-json>
- * The JSON contains: { host, relay, api, key }
  * @param {string} serverHost - server host/IP used for the config
  */
 async function getServerConfigQR(serverHost) {
@@ -54,19 +110,8 @@ async function getServerConfigQR(serverHost) {
     }
 
     try {
-        const apiKey = getApiKey(false); // unmasked
-        const configPayload = {
-            host: serverHost || 'localhost',
-            relay: serverHost || 'localhost',
-            api: `http://${serverHost || 'localhost'}:${config.apiPort}`,
-            key: pubKey
-        };
-        if (apiKey) {
-            configPayload.key = pubKey;
-        }
-        const jsonStr = JSON.stringify(configPayload);
-        const b64 = Buffer.from(jsonStr).toString('base64');
-        const configUri = `rustdesk://config/${b64}`;
+        const configPayload = buildRustDeskConfigPayload(serverHost);
+        const configUri = encodeRustDeskConfigUri(configPayload);
 
         const qrDataUrl = await QRCode.toDataURL(configUri, {
             errorCorrectionLevel: 'M',
@@ -75,8 +120,8 @@ async function getServerConfigQR(serverHost) {
             margin: 2,
             color: {
                 dark: '#000000',
-                light: '#ffffff'
-            }
+                light: '#ffffff',
+            },
         });
         return qrDataUrl;
     } catch (err) {
@@ -87,18 +132,19 @@ async function getServerConfigQR(serverHost) {
 
 /**
  * Build the RustDesk client fields operators need to enter manually.
- * Public Docker examples and the legacy client API use :21121 by default.
  */
 function getClientConfig(serverHost) {
-    const host = serverHost || 'localhost';
-    const publicKey = getPublicKey();
+    const payload = buildRustDeskConfigPayload(serverHost);
+    const publicKey = payload.key;
 
     return {
-        server_id: host,
-        relay_server: host,
-        api_url: `http://${host}:${config.apiPort}`,
-        public_key: publicKey || '',
-        has_public_key: Boolean(publicKey)
+        server_id: payload.host,
+        relay_server: payload.relay,
+        api_url: payload.api,
+        public_key: publicKey,
+        has_public_key: Boolean(publicKey),
+        deploy_config_string: publicKey ? encodeRustDeskCliConfigString(payload) : '',
+        config_uri: publicKey ? encodeRustDeskConfigUri(payload) : '',
     };
 }
 
@@ -110,7 +156,7 @@ async function getPublicKeyQR() {
     if (!pubKey) {
         return null;
     }
-    
+
     try {
         const qrDataUrl = await QRCode.toDataURL(pubKey, {
             errorCorrectionLevel: 'M',
@@ -119,8 +165,8 @@ async function getPublicKeyQR() {
             margin: 2,
             color: {
                 dark: '#000000',
-                light: '#ffffff'
-            }
+                light: '#ffffff',
+            },
         });
         return qrDataUrl;
     } catch (err) {
@@ -139,7 +185,7 @@ function getServerConfig() {
         hbbsApiUrl: config.hbbsApiUrl,
         dbPath: config.dbPath,
         pubKeyPath: config.pubKeyPath,
-        apiKeyPath: config.apiKeyPath
+        apiKeyPath: config.apiKeyPath,
     };
 }
 
@@ -149,5 +195,10 @@ module.exports = {
     getPublicKeyQR,
     getServerConfigQR,
     getClientConfig,
-    getServerConfig
+    getServerConfig,
+    buildRustDeskConfigPayload,
+    encodeRustDeskConfigUri,
+    encodeRustDeskCliConfigString,
+    normalizeHostInput,
+    apiUrlForHost,
 };

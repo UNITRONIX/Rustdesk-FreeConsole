@@ -177,7 +177,16 @@
     "system_attention": "Aandacht vereist",
     "config_not_ready": "De clientconfiguratie is nog niet gereed.",
     "client_config_qr_title": "RustDesk-configuratie-QR",
-    "client_config_qr_hint": "Scan deze code met een RustDesk-client die configuratie-QR-codes ondersteunt."
+    "client_config_qr_hint": "Scan deze code met een RustDesk-client die configuratie-QR-codes ondersteunt.",
+    "client_server_host_label": "Client-serveradres",
+    "client_server_host_placeholder": "bijv. 203.0.113.10 of desk.example.com",
+    "client_server_host_hint": "Adres dat RustDesk-clients gebruiken om deze server te bereiken. Wijzig dit als de panel-URL afwijkt van het publieke IP of DNS.",
+    "apply_client_host": "Toepassen",
+    "copy_deploy_string": "Deploy-string kopiëren",
+    "show_intune_script": "Intune / PSADT-script",
+    "intune_script_title": "Windows-implementatiefragment",
+    "intune_script_hint": "Voer uit als beheerder na de RustDesk MSI. Gebruikt dezelfde config-string als Deploy-string kopiëren.",
+    "deploy_string_not_ready": "Deploy-string is niet beschikbaar totdat de publieke serversleutel is geladen."
   },
   "devices": {
     "title": "Apparaten",

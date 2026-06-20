@@ -183,7 +183,16 @@
     "system_attention": "Kräver uppmärksamhet",
     "config_not_ready": "Klientkonfigurationen är inte klar än.",
     "client_config_qr_title": "RustDesk-konfigurations-QR",
-    "client_config_qr_hint": "Skanna den här koden från en RustDesk-klient som stöder konfigurations-QR-koder."
+    "client_config_qr_hint": "Skanna den här koden från en RustDesk-klient som stöder konfigurations-QR-koder.",
+    "client_server_host_label": "Klientserveradress",
+    "client_server_host_placeholder": "t.ex. 203.0.113.10 eller desk.example.com",
+    "client_server_host_hint": "Adressen som RustDesk-klienter använder för att nå denna server. Ändra om panel-URL skiljer sig från publikt IP eller DNS.",
+    "apply_client_host": "Verkställ",
+    "copy_deploy_string": "Kopiera deploy-sträng",
+    "show_intune_script": "Intune / PSADT-skript",
+    "intune_script_title": "Windows-distributionsutdrag",
+    "intune_script_hint": "Kör som administratör efter RustDesk MSI. Använder samma config-sträng som Kopiera deploy-sträng.",
+    "deploy_string_not_ready": "Deploy-strängen är inte tillgänglig förrän serverns publika nyckel har laddats."
   },
   "devices": {
     "title": "Enheter",

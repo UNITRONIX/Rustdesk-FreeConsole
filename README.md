@@ -687,13 +687,22 @@ After installing BetterDesk server, configure your RustDesk desktop clients to c
 
 ### Mass Deployment
 
-For deploying to many clients, use the RustDesk configuration string:
+BetterDesk supports three automated configuration paths. Full Windows / Intune / PSADT steps: **[docs/setup/RUSTDESK_CLIENT_DEPLOYMENT.md](docs/setup/RUSTDESK_CLIENT_DEPLOYMENT.md)**.
+
+The web console **Dashboard → RustDesk Client Configuration** card provides manual fields, a QR code, **Copy deploy string** (for scripts), and an **Intune / PSADT script** snippet. Set **Client server address** if the panel URL differs from the IP/DNS clients use, or set `PANEL_PUBLIC_HOST` in the console `.env`.
+
+#### 1. QR / deep link
 
 ```
-rustdesk://config/<base64-encoded-json>
+rustdesk://config/<standard-base64-encoded-json>
 ```
 
-JSON structure:
+#### 2. CLI / Import (`rustdesk.exe --config`)
+
+Uses a **reversed** base64 string (no `=` padding) — the same format as **Settings → Network → Import Server Config** in the RustDesk client. **Do not** pass raw JSON.
+
+JSON payload (before encoding):
+
 ```json
 {
   "host": "betterdesk.example.com",
@@ -703,10 +712,16 @@ JSON structure:
 }
 ```
 
-You can also use the `--config` command-line flag when starting RustDesk:
-```bash
-rustdesk --config '{"host":"betterdesk.example.com","key":"<pubkey>"}'
+PowerShell (generate deploy string):
+
+```powershell
+$json = @{ host='betterdesk.example.com'; relay='betterdesk.example.com'; api='http://betterdesk.example.com:21114'; key='<pubkey>' } | ConvertTo-Json -Compress
+$b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json)).TrimEnd('=')
+$CfgString = -join ($b64[-1..-($b64.Length)] -join '')
+& "${env:ProgramFiles}\RustDesk\rustdesk.exe" --config $CfgString
 ```
+
+Example template script: [`scripts/deploy/rustdesk-apply-config.ps1.example`](scripts/deploy/rustdesk-apply-config.ps1.example).
 
 ### Desktop Client Login
 
@@ -801,16 +816,11 @@ After logging in, you can confirm Pro features are working:
 
 #### Mass Deployment with Pro Enabled
 
-To deploy pre-configured clients with Pro features active across your organization:
+Use the dashboard **Copy deploy string** or generate the reversed base64 string (see [Mass Deployment](#mass-deployment) above). After deployment, users log in individually to activate per-user Pro features.
 
-```bash
-# Configuration string (Base64-encoded JSON)
-rustdesk://config/eyJob3N0IjoiYmV0dGVyZGVzay5leGFtcGxlLmNvbSIsInJlbGF5IjoiYmV0dGVyZGVzay5leGFtcGxlLmNvbSIsImFwaSI6Imh0dHA6Ly9iZXR0ZXJkZXNrLmV4YW1wbGUuY29tOjIxMTIxIiwia2V5IjoiPHB1YmtleT4ifQ==
-```
-
-Or via command line:
-```bash
-rustdesk --config '{"host":"betterdesk.example.com","relay":"betterdesk.example.com","api":"http://betterdesk.example.com:21114","key":"<pubkey>"}'
+```powershell
+# After MSI — elevated PowerShell
+& "${env:ProgramFiles}\RustDesk\rustdesk.exe" --config '<deploy-string-from-dashboard>'
 ```
 
 > **Note:** Users still need to log in individually after initial configuration to activate per-user features (address book sync, audit trail, etc.).

@@ -177,7 +177,16 @@
     "system_attention": "Needs attention",
     "config_not_ready": "Client configuration is not ready yet.",
     "client_config_qr_title": "RustDesk Configuration QR",
-    "client_config_qr_hint": "Scan this code from a RustDesk client that supports configuration QR codes."
+    "client_config_qr_hint": "Scan this code from a RustDesk client that supports configuration QR codes.",
+    "client_server_host_label": "Client server address",
+    "client_server_host_placeholder": "e.g. 203.0.113.10 or desk.example.com",
+    "client_server_host_hint": "Address RustDesk clients use to reach this server. Change it when the panel URL differs from the client-facing IP or DNS.",
+    "apply_client_host": "Apply",
+    "copy_deploy_string": "Copy deploy string",
+    "show_intune_script": "Intune / PSADT script",
+    "intune_script_title": "Windows deployment snippet",
+    "intune_script_hint": "Run elevated after the RustDesk MSI finishes. Uses the same config string as Copy deploy string.",
+    "deploy_string_not_ready": "Deploy string is not available until the server public key is loaded."
   },
   "devices": {
     "title": "Devices",

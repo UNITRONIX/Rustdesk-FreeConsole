@@ -183,7 +183,16 @@
     "system_attention": "Vaatii huomiota",
     "config_not_ready": "Asiakasohjelman määritys ei ole vielä valmis.",
     "client_config_qr_title": "RustDesk-määrityksen QR",
-    "client_config_qr_hint": "Skannaa tämä koodi RustDesk-asiakkaalla, joka tukee määrityksen QR-koodeja."
+    "client_config_qr_hint": "Skannaa tämä koodi RustDesk-asiakkaalla, joka tukee määrityksen QR-koodeja.",
+    "client_server_host_label": "Asiakaspalvelimen osoite",
+    "client_server_host_placeholder": "esim. 203.0.113.10 tai desk.example.com",
+    "client_server_host_hint": "Osoite, jota RustDesk-asiakkaat käyttävät yhteyteen tähän palvelimeen. Muuta, jos paneelin URL poikkeaa julkisesta IP:stä tai DNS:stä.",
+    "apply_client_host": "Käytä",
+    "copy_deploy_string": "Kopioi deploy-merkkijono",
+    "show_intune_script": "Intune / PSADT -skripti",
+    "intune_script_title": "Windows-käyttöönoton pätkä",
+    "intune_script_hint": "Suorita ylläpitäjän oikeuksilla RustDesk MSI:n jälkeen. Käyttää samaa config-merkkijonoa kuin Kopioi deploy-merkkijono.",
+    "deploy_string_not_ready": "Deploy-merkkijono ei ole saatavilla ennen kuin palvelimen julkinen avain on ladattu."
   },
   "devices": {
     "title": "Laitteet",

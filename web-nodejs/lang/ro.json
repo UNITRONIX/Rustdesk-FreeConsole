@@ -183,7 +183,16 @@
     "system_attention": "Necesită atenție",
     "config_not_ready": "Configurarea clientului nu este încă pregătită.",
     "client_config_qr_title": "QR configurare RustDesk",
-    "client_config_qr_hint": "Scanați acest cod dintr-un client RustDesk care acceptă coduri QR de configurare."
+    "client_config_qr_hint": "Scanați acest cod dintr-un client RustDesk care acceptă coduri QR de configurare.",
+    "client_server_host_label": "Adresa serverului pentru clienți",
+    "client_server_host_placeholder": "ex. 203.0.113.10 sau desk.example.com",
+    "client_server_host_hint": "Adresa pe care clienții RustDesk o folosesc pentru a ajunge la acest server. Schimbați-o dacă URL-ul panoului diferă de IP-ul sau DNS-ul public.",
+    "apply_client_host": "Aplică",
+    "copy_deploy_string": "Copiază șirul de deploy",
+    "show_intune_script": "Script Intune / PSADT",
+    "intune_script_title": "Fragment de implementare Windows",
+    "intune_script_hint": "Rulați ca administrator după finalizarea MSI RustDesk. Folosește același șir ca Copiază șirul de deploy.",
+    "deploy_string_not_ready": "Șirul de deploy nu este disponibil până când cheia publică a serverului este încărcată."
   },
   "devices": {
     "title": "Dispozitive",

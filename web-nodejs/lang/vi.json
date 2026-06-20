@@ -183,7 +183,16 @@
     "system_attention": "Cần chú ý",
     "config_not_ready": "Cấu hình máy khách chưa sẵn sàng.",
     "client_config_qr_title": "QR cấu hình RustDesk",
-    "client_config_qr_hint": "Quét mã này bằng máy khách RustDesk hỗ trợ mã QR cấu hình."
+    "client_config_qr_hint": "Quét mã này bằng máy khách RustDesk hỗ trợ mã QR cấu hình.",
+    "client_server_host_label": "Địa chỉ máy chủ cho client",
+    "client_server_host_placeholder": "vd. 203.0.113.10 hoặc desk.example.com",
+    "client_server_host_hint": "Địa chỉ mà client RustDesk dùng để kết nối máy chủ này. Đổi nếu URL bảng điều khiển khác IP hoặc DNS công khai.",
+    "apply_client_host": "Áp dụng",
+    "copy_deploy_string": "Sao chép chuỗi triển khai",
+    "show_intune_script": "Script Intune / PSADT",
+    "intune_script_title": "Đoạn triển khai Windows",
+    "intune_script_hint": "Chạy với quyền quản trị sau khi MSI RustDesk hoàn tất. Dùng cùng chuỗi config như Sao chép chuỗi triển khai.",
+    "deploy_string_not_ready": "Chuỗi triển khai chưa sẵn sàng cho đến khi tải khóa công khai của máy chủ."
   },
   "devices": {
     "title": "Thiết bị",

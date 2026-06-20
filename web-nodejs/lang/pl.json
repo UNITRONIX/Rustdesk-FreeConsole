@@ -177,7 +177,16 @@
     "system_attention": "Wymaga uwagi",
     "config_not_ready": "Konfiguracja klienta nie jest jeszcze gotowa.",
     "client_config_qr_title": "QR konfiguracji RustDesk",
-    "client_config_qr_hint": "Zeskanuj ten kod w kliencie RustDesk obsługującym kody QR konfiguracji."
+    "client_config_qr_hint": "Zeskanuj ten kod w kliencie RustDesk obsługującym kody QR konfiguracji.",
+    "client_server_host_label": "Adres serwera dla klientów",
+    "client_server_host_placeholder": "np. 203.0.113.10 lub desk.example.com",
+    "client_server_host_hint": "Adres używany przez klientów RustDesk do połączenia z tym serwerem. Zmień, jeśli URL panelu różni się od publicznego IP lub DNS.",
+    "apply_client_host": "Zastosuj",
+    "copy_deploy_string": "Kopiuj ciąg wdrożenia",
+    "show_intune_script": "Skrypt Intune / PSADT",
+    "intune_script_title": "Fragment wdrożenia Windows",
+    "intune_script_hint": "Uruchom z uprawnieniami administratora po zakończeniu instalacji MSI RustDesk. Używa tego samego ciągu co Kopiuj ciąg wdrożenia.",
+    "deploy_string_not_ready": "Ciąg wdrożenia jest niedostępny, dopóki nie zostanie wczytany klucz publiczny serwera."
   },
   "devices": {
     "title": "Urządzenia",

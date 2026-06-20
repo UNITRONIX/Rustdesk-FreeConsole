@@ -807,6 +807,58 @@
     justify-content: flex-end;
 }
 
+.client-config-host-row {
+    margin-top: var(--space-md);
+    padding: var(--space-md);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    background: rgba(13, 17, 23, 0.35);
+}
+
+.client-config-host-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    margin-bottom: var(--space-xs);
+}
+
+.client-config-host-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
+.client-config-host-input {
+    flex: 1 1 220px;
+    min-width: 0;
+}
+
+.client-config-host-hint {
+    margin: var(--space-sm) 0 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.client-config-script-modal p {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-md);
+}
+
+.client-config-script-block {
+    max-height: 360px;
+    overflow: auto;
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    background: rgba(13, 17, 23, 0.65);
+    border: 1px solid var(--border-primary);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .client-config-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));

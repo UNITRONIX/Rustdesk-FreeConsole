@@ -183,7 +183,16 @@
     "system_attention": "ध्यान चाहिए",
     "config_not_ready": "क्लाइंट कॉन्फ़िगरेशन अभी तैयार नहीं है।",
     "client_config_qr_title": "RustDesk कॉन्फ़िगरेशन QR",
-    "client_config_qr_hint": "इस कोड को ऐसे RustDesk क्लाइंट से स्कैन करें जो कॉन्फ़िगरेशन QR कोड का समर्थन करता हो।"
+    "client_config_qr_hint": "इस कोड को ऐसे RustDesk क्लाइंट से स्कैन करें जो कॉन्फ़िगरेशन QR कोड का समर्थन करता हो।",
+    "client_server_host_label": "क्लाइंट सर्वर पता",
+    "client_server_host_placeholder": "जैसे 203.0.113.10 या desk.example.com",
+    "client_server_host_hint": "वह पता जिससे RustDesk क्लाइंट इस सर्वर तक पहुँचते हैं। यदि पैनल URL सार्वजनिक IP/DNS से अलग है तो बदलें।",
+    "apply_client_host": "लागू करें",
+    "copy_deploy_string": "डिप्लॉय स्ट्रिंग कॉपी करें",
+    "show_intune_script": "Intune / PSADT स्क्रिप्ट",
+    "intune_script_title": "Windows तैनाती स्निपेट",
+    "intune_script_hint": "RustDesk MSI पूरा होने के बाद व्यवस्थापक के रूप में चलाएँ। डिप्लॉय स्ट्रिंग कॉपी करें जैसा ही config स्ट्रिंग उपयोग करता है।",
+    "deploy_string_not_ready": "सर्वर की सार्वजनिक कुंजी लोड होने तक डिप्लॉय स्ट्रिंग उपलब्ध नहीं है।"
   },
   "devices": {
     "title": "उपकरण",

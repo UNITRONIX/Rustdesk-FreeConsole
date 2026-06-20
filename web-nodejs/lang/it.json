@@ -177,7 +177,16 @@
     "system_attention": "Richiede attenzione",
     "config_not_ready": "La configurazione del client non è ancora pronta.",
     "client_config_qr_title": "QR configurazione RustDesk",
-    "client_config_qr_hint": "Scansiona questo codice da un client RustDesk che supporta i codici QR di configurazione."
+    "client_config_qr_hint": "Scansiona questo codice da un client RustDesk che supporta i codici QR di configurazione.",
+    "client_server_host_label": "Indirizzo server per i client",
+    "client_server_host_placeholder": "es. 203.0.113.10 o desk.example.com",
+    "client_server_host_hint": "Indirizzo usato dai client RustDesk per raggiungere questo server. Modificalo se l’URL del pannello differisce dall’IP o DNS pubblico.",
+    "apply_client_host": "Applica",
+    "copy_deploy_string": "Copia stringa di deploy",
+    "show_intune_script": "Script Intune / PSADT",
+    "intune_script_title": "Snippet di deployment Windows",
+    "intune_script_hint": "Esegui come amministratore dopo il MSI di RustDesk. Usa la stessa stringa di Copia stringa di deploy.",
+    "deploy_string_not_ready": "La stringa di deploy non è disponibile finché la chiave pubblica del server non è caricata."
   },
   "devices": {
     "title": "Dispositivi",

@@ -177,7 +177,16 @@
     "system_attention": "Requiere atención",
     "config_not_ready": "La configuración del cliente aún no está lista.",
     "client_config_qr_title": "QR de configuración de RustDesk",
-    "client_config_qr_hint": "Escanee este código desde un cliente RustDesk compatible con códigos QR de configuración."
+    "client_config_qr_hint": "Escanee este código desde un cliente RustDesk compatible con códigos QR de configuración.",
+    "client_server_host_label": "Dirección del servidor para clientes",
+    "client_server_host_placeholder": "p. ej. 203.0.113.10 o desk.example.com",
+    "client_server_host_hint": "Dirección que usan los clientes RustDesk para llegar a este servidor. Cámbiela si la URL del panel difiere de la IP o DNS pública.",
+    "apply_client_host": "Aplicar",
+    "copy_deploy_string": "Copiar cadena de despliegue",
+    "show_intune_script": "Script Intune / PSADT",
+    "intune_script_title": "Fragmento de despliegue en Windows",
+    "intune_script_hint": "Ejecútelo como administrador tras finalizar el MSI de RustDesk. Usa la misma cadena que Copiar cadena de despliegue.",
+    "deploy_string_not_ready": "La cadena de despliegue no está disponible hasta que se cargue la clave pública del servidor."
   },
   "devices": {
     "title": "Panel",

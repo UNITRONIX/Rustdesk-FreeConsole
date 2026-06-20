@@ -184,7 +184,16 @@
     "system_attention": "يتطلب الانتباه",
     "config_not_ready": "تكوين العميل غير جاهز بعد.",
     "client_config_qr_title": "QR لتكوين RustDesk",
-    "client_config_qr_hint": "امسح هذا الرمز من عميل RustDesk يدعم رموز QR للتكوين."
+    "client_config_qr_hint": "امسح هذا الرمز من عميل RustDesk يدعم رموز QR للتكوين.",
+    "client_server_host_label": "عنوان خادم العميل",
+    "client_server_host_placeholder": "مثال: 203.0.113.10 أو desk.example.com",
+    "client_server_host_hint": "العنوان الذي يستخدمه عملاء RustDesk للوصول إلى هذا الخادم. غيّره إذا كان عنوان اللوحة يختلف عن IP أو DNS الموجه للعملاء.",
+    "apply_client_host": "تطبيق",
+    "copy_deploy_string": "نسخ سلسلة النشر",
+    "show_intune_script": "سكربت Intune / PSADT",
+    "intune_script_title": "مقتطف نشر Windows",
+    "intune_script_hint": "شغّله بامتيازات المسؤول بعد اكتمال MSI الخاص بـ RustDesk. يستخدم نفس سلسلة الإعداد مثل نسخ سلسلة النشر.",
+    "deploy_string_not_ready": "سلسلة النشر غير متاحة حتى يتم تحميل المفتاح العام للخادم."
   },
   "devices": {
     "title": "الأجهزة",

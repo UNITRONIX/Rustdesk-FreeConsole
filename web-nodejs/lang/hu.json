@@ -183,7 +183,16 @@
     "system_attention": "Figyelmet igényel",
     "config_not_ready": "A kliens konfigurációja még nem áll készen.",
     "client_config_qr_title": "RustDesk konfigurációs QR",
-    "client_config_qr_hint": "Olvassa be ezt a kódot egy konfigurációs QR-kódokat támogató RustDesk klienssel."
+    "client_config_qr_hint": "Olvassa be ezt a kódot egy konfigurációs QR-kódokat támogató RustDesk klienssel.",
+    "client_server_host_label": "Kliens szerver címe",
+    "client_server_host_placeholder": "pl. 203.0.113.10 vagy desk.example.com",
+    "client_server_host_hint": "A cím, amelyen a RustDesk kliensek elérik ezt a szervert. Módosítsa, ha a panel URL-je eltér a nyilvános IP-től vagy DNS-től.",
+    "apply_client_host": "Alkalmaz",
+    "copy_deploy_string": "Telepítési string másolása",
+    "show_intune_script": "Intune / PSADT szkript",
+    "intune_script_title": "Windows telepítési részlet",
+    "intune_script_hint": "Futtassa rendszergazdaként a RustDesk MSI befejezése után. Ugyanazt a config stringet használja, mint a Telepítési string másolása.",
+    "deploy_string_not_ready": "A telepítési string csak a szerver nyilvános kulcsa betöltése után érhető el."
   },
   "devices": {
     "title": "Eszközök",

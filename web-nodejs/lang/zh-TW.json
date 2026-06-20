@@ -181,7 +181,16 @@
     "system_attention": "需要注意",
     "config_not_ready": "用戶端設定尚未準備好。",
     "client_config_qr_title": "RustDesk 設定 QR",
-    "client_config_qr_hint": "請使用支援設定 QR 碼的 RustDesk 用戶端掃描此代碼。"
+    "client_config_qr_hint": "請使用支援設定 QR 碼的 RustDesk 用戶端掃描此代碼。",
+    "client_server_host_label": "用戶端伺服器位址",
+    "client_server_host_placeholder": "例如 203.0.113.10 或 desk.example.com",
+    "client_server_host_hint": "RustDesk 用戶端連線此伺服器使用的位址。若面板 URL 與對外 IP 或 DNS 不同，請修改此項。",
+    "apply_client_host": "套用",
+    "copy_deploy_string": "複製部署字串",
+    "show_intune_script": "Intune / PSADT 指令碼",
+    "intune_script_title": "Windows 部署片段",
+    "intune_script_hint": "RustDesk MSI 完成後以系統管理員身分執行。使用與「複製部署字串」相同的 config 字串。",
+    "deploy_string_not_ready": "在載入伺服器公開金鑰之前，部署字串不可用。"
   },
   "devices": {
     "title": "設備",

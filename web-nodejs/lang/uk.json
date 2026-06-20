@@ -183,7 +183,16 @@
     "system_attention": "Потребує уваги",
     "config_not_ready": "Конфігурація клієнта ще не готова.",
     "client_config_qr_title": "QR конфігурації RustDesk",
-    "client_config_qr_hint": "Відскануйте цей код у клієнті RustDesk, який підтримує QR-коди конфігурації."
+    "client_config_qr_hint": "Відскануйте цей код у клієнті RustDesk, який підтримує QR-коди конфігурації.",
+    "client_server_host_label": "Адреса сервера для клієнтів",
+    "client_server_host_placeholder": "напр. 203.0.113.10 або desk.example.com",
+    "client_server_host_hint": "Адреса, яку клієнти RustDesk використовують для доступу до цього сервера. Змініть, якщо URL панелі відрізняється від публічної IP або DNS.",
+    "apply_client_host": "Застосувати",
+    "copy_deploy_string": "Копіювати рядок розгортання",
+    "show_intune_script": "Скрипт Intune / PSADT",
+    "intune_script_title": "Фрагмент розгортання Windows",
+    "intune_script_hint": "Запустіть від імені адміністратора після завершення MSI RustDesk. Використовує той самий config-рядок, що й Копіювати рядок розгортання.",
+    "deploy_string_not_ready": "Рядок розгортання недоступний, доки не завантажено публічний ключ сервера."
   },
   "devices": {
     "title": "Пристрої",

@@ -177,7 +177,16 @@
     "system_attention": "確認が必要",
     "config_not_ready": "クライアント設定はまだ準備できていません。",
     "client_config_qr_title": "RustDesk 設定 QR",
-    "client_config_qr_hint": "設定 QR コードに対応した RustDesk クライアントでこのコードをスキャンしてください。"
+    "client_config_qr_hint": "設定 QR コードに対応した RustDesk クライアントでこのコードをスキャンしてください。",
+    "client_server_host_label": "クライアント用サーバーアドレス",
+    "client_server_host_placeholder": "例: 203.0.113.10 または desk.example.com",
+    "client_server_host_hint": "RustDesk クライアントがこのサーバーに接続する際に使用するアドレス。パネル URL と公開 IP/DNS が異なる場合は変更してください。",
+    "apply_client_host": "適用",
+    "copy_deploy_string": "デプロイ文字列をコピー",
+    "show_intune_script": "Intune / PSADT スクリプト",
+    "intune_script_title": "Windows デプロイスニペット",
+    "intune_script_hint": "RustDesk MSI 完了後に管理者として実行します。「デプロイ文字列をコピー」と同じ config 文字列を使用します。",
+    "deploy_string_not_ready": "サーバー公開鍵が読み込まれるまでデプロイ文字列は利用できません。"
   },
   "devices": {
     "title": "デバイス",

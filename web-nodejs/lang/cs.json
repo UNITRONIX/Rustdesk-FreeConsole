@@ -177,7 +177,16 @@
     "system_attention": "Vyžaduje pozornost",
     "config_not_ready": "Konfigurace klienta ještě není připravena.",
     "client_config_qr_title": "QR konfigurace RustDesk",
-    "client_config_qr_hint": "Naskenujte tento kód v klientovi RustDesk, který podporuje konfigurační QR kódy."
+    "client_config_qr_hint": "Naskenujte tento kód v klientovi RustDesk, který podporuje konfigurační QR kódy.",
+    "client_server_host_label": "Adresa serveru pro klienty",
+    "client_server_host_placeholder": "např. 203.0.113.10 nebo desk.example.com",
+    "client_server_host_hint": "Adresa, kterou klienti RustDesk používají pro přístup k tomuto serveru. Změňte ji, pokud se URL panelu liší od veřejné IP nebo DNS.",
+    "apply_client_host": "Použít",
+    "copy_deploy_string": "Kopírovat deploy string",
+    "show_intune_script": "Skript Intune / PSADT",
+    "intune_script_title": "Úryvek pro nasazení ve Windows",
+    "intune_script_hint": "Spusťte s oprávněním správce po dokončení MSI RustDesk. Používá stejný config string jako Kopírovat deploy string.",
+    "deploy_string_not_ready": "Deploy string není k dispozici, dokud není načten veřejný klíč serveru."
   },
   "devices": {
     "title": "Zařízení",

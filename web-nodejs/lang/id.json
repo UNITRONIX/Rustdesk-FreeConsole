@@ -183,7 +183,16 @@
     "system_attention": "Perlu perhatian",
     "config_not_ready": "Konfigurasi klien belum siap.",
     "client_config_qr_title": "QR Konfigurasi RustDesk",
-    "client_config_qr_hint": "Pindai kode ini dari klien RustDesk yang mendukung kode QR konfigurasi."
+    "client_config_qr_hint": "Pindai kode ini dari klien RustDesk yang mendukung kode QR konfigurasi.",
+    "client_server_host_label": "Alamat server klien",
+    "client_server_host_placeholder": "mis. 203.0.113.10 atau desk.example.com",
+    "client_server_host_hint": "Alamat yang digunakan klien RustDesk untuk mencapai server ini. Ubah jika URL panel berbeda dari IP atau DNS publik.",
+    "apply_client_host": "Terapkan",
+    "copy_deploy_string": "Salin string deploy",
+    "show_intune_script": "Skrip Intune / PSADT",
+    "intune_script_title": "Cuplikan deployment Windows",
+    "intune_script_hint": "Jalankan sebagai admin setelah MSI RustDesk selesai. Menggunakan string config yang sama dengan Salin string deploy.",
+    "deploy_string_not_ready": "String deploy tidak tersedia sampai kunci publik server dimuat."
   },
   "devices": {
     "title": "Perangkat",

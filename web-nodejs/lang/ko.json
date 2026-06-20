@@ -177,7 +177,16 @@
     "system_attention": "주의 필요",
     "config_not_ready": "클라이언트 구성이 아직 준비되지 않았습니다.",
     "client_config_qr_title": "RustDesk 구성 QR",
-    "client_config_qr_hint": "구성 QR 코드를 지원하는 RustDesk 클라이언트에서 이 코드를 스캔하세요."
+    "client_config_qr_hint": "구성 QR 코드를 지원하는 RustDesk 클라이언트에서 이 코드를 스캔하세요.",
+    "client_server_host_label": "클라이언트 서버 주소",
+    "client_server_host_placeholder": "예: 203.0.113.10 또는 desk.example.com",
+    "client_server_host_hint": "RustDesk 클라이언트가 이 서버에 접속할 때 사용하는 주소입니다. 패널 URL과 공용 IP/DNS가 다르면 변경하세요.",
+    "apply_client_host": "적용",
+    "copy_deploy_string": "배포 문자열 복사",
+    "show_intune_script": "Intune / PSADT 스크립트",
+    "intune_script_title": "Windows 배포 스니펫",
+    "intune_script_hint": "RustDesk MSI 완료 후 관리자 권한으로 실행하세요. 배포 문자열 복사와 동일한 config 문자열을 사용합니다.",
+    "deploy_string_not_ready": "서버 공개 키가 로드될 때까지 배포 문자열을 사용할 수 없습니다."
   },
   "devices": {
     "title": "장치",

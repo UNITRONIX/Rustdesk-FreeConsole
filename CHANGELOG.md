@@ -1,7 +1,7 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- RustDesk mass-deployment docs and dashboard helpers for Intune/PSADT: correct `--config` deploy string format, editable client server address, **Copy deploy string** / **Intune script** on Dashboard, `PANEL_PUBLIC_HOST` env, and `scripts/deploy/rustdesk-apply-config.ps1.example` (#209).
 
 ---
 

@@ -98,11 +98,29 @@
                                     <span class="material-icons">content_copy</span>
                                     ${_('dashboard.copy_all_config')}
                                 </button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="copy-deploy-string-btn">
+                                    <span class="material-icons">terminal</span>
+                                    ${_('dashboard.copy_deploy_string')}
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="show-intune-script-btn">
+                                    <span class="material-icons">code</span>
+                                    ${_('dashboard.show_intune_script')}
+                                </button>
                                 <button type="button" class="btn btn-secondary btn-sm" id="show-client-qr-btn">
                                     <span class="material-icons">qr_code_2</span>
                                     ${_('dashboard.show_config_qr')}
                                 </button>
                             </div>
+                        </div>
+
+                        <div class="client-config-host-row">
+                            <label class="client-config-host-label" for="client-config-host-input">${_('dashboard.client_server_host_label')}</label>
+                            <div class="client-config-host-controls">
+                                <input type="text" class="form-input client-config-host-input" id="client-config-host-input"
+                                       placeholder="${_('dashboard.client_server_host_placeholder')}" autocomplete="off">
+                                <button type="button" class="btn btn-secondary btn-sm" id="apply-client-host-btn">${_('dashboard.apply_client_host')}</button>
+                            </div>
+                            <p class="client-config-host-hint">${_('dashboard.client_server_host_hint')}</p>
                         </div>
 
                         <div class="client-config-grid">
