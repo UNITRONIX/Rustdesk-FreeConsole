@@ -45,7 +45,7 @@
         <div class="settings-search" role="search">
             <span class="material-icons" aria-hidden="true">search</span>
             <input type="search" id="settings-search-input" class="form-input"
-                   placeholder="${_('toolkit.search_placeholder')}">
+                   placeholder="${_('desktop.search_placeholder')}">
             <button type="button" class="btn btn-ghost btn-sm" id="settings-search-clear" hidden>
                 <span class="material-icons">close</span>
                 ${_('actions.clear')}
@@ -281,6 +281,18 @@
         <!-- Branding Tab -->
         <div class="settings-tab-content" id="tab-branding" data-can-branding-edit="${canBrandingEdit ? '1' : '0'}">
         <div class="branding-studio">
+            <section class="branding-hero">
+                <div class="branding-hero-copy">
+                    <span class="branding-hero-kicker">${_('settings.tab_branding')}</span>
+                    <h2>${_('branding.live_preview')}</h2>
+                    <p>${_('branding.background_desc')}</p>
+                </div>
+                <div class="branding-hero-steps" aria-hidden="true">
+                    <span><span class="material-icons">palette</span>${_('branding.module_colors')}</span>
+                    <span><span class="material-icons">wallpaper</span>${_('branding.module_backgrounds')}</span>
+                    <span><span class="material-icons">connected_tv</span>RdClient</span>
+                </div>
+            </section>
             <div class="branding-studio-toolbar">
                 <div class="branding-save-status" id="branding-save-status" aria-live="polite">
                     <span class="material-icons branding-status-icon">check_circle</span>

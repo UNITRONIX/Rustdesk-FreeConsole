@@ -1122,18 +1122,104 @@
     gap: var(--space-lg);
 }
 
+.branding-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-lg);
+    align-items: center;
+    padding: clamp(18px, 3vw, 28px);
+    border: 1px solid rgba(59, 130, 246, 0.28);
+    border-radius: var(--radius-xl);
+    background:
+        radial-gradient(circle at 12% 18%, rgba(59, 130, 246, 0.26), transparent 34%),
+        radial-gradient(circle at 82% 10%, rgba(168, 85, 247, 0.18), transparent 30%),
+        linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(17, 24, 39, 0.82));
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    position: relative;
+}
+
+.branding-hero::after {
+    content: "";
+    position: absolute;
+    inset: auto -48px -92px auto;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.14);
+    filter: blur(4px);
+    pointer-events: none;
+}
+
+.branding-hero-copy {
+    position: relative;
+    z-index: 1;
+    max-width: 680px;
+}
+
+.branding-hero-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-xs);
+    color: var(--accent-blue);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.branding-hero h2 {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(24px, 3vw, 34px);
+    line-height: 1.1;
+}
+
+.branding-hero p {
+    margin: var(--space-sm) 0 0;
+    color: rgba(226, 232, 240, 0.82);
+    font-size: var(--font-size-md);
+}
+
+.branding-hero-steps {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: var(--space-sm);
+    min-width: 190px;
+}
+
+.branding-hero-steps span {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-lg);
+    background: rgba(15, 23, 42, 0.52);
+    color: rgba(248, 250, 252, 0.92);
+    backdrop-filter: blur(12px);
+}
+
+.branding-hero-steps .material-icons {
+    color: var(--accent-blue);
+    font-size: 18px;
+}
+
 .branding-studio-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-md);
     padding: var(--space-md);
-    background: var(--bg-secondary);
+    background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
     border: 1px solid var(--border-primary);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     position: sticky;
     top: 0;
     z-index: 5;
+    box-shadow: var(--shadow-sm);
 }
 
 .branding-save-status {
@@ -1260,7 +1346,7 @@
 
 .branding-studio-body {
     display: grid;
-    grid-template-columns: 180px minmax(0, 1fr) 300px;
+    grid-template-columns: 210px minmax(0, 1fr) 320px;
     gap: var(--space-lg);
     align-items: start;
 }
@@ -1279,7 +1365,7 @@
     gap: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
     border: 1px solid var(--border-primary);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     background: var(--bg-tertiary);
     color: var(--text-secondary);
     cursor: pointer;
@@ -1297,8 +1383,9 @@
 
 .branding-module-btn.active {
     border-color: var(--accent-blue);
-    background: var(--accent-blue-muted);
+    background: linear-gradient(135deg, var(--accent-blue-muted), rgba(59, 130, 246, 0.1));
     color: var(--accent-blue);
+    box-shadow: inset 3px 0 0 var(--accent-blue);
 }
 
 .branding-modules .branding-module-panel {
@@ -1314,8 +1401,9 @@
     top: 72px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     padding: var(--space-md);
+    box-shadow: var(--shadow-md);
 }
 
 .branding-live-preview-header {
@@ -1501,6 +1589,14 @@
 }
 
 @media (max-width: 1100px) {
+    .branding-hero {
+        grid-template-columns: 1fr;
+    }
+
+    .branding-hero-steps {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
     .branding-studio-body {
         grid-template-columns: 1fr;
     }
@@ -1514,6 +1610,12 @@
     .branding-live-preview {
         position: static;
         order: -1;
+    }
+}
+
+@media (max-width: 640px) {
+    .branding-hero-steps {
+        grid-template-columns: 1fr;
     }
 }
 

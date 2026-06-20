@@ -730,9 +730,10 @@
     }
 
     function scheduleBrandingAutosave() {
-        if (!_canBrandingEdit) return;
+        // Appearance changes can touch many fields at once and the server rate
+        // limiter is intentionally strict. Keep live preview instant, but require
+        // an explicit save for stable, predictable updates.
         clearTimeout(_autosaveDebounce);
-        _autosaveDebounce = setTimeout(() => saveBrandingNow({ silent: true }), 1500);
     }
 
     async function saveBrandingNow(options = {}) {
@@ -822,6 +823,7 @@
             if (e.target.closest('#tab-branding')) onBrandingFieldChange();
         });
         tab.addEventListener('change', (e) => {
+            if (e.target?.classList?.contains('branding-bg-file')) return;
             if (e.target.closest('#tab-branding')) onBrandingFieldChange();
         });
         scheduleBrandingPreview();
@@ -1224,14 +1226,14 @@
      */
     function initBackgroundSelectors() {
         // Radio toggles for the three background groups
-        [['bg-type', 'bg'], ['login-bg-type', 'login-bg'], ['agent-bg-type', 'agent-bg']].forEach(([name, prefix]) => {
+        [['bg-type', 'bg'], ['login-bg-type', 'login-bg'], ['agent-bg-type', 'agent-bg'], ['rdclient-bg-type', 'rdclient-bg']].forEach(([name, prefix]) => {
             document.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
                 radio.addEventListener('change', () => showBackgroundPanel(prefix, radio.value));
             });
         });
         
         // Color picker <-> hex text sync for the standalone background pickers
-        [['bg-color-picker', 'bg-color'], ['login-bg-color-picker', 'login-bg-color'], ['agent-bg-color-picker', 'agent-bg-color'], ['glass-color-picker', 'glass-color']].forEach(([pickerId, textId]) => {
+        [['bg-color-picker', 'bg-color'], ['login-bg-color-picker', 'login-bg-color'], ['agent-bg-color-picker', 'agent-bg-color'], ['rdclient-bg-color-picker', 'rdclient-bg-color'], ['glass-color-picker', 'glass-color']].forEach(([pickerId, textId]) => {
             const picker = document.getElementById(pickerId);
             const text = document.getElementById(textId);
             if (picker && text) {
@@ -1272,13 +1274,13 @@
         
         const maxSize = 8 * 1024 * 1024; // 8 MB
         if (file.size > maxSize) {
-            Utils.showNotification(_('branding.bg_image_too_large'), 'error');
+            Notifications.error(_('branding.bg_image_too_large'));
             e.target.value = '';
             return;
         }
         const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
         if (!validTypes.includes(file.type)) {
-            Utils.showNotification(_('branding.bg_image_invalid_type'), 'error');
+            Notifications.error(_('branding.bg_image_invalid_type'));
             e.target.value = '';
             return;
         }
@@ -1347,7 +1349,7 @@
                 message: err.message || _('errors.server_error'),
                 percent: 100
             });
-            Utils.showNotification(err.message || _('errors.server_error'), 'error');
+            Notifications.error(err.message || _('errors.server_error'));
         } finally {
             if (_backgroundUploads.get(uploadKey) === uploadPromise) {
                 _backgroundUploads.delete(uploadKey);
@@ -1655,14 +1657,14 @@
         
         const maxSize = 2 * 1024 * 1024; // 2 MB
         if (file.size > maxSize) {
-            Utils.showNotification(_('branding.logo_image_too_large'), 'error');
+            Notifications.error(_('branding.logo_image_too_large'));
             e.target.value = '';
             return;
         }
         
         const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'];
         if (!validTypes.includes(file.type)) {
-            Utils.showNotification(_('branding.logo_image_invalid_type'), 'error');
+            Notifications.error(_('branding.logo_image_invalid_type'));
             e.target.value = '';
             return;
         }
@@ -1690,7 +1692,7 @@
             Notifications.success(_('branding.logo_upload_success'));
             updateLogoPreview();
         } catch (err) {
-            Utils.showNotification(err.message || _('errors.server_error'), 'error');
+            Notifications.error(err.message || _('errors.server_error'));
         }
     }
     
