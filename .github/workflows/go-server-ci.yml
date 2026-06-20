@@ -12,6 +12,9 @@ on:
       - 'betterdesk-server/**'
       - '.github/workflows/go-server-ci.yml'
 
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: betterdesk-server

@@ -60,11 +60,16 @@ function stripBom(content) {
         : content;
 }
 
+function isUnsafeObjectKey(key) {
+    return key === '__proto__' || key === 'prototype' || key === 'constructor';
+}
+
 function deepMerge(base, overlay) {
     if (!base || typeof base !== 'object') return overlay;
     if (!overlay || typeof overlay !== 'object') return base;
     const merged = Array.isArray(base) ? [...base] : { ...base };
     for (const [key, value] of Object.entries(overlay)) {
+        if (isUnsafeObjectKey(key)) continue;
         if (value && typeof value === 'object' && !Array.isArray(value) && base[key] && typeof base[key] === 'object' && !Array.isArray(base[key])) {
             merged[key] = deepMerge(base[key], value);
         } else {
@@ -171,7 +176,7 @@ class TranslationManager {
         // Interpolate variables {varName}
         if (typeof value === 'string' && Object.keys(vars).length > 0) {
             for (const [varName, varValue] of Object.entries(vars)) {
-                value = value.replace(new RegExp(`\\{${varName}\\}`, 'g'), varValue);
+                value = value.split(`{${varName}}`).join(String(varValue));
             }
         }
         
@@ -188,6 +193,7 @@ class TranslationManager {
         let current = obj;
         
         for (const part of parts) {
+            if (isUnsafeObjectKey(part)) return undefined;
             if (current === null || current === undefined) return undefined;
             current = current[part];
         }
@@ -355,5 +361,6 @@ const manager = new TranslationManager();
 module.exports = {
     manager,
     LANGUAGE_META,
-    isValidLangCode
+    isValidLangCode,
+    isUnsafeObjectKey
 };

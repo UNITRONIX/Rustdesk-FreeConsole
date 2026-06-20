@@ -94,20 +94,33 @@ function roleHasPermission(role, permission) {
 /**
  * Safe relative return URL for RdClient pages only (/remote…).
  */
+function normalizeRdClientReturnUrl(u) {
+    if (typeof u !== 'string' || u.length === 0) return null;
+    if (/[\r\n\x00\\]/.test(u) || /%(?:00|0a|0d|5c)/i.test(u)) return null;
+    if (!u.startsWith('/') || u.startsWith('//')) return null;
+
+    let parsed;
+    try {
+        parsed = new URL(u, 'https://betterdesk.local');
+    } catch (_) {
+        return null;
+    }
+
+    if (parsed.origin !== 'https://betterdesk.local') return null;
+    if (parsed.pathname !== '/remote' && !parsed.pathname.startsWith('/remote/')) return null;
+    if (parsed.pathname === '/remote/login' || parsed.pathname.startsWith('/remote/login/')) return null;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+}
+
 function isSafeRdClientReturnUrl(u) {
-    if (typeof u !== 'string' || u.length === 0) return false;
-    if (/[\r\n\x00]/.test(u)) return false;
-    if (!u.startsWith('/remote')) return false;
-    if (u.startsWith('//') || u.startsWith('/\\')) return false;
-    if (u.startsWith('/remote/login')) return false;
-    return true;
+    return normalizeRdClientReturnUrl(u) !== null;
 }
 
 function rdClientLoginRedirect(req) {
     const requested = req.originalUrl || req.url || '/remote';
-    const returnParam = isSafeRdClientReturnUrl(requested)
-        ? requested
-        : (isSafeRdClientReturnUrl(req.query.return) ? req.query.return : '/remote');
+    const returnParam = normalizeRdClientReturnUrl(requested)
+        || normalizeRdClientReturnUrl(req.query.return)
+        || '/remote';
     return `/remote/login?return=${encodeURIComponent(returnParam)}`;
 }
 
@@ -160,7 +173,7 @@ function requireRdClientAuth(permission) {
 function rdClientGuestOnly(req, res, next) {
     const role = req.session && req.session.user && req.session.user.role;
     if (req.session && req.session.userId && role !== 'pro' && roleHasPermission(role, 'device.connect')) {
-        const dest = isSafeRdClientReturnUrl(req.query.return) ? req.query.return : '/remote';
+        const dest = normalizeRdClientReturnUrl(req.query.return) || '/remote';
         return res.redirect(dest);
     }
     next();
@@ -324,6 +337,7 @@ module.exports = {
     requirePermission,
     requireRdClientAuth,
     rdClientGuestOnly,
+    normalizeRdClientReturnUrl,
     isSafeRdClientReturnUrl,
     optionalAuth,
     guestOnly,

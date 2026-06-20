@@ -8,7 +8,8 @@ const router = express.Router();
 const fs = require('fs');
 const db = require('../services/database');
 const config = require('../config/config');
-const { requireRdClientAuth, rdClientGuestOnly, isSafeRdClientReturnUrl } = require('../middleware/auth');
+const { requireRdClientAuth, rdClientGuestOnly, normalizeRdClientReturnUrl } = require('../middleware/auth');
+const { rdClientPageLimiter } = require('../middleware/rateLimiter');
 
 // Lazy-loaded relay helper — avoid circular require at module load time
 function getRemoteRelay() {
@@ -28,8 +29,8 @@ try {
 /**
  * GET /remote/login - RdClient operator login (when panel session expired)
  */
-router.get('/remote/login', rdClientGuestOnly, (req, res) => {
-    const returnUrl = isSafeRdClientReturnUrl(req.query.return) ? req.query.return : '/remote';
+router.get('/remote/login', rdClientPageLimiter, rdClientGuestOnly, (req, res) => {
+    const returnUrl = normalizeRdClientReturnUrl(req.query.return) || '/remote';
     const sessionExpired = req.query.expired === '1' || req.query.expired === 'true';
     res.render('rdclient-login', {
         title: req.t('rdclient_login.title'),
@@ -42,7 +43,7 @@ router.get('/remote/login', rdClientGuestOnly, (req, res) => {
 /**
  * GET /remote - RdClient operator dashboard (device list + connect)
  */
-router.get('/remote', requireRdClientAuth('device.connect'), (req, res) => {
+router.get('/remote', rdClientPageLimiter, requireRdClientAuth('device.connect'), (req, res) => {
     res.render('remote-dashboard', {
         title: req.t('remote_dashboard.title'),
         activePage: 'remote',
@@ -52,7 +53,7 @@ router.get('/remote', requireRdClientAuth('device.connect'), (req, res) => {
 /**
  * GET /remote/:deviceId - Unified remote desktop viewer (single entry point).
  */
-router.get('/remote/:deviceId', requireRdClientAuth('device.connect'), async (req, res) => {
+router.get('/remote/:deviceId', rdClientPageLimiter, requireRdClientAuth('device.connect'), async (req, res) => {
     const deviceId = req.params.deviceId;
 
     if (!deviceId || deviceId === 'login' || !/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
@@ -109,7 +110,7 @@ router.get('/remote/:deviceId', requireRdClientAuth('device.connect'), async (re
 /**
  * GET /remote-cdap/:deviceId - Legacy alias, redirects to unified entry.
  */
-router.get('/remote-cdap/:deviceId', requireRdClientAuth('device.connect'), (req, res) => {
+router.get('/remote-cdap/:deviceId', rdClientPageLimiter, requireRdClientAuth('device.connect'), (req, res) => {
     const deviceId = req.params.deviceId;
     if (deviceId && /^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
         return res.redirect(`/remote/${encodeURIComponent(deviceId)}?transport=cdap`);
@@ -120,7 +121,7 @@ router.get('/remote-cdap/:deviceId', requireRdClientAuth('device.connect'), (req
 /**
  * GET /remote-desktop/:deviceId - Legacy route, redirects to unified /remote/:deviceId
  */
-router.get('/remote-desktop/:deviceId', requireRdClientAuth('device.connect'), (req, res) => {
+router.get('/remote-desktop/:deviceId', rdClientPageLimiter, requireRdClientAuth('device.connect'), (req, res) => {
     const deviceId = req.params.deviceId;
     if (deviceId && /^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
         return res.redirect(`/remote/${encodeURIComponent(deviceId)}`);

@@ -45,6 +45,22 @@ const widgetLimiter = rateLimit({
 });
 
 /**
+ * RdClient HTML page limiter. Keeps remote viewer/login pages bounded without
+ * using the stricter credential-attempt budget.
+ */
+const rdClientPageLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: parseInt(process.env.RDCLIENT_PAGE_RATE_LIMIT_MAX, 10) || 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        success: false,
+        error: 'Too many remote page requests. Please slow down.'
+    },
+    keyGenerator: defaultKeyGenerator
+});
+
+/**
  * Strict rate limiter for login attempts
  */
 const loginLimiter = rateLimit({
@@ -108,6 +124,7 @@ const fileAccessLimiter = rateLimit({
 module.exports = {
     apiLimiter,
     widgetLimiter,
+    rdClientPageLimiter,
     loginLimiter,
     passwordChangeLimiter,
     uploadLimiter,
