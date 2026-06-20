@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.3.49] — 2026-06-20
+
+### Changed
 - RustDesk mass-deployment docs and dashboard helpers for Intune/PSADT: correct `--config` deploy string format, editable client server address, **Copy deploy string** / **Intune script** on Dashboard, `PANEL_PUBLIC_HOST` env, and `scripts/deploy/rustdesk-apply-config.ps1.example` (#209).
 
 ---
@@ -1072,3 +1079,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.46]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.45...v3.3.46
 [3.3.47]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.46...v3.3.47
 [3.3.48]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.47...v3.3.48
+[3.3.49]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.48...v3.3.49
