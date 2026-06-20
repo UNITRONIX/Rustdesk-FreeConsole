@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/rdclient-desktop/src-tauri"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      # GitHub Dependabot alert #34: glib::VariantStrIter unsoundness.
+      #
+      # glib is not a direct dependency of RdClient. It is pulled by
+      # tauri 2.11.x -> gtk 0.18.x / webkit2gtk 2.x on Linux. The patched
+      # glib line starts at 0.20.0, but gtk 0.18 requires glib ^0.18 and
+      # cargo cannot legally resolve glib 0.20 without a Tauri/GTK stack
+      # migration. Keep Dependabot active for other Cargo dependencies while
+      # avoiding repeated impossible PRs for this transitive GTK3 dependency.
+      - dependency-name: "glib"
