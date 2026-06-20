@@ -1747,6 +1747,29 @@
     .settings-tabs {
         overflow-x: auto;
     }
+
+.settings-search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+    padding: var(--space-sm);
+    border: 1px solid var(--surface-glass-border, var(--border-primary));
+    border-radius: var(--radius-lg);
+    background: var(--surface-glass-bg-secondary, var(--bg-secondary));
+    backdrop-filter: blur(var(--surface-glass-blur, 0px)) saturate(var(--surface-glass-saturate, 1));
+    -webkit-backdrop-filter: blur(var(--surface-glass-blur, 0px)) saturate(var(--surface-glass-saturate, 1));
+}
+
+.settings-search > .material-icons {
+    color: var(--text-secondary);
+    margin-left: var(--space-xs);
+}
+
+.settings-search .form-input {
+    flex: 1;
+    min-width: 180px;
+}
     
     .backend-selector {
         flex-direction: column;
@@ -2298,6 +2321,46 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     gap: var(--space-md);
+}
+
+.branding-readability-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding: var(--space-md);
+    border: 1px solid var(--accent-yellow-muted);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--accent-yellow-muted) 70%, transparent);
+    color: var(--text-primary);
+}
+
+.branding-readability-alert[hidden] {
+    display: none;
+}
+
+.branding-readability-alert.has-errors {
+    border-color: var(--accent-red-muted);
+    background: color-mix(in srgb, var(--accent-red-muted) 70%, transparent);
+}
+
+.branding-readability-alert .material-icons {
+    color: var(--accent-yellow);
+}
+
+.branding-readability-alert.has-errors .material-icons {
+    color: var(--accent-red);
+}
+
+.branding-readability-alert strong {
+    display: block;
+    margin-bottom: 2px;
+}
+
+.branding-readability-alert p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
 }
 
 .update-backup-info {

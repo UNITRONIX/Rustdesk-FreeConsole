@@ -51,6 +51,57 @@
         return window.__TAURI__.core.invoke(cmd, args || {});
     }
 
+    function safeColor(value, fallback) {
+        var v = String(value || '').trim();
+        return /^#[0-9a-fA-F]{6}$/.test(v) ? v : fallback;
+    }
+
+    function applyAppearancePayload(payload, baseUrl) {
+        var data = payload && (payload.data || payload.appearance || payload);
+        if (!data || typeof data !== 'object') return;
+        var palette = data.palette || {};
+        var root = document.documentElement;
+        root.style.setProperty('--bg', safeColor(palette.background, '#0d1117'));
+        root.style.setProperty('--panel', safeColor(palette.surface, '#161b22'));
+        root.style.setProperty('--border', safeColor(palette.border, '#30363d'));
+        root.style.setProperty('--text', safeColor(palette.text, '#e6edf3'));
+        root.style.setProperty('--muted', safeColor(palette.muted, '#8b949e'));
+        root.style.setProperty('--accent', safeColor(palette.primary, '#58a6ff'));
+        root.style.setProperty('--error', safeColor(palette.danger, '#f85149'));
+        root.style.setProperty('--warn', safeColor(palette.warning, '#d29922'));
+
+        var identity = data.identity || {};
+        if (identity.appName) {
+            document.title = identity.appName + ' RdClient — Settings';
+        }
+
+        var bg = data.background || {};
+        if (bg.type === 'image' && bg.imageUrl && baseUrl) {
+            var absolute = new URL(bg.imageUrl, baseUrl).toString();
+            document.body.style.backgroundImage = 'linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url("' + absolute.replace(/"/g, '%22') + '")';
+            document.body.style.backgroundSize = bg.size === 'contain' ? 'contain' : 'cover';
+            document.body.style.backgroundPosition = 'center';
+            document.querySelectorAll('.card').forEach(function (card) {
+                card.style.backdropFilter = 'blur(18px)';
+            });
+        } else if (bg.type === 'gradient' && bg.gradient) {
+            document.body.style.backgroundImage = bg.gradient;
+        } else if (bg.type === 'color' && bg.color) {
+            document.body.style.backgroundImage = 'none';
+            document.body.style.backgroundColor = safeColor(bg.color, 'var(--bg)');
+        }
+    }
+
+    async function loadAppearanceForUrl(url) {
+        if (!url) return;
+        try {
+            var base = new URL(url).origin;
+            var res = await fetch(base + '/api/bd/appearance', { credentials: 'omit', cache: 'no-store' });
+            if (!res.ok) return;
+            applyAppearancePayload(await res.json(), base);
+        } catch (_) { /* local settings must stay usable offline */ }
+    }
+
     function fillLangSelect(selected) {
         if (!langSelect) return;
         langSelect.innerHTML = '';
@@ -69,6 +120,7 @@
             if (urlInput && cfg.server_url) urlInput.value = cfg.server_url;
             if (tlsCheckbox) tlsCheckbox.checked = !!cfg.tls_strict;
             fillLangSelect(cfg.ui_lang || '');
+            if (cfg.server_url) loadAppearanceForUrl(cfg.server_url);
             if (cfg.server_url) {
                 var probe = await invoke('probe_server_url', { url: cfg.server_url });
                 if (probe && probe.ok && serverMeta) {
@@ -92,6 +144,7 @@
         status(urlStatus, 'Validating…', '');
         try {
             await invoke('set_server_url', { url: url });
+            await loadAppearanceForUrl(url);
             status(urlStatus, 'Saved. Reconnecting…', 'ok');
         } catch (e) {
             status(urlStatus, String(e), 'error');

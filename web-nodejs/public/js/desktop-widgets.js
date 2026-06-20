@@ -200,6 +200,7 @@
             };
             probe.src = saved;
         } else {
+            if (applyBrandingWallpaper(fit)) return;
             // Probe if wallpapers exist before loading default
             probeWallpapers(function(available) {
                 if (available) {
@@ -209,6 +210,35 @@
                 }
             });
         }
+    }
+
+    function applyBrandingWallpaper(fit) {
+        var branding = (window.BetterDesk && window.BetterDesk.branding) || {};
+        var type = branding.bgType || 'none';
+        if (type === 'color' && /^#[0-9a-fA-F]{6}$/.test(String(branding.bgColor || ''))) {
+            applyWallpaper('solid:' + branding.bgColor, fit, false);
+            localStorage.removeItem(STORAGE_WALL);
+            return true;
+        }
+        var el = document.querySelector('.desktop-wallpaper');
+        if (!el) return false;
+        if (type === 'gradient' && branding.bgGradient) {
+            _wallpaperPath = 'branding:gradient';
+            el.style.backgroundImage = String(branding.bgGradient);
+            el.style.backgroundColor = '';
+            el.style.backgroundSize = 'cover';
+            el.style.backgroundPosition = 'center';
+            return true;
+        }
+        if (type === 'image' && branding.bgImageUrl) {
+            _wallpaperPath = branding.bgImageUrl;
+            el.style.backgroundImage = 'url("' + String(branding.bgImageUrl).replace(/"/g, '%22') + '")';
+            el.style.backgroundColor = '';
+            el.style.backgroundSize = (branding.bgSize === 'contain') ? 'contain' : 'cover';
+            el.style.backgroundPosition = 'center';
+            return true;
+        }
+        return false;
     }
 
     /** Check if wallpaper files are available on server */

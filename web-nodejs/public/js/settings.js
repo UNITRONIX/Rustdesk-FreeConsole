@@ -9,6 +9,7 @@
     
     function init() {
         initTabs();
+        initSettingsSearch();
         initPasswordForm();
         initTotpSection();
         initBrandingSection();
@@ -55,6 +56,8 @@
                 tab.classList.add('active');
                 const target = document.getElementById('tab-' + tab.dataset.tab);
                 if (target) target.classList.add('active');
+                window.history.replaceState(null, '', '#' + tab.dataset.tab);
+                applySettingsSearchFilter();
             });
         });
         
@@ -64,6 +67,33 @@
             const tab = document.querySelector(`[data-tab="${hash}"]`);
             if (tab) tab.click();
         }
+    }
+
+    function initSettingsSearch() {
+        const input = document.getElementById('settings-search-input');
+        const clear = document.getElementById('settings-search-clear');
+        if (!input) return;
+        input.addEventListener('input', applySettingsSearchFilter);
+        clear?.addEventListener('click', () => {
+            input.value = '';
+            applySettingsSearchFilter();
+            input.focus();
+        });
+    }
+
+    function applySettingsSearchFilter() {
+        const input = document.getElementById('settings-search-input');
+        const clear = document.getElementById('settings-search-clear');
+        const query = (input?.value || '').trim().toLowerCase();
+        if (clear) clear.hidden = !query;
+        document.querySelectorAll('.settings-tab-content.active .settings-section').forEach(section => {
+            if (!query) {
+                section.hidden = false;
+                return;
+            }
+            const haystack = section.textContent.toLowerCase();
+            section.hidden = !haystack.includes(query);
+        });
     }
     
     /**
@@ -626,6 +656,7 @@
             brandingData = response.data || response;
             
             populateBrandingForm(brandingData);
+            updateBrandingReadability(response.readability);
             _brandingSnapshot = JSON.stringify(collectBrandingData());
             initBrandingModules();
             initLogoTypeSelector();
@@ -715,6 +746,7 @@
                 body: data
             });
             brandingData = resp.data || data;
+            updateBrandingReadability(resp.readability);
             _brandingSnapshot = JSON.stringify(collectBrandingData());
             _brandingDirty = false;
             setBrandingStatus('saved', options.silent ? _('branding.autosaved') : _('branding.saved'));
@@ -732,6 +764,22 @@
             if (!options.silent) Notifications.error(error.message || _('errors.server_error'));
             return false;
         }
+    }
+
+    function updateBrandingReadability(readability) {
+        const box = document.getElementById('branding-readability-alert');
+        const text = document.getElementById('branding-readability-text');
+        if (!box || !text) return;
+        const issues = Array.isArray(readability?.issues) ? readability.issues : [];
+        if (!issues.length) {
+            box.hidden = true;
+            text.textContent = '';
+            return;
+        }
+        const errors = issues.filter(issue => issue.severity === 'error');
+        box.hidden = false;
+        box.classList.toggle('has-errors', errors.length > 0);
+        text.textContent = issues.slice(0, 3).map(issue => issue.message).join(' ');
     }
 
     async function waitForBackgroundUploads() {
@@ -779,6 +827,30 @@
         scheduleBrandingPreview();
     }
 
+    async function brandingPrompt(message, options = {}) {
+        if (window.Modal && typeof Modal.prompt === 'function') {
+            return Modal.prompt({
+                title: options.title || _('settings.tab_branding'),
+                label: message,
+                placeholder: options.placeholder || '',
+                confirmLabel: options.confirmLabel || _('actions.save')
+            });
+        }
+        return prompt(message);
+    }
+
+    async function brandingConfirm(message, options = {}) {
+        if (window.Modal && typeof Modal.confirm === 'function') {
+            return Modal.confirm({
+                title: options.title || _('settings.tab_branding'),
+                message,
+                danger: !!options.danger,
+                confirmLabel: options.confirmLabel || _('actions.confirm')
+            });
+        }
+        return confirm(message);
+    }
+
     async function initBrandingProfiles() {
         const select = document.getElementById('branding-profile-select');
         if (!select) return;
@@ -805,7 +877,7 @@
         });
 
         document.getElementById('branding-profile-new-btn')?.addEventListener('click', async () => {
-            const name = prompt(_('branding.profile_name_prompt'));
+            const name = await brandingPrompt(_('branding.profile_name_prompt'));
             if (!name || !name.trim()) return;
             try {
                 await Utils.api('/api/settings/branding/profiles', {
@@ -851,7 +923,7 @@
         document.getElementById('branding-profile-delete-btn')?.addEventListener('click', async () => {
             const id = parseInt(select.value, 10);
             if (!id) return;
-            if (!confirm(_('branding.profile_delete_confirm'))) return;
+            if (!(await brandingConfirm(_('branding.profile_delete_confirm'), { danger: true }))) return;
             try {
                 await Utils.api(`/api/settings/branding/profiles/${id}`, { method: 'DELETE' });
                 await refreshBrandingProfiles(select);
@@ -899,7 +971,7 @@
                 card.innerHTML = `<div class="branding-theme-swatches">${swatches}</div><span class="branding-theme-name">${Utils.escapeHtml(theme.name || theme.id)}</span>`;
                 card.addEventListener('click', async () => {
                     if (!_canBrandingEdit) return;
-                    if (!confirm(_('branding.theme_apply_confirm'))) return;
+                    if (!(await brandingConfirm(_('branding.theme_apply_confirm')))) return;
                     try {
                         await Utils.api(`/api/settings/themes/${encodeURIComponent(theme.id)}/apply`, { method: 'POST' });
                         const fresh = await Utils.api('/api/settings/branding');
@@ -1108,6 +1180,20 @@
             document.getElementById('agent-bg-color-picker').value = data.agentBgColor;
         }
         showBackgroundPanel('agent-bg', data.agentBgType || 'none');
+
+        // RdClient / remote dashboard
+        checkRadio('rdclient-bg-type', data.rdclientBgType || 'inherit');
+        setVal('rdclient-bg-color', data.rdclientBgColor || '');
+        setVal('rdclient-bg-gradient', data.rdclientBgGradient || '');
+        setVal('rdclient-bg-image-url', data.rdclientBgImageUrl || '');
+        setVal('rdclient-bg-overlay', data.rdclientBgOverlay || '0');
+        setVal('rdclient-bg-size', data.rdclientBgSize || 'cover');
+        if (data.rdclientBgColor && document.getElementById('rdclient-bg-color-picker') && /^#[0-9a-fA-F]{6}$/.test(data.rdclientBgColor)) {
+            document.getElementById('rdclient-bg-color-picker').value = data.rdclientBgColor;
+        }
+        const rdclientOverlayVal = document.getElementById('rdclient-bg-overlay-value');
+        if (rdclientOverlayVal) rdclientOverlayVal.textContent = data.rdclientBgOverlay || '0';
+        showBackgroundPanel('rdclient-bg', data.rdclientBgType || 'inherit');
         syncExistingBackgroundUploadStatuses(data);
         
         // Footer & custom CSS
@@ -1157,7 +1243,7 @@
         });
         
         // Range value labels
-        [['bg-blur', 'bg-blur-value'], ['bg-overlay', 'bg-overlay-value'], ['login-bg-overlay', 'login-bg-overlay-value'], ['glass-blur', 'glass-blur-value'], ['glass-opacity', 'glass-opacity-value']].forEach(([rangeId, labelId]) => {
+        [['bg-blur', 'bg-blur-value'], ['bg-overlay', 'bg-overlay-value'], ['login-bg-overlay', 'login-bg-overlay-value'], ['rdclient-bg-overlay', 'rdclient-bg-overlay-value'], ['glass-blur', 'glass-blur-value'], ['glass-opacity', 'glass-opacity-value']].forEach(([rangeId, labelId]) => {
             const range = document.getElementById(rangeId);
             const label = document.getElementById(labelId);
             if (range && label) {
@@ -1285,7 +1371,8 @@
         const map = {
             'bg-image-file': 'bg-file-name',
             'login-bg-image-file': 'login-bg-file-name',
-            'agent-bg-image-file': 'agent-bg-file-name'
+            'agent-bg-image-file': 'agent-bg-file-name',
+            'rdclient-bg-image-file': 'rdclient-bg-file-name'
         };
         return document.getElementById(map[input.id])
             || document.getElementById(input.id.replace('-file', '-file-name'));
@@ -1301,7 +1388,8 @@
         [
             { targetId: 'bg-image-url', type: data.bgType, url: data.bgImageUrl, labelId: 'bg-file-name' },
             { targetId: 'login-bg-image-url', type: data.loginBgType, url: data.loginBgImageUrl, labelId: 'login-bg-file-name' },
-            { targetId: 'agent-bg-image-url', type: data.agentBgType, url: data.agentBgImageUrl, labelId: 'agent-bg-file-name' }
+            { targetId: 'agent-bg-image-url', type: data.agentBgType, url: data.agentBgImageUrl, labelId: 'agent-bg-file-name' },
+            { targetId: 'rdclient-bg-image-url', type: data.rdclientBgType, url: data.rdclientBgImageUrl, labelId: 'rdclient-bg-file-name' }
         ].forEach(item => {
             const statusEl = getBackgroundUploadStatusElementByTarget(item.targetId);
             const labelEl = document.getElementById(item.labelId);
@@ -1329,7 +1417,8 @@
         const map = {
             'bg-image-url': 'bg-upload-status',
             'login-bg-image-url': 'login-bg-upload-status',
-            'agent-bg-image-url': 'agent-bg-upload-status'
+            'agent-bg-image-url': 'agent-bg-upload-status',
+            'rdclient-bg-image-url': 'rdclient-bg-upload-status'
         };
         return document.getElementById(map[targetId]);
     }
@@ -1393,7 +1482,8 @@
         const map = {
             'bg-image-url': ['bg-type', 'bg'],
             'login-bg-image-url': ['login-bg-type', 'login-bg'],
-            'agent-bg-image-url': ['agent-bg-type', 'agent-bg']
+            'agent-bg-image-url': ['agent-bg-type', 'agent-bg'],
+            'rdclient-bg-image-url': ['rdclient-bg-type', 'rdclient-bg']
         };
         const cfg = map[targetId];
         if (!cfg) return;
@@ -1409,7 +1499,8 @@
         const map = {
             'bg-image-url': 'bgImageUrl',
             'login-bg-image-url': 'loginBgImageUrl',
-            'agent-bg-image-url': 'agentBgImageUrl'
+            'agent-bg-image-url': 'agentBgImageUrl',
+            'rdclient-bg-image-url': 'rdclientBgImageUrl'
         };
         return map[targetId] || '';
     }
@@ -1685,6 +1776,14 @@
         data.agentBgGradient = document.getElementById('agent-bg-gradient')?.value.trim() || '';
         data.agentBgImageUrl = document.getElementById('agent-bg-image-url')?.value.trim() || '';
         data.agentShowPoweredBy = document.getElementById('agent-show-powered')?.checked ? 'true' : 'false';
+
+        // RdClient / remote dashboard
+        data.rdclientBgType = document.querySelector('input[name="rdclient-bg-type"]:checked')?.value || 'inherit';
+        data.rdclientBgColor = document.getElementById('rdclient-bg-color')?.value.trim() || '';
+        data.rdclientBgGradient = document.getElementById('rdclient-bg-gradient')?.value.trim() || '';
+        data.rdclientBgImageUrl = document.getElementById('rdclient-bg-image-url')?.value.trim() || '';
+        data.rdclientBgOverlay = document.getElementById('rdclient-bg-overlay')?.value || '';
+        data.rdclientBgSize = document.getElementById('rdclient-bg-size')?.value || 'cover';
         
         // Footer & custom CSS
         data.footerText = document.getElementById('footer-text')?.value.trim() || '';
@@ -1942,7 +2041,7 @@
         
         // Reset
         document.getElementById('branding-reset-btn')?.addEventListener('click', async () => {
-            if (!confirm(_('branding.reset_confirm'))) return;
+            if (!(await brandingConfirm(_('branding.reset_confirm'), { danger: true }))) return;
             
             try {
                 await Utils.api('/api/settings/branding/reset', { method: 'POST' });

@@ -163,9 +163,34 @@ router.get('/api/settings/audit', requireAuth, async (req, res) => {
 router.get('/api/settings/branding', requireAuth, (req, res) => {
     try {
         const branding = brandingService.getBranding();
-        res.json({ success: true, data: branding });
+        res.json({
+            success: true,
+            data: branding,
+            appearance: brandingService.getAppearanceModel(branding),
+            readability: brandingService.assessAppearanceReadability(branding),
+            revision: brandingService.getBrandingRevision()
+        });
     } catch (err) {
         console.error('Get branding error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * GET /api/settings/appearance - Versioned appearance model for the settings UI
+ */
+router.get('/api/settings/appearance', requireAuth, (req, res) => {
+    try {
+        const branding = brandingService.getBranding();
+        res.json({
+            success: true,
+            data: brandingService.getAppearanceModel(branding),
+            flat: branding,
+            readability: brandingService.assessAppearanceReadability(branding),
+            revision: brandingService.getBrandingRevision()
+        });
+    } catch (err) {
+        console.error('Get appearance error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });
     }
 });
@@ -181,12 +206,16 @@ router.post('/api/settings/branding', requireAuth, requirePermission('branding.e
         }
         
         await brandingService.saveBranding(updates);
+        const savedBranding = brandingService.getBranding();
+        const readability = brandingService.assessAppearanceReadability(savedBranding);
         
         await db.logAction(req.session?.userId, 'branding_update', 'Updated branding configuration', req.ip);
         
         res.json({
             success: true,
-            data: brandingService.getBranding(),
+            data: savedBranding,
+            appearance: brandingService.getAppearanceModel(savedBranding),
+            readability,
             revision: brandingService.getBrandingRevision()
         });
     } catch (err) {
@@ -304,7 +333,8 @@ router.post('/api/settings/branding/upload-background', requireAuth, requirePerm
         const targetMap = {
             bgImageUrl: 'bgType',
             loginBgImageUrl: 'loginBgType',
-            agentBgImageUrl: 'agentBgType'
+            agentBgImageUrl: 'agentBgType',
+            rdclientBgImageUrl: 'rdclientBgType'
         };
         const target = String(req.body?.target || '').trim();
         let branding = null;

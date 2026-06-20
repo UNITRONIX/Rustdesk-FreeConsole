@@ -153,11 +153,17 @@ function buildSessionHistory(entries, limit) {
 // ---------------------------------------------------------------------------
 
 router.get('/server-info', (_req, res) => {
+    const branding = brandingService.getBranding();
     res.json({
         ok: true,
         product: 'betterdesk-panel',
         version: config.appVersion,
-        panel_name: config.appName,
+        panel_name: branding.appName || config.appName,
+        appearance_contract: {
+            version: '2.0',
+            endpoint: '/api/bd/appearance',
+            revision: brandingService.getBrandingRevision()
+        },
     });
 });
 
@@ -455,10 +461,12 @@ router.get('/peer/:id', identifyDevice, async (req, res) => {
 router.get('/branding', (req, res) => {
     try {
         const branding = brandingService.getBranding();
+        const publicAppearance = brandingService.getPublicAppearance();
         res.json({
             company_name: branding.appName || 'BetterDesk',
             accent_color: branding.colors?.accentBlue || '#3b82f6',
             support_contact: branding.supportContact || '',
+            appearance: publicAppearance
         });
     } catch (err) {
         console.error('[BD-API] Branding error:', err.message);
@@ -467,6 +475,44 @@ router.get('/branding', (req, res) => {
             company_name: 'BetterDesk',
             accent_color: '#3b82f6',
             support_contact: '',
+        });
+    }
+});
+
+// ---------------------------------------------------------------------------
+//  GET /api/bd/appearance — Public, sanitized appearance contract for RdClient
+// ---------------------------------------------------------------------------
+
+router.get('/appearance', (_req, res) => {
+    try {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.json({ success: true, data: brandingService.getPublicAppearance() });
+    } catch (err) {
+        console.error('[BD-API] Appearance error:', err.message);
+        res.json({
+            success: true,
+            data: {
+                version: '2.0',
+                revision: 'fallback',
+                product: 'betterdesk-appearance',
+                identity: { appName: 'BetterDesk', logoType: 'icon', logoIcon: 'dns' },
+                palette: {
+                    mode: 'dark',
+                    primary: '#58a6ff',
+                    background: '#0d1117',
+                    surface: '#161b22',
+                    surfaceRaised: '#21262d',
+                    text: '#e6edf3',
+                    muted: '#8b949e',
+                    border: '#30363d',
+                    danger: '#f85149',
+                    warning: '#d29922',
+                    success: '#2ea44f'
+                },
+                surfaces: { glassEnabled: true, glassBlur: '16', glassOpacity: '55' },
+                background: { type: 'none', color: '', gradient: '', imageUrl: '', overlay: '', size: 'cover' },
+                readability: { ok: true, issues: [] }
+            }
         });
     }
 });

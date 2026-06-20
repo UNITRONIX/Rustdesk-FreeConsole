@@ -41,6 +41,16 @@
                 ${_('settings.tab_advanced')}
             </button>` : ''}
         </div>
+
+        <div class="settings-search" role="search">
+            <span class="material-icons" aria-hidden="true">search</span>
+            <input type="search" id="settings-search-input" class="form-input"
+                   placeholder="${_('toolkit.search_placeholder')}">
+            <button type="button" class="btn btn-ghost btn-sm" id="settings-search-clear" hidden>
+                <span class="material-icons">close</span>
+                ${_('actions.clear')}
+            </button>
+        </div>
         
         <!-- General Tab -->
         <div class="settings-tab-content active" id="tab-general">
@@ -285,6 +295,14 @@
                         <span class="material-icons">save</span>
                         ${_('branding.save_now')}
                     </button>
+                </div>
+            </div>
+
+            <div class="branding-readability-alert" id="branding-readability-alert" hidden>
+                <span class="material-icons">visibility</span>
+                <div>
+                    <strong>Readability check</strong>
+                    <p id="branding-readability-text"></p>
                 </div>
             </div>
 
@@ -1062,6 +1080,119 @@
                                 <label class="form-label" for="agent-show-powered" style="margin-bottom:0;cursor:pointer;">${_('branding.agent_show_powered')}</label>
                                 <small class="form-hint" style="display:block;margin-top:2px;">${_('branding.agent_show_powered_hint')}</small>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RdClient / Remote Dashboard -->
+            <div class="settings-section branding-module-panel" data-branding-module="pages">
+                <div class="settings-section-header">
+                    <h2 class="settings-section-title">
+                        <span class="material-icons">connected_tv</span>
+                        RdClient
+                    </h2>
+                    <p class="settings-section-desc">${_('remote_dashboard.subtitle')}</p>
+                </div>
+                <div class="settings-section-body">
+                    <div class="branding-bg-config">
+                        <div class="logo-type-selector">
+                            <label class="logo-type-option">
+                                <input type="radio" name="rdclient-bg-type" value="inherit">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">sync</span>
+                                    <span>${_('branding.login_bg_inherit')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="rdclient-bg-type" value="none">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">block</span>
+                                    <span>${_('branding.bg_type_none')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="rdclient-bg-type" value="color">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">format_color_fill</span>
+                                    <span>${_('branding.bg_type_color')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="rdclient-bg-type" value="gradient">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">gradient</span>
+                                    <span>${_('branding.bg_type_gradient')}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="rdclient-bg-type" value="image">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">image</span>
+                                    <span>${_('branding.bg_type_image')}</span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="rdclient-bg-color-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="rdclient-bg-color">${_('branding.bg_color')}</label>
+                                <div class="color-input-wrapper">
+                                    <input type="color" class="color-picker" id="rdclient-bg-color-picker" value="#0d1117">
+                                    <input type="text" class="form-input color-hex" id="rdclient-bg-color"
+                                           placeholder="#0d1117" maxlength="32">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="rdclient-bg-gradient-panel">
+                            <div class="form-group">
+                                <label class="form-label" for="rdclient-bg-gradient">${_('branding.bg_gradient')}</label>
+                                <input type="text" id="rdclient-bg-gradient" class="form-input"
+                                       placeholder="linear-gradient(135deg, #0d1117 0%, #172554 100%)" maxlength="400">
+                            </div>
+                        </div>
+
+                        <div class="logo-config-panel hidden" id="rdclient-bg-image-panel">
+                            <div class="form-group">
+                                <label class="form-label">${_('branding.bg_image_upload')}</label>
+                                <div class="logo-upload-area">
+                                    <input type="file" id="rdclient-bg-image-file" data-target="rdclient-bg-image-url" accept="image/png,image/jpeg,image/webp,image/gif" class="logo-file-input branding-bg-file">
+                                    <label for="rdclient-bg-image-file" class="logo-upload-btn">
+                                        <span class="material-icons">upload_file</span>
+                                        <span>${_('branding.bg_image_choose')}</span>
+                                    </label>
+                                    <span id="rdclient-bg-file-name" class="logo-file-name"></span>
+                                </div>
+                                <div class="branding-upload-status" id="rdclient-bg-upload-status" hidden>
+                                    <div class="branding-upload-status-row">
+                                        <span class="material-icons branding-upload-status-icon">sync</span>
+                                        <span class="branding-upload-message"></span>
+                                    </div>
+                                    <div class="branding-upload-progress">
+                                        <div class="branding-upload-progress-fill"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="rdclient-bg-image-url">${_('branding.bg_image_url')}</label>
+                                <input type="text" id="rdclient-bg-image-url" class="form-input"
+                                       placeholder="https://example.com/rdclient-bg.jpg">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="rdclient-bg-size">${_('branding.bg_size')}</label>
+                                <select id="rdclient-bg-size" class="form-input form-select">
+                                    <option value="cover">${_('branding.bg_size_cover')}</option>
+                                    <option value="contain">${_('branding.bg_size_contain')}</option>
+                                    <option value="auto">${_('branding.bg_size_auto')}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="rdclient-bg-overlay">${_('branding.bg_overlay')} (<span id="rdclient-bg-overlay-value">0</span>%)</label>
+                            <input type="range" id="rdclient-bg-overlay" class="form-range" min="0" max="90" step="5" value="0">
+                            <small class="form-hint">${_('branding.bg_overlay_hint')}</small>
                         </div>
                     </div>
                 </div>

@@ -62,6 +62,31 @@
     --accent-purple: #a371f7;
     --accent-purple-hover: #bc8cff;
     --accent-purple-muted: rgba(163, 113, 247, 0.15);
+
+    /* Semantic color aliases used by the rebuilt appearance system */
+    --color-primary: var(--accent-blue);
+    --color-primary-hover: var(--accent-blue-hover);
+    --color-primary-muted: var(--accent-blue-muted);
+    --color-success: var(--accent-green);
+    --color-success-hover: var(--accent-green-hover);
+    --color-success-muted: var(--accent-green-muted);
+    --color-danger: var(--accent-red);
+    --color-danger-hover: var(--accent-red-hover);
+    --color-danger-muted: var(--accent-red-muted);
+    --color-warning: var(--accent-yellow);
+    --color-warning-hover: var(--accent-yellow-hover);
+    --color-warning-muted: var(--accent-yellow-muted);
+    --color-info: var(--accent-purple);
+    --color-info-hover: var(--accent-purple-hover);
+    --color-info-muted: var(--accent-purple-muted);
+    --color-surface: var(--bg-secondary);
+    --color-surface-alt: var(--bg-primary);
+    --color-surface-hover: var(--bg-tertiary);
+    --color-surface-raised: var(--bg-elevated);
+    --color-text: var(--text-primary);
+    --color-text-muted: var(--text-secondary);
+    --color-border: var(--border-primary);
+    --focus-ring-color: var(--accent-blue-muted);
     
     /* Status colors */
     --status-online: #2ea44f;
