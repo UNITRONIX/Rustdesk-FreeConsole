@@ -36,6 +36,7 @@ instance/
 
 # --- Rust ---
 target/
+.cargo-cache/
 # Note: Cargo.lock is committed for application crates (reproducible builds + Dependabot)
 **/*.rs.bk
 *.pdb
