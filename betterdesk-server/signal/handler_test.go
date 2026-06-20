@@ -256,6 +256,64 @@ func TestProcessIDChangeSoftDeletedTargetReturnsIDExists(t *testing.T) {
 	}
 }
 
+func TestProcessIDChangeRejectsSoftDeletedSource(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{ID: "MACPRO", Status: "OFFLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.DeletePeer("MACPRO"); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := newRegisterPk("MACPRO1")
+	msg.OldId = "MACPRO"
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	state, err := database.GetPeerIDState("MACPRO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != db.PeerIDSoftDeleted {
+		t.Fatalf("MACPRO state = %s, want %s", state, db.PeerIDSoftDeleted)
+	}
+	state, err = database.GetPeerIDState("MACPRO1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != db.PeerIDMissing {
+		t.Fatalf("MACPRO1 state = %s, want %s", state, db.PeerIDMissing)
+	}
+}
+
+func TestProcessIDChangeRejectsPKMismatch(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "OLD213",
+		Status: "ONLINE",
+		PK:     bytes.Repeat([]byte{0x99}, 32),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := newRegisterPk("NEW213")
+	msg.OldId = "OLD213"
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	if peer, err := database.GetPeer("OLD213"); err != nil {
+		t.Fatal(err)
+	} else if peer == nil {
+		t.Fatal("OLD213 should remain active after rejected ID change")
+	}
+}
+
 func TestProcessRegisterPkManagedAllowsTokenBoundPeer(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
 

@@ -485,6 +485,37 @@ func TestChangePeerIDSoftDeletedTarget(t *testing.T) {
 	}
 }
 
+func TestChangePeerIDSoftDeletedSourceDoesNotMoveReservation(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := db.UpsertPeer(&Peer{ID: "MACPRO", Status: "OFFLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeletePeer("MACPRO"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := db.ChangePeerID("MACPRO", "MACPRO1")
+	if !errors.Is(err, ErrPeerNotFound) {
+		t.Fatalf("ChangePeerID from soft-deleted source error = %v, want ErrPeerNotFound", err)
+	}
+
+	state, err := db.GetPeerIDState("MACPRO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != PeerIDSoftDeleted {
+		t.Fatalf("MACPRO state = %s, want %s", state, PeerIDSoftDeleted)
+	}
+	state, err = db.GetPeerIDState("MACPRO1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != PeerIDMissing {
+		t.Fatalf("MACPRO1 state = %s, want %s", state, PeerIDMissing)
+	}
+}
+
 func TestSetAllOffline(t *testing.T) {
 	db := newTestDB(t)
 

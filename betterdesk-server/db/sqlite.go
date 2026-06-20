@@ -1053,7 +1053,7 @@ func (s *SQLiteDB) ChangePeerID(oldID, newID string) error {
 		       disabled, banned, ban_reason, banned_at,
 		       soft_deleted, deleted_at, note, tags, heartbeat_seq,
 		       device_type, linked_peer_id, display_name
-		FROM peers WHERE id = ?`, newID, oldID)
+		FROM peers WHERE id = ? AND (soft_deleted IS NULL OR soft_deleted = 0)`, newID, oldID)
 	if err != nil {
 		return fmt.Errorf("db: ChangePeerID insert: %w", err)
 	}

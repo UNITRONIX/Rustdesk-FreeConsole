@@ -1,7 +1,7 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- Hardened RustDesk client change-ID handling so only the active owner of the old ID can rename it, and soft-deleted device IDs remain reserved instead of being moved by client-side ID changes (#213).
 
 ---
 

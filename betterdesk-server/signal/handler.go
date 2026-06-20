@@ -1,6 +1,7 @@
 package signal
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -468,6 +469,28 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 func (s *Server) processIDChange(msg *pb.RegisterPk) *pb.RendezvousMessage {
 	oldID := msg.OldId
 	newID := msg.Id
+
+	if !isValidPeerID(oldID) {
+		log.Printf("[signal] Rejected invalid old peer ID in ID change: %q", oldID)
+		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	oldPeer, err := s.db.GetPeer(oldID)
+	if err != nil {
+		log.Printf("[signal] Failed to load old ID %s before ID change: %v", oldID, err)
+		return registerPkResponse(pb.RegisterPkResponse_SERVER_ERROR)
+	}
+	if oldPeer == nil {
+		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+	if oldPeer.UUID != "" && oldPeer.UUID != fmt.Sprintf("%x", msg.Uuid) {
+		log.Printf("[signal] Rejected ID change %s → %s: UUID mismatch", oldID, newID)
+		return registerPkResponse(pb.RegisterPkResponse_UUID_MISMATCH)
+	}
+	if len(oldPeer.PK) > 0 && !bytes.Equal(oldPeer.PK, msg.Pk) {
+		log.Printf("[signal] Rejected ID change %s → %s: PK mismatch", oldID, newID)
+		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+	}
 
 	// Validate new ID doesn't exist
 	existing := s.peers.Get(newID)

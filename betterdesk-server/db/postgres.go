@@ -984,7 +984,7 @@ func (pg *PostgresDB) ChangePeerID(oldID, newID string) error {
 		       disabled, banned, ban_reason, banned_at,
 		       soft_deleted, deleted_at, note, tags, heartbeat_seq,
 		       device_type, linked_peer_id, display_name
-		FROM peers WHERE id = $2 FOR UPDATE`, newID, oldID)
+		FROM peers WHERE id = $2 AND soft_deleted = FALSE FOR UPDATE`, newID, oldID)
 	if err != nil {
 		return fmt.Errorf("db: ChangePeerID insert: %w", err)
 	}
