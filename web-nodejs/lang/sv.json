@@ -1128,7 +1128,17 @@
     "codec": "Video Codec",
     "codec_auto": "Auto (rekommenderas)",
     "remember_peer_password": "Kom ihåg enhetslösenord på den här datorn",
-    "save_peer_password": "Spara lösenord"
+    "save_peer_password": "Spara lösenord",
+    "input_mode_touch": "Pekning",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Tangentbord",
+    "special_keys": "Specialtangenter",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Fjärrstyrning",
+    "phone_unsupported_title": "Fjärrskrivbord kräver större skärm",
+    "phone_unsupported_body": "Använd surfplatta, uppfälld foldable eller desktop. Enhetshantering finns kvar i konsolen.",
+    "phone_unsupported_back_devices": "Tillbaka till enheter",
+    "phone_unsupported_get_desktop": "Hämta RdClient desktop"
   },
   "branding": {
     "identity_title": "Varumärkesidentitet",
@@ -3960,5 +3970,13 @@
     "reset_client": "Återställ klient",
     "discovery_refresh": "Uppdatera",
     "discovery_empty": "Inga servrar hittades i det lokala nätverket"
+  },
+  "mobile_nav": {
+    "label": "Huvudnavigering",
+    "home": "Hem",
+    "devices": "Enheter",
+    "remote": "Remote",
+    "chat": "Chatt",
+    "more": "Mer"
   }
 }

@@ -5,7 +5,7 @@
     currentPage: 'devices',
     breadcrumb: [{ label: _('nav.devices') }],
     body: `
-        <div class="devices-page">
+        <div class="devices-page devices-layout">
             <!-- Header -->
             <div class="devices-header">
                 <div class="devices-title">
@@ -21,8 +21,8 @@
             </div>
 
             <!-- Folder Tiles -->
-            <div class="folders-bar" id="folders-bar">
-                <div class="folders-chips" id="folders-chips">
+            <div class="folders-bar mobile-sticky-toolbar" id="folders-bar">
+                <div class="folders-chips mobile-tabs-scroll" id="folders-chips">
                     <button class="folder-chip active" data-folder="all">
                         <span class="material-icons chip-icon">devices</span>
                         <span class="chip-label">${_('folders.all_devices')}</span>
@@ -58,7 +58,7 @@
             </div>
 
             <!-- Toolbar -->
-            <div class="devices-toolbar">
+            <div class="devices-toolbar mobile-sticky-toolbar">
                 <div class="toolbar-search search-wrapper">
                     <span class="material-icons">search</span>
                     <input type="text" class="form-input" id="search-input"
@@ -108,7 +108,7 @@
             </div>
 
             <!-- Table -->
-            <div class="devices-table-container">
+            <div class="devices-table-container mobile-card-list">
                 <div class="devices-table-scroll" id="devices-table-scroll">
                     <table class="devices-table" id="devices-table">
                         <thead>

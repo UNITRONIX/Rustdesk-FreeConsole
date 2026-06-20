@@ -1129,7 +1129,17 @@
     "codec": "ترميز الفيديو",
     "codec_auto": "تلقائي (مستحسن)",
     "remember_peer_password": "تذكر كلمة مرور الجهاز على هذا الحاسوب",
-    "save_peer_password": "حفظ كلمة المرور"
+    "save_peer_password": "حفظ كلمة المرور",
+    "input_mode_touch": "لمس",
+    "input_mode_touchpad": "لوحة لمس",
+    "show_keyboard": "لوحة مفاتيح",
+    "special_keys": "مفاتيح خاصة",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "تحكم عن بُعد",
+    "phone_unsupported_title": "سطح المكتب البعيد يتطلب شاشة أكبر",
+    "phone_unsupported_body": "استخدم جهاز لوحي أو foldable مفتوح أو سطح مكتب. إدارة الأجهزة متاحة في وحدة التحكم.",
+    "phone_unsupported_back_devices": "العودة إلى الأجهزة",
+    "phone_unsupported_get_desktop": "احصل على RdClient desktop"
   },
   "branding": {
     "identity_title": "هوية العلامة التجارية",
@@ -3961,5 +3971,13 @@
     "reset_client": "إعادة ضبط العميل",
     "discovery_refresh": "تحديث",
     "discovery_empty": "لم يتم العثور على خوادم في الشبكة المحلية"
+  },
+  "mobile_nav": {
+    "label": "التنقل الرئيسي",
+    "home": "الرئيسية",
+    "devices": "الأجهزة",
+    "remote": "بعيد",
+    "chat": "دردشة",
+    "more": "المزيد"
   }
 }

@@ -3,6 +3,21 @@
     pageScripts: ['billing-report', 'remote'],
     body: `
 
+<!-- RdClient phone gate -->
+<div class="rd-phone-gate" id="rd-phone-gate" hidden>
+    <div class="rd-phone-gate-card">
+        <div class="rd-phone-gate-icon">
+            <span class="material-icons">tablet_mac</span>
+        </div>
+        <h1 class="rd-phone-gate-title">${_('remote.phone_unsupported_title')}</h1>
+        <p class="rd-phone-gate-body">${_('remote.phone_unsupported_body')}</p>
+        <div class="rd-phone-gate-actions">
+            <a href="/devices" class="rd-phone-gate-btn rd-phone-gate-btn-primary">${_('remote.phone_unsupported_back_devices')}</a>
+            <a href="/" class="rd-phone-gate-btn rd-phone-gate-btn-secondary">${_('mobile_nav.home')}</a>
+        </div>
+    </div>
+</div>
+
 <!-- Session Tab Bar -->
 <div class="session-tab-bar" id="session-tab-bar">
     <button type="button" class="tab-bar-back" id="btn-back-devices" title="${_('remote.back_to_devices')}">
@@ -192,6 +207,41 @@
     </button>
   </div>
 </div>
+
+<!-- Mobile toolbar (tablet / fold) -->
+<nav class="rd-mobile-toolbar" id="rd-mobile-toolbar" aria-label="${_('remote.mobile_toolbar') || 'Remote controls'}">
+    <button type="button" class="rd-mobile-toolbar-btn active" id="rd-mob-input-touch" data-mode="direct" title="${_('remote.input_mode_touch')}">
+        <span class="material-icons">touch_app</span>
+        <span>${_('remote.input_mode_touch')}</span>
+    </button>
+    <button type="button" class="rd-mobile-toolbar-btn" id="rd-mob-input-touchpad" data-mode="touchpad" title="${_('remote.input_mode_touchpad')}">
+        <span class="material-icons">swipe</span>
+        <span>${_('remote.input_mode_touchpad')}</span>
+    </button>
+    <button type="button" class="rd-mobile-toolbar-btn" id="rd-mob-keyboard" title="${_('remote.show_keyboard')}">
+        <span class="material-icons">keyboard</span>
+        <span>${_('remote.show_keyboard')}</span>
+    </button>
+    <button type="button" class="rd-mobile-toolbar-btn" id="rd-mob-special" title="${_('remote.special_keys')}">
+        <span class="material-icons">keyboard_command_key</span>
+        <span>${_('remote.special_keys')}</span>
+    </button>
+    <button type="button" class="rd-mobile-toolbar-btn" id="rd-mob-cad" title="Ctrl+Alt+Del">
+        <span class="material-icons">security</span>
+        <span>CAD</span>
+    </button>
+    <button type="button" class="rd-mobile-toolbar-btn" id="rd-mob-fullscreen" title="${_('remote.fullscreen')}">
+        <span class="material-icons">fullscreen</span>
+        <span>${_('remote.fullscreen')}</span>
+    </button>
+</nav>
+<div class="rd-special-keys-panel" id="rd-special-keys-panel" role="group" aria-label="${_('remote.special_keys')}">
+    <button type="button" class="rd-special-key-btn" data-special="Meta">Win</button>
+    <button type="button" class="rd-special-key-btn" data-special="Alt+Tab">Alt+Tab</button>
+    <button type="button" class="rd-special-key-btn" data-special="PrintScreen">${_('remote.special_print_screen') || 'Print Screen'}</button>
+    <button type="button" class="rd-special-key-btn" data-special="Escape">Esc</button>
+</div>
+<input type="text" class="rd-keyboard-bridge" id="rd-keyboard-bridge" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-hidden="true" tabindex="-1">
 
 <!-- Add Session Dialog -->
 <div class="viewer-overlay" id="add-session-overlay" style="display:none;">

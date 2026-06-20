@@ -2,7 +2,7 @@
 <html lang="<%= lang || 'en' %>">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="description" content="<%= appName %> - Remote Desktop Viewer">
     <meta name="robots" content="noindex, nofollow">
     <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %><%= appName %></title>
@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/css/variables.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/theme.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/branding.css?v=<%= typeof brandingRevision !== 'undefined' ? brandingRevision : cacheVersion %>">
+    <link rel="stylesheet" href="/css/mobile-shell.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/remote.css?v=<%= cacheVersion %>">
 </head>
 <body class="viewer-body">
@@ -38,6 +39,7 @@
     
     <!-- Translation helper -->
     <script src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/device-capabilities.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclientSecureStore.js?v=<%= cacheVersion %>"></script>
     
     <!-- Vendor libraries for remote client -->
@@ -54,12 +56,14 @@
     <script src="/js/rdclient/audio.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/renderer.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/input.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclient/touch.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/filetransfer.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/client.js?v=<%= cacheVersion %>"></script>
     <!-- CDAP transport adapter (RDClient-compatible surface for OS-agent devices) -->
     <script src="/js/rdclient/cdap-adapter.js?v=<%= cacheVersion %>"></script>
     <script src="/js/lib/sessionMediaSync.js?v=<%= cacheVersion %>"></script>
     <script src="/js/remoteViewerPrefs.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclient-mobile-shell.js?v=<%= cacheVersion %>"></script>
     
     <!-- Page-specific scripts -->
     <% if (typeof pageScripts !== 'undefined' && pageScripts) { %>

@@ -1122,7 +1122,17 @@
     "codec": "ビデオコーデック",
     "codec_auto": "自動 (推奨)",
     "remember_peer_password": "このデバイスでデバイスパスワードを記憶",
-    "save_peer_password": "パスワードを保存"
+    "save_peer_password": "パスワードを保存",
+    "input_mode_touch": "タッチ",
+    "input_mode_touchpad": "タッチパッド",
+    "show_keyboard": "キーボード",
+    "special_keys": "特殊キー",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "リモート操作",
+    "phone_unsupported_title": "リモートデスクトップには大きな画面が必要です",
+    "phone_unsupported_body": "タブレット、開いた折りたたみ端末、またはデスクトップをご利用ください。デバイス管理はコンソールで利用できます。",
+    "phone_unsupported_back_devices": "デバイスに戻る",
+    "phone_unsupported_get_desktop": "RdClient desktop を取得"
   },
   "branding": {
     "identity_title": "ブランドアイデンティティ",
@@ -3954,5 +3964,13 @@
     "reset_client": "クライアントをリセット",
     "discovery_refresh": "更新",
     "discovery_empty": "ローカルネットワークにサーバーが見つかりません"
+  },
+  "mobile_nav": {
+    "label": "メインナビゲーション",
+    "home": "ホーム",
+    "devices": "デバイス",
+    "remote": "リモート",
+    "chat": "チャット",
+    "more": "その他"
   }
 }

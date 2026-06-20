@@ -81,6 +81,14 @@
     "server_attestation": "Server Attestation",
     "commercialization": "Commercialization"
   },
+  "mobile_nav": {
+    "label": "Main navigation",
+    "home": "Home",
+    "devices": "Devices",
+    "remote": "Remote",
+    "chat": "Chat",
+    "more": "More"
+  },
   "auth": {
     "login": "Login",
     "logout": "Logout",
@@ -1135,7 +1143,17 @@
     "2fa_invalid": "Enter a valid 6-digit code",
     "verify": "Verify",
     "remember_peer_password": "Remember device password on this device",
-    "save_peer_password": "Save password"
+    "save_peer_password": "Save password",
+    "input_mode_touch": "Touch",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Keyboard",
+    "special_keys": "Special keys",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Remote controls",
+    "phone_unsupported_title": "Remote desktop requires a larger screen",
+    "phone_unsupported_body": "Use a tablet, unfolded foldable, or desktop to control devices remotely. You can still manage devices from the console.",
+    "phone_unsupported_back_devices": "Back to devices",
+    "phone_unsupported_get_desktop": "Get RdClient desktop"
   },
   "remote_dashboard": {
     "title": "Remote Desktop Client",

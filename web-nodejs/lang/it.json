@@ -1122,7 +1122,17 @@
     "codec": "Codec video",
     "codec_auto": "Automatico (consigliato)",
     "remember_peer_password": "Ricorda password dispositivo su questo computer",
-    "save_peer_password": "Salva password"
+    "save_peer_password": "Salva password",
+    "input_mode_touch": "Tocco",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Tastiera",
+    "special_keys": "Tasti speciali",
+    "special_print_screen": "Stamp",
+    "mobile_toolbar": "Controlli remoti",
+    "phone_unsupported_title": "Il desktop remoto richiede uno schermo più grande",
+    "phone_unsupported_body": "Usa tablet, foldable aperto o desktop. La gestione dispositivi resta nella console.",
+    "phone_unsupported_back_devices": "Torna ai dispositivi",
+    "phone_unsupported_get_desktop": "Scarica RdClient desktop"
   },
   "branding": {
     "identity_title": "Identità del marchio",
@@ -3954,5 +3964,13 @@
     "reset_client": "Reimposta client",
     "discovery_refresh": "Aggiorna",
     "discovery_empty": "Nessun server trovato nella rete locale"
+  },
+  "mobile_nav": {
+    "label": "Navigazione principale",
+    "home": "Home",
+    "devices": "Dispositivi",
+    "remote": "Remoto",
+    "chat": "Chat",
+    "more": "Altro"
   }
 }

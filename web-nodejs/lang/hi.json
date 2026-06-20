@@ -1128,7 +1128,17 @@
     "codec": "वीडियो कोडेक",
     "codec_auto": "ऑटो (अनुशंसित)",
     "remember_peer_password": "इस डिवाइस पर डिवाइस पासवर्ड याद रखें",
-    "save_peer_password": "पासवर्ड सहेजें"
+    "save_peer_password": "पासवर्ड सहेजें",
+    "input_mode_touch": "टच",
+    "input_mode_touchpad": "टचपैड",
+    "show_keyboard": "कीबोर्ड",
+    "special_keys": "विशेष कुंजियाँ",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "रिमोट नियंत्रण",
+    "phone_unsupported_title": "रिमोट डेस्कटॉप के लिए बड़ी स्क्रीन चाहिए",
+    "phone_unsupported_body": "टैबलेट, खुला foldable या डेस्कटॉप उपयोग करें। डिवाइस प्रबंधन कंसोल में उपलब्ध है।",
+    "phone_unsupported_back_devices": "डिवाइस पर वापस",
+    "phone_unsupported_get_desktop": "RdClient desktop प्राप्त करें"
   },
   "branding": {
     "identity_title": "ब्रांड पहचान",
@@ -3960,5 +3970,13 @@
     "reset_client": "क्लाइंट रीसेट करें",
     "discovery_refresh": "रीफ़्रेश",
     "discovery_empty": "स्थानीय नेटवर्क पर कोई सर्वर नहीं मिला"
+  },
+  "mobile_nav": {
+    "label": "मुख्य नेविगेशन",
+    "home": "होम",
+    "devices": "डिवाइस",
+    "remote": "रिमोट",
+    "chat": "चैट",
+    "more": "अधिक"
   }
 }

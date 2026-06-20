@@ -411,6 +411,7 @@
         wireSessionEvents(session);
         wireSessionDomEvents(session);
         wireFileTransferEvents(session);
+        attachMobileTouch(session);
     }
 
     function switchSession(deviceId) {
@@ -444,6 +445,7 @@
         if (session.state === 'streaming' && session.client) {
             session.client.setAudioMuted(session.audioMuted);
         }
+        syncMobileTouchForActive();
     }
 
     function closeSession(deviceId) {
@@ -1034,6 +1036,8 @@
             session.passwordOverlay.style.display = 'none';
             session.panel.classList.add('streaming');
             syncSessionMediaCapture();
+            attachMobileTouch(session);
+            syncMobileTouchForActive();
             if (isActive(session)) setToolbarAutoHide(true);
             break;
         case 'disconnected':
@@ -1534,6 +1538,7 @@
         const isViewOnly = !this.classList.contains('active');
         this.classList.toggle('active', isViewOnly);
         withClient(c => c.setViewOnly(isViewOnly));
+        syncMobileTouchForActive();
     });
 
     // Pin Toolbar toggle — keeps the expanded action pill open
@@ -1738,8 +1743,145 @@
         });
     }
 
+    // ---- Mobile / tablet rdclient ----
+    const touchHandlers = new Map();
+    let mobileTouchMode = 'direct';
+
+    function attachMobileTouch(session) {
+        if (!window.RdClientMobile || !window.RdClientMobile.isMobileRdClient()) return;
+        if (typeof RDTouch !== 'function' || !session.client) return;
+        let touch = touchHandlers.get(session.deviceId);
+        if (!touch) {
+            touch = new RDTouch(session.canvas, session.client.renderer, function(msg) {
+                if (session.client && session.client.input) {
+                    session.client.input.sendMessage(msg);
+                }
+            });
+            touchHandlers.set(session.deviceId, touch);
+        }
+        touch.setMode(mobileTouchMode);
+        if (session.deviceId === activeSessionId && session.state === 'streaming' && !(session.client && session.client.viewOnly)) {
+            touch.start();
+        } else {
+            touch.stop();
+        }
+    }
+
+    function syncMobileTouchForActive() {
+        if (!window.RdClientMobile || !window.RdClientMobile.isMobileRdClient()) return;
+        touchHandlers.forEach(function(touch, id) {
+            var session = sessions.get(id);
+            if (id === activeSessionId && session && session.state === 'streaming' && !(session.client && session.client.viewOnly)) {
+                touch.setMode(mobileTouchMode);
+                touch.start();
+            } else {
+                touch.stop();
+            }
+        });
+    }
+
+    function resizeViewerForViewport() {
+        sessions.forEach(function(session) {
+            if (session.client && session.client.renderer) {
+                session.client.renderer.resize();
+            }
+        });
+    }
+
+    function initMobileViewer() {
+        if (window.RdClientMobile && window.RdClientMobile.hidePhoneGateIfNeeded()) {
+            return true;
+        }
+
+        var kbBridge = document.getElementById('rd-keyboard-bridge');
+        var specialPanel = document.getElementById('rd-special-keys-panel');
+
+        document.getElementById('rd-mob-input-touch')?.addEventListener('click', function() {
+            mobileTouchMode = 'direct';
+            document.querySelectorAll('#rd-mobile-toolbar [data-mode]').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.mode === 'direct');
+            });
+            syncMobileTouchForActive();
+        });
+
+        document.getElementById('rd-mob-input-touchpad')?.addEventListener('click', function() {
+            mobileTouchMode = 'touchpad';
+            document.querySelectorAll('#rd-mobile-toolbar [data-mode]').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.mode === 'touchpad');
+            });
+            syncMobileTouchForActive();
+        });
+
+        document.getElementById('rd-mob-keyboard')?.addEventListener('click', function() {
+            if (window.RdClientMobile) window.RdClientMobile.focusKeyboardBridge(kbBridge);
+        });
+
+        document.getElementById('rd-mob-special')?.addEventListener('click', function() {
+            if (specialPanel) specialPanel.classList.toggle('open');
+        });
+
+        document.getElementById('rd-mob-cad')?.addEventListener('click', function() {
+            withClient(function(c) { c.sendCtrlAltDel(); });
+        });
+
+        document.getElementById('rd-mob-fullscreen')?.addEventListener('click', function() {
+            withClient(function(c) { c.toggleFullscreen(viewerContainer); });
+        });
+
+        specialPanel?.querySelectorAll('.rd-special-key-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var session = getActiveSession();
+                if (!session || !session.client || !session.client.input) return;
+                var input = session.client.input;
+                var map = {
+                    Meta: 'MetaLeft',
+                    'Alt+Tab': 'Tab',
+                    PrintScreen: 'PrintScreen',
+                    Escape: 'Escape'
+                };
+                var code = map[btn.dataset.special];
+                if (!code) return;
+                var down = new KeyboardEvent('keydown', { code: code, bubbles: true, cancelable: true });
+                if (btn.dataset.special === 'Alt+Tab') {
+                    down = new KeyboardEvent('keydown', { code: 'Tab', altKey: true, bubbles: true, cancelable: true });
+                }
+                input._handleKeyDown(down);
+                var up = new KeyboardEvent('keyup', { code: code, bubbles: true, cancelable: true });
+                if (btn.dataset.special === 'Alt+Tab') {
+                    up = new KeyboardEvent('keyup', { code: 'Tab', altKey: true, bubbles: true, cancelable: true });
+                }
+                input._handleKeyUp(up);
+                specialPanel.classList.remove('open');
+            });
+        });
+
+        if (kbBridge) {
+            kbBridge.addEventListener('keydown', function(e) {
+                var session = getActiveSession();
+                if (!session || !session.client || !session.client.input) return;
+                session.client.input._handleKeyDown(e);
+            });
+            kbBridge.addEventListener('keyup', function(e) {
+                var session = getActiveSession();
+                if (!session || !session.client || !session.client.input) return;
+                session.client.input._handleKeyUp(e);
+            });
+        }
+
+        if (window.RdClientMobile) {
+            window.RdClientMobile.initVisualViewport(resizeViewerForViewport);
+        }
+
+        return false;
+    }
+
     function init() {
         populateViewerLanguageSelect();
+        if (initMobileViewer()) {
+            installLifecycleHandlers();
+            return;
+        }
+
         const deviceId = window.__initialDeviceId;
         const deviceName = window.__initialDeviceName || '';
         if (deviceId) {

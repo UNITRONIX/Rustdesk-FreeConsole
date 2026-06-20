@@ -137,6 +137,22 @@
     --navbar-height: 60px;
     --content-max-width: 1400px;
 
+    /* Mobile / responsive breakpoints (match device-capabilities.js) */
+    --bp-phone-max: 767px;
+    --bp-tablet-max: 1024px;
+    --bp-fold-inner-max: 720px;
+    --bp-desktop-min: 1025px;
+
+    /* Mobile shell chrome */
+    --mobile-nav-height: 56px;
+    --app-height: 100vh;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --mobile-chrome-bottom: calc(var(--mobile-nav-height) + var(--safe-bottom));
+    --rdclient-mobile-toolbar-height: 52px;
+
     /* Sidebar navigation — readability & category accents */
     --sidebar-rail-bg: #1c2128;
     --sidebar-flyout-bg: #141a21;

@@ -1128,7 +1128,17 @@
     "codec": "Videokodek",
     "codec_auto": "Auto (anbefalt)",
     "remember_peer_password": "Husk enhetspassord på denne datamaskinen",
-    "save_peer_password": "Lagre passord"
+    "save_peer_password": "Lagre passord",
+    "input_mode_touch": "Berøring",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Tastatur",
+    "special_keys": "Spesialtaster",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Fjernkontroll",
+    "phone_unsupported_title": "Fjernskrivebord krever større skjerm",
+    "phone_unsupported_body": "Bruk nettbrett, utfoldet foldbar eller desktop. Enhetsstyring er fortsatt i konsollen.",
+    "phone_unsupported_back_devices": "Tilbake til enheter",
+    "phone_unsupported_get_desktop": "Last ned RdClient desktop"
   },
   "branding": {
     "identity_title": "Merkeidentitet",
@@ -3960,5 +3970,13 @@
     "reset_client": "Tilbakestill klient",
     "discovery_refresh": "Oppdater",
     "discovery_empty": "Ingen servere funnet på det lokale nettverket"
+  },
+  "mobile_nav": {
+    "label": "Hovednavigasjon",
+    "home": "Hjem",
+    "devices": "Enheter",
+    "remote": "Remote",
+    "chat": "Chat",
+    "more": "Mer"
   }
 }

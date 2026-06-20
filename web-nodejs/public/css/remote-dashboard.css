@@ -962,3 +962,35 @@ html.rd-desk-desktop {
         display: none;
     }
 }
+
+/* Mobile / tablet: allow full-page scroll with safe areas */
+@media (max-width: 1024px) {
+    html.rd-desk-desktop {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .rd-desk-body {
+        height: auto;
+        min-height: var(--app-height, 100dvh);
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .rd-desk-desktop.rd-desk-body {
+        position: relative;
+        inset: auto;
+        height: auto !important;
+        max-height: none;
+    }
+
+    .rd-desk-workspace {
+        min-height: 0;
+    }
+
+    .rd-desk-sidebar-scroll {
+        max-height: none;
+    }
+}

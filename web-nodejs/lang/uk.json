@@ -1128,7 +1128,17 @@
     "codec": "Відеокодек",
     "codec_auto": "Авто (рекомендовано)",
     "remember_peer_password": "Запам’ятати пароль пристрою на цьому комп’ютері",
-    "save_peer_password": "Зберегти пароль"
+    "save_peer_password": "Зберегти пароль",
+    "input_mode_touch": "Дотик",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Клавіатура",
+    "special_keys": "Спеціальні клавіші",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Віддалене керування",
+    "phone_unsupported_title": "Віддалений робочий стіл потребує більшого екрана",
+    "phone_unsupported_body": "Використовуйте планшет, розгорнутий fold або комп’ютер. Керування пристроями залишається в консолі.",
+    "phone_unsupported_back_devices": "Назад до пристроїв",
+    "phone_unsupported_get_desktop": "Завантажити RdClient desktop"
   },
   "branding": {
     "identity_title": "Ідентичність бренду",
@@ -3960,5 +3970,13 @@
     "reset_client": "Скинути клієнт",
     "discovery_refresh": "Оновити",
     "discovery_empty": "Серверів у локальній мережі не знайдено"
+  },
+  "mobile_nav": {
+    "label": "Головна навігація",
+    "home": "Головна",
+    "devices": "Пристрої",
+    "remote": "Віддалено",
+    "chat": "Чат",
+    "more": "Більше"
   }
 }

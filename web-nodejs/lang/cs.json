@@ -1122,7 +1122,17 @@
     "codec": "Kodek videa",
     "codec_auto": "Automaticky (doporučeno)",
     "remember_peer_password": "Zapamatovat heslo zařízení na tomto počítači",
-    "save_peer_password": "Uložit heslo"
+    "save_peer_password": "Uložit heslo",
+    "input_mode_touch": "Dotyk",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Klávesnice",
+    "special_keys": "Speciální klávesy",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Vzdálené ovládání",
+    "phone_unsupported_title": "Vzdálená plocha vyžaduje větší obrazovku",
+    "phone_unsupported_body": "Použijte tablet, rozložený fold nebo desktop. Správa zařízení zůstává v konzoli.",
+    "phone_unsupported_back_devices": "Zpět na zařízení",
+    "phone_unsupported_get_desktop": "Stáhnout RdClient desktop"
   },
   "branding": {
     "identity_title": "Identita značky",
@@ -3954,5 +3964,13 @@
     "reset_client": "Resetovat klienta",
     "discovery_refresh": "Obnovit",
     "discovery_empty": "V místní síti nebyly nalezeny žádné servery"
+  },
+  "mobile_nav": {
+    "label": "Hlavní navigace",
+    "home": "Domů",
+    "devices": "Zařízení",
+    "remote": "Remote",
+    "chat": "Chat",
+    "more": "Více"
   }
 }

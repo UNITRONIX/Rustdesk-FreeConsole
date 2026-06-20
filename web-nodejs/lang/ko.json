@@ -1122,7 +1122,17 @@
     "codec": "비디오 코덱",
     "codec_auto": "자동(권장)",
     "remember_peer_password": "이 기기에서 장치 비밀번호 기억",
-    "save_peer_password": "비밀번호 저장"
+    "save_peer_password": "비밀번호 저장",
+    "input_mode_touch": "터치",
+    "input_mode_touchpad": "터치패드",
+    "show_keyboard": "키보드",
+    "special_keys": "특수 키",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "원격 제어",
+    "phone_unsupported_title": "원격 데스크톱은 더 큰 화면이 필요합니다",
+    "phone_unsupported_body": "태블릿, 펼친 폴더블 또는 데스크톱을 사용하세요. 장치 관리는 콘솔에서 계속 가능합니다.",
+    "phone_unsupported_back_devices": "장치로 돌아가기",
+    "phone_unsupported_get_desktop": "RdClient desktop 받기"
   },
   "branding": {
     "identity_title": "브랜드 아이덴티티",
@@ -3954,5 +3964,13 @@
     "reset_client": "클라이언트 재설정",
     "discovery_refresh": "새로고침",
     "discovery_empty": "로컬 네트워크에서 서버를 찾을 수 없습니다"
+  },
+  "mobile_nav": {
+    "label": "주요 탐색",
+    "home": "홈",
+    "devices": "장치",
+    "remote": "원격",
+    "chat": "채팅",
+    "more": "더보기"
   }
 }

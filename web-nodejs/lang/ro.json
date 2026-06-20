@@ -1128,7 +1128,17 @@
     "codec": "Codec video",
     "codec_auto": "Auto (recomandat)",
     "remember_peer_password": "Memorează parola dispozitivului pe acest computer",
-    "save_peer_password": "Salvează parola"
+    "save_peer_password": "Salvează parola",
+    "input_mode_touch": "Atingere",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Tastatură",
+    "special_keys": "Taste speciale",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Control remote",
+    "phone_unsupported_title": "Desktopul remote necesită un ecran mai mare",
+    "phone_unsupported_body": "Folosiți tabletă, foldable desfăcut sau desktop. Gestionarea dispozitivelor rămâne în consolă.",
+    "phone_unsupported_back_devices": "Înapoi la dispozitive",
+    "phone_unsupported_get_desktop": "Obține RdClient desktop"
   },
   "branding": {
     "identity_title": "Identitatea de marcă",
@@ -3960,5 +3970,13 @@
     "reset_client": "Resetează clientul",
     "discovery_refresh": "Reîmprospătează",
     "discovery_empty": "Nu s-au găsit servere în rețeaua locală"
+  },
+  "mobile_nav": {
+    "label": "Navigare principală",
+    "home": "Acasă",
+    "devices": "Dispozitive",
+    "remote": "Remote",
+    "chat": "Chat",
+    "more": "Mai mult"
   }
 }

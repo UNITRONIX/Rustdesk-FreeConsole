@@ -1122,7 +1122,17 @@
     "codec": "Videocodec",
     "codec_auto": "Automatisch (aanbevolen)",
     "remember_peer_password": "Apparaatwachtwoord onthouden op dit apparaat",
-    "save_peer_password": "Wachtwoord opslaan"
+    "save_peer_password": "Wachtwoord opslaan",
+    "input_mode_touch": "Aanraken",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Toetsenbord",
+    "special_keys": "Speciale toetsen",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Remote bediening",
+    "phone_unsupported_title": "Remote desktop vereist een groter scherm",
+    "phone_unsupported_body": "Gebruik tablet, opengeklapt foldable of desktop. Apparaatbeheer blijft in de console.",
+    "phone_unsupported_back_devices": "Terug naar apparaten",
+    "phone_unsupported_get_desktop": "RdClient desktop downloaden"
   },
   "branding": {
     "identity_title": "Merkidentiteit",
@@ -3954,5 +3964,13 @@
     "reset_client": "Client resetten",
     "discovery_refresh": "Vernieuwen",
     "discovery_empty": "Geen servers gevonden op het lokale netwerk"
+  },
+  "mobile_nav": {
+    "label": "Hoofdnavigatie",
+    "home": "Home",
+    "devices": "Apparaten",
+    "remote": "Remote",
+    "chat": "Chat",
+    "more": "Meer"
   }
 }

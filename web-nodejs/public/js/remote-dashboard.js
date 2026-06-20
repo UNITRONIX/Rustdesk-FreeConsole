@@ -526,6 +526,12 @@
     }
 
     function openRemoteSession(deviceId, deviceName) {
+        if (window.DeviceCapabilities && window.DeviceCapabilities.isPhone()) {
+            if (window.RdClientMobile && window.RdClientMobile.showPhoneUnsupportedToast) {
+                window.RdClientMobile.showPhoneUnsupportedToast();
+            }
+            return;
+        }
         if (!deviceId) return;
 
         if (isRdClientDesktop()) {
@@ -763,6 +769,9 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        if (window.RdClientMobile && window.RdClientMobile.hidePhoneGateIfNeeded()) {
+            return;
+        }
         markDesktopLayout();
         populateLanguageSelect();
         bindDesktopSettings();

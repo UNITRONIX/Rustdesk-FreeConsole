@@ -1139,7 +1139,17 @@
     "2fa_invalid": "Enter a valid 6-digit code",
     "verify": "Verify",
     "remember_peer_password": "Mémoriser le mot de passe de l’appareil sur cet ordinateur",
-    "save_peer_password": "Enregistrer le mot de passe"
+    "save_peer_password": "Enregistrer le mot de passe",
+    "input_mode_touch": "Toucher",
+    "input_mode_touchpad": "Pavé tactile",
+    "show_keyboard": "Clavier",
+    "special_keys": "Touches spéciales",
+    "special_print_screen": "Impr. écran",
+    "mobile_toolbar": "Contrôles distants",
+    "phone_unsupported_title": "Le bureau à distance nécessite un écran plus grand",
+    "phone_unsupported_body": "Utilisez une tablette, un foldable déplié ou un ordinateur. La gestion des appareils reste disponible dans la console.",
+    "phone_unsupported_back_devices": "Retour aux appareils",
+    "phone_unsupported_get_desktop": "Obtenir RdClient desktop"
   },
   "branding": {
     "identity_title": "Identité de marque",
@@ -3958,5 +3968,13 @@
     "reset_client": "Réinitialiser le client",
     "discovery_refresh": "Actualiser",
     "discovery_empty": "Aucun serveur trouvé sur le réseau local"
+  },
+  "mobile_nav": {
+    "label": "Navigation principale",
+    "home": "Accueil",
+    "devices": "Appareils",
+    "remote": "Remote",
+    "chat": "Chat",
+    "more": "Plus"
   }
 }

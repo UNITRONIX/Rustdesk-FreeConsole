@@ -884,6 +884,18 @@
      * Falls back to opening a new browser tab if no RDClient page is listening.
      */
     function _tryAddRemoteTab(deviceId, data) {
+        if (window.DeviceCapabilities && window.DeviceCapabilities.isPhone()) {
+            if (window.RdClientMobile && window.RdClientMobile.showPhoneUnsupportedToast) {
+                window.RdClientMobile.showPhoneUnsupportedToast();
+            } else if (typeof Modal !== 'undefined') {
+                Modal.alert({
+                    title: _('remote.phone_unsupported_title'),
+                    message: _('remote.phone_unsupported_body')
+                });
+            }
+            return;
+        }
+
         if (typeof BroadcastChannel === 'undefined') {
             window.open(`/remote/${encodeURIComponent(deviceId)}`, '_blank');
             return;

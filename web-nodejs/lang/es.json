@@ -1122,7 +1122,17 @@
     "codec": "Códec de vídeo",
     "codec_auto": "Automático (recomendado)",
     "remember_peer_password": "Recordar contraseña del dispositivo en este equipo",
-    "save_peer_password": "Guardar contraseña"
+    "save_peer_password": "Guardar contraseña",
+    "input_mode_touch": "Táctil",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Teclado",
+    "special_keys": "Teclas especiales",
+    "special_print_screen": "Impr Pant",
+    "mobile_toolbar": "Controles remotos",
+    "phone_unsupported_title": "El escritorio remoto requiere una pantalla más grande",
+    "phone_unsupported_body": "Use una tablet, plegable desplegado o escritorio. La gestión de dispositivos sigue en la consola.",
+    "phone_unsupported_back_devices": "Volver a dispositivos",
+    "phone_unsupported_get_desktop": "Obtener RdClient desktop"
   },
   "branding": {
     "identity_title": "Identidad de marca",
@@ -3954,5 +3964,13 @@
     "reset_client": "Restablecer cliente",
     "discovery_refresh": "Actualizar",
     "discovery_empty": "No se encontraron servidores en la red local"
+  },
+  "mobile_nav": {
+    "label": "Navegación principal",
+    "home": "Inicio",
+    "devices": "Dispositivos",
+    "remote": "Remoto",
+    "chat": "Chat",
+    "more": "Más"
   }
 }

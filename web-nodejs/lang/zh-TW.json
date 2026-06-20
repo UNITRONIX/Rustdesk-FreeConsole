@@ -1139,7 +1139,17 @@
     "2fa_invalid": "請輸入有效的6位數代碼",
     "verify": "驗證",
     "remember_peer_password": "在此裝置上記住裝置密碼",
-    "save_peer_password": "儲存密碼"
+    "save_peer_password": "儲存密碼",
+    "input_mode_touch": "觸控",
+    "input_mode_touchpad": "觸控板",
+    "show_keyboard": "鍵盤",
+    "special_keys": "特殊鍵",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "遠端控制",
+    "phone_unsupported_title": "遠端桌面需要更大的螢幕",
+    "phone_unsupported_body": "請使用平板、展開的折疊裝置或桌面。仍可在主控台管理裝置。",
+    "phone_unsupported_back_devices": "返回裝置",
+    "phone_unsupported_get_desktop": "取得 RdClient 桌面版"
   },
   "branding": {
     "identity_title": "品牌標識",
@@ -3958,5 +3968,13 @@
     "reset_client": "重設用戶端",
     "discovery_refresh": "重新整理",
     "discovery_empty": "區域網路中找不到伺服器"
+  },
+  "mobile_nav": {
+    "label": "主導覽",
+    "home": "首頁",
+    "devices": "裝置",
+    "remote": "遠端",
+    "chat": "聊天",
+    "more": "更多"
   }
 }

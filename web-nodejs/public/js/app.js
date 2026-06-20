@@ -27,21 +27,35 @@
         
         if (!sidebar) return;
         
-        // Close sidebar on overlay click (mobile)
+        // Close sidebar on overlay click (legacy desktop sidebar)
         overlay?.addEventListener('click', () => {
             sidebar.classList.remove('open');
         });
+
+        // Close sidebar when navigating (legacy)
+        sidebar.querySelectorAll('.sidebar-link, .sidebar-rail-btn[href]').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 1024) {
+                    sidebar.classList.remove('open');
+                }
+            });
+        });
         
-        // Mobile menu button
+        // Mobile menu button (hidden when mobile-shell uses bottom nav More)
         const mobileMenuBtn = document.getElementById('mobile-menu-btn');
         if (mobileMenuBtn) {
             mobileMenuBtn.addEventListener('click', () => {
+                if (window.MobileNav && window.DeviceCapabilities?.isMobileShell()) {
+                    window.MobileNav.openDrawer();
+                    return;
+                }
                 sidebar.classList.toggle('open');
             });
             
-            // Show mobile menu button on small screens
             function checkMobile() {
-                mobileMenuBtn.style.display = window.innerWidth <= 1024 ? 'flex' : 'none';
+                const useLegacy = window.innerWidth <= 1024
+                    && !(window.DeviceCapabilities && window.DeviceCapabilities.isMobileShell());
+                mobileMenuBtn.style.display = useLegacy ? 'flex' : 'none';
             }
             checkMobile();
             window.addEventListener('resize', Utils.debounce(checkMobile, 200));

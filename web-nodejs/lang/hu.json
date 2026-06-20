@@ -1128,7 +1128,17 @@
     "codec": "Video Codec",
     "codec_auto": "Automatikus (ajánlott)",
     "remember_peer_password": "Eszköz jelszó megjegyzése ezen a gépen",
-    "save_peer_password": "Jelszó mentése"
+    "save_peer_password": "Jelszó mentése",
+    "input_mode_touch": "Érintés",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Billentyűzet",
+    "special_keys": "Speciális billentyűk",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Távoli vezérlés",
+    "phone_unsupported_title": "A távoli asztal nagyobb képernyőt igényel",
+    "phone_unsupported_body": "Használjon tabletet, kinyitott foldot vagy asztali gépet. Az eszközkezelés továbbra is elérhető a konzolon.",
+    "phone_unsupported_back_devices": "Vissza az eszközökhöz",
+    "phone_unsupported_get_desktop": "RdClient desktop letöltése"
   },
   "branding": {
     "identity_title": "Márkaidentitás",
@@ -3960,5 +3970,13 @@
     "reset_client": "Kliens visszaállítása",
     "discovery_refresh": "Frissítés",
     "discovery_empty": "Nem található szerver a helyi hálózaton"
+  },
+  "mobile_nav": {
+    "label": "Fő navigáció",
+    "home": "Kezdőlap",
+    "devices": "Eszközök",
+    "remote": "Távoli",
+    "chat": "Chat",
+    "more": "Több"
   }
 }

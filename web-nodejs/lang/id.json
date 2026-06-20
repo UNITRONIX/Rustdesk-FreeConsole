@@ -1128,7 +1128,17 @@
     "codec": "Kodek Video",
     "codec_auto": "Otomatis (disarankan)",
     "remember_peer_password": "Ingat kata sandi perangkat di komputer ini",
-    "save_peer_password": "Simpan kata sandi"
+    "save_peer_password": "Simpan kata sandi",
+    "input_mode_touch": "Sentuh",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Keyboard",
+    "special_keys": "Tombol khusus",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Kontrol remote",
+    "phone_unsupported_title": "Desktop jarak jauh memerlukan layar lebih besar",
+    "phone_unsupported_body": "Gunakan tablet, foldable terbuka, atau desktop. Kelola perangkat tetap di konsol.",
+    "phone_unsupported_back_devices": "Kembali ke perangkat",
+    "phone_unsupported_get_desktop": "Dapatkan RdClient desktop"
   },
   "branding": {
     "identity_title": "Identitas Merek",
@@ -3960,5 +3970,13 @@
     "reset_client": "Reset klien",
     "discovery_refresh": "Segarkan",
     "discovery_empty": "Tidak ada server di jaringan lokal"
+  },
+  "mobile_nav": {
+    "label": "Navigasi utama",
+    "home": "Beranda",
+    "devices": "Perangkat",
+    "remote": "Remote",
+    "chat": "Obrolan",
+    "more": "Lainnya"
   }
 }

@@ -1128,7 +1128,17 @@
     "codec": "Bộ giải mã video",
     "codec_auto": "Tự động (được khuyến nghị)",
     "remember_peer_password": "Ghi nhớ mật khẩu thiết bị trên máy này",
-    "save_peer_password": "Lưu mật khẩu"
+    "save_peer_password": "Lưu mật khẩu",
+    "input_mode_touch": "Chạm",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Bàn phím",
+    "special_keys": "Phím đặc biệt",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Điều khiển từ xa",
+    "phone_unsupported_title": "Máy tính từ xa cần màn hình lớn hơn",
+    "phone_unsupported_body": "Dùng máy tính bảng, foldable mở hoặc desktop. Quản lý thiết bị vẫn ở console.",
+    "phone_unsupported_back_devices": "Quay lại thiết bị",
+    "phone_unsupported_get_desktop": "Tải RdClient desktop"
   },
   "branding": {
     "identity_title": "Nhận diện thương hiệu",
@@ -3960,5 +3970,13 @@
     "reset_client": "Đặt lại client",
     "discovery_refresh": "Làm mới",
     "discovery_empty": "Không tìm thấy máy chủ trên mạng cục bộ"
+  },
+  "mobile_nav": {
+    "label": "Điều hướng chính",
+    "home": "Trang chủ",
+    "devices": "Thiết bị",
+    "remote": "Từ xa",
+    "chat": "Trò chuyện",
+    "more": "Thêm"
   }
 }

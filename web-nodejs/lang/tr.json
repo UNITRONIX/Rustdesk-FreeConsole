@@ -1128,7 +1128,17 @@
     "codec": "Video Codec'i",
     "codec_auto": "Otomatik (önerilen)",
     "remember_peer_password": "Cihaz parolasını bu bilgisayarda hatırla",
-    "save_peer_password": "Parolayı kaydet"
+    "save_peer_password": "Parolayı kaydet",
+    "input_mode_touch": "Dokunma",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Klavye",
+    "special_keys": "Özel tuşlar",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Uzak kontrol",
+    "phone_unsupported_title": "Uzak masaüstü daha büyük ekran gerektirir",
+    "phone_unsupported_body": "Tablet, açık katlanabilir veya masaüstü kullanın. Cihaz yönetimi konsolda devam eder.",
+    "phone_unsupported_back_devices": "Cihazlara dön",
+    "phone_unsupported_get_desktop": "RdClient desktop indir"
   },
   "branding": {
     "identity_title": "Marka Kimliği",
@@ -3960,5 +3970,13 @@
     "reset_client": "İstemciyi sıfırla",
     "discovery_refresh": "Yenile",
     "discovery_empty": "Yerel ağda sunucu bulunamadı"
+  },
+  "mobile_nav": {
+    "label": "Ana gezinme",
+    "home": "Ana sayfa",
+    "devices": "Cihazlar",
+    "remote": "Uzak",
+    "chat": "Sohbet",
+    "more": "Daha fazla"
   }
 }

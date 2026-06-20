@@ -1135,7 +1135,17 @@
     "2fa_invalid": "Wprowadź prawidłowy 6-cyfrowy kod",
     "verify": "Weryfikuj",
     "remember_peer_password": "Zapamiętaj hasło urządzenia na tym komputerze",
-    "save_peer_password": "Zapisz hasło"
+    "save_peer_password": "Zapisz hasło",
+    "input_mode_touch": "Dotyk",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Klawiatura",
+    "special_keys": "Klawisze specjalne",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Sterowanie zdalne",
+    "phone_unsupported_title": "Pulpit zdalny wymaga większego ekranu",
+    "phone_unsupported_body": "Użyj tabletu, rozłożonego folda lub komputera, aby zdalnie sterować urządzeniami. Zarządzanie urządzeniami nadal działa w konsoli.",
+    "phone_unsupported_back_devices": "Wróć do urządzeń",
+    "phone_unsupported_get_desktop": "Pobierz RdClient desktop"
   },
   "branding": {
     "identity_title": "Identyfikacja marki",
@@ -3954,5 +3964,13 @@
     "reset_client": "Resetuj klienta",
     "discovery_refresh": "Odśwież",
     "discovery_empty": "Nie znaleziono serwerów w sieci lokalnej"
+  },
+  "mobile_nav": {
+    "label": "Nawigacja główna",
+    "home": "Start",
+    "devices": "Urządzenia",
+    "remote": "Zdalny",
+    "chat": "Czat",
+    "more": "Więcej"
   }
 }

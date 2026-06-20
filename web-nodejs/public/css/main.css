@@ -155,7 +155,7 @@ table {
 
 .app-layout {
     display: flex;
-    height: 100vh;
+    height: var(--app-height);
     min-height: 0;
     overflow: hidden;
 }
@@ -165,7 +165,7 @@ table {
     margin-left: var(--sidebar-current-width, var(--sidebar-width-collapsed));
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: var(--app-height);
     min-height: 0;
     overflow: hidden;
     transition: margin-left var(--transition-normal);
@@ -175,13 +175,14 @@ table {
     flex: 1;
     padding: var(--space-lg);
     margin-top: var(--navbar-height);
-    height: calc(100vh - var(--navbar-height));
+    height: calc(var(--app-height) - var(--navbar-height));
     min-height: 0;
     width: 100%;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
+    -webkit-overflow-scrolling: touch;
 }
 
 .page-header {
@@ -2042,7 +2043,7 @@ input[type="datetime-local"]:focus {
     
     .modal {
         width: 95%;
-        max-height: 85vh;
+        max-height: min(85vh, calc(var(--app-height) - var(--safe-top) - var(--safe-bottom) - 2rem));
     }
     
     .toast-container {

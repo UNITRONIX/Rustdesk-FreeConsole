@@ -1128,7 +1128,17 @@
     "codec": "Video Codec",
     "codec_auto": "Auto (anbefales)",
     "remember_peer_password": "Husk enhedsadgangskode på denne computer",
-    "save_peer_password": "Gem adgangskode"
+    "save_peer_password": "Gem adgangskode",
+    "input_mode_touch": "Berøring",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Tastatur",
+    "special_keys": "Specialtaster",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Fjernbetjening",
+    "phone_unsupported_title": "Fjernskrivebord kræver en større skærm",
+    "phone_unsupported_body": "Brug tablet, foldet foldbar eller desktop. Enhedsstyring er stadig i konsollen.",
+    "phone_unsupported_back_devices": "Tilbage til enheder",
+    "phone_unsupported_get_desktop": "Hent RdClient desktop"
   },
   "branding": {
     "identity_title": "Brand Identitet",
@@ -3960,5 +3970,13 @@
     "reset_client": "Nulstil klient",
     "discovery_refresh": "Opdater",
     "discovery_empty": "Ingen servere fundet på det lokale netværk"
+  },
+  "mobile_nav": {
+    "label": "Hovednavigation",
+    "home": "Hjem",
+    "devices": "Enheder",
+    "remote": "Remote",
+    "chat": "Chat",
+    "more": "Mere"
   }
 }

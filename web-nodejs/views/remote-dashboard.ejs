@@ -3,7 +3,18 @@
     pageStyles: ['remote-dashboard'],
     pageScripts: ['remote-dashboard'],
     body: `
-<div class="rd-desk-app" id="rd-desk-app">
+<div class="rd-phone-gate" id="rd-phone-gate" hidden>
+    <div class="rd-phone-gate-card">
+        <div class="rd-phone-gate-icon"><span class="material-icons">tablet_mac</span></div>
+        <h1 class="rd-phone-gate-title">${_('remote.phone_unsupported_title')}</h1>
+        <p class="rd-phone-gate-body">${_('remote.phone_unsupported_body')}</p>
+        <div class="rd-phone-gate-actions">
+            <a href="/devices" class="rd-phone-gate-btn rd-phone-gate-btn-primary">${_('remote.phone_unsupported_back_devices')}</a>
+            <a href="/" class="rd-phone-gate-btn rd-phone-gate-btn-secondary">${_('mobile_nav.home')}</a>
+        </div>
+    </div>
+</div>
+<div class="rd-desk-app remote-dashboard-layout" id="rd-desk-app">
     <header class="rd-desk-header">
         <div class="rd-desk-brand">
             <div class="rd-desk-logo" id="rd-desk-logo"></div>

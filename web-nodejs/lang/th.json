@@ -1128,7 +1128,17 @@
     "codec": "ตัวแปลงสัญญาณวิดีโอ",
     "codec_auto": "อัตโนมัติ (แนะนำ)",
     "remember_peer_password": "จดจำรหัสผ่านอุปกรณ์บนคอมพิวเตอร์นี้",
-    "save_peer_password": "บันทึกรหัสผ่าน"
+    "save_peer_password": "บันทึกรหัสผ่าน",
+    "input_mode_touch": "สัมผัส",
+    "input_mode_touchpad": "ทัชแพด",
+    "show_keyboard": "แป้นพิมพ์",
+    "special_keys": "ปุ่มพิเศษ",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "ควบคุมระยะไกล",
+    "phone_unsupported_title": "เดสก์ท็อpระยะไกลต้องใช้หน้าจอที่ใหญ่กว่า",
+    "phone_unsupported_body": "ใช้แท็บเล็ต foldable ที่เปิด หรือเดสก์ท็อป จัดการอุปกรณ์ได้ใน console",
+    "phone_unsupported_back_devices": "กลับไปยังอุปกรณ์",
+    "phone_unsupported_get_desktop": "รับ RdClient desktop"
   },
   "branding": {
     "identity_title": "เอกลักษณ์ของแบรนด์",
@@ -3960,5 +3970,13 @@
     "reset_client": "รีเซ็ตไคลเอนต์",
     "discovery_refresh": "รีเฟรช",
     "discovery_empty": "ไม่พบเซิร์ฟเวอร์ในเครือข่ายท้องถิ่น"
+  },
+  "mobile_nav": {
+    "label": "การนำทางหลัก",
+    "home": "หน้าแรก",
+    "devices": "อุปกรณ์",
+    "remote": "รีโมต",
+    "chat": "แชท",
+    "more": "เพิ่มเติม"
   }
 }

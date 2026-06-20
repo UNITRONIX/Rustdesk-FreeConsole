@@ -1128,7 +1128,17 @@
     "codec": "Video Codec",
     "codec_auto": "Automaattinen (suositus)",
     "remember_peer_password": "Muista laitteen salasana tällä tietokoneella",
-    "save_peer_password": "Tallenna salasana"
+    "save_peer_password": "Tallenna salasana",
+    "input_mode_touch": "Kosketus",
+    "input_mode_touchpad": "Touchpad",
+    "show_keyboard": "Näppäimistö",
+    "special_keys": "Erityisnäppäimet",
+    "special_print_screen": "Print Screen",
+    "mobile_toolbar": "Etäohjaus",
+    "phone_unsupported_title": "Etätyöpöytä vaatii suuremman näytön",
+    "phone_unsupported_body": "Käytä tablettia, avattua taittopuhelinta tai työpöytää. Laitteiden hallinta toimii konsolissa.",
+    "phone_unsupported_back_devices": "Takaisin laitteisiin",
+    "phone_unsupported_get_desktop": "Hae RdClient desktop"
   },
   "branding": {
     "identity_title": "Brändin identiteetti",
@@ -3960,5 +3970,13 @@
     "reset_client": "Nollaa asiakas",
     "discovery_refresh": "Päivitä",
     "discovery_empty": "Paikallisesta verkosta ei löytynyt palvelimia"
+  },
+  "mobile_nav": {
+    "label": "Päänavigointi",
+    "home": "Koti",
+    "devices": "Laitteet",
+    "remote": "Etä",
+    "chat": "Chat",
+    "more": "Lisää"
   }
 }

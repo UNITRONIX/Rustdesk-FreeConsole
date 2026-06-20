@@ -1,0 +1,58 @@
+<!-- Mobile bottom navigation (phone + tablet portrait) -->
+<nav class="mobile-bottom-nav" id="mobile-bottom-nav" aria-label="<%= _('mobile_nav.label') || 'Main navigation' %>">
+    <a href="/"
+       class="mobile-bottom-nav-item <%= currentPage === 'dashboard' ? 'active' : '' %>"
+       data-nav="home"
+       aria-current="<%= currentPage === 'dashboard' ? 'page' : 'false' %>">
+        <span class="material-icons" aria-hidden="true">home</span>
+        <span><%= _('mobile_nav.home') %></span>
+    </a>
+    <% if (hasPermission('device.view')) { %>
+    <a href="/devices"
+       class="mobile-bottom-nav-item <%= currentPage === 'devices' ? 'active' : '' %>"
+       data-nav="devices"
+       aria-current="<%= currentPage === 'devices' ? 'page' : 'false' %>">
+        <span class="material-icons" aria-hidden="true">devices</span>
+        <span><%= _('mobile_nav.devices') %></span>
+    </a>
+    <% } %>
+    <a href="/remote-dashboard"
+       class="mobile-bottom-nav-item <%= ['remote', 'remote-dashboard'].includes(currentPage) ? 'active' : '' %>"
+       data-nav="remote"
+       aria-current="<%= ['remote', 'remote-dashboard'].includes(currentPage) ? 'page' : 'false' %>">
+        <span class="material-icons" aria-hidden="true">desktop_windows</span>
+        <span><%= _('mobile_nav.remote') %></span>
+    </a>
+    <a href="/chat"
+       class="mobile-bottom-nav-item <%= currentPage === 'chat' ? 'active' : '' %>"
+       data-nav="chat"
+       aria-current="<%= currentPage === 'chat' ? 'page' : 'false' %>">
+        <span class="material-icons" aria-hidden="true">chat</span>
+        <span><%= _('mobile_nav.chat') %></span>
+    </a>
+    <button type="button"
+            class="mobile-bottom-nav-item"
+            id="mobile-more-btn"
+            data-nav="more"
+            aria-expanded="false"
+            aria-controls="mobile-more-drawer">
+        <span class="material-icons" aria-hidden="true">menu</span>
+        <span><%= _('mobile_nav.more') %></span>
+    </button>
+</nav>
+
+<!-- Full-screen More drawer -->
+<div class="mobile-more-drawer" id="mobile-more-drawer" aria-hidden="true">
+    <div class="mobile-more-drawer-backdrop" id="mobile-more-drawer-backdrop"></div>
+    <div class="mobile-more-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="mobile-more-drawer-title">
+        <div class="mobile-more-drawer-header">
+            <span class="mobile-more-drawer-title" id="mobile-more-drawer-title"><%= _('mobile_nav.more') %></span>
+            <button type="button" class="mobile-more-drawer-close" id="mobile-more-drawer-close" aria-label="<%= _('actions.close') || 'Close' %>">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <div class="mobile-more-drawer-body" id="mobile-more-drawer-body">
+            <!-- Populated by mobile-nav.js from sidebar flyout panels -->
+        </div>
+    </div>
+</div>
