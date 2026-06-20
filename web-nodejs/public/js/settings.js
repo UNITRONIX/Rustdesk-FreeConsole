@@ -4133,7 +4133,7 @@
             }).join('');
 
             listEl.querySelectorAll('.advanced-config-file-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     const id = btn.getAttribute('data-id');
                     if (!id) return;
                     if (advancedState.dirty && !await settingsConfirmCritical({
