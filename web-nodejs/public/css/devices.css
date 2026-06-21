@@ -53,11 +53,22 @@
     font-size: 18px;
 }
 
+/* ==================== Folder / group tile bars ==================== */
+
+.devices-tile-bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md, 1rem);
+    background: var(--bg-primary);
+    padding: var(--space-sm) 0 var(--space-md);
+    margin-bottom: var(--space-md);
+    border-bottom: 1px solid var(--border-secondary);
+}
+
 /* ==================== Folder Tiles ==================== */
 
 .folders-bar {
     display: block;
-    min-height: 112px;
 }
 
 .folders-chips {
@@ -263,12 +274,6 @@
 
 .groups-bar {
     display: block;
-    min-height: 112px;
-}
-
-.groups-chips,
-#custom-device-groups {
-    display: contents;
 }
 
 .groups-chips {
@@ -277,6 +282,10 @@
     gap: 10px;
     align-items: stretch;
     padding: 2px 0;
+}
+
+#custom-device-groups {
+    display: contents;
 }
 
 .group-chip {
@@ -1337,6 +1346,29 @@ td.column-hidden {
 
 .bulk-actions.hidden {
     display: none;
+}
+
+/* Desktop: tile block scrolls with the list (no sticky — avoids groups sliding under folders) */
+@media (min-width: 1025px) {
+    .devices-page .devices-tile-bars {
+        position: static;
+        z-index: auto;
+    }
+
+    .devices-page .folders-chips.mobile-tabs-scroll {
+        display: grid;
+        overflow: visible;
+        padding-bottom: 0;
+    }
+}
+
+/* Mobile: keep folders + groups together when scrolling the device list */
+@media (max-width: 1024px) {
+    body.is-mobile-shell .devices-page .devices-tile-bars {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
 }
 
 /* ==================== RESPONSIVE: Tablet (<=1024px) ==================== */
