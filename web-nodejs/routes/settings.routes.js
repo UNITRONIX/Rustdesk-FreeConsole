@@ -1041,7 +1041,12 @@ router.get('/api/settings/updates/check', requireAuth, requirePermission('server
         res.json({ success: true, data: result });
     } catch (err) {
         console.error('Update check error:', err);
-        res.status(500).json({ success: false, error: 'Failed to check for updates: ' + err.message });
+        const rateLimited = updateService.isGithubRateLimitError(err);
+        res.status(rateLimited ? 503 : 500).json({
+            success: false,
+            error: 'Failed to check for updates: ' + err.message,
+            code: rateLimited ? 'GITHUB_RATE_LIMIT' : undefined,
+        });
     }
 });
 
@@ -1080,7 +1085,12 @@ router.get('/api/settings/updates/changes', requireAuth, requirePermission('serv
         res.json({ success: true, data: result });
     } catch (err) {
         console.error('Get changes error:', err);
-        res.status(500).json({ success: false, error: 'Failed to get changed files: ' + err.message });
+        const rateLimited = updateService.isGithubRateLimitError(err);
+        res.status(rateLimited ? 503 : 500).json({
+            success: false,
+            error: 'Failed to get changed files: ' + err.message,
+            code: rateLimited ? 'GITHUB_RATE_LIMIT' : undefined,
+        });
     }
 });
 

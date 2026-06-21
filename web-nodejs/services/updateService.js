@@ -120,7 +120,11 @@ function setUpdateChannel(channelId) {
 }
 
 // Optional GitHub personal-access token  (60 req/h without, 5 000 with)
-const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN || '';
+const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
+
+/** @type {Map<string, { expires: number, data: unknown }>} */
+const GH_GET_CACHE = new Map();
+const GH_GET_CACHE_TTL_MS = Number(process.env.UPDATE_GITHUB_CACHE_MS) || 120_000;
 
 // ---------- component definitions ----------
 const COMPONENTS = {
@@ -264,10 +268,47 @@ async function ghListRepoBlobPaths(ref) {
 
 // ======================== HTTP Helpers ===================================
 
+function githubApiError(statusCode, body, headers = {}) {
+    const snippet = String(body || '').slice(0, 200);
+    const rateLimited = (statusCode === 403 || statusCode === 429)
+        && (/rate limit/i.test(body) || headers['x-ratelimit-remaining'] === '0');
+    if (rateLimited) {
+        const resetRaw = headers['x-ratelimit-reset'];
+        const resetAt = resetRaw ? new Date(Number(resetRaw) * 1000).toISOString() : null;
+        const hint = GITHUB_TOKEN
+            ? 'GitHub API rate limit exceeded for the configured token.'
+            : 'GitHub API rate limit exceeded for unauthenticated requests (60/hour). Set UPDATE_GITHUB_TOKEN in the console .env — a read-only Personal Access Token raises the limit to 5,000/hour.';
+        const err = new Error(resetAt ? `${hint} Resets at ${resetAt}.` : hint);
+        err.code = 'GITHUB_RATE_LIMIT';
+        err.statusCode = statusCode;
+        return err;
+    }
+    const err = new Error(`GitHub API ${statusCode}: ${snippet}`);
+    err.statusCode = statusCode;
+    return err;
+}
+
+function isGithubRateLimitError(err) {
+    return !!(err && (err.code === 'GITHUB_RATE_LIMIT' || /rate limit exceeded/i.test(err.message || '')));
+}
+
+function ghGetCacheKey(urlPath) {
+    const url = urlPath.startsWith('https://') ? new URL(urlPath) : new URL(urlPath, GITHUB_API);
+    return url.pathname + url.search;
+}
+
 /**
  * HTTPS GET → parsed JSON. Follows one redirect.
  */
-function ghGet(urlPath) {
+function ghGet(urlPath, { bypassCache = false } = {}) {
+    const cacheKey = ghGetCacheKey(urlPath);
+    if (!bypassCache && GH_GET_CACHE_TTL_MS > 0) {
+        const cached = GH_GET_CACHE.get(cacheKey);
+        if (cached && cached.expires > Date.now()) {
+            return Promise.resolve(cached.data);
+        }
+    }
+
     return new Promise((resolve, reject) => {
         const url = urlPath.startsWith('https://') ? new URL(urlPath) : new URL(urlPath, GITHUB_API);
         const headers = { 'User-Agent': USER_AGENT, 'Accept': 'application/vnd.github+json' };
@@ -275,17 +316,24 @@ function ghGet(urlPath) {
 
         const req = https.get({ hostname: url.hostname, path: url.pathname + url.search, headers }, (res) => {
             if (res.statusCode === 301 || res.statusCode === 302) {
-                return ghGet(res.headers.location).then(resolve, reject);
+                return ghGet(res.headers.location, { bypassCache }).then(resolve, reject);
             }
             const chunks = [];
             res.on('data', (c) => chunks.push(c));
             res.on('end', () => {
                 const body = Buffer.concat(chunks).toString();
                 if (res.statusCode >= 400) {
-                    return reject(new Error(`GitHub API ${res.statusCode}: ${body.slice(0, 200)}`));
+                    return reject(githubApiError(res.statusCode, body, res.headers));
                 }
-                try { resolve(JSON.parse(body)); }
-                catch (_e) { reject(new Error('Invalid JSON from GitHub API')); }
+                try {
+                    const data = JSON.parse(body);
+                    if (GH_GET_CACHE_TTL_MS > 0) {
+                        GH_GET_CACHE.set(cacheKey, { expires: Date.now() + GH_GET_CACHE_TTL_MS, data });
+                    }
+                    resolve(data);
+                } catch (_e) {
+                    reject(new Error('Invalid JSON from GitHub API'));
+                }
             });
         });
         req.on('error', reject);
@@ -2962,6 +3010,8 @@ module.exports = {
     getImageEmbeddedSHA,
     bootstrapDockerImageDeployment,
     getDockerUpdateInstructions,
+    isGithubRateLimitError,
+    githubApiError,
     COMPONENTS,
     NON_CRITICAL_UPDATE_FAILURES,
     isNonCriticalUpdateFailure,
