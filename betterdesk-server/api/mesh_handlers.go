@@ -171,6 +171,7 @@ func (s *Server) handleMeshExec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	peerID := r.PathValue("id")
+	username := usernameFromRequest(r)
 	var body struct {
 		Command string `json:"command"`
 		Shell   bool   `json:"shell"`

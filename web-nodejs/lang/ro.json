@@ -3991,6 +3991,21 @@
     "linked_peer": "Linked device",
     "link_peer": "Link to RustDesk/CDAP peer on same host",
     "onboarding_title": "MeshAgent onboarding",
-    "onboarding_body": "Download the .msh file, install MeshAgent on endpoints, and devices appear as mesh_agent in the device list."
+    "onboarding_body": "Download the .msh file, install MeshAgent on endpoints, and devices appear as mesh_agent in the device list.",
+    "run_command": "Execută comandă",
+    "terminal": "Terminal",
+    "files": "Browser de fișiere",
+    "run_command_title": "Execută comandă pe dispozitiv",
+    "command_placeholder": "Comandă de executat",
+    "command_sent": "Comandă trimisă agentului",
+    "command_failed": "Trimitere nereușită",
+    "run_as_shell": "Execută în shell",
+    "terminal_title": "Terminal remote",
+    "terminal_unavailable": "Modul terminal neîncărcat",
+    "link_peer_title": "Leagă agent Mesh",
+    "link_peer_hint": "ID peer RustDesk sau CDAP pe același host. Gol pentru dezlegare.",
+    "link_saved": "Legătură actualizată",
+    "transport_terminal": "Terminal Mesh",
+    "transport_files": "Fișiere Mesh"
   }
 }

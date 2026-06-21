@@ -3991,6 +3991,21 @@
     "linked_peer": "Linked device",
     "link_peer": "Link to RustDesk/CDAP peer on same host",
     "onboarding_title": "MeshAgent onboarding",
-    "onboarding_body": "Download the .msh file, install MeshAgent on endpoints, and devices appear as mesh_agent in the device list."
+    "onboarding_body": "Download the .msh file, install MeshAgent on endpoints, and devices appear as mesh_agent in the device list.",
+    "run_command": "Parancs futtatása",
+    "terminal": "Terminál",
+    "files": "Fájlkezelő",
+    "run_command_title": "Parancs futtatása az eszközön",
+    "command_placeholder": "Futtatandó parancs",
+    "command_sent": "Parancs elküldve az agentnek",
+    "command_failed": "Küldés sikertelen",
+    "run_as_shell": "Futtatás shellben",
+    "terminal_title": "Távoli terminál",
+    "terminal_unavailable": "Terminál modul nincs betöltve",
+    "link_peer_title": "Mesh agent összekapcsolása",
+    "link_peer_hint": "RustDesk vagy CDAP peer ID ugyanazon a gépen. Üres = leválasztás.",
+    "link_saved": "Kapcsolat frissítve",
+    "transport_terminal": "Mesh terminál",
+    "transport_files": "Mesh fájlok"
   }
 }

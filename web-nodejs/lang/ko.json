@@ -3985,6 +3985,21 @@
     "linked_peer": "Linked device",
     "link_peer": "Link to RustDesk/CDAP peer on same host",
     "onboarding_title": "MeshAgent onboarding",
-    "onboarding_body": "Download the .msh file, install MeshAgent on endpoints, and devices appear as mesh_agent in the device list."
+    "onboarding_body": "Download the .msh file, install MeshAgent on endpoints, and devices appear as mesh_agent in the device list.",
+    "run_command": "명령 실행",
+    "terminal": "터미널",
+    "files": "파일 브라우저",
+    "run_command_title": "디바이스에서 명령 실행",
+    "command_placeholder": "실행할 명령",
+    "command_sent": "에이전트에 명령 전송됨",
+    "command_failed": "전송 실패",
+    "run_as_shell": "셸에서 실행",
+    "terminal_title": "원격 터미널",
+    "terminal_unavailable": "터미널 모듈이 로드되지 않음",
+    "link_peer_title": "Mesh 에이전트 연결",
+    "link_peer_hint": "같은 호스트의 RustDesk 또는 CDAP 피어 ID. 비우면 연결 해제.",
+    "link_saved": "연결 업데이트됨",
+    "transport_terminal": "Mesh 터미널",
+    "transport_files": "Mesh 파일"
   }
 }
