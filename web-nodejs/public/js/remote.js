@@ -103,6 +103,7 @@
             adaptiveQuality: prefs.adaptiveQuality !== false,
             preferCodec: prefs.codec || 'Auto',
             disableAudio: false,
+            serverRecord: session.meshServerRecord || false,
         };
     }
 
@@ -164,6 +165,7 @@
             this.cdapFallbackBtn = panel.querySelector('.session-btn-cdap-fallback');
             this.client = null;
             this.state = 'idle';
+            this.meshServerRecord = false;
             this.latency = 0;
             this.lastStats = null;
             this.audioMuted = false;
@@ -1518,6 +1520,15 @@
         if (session.mediaRecorder && session.mediaRecorder.state === 'recording') {
             session.mediaRecorder.stop();
             this.classList.remove('recording');
+        } else if (window.__capabilities && window.__capabilities.transport === 'mesh') {
+            session.meshServerRecord = !session.meshServerRecord;
+            this.classList.toggle('recording', session.meshServerRecord);
+            Notifications.info(session.meshServerRecord
+                ? (_('mesh.recording_server_on') || 'Server recording enabled — reconnecting…')
+                : (_('mesh.recording_server_off') || 'Server recording disabled — reconnecting…'));
+            try { session.client.disconnect(); } catch { /* ignore */ }
+            wireNewClient(session);
+            session.client.connect().catch((err) => setSessionStatus(session, 'error', err.message));
         } else {
             try {
                 const stream = session.canvas.captureStream(30);

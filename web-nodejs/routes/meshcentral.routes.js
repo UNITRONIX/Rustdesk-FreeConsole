@@ -51,12 +51,12 @@ router.post('/api/mesh/devices/:id/desktop', requireAuth, requirePermission('dev
     return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/desktop`);
 });
 
-router.post('/api/mesh/devices/:id/terminal', requireAuth, requirePermission('device.connect'), async (req, res) => {
+router.post('/api/mesh/devices/:id/terminal', requireAuth, requirePermission('mesh.terminal'), async (req, res) => {
     const id = req.params.id;
     return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/terminal`);
 });
 
-router.post('/api/mesh/devices/:id/files', requireAuth, requirePermission('device.connect'), async (req, res) => {
+router.post('/api/mesh/devices/:id/files', requireAuth, requirePermission('mesh.files'), async (req, res) => {
     const id = req.params.id;
     return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/files`);
 });
@@ -83,9 +83,27 @@ router.post('/api/mesh/devices/:id/udp', requireAuth, requirePermission('device.
     return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/udp`, req.body);
 });
 
-router.post('/api/mesh/devices/:id/power', requireAuth, requirePermission('device.connect'), async (req, res) => {
+router.post('/api/mesh/devices/:id/power', requireAuth, requirePermission('mesh.power'), async (req, res) => {
     const id = req.params.id;
     return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/power`, req.body);
+});
+
+router.post('/api/mesh/devices/:id/group', requireAuth, requirePermission('server.config'), async (req, res) => {
+    const id = req.params.id;
+    return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/group`, req.body);
+});
+
+router.get('/api/mesh/recordings', requireAuth, requirePermission('device.view'), async (req, res) => {
+    return proxyToGo(betterdeskApi.apiClient, req, res, 'GET', '/mesh/recordings');
+});
+
+router.get('/api/mesh/recordings/:id', requireAuth, requirePermission('device.connect'), async (req, res) => {
+    const id = req.params.id;
+    return proxyToGo(betterdeskApi.apiClient, req, res, 'GET', () => `/mesh/recordings/${encodeURIComponent(id)}`);
+});
+
+router.get('/api/session/recordings', requireAuth, requirePermission('device.view'), async (req, res) => {
+    return proxyToGo(betterdeskApi.apiClient, req, res, 'GET', '/session/recordings');
 });
 
 router.post('/api/mesh/devices/:id/exec', requireAuth, requirePermission('device.connect'), async (req, res) => {

@@ -1936,3 +1936,12 @@ td.column-hidden {
 
 .mesh-port-log-line.error { color: #ff7b72; }
 .mesh-port-modal { height: min(80vh, 560px); }
+.mesh-linked-badge {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted, #8b949e);
+    margin-top: 2px;
+}
+.mesh-groups-list { margin-top: 8px; }
+.mesh-group-row { padding: 4px 0; }
+.mesh-recordings-table { margin-top: 8px; }

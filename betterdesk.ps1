@@ -2049,6 +2049,7 @@ function Setup-Services {
     # New installs default to "managed" enrollment so stock RustDesk clients are
     # queued for operator approval. Existing installs are left untouched.
     if ($script:FRESH_INSTALL) { $serverEnvExtra += "ENROLLMENT_MODE=managed" }
+    $serverEnvExtra += "MESH_ENABLED=Y"
     & $nssm set $script:SERVER_SERVICE AppEnvironmentExtra $serverEnvExtra
     
     # Privilege separation: drop the Go server to its low-privilege virtual account.

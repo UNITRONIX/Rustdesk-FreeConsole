@@ -8,7 +8,10 @@
 ## [3.3.60] — 2026-06-21
 
 ### Changed
-- _(none yet)_
+- **Mesh layer closure**: `MESH_ENABLED=Y` default in Go config; installers (`betterdesk.sh` / `betterdesk.ps1`) and panel updater inject `MESH_ENABLED=Y` on existing Linux/Windows services; mesh cert backup on update.
+- **Panel**: Settings mesh groups + session recordings list + onboarding; Devices `mesh_agent` filter, linked-peer badge, power/port menu; remote server-side recording toggle; i18n for all locales.
+- **Go mesh**: KVM relay multiplex (multi-viewer), WoL wake fallback via `linked_peer_id`, recordings list/download APIs, device group assign, `mesh.terminal` / `mesh.files` / `mesh.power` RBAC.
+- **Docs/tests**: [MESH_REST_AUTOMATION.md](docs/features/MESH_REST_AUTOMATION.md), updated compat gap table; `mesh.routes` Jest test; stabilized MeshAgent live test timeout.
 
 ---
 

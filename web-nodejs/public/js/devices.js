@@ -257,6 +257,12 @@
         const banned = !!device.banned;
         const isMesh = String(device.device_type || '').toLowerCase() === 'mesh_agent';
         const meshOnline = isMesh && (device.mesh_connected || device.online);
+        const meshOfflineWake = isMesh && !meshOnline ? `
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-wake" data-id="${eid}">
+                <span class="material-icons">power_settings_new</span>
+                <span>${_('mesh.power_wake') || 'Wake'}</span>
+            </button>
+            <div class="kebab-divider"></div>` : '';
         const meshActions = meshOnline ? `
             <button type="button" class="kebab-menu-item" data-action="mesh-terminal" data-id="${eid}">
                 <span class="material-icons">terminal</span>
@@ -282,6 +288,14 @@
                 <span class="material-icons">settings_ethernet</span>
                 <span>${_('mesh.port_tcp') || 'TCP port relay'}</span>
             </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-port-udp" data-id="${eid}">
+                <span class="material-icons">settings_ethernet</span>
+                <span>${_('mesh.port_udp') || 'UDP port relay'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-wake" data-id="${eid}">
+                <span class="material-icons">power_settings_new</span>
+                <span>${_('mesh.power_wake') || 'Wake'}</span>
+            </button>
             <button type="button" class="kebab-menu-item" data-action="mesh-power-sleep" data-id="${eid}">
                 <span class="material-icons">bedtime</span>
                 <span>${_('mesh.power_sleep') || 'Sleep'}</span>
@@ -290,6 +304,10 @@
                 <span class="material-icons">restart_alt</span>
                 <span>${_('mesh.power_reset') || 'Reset'}</span>
             </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-off" data-id="${eid}">
+                <span class="material-icons">power_off</span>
+                <span>${_('mesh.power_off') || 'Power off'}</span>
+            </button>
             <div class="kebab-divider"></div>` : '';
         return `
             <button type="button" class="kebab-menu-item connect-desktop" data-action="web-remote" data-id="${eid}">
@@ -297,6 +315,7 @@
                 <span>${_('actions.web_remote') || 'Web Remote'}</span>
             </button>
             ${meshActions}
+            ${meshOfflineWake}
             <button type="button" class="kebab-menu-item" data-action="cdap-viewer" data-id="${eid}">
                 <span class="material-icons">photo_camera</span>
                 <span>${_('actions.cdap_viewer') || 'CDAP Snapshot Viewer'}</span>
@@ -734,6 +753,7 @@
             if (currentFilter === 'online' && !device.online) return false;
             if (currentFilter === 'offline' && (device.online || device.banned)) return false;
             if (currentFilter === 'banned' && !device.banned) return false;
+            if (currentFilter === 'mesh_agent' && String(device.device_type || '').toLowerCase() !== 'mesh_agent') return false;
             
             // Search filter
             if (searchQuery) {
@@ -827,6 +847,7 @@
                     <div class="platform-icon">
                         <span class="material-icons">${getDeviceTypeIcon(device.device_type)}</span>
                         <span>${Utils.escapeHtml(device.device_type || '-')}</span>
+                        ${device.linked_peer_id ? `<span class="mesh-linked-badge" title="${Utils.escapeHtml(_('mesh.linked_peer') || 'Linked device')}">↔ ${Utils.escapeHtml(device.linked_peer_id)}</span>` : ''}
                     </div>
                 </td>
                 <td data-column="platform">
@@ -1023,12 +1044,28 @@
                 }
                 break;
 
+            case 'mesh-port-udp':
+                if (typeof openMeshPortForward === 'function') {
+                    openMeshPortForward(deviceId, true);
+                } else {
+                    Notifications.error(_('mesh.port_unavailable') || 'Port relay module not loaded');
+                }
+                break;
+
+            case 'mesh-power-wake':
+                meshPowerAction(deviceId, 'wake');
+                break;
+
             case 'mesh-power-sleep':
                 meshPowerAction(deviceId, 'sleep');
                 break;
 
             case 'mesh-power-reset':
                 meshPowerAction(deviceId, 'reset');
+                break;
+
+            case 'mesh-power-off':
+                meshPowerAction(deviceId, 'off');
                 break;
 
             case 'remote-viewer':

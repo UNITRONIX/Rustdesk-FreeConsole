@@ -377,6 +377,10 @@
         const downloadBtn = document.getElementById('mesh-download-msh');
         const copyBtn = document.getElementById('mesh-copy-server-id');
         const nameInput = document.getElementById('mesh-msh-name');
+        const certBanner = document.getElementById('mesh-cert-banner');
+        const groupsList = document.getElementById('mesh-groups-list');
+        const recordingsTable = document.getElementById('mesh-recordings-table');
+        let meshGroups = [];
 
         async function loadMeshStatus() {
             try {
@@ -389,10 +393,84 @@
                 }
                 if (agentsEl) agentsEl.textContent = String(data.agents_online != null ? data.agents_online : 0);
                 if (serverIdEl && data.server_id) serverIdEl.textContent = data.server_id;
+                if (certBanner) {
+                    if (data.enabled && !data.cert_present) {
+                        certBanner.textContent = tSettings('mesh.cert_missing', 'Agent-server certificate not found — backup after first agent connects.');
+                        certBanner.classList.remove('hidden');
+                    } else if (data.cert_present) {
+                        certBanner.textContent = (tSettings('mesh.cert_ok', 'Certificate present')) + (data.cert_modified ? ' — ' + data.cert_modified : '');
+                        certBanner.classList.remove('hidden', 'alert-warning');
+                        certBanner.classList.add('alert-info');
+                    } else {
+                        certBanner.classList.add('hidden');
+                    }
+                }
             } catch {
                 if (enabledEl) enabledEl.textContent = tSettings('mesh.disabled_label', 'Disabled');
             }
         }
+
+        async function loadMeshGroups() {
+            if (!groupsList) return;
+            try {
+                const resp = await Utils.api('/api/mesh/groups');
+                const data = resp.data || resp;
+                meshGroups = Array.isArray(data.groups) ? data.groups : [];
+                groupsList.innerHTML = meshGroups.map((g, idx) =>
+                    `<div class="mesh-group-row" data-idx="${idx}"><code>${Utils.escapeHtml(g.id || '')}</code> — ${Utils.escapeHtml(g.name || '')}</div>`
+                ).join('') || '<p class="text-muted">' + tSettings('mesh.groups_empty', 'No mesh groups yet.') + '</p>';
+            } catch {
+                groupsList.innerHTML = '<p class="text-muted">' + tSettings('mesh.groups_load_error', 'Could not load groups.') + '</p>';
+            }
+        }
+
+        async function loadMeshRecordings() {
+            if (!recordingsTable) return;
+            try {
+                const resp = await Utils.api('/api/session/recordings');
+                const data = resp.data || resp;
+                const rows = Array.isArray(data.recordings) ? data.recordings : [];
+                if (!rows.length) {
+                    recordingsTable.innerHTML = '<p class="text-muted">' + tSettings('mesh.recordings_empty', 'No server recordings yet.') + '</p>';
+                    return;
+                }
+                recordingsTable.innerHTML = '<table class="data-table"><thead><tr><th>Transport</th><th>Peer</th><th>Type</th><th>Size</th><th></th></tr></thead><tbody>' +
+                    rows.map((r) => {
+                        const dl = r.transport === 'mesh' && r.id
+                            ? `<a class="btn btn-sm btn-secondary" href="/api/mesh/recordings/${encodeURIComponent(r.id)}">${tSettings('mesh.recording_download', 'Download')}</a>`
+                            : '';
+                        return `<tr><td>${Utils.escapeHtml(r.transport || '')}</td><td>${Utils.escapeHtml(r.peer_id || '')}</td><td>${Utils.escapeHtml(r.session_type || '')}</td><td>${r.size || 0}</td><td>${dl}</td></tr>`;
+                    }).join('') + '</tbody></table>';
+            } catch {
+                recordingsTable.innerHTML = '<p class="text-muted">' + tSettings('mesh.recordings_load_error', 'Could not load recordings.') + '</p>';
+            }
+        }
+
+        document.getElementById('mesh-group-add')?.addEventListener('click', () => {
+            const id = document.getElementById('mesh-group-id')?.value.trim();
+            const name = document.getElementById('mesh-group-name')?.value.trim();
+            if (!id || !name) return;
+            meshGroups.push({ id, name });
+            const idInput = document.getElementById('mesh-group-id');
+            const nameInputG = document.getElementById('mesh-group-name');
+            if (idInput) idInput.value = '';
+            if (nameInputG) nameInputG.value = '';
+            if (groupsList) {
+                groupsList.innerHTML = meshGroups.map((g) =>
+                    `<div class="mesh-group-row"><code>${Utils.escapeHtml(g.id)}</code> — ${Utils.escapeHtml(g.name)}</div>`
+                ).join('');
+            }
+        });
+
+        document.getElementById('mesh-groups-save')?.addEventListener('click', async () => {
+            try {
+                await Utils.api('/api/mesh/groups', { method: 'POST', body: { groups: meshGroups } });
+                Notifications.success(tSettings('mesh.groups_saved', 'Mesh groups saved'));
+                loadMeshGroups();
+            } catch (err) {
+                Notifications.error(err.message || tSettings('mesh.groups_save_error', 'Save failed'));
+            }
+        });
 
         if (downloadBtn && nameInput) {
             downloadBtn.addEventListener('click', (e) => {
@@ -410,6 +488,8 @@
         });
 
         loadMeshStatus();
+        loadMeshGroups();
+        loadMeshRecordings();
     }
 
     // ==================== Connection Mode (P2P / Relay) ====================

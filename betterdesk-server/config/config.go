@@ -157,7 +157,7 @@ func DefaultConfig() *Config {
 		CDAPPort:             21122,
 		CDAPEnabled:          true, // Enabled by default; set CDAP_ENABLED=N for minimal installs
 		CDAPRateLimit:        30,
-		MeshCentralEnabled:   false,
+		MeshCentralEnabled:   true, // default on; set MESH_ENABLED=N to disable
 		MeshCoreVersion:      "1.2.0",
 		MeshAgentCertFile:    "mesh_agent_server.pem",
 		MeshRateLimit:        30,

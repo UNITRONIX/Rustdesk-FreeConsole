@@ -64,7 +64,7 @@
         if (pageQs.get('mesh_share')) {
             tunnelQs.set('mesh_share', pageQs.get('mesh_share'));
         }
-        if (pageQs.get('record') === '1') {
+        if (pageQs.get('record') === '1' || this.opts.serverRecord) {
             tunnelQs.set('record', '1');
         }
         const resp = await fetch(`/api/mesh/devices/${encodeURIComponent(this._deviceId)}/desktop?${tunnelQs.toString()}`, {

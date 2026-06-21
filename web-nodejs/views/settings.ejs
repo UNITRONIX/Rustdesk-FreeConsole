@@ -181,6 +181,27 @@
                         </a>
                     </div>
                     <p class="text-muted" style="margin-top:1rem;">${_('mesh.onboarding_body')}</p>
+                    <div class="alert alert-warning mesh-cert-banner hidden" id="mesh-cert-banner"></div>
+                    <ol class="mesh-onboarding-steps text-muted">
+                        <li>${_('mesh.onboarding_step_msh')}</li>
+                        <li>${_('mesh.onboarding_step_install')}</li>
+                        <li>${_('mesh.onboarding_step_verify')}</li>
+                    </ol>
+                    <div class="settings-subsection" style="margin-top:1.5rem;">
+                        <h3 class="settings-subsection-title">${_('mesh.groups_title')}</h3>
+                        <div id="mesh-groups-list" class="mesh-groups-list"></div>
+                        <div class="form-row" style="margin-top:8px;">
+                            <input type="text" id="mesh-group-id" class="form-input" placeholder="${_('mesh.group_id_placeholder')}">
+                            <input type="text" id="mesh-group-name" class="form-input" placeholder="${_('mesh.group_name_placeholder')}">
+                            <button type="button" class="btn btn-secondary" id="mesh-group-add">${_('mesh.group_add')}</button>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="mesh-groups-save" style="margin-top:8px;">${_('mesh.groups_save')}</button>
+                    </div>
+                    <div class="settings-subsection" style="margin-top:1.5rem;">
+                        <h3 class="settings-subsection-title">${_('mesh.recordings_title')}</h3>
+                        <p class="text-muted">${_('mesh.recordings_desc')}</p>
+                        <div id="mesh-recordings-table" class="mesh-recordings-table"></div>
+                    </div>
                 </div>
             </div>
             <!-- Connection Strategy (P2P / Relay) -->

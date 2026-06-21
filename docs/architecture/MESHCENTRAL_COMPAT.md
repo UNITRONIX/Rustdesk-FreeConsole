@@ -148,11 +148,11 @@ else                                      →  transport=rd (RustDesk)
 
 **Rationale**: MC protocol is largely undocumented; behavior is reverse-engineered from source. Pinning limits breakage from upstream changes.
 
-### AD-7: Optional module, off by default on minimal installs
+### AD-7: Enabled by default (disable with `MESH_ENABLED=N`)
 
-**Decision**: `MESH_ENABLED=N` by default on `--minimal` installs; `Y` configurable on full installs.
+**Decision**: `MESH_ENABLED=Y` by default on full and minimal installs; operators set `MESH_ENABLED=N` to disable the module.
 
-**Rationale**: Reduces attack surface and maintenance for headless relay-only nodes.
+**Rationale**: MeshAgent/BetterCore is part of the BetterDesk product surface; installers and panel updates inject the env var automatically.
 
 ---
 
@@ -434,26 +434,26 @@ See [Feature Gap Analysis](#feature-gap-analysis). Includes terminal (`p=1`), fi
 
 MeshCentral features that BetterDesk lacks or implements differently — opportunities to improve the whole product:
 
-| MeshCentral feature | BetterDesk today | Planned action |
-|---------------------|------------------|----------------|
-| Remote terminal (`p=1`) | CDAP terminal only | Relay `p=1` + unified remote side panel |
-| Remote files (`p=5`) | CDAP file browser | Relay `p=5` + panel integration |
-| Run commands (agent channel) | No unified API | `POST /api/peers/{id}/exec` for mesh + CDAP |
-| Session recording (`.mcrec`) | Partial CDAP recording | Cross-transport session recorder |
-| Desktop multiplexing | Not implemented | Multi-viewer on one mesh session |
-| TCP/UDP port map (MeshRouter) | RustDesk `PORT_FORWARD` proto, weak UI | Port-forward panel for RD + mesh |
-| Device sharing / guest links | Limited | Time-limited session tokens |
-| MeshCore hot-push (update agent logic without reinstall) | Not implemented | Apply pattern to betterdesk-agent manifest OTA |
-| Intel AMT / CIRA (`:4433`) | Not implemented | Optional module (high effort, Phase 5+) |
-| In-browser RDP/SSH/VNC | Not implemented | `apprelays` pattern (low priority) |
-| MeshScanner (LAN discovery) | Not implemented | Optional discovery helper |
-| Plugin hooks (server + agent) | Widget plugins in panel | Document MC-compat extension model |
-| Granular mesh rights (bitfield) | RBAC roles | Extend `access-policy` with MC-like rights |
-| meshctrl automation (60+ commands) | REST API (different model) | Subset compatibility for migration scripts |
+| MeshCentral feature | BetterDesk today | Status |
+|---------------------|------------------|--------|
+| Remote terminal (`p=1`) | Mesh relay + panel modal | **Done** |
+| Remote files (`p=5`) | Mesh relay + panel / remote files panel | **Done** |
+| Run commands (agent channel) | `POST /api/peers/{id}/exec` mesh + CDAP | **Done** |
+| Session recording (`.mcrec`) | Server capture + Settings list; BD raw format | **Partial** (not MC-native player) |
+| Desktop multiplexing | KVM hub relay (`relay_hub.go`) | **Done** |
+| TCP/UDP port map (MeshRouter) | REST + panel TCP/UDP modals | **Partial** (basic UX) |
+| Device sharing / guest links | `mesh_share` tokens + view-only remote | **Done** |
+| MeshCore hot-push | Not implemented | Backlog |
+| Intel AMT / CIRA (`:4433`) | Not implemented | Backlog |
+| In-browser RDP/SSH/VNC | Not implemented | Backlog |
+| MeshScanner (LAN discovery) | Not implemented | Backlog |
+| Plugin hooks (server + agent) | Panel widgets | **Partial** |
+| Granular mesh rights (bitfield) | `mesh.terminal` / `mesh.files` / `mesh.power` permissions | **Partial** |
+| meshctrl automation | REST — see [MESH_REST_AUTOMATION.md](../features/MESH_REST_AUTOMATION.md) | **Done** (BD-native) |
 
 ### What BetterDesk already has (no MC borrow needed)
 
-- Wake-on-LAN (`POST /api/peers/{id}/wol`) — wire MC `devicepower` to this.
+- Wake-on-LAN (`POST /api/peers/{id}/wol`) — mesh wake falls back to WoL via `linked_peer_id` / telemetry MAC.
 - JWT + TOTP 2FA — map to MC `x-meshauth` with token third field.
 - API keys — automation alternative to meshctrl login keys.
 - Chat relay — comparable to MC Messenger (different protocol).

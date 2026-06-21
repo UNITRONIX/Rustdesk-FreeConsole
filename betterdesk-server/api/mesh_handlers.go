@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"strings"
 
+	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/meshcentral"
 )
@@ -26,11 +28,15 @@ func (s *Server) handleMeshStatus(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	certPath, certPresent, certModified := s.meshGw.AgentCertInfo()
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"enabled":       true,
-		"core_version":  s.cfg.MeshCoreVersion,
-		"agents_online": s.meshGw.ActiveAgentCount(),
-		"server_id":     s.meshGw.ServerID(),
+		"enabled":        true,
+		"core_version":   s.cfg.MeshCoreVersion,
+		"agents_online":  s.meshGw.ActiveAgentCount(),
+		"server_id":      s.meshGw.ServerID(),
+		"cert_file":      certPath,
+		"cert_present":   certPresent,
+		"cert_modified":  certModified,
 	})
 }
 
@@ -308,6 +314,7 @@ func (s *Server) handleMeshPower(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Action string `json:"action"`
 		Forced bool   `json:"forced"`
+		MAC    string `json:"mac"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
@@ -317,6 +324,31 @@ func (s *Server) handleMeshPower(w http.ResponseWriter, r *http.Request) {
 	if actionType == 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown power action"})
 		return
+	}
+	if actionType == 6 && !s.meshGw.IsConnected(peerID) {
+		mac := strings.TrimSpace(body.MAC)
+		if mac == "" {
+			mac = meshcentral.MeshMACFromPeerConfig(s.db, peerID)
+		}
+		peer, _ := s.db.GetPeer(peerID)
+		if mac == "" && peer != nil && peer.LinkedPeerID != "" {
+			mac = meshcentral.MeshMACFromPeerConfig(s.db, peer.LinkedPeerID)
+		}
+		if mac != "" {
+			if err := sendWOLPacket(mac); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			if s.auditLog != nil {
+				fields := map[string]string{"event": "mesh_devicepower", "action_type": "6", "transport": "wol", "mac": mac}
+				if peer != nil && peer.LinkedPeerID != "" {
+					fields["linked_peer_id"] = peer.LinkedPeerID
+				}
+				s.auditLog.Log(audit.ActionPeerUpdated, username, peerID, fields)
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"status": "sent", "action": body.Action, "transport": "wol", "mac": mac})
+			return
+		}
 	}
 	if err := s.meshGw.SendPowerAction(peerID, username, actionType, body.Forced); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -402,4 +434,84 @@ func usernameFromRequest(r *http.Request) string {
 		return u
 	}
 	return "operator"
+}
+
+func (s *Server) meshDataDir() string {
+	if s.cfg != nil && s.cfg.DBPath != "" {
+		dir := filepath.Dir(s.cfg.DBPath)
+		if dir != "" && dir != "." {
+			return dir
+		}
+	}
+	return "."
+}
+
+func (s *Server) handleMeshRecordingsList(w http.ResponseWriter, r *http.Request) {
+	if s.meshGw == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh disabled"})
+		return
+	}
+	list, err := meshcentral.ListMeshRecordings(s.meshDataDir())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"recordings": list})
+}
+
+func (s *Server) handleMeshRecordingDownload(w http.ResponseWriter, r *http.Request) {
+	if s.meshGw == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh disabled"})
+		return
+	}
+	id := r.PathValue("id")
+	path, err := meshcentral.MeshRecordingPath(s.meshDataDir(), id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "recording not found"})
+		return
+	}
+	if s.auditLog != nil {
+		s.auditLog.Log(audit.ActionPeerUpdated, usernameFromRequest(r), id, map[string]string{
+			"event": "mesh_recording_download",
+			"file":  id,
+		})
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	http.ServeFile(w, r, path)
+}
+
+func (s *Server) handleSessionRecordingsList(w http.ResponseWriter, r *http.Request) {
+	list := []meshcentral.SessionRecording{}
+	if s.meshGw != nil {
+		meshList, err := meshcentral.ListSessionRecordings(s.meshDataDir())
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		list = meshList
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"recordings": list,
+		"note":       "CDAP and RustDesk client-side recordings are stored in the operator browser unless mesh server capture is enabled.",
+	})
+}
+
+func (s *Server) handleMeshDeviceGroup(w http.ResponseWriter, r *http.Request) {
+	if s.meshGw == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "mesh disabled"})
+		return
+	}
+	peerID := r.PathValue("id")
+	var body struct {
+		GroupID string `json:"group_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if err := s.meshGw.AssignDeviceGroup(peerID, body.GroupID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "group_id": body.GroupID})
 }

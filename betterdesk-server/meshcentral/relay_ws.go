@@ -90,7 +90,15 @@ func (g *Gateway) handleRelayWS(w http.ResponseWriter, r *http.Request) {
 	g.pairRelay(ctx, relayID, peer, q.Get("p"))
 }
 
+func isKvmRelayProto(proto string) bool {
+	return proto == "2"
+}
+
 func (g *Gateway) pairRelay(ctx context.Context, relayID string, peer *relayPeer, proto string) {
+	if isKvmRelayProto(proto) {
+		g.runKvmRelayHub(ctx, relayID, peer, proto)
+		return
+	}
 	var session *relaySession
 	if v, loaded := g.relays.LoadOrStore(relayID, &relaySession{id: relayID}); loaded {
 		session = v.(*relaySession)

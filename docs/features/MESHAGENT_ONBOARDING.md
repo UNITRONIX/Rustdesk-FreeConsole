@@ -35,8 +35,9 @@ GitHub Actions job `mesh-interop` in `.github/workflows/go-server-ci.yml` runs b
 
 ## Enable
 
-1. Set `MESH_ENABLED=Y` in the server environment and restart `betterdesk-server`.
-2. Ensure panel HTTPS (`:5443`) proxies `.ashx` paths to the Go API port (default `21114`) — enabled automatically when using the Node.js console.
+The MeshCentral compatibility layer is **enabled by default** on full and minimal installs (`MESH_ENABLED=Y`). To disable, set `MESH_ENABLED=N` in the `betterdesk-server` service environment and restart the service.
+
+1. Ensure panel HTTPS (`:5443`) proxies `.ashx` paths to the Go API port (default `21114`) — enabled automatically when using the Node.js console.
 
 ## Install endpoints
 
@@ -57,7 +58,7 @@ When MeshAgent and RustDesk client run on the same machine, BetterDesk auto-link
 ## Security
 
 - Back up `MESH_AGENT_CERT_FILE` (default `mesh_agent_server.pem`). Loss requires re-enrolling all MeshAgents with a new `.msh`.
-- Keep `MESH_ENABLED=N` on minimal/relay-only nodes unless MeshCentral endpoints are required.
+- Keep `MESH_ENABLED=N` on relay-only nodes if you explicitly disable the module; default is **on**.
 
 ## Update
 

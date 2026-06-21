@@ -727,8 +727,19 @@ function runPrivileged(command, options = {}) {
  * RustDesk clients call the consolidated Go API (21121) over HTTP for heartbeat,
  * sysinfo, login and address-book endpoints; -tls-api breaks that contract.
  */
+/**
+ * Ensure MESH_ENABLED=Y is present in Go server service environment (one-time migration).
+ */
+function ensureMeshEnabledInServiceEnv(envText) {
+    if (!envText || typeof envText !== 'string') return { text: envText, changed: false };
+    if (/^MESH_ENABLED=/m.test(envText)) return { text: envText, changed: false };
+    const trimmed = envText.replace(/\r\n/g, '\n').replace(/\n+$/, '');
+    const line = 'MESH_ENABLED=Y';
+    return { text: trimmed ? `${trimmed}\n${line}` : line, changed: true };
+}
+
 function sanitizeGoServerServiceConfig() {
-    const result = { changed: false, changes: [], error: null };
+    const result = { changed: false, changes: [], error: null, needsRestart: false };
 
     try {
         if (IS_WINDOWS) {
@@ -746,6 +757,23 @@ function sanitizeGoServerServiceConfig() {
                 result.changed = true;
                 result.changes.push('removed Go API TLS flags from NSSM service parameters');
             }
+
+            try {
+                const serverEnvRaw = execSync(`nssm get "${serviceName}" AppEnvironmentExtra 2>nul`, {
+                    timeout: 5000,
+                    stdio: 'pipe'
+                }).toString();
+                const meshPatch = ensureMeshEnabledInServiceEnv(serverEnvRaw);
+                if (meshPatch.changed) {
+                    execFileSync('nssm', ['set', serviceName, 'AppEnvironmentExtra', meshPatch.text], {
+                        timeout: 5000,
+                        stdio: 'pipe'
+                    });
+                    result.changed = true;
+                    result.needsRestart = true;
+                    result.changes.push('set MESH_ENABLED=Y on BetterDesk Go Server NSSM environment');
+                }
+            } catch (_e) { /* server service may not exist */ }
 
             try {
                 const consoleService = COMPONENTS.console.service;
@@ -782,11 +810,26 @@ function sanitizeGoServerServiceConfig() {
             .replace(/Environment=HBBS_API_URL=https:\/\/localhost/g, 'Environment=HBBS_API_URL=http://localhost')
             .replace(/Environment=BETTERDESK_API_URL=https:\/\/localhost/g, 'Environment=BETTERDESK_API_URL=http://localhost');
 
+        if (!/^Environment=MESH_ENABLED=/m.test(clean)) {
+            const meshLine = 'Environment=MESH_ENABLED=Y';
+            if (/^Environment=AUTH_DB_PATH=/m.test(clean)) {
+                clean = clean.replace(/^(Environment=AUTH_DB_PATH=.*)$/m, `$1\n${meshLine}`);
+            } else if (/^\[Service\]/m.test(clean)) {
+                clean = clean.replace(/^\[Service\]/m, `[Service]\n${meshLine}`);
+            } else {
+                clean = `${meshLine}\n${clean}`;
+            }
+            result.needsRestart = true;
+            result.changes.push('set MESH_ENABLED=Y in betterdesk-server systemd unit');
+        }
+
         if (clean !== original) {
             writeTextFilePrivileged(fragmentPath, clean);
             runPrivileged('systemctl daemon-reload', { timeout: 10000, stdio: 'pipe' });
             result.changed = true;
-            result.changes.push('removed Go API TLS flags from systemd service');
+            if (!result.changes.some((c) => c.includes('MESH_ENABLED'))) {
+                result.changes.push('patched betterdesk-server systemd unit');
+            }
         }
     } catch (err) {
         result.error = err.message || String(err);
@@ -1988,6 +2031,21 @@ async function createPreUpdateBackup(allFiles) {
         files: allFiles.filter(f => f.component === 'console' && f.localPath).map(f => f.localPath)
     }, null, 2));
 
+    // Mesh agent-server cert (loss requires re-enrolling all MeshAgents)
+    try {
+        const rustdeskDir = config.rustdeskDir || config.keysPath;
+        if (rustdeskDir) {
+            const meshCert = path.join(rustdeskDir, 'mesh_agent_server.pem');
+            if (fs.existsSync(meshCert)) {
+                const dest = resolveChildPath(backupPath, 'mesh_agent_server.pem');
+                fs.copyFileSync(meshCert, dest);
+                backedUp++;
+            }
+        }
+    } catch (err) {
+        console.warn(`[UPDATE] Mesh agent cert backup skipped: ${err.message}`);
+    }
+
     // Auto-prune old backups based on retention setting.
     // Resolution order: DB setting `backup_retention_count` → env var
     // BACKUP_RETENTION_COUNT → 0 (keep all). Operator-controlled.
@@ -2456,6 +2514,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                         error: `Service config cleanup failed: ${serviceConfig.error}`,
                         nonCritical: true,
                     });
+                }
+                if (serviceConfig.needsRestart) {
+                    results.needsServerRestart = true;
                 }
                 results.needsServerRestart = true;
                 // Fresh binary (with updated dependencies) is in place — any
@@ -3011,6 +3072,7 @@ module.exports = {
     bootstrapDockerImageDeployment,
     getDockerUpdateInstructions,
     isGithubRateLimitError,
+    ensureMeshEnabledInServiceEnv,
     githubApiError,
     COMPONENTS,
     NON_CRITICAL_UPDATE_FAILURES,

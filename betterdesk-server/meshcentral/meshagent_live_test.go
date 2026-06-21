@@ -57,9 +57,16 @@ func TestMeshAgentLiveConnect(t *testing.T) {
 		}
 	})
 
-	deadline := time.Now().Add(90 * time.Second)
+	deadline := time.Now().Add(120 * time.Second)
 	for gw.ActiveAgentCount() == 0 && time.Now().Before(deadline) {
 		time.Sleep(500 * time.Millisecond)
+	}
+	if gw.ActiveAgentCount() != 1 {
+		// One retry after brief pause (CI download/network flake)
+		time.Sleep(3 * time.Second)
+		for gw.ActiveAgentCount() == 0 && time.Now().Before(deadline) {
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
 	if gw.ActiveAgentCount() != 1 {
 		if data, err := os.ReadFile(logPath); err == nil && len(data) > 0 {

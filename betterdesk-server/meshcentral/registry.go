@@ -121,6 +121,20 @@ func (g *Gateway) SaveGroups(groups []MeshGroup) error {
 	return g.db.SetConfig("mesh_groups", string(b))
 }
 
+// AssignDeviceGroup stores mesh group membership for a mesh_agent peer.
+func (g *Gateway) AssignDeviceGroup(peerID, groupID string) error {
+	groupID = strings.TrimSpace(groupID)
+	if err := g.db.SetConfig("mesh_group_id_"+peerID, groupID); err != nil {
+		return err
+	}
+	if v, ok := g.agents.Load(peerID); ok {
+		if ac, ok := v.(*AgentConn); ok && ac != nil {
+			ac.meshGroupID = groupID
+		}
+	}
+	return nil
+}
+
 func (g *Gateway) BuildMSH(meshName, meshIDHex, meshServerURL string) string {
 	meshID := meshIDHex
 	if !strings.HasPrefix(meshID, "0x") {

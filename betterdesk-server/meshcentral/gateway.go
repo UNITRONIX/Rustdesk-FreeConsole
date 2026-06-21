@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,7 +35,8 @@ type Gateway struct {
 	webHash   []byte // SHA-384 of TLS web cert (48 bytes)
 
 	agents sync.Map // peerID -> *AgentConn
-	relays sync.Map // relayID -> *relaySession
+	relays sync.Map // relayID -> *relaySession (non-KVM)
+	relayHubs sync.Map // relayID -> *relayHub (KVM multiplex)
 	relayMeta sync.Map // relayID -> *relayMeta
 
 	ctx    context.Context
@@ -99,6 +101,19 @@ func (g *Gateway) ServerID() string { return g.creds.ServerID }
 
 // ActiveAgentCount returns connected mesh agents.
 func (g *Gateway) ActiveAgentCount() int64 { return g.activeAgents.Load() }
+
+// AgentCertInfo returns mesh agent-server certificate path and presence on disk.
+func (g *Gateway) AgentCertInfo() (path string, present bool, modified string) {
+	path = g.cfg.MeshAgentCertFile
+	if path == "" {
+		path = "mesh_agent_server.pem"
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return path, false, ""
+	}
+	return path, true, info.ModTime().Format(time.RFC3339)
+}
 
 // IsConnected reports whether peer ID has live mesh agent connection.
 func (g *Gateway) IsConnected(peerID string) bool {
