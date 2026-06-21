@@ -129,6 +129,7 @@ router.use('/', registrationRoutes);               // admin-facing: /registratio
 router.use('/api/bd', registrationRoutes);          // device-facing: /api/bd/register-request, /api/bd/register-status
 router.use('/', pagesRoutes);                          // page routes: /inventory, /tickets, /automation, etc.
 router.use('/', cdapRoutes);                            // admin-facing: /cdap/devices/:id, /api/cdap/*
+router.use('/', lazyRoute('./meshcentral.routes'));     // MeshCentral compat API + settings
 router.use('/', chatRoutes);                             // admin-facing: /chat, /api/chat/*
 router.use('/', tokensRoutes);                          // admin-facing: /tokens, /api/panel/tokens/*
 router.use('/api/desktop', desktopRoutes);               // admin-facing: /api/desktop/layout, /api/desktop/wallpapers

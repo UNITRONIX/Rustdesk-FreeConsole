@@ -69,6 +69,8 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRdClientAuth('device
 
     let isOsAgent = false;
     let isCdapConnected = false;
+    let isMeshAgent = false;
+    let meshConnected = false;
     let goPeer = null;
     try {
         const api = require('../services/betterdeskApi');
@@ -76,13 +78,17 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRdClientAuth('device
         if (goPeer) {
             isOsAgent = String(goPeer.device_type || '').toLowerCase() === 'os_agent';
             isCdapConnected = !!goPeer.cdap_connected;
+            isMeshAgent = String(goPeer.device_type || '').toLowerCase() === 'mesh_agent';
+            meshConnected = !!goPeer.mesh_connected;
         }
     } catch { /* non-fatal: degrade to standard viewer */ }
 
     const forced = String(req.query.transport || '').toLowerCase();
     let transport;
-    if (forced === 'cdap' || forced === 'rd') {
+    if (forced === 'mesh' || forced === 'cdap' || forced === 'rd') {
         transport = forced;
+    } else if (isMeshAgent && meshConnected) {
+        transport = 'mesh';
     } else if (isOsAgent || isCdapConnected) {
         transport = 'cdap';
     } else {
@@ -93,6 +99,7 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRdClientAuth('device
         transport,
         os_agent: isOsAgent,
         cdap_connected: isCdapConnected,
+        mesh_connected: meshConnected,
         device_type: goPeer && goPeer.device_type ? String(goPeer.device_type) : '',
     };
 

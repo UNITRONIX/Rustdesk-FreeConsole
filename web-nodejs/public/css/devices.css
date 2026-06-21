@@ -1842,3 +1842,62 @@ td.column-hidden {
     background: rgba(210, 153, 34, 0.15);
     color: #d29922;
 }
+
+.mesh-terminal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.mesh-terminal-modal {
+    width: min(960px, 100%);
+    height: min(70vh, 640px);
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.mesh-terminal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color, #30363d);
+    background: var(--bg-tertiary, #0d1117);
+}
+
+.mesh-terminal-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary, #e6edf3);
+}
+
+.mesh-terminal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+}
+
+.mesh-terminal-close:hover {
+    color: var(--text-primary, #e6edf3);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.mesh-terminal-host {
+    flex: 1;
+    min-height: 0;
+    padding: 8px;
+    background: #0d1117;
+}

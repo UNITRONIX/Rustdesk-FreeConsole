@@ -3978,5 +3978,19 @@
     "remote": "รีโมต",
     "chat": "แชท",
     "more": "เพิ่มเติม"
+  },
+  "mesh": {
+    "settings_title": "MeshCentral Compatibility",
+    "enabled": "MeshCentral layer enabled",
+    "disabled": "MeshCentral layer disabled",
+    "server_id": "Server ID (for .msh)",
+    "download_msh": "Download MeshAgent .msh",
+    "agents_online": "Mesh agents online",
+    "device_type": "Mesh Agent",
+    "transport_mesh": "MeshCentral KVM",
+    "linked_peer": "Linked device",
+    "link_peer": "Link to RustDesk/CDAP peer on same host",
+    "onboarding_title": "MeshAgent onboarding",
+    "onboarding_body": "Download the .msh file, install MeshAgent on endpoints, and devices appear as mesh_agent in the device list."
   }
 }

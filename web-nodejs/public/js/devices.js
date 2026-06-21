@@ -37,6 +37,7 @@
             case 'scada':    return 'precision_manufacturing';
             case 'iot':      return 'sensors';
             case 'os_agent': return 'terminal';
+            case 'mesh_agent': return 'hub';
             case 'mobile':   return 'phone_android';
             case 'rustdesk': return 'connected_tv';
             default:         return 'devices';
@@ -254,11 +255,32 @@
     function buildDeviceMenuItemsHtml(device) {
         const eid = Utils.escapeHtml(device.id);
         const banned = !!device.banned;
+        const isMesh = String(device.device_type || '').toLowerCase() === 'mesh_agent';
+        const meshOnline = isMesh && (device.mesh_connected || device.online);
+        const meshActions = meshOnline ? `
+            <button type="button" class="kebab-menu-item" data-action="mesh-terminal" data-id="${eid}">
+                <span class="material-icons">terminal</span>
+                <span>${_('mesh.terminal') || 'Terminal'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-files" data-id="${eid}">
+                <span class="material-icons">folder</span>
+                <span>${_('mesh.files') || 'File browser'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-run-command" data-id="${eid}">
+                <span class="material-icons">play_arrow</span>
+                <span>${_('mesh.run_command') || 'Run command'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-link-peer" data-id="${eid}">
+                <span class="material-icons">link</span>
+                <span>${_('mesh.link_peer') || 'Link peer'}</span>
+            </button>
+            <div class="kebab-divider"></div>` : '';
         return `
             <button type="button" class="kebab-menu-item connect-desktop" data-action="web-remote" data-id="${eid}">
                 <span class="material-icons">screen_share</span>
                 <span>${_('actions.web_remote') || 'Web Remote'}</span>
             </button>
+            ${meshActions}
             <button type="button" class="kebab-menu-item" data-action="cdap-viewer" data-id="${eid}">
                 <span class="material-icons">photo_camera</span>
                 <span>${_('actions.cdap_viewer') || 'CDAP Snapshot Viewer'}</span>
@@ -381,7 +403,9 @@
                 if (!device) return;
                 openContextMenu(e.clientX, e.clientY, buildDeviceMenuItemsHtml(device), {
                     type: 'device',
-                    id: deviceId
+                    id: deviceId,
+                    linked_peer_id: device.linked_peer_id || '',
+                    deviceName: device.display_name || device.hostname || ''
                 });
             });
         });
@@ -859,7 +883,11 @@
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 closeAllKebabMenus();
-                handleAction(btn.dataset.action, btn.dataset.id, btn.dataset);
+                const row = btn.closest('tr[data-id]');
+                const deviceId = btn.dataset.id || row && row.dataset.id;
+                const device = devices.find(d => d.id === deviceId) ||
+                    filteredDevices.find(d => d.id === deviceId);
+                handleAction(btn.dataset.action, deviceId, device || btn.dataset);
             });
         });
 
@@ -945,6 +973,26 @@
 
             case 'connect-desktop':
                 connectDesktopClient(deviceId);
+                break;
+
+            case 'mesh-terminal':
+                if (typeof openMeshTerminal === 'function') {
+                    openMeshTerminal(deviceId);
+                } else {
+                    Notifications.error(_('mesh.terminal_unavailable') || 'Terminal module not loaded');
+                }
+                break;
+
+            case 'mesh-files':
+                window.open('/remote/' + encodeURIComponent(deviceId) + '?transport=mesh&panel=files', '_blank');
+                break;
+
+            case 'mesh-run-command':
+                showMeshRunCommandModal(deviceId);
+                break;
+
+            case 'mesh-link-peer':
+                showMeshLinkPeerModal(deviceId, data);
                 break;
 
             case 'remote-viewer':
@@ -1150,6 +1198,79 @@
         }
     }
     
+    function showMeshRunCommandModal(deviceId) {
+        Modal.show({
+            title: (_('mesh.run_command_title') || 'Run command') + ' — ' + deviceId,
+            content: `
+                <div class="form-group">
+                    <label for="mesh-cmd-input">${_('mesh.command_placeholder') || 'Command'}</label>
+                    <textarea id="mesh-cmd-input" class="form-input" rows="4" placeholder="whoami"></textarea>
+                </div>
+                <label class="toggle-row">
+                    <input type="checkbox" id="mesh-cmd-shell" checked>
+                    <span>${_('mesh.run_as_shell') || 'Run in shell'}</span>
+                </label>`,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                {
+                    label: _('actions.run') || 'Run',
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        const command = document.getElementById('mesh-cmd-input').value;
+                        if (!command.trim()) return;
+                        const shell = document.getElementById('mesh-cmd-shell').checked;
+                        try {
+                            await Utils.api('/api/mesh/devices/' + encodeURIComponent(deviceId) + '/exec', {
+                                method: 'POST',
+                                body: { command: command.trim(), shell },
+                            });
+                            Notifications.success(_('mesh.command_sent') || 'Command sent');
+                            Modal.close();
+                        } catch (err) {
+                            Notifications.error(err.message || (_('mesh.command_failed') || 'Failed'));
+                        }
+                    },
+                },
+            ],
+        });
+    }
+
+    async function showMeshLinkPeerModal(deviceId, data) {
+        const linkedId = data && data.linked_peer_id ? String(data.linked_peer_id) : '';
+        Modal.show({
+            title: (_('mesh.link_peer_title') || 'Link mesh agent') + ' — ' + deviceId,
+            content: `
+                <p class="form-hint">${_('mesh.link_peer_hint') || 'Enter RustDesk or CDAP peer ID on the same host. Leave empty to unlink.'}</p>
+                <div class="form-group">
+                    <label for="mesh-link-peer-id">${_('mesh.linked_peer') || 'Linked device'}</label>
+                    <input type="text" id="mesh-link-peer-id" class="form-input" value="${Utils.escapeHtml(linkedId)}" placeholder="PEER_ID">
+                </div>`,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                {
+                    label: _('actions.save'),
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        const peerId = document.getElementById('mesh-link-peer-id').value.trim();
+                        try {
+                            await Utils.api('/api/cdap/devices/' + encodeURIComponent(deviceId) + '/link', {
+                                method: 'POST',
+                                body: { linked_peer_id: peerId },
+                            });
+                            Notifications.success(_('mesh.link_saved') || 'Link updated');
+                            Modal.close();
+                            loadDevices();
+                        } catch (err) {
+                            Notifications.error(err.message || _('errors.server_error'));
+                        }
+                    },
+                },
+            ],
+        });
+    }
+
     /**
      * Show device details modal
      */

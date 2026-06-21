@@ -1,7 +1,11 @@
 ## [Unreleased]
 
+### Added
+- **MeshCentral compatibility layer** (optional `MESH_ENABLED=Y`): native Go implementation of `/agent.ashx`, `/meshrelay.ashx`, and `/control.ashx` for unmodified MeshAgent binaries; unified inventory with `mesh_agent` device type; rdclient web `transport=mesh`; REST helpers (`/api/mesh/*`, `POST /api/peers/{id}/exec`); panel `.msh` download and `.ashx` WebSocket proxy. See [docs/features/MESHAGENT_ONBOARDING.md](docs/features/MESHAGENT_ONBOARDING.md).
+
 ### Changed
-- _(none yet)_
+- **Mesh agent assets**: AGPL **BetterCore** (`bettercore.js`) and **BetterViewer** (`betterviewer.js`) replace vendored upstream MeshCentral JavaScript.
+- **BetterCore phase 2**: consent prompts, WebRTC tunnel handoff, PowerShell terminals (`p=6`/`p=9`); interop CI with simulated handshake + live MeshAgent binary job.
 
 ---
 

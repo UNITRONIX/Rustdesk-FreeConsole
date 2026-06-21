@@ -26,6 +26,7 @@ import (
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
 	eventsModule "github.com/unitronix/betterdesk-server/events"
+	"github.com/unitronix/betterdesk-server/meshcentral"
 	"github.com/unitronix/betterdesk-server/metrics"
 	"github.com/unitronix/betterdesk-server/peer"
 	"github.com/unitronix/betterdesk-server/ratelimit"
@@ -65,6 +66,7 @@ type Server struct {
 	brandingLimiter   *ratelimit.IPLimiter
 	keyPair           *crypto.KeyPair    // Ed25519 keypair for signing
 	cdapGw            *cdap.Gateway      // CDAP gateway (nil if CDAP disabled)
+	meshGw            *meshcentral.Gateway // MeshCentral compat (nil if disabled)
 	ldapProvider      *auth.LDAPProvider // LDAP auth provider (nil if not configured)
 	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
@@ -201,6 +203,11 @@ func (s *Server) SetKeyPair(kp *crypto.KeyPair) {
 // SetCDAPGateway sets the CDAP gateway for serving CDAP REST endpoints.
 func (s *Server) SetCDAPGateway(gw *cdap.Gateway) {
 	s.cdapGw = gw
+}
+
+// SetMeshGateway sets the MeshCentral compatibility gateway.
+func (s *Server) SetMeshGateway(gw *meshcentral.Gateway) {
+	s.meshGw = gw
 }
 
 // InitLDAP initializes the LDAP provider from the database configuration.
@@ -507,6 +514,22 @@ func (s *Server) Start(ctx context.Context) error {
 	// CDAP audio stream WebSocket (operator+)
 	mux.HandleFunc("GET /api/cdap/devices/{id}/audio", s.requireRole(auth.RoleOperator, s.handleCDAPAudio))
 
+	// MeshCentral compatibility REST
+	mux.HandleFunc("GET /api/mesh/server-id", s.requirePermission(auth.PermServerConfig, s.handleMeshServerID))
+	mux.HandleFunc("GET /api/mesh/status", s.requirePermission(auth.PermDeviceView, s.handleMeshStatus))
+	mux.HandleFunc("GET /api/mesh/groups", s.requirePermission(auth.PermServerConfig, s.handleMeshGroupsList))
+	mux.HandleFunc("POST /api/mesh/groups", s.requirePermission(auth.PermServerConfig, s.handleMeshGroupsSave))
+	mux.HandleFunc("GET /api/mesh/download.msh", s.requirePermission(auth.PermServerConfig, s.handleMeshDownloadMSH))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/desktop", s.requireRole(auth.RoleOperator, s.handleMeshDesktopTunnel))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/terminal", s.requireRole(auth.RoleOperator, s.handleMeshTerminalTunnel))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/files", s.requireRole(auth.RoleOperator, s.handleMeshFilesTunnel))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/exec", s.requireRole(auth.RoleOperator, s.handleMeshExec))
+	mux.HandleFunc("POST /api/peers/{id}/exec", s.requireRole(auth.RoleOperator, s.handleUnifiedPeerExec))
+
+	if s.meshGw != nil {
+		s.meshGw.RegisterRoutes(mux)
+	}
+
 	// BetterDesk desktop client management WebSocket (no API key — device auth)
 	mux.HandleFunc("GET /ws/bd-mgmt/{device_id}", s.handleBdMgmt)
 	// Management REST endpoints (admin/operator only)
@@ -757,6 +780,8 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 		LiveStatus    peer.Status `json:"live_status"`
 		Platform      string      `json:"platform"`
 		CDAPConnected bool        `json:"cdap_connected"`
+		MeshConnected bool        `json:"mesh_connected"`
+		MeshNodeID    string      `json:"mesh_node_id,omitempty"`
 	}
 
 	result := make([]peerResponse, len(peers))
@@ -773,6 +798,15 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 			liveOnline = true
 			liveStatus = peer.StatusOnline
 		}
+		meshConnected := s.meshGw != nil && s.meshGw.IsConnected(p.ID)
+		if meshConnected && !liveOnline {
+			liveOnline = true
+			liveStatus = peer.StatusOnline
+		}
+		meshNodeID := ""
+		if s.meshGw != nil {
+			meshNodeID = s.meshGw.MeshNodeID(p.ID)
+		}
 
 		statusInt := 1
 		if p.Disabled {
@@ -787,6 +821,8 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 			LiveStatus:    liveStatus,
 			Platform:      p.OS,
 			CDAPConnected: cdapConnected,
+			MeshConnected: meshConnected,
+			MeshNodeID:    meshNodeID,
 		}
 	}
 
@@ -872,6 +908,15 @@ func (s *Server) handleGetPeer(w http.ResponseWriter, r *http.Request) {
 		liveOnline = true
 		liveStatus = peer.StatusOnline
 	}
+	meshConnected := s.meshGw != nil && s.meshGw.IsConnected(p.ID)
+	if meshConnected && !liveOnline {
+		liveOnline = true
+		liveStatus = peer.StatusOnline
+	}
+	meshNodeID := ""
+	if s.meshGw != nil {
+		meshNodeID = s.meshGw.MeshNodeID(p.ID)
+	}
 
 	type singlePeerResponse struct {
 		*db.Peer
@@ -881,6 +926,8 @@ func (s *Server) handleGetPeer(w http.ResponseWriter, r *http.Request) {
 		LiveStatus    peer.Status `json:"live_status"`
 		Platform      string      `json:"platform"`
 		CDAPConnected bool        `json:"cdap_connected"`
+		MeshConnected bool        `json:"mesh_connected"`
+		MeshNodeID    string      `json:"mesh_node_id,omitempty"`
 	}
 
 	statusInt := 1
@@ -896,6 +943,8 @@ func (s *Server) handleGetPeer(w http.ResponseWriter, r *http.Request) {
 		LiveStatus:    liveStatus,
 		Platform:      p.OS,
 		CDAPConnected: cdapConnected,
+		MeshConnected: meshConnected,
+		MeshNodeID:    meshNodeID,
 	})
 }
 

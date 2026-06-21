@@ -127,6 +127,13 @@ type Config struct {
 	CDAPTLS       bool // Enable TLS on CDAP port
 	CDAPRateLimit int  // Max requests per minute per IP (default 30)
 
+	// MeshCentral compatibility layer
+	MeshCentralEnabled bool   // MESH_ENABLED
+	MeshCoreVersion    string // MESH_CORE_VERSION pin
+	MeshAgentCertFile  string // MESH_AGENT_CERT_FILE RSA-3072 agent-server key
+	MeshAssetsDir      string // optional override for meshcore assets
+	MeshRateLimit      int    // WS upgrade rate limit per IP per minute
+
 	// Time sync / billing (commercialization module)
 	NTPServers                string // Comma-separated NTP servers
 	BillingMaxClockSkewMS     int    // Max allowed clock offset vs NTP (default 2000)
@@ -150,6 +157,10 @@ func DefaultConfig() *Config {
 		CDAPPort:             21122,
 		CDAPEnabled:          true, // Enabled by default; set CDAP_ENABLED=N for minimal installs
 		CDAPRateLimit:        30,
+		MeshCentralEnabled:   false,
+		MeshCoreVersion:      "1.2.0",
+		MeshAgentCertFile:    "mesh_agent_server.pem",
+		MeshRateLimit:        30,
 		SignalRateLimitPerIP: IPRateLimitRegistrations,
 		SameNATRelay:         true, // issue #121: auto-fallback to relay on shared public IP
 		P2PFirst:             true, // issue #157: give direct P2P a real chance before relay
@@ -341,6 +352,25 @@ func (c *Config) LoadEnv() {
 	if v := os.Getenv("CDAP_RATE_LIMIT"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			c.CDAPRateLimit = n
+		}
+	}
+	if v := strings.ToUpper(os.Getenv("MESH_ENABLED")); v == "N" || v == "NO" || v == "FALSE" || v == "0" {
+		c.MeshCentralEnabled = false
+	} else if v == "Y" || v == "YES" || v == "TRUE" || v == "1" {
+		c.MeshCentralEnabled = true
+	}
+	if v := os.Getenv("MESH_CORE_VERSION"); v != "" {
+		c.MeshCoreVersion = v
+	}
+	if v := os.Getenv("MESH_AGENT_CERT_FILE"); v != "" {
+		c.MeshAgentCertFile = v
+	}
+	if v := os.Getenv("MESH_ASSETS_DIR"); v != "" {
+		c.MeshAssetsDir = v
+	}
+	if v := os.Getenv("MESH_RATE_LIMIT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.MeshRateLimit = n
 		}
 	}
 	if v := os.Getenv("NTP_SERVERS"); v != "" {

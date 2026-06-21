@@ -73,7 +73,7 @@ The layer is **not a fork** of MeshCentral. It reimplements the **wire protocol 
 
 ### Accepted constraint
 
-MeshAgent **cannot** provide remote desktop without **MeshCore** — JavaScript pushed by the server after the binary handshake. BetterDesk must host a compatible `meshcore.js` (initially vendored verbatim from upstream MeshCentral, pinned to a specific version).
+MeshAgent **cannot** provide remote desktop without **MeshCore** — JavaScript pushed by the server after the binary handshake. BetterDesk ships **BetterCore** (`bettercore.js`, embedded in `betterdesk-server`) and **BetterViewer** (`betterviewer.js`, panel static JS). No upstream MeshCentral JavaScript is vendored in the repository.
 
 ---
 
@@ -144,7 +144,7 @@ else                                      →  transport=rd (RustDesk)
 
 ### AD-6: Pinned upstream version
 
-**Decision**: Pin MeshCentral assets (`meshcore.js`, `agent-desktop-0.0.2.js`) to a specific release (e.g. **1.2.0**). Interop tests run against real MeshAgent from that release line.
+**Decision**: Mesh interoperability uses real MeshAgent binaries against BetterDesk **BetterCore** and **BetterViewer** (AGPL). Interop tests run against MeshAgent 1.2.x agents.
 
 **Rationale**: MC protocol is largely undocumented; behavior is reverse-engineered from source. Pinning limits breakage from upstream changes.
 
@@ -186,7 +186,7 @@ MeshCentral uses **WebSocket-centric JSON + binary** protocols, not REST. The co
 |--------|------|---------|
 | 11 | `CoreModuleHash` | Agent reports MeshCore SHA-384 |
 | 16 | `CoreOk` | Server approves core |
-| 10 / 20 | `CoreModule` / `CompressedCoreModule` | Server pushes `meshcore.js` |
+| 10 / 20 | `CoreModule` / `CompressedCoreModule` | Server pushes `bettercore.js` |
 
 Remote desktop, terminal, and file access execute inside **MeshCore** (Duktape JS runtime inside MeshAgent), not in the C binary alone.
 
@@ -223,12 +223,12 @@ BetterDesk panel generates `.msh` with correct `ServerID` from `GET /api/mesh/se
 
 ### KVM binary protocol (`p=2`)
 
-Documented in MeshCentral `agent-desktop-0.0.2.js`. Key command families:
+Documented MNG_KVM command families (BetterDesk `betterviewer.js`):
 
-- **Agent → Browser**: `MNG_KVM_PICTURE` (JPEG tiles), `MNG_KVM_SCREEN`, `MNG_KVM_GET_DISPLAYS`, display info, cursor.
-- **Browser → Agent**: `MNG_KVM_KEY`, `MNG_KVM_MOUSE`, compression/scaling, display selection.
+- **Agent → Browser**: JPEG tiles, screen size, display list, cursor, input lock, keyboard LED state.
+- **Browser → Agent**: key/mouse/touch input, compression/scaling, display selection, Ctrl+Alt+Del.
 
-Initial implementation: **opaque binary forward** through relay (no transcoding). Viewer may embed upstream `agent-desktop` JS until unified BetterDesk viewer supports MNG_KVM natively.
+Initial implementation: **opaque binary forward** through relay (no transcoding). Browser uses the native BetterDesk MNG_KVM viewer.
 
 ---
 
@@ -283,7 +283,7 @@ flowchart TB
 | `relay_ws.go` | `/meshrelay.ashx` — session matching, `c`/`cr`, binary pipe |
 | `control_ws.go` | `/control.ashx` — operator channel, `nodes`, tunnel orchestration |
 | `auth.go` | Agent-server RSA cert, SHA-384 pinning, relay cookie crypto |
-| `meshcore.go` | Serve pinned `meshcore.js` assets |
+| `meshcore.go` | Embed and serve BetterCore |
 | `kvm.go` | MNG_KVM `p=2` relay / viewer bridge |
 | `registry.go` | `nodeid` → `peers.id`, `device_type=mesh_agent` |
 | `groups.go` | Mesh groups → BetterDesk folders / device groups |
@@ -358,7 +358,7 @@ MeshCentral device groups ("meshes") map to existing folder / org structures:
 **Deliverables:**
 
 - This document (finalized after review).
-- Vendored assets: `meshcore.js`, `agent-desktop-0.0.2.js` with LICENSE/NOTICE.
+- AGPL assets: **BetterCore** / **BetterViewer** (`bettercore.js`, `betterviewer.js`; see `meshcentral/assets/NOTICE`).
 - Docker-based interop test: real MeshAgent → test BetterDesk server.
 - `go test` scaffolding for handshake and relay token matching.
 
@@ -402,7 +402,7 @@ MeshCentral device groups ("meshes") map to existing folder / org structures:
 **Web panel:**
 
 - `transport=mesh` in `remote.routes.js`.
-- `mesh-adapter.js` + viewer (embed `agent-desktop` initially).
+- `mesh-adapter.js` + **BetterViewer** native MNG_KVM client.
 - `.ashx` proxy on panel HTTPS port.
 
 **Gold-standard acceptance:**
@@ -476,7 +476,7 @@ MeshCentral features that BetterDesk lacks or implements differently — opportu
 | `betterdesk-server/meshcentral/kvm.go` | KVM relay |
 | `betterdesk-server/meshcentral/registry.go` | Peer mapping |
 | `betterdesk-server/meshcentral/groups.go` | Mesh groups |
-| `betterdesk-server/meshcentral/assets/` | Pinned meshcore + viewer JS |
+| `betterdesk-server/meshcentral/assets/` | BetterCore + BetterViewer JS |
 | `betterdesk-server/meshcentral/*_test.go` | Unit + interop tests |
 | `betterdesk-server/api/mesh_handlers.go` | REST helpers (`/api/mesh/*`) |
 

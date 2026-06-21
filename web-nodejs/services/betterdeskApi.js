@@ -513,7 +513,8 @@ function normalisePeer(peer) {
         // os_agent / CDAP endpoints use HTTP heartbeat + CDAP WS, not RustDesk UDP
         // :21116 — don't show "No signal" when CDAP is connected.
         no_signal: !liveOnline && !banned && isRecentLastOnline(lastOnline)
-            && !(peer.device_type === 'os_agent' && peer.cdap_connected),
+            && !(peer.device_type === 'os_agent' && peer.cdap_connected)
+            && !(peer.device_type === 'mesh_agent' && peer.mesh_connected),
         created_at: peer.created_at || '',
         last_online: lastOnline,
         ban_reason: peer.ban_reason || '',
@@ -525,8 +526,20 @@ function normalisePeer(peer) {
         nat_type: peer.nat_type || 0,
         disabled: !!(peer.disabled || peer.soft_deleted),
         device_type: peer.device_type || '',
-        cdap_connected: !!peer.cdap_connected
+        cdap_connected: !!peer.cdap_connected,
+        mesh_connected: !!peer.mesh_connected,
+        mesh_node_id: peer.mesh_node_id || '',
+        linked_peer_id: peer.linked_peer_id || ''
     };
+}
+
+async function getMeshStatus() {
+    try {
+        const { data } = await apiClient.get('/mesh/status');
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message, data: { enabled: false } };
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1105,6 +1118,7 @@ module.exports = {
     getCDAPDeviceState,
     sendCDAPCommand,
     getCDAPAlerts,
+    getMeshStatus,
     getLinkedPeers,
     linkDevice,
     // Device Tokens

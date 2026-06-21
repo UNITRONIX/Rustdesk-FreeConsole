@@ -29,10 +29,17 @@
     // agnostic.
     function getTransportName() {
         const caps = window.__capabilities || {};
-        return String(caps.transport || 'rd').toLowerCase() === 'cdap' ? 'cdap' : 'rd';
+        const t = String(caps.transport || 'rd').toLowerCase();
+        if (t === 'mesh') return 'mesh';
+        if (t === 'cdap') return 'cdap';
+        return 'rd';
     }
     function createTransportClient(canvas, opts) {
-        if (getTransportName() === 'cdap' && typeof CDAPSession === 'function') {
+        const name = getTransportName();
+        if (name === 'mesh' && typeof MeshSession === 'function') {
+            return new MeshSession(canvas, opts);
+        }
+        if (name === 'cdap' && typeof CDAPSession === 'function') {
             return new CDAPSession(canvas, opts);
         }
         return new RDClient(canvas, opts);
@@ -621,6 +628,15 @@
                 session.client.video.onAutoplayBlocked = () => {
                     if (isActive(session)) showAutoplayOverlay(session);
                 };
+            }
+            if (window.__openFilePanelOnConnect && isActive(session) && session.filePanel) {
+                window.__openFilePanelOnConnect = false;
+                session.filePanel.style.display = 'flex';
+                const fileBtn = document.getElementById('btn-file-transfer');
+                if (fileBtn) fileBtn.classList.add('active');
+                if (session.client && session.client.fileTransfer) {
+                    session.client.fileTransfer.browseDir('');
+                }
             }
         });
 
@@ -1884,6 +1900,10 @@
 
         const deviceId = window.__initialDeviceId;
         const deviceName = window.__initialDeviceName || '';
+        const panelPref = new URLSearchParams(window.location.search).get('panel');
+        if (panelPref === 'files') {
+            window.__openFilePanelOnConnect = true;
+        }
         if (deviceId) {
             createSession(deviceId, deviceName);
         }

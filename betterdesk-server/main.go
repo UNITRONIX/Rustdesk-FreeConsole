@@ -28,6 +28,7 @@ import (
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/internal/productversion"
 	"github.com/unitronix/betterdesk-server/logging"
+	"github.com/unitronix/betterdesk-server/meshcentral"
 	"github.com/unitronix/betterdesk-server/metrics"
 	"github.com/unitronix/betterdesk-server/ratelimit"
 	"github.com/unitronix/betterdesk-server/relay"
@@ -365,6 +366,25 @@ func main() {
 			apiSrv.SetCDAPGateway(cdapGw)
 		}
 
+		// MeshCentral compatibility layer (optional)
+		var meshGw *meshcentral.Gateway
+		if cfg.MeshCentralEnabled {
+			meshGw, err = meshcentral.NewGateway(cfg, database, sig.PeerMap(), sig.EventBus(), jwtSecret)
+			if err != nil {
+				log.Fatalf("Failed to init MeshCentral gateway: %v", err)
+			}
+			meshGw.SetBlocklist(blocklist)
+			meshGw.SetAuditLogger(auditLogger)
+			meshGw.SetJWTManager(jwtManager)
+			meshGw.SetVersion(Version)
+			if cfg.TLSCertFile != "" {
+				if certDER, readErr := os.ReadFile(cfg.TLSCertFile); readErr == nil {
+					meshGw.SetWebCertHash(meshcentral.WebCertHash(certDER))
+				}
+			}
+			apiSrv.SetMeshGateway(meshGw)
+		}
+
 		if err := apiSrv.Start(ctx); err != nil {
 			log.Fatalf("Failed to start API server: %v", err)
 		}
@@ -375,6 +395,13 @@ func main() {
 				log.Fatalf("Failed to start CDAP gateway: %v", err)
 			}
 			defer cdapGw.Stop()
+		}
+
+		if meshGw != nil {
+			if err := meshGw.Start(ctx); err != nil {
+				log.Fatalf("Failed to start MeshCentral gateway: %v", err)
+			}
+			defer meshGw.Stop()
 		}
 
 		adminSrv.SetPeerMap(sig.PeerMap())
