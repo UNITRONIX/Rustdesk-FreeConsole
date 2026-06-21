@@ -344,20 +344,36 @@ func base64MeshID(raw []byte) string {
 }
 
 // SendTunnel instructs agent to open meshrelay tunnel.
-func (g *Gateway) SendTunnel(peerID, tunnelURL string) error {
+func (g *Gateway) SendTunnel(peerID, tunnelURL string, rights uint32, viewOnly bool, opts *TunnelOpts) error {
 	v, ok := g.agents.Load(peerID)
 	if !ok {
 		return fmt.Errorf("mesh agent not connected")
 	}
 	ac, _ := v.(*AgentConn)
+	if rights == 0 {
+		rights = 0xFFFFFFFF
+	}
 	msg := map[string]interface{}{
 		"action":   "msg",
 		"type":     "tunnel",
 		"value":    tunnelURL,
-		"rights":   0xFFFFFFFF,
+		"rights":   rights,
 		"consent":  0,
 		"username": "BetterDesk",
 		"realname": "BetterDesk Operator",
+	}
+	if viewOnly {
+		msg["desktopviewonly"] = true
+	}
+	if opts != nil {
+		if opts.TCPPort > 0 {
+			msg["tcpaddr"] = opts.TCPAddr
+			msg["tcpport"] = opts.TCPPort
+		}
+		if opts.UDPPort > 0 {
+			msg["udpaddr"] = opts.UDPAddr
+			msg["udpport"] = opts.UDPPort
+		}
 	}
 	b, _ := json.Marshal(msg)
 	return ac.conn.Write(g.ctx, websocket.MessageText, b)

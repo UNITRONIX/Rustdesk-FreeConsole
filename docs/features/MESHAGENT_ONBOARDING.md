@@ -6,7 +6,23 @@ BetterDesk ships a native MeshCentral compatibility layer in `betterdesk-server`
 
 MeshAgent receives **BetterCore** (agent-side JS) after the binary handshake. The panel remote viewer uses **BetterViewer** for MNG_KVM desktop sessions (`transport=mesh`).
 
-BetterCore includes: user **consent** prompts (desktop/terminal/files), **WebRTC** relay handoff (`webrtc0`–`webrtc2`, SDP offer/answer), and **PowerShell** terminals (`p=6` admin, `p=9` user on Windows).
+BetterCore includes: user **consent** prompts (desktop/terminal/files), **WebRTC** relay handoff (`webrtc0`–`webrtc2`, SDP offer/answer), **PowerShell** terminals (`p=6` admin, `p=9` user on Windows), and **TCP/UDP port relay** (`POST /api/mesh/devices/{id}/tcp` / `udp`).
+
+## Operator actions (panel)
+
+For online `mesh_agent` devices, the device menu includes:
+
+- **Web Remote** — KVM desktop (`transport=mesh`)
+- **Terminal** — interactive shell (`p=1`)
+- **File browser** — remote files (`p=5`) or `?panel=files` on web remote
+- **Run command** — one-shot `runcommands` on the agent channel
+- **Guest desktop link** — time-limited view-only URL (`mesh_share` token)
+- **TCP port relay** — browser tunnel to a host/port on the agent LAN
+- **Sleep / Reset** — `devicepower` via MeshAgent (`POST /api/mesh/devices/{id}/power`)
+
+Power **wake** on sleeping agents follows MeshCentral rules (other agents on the mesh send WoL); use RustDesk WoL on linked peers when a MAC is known.
+
+Session **recording** (server-side `.mcrec` capture): open web remote with `?record=1` on the desktop tunnel request (operator session).
 
 ## Interop CI
 

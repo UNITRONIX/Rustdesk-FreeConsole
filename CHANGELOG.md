@@ -13,6 +13,7 @@
 ### Changed
 - **Mesh agent assets**: AGPL **BetterCore** (`bettercore.js`) and **BetterViewer** (`betterviewer.js`) replace vendored upstream MeshCentral JavaScript.
 - **BetterCore phase 2**: consent prompts, WebRTC tunnel handoff, PowerShell terminals (`p=6`/`p=9`); interop CI with simulated handshake + live MeshAgent binary job.
+- **Mesh operator tools**: guest desktop share links (`mesh_share`), TCP/UDP port relay (`POST /api/mesh/devices/{id}/tcp` / `udp`), device power actions (sleep/reset), session recording to `.mcrec`, Settings → MeshCentral section, linked-peer UX in device menu.
 
 ---
 

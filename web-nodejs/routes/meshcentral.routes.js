@@ -61,6 +61,33 @@ router.post('/api/mesh/devices/:id/files', requireAuth, requirePermission('devic
     return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/files`);
 });
 
+router.post('/api/mesh/devices/:id/share', requireAuth, requirePermission('device.connect'), async (req, res) => {
+    const id = req.params.id;
+    return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/share`, req.body);
+});
+
+router.get('/api/mesh/share/validate', async (req, res) => {
+    return proxyToGo(betterdeskApi.apiClient, req, res, 'GET', () => {
+        const qs = new URLSearchParams(req.query).toString();
+        return '/mesh/share/validate' + (qs ? `?${qs}` : '');
+    });
+});
+
+router.post('/api/mesh/devices/:id/tcp', requireAuth, requirePermission('device.connect'), async (req, res) => {
+    const id = req.params.id;
+    return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/tcp`, req.body);
+});
+
+router.post('/api/mesh/devices/:id/udp', requireAuth, requirePermission('device.connect'), async (req, res) => {
+    const id = req.params.id;
+    return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/udp`, req.body);
+});
+
+router.post('/api/mesh/devices/:id/power', requireAuth, requirePermission('device.connect'), async (req, res) => {
+    const id = req.params.id;
+    return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/power`, req.body);
+});
+
 router.post('/api/mesh/devices/:id/exec', requireAuth, requirePermission('device.connect'), async (req, res) => {
     const id = req.params.id;
     return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/exec`, req.body);

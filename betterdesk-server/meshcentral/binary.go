@@ -23,6 +23,7 @@ const (
 	relayProtocolKVM      = 2
 	relayProtocolTerminal = 1
 	relayProtocolFiles    = 5
+	relayProtocolTCP      = 14
 )
 
 func writeU16(v uint16) []byte {

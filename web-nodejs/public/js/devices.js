@@ -274,6 +274,22 @@
                 <span class="material-icons">link</span>
                 <span>${_('mesh.link_peer') || 'Link peer'}</span>
             </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-share" data-id="${eid}">
+                <span class="material-icons">link</span>
+                <span>${_('mesh.share_link') || 'Guest desktop link'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-port-tcp" data-id="${eid}">
+                <span class="material-icons">settings_ethernet</span>
+                <span>${_('mesh.port_tcp') || 'TCP port relay'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-sleep" data-id="${eid}">
+                <span class="material-icons">bedtime</span>
+                <span>${_('mesh.power_sleep') || 'Sleep'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-reset" data-id="${eid}">
+                <span class="material-icons">restart_alt</span>
+                <span>${_('mesh.power_reset') || 'Reset'}</span>
+            </button>
             <div class="kebab-divider"></div>` : '';
         return `
             <button type="button" class="kebab-menu-item connect-desktop" data-action="web-remote" data-id="${eid}">
@@ -995,6 +1011,26 @@
                 showMeshLinkPeerModal(deviceId, data);
                 break;
 
+            case 'mesh-share':
+                showMeshShareModal(deviceId);
+                break;
+
+            case 'mesh-port-tcp':
+                if (typeof openMeshPortForward === 'function') {
+                    openMeshPortForward(deviceId, false);
+                } else {
+                    Notifications.error(_('mesh.port_unavailable') || 'Port relay module not loaded');
+                }
+                break;
+
+            case 'mesh-power-sleep':
+                meshPowerAction(deviceId, 'sleep');
+                break;
+
+            case 'mesh-power-reset':
+                meshPowerAction(deviceId, 'reset');
+                break;
+
             case 'remote-viewer':
                 // Legacy action: route through the unified web remote client.
                 _tryAddRemoteTab(deviceId, data);
@@ -1262,6 +1298,66 @@
                             Notifications.success(_('mesh.link_saved') || 'Link updated');
                             Modal.close();
                             loadDevices();
+                        } catch (err) {
+                            Notifications.error(err.message || _('errors.server_error'));
+                        }
+                    },
+                },
+            ],
+        });
+    }
+
+    async function meshPowerAction(deviceId, action) {
+        const labels = { sleep: _('mesh.power_sleep') || 'Sleep', reset: _('mesh.power_reset') || 'Reset' };
+        const label = labels[action] || action;
+        if (!confirm((_('mesh.power_confirm') || 'Send power action') + ': ' + label + '?')) return;
+        try {
+            await Utils.api('/api/mesh/devices/' + encodeURIComponent(deviceId) + '/power', {
+                method: 'POST',
+                body: { action },
+            });
+            Notifications.success(_('mesh.power_sent') || 'Power command sent');
+        } catch (err) {
+            Notifications.error(err.message || _('errors.server_error'));
+        }
+    }
+
+    async function showMeshShareModal(deviceId) {
+        Modal.show({
+            title: (_('mesh.share_link_title') || 'Guest desktop link') + ' — ' + deviceId,
+            content: `
+                <p class="form-hint">${_('mesh.share_link_hint') || 'Time-limited link for view-only remote desktop (no panel login required).'}</p>
+                <div class="form-group">
+                    <label for="mesh-share-ttl">${_('mesh.share_ttl') || 'Valid for (minutes)'}</label>
+                    <input type="number" id="mesh-share-ttl" class="form-input" min="15" max="1440" value="120">
+                </div>
+                <div class="form-group" id="mesh-share-result" style="display:none;">
+                    <label>${_('mesh.share_url') || 'Share URL'}</label>
+                    <input type="text" id="mesh-share-url" class="form-input" readonly>
+                </div>`,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                {
+                    label: _('mesh.share_create') || 'Create link',
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        const ttl = parseInt(document.getElementById('mesh-share-ttl').value, 10) || 120;
+                        try {
+                            const resp = await Utils.api('/api/mesh/devices/' + encodeURIComponent(deviceId) + '/share', {
+                                method: 'POST',
+                                body: { ttl_minutes: ttl, view_only: true },
+                            });
+                            const data = resp.data || resp;
+                            const path = data.path || '';
+                            const full = window.location.origin + path;
+                            const result = document.getElementById('mesh-share-result');
+                            const urlInput = document.getElementById('mesh-share-url');
+                            if (result && urlInput) {
+                                urlInput.value = full;
+                                result.style.display = 'block';
+                            }
+                            Notifications.success(_('mesh.share_created') || 'Link created');
                         } catch (err) {
                             Notifications.error(err.message || _('errors.server_error'));
                         }

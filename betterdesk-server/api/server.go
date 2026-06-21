@@ -523,6 +523,11 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/mesh/devices/{id}/desktop", s.requireRole(auth.RoleOperator, s.handleMeshDesktopTunnel))
 	mux.HandleFunc("POST /api/mesh/devices/{id}/terminal", s.requireRole(auth.RoleOperator, s.handleMeshTerminalTunnel))
 	mux.HandleFunc("POST /api/mesh/devices/{id}/files", s.requireRole(auth.RoleOperator, s.handleMeshFilesTunnel))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/share", s.requireRole(auth.RoleOperator, s.handleMeshShareCreate))
+	mux.HandleFunc("GET /api/mesh/share/validate", s.handleMeshShareValidate)
+	mux.HandleFunc("POST /api/mesh/devices/{id}/tcp", s.requireRole(auth.RoleOperator, s.handleMeshTcpRelay))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/udp", s.requireRole(auth.RoleOperator, s.handleMeshUdpRelay))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/power", s.requireRole(auth.RoleOperator, s.handleMeshPower))
 	mux.HandleFunc("POST /api/mesh/devices/{id}/exec", s.requireRole(auth.RoleOperator, s.handleMeshExec))
 	mux.HandleFunc("POST /api/peers/{id}/exec", s.requireRole(auth.RoleOperator, s.handleUnifiedPeerExec))
 

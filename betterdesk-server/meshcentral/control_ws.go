@@ -86,6 +86,40 @@ func (g *Gateway) handleControlWS(w http.ResponseWriter, r *http.Request) {
 			if peerID != "" {
 				_ = g.SendRunCommand(peerID, userID, cmds, true)
 			}
+		case "devicepower":
+			nodeid, _ := msg["nodeid"].(string)
+			peerID := g.peerIDFromNode(nodeid)
+			if peerID == "" {
+				continue
+			}
+			forced := false
+			if f, ok := msg["forced"].(float64); ok && int(f) == 1 {
+				forced = true
+			}
+			actionType := 0
+			switch v := msg["actiontype"].(type) {
+			case float64:
+				actionType = int(v)
+			case int:
+				actionType = v
+			}
+			if actionType == 0 {
+				if typ, ok := msg["type"].(string); ok {
+					switch strings.ToLower(typ) {
+					case "wake", "wakeup", "on":
+						actionType = 6
+					case "sleep":
+						actionType = 2
+					case "off", "poweroff":
+						actionType = 3
+					case "reset":
+						actionType = 4
+					}
+				}
+			}
+			if actionType > 0 {
+				_ = g.SendPowerAction(peerID, userID, actionType, forced)
+			}
 		default:
 			log.Printf("[mesh] control action %s from %s", action, userID)
 		}

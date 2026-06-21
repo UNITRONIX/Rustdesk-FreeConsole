@@ -10,6 +10,27 @@ const db = require('../services/database');
 const config = require('../config/config');
 const { requireRdClientAuth, rdClientGuestOnly, normalizeRdClientReturnUrl } = require('../middleware/auth');
 const { rdClientPageLimiter } = require('../middleware/rateLimiter');
+const betterdeskApi = require('../services/betterdeskApi');
+
+async function requireRemoteAccess(req, res, next) {
+    const share = String(req.query.mesh_share || '').trim();
+    const deviceId = req.params.deviceId;
+    if (share && deviceId) {
+        try {
+            const result = await betterdeskApi.apiClient.get('/mesh/share/validate', {
+                params: { token: share, peer_id: deviceId },
+            });
+            const data = result.data || {};
+            if (data.valid) {
+                req.meshShareGrant = data;
+                return next();
+            }
+        } catch {
+            // fall through to standard auth
+        }
+    }
+    return requireRdClientAuth('device.connect')(req, res, next);
+}
 
 // Lazy-loaded relay helper — avoid circular require at module load time
 function getRemoteRelay() {
@@ -53,7 +74,7 @@ router.get('/remote', rdClientPageLimiter, requireRdClientAuth('device.connect')
 /**
  * GET /remote/:deviceId - Unified remote desktop viewer (single entry point).
  */
-router.get('/remote/:deviceId', rdClientPageLimiter, requireRdClientAuth('device.connect'), async (req, res) => {
+router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async (req, res) => {
     const deviceId = req.params.deviceId;
 
     if (!deviceId || deviceId === 'login' || !/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
@@ -101,6 +122,8 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRdClientAuth('device
         cdap_connected: isCdapConnected,
         mesh_connected: meshConnected,
         device_type: goPeer && goPeer.device_type ? String(goPeer.device_type) : '',
+        mesh_share: req.meshShareGrant ? true : false,
+        mesh_view_only: req.meshShareGrant && req.meshShareGrant.view_only ? true : false,
     };
 
     res.render('remote', {

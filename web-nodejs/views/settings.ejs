@@ -143,6 +143,46 @@
             </div>
 
             ${canServerConfig ? `
+            <div class="settings-panel" id="mesh-settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
+                        <span class="material-icons">hub</span>
+                        ${_('mesh.settings_title')}
+                    </h2>
+                    <p class="settings-panel-desc">${_('mesh.settings_desc')}</p>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="server-info-grid">
+                        <div class="server-info-item">
+                            <span class="server-info-label">${_('mesh.enabled')}</span>
+                            <span class="server-info-value" id="mesh-status-enabled">-</span>
+                        </div>
+                        <div class="server-info-item">
+                            <span class="server-info-label">${_('mesh.agents_online')}</span>
+                            <span class="server-info-value" id="mesh-agents-online">-</span>
+                        </div>
+                        <div class="server-info-item">
+                            <span class="server-info-label">${_('mesh.server_id')}</span>
+                            <span class="server-info-value"><code id="mesh-server-id">-</code></span>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label class="form-label" for="mesh-msh-name">${_('mesh.mesh_name')}</label>
+                        <input type="text" id="mesh-msh-name" class="form-input" value="BetterDesk Mesh">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="mesh-copy-server-id">
+                            <span class="material-icons">content_copy</span>
+                            ${_('mesh.copy_server_id')}
+                        </button>
+                        <a class="btn btn-primary" id="mesh-download-msh" href="/api/mesh/download.msh" download="meshagents.msh">
+                            <span class="material-icons">download</span>
+                            ${_('mesh.download_msh')}
+                        </a>
+                    </div>
+                    <p class="text-muted" style="margin-top:1rem;">${_('mesh.onboarding_body')}</p>
+                </div>
+            </div>
             <!-- Connection Strategy (P2P / Relay) -->
             <div class="settings-panel" id="connection-mode-section">
                 <div class="settings-panel-header">

@@ -40,6 +40,7 @@
         initTutorialSection();
         loadAuditLog();
         loadServerInfo();
+        initMeshSettingsSection();
         initConnectionModeSection();
         initAuthSubnav();
         
@@ -362,6 +363,53 @@
         if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
         
         return parts.join(' ');
+    }
+
+    // ==================== MeshCentral compatibility ====================
+
+    function initMeshSettingsSection() {
+        const panel = document.getElementById('mesh-settings-panel');
+        if (!panel) return;
+
+        const enabledEl = document.getElementById('mesh-status-enabled');
+        const agentsEl = document.getElementById('mesh-agents-online');
+        const serverIdEl = document.getElementById('mesh-server-id');
+        const downloadBtn = document.getElementById('mesh-download-msh');
+        const copyBtn = document.getElementById('mesh-copy-server-id');
+        const nameInput = document.getElementById('mesh-msh-name');
+
+        async function loadMeshStatus() {
+            try {
+                const resp = await Utils.api('/api/mesh/status');
+                const data = resp.data || resp;
+                if (enabledEl) {
+                    enabledEl.textContent = data.enabled
+                        ? (tSettings('mesh.enabled_label', 'Enabled'))
+                        : (tSettings('mesh.disabled_label', 'Disabled'));
+                }
+                if (agentsEl) agentsEl.textContent = String(data.agents_online != null ? data.agents_online : 0);
+                if (serverIdEl && data.server_id) serverIdEl.textContent = data.server_id;
+            } catch {
+                if (enabledEl) enabledEl.textContent = tSettings('mesh.disabled_label', 'Disabled');
+            }
+        }
+
+        if (downloadBtn && nameInput) {
+            downloadBtn.addEventListener('click', (e) => {
+                const name = encodeURIComponent(nameInput.value.trim() || 'BetterDesk Mesh');
+                downloadBtn.href = `/api/mesh/download.msh?name=${name}`;
+            });
+        }
+
+        copyBtn?.addEventListener('click', () => {
+            const text = serverIdEl?.textContent || '';
+            if (!text || text === '-') return;
+            navigator.clipboard?.writeText(text).then(() => {
+                Notifications.success(tSettings('mesh.copy_server_id_ok', 'Server ID copied'));
+            }).catch(() => {});
+        });
+
+        loadMeshStatus();
     }
 
     // ==================== Connection Mode (P2P / Relay) ====================

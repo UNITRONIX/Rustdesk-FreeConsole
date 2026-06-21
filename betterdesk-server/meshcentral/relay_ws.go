@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -13,10 +14,10 @@ import (
 )
 
 type relayPeer struct {
-	ws           *websocket.Conn
+	ws            *websocket.Conn
 	authenticated bool
-	userID       string
-	browser      bool
+	userID        string
+	browser       bool
 }
 
 type relaySession struct {
@@ -101,6 +102,7 @@ func (g *Gateway) pairRelay(ctx context.Context, relayID string, peer *relayPeer
 			select {
 			case <-t.C:
 				g.relays.Delete(relayID)
+				g.relayMeta.Delete(relayID)
 			case <-ctx.Done():
 			}
 		}()
@@ -119,24 +121,69 @@ func (g *Gateway) pairRelay(ctx context.Context, relayID string, peer *relayPeer
 	session.state = 1
 	session.mu.Unlock()
 
-	// Send MeshCentral connect signal on both sides when paired
-	sig := RelayConnectSignal(false)
+	meta := g.getRelayMeta(relayID)
+	recording := meta != nil && meta.Record
+	sig := RelayConnectSignal(recording)
 	peer1.ws.Write(ctx, websocket.MessageText, []byte(sig))
 	peer2.ws.Write(ctx, websocket.MessageText, []byte(sig))
 
+	auditUser := peer1.userID
+	auditPeer := relayID
+	sessionType := proto
+	recPath := ""
+	if meta != nil {
+		if meta.UserID != "" {
+			auditUser = meta.UserID
+		}
+		if meta.PeerID != "" {
+			auditPeer = meta.PeerID
+		}
+		if meta.SessionType != "" {
+			sessionType = meta.SessionType
+		}
+	}
+
+	var recorder *relayRecorder
+	if recording && meta != nil && g.cfg != nil {
+		dataDir := filepath.Dir(g.cfg.DBPath)
+		if dataDir == "" || dataDir == "." {
+			dataDir = "."
+		}
+		if r, path, err := openRelayRecorder(dataDir, meta.PeerID, relayID, meta.SessionType); err == nil {
+			recorder = r
+			recPath = path
+		}
+	}
+
 	if g.auditLog != nil {
-		g.auditLog.Log(audit.ActionPeerUpdated, peer1.userID, relayID, map[string]string{
+		g.auditLog.Log(audit.ActionPeerUpdated, auditUser, auditPeer, map[string]string{
 			"event": "mesh_relay_paired",
 			"proto": proto,
 		})
 	}
 
-	pipeRelay(ctx, peer1.ws, peer2.ws)
+	pipeRelay(ctx, peer1.ws, peer2.ws, recorder)
+	if recorder != nil {
+		recorder.Close()
+	}
 	g.relays.Delete(relayID)
+	g.relayMeta.Delete(relayID)
+
+	if g.auditLog != nil {
+		fields := map[string]string{
+			"event": "mesh_session_end",
+			"type":  sessionType,
+			"proto": proto,
+		}
+		if recPath != "" {
+			fields["recording"] = recPath
+		}
+		g.auditLog.Log(audit.ActionPeerUpdated, auditUser, auditPeer, fields)
+	}
 	log.Printf("[mesh] Relay session %s ended", relayID)
 }
 
-func pipeRelay(ctx context.Context, a, b *websocket.Conn) {
+func pipeRelay(ctx context.Context, a, b *websocket.Conn, recorder *relayRecorder) {
 	var wg sync.WaitGroup
 	copyWS := func(dst, src *websocket.Conn) {
 		defer wg.Done()
@@ -144,6 +191,9 @@ func pipeRelay(ctx context.Context, a, b *websocket.Conn) {
 			typ, data, err := src.Read(ctx)
 			if err != nil {
 				return
+			}
+			if recorder != nil && len(data) > 0 {
+				recorder.Write(int(typ), data)
 			}
 			if err := dst.Write(ctx, typ, data); err != nil {
 				return

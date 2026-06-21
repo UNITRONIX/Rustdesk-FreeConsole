@@ -130,27 +130,31 @@ func (g *Gateway) BuildMSH(meshName, meshIDHex, meshServerURL string) string {
 		meshName, meshID, g.creds.ServerID, meshServerURL)
 }
 
-func (g *Gateway) CreateDesktopTunnel(ctx context.Context, peerID, userID, relayBase string) (string, string, error) {
-	return g.createRelayTunnel(peerID, userID, relayBase, relayProtocolKVM, "kvm")
+func (g *Gateway) CreateDesktopTunnel(ctx context.Context, peerID, userID, relayBase string, record, viewOnly bool) (string, string, error) {
+	return g.createRelayTunnel(peerID, userID, relayBase, relayProtocolKVM, "kvm", record, viewOnly, nil)
 }
 
 // CreateTerminalTunnel opens relay p=1 (admin shell) for browser terminal sessions.
 func (g *Gateway) CreateTerminalTunnel(peerID, userID, relayBase string) (string, string, error) {
-	return g.createRelayTunnel(peerID, userID, relayBase, relayProtocolTerminal, "terminal")
+	return g.createRelayTunnel(peerID, userID, relayBase, relayProtocolTerminal, "terminal", false, false, nil)
 }
 
 // CreateFilesTunnel opens relay p=5 for remote file browser sessions.
 func (g *Gateway) CreateFilesTunnel(peerID, userID, relayBase string) (string, string, error) {
-	return g.createRelayTunnel(peerID, userID, relayBase, relayProtocolFiles, "files")
+	return g.createRelayTunnel(peerID, userID, relayBase, relayProtocolFiles, "files", false, false, nil)
 }
 
-func (g *Gateway) createRelayTunnel(peerID, userID, relayBase string, protocol int, sessionType string) (string, string, error) {
+func (g *Gateway) createRelayTunnel(peerID, userID, relayBase string, protocol int, sessionType string, record, viewOnly bool, tunnelOpts *TunnelOpts) (string, string, error) {
 	relayID := newRelayID()
 	nodeID := g.MeshNodeID(peerID)
+	rights := uint32(0xFFFFFFFF)
+	if viewOnly {
+		rights = 0x00000002
+	}
 	authCookie, err := g.cookies.Encode(&RelayCookieData{
 		RUserID:   userID,
 		NodeID:    nodeID,
-		Rights:    0xFFFFFFFF,
+		Rights:    rights,
 		ExpireMin: 240,
 	}, 240)
 	if err != nil {
@@ -168,14 +172,37 @@ func (g *Gateway) createRelayTunnel(peerID, userID, relayBase string, protocol i
 	browserPath := fmt.Sprintf("%smeshrelay.ashx?browser=1&p=%d&id=%s&nodeid=%s&auth=%s",
 		relayBase, protocol, relayID, nodeID, authCookie)
 
-	if err := g.SendTunnel(peerID, tunnelPath); err != nil {
+	g.setRelayMeta(relayID, &relayMeta{
+		PeerID:      peerID,
+		UserID:      userID,
+		SessionType: sessionType,
+		Protocol:    protocol,
+		Record:      record,
+		ViewOnly:    viewOnly,
+	})
+
+	if err := g.SendTunnel(peerID, tunnelPath, rights, viewOnly, tunnelOpts); err != nil {
+		g.setRelayMeta(relayID, nil)
 		return "", "", err
 	}
 	if g.auditLog != nil {
-		g.auditLog.Log(audit.ActionPeerUpdated, userID, peerID, map[string]string{
+		fields := map[string]string{
 			"event": "mesh_session_start",
 			"type":  sessionType,
-		})
+		}
+		if record {
+			fields["record"] = "1"
+		}
+		if viewOnly {
+			fields["view_only"] = "1"
+		}
+		if tunnelOpts != nil && tunnelOpts.TCPPort > 0 {
+			fields["tcp_target"] = fmt.Sprintf("%s:%d", tunnelOpts.TCPAddr, tunnelOpts.TCPPort)
+		}
+		if tunnelOpts != nil && tunnelOpts.UDPPort > 0 {
+			fields["udp_target"] = fmt.Sprintf("%s:%d", tunnelOpts.UDPAddr, tunnelOpts.UDPPort)
+		}
+		g.auditLog.Log(audit.ActionPeerUpdated, userID, peerID, fields)
 	}
 	return relayID, browserPath, nil
 }

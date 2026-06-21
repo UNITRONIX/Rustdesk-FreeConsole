@@ -1901,3 +1901,38 @@ td.column-hidden {
     padding: 8px;
     background: #0d1117;
 }
+
+.mesh-port-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    min-height: 0;
+}
+
+.mesh-port-connect-row,
+.mesh-port-send-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.mesh-port-host { flex: 2; min-width: 120px; }
+.mesh-port-port { flex: 1; min-width: 80px; max-width: 120px; }
+
+.mesh-port-log {
+    flex: 1;
+    min-height: 200px;
+    max-height: 360px;
+    overflow: auto;
+    background: #0d1117;
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 8px;
+    padding: 8px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.mesh-port-log-line.error { color: #ff7b72; }
+.mesh-port-modal { height: min(80vh, 560px); }

@@ -57,6 +57,7 @@
         this._lastStats = Date.now();
         this._inputGrabbed = false;
         this._pressedKeys = [];
+        this._viewOnly = !!(opts && opts.viewOnly);
     }
 
     BetterViewer.prototype.on = function (event, fn) {
@@ -303,7 +304,7 @@
     };
 
     BetterViewer.prototype._grabInput = function () {
-        if (this._inputGrabbed) return;
+        if (this._inputGrabbed || this._viewOnly) return;
         var self = this;
         this._inputGrabbed = true;
 
@@ -341,6 +342,10 @@
             self._sendKeyKC(KEY_UP, e.keyCode, false);
             e.preventDefault();
         });
+    };
+
+    BetterViewer.prototype.setViewOnly = function (viewOnly) {
+        this._viewOnly = !!viewOnly;
     };
 
     BetterViewer.prototype.disconnect = function () {

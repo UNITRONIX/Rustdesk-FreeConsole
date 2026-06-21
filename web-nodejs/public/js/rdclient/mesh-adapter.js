@@ -59,7 +59,15 @@
             };
 
         const relayBase = window.location.origin + '/';
-        const resp = await fetch(`/api/mesh/devices/${encodeURIComponent(this._deviceId)}/desktop?relay_base=${encodeURIComponent(relayBase)}`, {
+        const tunnelQs = new URLSearchParams({ relay_base: relayBase });
+        const pageQs = new URLSearchParams(window.location.search);
+        if (pageQs.get('mesh_share')) {
+            tunnelQs.set('mesh_share', pageQs.get('mesh_share'));
+        }
+        if (pageQs.get('record') === '1') {
+            tunnelQs.set('record', '1');
+        }
+        const resp = await fetch(`/api/mesh/devices/${encodeURIComponent(this._deviceId)}/desktop?${tunnelQs.toString()}`, {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -79,6 +87,11 @@
         this._desktop = new BetterViewer(this.canvas, this.opts);
         this._bindDesktop(this._desktop);
         this._desktop.attachWebSocket(this._ws);
+
+        const caps = window.__capabilities || {};
+        if (caps.mesh_view_only && typeof this._desktop.setViewOnly === 'function') {
+            this._desktop.setViewOnly(true);
+        }
 
         this._ws.onerror = () => this._emit('error', { message: 'Mesh relay error' });
         this._ws.onclose = () => this.disconnect();
@@ -109,6 +122,11 @@
 
     MeshSession.prototype.authenticate = function () { return Promise.resolve(); };
     MeshSession.prototype.verify2fa = function () { return Promise.resolve(); };
+    MeshSession.prototype.setViewOnly = function (viewOnly) {
+        if (this._desktop && typeof this._desktop.setViewOnly === 'function') {
+            this._desktop.setViewOnly(viewOnly);
+        }
+    };
 
     window.MeshSession = MeshSession;
 })();

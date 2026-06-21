@@ -35,6 +35,7 @@ type Gateway struct {
 
 	agents sync.Map // peerID -> *AgentConn
 	relays sync.Map // relayID -> *relaySession
+	relayMeta sync.Map // relayID -> *relayMeta
 
 	ctx    context.Context
 	cancel context.CancelFunc
