@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **RdClient Web phone gate**: fixed mobile device detection that blocked access on PC, tablets, and unfolded foldables with “Remote desktop requires a larger screen”. Gate now respects `[hidden]`, skips zero-width false positives, excludes fine-pointer desktops, and re-evaluates on viewport resize. Ships via Settings → Updates.
+
 ### Changed
 - _(none yet)_
 

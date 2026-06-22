@@ -768,10 +768,11 @@
         refreshTimer = setInterval(function () { loadAll(true); }, REFRESH_MS);
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        if (window.RdClientMobile && window.RdClientMobile.hidePhoneGateIfNeeded()) {
-            return;
-        }
+    var dashboardInitialized = false;
+
+    function startDashboardInit() {
+        if (dashboardInitialized) return;
+        dashboardInitialized = true;
         markDesktopLayout();
         populateLanguageSelect();
         bindDesktopSettings();
@@ -781,6 +782,14 @@
         bindCollapseUi();
         loadAll(false);
         startAutoRefresh();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.RdClientMobile && window.RdClientMobile.watchPhoneGate) {
+            window.RdClientMobile.watchPhoneGate(startDashboardInit);
+        } else {
+            startDashboardInit();
+        }
     });
 
     document.addEventListener('visibilitychange', function () {

@@ -23,7 +23,23 @@
     }
 
     function getWidth() {
-        return global.innerWidth || document.documentElement.clientWidth || 0;
+        var iw = global.innerWidth || 0;
+        var cw = document.documentElement ? document.documentElement.clientWidth : 0;
+        var vv = global.visualViewport ? global.visualViewport.width : 0;
+        var w = Math.max(iw, cw);
+        if (w <= 0 && vv > 0) return vv;
+        if (iw > 0 && iw < 100 && vv > iw) return vv;
+        return w || vv || 0;
+    }
+
+    function isPhoneDevice() {
+        refreshMetrics();
+        if (state.width <= 0) return false;
+        if (state.width > BP_PHONE) return false;
+        if (global.matchMedia && global.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+            return false;
+        }
+        return true;
     }
 
     function checkFoldableByMediaQuery() {
@@ -141,7 +157,7 @@
         BP_PHONE: BP_PHONE,
         BP_TABLET: BP_TABLET,
         BP_FOLD_INNER: BP_FOLD_INNER,
-        isPhone: function() { refreshMetrics(); return state.width <= BP_PHONE; },
+        isPhone: isPhoneDevice,
         isTablet: function() { refreshMetrics(); return state.width > BP_PHONE && state.width <= BP_TABLET; },
         isMobileShell: function() { refreshMetrics(); return state.width <= BP_TABLET; },
         isTouch: function() { return state.isTouch || hasTouch(); },

@@ -18,16 +18,49 @@
         var gate = document.getElementById('rd-phone-gate');
         if (!gate) return false;
         gate.hidden = false;
-        document.querySelectorAll('.session-tab-bar, .viewer-container, .viewer-toolbar, .rd-mobile-toolbar, #rd-desk-app')
-            .forEach(function(el) { if (el) el.style.display = 'none'; });
+        document.body.classList.add('rd-phone-gated');
         return true;
     }
 
-    function hidePhoneGateIfNeeded() {
-        if (isPhone()) return showPhoneGate();
+    function dismissPhoneGate() {
         var gate = document.getElementById('rd-phone-gate');
         if (gate) gate.hidden = true;
+        document.body.classList.remove('rd-phone-gated');
+    }
+
+    function hidePhoneGateIfNeeded() {
+        if (isPhone()) {
+            showPhoneGate();
+            return true;
+        }
+        dismissPhoneGate();
         return false;
+    }
+
+    function watchPhoneGate(onAllowed) {
+        var allowedCalled = false;
+
+        function evaluate() {
+            if (isPhone()) {
+                showPhoneGate();
+                return;
+            }
+            dismissPhoneGate();
+            if (!allowedCalled && typeof onAllowed === 'function') {
+                allowedCalled = true;
+                onAllowed();
+            }
+        }
+
+        evaluate();
+        global.addEventListener('resize', evaluate, { passive: true });
+        if (global.visualViewport) {
+            global.visualViewport.addEventListener('resize', evaluate, { passive: true });
+        }
+        global.addEventListener('betterdesk:posture-change', evaluate);
+        global.addEventListener('orientationchange', function() {
+            setTimeout(evaluate, 100);
+        });
     }
 
     function showPhoneUnsupportedToast() {
@@ -64,7 +97,9 @@
         isPhone: isPhone,
         isMobileRdClient: isMobileRdClient,
         showPhoneGate: showPhoneGate,
+        dismissPhoneGate: dismissPhoneGate,
         hidePhoneGateIfNeeded: hidePhoneGateIfNeeded,
+        watchPhoneGate: watchPhoneGate,
         showPhoneUnsupportedToast: showPhoneUnsupportedToast,
         initVisualViewport: initVisualViewport,
         focusKeyboardBridge: focusKeyboardBridge

@@ -481,6 +481,18 @@
 
 /* ── RdClient phone gate ───────────────────────────────────────────────────── */
 
+.rd-phone-gate[hidden] {
+    display: none !important;
+}
+
+body.rd-phone-gated .session-tab-bar,
+body.rd-phone-gated .viewer-container,
+body.rd-phone-gated .viewer-toolbar,
+body.rd-phone-gated .rd-mobile-toolbar,
+body.rd-phone-gated #rd-desk-app {
+    display: none !important;
+}
+
 .rd-phone-gate {
     position: fixed;
     inset: 0;

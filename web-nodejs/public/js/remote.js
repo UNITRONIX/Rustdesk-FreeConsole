@@ -1815,11 +1815,7 @@
         });
     }
 
-    function initMobileViewer() {
-        if (window.RdClientMobile && window.RdClientMobile.hidePhoneGateIfNeeded()) {
-            return true;
-        }
-
+    function initMobileViewerBindings() {
         var kbBridge = document.getElementById('rd-keyboard-bridge');
         var specialPanel = document.getElementById('rd-special-keys-panel');
 
@@ -1898,15 +1894,19 @@
         if (window.RdClientMobile) {
             window.RdClientMobile.initVisualViewport(resizeViewerForViewport);
         }
-
-        return false;
     }
 
-    function init() {
+    var viewerInitialized = false;
+    var mobileBindingsDone = false;
+
+    function startViewerInit() {
+        if (viewerInitialized) return;
+        viewerInitialized = true;
+
         populateViewerLanguageSelect();
-        if (initMobileViewer()) {
-            installLifecycleHandlers();
-            return;
+        if (!mobileBindingsDone) {
+            initMobileViewerBindings();
+            mobileBindingsDone = true;
         }
 
         const deviceId = window.__initialDeviceId;
@@ -1952,6 +1952,15 @@
         }
     }
 
+    function bootViewer() {
+        installLifecycleHandlers();
+        if (window.RdClientMobile && window.RdClientMobile.watchPhoneGate) {
+            window.RdClientMobile.watchPhoneGate(startViewerInit);
+        } else {
+            startViewerInit();
+        }
+    }
+
     // ── Tab / window lifecycle: auto-disconnect on tab close ─────────────
     //
     // Without this hook the remote peer keeps streaming video/audio until
@@ -1977,6 +1986,9 @@
         window.addEventListener('beforeunload', teardown, { capture: true });
     }
 
-    init();
-    installLifecycleHandlers();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootViewer);
+    } else {
+        bootViewer();
+    }
 })();
