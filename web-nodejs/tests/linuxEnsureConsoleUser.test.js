@@ -22,6 +22,7 @@ describe('linux-ensure-console-user helpers', () => {
         expect(content).toContain(`${SVC_USER} ALL=(root) NOPASSWD: ${resolveSystemctlPath()}`);
         expect(content).toMatch(/NOPASSWD: \/usr\/bin\/journalctl|NOPASSWD: \/bin\/journalctl/);
         expect(content).toContain('linux-deploy-server-binary.js');
+        expect(content).toContain('linux-write-systemd-unit.js');
     });
 
     test('resolveSystemctlPath returns an existing path when available', () => {

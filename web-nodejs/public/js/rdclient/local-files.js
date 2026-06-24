@@ -19,8 +19,12 @@
 
     LocalFiles.isSupported = isSupported;
 
-    LocalFiles.prototype.get currentPath() { return this._currentPath; }
-    LocalFiles.prototype.get hasRoot() { return !!this._rootHandle; }
+    Object.defineProperty(LocalFiles.prototype, 'currentPath', {
+        get: function () { return this._currentPath; }
+    });
+    Object.defineProperty(LocalFiles.prototype, 'hasRoot', {
+        get: function () { return !!this._rootHandle; }
+    });
 
     LocalFiles.prototype.pickRoot = async function () {
         if (!isSupported()) {

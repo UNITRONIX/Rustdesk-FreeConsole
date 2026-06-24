@@ -19,6 +19,12 @@ const {
     ensureBindCapabilityInServiceUnit,
 } = require('../lib/privilegedPorts');
 const { resolveDeployScriptPath } = require('../lib/linuxServerBinaryDeploy');
+const {
+    resolveSystemdUnitScriptPath,
+    readSystemdUnitPrivileged,
+    writeSystemdUnitPrivileged,
+    isAllowedSystemdUnitPath,
+} = require('../lib/linuxSystemdUnitPrivileged');
 
 const SVC_USER = 'betterdesk';
 const CONSOLE_PATH = path.join(__dirname, '..');
@@ -50,11 +56,13 @@ function buildUpdateSudoersContent() {
     const systemctl = resolveSystemctlPath();
     const journalctl = resolveJournalctlPath();
     const deployScript = resolveDeployScriptPath(CONSOLE_PATH);
+    const systemdUnitScript = resolveSystemdUnitScriptPath(CONSOLE_PATH);
     return [
         UPDATE_SUDOERS_MARKER,
         `${SVC_USER} ALL=(root) NOPASSWD: ${systemctl}`,
         `${SVC_USER} ALL=(root) NOPASSWD: ${journalctl}`,
         `${SVC_USER} ALL=(root) NOPASSWD: ${deployScript}`,
+        `${SVC_USER} ALL=(root) NOPASSWD: ${process.execPath} ${systemdUnitScript}`,
         '',
     ].join('\n');
 }
@@ -145,9 +153,11 @@ function readServiceFile() {
         ]).trim();
         const servicePath = fragment || `/etc/systemd/system/${CONSOLE_SERVICE}.service`;
         if (!fs.existsSync(servicePath)) return { servicePath: null, content: '' };
-        const content = isRoot()
-            ? fs.readFileSync(servicePath, 'utf8')
-            : runPrivilegedArgv('cat', [servicePath]);
+        const content = isAllowedSystemdUnitPath(servicePath)
+            ? readSystemdUnitPrivileged(servicePath, CONSOLE_PATH)
+            : (isRoot()
+                ? fs.readFileSync(servicePath, 'utf8')
+                : runPrivilegedArgv('cat', [servicePath]));
         return { servicePath, content };
     } catch (_) {
         return { servicePath: null, content: '' };
@@ -155,6 +165,10 @@ function readServiceFile() {
 }
 
 function writeServiceFile(servicePath, content) {
+    if (isAllowedSystemdUnitPath(servicePath)) {
+        writeSystemdUnitPrivileged(servicePath, content, CONSOLE_PATH);
+        return;
+    }
     if (isRoot()) {
         fs.writeFileSync(servicePath, content, 'utf8');
     } else {

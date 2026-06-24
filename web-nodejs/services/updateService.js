@@ -26,6 +26,12 @@ const path = require('path');
 const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
+const {
+    readSystemdUnitPrivileged,
+    writeSystemdUnitPrivileged,
+    isAllowedSystemdUnitPath,
+    privilegedSystemdUnitHint,
+} = require('../lib/linuxSystemdUnitPrivileged');
 const { readProductVersion } = require('../lib/productVersion');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
 const { resolveChildPath, resolvePathUnderRoot, existsConfinedChild, removeConfinedChild } = require('../lib/safePath');
@@ -694,8 +700,15 @@ function readTextFilePrivileged(filePath) {
     try {
         return fs.readFileSync(filePath, 'utf8');
     } catch (err) {
+        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM') && isAllowedSystemdUnitPath(filePath)) {
+            return readSystemdUnitPrivileged(filePath, ROOT_DIR);
+        }
         if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
-            return execSync(`sudo cat ${shellQuote(filePath)}`, { timeout: 5000, stdio: 'pipe' }).toString();
+            try {
+                return execSync(`sudo -n cat ${shellQuote(filePath)}`, { timeout: 5000, stdio: 'pipe' }).toString();
+            } catch (sudoErr) {
+                throw new Error(`${sudoErr.message || sudoErr}. ${privilegedSystemdUnitHint()}`);
+            }
         }
         throw err;
     }
@@ -705,13 +718,12 @@ function writeTextFilePrivileged(filePath, content) {
     try {
         fs.writeFileSync(filePath, content);
     } catch (err) {
-        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
-            execSync(`sudo tee ${shellQuote(filePath)} >/dev/null`, {
-                input: content,
-                timeout: 5000,
-                stdio: ['pipe', 'pipe', 'pipe']
-            });
+        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM') && isAllowedSystemdUnitPath(filePath)) {
+            writeSystemdUnitPrivileged(filePath, content, ROOT_DIR);
             return;
+        }
+        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
+            throw new Error(`${err.message || err}. ${privilegedSystemdUnitHint()}`);
         }
         throw err;
     }

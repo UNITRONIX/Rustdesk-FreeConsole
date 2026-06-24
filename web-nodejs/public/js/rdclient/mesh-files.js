@@ -39,8 +39,12 @@
         this._protocolSent = false;
     };
 
-    MeshFileTransfer.prototype.get enabled() { return this._enabled; }
-    MeshFileTransfer.prototype.get currentPath() { return this._currentPath; }
+    Object.defineProperty(MeshFileTransfer.prototype, 'enabled', {
+        get: function () { return this._enabled; }
+    });
+    Object.defineProperty(MeshFileTransfer.prototype, 'currentPath', {
+        get: function () { return this._currentPath; }
+    });
 
     MeshFileTransfer.prototype._ensureConnected = function () {
         if (this._ws && this._ws.readyState === WebSocket.OPEN && this._relayReady) {
