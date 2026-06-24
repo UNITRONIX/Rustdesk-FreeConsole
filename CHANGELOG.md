@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.63] — 2026-06-24
+
 ### Fixed
 - **Linux HTTP/HTTPS protocol toggle (#219)**: `betterdesk.sh` now syncs `.env` and `betterdesk-console.service` consistently (`RUSTDESK_API_TLS`, SSL paths, redirect flags); health checks use `HTTPS_PORT` (5443) instead of conflating with `PORT` (5000); post-toggle tests probe Client API with the correct scheme. Panel HTTP→HTTPS redirect uses 307 + `no-store`; HSTS is skipped when `ALLOW_SELF_SIGNED_CERTS=true` so toggling back to HTTP does not leave year-long browser enforcement.
 
@@ -1198,3 +1205,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.60]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.59...v3.3.60
 [3.3.61]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.60...v3.3.61
 [3.3.62]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.61...v3.3.62
+[3.3.63]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.62...v3.3.63
