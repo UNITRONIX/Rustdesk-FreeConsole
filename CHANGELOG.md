@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.65] — 2026-06-24
+
 ### Fixed
 - **Web Remote file transfer (#217)**: opens a dedicated `FILE_TRANSFER` relay session (separate from the desktop tunnel) so RustDesk peers handle `FileAction` messages. Replaces the side panel with a RustDesk-style centered modal (local | remote | transfer queue); local folder browsing uses the File System Access API on Chrome/Edge with HTTPS fallback. CDAP snapshot sessions disable the file-transfer toolbar button.
 
@@ -1220,3 +1227,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.62]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.61...v3.3.62
 [3.3.63]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.62...v3.3.63
 [3.3.64]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.63...v3.3.64
+[3.3.65]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.64...v3.3.65
