@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.64] — 2026-06-24
+
 ### Fixed
 - **RustDesk client LDAP login (#218)**: `POST /api/login` on the Go API now uses the same provider-bound LDAP/AD authentication as the web console (`/api/auth/login`). LDAP-bound and auto-provisioned directory users can sign in to the RustDesk desktop client with domain username/password; TOTP still applies when enabled locally.
 
@@ -1209,3 +1216,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.61]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.60...v3.3.61
 [3.3.62]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.61...v3.3.62
 [3.3.63]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.62...v3.3.63
+[3.3.64]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.63...v3.3.64
