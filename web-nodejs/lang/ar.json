@@ -866,7 +866,8 @@
     "view_all": "عرض الكل",
     "cdap_viewer": "CDAP Snapshot Viewer",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "إعادة المحاولة"
   },
   "time": {
     "just_now": "Just now",
@@ -1139,7 +1140,16 @@
     "phone_unsupported_title": "سطح المكتب البعيد يتطلب شاشة أكبر",
     "phone_unsupported_body": "استخدم جهاز لوحي أو foldable مفتوح أو سطح مكتب. إدارة الأجهزة متاحة في وحدة التحكم.",
     "phone_unsupported_back_devices": "العودة إلى الأجهزة",
-    "phone_unsupported_get_desktop": "احصل على RdClient desktop"
+    "phone_unsupported_get_desktop": "احصل على RdClient desktop",
+    "file_local": "الكمبيوتر المحلي",
+    "file_remote": "الكمبيوتر البعيد",
+    "file_send": "إرسال",
+    "file_pick_folder": "اختر مجلدًا",
+    "file_queue_empty": "لا توجد عمليات نقل جارية",
+    "file_connecting": "جارٍ الاتصال بجلسة نقل الملفات…",
+    "file_connect_failed": "تعذر فتح جلسة نقل الملفات",
+    "file_local_limited": "يتطلب تصفح المجلدات المحلية بالكامل Chrome أو Edge عبر HTTPS. لا يزال الرفع والتنزيل متاحين.",
+    "file_transfer_unavailable_cdap": "نقل الملفات غير متاح لجلسات لقطة CDAP."
   },
   "branding": {
     "identity_title": "هوية العلامة التجارية",

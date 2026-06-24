@@ -859,7 +859,8 @@
     "view_all": "Ver tudo",
     "cdap_viewer": "Visualizador de snapshot CDAP",
     "add": "Adicionar",
-    "remove": "Remover"
+    "remove": "Remover",
+    "retry": "Tentar novamente"
   },
   "time": {
     "just_now": "Agora mesmo",
@@ -1132,7 +1133,16 @@
     "phone_unsupported_title": "Área de trabalho remota requer ecrã maior",
     "phone_unsupported_body": "Use tablet, foldable aberto ou desktop. A gestão de dispositivos continua na consola.",
     "phone_unsupported_back_devices": "Voltar aos dispositivos",
-    "phone_unsupported_get_desktop": "Obter RdClient desktop"
+    "phone_unsupported_get_desktop": "Obter RdClient desktop",
+    "file_local": "Computador local",
+    "file_remote": "Computador remoto",
+    "file_send": "Enviar",
+    "file_pick_folder": "Escolher pasta",
+    "file_queue_empty": "Nenhuma transferência em andamento",
+    "file_connecting": "A conectar sessão de transferência de ficheiros…",
+    "file_connect_failed": "Não foi possível abrir a sessão de transferência de ficheiros",
+    "file_local_limited": "A navegação completa de pastas locais requer Chrome ou Edge com HTTPS. Enviar e transferir ficheiros continua disponível.",
+    "file_transfer_unavailable_cdap": "A transferência de ficheiros não está disponível em sessões de instantâneo CDAP."
   },
   "branding": {
     "identity_title": "Identidade da marca",

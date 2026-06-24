@@ -865,7 +865,8 @@
     "view_all": "Visa alla",
     "cdap_viewer": "CDAP Snapshot-visning",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Försök igen"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "Fjärrskrivbord kräver större skärm",
     "phone_unsupported_body": "Använd surfplatta, uppfälld foldable eller desktop. Enhetshantering finns kvar i konsolen.",
     "phone_unsupported_back_devices": "Tillbaka till enheter",
-    "phone_unsupported_get_desktop": "Hämta RdClient desktop"
+    "phone_unsupported_get_desktop": "Hämta RdClient desktop",
+    "file_local": "Lokal dator",
+    "file_remote": "Fjärrdator",
+    "file_send": "Skicka",
+    "file_pick_folder": "Välj mapp",
+    "file_queue_empty": "Inga pågående överföringar",
+    "file_connecting": "Ansluter filöverföringssession…",
+    "file_connect_failed": "Kunde inte öppna filöverföringssession",
+    "file_local_limited": "Fullständig lokal mappsökning kräver Chrome eller Edge över HTTPS. Uppladdning och nedladdning fungerar fortfarande.",
+    "file_transfer_unavailable_cdap": "Filöverföring är inte tillgänglig för CDAP-ögonblicksbildssessioner."
   },
   "branding": {
     "identity_title": "Varumärkesidentitet",

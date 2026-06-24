@@ -13,7 +13,7 @@
  *   client.disconnect();
  */
 
-/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput */
+/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput, RDFileConnection */
 
 // eslint-disable-next-line no-unused-vars
 class RDClient {
@@ -40,10 +40,13 @@ class RDClient {
         this.audio = new RDAudio();
         this.renderer = new RDRenderer(canvas);
         this.input = new RDInput(canvas, this.renderer, (msg) => this._sendPeerMessage(msg));
+        this._fileConnection = null;
+        this._sessionPassword = '';
         this.fileTransfer = new RDFileTransfer({
             proto: this.proto,
-            sendMessage: (msg) => this._sendPeerMessage(msg),
-            emit: (event, ...args) => this._emit(event, ...args)
+            sendMessage: (msg) => this._sendFileTransferMessage(msg),
+            emit: (event, ...args) => this._emit(event, ...args),
+            ensureConnected: () => this.ensureFileConnection()
         });
 
         // State
@@ -248,6 +251,46 @@ class RDClient {
     }
 
     /**
+     * Open dedicated FILE_TRANSFER relay (lazy). Reuses desktop session password.
+     * @returns {Promise<void>}
+     */
+    async ensureFileConnection() {
+        if (typeof RDFileConnection !== 'function') {
+            throw new Error('File transfer module not loaded');
+        }
+        if (!this.proto.loaded) await this.proto.load();
+        if (!this._fileConnection) {
+            this._fileConnection = new RDFileConnection({
+                deviceId: this.deviceId,
+                serverPubKey: this.opts.serverPubKey || '',
+                myName: this.opts.myName || 'BetterDesk Web',
+                proto: this.proto
+            });
+            this._fileConnection.on('file_response', (resp) => {
+                this.fileTransfer.handleFileResponse(resp);
+            });
+            this._fileConnection.on('2fa_required', () => this._emit('2fa_required'));
+            this._fileConnection.on('2fa_error', (err) => this._emit('2fa_error', err));
+            this._fileConnection.on('login_error', (err) => this._emit('login_error', err));
+        }
+        if (this._fileConnection.state === 'ready') return;
+        await this._fileConnection.connect(this._sessionPassword || '');
+    }
+
+    _sendFileTransferMessage(msgObj) {
+        if (this._fileConnection && this._fileConnection.state === 'ready') {
+            this._fileConnection.sendMessage(msgObj);
+        }
+    }
+
+    disconnectFileConnection() {
+        if (this._fileConnection) {
+            this._fileConnection.disconnect();
+            this._fileConnection = null;
+        }
+    }
+
+    /**
      * Authenticate with password
      * @param {string} password
      */
@@ -255,6 +298,7 @@ class RDClient {
         try {
             this._setState('authenticating');
             this._emit('log', 'Authenticating...');
+            this._sessionPassword = password != null ? String(password) : '';
 
             // Hash the password
             const challenge = this._loginChallenge || '';
@@ -1329,6 +1373,8 @@ class RDClient {
         this.video.close();
         this.audio.close();
         this.fileTransfer.disable();
+        this.disconnectFileConnection();
+        this._sessionPassword = '';
         this.conn.close();
         this._codecFallbackDone = false;
     }

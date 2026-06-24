@@ -18,11 +18,13 @@ class RDFileTransfer {
      * @param {RDProtocol} opts.proto - Protocol handler
      * @param {Function} opts.sendMessage - Function to send peer message: (msgObj) => void
      * @param {Function} opts.emit - Event emitter: (event, ...args) => void
+     * @param {Function} [opts.ensureConnected] - Async hook before browse/upload
      */
     constructor(opts) {
         this._proto = opts.proto;
         this._sendMessage = opts.sendMessage;
         this._emit = opts.emit;
+        this._ensureConnected = opts.ensureConnected || null;
 
         /** @type {string} Current remote directory path */
         this._currentPath = '';
@@ -84,20 +86,29 @@ class RDFileTransfer {
             return;
         }
         const dir = path != null ? path : '';
-        console.log('[FileTransfer] browseDir:', JSON.stringify(dir));
-        this._sendMessage(this._proto.buildReadDir(dir, this._showHidden));
-        this._emit('file_browsing', { path: dir });
-
-        // Set timeout — if no file_dir response within 5s, emit timeout event
-        if (this._browseTimeout) clearTimeout(this._browseTimeout);
-        this._browseTimedOut = false;
-        this._browseTimeout = setTimeout(() => {
-            if (!this._browseTimedOut) {
-                this._browseTimedOut = true;
-                console.warn('[FileTransfer] browseDir timeout — no response from peer after 5s');
-                this._emit('file_browse_timeout', { path: dir });
-            }
-        }, 5000);
+        const self = this;
+        const run = function () {
+            console.log('[FileTransfer] browseDir:', JSON.stringify(dir));
+            self._sendMessage(self._proto.buildReadDir(dir, self._showHidden));
+            self._emit('file_browsing', { path: dir });
+            if (self._browseTimeout) clearTimeout(self._browseTimeout);
+            self._browseTimedOut = false;
+            self._browseTimeout = setTimeout(function () {
+                if (!self._browseTimedOut) {
+                    self._browseTimedOut = true;
+                    console.warn('[FileTransfer] browseDir timeout — no response from peer after 5s');
+                    self._emit('file_browse_timeout', { path: dir });
+                }
+            }, 5000);
+        };
+        if (this._ensureConnected) {
+            this._emit('file_connecting');
+            this._ensureConnected().then(run).catch(function (err) {
+                self._emit('file_connect_error', { error: err.message || String(err) });
+            });
+        } else {
+            run();
+        }
     }
 
     /**
@@ -523,6 +534,16 @@ class RDFileTransfer {
 
         try {
             const blob = new Blob(transfer.blocks, { type: 'application/octet-stream' });
+            if (typeof this._saveDownload === 'function') {
+                Promise.resolve(this._saveDownload(transfer.fileName, blob)).catch((err) => {
+                    this._emit('file_transfer_error', {
+                        id: transfer.id,
+                        fileName: transfer.fileName,
+                        error: 'Failed to save file: ' + (err.message || 'unknown error')
+                    });
+                });
+                return;
+            }
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;

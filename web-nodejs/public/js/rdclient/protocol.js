@@ -160,13 +160,14 @@ class RDProtocol {
      * @param {string} deviceId
      * @param {string} [serverKey] - Server public key (base64) for licence_key validation
      */
-    buildPunchHoleRequest(deviceId, serverKey) {
+    buildPunchHoleRequest(deviceId, serverKey, connType) {
+        const ct = connType != null ? connType : this.enums.ConnType.values.DEFAULT_CONN;
         return {
             punchHoleRequest: {
                 id: deviceId,
                 natType: this.enums.NatType.values.SYMMETRIC, // Browser always NAT
                 licenceKey: serverKey || '',
-                connType: this.enums.ConnType.values.DEFAULT_CONN,
+                connType: ct,
                 token: '',
                 version: 'BetterDesk-Web/1.0',
                 forceRelay: true // Browser must use relay
@@ -181,7 +182,8 @@ class RDProtocol {
      * @param {string} relayServer - Relay server address
      * @param {string} [serverKey] - Server public key for licence_key validation (hbbr checks this)
      */
-    buildRequestRelay(deviceId, uuid, relayServer, serverKey) {
+    buildRequestRelay(deviceId, uuid, relayServer, serverKey, connType) {
+        const ct = connType != null ? connType : this.enums.ConnType.values.DEFAULT_CONN;
         return {
             requestRelay: {
                 id: deviceId,
@@ -189,7 +191,7 @@ class RDProtocol {
                 relayServer: relayServer || '',
                 licenceKey: serverKey || '',
                 secure: false,
-                connType: this.enums.ConnType.values.DEFAULT_CONN,
+                connType: ct,
                 token: ''
             }
         };
@@ -223,6 +225,29 @@ class RDProtocol {
      * @param {Uint8Array} passwordHash
      * @param {Object} opts
      */
+    /**
+     * Build LoginRequest for a dedicated FILE_TRANSFER session (RustDesk file manager).
+     * @param {Uint8Array} passwordHash
+     * @param {Object} opts
+     */
+    buildFileTransferLoginRequest(passwordHash, opts = {}) {
+        return {
+            loginRequest: {
+                username: opts.username || '',
+                password: passwordHash,
+                myId: opts.myId || 'web-client-ft',
+                myName: opts.myName || 'BetterDesk Web',
+                myPlatform: 'Web',
+                version: 'BetterDesk-Web/1.0',
+                sessionId: Date.now(),
+                fileTransfer: {
+                    dir: opts.dir != null ? opts.dir : '',
+                    showHidden: !!opts.showHidden
+                }
+            }
+        };
+    }
+
     buildLoginRequest(passwordHash, opts = {}) {
         // Dynamically detect codec support
         const hasWebCodecs = typeof VideoDecoder !== 'undefined';

@@ -865,7 +865,8 @@
     "view_all": "Tümünü Görüntüle",
     "cdap_viewer": "CDAP Snapshot Viewer",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Yeniden dene"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "Uzak masaüstü daha büyük ekran gerektirir",
     "phone_unsupported_body": "Tablet, açık katlanabilir veya masaüstü kullanın. Cihaz yönetimi konsolda devam eder.",
     "phone_unsupported_back_devices": "Cihazlara dön",
-    "phone_unsupported_get_desktop": "RdClient desktop indir"
+    "phone_unsupported_get_desktop": "RdClient desktop indir",
+    "file_local": "Yerel bilgisayar",
+    "file_remote": "Uzak bilgisayar",
+    "file_send": "Gönder",
+    "file_pick_folder": "Klasör seç",
+    "file_queue_empty": "Devam eden aktarım yok",
+    "file_connecting": "Dosya aktarım oturumu bağlanıyor…",
+    "file_connect_failed": "Dosya aktarım oturumu açılamadı",
+    "file_local_limited": "Tam yerel klasör gezintisi HTTPS üzerinden Chrome veya Edge gerektirir. Yükleme ve indirme hâlâ çalışır.",
+    "file_transfer_unavailable_cdap": "Dosya aktarımı CDAP anlık görüntü oturumlarında kullanılamaz."
   },
   "branding": {
     "identity_title": "Marka Kimliği",

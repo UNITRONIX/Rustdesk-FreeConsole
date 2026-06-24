@@ -859,7 +859,8 @@
     "view_all": "Alle anzeigen",
     "cdap_viewer": "CDAP Snapshot Viewer",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Erneut versuchen"
   },
   "time": {
     "just_now": "gerade eben",
@@ -1132,7 +1133,16 @@
     "phone_unsupported_title": "Remote-Desktop erfordert einen größeren Bildschirm",
     "phone_unsupported_body": "Verwenden Sie ein Tablet, aufgeklapptes Foldable oder Desktop. Geräteverwaltung bleibt in der Konsole verfügbar.",
     "phone_unsupported_back_devices": "Zurück zu Geräten",
-    "phone_unsupported_get_desktop": "RdClient Desktop holen"
+    "phone_unsupported_get_desktop": "RdClient Desktop holen",
+    "file_local": "Lokaler Computer",
+    "file_remote": "Entfernter Computer",
+    "file_send": "Senden",
+    "file_pick_folder": "Ordner wählen",
+    "file_queue_empty": "Keine laufenden Übertragungen",
+    "file_connecting": "Dateiübertragungssitzung wird verbunden…",
+    "file_connect_failed": "Dateiübertragungssitzung konnte nicht geöffnet werden",
+    "file_local_limited": "Vollständiges lokales Ordnerbrowsing erfordert Chrome oder Edge über HTTPS. Hoch- und Herunterladen funktioniert weiterhin.",
+    "file_transfer_unavailable_cdap": "Dateiübertragung ist für CDAP-Snapshot-Sitzungen nicht verfügbar."
   },
   "branding": {
     "identity_title": "Markenidentität",

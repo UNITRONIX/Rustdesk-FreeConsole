@@ -876,7 +876,8 @@
     "dismiss": "忽略",
     "view_all": "查看全部",
     "add": "添加",
-    "remove": "移除"
+    "remove": "移除",
+    "retry": "重試"
   },
   "time": {
     "just_now": "剛剛",
@@ -1149,7 +1150,16 @@
     "phone_unsupported_title": "遠端桌面需要更大的螢幕",
     "phone_unsupported_body": "請使用平板、展開的折疊裝置或桌面。仍可在主控台管理裝置。",
     "phone_unsupported_back_devices": "返回裝置",
-    "phone_unsupported_get_desktop": "取得 RdClient 桌面版"
+    "phone_unsupported_get_desktop": "取得 RdClient 桌面版",
+    "file_local": "本機電腦",
+    "file_remote": "遠端電腦",
+    "file_send": "傳送",
+    "file_pick_folder": "選擇資料夾",
+    "file_queue_empty": "沒有進行中的傳輸",
+    "file_connecting": "正在連線檔案傳輸工作階段…",
+    "file_connect_failed": "無法開啟檔案傳輸工作階段",
+    "file_local_limited": "完整的本機資料夾瀏覽需要 HTTPS 下的 Chrome 或 Edge。仍可上傳和下載檔案。",
+    "file_transfer_unavailable_cdap": "CDAP 快照工作階段不支援檔案傳輸。"
   },
   "branding": {
     "identity_title": "品牌標識",

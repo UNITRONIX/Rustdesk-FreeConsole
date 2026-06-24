@@ -865,7 +865,8 @@
     "view_all": "Vezi toate",
     "cdap_viewer": "Vizualizator Snapshot CDAP",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Reîncearcă"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "Desktopul remote necesită un ecran mai mare",
     "phone_unsupported_body": "Folosiți tabletă, foldable desfăcut sau desktop. Gestionarea dispozitivelor rămâne în consolă.",
     "phone_unsupported_back_devices": "Înapoi la dispozitive",
-    "phone_unsupported_get_desktop": "Obține RdClient desktop"
+    "phone_unsupported_get_desktop": "Obține RdClient desktop",
+    "file_local": "Calculator local",
+    "file_remote": "Calculator la distanță",
+    "file_send": "Trimite",
+    "file_pick_folder": "Alege folder",
+    "file_queue_empty": "Nicio transfer în curs",
+    "file_connecting": "Se conectează sesiunea de transfer fișiere…",
+    "file_connect_failed": "Nu s-a putut deschide sesiunea de transfer fișiere",
+    "file_local_limited": "Navigarea completă a folderelor locale necesită Chrome sau Edge prin HTTPS. Încărcarea și descărcarea funcționează în continuare.",
+    "file_transfer_unavailable_cdap": "Transferul de fișiere nu este disponibil pentru sesiunile snapshot CDAP."
   },
   "branding": {
     "identity_title": "Identitatea de marcă",

@@ -859,7 +859,8 @@
     "view_all": "すべて表示",
     "cdap_viewer": "CDAP Snapshot Viewer",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "再試行"
   },
   "time": {
     "just_now": "Just now",
@@ -1132,7 +1133,16 @@
     "phone_unsupported_title": "リモートデスクトップには大きな画面が必要です",
     "phone_unsupported_body": "タブレット、開いた折りたたみ端末、またはデスクトップをご利用ください。デバイス管理はコンソールで利用できます。",
     "phone_unsupported_back_devices": "デバイスに戻る",
-    "phone_unsupported_get_desktop": "RdClient desktop を取得"
+    "phone_unsupported_get_desktop": "RdClient desktop を取得",
+    "file_local": "ローカル PC",
+    "file_remote": "リモート PC",
+    "file_send": "送信",
+    "file_pick_folder": "フォルダを選択",
+    "file_queue_empty": "進行中の転送はありません",
+    "file_connecting": "ファイル転送セッションに接続中…",
+    "file_connect_failed": "ファイル転送セッションを開けませんでした",
+    "file_local_limited": "ローカルフォルダの完全な閲覧には HTTPS 上の Chrome または Edge が必要です。アップロードとダウンロードは引き続き利用できます。",
+    "file_transfer_unavailable_cdap": "CDAP スナップショットセッションではファイル転送は利用できません。"
   },
   "branding": {
     "identity_title": "ブランドアイデンティティ",

@@ -865,7 +865,8 @@
     "view_all": "Переглянути всі",
     "cdap_viewer": "Переглядач знімків CDAP",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Повторити"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "Віддалений робочий стіл потребує більшого екрана",
     "phone_unsupported_body": "Використовуйте планшет, розгорнутий fold або комп’ютер. Керування пристроями залишається в консолі.",
     "phone_unsupported_back_devices": "Назад до пристроїв",
-    "phone_unsupported_get_desktop": "Завантажити RdClient desktop"
+    "phone_unsupported_get_desktop": "Завантажити RdClient desktop",
+    "file_local": "Локальний комп'ютер",
+    "file_remote": "Віддалений комп'ютер",
+    "file_send": "Надіслати",
+    "file_pick_folder": "Обрати теку",
+    "file_queue_empty": "Немає активних передач",
+    "file_connecting": "Підключення сеансу передачі файлів…",
+    "file_connect_failed": "Не вдалося відкрити сеанс передачі файлів",
+    "file_local_limited": "Повний перегляд локальних тек потребує Chrome або Edge через HTTPS. Завантаження та вивантаження файлу все одно працюють.",
+    "file_transfer_unavailable_cdap": "Передача файлів недоступна для сеансів знімка CDAP."
   },
   "branding": {
     "identity_title": "Ідентичність бренду",

@@ -876,7 +876,8 @@
     "dismiss": "Ignorer",
     "view_all": "Tout afficher",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Réessayer"
   },
   "time": {
     "just_now": "à l'instant",
@@ -1149,7 +1150,16 @@
     "phone_unsupported_title": "Le bureau à distance nécessite un écran plus grand",
     "phone_unsupported_body": "Utilisez une tablette, un foldable déplié ou un ordinateur. La gestion des appareils reste disponible dans la console.",
     "phone_unsupported_back_devices": "Retour aux appareils",
-    "phone_unsupported_get_desktop": "Obtenir RdClient desktop"
+    "phone_unsupported_get_desktop": "Obtenir RdClient desktop",
+    "file_local": "Ordinateur local",
+    "file_remote": "Ordinateur distant",
+    "file_send": "Envoyer",
+    "file_pick_folder": "Choisir un dossier",
+    "file_queue_empty": "Aucun transfert en cours",
+    "file_connecting": "Connexion à la session de transfert de fichiers…",
+    "file_connect_failed": "Impossible d'ouvrir la session de transfert de fichiers",
+    "file_local_limited": "La navigation complète des dossiers locaux nécessite Chrome ou Edge en HTTPS. L'envoi et le téléchargement restent disponibles.",
+    "file_transfer_unavailable_cdap": "Le transfert de fichiers n'est pas disponible pour les sessions instantanées CDAP."
   },
   "branding": {
     "identity_title": "Identité de marque",

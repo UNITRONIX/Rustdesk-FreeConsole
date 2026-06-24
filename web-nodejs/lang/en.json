@@ -880,7 +880,8 @@
     "dismiss": "Dismiss",
     "view_all": "View All",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Retry"
   },
   "time": {
     "just_now": "Just now",
@@ -1153,7 +1154,16 @@
     "phone_unsupported_title": "Remote desktop requires a larger screen",
     "phone_unsupported_body": "Use a tablet, unfolded foldable, or desktop to control devices remotely. You can still manage devices from the console.",
     "phone_unsupported_back_devices": "Back to devices",
-    "phone_unsupported_get_desktop": "Get RdClient desktop"
+    "phone_unsupported_get_desktop": "Get RdClient desktop",
+    "file_local": "Local computer",
+    "file_remote": "Remote computer",
+    "file_send": "Send",
+    "file_pick_folder": "Choose folder",
+    "file_queue_empty": "No transfers in progress",
+    "file_connecting": "Connecting file transfer session…",
+    "file_connect_failed": "Could not open file transfer session",
+    "file_local_limited": "Full local folder browsing requires Chrome or Edge over HTTPS. You can still upload and download files.",
+    "file_transfer_unavailable_cdap": "File transfer is not available for CDAP snapshot sessions."
   },
   "remote_dashboard": {
     "title": "Remote Desktop Client",

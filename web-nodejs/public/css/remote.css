@@ -1259,20 +1259,336 @@
     }
 }
 
+/* ---- RdClient viewer shell (fullscreen target) ---- */
+.rd-viewer-shell {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.rd-viewer-shell:fullscreen {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: #000;
+}
+
+.rd-viewer-shell:fullscreen .session-tab-bar {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    flex-shrink: 0;
+}
+
+.rd-viewer-shell:fullscreen .viewer-container {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.toolbar-streaming .toolbar-status,
+.toolbar-streaming .toolbar-status-sep {
+    display: none !important;
+}
+
+.toolbar-btn.disabled,
+.toolbar-btn:disabled {
+    opacity: 0.35;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+/* ---- File Transfer Modal (RustDesk-style) ---- */
+.file-transfer-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    padding: 24px;
+}
+
+.file-transfer-modal {
+    width: min(1100px, 96vw);
+    height: min(560px, 88vh);
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid var(--border-primary, #30363d);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+}
+
+.ft-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-primary, #30363d);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.ft-modal-title {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ft-modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+}
+
+.ft-modal-close:hover {
+    color: var(--text-primary, #e6edf3);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ft-modal-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr 220px;
+    flex: 1;
+    min-height: 0;
+    gap: 0;
+}
+
+.ft-pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--border-primary, #30363d);
+}
+
+.ft-pane-queue {
+    border-right: none;
+}
+
+.ft-pane-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary, #8b949e);
+    border-bottom: 1px solid var(--border-primary, #30363d);
+}
+
+.ft-pane-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-primary, #30363d);
+    flex-wrap: wrap;
+}
+
+.ft-path {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--text-secondary, #8b949e);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 4px;
+}
+
+.ft-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.ft-btn:hover {
+    color: var(--text-primary, #e6edf3);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ft-btn-action {
+    margin-left: auto;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent, #3884ff);
+    white-space: nowrap;
+}
+
+.ft-local-hint {
+    padding: 6px 12px;
+    font-size: 11px;
+    color: var(--text-secondary, #8b949e);
+    border-bottom: 1px solid var(--border-primary, #30363d);
+}
+
+.ft-hint-text {
+    display: inline;
+}
+
+.ft-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.ft-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+}
+
+.ft-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.ft-row.selected {
+    background: rgba(56, 132, 255, 0.15);
+}
+
+.ft-row-icon {
+    font-size: 18px !important;
+    color: var(--text-secondary, #8b949e);
+    flex-shrink: 0;
+}
+
+.ft-row-dir .ft-row-icon {
+    color: #e3b341;
+}
+
+.ft-row-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ft-row-size {
+    font-size: 11px;
+    color: var(--text-secondary, #8b949e);
+    flex-shrink: 0;
+}
+
+.ft-empty {
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--text-secondary, #8b949e);
+    font-size: 12px;
+}
+
+.ft-empty.ft-error {
+    color: var(--warning, #d29922);
+}
+
+.ft-pane-remote.ft-drag-over {
+    outline: 2px dashed var(--accent, #3884ff);
+    outline-offset: -4px;
+}
+
+.ft-queue-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 8px;
+}
+
+.ft-queue-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--text-secondary, #8b949e);
+    font-size: 12px;
+    padding: 16px;
+    text-align: center;
+}
+
+.ft-transfer-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px;
+    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    font-size: 11px;
+}
+
+.ft-transfer-row.done .ft-transfer-pct {
+    color: #3fb950;
+}
+
+.ft-transfer-row.error .ft-transfer-pct {
+    color: #f85149;
+}
+
+.ft-transfer-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ft-transfer-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.ft-transfer-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 2px;
+}
+
+.ft-transfer-fill {
+    height: 100%;
+    background: var(--accent, #3884ff);
+    width: 0;
+    transition: width 0.15s;
+}
+
+@media (max-width: 900px) {
+    .ft-modal-body {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr auto;
+    }
+
+    .ft-pane-queue {
+        grid-column: 1 / -1;
+        max-height: 120px;
+        border-top: 1px solid var(--border-primary, #30363d);
+    }
+}
+
 @media (max-width: 480px) {
-    .toolbar-right {
-        gap: 0;
-    }
-
-    .toolbar-btn {
-        width: 32px;
-        height: 32px;
-    }
-
-    .toolbar-btn .material-icons {
-        font-size: 18px;
-    }
-
     .session-tab {
         max-width: 100px;
     }

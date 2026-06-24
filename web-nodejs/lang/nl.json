@@ -859,7 +859,8 @@
     "view_all": "Alles bekijken",
     "cdap_viewer": "CDAP Snapshot Viewer",
     "add": "Toevoegen",
-    "remove": "Verwijderen"
+    "remove": "Verwijderen",
+    "retry": "Opnieuw"
   },
   "time": {
     "just_now": "Zojuist",
@@ -1132,7 +1133,16 @@
     "phone_unsupported_title": "Remote desktop vereist een groter scherm",
     "phone_unsupported_body": "Gebruik tablet, opengeklapt foldable of desktop. Apparaatbeheer blijft in de console.",
     "phone_unsupported_back_devices": "Terug naar apparaten",
-    "phone_unsupported_get_desktop": "RdClient desktop downloaden"
+    "phone_unsupported_get_desktop": "RdClient desktop downloaden",
+    "file_local": "Lokale computer",
+    "file_remote": "Externe computer",
+    "file_send": "Verzenden",
+    "file_pick_folder": "Map kiezen",
+    "file_queue_empty": "Geen overdrachten bezig",
+    "file_connecting": "Bestandsoverdrachtsessie verbinden…",
+    "file_connect_failed": "Kon bestandsoverdrachtsessie niet openen",
+    "file_local_limited": "Volledig lokaal mapbladeren vereist Chrome of Edge via HTTPS. Uploaden en downloaden blijft mogelijk.",
+    "file_transfer_unavailable_cdap": "Bestandsoverdracht is niet beschikbaar voor CDAP-snapshot-sessies."
   },
   "branding": {
     "identity_title": "Merkidentiteit",

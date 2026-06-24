@@ -865,7 +865,8 @@
     "view_all": "ดูทั้งหมด",
     "cdap_viewer": "CDAP Snapshot Viewer",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "ลองอีกครั้ง"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "เดสก์ท็อpระยะไกลต้องใช้หน้าจอที่ใหญ่กว่า",
     "phone_unsupported_body": "ใช้แท็บเล็ต foldable ที่เปิด หรือเดสก์ท็อป จัดการอุปกรณ์ได้ใน console",
     "phone_unsupported_back_devices": "กลับไปยังอุปกรณ์",
-    "phone_unsupported_get_desktop": "รับ RdClient desktop"
+    "phone_unsupported_get_desktop": "รับ RdClient desktop",
+    "file_local": "คอมพิวเตอร์ในเครื่อง",
+    "file_remote": "คอมพิวเตอร์ระยะไกล",
+    "file_send": "ส่ง",
+    "file_pick_folder": "เลือกโฟลเดอร์",
+    "file_queue_empty": "ไม่มีการถ่ายโอนที่กำลังดำเนินการ",
+    "file_connecting": "กำลังเชื่อมต่อเซสชันการถ่ายโอนไฟล์…",
+    "file_connect_failed": "ไม่สามารถเปิดเซสชันการถ่ายโอนไฟล์ได้",
+    "file_local_limited": "การเรียกดูโฟลเดอร์ในเครื่องแบบเต็มต้องใช้ Chrome หรือ Edge ผ่าน HTTPS การอัปโหลดและดาวน์โหลดยังใช้งานได้",
+    "file_transfer_unavailable_cdap": "การถ่ายโอนไฟล์ไม่พร้อมใช้งานสำหรับเซสชันภาพรวม CDAP"
   },
   "branding": {
     "identity_title": "เอกลักษณ์ของแบรนด์",

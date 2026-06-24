@@ -18,6 +18,9 @@
     </div>
 </div>
 
+<!-- RdClient shell: tabs + viewer + toolbar (fullscreen target) -->
+<div id="rd-viewer-shell" class="rd-viewer-shell">
+
 <!-- Session Tab Bar -->
 <div class="session-tab-bar" id="session-tab-bar">
     <button type="button" class="tab-bar-back" id="btn-back-devices" title="${_('remote.back_to_devices')}">
@@ -39,7 +42,7 @@
     <div class="toolbar-left">
         <span class="toolbar-device-info">
             <span class="toolbar-device-id" id="toolbar-device-id"></span>
-            <span class="toolbar-separator">|</span>
+            <span class="toolbar-separator toolbar-status-sep">|</span>
             <span class="toolbar-status" id="toolbar-status">${_('remote.connecting')}</span>
         </span>
     </div>
@@ -47,7 +50,6 @@
         <span class="toolbar-stats" id="toolbar-stats"></span>
     </div>
     <div class="toolbar-right">
-        <select id="viewer-language-select" class="toolbar-lang-select" data-language-select aria-label="${_('settings.language')}"></select>
         <!-- Actions Menu -->
         <div class="toolbar-dropdown">
             <button class="toolbar-btn" id="btn-actions" title="${_('remote.actions')}">
@@ -208,7 +210,7 @@
   </div>
 </div>
 
-<!-- Mobile toolbar (tablet / fold) -->
+</div><!-- /#rd-viewer-shell -->
 <nav class="rd-mobile-toolbar" id="rd-mobile-toolbar" aria-label="${_('remote.mobile_toolbar') || 'Remote controls'}">
     <button type="button" class="rd-mobile-toolbar-btn active" id="rd-mob-input-touch" data-mode="direct" title="${_('remote.input_mode_touch')}">
         <span class="material-icons">touch_app</span>
@@ -342,47 +344,6 @@
                 <input type="text" class="chat-input session-chat-input" placeholder="${_('remote.chat_placeholder')}" />
                 <button class="chat-send session-btn-chat-send"><span class="material-icons">send</span></button>
             </div>
-        </div>
-        <!-- File Transfer Panel -->
-        <div class="file-panel session-file-panel" style="display:none;">
-            <div class="file-panel-header">
-                <span class="material-icons">folder_open</span>
-                <span>${_('remote.file_transfer') || 'File Transfer'}</span>
-                <div class="file-panel-actions">
-                    <button class="file-btn-icon session-file-btn-hidden" title="${_('remote.file_show_hidden') || 'Show Hidden'}">
-                        <span class="material-icons">visibility</span>
-                    </button>
-                    <button class="file-btn-icon session-file-btn-newdir" title="${_('remote.file_new_folder') || 'New Folder'}">
-                        <span class="material-icons">create_new_folder</span>
-                    </button>
-                    <button class="file-btn-icon session-file-btn-upload" title="${_('remote.file_upload') || 'Upload'}">
-                        <span class="material-icons">upload_file</span>
-                    </button>
-                    <button class="file-btn-icon session-file-btn-close">
-                        <span class="material-icons">close</span>
-                    </button>
-                </div>
-            </div>
-            <div class="file-panel-path">
-                <button class="file-btn-icon session-file-btn-up" title="${_('remote.file_parent') || 'Parent Directory'}">
-                    <span class="material-icons">arrow_upward</span>
-                </button>
-                <button class="file-btn-icon session-file-btn-home" title="${_('remote.file_root') || 'Root'}">
-                    <span class="material-icons">home</span>
-                </button>
-                <span class="file-path-text session-file-path-text">/</span>
-            </div>
-            <div class="file-panel-list session-file-list">
-                <div class="file-empty">${_('remote.file_empty') || 'No files'}</div>
-            </div>
-            <div class="file-panel-transfers session-file-transfers" style="display:none;">
-                <div class="file-transfers-header">
-                    <span class="material-icons">swap_vert</span>
-                    <span>${_('remote.file_transfers') || 'Transfers'}</span>
-                </div>
-                <div class="file-transfers-list session-file-transfers-list"></div>
-            </div>
-            <input type="file" class="session-file-upload-input" multiple style="display:none;" />
         </div>
     </div>
 </template>

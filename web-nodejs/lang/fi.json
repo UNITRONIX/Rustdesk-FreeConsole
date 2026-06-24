@@ -865,7 +865,8 @@
     "view_all": "Näytä kaikki",
     "cdap_viewer": "CDAP Snapshot -katseluohjelma",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Yritä uudelleen"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "Etätyöpöytä vaatii suuremman näytön",
     "phone_unsupported_body": "Käytä tablettia, avattua taittopuhelinta tai työpöytää. Laitteiden hallinta toimii konsolissa.",
     "phone_unsupported_back_devices": "Takaisin laitteisiin",
-    "phone_unsupported_get_desktop": "Hae RdClient desktop"
+    "phone_unsupported_get_desktop": "Hae RdClient desktop",
+    "file_local": "Paikallinen tietokone",
+    "file_remote": "Etätietokone",
+    "file_send": "Lähetä",
+    "file_pick_folder": "Valitse kansio",
+    "file_queue_empty": "Ei siirtoja käynnissä",
+    "file_connecting": "Yhdistetään tiedostonsiirtosessiota…",
+    "file_connect_failed": "Tiedostonsiirtosessiota ei voitu avata",
+    "file_local_limited": "Täysi paikallinen kansioselaus vaatii Chromen tai Edgen HTTPS-yhteydellä. Lataus ja lähetys toimivat silti.",
+    "file_transfer_unavailable_cdap": "Tiedostonsiirto ei ole käytettävissä CDAP-tilannekuvasessioissa."
   },
   "branding": {
     "identity_title": "Brändin identiteetti",

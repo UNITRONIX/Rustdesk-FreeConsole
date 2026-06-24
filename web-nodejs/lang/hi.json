@@ -865,7 +865,8 @@
     "view_all": "सभी को देखें",
     "cdap_viewer": "CDAP Snapshot Viewer",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "पुनः प्रयास"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "रिमोट डेस्कटॉप के लिए बड़ी स्क्रीन चाहिए",
     "phone_unsupported_body": "टैबलेट, खुला foldable या डेस्कटॉप उपयोग करें। डिवाइस प्रबंधन कंसोल में उपलब्ध है।",
     "phone_unsupported_back_devices": "डिवाइस पर वापस",
-    "phone_unsupported_get_desktop": "RdClient desktop प्राप्त करें"
+    "phone_unsupported_get_desktop": "RdClient desktop प्राप्त करें",
+    "file_local": "स्थानीय कंप्यूटर",
+    "file_remote": "रिमोट कंप्यूटर",
+    "file_send": "भेजें",
+    "file_pick_folder": "फ़ोल्डर चुनें",
+    "file_queue_empty": "कोई स्थानांतरण प्रगति में नहीं",
+    "file_connecting": "फ़ाइल स्थानांतरण सत्र कनेक्ट हो रहा है…",
+    "file_connect_failed": "फ़ाइल स्थानांतरण सत्र नहीं खोला जा सका",
+    "file_local_limited": "पूर्ण स्थानीय फ़ोल्डर ब्राउज़िंग के लिए HTTPS पर Chrome या Edge आवश्यक है। अपलोड और डाउनलोड अभी भी काम करते हैं।",
+    "file_transfer_unavailable_cdap": "CDAP स्नैपशॉट सत्रों के लिए फ़ाइल स्थानांतरण उपलब्ध नहीं है।"
   },
   "branding": {
     "identity_title": "ब्रांड पहचान",

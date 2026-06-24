@@ -872,7 +872,8 @@
     "dismiss": "Ukryj",
     "view_all": "Zobacz wszystkie",
     "add": "Dodaj",
-    "remove": "Usuń"
+    "remove": "Usuń",
+    "retry": "Ponów"
   },
   "time": {
     "just_now": "Przed chwilą",
@@ -1145,7 +1146,16 @@
     "phone_unsupported_title": "Pulpit zdalny wymaga większego ekranu",
     "phone_unsupported_body": "Użyj tabletu, rozłożonego folda lub komputera, aby zdalnie sterować urządzeniami. Zarządzanie urządzeniami nadal działa w konsoli.",
     "phone_unsupported_back_devices": "Wróć do urządzeń",
-    "phone_unsupported_get_desktop": "Pobierz RdClient desktop"
+    "phone_unsupported_get_desktop": "Pobierz RdClient desktop",
+    "file_local": "Komputer lokalny",
+    "file_remote": "Komputer zdalny",
+    "file_send": "Wyślij",
+    "file_pick_folder": "Wybierz folder",
+    "file_queue_empty": "Brak transferów w toku",
+    "file_connecting": "Łączenie sesji transferu plików…",
+    "file_connect_failed": "Nie udało się otworzyć sesji transferu plików",
+    "file_local_limited": "Pełne przeglądanie folderów lokalnych wymaga Chrome lub Edge przez HTTPS. Wysyłanie i pobieranie plików nadal działa.",
+    "file_transfer_unavailable_cdap": "Transfer plików jest niedostępny w sesjach podglądu CDAP."
   },
   "branding": {
     "identity_title": "Identyfikacja marki",

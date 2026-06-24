@@ -865,7 +865,8 @@
     "view_all": "Lihat Semua",
     "cdap_viewer": "CDAP Snapshot Viewer",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Coba lagi"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "Desktop jarak jauh memerlukan layar lebih besar",
     "phone_unsupported_body": "Gunakan tablet, foldable terbuka, atau desktop. Kelola perangkat tetap di konsol.",
     "phone_unsupported_back_devices": "Kembali ke perangkat",
-    "phone_unsupported_get_desktop": "Dapatkan RdClient desktop"
+    "phone_unsupported_get_desktop": "Dapatkan RdClient desktop",
+    "file_local": "Komputer lokal",
+    "file_remote": "Komputer jarak jauh",
+    "file_send": "Kirim",
+    "file_pick_folder": "Pilih folder",
+    "file_queue_empty": "Tidak ada transfer yang berlangsung",
+    "file_connecting": "Menghubungkan sesi transfer file…",
+    "file_connect_failed": "Tidak dapat membuka sesi transfer file",
+    "file_local_limited": "Penelusuran folder lokal penuh memerlukan Chrome atau Edge melalui HTTPS. Unggah dan unduh tetap berfungsi.",
+    "file_transfer_unavailable_cdap": "Transfer file tidak tersedia untuk sesi snapshot CDAP."
   },
   "branding": {
     "identity_title": "Identitas Merek",

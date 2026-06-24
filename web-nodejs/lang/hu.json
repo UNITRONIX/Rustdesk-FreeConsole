@@ -865,7 +865,8 @@
     "view_all": "Összes megtekintése",
     "cdap_viewer": "CDAP Snapshot nézető",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Újra"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "A távoli asztal nagyobb képernyőt igényel",
     "phone_unsupported_body": "Használjon tabletet, kinyitott foldot vagy asztali gépet. Az eszközkezelés továbbra is elérhető a konzolon.",
     "phone_unsupported_back_devices": "Vissza az eszközökhöz",
-    "phone_unsupported_get_desktop": "RdClient desktop letöltése"
+    "phone_unsupported_get_desktop": "RdClient desktop letöltése",
+    "file_local": "Helyi számítógép",
+    "file_remote": "Távoli számítógép",
+    "file_send": "Küldés",
+    "file_pick_folder": "Mappa kiválasztása",
+    "file_queue_empty": "Nincs folyamatban lévő átvitel",
+    "file_connecting": "Fájlátviteli munkamenet csatlakoztatása…",
+    "file_connect_failed": "Nem sikerült megnyitni a fájlátviteli munkamenetet",
+    "file_local_limited": "A teljes helyi mappaböngészés Chrome-ot vagy Edge-et igényel HTTPS-en. A feltöltés és letöltés továbbra is működik.",
+    "file_transfer_unavailable_cdap": "A fájlátvitel nem érhető el CDAP pillanatkép-munkamenetekben."
   },
   "branding": {
     "identity_title": "Márkaidentitás",

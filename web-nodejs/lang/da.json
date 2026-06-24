@@ -865,7 +865,8 @@
     "view_all": "Se alle",
     "cdap_viewer": "CDAP Snapshot-visning",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "retry": "Prøv igen"
   },
   "time": {
     "just_now": "Just now",
@@ -1138,7 +1139,16 @@
     "phone_unsupported_title": "Fjernskrivebord kræver en større skærm",
     "phone_unsupported_body": "Brug tablet, foldet foldbar eller desktop. Enhedsstyring er stadig i konsollen.",
     "phone_unsupported_back_devices": "Tilbage til enheder",
-    "phone_unsupported_get_desktop": "Hent RdClient desktop"
+    "phone_unsupported_get_desktop": "Hent RdClient desktop",
+    "file_local": "Lokal computer",
+    "file_remote": "Fjerncomputer",
+    "file_send": "Send",
+    "file_pick_folder": "Vælg mappe",
+    "file_queue_empty": "Ingen overførsler i gang",
+    "file_connecting": "Opretter filoverførselssession…",
+    "file_connect_failed": "Kunne ikke åbne filoverførselssession",
+    "file_local_limited": "Fuld lokal mappevisning kræver Chrome eller Edge over HTTPS. Upload og download virker stadig.",
+    "file_transfer_unavailable_cdap": "Filoverførsel er ikke tilgængelig for CDAP-snapshot-sessioner."
   },
   "branding": {
     "identity_title": "Brand Identitet",

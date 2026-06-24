@@ -1,7 +1,10 @@
 ## [Unreleased]
 
+### Fixed
+- **Web Remote file transfer (#217)**: opens a dedicated `FILE_TRANSFER` relay session (separate from the desktop tunnel) so RustDesk peers handle `FileAction` messages. Replaces the side panel with a RustDesk-style centered modal (local | remote | transfer queue); local folder browsing uses the File System Access API on Chrome/Edge with HTTPS fallback. CDAP snapshot sessions disable the file-transfer toolbar button.
+
 ### Changed
-- _(none yet)_
+- **Web Remote toolbar UX**: hides “Connected” status text and frame count while streaming; removes the in-viewer language picker. Fullscreen (toolbar button, handle, F11) now covers the tab bar, viewer, and floating toolbar via `#rd-viewer-shell`.
 
 ---
 
