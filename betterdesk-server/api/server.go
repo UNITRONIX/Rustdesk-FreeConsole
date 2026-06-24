@@ -46,6 +46,15 @@ var peerIDRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]{6,16}$`)
 // Prevents arbitrary key injection into the server_config table.
 var configKeyRegexp = regexp.MustCompile(`^[A-Za-z0-9_.\-]{1,64}$`)
 
+// ldapAuthProvider is implemented by *auth.LDAPProvider and test mocks.
+type ldapAuthProvider interface {
+	IsEnabled() bool
+	Authenticate(username, password string) (*auth.LDAPResult, error)
+	UpdateConfig(cfg *auth.LDAPConfig)
+	TestConnection() error
+	Config() auth.LDAPConfig
+}
+
 // Server is the HTTP API server.
 type Server struct {
 	cfg              *config.Config
@@ -67,7 +76,7 @@ type Server struct {
 	keyPair           *crypto.KeyPair    // Ed25519 keypair for signing
 	cdapGw            *cdap.Gateway      // CDAP gateway (nil if CDAP disabled)
 	meshGw            *meshcentral.Gateway // MeshCentral compat (nil if disabled)
-	ldapProvider      *auth.LDAPProvider // LDAP auth provider (nil if not configured)
+	ldapProvider      ldapAuthProvider // LDAP auth provider (nil if not configured)
 	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
 	panelStore        db.PanelSyncStore // device groups, folders, ACL (PostgreSQL or legacy auth.db)

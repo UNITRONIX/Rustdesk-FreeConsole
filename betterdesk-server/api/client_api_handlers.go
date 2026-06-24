@@ -165,18 +165,27 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.db.GetUser(body.Username)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+	if s.loginLimiter != nil && !s.loginLimiter.Allow("user:"+strings.ToLower(body.Username)) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{
+			"error": "Too many login attempts. Please try again later.",
+		})
 		return
 	}
-	if user == nil || !auth.VerifyPassword(user.PasswordHash, body.Password) {
-		if s.auditLog != nil {
-			s.auditLog.Log(audit.ActionAuthLoginFailed, clientIP, body.Username, nil)
-		}
+
+	login := s.authenticatePasswordLogin(body.Username, body.Password, clientIP)
+	switch login.Status {
+	case passwordLoginInternal:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+		return
+	case passwordLoginOIDC:
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "This account uses single sign-on. Please log in with your identity provider."})
+		return
+	case passwordLoginInvalid:
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
 	}
+
+	user := login.User
 
 	// Check if TOTP 2FA is required
 	if user.TOTPEnabled && user.TOTPSecret != "" {
@@ -218,9 +227,12 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 
 	_ = s.db.UpdateUserLogin(user.ID)
 
+	auditFields := map[string]string{"client_id": body.ID}
+	if login.AuthMethod != "" {
+		auditFields["method"] = login.AuthMethod
+	}
 	if s.auditLog != nil {
-		s.auditLog.Log(audit.ActionAuthLogin, clientIP, user.Username,
-			map[string]string{"client_id": body.ID})
+		s.auditLog.Log(audit.ActionAuthLogin, clientIP, user.Username, auditFields)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

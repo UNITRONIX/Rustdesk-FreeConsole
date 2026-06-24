@@ -731,10 +731,10 @@ RustDesk desktop clients can **log in** to the BetterDesk server using their use
 
 1. Open the RustDesk client
 2. Click the **account icon** (person silhouette) in the bottom-left corner
-3. Enter your **username** and **password** (the same credentials used for the Web Console)
+3. Enter your **username** and **password** — the same credentials as the Web Console (local accounts or **LDAP/Active Directory** when LDAP is enabled in Settings)
 4. Click **Login**
 
-> **Note:** Login is handled by **Go on 21114**. Use **`http://<server>:21114`** (default) or **`http://<server>:21121`** (backward compatibility). The web panel (5000) is management UI only.
+> **Note:** Login is handled by **Go on 21114**. Use **`http://<server>:21114`** (default) or **`http://<server>:21121`** (backward compatibility). The web panel (5000) is management UI only. With LDAP enabled, directory users sign in here with their AD password; accounts are auto-provisioned on first successful login (same as the web console).
 
 #### What Login Enables
 
@@ -766,6 +766,7 @@ RustDesk desktop clients can **log in** to the BetterDesk server using their use
 | "Failed to parse response" with `https://` | Use **plain HTTP** on :21114 or :21121 |
 | TOTP 2FA prompt | Enter the 6-digit code from your authenticator app (if 2FA is enabled for your account) |
 | "Invalid credentials" | Reset password via Web Console → Users, or run the installer with option 6 |
+| LDAP/AD "Invalid credentials" in client but web console works | Update to latest release (Fixes #218); confirm LDAP test in Settings → LDAP; use API URL `:21114` or `:21121`, not the panel port `:5000` |
 
 ### Enabling Pro Features
 

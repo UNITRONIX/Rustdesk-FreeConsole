@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **RustDesk client LDAP login (#218)**: `POST /api/login` on the Go API now uses the same provider-bound LDAP/AD authentication as the web console (`/api/auth/login`). LDAP-bound and auto-provisioned directory users can sign in to the RustDesk desktop client with domain username/password; TOTP still applies when enabled locally.
+
 ### Changed
 - _(none yet)_
 
