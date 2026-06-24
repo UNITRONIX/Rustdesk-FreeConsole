@@ -4,6 +4,7 @@ const {
     isPrivilegedPort,
     resolvePortForCurrentUser,
     parseEnvPortSettings,
+    resolvePanelHealthPort,
     consoleEnvUsesPrivilegedPorts,
     ensureBindCapabilityInServiceUnit,
     serviceUnitHasBindCapability,
@@ -30,6 +31,24 @@ describe('privilegedPorts', () => {
             httpsEnabled: true,
             httpRedirect: false,
         });
+    });
+
+    test('resolvePanelHealthPort uses HTTPS_PORT when HTTPS enabled (not PORT)', () => {
+        const settings = parseEnvPortSettings([
+            'HTTPS_ENABLED=true',
+            'HTTPS_PORT=5443',
+            'PORT=5000',
+        ].join('\n'));
+        expect(resolvePanelHealthPort(settings)).toBe(5443);
+    });
+
+    test('resolvePanelHealthPort uses PORT when HTTP mode', () => {
+        const settings = parseEnvPortSettings([
+            'HTTPS_ENABLED=false',
+            'PORT=5000',
+            'HTTPS_PORT=5443',
+        ].join('\n'));
+        expect(resolvePanelHealthPort(settings)).toBe(5000);
     });
 
     test('consoleEnvUsesPrivilegedPorts detects HTTPS on 443', () => {

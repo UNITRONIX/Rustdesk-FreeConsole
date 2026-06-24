@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Linux HTTP/HTTPS protocol toggle (#219)**: `betterdesk.sh` now syncs `.env` and `betterdesk-console.service` consistently (`RUSTDESK_API_TLS`, SSL paths, redirect flags); health checks use `HTTPS_PORT` (5443) instead of conflating with `PORT` (5000); post-toggle tests probe Client API with the correct scheme. Panel HTTP→HTTPS redirect uses 307 + `no-store`; HSTS is skipped when `ALLOW_SELF_SIGNED_CERTS=true` so toggling back to HTTP does not leave year-long browser enforcement.
+
 ### Changed
 - _(none yet)_
 

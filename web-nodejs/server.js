@@ -409,7 +409,8 @@ function createHttpRedirectServer(httpsPort) {
     const redirectApp = express();
     redirectApp.use((req, res) => {
         const httpsUrl = `https://${req.hostname}:${httpsPort}${req.url}`;
-        res.redirect(301, httpsUrl);
+        res.setHeader('Cache-Control', 'no-store');
+        res.redirect(307, httpsUrl);
     });
     
     return http.createServer(redirectApp);

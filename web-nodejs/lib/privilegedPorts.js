@@ -44,6 +44,16 @@ function parseEnvPortSettings(envContent) {
     };
 }
 
+function resolvePanelHealthPort(settings) {
+    const s = settings || {};
+    if (s.httpsEnabled) {
+        const httpsPort = Number(s.httpsPort);
+        return Number.isInteger(httpsPort) && httpsPort > 0 ? httpsPort : 5443;
+    }
+    const port = Number(s.port);
+    return Number.isInteger(port) && port > 0 ? port : 5000;
+}
+
 function readConsoleEnvPortSettings(envPath) {
     if (!envPath || !fs.existsSync(envPath)) {
         return parseEnvPortSettings('');
@@ -129,6 +139,7 @@ module.exports = {
     isRootProcess,
     resolvePortForCurrentUser,
     parseEnvPortSettings,
+    resolvePanelHealthPort,
     readConsoleEnvPortSettings,
     consoleEnvUsesPrivilegedPorts,
     serviceUnitHasBindCapability,
