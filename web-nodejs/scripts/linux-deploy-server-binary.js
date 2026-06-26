@@ -58,12 +58,24 @@ function runDeploy(payload) {
     });
 
     const result = deployServerBinaryAtomic(validated.sourceReal, validated.targetPath);
+
+    // Running as root — refresh sudoers so panel updates pick up new privileged helpers.
+    let sudoersSync = null;
+    try {
+        const modPath = path.join(__dirname, 'linux-ensure-console-user.js');
+        delete require.cache[require.resolve(modPath)];
+        sudoersSync = require('./linux-ensure-console-user').ensureConsoleUpdateSudoers();
+    } catch (err) {
+        sudoersSync = { error: err.message || String(err) };
+    }
+
     process.stdout.write(JSON.stringify({
         success: result.success,
         backupPath: result.backupPath || null,
         error: result.error || null,
         method: 'privileged',
         targetPath: validated.targetPath,
+        sudoersSync,
     }));
     if (!result.success) {
         process.exit(1);

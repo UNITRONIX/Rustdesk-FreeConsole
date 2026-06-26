@@ -52,17 +52,23 @@ function resolveJournalctlPath() {
     return '/usr/bin/journalctl';
 }
 
+function resolveEnsureConsoleUserScriptPath(consoleRoot) {
+    return path.join(consoleRoot || CONSOLE_PATH, 'scripts/linux-ensure-console-user.js');
+}
+
 function buildUpdateSudoersContent() {
     const systemctl = resolveSystemctlPath();
     const journalctl = resolveJournalctlPath();
     const deployScript = resolveDeployScriptPath(CONSOLE_PATH);
     const systemdUnitScript = resolveSystemdUnitScriptPath(CONSOLE_PATH);
+    const ensureScript = resolveEnsureConsoleUserScriptPath(CONSOLE_PATH);
     return [
         UPDATE_SUDOERS_MARKER,
         `${SVC_USER} ALL=(root) NOPASSWD: ${systemctl}`,
         `${SVC_USER} ALL=(root) NOPASSWD: ${journalctl}`,
         `${SVC_USER} ALL=(root) NOPASSWD: ${deployScript}`,
         `${SVC_USER} ALL=(root) NOPASSWD: ${process.execPath} ${systemdUnitScript}`,
+        `${SVC_USER} ALL=(root) NOPASSWD: ${process.execPath} ${ensureScript}`,
         '',
     ].join('\n');
 }
@@ -439,6 +445,7 @@ if (require.main === module) {
 
 module.exports = {
     ensureLinuxConsoleServiceUser,
+    ensureConsoleUpdateSudoers,
     ensureDataDir,
     fixSharedPermissions,
     verifyConsoleUserAccess,
@@ -449,6 +456,7 @@ module.exports = {
     buildUpdateSudoersContent,
     ensureDeployScriptExecutable,
     resolveSystemctlPath,
+    resolveEnsureConsoleUserScriptPath,
     patchServiceUserLine,
     SHARED_GO_DATA_DIR_MODE,
     SHARED_GO_SSL_DIR_MODE,

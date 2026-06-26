@@ -881,7 +881,13 @@ prepare_console_after_update() {
     fi
     systemctl reset-failed betterdesk-console 2>/dev/null || true
     if [ -f "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" ] && command -v node &>/dev/null; then
-        node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission sync reported issues"
+        if [ "$(id -u)" -eq 0 ]; then
+            node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission sync reported issues"
+        elif command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
+            sudo -n node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission sync reported issues"
+        else
+            print_warning "Console permission sync skipped (run as root: sudo node $CONSOLE_PATH/scripts/linux-ensure-console-user.js)"
+        fi
     fi
 }
 
@@ -3995,7 +4001,13 @@ repair_permissions() {
         console_user=$(ensure_betterdesk_console_user)
         print_info "Console tree owner: $console_user"
         if [ -f "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" ] && command -v node &>/dev/null; then
-            node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission script reported issues"
+            if [ "$(id -u)" -eq 0 ]; then
+                node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission script reported issues"
+            elif command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
+                sudo -n node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission script reported issues"
+            else
+                print_warning "Console permission sync skipped (run as root: sudo node $CONSOLE_PATH/scripts/linux-ensure-console-user.js)"
+            fi
         fi
     fi
 

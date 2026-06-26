@@ -9,6 +9,7 @@
 
 ### Fixed
 - **Web Remote file transfer (#217)**: upload now sends the full destination file path (not just the directory); downloads default to the browser Downloads folder; transfer queue shows phases, progress, cancel, and stall timeout; drag-and-drop overlay on the remote panel; optional local folder save via File System Access when chosen.
+- **Panel update sudoers bootstrap (Linux)**: `linux-ensure-console-user.js` is whitelisted in sudoers and invoked via passwordless sudo during updates; server binary deploy refreshes sudoers as root so new privileged helpers (e.g. `linux-write-systemd-unit.js`) apply without a manual root step.
 
 ### Changed
 - _(none yet)_

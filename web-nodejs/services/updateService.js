@@ -1561,13 +1561,39 @@ async function _installGoToolchainBody(onProgress, opts = {}) {
     }
 }
 
-/** Refresh Linux sudoers/permissions before server binary deploy (issue #182). */
+/** Refresh Linux sudoers/permissions (issue #182). Runs ensure script as root when possible. */
 function syncLinuxPanelUpdatePrivileges() {
     if (IS_WINDOWS) return { skipped: true, reason: 'not-linux' };
-    try {
+
+    const ensureScript = path.join(ROOT_DIR, 'scripts/linux-ensure-console-user.js');
+
+    const runEnsureInProcess = () => {
         const modPath = require.resolve('../scripts/linux-ensure-console-user');
         delete require.cache[modPath];
         return require('../scripts/linux-ensure-console-user').ensureLinuxConsoleServiceUser();
+    };
+
+    try {
+        if (typeof process.getuid === 'function' && process.getuid() !== 0 && fs.existsSync(ensureScript)) {
+            try {
+                const out = execFileSync('sudo', ['-n', process.execPath, ensureScript], {
+                    encoding: 'utf8',
+                    timeout: 120000,
+                    stdio: ['pipe', 'pipe', 'pipe'],
+                });
+                const parsed = JSON.parse(String(out || '').trim() || '{}');
+                if (parsed.error) {
+                    console.warn(`[UPDATE] Linux privilege sync reported: ${parsed.error}`);
+                }
+                return parsed;
+            } catch (sudoErr) {
+                console.warn(
+                    `[UPDATE] Privileged ensure via sudo failed (${sudoErr.message || sudoErr});`
+                    + ' trying in-process (sudoers may need one deploy cycle or root repair)'
+                );
+            }
+        }
+        return runEnsureInProcess();
     } catch (err) {
         console.warn(`[UPDATE] Linux privilege sync warning: ${err.message}`);
         return { error: err.message || String(err) };
@@ -2641,6 +2667,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     }
 
     if (serverSourceChanged || results.needsServerRestart || results.needsConsoleRestart) {
+        if (!IS_WINDOWS) {
+            results.linuxPrivilegeSyncFinal = syncLinuxPanelUpdatePrivileges();
+        }
         results.servicePatch = patchServiceDefinitions();
     }
 
