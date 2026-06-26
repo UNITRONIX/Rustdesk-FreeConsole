@@ -2,6 +2,7 @@
 
 ### Fixed
 - **OIDC SSO login (#225)**: panel callback now calls the missing `exchangeOIDCCode` Go API client method so one-time auth codes are exchanged server-to-server after IdP redirect (fixes `TypeError: betterdeskApi.exchangeOIDCCode is not a function`).
+- **RdClient desktop (#226)**: Windows build — pass `&str` to WebView2 `additional_browser_args` (fixes compile error after GPU/media args refactor).
 
 ### Changed
 - _(none yet)_
