@@ -99,6 +99,11 @@ class RDFileConnection {
 
     async _doConnect(password) {
         try {
+            if (this.conn) {
+                try { this.conn.close(); } catch (_e) { /* ignore */ }
+            }
+            this.conn = new RDConnection();
+            this.crypto = new RDCrypto();
             this._setState('connecting');
             this._emit('log', 'Opening file transfer session…');
 
@@ -110,6 +115,9 @@ class RDFileConnection {
             this._keyExchangePending = false;
             this._keyExchangeDone = false;
             this._peerEncryptionConfirmed = false;
+            this._loginChallenge = '';
+            this._loginSalt = '';
+            this._pendingPassword = password;
 
             const ct = this._connType();
             await this.conn.connectRendezvous();
@@ -230,7 +238,8 @@ class RDFileConnection {
         if (this._loginReject) {
             this._loginReject(new Error('Disconnected'));
         }
-        this.conn.close();
+        this._connectPromise = null;
+        try { this.conn.close(); } catch (_e) { /* ignore */ }
         this._setState('disconnected');
     }
 

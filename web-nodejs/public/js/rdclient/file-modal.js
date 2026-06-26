@@ -186,6 +186,11 @@
             t('remote.file_transfer', 'File Transfer') + ' — ' + (session.deviceName || session.deviceId);
         this._updateLocalHint();
         this._updateLocalToolbarState();
+        this._renderLocalList();
+        this._remoteEntries = [];
+        this._selectedRemote = null;
+        this._el.querySelector('.ft-remote-path').textContent = '';
+        this._renderRemoteLoading(t('remote.file_connecting', 'Connecting file transfer session…'));
         this._el.style.display = 'flex';
         document.getElementById('btn-file-transfer')?.classList.add('active');
         if (this._wiredSessionId !== session.deviceId) {
@@ -204,9 +209,6 @@
         if (this._session && this._session.client && this._session.client.fileTransfer) {
             this._session.client.fileTransfer._saveDownload = null;
         }
-        if (this._session && this._session.client && this._session.client.disconnectFileConnection) {
-            this._session.client.disconnectFileConnection();
-        }
     };
 
     FileTransferModal.prototype.isOpen = function () {
@@ -216,9 +218,15 @@
     FileTransferModal.prototype._wireClient = function (session) {
         var self = this;
         var client = session.client;
-        client.on('file_browsing', function () { self._renderRemoteLoading(); });
+        client.on('file_browsing', function () {
+            if (!self._remoteEntries.length) {
+                self._renderRemoteLoading(t('remote.file_loading', 'Loading…'));
+            }
+        });
         client.on('file_connecting', function () {
-            self._renderRemoteLoading(t('remote.file_connecting', 'Connecting file transfer session…'));
+            if (!self._remoteEntries.length) {
+                self._renderRemoteLoading(t('remote.file_connecting', 'Connecting file transfer session…'));
+            }
         });
         client.on('file_connect_error', function (data) {
             self._renderRemoteError(data.error || t('remote.file_connect_failed', 'Could not open file transfer session'));

@@ -46,7 +46,8 @@ class RDClient {
             proto: this.proto,
             sendMessage: (msg) => this._sendFileTransferMessage(msg),
             emit: (event, ...args) => this._emit(event, ...args),
-            ensureConnected: () => this.ensureFileConnection()
+            ensureConnected: () => this.ensureFileConnection(),
+            isConnected: () => this.isFileConnectionReady()
         });
 
         // State
@@ -254,6 +255,10 @@ class RDClient {
      * Open dedicated FILE_TRANSFER relay (lazy). Reuses desktop session password.
      * @returns {Promise<void>}
      */
+    isFileConnectionReady() {
+        return !!(this._fileConnection && this._fileConnection.state === 'ready');
+    }
+
     async ensureFileConnection() {
         if (typeof RDFileConnection !== 'function') {
             throw new Error('File transfer module not loaded');
@@ -272,9 +277,19 @@ class RDClient {
             this._fileConnection.on('2fa_required', () => this._emit('2fa_required'));
             this._fileConnection.on('2fa_error', (err) => this._emit('2fa_error', err));
             this._fileConnection.on('login_error', (err) => this._emit('login_error', err));
+            this._fileConnection.on('disconnected', () => {
+                if (this._fileConnection && this._fileConnection.state !== 'ready') {
+                    this._fileConnection = null;
+                }
+            });
         }
         if (this._fileConnection.state === 'ready') return;
-        await this._fileConnection.connect(this._sessionPassword || '');
+        try {
+            await this._fileConnection.connect(this._sessionPassword || '');
+        } catch (err) {
+            this.disconnectFileConnection();
+            throw err;
+        }
     }
 
     _sendFileTransferMessage(msgObj) {
@@ -1103,6 +1118,9 @@ class RDClient {
 
         // Enable file transfer
         this.fileTransfer.enable();
+        this.ensureFileConnection().catch(function (err) {
+            console.warn('[RDClient] File transfer preconnect:', err.message || err);
+        });
 
         // Initialize video decoder callbacks
         this.video.onFrame = (frame) => this.renderer.pushFrame(frame);

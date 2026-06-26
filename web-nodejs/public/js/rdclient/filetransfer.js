@@ -19,12 +19,14 @@ class RDFileTransfer {
      * @param {Function} opts.sendMessage - Function to send peer message: (msgObj) => void
      * @param {Function} opts.emit - Event emitter: (event, ...args) => void
      * @param {Function} [opts.ensureConnected] - Async hook before browse/upload
+     * @param {Function} [opts.isConnected] - Returns true when file relay is ready
      */
     constructor(opts) {
         this._proto = opts.proto;
         this._sendMessage = opts.sendMessage;
         this._emit = opts.emit;
         this._ensureConnected = opts.ensureConnected || null;
+        this._isConnected = opts.isConnected || null;
 
         /** @type {string} Current remote directory path */
         this._currentPath = '';
@@ -95,10 +97,16 @@ class RDFileTransfer {
         });
     }
 
+    _needsFileConnection() {
+        return this._ensureConnected && (!this._isConnected || !this._isConnected());
+    }
+
     _runWithConnection(run) {
         const self = this;
         if (this._ensureConnected) {
-            this._emit('file_connecting');
+            if (this._needsFileConnection()) {
+                this._emit('file_connecting');
+            }
             return this._ensureConnected().then(function () {
                 run();
             }).catch(function (err) {
@@ -188,7 +196,9 @@ class RDFileTransfer {
             }, 5000);
         };
         if (this._ensureConnected) {
-            this._emit('file_connecting');
+            if (this._needsFileConnection()) {
+                this._emit('file_connecting');
+            }
             this._ensureConnected().then(run).catch(function (err) {
                 self._emit('file_connect_error', { error: err.message || String(err) });
             });
