@@ -422,6 +422,10 @@ class RDFileConnection {
             this._emit('file_response', msg.fileResponse);
             return;
         }
+        if (msg.fileAction) {
+            this._emit('file_action', msg.fileAction);
+            return;
+        }
         if (msg.peerInfo) {
             // Some peers send peerInfo before login completes on FT sessions
             return;

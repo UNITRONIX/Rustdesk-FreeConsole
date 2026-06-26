@@ -5,7 +5,8 @@
  * Protocol flow (RustDesk client io_loop — operator pulls from / pushes to peer):
  *   Browse:   FileAction.read_dir → FileResponse.dir
  *   Download: FileAction.send (full remote file path) → FileResponse.digest → FileAction.send_confirm → FileResponse.block* → FileResponse.done
- *   Upload:   FileAction.receive (remote dir + FileEntry[]) → FileResponse.digest → FileAction.send_confirm → FileResponse.block* → FileResponse.done
+ *   Upload:   FileAction.receive → FileResponse.digest (operator) → FileAction.send_confirm (peer) → FileResponse.block* → FileResponse.done
+ *             (overwrite: peer may reply with FileResponse.digest is_upload=true → FileAction.send_confirm → blocks)
  *   Cancel:   FileAction.cancel
  */
 
@@ -333,6 +334,8 @@ class RDFileTransfer {
                 self._sendMessageSafe(self._proto.buildFileReceiveRequest(
                     id, remotePath, files, 0, Number(file.size)
                 ));
+                const modified = file.lastModified ? Math.floor(file.lastModified / 1000) : 0;
+                self._sendMessageSafe(self._proto.buildFileDigest(id, 0, file.size, modified));
                 self._armTransferTimeout(id);
             } catch (err) {
                 self._failTransfer(id, err.message || String(err));
@@ -494,6 +497,8 @@ class RDFileTransfer {
         if (transfer.type === 'download') {
             this._sendMessageSafe(this._proto.buildFileSendConfirm(id, fileNum, false, 0));
         } else if (transfer.type === 'upload') {
+            // Peer-initiated digest (overwrite check) — operator already sent initial digest.
+            if (!(digest.isUpload || digest.is_upload)) return;
             if (isIdentical) {
                 this._sendMessageSafe(this._proto.buildFileSendConfirm(id, fileNum, true, 0));
                 this._transfers.delete(id);
@@ -519,6 +524,43 @@ class RDFileTransfer {
             type: transfer.type,
             phase: 'transferring'
         });
+    }
+
+    /**
+     * Handle FileAction.send_confirm from peer (upload ready to stream).
+     * @param {Object} confirm - FileTransferSendConfirmRequest
+     */
+    handleSendConfirm(confirm) {
+        const id = Number(confirm.id);
+        const transfer = this._transfers.get(id);
+        if (!transfer || transfer.type !== 'upload') return;
+
+        this._clearTransferTimeout(id);
+        transfer.fileNum = Number(confirm.fileNum != null ? confirm.fileNum : (confirm.file_num || 0));
+
+        if (confirm.skip === true) {
+            this._transfers.delete(id);
+            this._emit('file_transfer_complete', {
+                id: id,
+                fileName: transfer.fileName,
+                fileSize: transfer.fileSize,
+                type: 'upload',
+                elapsed: (Date.now() - transfer.startTime) / 1000
+            });
+            return;
+        }
+
+        transfer.status = 'transferring';
+        this._emit('file_transfer_progress', {
+            id: id,
+            fileName: transfer.fileName,
+            fileSize: transfer.fileSize,
+            transferred: 0,
+            percent: 0,
+            type: 'upload',
+            phase: 'transferring'
+        });
+        this._sendUploadBlocks(transfer);
     }
 
     /**

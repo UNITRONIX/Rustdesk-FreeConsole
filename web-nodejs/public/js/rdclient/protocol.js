@@ -468,7 +468,7 @@ class RDProtocol {
     }
 
     /**
-     * Build FileAction.receive (request download from remote)
+     * Build FileAction.receive (operator uploads to remote — remote dir + FileEntry[]).
      * @param {number} id - Transfer ID
      * @param {string} path - Remote directory path
      * @param {Array<Object>} files - Array of { name, size, modified_time, entry_type }
@@ -504,7 +504,7 @@ class RDProtocol {
     }
 
     /**
-     * Build FileAction.send (request upload to remote)
+     * Build FileAction.send (operator downloads from remote — full remote file path).
      * @param {number} id - Transfer ID
      * @param {string} path - Remote destination path
      * @param {boolean} [includeHidden]
@@ -614,6 +614,27 @@ class RDProtocol {
                 rename: { id: id, path: path, newName: newName }
             }
         };
+    }
+
+    /**
+     * Build FileResponse.digest (operator sends local file metadata before upload blocks).
+     * @param {number} id
+     * @param {number} fileNum
+     * @param {number} fileSize
+     * @param {number} lastModified - Unix seconds
+     * @param {Object} [opts]
+     * @returns {Object}
+     */
+    buildFileDigest(id, fileNum, fileSize, lastModified, opts = {}) {
+        const digest = {
+            id: id,
+            fileNum: fileNum || 0,
+            fileSize: Number(fileSize || 0),
+            lastModified: Number(lastModified || 0)
+        };
+        if (opts.isUpload) digest.isUpload = true;
+        if (opts.isIdentical) digest.isIdentical = true;
+        return { fileResponse: { digest: digest } };
     }
 
     /**

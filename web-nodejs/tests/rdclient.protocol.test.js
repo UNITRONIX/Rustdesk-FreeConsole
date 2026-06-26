@@ -174,4 +174,20 @@ describe('RDClient file transfer message encoding', () => {
         const decoded = Message.decode(Message.encode(msg).finish()).toJSON();
         expect(decoded.fileAction.send.path).toBe('/tmp/x.dat');
     });
+
+    it('encodes FileResponse.digest for upload (operator sends metadata first)', () => {
+        const msg = Message.create({
+            fileResponse: {
+                digest: {
+                    id: 5,
+                    fileNum: 0,
+                    fileSize: 12345,
+                    lastModified: 1700000000
+                }
+            }
+        });
+        const decoded = Message.decode(Message.encode(msg).finish()).toJSON();
+        expect(decoded.fileResponse.digest.fileSize).toBe('12345');
+        expect(decoded.fileResponse.digest.lastModified).toBe('1700000000');
+    });
 });

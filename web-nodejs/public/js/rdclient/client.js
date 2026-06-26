@@ -274,6 +274,11 @@ class RDClient {
             this._fileConnection.on('file_response', (resp) => {
                 this.fileTransfer.handleFileResponse(resp);
             });
+            this._fileConnection.on('file_action', (action) => {
+                if (action.sendConfirm) {
+                    this.fileTransfer.handleSendConfirm(action.sendConfirm);
+                }
+            });
             this._fileConnection.on('2fa_required', () => this._emit('2fa_required'));
             this._fileConnection.on('2fa_error', (err) => this._emit('2fa_error', err));
             this._fileConnection.on('login_error', (err) => this._emit('login_error', err));
