@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.67] — 2026-06-26
+
 ### Fixed
 - **OIDC SSO login (#225)**: panel callback now calls the missing `exchangeOIDCCode` Go API client method so one-time auth codes are exchanged server-to-server after IdP redirect (fixes `TypeError: betterdeskApi.exchangeOIDCCode is not a function`).
 - **RdClient desktop (#226)**: Windows build — pass `&str` to WebView2 `additional_browser_args` (fixes compile error after GPU/media args refactor).
@@ -1241,3 +1248,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.64]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.63...v3.3.64
 [3.3.65]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.64...v3.3.65
 [3.3.66]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.65...v3.3.66
+[3.3.67]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.66...v3.3.67
