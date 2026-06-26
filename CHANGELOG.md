@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **OIDC SSO login (#225)**: panel callback now calls the missing `exchangeOIDCCode` Go API client method so one-time auth codes are exchanged server-to-server after IdP redirect (fixes `TypeError: betterdeskApi.exchangeOIDCCode is not a function`).
+
 ### Changed
 - _(none yet)_
 

@@ -10,6 +10,9 @@ jest.mock('../services/database', () => ({
     logAction: jest.fn().mockResolvedValue(undefined),
     getUser: jest.fn().mockResolvedValue(null),
     getUserById: jest.fn().mockResolvedValue({ id: 1, username: 'admin', role: 'admin', password_hash: 'hash', totp_secret: 'SECRET' }),
+    getUserByUsername: jest.fn().mockResolvedValue(null),
+    createUser: jest.fn().mockResolvedValue(undefined),
+    syncUserFromGo: jest.fn().mockResolvedValue(undefined),
     enableTotp: jest.fn().mockResolvedValue(undefined),
     disableTotp: jest.fn().mockResolvedValue(undefined)
 }));
@@ -40,9 +43,15 @@ jest.mock('../middleware/rateLimiter', () => ({
     apiLimiter: (_req, _res, next) => next()
 }));
 
+jest.mock('../services/betterdeskApi', () => ({
+    exchangeOIDCCode: jest.fn(),
+    getOIDCStatus: jest.fn().mockResolvedValue({ success: true, data: { enabled: false } }),
+}));
+
 const authService = require('../services/authService');
 const db = require('../services/database');
 const userSync = require('../services/userSync');
+const betterdeskApi = require('../services/betterdeskApi');
 const authRoutes = require('../routes/auth.routes');
 
 describe('Auth Routes', () => {
@@ -234,6 +243,65 @@ describe('Auth Routes', () => {
             expect(res.body.success).toBe(true);
             expect(authService.verifyPassword).toHaveBeenCalledWith('current-password', expect.anything());
             expect(userSync.mirrorTotpDisable).toHaveBeenCalledWith('admin');
+        });
+    });
+
+    describe('GET /api/auth/oidc/session', () => {
+        it('redirects to oidc_invalid when code is missing', async () => {
+            const res = await request(app).get('/api/auth/oidc/session');
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('/login?error=oidc_invalid');
+            expect(betterdeskApi.exchangeOIDCCode).not.toHaveBeenCalled();
+        });
+
+        it('redirects to oidc_invalid when Go exchange fails', async () => {
+            betterdeskApi.exchangeOIDCCode.mockResolvedValue({ success: false, error: 'invalid or expired code' });
+
+            const res = await request(app).get('/api/auth/oidc/session?code=bad-code');
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('/login?error=oidc_invalid');
+            expect(betterdeskApi.exchangeOIDCCode).toHaveBeenCalledWith('bad-code');
+        });
+
+        it('creates an OIDC session and redirects to the safe return URL', async () => {
+            betterdeskApi.exchangeOIDCCode.mockResolvedValue({
+                success: true,
+                data: {
+                    token: 'go-jwt-token',
+                    username: 'sso-user',
+                    role: 'operator',
+                    return_url: '/dashboard',
+                },
+            });
+            db.getUserByUsername.mockResolvedValue({
+                id: 42,
+                username: 'sso-user',
+                role: 'viewer',
+                preferred_language: null,
+            });
+
+            const agent = request.agent(app);
+            const res = await agent.get('/api/auth/oidc/session?code=valid-code');
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('/dashboard');
+            expect(betterdeskApi.exchangeOIDCCode).toHaveBeenCalledWith('valid-code');
+            expect(db.syncUserFromGo).toHaveBeenCalledWith(42, {
+                role: 'operator',
+                authProvider: 'oidc',
+            });
+
+            const verify = await agent.get('/api/auth/verify');
+            expect(verify.status).toBe(200);
+            expect(verify.body.success).toBe(true);
+            expect(verify.body.user).toEqual({
+                id: 42,
+                username: 'sso-user',
+                role: 'operator',
+                preferred_language: null,
+            });
         });
     });
 });
