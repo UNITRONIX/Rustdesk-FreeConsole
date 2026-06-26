@@ -1142,7 +1142,16 @@
     "file_connecting": "Connessione alla sessione di trasferimento file…",
     "file_connect_failed": "Impossibile aprire la sessione di trasferimento file",
     "file_local_limited": "La navigazione completa delle cartelle locali richiede Chrome o Edge su HTTPS. Caricamento e download restano disponibili.",
-    "file_transfer_unavailable_cdap": "Il trasferimento file non è disponibile per le sessioni snapshot CDAP."
+    "file_transfer_unavailable_cdap": "Il trasferimento file non è disponibile per le sessioni snapshot CDAP.",
+    "file_status_waiting": "In attesa…",
+    "file_status_transferring": "Trasferimento…",
+    "file_status_saving": "Salvataggio…",
+    "file_status_downloaded": "Scaricato",
+    "file_status_uploaded": "Caricato",
+    "file_drop_upload_hint": "Rilascia per caricare in: {path}",
+    "file_local_upload_hint": "Trascina i file sul pannello remoto o usa Carica. I download vanno nella cartella predefinita del browser.",
+    "file_transfer_stalled": "Il dispositivo remoto non ha avviato il trasferimento",
+    "file_no_local_tree": "Scegli una cartella per sfogliare i file locali (facoltativo)"
   },
   "branding": {
     "identity_title": "Identità del marchio",

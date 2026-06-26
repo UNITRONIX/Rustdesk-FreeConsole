@@ -1148,7 +1148,16 @@
     "file_connecting": "Opretter filoverførselssession…",
     "file_connect_failed": "Kunne ikke åbne filoverførselssession",
     "file_local_limited": "Fuld lokal mappevisning kræver Chrome eller Edge over HTTPS. Upload og download virker stadig.",
-    "file_transfer_unavailable_cdap": "Filoverførsel er ikke tilgængelig for CDAP-snapshot-sessioner."
+    "file_transfer_unavailable_cdap": "Filoverførsel er ikke tilgængelig for CDAP-snapshot-sessioner.",
+    "file_status_waiting": "Venter…",
+    "file_status_transferring": "Overfører…",
+    "file_status_saving": "Gemmer…",
+    "file_status_downloaded": "Downloadet",
+    "file_status_uploaded": "Uploadet",
+    "file_drop_upload_hint": "Slip for at uploade til: {path}",
+    "file_local_upload_hint": "Træk filer til det fjernpanel eller brug Upload. Downloads gemmes i browserens standardmappe.",
+    "file_transfer_stalled": "Fjernenhed startede ikke overførslen",
+    "file_no_local_tree": "Vælg en mappe for at gennemse lokale filer (valgfrit)"
   },
   "branding": {
     "identity_title": "Brand Identitet",

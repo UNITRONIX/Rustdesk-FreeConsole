@@ -1142,7 +1142,16 @@
     "file_connecting": "正在连接文件传输会话…",
     "file_connect_failed": "无法打开文件传输会话",
     "file_local_limited": "完整的本地文件夹浏览需要 HTTPS 下的 Chrome 或 Edge。仍可上传和下载文件。",
-    "file_transfer_unavailable_cdap": "CDAP 快照会话不支持文件传输。"
+    "file_transfer_unavailable_cdap": "CDAP 快照会话不支持文件传输。",
+    "file_status_waiting": "等待中…",
+    "file_status_transferring": "传输中…",
+    "file_status_saving": "保存中…",
+    "file_status_downloaded": "已下载",
+    "file_status_uploaded": "已上传",
+    "file_drop_upload_hint": "拖放到此处上传到：{path}",
+    "file_local_upload_hint": "将文件拖到远程面板或使用上传。下载会保存到浏览器的默认文件夹。",
+    "file_transfer_stalled": "远程设备未开始传输",
+    "file_no_local_tree": "选择文件夹以浏览本地文件（可选）"
   },
   "branding": {
     "identity_title": "品牌标识",

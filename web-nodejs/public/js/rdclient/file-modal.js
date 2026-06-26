@@ -34,7 +34,7 @@
         this._remoteEntries = [];
         this._selectedLocal = null;
         this._selectedRemote = null;
-        this._transfers = new Map();
+        this._transferMeta = new Map();
         this._wiredSessionId = null;
     }
 
@@ -74,6 +74,10 @@
                             '<button type="button" class="ft-btn ft-btn-action ft-remote-download"></button>' +
                         '</div>' +
                         '<div class="ft-list ft-remote-list"></div>' +
+                        '<div class="ft-drop-overlay" hidden>' +
+                            '<span class="material-icons">cloud_upload</span>' +
+                            '<span class="ft-drop-overlay-text"></span>' +
+                        '</div>' +
                     '</div>' +
                     '<div class="ft-pane ft-pane-queue">' +
                         '<div class="ft-pane-head"><span class="material-icons">swap_vert</span><span class="ft-pane-label"></span></div>' +
@@ -106,38 +110,96 @@
             e.target.value = '';
         });
         var remotePane = el.querySelector('.ft-pane-remote');
-        remotePane.addEventListener('dragover', function (e) { e.preventDefault(); remotePane.classList.add('ft-drag-over'); });
-        remotePane.addEventListener('dragleave', function () { remotePane.classList.remove('ft-drag-over'); });
+        remotePane.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            remotePane.classList.add('ft-drag-over');
+            self._showDragOverlay();
+        });
+        remotePane.addEventListener('dragleave', function (e) {
+            if (remotePane.contains(e.relatedTarget)) return;
+            remotePane.classList.remove('ft-drag-over');
+            self._hideDragOverlay();
+        });
         remotePane.addEventListener('drop', function (e) {
             e.preventDefault();
             remotePane.classList.remove('ft-drag-over');
+            self._hideDragOverlay();
             if (e.dataTransfer && e.dataTransfer.files.length) self._uploadFiles(e.dataTransfer.files);
         });
+    };
+
+    FileTransferModal.prototype._syncSaveDownloadHook = function () {
+        var self = this;
+        var ft = this._session && this._session.client && this._session.client.fileTransfer;
+        if (!ft) return;
+        if (this._local.hasRoot) {
+            ft._saveDownload = function (fileName, blob) {
+                return self._local.saveDownload(fileName, blob);
+            };
+        } else {
+            ft._saveDownload = null;
+        }
+    };
+
+    FileTransferModal.prototype._showDragOverlay = function () {
+        var overlay = this._el && this._el.querySelector('.ft-drop-overlay');
+        if (!overlay) return;
+        var ft = this._session && this._session.client && this._session.client.fileTransfer;
+        var path = (ft && ft.currentPath) ? ft.currentPath : t('remote.file_remote', 'Remote');
+        var hint = t('remote.file_drop_upload_hint', 'Drop to upload to: {path}');
+        overlay.querySelector('.ft-drop-overlay-text').textContent = hint.replace('{path}', path);
+        overlay.hidden = false;
+    };
+
+    FileTransferModal.prototype._hideDragOverlay = function () {
+        var overlay = this._el && this._el.querySelector('.ft-drop-overlay');
+        if (overlay) overlay.hidden = true;
+    };
+
+    FileTransferModal.prototype._updateLocalToolbarState = function () {
+        if (!this._el) return;
+        var hasRoot = this._local.hasRoot;
+        var noTreeTitle = t('remote.file_no_local_tree', 'Choose a folder to browse local files (optional)');
+        var upBtn = this._el.querySelector('.ft-local-up');
+        var homeBtn = this._el.querySelector('.ft-local-home');
+        if (upBtn) {
+            if (!upBtn.dataset.defaultTitle) upBtn.title = t('remote.file_up', 'Up');
+            upBtn.dataset.defaultTitle = upBtn.title;
+            upBtn.disabled = !hasRoot;
+            upBtn.title = hasRoot ? upBtn.dataset.defaultTitle : noTreeTitle;
+        }
+        if (homeBtn) {
+            if (!homeBtn.dataset.defaultTitle) homeBtn.title = t('remote.file_home', 'Home');
+            homeBtn.dataset.defaultTitle = homeBtn.title;
+            homeBtn.disabled = !hasRoot;
+            homeBtn.title = hasRoot ? homeBtn.dataset.defaultTitle : noTreeTitle;
+        }
     };
 
     FileTransferModal.prototype.open = function (session) {
         this._ensureDom();
         this._session = session;
         if (!session.client || !session.client.fileTransfer) return;
+        this._transferMeta.clear();
         this._el.querySelector('.ft-modal-title').textContent =
             t('remote.file_transfer', 'File Transfer') + ' — ' + (session.deviceName || session.deviceId);
         this._updateLocalHint();
+        this._updateLocalToolbarState();
         this._el.style.display = 'flex';
         document.getElementById('btn-file-transfer')?.classList.add('active');
         if (this._wiredSessionId !== session.deviceId) {
             this._wireClient(session);
             this._wiredSessionId = session.deviceId;
         }
-        var ft = session.client.fileTransfer;
-        var self = this;
-        ft._saveDownload = function (fileName, blob) {
-            return self._local.saveDownload(fileName, blob);
-        };
+        this._syncSaveDownloadHook();
         session.client.fileTransfer.browseDir('');
+        this._paintTransferQueue();
     };
 
     FileTransferModal.prototype.close = function () {
         if (this._el) this._el.style.display = 'none';
+        this._hideDragOverlay();
         document.getElementById('btn-file-transfer')?.classList.remove('active');
         if (this._session && this._session.client && this._session.client.fileTransfer) {
             this._session.client.fileTransfer._saveDownload = null;
@@ -178,18 +240,28 @@
     };
 
     FileTransferModal.prototype._updateLocalHint = function () {
+        var self = this;
         var hint = this._el.querySelector('.ft-local-hint');
+        if (this._local.hasRoot) {
+            hint.innerHTML = '';
+            return;
+        }
         if (LocalFiles.isSupported()) {
             hint.innerHTML = '<button type="button" class="btn btn-sm btn-secondary ft-local-pick-inline">' +
-                escapeHtml(t('remote.file_pick_folder', 'Choose folder')) + '</button>';
-            hint.querySelector('.ft-local-pick-inline').addEventListener('click', () => this._pickLocalFolder());
+                escapeHtml(t('remote.file_pick_folder', 'Choose folder')) + '</button>' +
+                '<span class="ft-hint-text"> ' +
+                escapeHtml(t('remote.file_local_upload_hint',
+                    'Drag files onto the remote panel or use Upload. Downloads save to your browser\'s default folder.')) +
+                '</span>';
+            hint.querySelector('.ft-local-pick-inline').addEventListener('click', function () { self._pickLocalFolder(); });
         } else {
             hint.innerHTML = '<span class="ft-hint-text">' +
-                escapeHtml(t('remote.file_local_limited', 'Full local folder browsing requires Chrome/Edge over HTTPS. Upload still works.')) +
+                escapeHtml(t('remote.file_local_upload_hint',
+                    'Drag files onto the remote panel or use Upload. Downloads save to your browser\'s default folder.')) +
                 '</span> <button type="button" class="btn btn-sm btn-secondary ft-local-upload-fallback">' +
                 escapeHtml(t('remote.file_upload', 'Upload')) + '</button>';
-            hint.querySelector('.ft-local-upload-fallback').addEventListener('click', () => {
-                this._el.querySelector('.ft-local-file-input').click();
+            hint.querySelector('.ft-local-upload-fallback').addEventListener('click', function () {
+                self._el.querySelector('.ft-local-file-input').click();
             });
         }
     };
@@ -202,6 +274,8 @@
             this._selectedLocal = null;
             this._renderLocalList();
             this._el.querySelector('.ft-local-hint').innerHTML = '';
+            this._syncSaveDownloadHook();
+            this._updateLocalToolbarState();
         } catch (e) {
             if (e.name !== 'AbortError' && e.message !== 'unsupported') console.warn('[FileModal]', e);
         }
@@ -228,6 +302,12 @@
     FileTransferModal.prototype._renderLocalList = function () {
         var list = this._el.querySelector('.ft-local-list');
         list.innerHTML = '';
+        if (!this._local.hasRoot) {
+            list.innerHTML = '<div class="ft-empty">' + escapeHtml(
+                t('remote.file_local_upload_hint', 'Drag files onto the remote panel or use Upload.')
+            ) + '</div>';
+            return;
+        }
         if (!this._localEntries.length) {
             list.innerHTML = '<div class="ft-empty">' + escapeHtml(t('remote.file_empty', 'No files')) + '</div>';
             return;
@@ -350,49 +430,134 @@
         ft.downloadFile(ft.currentPath || '', entry);
     };
 
+    FileTransferModal.prototype._ensureTransferMeta = function (data) {
+        var id = data.id;
+        if (!this._transferMeta.has(id)) {
+            this._transferMeta.set(id, {
+                id: id,
+                fileName: data.fileName || 'file',
+                type: data.type || 'download',
+                phase: 'pending',
+                percent: 0,
+                transferred: 0,
+                total: data.fileSize || 0,
+                error: null
+            });
+        }
+        return this._transferMeta.get(id);
+    };
+
+    FileTransferModal.prototype._transferStatusText = function (meta) {
+        if (meta.error) return meta.error;
+        if (meta.phase === 'pending') return t('remote.file_status_waiting', 'Waiting…');
+        if (meta.phase === 'saving') return t('remote.file_status_saving', 'Saving…');
+        if (meta.phase === 'done') {
+            return meta.type === 'upload'
+                ? t('remote.file_status_uploaded', 'Uploaded')
+                : t('remote.file_status_downloaded', 'Downloaded');
+        }
+        if (meta.total > 0) {
+            return (meta.percent || 0) + '% · ' + formatSize(meta.transferred) + ' / ' + formatSize(meta.total);
+        }
+        return t('remote.file_status_transferring', 'Transferring…');
+    };
+
+    FileTransferModal.prototype._renderTransferRowHtml = function (meta) {
+        var rowClass = ['ft-transfer-row'];
+        if (meta.phase === 'done') rowClass.push('done');
+        if (meta.error) rowClass.push('error');
+        if (meta.phase === 'pending') rowClass.push('pending');
+
+        var icon = meta.type === 'upload' ? 'upload' : 'download';
+        if (meta.phase === 'pending') icon = 'hourglass_empty';
+
+        var indeterminate = meta.phase === 'pending';
+        var fillWidth = meta.error ? 0 : Math.min(100, meta.percent || 0);
+        var fillClass = 'ft-transfer-fill' + (indeterminate ? ' indeterminate' : '');
+        var fillStyle = indeterminate ? '' : ' style="width:' + fillWidth + '%"';
+        var canCancel = !meta.error && meta.phase !== 'done' && meta.phase !== 'saving';
+
+        return '<div class="' + rowClass.join(' ') + '" data-id="' + meta.id + '">' +
+            '<span class="material-icons ft-transfer-icon">' + icon + '</span>' +
+            '<div class="ft-transfer-info">' +
+            '<div class="ft-transfer-name" title="' + escapeHtml(meta.fileName) + '">' + escapeHtml(meta.fileName) + '</div>' +
+            '<div class="ft-transfer-bar"><div class="' + fillClass + '"' + fillStyle + '></div></div>' +
+            '<div class="ft-transfer-status">' + escapeHtml(this._transferStatusText(meta)) + '</div>' +
+            '</div>' +
+            (canCancel ? '<button type="button" class="ft-transfer-cancel" title="' + escapeHtml(t('common.cancel', 'Cancel')) + '">' +
+                '<span class="material-icons">close</span></button>' : '') +
+            '</div>';
+    };
+
+    FileTransferModal.prototype._paintTransferQueue = function () {
+        var list = this._el.querySelector('.ft-queue-list');
+        var empty = this._el.querySelector('.ft-queue-empty');
+        var rows = Array.from(this._transferMeta.values());
+        if (!rows.length) {
+            list.innerHTML = '';
+            if (empty) empty.style.display = '';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+        var self = this;
+        list.innerHTML = rows.map(function (m) { return self._renderTransferRowHtml(m); }).join('');
+        list.querySelectorAll('.ft-transfer-cancel').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var row = btn.closest('.ft-transfer-row');
+                var id = Number(row && row.dataset.id);
+                var ft = self._session.client?.fileTransfer;
+                if (id && ft) ft.cancelTransfer(id);
+            });
+        });
+    };
+
     FileTransferModal.prototype._addTransfer = function (data) {
-        this._el.querySelector('.ft-queue-empty').style.display = 'none';
-        var row = document.createElement('div');
-        row.className = 'ft-transfer-row';
-        row.id = 'ftm-' + data.id;
-        row.innerHTML = '<span class="material-icons">' + (data.type === 'download' ? 'download' : 'upload') + '</span>' +
-            '<div class="ft-transfer-info"><div class="ft-transfer-name">' + escapeHtml(data.fileName) + '</div>' +
-            '<div class="ft-transfer-bar"><div class="ft-transfer-fill"></div></div>' +
-            '<div class="ft-transfer-pct">0%</div></div>';
-        this._el.querySelector('.ft-queue-list').appendChild(row);
-        this._transfers.set(data.id, row);
+        var meta = this._ensureTransferMeta(data);
+        meta.fileName = data.fileName || meta.fileName;
+        meta.type = data.type || meta.type;
+        meta.total = data.fileSize || meta.total;
+        meta.phase = 'pending';
+        meta.percent = 0;
+        meta.error = null;
+        this._paintTransferQueue();
     };
 
     FileTransferModal.prototype._updateTransfer = function (data) {
-        var row = this._transfers.get(data.id);
-        if (!row) return;
-        row.querySelector('.ft-transfer-fill').style.width = (data.percent || 0) + '%';
-        row.querySelector('.ft-transfer-pct').textContent = (data.percent || 0) + '%';
+        var meta = this._ensureTransferMeta(data);
+        if (data.phase === 'saving') {
+            meta.phase = 'saving';
+            meta.percent = 100;
+        } else {
+            meta.phase = 'transferring';
+            meta.percent = data.percent || 0;
+            meta.transferred = data.transferred || 0;
+            meta.total = data.fileSize || meta.total;
+        }
+        this._paintTransferQueue();
     };
 
     FileTransferModal.prototype._completeTransfer = function (data) {
-        var row = this._transfers.get(data.id);
-        if (row) {
-            row.querySelector('.ft-transfer-pct').textContent = t('remote.file_complete', 'Complete');
-            row.classList.add('done');
-        }
+        var meta = this._ensureTransferMeta(data);
+        meta.phase = 'done';
+        meta.percent = 100;
+        meta.transferred = meta.total || meta.transferred;
+        this._paintTransferQueue();
     };
 
     FileTransferModal.prototype._errorTransfer = function (data) {
-        var row = this._transfers.get(data.id);
-        if (row) {
-            row.querySelector('.ft-transfer-pct').textContent = t('remote.file_error', 'Failed');
-            row.classList.add('error');
+        var meta = this._ensureTransferMeta(data);
+        var errMsg = data.error || t('remote.file_error', 'Failed');
+        if (errMsg === 'Remote did not start transfer') {
+            errMsg = t('remote.file_transfer_stalled', 'Remote did not start transfer');
         }
+        meta.error = errMsg;
+        meta.phase = 'error';
+        this._paintTransferQueue();
     };
 
     FileTransferModal.prototype._removeTransfer = function (id) {
-        var row = this._transfers.get(id);
-        if (row) row.remove();
-        this._transfers.delete(id);
-        if (!this._el.querySelector('.ft-queue-list').children.length) {
-            this._el.querySelector('.ft-queue-empty').style.display = '';
-        }
+        this._transferMeta.delete(id);
+        this._paintTransferQueue();
     };
 
     window.FileTransferModal = FileTransferModal;

@@ -1148,7 +1148,16 @@
     "file_connecting": "Se conectează sesiunea de transfer fișiere…",
     "file_connect_failed": "Nu s-a putut deschide sesiunea de transfer fișiere",
     "file_local_limited": "Navigarea completă a folderelor locale necesită Chrome sau Edge prin HTTPS. Încărcarea și descărcarea funcționează în continuare.",
-    "file_transfer_unavailable_cdap": "Transferul de fișiere nu este disponibil pentru sesiunile snapshot CDAP."
+    "file_transfer_unavailable_cdap": "Transferul de fișiere nu este disponibil pentru sesiunile snapshot CDAP.",
+    "file_status_waiting": "Se așteaptă…",
+    "file_status_transferring": "Se transferă…",
+    "file_status_saving": "Se salvează…",
+    "file_status_downloaded": "Descărcat",
+    "file_status_uploaded": "Încărcat",
+    "file_drop_upload_hint": "Plasați pentru a încărca în: {path}",
+    "file_local_upload_hint": "Trageți fișiere pe panoul la distanță sau folosiți Încărcare. Descărcările se salvează în folderul implicit al browserului.",
+    "file_transfer_stalled": "Dispozitivul la distanță nu a pornit transferul",
+    "file_no_local_tree": "Alegeți un folder pentru a răsfoi fișierele locale (opțional)"
   },
   "branding": {
     "identity_title": "Identitatea de marcă",

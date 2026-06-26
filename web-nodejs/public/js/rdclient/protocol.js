@@ -477,12 +477,25 @@ class RDProtocol {
      * @returns {Object}
      */
     buildFileReceiveRequest(id, path, files, fileNum, totalSize) {
+        const normalized = (files || []).map((f) => {
+            const entry = {
+                entryType: f.entryType != null ? f.entryType : (f.entry_type != null ? f.entry_type : 4),
+                name: f.name || '',
+                size: Number(f.size || 0),
+                modifiedTime: Number(f.modifiedTime != null ? f.modifiedTime : (f.modified_time || 0)),
+                isHidden: !!(f.isHidden || f.is_hidden)
+            };
+            if (this.types.FileEntry) {
+                return this.types.FileEntry.create(entry);
+            }
+            return entry;
+        });
         return {
             fileAction: {
                 receive: {
                     id: id,
                     path: path,
-                    files: files || [],
+                    files: normalized,
                     fileNum: fileNum || 0,
                     totalSize: totalSize || 0
                 }

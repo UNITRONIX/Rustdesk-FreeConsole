@@ -1148,7 +1148,16 @@
     "file_connecting": "Fájlátviteli munkamenet csatlakoztatása…",
     "file_connect_failed": "Nem sikerült megnyitni a fájlátviteli munkamenetet",
     "file_local_limited": "A teljes helyi mappaböngészés Chrome-ot vagy Edge-et igényel HTTPS-en. A feltöltés és letöltés továbbra is működik.",
-    "file_transfer_unavailable_cdap": "A fájlátvitel nem érhető el CDAP pillanatkép-munkamenetekben."
+    "file_transfer_unavailable_cdap": "A fájlátvitel nem érhető el CDAP pillanatkép-munkamenetekben.",
+    "file_status_waiting": "Várakozás…",
+    "file_status_transferring": "Átvitel…",
+    "file_status_saving": "Mentés…",
+    "file_status_downloaded": "Letöltve",
+    "file_status_uploaded": "Feltöltve",
+    "file_drop_upload_hint": "Engedje el a feltöltéshez ide: {path}",
+    "file_local_upload_hint": "Húzza a fájlokat a távoli panelre, vagy használja a Feltöltést. A letöltések a böngésző alapértelmezett mappájába kerülnek.",
+    "file_transfer_stalled": "A távoli eszköz nem indította el az átvitelt",
+    "file_no_local_tree": "Válasszon mappát a helyi fájlok böngészéséhez (opcionális)"
   },
   "branding": {
     "identity_title": "Márkaidentitás",

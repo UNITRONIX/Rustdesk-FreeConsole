@@ -1148,7 +1148,16 @@
     "file_connecting": "फ़ाइल स्थानांतरण सत्र कनेक्ट हो रहा है…",
     "file_connect_failed": "फ़ाइल स्थानांतरण सत्र नहीं खोला जा सका",
     "file_local_limited": "पूर्ण स्थानीय फ़ोल्डर ब्राउज़िंग के लिए HTTPS पर Chrome या Edge आवश्यक है। अपलोड और डाउनलोड अभी भी काम करते हैं।",
-    "file_transfer_unavailable_cdap": "CDAP स्नैपशॉट सत्रों के लिए फ़ाइल स्थानांतरण उपलब्ध नहीं है।"
+    "file_transfer_unavailable_cdap": "CDAP स्नैपशॉट सत्रों के लिए फ़ाइल स्थानांतरण उपलब्ध नहीं है।",
+    "file_status_waiting": "प्रतीक्षा…",
+    "file_status_transferring": "स्थानांतरण…",
+    "file_status_saving": "सहेजा जा रहा है…",
+    "file_status_downloaded": "डाउनलोड हो गया",
+    "file_status_uploaded": "अपलोड हो गया",
+    "file_drop_upload_hint": "अपलोड करने के लिए यहाँ छोड़ें: {path}",
+    "file_local_upload_hint": "फ़ाइलों को रिमोट पैनल पर खींचें या अपलोड का उपयोग करें। डाउनलोड आपके ब्राउज़र के डिफ़ॉल्ट फ़ोल्डर में सहेजे जाते हैं।",
+    "file_transfer_stalled": "रिमोट ने स्थानांतरण शुरू नहीं किया",
+    "file_no_local_tree": "स्थानीय फ़ाइलें ब्राउज़ करने के लिए फ़ोल्डर चुनें (वैकल्पिक)"
   },
   "branding": {
     "identity_title": "ब्रांड पहचान",

@@ -1142,7 +1142,16 @@
     "file_connecting": "A conectar sessão de transferência de ficheiros…",
     "file_connect_failed": "Não foi possível abrir a sessão de transferência de ficheiros",
     "file_local_limited": "A navegação completa de pastas locais requer Chrome ou Edge com HTTPS. Enviar e transferir ficheiros continua disponível.",
-    "file_transfer_unavailable_cdap": "A transferência de ficheiros não está disponível em sessões de instantâneo CDAP."
+    "file_transfer_unavailable_cdap": "A transferência de ficheiros não está disponível em sessões de instantâneo CDAP.",
+    "file_status_waiting": "A aguardar…",
+    "file_status_transferring": "A transferir…",
+    "file_status_saving": "A guardar…",
+    "file_status_downloaded": "Transferido",
+    "file_status_uploaded": "Enviado",
+    "file_drop_upload_hint": "Largue para enviar para: {path}",
+    "file_local_upload_hint": "Arraste ficheiros para o painel remoto ou use Enviar. As transferências são guardadas na pasta predefinida do navegador.",
+    "file_transfer_stalled": "O dispositivo remoto não iniciou a transferência",
+    "file_no_local_tree": "Escolha uma pasta para procurar ficheiros locais (opcional)"
   },
   "branding": {
     "identity_title": "Identidade da marca",

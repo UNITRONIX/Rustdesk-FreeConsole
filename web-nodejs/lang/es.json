@@ -1142,7 +1142,16 @@
     "file_connecting": "Conectando sesión de transferencia de archivos…",
     "file_connect_failed": "No se pudo abrir la sesión de transferencia de archivos",
     "file_local_limited": "La navegación completa de carpetas locales requiere Chrome o Edge con HTTPS. Aún puede subir y descargar archivos.",
-    "file_transfer_unavailable_cdap": "La transferencia de archivos no está disponible en sesiones de instantánea CDAP."
+    "file_transfer_unavailable_cdap": "La transferencia de archivos no está disponible en sesiones de instantánea CDAP.",
+    "file_status_waiting": "Esperando…",
+    "file_status_transferring": "Transfiriendo…",
+    "file_status_saving": "Guardando…",
+    "file_status_downloaded": "Descargado",
+    "file_status_uploaded": "Subido",
+    "file_drop_upload_hint": "Suelta para subir a: {path}",
+    "file_local_upload_hint": "Arrastra archivos al panel remoto o usa Subir. Las descargas se guardan en la carpeta predeterminada del navegador.",
+    "file_transfer_stalled": "El dispositivo remoto no inició la transferencia",
+    "file_no_local_tree": "Elige una carpeta para explorar archivos locales (opcional)"
   },
   "branding": {
     "identity_title": "Identidad de marca",

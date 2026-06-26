@@ -278,9 +278,10 @@ class RDClient {
     }
 
     _sendFileTransferMessage(msgObj) {
-        if (this._fileConnection && this._fileConnection.state === 'ready') {
-            this._fileConnection.sendMessage(msgObj);
+        if (!this._fileConnection || this._fileConnection.state !== 'ready') {
+            throw new Error('File transfer session is not connected');
         }
+        this._fileConnection.sendMessage(msgObj);
     }
 
     disconnectFileConnection() {

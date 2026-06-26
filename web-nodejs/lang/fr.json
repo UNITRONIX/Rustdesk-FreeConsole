@@ -1159,7 +1159,16 @@
     "file_connecting": "Connexion à la session de transfert de fichiers…",
     "file_connect_failed": "Impossible d'ouvrir la session de transfert de fichiers",
     "file_local_limited": "La navigation complète des dossiers locaux nécessite Chrome ou Edge en HTTPS. L'envoi et le téléchargement restent disponibles.",
-    "file_transfer_unavailable_cdap": "Le transfert de fichiers n'est pas disponible pour les sessions instantanées CDAP."
+    "file_transfer_unavailable_cdap": "Le transfert de fichiers n'est pas disponible pour les sessions instantanées CDAP.",
+    "file_status_waiting": "En attente…",
+    "file_status_transferring": "Transfert…",
+    "file_status_saving": "Enregistrement…",
+    "file_status_downloaded": "Téléchargé",
+    "file_status_uploaded": "Envoyé",
+    "file_drop_upload_hint": "Déposez pour envoyer vers : {path}",
+    "file_local_upload_hint": "Glissez des fichiers sur le panneau distant ou utilisez Envoyer. Les téléchargements vont dans le dossier par défaut du navigateur.",
+    "file_transfer_stalled": "L'appareil distant n'a pas démarré le transfert",
+    "file_no_local_tree": "Choisissez un dossier pour parcourir les fichiers locaux (facultatif)"
   },
   "branding": {
     "identity_title": "Identité de marque",

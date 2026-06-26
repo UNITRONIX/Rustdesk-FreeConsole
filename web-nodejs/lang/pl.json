@@ -1155,7 +1155,16 @@
     "file_connecting": "Łączenie sesji transferu plików…",
     "file_connect_failed": "Nie udało się otworzyć sesji transferu plików",
     "file_local_limited": "Pełne przeglądanie folderów lokalnych wymaga Chrome lub Edge przez HTTPS. Wysyłanie i pobieranie plików nadal działa.",
-    "file_transfer_unavailable_cdap": "Transfer plików jest niedostępny w sesjach podglądu CDAP."
+    "file_transfer_unavailable_cdap": "Transfer plików jest niedostępny w sesjach podglądu CDAP.",
+    "file_status_waiting": "Oczekiwanie…",
+    "file_status_transferring": "Transfer…",
+    "file_status_saving": "Zapisywanie…",
+    "file_status_downloaded": "Pobrano",
+    "file_status_uploaded": "Wysłano",
+    "file_drop_upload_hint": "Upuść, aby przesłać do: {path}",
+    "file_local_upload_hint": "Przeciągnij pliki na panel zdalny lub użyj Prześlij. Pobrania trafiają do domyślnego folderu przeglądarki.",
+    "file_transfer_stalled": "Urządzenie zdalne nie rozpoczęło transferu",
+    "file_no_local_tree": "Wybierz folder, aby przeglądać pliki lokalne (opcjonalnie)"
   },
   "branding": {
     "identity_title": "Identyfikacja marki",

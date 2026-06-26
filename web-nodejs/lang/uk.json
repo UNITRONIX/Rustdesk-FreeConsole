@@ -1148,7 +1148,16 @@
     "file_connecting": "Підключення сеансу передачі файлів…",
     "file_connect_failed": "Не вдалося відкрити сеанс передачі файлів",
     "file_local_limited": "Повний перегляд локальних тек потребує Chrome або Edge через HTTPS. Завантаження та вивантаження файлу все одно працюють.",
-    "file_transfer_unavailable_cdap": "Передача файлів недоступна для сеансів знімка CDAP."
+    "file_transfer_unavailable_cdap": "Передача файлів недоступна для сеансів знімка CDAP.",
+    "file_status_waiting": "Очікування…",
+    "file_status_transferring": "Передача…",
+    "file_status_saving": "Збереження…",
+    "file_status_downloaded": "Завантажено",
+    "file_status_uploaded": "Завантажено",
+    "file_drop_upload_hint": "Перетягніть для завантаження в: {path}",
+    "file_local_upload_hint": "Перетягніть файли на віддалену панель або скористайтеся завантаженням. Завантаження зберігаються в папці браузера за замовчуванням.",
+    "file_transfer_stalled": "Віддалений пристрій не розпочав передачу",
+    "file_no_local_tree": "Оберіть папку для перегляду локальних файлів (необов'язково)"
   },
   "branding": {
     "identity_title": "Ідентичність бренду",

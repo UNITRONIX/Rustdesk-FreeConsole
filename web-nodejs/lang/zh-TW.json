@@ -1159,7 +1159,16 @@
     "file_connecting": "正在連線檔案傳輸工作階段…",
     "file_connect_failed": "無法開啟檔案傳輸工作階段",
     "file_local_limited": "完整的本機資料夾瀏覽需要 HTTPS 下的 Chrome 或 Edge。仍可上傳和下載檔案。",
-    "file_transfer_unavailable_cdap": "CDAP 快照工作階段不支援檔案傳輸。"
+    "file_transfer_unavailable_cdap": "CDAP 快照工作階段不支援檔案傳輸。",
+    "file_status_waiting": "等待中…",
+    "file_status_transferring": "傳輸中…",
+    "file_status_saving": "儲存中…",
+    "file_status_downloaded": "已下載",
+    "file_status_uploaded": "已上傳",
+    "file_drop_upload_hint": "拖放到此處上傳到：{path}",
+    "file_local_upload_hint": "將檔案拖到遠端面板或使用上傳。下載會儲存到瀏覽器的預設資料夾。",
+    "file_transfer_stalled": "遠端裝置未開始傳輸",
+    "file_no_local_tree": "選擇資料夾以瀏覽本機檔案（選用）"
   },
   "branding": {
     "identity_title": "品牌標識",

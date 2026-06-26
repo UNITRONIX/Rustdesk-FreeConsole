@@ -1148,7 +1148,16 @@
     "file_connecting": "กำลังเชื่อมต่อเซสชันการถ่ายโอนไฟล์…",
     "file_connect_failed": "ไม่สามารถเปิดเซสชันการถ่ายโอนไฟล์ได้",
     "file_local_limited": "การเรียกดูโฟลเดอร์ในเครื่องแบบเต็มต้องใช้ Chrome หรือ Edge ผ่าน HTTPS การอัปโหลดและดาวน์โหลดยังใช้งานได้",
-    "file_transfer_unavailable_cdap": "การถ่ายโอนไฟล์ไม่พร้อมใช้งานสำหรับเซสชันภาพรวม CDAP"
+    "file_transfer_unavailable_cdap": "การถ่ายโอนไฟล์ไม่พร้อมใช้งานสำหรับเซสชันภาพรวม CDAP",
+    "file_status_waiting": "กำลังรอ…",
+    "file_status_transferring": "กำลังถ่ายโอน…",
+    "file_status_saving": "กำลังบันทึก…",
+    "file_status_downloaded": "ดาวน์โหลดแล้ว",
+    "file_status_uploaded": "อัปโหลดแล้ว",
+    "file_drop_upload_hint": "วางเพื่ออัปโหลดไปที่: {path}",
+    "file_local_upload_hint": "ลากไฟล์ไปที่แผงระยะไกลหรือใช้การอัปโหลด การดาวน์โหลดจะบันทึกไปยังโฟลเดอร์เริ่มต้นของเบราว์เซอร์",
+    "file_transfer_stalled": "อุปกรณ์ระยะไกลไม่เริ่มการถ่ายโอน",
+    "file_no_local_tree": "เลือกโฟลเดอร์เพื่อเรียกดูไฟล์ในเครื่อง (ไม่บังคับ)"
   },
   "branding": {
     "identity_title": "เอกลักษณ์ของแบรนด์",

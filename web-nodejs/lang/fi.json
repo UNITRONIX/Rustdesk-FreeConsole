@@ -1148,7 +1148,16 @@
     "file_connecting": "Yhdistetään tiedostonsiirtosessiota…",
     "file_connect_failed": "Tiedostonsiirtosessiota ei voitu avata",
     "file_local_limited": "Täysi paikallinen kansioselaus vaatii Chromen tai Edgen HTTPS-yhteydellä. Lataus ja lähetys toimivat silti.",
-    "file_transfer_unavailable_cdap": "Tiedostonsiirto ei ole käytettävissä CDAP-tilannekuvasessioissa."
+    "file_transfer_unavailable_cdap": "Tiedostonsiirto ei ole käytettävissä CDAP-tilannekuvasessioissa.",
+    "file_status_waiting": "Odotetaan…",
+    "file_status_transferring": "Siirretään…",
+    "file_status_saving": "Tallennetaan…",
+    "file_status_downloaded": "Ladattu",
+    "file_status_uploaded": "Lähetetty",
+    "file_drop_upload_hint": "Pudota ladataksesi kohteeseen: {path}",
+    "file_local_upload_hint": "Vedä tiedostot etäpaneeliin tai käytä Lataa. Lataukset tallentuvat selaimen oletuskansioon.",
+    "file_transfer_stalled": "Etälaite ei aloittanut siirtoa",
+    "file_no_local_tree": "Valitse kansio paikallisten tiedostojen selaamiseen (valinnainen)"
   },
   "branding": {
     "identity_title": "Brändin identiteetti",

@@ -1509,6 +1509,50 @@
     outline-offset: -4px;
 }
 
+.ft-pane-remote {
+    position: relative;
+}
+
+.ft-drop-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(13, 17, 23, 0.85);
+    color: var(--accent, #3884ff);
+    font-size: 13px;
+    text-align: center;
+    padding: 16px;
+    pointer-events: none;
+}
+
+.ft-drop-overlay[hidden] {
+    display: none !important;
+}
+
+.ft-drop-overlay .material-icons {
+    font-size: 36px;
+}
+
+.ft-local-hint {
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text-secondary, #8b949e);
+}
+
+.ft-local-hint .ft-hint-text {
+    display: inline;
+}
+
+.ft-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .ft-queue-list {
     flex: 1;
     overflow-y: auto;
@@ -1540,12 +1584,28 @@
     font-size: 11px;
 }
 
-.ft-transfer-row.done .ft-transfer-pct {
+.ft-transfer-row.done .ft-transfer-status {
     color: #3fb950;
 }
 
-.ft-transfer-row.error .ft-transfer-pct {
+.ft-transfer-row.error .ft-transfer-status {
     color: #f85149;
+}
+
+.ft-transfer-row.pending .ft-transfer-icon {
+    animation: ft-spin 1.2s linear infinite;
+}
+
+@keyframes ft-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.ft-transfer-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+    color: var(--text-secondary, #8b949e);
+    margin-top: 2px;
 }
 
 .ft-transfer-info {
@@ -1558,14 +1618,15 @@
     overflow: hidden;
     text-overflow: ellipsis;
     margin-bottom: 4px;
+    font-weight: 500;
 }
 
 .ft-transfer-bar {
-    height: 4px;
+    height: 5px;
     background: rgba(255, 255, 255, 0.08);
-    border-radius: 2px;
+    border-radius: 3px;
     overflow: hidden;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
 }
 
 .ft-transfer-fill {
@@ -1573,6 +1634,45 @@
     background: var(--accent, #3884ff);
     width: 0;
     transition: width 0.15s;
+    border-radius: 3px;
+}
+
+.ft-transfer-fill.indeterminate {
+    width: 40% !important;
+    animation: ft-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes ft-indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+}
+
+.ft-transfer-status {
+    font-size: 10px;
+    color: var(--text-secondary, #8b949e);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ft-transfer-cancel {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.ft-transfer-cancel:hover {
+    color: #f85149;
+    background: rgba(248, 81, 73, 0.12);
+}
+
+.ft-transfer-cancel .material-icons {
+    font-size: 16px;
 }
 
 @media (max-width: 900px) {

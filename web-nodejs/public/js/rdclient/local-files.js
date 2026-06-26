@@ -96,29 +96,17 @@
     };
 
     LocalFiles.prototype.saveDownload = async function (fileName, blob) {
-        if (this._currentHandle && isSupported()) {
-            try {
-                const fh = await this._currentHandle.getFileHandle(fileName, { create: true });
-                const w = await fh.createWritable();
-                await w.write(blob);
-                await w.close();
-                return true;
-            } catch (e) {
-                console.warn('[LocalFiles] save to folder failed:', e);
-            }
+        if (!this._currentHandle || !isSupported()) return false;
+        try {
+            const fh = await this._currentHandle.getFileHandle(fileName, { create: true });
+            const w = await fh.createWritable();
+            await w.write(blob);
+            await w.close();
+            return true;
+        } catch (e) {
+            console.warn('[LocalFiles] save to folder failed:', e);
+            return false;
         }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-            URL.revokeObjectURL(url);
-            a.remove();
-        }, 5000);
-        return false;
     };
 
     window.LocalFiles = LocalFiles;

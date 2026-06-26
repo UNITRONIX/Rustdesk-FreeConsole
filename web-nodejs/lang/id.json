@@ -1148,7 +1148,16 @@
     "file_connecting": "Menghubungkan sesi transfer file…",
     "file_connect_failed": "Tidak dapat membuka sesi transfer file",
     "file_local_limited": "Penelusuran folder lokal penuh memerlukan Chrome atau Edge melalui HTTPS. Unggah dan unduh tetap berfungsi.",
-    "file_transfer_unavailable_cdap": "Transfer file tidak tersedia untuk sesi snapshot CDAP."
+    "file_transfer_unavailable_cdap": "Transfer file tidak tersedia untuk sesi snapshot CDAP.",
+    "file_status_waiting": "Menunggu…",
+    "file_status_transferring": "Mentransfer…",
+    "file_status_saving": "Menyimpan…",
+    "file_status_downloaded": "Diunduh",
+    "file_status_uploaded": "Diunggah",
+    "file_drop_upload_hint": "Lepaskan untuk mengunggah ke: {path}",
+    "file_local_upload_hint": "Seret file ke panel remote atau gunakan Unggah. Unduhan disimpan ke folder default browser.",
+    "file_transfer_stalled": "Perangkat remote tidak memulai transfer",
+    "file_no_local_tree": "Pilih folder untuk menelusuri file lokal (opsional)"
   },
   "branding": {
     "identity_title": "Identitas Merek",

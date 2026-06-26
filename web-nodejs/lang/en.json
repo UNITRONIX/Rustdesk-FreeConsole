@@ -1163,7 +1163,16 @@
     "file_connecting": "Connecting file transfer session…",
     "file_connect_failed": "Could not open file transfer session",
     "file_local_limited": "Full local folder browsing requires Chrome or Edge over HTTPS. You can still upload and download files.",
-    "file_transfer_unavailable_cdap": "File transfer is not available for CDAP snapshot sessions."
+    "file_transfer_unavailable_cdap": "File transfer is not available for CDAP snapshot sessions.",
+    "file_status_waiting": "Waiting…",
+    "file_status_transferring": "Transferring…",
+    "file_status_saving": "Saving…",
+    "file_status_downloaded": "Downloaded",
+    "file_status_uploaded": "Uploaded",
+    "file_drop_upload_hint": "Drop to upload to: {path}",
+    "file_local_upload_hint": "Drag files onto the remote panel or use Upload. Downloads save to your browser's default folder.",
+    "file_transfer_stalled": "Remote did not start transfer",
+    "file_no_local_tree": "Choose a folder to browse local files (optional)"
   },
   "remote_dashboard": {
     "title": "Remote Desktop Client",

@@ -94,3 +94,84 @@ describe('RDClient FILE_TRANSFER protobuf encoding', () => {
         expect(decoded.fileTransfer).toBeUndefined();
     });
 });
+
+describe('RDClient file transfer message encoding', () => {
+    let Message;
+    let FileEntry;
+    let FileAction;
+
+    beforeAll(async () => {
+        const root = await protobuf.load([
+            path.join(__dirname, '../protos/message.proto')
+        ]);
+        Message = root.lookupType('hbb.Message');
+        FileEntry = root.lookupType('hbb.FileEntry');
+        FileAction = root.lookupType('hbb.FileAction');
+    });
+
+    function buildRemoteUploadPath(remoteDir, fileName) {
+        const dir = remoteDir || '';
+        const sep = dir.includes('\\') ? '\\' : '/';
+        if (!dir) return fileName || '';
+        return dir + (dir.endsWith(sep) ? '' : sep) + (fileName || '');
+    }
+
+    it('buildRemoteUploadPath joins directory and file name', () => {
+        expect(buildRemoteUploadPath('C:\\Users\\admin', 'test.txt')).toBe('C:\\Users\\admin\\test.txt');
+        expect(buildRemoteUploadPath('/home/user/', 'a.bin')).toBe('/home/user/a.bin');
+        expect(buildRemoteUploadPath('', 'only.txt')).toBe('only.txt');
+    });
+
+    it('encodes FileTransferReceiveRequest with normalized FileEntry', () => {
+        const entry = FileEntry.create({
+            entryType: 4,
+            name: 'readme.txt',
+            size: 42,
+            modifiedTime: 1700000000
+        });
+        const action = FileAction.create({
+            receive: {
+                id: 7,
+                path: 'C:\\Users\\admin',
+                files: [entry],
+                fileNum: 0,
+                totalSize: 42
+            }
+        });
+        const buf = FileAction.encode(action).finish();
+        expect(buf.length).toBeGreaterThan(0);
+
+        const decoded = FileAction.decode(buf).toJSON();
+        expect(decoded.receive.path).toBe('C:\\Users\\admin');
+        expect(decoded.receive.files).toHaveLength(1);
+        expect(decoded.receive.files[0].name).toBe('readme.txt');
+        expect(decoded.receive.files[0].entryType).toBe('File');
+    });
+
+    it('encodes FileTransferSendRequest with full destination file path', () => {
+        const fullPath = buildRemoteUploadPath('C:\\Users\\admin', 'upload.bin');
+        const action = FileAction.create({
+            send: {
+                id: 3,
+                path: fullPath,
+                includeHidden: false,
+                fileNum: 0
+            }
+        });
+        const buf = FileAction.encode(action).finish();
+        expect(buf.length).toBeGreaterThan(0);
+
+        const decoded = FileAction.decode(buf).toJSON();
+        expect(decoded.send.path).toBe('C:\\Users\\admin\\upload.bin');
+    });
+
+    it('wraps file_action in Message for peer relay', () => {
+        const msg = Message.create({
+            fileAction: {
+                send: { id: 1, path: '/tmp/x.dat', includeHidden: false, fileNum: 0 }
+            }
+        });
+        const decoded = Message.decode(Message.encode(msg).finish()).toJSON();
+        expect(decoded.fileAction.send.path).toBe('/tmp/x.dat');
+    });
+});

@@ -1148,7 +1148,16 @@
     "file_connecting": "Dosya aktarım oturumu bağlanıyor…",
     "file_connect_failed": "Dosya aktarım oturumu açılamadı",
     "file_local_limited": "Tam yerel klasör gezintisi HTTPS üzerinden Chrome veya Edge gerektirir. Yükleme ve indirme hâlâ çalışır.",
-    "file_transfer_unavailable_cdap": "Dosya aktarımı CDAP anlık görüntü oturumlarında kullanılamaz."
+    "file_transfer_unavailable_cdap": "Dosya aktarımı CDAP anlık görüntü oturumlarında kullanılamaz.",
+    "file_status_waiting": "Bekleniyor…",
+    "file_status_transferring": "Aktarılıyor…",
+    "file_status_saving": "Kaydediliyor…",
+    "file_status_downloaded": "İndirildi",
+    "file_status_uploaded": "Yüklendi",
+    "file_drop_upload_hint": "Yüklemek için bırakın: {path}",
+    "file_local_upload_hint": "Dosyaları uzak panele sürükleyin veya Yükle'yi kullanın. İndirmeler tarayıcının varsayılan klasörüne kaydedilir.",
+    "file_transfer_stalled": "Uzak cihaz aktarımı başlatmadı",
+    "file_no_local_tree": "Yerel dosyalara göz atmak için klasör seçin (isteğe bağlı)"
   },
   "branding": {
     "identity_title": "Marka Kimliği",

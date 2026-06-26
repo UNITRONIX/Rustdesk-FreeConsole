@@ -1142,7 +1142,16 @@
     "file_connecting": "ファイル転送セッションに接続中…",
     "file_connect_failed": "ファイル転送セッションを開けませんでした",
     "file_local_limited": "ローカルフォルダの完全な閲覧には HTTPS 上の Chrome または Edge が必要です。アップロードとダウンロードは引き続き利用できます。",
-    "file_transfer_unavailable_cdap": "CDAP スナップショットセッションではファイル転送は利用できません。"
+    "file_transfer_unavailable_cdap": "CDAP スナップショットセッションではファイル転送は利用できません。",
+    "file_status_waiting": "待機中…",
+    "file_status_transferring": "転送中…",
+    "file_status_saving": "保存中…",
+    "file_status_downloaded": "ダウンロード完了",
+    "file_status_uploaded": "アップロード完了",
+    "file_drop_upload_hint": "ドロップしてアップロード先: {path}",
+    "file_local_upload_hint": "ファイルをリモートパネルにドラッグするか、アップロードを使用してください。ダウンロードはブラウザの既定フォルダーに保存されます。",
+    "file_transfer_stalled": "リモートが転送を開始しませんでした",
+    "file_no_local_tree": "ローカルファイルを参照するフォルダーを選択（任意）"
   },
   "branding": {
     "identity_title": "ブランドアイデンティティ",

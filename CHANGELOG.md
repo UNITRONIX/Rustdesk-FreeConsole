@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Web Remote file transfer (#217)**: upload now sends the full destination file path (not just the directory); downloads default to the browser Downloads folder; transfer queue shows phases, progress, cancel, and stall timeout; drag-and-drop overlay on the remote panel; optional local folder save via File System Access when chosen.
+
 ### Changed
 - _(none yet)_
 

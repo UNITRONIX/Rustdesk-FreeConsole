@@ -1148,7 +1148,16 @@
     "file_connecting": "Ansluter filöverföringssession…",
     "file_connect_failed": "Kunde inte öppna filöverföringssession",
     "file_local_limited": "Fullständig lokal mappsökning kräver Chrome eller Edge över HTTPS. Uppladdning och nedladdning fungerar fortfarande.",
-    "file_transfer_unavailable_cdap": "Filöverföring är inte tillgänglig för CDAP-ögonblicksbildssessioner."
+    "file_transfer_unavailable_cdap": "Filöverföring är inte tillgänglig för CDAP-ögonblicksbildssessioner.",
+    "file_status_waiting": "Väntar…",
+    "file_status_transferring": "Överför…",
+    "file_status_saving": "Sparar…",
+    "file_status_downloaded": "Nedladdad",
+    "file_status_uploaded": "Uppladdad",
+    "file_drop_upload_hint": "Släpp för att ladda upp till: {path}",
+    "file_local_upload_hint": "Dra filer till fjärrpanelen eller använd Ladda upp. Nedladdningar sparas i webbläsarens standardmapp.",
+    "file_transfer_stalled": "Fjärrenheten startade inte överföringen",
+    "file_no_local_tree": "Välj en mapp för att bläddra lokala filer (valfritt)"
   },
   "branding": {
     "identity_title": "Varumärkesidentitet",
