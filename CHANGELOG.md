@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.69] — 2026-06-26
+
 ### Fixed
 - **Web Remote file transfer (#217)**: upload now sends the full destination file path (not just the directory); downloads default to the browser Downloads folder; transfer queue shows phases, progress, cancel, and stall timeout; drag-and-drop overlay on the remote panel; optional local folder save via File System Access when chosen.
 
@@ -1260,3 +1267,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.66]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.65...v3.3.66
 [3.3.67]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.66...v3.3.67
 [3.3.68]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.67...v3.3.68
+[3.3.69]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.68...v3.3.69
