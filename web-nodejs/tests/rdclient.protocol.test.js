@@ -122,7 +122,7 @@ describe('RDClient file transfer message encoding', () => {
         expect(buildRemoteUploadPath('', 'only.txt')).toBe('only.txt');
     });
 
-    it('encodes FileTransferReceiveRequest with normalized FileEntry', () => {
+    it('encodes FileTransferReceiveRequest for upload to remote (dir + files)', () => {
         const entry = FileEntry.create({
             entryType: 4,
             name: 'readme.txt',
@@ -148,8 +148,8 @@ describe('RDClient file transfer message encoding', () => {
         expect(decoded.receive.files[0].entryType).toBe('File');
     });
 
-    it('encodes FileTransferSendRequest with full destination file path', () => {
-        const fullPath = buildRemoteUploadPath('C:\\Users\\admin', 'upload.bin');
+    it('encodes FileTransferSendRequest for download from remote (full file path)', () => {
+        const fullPath = buildRemoteUploadPath('C:\\Users\\admin', 'readme.txt');
         const action = FileAction.create({
             send: {
                 id: 3,
@@ -162,7 +162,7 @@ describe('RDClient file transfer message encoding', () => {
         expect(buf.length).toBeGreaterThan(0);
 
         const decoded = FileAction.decode(buf).toJSON();
-        expect(decoded.send.path).toBe('C:\\Users\\admin\\upload.bin');
+        expect(decoded.send.path).toBe('C:\\Users\\admin\\readme.txt');
     });
 
     it('wraps file_action in Message for peer relay', () => {

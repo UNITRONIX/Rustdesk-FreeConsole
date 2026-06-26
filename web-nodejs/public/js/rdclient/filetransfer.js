@@ -2,10 +2,10 @@
  * BetterDesk Web Remote Client - File Transfer Module
  * Handles RustDesk file transfer protocol: browse, download, upload, manage
  *
- * Protocol flow:
+ * Protocol flow (RustDesk client io_loop — operator pulls from / pushes to peer):
  *   Browse:   FileAction.read_dir → FileResponse.dir
- *   Download: FileAction.receive → FileResponse.digest → FileAction.send_confirm → FileResponse.block* → FileResponse.done
- *   Upload:   FileAction.send → FileResponse.digest → FileResponse.block* → FileResponse.done
+ *   Download: FileAction.send (full remote file path) → FileResponse.digest → FileAction.send_confirm → FileResponse.block* → FileResponse.done
+ *   Upload:   FileAction.receive (remote dir + FileEntry[]) → FileResponse.digest → FileAction.send_confirm → FileResponse.block* → FileResponse.done
  *   Cancel:   FileAction.cancel
  */
 
@@ -65,6 +65,17 @@ class RDFileTransfer {
      * @returns {string}
      */
     static buildRemoteUploadPath(remoteDir, fileName) {
+        return RDFileTransfer.buildRemoteFilePath(remoteDir, fileName);
+    }
+
+    /**
+     * Join remote directory + file name (Windows or Unix separators).
+     * Used for download source paths and upload destination paths in send().
+     * @param {string} remoteDir
+     * @param {string} fileName
+     * @returns {string}
+     */
+    static buildRemoteFilePath(remoteDir, fileName) {
         const dir = remoteDir || '';
         const sep = dir.includes('\\') ? '\\' : '/';
         if (!dir) return fileName || '';
@@ -252,14 +263,9 @@ class RDFileTransfer {
         const self = this;
         this._runWithConnection(function () {
             try {
-                const files = [{
-                    entryType: fileEntry.entryType || fileEntry.entry_type || self.FILE_TYPE.FILE,
-                    name: fileEntry.name,
-                    size: fileEntry.size || 0,
-                    modifiedTime: fileEntry.modifiedTime || fileEntry.modified_time || 0
-                }];
-                self._sendMessageSafe(self._proto.buildFileReceiveRequest(
-                    id, remotePath, files, 0, Number(fileEntry.size || 0)
+                const fullPath = RDFileTransfer.buildRemoteFilePath(remotePath, fileEntry.name);
+                self._sendMessageSafe(self._proto.buildFileSendRequest(
+                    id, fullPath, self._showHidden, 0
                 ));
                 self._armTransferTimeout(id);
             } catch (err) {
@@ -282,12 +288,10 @@ class RDFileTransfer {
         if (!this._enabled) return -1;
 
         const id = this._nextId++;
-        const fullPath = RDFileTransfer.buildRemoteUploadPath(remotePath, file.name);
         const transfer = {
             id: id,
             type: 'upload',
             remotePath: remotePath,
-            fullPath: fullPath,
             fileName: file.name,
             fileSize: file.size,
             sentBytes: 0,
@@ -310,8 +314,14 @@ class RDFileTransfer {
         const self = this;
         this._runWithConnection(function () {
             try {
-                self._sendMessageSafe(self._proto.buildFileSendRequest(
-                    id, fullPath, self._showHidden, 0
+                const files = [{
+                    entryType: self.FILE_TYPE.FILE,
+                    name: file.name,
+                    size: file.size,
+                    modifiedTime: file.lastModified ? Math.floor(file.lastModified / 1000) : 0
+                }];
+                self._sendMessageSafe(self._proto.buildFileReceiveRequest(
+                    id, remotePath, files, 0, Number(file.size)
                 ));
                 self._armTransferTimeout(id);
             } catch (err) {
@@ -465,13 +475,28 @@ class RDFileTransfer {
 
         this._clearTransferTimeout(id);
         transfer.fileSize = Number(digest.fileSize || digest.file_size || transfer.fileSize || 0);
+        transfer.fileNum = Number(digest.fileNum != null ? digest.fileNum : (digest.file_num || 0));
         transfer.status = 'transferring';
 
+        const fileNum = transfer.fileNum;
+        const isIdentical = !!(digest.isIdentical || digest.is_identical);
+
         if (transfer.type === 'download') {
-            this._sendMessageSafe(this._proto.buildFileSendConfirm(
-                id, digest.fileNum != null ? digest.fileNum : digest.file_num, false, 0
-            ));
+            this._sendMessageSafe(this._proto.buildFileSendConfirm(id, fileNum, false, 0));
         } else if (transfer.type === 'upload') {
+            if (isIdentical) {
+                this._sendMessageSafe(this._proto.buildFileSendConfirm(id, fileNum, true, 0));
+                this._transfers.delete(id);
+                this._emit('file_transfer_complete', {
+                    id: id,
+                    fileName: transfer.fileName,
+                    fileSize: transfer.fileSize,
+                    type: 'upload',
+                    elapsed: (Date.now() - transfer.startTime) / 1000
+                });
+                return;
+            }
+            this._sendMessageSafe(this._proto.buildFileSendConfirm(id, fileNum, false, 0));
             this._sendUploadBlocks(transfer);
         }
 
@@ -495,24 +520,53 @@ class RDFileTransfer {
         const transfer = this._transfers.get(id);
         if (!transfer || transfer.type !== 'download') return;
 
-        if (block.data && block.data.length > 0) {
-            transfer.blocks.push(block.data);
-            transfer.receivedBytes += block.data.length;
+        const self = this;
+        const applyBlock = function (data) {
+            if (data && data.length > 0) {
+                transfer.blocks.push(data);
+                transfer.receivedBytes += data.length;
+            }
+            const percent = transfer.fileSize > 0
+                ? Math.min(100, Math.round((transfer.receivedBytes / transfer.fileSize) * 100))
+                : 0;
+            self._emit('file_transfer_progress', {
+                id: id,
+                fileName: transfer.fileName,
+                fileSize: transfer.fileSize,
+                transferred: transfer.receivedBytes,
+                percent: percent,
+                type: 'download',
+                phase: 'transferring'
+            });
+        };
+
+        const raw = block.data;
+        if (block.compressed && raw && raw.length) {
+            this._decompressBlock(raw).then(applyBlock).catch(function (err) {
+                self._failTransfer(id, 'Failed to decompress block: ' + (err.message || String(err)));
+            });
+            return;
         }
+        applyBlock(raw);
+    }
 
-        const percent = transfer.fileSize > 0
-            ? Math.min(100, Math.round((transfer.receivedBytes / transfer.fileSize) * 100))
-            : 0;
-
-        this._emit('file_transfer_progress', {
-            id: id,
-            fileName: transfer.fileName,
-            fileSize: transfer.fileSize,
-            transferred: transfer.receivedBytes,
-            percent: percent,
-            type: 'download',
-            phase: 'transferring'
-        });
+    /**
+     * Decompress a zstd block from the RustDesk peer (when compressed=true).
+     * @param {Uint8Array|Buffer|Array} data
+     * @returns {Promise<Uint8Array>}
+     */
+    async _decompressBlock(data) {
+        const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+        if (typeof DecompressionStream === 'function') {
+            try {
+                const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('zstd'));
+                const out = await new Response(stream).arrayBuffer();
+                return new Uint8Array(out);
+            } catch (err) {
+                console.warn('[FileTransfer] zstd decompress failed, using raw block:', err.message || err);
+            }
+        }
+        return bytes;
     }
 
     /**

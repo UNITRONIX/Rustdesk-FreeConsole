@@ -16,6 +16,7 @@
 
 ### Fixed
 - **Web Remote file transfer (#217)**: upload now sends the full destination file path (not just the directory); downloads default to the browser Downloads folder; transfer queue shows phases, progress, cancel, and stall timeout; drag-and-drop overlay on the remote panel; optional local folder save via File System Access when chosen.
+- **Web Remote file transfer protocol (#217)**: fix inverted RustDesk FileAction mapping — download uses `send` (full remote path), upload uses `receive` (remote dir + FileEntry); upload sends `send_confirm` before blocks; optional zstd block decompress on download.
 - **Panel update sudoers bootstrap (Linux)**: `linux-ensure-console-user.js` is whitelisted in sudoers and invoked via passwordless sudo during updates; server binary deploy refreshes sudoers as root so new privileged helpers (e.g. `linux-write-systemd-unit.js`) apply without a manual root step.
 
 ### Changed
