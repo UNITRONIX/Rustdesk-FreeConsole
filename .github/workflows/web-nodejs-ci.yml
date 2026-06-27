@@ -28,10 +28,10 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: web-nodejs/package-lock.json
+          cache-dependency-path: web-nodejs/package.json
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: npm audit (high+)
         run: npm audit --omit=dev --audit-level=high
