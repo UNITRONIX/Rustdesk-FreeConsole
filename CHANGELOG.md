@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.77] — 2026-06-27
+
 ### Fixed
 - **Organization device groups (#221)**: editing a device group from the Devices page (e.g. switching to automatic tag membership) no longer clears `team_id`, so groups stay linked to their organization and org-scoped access is preserved.
 
@@ -1335,3 +1342,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.74]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.73...v3.3.74
 [3.3.75]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.74...v3.3.75
 [3.3.76]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.75...v3.3.76
+[3.3.77]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.76...v3.3.77
