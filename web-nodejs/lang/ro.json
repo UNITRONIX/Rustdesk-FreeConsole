@@ -3834,7 +3834,23 @@
     "clock": {
       "title": "Ora serverului (NTP)",
       "check_now": "Verifică acum",
-      "unsynced": "Ceasul serverului nu este sincronizat — sesiunile facturabile pot fi blocate"
+      "unsynced": "Ceasul serverului nu este sincronizat — sesiunile facturabile pot fi blocate",
+      "synced_detail": "Ceas sincronizat pentru facturare",
+      "ntp_servers": "Servere NTP",
+      "ntp_servers_hint": "Nume gazdă sau IP separate prin virgulă. Se aplică serverului Go (betterdesk-server).",
+      "max_skew_ms": "Abatere maximă ceas (ms)",
+      "require_sync": "Cere ceas sincronizat pentru sesiuni facturabile",
+      "trust_os": "Ai încredere în NTP OS când interogările directe eșuează",
+      "trust_os_hint": "Folosește starea systemd-timesyncd/chrony când UDP NTP este blocat.",
+      "save": "Salvează setările NTP",
+      "saved": "Setările ceasului salvate. Repornire server Go inițiată.",
+      "save_restart": "Salvezi NTP și repornești serverul Go? Sesiunile active se pot deconecta scurt.",
+      "status_offset": "Abatere",
+      "status_server": "Sursă NTP",
+      "status_os": "Ceas OS sincronizat",
+      "status_error": "Ultima eroare",
+      "os_yes": "Da",
+      "os_no": "Nu"
     },
     "stats": {
       "active_sessions": "Sesiuni facturabile active"

@@ -3834,7 +3834,23 @@
     "clock": {
       "title": "सर्वर समय (NTP)",
       "check_now": "अभी जाँचें",
-      "unsynced": "सर्वर घड़ी सिंक नहीं है — बिल योग्य सत्र अवरुद्ध हो सकते हैं"
+      "unsynced": "सर्वर घड़ी सिंक नहीं है — बिल योग्य सत्र अवरुद्ध हो सकते हैं",
+      "synced_detail": "बिलिंग के लिए घड़ी सिंक",
+      "ntp_servers": "NTP सर्वर",
+      "ntp_servers_hint": "अल्पविराम से अलग होस्टनाम या IP। Go सर्वर (betterdesk-server) पर लागू।",
+      "max_skew_ms": "अधिकतम घड़ी विचलन (ms)",
+      "require_sync": "बिल योग्य सत्रों के लिए सिंक घड़ी आवश्यक",
+      "trust_os": "प्रत्यक्ष क्वेरी विफल होने पर OS NTP पर भरोसा करें",
+      "trust_os_hint": "UDP NTP अवरुद्ध होने पर systemd-timesyncd/chrony स्थिति का उपयोग करें।",
+      "save": "NTP सेटिंग्स सहेजें",
+      "saved": "घड़ी सेटिंग्स सहेजी गईं। Go सर्वर पुनः आरंभ शुरू।",
+      "save_restart": "NTP सहेजें और Go सर्वर पुनः आरंभ करें? सक्रिय सत्र briefly डिस्कनेक्ट हो सकते हैं।",
+      "status_offset": "ऑफ़सेट",
+      "status_server": "NTP स्रोत",
+      "status_os": "OS घड़ी सिंक",
+      "status_error": "अंतिम त्रुटि",
+      "os_yes": "हाँ",
+      "os_no": "नहीं"
     },
     "stats": {
       "active_sessions": "सक्रिय बिल योग्य सत्र"

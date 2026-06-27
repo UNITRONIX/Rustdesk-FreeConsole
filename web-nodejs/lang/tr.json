@@ -3834,7 +3834,23 @@
     "clock": {
       "title": "Sunucu saati (NTP)",
       "check_now": "Şimdi kontrol et",
-      "unsynced": "Sunucu saati senkronize değil — faturalandırılabilir oturumlar engellenebilir"
+      "unsynced": "Sunucu saati senkronize değil — faturalandırılabilir oturumlar engellenebilir",
+      "synced_detail": "Faturalandırma için saat senkronize",
+      "ntp_servers": "NTP sunucuları",
+      "ntp_servers_hint": "Virgülle ayrılmış ana bilgisayar adları veya IP. Go sunucusuna (betterdesk-server) uygulanır.",
+      "max_skew_ms": "Maksimum saat sapması (ms)",
+      "require_sync": "Faturalandırılabilir oturumlar için senkron saat gerekli",
+      "trust_os": "Doğrudan sorgular başarısız olursa OS NTP'ye güven",
+      "trust_os_hint": "UDP NTP engellendiğinde systemd-timesyncd/chrony durumunu kullanın.",
+      "save": "NTP ayarlarını kaydet",
+      "saved": "Saat ayarları kaydedildi. Go sunucusu yeniden başlatılıyor.",
+      "save_restart": "NTP kaydedilsin ve Go sunucusu yeniden başlatılsın mı? Aktif oturumlar kısa süre kesilebilir.",
+      "status_offset": "Sapma",
+      "status_server": "NTP kaynağı",
+      "status_os": "OS saati senkron",
+      "status_error": "Son hata",
+      "os_yes": "Evet",
+      "os_no": "Hayır"
     },
     "stats": {
       "active_sessions": "Aktif faturalandırılabilir oturumlar"

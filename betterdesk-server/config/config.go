@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -138,6 +139,7 @@ type Config struct {
 	NTPServers                string // Comma-separated NTP servers
 	BillingMaxClockSkewMS     int    // Max allowed clock offset vs NTP (default 2000)
 	BillingRequireSyncedClock bool   // Block billable sessions when clock unsynced
+	BillingTrustOSNTP         bool   // Trust OS NTP (timedatectl) when direct queries fail
 	BillingRoundingMinutes    int    // Billable minute rounding (1, 10, 15)
 	BillingRequireWorkReport  bool   // Require technician report before session close
 }
@@ -167,6 +169,7 @@ func DefaultConfig() *Config {
 		P2PFallbackMs:             2000, // grace period for target hole punch before relay fallback
 		BillingMaxClockSkewMS:     2000,
 		BillingRequireSyncedClock: true,
+		BillingTrustOSNTP:         runtime.GOOS == "linux",
 		BillingRoundingMinutes:    1,
 	}
 }
@@ -387,6 +390,14 @@ func (c *Config) LoadEnv() {
 			c.BillingRequireSyncedClock = true
 		case "N", "NO", "0", "FALSE", "OFF":
 			c.BillingRequireSyncedClock = false
+		}
+	}
+	if v := os.Getenv("BILLING_TRUST_OS_NTP"); v != "" {
+		switch strings.ToUpper(v) {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.BillingTrustOSNTP = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.BillingTrustOSNTP = false
 		}
 	}
 	if v := os.Getenv("BILLING_ROUNDING_MINUTES"); v != "" {

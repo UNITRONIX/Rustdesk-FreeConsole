@@ -3834,7 +3834,23 @@
     "clock": {
       "title": "Szerveridő (NTP)",
       "check_now": "Ellenőrzés",
-      "unsynced": "A szerver órája nincs szinkronban — a számlázható munkamenetek blokkolva lehetnek"
+      "unsynced": "A szerver órája nincs szinkronban — a számlázható munkamenetek blokkolva lehetnek",
+      "synced_detail": "Óra szinkronizálva számlázáshoz",
+      "ntp_servers": "NTP szerverek",
+      "ntp_servers_hint": "Vesszővel elválasztott hostnevek vagy IP-k. A Go szerverre (betterdesk-server) vonatkozik.",
+      "max_skew_ms": "Max. óraeltérés (ms)",
+      "require_sync": "Szinkronizált óra kötelező számlázható munkamenetekhez",
+      "trust_os": "Bízzon az OS NTP-ben, ha a közvetlen lekérdezések sikertelenek",
+      "trust_os_hint": "Használja a systemd-timesyncd/chrony állapotot, ha az UDP NTP blokkolva van.",
+      "save": "NTP beállítások mentése",
+      "saved": "Óra beállítások mentve. Go szerver újraindítás elindítva.",
+      "save_restart": "Mentse az NTP-t és indítsa újra a Go szervert? Az aktív munkamenetek rövid ideig megszakadhatnak.",
+      "status_offset": "Eltérés",
+      "status_server": "NTP forrás",
+      "status_os": "OS óra szinkronizálva",
+      "status_error": "Utolsó hiba",
+      "os_yes": "Igen",
+      "os_no": "Nem"
     },
     "stats": {
       "active_sessions": "Aktív számlázható munkamenetek"

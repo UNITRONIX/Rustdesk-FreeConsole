@@ -3832,7 +3832,23 @@
     "clock": {
       "title": "服務器時間 (NTP)",
       "check_now": "立即檢查",
-      "unsynced": "服務器時鐘未同步 — 可計費會話可能被阻止"
+      "unsynced": "服務器時鐘未同步 — 可計費會話可能被阻止",
+      "synced_detail": "時鐘已同步，可用於計費",
+      "ntp_servers": "NTP 伺服器",
+      "ntp_servers_hint": "逗號分隔的主機名稱或 IP。套用至 Go 伺服器（betterdesk-server）。",
+      "max_skew_ms": "最大時鐘偏差 (ms)",
+      "require_sync": "可計費工作階段要求時鐘同步",
+      "trust_os": "直接查詢失敗時信任 OS NTP",
+      "trust_os_hint": "UDP NTP 被阻擋時使用 systemd-timesyncd/chrony 狀態。",
+      "save": "儲存 NTP 設定",
+      "saved": "時鐘設定已儲存。已啟動 Go 伺服器重新啟動。",
+      "save_restart": "儲存 NTP 並重新啟動 Go 伺服器？使用中工作階段可能短暫中斷。",
+      "status_offset": "偏移",
+      "status_server": "NTP 來源",
+      "status_os": "OS 時鐘已同步",
+      "status_error": "最後錯誤",
+      "os_yes": "是",
+      "os_no": "否"
     },
     "stats": {
       "active_sessions": "活動可計費會話"

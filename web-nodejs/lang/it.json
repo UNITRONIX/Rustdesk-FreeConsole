@@ -3828,7 +3828,23 @@
     "clock": {
       "title": "Ora server (NTP)",
       "check_now": "Controlla ora",
-      "unsynced": "L'orologio del server non è sincronizzato — le sessioni fatturabili possono essere bloccate"
+      "unsynced": "L'orologio del server non è sincronizzato — le sessioni fatturabili possono essere bloccate",
+      "synced_detail": "Orologio sincronizzato per la fatturazione",
+      "ntp_servers": "Server NTP",
+      "ntp_servers_hint": "Hostname o IP separati da virgola. Si applica al server Go (betterdesk-server).",
+      "max_skew_ms": "Scostamento orario massimo (ms)",
+      "require_sync": "Richiedi orologio sincronizzato per sessioni fatturabili",
+      "trust_os": "Affidati all'NTP del SO se le query dirette falliscono",
+      "trust_os_hint": "Usa lo stato systemd-timesyncd/chrony quando l'UDP NTP è bloccato (DMZ/firewall).",
+      "save": "Salva impostazioni NTP",
+      "saved": "Impostazioni orologio salvate. Riavvio server Go avviato.",
+      "save_restart": "Salvare NTP e riavviare il server Go? Le sessioni attive possono disconnettersi brevemente.",
+      "status_offset": "Scostamento",
+      "status_server": "Fonte NTP",
+      "status_os": "Orologio OS sincronizzato",
+      "status_error": "Ultimo errore",
+      "os_yes": "Sì",
+      "os_no": "No"
     },
     "stats": {
       "active_sessions": "Sessioni fatturabili attive"

@@ -3834,7 +3834,23 @@
     "clock": {
       "title": "Palvelinaika (NTP)",
       "check_now": "Tarkista nyt",
-      "unsynced": "Palvelimen kello ei ole synkronoitu — laskutettavat istunnot voidaan estää"
+      "unsynced": "Palvelimen kello ei ole synkronoitu — laskutettavat istunnot voidaan estää",
+      "synced_detail": "Kello synkronoitu laskutusta varten",
+      "ntp_servers": "NTP-palvelimet",
+      "ntp_servers_hint": "Pilkuilla erotetut isäntänimet tai IP:t. Koskee Go-palvelinta (betterdesk-server).",
+      "max_skew_ms": "Suurin kelloero (ms)",
+      "require_sync": "Vaadi synkronoitu kello laskutettaville istunnoille",
+      "trust_os": "Luota OS NTP:hen kun suorat kyselyt epäonnistuvat",
+      "trust_os_hint": "Käytä systemd-timesyncd/chrony-tilaa kun UDP NTP on estetty (DMZ/palomuuri).",
+      "save": "Tallenna NTP-asetukset",
+      "saved": "Kelloasetukset tallennettu. Go-palvelimen uudelleenkäynnistys käynnistetty.",
+      "save_restart": "Tallenna NTP ja käynnistä Go-palvelin uudelleen? Aktiiviset istunnot voivat katketa hetkeksi.",
+      "status_offset": "Ero",
+      "status_server": "NTP-lähde",
+      "status_os": "OS-kello synkronoitu",
+      "status_error": "Viimeisin virhe",
+      "os_yes": "Kyllä",
+      "os_no": "Ei"
     },
     "stats": {
       "active_sessions": "Aktiiviset laskutettavat istunnot"

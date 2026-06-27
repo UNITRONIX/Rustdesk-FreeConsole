@@ -742,12 +742,103 @@ function runPrivileged(command, options = {}) {
 /**
  * Ensure MESH_ENABLED=Y is present in Go server service environment (one-time migration).
  */
+const BILLING_ENV_KEYS = [
+    'NTP_SERVERS',
+    'BILLING_MAX_CLOCK_SKEW_MS',
+    'BILLING_REQUIRE_SYNCED_CLOCK',
+    'BILLING_TRUST_OS_NTP',
+];
+
+function parseEnvFileKeys(content, keys) {
+    const out = {};
+    if (!content || typeof content !== 'string') return out;
+    const wanted = new Set(keys);
+    for (const line of content.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq <= 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        if (!wanted.has(key)) continue;
+        out[key] = trimmed.slice(eq + 1).trim();
+    }
+    return out;
+}
+
+function mergeBillingEnvIntoWindowsServiceExtra(existingExtra, billingVars) {
+    const lines = (existingExtra || '')
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+    const map = new Map();
+    for (const line of lines) {
+        const eq = line.indexOf('=');
+        if (eq <= 0) continue;
+        map.set(line.slice(0, eq), line.slice(eq + 1));
+    }
+    let changed = false;
+    for (const key of BILLING_ENV_KEYS) {
+        if (billingVars[key] === undefined) continue;
+        const nextVal = billingVars[key];
+        if (map.get(key) !== nextVal) {
+            map.set(key, nextVal);
+            changed = true;
+        }
+    }
+    if (!changed) return { text: existingExtra, changed: false };
+    const merged = [...map.entries()].map(([k, v]) => `${k}=${v}`).join('\n');
+    return { text: merged, changed: true };
+}
+
+function syncBillingEnvToWindowsGoServer() {
+    const envPath = path.join(ROOT_DIR, '.env');
+    if (!fs.existsSync(envPath)) return { changed: false };
+    const billingVars = parseEnvFileKeys(fs.readFileSync(envPath, 'utf8'), BILLING_ENV_KEYS);
+    if (!Object.keys(billingVars).length) return { changed: false };
+
+    const serviceName = COMPONENTS.server.service;
+    const serverEnvRaw = execSync(`nssm get "${serviceName}" AppEnvironmentExtra 2>nul`, {
+        timeout: 5000,
+        stdio: 'pipe'
+    }).toString();
+    const patch = mergeBillingEnvIntoWindowsServiceExtra(serverEnvRaw, billingVars);
+    if (!patch.changed) return { changed: false };
+    execFileSync('nssm', ['set', serviceName, 'AppEnvironmentExtra', patch.text], {
+        timeout: 5000,
+        stdio: 'pipe'
+    });
+    return { changed: true };
+}
+
 function ensureMeshEnabledInServiceEnv(envText) {
     if (!envText || typeof envText !== 'string') return { text: envText, changed: false };
     if (/^MESH_ENABLED=/m.test(envText)) return { text: envText, changed: false };
     const trimmed = envText.replace(/\r\n/g, '\n').replace(/\n+$/, '');
     const line = 'MESH_ENABLED=Y';
     return { text: trimmed ? `${trimmed}\n${line}` : line, changed: true };
+}
+
+/**
+ * Ensure Go server systemd unit loads console .env (NTP / billing keys for timesync).
+ */
+function ensureGoServerEnvironmentFile(unitText, envFilePath) {
+    if (!unitText || typeof unitText !== 'string') return { text: unitText, changed: false };
+    if (/^EnvironmentFile=/m.test(unitText)) return { text: unitText, changed: false };
+    const envLine = `EnvironmentFile=-${envFilePath}`;
+    if (/^Environment=AUTH_DB_PATH=/m.test(unitText)) {
+        return {
+            text: unitText.replace(/^(Environment=AUTH_DB_PATH=.*)$/m, `${envLine}\n$1`),
+            changed: true
+        };
+    }
+    if (/^\[Service\]/m.test(unitText)) {
+        return {
+            text: unitText.replace(/^\[Service\]/m, `[Service]\n${envLine}`),
+            changed: true
+        };
+    }
+    return { text: `${envLine}\n${unitText}`, changed: true };
 }
 
 function sanitizeGoServerServiceConfig() {
@@ -784,6 +875,15 @@ function sanitizeGoServerServiceConfig() {
                     result.changed = true;
                     result.needsRestart = true;
                     result.changes.push('set MESH_ENABLED=Y on BetterDesk Go Server NSSM environment');
+                }
+            } catch (_e) { /* server service may not exist */ }
+
+            try {
+                const billingPatch = syncBillingEnvToWindowsGoServer();
+                if (billingPatch.changed) {
+                    result.changed = true;
+                    result.needsRestart = true;
+                    result.changes.push('synced billing/NTP env to BetterDesk Go Server NSSM environment');
                 }
             } catch (_e) { /* server service may not exist */ }
 
@@ -833,6 +933,14 @@ function sanitizeGoServerServiceConfig() {
             }
             result.needsRestart = true;
             result.changes.push('set MESH_ENABLED=Y in betterdesk-server systemd unit');
+        }
+
+        const consoleEnvPath = path.join(ROOT_DIR, '.env');
+        const envFilePatch = ensureGoServerEnvironmentFile(clean, consoleEnvPath);
+        if (envFilePatch.changed) {
+            clean = envFilePatch.text;
+            result.needsRestart = true;
+            result.changes.push('set EnvironmentFile for console .env on betterdesk-server systemd unit');
         }
 
         if (clean !== original) {
@@ -3087,6 +3195,9 @@ module.exports = {
     createPreUpdateBackup,
     applyUpdate,
     runUpdatePreflight,
+    sanitizeGoServerServiceConfig,
+    syncBillingEnvToWindowsGoServer,
+    BILLING_ENV_KEYS,
     restartService,
     daemonReload,
     listBackups,

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **NTP servers for billing clock (#223)**: `betterdesk-server` now loads `NTP_SERVERS` and billing clock vars from console `.env` (Linux `EnvironmentFile` + update migration). Added `BILLING_TRUST_OS_NTP` fallback when OS time sync is healthy but public NTP is blocked. Commercialization → Settings exposes NTP configuration with Go server restart.
+
 ### Changed
 - _(none yet)_
 

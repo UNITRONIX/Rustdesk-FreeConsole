@@ -3828,7 +3828,23 @@
     "clock": {
       "title": "Czas serwera (NTP)",
       "check_now": "Sprawdź teraz",
-      "unsynced": "Zegar serwera nie jest zsynchronizowany — sesje rozliczeniowe mogą być zablokowane"
+      "unsynced": "Zegar serwera nie jest zsynchronizowany — sesje rozliczeniowe mogą być zablokowane",
+      "synced_detail": "Zegar zsynchronizowany do rozliczeń",
+      "ntp_servers": "Serwery NTP",
+      "ntp_servers_hint": "Nazwy hostów lub IP oddzielone przecinkami. Dotyczy serwera Go (betterdesk-server).",
+      "max_skew_ms": "Maksymalne odchylenie zegara (ms)",
+      "require_sync": "Wymagaj zsynchronizowanego zegara dla sesji płatnych",
+      "trust_os": "Ufaj NTP systemu, gdy bezpośrednie zapytania zawiodą",
+      "trust_os_hint": "Użyj statusu systemd-timesyncd/chrony, gdy UDP NTP jest blokowane (DMZ/firewall).",
+      "save": "Zapisz ustawienia NTP",
+      "saved": "Ustawienia zegara zapisane. Uruchomiono restart serwera Go.",
+      "save_restart": "Zapisać NTP i zrestartować serwer Go? Aktywne sesje mogą się chwilowo rozłączyć.",
+      "status_offset": "Odchylenie",
+      "status_server": "Źródło NTP",
+      "status_os": "Zegar OS zsynchronizowany",
+      "status_error": "Ostatni błąd",
+      "os_yes": "Tak",
+      "os_no": "Nie"
     },
     "stats": {
       "active_sessions": "Aktywne sesje rozliczeniowe"

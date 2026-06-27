@@ -3828,7 +3828,23 @@
     "clock": {
       "title": "서버 시간 (NTP)",
       "check_now": "지금 확인",
-      "unsynced": "서버 시계가 동기화되지 않음 — 과금 세션이 차단될 수 있습니다"
+      "unsynced": "서버 시계가 동기화되지 않음 — 과금 세션이 차단될 수 있습니다",
+      "synced_detail": "과금을 위해 시계가 동기화됨",
+      "ntp_servers": "NTP 서버",
+      "ntp_servers_hint": "쉼표로 구분된 호스트명 또는 IP. Go 서버(betterdesk-server)에 적용됩니다.",
+      "max_skew_ms": "최대 시계 오차 (ms)",
+      "require_sync": "과금 세션에 동기화된 시계 필요",
+      "trust_os": "직접 쿼리 실패 시 OS NTP 신뢰",
+      "trust_os_hint": "UDP NTP가 차단된 경우 systemd-timesyncd/chrony 상태 사용.",
+      "save": "NTP 설정 저장",
+      "saved": "시계 설정이 저장되었습니다. Go 서버 재시작이 시작되었습니다.",
+      "save_restart": "NTP를 저장하고 Go 서버를 재시작하시겠습니까? 활성 세션이 잠시 끊길 수 있습니다.",
+      "status_offset": "오프셋",
+      "status_server": "NTP 소스",
+      "status_os": "OS 시계 동기화",
+      "status_error": "마지막 오류",
+      "os_yes": "예",
+      "os_no": "아니오"
     },
     "stats": {
       "active_sessions": "활성 과금 세션"

@@ -109,8 +109,31 @@
     <section id="tab-settings" class="tab-panel ${activeTab === 'settings' ? '' : 'hidden'}">
         <div class="card">
             <h3>${_('commercialization.clock.title')}</h3>
-            <p id="settings-clock-detail"></p>
+            <p id="settings-clock-detail" class="text-muted"></p>
+            <dl class="clock-status-grid">
+                <div><dt>${_('commercialization.clock.status_offset')}</dt><dd id="clock-offset">—</dd></div>
+                <div><dt>${_('commercialization.clock.status_server')}</dt><dd id="clock-ntp-server">—</dd></div>
+                <div><dt>${_('commercialization.clock.status_os')}</dt><dd id="clock-os-sync">—</dd></div>
+                <div><dt>${_('commercialization.clock.status_error')}</dt><dd id="clock-last-error">—</dd></div>
+            </dl>
             <button type="button" class="btn btn-secondary" id="btn-timesync-check">${_('commercialization.clock.check_now')}</button>
+            <form id="clock-settings-form" class="settings-form" style="margin-top: 1rem;">
+                <label class="form-label">${_('commercialization.clock.ntp_servers')}
+                    <textarea id="clock-ntp-servers" class="form-control" rows="2" placeholder="pool.ntp.org,time.google.com"></textarea>
+                </label>
+                <p class="text-muted form-hint">${_('commercialization.clock.ntp_servers_hint')}</p>
+                <label class="form-label">${_('commercialization.clock.max_skew_ms')}
+                    <input type="number" id="clock-max-skew" class="form-control" min="100" max="600000" step="100" value="2000">
+                </label>
+                <div class="form-group">
+                    <label><input type="checkbox" id="clock-require-sync"> ${_('commercialization.clock.require_sync')}</label>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="clock-trust-os"> ${_('commercialization.clock.trust_os')}</label>
+                </div>
+                <p class="text-muted form-hint">${_('commercialization.clock.trust_os_hint')}</p>
+                <button type="button" class="btn btn-primary" id="btn-save-clock-settings">${_('commercialization.clock.save')}</button>
+            </form>
         </div>
         <div class="card" style="margin-top: 1rem;">
             <h3>${_('commercialization.notifications.title')}</h3>

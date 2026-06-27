@@ -112,17 +112,48 @@
             const statusEl = document.getElementById('clock-status');
             const offsetEl = document.getElementById('clock-offset');
             const detail = document.getElementById('settings-clock-detail');
+            const ntpServerEl = document.getElementById('clock-ntp-server');
+            const osSyncEl = document.getElementById('clock-os-sync');
+            const lastErrorEl = document.getElementById('clock-last-error');
             const synced = !!st.synced;
             if (statusEl) statusEl.textContent = synced ? 'OK' : 'WARN';
             const offset = `${st.offset_ms || 0} ms`;
             if (offsetEl) offsetEl.textContent = offset;
-            if (detail) detail.textContent = `${synced ? 'Synced' : 'Not synced'} · offset ${offset}`;
+            if (ntpServerEl) ntpServerEl.textContent = st.ntp_server || '—';
+            if (osSyncEl) {
+                if (st.os_clock_synced === true) osSyncEl.textContent = t('commercialization.clock.os_yes', 'Yes');
+                else if (st.os_clock_synced === false) osSyncEl.textContent = t('commercialization.clock.os_no', 'No');
+                else osSyncEl.textContent = '—';
+            }
+            if (lastErrorEl) lastErrorEl.textContent = st.last_error || '—';
+            if (detail) {
+                detail.textContent = synced
+                    ? t('commercialization.clock.synced_detail', 'Clock synchronized for billing')
+                    : t('commercialization.clock.unsynced', 'Server clock is not synchronized — billable sessions may be blocked');
+            }
             if (banner) {
                 banner.classList.toggle('hidden', synced);
-                banner.textContent = synced ? '' : t('commercialization.clock.unsynced', 'Clock not synchronized');
+                banner.textContent = synced ? '' : t('commercialization.clock.unsynced', 'Server clock is not synchronized — billable sessions may be blocked');
             }
         } catch (e) {
             console.warn('[commercialization] timesync', e);
+        }
+    }
+
+    async function loadClockSettings() {
+        try {
+            const data = await api('/api/panel/billing/clock/settings');
+            const settings = data.settings || {};
+            const serversEl = document.getElementById('clock-ntp-servers');
+            const skewEl = document.getElementById('clock-max-skew');
+            const requireEl = document.getElementById('clock-require-sync');
+            const trustEl = document.getElementById('clock-trust-os');
+            if (serversEl) serversEl.value = settings.ntp_servers || '';
+            if (skewEl) skewEl.value = settings.max_skew_ms || 2000;
+            if (requireEl) requireEl.checked = settings.require_synced_clock !== false;
+            if (trustEl) trustEl.checked = settings.trust_os_ntp !== false;
+        } catch (e) {
+            console.warn('[commercialization] clock settings', e);
         }
     }
 
@@ -341,6 +372,29 @@
         await loadTimesync();
     });
 
+    document.getElementById('btn-save-clock-settings')?.addEventListener('click', async () => {
+        const ok = window.confirm(t(
+            'commercialization.clock.save_restart',
+            'Save NTP settings and restart the BetterDesk Go server? Active sessions may disconnect briefly.'
+        ));
+        if (!ok) return;
+        try {
+            await api('/api/panel/billing/clock/settings', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    ntp_servers: document.getElementById('clock-ntp-servers')?.value || '',
+                    max_skew_ms: Number(document.getElementById('clock-max-skew')?.value || 2000),
+                    require_synced_clock: document.getElementById('clock-require-sync')?.checked !== false,
+                    trust_os_ntp: document.getElementById('clock-trust-os')?.checked !== false,
+                })
+            });
+            alert(t('commercialization.clock.saved', 'Clock settings saved. Go server restart initiated.'));
+            await loadTimesync();
+        } catch (e) {
+            alert(e.message);
+        }
+    });
+
     document.getElementById('btn-new-package')?.addEventListener('click', () => {
         openPackageModal().catch((e) => alert(e.message));
     });
@@ -417,6 +471,7 @@
     }
     if (tab === 'settings') {
         loadEmailNotificationSettings().catch(console.warn);
+        loadClockSettings().catch(console.warn);
     }
     if (tab === 'overview' || tab === 'sessions') {
         loadSessions().catch(console.warn);

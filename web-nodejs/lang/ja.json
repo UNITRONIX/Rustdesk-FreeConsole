@@ -3828,7 +3828,23 @@
     "clock": {
       "title": "サーバー時刻 (NTP)",
       "check_now": "今すぐ確認",
-      "unsynced": "サーバー時計が同期されていません — 課金セッションがブロックされる場合があります"
+      "unsynced": "サーバー時計が同期されていません — 課金セッションがブロックされる場合があります",
+      "synced_detail": "課金用に時計が同期されています",
+      "ntp_servers": "NTPサーバー",
+      "ntp_servers_hint": "カンマ区切りのホスト名またはIP。Goサーバー（betterdesk-server）に適用されます。",
+      "max_skew_ms": "最大時刻ずれ (ms)",
+      "require_sync": "課金セッションに同期時計を必須にする",
+      "trust_os": "直接クエリ失敗時はOS NTPを信頼",
+      "trust_os_hint": "UDP NTPがブロックされている場合は systemd-timesyncd/chrony の状態を使用。",
+      "save": "NTP設定を保存",
+      "saved": "時計設定を保存しました。Goサーバーの再起動を開始しました。",
+      "save_restart": "NTPを保存してGoサーバーを再起動しますか？アクティブなセッションが一時的に切断される場合があります。",
+      "status_offset": "オフセット",
+      "status_server": "NTPソース",
+      "status_os": "OS時計同期",
+      "status_error": "最後のエラー",
+      "os_yes": "はい",
+      "os_no": "いいえ"
     },
     "stats": {
       "active_sessions": "アクティブな課金セッション"

@@ -3834,7 +3834,23 @@
     "clock": {
       "title": "Waktu server (NTP)",
       "check_now": "Periksa sekarang",
-      "unsynced": "Jam server tidak tersinkron — sesi berbayar dapat diblokir"
+      "unsynced": "Jam server tidak tersinkron — sesi berbayar dapat diblokir",
+      "synced_detail": "Jam disinkronkan untuk penagihan",
+      "ntp_servers": "Server NTP",
+      "ntp_servers_hint": "Nama host atau IP dipisah koma. Berlaku untuk server Go (betterdesk-server).",
+      "max_skew_ms": "Selisih jam maksimum (ms)",
+      "require_sync": "Wajib jam tersinkron untuk sesi berbayar",
+      "trust_os": "Percayai NTP OS jika kueri langsung gagal",
+      "trust_os_hint": "Gunakan status systemd-timesyncd/chrony saat UDP NTP diblokir (DMZ/firewall).",
+      "save": "Simpan pengaturan NTP",
+      "saved": "Pengaturan jam disimpan. Restart server Go dimulai.",
+      "save_restart": "Simpan NTP dan restart server Go? Sesi aktif mungkin terputus sebentar.",
+      "status_offset": "Offset",
+      "status_server": "Sumber NTP",
+      "status_os": "Jam OS tersinkron",
+      "status_error": "Kesalahan terakhir",
+      "os_yes": "Ya",
+      "os_no": "Tidak"
     },
     "stats": {
       "active_sessions": "Sesi berbayar aktif"

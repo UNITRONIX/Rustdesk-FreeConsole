@@ -3832,7 +3832,23 @@
     "clock": {
       "title": "Serverzeit (NTP)",
       "check_now": "Jetzt prüfen",
-      "unsynced": "Serveruhr nicht synchronisiert — abrechenbare Sitzungen können blockiert werden"
+      "unsynced": "Serveruhr nicht synchronisiert — abrechenbare Sitzungen können blockiert werden",
+      "synced_detail": "Horloge synchronisée pour la facturation",
+      "ntp_servers": "Serveurs NTP",
+      "ntp_servers_hint": "Noms d'hôte ou IP séparés par des virgules. Appliqué au serveur Go (betterdesk-server).",
+      "max_skew_ms": "Décalage horaire max. (ms)",
+      "require_sync": "Exiger une horloge synchronisée pour les sessions facturables",
+      "trust_os": "Faire confiance au NTP OS si les requêtes directes échouent",
+      "trust_os_hint": "Utiliser l'état systemd-timesyncd/chrony quand l'UDP NTP est bloqué (DMZ/pare-feu).",
+      "save": "Enregistrer les paramètres NTP",
+      "saved": "Paramètres d'horloge enregistrés. Redémarrage du serveur Go lancé.",
+      "save_restart": "Enregistrer le NTP et redémarrer le serveur Go ? Les sessions actives peuvent se déconnecter brièvement.",
+      "status_offset": "Décalage",
+      "status_server": "Source NTP",
+      "status_os": "Horloge OS synchronisée",
+      "status_error": "Dernière erreur",
+      "os_yes": "Oui",
+      "os_no": "Non"
     },
     "stats": {
       "active_sessions": "Aktive abrechenbare Sitzungen"

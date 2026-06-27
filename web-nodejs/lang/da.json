@@ -3834,7 +3834,23 @@
     "clock": {
       "title": "Servertid (NTP)",
       "check_now": "Tjek nu",
-      "unsynced": "Serveruret er ikke synkroniseret — fakturerbare sessioner kan blive blokeret"
+      "unsynced": "Serveruret er ikke synkroniseret — fakturerbare sessioner kan blive blokeret",
+      "synced_detail": "Ur synkroniseret til fakturering",
+      "ntp_servers": "NTP-servere",
+      "ntp_servers_hint": "Kommaseparerede værtsnavne eller IP. Gælder Go-serveren (betterdesk-server).",
+      "max_skew_ms": "Maks. urafvigelse (ms)",
+      "require_sync": "Kræv synkroniseret ur for fakturerbare sessioner",
+      "trust_os": "Stol på OS NTP når direkte forespørgsler fejler",
+      "trust_os_hint": "Brug systemd-timesyncd/chrony-status når UDP NTP er blokeret (DMZ/firewall).",
+      "save": "Gem NTP-indstillinger",
+      "saved": "Urindstillinger gemt. Genstart af Go-server startet.",
+      "save_restart": "Gem NTP og genstart Go-serveren? Aktive sessioner kan kort afbrydes.",
+      "status_offset": "Afvigelse",
+      "status_server": "NTP-kilde",
+      "status_os": "OS-ur synkroniseret",
+      "status_error": "Seneste fejl",
+      "os_yes": "Ja",
+      "os_no": "Nej"
     },
     "stats": {
       "active_sessions": "Aktive fakturerbare sessioner"

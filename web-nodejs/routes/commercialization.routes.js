@@ -11,6 +11,7 @@ const {
     CONFIG_KEY,
 } = require('../services/helpRequestEmailService');
 const { getSmtpSettings } = require('../lib/smtpSettingsHandlers');
+const billingClockConfig = require('../services/billingClockConfigService');
 
 router.get('/commercialization', requireAuth, requirePermission('billing.view'), (req, res) => {
     const validTabs = ['overview', 'packages', 'sessions', 'reports', 'settings'];
@@ -37,6 +38,37 @@ router.get('/api/panel/billing/timesync/status', requireAuth, requirePermission(
 
 router.post('/api/panel/billing/timesync/check', requireAuth, requirePermission('server.config'), (req, res) => {
     proxyToGo(apiClient, req, res, 'POST', '/timesync/check');
+});
+
+router.get('/api/panel/billing/clock/settings', requireAuth, requirePermission('billing.view'), (req, res) => {
+    try {
+        res.json({ success: true, settings: billingClockConfig.getClockSettings() });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+router.put('/api/panel/billing/clock/settings', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const result = await billingClockConfig.saveClockSettings(req.body || {}, { restart: true });
+        try {
+            await db.logAction(
+                req.session.userId,
+                'billing_clock_settings_updated',
+                'Updated billing/NTP clock settings',
+                req.ip
+            );
+        } catch (_) {}
+        res.json({
+            success: true,
+            settings: result.settings,
+            serviceConfig: result.serviceConfig,
+            restart: result.restart,
+        });
+    } catch (err) {
+        const code = ['invalid_ntp_servers', 'invalid_max_skew'].includes(err.message) ? 400 : 500;
+        res.status(code).json({ success: false, error: err.message });
+    }
 });
 
 router.get('/api/panel/billing/packages', requireAuth, requirePermission('billing.view'), (req, res) => {

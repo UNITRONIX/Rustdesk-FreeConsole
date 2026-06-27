@@ -3828,7 +3828,23 @@
     "clock": {
       "title": "Čas serveru (NTP)",
       "check_now": "Zkontrolovat",
-      "unsynced": "Hodiny serveru nejsou synchronizovány — fakturovatelné relace mohou být blokovány"
+      "unsynced": "Hodiny serveru nejsou synchronizovány — fakturovatelné relace mohou být blokovány",
+      "synced_detail": "Hodiny synchronizovány pro fakturaci",
+      "ntp_servers": "NTP servery",
+      "ntp_servers_hint": "Názvy hostitelů nebo IP oddělené čárkou. Platí pro Go server (betterdesk-server).",
+      "max_skew_ms": "Maximální odchylka hodin (ms)",
+      "require_sync": "Vyžadovat synchronizované hodiny pro fakturovatelné relace",
+      "trust_os": "Důvěřovat OS NTP při selhání přímých dotazů",
+      "trust_os_hint": "Použít stav systemd-timesyncd/chrony, když je UDP NTP blokováno (DMZ/firewall).",
+      "save": "Uložit nastavení NTP",
+      "saved": "Nastavení hodin uloženo. Restart Go serveru spuštěn.",
+      "save_restart": "Uložit NTP a restartovat Go server? Aktivní relace se mohou krátce odpojit.",
+      "status_offset": "Odchylka",
+      "status_server": "Zdroj NTP",
+      "status_os": "OS hodiny synchronizovány",
+      "status_error": "Poslední chyba",
+      "os_yes": "Ano",
+      "os_no": "Ne"
     },
     "stats": {
       "active_sessions": "Aktivní fakturovatelné relace"

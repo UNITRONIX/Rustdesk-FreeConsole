@@ -293,9 +293,22 @@ func main() {
 		QueryTimeout: 5 * time.Second,
 		MaxSkew:      time.Duration(cfg.BillingMaxClockSkewMS) * time.Millisecond,
 		RequireSync:  cfg.BillingRequireSyncedClock,
+		TrustOSNTP:   cfg.BillingTrustOSNTP,
 	})
+	log.Printf("[timesync] NTP servers: %v (trust OS NTP when queries fail: %v)",
+		cfg.GetNTPServers(), cfg.BillingTrustOSNTP)
 	timeSyncSvc.Start(ctx)
 	defer timeSyncSvc.Stop()
+
+	reloadHandler.OnReload(func() error {
+		timeSyncSvc.ApplyConfig(timesync.Config{
+			Servers:     cfg.GetNTPServers(),
+			MaxSkew:     time.Duration(cfg.BillingMaxClockSkewMS) * time.Millisecond,
+			RequireSync: cfg.BillingRequireSyncedClock,
+			TrustOSNTP:  cfg.BillingTrustOSNTP,
+		})
+		return nil
+	})
 
 	billingSvc := billing.NewService(database, timeSyncSvc, cfg.BillingRoundingMinutes, cfg.BillingRequireWorkReport)
 	billingSvc.Start(ctx)

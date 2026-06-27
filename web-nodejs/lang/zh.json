@@ -3828,7 +3828,23 @@
     "clock": {
       "title": "服务器时间 (NTP)",
       "check_now": "立即检查",
-      "unsynced": "服务器时钟未同步 — 可计费会话可能被阻止"
+      "unsynced": "服务器时钟未同步 — 可计费会话可能被阻止",
+      "synced_detail": "时钟已同步，可用于计费",
+      "ntp_servers": "NTP 服务器",
+      "ntp_servers_hint": "逗号分隔的主机名或 IP。应用于 Go 服务器（betterdesk-server）。",
+      "max_skew_ms": "最大时钟偏差 (ms)",
+      "require_sync": "可计费会话要求时钟同步",
+      "trust_os": "直接查询失败时信任 OS NTP",
+      "trust_os_hint": "UDP NTP 被阻止时使用 systemd-timesyncd/chrony 状态。",
+      "save": "保存 NTP 设置",
+      "saved": "时钟设置已保存。已启动 Go 服务器重启。",
+      "save_restart": "保存 NTP 并重启 Go 服务器？活动会话可能短暂断开。",
+      "status_offset": "偏移",
+      "status_server": "NTP 来源",
+      "status_os": "OS 时钟已同步",
+      "status_error": "最后错误",
+      "os_yes": "是",
+      "os_no": "否"
     },
     "stats": {
       "active_sessions": "活动可计费会话"

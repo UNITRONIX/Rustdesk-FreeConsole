@@ -3828,7 +3828,23 @@
     "clock": {
       "title": "Servertijd (NTP)",
       "check_now": "Nu controleren",
-      "unsynced": "Serverklok niet gesynchroniseerd — factureerbare sessies kunnen worden geblokkeerd"
+      "unsynced": "Serverklok niet gesynchroniseerd — factureerbare sessies kunnen worden geblokkeerd",
+      "synced_detail": "Klok gesynchroniseerd voor facturering",
+      "ntp_servers": "NTP-servers",
+      "ntp_servers_hint": "Kommagescheiden hostnamen of IP's. Geldt voor de Go-server (betterdesk-server).",
+      "max_skew_ms": "Maximale klokafwijking (ms)",
+      "require_sync": "Gesynchroniseerde klok vereisen voor factureerbare sessies",
+      "trust_os": "Vertrouw OS NTP wanneer directe queries falen",
+      "trust_os_hint": "Gebruik systemd-timesyncd/chrony-status wanneer UDP NTP geblokkeerd is.",
+      "save": "NTP-instellingen opslaan",
+      "saved": "Klokinstellingen opgeslagen. Herstart Go-server gestart.",
+      "save_restart": "NTP opslaan en Go-server herstarten? Actieve sessies kunnen kort verbreken.",
+      "status_offset": "Offset",
+      "status_server": "NTP-bron",
+      "status_os": "OS-klok gesynchroniseerd",
+      "status_error": "Laatste fout",
+      "os_yes": "Ja",
+      "os_no": "Nee"
     },
     "stats": {
       "active_sessions": "Actieve factureerbare sessies"

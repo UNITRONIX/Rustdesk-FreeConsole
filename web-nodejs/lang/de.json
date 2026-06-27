@@ -3828,7 +3828,23 @@
     "clock": {
       "title": "Serverzeit (NTP)",
       "check_now": "Jetzt prüfen",
-      "unsynced": "Serveruhr nicht synchronisiert — abrechenbare Sitzungen können blockiert werden"
+      "unsynced": "Serveruhr nicht synchronisiert — abrechenbare Sitzungen können blockiert werden",
+      "synced_detail": "Uhr für Abrechnung synchronisiert",
+      "ntp_servers": "NTP-Server",
+      "ntp_servers_hint": "Kommagetrennte Hostnamen oder IPs. Gilt für den Go-Server (betterdesk-server).",
+      "max_skew_ms": "Maximale Uhrabweichung (ms)",
+      "require_sync": "Synchronisierte Uhr für abrechenbare Sitzungen erforderlich",
+      "trust_os": "OS-NTP vertrauen, wenn direkte Abfragen fehlschlagen",
+      "trust_os_hint": "systemd-timesyncd/chrony-Status nutzen, wenn UDP-NTP blockiert ist (DMZ/Firewall).",
+      "save": "NTP-Einstellungen speichern",
+      "saved": "Uhreinstellungen gespeichert. Go-Server-Neustart gestartet.",
+      "save_restart": "NTP speichern und Go-Server neu starten? Aktive Sitzungen können kurz trennen.",
+      "status_offset": "Abweichung",
+      "status_server": "NTP-Quelle",
+      "status_os": "OS-Uhr synchronisiert",
+      "status_error": "Letzter Fehler",
+      "os_yes": "Ja",
+      "os_no": "Nein"
     },
     "stats": {
       "active_sessions": "Aktive abrechenbare Sitzungen"

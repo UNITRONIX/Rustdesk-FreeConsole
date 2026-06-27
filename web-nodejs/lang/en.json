@@ -3874,7 +3874,23 @@
     "clock": {
       "title": "Server time (NTP)",
       "check_now": "Check now",
-      "unsynced": "Server clock is not synchronized — billable sessions may be blocked"
+      "unsynced": "Server clock is not synchronized — billable sessions may be blocked",
+      "synced_detail": "Clock synchronized for billing",
+      "ntp_servers": "NTP servers",
+      "ntp_servers_hint": "Comma-separated hostnames or IPs. Applied to the Go server (betterdesk-server), not only the web console.",
+      "max_skew_ms": "Maximum clock skew (ms)",
+      "require_sync": "Require synchronized clock for billable sessions",
+      "trust_os": "Trust OS NTP when direct queries fail",
+      "trust_os_hint": "Use systemd-timesyncd/chrony status when UDP NTP to public servers is blocked (DMZ/firewall).",
+      "save": "Save NTP settings",
+      "saved": "Clock settings saved. Go server restart initiated.",
+      "save_restart": "Save NTP settings and restart the BetterDesk Go server? Active sessions may disconnect briefly.",
+      "status_offset": "Offset",
+      "status_server": "NTP source",
+      "status_os": "OS clock synced",
+      "status_error": "Last error",
+      "os_yes": "Yes",
+      "os_no": "No"
     },
     "stats": {
       "active_sessions": "Active billable sessions"

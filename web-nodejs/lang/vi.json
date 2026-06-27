@@ -3834,7 +3834,23 @@
     "clock": {
       "title": "Giờ máy chủ (NTP)",
       "check_now": "Kiểm tra ngay",
-      "unsynced": "Đồng hồ máy chủ chưa đồng bộ — phiên tính phí có thể bị chặn"
+      "unsynced": "Đồng hồ máy chủ chưa đồng bộ — phiên tính phí có thể bị chặn",
+      "synced_detail": "Đồng hồ đã đồng bộ cho tính phí",
+      "ntp_servers": "Máy chủ NTP",
+      "ntp_servers_hint": "Tên máy chủ hoặc IP cách nhau bằng dấu phẩy. Áp dụng cho máy chủ Go (betterdesk-server).",
+      "max_skew_ms": "Độ lệch đồng hồ tối đa (ms)",
+      "require_sync": "Yêu cầu đồng hồ đồng bộ cho phiên tính phí",
+      "trust_os": "Tin cậy NTP OS khi truy vấn trực tiếp thất bại",
+      "trust_os_hint": "Dùng trạng thái systemd-timesyncd/chrony khi UDP NTP bị chặn.",
+      "save": "Lưu cài đặt NTP",
+      "saved": "Đã lưu cài đặt đồng hồ. Đang khởi động lại máy chủ Go.",
+      "save_restart": "Lưu NTP và khởi động lại máy chủ Go? Phiên đang hoạt động có thể ngắt tạm thời.",
+      "status_offset": "Độ lệch",
+      "status_server": "Nguồn NTP",
+      "status_os": "Đồng hồ OS đã đồng bộ",
+      "status_error": "Lỗi cuối",
+      "os_yes": "Có",
+      "os_no": "Không"
     },
     "stats": {
       "active_sessions": "Phiên tính phí đang hoạt động"

@@ -2121,6 +2121,31 @@ function Setup-Services {
     Print-Info "Services: $script:SERVER_SERVICE, $script:CONSOLE_SERVICE"
 }
 
+function Get-GoBillingEnvLauncherLines {
+    param([string]$EnvFilePath)
+    $lines = @()
+    $keys = @(
+        'NTP_SERVERS',
+        'BILLING_MAX_CLOCK_SKEW_MS',
+        'BILLING_REQUIRE_SYNCED_CLOCK',
+        'BILLING_TRUST_OS_NTP'
+    )
+    if (-not $EnvFilePath -or -not (Test-Path $EnvFilePath)) {
+        return $lines
+    }
+    foreach ($rawLine in Get-Content $EnvFilePath) {
+        $line = $rawLine.Trim()
+        if (-not $line -or $line.StartsWith('#')) { continue }
+        $parts = $line -split '=', 2
+        if ($parts.Count -lt 2) { continue }
+        $key = $parts[0].Trim()
+        if ($keys -notcontains $key) { continue }
+        $value = $parts[1].Trim()
+        $lines += "set `"$key=$value`""
+    }
+    return $lines
+}
+
 function Setup-ScheduledTasks {
     param([string]$ServerIP)
     
@@ -2201,6 +2226,10 @@ function Setup-ScheduledTasks {
     if ($adminPass) { $launcherLines += "set `"INIT_ADMIN_PASS=$adminPass`"" }
     # New installs default to "managed" enrollment; existing installs untouched.
     if ($script:FRESH_INSTALL) { $launcherLines += "set `"ENROLLMENT_MODE=managed`"" }
+    $billingEnvFile = Join-Path $script:CONSOLE_PATH ".env"
+    foreach ($billingLine in (Get-GoBillingEnvLauncherLines -EnvFilePath $billingEnvFile)) {
+        $launcherLines += $billingLine
+    }
     $launcherLines += "`"$serverExe`" $serverArgs"
     Set-Content -Path $serverLauncher -Value $launcherLines -Encoding ASCII
     & icacls $serverLauncher /inheritance:r /grant:r "*S-1-5-32-544:F" "*S-1-5-18:F" 2>$null | Out-Null

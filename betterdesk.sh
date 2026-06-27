@@ -2749,6 +2749,7 @@ After=network.target postgresql.service
 Type=simple
 User=root
 WorkingDirectory=$RUSTDESK_PATH
+EnvironmentFile=-$CONSOLE_PATH/.env
 Environment=AUTH_DB_PATH=$CONSOLE_PATH/data/auth.db
 Environment=MESH_ENABLED=Y
 $CONNECTION_MODE_ENV_BLOCK
@@ -3150,6 +3151,7 @@ Wants=network-online.target
 Type=simple
 User=root
 WorkingDirectory=$INSTALL_DIR
+$( [ -n "$CONSOLE_PATH" ] && [ -f "$CONSOLE_PATH/.env" ] && echo "EnvironmentFile=-$CONSOLE_PATH/.env" )
 ExecStart=$GO_BINARY_PATH $SERVER_ARGS
 Restart=always
 RestartSec=5
