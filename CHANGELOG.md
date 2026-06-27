@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.75] — 2026-06-27
+
 ### Fixed
 - **NTP servers for billing clock (#223)**: `betterdesk-server` now loads `NTP_SERVERS` and billing clock vars from console `.env` (Linux `EnvironmentFile` + update migration). Added `BILLING_TRUST_OS_NTP` fallback when OS time sync is healthy but public NTP is blocked. Commercialization → Settings exposes NTP configuration with Go server restart.
 
@@ -1313,3 +1320,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.72]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.71...v3.3.72
 [3.3.73]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.72...v3.3.73
 [3.3.74]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.73...v3.3.74
+[3.3.75]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.74...v3.3.75
