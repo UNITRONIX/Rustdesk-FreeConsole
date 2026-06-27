@@ -186,13 +186,14 @@
     "client_config_qr_hint": "Відскануйте цей код у клієнті RustDesk, який підтримує QR-коди конфігурації.",
     "client_server_host_label": "Адреса сервера для клієнтів",
     "client_server_host_placeholder": "напр. 203.0.113.10 або desk.example.com",
-    "client_server_host_hint": "Адреса, яку клієнти RustDesk використовують для доступу до цього сервера. Змініть, якщо URL панелі відрізняється від публічної IP або DNS.",
+    "client_server_host_hint": "Адреса для клієнтів RustDesk. Змініть, якщо URL панелі відрізняється від IP/DNS клієнтів. Окремі домени: Налаштування → Публічні кінцеві точки клієнта.",
     "apply_client_host": "Застосувати",
     "copy_deploy_string": "Копіювати рядок розгортання",
     "show_intune_script": "Скрипт Intune / PSADT",
     "intune_script_title": "Фрагмент розгортання Windows",
     "intune_script_hint": "Запустіть від імені адміністратора після завершення MSI RustDesk. Використовує той самий config-рядок, що й Копіювати рядок розгортання.",
-    "deploy_string_not_ready": "Рядок розгортання недоступний, доки не завантажено публічний ключ сервера."
+    "deploy_string_not_ready": "Рядок розгортання недоступний, доки не завантажено публічний ключ сервера.",
+    "client_server_host_env_hint": "Публічні ID, relay і API налаштовані в Налаштування → Публічні кінцеві точки клієнта. Очистіть там, щоб знову використати це поле."
   },
   "devices": {
     "title": "Пристрої",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Публічні кінцеві точки клієнта",
+    "public_endpoints_desc": "Ім’я хоста та URL API для клієнтів RustDesk. Конфігурація панелі, QR і deploy-рядки.",
+    "public_endpoints_hint": "Встановіть, якщо хост консолі відрізняється від ID/relay/API (reverse proxy / окремий DNS). Порожньо = авто.",
+    "public_endpoints_server_id": "Публічний ID-сервер",
+    "public_endpoints_server_id_placeholder": "напр. remote.example.com",
+    "public_endpoints_relay": "Публічний relay-сервер",
+    "public_endpoints_relay_placeholder": "напр. remote.example.com (за замовч.: ID)",
+    "public_endpoints_api_url": "Публічний URL API",
+    "public_endpoints_api_url_placeholder": "напр. https://api.example.com",
+    "public_endpoints_api_url_hint": "Повний URL для входу та API RustDesk (порт за замовч. 21114).",
+    "public_endpoints_save": "Зберегти кінцеві точки",
+    "public_endpoints_saved": "Публічні кінцеві точки клієнта збережено",
+    "public_endpoints_invalid_host": "Недійсне ім’я хоста ID або relay",
+    "public_endpoints_invalid_api_url": "Недійсний URL API — використовуйте http:// або https://",
+    "public_endpoints_save_title": "Зберегти публічні кінцеві точки клієнта?",
+    "public_endpoints_save_confirm": "Оновити конфігурацію RustDesk на панелі?"
   },
   "audit": {
     "time": "Time",

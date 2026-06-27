@@ -31,4 +31,15 @@ describe('keyService RustDesk config encoding', () => {
         expect(payload.host).toBe('desk.example.com');
         expect(payload.relay).toBe('desk.example.com');
     });
+
+    it('buildRustDeskConfigPayload accepts split endpoints object', () => {
+        const payload = keyService.buildRustDeskConfigPayload({
+            host: 'remote.example.com',
+            relay: 'relay.example.com',
+            api: 'https://api.example.com',
+        });
+        expect(payload.host).toBe('remote.example.com');
+        expect(payload.relay).toBe('relay.example.com');
+        expect(payload.api).toBe('https://api.example.com');
+    });
 });

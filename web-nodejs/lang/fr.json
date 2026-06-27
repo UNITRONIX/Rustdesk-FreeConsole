@@ -184,13 +184,14 @@
     "client_config_qr_hint": "Scannez ce code avec un client RustDesk compatible avec les QR codes de configuration.",
     "client_server_host_label": "Adresse serveur pour les clients",
     "client_server_host_placeholder": "ex. 203.0.113.10 ou desk.example.com",
-    "client_server_host_hint": "Adresse utilisée par les clients RustDesk pour joindre ce serveur. Modifiez-la si l’URL du panneau diffère de l’IP ou du DNS public.",
+    "client_server_host_hint": "Adresse utilisée par les clients RustDesk pour joindre ce serveur. Modifiez-la si l’URL du panneau diffère de l’IP/DNS client. Domaines séparés : Paramètres → Points de terminaison clients publics.",
     "apply_client_host": "Appliquer",
     "copy_deploy_string": "Copier la chaîne de déploiement",
     "show_intune_script": "Script Intune / PSADT",
     "intune_script_title": "Extrait de déploiement Windows",
     "intune_script_hint": "Exécutez en administrateur après l’installation MSI de RustDesk. Utilise la même chaîne que Copier la chaîne de déploiement.",
-    "deploy_string_not_ready": "La chaîne de déploiement n’est pas disponible tant que la clé publique du serveur n’est pas chargée."
+    "deploy_string_not_ready": "La chaîne de déploiement n’est pas disponible tant que la clé publique du serveur n’est pas chargée.",
+    "client_server_host_env_hint": "Les points de terminaison publics ID, relais et API sont définis dans Paramètres → Points de terminaison clients publics. Effacez-les pour réutiliser ce champ."
   },
   "devices": {
     "title": "Tableau de bord",
@@ -665,7 +666,23 @@
       "advanced_restart_after_title": "Redémarrer le service ?",
       "advanced_restart_title": "Redémarrer le service ?",
       "advanced_discard_title": "Abandonner les modifications ?"
-    }
+    },
+    "public_endpoints_title": "Points de terminaison clients publics",
+    "public_endpoints_desc": "Nom d’hôte et URL API utilisés par les clients RustDesk. Configuration du tableau de bord, QR et chaînes de déploiement.",
+    "public_endpoints_hint": "À définir quand l’hôte de la console diffère de l’ID/relai/API (proxy inverse / DNS séparé). Vide = détection auto.",
+    "public_endpoints_server_id": "Serveur ID public",
+    "public_endpoints_server_id_placeholder": "ex. remote.example.com",
+    "public_endpoints_relay": "Serveur relais public",
+    "public_endpoints_relay_placeholder": "ex. remote.example.com (par défaut : serveur ID)",
+    "public_endpoints_api_url": "URL API publique",
+    "public_endpoints_api_url_placeholder": "ex. https://api.example.com",
+    "public_endpoints_api_url_hint": "URL complète pour connexion et API RustDesk (port 21114 par défaut).",
+    "public_endpoints_save": "Enregistrer les points de terminaison",
+    "public_endpoints_saved": "Points de terminaison clients publics enregistrés",
+    "public_endpoints_invalid_host": "Nom d’hôte ID ou relais invalide",
+    "public_endpoints_invalid_api_url": "URL API invalide — utilisez http:// ou https://",
+    "public_endpoints_save_title": "Enregistrer les points de terminaison publics ?",
+    "public_endpoints_save_confirm": "Mettre à jour la configuration client RustDesk du tableau de bord ?"
   },
   "audit": {
     "time": "Heure",

@@ -186,13 +186,14 @@
     "client_config_qr_hint": "इस कोड को ऐसे RustDesk क्लाइंट से स्कैन करें जो कॉन्फ़िगरेशन QR कोड का समर्थन करता हो।",
     "client_server_host_label": "क्लाइंट सर्वर पता",
     "client_server_host_placeholder": "जैसे 203.0.113.10 या desk.example.com",
-    "client_server_host_hint": "वह पता जिससे RustDesk क्लाइंट इस सर्वर तक पहुँचते हैं। यदि पैनल URL सार्वजनिक IP/DNS से अलग है तो बदलें।",
+    "client_server_host_hint": "RustDesk क्लाइंट इस सर्वर तक पहुँचने के लिए जो पता उपयोग करते हैं। पैनल URL अलग हो तो बदलें। अलग डोमेन के लिए: Settings → Public client endpoints।",
     "apply_client_host": "लागू करें",
     "copy_deploy_string": "डिप्लॉय स्ट्रिंग कॉपी करें",
     "show_intune_script": "Intune / PSADT स्क्रिप्ट",
     "intune_script_title": "Windows तैनाती स्निपेट",
     "intune_script_hint": "RustDesk MSI पूरा होने के बाद व्यवस्थापक के रूप में चलाएँ। डिप्लॉय स्ट्रिंग कॉपी करें जैसा ही config स्ट्रिंग उपयोग करता है।",
-    "deploy_string_not_ready": "सर्वर की सार्वजनिक कुंजी लोड होने तक डिप्लॉय स्ट्रिंग उपलब्ध नहीं है।"
+    "deploy_string_not_ready": "सर्वर की सार्वजनिक कुंजी लोड होने तक डिप्लॉय स्ट्रिंग उपलब्ध नहीं है।",
+    "client_server_host_env_hint": "सार्वजनिक ID, relay और API Settings → Public client endpoints में सेट हैं। इस ओवरराइड के लिए वहाँ खाली करें।"
   },
   "devices": {
     "title": "उपकरण",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "सार्वजनिक क्लाइंट एंडपॉइंट",
+    "public_endpoints_desc": "RustDesk क्लाइंट द्वारा उपयोग किया जाने वाला होस्टनाम और API URL। डैशबोर्ड, QR और deploy स्ट्रिंग के लिए।",
+    "public_endpoints_hint": "जब कंसोल होस्टनाम ID/relay/API से अलग हो (रिवर्स प्रॉक्सी)। खाली = ऑटो-डिटेक्ट।",
+    "public_endpoints_server_id": "सार्वजनिक ID सर्वर",
+    "public_endpoints_server_id_placeholder": "जैसे remote.example.com",
+    "public_endpoints_relay": "सार्वजनिक relay सर्वर",
+    "public_endpoints_relay_placeholder": "जैसे remote.example.com (डिफ़ॉल्ट: ID)",
+    "public_endpoints_api_url": "सार्वजनिक API URL",
+    "public_endpoints_api_url_placeholder": "जैसे https://api.example.com",
+    "public_endpoints_api_url_hint": "RustDesk लॉगिन/API के लिए पूर्ण URL (डिफ़ॉल्ट पोर्ट 21114)।",
+    "public_endpoints_save": "एंडपॉइंट सहेजें",
+    "public_endpoints_saved": "सार्वजनिक क्लाइंट एंडपॉइंट सहेजे गए",
+    "public_endpoints_invalid_host": "अमान्य ID या relay होस्टनाम",
+    "public_endpoints_invalid_api_url": "अमान्य API URL — http:// या https://",
+    "public_endpoints_save_title": "सार्वजनिक क्लाइंट एंडपॉइंट सहेजें?",
+    "public_endpoints_save_confirm": "डैशबोर्ड RustDesk कॉन्फ़िग अपडेट करें?"
   },
   "audit": {
     "time": "Time",

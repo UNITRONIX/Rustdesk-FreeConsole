@@ -420,6 +420,7 @@
             setText('client-config-relay-server', clientConfig.relay_server || '-');
             setText('client-config-api-url', clientConfig.api_url || '-');
             setText('client-config-public-key', clientConfig.public_key || _('keys.no_key'));
+            updateClientHostControls(clientConfig);
         } catch (err) {
             console.error('Client config load error:', err);
             clientConfig = null;
@@ -427,6 +428,23 @@
             setText('client-config-relay-server', window.location.hostname || '-');
             setText('client-config-api-url', '-');
             setText('client-config-public-key', _('errors.load_key_failed'));
+        }
+    }
+
+    function updateClientHostControls(config) {
+        const hintEl = findById('client-config-host-hint');
+        const envOverride = Boolean(config?.env_override_active);
+
+        if (clientConfigHostInput) {
+            clientConfigHostInput.disabled = envOverride;
+        }
+        if (applyClientHostButton) {
+            applyClientHostButton.disabled = envOverride;
+        }
+        if (hintEl) {
+            hintEl.textContent = envOverride
+                ? _('dashboard.client_server_host_env_hint')
+                : _('dashboard.client_server_host_hint');
         }
     }
 

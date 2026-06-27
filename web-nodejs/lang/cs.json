@@ -180,13 +180,14 @@
     "client_config_qr_hint": "Naskenujte tento kód v klientovi RustDesk, který podporuje konfigurační QR kódy.",
     "client_server_host_label": "Adresa serveru pro klienty",
     "client_server_host_placeholder": "např. 203.0.113.10 nebo desk.example.com",
-    "client_server_host_hint": "Adresa, kterou klienti RustDesk používají pro přístup k tomuto serveru. Změňte ji, pokud se URL panelu liší od veřejné IP nebo DNS.",
+    "client_server_host_hint": "Adresa, kterou klienti RustDesk používají pro přístup k serveru. Změňte ji, když se URL panelu liší od IP/DNS pro klienty. Pro oddělené domény nastavte Nastavení → Veřejné koncové body klientů.",
     "apply_client_host": "Použít",
     "copy_deploy_string": "Kopírovat deploy string",
     "show_intune_script": "Skript Intune / PSADT",
     "intune_script_title": "Úryvek pro nasazení ve Windows",
     "intune_script_hint": "Spusťte s oprávněním správce po dokončení MSI RustDesk. Používá stejný config string jako Kopírovat deploy string.",
-    "deploy_string_not_ready": "Deploy string není k dispozici, dokud není načten veřejný klíč serveru."
+    "deploy_string_not_ready": "Deploy string není k dispozici, dokud není načten veřejný klíč serveru.",
+    "client_server_host_env_hint": "Veřejné ID, relay a API jsou nastaveny v Nastavení → Veřejné koncové body klientů. Vymažte je tam, abyste znovu mohli použít toto pole."
   },
   "devices": {
     "title": "Zařízení",
@@ -661,7 +662,23 @@
       "advanced_restart_after_title": "Restartovat službu?",
       "advanced_restart_title": "Restartovat službu?",
       "advanced_discard_title": "Zahodit změny?"
-    }
+    },
+    "public_endpoints_title": "Veřejné koncové body klientů",
+    "public_endpoints_desc": "Hostname a API URL pro klienty RustDesk. Používá se v konfiguraci klienta na dashboardu, QR kódech a deploy řetězcích.",
+    "public_endpoints_hint": "Nastavte, když se hostname konzole liší od ID/relay/API (reverse proxy / rozdělené DNS). Prázdné = auto-detekce.",
+    "public_endpoints_server_id": "Veřejný ID server",
+    "public_endpoints_server_id_placeholder": "např. remote.example.com",
+    "public_endpoints_relay": "Veřejný relay server",
+    "public_endpoints_relay_placeholder": "např. remote.example.com (výchozí: ID server)",
+    "public_endpoints_api_url": "Veřejná API URL",
+    "public_endpoints_api_url_placeholder": "např. https://api.example.com",
+    "public_endpoints_api_url_hint": "Plná URL pro přihlášení a API volání RustDesk klientů (výchozí port 21114).",
+    "public_endpoints_save": "Uložit koncové body",
+    "public_endpoints_saved": "Veřejné koncové body klientů uloženy",
+    "public_endpoints_invalid_host": "Neplatný hostname ID nebo relay serveru",
+    "public_endpoints_invalid_api_url": "Neplatná API URL — použijte http:// nebo https://",
+    "public_endpoints_save_title": "Uložit veřejné koncové body klientů?",
+    "public_endpoints_save_confirm": "Aktualizovat hodnoty konfigurace RustDesk klienta na dashboardu?"
   },
   "audit": {
     "time": "Čas",

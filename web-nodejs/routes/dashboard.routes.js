@@ -147,15 +147,17 @@ router.get('/api/server/status', requireAuth, async (req, res) => {
 router.get('/api/dashboard/client-config', requireAuth, async (req, res) => {
     try {
         const queryHost = typeof req.query.host === 'string' ? req.query.host : '';
-        const serverHost = clientConfigHost.resolveClientFacingHost(req, queryHost);
-        const clientConfig = keyService.getClientConfig(serverHost);
-        const qr = await keyService.getServerConfigQR(serverHost);
+        const endpoints = clientConfigHost.resolveRustDeskEndpoints(req, queryHost);
+        const clientConfig = keyService.getClientConfig(endpoints);
+        const qr = await keyService.getServerConfigQR(endpoints);
 
         res.json({
             success: true,
             data: {
                 ...clientConfig,
-                client_server_host: serverHost,
+                client_server_host: endpoints.host,
+                endpoint_sources: endpoints.sources,
+                env_override_active: endpoints.env_override_active,
                 qr
             }
         });

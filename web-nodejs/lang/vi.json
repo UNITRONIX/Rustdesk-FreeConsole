@@ -186,13 +186,14 @@
     "client_config_qr_hint": "Quét mã này bằng máy khách RustDesk hỗ trợ mã QR cấu hình.",
     "client_server_host_label": "Địa chỉ máy chủ cho client",
     "client_server_host_placeholder": "vd. 203.0.113.10 hoặc desk.example.com",
-    "client_server_host_hint": "Địa chỉ mà client RustDesk dùng để kết nối máy chủ này. Đổi nếu URL bảng điều khiển khác IP hoặc DNS công khai.",
+    "client_server_host_hint": "Địa chỉ client RustDesk dùng để kết nối máy chủ. Đổi khi URL bảng điều khiển khác IP/DNS client. Tên miền tách: Cài đặt → Điểm cuối client công khai.",
     "apply_client_host": "Áp dụng",
     "copy_deploy_string": "Sao chép chuỗi triển khai",
     "show_intune_script": "Script Intune / PSADT",
     "intune_script_title": "Đoạn triển khai Windows",
     "intune_script_hint": "Chạy với quyền quản trị sau khi MSI RustDesk hoàn tất. Dùng cùng chuỗi config như Sao chép chuỗi triển khai.",
-    "deploy_string_not_ready": "Chuỗi triển khai chưa sẵn sàng cho đến khi tải khóa công khai của máy chủ."
+    "deploy_string_not_ready": "Chuỗi triển khai chưa sẵn sàng cho đến khi tải khóa công khai của máy chủ.",
+    "client_server_host_env_hint": "ID, relay và API công khai được cấu hình tại Cài đặt → Điểm cuối client công khai. Xóa ở đó để dùng lại trường này."
   },
   "devices": {
     "title": "Thiết bị",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Điểm cuối client công khai",
+    "public_endpoints_desc": "Hostname và URL API mà client RustDesk dùng. Cấu hình dashboard, QR và chuỗi deploy.",
+    "public_endpoints_hint": "Đặt khi hostname console khác ID/relay/API (reverse proxy / DNS tách). Trống = tự động.",
+    "public_endpoints_server_id": "Máy chủ ID công khai",
+    "public_endpoints_server_id_placeholder": "vd. remote.example.com",
+    "public_endpoints_relay": "Máy chủ relay công khai",
+    "public_endpoints_relay_placeholder": "vd. remote.example.com (mặc định: ID)",
+    "public_endpoints_api_url": "URL API công khai",
+    "public_endpoints_api_url_placeholder": "vd. https://api.example.com",
+    "public_endpoints_api_url_hint": "URL đầy đủ cho đăng nhập và API RustDesk (cổng mặc định 21114).",
+    "public_endpoints_save": "Lưu điểm cuối",
+    "public_endpoints_saved": "Đã lưu điểm cuối client công khai",
+    "public_endpoints_invalid_host": "Hostname ID hoặc relay không hợp lệ",
+    "public_endpoints_invalid_api_url": "URL API không hợp lệ — dùng http:// hoặc https://",
+    "public_endpoints_save_title": "Lưu điểm cuối client công khai?",
+    "public_endpoints_save_confirm": "Cập nhật cấu hình client RustDesk trên dashboard?"
   },
   "audit": {
     "time": "Time",

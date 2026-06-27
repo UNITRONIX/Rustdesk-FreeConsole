@@ -5,7 +5,26 @@
 const express = require('express');
 const router = express.Router();
 const keyService = require('../services/keyService');
+const clientConfigHost = require('../services/clientConfigHost');
 const { requireAuth } = require('../middleware/auth');
+
+function resolveClientEndpoints(req) {
+    const queryHost = typeof req.query.host === 'string' ? req.query.host : '';
+    return clientConfigHost.resolveRustDeskEndpoints(req, queryHost);
+}
+
+function buildServerInfoPayload(req) {
+    const endpoints = resolveClientEndpoints(req);
+    const apiKey = keyService.getApiKey(true);
+    return {
+        server_id: endpoints.host,
+        relay_server: endpoints.relay,
+        api_url: endpoints.api,
+        api_key_masked: apiKey || '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+        endpoint_sources: endpoints.sources,
+        env_override_active: endpoints.env_override_active,
+    };
+}
 
 /**
  * GET /keys - Keys management page
@@ -53,11 +72,8 @@ router.get('/api/keys/public', requireAuth, (req, res) => {
  */
 router.get('/api/keys/public/qr', requireAuth, async (req, res) => {
     try {
-        // Determine the server host from request headers (what the browser used to reach us)
-        let serverHost = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || 'localhost';
-        serverHost = serverHost.split(':')[0]; // strip port
-
-        const qrDataUrl = await keyService.getServerConfigQR(serverHost);
+        const endpoints = resolveClientEndpoints(req);
+        const qrDataUrl = await keyService.getServerConfigQR(endpoints);
         
         if (!qrDataUrl) {
             return res.status(404).json({
@@ -143,20 +159,9 @@ router.get('/api/keys/api', requireAuth, (req, res) => {
  */
 router.get('/api/keys/server-info', requireAuth, (req, res) => {
     try {
-        const apiKey = keyService.getApiKey(true);
-        
-        // Get server IP - prefer X-Forwarded-Host, then Host header, then hostname
-        let serverIp = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '-';
-        // Remove port if present
-        serverIp = serverIp.split(':')[0];
-        
         res.json({
             success: true,
-            data: {
-                server_id: serverIp,
-                relay_server: serverIp,
-                api_key_masked: apiKey || '••••••••'
-            }
+            data: buildServerInfoPayload(req)
         });
     } catch (err) {
         console.error('Get server info error:', err);
@@ -172,10 +177,8 @@ router.get('/api/keys/server-info', requireAuth, (req, res) => {
  */
 router.get('/api/keys/qr', requireAuth, async (req, res) => {
     try {
-        let serverHost = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || 'localhost';
-        serverHost = serverHost.split(':')[0];
-
-        const qrDataUrl = await keyService.getServerConfigQR(serverHost);
+        const endpoints = resolveClientEndpoints(req);
+        const qrDataUrl = await keyService.getServerConfigQR(endpoints);
         
         if (!qrDataUrl) {
             return res.status(404).json({

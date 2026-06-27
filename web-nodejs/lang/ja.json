@@ -180,13 +180,14 @@
     "client_config_qr_hint": "設定 QR コードに対応した RustDesk クライアントでこのコードをスキャンしてください。",
     "client_server_host_label": "クライアント用サーバーアドレス",
     "client_server_host_placeholder": "例: 203.0.113.10 または desk.example.com",
-    "client_server_host_hint": "RustDesk クライアントがこのサーバーに接続する際に使用するアドレス。パネル URL と公開 IP/DNS が異なる場合は変更してください。",
+    "client_server_host_hint": "RustDesk クライアントがこのサーバーに接続するアドレス。パネル URL とクライアント向け IP/DNS が異なる場合に変更。分割ドメインは 設定 → 公開クライアントエンドポイント。",
     "apply_client_host": "適用",
     "copy_deploy_string": "デプロイ文字列をコピー",
     "show_intune_script": "Intune / PSADT スクリプト",
     "intune_script_title": "Windows デプロイスニペット",
     "intune_script_hint": "RustDesk MSI 完了後に管理者として実行します。「デプロイ文字列をコピー」と同じ config 文字列を使用します。",
-    "deploy_string_not_ready": "サーバー公開鍵が読み込まれるまでデプロイ文字列は利用できません。"
+    "deploy_string_not_ready": "サーバー公開鍵が読み込まれるまでデプロイ文字列は利用できません。",
+    "client_server_host_env_hint": "公開 ID・リレー・API は 設定 → 公開クライアントエンドポイント で設定されています。クリアするとこの上書きが使えます。"
   },
   "devices": {
     "title": "デバイス",
@@ -661,7 +662,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "公開クライアントエンドポイント",
+    "public_endpoints_desc": "RustDesk クライアントが使用するホスト名と API URL。ダッシュボード設定、QR、デプロイ文字列に使用。",
+    "public_endpoints_hint": "コンソールのホスト名が ID/リレー/API と異なる場合に設定（リバースプロキシ / 分割 DNS）。空欄は自動検出。",
+    "public_endpoints_server_id": "公開 ID サーバー",
+    "public_endpoints_server_id_placeholder": "例 remote.example.com",
+    "public_endpoints_relay": "公開リレーサーバー",
+    "public_endpoints_relay_placeholder": "例 remote.example.com（既定: ID サーバー）",
+    "public_endpoints_api_url": "公開 API URL",
+    "public_endpoints_api_url_placeholder": "例 https://api.example.com",
+    "public_endpoints_api_url_hint": "RustDesk ログイン/API 用の完全 URL（既定ポート 21114）。",
+    "public_endpoints_save": "エンドポイントを保存",
+    "public_endpoints_saved": "公開クライアントエンドポイントを保存しました",
+    "public_endpoints_invalid_host": "ID またはリレーのホスト名が無効です",
+    "public_endpoints_invalid_api_url": "API URL が無効 — http:// または https:// を使用",
+    "public_endpoints_save_title": "公開クライアントエンドポイントを保存しますか？",
+    "public_endpoints_save_confirm": "ダッシュボードの RustDesk 設定値を更新しますか？"
   },
   "audit": {
     "time": "Time",

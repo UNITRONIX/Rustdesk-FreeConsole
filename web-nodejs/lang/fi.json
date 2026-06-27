@@ -186,13 +186,14 @@
     "client_config_qr_hint": "Skannaa tämä koodi RustDesk-asiakkaalla, joka tukee määrityksen QR-koodeja.",
     "client_server_host_label": "Asiakaspalvelimen osoite",
     "client_server_host_placeholder": "esim. 203.0.113.10 tai desk.example.com",
-    "client_server_host_hint": "Osoite, jota RustDesk-asiakkaat käyttävät yhteyteen tähän palvelimeen. Muuta, jos paneelin URL poikkeaa julkisesta IP:stä tai DNS:stä.",
+    "client_server_host_hint": "Osoite, jota RustDesk-asiakkaat käyttävät palvelimeen. Muuta, jos paneelin URL poikkeaa asiakkaan IP/DNS:stä. Erillisille domaineille: Asetukset → Julkiset asiakaspäätepisteet.",
     "apply_client_host": "Käytä",
     "copy_deploy_string": "Kopioi deploy-merkkijono",
     "show_intune_script": "Intune / PSADT -skripti",
     "intune_script_title": "Windows-käyttöönoton pätkä",
     "intune_script_hint": "Suorita ylläpitäjän oikeuksilla RustDesk MSI:n jälkeen. Käyttää samaa config-merkkijonoa kuin Kopioi deploy-merkkijono.",
-    "deploy_string_not_ready": "Deploy-merkkijono ei ole saatavilla ennen kuin palvelimen julkinen avain on ladattu."
+    "deploy_string_not_ready": "Deploy-merkkijono ei ole saatavilla ennen kuin palvelimen julkinen avain on ladattu.",
+    "client_server_host_env_hint": "Julkinen ID-, relay- ja API-osoite on Asetukset → Julkiset asiakaspäätepisteet. Tyhjennä ne käyttääksesi tätä kenttää uudelleen."
   },
   "devices": {
     "title": "Laitteet",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Julkiset asiakaspäätepisteet",
+    "public_endpoints_desc": "Isäntänimi ja API-URL, joita RustDesk-asiakkaat käyttävät. Dashboard-konfiguraatio, QR-koodit ja deploy-merkkijonot.",
+    "public_endpoints_hint": "Aseta, kun konsolin isäntänimi poikkeaa ID/relay/API:sta (käänteinen välityspalvelin / erillinen DNS). Tyhjä = automaattinen.",
+    "public_endpoints_server_id": "Julkinen ID-palvelin",
+    "public_endpoints_server_id_placeholder": "esim. remote.example.com",
+    "public_endpoints_relay": "Julkinen relay-palvelin",
+    "public_endpoints_relay_placeholder": "esim. remote.example.com (oletus: ID-palvelin)",
+    "public_endpoints_api_url": "Julkinen API-URL",
+    "public_endpoints_api_url_placeholder": "esim. https://api.example.com",
+    "public_endpoints_api_url_hint": "Täysi URL RustDesk-kirjautumiseen ja API-kutsuihin (oletusportti 21114).",
+    "public_endpoints_save": "Tallenna päätepisteet",
+    "public_endpoints_saved": "Julkiset asiakaspäätepisteet tallennettu",
+    "public_endpoints_invalid_host": "Virheellinen ID- tai relay-isäntänimi",
+    "public_endpoints_invalid_api_url": "Virheellinen API-URL — käytä http:// tai https://",
+    "public_endpoints_save_title": "Tallenna julkiset asiakaspäätepisteet?",
+    "public_endpoints_save_confirm": "Päivitä RustDesk-asiakasarvot dashboardilla?"
   },
   "audit": {
     "time": "Time",

@@ -180,13 +180,14 @@
     "client_config_qr_hint": "Scan deze code met een RustDesk-client die configuratie-QR-codes ondersteunt.",
     "client_server_host_label": "Client-serveradres",
     "client_server_host_placeholder": "bijv. 203.0.113.10 of desk.example.com",
-    "client_server_host_hint": "Adres dat RustDesk-clients gebruiken om deze server te bereiken. Wijzig dit als de panel-URL afwijkt van het publieke IP of DNS.",
+    "client_server_host_hint": "Adres dat RustDesk-clients gebruiken voor deze server. Wijzig wanneer de panel-URL afwijkt van client-IP/DNS. Gescheiden domeinen: Instellingen → Openbare client-eindpunten.",
     "apply_client_host": "Toepassen",
     "copy_deploy_string": "Deploy-string kopiëren",
     "show_intune_script": "Intune / PSADT-script",
     "intune_script_title": "Windows-implementatiefragment",
     "intune_script_hint": "Voer uit als beheerder na de RustDesk MSI. Gebruikt dezelfde config-string als Deploy-string kopiëren.",
-    "deploy_string_not_ready": "Deploy-string is niet beschikbaar totdat de publieke serversleutel is geladen."
+    "deploy_string_not_ready": "Deploy-string is niet beschikbaar totdat de publieke serversleutel is geladen.",
+    "client_server_host_env_hint": "Openbare ID-, relay- en API-eindpunten staan in Instellingen → Openbare client-eindpunten. Leeg daar om dit veld weer te gebruiken."
   },
   "devices": {
     "title": "Apparaten",
@@ -661,7 +662,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Openbare client-eindpunten",
+    "public_endpoints_desc": "Hostnaam en API-URL voor RustDesk-clients. Dashboard-config, QR-codes en deploy-strings.",
+    "public_endpoints_hint": "Instellen wanneer console-hostnaam afwijkt van ID/relay/API (reverse proxy / gesplitst DNS). Leeg = auto.",
+    "public_endpoints_server_id": "Openbare ID-server",
+    "public_endpoints_server_id_placeholder": "bijv. remote.example.com",
+    "public_endpoints_relay": "Openbare relay-server",
+    "public_endpoints_relay_placeholder": "bijv. remote.example.com (standaard: ID)",
+    "public_endpoints_api_url": "Openbare API-URL",
+    "public_endpoints_api_url_placeholder": "bijv. https://api.example.com",
+    "public_endpoints_api_url_hint": "Volledige URL voor RustDesk-login en API (standaard poort 21114).",
+    "public_endpoints_save": "Eindpunten opslaan",
+    "public_endpoints_saved": "Openbare client-eindpunten opgeslagen",
+    "public_endpoints_invalid_host": "Ongeldige ID- of relay-hostnaam",
+    "public_endpoints_invalid_api_url": "Ongeldige API-URL — gebruik http:// of https://",
+    "public_endpoints_save_title": "Openbare client-eindpunten opslaan?",
+    "public_endpoints_save_confirm": "RustDesk-clientwaarden op het dashboard bijwerken?"
   },
   "audit": {
     "time": "Tijd",

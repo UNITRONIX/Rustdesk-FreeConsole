@@ -689,7 +689,7 @@ After installing BetterDesk server, configure your RustDesk desktop clients to c
 
 BetterDesk supports three automated configuration paths. Full Windows / Intune / PSADT steps: **[docs/setup/RUSTDESK_CLIENT_DEPLOYMENT.md](docs/setup/RUSTDESK_CLIENT_DEPLOYMENT.md)**.
 
-The web console **Dashboard → RustDesk Client Configuration** card provides manual fields, a QR code, **Copy deploy string** (for scripts), and an **Intune / PSADT script** snippet. Set **Client server address** if the panel URL differs from the IP/DNS clients use, or set `PANEL_PUBLIC_HOST` in the console `.env`.
+The web console **Dashboard → RustDesk Client Configuration** card provides manual fields, a QR code, **Copy deploy string** (for scripts), and an **Intune / PSADT script** snippet. Set **Client server address** if the panel URL differs from the IP/DNS clients use, set `PANEL_PUBLIC_HOST` in the console `.env` for a single shared host, or configure **Settings → Public client endpoints** (or `PUBLIC_SERVER_ID` / `PUBLIC_RELAY_SERVER` / `PUBLIC_API_URL` in `.env`) when ID server, relay, and API use different public hostnames.
 
 #### 1. QR / deep link
 

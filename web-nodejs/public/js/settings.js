@@ -42,6 +42,7 @@
         loadServerInfo();
         initMeshSettingsSection();
         initConnectionModeSection();
+        initPublicEndpointsSection();
         initAuthSubnav();
         
         // Refresh handler
@@ -612,6 +613,74 @@
             }
         } finally {
             [saveBtn, saveRestartBtn].forEach((b) => { if (b) b.disabled = false; });
+        }
+    }
+
+    // ==================== Public RustDesk client endpoints ====================
+
+    function initPublicEndpointsSection() {
+        const section = document.getElementById('public-endpoints-section');
+        if (!section) return;
+
+        document.getElementById('public-endpoints-save')?.addEventListener('click', savePublicEndpoints);
+        loadPublicEndpoints();
+    }
+
+    async function loadPublicEndpoints() {
+        try {
+            const resp = await Utils.api('/api/settings/public-endpoints');
+            const data = resp.data || resp;
+            const serverIdEl = document.getElementById('public-server-id');
+            const relayEl = document.getElementById('public-relay-server');
+            const apiEl = document.getElementById('public-api-url');
+            if (serverIdEl) serverIdEl.value = data.public_server_id || '';
+            if (relayEl) relayEl.value = data.public_relay_server || '';
+            if (apiEl) apiEl.value = data.public_api_url || '';
+        } catch (err) {
+            console.error('Failed to load public endpoints:', err);
+        }
+    }
+
+    function getPublicEndpointsPayload() {
+        return {
+            public_server_id: document.getElementById('public-server-id')?.value?.trim() || '',
+            public_relay_server: document.getElementById('public-relay-server')?.value?.trim() || '',
+            public_api_url: document.getElementById('public-api-url')?.value?.trim() || '',
+        };
+    }
+
+    async function savePublicEndpoints() {
+        const confirmed = await settingsConfirmCritical({
+            title: tSettings('public_endpoints_save_title', 'Save public client endpoints?'),
+            message: tSettings('public_endpoints_save_confirm', 'Update RustDesk client configuration values used on the Dashboard (ID server, relay, API URL)?'),
+            confirmLabel: _('settings.public_endpoints_save'),
+            icon: 'public',
+            danger: false
+        });
+        if (!confirmed) return;
+
+        const saveBtn = document.getElementById('public-endpoints-save');
+        if (saveBtn) saveBtn.disabled = true;
+
+        try {
+            const payload = getPublicEndpointsPayload();
+            const resp = await Utils.api('/api/settings/public-endpoints', {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+
+            if (typeof Notifications !== 'undefined') {
+                Notifications.success(resp.message || _('settings.public_endpoints_saved'));
+            }
+
+            await loadPublicEndpoints();
+        } catch (err) {
+            console.error('Save public endpoints failed:', err);
+            if (typeof Notifications !== 'undefined') {
+                Notifications.error(err.message || _('errors.server_error'));
+            }
+        } finally {
+            if (saveBtn) saveBtn.disabled = false;
         }
     }
     

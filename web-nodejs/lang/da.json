@@ -186,13 +186,14 @@
     "client_config_qr_hint": "Scan denne kode fra en RustDesk-klient, der understøtter konfigurations-QR-koder.",
     "client_server_host_label": "Klient-serveradresse",
     "client_server_host_placeholder": "f.eks. 203.0.113.10 eller desk.example.com",
-    "client_server_host_hint": "Adressen RustDesk-klienter bruger til at nå denne server. Skift den, hvis panel-URL adskiller sig fra den offentlige IP eller DNS.",
+    "client_server_host_hint": "Adresse RustDesk-klienter bruger til at nå denne server. Ændr den, når panel-URL adskiller sig fra klientens IP/DNS. For adskilte domæner: Indstillinger → Offentlige klient-endpoints.",
     "apply_client_host": "Anvend",
     "copy_deploy_string": "Kopiér deploy-streng",
     "show_intune_script": "Intune / PSADT-script",
     "intune_script_title": "Windows-implementeringsuddrag",
     "intune_script_hint": "Kør med administratorrettigheder efter RustDesk MSI er færdig. Bruger samme config-streng som Kopiér deploy-streng.",
-    "deploy_string_not_ready": "Deploy-streng er ikke tilgængelig, før serverens offentlige nøgle er indlæst."
+    "deploy_string_not_ready": "Deploy-streng er ikke tilgængelig, før serverens offentlige nøgle er indlæst.",
+    "client_server_host_env_hint": "Offentlige ID-, relay- og API-endpoints er konfigureret under Indstillinger → Offentlige klient-endpoints. Ryd dem der for at bruge denne override igen."
   },
   "devices": {
     "title": "Enheder",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Offentlige klient-endpoints",
+    "public_endpoints_desc": "Værtsnavn og API-URL som RustDesk-klienter bruger. Bruges til dashboard-konfiguration, QR-koder og deploy-strenge.",
+    "public_endpoints_hint": "Angiv når konsolens værtsnavn adskiller sig fra ID/relay/API (reverse proxy / opdelt DNS). Tom = auto-detektion.",
+    "public_endpoints_server_id": "Offentlig ID-server",
+    "public_endpoints_server_id_placeholder": "f.eks. remote.example.com",
+    "public_endpoints_relay": "Offentlig relay-server",
+    "public_endpoints_relay_placeholder": "f.eks. remote.example.com (standard: ID-server)",
+    "public_endpoints_api_url": "Offentlig API-URL",
+    "public_endpoints_api_url_placeholder": "f.eks. https://api.example.com",
+    "public_endpoints_api_url_hint": "Fuld URL til RustDesk-login og API-kald (standard port 21114).",
+    "public_endpoints_save": "Gem endpoints",
+    "public_endpoints_saved": "Offentlige klient-endpoints gemt",
+    "public_endpoints_invalid_host": "Ugyldigt ID- eller relay-værtsnavn",
+    "public_endpoints_invalid_api_url": "Ugyldig API-URL — brug http:// eller https://",
+    "public_endpoints_save_title": "Gem offentlige klient-endpoints?",
+    "public_endpoints_save_confirm": "Opdatere RustDesk-klientværdier på dashboardet?"
   },
   "audit": {
     "time": "Time",

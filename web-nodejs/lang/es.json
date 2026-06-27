@@ -180,13 +180,14 @@
     "client_config_qr_hint": "Escanee este código desde un cliente RustDesk compatible con códigos QR de configuración.",
     "client_server_host_label": "Dirección del servidor para clientes",
     "client_server_host_placeholder": "p. ej. 203.0.113.10 o desk.example.com",
-    "client_server_host_hint": "Dirección que usan los clientes RustDesk para llegar a este servidor. Cámbiela si la URL del panel difiere de la IP o DNS pública.",
+    "client_server_host_hint": "Dirección que usan los clientes RustDesk para llegar a este servidor. Cámbiela cuando la URL del panel difiera de la IP/DNS del cliente. Para dominios separados: Ajustes → Endpoints públicos del cliente.",
     "apply_client_host": "Aplicar",
     "copy_deploy_string": "Copiar cadena de despliegue",
     "show_intune_script": "Script Intune / PSADT",
     "intune_script_title": "Fragmento de despliegue en Windows",
     "intune_script_hint": "Ejecútelo como administrador tras finalizar el MSI de RustDesk. Usa la misma cadena que Copiar cadena de despliegue.",
-    "deploy_string_not_ready": "La cadena de despliegue no está disponible hasta que se cargue la clave pública del servidor."
+    "deploy_string_not_ready": "La cadena de despliegue no está disponible hasta que se cargue la clave pública del servidor.",
+    "client_server_host_env_hint": "Los endpoints públicos de ID, relay y API están en Ajustes → Endpoints públicos del cliente. Bórrelos allí para volver a usar este campo."
   },
   "devices": {
     "title": "Panel",
@@ -661,7 +662,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Endpoints públicos del cliente",
+    "public_endpoints_desc": "Hostname y URL API que usan los clientes RustDesk. Para configuración del dashboard, códigos QR y cadenas de despliegue.",
+    "public_endpoints_hint": "Configúrelos cuando el hostname de la consola difiera del ID/relay/API (proxy inverso / DNS separado). Vacío = autodetección.",
+    "public_endpoints_server_id": "Servidor ID público",
+    "public_endpoints_server_id_placeholder": "p. ej. remote.example.com",
+    "public_endpoints_relay": "Servidor relay público",
+    "public_endpoints_relay_placeholder": "p. ej. remote.example.com (predeterminado: ID)",
+    "public_endpoints_api_url": "URL API pública",
+    "public_endpoints_api_url_placeholder": "p. ej. https://api.example.com",
+    "public_endpoints_api_url_hint": "URL completa para login y API de RustDesk (puerto 21114 por defecto).",
+    "public_endpoints_save": "Guardar endpoints",
+    "public_endpoints_saved": "Endpoints públicos del cliente guardados",
+    "public_endpoints_invalid_host": "Hostname ID o relay no válido",
+    "public_endpoints_invalid_api_url": "URL API no válida — use http:// o https://",
+    "public_endpoints_save_title": "¿Guardar endpoints públicos del cliente?",
+    "public_endpoints_save_confirm": "¿Actualizar valores de configuración RustDesk en el dashboard?"
   },
   "audit": {
     "time": "Hora",

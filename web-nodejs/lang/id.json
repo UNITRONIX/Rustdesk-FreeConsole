@@ -186,13 +186,14 @@
     "client_config_qr_hint": "Pindai kode ini dari klien RustDesk yang mendukung kode QR konfigurasi.",
     "client_server_host_label": "Alamat server klien",
     "client_server_host_placeholder": "mis. 203.0.113.10 atau desk.example.com",
-    "client_server_host_hint": "Alamat yang digunakan klien RustDesk untuk mencapai server ini. Ubah jika URL panel berbeda dari IP atau DNS publik.",
+    "client_server_host_hint": "Alamat yang digunakan klien RustDesk untuk server ini. Ubah jika URL panel berbeda dari IP/DNS klien. Domain terpisah: Pengaturan → Endpoint klien publik.",
     "apply_client_host": "Terapkan",
     "copy_deploy_string": "Salin string deploy",
     "show_intune_script": "Skrip Intune / PSADT",
     "intune_script_title": "Cuplikan deployment Windows",
     "intune_script_hint": "Jalankan sebagai admin setelah MSI RustDesk selesai. Menggunakan string config yang sama dengan Salin string deploy.",
-    "deploy_string_not_ready": "String deploy tidak tersedia sampai kunci publik server dimuat."
+    "deploy_string_not_ready": "String deploy tidak tersedia sampai kunci publik server dimuat.",
+    "client_server_host_env_hint": "Endpoint ID, relay, dan API publik dikonfigurasi di Pengaturan → Endpoint klien publik. Kosongkan di sana untuk override ini."
   },
   "devices": {
     "title": "Perangkat",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Endpoint klien publik",
+    "public_endpoints_desc": "Hostname dan URL API untuk klien RustDesk. Digunakan di konfigurasi dashboard, QR, dan deploy string.",
+    "public_endpoints_hint": "Atur jika hostname konsol berbeda dari ID/relay/API (reverse proxy / DNS terpisah). Kosong = deteksi otomatis.",
+    "public_endpoints_server_id": "Server ID publik",
+    "public_endpoints_server_id_placeholder": "mis. remote.example.com",
+    "public_endpoints_relay": "Server relay publik",
+    "public_endpoints_relay_placeholder": "mis. remote.example.com (default: ID)",
+    "public_endpoints_api_url": "URL API publik",
+    "public_endpoints_api_url_placeholder": "mis. https://api.example.com",
+    "public_endpoints_api_url_hint": "URL lengkap untuk login dan API RustDesk (port default 21114).",
+    "public_endpoints_save": "Simpan endpoint",
+    "public_endpoints_saved": "Endpoint klien publik disimpan",
+    "public_endpoints_invalid_host": "Hostname ID atau relay tidak valid",
+    "public_endpoints_invalid_api_url": "URL API tidak valid — gunakan http:// atau https://",
+    "public_endpoints_save_title": "Simpan endpoint klien publik?",
+    "public_endpoints_save_confirm": "Perbarui konfigurasi klien RustDesk di dashboard?"
   },
   "audit": {
     "time": "Time",

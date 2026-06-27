@@ -73,7 +73,11 @@ For lab or early production with a public IP and no certificates:
 
 - **API Server** must be **`http://<ip>:21114`** (not `https://`).
 - Open outbound **TCP 21114–21117** and **UDP 21116** from clients to the server.
-- Set `PANEL_PUBLIC_HOST=<public-ip-or-dns>` in the console `.env` if operators open the panel via localhost or an internal name — the dashboard will then show the correct client address.
+- Set `PANEL_PUBLIC_HOST=<public-ip-or-dns>` in the console `.env` if operators open the panel via localhost or an internal name — the dashboard will then show the correct client address for all three fields (ID, relay, API on the same host).
+- When the **web console**, **RustDesk ID/relay**, and **API** use **different public hostnames** (reverse proxy / split DNS), set in `.env` or **Settings → Public client endpoints**:
+  - `PUBLIC_SERVER_ID=remote.example.com`
+  - `PUBLIC_RELAY_SERVER=remote.example.com` (optional; defaults to ID server)
+  - `PUBLIC_API_URL=https://api.example.com` (full URL clients use for login/API — port 21114 by default)
 
 ## Intune / Robopack / PSADT 4.x
 
@@ -120,7 +124,7 @@ BetterDesk **Pro features** (address book sync, device list, audit) activate aft
 | Symptom | Check |
 |---------|--------|
 | `--config` appears to do nothing | Use reversed base64 string, not JSON; run elevated |
-| Wrong server in dashboard | Set **Client server address** or `PANEL_PUBLIC_HOST` in `.env` |
+| Wrong server in dashboard | Set **Client server address**, `PANEL_PUBLIC_HOST`, or **Settings → Public client endpoints** (`PUBLIC_*` in `.env`) |
 | Device not in console | Firewall 21114–21117, UDP 21116; API URL is `http://` if no TLS |
 | Client login fails | API Server = Go `:21114`, not web panel `:5000` |
 | "Settings are disabled" on `--password` | Custom client locked settings — use an unlocked stock MSI |

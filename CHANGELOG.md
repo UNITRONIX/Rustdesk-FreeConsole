@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Public RustDesk client endpoints (#222)**: Dashboard client configuration, QR codes, deploy strings, and Keys page now honor `PUBLIC_SERVER_ID`, `PUBLIC_RELAY_SERVER`, and `PUBLIC_API_URL` when the console hostname differs from ID/relay/API (reverse proxy / split DNS). Settings → Public client endpoints edits `.env` without a console restart. `PANEL_PUBLIC_HOST` and Dashboard **Client server address** remain as fallbacks.
+
 ### Changed
 - _(none yet)_
 

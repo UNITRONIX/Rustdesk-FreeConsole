@@ -186,13 +186,14 @@
     "client_config_qr_hint": "Bu kodu yapılandırma QR kodlarını destekleyen bir RustDesk istemcisinden tarayın.",
     "client_server_host_label": "İstemci sunucu adresi",
     "client_server_host_placeholder": "örn. 203.0.113.10 veya desk.example.com",
-    "client_server_host_hint": "RustDesk istemcilerinin bu sunucuya ulaşmak için kullandığı adres. Panel URL’si genel IP/DNS’ten farklıysa değiştirin.",
+    "client_server_host_hint": "RustDesk istemcilerinin bu sunucuya erişmek için kullandığı adres. Panel URL’si farklıysa değiştirin. Ayrı domainler: Ayarlar → Genel istemci uç noktaları.",
     "apply_client_host": "Uygula",
     "copy_deploy_string": "Dağıtım dizesini kopyala",
     "show_intune_script": "Intune / PSADT betiği",
     "intune_script_title": "Windows dağıtım parçacığı",
     "intune_script_hint": "RustDesk MSI tamamlandıktan sonra yönetici olarak çalıştırın. Dağıtım dizesini kopyala ile aynı config dizesini kullanır.",
-    "deploy_string_not_ready": "Sunucu genel anahtarı yüklenene kadar dağıtım dizesi kullanılamaz."
+    "deploy_string_not_ready": "Sunucu genel anahtarı yüklenene kadar dağıtım dizesi kullanılamaz.",
+    "client_server_host_env_hint": "Genel ID, relay ve API Ayarlar → Genel istemci uç noktaları bölümünde. Bu alanı tekrar kullanmak için orayı temizleyin."
   },
   "devices": {
     "title": "Cihazlar",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Genel istemci uç noktaları",
+    "public_endpoints_desc": "RustDesk istemcilerinin kullandığı hostname ve API URL. Dashboard yapılandırması, QR ve deploy dizeleri.",
+    "public_endpoints_hint": "Konsol hostname ID/relay/API'den farklıysa ayarlayın (ters vekil / ayrı DNS). Boş = otomatik.",
+    "public_endpoints_server_id": "Genel ID sunucusu",
+    "public_endpoints_server_id_placeholder": "örn. remote.example.com",
+    "public_endpoints_relay": "Genel relay sunucusu",
+    "public_endpoints_relay_placeholder": "örn. remote.example.com (varsayılan: ID)",
+    "public_endpoints_api_url": "Genel API URL",
+    "public_endpoints_api_url_placeholder": "örn. https://api.example.com",
+    "public_endpoints_api_url_hint": "RustDesk giriş/API için tam URL (varsayılan port 21114).",
+    "public_endpoints_save": "Uç noktaları kaydet",
+    "public_endpoints_saved": "Genel istemci uç noktaları kaydedildi",
+    "public_endpoints_invalid_host": "Geçersiz ID veya relay hostname",
+    "public_endpoints_invalid_api_url": "Geçersiz API URL — http:// veya https:// kullanın",
+    "public_endpoints_save_title": "Genel istemci uç noktaları kaydedilsin mi?",
+    "public_endpoints_save_confirm": "Dashboard RustDesk yapılandırma değerleri güncellensin mi?"
   },
   "audit": {
     "time": "Time",

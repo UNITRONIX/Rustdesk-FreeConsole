@@ -186,13 +186,14 @@
     "client_config_qr_hint": "Scanați acest cod dintr-un client RustDesk care acceptă coduri QR de configurare.",
     "client_server_host_label": "Adresa serverului pentru clienți",
     "client_server_host_placeholder": "ex. 203.0.113.10 sau desk.example.com",
-    "client_server_host_hint": "Adresa pe care clienții RustDesk o folosesc pentru a ajunge la acest server. Schimbați-o dacă URL-ul panoului diferă de IP-ul sau DNS-ul public.",
+    "client_server_host_hint": "Adresa folosită de clienții RustDesk. Modificați când URL-ul panoului diferă de IP/DNS client. Domenii separate: Setări → Endpoint-uri publice client.",
     "apply_client_host": "Aplică",
     "copy_deploy_string": "Copiază șirul de deploy",
     "show_intune_script": "Script Intune / PSADT",
     "intune_script_title": "Fragment de implementare Windows",
     "intune_script_hint": "Rulați ca administrator după finalizarea MSI RustDesk. Folosește același șir ca Copiază șirul de deploy.",
-    "deploy_string_not_ready": "Șirul de deploy nu este disponibil până când cheia publică a serverului este încărcată."
+    "deploy_string_not_ready": "Șirul de deploy nu este disponibil până când cheia publică a serverului este încărcată.",
+    "client_server_host_env_hint": "ID, relay și API public sunt în Setări → Endpoint-uri publice client. Goliți acolo pentru a folosi din nou acest câmp."
   },
   "devices": {
     "title": "Dispozitive",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Endpoint-uri publice client",
+    "public_endpoints_desc": "Hostname și URL API folosite de clienții RustDesk. Configurare dashboard, QR și șiruri deploy.",
+    "public_endpoints_hint": "Setați când hostname-ul consolei diferă de ID/relay/API (proxy invers / DNS separat). Gol = auto.",
+    "public_endpoints_server_id": "Server ID public",
+    "public_endpoints_server_id_placeholder": "ex. remote.example.com",
+    "public_endpoints_relay": "Server relay public",
+    "public_endpoints_relay_placeholder": "ex. remote.example.com (implicit: ID)",
+    "public_endpoints_api_url": "URL API public",
+    "public_endpoints_api_url_placeholder": "ex. https://api.example.com",
+    "public_endpoints_api_url_hint": "URL complet pentru login și API RustDesk (port implicit 21114).",
+    "public_endpoints_save": "Salvează endpoint-urile",
+    "public_endpoints_saved": "Endpoint-uri publice client salvate",
+    "public_endpoints_invalid_host": "Hostname ID sau relay invalid",
+    "public_endpoints_invalid_api_url": "URL API invalid — folosiți http:// sau https://",
+    "public_endpoints_save_title": "Salvați endpoint-urile publice client?",
+    "public_endpoints_save_confirm": "Actualizați configurația client RustDesk pe dashboard?"
   },
   "audit": {
     "time": "Time",

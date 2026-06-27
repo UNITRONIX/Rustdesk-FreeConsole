@@ -25,6 +25,8 @@ const {
 const { splitUpdateFailures } = require('../lib/updateFailurePolicy');
 const advancedConfig = require('../services/advancedConfigService');
 const serverConnectionConfig = require('../services/serverConnectionConfigService');
+const rustDeskPublicEndpoints = require('../services/rustDeskPublicEndpointsService');
+const clientConfigHost = require('../services/clientConfigHost');
 const { getSmtpSettings, putSmtpSettings, testSmtpSettings } = require('../lib/smtpSettingsHandlers');
 const { apiClient } = require('../services/betterdeskApi');
 const { requireAuth, requirePermission, roleHasPermission } = require('../middleware/auth');
@@ -112,17 +114,18 @@ router.get('/api/settings/info', requireAuth, async (req, res) => {
  */
 router.get('/api/settings/server-info', requireAuth, (req, res) => {
     try {
+        const endpoints = clientConfigHost.resolveRustDeskEndpoints(req, '');
         const apiKey = keyService.getApiKey(true);
-        
-        let serverIp = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '-';
-        serverIp = serverIp.split(':')[0];
-        
+
         res.json({
             success: true,
             data: {
-                server_id: serverIp,
-                relay_server: serverIp,
-                api_key_masked: apiKey || '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'
+                server_id: endpoints.host,
+                relay_server: endpoints.relay,
+                api_url: endpoints.api,
+                api_key_masked: apiKey || '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+                endpoint_sources: endpoints.sources,
+                env_override_active: endpoints.env_override_active,
             }
         });
     } catch (err) {
@@ -1854,6 +1857,70 @@ router.post('/api/settings/connection-mode/restart', requireAuth, requirePermiss
             });
         }
         console.error('Connection mode restart error:', err);
+        res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * GET /api/settings/public-endpoints — RustDesk public client endpoints from .env
+ */
+router.get('/api/settings/public-endpoints', requireAuth, requirePermission('server.config'), (req, res) => {
+    try {
+        const settings = rustDeskPublicEndpoints.getPublicEndpointSettings();
+        res.json({
+            success: true,
+            data: {
+                ...settings,
+                env_override_active: rustDeskPublicEndpoints.isEnvOverrideActive(settings),
+            },
+        });
+    } catch (err) {
+        console.error('Get public endpoints error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * PUT /api/settings/public-endpoints — persist RustDesk public client endpoints to .env
+ */
+router.put('/api/settings/public-endpoints', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const body = req.body || {};
+        const result = await rustDeskPublicEndpoints.savePublicEndpointSettings({
+            public_server_id: body.public_server_id,
+            public_relay_server: body.public_relay_server,
+            public_api_url: body.public_api_url,
+        });
+
+        await db.logAction(
+            req.session?.userId,
+            'public_endpoints_changed',
+            `RustDesk public endpoints updated (ID=${result.settings.public_server_id || '-'}, relay=${result.settings.public_relay_server || '-'}, api=${result.settings.public_api_url || '-'})`,
+            req.ip
+        );
+
+        res.json({
+            success: true,
+            data: {
+                ...result.settings,
+                env_override_active: rustDeskPublicEndpoints.isEnvOverrideActive(result.settings),
+            },
+            message: req.t('settings.public_endpoints_saved'),
+        });
+    } catch (err) {
+        if (err.message === 'invalid_public_host') {
+            return res.status(400).json({
+                success: false,
+                error: req.t('settings.public_endpoints_invalid_host'),
+            });
+        }
+        if (err.message === 'invalid_public_api_url') {
+            return res.status(400).json({
+                success: false,
+                error: req.t('settings.public_endpoints_invalid_api_url'),
+            });
+        }
+        console.error('Save public endpoints error:', err);
         res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
     }
 });

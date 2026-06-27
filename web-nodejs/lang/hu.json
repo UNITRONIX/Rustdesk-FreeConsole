@@ -186,13 +186,14 @@
     "client_config_qr_hint": "Olvassa be ezt a kódot egy konfigurációs QR-kódokat támogató RustDesk klienssel.",
     "client_server_host_label": "Kliens szerver címe",
     "client_server_host_placeholder": "pl. 203.0.113.10 vagy desk.example.com",
-    "client_server_host_hint": "A cím, amelyen a RustDesk kliensek elérik ezt a szervert. Módosítsa, ha a panel URL-je eltér a nyilvános IP-től vagy DNS-től.",
+    "client_server_host_hint": "Cím, amit a RustDesk kliensek használnak. Módosítsa, ha a panel URL eltér a kliens IP/DNS-től. Külön domainekhez: Beállítások → Nyilvános kliens végpontok.",
     "apply_client_host": "Alkalmaz",
     "copy_deploy_string": "Telepítési string másolása",
     "show_intune_script": "Intune / PSADT szkript",
     "intune_script_title": "Windows telepítési részlet",
     "intune_script_hint": "Futtassa rendszergazdaként a RustDesk MSI befejezése után. Ugyanazt a config stringet használja, mint a Telepítési string másolása.",
-    "deploy_string_not_ready": "A telepítési string csak a szerver nyilvános kulcsa betöltése után érhető el."
+    "deploy_string_not_ready": "A telepítési string csak a szerver nyilvános kulcsa betöltése után érhető el.",
+    "client_server_host_env_hint": "A nyilvános ID, relay és API a Beállítások → Nyilvános kliens végpontok menüben van. Törölje ott a mezőket az override újbóli használatához."
   },
   "devices": {
     "title": "Eszközök",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "Nyilvános kliens végpontok",
+    "public_endpoints_desc": "A RustDesk kliensek által használt hostname és API URL. Dashboard, QR és deploy stringekhez.",
+    "public_endpoints_hint": "Állítsa be, ha a konzol hostname eltér az ID/relay/API-tól (reverse proxy / külön DNS). Üres = automatikus.",
+    "public_endpoints_server_id": "Nyilvános ID szerver",
+    "public_endpoints_server_id_placeholder": "pl. remote.example.com",
+    "public_endpoints_relay": "Nyilvános relay szerver",
+    "public_endpoints_relay_placeholder": "pl. remote.example.com (alapértelmezett: ID)",
+    "public_endpoints_api_url": "Nyilvános API URL",
+    "public_endpoints_api_url_placeholder": "pl. https://api.example.com",
+    "public_endpoints_api_url_hint": "Teljes URL RustDesk bejelentkezéshez és API-hoz (alap port 21114).",
+    "public_endpoints_save": "Végpontok mentése",
+    "public_endpoints_saved": "Nyilvános kliens végpontok mentve",
+    "public_endpoints_invalid_host": "Érvénytelen ID vagy relay hostname",
+    "public_endpoints_invalid_api_url": "Érvénytelen API URL — http:// vagy https://",
+    "public_endpoints_save_title": "Nyilvános kliens végpontok mentése?",
+    "public_endpoints_save_confirm": "Frissíti a dashboard RustDesk beállításait?"
   },
   "audit": {
     "time": "Time",

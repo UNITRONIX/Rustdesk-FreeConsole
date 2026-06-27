@@ -186,13 +186,14 @@
     "client_config_qr_hint": "สแกนรหัสนี้จากไคลเอนต์ RustDesk ที่รองรับรหัส QR สำหรับการกำหนดค่า",
     "client_server_host_label": "ที่อยู่เซิร์ฟเวอร์สำหรับไคลเอนต์",
     "client_server_host_placeholder": "เช่น 203.0.113.10 หรือ desk.example.com",
-    "client_server_host_hint": "ที่อยู่ที่ไคลเอนต์ RustDesk ใช้เชื่อมต่อเซิร์ฟเวอร์นี้ เปลี่ยนหาก URL ของแผงต่างจาก IP หรือ DNS สาธารณะ",
+    "client_server_host_hint": "ที่อยู่ที่ไคลเอนต์ RustDesk ใช้เชื่อมต่อเซิร์ฟเวอร์ เปลี่ยนเมื่อ URL แผงต่างจาก IP/DNS ของไคลเอนต์ โดเมนแยก: การตั้งค่า → จุดปลายทางไคลเอนต์สาธารณะ",
     "apply_client_host": "ใช้",
     "copy_deploy_string": "คัดลอกสตริง deploy",
     "show_intune_script": "สคริปต์ Intune / PSADT",
     "intune_script_title": "สnippets การ deploy บน Windows",
     "intune_script_hint": "รันด้วยสิทธิ์ผู้ดูแลหลัง MSI ของ RustDesk เสร็จ ใช้ config string เดียวกับคัดลอกสตริง deploy",
-    "deploy_string_not_ready": "สตริง deploy จะใช้ไม่ได้จนกว่าจะโหลดคีย์สาธารณะของเซิร์ฟเวอร์"
+    "deploy_string_not_ready": "สตริง deploy จะใช้ไม่ได้จนกว่าจะโหลดคีย์สาธารณะของเซิร์ฟเวอร์",
+    "client_server_host_env_hint": "ID, relay และ API สาธารณะตั้งใน การตั้งค่า → จุดปลายทางไคลเอนต์สาธารณะ ล้างที่นั่นเพื่อใช้การแทนที่นี้อีกครั้ง"
   },
   "devices": {
     "title": "อุปกรณ์",
@@ -667,7 +668,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "จุดปลายทางไคลเอนต์สาธารณะ",
+    "public_endpoints_desc": "ชื่อโฮสต์และ URL API ที่ไคลเอนต์ RustDesk ใช้ สำหรับการตั้งค่าแดชบอร์ด QR และ deploy string",
+    "public_endpoints_hint": "ตั้งเมื่อชื่อโฮสต์คอนโซลต่างจาก ID/relay/API (reverse proxy / DNS แยก) ว่าง = ตรวจจับอัตโนมัติ",
+    "public_endpoints_server_id": "เซิร์ฟเวอร์ ID สาธารณะ",
+    "public_endpoints_server_id_placeholder": "เช่น remote.example.com",
+    "public_endpoints_relay": "เซิร์ฟเวอร์ relay สาธารณะ",
+    "public_endpoints_relay_placeholder": "เช่น remote.example.com (ค่าเริ่มต้น: ID)",
+    "public_endpoints_api_url": "URL API สาธารณะ",
+    "public_endpoints_api_url_placeholder": "เช่น https://api.example.com",
+    "public_endpoints_api_url_hint": "URL เต็มสำหรับล็อกอินและ API ของ RustDesk (พอร์ตเริ่มต้น 21114)",
+    "public_endpoints_save": "บันทึกจุดปลายทาง",
+    "public_endpoints_saved": "บันทึกจุดปลายทางไคลเอนต์สาธารณะแล้ว",
+    "public_endpoints_invalid_host": "ชื่อโฮสต์ ID หรือ relay ไม่ถูกต้อง",
+    "public_endpoints_invalid_api_url": "URL API ไม่ถูกต้อง — ใช้ http:// หรือ https://",
+    "public_endpoints_save_title": "บันทึกจุดปลายทางไคลเอนต์สาธารณะ?",
+    "public_endpoints_save_confirm": "อัปเดตค่าการตั้งค่า RustDesk บนแดชบอร์ด?"
   },
   "audit": {
     "time": "Time",

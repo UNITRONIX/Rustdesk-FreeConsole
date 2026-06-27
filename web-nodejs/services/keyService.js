@@ -64,17 +64,30 @@ function apiUrlForHost(host, useHttps) {
 
 /**
  * RustDesk client config JSON payload: { host, relay, api, key }
- * @param {string} serverHost
+ * @param {{ host: string, relay?: string, api?: string } | string} endpointsOrHost
  * @param {{ useHttps?: boolean }} [options]
  */
-function buildRustDeskConfigPayload(serverHost, options = {}) {
-    const host = normalizeHostInput(serverHost);
+function buildRustDeskConfigPayload(endpointsOrHost, options = {}) {
     const pubKey = getPublicKey() || '';
     const useHttps = options.useHttps ?? conn.defaultUseHttps();
+
+    if (typeof endpointsOrHost === 'string') {
+        const host = normalizeHostInput(endpointsOrHost);
+        return {
+            host,
+            relay: host,
+            api: apiUrlForHost(host, useHttps),
+            key: pubKey,
+        };
+    }
+
+    const host = normalizeHostInput(endpointsOrHost.host);
+    const relay = normalizeHostInput(endpointsOrHost.relay || host);
+    const api = endpointsOrHost.api || apiUrlForHost(host, useHttps);
     return {
         host,
-        relay: host,
-        api: apiUrlForHost(host, useHttps),
+        relay,
+        api,
         key: pubKey,
     };
 }
@@ -101,16 +114,16 @@ function encodeRustDeskCliConfigString(payload) {
 /**
  * Generate QR code containing the RustDesk configuration URI.
  * Format: rustdesk://config/<base64-encoded-json>
- * @param {string} serverHost - server host/IP used for the config
+ * @param {{ host: string, relay?: string, api?: string } | string} endpointsOrHost
  */
-async function getServerConfigQR(serverHost) {
+async function getServerConfigQR(endpointsOrHost) {
     const pubKey = getPublicKey();
     if (!pubKey) {
         return null;
     }
 
     try {
-        const configPayload = buildRustDeskConfigPayload(serverHost);
+        const configPayload = buildRustDeskConfigPayload(endpointsOrHost);
         const configUri = encodeRustDeskConfigUri(configPayload);
 
         const qrDataUrl = await QRCode.toDataURL(configUri, {
@@ -132,9 +145,10 @@ async function getServerConfigQR(serverHost) {
 
 /**
  * Build the RustDesk client fields operators need to enter manually.
+ * @param {{ host: string, relay?: string, api?: string } | string} endpointsOrHost
  */
-function getClientConfig(serverHost) {
-    const payload = buildRustDeskConfigPayload(serverHost);
+function getClientConfig(endpointsOrHost) {
+    const payload = buildRustDeskConfigPayload(endpointsOrHost);
     const publicKey = payload.key;
 
     return {

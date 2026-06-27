@@ -180,13 +180,14 @@
     "client_config_qr_hint": "Scannen Sie diesen Code mit einem RustDesk-Client, der Konfigurations-QR-Codes unterstützt.",
     "client_server_host_label": "Client-Serveradresse",
     "client_server_host_placeholder": "z. B. 203.0.113.10 oder desk.example.com",
-    "client_server_host_hint": "Adresse, die RustDesk-Clients verwenden, um diesen Server zu erreichen. Ändern, wenn die Panel-URL von der clientseitigen IP oder DNS abweicht.",
+    "client_server_host_hint": "Adresse, die RustDesk-Clients für diesen Server nutzen. Ändern, wenn die Panel-URL von der Client-IP/DNS abweicht. Für getrennte Domains: Einstellungen → Öffentliche Client-Endpunkte.",
     "apply_client_host": "Anwenden",
     "copy_deploy_string": "Deploy-String kopieren",
     "show_intune_script": "Intune-/PSADT-Skript",
     "intune_script_title": "Windows-Bereitstellungsausschnitt",
     "intune_script_hint": "Mit Administratorrechten nach Abschluss des RustDesk-MSI ausführen. Verwendet denselben Config-String wie Deploy-String kopieren.",
-    "deploy_string_not_ready": "Deploy-String ist erst verfügbar, wenn der öffentliche Serverschlüssel geladen ist."
+    "deploy_string_not_ready": "Deploy-String ist erst verfügbar, wenn der öffentliche Serverschlüssel geladen ist.",
+    "client_server_host_env_hint": "Öffentliche ID-, Relay- und API-Endpunkte sind unter Einstellungen → Öffentliche Client-Endpunkte konfiguriert. Dort leeren, um diese Überschreibung wieder zu nutzen."
   },
   "devices": {
     "title": "Dashboard",
@@ -661,7 +662,23 @@
       "advanced_restart_after_title": "Dienst neu starten?",
       "advanced_restart_title": "Dienst neu starten?",
       "advanced_discard_title": "Änderungen verwerfen?"
-    }
+    },
+    "public_endpoints_title": "Öffentliche Client-Endpunkte",
+    "public_endpoints_desc": "Hostname und API-URL für RustDesk-Clients. Für Dashboard-Konfiguration, QR-Codes und Deploy-Strings.",
+    "public_endpoints_hint": "Setzen, wenn Konsolen-Hostname von ID/Relay/API abweicht (Reverse Proxy / getrenntes DNS). Leer = Auto-Erkennung.",
+    "public_endpoints_server_id": "Öffentlicher ID-Server",
+    "public_endpoints_server_id_placeholder": "z. B. remote.example.com",
+    "public_endpoints_relay": "Öffentlicher Relay-Server",
+    "public_endpoints_relay_placeholder": "z. B. remote.example.com (Standard: ID-Server)",
+    "public_endpoints_api_url": "Öffentliche API-URL",
+    "public_endpoints_api_url_placeholder": "z. B. https://api.example.com",
+    "public_endpoints_api_url_hint": "Vollständige URL für RustDesk-Login und API (Standardport 21114).",
+    "public_endpoints_save": "Endpunkte speichern",
+    "public_endpoints_saved": "Öffentliche Client-Endpunkte gespeichert",
+    "public_endpoints_invalid_host": "Ungültiger ID- oder Relay-Hostname",
+    "public_endpoints_invalid_api_url": "Ungültige API-URL — http:// oder https:// verwenden",
+    "public_endpoints_save_title": "Öffentliche Client-Endpunkte speichern?",
+    "public_endpoints_save_confirm": "RustDesk-Clientwerte auf dem Dashboard aktualisieren?"
   },
   "audit": {
     "time": "Zeit",

@@ -184,13 +184,14 @@
     "client_config_qr_hint": "請使用支援設定 QR 碼的 RustDesk 用戶端掃描此代碼。",
     "client_server_host_label": "用戶端伺服器位址",
     "client_server_host_placeholder": "例如 203.0.113.10 或 desk.example.com",
-    "client_server_host_hint": "RustDesk 用戶端連線此伺服器使用的位址。若面板 URL 與對外 IP 或 DNS 不同，請修改此項。",
+    "client_server_host_hint": "RustDesk 用戶端連線此伺服器使用的位址。面板 URL 與用戶端 IP/DNS 不同時請變更。分離網域：設定 → 公共用戶端端點。",
     "apply_client_host": "套用",
     "copy_deploy_string": "複製部署字串",
     "show_intune_script": "Intune / PSADT 指令碼",
     "intune_script_title": "Windows 部署片段",
     "intune_script_hint": "RustDesk MSI 完成後以系統管理員身分執行。使用與「複製部署字串」相同的 config 字串。",
-    "deploy_string_not_ready": "在載入伺服器公開金鑰之前，部署字串不可用。"
+    "deploy_string_not_ready": "在載入伺服器公開金鑰之前，部署字串不可用。",
+    "client_server_host_env_hint": "公共 ID、中繼與 API 已於 設定 → 公共用戶端端點 設定。清除後可再次使用此覆寫欄位。"
   },
   "devices": {
     "title": "設備",
@@ -665,7 +666,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "公共用戶端端點",
+    "public_endpoints_desc": "RustDesk 用戶端使用的 hostname 與 API URL。用於儀表板設定、QR 與部署字串。",
+    "public_endpoints_hint": "當控制台 hostname 與 ID/中繼/API 不同時設定（反向代理/分離 DNS）。留空則自動偵測。",
+    "public_endpoints_server_id": "公共 ID 伺服器",
+    "public_endpoints_server_id_placeholder": "例如 remote.example.com",
+    "public_endpoints_relay": "公共中繼伺服器",
+    "public_endpoints_relay_placeholder": "例如 remote.example.com（預設：ID 伺服器）",
+    "public_endpoints_api_url": "公共 API URL",
+    "public_endpoints_api_url_placeholder": "例如 https://api.example.com",
+    "public_endpoints_api_url_hint": "RustDesk 登入/API 的完整 URL（預設連接埠 21114）。",
+    "public_endpoints_save": "儲存端點",
+    "public_endpoints_saved": "已儲存公共用戶端端點",
+    "public_endpoints_invalid_host": "ID 或中繼伺服器 hostname 無效",
+    "public_endpoints_invalid_api_url": "API URL 無效 — 請使用 http:// 或 https://",
+    "public_endpoints_save_title": "儲存公共用戶端端點？",
+    "public_endpoints_save_confirm": "更新儀表板上的 RustDesk 用戶端設定值？"
   },
   "audit": {
     "time": "時間",

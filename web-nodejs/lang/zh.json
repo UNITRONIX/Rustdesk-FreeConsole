@@ -180,13 +180,14 @@
     "client_config_qr_hint": "使用支持配置 QR 码的 RustDesk 客户端扫描此代码。",
     "client_server_host_label": "客户端服务器地址",
     "client_server_host_placeholder": "例如 203.0.113.10 或 desk.example.com",
-    "client_server_host_hint": "RustDesk 客户端连接此服务器使用的地址。若面板 URL 与对外 IP 或 DNS 不同，请修改此项。",
+    "client_server_host_hint": "RustDesk 客户端连接本服务器使用的地址。当面板 URL 与客户端 IP/DNS 不同时请修改。分离域名请配置：设置 → 公共客户端端点。",
     "apply_client_host": "应用",
     "copy_deploy_string": "复制部署字符串",
     "show_intune_script": "Intune / PSADT 脚本",
     "intune_script_title": "Windows 部署片段",
     "intune_script_hint": "在 RustDesk MSI 完成后以管理员身份运行。使用与“复制部署字符串”相同的 config 字符串。",
-    "deploy_string_not_ready": "在加载服务器公钥之前，部署字符串不可用。"
+    "deploy_string_not_ready": "在加载服务器公钥之前，部署字符串不可用。",
+    "client_server_host_env_hint": "公共 ID、中继和 API 已在 设置 → 公共客户端端点 中配置。清除后可再次使用此覆盖字段。"
   },
   "devices": {
     "title": "设备",
@@ -661,7 +662,23 @@
       "advanced_restart_after_title": "Restart service?",
       "advanced_restart_title": "Restart service?",
       "advanced_discard_title": "Discard changes?"
-    }
+    },
+    "public_endpoints_title": "公共客户端端点",
+    "public_endpoints_desc": "RustDesk 客户端使用的 hostname 和 API URL。用于仪表板配置、二维码和部署字符串。",
+    "public_endpoints_hint": "当控制台 hostname 与 ID/中继/API 不同时设置（反向代理/分离 DNS）。留空则自动检测。",
+    "public_endpoints_server_id": "公共 ID 服务器",
+    "public_endpoints_server_id_placeholder": "例如 remote.example.com",
+    "public_endpoints_relay": "公共中继服务器",
+    "public_endpoints_relay_placeholder": "例如 remote.example.com（默认：ID 服务器）",
+    "public_endpoints_api_url": "公共 API URL",
+    "public_endpoints_api_url_placeholder": "例如 https://api.example.com",
+    "public_endpoints_api_url_hint": "RustDesk 登录/API 的完整 URL（默认端口 21114）。",
+    "public_endpoints_save": "保存端点",
+    "public_endpoints_saved": "已保存公共客户端端点",
+    "public_endpoints_invalid_host": "ID 或中继服务器 hostname 无效",
+    "public_endpoints_invalid_api_url": "API URL 无效 — 请使用 http:// 或 https://",
+    "public_endpoints_save_title": "保存公共客户端端点？",
+    "public_endpoints_save_confirm": "更新仪表板上的 RustDesk 客户端配置值？"
   },
   "audit": {
     "time": "时间",

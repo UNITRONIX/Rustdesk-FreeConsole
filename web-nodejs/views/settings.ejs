@@ -265,6 +265,45 @@
                     </div>
                 </div>
             </div>
+            <div class="settings-panel" id="public-endpoints-section">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
+                        <span class="material-icons">public</span>
+                        ${_('settings.public_endpoints_title')}
+                    </h2>
+                    <p class="settings-panel-desc">${_('settings.public_endpoints_desc')}</p>
+                </div>
+                <div class="settings-panel-body">
+                    <div class="alert alert-info">
+                        <span class="material-icons">info</span>
+                        <span>${_('settings.public_endpoints_hint')}</span>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="public-server-id">${_('settings.public_endpoints_server_id')}</label>
+                            <input type="text" id="public-server-id" class="form-input"
+                                   placeholder="${_('settings.public_endpoints_server_id_placeholder')}" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="public-relay-server">${_('settings.public_endpoints_relay')}</label>
+                            <input type="text" id="public-relay-server" class="form-input"
+                                   placeholder="${_('settings.public_endpoints_relay_placeholder')}" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="public-api-url">${_('settings.public_endpoints_api_url')}</label>
+                        <input type="text" id="public-api-url" class="form-input"
+                               placeholder="${_('settings.public_endpoints_api_url_placeholder')}" autocomplete="off">
+                        <p class="text-muted form-hint">${_('settings.public_endpoints_api_url_hint')}</p>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" id="public-endpoints-save">
+                            <span class="material-icons">save</span>
+                            ${_('settings.public_endpoints_save')}
+                        </button>
+                    </div>
+                </div>
+            </div>
             ` : ''}
             
             <!-- Two-Factor Authentication Section -->
