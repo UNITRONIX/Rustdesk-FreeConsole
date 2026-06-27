@@ -162,12 +162,15 @@ router.post('/api/device-groups', requireAuth, requirePermission('device.edit'),
             if (deviceGroupService.folderIdFromGroupGuid(payload.guid) !== null) {
                 return res.status(400).json({ success: false, error: req.t('devices.folder_group_readonly') });
             }
-            group = await db.updateDeviceGroup(payload.guid, payload);
+            group = await db.updateDeviceGroup(
+                payload.guid,
+                deviceGroupService.buildDeviceGroupUpdateFields(payload)
+            );
             if (!group) {
                 return res.status(404).json({ success: false, error: req.t('devices.group_not_found') });
             }
         } else {
-            group = await db.createDeviceGroup(payload);
+            group = await db.createDeviceGroup(deviceGroupService.buildDeviceGroupCreateFields(payload));
         }
 
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'allowed_users')) {

@@ -1172,6 +1172,9 @@
                             allowed_users: document.getElementById('dg-users').value,
                             allowed_groups: Array.from(document.querySelectorAll('.dg-user-group:checked')).map(input => input.value)
                         };
+                        if (group?.team_id) {
+                            payload.team_id = group.team_id;
+                        }
                         if (!payload.name) {
                             Notifications.error(_('common.name_required') || 'Name is required');
                             return;

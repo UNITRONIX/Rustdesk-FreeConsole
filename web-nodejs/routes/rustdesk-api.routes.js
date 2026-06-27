@@ -1169,26 +1169,30 @@ router.post('/api/device-group', requireAuth, requireAdmin, async (req, res) => 
         }
 
         if (payload.guid) {
-            // Update existing
+            const updateFields = deviceGroupService.buildDeviceGroupUpdateFields(payload);
             const updated = await db.updateDeviceGroup(payload.guid, {
-                name: sanitizeStr(payload.name, MAX_HOSTNAME_LEN),
-                note: sanitizeStr(payload.note || '', MAX_STRING_LEN),
-                team_id: sanitizeStr(payload.team_id || '', 64),
-                source_type: payload.source_type,
-                tag_filter: payload.tag_filter
+                name: sanitizeStr(updateFields.name, MAX_HOSTNAME_LEN),
+                source_type: updateFields.source_type,
+                tag_filter: updateFields.tag_filter,
+                ...(Object.prototype.hasOwnProperty.call(updateFields, 'note')
+                    ? { note: sanitizeStr(updateFields.note || '', MAX_STRING_LEN) }
+                    : {}),
+                ...(Object.prototype.hasOwnProperty.call(updateFields, 'team_id')
+                    ? { team_id: sanitizeStr(updateFields.team_id || '', 64) }
+                    : {})
             });
             if (!updated) {
                 return res.status(404).json({ error: 'Group not found' });
             }
             return res.json(updated);
         } else {
-            // Create new
+            const createFields = deviceGroupService.buildDeviceGroupCreateFields(payload);
             const created = await db.createDeviceGroup({
-                name: sanitizeStr(payload.name, MAX_HOSTNAME_LEN),
-                note: sanitizeStr(payload.note || '', MAX_STRING_LEN),
-                team_id: sanitizeStr(payload.team_id || '', 64),
-                source_type: payload.source_type,
-                tag_filter: payload.tag_filter
+                name: sanitizeStr(createFields.name, MAX_HOSTNAME_LEN),
+                note: sanitizeStr(createFields.note || '', MAX_STRING_LEN),
+                team_id: sanitizeStr(createFields.team_id || '', 64),
+                source_type: createFields.source_type,
+                tag_filter: createFields.tag_filter
             });
             return res.json(created);
         }

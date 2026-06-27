@@ -31,16 +31,46 @@ function normalizeGroupGuids(value) {
 function normalizeGroupPayload(body = {}) {
     const sourceType = body.source_type === 'tag' || body.dynamic === true ? 'tag' : 'manual';
     const tagFilter = sourceType === 'tag' ? String(body.tag_filter || body.tag || '').trim().slice(0, 50) : '';
-    return {
+    const payload = {
         guid: body.guid ? String(body.guid).trim().slice(0, 64) : '',
         name: String(body.name || '').trim().slice(0, 80),
-        note: String(body.note || '').trim().slice(0, 512),
-        team_id: String(body.team_id || '').trim().slice(0, 64),
         source_type: sourceType,
         tag_filter: tagFilter,
         allowed_users: normalizeUsernames(body.allowed_users),
         allowed_groups: normalizeGroupGuids(body.allowed_groups || body.allowed_user_groups || body.user_group_guids)
     };
+    if (Object.prototype.hasOwnProperty.call(body, 'note')) {
+        payload.note = String(body.note || '').trim().slice(0, 512);
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'team_id')) {
+        payload.team_id = String(body.team_id || '').trim().slice(0, 64);
+    }
+    return payload;
+}
+
+function buildDeviceGroupCreateFields(payload) {
+    return {
+        name: payload.name,
+        note: Object.prototype.hasOwnProperty.call(payload, 'note') ? payload.note : '',
+        team_id: Object.prototype.hasOwnProperty.call(payload, 'team_id') ? payload.team_id : '',
+        source_type: payload.source_type,
+        tag_filter: payload.tag_filter
+    };
+}
+
+function buildDeviceGroupUpdateFields(payload) {
+    const data = {
+        name: payload.name,
+        source_type: payload.source_type,
+        tag_filter: payload.tag_filter
+    };
+    if (Object.prototype.hasOwnProperty.call(payload, 'note')) {
+        data.note = payload.note;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'team_id')) {
+        data.team_id = payload.team_id;
+    }
+    return data;
 }
 
 function hasTag(device, tag) {
@@ -269,6 +299,8 @@ module.exports = {
     normalizeUsernames,
     normalizeGroupGuids,
     normalizeGroupPayload,
+    buildDeviceGroupCreateFields,
+    buildDeviceGroupUpdateFields,
     folderIdFromGroupGuid,
     getGroupFolderId,
     groupAllowedForUser,

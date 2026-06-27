@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Organization device groups (#221)**: editing a device group from the Devices page (e.g. switching to automatic tag membership) no longer clears `team_id`, so groups stay linked to their organization and org-scoped access is preserved.
+
 ### Changed
 - _(none yet)_
 

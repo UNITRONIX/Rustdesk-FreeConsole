@@ -237,6 +237,33 @@ describe('Devices Routes', () => {
             expect(db.setDeviceGroupUserGroupAccess).toHaveBeenCalledWith('group-1', ['volunteers']);
         });
 
+        it('should preserve team_id when switching an org group to tag mode without resending team_id', async () => {
+            db.updateDeviceGroup.mockResolvedValue({
+                guid: 'org-group-1',
+                name: 'Org Devices',
+                team_id: 'org-abc',
+                source_type: 'tag',
+                tag_filter: 'Linux'
+            });
+
+            const res = await request(app)
+                .post('/api/device-groups')
+                .send({
+                    guid: 'org-group-1',
+                    name: 'Org Devices',
+                    source_type: 'tag',
+                    tag_filter: 'Linux'
+                });
+
+            expect(res.status).toBe(200);
+            expect(db.updateDeviceGroup).toHaveBeenCalledWith('org-group-1', {
+                name: 'Org Devices',
+                source_type: 'tag',
+                tag_filter: 'Linux'
+            });
+            expect(db.updateDeviceGroup.mock.calls[0][1]).not.toHaveProperty('team_id');
+        });
+
         it('should scope operator devices through user group ACLs', async () => {
             const scopedApp = createTestApp();
             scopedApp.use((req, _res, next) => {
