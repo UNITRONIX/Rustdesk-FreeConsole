@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.78] — 2026-06-28
+
 ### Fixed
 - **Linux Let's Encrypt HTTPS toggle (#219)**: `betterdesk.sh` now **copies** certbot material into `$RUSTDESK_PATH/ssl/` (real files with `root:betterdesk` permissions) instead of symlinking into `/etc/letsencrypt/` — the console service user could not read LE private keys and silently fell back to HTTP on `:5000`. Certbot deploy hook re-copies renewed certs; `ensure_betterdesk_console_user` repairs legacy symlink installs; post-toggle tests verify the console user can read the TLS key.
 
@@ -1346,3 +1353,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.75]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.74...v3.3.75
 [3.3.76]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.75...v3.3.76
 [3.3.77]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.76...v3.3.77
+[3.3.78]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.77...v3.3.78
