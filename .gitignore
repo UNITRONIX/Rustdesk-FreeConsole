@@ -207,6 +207,10 @@ deploy_console.tar.gz
 # --- Wallpapers (128MB+ — too large for git, ship separately) ---
 web-nodejs/wallpapers/
 
+# --- Operator-only runbooks (copy from *.example.md into docs/private/) ---
+docs/private/
+docs/important/betterdesk-server-deploy-paths.md
+
 # --- Internal dev/analysis documents (not for public repo) ---
 .github/audyt_bezpieczenstwa.md
 .github/RUSTDESK_SZYFROWANIE.md

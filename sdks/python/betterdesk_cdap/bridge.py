@@ -5,7 +5,7 @@ Usage example:
     from betterdesk_cdap import CDAPBridge, gauge, toggle
 
     bridge = CDAPBridge(
-        server="ws://192.168.0.110:21122/cdap",
+        server="ws://203.0.113.10:21122/cdap",
         auth_method="api_key",
         api_key="your-key",
         device_name="Temperature Sensor",

@@ -15,7 +15,7 @@ We take the security of BetterDesk seriously. If you discover a security vulnera
 ### How to Report
 
 1. **Do NOT open a public GitHub Issue** for security vulnerabilities.
-2. Email your findings to **security@unitronix.com** with:
+2. Email your findings to **krzysztof.nienartowicz2021@gmail.com** with:
    - Description of the vulnerability
    - Steps to reproduce
    - Affected component (Go server, Node.js console, desktop client, installer scripts)

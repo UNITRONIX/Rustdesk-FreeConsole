@@ -32,7 +32,7 @@ try {
     console.warn('[agentClientBuildWorker] could not load build env file:', e.message);
 }
 
-const BUILD_USER = process.env.BUILD_USER || 'unitronix';
+const BUILD_USER = process.env.BUILD_USER || 'betterdesk';
 const BUILD_CACHE_DIR = process.env.CARGO_TARGET_DIR
     || process.env.BUILD_CACHE_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'build-cache');

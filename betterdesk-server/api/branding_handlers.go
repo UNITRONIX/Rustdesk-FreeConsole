@@ -175,12 +175,6 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 
 	// Check if device already exists (re-registration = always approve)
 	existing, _ := s.db.GetPeer(req.DeviceID)
-	// #region agent log
-	debugEnrollmentLog("H6", "branding_handlers.go:handleDeviceRegister", "register entry", map[string]any{
-		"device_id": req.DeviceID, "mode": mode, "existing_peer": existing != nil,
-		"has_req_token": req.Token != "", "hostname": req.Hostname,
-	})
-	// #endregion
 	if existing != nil {
 		if req.UUID != "" && existing.UUID != "" && req.UUID != existing.UUID {
 			resp := EnrollmentResponse{
@@ -267,11 +261,6 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 	case "managed":
 		// Each support-agent installation registers without a shared bundle token.
 		// Operator approval issues a unique device_token per device.
-		// #region agent log
-		debugEnrollmentLog("H3", "branding_handlers.go:handleDeviceRegister", "managed pending", map[string]any{
-			"device_id": req.DeviceID, "has_token": req.Token != "", "hostname": req.Hostname,
-		})
-		// #endregion
 		s.storePendingDevice(&req, clientIP)
 		resp := EnrollmentResponse{
 			Status:       "pending",

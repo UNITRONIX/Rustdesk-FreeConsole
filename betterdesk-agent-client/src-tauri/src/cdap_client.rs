@@ -41,7 +41,7 @@ use uuid::Uuid;
 /// Configuration required to connect as a CDAP device.
 #[derive(Debug, Clone)]
 pub struct CdapConfig {
-    /// Full server origin (e.g. `https://192.168.0.110:21114`).
+    /// Full server origin (e.g. `https://203.0.113.10:21114`).
     pub server_address: String,
     /// Device ID assigned during registration (e.g. `BD-AABBCCDD...`).
     pub device_id: String,

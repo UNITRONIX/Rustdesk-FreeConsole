@@ -86,7 +86,7 @@ All bridges use a shared configuration pattern:
 ```json
 {
   "cdap": {
-    "server": "ws://192.168.0.110:21122/cdap",
+    "server": "ws://203.0.113.10:21122/cdap",
     "api_key": "YOUR_API_KEY",
     "device_name": "Bridge Name",
     "device_type": "bridge",

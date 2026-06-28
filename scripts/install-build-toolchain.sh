@@ -17,7 +17,7 @@
 #   sudo ./install-build-toolchain.sh [--unattended] [--skip-windows]
 #
 # Environment overrides:
-#   BUILD_USER         user that runs cargo / tauri (default: unitronix)
+#   BUILD_USER         user that runs cargo / tauri (default: betterdesk)
 #   BUILD_CACHE_DIR    cargo target dir (default: /var/cache/betterdesk-build)
 #   RUSTUP_HOME        rustup install root (default: $BUILD_USER home/.rustup)
 #   CARGO_HOME         cargo install root  (default: $BUILD_USER home/.cargo)
@@ -42,7 +42,7 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-BUILD_USER="${BUILD_USER:-unitronix}"
+BUILD_USER="${BUILD_USER:-betterdesk}"
 if ! id "$BUILD_USER" >/dev/null 2>&1; then
     echo "ERROR: BUILD_USER '$BUILD_USER' does not exist on this host" >&2
     exit 1

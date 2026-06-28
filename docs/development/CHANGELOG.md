@@ -537,7 +537,7 @@ sudo ./update-to-v1.4.0.sh
 - ✅ **Zero Network Exposure**: API cannot be accessed from external networks
 - ✅ **Connection Refused**: External access attempts properly blocked
 - ✅ **SSH Tunnel Support**: Remote access via secure tunnel only
-- ✅ **No Private Data**: All documentation free of IPs, passwords, credentials
+- ✅ **No Private Data**: Documentation uses placeholder IPs and example credentials; operator runbooks live in gitignored `docs/private/`
 - ✅ **Verified Installation**: Complete end-to-end security validation
 
 ### Fixed

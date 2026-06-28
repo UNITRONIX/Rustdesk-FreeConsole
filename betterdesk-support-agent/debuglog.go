@@ -34,7 +34,6 @@ func debugLog(hypothesisID, location, message string, data map[string]any) {
 		paths = append(paths, p)
 	}
 	paths = append(paths, filepath.Join(stateDir(), "debug-"+debugSessionID+".log"))
-	paths = append(paths, "/home/unitronix/Dokumenty/GitHub/BetterDesk/.cursor/debug-7fbd11.log")
 
 	seen := map[string]bool{}
 	for _, p := range paths {
