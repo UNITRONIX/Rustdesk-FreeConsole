@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.3.77
+#   BetterDesk Console Manager v3.3.76
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -36,7 +36,7 @@
 set -e
 
 # Version
-VERSION="3.3.77"
+VERSION="3.3.76"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Auto mode flag
@@ -745,6 +745,141 @@ infer_tls_mode_from_cert() {
         INFERRED_RUSTDESK_API_TLS="false"
         INFERRED_ALLOW_SELF_SIGNED="true"
     fi
+}
+
+# Copy TLS material into $RUSTDESK_PATH/ssl/ as real files (not symlinks) so the
+# betterdesk console user can read them. LE live dirs are root-only (#219).
+deploy_ssl_material_to_rustdesk_dir() {
+    local cert_src="$1"
+    local key_src="$2"
+    local le_live_dir="${3:-}"
+    local ssl_dir="$RUSTDESK_PATH/ssl"
+    local svc_user="betterdesk"
+    local env_file="${CONSOLE_PATH}/.env"
+
+    if [ ! -f "$cert_src" ] || [ ! -f "$key_src" ]; then
+        print_error "Certificate or key source not found: cert=$cert_src key=$key_src"
+        return 1
+    fi
+
+    mkdir -p "$ssl_dir"
+    cp -L "$cert_src" "$ssl_dir/betterdesk.crt" || return 1
+    cp -L "$key_src" "$ssl_dir/betterdesk.key" || return 1
+
+    if id "$svc_user" &>/dev/null; then
+        chown root:"$svc_user" "$ssl_dir/betterdesk.crt" "$ssl_dir/betterdesk.key" 2>/dev/null || true
+    fi
+    chmod 640 "$ssl_dir/betterdesk.crt" "$ssl_dir/betterdesk.key" 2>/dev/null || true
+
+    if [ -n "$le_live_dir" ]; then
+        _upsert_env_line "$env_file" LE_CERT_LIVE_DIR "$le_live_dir"
+        _upsert_env_line "$env_file" LE_CERT_DOMAIN "$(basename "$le_live_dir")"
+        install_le_certbot_renew_hook
+    fi
+
+    return 0
+}
+
+# certbot deploy hook: re-copy renewed LE certs then restart BetterDesk services.
+install_le_certbot_renew_hook() {
+    local hook_dir="/etc/letsencrypt/renewal-hooks/deploy"
+    local hook="$hook_dir/betterdesk-reload.sh"
+    local conf="$hook_dir/betterdesk-reload.conf"
+    mkdir -p "$hook_dir"
+
+    cat > "$conf" <<EOF
+RUSTDESK_PATH=${RUSTDESK_PATH}
+CONSOLE_PATH=${CONSOLE_PATH}
+EOF
+    chmod 640 "$conf"
+
+    cat > "$hook" <<'HOOK'
+#!/bin/bash
+set -euo pipefail
+CONF="/etc/letsencrypt/renewal-hooks/deploy/betterdesk-reload.conf"
+[ -f "$CONF" ] && . "$CONF"
+RUSTDESK_PATH="${RUSTDESK_PATH:-/opt/rustdesk}"
+CONSOLE_PATH="${CONSOLE_PATH:-/opt/betterdesk}"
+ENV_FILE="$CONSOLE_PATH/.env"
+SSL_DIR="$RUSTDESK_PATH/ssl"
+SVC_USER="betterdesk"
+
+le_live_dir=""
+if [ -f "$ENV_FILE" ]; then
+    le_live_dir=$(grep -m1 '^LE_CERT_LIVE_DIR=' "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
+fi
+if [ -z "$le_live_dir" ] || [ ! -d "$le_live_dir" ]; then
+    echo "betterdesk-reload: LE_CERT_LIVE_DIR missing or invalid — skipping cert copy" >&2
+    systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
+    exit 0
+fi
+
+mkdir -p "$SSL_DIR"
+cp -L "$le_live_dir/fullchain.pem" "$SSL_DIR/betterdesk.crt"
+cp -L "$le_live_dir/privkey.pem" "$SSL_DIR/betterdesk.key"
+if id "$SVC_USER" &>/dev/null; then
+    chown root:"$SVC_USER" "$SSL_DIR/betterdesk.crt" "$SSL_DIR/betterdesk.key"
+fi
+chmod 640 "$SSL_DIR/betterdesk.crt" "$SSL_DIR/betterdesk.key"
+systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
+HOOK
+    chmod +x "$hook"
+}
+
+# Repair installs that symlinked LE certs into ssl/ (console user cannot read privkey).
+maybe_repair_le_ssl_symlinks() {
+    local ssl_dir="$RUSTDESK_PATH/ssl"
+    local crt="$ssl_dir/betterdesk.crt"
+    local key="$ssl_dir/betterdesk.key"
+    local env_file="${CONSOLE_PATH}/.env"
+    local needs_redeploy="no"
+    local ssl_key_env ssl_cert_env
+
+    for f in "$crt" "$key"; do
+        if [ -L "$f" ]; then
+            local target
+            target=$(readlink -f "$f" 2>/dev/null || readlink "$f" 2>/dev/null || echo "")
+            if [[ "$target" == *"/etc/letsencrypt/"* ]]; then
+                needs_redeploy="yes"
+            fi
+        fi
+    done
+
+    ssl_key_env=$(grep -m1 '^SSL_KEY_PATH=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
+    ssl_cert_env=$(grep -m1 '^SSL_CERT_PATH=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
+    if [[ "$ssl_key_env" == *"/etc/letsencrypt/"* ]] || [[ "$ssl_cert_env" == *"/etc/letsencrypt/"* ]]; then
+        needs_redeploy="yes"
+    fi
+
+    if [ "$needs_redeploy" != "yes" ]; then
+        return 0
+    fi
+
+    local le_live_dir
+    le_live_dir=$(grep -m1 '^LE_CERT_LIVE_DIR=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
+    if [ -z "$le_live_dir" ] && [ -n "$ssl_cert_env" ]; then
+        le_live_dir=$(dirname "$(readlink -f "$ssl_cert_env" 2>/dev/null || echo "$ssl_cert_env")")
+    fi
+    if [ -z "$le_live_dir" ] && [ -L "$crt" ]; then
+        le_live_dir=$(dirname "$(readlink -f "$crt" 2>/dev/null || echo "")")
+    fi
+
+    if [ -z "$le_live_dir" ] || [ ! -f "$le_live_dir/fullchain.pem" ] || [ ! -f "$le_live_dir/privkey.pem" ]; then
+        print_warning "LE certificate symlinks detected but live dir not found — manual repair may be needed"
+        return 1
+    fi
+
+    print_info "Repairing LE certificate symlinks → copied files for console user (#219)"
+    deploy_ssl_material_to_rustdesk_dir "$le_live_dir/fullchain.pem" "$le_live_dir/privkey.pem" "$le_live_dir" || return 1
+    _upsert_env_line "$env_file" SSL_CERT_PATH "$ssl_dir/betterdesk.crt"
+    _upsert_env_line "$env_file" SSL_KEY_PATH "$ssl_dir/betterdesk.key"
+    local svc_file="/etc/systemd/system/betterdesk-console.service"
+    if [ -f "$svc_file" ]; then
+        _upsert_systemd_env "$svc_file" SSL_CERT_PATH "$ssl_dir/betterdesk.crt"
+        _upsert_systemd_env "$svc_file" SSL_KEY_PATH "$ssl_dir/betterdesk.key"
+        systemctl daemon-reload 2>/dev/null || true
+    fi
+    return 0
 }
 
 # Sync .env + betterdesk-console.service for HTTP or HTTPS panel mode (#219).
@@ -2610,6 +2745,7 @@ ensure_betterdesk_console_user() {
             chmod 640 "$RUSTDESK_PATH/$f" 2>/dev/null || true
         fi
     done
+    maybe_repair_le_ssl_symlinks 2>/dev/null || true
     echo "$svc_user"
 }
 
@@ -5397,21 +5533,31 @@ do_configure_ssl() {
             
             local cert_path="/etc/letsencrypt/live/$domain/fullchain.pem"
             local key_path="/etc/letsencrypt/live/$domain/privkey.pem"
-            
-            # Update .env
+            local le_live_dir="/etc/letsencrypt/live/$domain"
+            local ssl_dir="$RUSTDESK_PATH/ssl"
+
+            if ! deploy_ssl_material_to_rustdesk_dir "$cert_path" "$key_path" "$le_live_dir"; then
+                print_error "Failed to deploy Let's Encrypt certificate for console user"
+                press_enter
+                return
+            fi
+
+            # Update .env — always use copied files under $RUSTDESK_PATH/ssl/
             sed -i "s|^HTTPS_ENABLED=.*|HTTPS_ENABLED=true|" "$CONSOLE_PATH/.env"
-            sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$cert_path|" "$CONSOLE_PATH/.env"
-            sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$key_path|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_CERT_PATH=.*|SSL_CERT_PATH=$ssl_dir/betterdesk.crt|" "$CONSOLE_PATH/.env"
+            sed -i "s|^SSL_KEY_PATH=.*|SSL_KEY_PATH=$ssl_dir/betterdesk.key|" "$CONSOLE_PATH/.env"
             sed -i "s|^HTTP_REDIRECT_HTTPS=.*|HTTP_REDIRECT_HTTPS=true|" "$CONSOLE_PATH/.env"
             if grep -q '^RUSTDESK_API_TLS=' "$CONSOLE_PATH/.env" 2>/dev/null; then
                 sed -i "s|^RUSTDESK_API_TLS=.*|RUSTDESK_API_TLS=true|" "$CONSOLE_PATH/.env"
             else
                 echo "RUSTDESK_API_TLS=true" >> "$CONSOLE_PATH/.env"
             fi
-            
-            # Setup auto-renewal
+
+            ensure_betterdesk_console_user >/dev/null
+
+            # Setup auto-renewal (deploy hook copies renewed certs)
             if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
-                (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl restart betterdesk-console betterdesk-server'") | crontab -
+                (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet") | crontab -
                 print_info "Auto-renewal cron job added (daily at 3:00 AM)"
             fi
             
@@ -5867,6 +6013,19 @@ run_protocol_tests() {
         panel_port="$http_port"
     fi
 
+    # ── 2b. TLS key readable by console user (HTTPS only) ──
+    if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
+        local ssl_key_path console_user="betterdesk"
+        ssl_key_path=$(read_effective_console_setting SSL_KEY_PATH "")
+        if id "$console_user" &>/dev/null && [ -n "$ssl_key_path" ] && [ -e "$ssl_key_path" ]; then
+            if runuser -u "$console_user" -- test -r "$ssl_key_path" 2>/dev/null; then
+                _test_ok "TLS private key readable by console user ($console_user)"
+            else
+                _test_fail "Console user $console_user cannot read TLS key ($ssl_key_path) — HTTPS panel will fall back to HTTP (journalctl -u betterdesk-console)"
+            fi
+        fi
+    fi
+
     # ── 3. Panel reachability on the correct scheme/port ──
     local panel_code
     panel_code=$(curl -k -s -o /dev/null -w '%{http_code}' --max-time 6 \
@@ -5875,6 +6034,11 @@ run_protocol_tests() {
         _test_ok "Web panel reachable: ${panel_scheme}://<server>:${panel_port} (HTTP $panel_code)"
     else
         _test_fail "Web panel NOT reachable on ${panel_scheme}://127.0.0.1:${panel_port} (got $panel_code)"
+        if systemctl is-active --quiet betterdesk-console 2>/dev/null && [ "$panel_scheme" = "https" ]; then
+            if journalctl -u betterdesk-console --no-pager -n 80 2>/dev/null | grep -qi 'Falling back to HTTP'; then
+                echo -e "      ${DIM}Hint: console logged HTTPS fallback — check TLS key permissions (runuser -u betterdesk test -r key)${NC}"
+            fi
+        fi
     fi
 
     # ── 3b. HTTP→HTTPS redirect (only when HTTPS + redirect enabled) ──
@@ -6075,6 +6239,7 @@ do_toggle_protocol() {
                         press_enter
                         return
                     fi
+                    maybe_repair_le_ssl_symlinks 2>/dev/null || true
                     print_info "Using existing certificate at $ssl_dir/betterdesk.crt"
                     ;;
                 2)
@@ -6123,17 +6288,13 @@ do_toggle_protocol() {
                         ${le_email:+--email "$le_email"} ${le_email:+} \
                         $([ -z "$le_email" ] && echo "--register-unsafely-without-email") \
                         -d "$le_domain"; then
-                        mkdir -p "$ssl_dir"
-                        ln -sf "/etc/letsencrypt/live/$le_domain/fullchain.pem" "$ssl_dir/betterdesk.crt"
-                        ln -sf "/etc/letsencrypt/live/$le_domain/privkey.pem" "$ssl_dir/betterdesk.key"
-                        # Auto-renew + reload services
-                        local renew_hook="/etc/letsencrypt/renewal-hooks/deploy/betterdesk-reload.sh"
-                        mkdir -p "$(dirname "$renew_hook")"
-                        cat > "$renew_hook" <<'HOOK'
-#!/bin/bash
-systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
-HOOK
-                        chmod +x "$renew_hook"
+                        local le_live_dir="/etc/letsencrypt/live/$le_domain"
+                        if ! deploy_ssl_material_to_rustdesk_dir \
+                            "$le_live_dir/fullchain.pem" "$le_live_dir/privkey.pem" "$le_live_dir"; then
+                            print_error "Failed to deploy Let's Encrypt certificate for console user"
+                            press_enter
+                            return
+                        fi
                         print_success "Let's Encrypt certificate installed for $le_domain"
                     else
                         print_error "certbot failed — check that DNS points here and port 80 is free."
@@ -6196,6 +6357,8 @@ HOOK
             print_step "Switching to HTTPS mode..."
 
             apply_console_protocol_mode https "$ssl_dir/betterdesk.crt" "$ssl_dir/betterdesk.key" "$api_tls" "$allow_self_signed"
+
+            ensure_betterdesk_console_user >/dev/null
 
             # Add TLS to Go server (signal + relay only, NOT API)
             if [ -f "$go_svc_file" ]; then

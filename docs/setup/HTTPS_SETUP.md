@@ -334,10 +334,23 @@ The server will log this warning and fall back to HTTP mode. Check:
 
 ### Certificate Permission Errors
 
-Let's Encrypt certificates are often readable only by root:
+Let's Encrypt live directories are root-only. **BetterDesk copies** renewed material into `$RUSTDESK_PATH/ssl/betterdesk.{crt,key}` with `root:betterdesk` permissions when you use Protocol Toggle or SSL config in `betterdesk.sh`.
+
+If an older build left **symlinks** into `/etc/letsencrypt/` and HTTPS fails (panel on `:5000` only, journal shows *Falling back to HTTP*), repair manually:
 
 ```bash
-# Allow BetterDesk to read certificates
+sudo betterdesk.sh   # Repair / Updates — ensure_betterdesk_console_user redeploys LE symlinks
+# Or one-time copy:
+sudo cp -L /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem /opt/rustdesk/ssl/betterdesk.crt
+sudo cp -L /etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem /opt/rustdesk/ssl/betterdesk.key
+sudo chown root:betterdesk /opt/rustdesk/ssl/betterdesk.{crt,key}
+sudo chmod 640 /opt/rustdesk/ssl/betterdesk.{crt,key}
+sudo systemctl restart betterdesk-console betterdesk-server
+```
+
+Legacy workaround (not recommended — prefer copy above):
+
+```bash
 sudo chmod 644 /etc/letsencrypt/live/console.yourdomain.com/fullchain.pem
 sudo chmod 640 /etc/letsencrypt/live/console.yourdomain.com/privkey.pem
 sudo chgrp root /etc/letsencrypt/live/console.yourdomain.com/privkey.pem
