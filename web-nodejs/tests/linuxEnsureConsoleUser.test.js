@@ -9,6 +9,11 @@ const {
     getSharedGoDataDirPermissionSteps,
     listSharedGoDataFiles,
     applySharedGoFilePermissions,
+    readEnvFileValue,
+    isTruthyEnvValue,
+    resolveLetsEncryptLiveDir,
+    shouldRedeployLetsEncryptMaterial,
+    upsertEnvFileValue,
     SHARED_GO_DATA_DIR_MODE,
     SHARED_GO_SSL_DIR_MODE,
     SVC_USER,
@@ -80,6 +85,74 @@ describe('linux-ensure-console-user helpers', () => {
             ]);
         } finally {
             fs.unlinkSync(tmpDb);
+        }
+    });
+
+    test('resolveLetsEncryptLiveDir prefers LE_CERT_LIVE_DIR then cert path (#219)', () => {
+        expect(resolveLetsEncryptLiveDir({
+            leCertLiveDir: '/etc/letsencrypt/live/desk.example.com',
+            sslCertPath: '/opt/rustdesk/ssl/betterdesk.crt',
+        })).toBe('/etc/letsencrypt/live/desk.example.com');
+
+        expect(resolveLetsEncryptLiveDir({
+            sslCertPath: '/etc/letsencrypt/live/desk.example.com/fullchain.pem',
+        })).toBe('/etc/letsencrypt/live/desk.example.com');
+    });
+
+    test('resolveLetsEncryptLiveDir falls back to LE_CERT_DOMAIN (#219)', () => {
+        const envPath = path.join(os.tmpdir(), `le-domain-env-${Date.now()}.env`);
+        fs.writeFileSync(envPath, 'LE_CERT_DOMAIN=desk.example.com\n');
+        try {
+            expect(resolveLetsEncryptLiveDir({
+                envPath,
+                sslCertPath: '/opt/rustdesk/ssl/betterdesk.crt',
+                leCertDomain: 'desk.example.com',
+            })).toBe('/etc/letsencrypt/live/desk.example.com');
+        } finally {
+            fs.unlinkSync(envPath);
+        }
+    });
+
+    test('shouldRedeployLetsEncryptMaterial when LE paths or unreadable key (#219)', () => {
+        expect(shouldRedeployLetsEncryptMaterial({
+            httpsEnabled: 'false',
+            sslKeyPath: '/etc/letsencrypt/live/x/privkey.pem',
+        })).toBe(false);
+
+        expect(shouldRedeployLetsEncryptMaterial({
+            httpsEnabled: 'true',
+            sslKeyPath: '/etc/letsencrypt/live/x/privkey.pem',
+            sslCertPath: '/opt/rustdesk/ssl/betterdesk.crt',
+            keyReadable: true,
+        })).toBe(true);
+
+        expect(shouldRedeployLetsEncryptMaterial({
+            httpsEnabled: 'true',
+            sslKeyPath: '/opt/rustdesk/ssl/betterdesk.key',
+            sslCertPath: '/opt/rustdesk/ssl/betterdesk.crt',
+            keyReadable: false,
+        })).toBe(true);
+
+        expect(shouldRedeployLetsEncryptMaterial({
+            httpsEnabled: 'true',
+            sslKeyPath: '/opt/rustdesk/ssl/betterdesk.key',
+            sslCertPath: '/opt/rustdesk/ssl/betterdesk.crt',
+            keyReadable: true,
+        })).toBe(false);
+    });
+
+    test('readEnvFileValue and upsertEnvFileValue round-trip', () => {
+        const envPath = path.join(os.tmpdir(), `betterdesk-env-${Date.now()}.env`);
+        fs.writeFileSync(envPath, 'HTTPS_ENABLED=true\nPORT=5000\n');
+        try {
+            expect(readEnvFileValue('HTTPS_ENABLED', envPath)).toBe('true');
+            expect(isTruthyEnvValue(readEnvFileValue('HTTPS_ENABLED', envPath))).toBe(true);
+            upsertEnvFileValue('SSL_KEY_PATH', '/opt/rustdesk/ssl/betterdesk.key', envPath);
+            expect(readEnvFileValue('SSL_KEY_PATH', envPath)).toBe('/opt/rustdesk/ssl/betterdesk.key');
+            upsertEnvFileValue('PORT', '5001', envPath);
+            expect(readEnvFileValue('PORT', envPath)).toBe('5001');
+        } finally {
+            fs.unlinkSync(envPath);
         }
     });
 });

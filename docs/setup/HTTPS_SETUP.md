@@ -336,10 +336,11 @@ The server will log this warning and fall back to HTTP mode. Check:
 
 Let's Encrypt live directories are root-only. **BetterDesk copies** renewed material into `$RUSTDESK_PATH/ssl/betterdesk.{crt,key}` with `root:betterdesk` permissions when you use Protocol Toggle or SSL config in `betterdesk.sh`.
 
-If an older build left **symlinks** into `/etc/letsencrypt/` and HTTPS fails (panel on `:5000` only, journal shows *Falling back to HTTP*), repair manually:
+If an older build left **symlinks** into `/etc/letsencrypt/` and HTTPS fails (panel on `:5000` only, journal shows *Falling back to HTTP*), run **Settings → Updates** or `sudo betterdesk.sh` → Update/Repair permissions — both re-copy LE material automatically (#219). Manual copy if needed:
 
 ```bash
-sudo betterdesk.sh   # Repair / Updates — ensure_betterdesk_console_user redeploys LE symlinks
+sudo betterdesk.sh   # Update or Repair → Repair permissions
+# Or Protocol Toggle → HTTPS → Keep existing certificate
 # Or one-time copy:
 sudo cp -L /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem /opt/rustdesk/ssl/betterdesk.crt
 sudo cp -L /etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem /opt/rustdesk/ssl/betterdesk.key
@@ -347,6 +348,8 @@ sudo chown root:betterdesk /opt/rustdesk/ssl/betterdesk.{crt,key}
 sudo chmod 640 /opt/rustdesk/ssl/betterdesk.{crt,key}
 sudo systemctl restart betterdesk-console betterdesk-server
 ```
+
+**Let's Encrypt domain names:** open the panel at `https://your-domain:5443`. Using the server IP in the browser will show a certificate name mismatch even when HTTPS is configured correctly.
 
 Legacy workaround (not recommended — prefer copy above):
 

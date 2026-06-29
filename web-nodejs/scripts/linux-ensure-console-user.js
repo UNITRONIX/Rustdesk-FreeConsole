@@ -259,6 +259,234 @@ function applySharedGoFilePermissions(filePath, svcUser, runFn = runPrivilegedAr
     }
 }
 
+function readEnvFileValue(key, envPath = path.join(CONSOLE_PATH, '.env')) {
+    try {
+        if (!fs.existsSync(envPath)) return '';
+        const prefix = `${key}=`;
+        for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+            if (line.startsWith(prefix)) {
+                return line.slice(prefix.length).trim();
+            }
+        }
+        return '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function isTruthyEnvValue(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes';
+}
+
+function upsertEnvFileValue(key, value, envPath = path.join(CONSOLE_PATH, '.env')) {
+    const prefix = `${key}=`;
+    let lines = [];
+    if (fs.existsSync(envPath)) {
+        lines = fs.readFileSync(envPath, 'utf8').split('\n');
+        if (lines.length && lines[lines.length - 1] === '') {
+            lines.pop();
+        }
+    }
+    let found = false;
+    lines = lines.map((line) => {
+        if (line.startsWith(prefix)) {
+            found = true;
+            return `${key}=${value}`;
+        }
+        return line;
+    });
+    if (!found) {
+        lines.push(`${key}=${value}`);
+    }
+    fs.writeFileSync(envPath, `${lines.join('\n')}\n`, 'utf8');
+}
+
+function upsertSystemdEnvValue(servicePath, key, value, runFn = runPrivilegedArgv) {
+    if (!servicePath || !fs.existsSync(servicePath)) return false;
+    const content = isRoot()
+        ? fs.readFileSync(servicePath, 'utf8')
+        : runFn('cat', [servicePath]);
+    const envLine = `Environment=${key}=${value}`;
+    let updated;
+    if (new RegExp(`^Environment=${key}=`, 'm').test(content)) {
+        updated = content.replace(new RegExp(`^Environment=${key}=.*$`, 'm'), envLine);
+    } else {
+        updated = content.replace(/^(\[Service\]\s*\n)/m, `$1${envLine}\n`);
+    }
+    if (updated === content) return false;
+    if (isRoot()) {
+        fs.writeFileSync(servicePath, updated, 'utf8');
+    } else {
+        const tmp = `/tmp/${CONSOLE_SERVICE}.${Date.now()}.service`;
+        fs.writeFileSync(tmp, updated, 'utf8');
+        runFn('cp', [tmp, servicePath]);
+        try { fs.unlinkSync(tmp); } catch (_) { /* ok */ }
+    }
+    runFn(resolveSystemctlPath(), ['daemon-reload']);
+    return true;
+}
+
+function tlsKeyReadableByConsoleUser(keyPath, svcUser = SVC_USER, runFn = runPrivilegedArgv) {
+    if (!keyPath || !fs.existsSync(keyPath) || !userExists(svcUser)) {
+        return false;
+    }
+    try {
+        if (isRoot()) {
+            execFileSync('runuser', ['-u', svcUser, '--', 'test', '-r', keyPath], {
+                stdio: 'pipe',
+                timeout: 5000,
+            });
+            return true;
+        }
+        if (typeof process.getuid === 'function') {
+            const uid = execFileSync('id', ['-u', svcUser], {
+                encoding: 'utf8',
+                stdio: 'pipe',
+                timeout: 5000,
+            }).trim();
+            if (String(process.getuid()) === uid) {
+                fs.accessSync(keyPath, fs.constants.R_OK);
+                return true;
+            }
+        }
+        runFn('runuser', ['-u', svcUser, '--', 'test', '-r', keyPath]);
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+/**
+ * Resolve LE live directory from env / cert path hints (#219).
+ * @param {object} opts
+ * @returns {string}
+ */
+function resolveLetsEncryptLiveDir(opts = {}) {
+    const envPath = opts.envPath || path.join(CONSOLE_PATH, '.env');
+    const sslCertPath = opts.sslCertPath || readEnvFileValue('SSL_CERT_PATH', envPath);
+    const sslKeyPath = opts.sslKeyPath || readEnvFileValue('SSL_KEY_PATH', envPath);
+    let leLiveDir = opts.leCertLiveDir || readEnvFileValue('LE_CERT_LIVE_DIR', envPath);
+    if (!leLiveDir && sslCertPath.includes('/etc/letsencrypt/')) {
+        leLiveDir = path.dirname(sslCertPath);
+    }
+    if [ -z "$le_live_dir" ] && sslKeyPath.includes('/etc/letsencrypt/')) {
+        leLiveDir = path.dirname(sslKeyPath);
+    }
+    if (!leLiveDir) {
+        const leDomain = opts.leCertDomain || readEnvFileValue('LE_CERT_DOMAIN', envPath);
+        if (leDomain) {
+            leLiveDir = path.join('/etc/letsencrypt/live', leDomain);
+        }
+    }
+    return leLiveDir;
+}
+
+/**
+ * Whether LE material should be re-copied into $RUSTDESK_PATH/ssl/.
+ * @param {object} opts
+ * @returns {boolean}
+ */
+function shouldRedeployLetsEncryptMaterial(opts = {}) {
+    if (!isTruthyEnvValue(opts.httpsEnabled)) return false;
+    const sslDir = path.join(opts.rustdeskPath || RUSTDESK_PATH, 'ssl');
+    const deployedKey = path.join(sslDir, 'betterdesk.key');
+    const sslKeyPath = opts.sslKeyPath || deployedKey;
+    const sslCertPath = opts.sslCertPath || path.join(sslDir, 'betterdesk.crt');
+    if (sslKeyPath.includes('/etc/letsencrypt/') || sslCertPath.includes('/etc/letsencrypt/')) {
+        return true;
+    }
+    if (fs.existsSync(deployedKey)) {
+        try {
+            if (fs.lstatSync(deployedKey).isSymbolicLink()) {
+                const target = fs.realpathSync(deployedKey);
+                if (target.includes('/etc/letsencrypt/')) return true;
+            }
+        } catch (_) { /* ok */ }
+    }
+    if (opts.keyReadable === false) return true;
+    if (opts.keyReadable === true) return false;
+    return !tlsKeyReadableByConsoleUser(sslKeyPath, opts.svcUser || SVC_USER, opts.runFn);
+}
+
+/**
+ * Copy LE cert/key into shared ssl dir with console-user permissions (#219).
+ * @returns {{ changed: boolean, skipped?: boolean, reason?: string, error?: string }}
+ */
+function repairLetsEncryptSslMaterial(opts = {}) {
+    const rustdeskPath = opts.rustdeskPath || RUSTDESK_PATH;
+    const envPath = opts.envPath || path.join(CONSOLE_PATH, '.env');
+    const svcUser = opts.svcUser || SVC_USER;
+    const runFn = opts.runFn || runPrivilegedArgv;
+    const httpsEnabled = opts.httpsEnabled != null
+        ? opts.httpsEnabled
+        : readEnvFileValue('HTTPS_ENABLED', envPath);
+
+    if (!isTruthyEnvValue(httpsEnabled)) {
+        return { changed: false, skipped: true, reason: 'https-not-enabled' };
+    }
+
+    const sslDir = path.join(rustdeskPath, 'ssl');
+    const deployedCrt = path.join(sslDir, 'betterdesk.crt');
+    const deployedKey = path.join(sslDir, 'betterdesk.key');
+    const sslKeyPath = readEnvFileValue('SSL_KEY_PATH', envPath) || deployedKey;
+    const sslCertPath = readEnvFileValue('SSL_CERT_PATH', envPath) || deployedCrt;
+    const keyReadable = tlsKeyReadableByConsoleUser(sslKeyPath, svcUser, runFn);
+
+    if (!shouldRedeployLetsEncryptMaterial({
+        httpsEnabled,
+        sslKeyPath,
+        sslCertPath,
+        keyReadable,
+        rustdeskPath,
+        svcUser,
+        runFn,
+    })) {
+        return { changed: false, skipped: true, reason: 'tls-key-readable' };
+    }
+
+    const leLiveDir = resolveLetsEncryptLiveDir({ envPath, sslCertPath, sslKeyPath });
+    const leCert = leLiveDir ? path.join(leLiveDir, 'fullchain.pem') : '';
+    const leKey = leLiveDir ? path.join(leLiveDir, 'privkey.pem') : '';
+    if (!leLiveDir || !fs.existsSync(leCert) || !fs.existsSync(leKey)) {
+        if (!keyReadable) {
+            return { changed: false, error: 'tls-key-unreadable-no-le-source' };
+        }
+        return { changed: false, skipped: true, reason: 'no-le-live-dir' };
+    }
+
+    if (!isRoot() && !canUseSudo()) {
+        return { changed: false, skipped: true, error: 'no root/sudo for LE cert redeploy' };
+    }
+
+    try {
+        for (const step of getSharedGoDataDirPermissionSteps(rustdeskPath, svcUser)) {
+            runFn(step.bin, step.args);
+        }
+        runFn('cp', ['-L', leCert, deployedCrt]);
+        runFn('cp', ['-L', leKey, deployedKey]);
+        runFn('chown', [`root:${svcUser}`, deployedCrt, deployedKey]);
+        runFn('chmod', ['640', deployedCrt, deployedKey]);
+
+        upsertEnvFileValue('SSL_CERT_PATH', deployedCrt, envPath);
+        upsertEnvFileValue('SSL_KEY_PATH', deployedKey, envPath);
+        upsertEnvFileValue('LE_CERT_LIVE_DIR', leLiveDir, envPath);
+
+        const { servicePath } = readServiceFile();
+        if (servicePath) {
+            upsertSystemdEnvValue(servicePath, 'SSL_CERT_PATH', deployedCrt, runFn);
+            upsertSystemdEnvValue(servicePath, 'SSL_KEY_PATH', deployedKey, runFn);
+        }
+
+        if (!tlsKeyReadableByConsoleUser(deployedKey, svcUser, runFn)) {
+            return { changed: true, error: 'deployed tls key still unreadable by console user' };
+        }
+        return { changed: true, sslCertPath: deployedCrt, sslKeyPath: deployedKey };
+    } catch (err) {
+        return { changed: false, error: err.message || String(err) };
+    }
+}
+
 /**
  * @returns {{ ok: boolean, error?: string, skipped?: boolean }}
  */
@@ -399,6 +627,12 @@ function ensureLinuxConsoleServiceUser() {
             } else if (perm.error) {
                 result.error = perm.error;
             }
+            const leRepair = repairLetsEncryptSslMaterial({ runFn: runPrivilegedArgv });
+            if (leRepair.changed) {
+                result.changes.push("Let's Encrypt TLS material redeployed for console user (#219)");
+            } else if (leRepair.error && leRepair.error !== 'no root/sudo for LE cert redeploy') {
+                result.changes.push(`LE TLS repair: ${leRepair.error}`);
+            }
         } else if (userExists(SVC_USER)) {
             const access = verifyConsoleUserAccess();
             result.permissionsOk = access.ok;
@@ -458,6 +692,14 @@ module.exports = {
     resolveSystemctlPath,
     resolveEnsureConsoleUserScriptPath,
     patchServiceUserLine,
+    readEnvFileValue,
+    isTruthyEnvValue,
+    resolveLetsEncryptLiveDir,
+    shouldRedeployLetsEncryptMaterial,
+    repairLetsEncryptSslMaterial,
+    tlsKeyReadableByConsoleUser,
+    upsertEnvFileValue,
+    upsertSystemdEnvValue,
     SHARED_GO_DATA_DIR_MODE,
     SHARED_GO_SSL_DIR_MODE,
     SVC_USER,
