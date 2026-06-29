@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.80] — 2026-06-29
+
 ### Fixed
 - **Linux HTTP/HTTPS toggle follow-up (#219)**: panel updates and `betterdesk.sh` updates now re-run Let's Encrypt TLS repair (`ensure_console_tls_material_readable` / `linux-ensure-console-user.js`) so unreadable LE keys are re-copied into `$RUSTDESK_PATH/ssl/` without a manual protocol toggle. Post-toggle tests wait up to 15s for the console and Client API to finish booting (fewer false failures). **SSL menu (C)** now uses the same `apply_console_protocol_mode` + `deploy_ssl_material_to_rustdesk_dir` path as Protocol Toggle (T) — custom/self-signed/Enterprise certs get correct `root:betterdesk` permissions and systemd sync. LE repair also resolves `LE_CERT_DOMAIN` when `LE_CERT_LIVE_DIR` is missing.
 
@@ -1365,3 +1372,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.77]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.76...v3.3.77
 [3.3.78]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.77...v3.3.78
 [3.3.79]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.78...v3.3.79
+[3.3.80]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.79...v3.3.80
