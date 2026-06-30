@@ -2685,9 +2685,34 @@
         const desc = document.getElementById('update-status-desc');
         if (!icon || !headline) return;
 
-        icon.dataset.state = state;
-        const showBadge = state === 'warning' || state === 'error';
-        if (badge) badge.hidden = !showBadge;
+        const iconStateByStatus = {
+            idle: 'idle',
+            checking: 'checking',
+            uptodate: 'success',
+            available: 'warning',
+            baseline: 'success',
+            error: 'error'
+        };
+        icon.dataset.state = iconStateByStatus[state] || 'idle';
+
+        const badgeByStatus = {
+            uptodate: { variant: 'success', icon: 'check' },
+            available: { variant: 'warning', icon: 'priority_high' },
+            baseline: { variant: 'success', icon: 'check' },
+            error: { variant: 'error', icon: 'error_outline' }
+        };
+        const badgeCfg = badgeByStatus[state];
+        if (badge) {
+            if (badgeCfg) {
+                badge.hidden = false;
+                badge.className = 'win11-updates-hero-badge win11-updates-hero-badge--' + badgeCfg.variant;
+                const badgeIcon = badge.querySelector('.material-icons');
+                if (badgeIcon) badgeIcon.textContent = badgeCfg.icon;
+            } else {
+                badge.hidden = true;
+                badge.className = 'win11-updates-hero-badge';
+            }
+        }
 
         const messages = {
             idle:      { h: _('updates.title'), d: _('updates.desc') },
@@ -2869,10 +2894,6 @@
                         : _('updates.server_stale_desc');
                 }
                 warning.style.display = '';
-                const badge = document.getElementById('update-hero-badge');
-                if (badge) badge.hidden = false;
-                const icon = document.getElementById('update-hero-icon');
-                if (icon && icon.dataset.state === 'idle') icon.dataset.state = 'warning';
             } else {
                 warning.style.display = 'none';
             }
@@ -3159,9 +3180,72 @@
         { id: 'done',     icon: 'check_circle',      key: 'updates.phase_done' }
     ];
 
+    let _updateReloadTimers = { countdown: null, auto: null };
+
+    function getActiveUpdateModalEl() {
+        return document.querySelector('#modal-container .modal-overlay.open .modal');
+    }
+
+    function updateModalTitle(title) {
+        const titleEl = document.querySelector('#modal-container .modal-overlay.open .modal-title');
+        if (titleEl) titleEl.textContent = title;
+    }
+
+    function setModalClosable(closable) {
+        const overlay = document.querySelector('#modal-container .modal-overlay.open');
+        if (!overlay) return;
+        const header = overlay.querySelector('.modal-header');
+        if (!header) return;
+        let closeBtn = header.querySelector('.modal-close');
+        if (closable && !closeBtn) {
+            closeBtn = document.createElement('button');
+            closeBtn.className = 'modal-close';
+            closeBtn.setAttribute('aria-label', _('actions.close'));
+            closeBtn.innerHTML = '<span class="material-icons">close</span>';
+            closeBtn.addEventListener('click', () => window.Modal.close());
+            header.appendChild(closeBtn);
+        } else if (!closable && closeBtn) {
+            closeBtn.remove();
+        }
+    }
+
+    function updateModalFooter(buttons) {
+        const modal = getActiveUpdateModalEl();
+        if (!modal) return;
+        let footer = modal.querySelector('.modal-footer');
+        if (!footer && buttons.length) {
+            footer = document.createElement('div');
+            footer.className = 'modal-footer update-wizard-footer-enter';
+            modal.appendChild(footer);
+        } else if (footer && !buttons.length) {
+            footer.remove();
+            return;
+        }
+        if (!footer) return;
+        footer.classList.add('update-wizard-footer-enter');
+        footer.innerHTML = buttons.map((btn, idx) => `
+            <button type="button" class="btn ${btn.class || 'btn-secondary'}" data-btn-index="${idx}">
+                ${btn.icon ? `<span class="material-icons">${btn.icon}</span>` : ''}
+                ${Utils.escapeHtml(btn.label)}
+            </button>
+        `).join('');
+        buttons.forEach((btn, idx) => {
+            footer.querySelector(`[data-btn-index="${idx}"]`)?.addEventListener('click', () => btn.onClick?.());
+        });
+    }
+
+    function clearUpdateReloadTimers() {
+        if (_updateReloadTimers.countdown) clearInterval(_updateReloadTimers.countdown);
+        if (_updateReloadTimers.auto) clearTimeout(_updateReloadTimers.auto);
+        _updateReloadTimers = { countdown: null, auto: null };
+    }
+
     function buildUpdateModalContent() {
+        const stepLabel = _('updates.progress_step')
+            .replace('{current}', '1')
+            .replace('{total}', String(UPDATE_PHASES.length));
         const items = UPDATE_PHASES.map(p => `
-            <div class="update-phase" data-phase="${p.id}">
+            <div class="update-phase is-pending" data-phase="${p.id}">
                 <span class="update-phase-icon material-icons">${p.icon}</span>
                 <span class="update-phase-label">${_(p.key)}</span>
                 <span class="update-phase-state" data-phase-state="${p.id}">
@@ -3170,17 +3254,99 @@
             </div>
         `).join('');
         return `
-            <div class="update-progress-modal">
-                <div class="update-progress-bar"><div class="update-progress-bar-fill" id="update-modal-bar" style="width:0%"></div></div>
-                <div class="update-phases">${items}</div>
-                <div class="update-progress-detail" id="update-modal-detail">${_('updates.preparing')}</div>
-                <pre class="update-progress-log" id="update-modal-log" aria-live="polite"></pre>
+            <div class="update-wizard" data-state="running">
+                <div class="update-wizard-header">
+                    <div class="update-wizard-bar">
+                        <div class="update-wizard-bar-fill" id="update-modal-bar" style="width:0%"></div>
+                    </div>
+                    <div class="update-wizard-meta">
+                        <span class="update-wizard-step" id="update-modal-step">${Utils.escapeHtml(stepLabel)}</span>
+                        <span class="update-wizard-detail" id="update-modal-detail">${Utils.escapeHtml(_('updates.preparing'))}</span>
+                    </div>
+                </div>
+                <div class="update-wizard-phases update-phases">${items}</div>
+                <div class="update-wizard-log-panel" id="update-wizard-log-panel">
+                    <div class="update-wizard-log-toolbar">
+                        <span class="update-wizard-log-title">${Utils.escapeHtml(_('updates.log_title'))}</span>
+                        <div class="update-wizard-log-actions">
+                            <button type="button" class="btn btn-ghost btn-sm" id="update-log-expand">${Utils.escapeHtml(_('updates.log_expand'))}</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="update-log-copy">
+                                <span class="material-icons">content_copy</span>
+                                ${Utils.escapeHtml(_('updates.log_copy'))}
+                            </button>
+                        </div>
+                    </div>
+                    <pre class="update-progress-log" id="update-modal-log" aria-live="polite"></pre>
+                </div>
+                <div class="update-wizard-banner" id="update-wizard-banner" hidden>
+                    <div class="update-wizard-banner-body">
+                        <div id="update-wizard-banner-text"></div>
+                        <div id="update-wizard-banner-details" class="update-wizard-banner-details"></div>
+                        <div class="update-wizard-countdown" id="update-reload-countdown-wrap" hidden>
+                            <span id="update-reload-countdown"></span>
+                            <div class="update-wizard-countdown-bar">
+                                <div class="update-wizard-countdown-bar-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
 
+    function bindUpdateLogControls() {
+        document.getElementById('update-log-expand')?.addEventListener('click', () => toggleUpdateLogExpanded());
+        document.getElementById('update-log-copy')?.addEventListener('click', () => copyUpdateLog());
+    }
+
+    function getUpdateLogText() {
+        return document.getElementById('update-modal-log')?.textContent || '';
+    }
+
+    function copyUpdateLog() {
+        const text = getUpdateLogText();
+        if (!text) return;
+        navigator.clipboard?.writeText(text).then(() => {
+            Notifications.success(_('common.copied'));
+        }).catch(() => {});
+    }
+
+    function toggleUpdateLogExpanded(forceExpand) {
+        const panel = document.getElementById('update-wizard-log-panel');
+        const btn = document.getElementById('update-log-expand');
+        if (!panel) return;
+        const expanded = forceExpand === true ? true
+            : forceExpand === false ? false
+            : !panel.classList.contains('expanded');
+        panel.classList.toggle('expanded', expanded);
+        if (btn) btn.textContent = _(expanded ? 'updates.log_collapse' : 'updates.log_expand');
+    }
+
+    function updateUpdateStepCounter(phaseId, state) {
+        const stepEl = document.getElementById('update-modal-step');
+        if (!stepEl) return;
+        const idx = UPDATE_PHASES.findIndex(p => p.id === phaseId);
+        if (idx < 0) return;
+        let current = idx + 1;
+        if (state === 'pending') current = Math.max(1, idx);
+        stepEl.textContent = _('updates.progress_step')
+            .replace('{current}', String(current))
+            .replace('{total}', String(UPDATE_PHASES.length));
+    }
+
     function setUpdatePhase(phaseId, state, detail) {
         // state: 'pending' | 'active' | 'done' | 'warning' | 'error' | 'skipped'
+        const row = document.querySelector(`.update-phase[data-phase="${phaseId}"]`);
+        if (row) {
+            row.classList.remove('is-pending', 'is-active', 'is-done', 'is-warning', 'is-error', 'is-skipped');
+            const rowState = state === 'pending' ? 'pending'
+                : state === 'active' ? 'active'
+                : state === 'done' ? 'done'
+                : state === 'warning' ? 'warning'
+                : state === 'error' ? 'error'
+                : state === 'skipped' ? 'skipped' : 'pending';
+            row.classList.add(`is-${rowState}`);
+        }
         const stateEl = document.querySelector(`[data-phase-state="${phaseId}"]`);
         if (stateEl) {
             const icons = {
@@ -3194,19 +3360,24 @@
             const cls = {
                 pending: '',
                 active:  'spinning',
-                done:    '',
+                done:    state === 'done' ? 'just-done' : '',
                 warning: '',
                 error:   '',
                 skipped: ''
             };
             stateEl.innerHTML = `<span class="material-icons ${cls[state] || ''}">${icons[state] || 'help'}</span>`;
             stateEl.dataset.state = state;
+            if (state === 'done') {
+                setTimeout(() => {
+                    stateEl.querySelector('.just-done')?.classList.remove('just-done');
+                }, 400);
+            }
         }
         if (detail) {
             const det = document.getElementById('update-modal-detail');
             if (det) det.textContent = detail;
         }
-        // Advance progress bar based on phase index
+        updateUpdateStepCounter(phaseId, state);
         const idx = UPDATE_PHASES.findIndex(p => p.id === phaseId);
         if (idx >= 0) {
             const pct = state === 'done' ? Math.round(((idx + 1) / UPDATE_PHASES.length) * 100)
@@ -3221,17 +3392,206 @@
         const log = document.getElementById('update-modal-log');
         if (!log) return;
         const ts = new Date().toLocaleTimeString();
+        const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 24;
         log.textContent += `[${ts}] ${line}\n`;
-        log.scrollTop = log.scrollHeight;
+        if (atBottom) log.scrollTop = log.scrollHeight;
     }
 
     function reloadConsole() {
+        clearUpdateReloadTimers();
         const url = new URL(window.location.href);
         url.searchParams.set('_bd_reload', Date.now().toString());
         window.location.replace(url.toString());
     }
 
-    async function installUpdate() {
+    function hasUpdateFailures(result) {
+        if (!result) return false;
+        const deployFailed = !!(result.serverDeploy && result.serverDeploy.success === false);
+        return (result.failed?.length || 0) > 0
+            || (result.servicesFailed?.length || 0) > 0
+            || !!result.consoleRestartBlocked
+            || !!result.restartTimeout
+            || deployFailed;
+    }
+
+    function buildUpdateSummaryHtml(result, options = {}) {
+        const { includeSummary = true } = options;
+        const lines = [];
+        const deployFailed = !!(result?.serverDeploy && result.serverDeploy.success === false);
+        const hasFailures = hasUpdateFailures(result);
+        if (includeSummary) {
+            const summaryKey = hasFailures ? 'updates.complete_with_errors' : 'updates.complete_summary';
+            lines.push(`<p>${Utils.escapeHtml(_(summaryKey))}</p>`);
+        }
+        const stats = [
+            { label: _('updates.applied'), value: result?.applied?.length || 0 },
+            { label: _('updates.failed'),  value: result?.failed?.length  || 0 },
+            { label: _('updates.removed'), value: result?.removed?.length || 0 }
+        ];
+        lines.push(`<ul>${stats.map(s => `<li>${Utils.escapeHtml(s.label)}: <strong>${s.value}</strong></li>`).join('')}</ul>`);
+        if (result?.failed?.length) {
+            lines.push(`<ul class="update-wizard-error-list">${result.failed.map(f =>
+                `<li><strong>${Utils.escapeHtml(f.file || 'unknown')}</strong>${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
+            ).join('')}</ul>`);
+        }
+        if (result?.servicesFailed?.length) {
+            lines.push(`<ul class="update-wizard-error-list">${result.servicesFailed.map(s =>
+                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}</li>`
+            ).join('')}</ul>`);
+        }
+        if (result?.consoleRestartBlocked) {
+            lines.push(`<p class="update-wizard-error-list">${Utils.escapeHtml(result.consoleRestartBlocked)}</p>`);
+        }
+        if (result?.restartTimeout) {
+            lines.push(`<p>${Utils.escapeHtml(_('updates.restart_timeout'))}</p>`);
+            lines.push(`<p>${Utils.escapeHtml(_('updates.refresh_recommended'))}</p>`);
+        }
+        if (result?.errorMessage) {
+            lines.push(`<p class="update-wizard-error-list">${Utils.escapeHtml(result.errorMessage)}</p>`);
+        }
+        if (deployFailed) {
+            const errMsg = result.serverDeploy.error || '';
+            lines.push(`<p class="update-wizard-error-list"><strong>${Utils.escapeHtml(_('updates.server_deploy_failed'))}</strong></p>`);
+            if (errMsg) lines.push(`<pre style="font-size:11px;white-space:pre-wrap;margin:4px 0 0;">${Utils.escapeHtml(errMsg)}</pre>`);
+        } else if (result?.serverBuild?.success) {
+            const note = result.serverBuild.method === 'download' ? _('updates.server_downloaded') : _('updates.server_built');
+            lines.push(`<p>${Utils.escapeHtml(note)}</p>`);
+        }
+        const needsReload = (result?.applied || []).some(p => /\.(js|css|html|ejs)$/i.test(p));
+        if (needsReload && !result?.restartTimeout) {
+            lines.push(`<p>${Utils.escapeHtml(_('updates.refresh_recommended'))}</p>`);
+        }
+        return lines.join('');
+    }
+
+    function startReloadCountdown(seconds = 8) {
+        clearUpdateReloadTimers();
+        const wrap = document.getElementById('update-reload-countdown-wrap');
+        const countdownEl = document.getElementById('update-reload-countdown');
+        const barFill = document.querySelector('.update-wizard-countdown-bar-fill');
+        if (wrap) wrap.hidden = false;
+        if (barFill) {
+            barFill.style.animation = 'none';
+            void barFill.offsetWidth;
+            barFill.style.animation = `updateCountdownShrink ${seconds}s linear forwards`;
+        }
+        let remaining = seconds;
+        const tick = () => {
+            if (countdownEl) {
+                countdownEl.textContent = _('updates.reload_countdown').replace('{seconds}', String(remaining));
+            }
+        };
+        tick();
+        _updateReloadTimers.countdown = setInterval(() => {
+            remaining -= 1;
+            if (remaining >= 0) tick();
+        }, 1000);
+        _updateReloadTimers.auto = setTimeout(reloadConsole, seconds * 1000);
+    }
+
+    function transitionUpdateModal(state, result) {
+        const wizard = document.querySelector('.update-wizard');
+        if (!wizard) return;
+        wizard.dataset.state = state;
+
+        const banner = document.getElementById('update-wizard-banner');
+        const bannerText = document.getElementById('update-wizard-banner-text');
+        const bannerDetails = document.getElementById('update-wizard-banner-details');
+        const countdownWrap = document.getElementById('update-reload-countdown-wrap');
+
+        clearUpdateReloadTimers();
+        if (countdownWrap) countdownWrap.hidden = true;
+
+        banner.hidden = false;
+        banner.classList.remove('is-success', 'is-error', 'is-warning');
+
+        const hasFailures = hasUpdateFailures(result);
+        const closeFooterBtn = {
+            label: _('updates.modal_close'),
+            class: 'btn-secondary',
+            onClick: () => {
+                window.Modal.close();
+                enableUpdateInstallBtn();
+            }
+        };
+
+        if (state === 'success_reload') {
+            setModalClosable(true);
+            updateModalTitle(_('updates.modal_done_title'));
+            banner.classList.add('is-success');
+            if (bannerText) bannerText.innerHTML = `<p>${Utils.escapeHtml(_('updates.restart_complete_msg'))}</p>`;
+            if (bannerDetails) bannerDetails.innerHTML = '';
+            updateModalFooter([
+                closeFooterBtn,
+                { label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole }
+            ]);
+            startReloadCountdown(8);
+        } else if (state === 'success_no_reload') {
+            setModalClosable(true);
+            updateModalTitle(_('updates.modal_done_title'));
+            banner.classList.add('is-success');
+            if (bannerText) bannerText.innerHTML = `<p>${Utils.escapeHtml(_('updates.complete_summary'))}</p>`;
+            if (bannerDetails) bannerDetails.innerHTML = buildUpdateSummaryHtml(result, { includeSummary: false });
+            const footer = [closeFooterBtn];
+            const needsReload = (result?.applied || []).some(p => /\.(js|css|html|ejs)$/i.test(p));
+            if (needsReload) {
+                footer.push({ label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole });
+            }
+            updateModalFooter(footer);
+        } else if (state === 'partial_error' || state === 'error') {
+            toggleUpdateLogExpanded(true);
+            setModalClosable(true);
+            updateModalTitle(_('updates.modal_done_with_errors_title'));
+            banner.classList.add(result?.restartTimeout ? 'is-warning' : 'is-error');
+            if (bannerText) bannerText.innerHTML = '';
+            if (bannerDetails) bannerDetails.innerHTML = buildUpdateSummaryHtml(result);
+            const errorFooter = [
+                closeFooterBtn,
+                { label: _('updates.log_copy'), class: 'btn-secondary', icon: 'content_copy', onClick: copyUpdateLog },
+                { label: _('updates.retry_update'), class: 'btn-primary', icon: 'replay', onClick: retryUpdateInstall }
+            ];
+            if (result?.restartTimeout) {
+                errorFooter.splice(1, 0, {
+                    label: _('updates.modal_reload_now'),
+                    class: 'btn-secondary',
+                    icon: 'refresh',
+                    onClick: reloadConsole
+                });
+            }
+            updateModalFooter(errorFooter);
+            enableUpdateInstallBtn();
+        }
+
+        loadLastUpdateResult();
+    }
+
+    function enableUpdateInstallBtn() {
+        const installBtn = document.getElementById('update-install-btn');
+        if (installBtn) installBtn.disabled = false;
+    }
+
+    async function retryUpdateInstall() {
+        const proceed = await window.Modal.confirm({
+            title: _('updates.retry_update'),
+            message: _('updates.retry_confirm'),
+            confirmLabel: _('updates.retry_update'),
+            confirmIcon: 'replay'
+        });
+        if (!proceed) return;
+        window.Modal.close();
+        installUpdate({ skipConfirm: true });
+    }
+
+    function showUpdateCompletionModal(result) {
+        if (hasUpdateFailures(result)) {
+            transitionUpdateModal('partial_error', result);
+        } else {
+            transitionUpdateModal('success_no_reload', result);
+        }
+    }
+
+    async function installUpdate(options = {}) {
+        const { skipConfirm = false } = options;
         const installBtn = document.getElementById('update-install-btn');
 
         if (!_updateState.remoteSHA) {
@@ -3242,58 +3602,60 @@
         const hasServerUpdate = (_updateState.changedData?.grouped?.server || []).length > 0;
         const createBackup = document.getElementById('update-backup-toggle')?.checked ?? true;
 
-        // Preflight checks (issue #158)
-        let preflightWarnings = [];
-        try {
-            const pfUrl = hasServerUpdate
-                ? '/api/settings/updates/preflight?serverUpdate=1'
-                : '/api/settings/updates/preflight';
-            const pf = await Utils.api(pfUrl);
-            if (pf && pf.ready === false && Array.isArray(pf.issues) && pf.issues.length) {
-                Notifications.error(pf.issues.join('; '));
-                return;
-            }
-            if (pf && Array.isArray(pf.warnings)) preflightWarnings = pf.warnings;
-        } catch (_e) { /* non-blocking if preflight endpoint unavailable */ }
+        if (!skipConfirm) {
+            // Preflight checks (issue #158)
+            let preflightWarnings = [];
+            try {
+                const pfUrl = hasServerUpdate
+                    ? '/api/settings/updates/preflight?serverUpdate=1'
+                    : '/api/settings/updates/preflight';
+                const pf = await Utils.api(pfUrl);
+                if (pf && pf.ready === false && Array.isArray(pf.issues) && pf.issues.length) {
+                    Notifications.error(pf.issues.join('; '));
+                    return;
+                }
+                if (pf && Array.isArray(pf.warnings)) preflightWarnings = pf.warnings;
+            } catch (_e) { /* non-blocking if preflight endpoint unavailable */ }
 
-        // Pre-flight confirmation modal
-        const scopeItems = getUpdateScopeLabels();
-        const strategyNote = hasServerUpdate ? _('updates.auto_strategy_hint') : '';
-        const warnHtml = preflightWarnings.length
-            ? `<p class="text-muted" style="font-size:12px;margin-top:8px;">${preflightWarnings.map(w => Utils.escapeHtml(w)).join('<br>')}</p>`
-            : '';
-        const confirmHtml = `
-            <p>${Utils.escapeHtml(_('updates.install_confirm'))}</p>
-            <ul style="margin:8px 0 0 0;padding-left:20px;font-size:13px;color:var(--text-secondary);">
-                <li>${Utils.escapeHtml(createBackup ? _('updates.confirm_with_backup') : _('updates.confirm_no_backup'))}</li>
-                ${scopeItems.map(item => `<li>${Utils.escapeHtml(item)}</li>`).join('')}
-                ${hasServerUpdate ? `<li>${Utils.escapeHtml(strategyNote || '')}</li>` : ''}
-            </ul>
-            ${warnHtml}
-        `;
-        const proceed = await new Promise((resolve) => {
-            window.Modal.show({
-                title: _('updates.confirm_title'),
-                content: confirmHtml,
-                buttons: [
-                    { label: _('actions.cancel'),  class: 'btn-secondary', onClick: () => { window.Modal.close(); resolve(false); } },
-                    { label: _('updates.install'), class: 'btn-primary', icon: 'system_update', onClick: () => { window.Modal.close(); resolve(true); } }
-                ],
-                closable: true,
-                onClose: () => resolve(false)
+            const scopeItems = getUpdateScopeLabels();
+            const strategyNote = hasServerUpdate ? _('updates.auto_strategy_hint') : '';
+            const warnHtml = preflightWarnings.length
+                ? `<p class="text-muted" style="font-size:12px;margin-top:8px;">${preflightWarnings.map(w => Utils.escapeHtml(w)).join('<br>')}</p>`
+                : '';
+            const confirmHtml = `
+                <p>${Utils.escapeHtml(_('updates.install_confirm'))}</p>
+                <ul style="margin:8px 0 0 0;padding-left:20px;font-size:13px;color:var(--text-secondary);">
+                    <li>${Utils.escapeHtml(createBackup ? _('updates.confirm_with_backup') : _('updates.confirm_no_backup'))}</li>
+                    ${scopeItems.map(item => `<li>${Utils.escapeHtml(item)}</li>`).join('')}
+                    ${hasServerUpdate ? `<li>${Utils.escapeHtml(strategyNote || '')}</li>` : ''}
+                </ul>
+                ${warnHtml}
+            `;
+            const proceed = await new Promise((resolve) => {
+                window.Modal.show({
+                    title: _('updates.confirm_title'),
+                    content: confirmHtml,
+                    buttons: [
+                        { label: _('actions.cancel'),  class: 'btn-secondary', onClick: () => { window.Modal.close(); resolve(false); } },
+                        { label: _('updates.install'), class: 'btn-primary', icon: 'system_update', onClick: () => { window.Modal.close(); resolve(true); } }
+                    ],
+                    closable: true,
+                    onClose: () => resolve(false)
+                });
             });
-        });
-        if (!proceed) return;
+            if (!proceed) return;
+        }
 
         if (installBtn) installBtn.disabled = true;
+        clearUpdateReloadTimers();
 
-        // Open progress modal (non-closable while running)
         window.Modal.show({
             title: _('updates.modal_title'),
             content: buildUpdateModalContent(),
             buttons: [],
             closable: false,
-            size: 'large'
+            size: 'large',
+            onOpen: () => bindUpdateLogControls()
         });
 
         UPDATE_PHASES.forEach(p => setUpdatePhase(p.id, 'pending'));
@@ -3303,8 +3665,6 @@
         logUpdate(`Starting update to ${_updateState.remoteSHA.slice(0, 7)}…`);
 
         try {
-            // Console download phase indicator (we cannot stream backend
-            // progress today, so we just mark it active until response arrives)
             setTimeout(() => {
                 setUpdatePhase('backup', 'done');
                 setUpdatePhase('console', 'active', _('updates.downloading'));
@@ -3322,13 +3682,11 @@
                 body: { remoteSHA: _updateState.remoteSHA, createBackup }
             });
 
-            // Mark earlier phases done if not already
             ['backup', 'console'].forEach(p => {
                 const st = document.querySelector(`[data-phase-state="${p}"]`)?.dataset?.state;
                 if (st !== 'done' && st !== 'skipped') setUpdatePhase(p, 'done');
             });
 
-            // Server result
             if (hasServerUpdate) {
                 if (result.toolchainInstall) {
                     if (result.toolchainInstall.success) {
@@ -3349,7 +3707,6 @@
                         setUpdatePhase('server', 'done', detail);
                         logUpdate(detail);
                     } else if (result.serverBuild.success && deployFailed) {
-                        // Build OK but deploy to service path failed — surface as error
                         const detail = _('updates.server_deploy_failed');
                         setUpdatePhase('server', 'error', detail);
                         logUpdate(`${detail}: ${result.serverDeploy.error || ''}`);
@@ -3392,19 +3749,18 @@
             if (result.needsConsoleRestart && !result.consoleRestartBlocked) {
                 setUpdatePhase('restart', 'active', _('updates.restarting'));
                 logUpdate(_('updates.console_will_restart'));
-                setTimeout(() => pollConsoleRestart(), 2500);
+                setTimeout(() => pollConsoleRestart(result), 2500);
             } else if (result.consoleRestartBlocked) {
                 setUpdatePhase('restart', 'error', result.consoleRestartBlocked);
                 logUpdate(result.consoleRestartBlocked);
                 setUpdatePhase('done', 'done', _('updates.complete_with_errors'));
                 showUpdateCompletionModal(result);
-                if (installBtn) installBtn.disabled = false;
                 loadServerBinaryStatus();
             } else {
                 setUpdatePhase('restart', 'skipped', _('updates.no_restart_needed'));
                 setUpdatePhase('done', 'done', _('updates.complete'));
                 showUpdateCompletionModal(result);
-                if (installBtn) installBtn.disabled = false;
+                enableUpdateInstallBtn();
                 loadServerBinaryStatus();
             }
         } catch (error) {
@@ -3414,74 +3770,13 @@
             });
             if (activePhase) setUpdatePhase(activePhase.id, 'error', error.message || _('updates.install_failed'));
             logUpdate(`ERROR: ${error.message || error}`);
-
-            // Replace empty footer with a Close button so the user can dismiss
-            window.Modal.close();
-            await window.Modal.alert({
-                title: _('updates.install_failed'),
-                message: error.message || _('errors.server_error')
-            });
+            transitionUpdateModal('error', { errorMessage: error.message || _('errors.server_error') });
             Notifications.error(error.message || _('updates.install_failed'));
-            if (installBtn) installBtn.disabled = false;
+            enableUpdateInstallBtn();
         }
     }
 
-    function showUpdateCompletionModal(result) {
-        const lines = [];
-        const deployFailed = !!(result.serverDeploy && result.serverDeploy.success === false);
-        const hasFailures = (result.failed?.length || 0) > 0
-            || (result.servicesFailed?.length || 0) > 0
-            || !!result.consoleRestartBlocked
-            || deployFailed;
-        const summaryKey = hasFailures ? 'updates.complete_with_errors' : 'updates.complete_summary';
-        lines.push(`<p>${Utils.escapeHtml(_(summaryKey))}</p>`);
-        const stats = [
-            { label: _('updates.applied'), value: result.applied?.length || 0 },
-            { label: _('updates.failed'),  value: result.failed?.length  || 0 },
-            { label: _('updates.removed'), value: result.removed?.length || 0 }
-        ];
-        lines.push(`<ul style="margin:8px 0;padding-left:20px;font-size:13px;">${stats.map(s => `<li>${Utils.escapeHtml(s.label)}: <strong>${s.value}</strong></li>`).join('')}</ul>`);
-        if (result.failed?.length) {
-            lines.push(`<ul style="margin:8px 0;padding-left:20px;font-size:12px;color:var(--danger,#e34935);">${result.failed.map(f =>
-                `<li><strong>${Utils.escapeHtml(f.file || 'unknown')}</strong>${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
-            ).join('')}</ul>`);
-        }
-        if (result.servicesFailed?.length) {
-            lines.push(`<ul style="margin:8px 0;padding-left:20px;font-size:12px;color:var(--danger,#e34935);">${result.servicesFailed.map(s =>
-                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}</li>`
-            ).join('')}</ul>`);
-        }
-        if (result.consoleRestartBlocked) {
-            lines.push(`<p style="font-size:12px;color:var(--danger,#e34935);">${Utils.escapeHtml(result.consoleRestartBlocked)}</p>`);
-        }
-        if (deployFailed) {
-            const errMsg = result.serverDeploy.error || '';
-            lines.push(`<p style="font-size:13px;color:var(--danger,#e34935);"><strong>${Utils.escapeHtml(_('updates.server_deploy_failed'))}</strong></p>`);
-            if (errMsg) lines.push(`<pre style="font-size:12px;background:var(--bg-secondary,#1a1a1a);padding:8px;border-radius:4px;overflow:auto;max-height:120px;white-space:pre-wrap;">${Utils.escapeHtml(errMsg)}</pre>`);
-        } else if (result.serverBuild?.success) {
-            const note = result.serverBuild.method === 'download' ? _('updates.server_downloaded') : _('updates.server_built');
-            lines.push(`<p style="font-size:13px;color:var(--text-secondary);">${Utils.escapeHtml(note)}</p>`);
-        }
-        // Some updates require manual reload (e.g., static asset changes)
-        const needsReload = (result.applied || []).some(p => /\.(js|css|html|ejs)$/i.test(p));
-        if (needsReload) {
-            lines.push(`<p style="font-size:13px;margin-top:8px;">${Utils.escapeHtml(_('updates.refresh_recommended'))}</p>`);
-        }
-
-        window.Modal.close();
-        window.Modal.show({
-            title: _(hasFailures ? 'updates.modal_done_with_errors_title' : 'updates.modal_done_title'),
-            content: lines.join(''),
-            buttons: [
-                { label: _('updates.modal_close'),     class: 'btn-secondary', onClick: () => { window.Modal.close(); } },
-                { label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole }
-            ],
-            closable: !hasFailures
-        });
-        loadLastUpdateResult();
-    }
-
-    function pollConsoleRestart() {
+    function pollConsoleRestart(installResult) {
         let attempts = 0;
         const maxAttempts = 90;
         const previousCacheVersion = window.BetterDesk?.cacheVersion || '';
@@ -3506,21 +3801,12 @@
                     setUpdatePhase('done', 'done', _('updates.complete'));
                     logUpdate(_('updates.restart_complete'));
 
-                    // Final modal: tell operator to refresh
-                    window.Modal.close();
-                    window.Modal.show({
-                        title: _('updates.modal_done_title'),
-                        content: `<p>${Utils.escapeHtml(_('updates.restart_complete_msg'))}</p>`,
-                        buttons: [
-                            { label: _('updates.modal_close'),     class: 'btn-secondary', onClick: () => { window.Modal.close(); } },
-                            { label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole }
-                        ],
-                        closable: true
-                    });
-
-                    // Auto-reload after a short grace period so operators do
-                    // not have to click — gives them time to read the modal.
-                    setTimeout(reloadConsole, 8000);
+                    const merged = { ...(installResult || {}), restartTimeout: false };
+                    if (hasUpdateFailures(merged)) {
+                        transitionUpdateModal('partial_error', merged);
+                    } else {
+                        transitionUpdateModal('success_reload', merged);
+                    }
                     return;
                 }
             } catch (_e) {
@@ -3532,19 +3818,14 @@
                 setUpdatePhase('done', 'done', _('updates.complete'));
                 logUpdate(_('updates.restart_timeout'));
 
-                const installBtn = document.getElementById('update-install-btn');
-                if (installBtn) installBtn.disabled = false;
-
-                window.Modal.close();
-                window.Modal.show({
-                    title: _('updates.modal_done_title'),
-                    content: `<p>${Utils.escapeHtml(_('updates.restart_timeout'))}</p><p>${Utils.escapeHtml(_('updates.refresh_recommended'))}</p>`,
-                    buttons: [
-                        { label: _('updates.modal_close'),     class: 'btn-secondary', onClick: () => { window.Modal.close(); } },
-                        { label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole }
-                    ],
-                    closable: true
-                });
+                const merged = {
+                    ...(installResult || {}),
+                    restartTimeout: true,
+                    failed: installResult?.failed || [],
+                    applied: installResult?.applied || [],
+                    removed: installResult?.removed || []
+                };
+                transitionUpdateModal('partial_error', merged);
             }
         }, 2000);
     }

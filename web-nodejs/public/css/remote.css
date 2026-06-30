@@ -3,6 +3,10 @@
  * Fullscreen viewer with auto-hiding toolbar, connection overlay, and dark theme
  */
 
+.hidden {
+    display: none !important;
+}
+
 /* ---- Toast Notifications ---- */
 .rd-toast {
     position: fixed;
