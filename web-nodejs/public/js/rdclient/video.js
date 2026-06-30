@@ -359,6 +359,7 @@ class RDVideo {
 
         // Buffer for frames that arrive before JMuxer is ready
         this._pendingFeeds = [];
+        this._pendingFeedsMax = 45;
         this._jmuxerReady = false;
 
         this._videoEl.addEventListener('error', (e) => {
@@ -539,29 +540,31 @@ class RDVideo {
      * Uses aggressive seeking and gentle playback rate adjustment.
      */
     _startHealthCheck() {
+        this._healthIntervalMs = 1000;
         this._healthInterval = setInterval(() => {
             if (!this._videoEl || !this.fallbackMode) return;
             const v = this._videoEl;
 
-            // Periodic diagnostics (every 5 seconds)
+            // Periodic diagnostics (every 5 seconds, debug only)
             const now = performance.now();
-            if (!this._lastDiagTime || now - this._lastDiagTime > 5000) {
-                this._lastDiagTime = now;
-                let bufInfo = 'none';
-                if (v.buffered && v.buffered.length > 0) {
-                    bufInfo = v.buffered.start(0).toFixed(2) + '-' + v.buffered.end(v.buffered.length - 1).toFixed(2);
+            if (typeof window !== 'undefined' && window.BetterDesk && window.BetterDesk.debugRelay === true) {
+                if (!this._lastDiagTime || now - this._lastDiagTime > 5000) {
+                    this._lastDiagTime = now;
+                    let bufInfo = 'none';
+                    if (v.buffered && v.buffered.length > 0) {
+                        bufInfo = v.buffered.start(0).toFixed(2) + '-' + v.buffered.end(v.buffered.length - 1).toFixed(2);
+                    }
+                    while (this._feedTimestamps.length > 0 && this._feedTimestamps[0] < now - 1000) {
+                        this._feedTimestamps.shift();
+                    }
+                    console.log('[RDVideo] Health: frames=' + this.frameCount
+                        + ' fps=' + this._feedTimestamps.length
+                        + ' readyState=' + v.readyState
+                        + ' currentTime=' + v.currentTime.toFixed(2)
+                        + ' buffered=' + bufInfo
+                        + ' paused=' + v.paused
+                        + ' dropped=' + this.droppedFrames);
                 }
-                // Count recent FPS
-                while (this._feedTimestamps.length > 0 && this._feedTimestamps[0] < now - 1000) {
-                    this._feedTimestamps.shift();
-                }
-                console.log('[RDVideo] Health: frames=' + this.frameCount
-                    + ' fps=' + this._feedTimestamps.length
-                    + ' readyState=' + v.readyState
-                    + ' currentTime=' + v.currentTime.toFixed(2)
-                    + ' buffered=' + bufInfo
-                    + ' paused=' + v.paused
-                    + ' dropped=' + this.droppedFrames);
             }
 
             // Recovery: catch up to live edge if fallen behind
@@ -584,12 +587,12 @@ class RDVideo {
                 }
 
                 // Trim old buffer data to prevent SourceBuffer overflow
-                // Keep at most 3s of data, trim to last 1.5s
-                if (bufferSize > 3.0 && this._jmuxer && this._jmuxer.sourceBuffer) {
+                // Keep at most ~2.5s of data, trim to last 1s
+                if (bufferSize > 2.5 && this._jmuxer && this._jmuxer.sourceBuffer) {
                     try {
                         const sb = this._jmuxer.sourceBuffer;
-                        if (sb.video && !sb.video.updating && start < end - 1.5) {
-                            sb.video.remove(start, end - 1.5);
+                        if (sb.video && !sb.video.updating && start < end - 1.0) {
+                            sb.video.remove(start, end - 1.0);
                         }
                     } catch (_) {
                         // SourceBuffer remove can fail if updating
@@ -620,7 +623,7 @@ class RDVideo {
                     this._reinitJMuxer();
                 }
             }
-        }, 300);
+        }, this._healthIntervalMs || 1000);
     }
 
     /**
@@ -784,6 +787,11 @@ class RDVideo {
 
             // If JMuxer not ready yet, buffer the frame and replay on ready
             if (!this._jmuxerReady) {
+                const maxPending = this._pendingFeedsMax || 45;
+                if (this._pendingFeeds.length >= maxPending) {
+                    this._pendingFeeds.shift();
+                    this.droppedFrames++;
+                }
                 this._pendingFeeds.push(videoData);
                 return;
             }
@@ -1031,6 +1039,12 @@ class RDVideo {
         }
         const videoFps = this._feedTimestamps.length;
 
+        let mseBufferSec = 0;
+        if (this.fallbackMode && this._videoEl && this._videoEl.buffered && this._videoEl.buffered.length > 0) {
+            const b = this._videoEl.buffered;
+            mseBufferSec = b.end(b.length - 1) - b.start(0);
+        }
+
         return {
             codec: this.currentCodec,
             initialized: this.initialized,
@@ -1040,7 +1054,9 @@ class RDVideo {
             displayHeight: this.displayHeight,
             queueSize: this.decoder ? this.decoder.decodeQueueSize : 0,
             fallbackMode: this.fallbackMode,
-            videoFps: videoFps
+            videoFps: videoFps,
+            mseBufferSec: mseBufferSec,
+            pendingFeeds: this._pendingFeeds ? this._pendingFeeds.length : 0
         };
     }
 

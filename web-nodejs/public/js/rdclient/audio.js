@@ -154,6 +154,9 @@ class RDAudio {
         const currentTime = this.audioCtx.currentTime;
         if (this.nextPlayTime < currentTime) {
             this.nextPlayTime = currentTime + 0.005;
+        } else if (this.nextPlayTime - currentTime > 0.3) {
+            // Too far ahead — drop queued scheduling lag to avoid BufferSource buildup
+            this.nextPlayTime = currentTime + 0.005;
         }
 
         source.start(this.nextPlayTime);

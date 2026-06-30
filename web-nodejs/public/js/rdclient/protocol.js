@@ -861,6 +861,11 @@ class RDProtocol {
                     dataLen = remaining;
                 }
 
+                // Release oversized backing store after large spikes
+                if (dataLen === 0 && buffer.length > 65536) {
+                    buffer = new Uint8Array(0);
+                }
+
                 return frames;
             },
 
