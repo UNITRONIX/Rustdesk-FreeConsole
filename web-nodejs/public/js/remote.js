@@ -1648,6 +1648,9 @@
             if (e.target === sessionPickerBackdrop) closeSessionPicker();
         });
 
+        const sessionPickerPanel = document.getElementById('session-picker-panel');
+        sessionPickerPanel?.addEventListener('click', (e) => e.stopPropagation());
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && sessionPickerBackdrop?.classList.contains('open')) {
                 closeSessionPicker();
