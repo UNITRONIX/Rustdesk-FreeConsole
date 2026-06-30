@@ -747,6 +747,41 @@ infer_tls_mode_from_cert() {
     fi
 }
 
+# Resolve Let's Encrypt live/ dir from .env, paths, symlinks, LE_CERT_DOMAIN, or cert SAN (#219).
+resolve_le_cert_live_dir() {
+    local env_file="${1:-${CONSOLE_PATH}/.env}"
+    local cert_hint="${2:-$RUSTDESK_PATH/ssl/betterdesk.crt}"
+    local ssl_key_env ssl_cert_env le_live_dir le_domain dns_name
+
+    le_live_dir=$(grep -m1 '^LE_CERT_LIVE_DIR=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
+    ssl_cert_env=$(grep -m1 '^SSL_CERT_PATH=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
+    ssl_key_env=$(grep -m1 '^SSL_KEY_PATH=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
+
+    if [ -z "$le_live_dir" ] && [[ "$ssl_cert_env" == *"/etc/letsencrypt/"* ]]; then
+        le_live_dir=$(dirname "$(readlink -f "$ssl_cert_env" 2>/dev/null || echo "$ssl_cert_env")")
+    fi
+    if [ -z "$le_live_dir" ] && [[ "$ssl_key_env" == *"/etc/letsencrypt/"* ]]; then
+        le_live_dir=$(dirname "$(readlink -f "$ssl_key_env" 2>/dev/null || echo "$ssl_key_env")")
+    fi
+    if [ -z "$le_live_dir" ] && [ -L "$cert_hint" ]; then
+        le_live_dir=$(dirname "$(readlink -f "$cert_hint" 2>/dev/null || echo "")")
+    fi
+    if [ -z "$le_live_dir" ]; then
+        le_domain=$(grep -m1 '^LE_CERT_DOMAIN=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
+        if [ -n "$le_domain" ] && [ -d "/etc/letsencrypt/live/$le_domain" ]; then
+            le_live_dir="/etc/letsencrypt/live/$le_domain"
+        fi
+    fi
+    if [ -z "$le_live_dir" ] && [ -f "$cert_hint" ] && command -v openssl &>/dev/null; then
+        dns_name=$(openssl x509 -in "$cert_hint" -noout -ext subjectAltName 2>/dev/null | \
+            grep -oE 'DNS:[^, ]+' | head -1 | cut -d: -f2- || true)
+        if [ -n "$dns_name" ] && [ -d "/etc/letsencrypt/live/$dns_name" ]; then
+            le_live_dir="/etc/letsencrypt/live/$dns_name"
+        fi
+    fi
+    echo "$le_live_dir"
+}
+
 # Copy TLS material into $RUSTDESK_PATH/ssl/ as real files (not symlinks) so the
 # betterdesk console user can read them. LE live dirs are root-only (#219).
 deploy_ssl_material_to_rustdesk_dir() {
@@ -834,6 +869,7 @@ maybe_repair_le_ssl_symlinks() {
     local env_file="${CONSOLE_PATH}/.env"
     local needs_redeploy="no"
     local ssl_key_env ssl_cert_env
+    local console_user="betterdesk"
 
     for f in "$crt" "$key"; do
         if [ -L "$f" ]; then
@@ -850,26 +886,17 @@ maybe_repair_le_ssl_symlinks() {
     if [[ "$ssl_key_env" == *"/etc/letsencrypt/"* ]] || [[ "$ssl_cert_env" == *"/etc/letsencrypt/"* ]]; then
         needs_redeploy="yes"
     fi
+    if id "$console_user" &>/dev/null && [ -e "$key" ] \
+        && ! runuser -u "$console_user" -- test -r "$key" 2>/dev/null; then
+        needs_redeploy="yes"
+    fi
 
     if [ "$needs_redeploy" != "yes" ]; then
         return 0
     fi
 
     local le_live_dir
-    le_live_dir=$(grep -m1 '^LE_CERT_LIVE_DIR=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
-    if [ -z "$le_live_dir" ] && [ -n "$ssl_cert_env" ]; then
-        le_live_dir=$(dirname "$(readlink -f "$ssl_cert_env" 2>/dev/null || echo "$ssl_cert_env")")
-    fi
-    if [ -z "$le_live_dir" ] && [ -L "$crt" ]; then
-        le_live_dir=$(dirname "$(readlink -f "$crt" 2>/dev/null || echo "")")
-    fi
-    if [ -z "$le_live_dir" ]; then
-        local le_domain
-        le_domain=$(grep -m1 '^LE_CERT_DOMAIN=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
-        if [ -n "$le_domain" ] && [ -d "/etc/letsencrypt/live/$le_domain" ]; then
-            le_live_dir="/etc/letsencrypt/live/$le_domain"
-        fi
-    fi
+    le_live_dir=$(resolve_le_cert_live_dir "$env_file" "$crt")
 
     if [ -z "$le_live_dir" ] || [ ! -f "$le_live_dir/fullchain.pem" ] || [ ! -f "$le_live_dir/privkey.pem" ]; then
         print_warning "LE certificate symlinks detected but live dir not found — manual repair may be needed"
@@ -925,19 +952,9 @@ ensure_console_tls_material_readable() {
     fi
 
     local le_live_dir
-    le_live_dir=$(grep -m1 '^LE_CERT_LIVE_DIR=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
-    if [ -z "$le_live_dir" ] && [[ "$ssl_cert_path" == *"/etc/letsencrypt/"* ]]; then
-        le_live_dir=$(dirname "$(readlink -f "$ssl_cert_path" 2>/dev/null || echo "$ssl_cert_path")")
-    fi
-    if [ -z "$le_live_dir" ] && [[ "$ssl_key_path" == *"/etc/letsencrypt/"* ]]; then
-        le_live_dir=$(dirname "$(readlink -f "$ssl_key_path" 2>/dev/null || echo "$ssl_key_path")")
-    fi
-    if [ -z "$le_live_dir" ]; then
-        local le_domain
-        le_domain=$(grep -m1 '^LE_CERT_DOMAIN=' "$env_file" 2>/dev/null | cut -d= -f2- || true)
-        if [ -n "$le_domain" ] && [ -d "/etc/letsencrypt/live/$le_domain" ]; then
-            le_live_dir="/etc/letsencrypt/live/$le_domain"
-        fi
+    le_live_dir=$(resolve_le_cert_live_dir "$env_file" "$ssl_key_path")
+    if [ -z "$le_live_dir" ] && [ -n "$ssl_cert_path" ]; then
+        le_live_dir=$(resolve_le_cert_live_dir "$env_file" "$ssl_cert_path")
     fi
 
     if [ -n "$le_live_dir" ] && [ -f "$le_live_dir/fullchain.pem" ] && [ -f "$le_live_dir/privkey.pem" ]; then

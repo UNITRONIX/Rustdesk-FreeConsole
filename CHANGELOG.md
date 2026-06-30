@@ -8,7 +8,8 @@
 ## [3.3.80] — 2026-06-29
 
 ### Fixed
-- **Linux HTTP/HTTPS toggle follow-up (#219)**: panel updates and `betterdesk.sh` updates now re-run Let's Encrypt TLS repair (`ensure_console_tls_material_readable` / `linux-ensure-console-user.js`) so unreadable LE keys are re-copied into `$RUSTDESK_PATH/ssl/` without a manual protocol toggle. Post-toggle tests wait up to 15s for the console and Client API to finish booting (fewer false failures). **SSL menu (C)** now uses the same `apply_console_protocol_mode` + `deploy_ssl_material_to_rustdesk_dir` path as Protocol Toggle (T) — custom/self-signed/Enterprise certs get correct `root:betterdesk` permissions and systemd sync. LE repair also resolves `LE_CERT_DOMAIN` when `LE_CERT_LIVE_DIR` is missing.
+- **Linux HTTP/HTTPS toggle hotfix (#219)**: `linux-ensure-console-user.js` contained a bash syntax fragment (`if [ -z ...`) that crashed the console on every start — fixed. LE repair also resolves the certbot live dir from the certificate SAN when `LE_CERT_LIVE_DIR` is missing.
+- **Linux HTTP/HTTPS toggle follow-up (#219)**: panel updates and `betterdesk.sh` updates re-run Let's Encrypt TLS repair; SSL menu (C) unified with Protocol Toggle (T); post-toggle tests wait for Node boot.
 
 ### Changed
 - **Let's Encrypt installer messaging (#219)**: after LE setup, the installer reminds operators to open `https://<domain>:5443` (IP access shows certificate name errors).

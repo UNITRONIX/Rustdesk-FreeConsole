@@ -358,6 +358,28 @@ function tlsKeyReadableByConsoleUser(keyPath, svcUser = SVC_USER, runFn = runPri
 }
 
 /**
+ * Infer /etc/letsencrypt/live/<domain> from certificate SAN (#219).
+ * @param {string} certPath
+ * @returns {string}
+ */
+function inferLeLiveDirFromCertSan(certPath) {
+    if (!certPath || !fs.existsSync(certPath)) return '';
+    try {
+        const out = execFileSync('openssl', [
+            'x509', '-in', certPath, '-noout', '-ext', 'subjectAltName',
+        ], { encoding: 'utf8', timeout: 5000, stdio: 'pipe' });
+        const match = out.match(/DNS:([^,\s]+)/);
+        if (!match || !match[1]) return '';
+        const candidate = path.join('/etc/letsencrypt/live', match[1]);
+        if (fs.existsSync(path.join(candidate, 'fullchain.pem'))
+            && fs.existsSync(path.join(candidate, 'privkey.pem'))) {
+            return candidate;
+        }
+    } catch (_) { /* ok */ }
+    return '';
+}
+
+/**
  * Resolve LE live directory from env / cert path hints (#219).
  * @param {object} opts
  * @returns {string}
@@ -370,7 +392,7 @@ function resolveLetsEncryptLiveDir(opts = {}) {
     if (!leLiveDir && sslCertPath.includes('/etc/letsencrypt/')) {
         leLiveDir = path.dirname(sslCertPath);
     }
-    if [ -z "$le_live_dir" ] && sslKeyPath.includes('/etc/letsencrypt/')) {
+    if (!leLiveDir && sslKeyPath.includes('/etc/letsencrypt/')) {
         leLiveDir = path.dirname(sslKeyPath);
     }
     if (!leLiveDir) {
@@ -378,6 +400,10 @@ function resolveLetsEncryptLiveDir(opts = {}) {
         if (leDomain) {
             leLiveDir = path.join('/etc/letsencrypt/live', leDomain);
         }
+    }
+    if (!leLiveDir) {
+        leLiveDir = inferLeLiveDirFromCertSan(sslCertPath)
+            || inferLeLiveDirFromCertSan(path.join(RUSTDESK_PATH, 'ssl', 'betterdesk.crt'));
     }
     return leLiveDir;
 }
@@ -694,6 +720,7 @@ module.exports = {
     patchServiceUserLine,
     readEnvFileValue,
     isTruthyEnvValue,
+    inferLeLiveDirFromCertSan,
     resolveLetsEncryptLiveDir,
     shouldRedeployLetsEncryptMaterial,
     repairLetsEncryptSslMaterial,
