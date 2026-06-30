@@ -1116,6 +1116,10 @@
     "start_playback": "प्लेबैक प्रारंभ करें",
     "new_connection": "नया कनेक्शन",
     "device_id_placeholder": "डिवाइस आईडी दर्ज करें",
+    "session_picker": {
+      "title": "डिवाइस चुनें",
+      "already_connected": "पहले से कनेक्टेड"
+    },
     "http_warning": "HTTP मोड: H.264 सॉफ़्टवेयर डिकोड (~15 FPS) तक सीमित। पूर्ण प्रदर्शन के लिए HTTPS का उपयोग करें (WebCodecs, VP9, 60 FPS)।",
     "file_transfer": "दस्तावेज हस्तांतरण",
     "file_upload": "Upload",

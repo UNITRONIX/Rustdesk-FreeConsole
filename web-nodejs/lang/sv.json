@@ -1116,6 +1116,10 @@
     "start_playback": "Starta uppspelning",
     "new_connection": "Ny anslutning",
     "device_id_placeholder": "Ange enhets-ID",
+    "session_picker": {
+      "title": "Välj enhet",
+      "already_connected": "Redan ansluten"
+    },
     "http_warning": "HTTP-läge: begränsat till H.264 mjukvaruavkodning (~15 FPS). Använd HTTPS för full prestanda (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Filöverföring",
     "file_upload": "Upload",

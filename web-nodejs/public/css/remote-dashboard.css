@@ -743,6 +743,25 @@ html.rd-desk-desktop {
     font-size: 18px;
 }
 
+.rd-desk-connected-badge {
+    display: flex;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.rd-desk-connected-badge .material-icons {
+    font-size: 18px !important;
+}
+
+.rd-desk-connected-label {
+    font-size: 11px;
+    color: var(--text-secondary, #8b949e);
+}
+
+.rd-desk-card-connected {
+    opacity: 0.72;
+}
+
 /* ── List view ── */
 .rd-desk-table-wrap {
     border-radius: var(--radius-lg, 12px);

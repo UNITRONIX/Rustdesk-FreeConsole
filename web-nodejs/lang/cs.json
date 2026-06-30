@@ -1110,6 +1110,10 @@
     "start_playback": "Spustit přehrávání",
     "new_connection": "Nové připojení",
     "device_id_placeholder": "Zadejte ID zařízení",
+    "session_picker": {
+      "title": "Vyberte zařízení",
+      "already_connected": "Již připojeno"
+    },
     "http_warning": "Režim HTTP: omezeno na softwarové dekódování H.264 (~15 FPS). Pro plný výkon (WebCodecs, VP9, 60 FPS) použijte HTTPS.",
     "file_transfer": "Přenos souborů",
     "file_upload": "Nahrát",

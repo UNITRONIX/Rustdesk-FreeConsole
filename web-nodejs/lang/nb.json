@@ -1116,6 +1116,10 @@
     "start_playback": "Start avspilling",
     "new_connection": "Ny tilkobling",
     "device_id_placeholder": "Skriv inn enhets-ID",
+    "session_picker": {
+      "title": "Velg enhet",
+      "already_connected": "Allerede tilkoblet"
+    },
     "http_warning": "HTTP-modus: begrenset til H.264 programvaredekoding (~15 FPS). Bruk HTTPS for full ytelse (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Filoverføring",
     "file_upload": "Upload",

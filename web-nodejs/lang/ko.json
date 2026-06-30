@@ -1110,6 +1110,10 @@
     "start_playback": "재생 시작",
     "new_connection": "새 연결",
     "device_id_placeholder": "장치 ID 입력",
+    "session_picker": {
+      "title": "장치 선택",
+      "already_connected": "이미 연결됨"
+    },
     "http_warning": "HTTP 모드: H.264 소프트웨어 디코딩으로 제한 (~15 FPS). 최고 성능을 위해 HTTPS를 사용하세요 (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "파일 전송",
     "file_upload": "업로드",

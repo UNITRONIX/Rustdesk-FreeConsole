@@ -1116,6 +1116,10 @@
     "start_playback": "Indítsa el a Lejátszást",
     "new_connection": "Új kapcsolat",
     "device_id_placeholder": "Írja be az eszközazonosítót",
+    "session_picker": {
+      "title": "Eszköz kiválasztása",
+      "already_connected": "Már csatlakoztatva"
+    },
     "http_warning": "HTTP mód: H.264 szoftveres dekódolásra korlátozva (~15 FPS). Használja a HTTPS-t a teljes teljesítmény érdekében (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Fájlátvitel",
     "file_upload": "Upload",

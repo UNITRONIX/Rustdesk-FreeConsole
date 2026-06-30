@@ -1116,6 +1116,10 @@
     "start_playback": "Start afspilning",
     "new_connection": "Ny forbindelse",
     "device_id_placeholder": "Indtast enheds-id",
+    "session_picker": {
+      "title": "Vælg enhed",
+      "already_connected": "Allerede tilsluttet"
+    },
     "http_warning": "HTTP-tilstand: begrænset til H.264-softwareafkodning (~15 FPS). Brug HTTPS for fuld ydeevne (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Filoverførsel",
     "file_upload": "Upload",

@@ -1110,6 +1110,10 @@
     "start_playback": "Afspelen starten",
     "new_connection": "Nieuwe verbinding",
     "device_id_placeholder": "Voer apparaat-ID in",
+    "session_picker": {
+      "title": "Apparaat kiezen",
+      "already_connected": "Al verbonden"
+    },
     "http_warning": "HTTP-modus: beperkt tot H.264 software-decodering (~15 FPS). Gebruik HTTPS voor volledige prestaties (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Bestandsoverdracht",
     "file_upload": "Uploaden",

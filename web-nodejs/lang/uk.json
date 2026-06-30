@@ -1116,6 +1116,10 @@
     "start_playback": "Розпочати відтворення",
     "new_connection": "Нове підключення",
     "device_id_placeholder": "Введіть ідентифікатор пристрою",
+    "session_picker": {
+      "title": "Оберіть пристрій",
+      "already_connected": "Вже підключено"
+    },
     "http_warning": "Режим HTTP: обмежено програмним декодуванням H.264 (~15 FPS). Використовуйте HTTPS для повної продуктивності (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Передача файлів",
     "file_upload": "Upload",

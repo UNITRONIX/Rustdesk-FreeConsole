@@ -1110,6 +1110,10 @@
     "start_playback": "再生を開始する",
     "new_connection": "新規接続",
     "device_id_placeholder": "デバイスIDを入力",
+    "session_picker": {
+      "title": "デバイスを選択",
+      "already_connected": "接続済み"
+    },
     "http_warning": "HTTPモード：H.264ソフトウェアデコードに制限 (~15 FPS)。最高のパフォーマンスにはHTTPSを使用してください (WebCodecs, VP9, 60 FPS)。",
     "file_transfer": "ファイル転送",
     "file_upload": "アップロード",

@@ -1117,6 +1117,10 @@
     "start_playback": "ابدأ التشغيل",
     "new_connection": "اتصال جديد",
     "device_id_placeholder": "أدخل معرف الجهاز",
+    "session_picker": {
+      "title": "اختر الجهاز",
+      "already_connected": "متصل بالفعل"
+    },
     "http_warning": "وضع HTTP: يقتصر على فك تشفير برنامج H.264 (~ 15 إطارًا في الثانية). استخدم HTTPS للحصول على الأداء الكامل (WebCodecs، VP9، 60 إطارًا في الثانية).",
     "file_transfer": "نقل الملفات",
     "file_upload": "Upload",

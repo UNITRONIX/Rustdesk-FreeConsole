@@ -22,14 +22,118 @@
 <div id="rd-viewer-shell" class="rd-viewer-shell">
 
 <!-- Session Tab Bar -->
-<div class="session-tab-bar" id="session-tab-bar">
+<div class="session-tab-bar session-tab-bar--slim" id="session-tab-bar">
     <button type="button" class="tab-bar-back" id="btn-back-devices" title="${_('remote.back_to_devices')}">
         <span class="material-icons">arrow_back</span>
     </button>
     <div class="session-tabs" id="session-tabs"></div>
-    <button class="tab-bar-add" id="btn-add-session" title="${_('remote.new_connection') || 'New Connection'}">
+    <button type="button" class="tab-bar-add" id="btn-add-session" title="${_('remote.new_connection') || 'New Connection'}">
         <span class="material-icons">add</span>
     </button>
+</div>
+
+<!-- Session picker (address book overlay) -->
+<div class="session-picker-backdrop" id="session-picker-backdrop" hidden>
+    <div class="session-picker-panel" id="session-picker-panel" role="dialog" aria-labelledby="session-picker-title">
+        <div class="session-picker-header">
+            <h2 class="session-picker-title" id="session-picker-title">${_('remote.session_picker.title') || 'Choose device'}</h2>
+            <button type="button" class="session-picker-close" id="session-picker-close" title="${_('actions.close')}">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+        <div class="session-picker-quick">
+            <input type="text" class="session-picker-quick-input" id="session-picker-quick-id"
+                placeholder="${_('remote.device_id_placeholder') || 'Enter Device ID'}" autocomplete="off" spellcheck="false">
+            <button type="button" class="session-picker-quick-btn" id="session-picker-quick-btn">
+                <span class="material-icons">play_arrow</span>
+                ${_('remote_dashboard.connect')}
+            </button>
+        </div>
+        <div class="session-picker-body">
+            <aside class="session-picker-sidebar" id="session-picker-sidebar">
+                <div class="session-picker-nav-heading">${_('remote_dashboard.nav_folders')}</div>
+                <ul class="session-picker-nav-list" id="session-picker-folders">
+                    <li data-static="1"><button type="button" class="rd-picker-nav-item active" data-nav="folder" data-id="all">
+                        <span class="material-icons">devices</span>
+                        <span class="rd-picker-nav-label">${_('remote_dashboard.filter_all')}</span>
+                        <span class="rd-picker-nav-count" id="rd-picker-count-all">0</span>
+                    </button></li>
+                    <li data-static="1"><button type="button" class="rd-picker-nav-item" data-nav="folder" data-id="unassigned">
+                        <span class="material-icons">folder_off</span>
+                        <span class="rd-picker-nav-label">${_('remote_dashboard.unassigned')}</span>
+                        <span class="rd-picker-nav-count" id="rd-picker-count-unassigned">0</span>
+                    </button></li>
+                </ul>
+                <ul class="session-picker-nav-list" id="session-picker-folders-custom"></ul>
+                <div class="session-picker-nav-heading">${_('remote_dashboard.nav_groups')}</div>
+                <ul class="session-picker-nav-list" id="session-picker-groups">
+                    <li class="hidden" data-static="1" id="session-picker-groups-empty">${_('remote_dashboard.no_groups')}</li>
+                </ul>
+                <div class="session-picker-nav-heading">${_('remote_dashboard.nav_tags')}</div>
+                <ul class="session-picker-nav-list" id="session-picker-tags">
+                    <li class="hidden" data-static="1" id="session-picker-tags-empty">${_('remote_dashboard.no_tags')}</li>
+                </ul>
+            </aside>
+            <div class="session-picker-content" id="session-picker-content">
+                <div class="session-picker-toolbar">
+                    <span class="session-picker-section-title" id="session-picker-section-title">${_('remote_dashboard.nav_address_book')}</span>
+                    <div class="session-picker-search-wrap">
+                        <span class="material-icons session-picker-search-icon">search</span>
+                        <input type="search" id="session-picker-search" class="session-picker-search"
+                            placeholder="${_('remote_dashboard.search_placeholder')}" autocomplete="off">
+                    </div>
+                    <div class="session-picker-filters" role="tablist">
+                        <button type="button" class="rd-picker-filter active" data-filter="all">${_('remote_dashboard.filter_all')}</button>
+                        <button type="button" class="rd-picker-filter" data-filter="online">${_('remote_dashboard.filter_online')}</button>
+                        <button type="button" class="rd-picker-filter" data-filter="offline">${_('remote_dashboard.filter_offline')}</button>
+                    </div>
+                    <div class="session-picker-view-toggle" role="group">
+                        <button type="button" class="rd-picker-icon-btn active" id="session-picker-view-grid" title="${_('remote_dashboard.view_grid')}">
+                            <span class="material-icons">grid_view</span>
+                        </button>
+                        <button type="button" class="rd-picker-icon-btn" id="session-picker-view-list" title="${_('remote_dashboard.view_list')}">
+                            <span class="material-icons">view_list</span>
+                        </button>
+                    </div>
+                    <span class="session-picker-count" id="session-picker-count"></span>
+                    <button type="button" class="rd-picker-icon-btn" id="session-picker-refresh" title="${_('remote_dashboard.sync_now')}">
+                        <span class="material-icons">sync</span>
+                    </button>
+                </div>
+                <div class="session-picker-main" id="session-picker-main">
+                    <div class="session-picker-loading hidden" id="session-picker-loading">
+                        <span class="material-icons">sync</span>
+                        <span>${_('remote_dashboard.loading')}</span>
+                    </div>
+                    <div class="session-picker-error hidden" id="session-picker-error">
+                        <span class="material-icons">error_outline</span>
+                        <span id="session-picker-error-text">${_('remote_dashboard.error_load')}</span>
+                        <button type="button" class="rd-picker-btn" id="session-picker-retry">${_('remote_dashboard.retry')}</button>
+                    </div>
+                    <div class="session-picker-empty hidden" id="session-picker-empty">
+                        <span class="material-icons">devices_other</span>
+                        <p>${_('remote_dashboard.empty')}</p>
+                    </div>
+                    <div class="rd-picker-grid hidden" id="session-picker-grid"></div>
+                    <div class="rd-picker-table-wrap hidden" id="session-picker-table-wrap">
+                        <table class="rd-picker-table">
+                            <thead>
+                                <tr>
+                                    <th>${_('remote_dashboard.col_status')}</th>
+                                    <th>${_('remote_dashboard.col_id')}</th>
+                                    <th>${_('remote_dashboard.col_hostname')}</th>
+                                    <th>${_('remote_dashboard.col_platform')}</th>
+                                    <th>${_('remote_dashboard.col_last_seen')}</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="session-picker-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Main Viewer Container (session panels are inserted here) -->
@@ -244,27 +348,6 @@
     <button type="button" class="rd-special-key-btn" data-special="Escape">Esc</button>
 </div>
 <input type="text" class="rd-keyboard-bridge" id="rd-keyboard-bridge" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-hidden="true" tabindex="-1">
-
-<!-- Add Session Dialog -->
-<div class="viewer-overlay" id="add-session-overlay" style="display:none;">
-    <div class="overlay-card">
-        <div class="overlay-icon"><span class="material-icons">add_circle</span></div>
-        <h2 class="overlay-title">${_('remote.new_connection') || 'New Connection'}</h2>
-        <div class="password-form">
-            <div class="form-group">
-                <input type="text" class="form-input" id="new-session-id"
-                       placeholder="${_('remote.device_id_placeholder') || 'Enter Device ID'}" autocomplete="off">
-            </div>
-            <button class="btn btn-primary btn-full" id="btn-connect-new">
-                <span class="material-icons">login</span>
-                ${_('remote.connect')}
-            </button>
-            <button class="btn btn-secondary btn-full" id="btn-cancel-new" style="margin-top:8px;">
-                ${_('actions.cancel')}
-            </button>
-        </div>
-    </div>
-</div>
 
 <!-- Session Panel Template (cloned for each session) -->
 <template id="session-panel-template">

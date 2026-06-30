@@ -1133,6 +1133,10 @@
     "start_playback": "開始播放",
     "new_connection": "新建連接",
     "device_id_placeholder": "輸入設備ID",
+    "session_picker": {
+      "title": "選擇裝置",
+      "already_connected": "已連線"
+    },
     "http_warning": "HTTP模式：僅支持H.264軟件解碼 (~15 FPS)。使用HTTPS可獲得完整性能 (WebCodecs, VP9, 60 FPS)。",
     "file_transfer": "文件傳輸",
     "file_upload": "上傳",

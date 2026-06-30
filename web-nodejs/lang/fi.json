@@ -1116,6 +1116,10 @@
     "start_playback": "Aloita toisto",
     "new_connection": "Uusi yhteys",
     "device_id_placeholder": "Anna laitteen tunnus",
+    "session_picker": {
+      "title": "Valitse laite",
+      "already_connected": "Jo yhdistetty"
+    },
     "http_warning": "HTTP-tila: rajoitettu H.264-ohjelmiston dekoodaukseen (~15 FPS). Käytä HTTPS:tä täyden suorituskyvyn saavuttamiseksi (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Tiedoston siirto",
     "file_upload": "Upload",

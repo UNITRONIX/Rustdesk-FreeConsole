@@ -1116,6 +1116,10 @@
     "start_playback": "Începeți redarea",
     "new_connection": "Conexiune nouă",
     "device_id_placeholder": "Introduceți ID-ul dispozitivului",
+    "session_picker": {
+      "title": "Alege dispozitivul",
+      "already_connected": "Deja conectat"
+    },
     "http_warning": "Modul HTTP: limitat la decodare software H.264 (~15 FPS). Utilizați HTTPS pentru performanță maximă (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Transfer de fișiere",
     "file_upload": "Upload",

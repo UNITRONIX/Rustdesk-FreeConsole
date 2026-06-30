@@ -1116,6 +1116,10 @@
     "start_playback": "เริ่มเล่น",
     "new_connection": "การเชื่อมต่อใหม่",
     "device_id_placeholder": "ป้อนรหัสอุปกรณ์",
+    "session_picker": {
+      "title": "เลือกอุปกรณ์",
+      "already_connected": "เชื่อมต่อแล้ว"
+    },
     "http_warning": "โหมด HTTP: จำกัดเฉพาะการถอดรหัสซอฟต์แวร์ H.264 (~ 15 FPS) ใช้ HTTPS เพื่อประสิทธิภาพสูงสุด (WebCodecs, VP9, 60 FPS)",
     "file_transfer": "การถ่ายโอนไฟล์",
     "file_upload": "Upload",

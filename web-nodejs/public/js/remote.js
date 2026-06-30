@@ -303,44 +303,91 @@
     }
 
 
-    // ---- Tab Bar ----
+    // ---- Tab Bar (slim + expandable cards) ----
 
-    function createTab(deviceId, deviceName) {
+    const sessionTabBarEl = document.getElementById('session-tab-bar');
+    let expandedTabId = null;
+
+    function collapseExpandedTabBarItems() {
+        tabBar.querySelectorAll('.session-tab-card.is-expanded').forEach((t) => t.classList.remove('is-expanded'));
+        document.getElementById('btn-back-devices')?.classList.remove('is-expanded');
+        document.getElementById('btn-add-session')?.classList.remove('is-expanded');
+        expandedTabId = null;
+    }
+
+    function tabStatusClass(state) {
+        switch (state) {
+        case 'streaming': return 'status-online';
+        case 'connecting':
+        case 'authenticating':
+        case 'waiting_password': return 'status-connecting';
+        case 'error': return 'status-error';
+        default: return 'status-offline';
+        }
+    }
+
+    function createTab(deviceId, deviceName, platform) {
         const tab = document.createElement('div');
-        tab.className = 'session-tab';
-        // Store RAW device ID in dataset — findTab() applies CSS.escape() once
-        // when building the selector. Storing the escaped value caused a
-        // double-escape for IDs that needed escaping (digits-first, symbols)
-        // and `tab.remove()` silently failed.
+        tab.className = 'session-tab session-tab-card status-offline';
         tab.dataset.sessionId = deviceId;
 
-        const dot = document.createElement('span');
-        dot.className = 'session-tab-dot';
-        tab.appendChild(dot);
+        const inner = document.createElement('div');
+        inner.className = 'session-tab-card-inner';
+
+        const osIcon = document.createElement('span');
+        osIcon.className = 'session-tab-os material-icons';
+        const iconName = (window.RemoteAddressBook && window.RemoteAddressBook.platformIcon)
+            ? window.RemoteAddressBook.platformIcon(platform || '')
+            : 'devices';
+        osIcon.textContent = iconName;
+        inner.appendChild(osIcon);
 
         const label = document.createElement('span');
         label.className = 'session-tab-label';
         label.textContent = deviceName || deviceId;
         label.title = deviceId;
-        tab.appendChild(label);
+        inner.appendChild(label);
+
+        const dot = document.createElement('span');
+        dot.className = 'session-tab-dot dot-offline';
+        inner.appendChild(dot);
 
         const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
         closeBtn.className = 'session-tab-close';
         closeBtn.innerHTML = '<span class="material-icons" style="font-size:14px">close</span>';
-        closeBtn.title = _('actions.close');
+        closeBtn.title = t('actions.close', 'Close');
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             closeSession(deviceId);
         });
-        tab.appendChild(closeBtn);
+        inner.appendChild(closeBtn);
 
-        tab.addEventListener('click', () => switchSession(deviceId));
+        tab.appendChild(inner);
+
+        const glow = document.createElement('div');
+        glow.className = 'session-tab-glow';
+        glow.setAttribute('aria-hidden', 'true');
+        tab.appendChild(glow);
+
+        tab.addEventListener('click', (e) => {
+            if (e.target.closest('.session-tab-close')) return;
+            switchSession(deviceId);
+            if (window.matchMedia('(hover: none)').matches) {
+                collapseExpandedTabBarItems();
+                tab.classList.add('is-expanded');
+                expandedTabId = deviceId;
+            }
+        });
+
         tabBar.appendChild(tab);
     }
 
     function updateTabState(deviceId, state) {
         const tab = findTab(deviceId);
         if (!tab) return;
+        tab.classList.remove('status-online', 'status-connecting', 'status-error', 'status-offline');
+        tab.classList.add(tabStatusClass(state));
         const dot = tab.querySelector('.session-tab-dot');
         if (!dot) return;
         dot.className = 'session-tab-dot';
@@ -355,7 +402,7 @@
     }
 
     function setActiveTab(deviceId) {
-        tabBar.querySelectorAll('.session-tab').forEach(t => t.classList.remove('active'));
+        tabBar.querySelectorAll('.session-tab').forEach((t) => t.classList.remove('active'));
         const tab = findTab(deviceId);
         if (tab) tab.classList.add('active');
     }
@@ -364,9 +411,30 @@
         return tabBar.querySelector('[data-session-id="' + CSS.escape(deviceId) + '"]');
     }
 
+    function bindSlimTabBar() {
+        if (!sessionTabBarEl) return;
+
+        ['btn-back-devices', 'btn-add-session'].forEach((id) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('click', () => {
+                if (window.matchMedia('(hover: none)').matches) {
+                    collapseExpandedTabBarItems();
+                    btn.classList.add('is-expanded');
+                }
+            }, { capture: true });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#session-tab-bar')) {
+                collapseExpandedTabBarItems();
+            }
+        });
+    }
+
     // ---- Session Lifecycle ----
 
-    function createSession(deviceId, deviceName) {
+    function createSession(deviceId, deviceName, platform) {
         if (sessions.has(deviceId)) {
             switchSession(deviceId);
             return;
@@ -397,7 +465,7 @@
         // Create transport client from saved operator prefs (Best = 60fps).
         wireNewClient(session);
         sessions.set(deviceId, session);
-        createTab(deviceId, deviceName);
+        createTab(deviceId, deviceName, platform);
         switchSession(deviceId);
 
         session.client.renderer.resize();
@@ -455,10 +523,10 @@
         syncMobileTouchForActive();
     }
 
-    function closeSession(deviceId) {
+    function closeSession(deviceId, options) {
+        options = options || {};
         const session = sessions.get(deviceId);
         if (!session) {
-            // Session already cleaned up but stale tab still around — remove it.
             const tab = findTab(deviceId);
             if (tab) tab.remove();
             return;
@@ -478,16 +546,22 @@
         if (tab) tab.remove();
         sessions.delete(deviceId);
 
+        if (expandedTabId === deviceId) expandedTabId = null;
+
         if (activeSessionId === deviceId) {
             activeSessionId = null;
             if (sessions.size > 0) {
                 switchSession(sessions.keys().next().value);
-            } else {
+            } else if (!options.suppressReturn) {
                 returnToDevices();
             }
         } else {
             syncSessionMediaCapture();
         }
+    }
+
+    function closeAllSessions() {
+        Array.from(sessions.keys()).forEach((id) => closeSession(id, { suppressReturn: true }));
     }
 
     function reconnectSession(session) {
@@ -1414,9 +1488,10 @@
         dragBtn.addEventListener('touchstart', onDown, { passive: false });
     })();
 
-    // ---- Back to devices (independent tab — close instead of navigating) ----
+    // ---- Back to devices — close all sessions first ----
     document.getElementById('btn-back-devices')?.addEventListener('click', (e) => {
         e.preventDefault();
+        closeAllSessions();
         returnToDevices();
     });
 
@@ -1476,36 +1551,112 @@
         if (session && session.client && session.client.renderer) session.client.renderer.resize();
     });
 
-    // ---- Add Session Dialog ----
+    // ---- Session picker (address book) ----
 
-    const addOverlay = document.getElementById('add-session-overlay');
-    const newSessionInput = document.getElementById('new-session-id');
+    let sessionPicker = null;
+    let sessionPickerLoaded = false;
+    const sessionPickerBackdrop = document.getElementById('session-picker-backdrop');
 
-    document.getElementById('btn-add-session')?.addEventListener('click', () => {
-        addOverlay.style.display = 'flex';
-        newSessionInput.value = '';
-        newSessionInput.focus();
-    });
-
-    document.getElementById('btn-cancel-new')?.addEventListener('click', () => {
-        addOverlay.style.display = 'none';
-    });
-
-    document.getElementById('btn-connect-new')?.addEventListener('click', () => {
-        const id = newSessionInput.value.trim();
-        if (!id || !/^[A-Za-z0-9_-]{3,64}$/.test(id)) {
-            newSessionInput.classList.add('error');
-            setTimeout(() => newSessionInput.classList.remove('error'), 1500);
-            return;
+    function openSessionPicker() {
+        if (!sessionPickerBackdrop) return;
+        sessionPickerBackdrop.hidden = false;
+        sessionPickerBackdrop.classList.add('open');
+        if (!sessionPickerLoaded && sessionPicker) {
+            sessionPicker.loadAll(false).then(() => { sessionPickerLoaded = true; });
+        } else if (sessionPicker) {
+            sessionPicker.renderDevices();
         }
-        addOverlay.style.display = 'none';
-        createSession(id, '');
-    });
+        document.getElementById('session-picker-search')?.focus();
+    }
 
-    newSessionInput?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') document.getElementById('btn-connect-new')?.click();
-        if (e.key === 'Escape') addOverlay.style.display = 'none';
-    });
+    function closeSessionPicker() {
+        if (!sessionPickerBackdrop) return;
+        sessionPickerBackdrop.classList.remove('open');
+        sessionPickerBackdrop.hidden = true;
+    }
+
+    function toggleSessionPicker() {
+        if (sessionPickerBackdrop?.classList.contains('open')) closeSessionPicker();
+        else openSessionPicker();
+    }
+
+    function initSessionPicker() {
+        if (!window.RemoteAddressBook || !document.getElementById('session-picker-panel')) return;
+
+        sessionPicker = window.RemoteAddressBook.create({
+            classPrefix: 'rd-picker',
+            compact: true,
+            ids: {
+                sidebar: 'session-picker-sidebar',
+                contentRoot: 'session-picker-content',
+                foldersCustom: 'session-picker-folders-custom',
+                groups: 'session-picker-groups',
+                groupsEmpty: 'session-picker-groups-empty',
+                tags: 'session-picker-tags',
+                tagsEmpty: 'session-picker-tags-empty',
+                grid: 'session-picker-grid',
+                tableWrap: 'session-picker-table-wrap',
+                tbody: 'session-picker-tbody',
+                loading: 'session-picker-loading',
+                error: 'session-picker-error',
+                errorText: 'session-picker-error-text',
+                empty: 'session-picker-empty',
+                search: 'session-picker-search',
+                sectionTitle: 'session-picker-section-title',
+                deviceCount: 'session-picker-count',
+                countAll: 'rd-picker-count-all',
+                countUnassigned: 'rd-picker-count-unassigned',
+                viewGrid: 'session-picker-view-grid',
+                viewList: 'session-picker-view-list',
+                refreshBtn: 'session-picker-refresh',
+                retry: 'session-picker-retry',
+                quickId: 'session-picker-quick-id'
+            },
+            getConnectedIds: function () {
+                return new Set(sessions.keys());
+            },
+            onConnect: function (deviceId, deviceName) {
+                closeSessionPicker();
+                createSession(deviceId, deviceName || '');
+                if (sessionPicker) sessionPicker.renderDevices();
+            }
+        });
+
+        sessionPicker.bindUi(document.getElementById('session-picker-panel'));
+
+        document.getElementById('btn-add-session')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSessionPicker();
+        });
+
+        document.getElementById('session-picker-close')?.addEventListener('click', closeSessionPicker);
+
+        document.getElementById('session-picker-quick-btn')?.addEventListener('click', () => {
+            if (sessionPicker?.quickConnect('session-picker-quick-id')) {
+                closeSessionPicker();
+            }
+        });
+
+        document.getElementById('session-picker-quick-id')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('session-picker-quick-btn')?.click();
+            }
+        });
+
+        sessionPickerBackdrop?.addEventListener('click', (e) => {
+            if (e.target === sessionPickerBackdrop) closeSessionPicker();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && sessionPickerBackdrop?.classList.contains('open')) {
+                closeSessionPicker();
+            }
+        });
+    }
+
+    bindSlimTabBar();
+    initSessionPicker();
 
     // ---- HTTP Warning Banner ----
 

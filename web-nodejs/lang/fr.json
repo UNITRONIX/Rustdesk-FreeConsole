@@ -1133,6 +1133,10 @@
     "start_playback": "Démarrer la lecture",
     "new_connection": "Nouvelle connexion",
     "device_id_placeholder": "Saisir l'ID de l'appareil",
+    "session_picker": {
+      "title": "Choisir un appareil",
+      "already_connected": "Déjà connecté"
+    },
     "http_warning": "Mode HTTP : limité au décodage logiciel H.264 (~15 FPS). Utilisez HTTPS pour des performances optimales (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Transfert de fichiers",
     "file_upload": "Téléverser",

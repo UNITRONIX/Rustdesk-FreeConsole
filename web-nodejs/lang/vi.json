@@ -1116,6 +1116,10 @@
     "start_playback": "Bắt đầu phát lại",
     "new_connection": "Kết nối mới",
     "device_id_placeholder": "Nhập ID thiết bị",
+    "session_picker": {
+      "title": "Chọn thiết bị",
+      "already_connected": "Đã kết nối"
+    },
     "http_warning": "Chế độ HTTP: giới hạn ở giải mã phần mềm H.264 (~15 FPS). Sử dụng HTTPS để có hiệu suất tối đa (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Truyền tệp",
     "file_upload": "Upload",

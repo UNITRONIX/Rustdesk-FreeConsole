@@ -1137,6 +1137,10 @@
     "start_playback": "Start Playback",
     "new_connection": "New Connection",
     "device_id_placeholder": "Enter Device ID",
+    "session_picker": {
+      "title": "Choose device",
+      "already_connected": "Already connected"
+    },
     "http_warning": "HTTP mode: limited to H.264 software decode (~15 FPS). Use HTTPS for full performance (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "File Transfer",
     "file_upload": "Upload",

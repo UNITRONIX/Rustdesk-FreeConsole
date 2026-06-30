@@ -36,6 +36,7 @@
     <script src="/js/device-capabilities.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient-mobile-shell.js?v=<%= cacheVersion %>"></script>
     <script src="/js/utils.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/remote-address-book.js?v=<%= cacheVersion %>"></script>
     <% if (typeof pageScripts !== 'undefined' && pageScripts) { %>
         <% (Array.isArray(pageScripts) ? pageScripts : [pageScripts]).forEach(function(script) { %>
     <script src="/js/<%= script %>.js?v=<%= cacheVersion %>"></script>

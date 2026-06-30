@@ -1110,6 +1110,10 @@
     "start_playback": "Iniciar reproducción",
     "new_connection": "Nueva conexión",
     "device_id_placeholder": "Introduzca ID de dispositivo",
+    "session_picker": {
+      "title": "Elegir dispositivo",
+      "already_connected": "Ya conectado"
+    },
     "http_warning": "Modo HTTP: limitado a decodificación H.264 por software (~15 FPS). Use HTTPS para máximo rendimiento (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Transferencia de archivos",
     "file_upload": "Subir",

@@ -1116,6 +1116,10 @@
     "start_playback": "Oynatmayı Başlat",
     "new_connection": "Yeni Bağlantı",
     "device_id_placeholder": "Cihaz Kimliğini Girin",
+    "session_picker": {
+      "title": "Cihaz seç",
+      "already_connected": "Zaten bağlı"
+    },
     "http_warning": "HTTP modu: H.264 yazılım kod çözme (~15 FPS) ile sınırlıdır. Tam performans için HTTPS kullanın (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Dosya Aktarımı",
     "file_upload": "Upload",

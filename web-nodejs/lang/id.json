@@ -1116,6 +1116,10 @@
     "start_playback": "Mulai Pemutaran",
     "new_connection": "Koneksi Baru",
     "device_id_placeholder": "Masukkan ID Perangkat",
+    "session_picker": {
+      "title": "Pilih perangkat",
+      "already_connected": "Sudah terhubung"
+    },
     "http_warning": "Mode HTTP: terbatas pada dekode perangkat lunak H.264 (~15 FPS). Gunakan HTTPS untuk performa penuh (WebCodecs, VP9, 60 FPS).",
     "file_transfer": "Pemindahan Berkas",
     "file_upload": "Upload",

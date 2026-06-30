@@ -1112,6 +1112,10 @@
     "start_playback": "开始播放",
     "new_connection": "新建连接",
     "device_id_placeholder": "输入设备ID",
+    "session_picker": {
+      "title": "选择设备",
+      "already_connected": "已连接"
+    },
     "http_warning": "HTTP模式：仅支持H.264软件解码 (~15 FPS)。使用HTTPS可获得完整性能 (WebCodecs, VP9, 60 FPS)。",
     "file_transfer": "文件传输",
     "file_upload": "上传",
