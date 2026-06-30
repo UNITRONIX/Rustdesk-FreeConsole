@@ -10,7 +10,7 @@
  *   Cancel:   FileAction.cancel
  */
 
-/* global RDProtocol */
+/* global RDProtocol, RDCompress */
 
 // eslint-disable-next-line no-unused-vars
 class RDFileTransfer {
@@ -608,17 +608,7 @@ class RDFileTransfer {
      * @returns {Promise<Uint8Array>}
      */
     async _decompressBlock(data) {
-        const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-        if (typeof DecompressionStream === 'function') {
-            try {
-                const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('zstd'));
-                const out = await new Response(stream).arrayBuffer();
-                return new Uint8Array(out);
-            } catch (err) {
-                console.warn('[FileTransfer] zstd decompress failed, using raw block:', err.message || err);
-            }
-        }
-        return bytes;
+        return RDCompress.decompressZstd(data, { force: true });
     }
 
     /**

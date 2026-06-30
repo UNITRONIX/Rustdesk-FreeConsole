@@ -169,7 +169,7 @@ class RDProtocol {
                 licenceKey: serverKey || '',
                 connType: ct,
                 token: '',
-                version: 'BetterDesk-Web/1.0',
+                version: 'BetterDesk-Web/1.3.9',
                 forceRelay: true // Browser must use relay
             }
         };
@@ -238,7 +238,7 @@ class RDProtocol {
                 myId: opts.myId || 'web-client-ft',
                 myName: opts.myName || 'BetterDesk Web',
                 myPlatform: 'Web',
-                version: 'BetterDesk-Web/1.0',
+                version: 'BetterDesk-Web/1.3.9',
                 sessionId: Date.now(),
                 fileTransfer: {
                     dir: opts.dir != null ? opts.dir : '',
@@ -263,7 +263,7 @@ class RDProtocol {
                 myId: opts.myId || 'web-client',
                 myName: opts.myName || 'BetterDesk Web',
                 myPlatform: 'Web',
-                version: 'BetterDesk-Web/1.0',
+                version: 'BetterDesk-Web/1.3.9',
                 sessionId: Date.now(),
                 option: {
                     imageQuality: this.enums.ImageQuality.values[quality] || this.enums.ImageQuality.values.Best,
@@ -352,14 +352,20 @@ class RDProtocol {
     }
 
     /**
-     * Build Clipboard message
+     * Build Clipboard message (optional zstd compression for large payloads)
+     * @param {string} text
+     * @returns {Promise<Object>}
      */
-    buildClipboard(text) {
+    async buildClipboard(text) {
         const encoder = new TextEncoder();
+        const raw = encoder.encode(text || '');
+        const packed = (typeof RDCompress !== 'undefined')
+            ? await RDCompress.compressZstd(raw)
+            : { content: raw, compress: false };
         return {
             clipboard: {
-                compress: false,
-                content: encoder.encode(text),
+                compress: packed.compress,
+                content: packed.content,
                 format: this.enums.ClipboardFormat.values.Text
             }
         };

@@ -13,7 +13,7 @@
  *   client.disconnect();
  */
 
-/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput, RDFileConnection */
+/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput, RDFileConnection, RDClipboard */
 
 // eslint-disable-next-line no-unused-vars
 class RDClient {
@@ -776,9 +776,15 @@ class RDClient {
             return;
         }
 
-        // Clipboard
+        // Clipboard (legacy single entry)
         if (msg.clipboard) {
             this._handleClipboard(msg.clipboard);
+            return;
+        }
+
+        // Multi-format clipboard (RustDesk >= 1.3.0)
+        if (msg.multiClipboards) {
+            this._handleMultiClipboards(msg.multiClipboards);
             return;
         }
 
@@ -1046,19 +1052,30 @@ class RDClient {
         }
     }
 
-    _handleClipboard(clipboard) {
-        if (clipboard.content) {
-            const decoder = new TextDecoder();
-            const text = decoder.decode(clipboard.content);
-            this._emit('clipboard', text);
+    async _applyRemoteClipboard(clipboards) {
+        const list = clipboards || [];
+        if (!list.length) return;
 
-            // Copy to local clipboard only for the active viewer tab
-            if (this._clipboardToLocalEnabled && navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).catch(() => {
-                    // Clipboard write permission denied - ignore
-                });
-            }
+        const decoded = await RDClipboard.decodeEntries(list);
+        const text = RDClipboard.pickBestText(decoded);
+        if (text) {
+            this._emit('clipboard', text);
         }
+
+        await RDClipboard.applyToLocal(decoded, {
+            enabled: this._clipboardToLocalEnabled
+        });
+    }
+
+    _handleClipboard(clipboard) {
+        void this._applyRemoteClipboard([clipboard]);
+    }
+
+    _handleMultiClipboards(multiClipboards) {
+        const list = multiClipboards && multiClipboards.clipboards
+            ? multiClipboards.clipboards
+            : [];
+        void this._applyRemoteClipboard(list);
     }
 
     _handleTestDelay(testDelay) {
@@ -1411,7 +1428,11 @@ class RDClient {
      */
     sendClipboard(text) {
         if (this._state !== 'streaming') return;
-        const msg = this.proto.buildClipboard(text);
+        void this._sendClipboard(text);
+    }
+
+    async _sendClipboard(text) {
+        const msg = await this.proto.buildClipboard(text);
         this._sendPeerMessage(msg);
     }
 
