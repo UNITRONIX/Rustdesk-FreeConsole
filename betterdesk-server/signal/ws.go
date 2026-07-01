@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -82,7 +83,12 @@ func (s *Server) handleWSUpgrade(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[signal] WS upgrade error: %v", err)
 		return
 	}
-	remoteAddr := r.RemoteAddr
+	remoteAddr := wsEffectiveRemoteAddr(r)
+
+	log.Printf("[signal] WS upgrade remote=%s effective=%s path=%s origin=%q ua=%q xff=%q xri=%q",
+		r.RemoteAddr, remoteAddr, r.URL.Path,
+		r.Header.Get("Origin"), r.Header.Get("User-Agent"),
+		r.Header.Get("X-Forwarded-For"), r.Header.Get("X-Real-IP"))
 
 	// Increase read limit for file transfer signaling
 	ws.SetReadLimit(256 * 1024)
@@ -91,6 +97,36 @@ func (s *Server) handleWSUpgrade(w http.ResponseWriter, r *http.Request) {
 
 	// Persistent connection — read messages in a loop until close or error.
 	s.wsSignalLoop(wsc)
+}
+
+// wsEffectiveRemoteAddr returns the client address for WS signal registration.
+// When behind a reverse proxy, prefer X-Real-IP then the first X-Forwarded-For
+// hop (same behaviour as rustdesk-server WS upgrade).
+func wsEffectiveRemoteAddr(r *http.Request) string {
+	clientIP := strings.TrimSpace(r.Header.Get("X-Real-IP"))
+	if clientIP == "" {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			clientIP = strings.TrimSpace(strings.SplitN(xff, ",", 2)[0])
+		}
+	}
+	if clientIP != "" {
+		if strings.Contains(clientIP, ":") {
+			return fmt.Sprintf("[%s]:0", clientIP)
+		}
+		return fmt.Sprintf("%s:0", clientIP)
+	}
+	return r.RemoteAddr
+}
+
+func bindPeerWSConn(s *Server, peerID string, wsc *codec.WSConn) {
+	if peerID == "" {
+		return
+	}
+	entry := s.peers.Get(peerID)
+	if entry != nil {
+		entry.ConnType = peer.ConnWS
+		entry.WSConn = wsc
+	}
 }
 
 func isLoopbackOrigin(origin string) bool {
@@ -127,7 +163,9 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			case <-s.ctx.Done():
 			default:
 				if websocket.CloseStatus(err) == -1 {
-					log.Printf("[signal] WS read from %s: %v", remoteAddr, err)
+					since, readFrames, writeFrames, readAny, writeAny := wsc.SessionSummary()
+					log.Printf("[signal] WS read from %s: %v (uptime=%s read_frames=%d write_frames=%d read_any=%v write_any=%v peer=%q)",
+						remoteAddr, err, since.Round(time.Millisecond), readFrames, writeFrames, readAny, writeAny, peerID)
 				}
 			}
 			return
@@ -138,22 +176,17 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			peerID = msg.GetRegisterPeer().Id
 			resp := s.handleRegisterPeerWS(msg.GetRegisterPeer(), remoteAddr)
 			if resp != nil {
+				bindPeerWSConn(s, peerID, wsc)
 				wsc.WriteMessage(resp)
 			}
 
 		case msg.GetRegisterPk() != nil:
 			peerID = msg.GetRegisterPk().Id
-			fakeAddr, _ := net.ResolveUDPAddr("udp", remoteAddr)
 			resp := s.processRegisterPk(msg.GetRegisterPk(), remoteAddr)
-			if fakeAddr != nil {
-				// Also update the entry to mark it as WS connected
-				entry := s.peers.Get(msg.GetRegisterPk().Id)
-				if entry != nil {
-					entry.ConnType = peer.ConnWS
-					entry.WSConn = wsc
-				}
-			}
 			if resp != nil {
+				if rpk := resp.GetRegisterPkResponse(); rpk != nil && rpk.GetResult() == pb.RegisterPkResponse_OK {
+					bindPeerWSConn(s, peerID, wsc)
+				}
 				wsc.WriteMessage(resp)
 			}
 
@@ -218,6 +251,15 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 
 func (s *Server) wsSignalKeepAlive(wsc *codec.WSConn, done <-chan struct{}) {
 	if wsSignalKeepAliveInterval <= 0 {
+		return
+	}
+
+	// Send an immediate empty frame so proxies and RustDesk desktop clients see
+	// activity right after the HTTP 101 (desktop may wait ~1s before RegisterPk).
+	if err := wsc.WriteKeepAlive(); err != nil {
+		if !isNormalClose(err) {
+			log.Printf("[signal] WS initial keepalive write to %s: %v", wsc.RemoteAddr(), err)
+		}
 		return
 	}
 

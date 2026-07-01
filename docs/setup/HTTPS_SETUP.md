@@ -376,6 +376,7 @@ When using a reverse proxy (Caddy/Nginx), keep `HTTPS_ENABLED=false` and let the
 | `Rendezvous connection is timeout` after `Client handshake done` | Keepalive / proxy timeout after successful WSS upgrade | Update BetterDesk (fix in [#144](https://github.com/UNITRONIX/BetterDesk/issues/144)); set `proxy_read_timeout` ≥ 120s on `/ws/id` |
 | `Rendezvous connection is reset by the peer` ~30s after handshake | Peer marked offline; keepalive not reaching server | Same as above; confirm `/ws/id` reaches port `21118`, not console `:5000` |
 | `HTTP/1.1 401` or `403` on WebSocket upgrade | Console session / origin check (panel paths, not RustDesk `/ws/id`) | Route `/ws/id` and `/ws/relay` to Go ports `21118` / `21119` |
+| Server log `WS read ... EOF` immediately after `101`, client retries in a loop (`allow-websocket=Y`) | Client closed before the first protobuf frame; often proxy idle timeout or desktop `RegisterPk` delay (~1s) | Update BetterDesk (fix in [#229](https://github.com/UNITRONIX/BetterDesk/issues/229)); set `WS_DEBUG_FRAMES=1` on the Go server and retest; use `ws-register-test --mode=register-pk --delay-ms=1000 ws://127.0.0.1:21118/ws/id PEERID` |
 
 **Diagnostic commands** (run from the reverse-proxy host):
 
@@ -397,6 +398,13 @@ curl -i -N \
   -H "Sec-WebSocket-Version: 13" \
   -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
   https://YOUR_DOMAIN/ws/id
+
+# 4. Desktop-style RegisterPk after 1s delay (from server host)?
+ws-register-test --mode=register-pk --delay-ms=1000 ws://127.0.0.1:21118/ws/id TESTPEER1
+# Expected: ACCEPTED: RegisterPkResponse result=OK ...
+
+# 5. Verbose first-frame logging (set on Go server, then retest client):
+# WS_DEBUG_FRAMES=1 in betterdesk-server environment → journalctl shows first send/recv frame types
 ```
 
 ### Web Remote Client Not Working Through Nginx

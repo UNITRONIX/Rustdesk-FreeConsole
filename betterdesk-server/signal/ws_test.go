@@ -2,13 +2,17 @@ package signal
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/unitronix/betterdesk-server/codec"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/peer"
 	pb "github.com/unitronix/betterdesk-server/proto"
 	"google.golang.org/protobuf/proto"
 )
@@ -61,17 +65,7 @@ func TestWSSignalHealthCheck(t *testing.T) {
 		t.Fatalf("WS write: %v", err)
 	}
 
-	// Read response
-	_, respData, err := ws.Read(ctx)
-	if err != nil {
-		t.Fatalf("WS read: %v", err)
-	}
-
-	resp := &pb.RendezvousMessage{}
-	if err := proto.Unmarshal(respData, resp); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-
+	resp := readWSProtoSkippingKeepAlive(t, ctx, ws)
 	if resp.GetHc() == nil || resp.GetHc().Token != "ws-test-123" {
 		t.Errorf("unexpected response: %v", resp)
 	}
@@ -299,23 +293,28 @@ func TestWSSignalRegisterPeer(t *testing.T) {
 		},
 	}
 	data, _ := proto.Marshal(reg)
-	ws.Write(ctx, websocket.MessageBinary, data)
-
-	// Read response
-	_, respData, err := ws.Read(ctx)
-	if err != nil {
-		t.Fatalf("WS read: %v", err)
+	if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
+		t.Fatalf("WS write: %v", err)
 	}
 
-	resp := &pb.RendezvousMessage{}
-	proto.Unmarshal(respData, resp)
-
+	resp := readWSProtoSkippingKeepAlive(t, ctx, ws)
 	rpr := resp.GetRegisterPeerResponse()
 	if rpr == nil {
 		t.Fatalf("expected RegisterPeerResponse, got: %v", resp)
 	}
 	if !rpr.RequestPk {
 		t.Error("should request PK for new peer")
+	}
+
+	entry := srv.PeerMap().Get("WSTEST1")
+	if entry == nil {
+		t.Fatal("peer WSTEST1 should exist in memory")
+	}
+	if entry.ConnType != peer.ConnWS {
+		t.Fatalf("expected ConnWS, got %v", entry.ConnType)
+	}
+	if entry.WSConn == nil {
+		t.Fatal("RegisterPeer should bind WSConn for outbound WS signaling")
 	}
 
 	// Verify peer is in memory
@@ -366,7 +365,7 @@ func TestWSSignalOnlineRequest(t *testing.T) {
 	}
 	data, _ := proto.Marshal(reg)
 	ws1.Write(ctx, websocket.MessageBinary, data)
-	ws1.Read(ctx) // consume RegisterPeerResponse
+	readWSProtoSkippingKeepAlive(t, ctx, ws1) // consume RegisterPeerResponse
 
 	// Now query online status via WS
 	ws2, _, _ := websocket.Dial(ctx, "ws://127.0.0.1:29302/", nil)
@@ -382,13 +381,7 @@ func TestWSSignalOnlineRequest(t *testing.T) {
 	data, _ = proto.Marshal(online)
 	ws2.Write(ctx, websocket.MessageBinary, data)
 
-	_, respData, err := ws2.Read(ctx)
-	if err != nil {
-		t.Fatalf("WS read: %v", err)
-	}
-	resp := &pb.RendezvousMessage{}
-	proto.Unmarshal(respData, resp)
-
+	resp := readWSProtoSkippingKeepAlive(t, ctx, ws2)
 	or := resp.GetOnlineResponse()
 	if or == nil {
 		t.Fatalf("expected OnlineResponse, got: %v", resp)
@@ -401,5 +394,209 @@ func TestWSSignalOnlineRequest(t *testing.T) {
 	// NOTEXIST (index 1) → bit 6 → should be 0
 	if len(or.States) > 0 && or.States[0]&0x40 != 0 {
 		t.Errorf("NOTEXIST should be offline (bit 6), states: %v", or.States)
+	}
+}
+
+func TestWSEffectiveRemoteAddr(t *testing.T) {
+	req := httptestNewRequest("GET", "/ws/id", "203.0.113.50:60000")
+	req.Header.Set("X-Forwarded-For", "203.0.113.50, 10.0.0.1")
+	got := wsEffectiveRemoteAddr(req)
+	if got != "203.0.113.50:0" {
+		t.Fatalf("effective addr = %q, want 203.0.113.50:0", got)
+	}
+
+	req = httptestNewRequest("GET", "/ws/id", "10.0.0.10:48438")
+	req.Header.Set("X-Real-IP", "203.0.113.99")
+	got = wsEffectiveRemoteAddr(req)
+	if got != "203.0.113.99:0" {
+		t.Fatalf("effective addr = %q, want 203.0.113.99:0", got)
+	}
+}
+
+func httptestNewRequest(method, target, remoteAddr string) *http.Request {
+	r := &http.Request{
+		Method: method,
+		URL:    &url.URL{Path: target},
+		Header: make(http.Header),
+	}
+	r.RemoteAddr = remoteAddr
+	return r
+}
+
+func TestWSSignalImmediateKeepAlive(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.SignalPort = 29150
+	cfg.RelayPort = 29151
+
+	dir := t.TempDir()
+	cfg.DBPath = dir + "/test.db"
+	cfg.KeyFile = dir + "/id_ed25519"
+
+	database, err := db.OpenSQLite(cfg.DBPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database.Migrate()
+	defer database.Close()
+
+	kp, err := crypto.LoadOrGenerateKeyPair(cfg.KeyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(cfg, kp, database)
+	ctx := t.Context()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+	time.Sleep(200 * time.Millisecond)
+
+	ws, _, err := websocket.Dial(ctx, "ws://127.0.0.1:29152/ws/id", nil)
+	if err != nil {
+		t.Fatalf("WS dial: %v", err)
+	}
+	defer ws.CloseNow()
+
+	readCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	typ, frame, err := ws.Read(readCtx)
+	if err != nil {
+		t.Fatalf("WS immediate keepalive read: %v", err)
+	}
+	if typ != websocket.MessageBinary || len(frame) != 0 {
+		t.Fatalf("expected immediate empty keepalive, got type=%v len=%d", typ, len(frame))
+	}
+}
+
+func TestWSSignalDesktopRegisterPkDelayed(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.SignalPort = 29160
+	cfg.RelayPort = 29161
+
+	dir := t.TempDir()
+	cfg.DBPath = dir + "/test.db"
+	cfg.KeyFile = dir + "/id_ed25519"
+
+	database, err := db.OpenSQLite(cfg.DBPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database.Migrate()
+	defer database.Close()
+
+	kp, err := crypto.LoadOrGenerateKeyPair(cfg.KeyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(cfg, kp, database)
+	ctx := t.Context()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+	time.Sleep(200 * time.Millisecond)
+
+	ws, _, err := websocket.Dial(ctx, "ws://127.0.0.1:29162/ws/id", nil)
+	if err != nil {
+		t.Fatalf("WS dial: %v", err)
+	}
+	defer ws.CloseNow()
+
+	// RustDesk desktop waits ~1s after WSS upgrade before sending RegisterPk.
+	time.Sleep(time.Second)
+
+	reg := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RegisterPk{
+			RegisterPk: &pb.RegisterPk{
+				Id:   "WSDESK1",
+				Uuid: []byte("desktop-ws-uuid1"),
+				Pk:   make([]byte, 32),
+			},
+		},
+	}
+	data, _ := proto.Marshal(reg)
+	if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
+		t.Fatalf("WS register write: %v", err)
+	}
+
+	resp := readWSProtoSkippingKeepAlive(t, ctx, ws)
+	rpk := resp.GetRegisterPkResponse()
+	if rpk == nil {
+		t.Fatalf("expected RegisterPkResponse, got: %v", resp)
+	}
+	if rpk.GetResult() != pb.RegisterPkResponse_OK {
+		t.Fatalf("RegisterPk result = %v, want OK", rpk.GetResult())
+	}
+
+	entry := srv.PeerMap().Get("WSDESK1")
+	if entry == nil {
+		t.Fatal("expected WSDESK1 in peer map")
+	}
+	if entry.WSConn == nil {
+		t.Fatal("RegisterPk should bind WSConn")
+	}
+	if _, ok := entry.WSConn.(*codec.WSConn); !ok {
+		t.Fatalf("WSConn has unexpected type %T", entry.WSConn)
+	}
+}
+
+func TestWSSignalXForwardedFor(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.SignalPort = 29170
+	cfg.RelayPort = 29171
+
+	dir := t.TempDir()
+	cfg.DBPath = dir + "/test.db"
+	cfg.KeyFile = dir + "/id_ed25519"
+
+	database, err := db.OpenSQLite(cfg.DBPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database.Migrate()
+	defer database.Close()
+
+	kp, err := crypto.LoadOrGenerateKeyPair(cfg.KeyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(cfg, kp, database)
+	ctx := t.Context()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+	time.Sleep(200 * time.Millisecond)
+
+	ws, _, err := websocket.Dial(ctx, "ws://127.0.0.1:29172/ws/id", &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"X-Forwarded-For": []string{"203.0.113.50"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("WS dial: %v", err)
+	}
+	defer ws.CloseNow()
+
+	reg := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RegisterPeer{
+			RegisterPeer: &pb.RegisterPeer{Id: "XFFWS01", Serial: 1},
+		},
+	}
+	data, _ := proto.Marshal(reg)
+	if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
+		t.Fatalf("WS write: %v", err)
+	}
+	readWSProtoSkippingKeepAlive(t, ctx, ws)
+
+	entry := srv.PeerMap().Get("XFFWS01")
+	if entry == nil {
+		t.Fatal("peer XFFWS01 should exist")
+	}
+	if entry.IP != "203.0.113.50:0" {
+		t.Fatalf("peer IP = %q, want 203.0.113.50:0", entry.IP)
 	}
 }
