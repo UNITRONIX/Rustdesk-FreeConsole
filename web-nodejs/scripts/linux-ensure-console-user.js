@@ -436,6 +436,34 @@ function shouldRedeployLetsEncryptMaterial(opts = {}) {
 }
 
 /**
+ * Copy TLS src to dest as a real file; remove dest when it resolves to the same path (#219).
+ * @param {string} src
+ * @param {string} dest
+ * @param {(bin: string, args: string[]) => void} runFn
+ */
+function safeCopyTlsFile(src, dest, runFn = runPrivilegedArgv) {
+    if (!src || !dest || !fs.existsSync(src)) {
+        throw new Error(`TLS source missing: ${src || '(empty)'}`);
+    }
+    let srcReal = src;
+    try {
+        srcReal = fs.realpathSync(src);
+    } catch (_) { /* ok */ }
+    if (fs.existsSync(dest)) {
+        let destReal = dest;
+        try {
+            destReal = fs.realpathSync(dest);
+        } catch (_) { /* ok */ }
+        if (srcReal === destReal) {
+            runFn('rm', ['-f', dest]);
+        }
+    }
+    const tmp = `${dest}.betterdesk.${process.pid}.tmp`;
+    runFn('cp', ['-L', src, tmp]);
+    runFn('mv', ['-f', tmp, dest]);
+}
+
+/**
  * Copy LE cert/key into shared ssl dir with console-user permissions (#219).
  * @returns {{ changed: boolean, skipped?: boolean, reason?: string, error?: string }}
  */
@@ -489,8 +517,8 @@ function repairLetsEncryptSslMaterial(opts = {}) {
         for (const step of getSharedGoDataDirPermissionSteps(rustdeskPath, svcUser)) {
             runFn(step.bin, step.args);
         }
-        runFn('cp', ['-L', leCert, deployedCrt]);
-        runFn('cp', ['-L', leKey, deployedKey]);
+        safeCopyTlsFile(leCert, deployedCrt, runFn);
+        safeCopyTlsFile(leKey, deployedKey, runFn);
         runFn('chown', [`root:${svcUser}`, deployedCrt, deployedKey]);
         runFn('chmod', ['640', deployedCrt, deployedKey]);
 
@@ -724,6 +752,7 @@ module.exports = {
     resolveLetsEncryptLiveDir,
     shouldRedeployLetsEncryptMaterial,
     repairLetsEncryptSslMaterial,
+    safeCopyTlsFile,
     tlsKeyReadableByConsoleUser,
     upsertEnvFileValue,
     upsertSystemdEnvValue,

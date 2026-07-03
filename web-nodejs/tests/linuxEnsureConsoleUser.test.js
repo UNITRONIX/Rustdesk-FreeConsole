@@ -13,6 +13,7 @@ const {
     isTruthyEnvValue,
     resolveLetsEncryptLiveDir,
     shouldRedeployLetsEncryptMaterial,
+    safeCopyTlsFile,
     upsertEnvFileValue,
     SHARED_GO_DATA_DIR_MODE,
     SHARED_GO_SSL_DIR_MODE,
@@ -64,11 +65,12 @@ describe('linux-ensure-console-user helpers', () => {
     });
 
     test('listSharedGoDataFiles includes sqlite db and wal/shm sidecars', () => {
-        const files = listSharedGoDataFiles('/opt/betterdesk');
-        expect(files).toContain('/opt/betterdesk/db_v2.sqlite3');
-        expect(files).toContain('/opt/betterdesk/db_v2.sqlite3-wal');
-        expect(files).toContain('/opt/betterdesk/db_v2.sqlite3-shm');
-        expect(files).toContain('/opt/betterdesk/.api_key');
+        const base = '/opt/betterdesk';
+        const files = listSharedGoDataFiles(base);
+        expect(files).toContain(path.join(base, 'db_v2.sqlite3'));
+        expect(files).toContain(path.join(base, 'db_v2.sqlite3-wal'));
+        expect(files).toContain(path.join(base, 'db_v2.sqlite3-shm'));
+        expect(files).toContain(path.join(base, '.api_key'));
     });
 
     test('applySharedGoFilePermissions sets group rw on db files', () => {
@@ -107,7 +109,7 @@ describe('linux-ensure-console-user helpers', () => {
                 envPath,
                 sslCertPath: '/opt/rustdesk/ssl/betterdesk.crt',
                 leCertDomain: 'desk.example.com',
-            })).toBe('/etc/letsencrypt/live/desk.example.com');
+            })).toBe(path.join('/etc/letsencrypt/live', 'desk.example.com'));
         } finally {
             fs.unlinkSync(envPath);
         }
@@ -154,5 +156,41 @@ describe('linux-ensure-console-user helpers', () => {
         } finally {
             fs.unlinkSync(envPath);
         }
+    });
+
+    test('safeCopyTlsFile removes same-file dest before cp (#219)', () => {
+        const src = '/etc/letsencrypt/live/desk.example.com/fullchain.pem';
+        const dest = '/opt/betterdesk/ssl/betterdesk.crt';
+        const sameInode = '/same/inode/fullchain.pem';
+        const realpathSpy = jest.spyOn(fs, 'realpathSync').mockImplementation((p) => {
+            if (p === src || p === dest) return sameInode;
+            return p;
+        });
+        const existsSpy = jest.spyOn(fs, 'existsSync').mockImplementation((p) => p === src || p === dest);
+
+        const calls = [];
+        safeCopyTlsFile(src, dest, (bin, args) => { calls.push([bin, ...args]); });
+
+        expect(calls[0]).toEqual(['rm', '-f', dest]);
+        expect(calls).toEqual(expect.arrayContaining([
+            ['cp', '-L', src, expect.stringMatching(/\.tmp$/)],
+            ['mv', '-f', expect.stringMatching(/\.tmp$/), dest],
+        ]));
+
+        realpathSpy.mockRestore();
+        existsSpy.mockRestore();
+    });
+
+    test('safeCopyTlsFile uses temp file for normal copy (#219)', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bd-tls-'));
+        const src = path.join(tmpDir, 'privkey.pem');
+        const dest = path.join(tmpDir, 'betterdesk.key');
+        fs.writeFileSync(src, 'KEY');
+        const calls = [];
+        safeCopyTlsFile(src, dest, (bin, args) => { calls.push([bin, ...args]); });
+        expect(calls[0][0]).toBe('cp');
+        expect(calls[0][1]).toBe('-L');
+        expect(calls[1][0]).toBe('mv');
+        fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 });

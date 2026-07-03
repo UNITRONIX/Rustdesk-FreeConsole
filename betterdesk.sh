@@ -782,6 +782,49 @@ resolve_le_cert_live_dir() {
     echo "$le_live_dir"
 }
 
+# Copy a TLS file to dest as a real file (not a symlink). Removes dest when it
+# already resolves to the same path as src — cp -L otherwise fails with "same file" (#219).
+_safe_cp_tls_file() {
+    local src="$1"
+    local dest="$2"
+    local src_real dest_real tmp
+
+    [ -f "$src" ] || return 1
+    src_real=$(readlink -f "$src" 2>/dev/null || echo "$src")
+    if [ -e "$dest" ]; then
+        dest_real=$(readlink -f "$dest" 2>/dev/null || echo "$dest")
+        if [ "$src_real" = "$dest_real" ]; then
+            rm -f "$dest"
+        fi
+    fi
+    tmp="${dest}.betterdesk.$$.tmp"
+    cp -L "$src" "$tmp" || return 1
+    mv -f "$tmp" "$dest" || { rm -f "$tmp"; return 1; }
+    return 0
+}
+
+# Ensure Go signal/relay ports are not overridden by panel PORT=5000 in .env (#219).
+ensure_go_server_signal_ports() {
+    local go_svc_file="/etc/systemd/system/betterdesk-server.service"
+    local changed=0
+
+    [ -f "$go_svc_file" ] || return 1
+
+    if ! grep -q '^Environment=SIGNAL_PORT=21116' "$go_svc_file" 2>/dev/null; then
+        _upsert_systemd_env "$go_svc_file" SIGNAL_PORT 21116
+        changed=1
+    fi
+    if ! grep -q '^Environment=RELAY_PORT=21117' "$go_svc_file" 2>/dev/null; then
+        _upsert_systemd_env "$go_svc_file" RELAY_PORT 21117
+        changed=1
+    fi
+    if [ "$changed" -eq 1 ]; then
+        systemctl daemon-reload 2>/dev/null || true
+        print_info "Go server uses SIGNAL_PORT=21116 (panel PORT in .env is console-only)"
+    fi
+    [ "$changed" -eq 1 ]
+}
+
 # Copy TLS material into $RUSTDESK_PATH/ssl/ as real files (not symlinks) so the
 # betterdesk console user can read them. LE live dirs are root-only (#219).
 deploy_ssl_material_to_rustdesk_dir() {
@@ -798,8 +841,14 @@ deploy_ssl_material_to_rustdesk_dir() {
     fi
 
     mkdir -p "$ssl_dir"
-    cp -L "$cert_src" "$ssl_dir/betterdesk.crt" || return 1
-    cp -L "$key_src" "$ssl_dir/betterdesk.key" || return 1
+    if ! _safe_cp_tls_file "$cert_src" "$ssl_dir/betterdesk.crt"; then
+        print_error "Failed to deploy certificate to $ssl_dir/betterdesk.crt"
+        return 1
+    fi
+    if ! _safe_cp_tls_file "$key_src" "$ssl_dir/betterdesk.key"; then
+        print_error "Failed to deploy private key to $ssl_dir/betterdesk.key"
+        return 1
+    fi
 
     if id "$svc_user" &>/dev/null; then
         chown root:"$svc_user" "$ssl_dir/betterdesk.crt" "$ssl_dir/betterdesk.key" 2>/dev/null || true
@@ -850,8 +899,20 @@ if [ -z "$le_live_dir" ] || [ ! -d "$le_live_dir" ]; then
 fi
 
 mkdir -p "$SSL_DIR"
-cp -L "$le_live_dir/fullchain.pem" "$SSL_DIR/betterdesk.crt"
-cp -L "$le_live_dir/privkey.pem" "$SSL_DIR/betterdesk.key"
+for pair in "fullchain.pem:betterdesk.crt" "privkey.pem:betterdesk.key"; do
+    src_name="${pair%%:*}"
+    dest_name="${pair##*:}"
+    src="$le_live_dir/$src_name"
+    dest="$SSL_DIR/$dest_name"
+    src_real=$(readlink -f "$src" 2>/dev/null || echo "$src")
+    if [ -e "$dest" ]; then
+        dest_real=$(readlink -f "$dest" 2>/dev/null || echo "$dest")
+        [ "$src_real" = "$dest_real" ] && rm -f "$dest"
+    fi
+    tmp="${dest}.betterdesk.$$.tmp"
+    cp -L "$src" "$tmp"
+    mv -f "$tmp" "$dest"
+done
 if id "$SVC_USER" &>/dev/null; then
     chown root:"$SVC_USER" "$SSL_DIR/betterdesk.crt" "$SSL_DIR/betterdesk.key"
 fi
@@ -892,7 +953,7 @@ maybe_repair_le_ssl_symlinks() {
     fi
 
     if [ "$needs_redeploy" != "yes" ]; then
-        return 0
+        return 2
     fi
 
     local le_live_dir
@@ -904,8 +965,39 @@ maybe_repair_le_ssl_symlinks() {
     fi
 
     print_info "Repairing LE certificate symlinks → copied files for console user (#219)"
-    deploy_ssl_material_to_rustdesk_dir "$le_live_dir/fullchain.pem" "$le_live_dir/privkey.pem" "$le_live_dir" || return 1
+    if ! deploy_ssl_material_to_rustdesk_dir "$le_live_dir/fullchain.pem" "$le_live_dir/privkey.pem" "$le_live_dir"; then
+        print_error "LE redeploy failed for $le_live_dir — remove symlinks under $ssl_dir and retry"
+        return 1
+    fi
     _sync_deployed_ssl_paths_to_env
+    return 0
+}
+
+# Repair HTTPS stuck state: Go signal port isolation + LE material redeploy (#219).
+repair_https_stuck_state() {
+    local quiet="${1:-}"
+    local changed=0
+
+    if ensure_go_server_signal_ports; then
+        changed=1
+    fi
+
+    local https_enabled
+    https_enabled=$(read_effective_console_setting HTTPS_ENABLED false)
+    if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
+        local le_rc=2
+        maybe_repair_le_ssl_symlinks || le_rc=$?
+        if [ "$le_rc" -eq 0 ]; then
+            changed=1
+        elif [ "$le_rc" -ne 2 ] && ensure_console_tls_material_readable; then
+            changed=1
+        fi
+        _sync_deployed_ssl_paths_to_env 2>/dev/null || true
+    fi
+
+    if [ "$changed" -eq 1 ] && [ "$quiet" != "yes" ]; then
+        print_info "HTTPS/TLS configuration repaired (#219)"
+    fi
     return 0
 }
 
@@ -2826,6 +2918,8 @@ patch_service_definitions() {
         systemctl daemon-reload 2>/dev/null || true
         print_success "Service definitions patched (custom ExecStart preserved)"
     fi
+
+    ensure_go_server_signal_ports 2>/dev/null || true
 }
 
 # During UPDATE: create missing units; patch existing ones safely (issue #158).
@@ -2846,6 +2940,7 @@ maybe_update_services() {
     fi
 
     patch_service_definitions
+    repair_https_stuck_state yes
 
     if [ "$mode" = "recreate" ] || [ "${UPDATE_REFRESH_SERVICES:-false}" = true ]; then
         print_info "Recreating systemd service units from template..."
@@ -3036,6 +3131,8 @@ WorkingDirectory=$RUSTDESK_PATH
 EnvironmentFile=-$CONSOLE_PATH/.env
 Environment=AUTH_DB_PATH=$CONSOLE_PATH/data/auth.db
 Environment=MESH_ENABLED=Y
+Environment=SIGNAL_PORT=21116
+Environment=RELAY_PORT=21117
 $CONNECTION_MODE_ENV_BLOCK
 ExecStart=$RUSTDESK_PATH/betterdesk-server -mode all -relay-servers $server_ip $systemd_db_arg -key-file $RUSTDESK_PATH/id_ed25519 -api-port $API_PORT -signal-rate-limit-per-ip $signal_rate_limit $init_admin_arg $tls_arg
 Restart=always
@@ -4107,10 +4204,11 @@ do_repair() {
         $'Repair database\tAdd missing columns / run migrations'
         $'Repair services\tRegenerate systemd service units'
         $'Repair permissions\tFix file ownership and permissions'
+        $'Repair HTTPS / TLS\tFix LE certs, signal port :5000 conflict (#219)'
         $'Full repair\tRun all repair steps above'
         $'Back\tReturn to the main menu'
     )
-    local _menu_returns=( 1 2 3 4 5 0 )
+    local _menu_returns=( 1 2 3 4 5 6 0 )
     menu_choose "Repair Installation" "Choose what to repair"
     local repair_choice="$MENU_CHOICE"
     
@@ -4119,11 +4217,13 @@ do_repair() {
         2) repair_database ;;
         3) repair_services ;;
         4) repair_permissions ;;
-        5) 
+        5) repair_https_tls ;;
+        6) 
             repair_binaries
             repair_database
             repair_services
             repair_permissions
+            repair_https_tls
             print_success "Full repair completed!"
             ;;
         0) return ;;
@@ -4295,6 +4395,7 @@ repair_permissions() {
                 print_warning "Console permission sync skipped (run as root: sudo node $CONSOLE_PATH/scripts/linux-ensure-console-user.js)"
             fi
         fi
+        repair_https_stuck_state yes
         ensure_console_tls_material_readable 2>/dev/null || true
     fi
 
@@ -4310,6 +4411,22 @@ repair_permissions() {
         fi
     else
         print_success "Permissions repaired"
+    fi
+}
+
+repair_https_tls() {
+    print_step "Repairing HTTPS / TLS configuration (#219)..."
+
+    repair_https_stuck_state
+
+    if confirm "Restart BetterDesk services now?"; then
+        systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
+        verify_service_health "betterdesk-server" "21116" 15 >/dev/null 2>&1 || true
+        verify_service_health "betterdesk-console" "$(resolve_panel_health_port)" 15 >/dev/null 2>&1 || true
+        print_success "BetterDesk services restarted"
+        run_protocol_tests
+    else
+        print_info "Repair saved. Restart later: systemctl restart betterdesk-server betterdesk-console"
     fi
 }
 
@@ -5852,10 +5969,12 @@ do_configure_ssl() {
 
     echo ""
     if confirm "Restart BetterDesk to apply changes?"; then
+        repair_https_stuck_state yes
         ensure_console_tls_material_readable 2>/dev/null || true
         systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
         print_success "BetterDesk services restarted"
-        sleep 2
+        verify_service_health "betterdesk-server" "21116" 15 >/dev/null 2>&1 || true
+        verify_service_health "betterdesk-console" "$(resolve_panel_health_port)" 15 >/dev/null 2>&1 || true
         run_protocol_tests
     fi
 
@@ -5886,11 +6005,25 @@ run_protocol_tests() {
         _test_ok "Go server service is active"
     else
         _test_fail "Go server service is NOT active (journalctl -u betterdesk-server)"
+        if journalctl -u betterdesk-server --no-pager -n 40 2>/dev/null | grep -q 'listen tcp :5000'; then
+            echo -e "      ${DIM}Hint: Go tried signal on :5000 — panel PORT in .env leaked; run Repair → Repair HTTPS/TLS (#219)${NC}"
+        fi
     fi
     if systemctl is-active --quiet betterdesk-console 2>/dev/null; then
         _test_ok "Web console service is active"
     else
         _test_fail "Web console service is NOT active (journalctl -u betterdesk-console)"
+    fi
+
+    # ── 1b. Wait for Go signal port (post-restart boot delay) ──
+    if systemctl is-active --quiet betterdesk-server 2>/dev/null; then
+        if verify_service_health "betterdesk-server" "21116" 15 >/dev/null 2>&1; then
+            _test_ok "Go server listening on signal port :21116"
+        elif journalctl -u betterdesk-server --no-pager -n 40 2>/dev/null | grep -q 'listen tcp :5000'; then
+            _test_fail "Go server tried signal on :5000 (conflicts with panel redirect) — Repair → Repair HTTPS/TLS (#219)"
+        else
+            _test_fail "Go server not listening on :21116 yet (journalctl -u betterdesk-server)"
+        fi
     fi
 
     # ── 2. Effective runtime configuration (systemd overrides .env) ──
@@ -6042,7 +6175,10 @@ run_protocol_tests() {
     fi
 
     echo ""
-    echo -e "  ${DIM}Effective config: HTTPS_ENABLED=${https_enabled} panel=${panel_scheme}:${panel_port} redirect=${http_redirect} client_api_tls=${api_tls_mode}${NC}"
+    local go_signal_port relay_port
+    go_signal_port=$(grep -m1 '^Environment=SIGNAL_PORT=' "$go_svc_file" 2>/dev/null | cut -d= -f2- || echo "21116")
+    relay_port=$(grep -m1 '^Environment=RELAY_PORT=' "$go_svc_file" 2>/dev/null | cut -d= -f2- || echo "21117")
+    echo -e "  ${DIM}Effective config: HTTPS_ENABLED=${https_enabled} panel=${panel_scheme}:${panel_port} redirect=${http_redirect} client_api_tls=${api_tls_mode} go_signal=${go_signal_port} go_relay=${relay_port}${NC}"
     echo ""
     echo -e "  ${GREEN}${pass} passed${NC}   ${YELLOW}${warn} warnings${NC}   ${RED}${fail} failed${NC}"
     if [ "$fail" -gt 0 ]; then
@@ -6289,9 +6425,11 @@ do_toggle_protocol() {
 
     echo ""
     if confirm "Restart BetterDesk services now?"; then
+        repair_https_stuck_state yes
         ensure_console_tls_material_readable 2>/dev/null || true
         systemctl restart betterdesk-server betterdesk-console 2>/dev/null || true
-        sleep 2
+        verify_service_health "betterdesk-server" "21116" 15 >/dev/null 2>&1 || true
+        verify_service_health "betterdesk-console" "$(resolve_panel_health_port)" 15 >/dev/null 2>&1 || true
         print_success "BetterDesk services restarted"
         run_protocol_tests
     else

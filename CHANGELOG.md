@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Linux HTTP/HTTPS toggle (#219)** — `betterdesk-server.service` now sets `SIGNAL_PORT=21116` / `RELAY_PORT=21117` so panel `PORT=5000` in `.env` no longer makes the Go signal server bind `:5000` (conflict with the HTTPS redirect listener). Let's Encrypt redeploy removes same-path symlinks before `cp` (`cp: same file`). New **Repair → Repair HTTPS / TLS** menu path runs stuck-state repair (LE copy + signal ports); post-toggle tests wait for Go on `:21116` and surface the `:5000` mis-bind hint.
+
 ### Changed
 - _(none yet)_
 
