@@ -837,7 +837,7 @@
     align-items: flex-start;
     background: var(--bg-secondary, #161b22);
     border-bottom: 1px solid var(--border-primary, #30363d);
-    z-index: 60;
+    z-index: 220;
     user-select: none;
     -webkit-app-region: drag;
     overflow: visible;
@@ -942,7 +942,7 @@
     height: var(--session-card-expanded);
     min-width: 120px;
     max-width: 180px;
-    z-index: 62;
+    z-index: 3;
     color: var(--text-primary, #e6edf3);
     background: var(--bg-tertiary, #21262d);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
@@ -1075,7 +1075,7 @@
     min-width: var(--session-bar-btn-expanded);
     background: var(--bg-tertiary, #21262d);
     color: var(--text-primary, #e6edf3);
-    z-index: 62;
+    z-index: 3;
     box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35);
 }
 
