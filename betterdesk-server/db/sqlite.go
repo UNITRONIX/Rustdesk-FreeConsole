@@ -701,8 +701,9 @@ func (s *SQLiteDB) UpsertPeer(p *Peer) error {
 
 	_, err := s.db.Exec(`
 		INSERT INTO peers (id, uuid, pk, ip, user, hostname, os, version, 
-		                    status, nat_type, last_online, disabled, note, tags, heartbeat_seq)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                    status, nat_type, last_online, disabled, note, tags, heartbeat_seq,
+		                    device_type, linked_peer_id, display_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			uuid = COALESCE(NULLIF(excluded.uuid, ''), peers.uuid),
 			pk = COALESCE(excluded.pk, peers.pk),
@@ -717,14 +718,17 @@ func (s *SQLiteDB) UpsertPeer(p *Peer) error {
 			disabled = excluded.disabled,
 			note = COALESCE(NULLIF(excluded.note, ''), peers.note),
 			tags = COALESCE(NULLIF(excluded.tags, ''), peers.tags),
-			heartbeat_seq = excluded.heartbeat_seq`,
+			heartbeat_seq = excluded.heartbeat_seq,
+			device_type = COALESCE(NULLIF(excluded.device_type, ''), peers.device_type),
+			linked_peer_id = COALESCE(NULLIF(excluded.linked_peer_id, ''), peers.linked_peer_id),
+			display_name = COALESCE(NULLIF(excluded.display_name, ''), peers.display_name)`,
 		/* SECURITY (GHSA-3v82-3gf8-fxx8): UpsertPeer MUST NOT silently clear
-		   soft_deleted/deleted_at on conflict. Doing so allows any successful
-		   registration to undo an administrator's deletion. Restoration is now
-		   an explicit operation — see RestorePeer. */
+		   soft_deleted/deleted_at on conflict. Restoration is now an explicit
+		   operation — see RestorePeer. */
 		p.ID, p.UUID, p.PK, p.IP, p.User, p.Hostname, p.OS, p.Version,
 		p.Status, p.NATType, formatTime(p.LastOnline),
 		p.Disabled, p.Note, p.Tags, p.HeartbeatSeq,
+		p.DeviceType, p.LinkedPeerID, p.DisplayName,
 	)
 	if err != nil {
 		return fmt.Errorf("db: UpsertPeer(%q): %w", p.ID, err)

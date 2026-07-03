@@ -1123,6 +1123,18 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		// Limit request body size to 1 MB for all requests (S10)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
+		// MeshCentral compatibility — binary agent auth on the WebSocket itself (no JWT).
+		if path == "/agent.ashx" || path == "/meshrelay.ashx" ||
+			path == "/bettercore.js" || path == "/meshcore.js" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// control.ashx uses x-meshauth / Bearer inside handleControlWS.
+		if path == "/control.ashx" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Public endpoints — no auth required
 		if path == "/api/health" || path == "/metrics" ||
 			path == "/api/auth/login" || path == "/api/auth/login/2fa" ||
