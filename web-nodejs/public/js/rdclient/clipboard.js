@@ -68,20 +68,13 @@ class RDClipboard {
      */
     static stripHtml(html) {
         if (!html) return '';
-        if (typeof DOMParser !== 'undefined') {
-            try {
-                const doc = new DOMParser().parseFromString(html, 'text/html');
-                return (doc.body && doc.body.textContent) ? doc.body.textContent : '';
-            } catch (_) {
-                // fall through to regex
-            }
+        if (typeof DOMParser === 'undefined') return '';
+        try {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            return (doc.body && doc.body.textContent) ? doc.body.textContent : '';
+        } catch (_) {
+            return '';
         }
-        return html
-            .replace(/<script[\s\S]*?<\/script>/gi, '')
-            .replace(/<style[\s\S]*?<\/style>/gi, '')
-            .replace(/<[^>]+>/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
     }
 
     /**

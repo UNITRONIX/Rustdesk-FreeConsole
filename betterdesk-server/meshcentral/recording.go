@@ -1,8 +1,10 @@
 package meshcentral
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -46,6 +48,9 @@ func openRelayRecorder(dataDir, peerID, relayID, sessionType string) (*relayReco
 	}
 	name := fmtFilename(peerID, relayID, sessionType)
 	path := filepath.Join(dir, name)
+	if !pathWithinDir(dir, path) {
+		return nil, "", fmt.Errorf("invalid recording path")
+	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0640)
 	if err != nil {
 		return nil, "", err
@@ -55,14 +60,17 @@ func openRelayRecorder(dataDir, peerID, relayID, sessionType string) (*relayReco
 
 func fmtFilename(peerID, relayID, sessionType string) string {
 	ts := time.Now().Format("20060102-150405")
-	safe := stringsMapPeer(peerID)
-	return safe + "_" + sessionType + "_" + ts + "_" + relayID[:8] + ".mcrec"
+	prefix := relayID
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
+	}
+	return sanitizePathSegment(peerID) + "_" + sanitizePathSegment(sessionType) + "_" + ts + "_" + sanitizePathSegment(prefix) + ".mcrec"
 }
 
-func stringsMapPeer(id string) string {
-	out := make([]byte, 0, len(id))
-	for i := 0; i < len(id); i++ {
-		c := id[i]
+func sanitizePathSegment(s string) string {
+	out := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
 		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' {
 			out = append(out, c)
 		} else {
@@ -70,9 +78,19 @@ func stringsMapPeer(id string) string {
 		}
 	}
 	if len(out) == 0 {
-		return "peer"
+		return "segment"
 	}
 	return string(out)
+}
+
+func pathWithinDir(dir, target string) bool {
+	cleanDir := filepath.Clean(dir)
+	cleanTarget := filepath.Clean(target)
+	if cleanDir == cleanTarget {
+		return true
+	}
+	sep := string(os.PathSeparator)
+	return strings.HasPrefix(cleanTarget, cleanDir+sep)
 }
 
 func (r *relayRecorder) Write(messageType int, data []byte) {

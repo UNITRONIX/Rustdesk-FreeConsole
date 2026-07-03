@@ -38,10 +38,12 @@ query-filters:
         - betterdesk-server/auth/oidc_url.go
 
   # --- SSL certificate inspection tool: reads peer cert metadata only (admin-only route) ---
+  # --- MeshAgent tunnel: pin-based TLS via checkServerIdentity (self-signed agent certs) ---
   - exclude:
       id: js/disabling-certificate-validation
       paths:
         - web-nodejs/routes/toolkit.routes.js
+        - betterdesk-server/meshcentral/assets/bettercore.js
 
   # --- Legacy / protocol-required hashing (documented; not password storage) ---
   - exclude:

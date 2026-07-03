@@ -15,3 +15,13 @@ updates:
       # migration. Keep Dependabot active for other Cargo dependencies while
       # avoiding repeated impossible PRs for this transitive GTK3 dependency.
       - dependency-name: "glib"
+
+  - package-ecosystem: "cargo"
+    directory: "/betterdesk-agent-client/src-tauri"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      # GitHub Dependabot alert #11: glib::VariantStrIter unsoundness (RUSTSEC-2024-0429).
+      # Same Tauri gtk3 / webkit2gtk transitive chain as rdclient-desktop; see comment above.
+      - dependency-name: "glib"
