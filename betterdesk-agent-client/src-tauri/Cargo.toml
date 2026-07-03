@@ -46,7 +46,7 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 crypto_box = { version = "0.9", features = ["std"] }
 portable-pty = "0.8"
 home = "0.5"
-enigo = "0.2"
+enigo = "0.6"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 arboard = { version = "3", default-features = false }
 
