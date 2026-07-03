@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.89] — 2026-07-03
+
 ### Fixed
 - **Linux HTTP/HTTPS toggle (#219)** — `betterdesk-server.service` now sets `SIGNAL_PORT=21116` / `RELAY_PORT=21117` so panel `PORT=5000` in `.env` no longer makes the Go signal server bind `:5000` (conflict with the HTTPS redirect listener). Let's Encrypt redeploy removes same-path symlinks before `cp` (`cp: same file`). New **Repair → Repair HTTPS / TLS** menu path runs stuck-state repair (LE copy + signal ports); post-toggle tests wait for Go on `:21116` and surface the `:5000` mis-bind hint.
 
@@ -1444,3 +1451,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.86]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.85...v3.3.86
 [3.3.87]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.86...v3.3.87
 [3.3.88]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.87...v3.3.88
+[3.3.89]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.88...v3.3.89
