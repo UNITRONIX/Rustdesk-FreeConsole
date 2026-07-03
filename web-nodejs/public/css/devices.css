@@ -963,6 +963,50 @@ td.column-hidden {
     opacity: 0.7;
 }
 
+.deleted-row {
+    opacity: 0.72;
+    background: rgba(100, 116, 139, 0.08) !important;
+}
+
+.deleted-row:hover {
+    background: rgba(100, 116, 139, 0.12) !important;
+}
+
+.device-deleted-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary, #64748b);
+    background: rgba(100, 116, 139, 0.15);
+}
+
+.show-deleted-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #64748b);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.show-deleted-toggle input {
+    margin: 0;
+}
+
+.device-panel-status-badge.deleted {
+    color: var(--text-secondary, #64748b);
+    background: rgba(100, 116, 139, 0.15);
+}
+
 /* ==================== Draggable Rows ==================== */
 
 .devices-table tbody tr[draggable="true"] {

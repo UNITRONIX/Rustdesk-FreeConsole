@@ -116,10 +116,16 @@ async function getServerStats() {
 /**
  * GET /api/peers  — full device list
  * Returns array of peer objects already normalised.
+ * @param {object} [options]
+ * @param {boolean} [options.includeDeleted=false]
  */
-async function getAllPeers() {
+async function getAllPeers(options = {}) {
     try {
-        const { data } = await apiClient.get('/peers');
+        const params = new URLSearchParams();
+        if (options.includeDeleted) params.set('include_deleted', 'true');
+        const qs = params.toString();
+        const url = `/peers${qs ? '?' + qs : ''}`;
+        const { data } = await apiClient.get(url);
         // Go server returns flat array or { peers: [...] }
         const peers = Array.isArray(data) ? data : (data.peers || []);
         return peers.map(normalisePeer);
@@ -127,6 +133,16 @@ async function getAllPeers() {
         console.warn('BetterDesk API getAllPeers error:', err.message);
         return [];
     }
+}
+
+/**
+ * Resolve a peer by ID, including soft-deleted rows when active lookup misses.
+ */
+async function getPeerIncludingDeleted(id) {
+    const active = await getPeer(id);
+    if (active) return active;
+    const peers = await getAllPeers({ includeDeleted: true });
+    return peers.find((p) => p.id === id) || null;
 }
 
 /**
@@ -525,6 +541,8 @@ function normalisePeer(peer) {
         uuid: peer.uuid || '',
         nat_type: peer.nat_type || 0,
         disabled: !!(peer.disabled || peer.soft_deleted),
+        soft_deleted: !!(peer.soft_deleted),
+        deleted_at: peer.deleted_at || null,
         device_type: peer.device_type || '',
         cdap_connected: !!peer.cdap_connected,
         mesh_connected: !!peer.mesh_connected,
@@ -1094,6 +1112,7 @@ module.exports = {
     // Peers
     getAllPeers,
     getPeer,
+    getPeerIncludingDeleted,
     deletePeer,
     banPeer,
     unbanPeer,

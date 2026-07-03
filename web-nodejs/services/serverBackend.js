@@ -72,7 +72,9 @@ async function getServerInfo() {
 
 async function getAllDevices(filters = {}) {
     if (await isBetterDesk()) {
-        let peers = await betterdeskApi.getAllPeers();
+        let peers = await betterdeskApi.getAllPeers({
+            includeDeleted: !!filters.includeDeleted
+        });
 
         // Overlay folder_id from auth.db assignments (Go server doesn't track folders)
         try {
@@ -140,8 +142,10 @@ async function getAllDevices(filters = {}) {
     return await db.getAllDevices(filters);
 }
 
-async function getDeviceById(id) {
-    const peer = await betterdeskApi.getPeer(id);
+async function getDeviceById(id, options = {}) {
+    const peer = options.includeDeleted
+        ? await betterdeskApi.getPeerIncludingDeleted(id)
+        : await betterdeskApi.getPeer(id);
     // Overlay folder_id from auth.db
     if (peer) {
         try {

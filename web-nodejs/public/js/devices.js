@@ -13,6 +13,9 @@
     }
 
     function deviceStatusInfo(d) {
+        if (d.soft_deleted) {
+            return { className: 'deleted', label: _('devices.deleted_badge'), title: '' };
+        }
         if (d.banned) {
             return { className: 'banned', label: _('status.banned'), title: '' };
         }
@@ -63,8 +66,10 @@
     let currentPage = 1;
     let perPage = 20;
     let searchQuery = '';
+    let showDeleted = false;
     let draggedDeviceId = null;
     const STORAGE_PER_PAGE = 'bd_devices_per_page';
+    const STORAGE_SHOW_DELETED = 'bd_devices_show_deleted';
     const PER_PAGE_OPTIONS = [10, 20, 50, 100];
     let contextMenuState = null;
     let hScrollSyncing = false;
@@ -91,6 +96,7 @@
         // Event listeners
         initSearch();
         initFilters();
+        initShowDeletedToggle();
         initTagFilter();
         initSorting();
         initSync();
@@ -111,6 +117,10 @@
             const perPageSelect = document.getElementById('per-page-select');
             if (perPageSelect) perPageSelect.value = String(perPage);
         }
+
+        showDeleted = localStorage.getItem(STORAGE_SHOW_DELETED) === '1';
+        const showDeletedInput = document.getElementById('show-deleted-input');
+        if (showDeletedInput) showDeletedInput.checked = showDeleted;
         
         // Refresh handler
         window.addEventListener('app:refresh', () => {
@@ -255,6 +265,22 @@
     function buildDeviceMenuItemsHtml(device) {
         const eid = Utils.escapeHtml(device.id);
         const banned = !!device.banned;
+        if (device.soft_deleted) {
+            return `
+            <button type="button" class="kebab-menu-item info" data-action="details" data-id="${eid}">
+                <span class="material-icons">info</span>
+                <span>${_('actions.details')}</span>
+            </button>
+            <div class="kebab-divider"></div>
+            <button type="button" class="kebab-menu-item" data-action="restore" data-id="${eid}">
+                <span class="material-icons">restore</span>
+                <span>${_('devices.restore_action')}</span>
+            </button>
+            <button type="button" class="kebab-menu-item danger" data-action="permanent-delete" data-id="${eid}">
+                <span class="material-icons">delete_forever</span>
+                <span>${_('devices.permanent_delete_title')}</span>
+            </button>`;
+        }
         const isMesh = String(device.device_type || '').toLowerCase() === 'mesh_agent';
         const meshOnline = isMesh && (device.mesh_connected || device.online);
         const meshOfflineWake = isMesh && !meshOnline ? `
@@ -603,7 +629,8 @@
      */
     async function loadDevices() {
         try {
-            const response = await Utils.api('/api/devices');
+            const qs = showDeleted ? '?includeDeleted=true' : '';
+            const response = await Utils.api('/api/devices' + qs);
             devices = response.devices || [];
             
             // Update count
@@ -729,6 +756,8 @@
      */
     function applyFilters() {
         filteredDevices = devices.filter(device => {
+            if (!showDeleted && device.soft_deleted) return false;
+
             // Folder filter
             if (currentFolder === 'unassigned' && device.folder_id) return false;
             if (currentFolder !== 'all' && currentFolder !== 'unassigned') {
@@ -832,11 +861,12 @@
             const statusInfo = deviceStatusInfo(device);
             const sc = statusInfo.className;
             return `
-            <tr data-id="${eid}" class="${device.banned ? 'banned-row' : ''}" draggable="true">
+            <tr data-id="${eid}" class="${device.banned ? 'banned-row' : ''}${device.soft_deleted ? ' deleted-row' : ''}" draggable="${device.soft_deleted ? 'false' : 'true'}">
                 <td data-column="id">
                     <div class="device-id">
                         <span class="device-status-dot ${sc}"></span>
                         <span class="device-id-text">${eid}</span>
+                        ${device.soft_deleted ? `<span class="device-deleted-badge">${Utils.escapeHtml(_('devices.deleted_badge'))}</span>` : ''}
                         <button class="copy-btn" title="${_('actions.copy')}" data-copy="${eid}">
                             <span class="material-icons">content_copy</span>
                         </button>
@@ -1099,6 +1129,14 @@
                 
             case 'delete':
                 await deleteDevice(deviceId);
+                break;
+
+            case 'restore':
+                await restoreDevice(deviceId);
+                break;
+
+            case 'permanent-delete':
+                await permanentDeleteDevice(deviceId);
                 break;
 
             case 'access-policy':
@@ -1653,6 +1691,12 @@
      * Delete device with delayed confirmation
      */
     async function deleteDevice(deviceId) {
+        const device = devices.find(d => d.id === deviceId);
+        if (device?.soft_deleted) {
+            await permanentDeleteDevice(deviceId);
+            return;
+        }
+
         return new Promise((resolve) => {
             const modalHtml = `
                 <div class="modal-overlay delete-confirm-modal" id="delete-modal-${deviceId}">
@@ -1749,6 +1793,42 @@
                 }
             });
         });
+    }
+
+    async function restoreDevice(deviceId) {
+        const confirmed = await Modal.confirm({
+            title: _('devices.restore_title'),
+            message: _('devices.restore_confirm', { id: deviceId }),
+            confirmLabel: _('devices.restore_action'),
+            danger: false
+        });
+        if (!confirmed) return;
+
+        try {
+            await Utils.api(`/api/devices/${encodeURIComponent(deviceId)}/restore`, { method: 'POST' });
+            Notifications.success(_('devices.restore_success'));
+            loadDevices();
+        } catch (error) {
+            Notifications.error(error.message || _('devices.restore_failed'));
+        }
+    }
+
+    async function permanentDeleteDevice(deviceId) {
+        const confirmed = await Modal.confirm({
+            title: _('devices.permanent_delete_title'),
+            message: _('devices.permanent_delete_confirm', { id: deviceId }),
+            confirmLabel: _('actions.delete'),
+            danger: true
+        });
+        if (!confirmed) return;
+
+        try {
+            await Utils.api(`/api/devices/${encodeURIComponent(deviceId)}?hard=true`, { method: 'DELETE' });
+            Notifications.success(_('devices.permanent_delete_success'));
+            loadDevices();
+        } catch (error) {
+            Notifications.error(error.message || _('errors.delete_failed'));
+        }
     }
     
     /**
@@ -1951,6 +2031,17 @@
                 currentPage = 1;
                 applyFilters();
             });
+        });
+    }
+
+    function initShowDeletedToggle() {
+        const input = document.getElementById('show-deleted-input');
+        if (!input) return;
+        input.addEventListener('change', () => {
+            showDeleted = !!input.checked;
+            localStorage.setItem(STORAGE_SHOW_DELETED, showDeleted ? '1' : '0');
+            currentPage = 1;
+            loadDevices();
         });
     }
     

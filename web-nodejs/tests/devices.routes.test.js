@@ -125,6 +125,18 @@ describe('Devices Routes', () => {
                 })
             );
         });
+
+        it('should pass includeDeleted filter', async () => {
+            serverBackend.getAllDevices.mockResolvedValue([]);
+
+            await request(app).get('/api/devices?includeDeleted=true');
+
+            expect(serverBackend.getAllDevices).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    includeDeleted: true
+                })
+            );
+        });
     });
 
     describe('GET /api/devices/:id', () => {
@@ -357,6 +369,20 @@ describe('Devices Routes', () => {
     });
 
     describe('POST /api/devices/:id/change-id', () => {
+        it('should return reserved-deleted error when target ID is soft-deleted', async () => {
+            serverBackend.getDeviceById
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce({ id: 'MACPRO', soft_deleted: true });
+
+            const res = await request(app)
+                .post('/api/devices/NEWCLIENT/change-id')
+                .send({ newId: 'MACPRO' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+            expect(res.body.error).toBe('devices.id_reserved_deleted');
+        });
+
         it('should propagate soft-deleted ID conflicts from the backend', async () => {
             const message = 'This ID belongs to a deleted device. Restore or permanently delete that device before reusing the ID.';
             serverBackend.getDeviceById.mockResolvedValue(null);
@@ -368,7 +394,7 @@ describe('Devices Routes', () => {
 
             expect(res.status).toBe(400);
             expect(res.body.success).toBe(false);
-            expect(res.body.error).toBe(message);
+            expect(res.body.error).toBe('devices.id_reserved_deleted');
         });
     });
 
@@ -382,6 +408,24 @@ describe('Devices Routes', () => {
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
             expect(res.body.hard).toBe(true);
+            expect(serverBackend.deleteDevice).toHaveBeenCalledWith('MACPRO', {
+                revoke: false,
+                cascade: false,
+                hard: true
+            });
+        });
+
+        it('should hard delete a soft-deleted device when active lookup misses', async () => {
+            serverBackend.getDeviceById
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce({ id: 'MACPRO', soft_deleted: true });
+            serverBackend.deleteDevice.mockResolvedValue({ success: true });
+
+            const res = await request(app).delete('/api/devices/MACPRO?hard=true');
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(serverBackend.getDeviceById).toHaveBeenCalledWith('MACPRO', { includeDeleted: true });
             expect(serverBackend.deleteDevice).toHaveBeenCalledWith('MACPRO', {
                 revoke: false,
                 cascade: false,

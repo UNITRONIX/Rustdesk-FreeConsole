@@ -28,6 +28,21 @@ router.get('/devices', requireAuth, (req, res) => {
 const ALLOWED_SORT_FIELDS = ['last_online', 'id', 'hostname', 'created_at', 'os', 'version', 'username', 'note'];
 const ALLOWED_SORT_ORDERS = ['asc', 'desc'];
 
+const GO_ID_RESERVED_DELETED_MSG =
+    'This ID belongs to a deleted device. Restore or permanently delete that device before reusing the ID.';
+
+function mapChangeIdError(req, error) {
+    if (!error) return req.t('devices.change_id_failed');
+    const text = String(error);
+    if (text === GO_ID_RESERVED_DELETED_MSG || text.includes('deleted device')) {
+        return req.t('devices.id_reserved_deleted');
+    }
+    if (text === 'Device ID already exists') {
+        return req.t('devices.id_exists');
+    }
+    return error;
+}
+
 router.get('/api/devices', requireAuth, requirePermission('device.view'), async (req, res) => {
     try {
         // Validate and sanitize sort parameters
@@ -40,6 +55,7 @@ router.get('/api/devices', requireAuth, requirePermission('device.view'), async 
             search: req.query.search || '',
             status: req.query.status || '',
             hasNotes: req.query.hasNotes === 'true',
+            includeDeleted: req.query.includeDeleted === 'true',
             sortBy,
             sortOrder
         };
@@ -282,7 +298,10 @@ router.put('/api/devices/:id/groups', requireAuth, requirePermission('device.edi
  */
 router.get('/api/devices/:id', requireAuth, requirePermission('device.view'), async (req, res) => {
     try {
-        const device = await serverBackend.getDeviceById(req.params.id);
+        let device = await serverBackend.getDeviceById(req.params.id);
+        if (!device) {
+            device = await serverBackend.getDeviceById(req.params.id, { includeDeleted: true });
+        }
         
         if (!device) {
             return res.status(404).json({
@@ -414,7 +433,10 @@ router.delete('/api/devices/:id', requireAuth, requirePermission('device.delete'
         const cascade = req.query.cascade === 'true';
         const hard = req.query.hard === 'true';
         
-        const device = await serverBackend.getDeviceById(id);
+        let device = await serverBackend.getDeviceById(id);
+        if (!device && hard) {
+            device = await serverBackend.getDeviceById(id, { includeDeleted: true });
+        }
         if (!device) {
             return res.status(404).json({
                 success: false,
@@ -567,12 +589,19 @@ router.post('/api/devices/:id/change-id', requireAuth, requirePermission('device
             });
         }
         
-        // Check if new ID already exists
-        const existing = await serverBackend.getDeviceById(newId);
-        if (existing) {
+        // Check if new ID already exists (active or soft-deleted reservation)
+        const existingActive = await serverBackend.getDeviceById(newId);
+        if (existingActive) {
             return res.status(400).json({
                 success: false,
                 error: req.t('devices.id_exists')
+            });
+        }
+        const existingDeleted = await serverBackend.getDeviceById(newId, { includeDeleted: true });
+        if (existingDeleted?.soft_deleted) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('devices.id_reserved_deleted')
             });
         }
         
@@ -582,7 +611,7 @@ router.post('/api/devices/:id/change-id', requireAuth, requirePermission('device
         if (!result || !result.success) {
             return res.status(400).json({
                 success: false,
-                error: result?.error || req.t('devices.change_id_failed')
+                error: mapChangeIdError(req, result?.error)
             });
         }
         
