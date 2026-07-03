@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.87] — 2026-07-01
+
 ### Fixed
 - **RustDesk desktop WSS immediate EOF on `/ws/id`** — The Go signal WebSocket endpoint now sends an immediate empty keepalive frame after HTTP 101, honours `X-Forwarded-For` / `X-Real-IP` on upgrade, binds `WSConn` on `RegisterPeer`, and supports `WS_DEBUG_FRAMES=1` for first-frame diagnostics. Reported in ([#229](https://github.com/UNITRONIX/BetterDesk/issues/229)).
 
@@ -1425,3 +1432,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.84]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.83...v3.3.84
 [3.3.85]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.84...v3.3.85
 [3.3.86]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.85...v3.3.86
+[3.3.87]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.86...v3.3.87
