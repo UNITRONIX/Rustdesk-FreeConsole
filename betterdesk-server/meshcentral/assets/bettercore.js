@@ -621,6 +621,7 @@ function openTunnel(data) {
     xurl = xurl.split('$').join('%24').split('@').join('%40');
     var woptions = http.parseUri(xurl);
     woptions.perMessageDeflate = false;
+    // codeql[js/disabling-certificate-validation]: Pin-based TLS via tunnel_checkServerIdentity for MeshAgent self-signed relay certs.
     woptions.rejectUnauthorized = 0;
     woptions.checkServerIdentity = tunnel_checkServerIdentity;
     woptions.checkServerIdentity.servertlshash = data.servertlshash;

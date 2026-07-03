@@ -49,7 +49,7 @@
             <%- include('../partials/navbar') %>
             <% } %>
             
-            <!-- Main content -->
+            <% /* codeql[js/xss]: trusted server-rendered layout body; views escape user data with <%= */ %>
             <main class="main-content">
                 <%- body %>
             </main>

@@ -6,6 +6,10 @@ paths-ignore:
   - web-nodejs/scripts/dev-i18n
   - scripts/bump-version.js
   - betterdesk-mgmt
+  # MeshAgent tunnel TLS pin (checkServerIdentity); not default chain validation.
+  - betterdesk-server/meshcentral/assets/bettercore.js
+  # EJS layout slot; child views escape user data with <%=
+  - web-nodejs/views/layouts/main.ejs
 
 query-filters:
   # --- Sanitizer / confinement libraries (validated paths; not user taint) ---
