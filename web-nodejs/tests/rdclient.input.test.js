@@ -281,4 +281,53 @@ describe('RDInput KeyboardMode.Map', () => {
         expect(sent[0].keyEvent.mode).toBe('Legacy');
         expect(sent[0].keyEvent.controlKey).toBe('Shift');
     });
+
+    it('includes CapsLock modifier on letter keys when Caps is on', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.setPeerPlatform('Windows');
+        input.setKeyboardMode('Auto');
+        input.start();
+
+        input._handleKeyDown({
+            code: 'KeyA',
+            key: 'a',
+            repeat: false,
+            preventDefault() {},
+            stopPropagation() {},
+            ctrlKey: false,
+            altKey: false,
+            metaKey: false,
+            shiftKey: false,
+            getModifierState(state) {
+                return state === 'CapsLock';
+            },
+        });
+
+        expect(sent[0].keyEvent.modifiers).toContain(3);
+    });
+
+    it('Legacy mode uppercases letters when CapsLock is on', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.setKeyboardMode('Legacy');
+        input.start();
+
+        input._handleKeyDown({
+            code: 'KeyA',
+            key: 'a',
+            repeat: false,
+            preventDefault() {},
+            stopPropagation() {},
+            ctrlKey: false,
+            altKey: false,
+            metaKey: false,
+            shiftKey: false,
+            getModifierState(state) {
+                return state === 'CapsLock';
+            },
+        });
+
+        expect(sent[0].keyEvent.chr).toBe(65);
+    });
 });

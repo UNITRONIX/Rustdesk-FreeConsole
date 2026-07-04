@@ -189,6 +189,20 @@ class RDInput {
     static MOUSE_BUTTON_RIGHT  = 2;
     static MOUSE_BUTTON_MIDDLE = 4;
 
+    /** ControlKey enum values from message.proto (lock + modifier sync). */
+    static MOD_CAPS_LOCK = 3;
+    static MOD_NUM_LOCK = 63;
+
+    /** @param {string} code */
+    static isLetterCode(code) {
+        return /^Key[A-Z]$/.test(code);
+    }
+
+    /** @param {string} code */
+    static isNumpadCode(code) {
+        return /^Numpad/.test(code);
+    }
+
     _handleMouseMove(e) {
         if (!this.enabled) return;
 
@@ -472,13 +486,12 @@ class RDInput {
      */
     _sendKey(e, down, press) {
         const isChar = !RDInput.KEY_MAP[e.code];
-        this._sendKeyForCode(
-            e.code,
-            e.key,
-            down,
-            press,
-            this._getKeyModifiers(e, isChar)
-        );
+        const mods = this._getKeyModifiers(e, isChar);
+        let key = e.key;
+        if (isChar && this._resolveKeyboardMode() === 'Legacy') {
+            key = this._resolveLegacyLetterCase(e);
+        }
+        this._sendKeyForCode(e.code, key, down, press, mods);
     }
 
     /**
@@ -619,6 +632,27 @@ class RDInput {
     }
 
     /**
+     * Apply Shift XOR CapsLock case for Legacy ASCII letters (matches RustDesk client).
+     * @param {KeyboardEvent} e
+     * @returns {string}
+     */
+    _resolveLegacyLetterCase(e) {
+        const key = e.key;
+        if (!key || key.length !== 1 || !RDInput.isLetterCode(e.code)) return key;
+        const cp = key.codePointAt(0);
+        if (cp === undefined || cp < 0x41 || cp > 0x7A) return key;
+        if (cp > 0x5A && cp < 0x61) return key;
+
+        const caps = typeof e.getModifierState === 'function' &&
+            e.getModifierState('CapsLock');
+        const upper = e.shiftKey !== caps;
+        if (upper) {
+            return String.fromCodePoint(cp <= 0x5A ? cp : cp - 32);
+        }
+        return String.fromCodePoint(cp >= 0x61 ? cp : cp + 32);
+    }
+
+    /**
      * Get keyboard modifier flags
      * @param {KeyboardEvent} e
      * @param {boolean} [isChar=false] - true for printable-character events
@@ -626,7 +660,7 @@ class RDInput {
      */
     _getKeyModifiers(e, isChar) {
         // Values must match ControlKey enum in message.proto:
-        // Alt=1, Control=4, Meta=23, Shift=29
+        // Alt=1, CapsLock=3, Control=4, Meta=23, Shift=29, NumLock=63
         const mods = [];
         if (e.shiftKey) mods.push(29); // ControlKey.Shift
 
@@ -643,6 +677,19 @@ class RDInput {
         if (e.ctrlKey) mods.push(4);  // ControlKey.Control
         if (e.altKey) mods.push(1);   // ControlKey.Alt
         if (e.metaKey) mods.push(23); // ControlKey.Meta
+
+        // RustDesk LockModesHandler: sync remote Caps/Num lock from modifier flags
+        // on letter / numpad events (required for Map scancode path and chr fallback).
+        if (typeof e.getModifierState === 'function') {
+            if (isChar && RDInput.isLetterCode(e.code) &&
+                e.getModifierState('CapsLock')) {
+                mods.push(RDInput.MOD_CAPS_LOCK);
+            }
+            if (RDInput.isNumpadCode(e.code) && e.getModifierState('NumLock')) {
+                mods.push(RDInput.MOD_NUM_LOCK);
+            }
+        }
+
         return mods;
     }
 
