@@ -212,7 +212,7 @@ describe('RDInput KeyboardMode.Map', () => {
         ({ makeInput } = makeInputHarness({}));
     });
 
-    it('Auto mode sends Map scancode chr for Windows peers', () => {
+    it('Auto mode uses Map scancode for letters on Windows peers', () => {
         const sent = [];
         const input = makeInput((msg) => sent.push(msg));
         input.setPeerPlatform('Windows');
@@ -220,8 +220,8 @@ describe('RDInput KeyboardMode.Map', () => {
         input.start();
 
         input._handleKeyDown({
-            code: 'Digit1',
-            key: '1',
+            code: 'KeyA',
+            key: 'a',
             repeat: false,
             preventDefault() {},
             stopPropagation() {},
@@ -232,8 +232,31 @@ describe('RDInput KeyboardMode.Map', () => {
         });
 
         expect(sent[0].keyEvent.mode).toBe('Map');
-        expect(sent[0].keyEvent.chr).toBe(0x02);
-        expect(sent[0].keyEvent.controlKey).toBeUndefined();
+        expect(sent[0].keyEvent.chr).toBe(0x1E);
+    });
+
+    it('Auto mode uses Legacy chr for Shift+digit symbols on Windows', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.setPeerPlatform('Windows');
+        input.setKeyboardMode('Auto');
+        input.start();
+
+        input._handleKeyDown({
+            code: 'Digit7',
+            key: '&',
+            repeat: false,
+            preventDefault() {},
+            stopPropagation() {},
+            ctrlKey: false,
+            altKey: false,
+            metaKey: false,
+            shiftKey: true,
+        });
+
+        expect(sent[0].keyEvent.mode).toBe('Legacy');
+        expect(sent[0].keyEvent.chr).toBe('&'.codePointAt(0));
+        expect(sent[0].keyEvent.modifiers).not.toContain(29);
     });
 
     it('Legacy mode sends character chr for printable keys', () => {
@@ -282,7 +305,7 @@ describe('RDInput KeyboardMode.Map', () => {
         expect(sent[0].keyEvent.controlKey).toBe('Shift');
     });
 
-    it('includes CapsLock modifier on letter keys when Caps is on', () => {
+    it('includes CapsLock modifier on Map letter keys when Caps is on', () => {
         const sent = [];
         const input = makeInput((msg) => sent.push(msg));
         input.setPeerPlatform('Windows');
@@ -304,6 +327,7 @@ describe('RDInput KeyboardMode.Map', () => {
             },
         });
 
+        expect(sent[0].keyEvent.mode).toBe('Map');
         expect(sent[0].keyEvent.modifiers).toContain(3);
     });
 

@@ -190,7 +190,11 @@ class RDInput {
     static MOUSE_BUTTON_MIDDLE = 4;
 
     /** ControlKey enum values from message.proto (lock + modifier sync). */
+    static MOD_ALT = 1;
     static MOD_CAPS_LOCK = 3;
+    static MOD_CTRL = 4;
+    static MOD_META = 23;
+    static MOD_SHIFT = 29;
     static MOD_NUM_LOCK = 63;
 
     /** @param {string} code */
@@ -467,6 +471,29 @@ class RDInput {
     }
 
     /**
+     * Map (scancode) is only used for letter keys — digits and punctuation use
+     * Legacy chr so Shift+7, AltGr, PL layout symbols resolve correctly.
+     * @param {string} code
+     * @returns {boolean}
+     */
+    _shouldUseMapScancode(code) {
+        return this._resolveKeyboardMode() === 'Map' && RDInput.isLetterCode(code);
+    }
+
+    /**
+     * Legacy chr already encodes Shift/Caps; strip them unless Ctrl/Alt/Meta hotkey.
+     * @param {number[]} mods
+     * @param {KeyboardEvent} e
+     * @returns {number[]}
+     */
+    _stripResolvedCharModifiers(mods, e) {
+        if (e.ctrlKey || e.altKey || e.metaKey) return mods;
+        return mods.filter((m) =>
+            m !== RDInput.MOD_SHIFT && m !== RDInput.MOD_CAPS_LOCK
+        );
+    }
+
+    /**
      * @returns {'Legacy'|'Map'}
      */
     _resolveKeyboardMode() {
@@ -486,12 +513,18 @@ class RDInput {
      */
     _sendKey(e, down, press) {
         const isChar = !RDInput.KEY_MAP[e.code];
-        const mods = this._getKeyModifiers(e, isChar);
+        let mods = this._getKeyModifiers(e, isChar);
         let key = e.key;
-        if (isChar && this._resolveKeyboardMode() === 'Legacy') {
-            key = this._resolveLegacyLetterCase(e);
+        const useMap = isChar && this._shouldUseMapScancode(e.code);
+
+        if (isChar && !useMap) {
+            if (RDInput.isLetterCode(e.code)) {
+                key = this._resolveLegacyLetterCase(e);
+            }
+            mods = this._stripResolvedCharModifiers(mods, e);
         }
-        this._sendKeyForCode(e.code, key, down, press, mods);
+
+        this._sendKeyForCode(e.code, key, down, press, mods, useMap);
     }
 
     /**
@@ -501,8 +534,9 @@ class RDInput {
      * @param {boolean} down
      * @param {boolean} press
      * @param {number[]} modifiers
+     * @param {boolean} [useMap=false]
      */
-    _sendKeyForCode(code, key, down, press, modifiers) {
+    _sendKeyForCode(code, key, down, press, modifiers, useMap) {
         const controlKey = RDInput.KEY_MAP[code];
 
         // Navigation, modifiers, and lock keys always use Legacy controlKey —
@@ -520,9 +554,7 @@ class RDInput {
             return;
         }
 
-        const mode = this._resolveKeyboardMode();
-
-        if (mode === 'Map') {
+        if (useMap) {
             const scLib = this._getScancodeLib();
             const sc = scLib?.codeToScancode(code, this.peerPlatform);
             if (sc != null) {
@@ -621,13 +653,11 @@ class RDInput {
      * @returns {number[]}
      */
     _getModifiers(e) {
-        // Values must match ControlKey enum in message.proto:
-        // Alt=1, Control=4, Meta=23, Shift=29
         const mods = [];
-        if (e.shiftKey) mods.push(29);  // ControlKey.Shift
-        if (e.ctrlKey) mods.push(4);    // ControlKey.Control
-        if (e.altKey) mods.push(1);     // ControlKey.Alt
-        if (e.metaKey) mods.push(23);   // ControlKey.Meta
+        if (e.shiftKey) mods.push(RDInput.MOD_SHIFT);
+        if (e.ctrlKey) mods.push(RDInput.MOD_CTRL);
+        if (e.altKey) mods.push(RDInput.MOD_ALT);
+        if (e.metaKey) mods.push(RDInput.MOD_META);
         return mods;
     }
 
@@ -662,7 +692,7 @@ class RDInput {
         // Values must match ControlKey enum in message.proto:
         // Alt=1, CapsLock=3, Control=4, Meta=23, Shift=29, NumLock=63
         const mods = [];
-        if (e.shiftKey) mods.push(29); // ControlKey.Shift
+        if (e.shiftKey) mods.push(RDInput.MOD_SHIFT);
 
         // AltGr (Right Alt) is reported on Windows as a phantom Ctrl+Alt
         // combination. When AltGr produced a printable character the produced
@@ -674,9 +704,9 @@ class RDInput {
             return mods;
         }
 
-        if (e.ctrlKey) mods.push(4);  // ControlKey.Control
-        if (e.altKey) mods.push(1);   // ControlKey.Alt
-        if (e.metaKey) mods.push(23); // ControlKey.Meta
+        if (e.ctrlKey) mods.push(RDInput.MOD_CTRL);
+        if (e.altKey) mods.push(RDInput.MOD_ALT);
+        if (e.metaKey) mods.push(RDInput.MOD_META);
 
         // RustDesk LockModesHandler: sync remote Caps/Num lock from modifier flags
         // on letter / numpad events (required for Map scancode path and chr fallback).
