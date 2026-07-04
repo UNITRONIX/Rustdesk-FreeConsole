@@ -114,8 +114,8 @@ class RDInput {
     stop() {
         if (!this.enabled) return;
 
-        // Notify remote before detaching listeners so keyups are delivered
-        this._releaseAllKeys(true);
+        // Notify remote before detaching listeners (tracked keys only)
+        this._releaseAllKeys(false);
 
         const c = this.canvas;
         c.removeEventListener('mousemove', this._onMouseMove);
@@ -374,22 +374,22 @@ class RDInput {
 
     _handleWindowBlur() {
         if (this.enabled) {
-            this._releaseAllKeys(true);
+            this._releaseAllKeys(false);
         }
     }
 
     _handleVisibilityChange() {
         if (this.enabled && typeof document !== 'undefined' &&
             document.visibilityState === 'hidden') {
-            this._releaseAllKeys(true);
+            this._releaseAllKeys(false);
         }
     }
 
     /**
-     * Send keyup for every locally tracked key plus all modifiers.
-     * @param {boolean} [includeModifiers=true] - also release modifier keys
+     * Send keyup for every locally tracked key.
+     * @param {boolean} [forceAllModifiers=false] - release all modifiers (toolbar recovery only)
      */
-    _releaseAllKeys(includeModifiers) {
+    _releaseAllKeys(forceAllModifiers) {
         const codes = [...this.pressedKeys.keys()];
         for (const code of codes) {
             const meta = this.pressedKeys.get(code);
@@ -397,7 +397,7 @@ class RDInput {
         }
         this.pressedKeys.clear();
 
-        if (includeModifiers) {
+        if (forceAllModifiers) {
             this._releaseAllModifiers();
         }
     }
@@ -490,6 +490,23 @@ class RDInput {
      * @param {number[]} modifiers
      */
     _sendKeyForCode(code, key, down, press, modifiers) {
+        const controlKey = RDInput.KEY_MAP[code];
+
+        // Navigation, modifiers, and lock keys always use Legacy controlKey —
+        // Map scancode path breaks reliable Shift/Caps/NumLock handling on Windows.
+        if (controlKey) {
+            this.sendMessage({
+                keyEvent: {
+                    controlKey: controlKey,
+                    down: down,
+                    press: press,
+                    modifiers: modifiers,
+                    mode: 'Legacy'
+                }
+            });
+            return;
+        }
+
         const mode = this._resolveKeyboardMode();
 
         if (mode === 'Map') {
@@ -507,21 +524,6 @@ class RDInput {
                 });
                 return;
             }
-        }
-
-        const controlKey = RDInput.KEY_MAP[code];
-
-        if (controlKey) {
-            this.sendMessage({
-                keyEvent: {
-                    controlKey: controlKey,
-                    down: down,
-                    press: press,
-                    modifiers: modifiers,
-                    mode: 'Legacy'
-                }
-            });
-            return;
         }
 
         // Character key — forward the produced character so layout-specific and

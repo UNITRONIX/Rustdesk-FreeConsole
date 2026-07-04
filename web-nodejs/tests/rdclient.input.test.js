@@ -193,6 +193,16 @@ describe('RDInput keyboard release sync', () => {
         );
         expect(releases.length).toBeGreaterThanOrEqual(4);
     });
+
+    it('stop() does not blast unpressed modifiers', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.start();
+        sent.length = 0;
+        input.stop();
+        const releases = sent.filter((m) => m.keyEvent && m.keyEvent.down === false);
+        expect(releases.length).toBe(0);
+    });
 });
 
 describe('RDInput KeyboardMode.Map', () => {
@@ -247,5 +257,28 @@ describe('RDInput KeyboardMode.Map', () => {
 
         expect(sent[0].keyEvent.mode).toBe('Legacy');
         expect(sent[0].keyEvent.chr).toBe(49);
+    });
+
+    it('Auto mode sends Legacy controlKey for Shift', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.setPeerPlatform('Windows');
+        input.setKeyboardMode('Auto');
+        input.start();
+
+        input._handleKeyDown({
+            code: 'ShiftLeft',
+            key: 'Shift',
+            repeat: false,
+            preventDefault() {},
+            stopPropagation() {},
+            ctrlKey: false,
+            altKey: false,
+            metaKey: false,
+            shiftKey: false,
+        });
+
+        expect(sent[0].keyEvent.mode).toBe('Legacy');
+        expect(sent[0].keyEvent.controlKey).toBe('Shift');
     });
 });

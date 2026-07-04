@@ -201,7 +201,7 @@
             // transport yet (see Phase 2.5 / 2.6 in the unification plan).
             this.input = {
                 start: () => { /* keyboard/mouse are bound on connect */ },
-                stop:  () => { this._releaseAllKeys(true); },
+                stop:  () => { this._releaseAllKeys(false); },
                 resetKeyboard: () => { this._releaseAllKeys(true); },
                 blockInput: () => false,
                 setBlockInput: () => false,
@@ -971,7 +971,7 @@
 
         _unbindInput() {
             if (!this._inputBound) return;
-            this._releaseAllKeys(true);
+            this._releaseAllKeys(false);
             const c = this.canvas;
             c.removeEventListener('mousedown',   this._onMouseDown);
             c.removeEventListener('mouseup',     this._onMouseUp);
@@ -988,7 +988,7 @@
 
         _handleWindowBlur() {
             if (this._inputBound && this._connected) {
-                this._releaseAllKeys(true);
+                this._releaseAllKeys(false);
             }
         }
 
@@ -996,11 +996,11 @@
             if (this._inputBound && this._connected &&
                 typeof document !== 'undefined' &&
                 document.visibilityState === 'hidden') {
-                this._releaseAllKeys(true);
+                this._releaseAllKeys(false);
             }
         }
 
-        _releaseAllKeys(includeModifiers) {
+        _releaseAllKeys(forceAllModifiers) {
             if (!this._connected) {
                 this._pressedKeys.clear();
                 return;
@@ -1016,7 +1016,7 @@
                 });
             }
             this._pressedKeys.clear();
-            if (includeModifiers) {
+            if (forceAllModifiers) {
                 for (const code of ['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
                     'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight']) {
                     this._send({
