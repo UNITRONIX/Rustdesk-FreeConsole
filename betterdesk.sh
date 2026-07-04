@@ -149,6 +149,8 @@ GO_SERVER_SOURCE="$SCRIPT_DIR/betterdesk-server"
 
 # Minimum Go version required for compilation
 GO_MIN_VERSION="1.25"
+# Point release downloaded when system Go is missing/outdated (must exist on go.dev/dl).
+GO_DOWNLOAD_VERSION="1.26.4"
 
 # Default paths (can be overridden by environment variables)
 RUSTDESK_PATH="${RUSTDESK_PATH:-}"
@@ -1903,16 +1905,23 @@ print_status() {
 # Go Installation and Compilation
 #===============================================================================
 
+# Extract numeric semver component (handles "1.25+", "26rc1", etc.).
+_go_version_part() {
+    local ver="$1" field="${2:-1}"
+    local part
+    part=$(echo "$ver" | cut -d'.' -f"$field" | grep -oE '^[0-9]+' | head -1)
+    echo "${part:-0}"
+}
+
 check_go_installed() {
     if command -v go &> /dev/null; then
         local go_version
         go_version=$(go version | awk '{print $3}' | sed 's/go//')
-        local go_major=$(echo "$go_version" | cut -d'.' -f1)
-        local go_minor=$(echo "$go_version" | cut -d'.' -f2)
-        local go_patch=$(echo "$go_version" | cut -d'.' -f3)
-        [ -z "$go_patch" ] && go_patch=0
-        local min_major=$(echo "$GO_MIN_VERSION" | cut -d'.' -f1)
-        local min_minor=$(echo "$GO_MIN_VERSION" | cut -d'.' -f2)
+        local go_major=$(_go_version_part "$go_version" 1)
+        local go_minor=$(_go_version_part "$go_version" 2)
+        local go_patch=$(_go_version_part "$go_version" 3)
+        local min_major=$(_go_version_part "$GO_MIN_VERSION" 1)
+        local min_minor=$(_go_version_part "$GO_MIN_VERSION" 2)
 
         # Security hardening: reject vulnerable Go 1.26.0 stdlib.
         if [ "$go_major" -eq 1 ] && [ "$go_minor" -eq 26 ] && [ "$go_patch" -eq 0 ]; then
@@ -1941,7 +1950,7 @@ install_golang() {
         return 0
     fi
     
-    local go_version="1.26.1"
+    local go_version="$GO_DOWNLOAD_VERSION"
     local go_arch=""
     
     case "$ARCH_NAME" in

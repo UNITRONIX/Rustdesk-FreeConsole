@@ -145,6 +145,7 @@ $script:RELAY_SERVERS = if ($RelayServers) { $RelayServers } elseif ($env:RELAY_
 # Go server configuration
 $script:GO_SERVER_SOURCE = Join-Path $script:ScriptDir "betterdesk-server"
 $script:GO_MIN_VERSION = "1.25"
+$script:GO_DOWNLOAD_VERSION = "1.26.4"
 # Legacy Rust checksums (deprecated, kept for migration purposes)
 $script:HBBS_WINDOWS_X86_64_SHA256 = "B790FA44CAC7482A057ED322412F6D178FB33F3B05327BFA753416E9879BD62F"
 $script:HBBR_WINDOWS_X86_64_SHA256 = "368C71E8D3AEF4C5C65177FBBBB99EA045661697A89CB7C2A703759C575E8E9F"
@@ -909,6 +910,19 @@ function Print-Status {
 # Go Installation and Compilation Functions
 #===============================================================================
 
+function Get-GoVersionPart {
+    param(
+        [string]$Version,
+        [int]$Index = 0
+    )
+    $normalized = ($Version -replace '[^0-9.]', '')
+    $parts = $normalized -split '\.'
+    if ($Index -lt $parts.Count -and $parts[$Index] -match '^\d+$') {
+        return [int]$parts[$Index]
+    }
+    return 0
+}
+
 function Test-GoInstalled {
     $goCmd = Get-Command go -ErrorAction SilentlyContinue
     if (-not $goCmd) {
@@ -931,8 +945,8 @@ function Test-GoInstalled {
         Print-Warning "Detected vulnerable Go version $goVersion (known stdlib CVEs)."
         return $false
     }
-    $minMajor = [int]($script:GO_MIN_VERSION.Split('.')[0])
-    $minMinor = [int]($script:GO_MIN_VERSION.Split('.')[1])
+    $minMajor = Get-GoVersionPart -Version $script:GO_MIN_VERSION -Index 0
+    $minMinor = Get-GoVersionPart -Version $script:GO_MIN_VERSION -Index 1
     
     if ($currentMajor -gt $minMajor -or ($currentMajor -eq $minMajor -and $currentMinor -ge $minMinor)) {
         return $true
@@ -945,7 +959,7 @@ function Test-GoInstalled {
 function Install-Golang {
     Print-Step "Installing Go toolchain..."
     
-    $goVersion = "1.26.1"
+    $goVersion = $script:GO_DOWNLOAD_VERSION
     $goUrl = "https://go.dev/dl/go$goVersion.windows-amd64.zip"
     $goZip = Join-Path $env:TEMP "go$goVersion.zip"
     $goRoot = "C:\Go"
