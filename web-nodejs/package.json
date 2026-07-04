@@ -1,6 +1,6 @@
 {
   "name": "betterdesk-console",
-  "version": "3.3.101",
+  "version": "3.3.102",
   "description": "BetterDesk Console - Professional Web Management Panel for BetterDesk Server",
   "main": "server.js",
   "scripts": {
