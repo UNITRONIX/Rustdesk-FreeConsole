@@ -258,7 +258,7 @@
     "change_id_failed": "فشل في تغيير معرف الجهاز",
     "invalid_id": "معرف الجهاز غير صالح (مطلوب من 6 إلى 16 حرفًا)",
     "invalid_id_format": "تنسيق المعرف غير صالح (الأحرف والأرقام والشرطات والشرطات السفلية فقط)",
-    "id_exists": "معرف الجهاز موجود بالفعل",,
+    "id_exists": "معرف الجهاز موجود بالفعل",
     "id_reserved_deleted": "ينتمي هذا المعرف إلى جهاز محذوف. استعده أو احذفه نهائيًا لتحرير المعرف لإعادة الاستخدام.",
     "show_deleted": "إظهار الأجهزة المحذوفة",
     "deleted_badge": "محذوف",
@@ -269,7 +269,7 @@
     "permanent_delete_title": "حذف الجهاز نهائيًا",
     "permanent_delete_confirm": "حذف الجهاز {id} نهائيًا؟ سيحرر معرفه ولا يمكن التراجع.",
     "permanent_delete_success": "تم حذف الجهاز نهائيًا",
-    "filter_deleted": "محذوفة"
+    "filter_deleted": "محذوفة",
     "no_selection": "لم يتم تحديد أي أجهزة",
     "device_type": "Type",
     "filter_type_all": "All Types",
@@ -1190,7 +1190,13 @@
     "file_drop_upload_hint": "أفلت للرفع إلى: {path}",
     "file_local_upload_hint": "اسحب الملفات إلى اللوحة البعيدة أو استخدم الرفع. تُحفظ التنزيلات في مجلد المتصفح الافتراضي.",
     "file_transfer_stalled": "الجهاز البعيد لم يبدأ النقل",
-    "file_no_local_tree": "اختر مجلدًا لتصفح الملفات المحلية (اختياري)"
+    "file_no_local_tree": "اختر مجلدًا لتصفح الملفات المحلية (اختياري)",
+    "reset_keyboard": "إعادة تعيين حالة لوحة المفاتيح",
+    "reset_keyboard_done": "تمت إعادة تعيين لوحة المفاتيح على الجهاز البعيد",
+    "keyboard_mode": "وضع لوحة المفاتيح",
+    "keyboard_mode_auto": "تلقائي (Map على Windows)",
+    "keyboard_mode_legacy": "Legacy (حرف)",
+    "keyboard_mode_map": "Map (رمز مسح فعلي)"
   },
   "branding": {
     "identity_title": "هوية العلامة التجارية",

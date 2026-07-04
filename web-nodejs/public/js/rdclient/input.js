@@ -3,7 +3,7 @@
  * Captures keyboard and mouse events and converts them to RustDesk protocol messages
  */
 
-/* global RDProtocol */
+/* global RDProtocol, RDKeyboardScancode */
 
 // eslint-disable-next-line no-unused-vars
 class RDInput {
@@ -24,10 +24,19 @@ class RDInput {
         this.enabled = false;
         /** @type {boolean} Pointer lock active */
         this.pointerLocked = false;
-        /** @type {Set<string>} Currently pressed keys */
-        this.pressedKeys = new Set();
+        /** @type {Map<string, { key: string }>} Currently pressed keys (code → metadata) */
+        this.pressedKeys = new Map();
         /** @type {number} Mouse button state bitmask */
         this.buttonMask = 0;
+
+        /** @type {string} PeerInfo.platform for Map-mode scancode target */
+        this.peerPlatform = '';
+        /**
+         * Keyboard wire mode: 'Legacy' | 'Map' | 'Auto'.
+         * Auto uses Map for Windows peers (Hyper-V / VM console), Legacy otherwise.
+         * @type {'Legacy'|'Map'|'Auto'}
+         */
+        this.keyboardMode = 'Auto';
 
         // Mouse move throttling (~60 Hz for smoother remote control)
         this._lastMouseSendTime = 0;
@@ -42,6 +51,30 @@ class RDInput {
         this._onKeyUp = this._handleKeyUp.bind(this);
         this._onContextMenu = (e) => e.preventDefault();
         this._onPointerLockChange = this._handlePointerLockChange.bind(this);
+        this._onWindowBlur = this._handleWindowBlur.bind(this);
+        this._onVisibilityChange = this._handleVisibilityChange.bind(this);
+    }
+
+    /**
+     * @param {string} platform - PeerInfo.platform from login response
+     */
+    setPeerPlatform(platform) {
+        this.peerPlatform = platform || '';
+    }
+
+    /**
+     * @param {'Legacy'|'Map'|'Auto'} mode
+     */
+    setKeyboardMode(mode) {
+        const allowed = ['Legacy', 'Map', 'Auto'];
+        this.keyboardMode = allowed.includes(mode) ? mode : 'Auto';
+    }
+
+    /**
+     * Release all keys held on the remote side (toolbar / recovery).
+     */
+    resetKeyboard() {
+        this._releaseAllKeys(true);
     }
 
     /**
@@ -64,6 +97,10 @@ class RDInput {
         // Pointer Lock change detection
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
 
+        // Release remote keys when the operator loses focus (prevents sticky modifiers)
+        window.addEventListener('blur', this._onWindowBlur);
+        document.addEventListener('visibilitychange', this._onVisibilityChange);
+
         // Make canvas focusable
         c.tabIndex = 0;
         c.focus();
@@ -77,6 +114,9 @@ class RDInput {
     stop() {
         if (!this.enabled) return;
 
+        // Notify remote before detaching listeners so keyups are delivered
+        this._releaseAllKeys(true);
+
         const c = this.canvas;
         c.removeEventListener('mousemove', this._onMouseMove);
         c.removeEventListener('mousedown', this._onMouseDown);
@@ -87,6 +127,8 @@ class RDInput {
         document.removeEventListener('keydown', this._onKeyDown);
         document.removeEventListener('keyup', this._onKeyUp);
         document.removeEventListener('pointerlockchange', this._onPointerLockChange);
+        window.removeEventListener('blur', this._onWindowBlur);
+        document.removeEventListener('visibilitychange', this._onVisibilityChange);
 
         if (this.pointerLocked) {
             document.exitPointerLock();
@@ -310,7 +352,7 @@ class RDInput {
         // RustDesk legacy mode: keydown => down, key repeat => press (click).
         // Repeat is reported either via e.repeat or our own pressedKeys guard.
         const isRepeat = e.repeat || this.pressedKeys.has(keyCode);
-        this.pressedKeys.add(keyCode);
+        this.pressedKeys.set(keyCode, { key: e.key });
 
         if (isRepeat) {
             this._sendKey(e, false, true);
@@ -330,23 +372,152 @@ class RDInput {
         this._sendKey(e, false, false);
     }
 
+    _handleWindowBlur() {
+        if (this.enabled) {
+            this._releaseAllKeys(true);
+        }
+    }
+
+    _handleVisibilityChange() {
+        if (this.enabled && typeof document !== 'undefined' &&
+            document.visibilityState === 'hidden') {
+            this._releaseAllKeys(true);
+        }
+    }
+
     /**
-     * Build and dispatch a single RustDesk Legacy key event.
+     * Send keyup for every locally tracked key plus all modifiers.
+     * @param {boolean} [includeModifiers=true] - also release modifier keys
+     */
+    _releaseAllKeys(includeModifiers) {
+        const codes = [...this.pressedKeys.keys()];
+        for (const code of codes) {
+            const meta = this.pressedKeys.get(code);
+            this._sendKeyForCode(code, meta?.key || '', false, false, []);
+        }
+        this.pressedKeys.clear();
+
+        if (includeModifiers) {
+            this._releaseAllModifiers();
+        }
+    }
+
+    /** Release Shift/Ctrl/Alt/Meta on the remote side even if keyup was missed. */
+    _releaseAllModifiers() {
+        const mode = this._resolveKeyboardMode();
+        const modCodes = this._getScancodeLib()?.MODIFIER_CODES ||
+            ['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
+                'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'];
+
+        for (const code of modCodes) {
+            if (mode === 'Map') {
+                const scLib = this._getScancodeLib();
+                const sc = scLib?.codeToScancode(code, this.peerPlatform);
+                if (sc != null) {
+                    this.sendMessage({
+                        keyEvent: {
+                            chr: sc,
+                            down: false,
+                            press: false,
+                            modifiers: [],
+                            mode: 'Map'
+                        }
+                    });
+                    continue;
+                }
+            }
+            const controlKey = RDInput.KEY_MAP[code];
+            if (controlKey) {
+                this.sendMessage({
+                    keyEvent: {
+                        controlKey: controlKey,
+                        down: false,
+                        press: false,
+                        modifiers: [],
+                        mode: 'Legacy'
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * @returns {typeof RDKeyboardScancode|null}
+     */
+    _getScancodeLib() {
+        if (typeof RDKeyboardScancode !== 'undefined') return RDKeyboardScancode;
+        if (typeof window !== 'undefined' && window.RDKeyboardScancode) {
+            return window.RDKeyboardScancode;
+        }
+        return null;
+    }
+
+    /**
+     * @returns {'Legacy'|'Map'}
+     */
+    _resolveKeyboardMode() {
+        if (this.keyboardMode === 'Map') return 'Map';
+        if (this.keyboardMode === 'Legacy') return 'Legacy';
+        // Auto: Map for Windows peers (Hyper-V / VM console scancode path)
+        const platform = (this.peerPlatform || '').toLowerCase();
+        if (platform === 'windows') return 'Map';
+        return 'Legacy';
+    }
+
+    /**
+     * Build and dispatch a single RustDesk key event from a KeyboardEvent.
      * @param {KeyboardEvent} e
      * @param {boolean} down  - key is pressed down
      * @param {boolean} press - key click (down+up), used for repeats
      */
     _sendKey(e, down, press) {
-        const controlKey = RDInput.KEY_MAP[e.code];
+        const isChar = !RDInput.KEY_MAP[e.code];
+        this._sendKeyForCode(
+            e.code,
+            e.key,
+            down,
+            press,
+            this._getKeyModifiers(e, isChar)
+        );
+    }
+
+    /**
+     * Build and dispatch a key event from code/key strings (used for synthetic keyup).
+     * @param {string} code
+     * @param {string} key
+     * @param {boolean} down
+     * @param {boolean} press
+     * @param {number[]} modifiers
+     */
+    _sendKeyForCode(code, key, down, press, modifiers) {
+        const mode = this._resolveKeyboardMode();
+
+        if (mode === 'Map') {
+            const scLib = this._getScancodeLib();
+            const sc = scLib?.codeToScancode(code, this.peerPlatform);
+            if (sc != null) {
+                this.sendMessage({
+                    keyEvent: {
+                        chr: sc,
+                        down: down,
+                        press: press,
+                        modifiers: modifiers,
+                        mode: 'Map'
+                    }
+                });
+                return;
+            }
+        }
+
+        const controlKey = RDInput.KEY_MAP[code];
 
         if (controlKey) {
-            // Special / navigation / modifier key
             this.sendMessage({
                 keyEvent: {
                     controlKey: controlKey,
                     down: down,
                     press: press,
-                    modifiers: this._getKeyModifiers(e, false),
+                    modifiers: modifiers,
                     mode: 'Legacy'
                 }
             });
@@ -355,7 +526,6 @@ class RDInput {
 
         // Character key — forward the produced character so layout-specific and
         // accented glyphs (ą, ę, ü, etc.) resolve correctly on the remote side.
-        const key = e.key;
         if (!key || key.length === 0 || key === 'Unidentified' || key === 'Dead') return;
 
         const codePoint = key.codePointAt(0);
@@ -366,7 +536,7 @@ class RDInput {
                 chr: codePoint,
                 down: down,
                 press: press,
-                modifiers: this._getKeyModifiers(e, true),
+                modifiers: modifiers,
                 mode: 'Legacy'
             }
         });

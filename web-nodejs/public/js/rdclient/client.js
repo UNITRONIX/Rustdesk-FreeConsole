@@ -1663,6 +1663,23 @@ class RDClient {
             this._currentDisplay = 0;
         }
         this._virtualDisplay = this._parseVirtualDisplaySupport(info);
+        if (this.input && info.platform) {
+            this.input.setPeerPlatform(info.platform);
+        }
+    }
+
+    /**
+     * Release stuck remote modifiers / keys (toolbar recovery).
+     */
+    resetKeyboard() {
+        if (this.input) this.input.resetKeyboard();
+    }
+
+    /**
+     * @param {'Legacy'|'Map'|'Auto'} mode
+     */
+    setKeyboardMode(mode) {
+        if (this.input) this.input.setKeyboardMode(mode);
     }
 
     /**

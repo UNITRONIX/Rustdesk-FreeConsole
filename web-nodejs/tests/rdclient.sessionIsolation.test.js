@@ -13,8 +13,10 @@ function loadBrowserScript(relativePath, extraGlobals) {
         globalThis: {},
         ...extraGlobals,
     };
-    sandbox.window = sandbox;
-    sandbox.globalThis = sandbox;
+    if (!extraGlobals || extraGlobals.window === undefined) {
+        sandbox.window = sandbox;
+    }
+    sandbox.globalThis = sandbox.window;
     vm.runInNewContext(fs.readFileSync(filename, 'utf8'), sandbox, { filename });
     return sandbox;
 }
@@ -148,12 +150,23 @@ describe('RDInput multi-session keyboard isolation', () => {
             };
         }
 
+        const windowStub = {
+            addEventListener() {},
+            removeEventListener() {},
+        };
+
         const sandbox = loadBrowserScript('public/js/rdclient/input.js', {
             document,
+            window: windowStub,
             RDProtocol: {},
+            RDKeyboardScancode: {
+                MODIFIER_CODES: ['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
+                    'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'],
+                codeToScancode: () => null,
+            },
             makeCanvas,
         });
-        RDInput = sandbox.RDInput;
+        RDInput = sandbox.window.RDInput;
         sandbox.makeCanvas = makeCanvas;
         sandbox.document = document;
     });
@@ -179,6 +192,7 @@ describe('RDInput multi-session keyboard isolation', () => {
         inputA.start();
         inputB.start();
         inputA.stop();
+        sendA.mockClear();
 
         const event = {
             code: 'KeyA',

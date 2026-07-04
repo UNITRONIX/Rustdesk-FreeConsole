@@ -176,6 +176,9 @@
                 <button class="dropdown-item" id="btn-clipboard-paste">
                     <span class="material-icons">content_paste</span> ${_('remote.clipboard_paste')}
                 </button>
+                <button class="dropdown-item" id="btn-reset-keyboard">
+                    <span class="material-icons">keyboard</span> ${_('remote.reset_keyboard')}
+                </button>
                 <div class="dropdown-separator"></div>
                 <button class="dropdown-item toggle-item" id="btn-block-input" data-active="false">
                     <span class="material-icons">block</span> ${_('remote.block_input')}
@@ -218,6 +221,17 @@
                 </button>
                 <button class="dropdown-item codec-item" data-codec="H265">
                     <span class="material-icons">memory</span> H265
+                </button>
+                <div class="dropdown-separator"></div>
+                <div class="dropdown-label">${_('remote.keyboard_mode')}</div>
+                <button class="dropdown-item keyboard-mode-item active" data-keyboard-mode="Auto">
+                    <span class="material-icons">auto_awesome</span> ${_('remote.keyboard_mode_auto')}
+                </button>
+                <button class="dropdown-item keyboard-mode-item" data-keyboard-mode="Legacy">
+                    <span class="material-icons">translate</span> ${_('remote.keyboard_mode_legacy')}
+                </button>
+                <button class="dropdown-item keyboard-mode-item" data-keyboard-mode="Map">
+                    <span class="material-icons">keyboard</span> ${_('remote.keyboard_mode_map')}
                 </button>
                 <div class="dropdown-separator"></div>
                 <div class="dropdown-label">${_('remote.scale_mode')}</div>

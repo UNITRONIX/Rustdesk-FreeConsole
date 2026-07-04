@@ -14,6 +14,7 @@
         codec: 'Auto',
         adaptiveQuality: true,
         backgroundFps: BACKGROUND_FPS,
+        keyboardMode: 'Auto',
     };
 
     function sanitizePrefs(raw) {
@@ -25,6 +26,9 @@
         if (typeof source.adaptiveQuality === 'boolean') clean.adaptiveQuality = source.adaptiveQuality;
         var bg = Number(source.backgroundFps);
         if (Number.isFinite(bg) && bg >= 1 && bg <= 5) clean.backgroundFps = Math.round(bg);
+        if (['Legacy', 'Map', 'Auto'].indexOf(source.keyboardMode) >= 0) {
+            clean.keyboardMode = source.keyboardMode;
+        }
         return clean;
     }
 

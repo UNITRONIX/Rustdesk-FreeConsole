@@ -74,6 +74,7 @@
             codec: 'Auto',
             adaptiveQuality: true,
             backgroundFps: 1,
+            keyboardMode: 'Auto',
         }, prefs || globalViewerPrefs);
     }
 
@@ -124,6 +125,9 @@
             }
             if (prefs.codec && prefs.codec !== 'Auto' && typeof client.setCodec === 'function') {
                 client.setCodec(prefs.codec);
+            }
+            if (typeof client.setKeyboardMode === 'function' && prefs.keyboardMode) {
+                client.setKeyboardMode(prefs.keyboardMode);
             }
         }
     }
@@ -958,6 +962,9 @@
         document.querySelectorAll('.codec-item').forEach(function (btn) {
             btn.classList.toggle('active', btn.dataset.codec === p.codec);
         });
+        document.querySelectorAll('.keyboard-mode-item').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.keyboardMode === (p.keyboardMode || 'Auto'));
+        });
     }
 
     // ---- Stats display ----
@@ -1042,7 +1049,13 @@
         if (!target) return;
         if (!document.fullscreenElement) {
             target.requestFullscreen().catch(function () { /* ignore */ });
+            if (navigator.keyboard && navigator.keyboard.lock) {
+                navigator.keyboard.lock().catch(function () { /* permission / unsupported */ });
+            }
         } else {
+            if (navigator.keyboard && navigator.keyboard.unlock) {
+                navigator.keyboard.unlock();
+            }
             document.exitFullscreen().catch(function () { /* ignore */ });
         }
     }
@@ -1104,6 +1117,19 @@
         closeAllDropdowns();
     });
 
+    // Reset keyboard (release stuck modifiers on remote)
+    document.getElementById('btn-reset-keyboard')?.addEventListener('click', () => {
+        withClient(c => {
+            if (typeof c.resetKeyboard === 'function') {
+                c.resetKeyboard();
+            } else if (c.input && typeof c.input.resetKeyboard === 'function') {
+                c.input.resetKeyboard();
+            }
+        });
+        showToast(_('remote.reset_keyboard_done') || 'Keyboard state reset on remote', 'success');
+        closeAllDropdowns();
+    });
+
     // Clipboard Paste
     document.getElementById('btn-clipboard-paste')?.addEventListener('click', async () => {
         const session = getActiveSession();
@@ -1134,6 +1160,21 @@
             withClient(c => c.setQualityPreset(preset));
             if (session) updateSessionViewerPref(session, { quality: this.dataset.quality });
             document.querySelectorAll('.quality-item').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            closeAllDropdowns();
+        });
+    });
+
+    // Keyboard mode (Legacy / Map / Auto)
+    document.querySelectorAll('.keyboard-mode-item').forEach(btn => {
+        btn.addEventListener('click', function () {
+            var mode = this.dataset.keyboardMode || 'Auto';
+            var session = getActiveSession();
+            withClient(c => {
+                if (typeof c.setKeyboardMode === 'function') c.setKeyboardMode(mode);
+            });
+            if (session) updateSessionViewerPref(session, { keyboardMode: mode });
+            document.querySelectorAll('.keyboard-mode-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             closeAllDropdowns();
         });
