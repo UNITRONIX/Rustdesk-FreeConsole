@@ -1098,7 +1098,7 @@
     "reset_keyboard": "Återställ tangentbordsläge",
     "reset_keyboard_done": "Tangentbordsläge återställt på fjärrdatorn",
     "keyboard_mode": "Tangentbordsläge",
-    "keyboard_mode_auto": "Auto (Map i Windows)",
+    "keyboard_mode_auto": "Auto (Map, som RustDesk)",
     "keyboard_mode_legacy": "Legacy (tecken)",
     "keyboard_mode_map": "Map (fysisk scancode)",
     "display_settings": "Displayinställningar",

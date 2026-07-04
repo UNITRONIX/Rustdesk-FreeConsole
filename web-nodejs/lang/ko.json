@@ -1092,7 +1092,7 @@
     "reset_keyboard": "키보드 상태 재설정",
     "reset_keyboard_done": "원격 키보드 상태가 재설정되었습니다",
     "keyboard_mode": "키보드 모드",
-    "keyboard_mode_auto": "자동(Windows에서 Map)",
+    "keyboard_mode_auto": "자동(Map, RustDesk와 동일)",
     "keyboard_mode_legacy": "Legacy(문자)",
     "keyboard_mode_map": "Map(물리 스캔코드)",
     "display_settings": "디스플레이 설정",

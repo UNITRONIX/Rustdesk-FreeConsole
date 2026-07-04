@@ -21,6 +21,24 @@ function loadBrowserScript(relativePath, extraGlobals) {
     return sandbox;
 }
 
+function loadBrowserScripts(relativePaths, extraGlobals) {
+    const sandbox = {
+        console,
+        window: {},
+        globalThis: {},
+        ...extraGlobals,
+    };
+    if (!extraGlobals || extraGlobals.window === undefined) {
+        sandbox.window = sandbox;
+    }
+    sandbox.globalThis = sandbox.window;
+    for (const rel of relativePaths) {
+        const filename = path.join(__dirname, '..', rel);
+        vm.runInNewContext(fs.readFileSync(filename, 'utf8'), sandbox, { filename });
+    }
+    return sandbox;
+}
+
 describe('syncSessionMediaCapture', () => {
     it('activates only the active streaming session', () => {
         const clientA = { setSessionActive: jest.fn() };
@@ -155,15 +173,14 @@ describe('RDInput multi-session keyboard isolation', () => {
             removeEventListener() {},
         };
 
-        const sandbox = loadBrowserScript('public/js/rdclient/input.js', {
+        const sandbox = loadBrowserScripts([
+            'public/js/rdclient/keyboard-scancode.js',
+            'public/js/rdclient/keyboard-encoder.js',
+            'public/js/rdclient/input.js',
+        ], {
             document,
             window: windowStub,
             RDProtocol: {},
-            RDKeyboardScancode: {
-                MODIFIER_CODES: ['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
-                    'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'],
-                codeToScancode: () => null,
-            },
             makeCanvas,
         });
         RDInput = sandbox.window.RDInput;

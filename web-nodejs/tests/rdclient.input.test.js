@@ -65,6 +65,7 @@ function makeInputHarness(extraGlobals) {
 
     const sandbox = loadBrowserScripts([
         'public/js/rdclient/keyboard-scancode.js',
+        'public/js/rdclient/keyboard-encoder.js',
         'public/js/rdclient/input.js',
     ], {
         document,
@@ -92,6 +93,20 @@ function makeInputHarness(extraGlobals) {
     return { sandbox, document, win, makeInput };
 }
 
+function keyEvt(base) {
+    return {
+        repeat: false,
+        preventDefault() {},
+        stopPropagation() {},
+        ctrlKey: false,
+        altKey: false,
+        metaKey: false,
+        shiftKey: false,
+        getModifierState() { return false; },
+        ...base,
+    };
+}
+
 describe('RDKeyboardScancode', () => {
     let RDKeyboardScancode;
 
@@ -106,14 +121,91 @@ describe('RDKeyboardScancode', () => {
     });
 });
 
-describe('RDInput keyboard release sync', () => {
-    let makeInput;
-    let RDInput;
+describe('RDKeyboardEncoder parity', () => {
+    let RDKeyboardEncoder;
 
     beforeAll(() => {
-        const harness = makeInputHarness({});
-        makeInput = harness.makeInput;
-        RDInput = harness.sandbox.window.RDInput;
+        const sandbox = loadBrowserScripts([
+            'public/js/rdclient/keyboard-scancode.js',
+            'public/js/rdclient/keyboard-encoder.js',
+        ], {});
+        RDKeyboardEncoder = sandbox.RDKeyboardEncoder;
+    });
+
+    it('Auto resolves to Map wire mode', () => {
+        expect(RDKeyboardEncoder.resolveWireMode('Auto')).toBe('Map');
+    });
+
+    it('legacyModifiers excludes self on ShiftLeft', () => {
+        const mods = RDKeyboardEncoder.legacyModifiers('ShiftLeft', {
+            shift: true, ctrl: false, alt: false, meta: false,
+        });
+        expect(mods).not.toContain(29);
+    });
+
+    it('Legacy Shift+A → chr 97 + Shift modifier', () => {
+        const evt = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'KeyA',
+            key: 'A',
+            down: true,
+            press: false,
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(['ShiftLeft']),
+        });
+        expect(evt.mode).toBe('Legacy');
+        expect(evt.chr).toBe(97);
+        expect(evt.modifiers).toContain(29);
+    });
+
+    it('Map Shift+7 → scancode 0x08, no Shift in modifiers', () => {
+        const evt = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'Digit7',
+            key: '&',
+            down: true,
+            press: false,
+            keyboardMode: 'Map',
+            peerPlatform: 'Windows',
+            pressedCodes: new Set(['ShiftLeft']),
+            scancodeLib: RDKeyboardEncoder._getScancodeLib(),
+        });
+        expect(evt.mode).toBe('Map');
+        expect(evt.chr).toBe(0x08);
+        expect(evt.modifiers).not.toContain(29);
+    });
+
+    it('CapsLock key alone produces no event', () => {
+        const evt = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'CapsLock',
+            key: 'CapsLock',
+            down: true,
+            press: false,
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(),
+        });
+        expect(evt).toBeNull();
+    });
+
+    it('Legacy Caps+A → chr 97 + CapsLock modifier', () => {
+        const evt = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'KeyA',
+            key: 'a',
+            down: true,
+            press: false,
+            e: { getModifierState(s) { return s === 'CapsLock'; } },
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(),
+        });
+        expect(evt.chr).toBe(97);
+        expect(evt.modifiers).toContain(3);
+        expect(evt.modifiers).not.toContain(29);
+    });
+});
+
+describe('RDInput keyboard release sync', () => {
+    let makeInput;
+
+    beforeAll(() => {
+        ({ makeInput } = makeInputHarness({}));
     });
 
     it('sends keyup for held keys when stop() is called', () => {
@@ -121,28 +213,16 @@ describe('RDInput keyboard release sync', () => {
         const input = makeInput((msg) => sent.push(msg));
         input.start();
 
-        input._handleKeyDown({
+        input._handleKeyDown(keyEvt({
             code: 'ShiftLeft',
             key: 'Shift',
-            repeat: false,
-            preventDefault() {},
-            stopPropagation() {},
-            ctrlKey: false,
-            altKey: false,
-            metaKey: false,
             shiftKey: true,
-        });
-        input._handleKeyDown({
+        }));
+        input._handleKeyDown(keyEvt({
             code: 'KeyA',
             key: 'a',
-            repeat: false,
-            preventDefault() {},
-            stopPropagation() {},
-            ctrlKey: false,
-            altKey: false,
-            metaKey: false,
             shiftKey: true,
-        });
+        }));
 
         sent.length = 0;
         input.stop();
@@ -157,17 +237,11 @@ describe('RDInput keyboard release sync', () => {
         const harness = makeInputHarness({});
         const input = harness.makeInput((msg) => sent.push(msg));
         input.start();
-        input._handleKeyDown({
+        input._handleKeyDown(keyEvt({
             code: 'ControlLeft',
             key: 'Control',
-            repeat: false,
-            preventDefault() {},
-            stopPropagation() {},
             ctrlKey: true,
-            altKey: false,
-            metaKey: false,
-            shiftKey: false,
-        });
+        }));
 
         sent.length = 0;
         harness.win._dispatch('blur', new Event('blur'));
@@ -205,11 +279,100 @@ describe('RDInput keyboard release sync', () => {
     });
 });
 
-describe('RDInput KeyboardMode.Map', () => {
+describe('RDInput keyboard parity (RustDesk contract)', () => {
     let makeInput;
 
     beforeAll(() => {
         ({ makeInput } = makeInputHarness({}));
+    });
+
+    it('ShiftLeft down (real DOM shiftKey) has no Shift in modifiers', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.setPeerPlatform('Windows');
+        input.setKeyboardMode('Auto');
+        input.start();
+
+        input._handleKeyDown(keyEvt({
+            code: 'ShiftLeft',
+            key: 'Shift',
+            shiftKey: true,
+        }));
+
+        expect(sent[0].keyEvent.mode).toBe('Legacy');
+        expect(sent[0].keyEvent.controlKey).toBe('Shift');
+        expect(sent[0].keyEvent.modifiers).not.toContain(29);
+    });
+
+    it('Auto/Windows Shift+A → Map scancode without Shift modifier', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.setPeerPlatform('Windows');
+        input.setKeyboardMode('Auto');
+        input.start();
+
+        input._handleKeyDown(keyEvt({
+            code: 'ShiftLeft',
+            key: 'Shift',
+            shiftKey: true,
+        }));
+        input._handleKeyDown(keyEvt({
+            code: 'KeyA',
+            key: 'A',
+            shiftKey: true,
+        }));
+
+        const letter = sent.find((m) => m.keyEvent && m.keyEvent.chr === 0x1E);
+        expect(letter).toBeDefined();
+        expect(letter.keyEvent.mode).toBe('Map');
+        expect(letter.keyEvent.modifiers).not.toContain(29);
+    });
+
+    it('Legacy Shift+A → lowercase chr + Shift modifier', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.setKeyboardMode('Legacy');
+        input.start();
+
+        input._handleKeyDown(keyEvt({
+            code: 'ShiftLeft',
+            key: 'Shift',
+            shiftKey: true,
+        }));
+        input._handleKeyDown(keyEvt({
+            code: 'KeyA',
+            key: 'A',
+            shiftKey: true,
+        }));
+
+        const letter = sent.find((m) => m.keyEvent && m.keyEvent.chr === 97);
+        expect(letter).toBeDefined();
+        expect(letter.keyEvent.mode).toBe('Legacy');
+        expect(letter.keyEvent.modifiers).toContain(29);
+    });
+
+    it('Auto/Map Shift+7 uses Map scancode not Legacy chr', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.setPeerPlatform('Windows');
+        input.setKeyboardMode('Auto');
+        input.start();
+
+        input._handleKeyDown(keyEvt({
+            code: 'ShiftLeft',
+            key: 'Shift',
+            shiftKey: true,
+        }));
+        input._handleKeyDown(keyEvt({
+            code: 'Digit7',
+            key: '&',
+            shiftKey: true,
+        }));
+
+        const digit = sent.find((m) => m.keyEvent && m.keyEvent.chr === 0x08);
+        expect(digit).toBeDefined();
+        expect(digit.keyEvent.mode).toBe('Map');
+        expect(digit.keyEvent.modifiers).not.toContain(29);
     });
 
     it('Auto mode uses Map scancode for letters on Windows peers', () => {
@@ -219,90 +382,53 @@ describe('RDInput KeyboardMode.Map', () => {
         input.setKeyboardMode('Auto');
         input.start();
 
-        input._handleKeyDown({
-            code: 'KeyA',
-            key: 'a',
-            repeat: false,
-            preventDefault() {},
-            stopPropagation() {},
-            ctrlKey: false,
-            altKey: false,
-            metaKey: false,
-            shiftKey: false,
-        });
+        input._handleKeyDown(keyEvt({ code: 'KeyA', key: 'a' }));
 
         expect(sent[0].keyEvent.mode).toBe('Map');
         expect(sent[0].keyEvent.chr).toBe(0x1E);
     });
 
-    it('Auto mode uses Legacy chr for Shift+digit symbols on Windows', () => {
+    it('Legacy mode sends lowercase chr for letters', () => {
         const sent = [];
         const input = makeInput((msg) => sent.push(msg));
-        input.setPeerPlatform('Windows');
-        input.setKeyboardMode('Auto');
+        input.setKeyboardMode('Legacy');
         input.start();
 
-        input._handleKeyDown({
-            code: 'Digit7',
-            key: '&',
-            repeat: false,
-            preventDefault() {},
-            stopPropagation() {},
-            ctrlKey: false,
-            altKey: false,
-            metaKey: false,
-            shiftKey: true,
-        });
+        input._handleKeyDown(keyEvt({
+            code: 'KeyA',
+            key: 'a',
+            getModifierState(state) {
+                return state === 'CapsLock';
+            },
+        }));
 
         expect(sent[0].keyEvent.mode).toBe('Legacy');
-        expect(sent[0].keyEvent.chr).toBe('&'.codePointAt(0));
-        expect(sent[0].keyEvent.modifiers).not.toContain(29);
+        expect(sent[0].keyEvent.chr).toBe(97);
+        expect(sent[0].keyEvent.modifiers).toContain(3);
     });
 
-    it('Legacy mode sends character chr for printable keys', () => {
+    it('Legacy mode sends digit chr for Digit1', () => {
         const sent = [];
         const input = makeInput((msg) => sent.push(msg));
         input.setPeerPlatform('Linux');
         input.setKeyboardMode('Legacy');
         input.start();
 
-        input._handleKeyDown({
-            code: 'Digit1',
-            key: '1',
-            repeat: false,
-            preventDefault() {},
-            stopPropagation() {},
-            ctrlKey: false,
-            altKey: false,
-            metaKey: false,
-            shiftKey: false,
-        });
+        input._handleKeyDown(keyEvt({ code: 'Digit1', key: '1' }));
 
         expect(sent[0].keyEvent.mode).toBe('Legacy');
         expect(sent[0].keyEvent.chr).toBe(49);
     });
 
-    it('Auto mode sends Legacy controlKey for Shift', () => {
+    it('CapsLock key alone sends no wire event', () => {
         const sent = [];
         const input = makeInput((msg) => sent.push(msg));
-        input.setPeerPlatform('Windows');
         input.setKeyboardMode('Auto');
         input.start();
 
-        input._handleKeyDown({
-            code: 'ShiftLeft',
-            key: 'Shift',
-            repeat: false,
-            preventDefault() {},
-            stopPropagation() {},
-            ctrlKey: false,
-            altKey: false,
-            metaKey: false,
-            shiftKey: false,
-        });
+        input._handleKeyDown(keyEvt({ code: 'CapsLock', key: 'CapsLock' }));
 
-        expect(sent[0].keyEvent.mode).toBe('Legacy');
-        expect(sent[0].keyEvent.controlKey).toBe('Shift');
+        expect(sent.length).toBe(0);
     });
 
     it('includes CapsLock modifier on Map letter keys when Caps is on', () => {
@@ -312,46 +438,16 @@ describe('RDInput KeyboardMode.Map', () => {
         input.setKeyboardMode('Auto');
         input.start();
 
-        input._handleKeyDown({
+        input._handleKeyDown(keyEvt({
             code: 'KeyA',
             key: 'a',
-            repeat: false,
-            preventDefault() {},
-            stopPropagation() {},
-            ctrlKey: false,
-            altKey: false,
-            metaKey: false,
-            shiftKey: false,
             getModifierState(state) {
                 return state === 'CapsLock';
             },
-        });
+        }));
 
         expect(sent[0].keyEvent.mode).toBe('Map');
         expect(sent[0].keyEvent.modifiers).toContain(3);
-    });
-
-    it('Legacy mode uppercases letters when CapsLock is on', () => {
-        const sent = [];
-        const input = makeInput((msg) => sent.push(msg));
-        input.setKeyboardMode('Legacy');
-        input.start();
-
-        input._handleKeyDown({
-            code: 'KeyA',
-            key: 'a',
-            repeat: false,
-            preventDefault() {},
-            stopPropagation() {},
-            ctrlKey: false,
-            altKey: false,
-            metaKey: false,
-            shiftKey: false,
-            getModifierState(state) {
-                return state === 'CapsLock';
-            },
-        });
-
-        expect(sent[0].keyEvent.chr).toBe(65);
+        expect(sent[0].keyEvent.modifiers).not.toContain(29);
     });
 });

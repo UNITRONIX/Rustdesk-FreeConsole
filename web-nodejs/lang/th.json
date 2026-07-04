@@ -1098,7 +1098,7 @@
     "reset_keyboard": "รีเซ็ตสถานะคีย์บอร์ด",
     "reset_keyboard_done": "รีเซ็ตสถานะคีย์บอร์ดบนเครื่องระยะไกลแล้ว",
     "keyboard_mode": "โหมดคีย์บอร์ด",
-    "keyboard_mode_auto": "อัตโนมัติ (Map บน Windows)",
+    "keyboard_mode_auto": "อัตโนมัติ (Map เหมือน RustDesk)",
     "keyboard_mode_legacy": "Legacy (ตัวอักษร)",
     "keyboard_mode_map": "Map (scancode ทางกายภาพ)",
     "display_settings": "การตั้งค่าการแสดงผล",

@@ -1109,7 +1109,7 @@
     "reset_keyboard": "Resetuj stan klawiatury",
     "reset_keyboard_done": "Stan klawiatury zresetowany na hoście zdalnym",
     "keyboard_mode": "Tryb klawiatury",
-    "keyboard_mode_auto": "Auto (Map w Windows)",
+    "keyboard_mode_auto": "Auto (Map, jak RustDesk)",
     "keyboard_mode_legacy": "Legacy (znak)",
     "keyboard_mode_map": "Map (skan fizyczny)",
     "display_settings": "Ustawienia wyświetlania",

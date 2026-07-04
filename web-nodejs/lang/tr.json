@@ -1098,7 +1098,7 @@
     "reset_keyboard": "Klavye durumunu sıfırla",
     "reset_keyboard_done": "Uzak klavye durumu sıfırlandı",
     "keyboard_mode": "Klavye modu",
-    "keyboard_mode_auto": "Otomatik (Windows'ta Map)",
+    "keyboard_mode_auto": "Otomatik (Map, RustDesk gibi)",
     "keyboard_mode_legacy": "Legacy (karakter)",
     "keyboard_mode_map": "Map (fiziksel scancode)",
     "display_settings": "Ekran Ayarları",

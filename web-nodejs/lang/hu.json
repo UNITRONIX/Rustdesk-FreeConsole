@@ -1098,7 +1098,7 @@
     "reset_keyboard": "Billentyűzet állapot visszaállítása",
     "reset_keyboard_done": "A távoli billentyűzet állapota visszaállítva",
     "keyboard_mode": "Billentyűzet mód",
-    "keyboard_mode_auto": "Auto (Map Windows-on)",
+    "keyboard_mode_auto": "Auto (Map, mint a RustDesk)",
     "keyboard_mode_legacy": "Legacy (karakter)",
     "keyboard_mode_map": "Map (fizikai scancode)",
     "display_settings": "Megjelenítési beállítások",

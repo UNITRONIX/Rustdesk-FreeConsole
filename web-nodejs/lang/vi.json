@@ -1098,7 +1098,7 @@
     "reset_keyboard": "Đặt lại trạng thái bàn phím",
     "reset_keyboard_done": "Đã đặt lại bàn phím trên máy remote",
     "keyboard_mode": "Chế độ bàn phím",
-    "keyboard_mode_auto": "Tự động (Map trên Windows)",
+    "keyboard_mode_auto": "Tự động (Map, giống RustDesk)",
     "keyboard_mode_legacy": "Legacy (ký tự)",
     "keyboard_mode_map": "Map (scancode vật lý)",
     "display_settings": "Cài đặt hiển thị",

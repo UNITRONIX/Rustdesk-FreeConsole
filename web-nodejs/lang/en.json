@@ -1117,7 +1117,7 @@
     "reset_keyboard": "Reset Keyboard State",
     "reset_keyboard_done": "Keyboard state reset on remote",
     "keyboard_mode": "Keyboard Mode",
-    "keyboard_mode_auto": "Auto (Map on Windows)",
+    "keyboard_mode_auto": "Auto (Map, like RustDesk)",
     "keyboard_mode_legacy": "Legacy (character)",
     "keyboard_mode_map": "Map (physical scancode)",
     "display_settings": "Display Settings",

@@ -1092,7 +1092,7 @@
     "reset_keyboard": "Toetsenbordstatus resetten",
     "reset_keyboard_done": "Toetsenbordstatus op remote gereset",
     "keyboard_mode": "Toetsenbordmodus",
-    "keyboard_mode_auto": "Auto (Map op Windows)",
+    "keyboard_mode_auto": "Auto (Map, zoals RustDesk)",
     "keyboard_mode_legacy": "Legacy (teken)",
     "keyboard_mode_map": "Map (fysieke scancode)",
     "display_settings": "Scherminstellingen",

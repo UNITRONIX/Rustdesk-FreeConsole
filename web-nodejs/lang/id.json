@@ -1098,7 +1098,7 @@
     "reset_keyboard": "Reset status keyboard",
     "reset_keyboard_done": "Status keyboard di remote direset",
     "keyboard_mode": "Mode keyboard",
-    "keyboard_mode_auto": "Otomatis (Map di Windows)",
+    "keyboard_mode_auto": "Otomatis (Map, seperti RustDesk)",
     "keyboard_mode_legacy": "Legacy (karakter)",
     "keyboard_mode_map": "Map (scancode fisik)",
     "display_settings": "Pengaturan Tampilan",

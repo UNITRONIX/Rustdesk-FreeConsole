@@ -1092,7 +1092,7 @@
     "reset_keyboard": "キーボード状態をリセット",
     "reset_keyboard_done": "リモート側のキーボード状態をリセットしました",
     "keyboard_mode": "キーボードモード",
-    "keyboard_mode_auto": "自動（Windows では Map）",
+    "keyboard_mode_auto": "自動（Map、RustDesk と同様）",
     "keyboard_mode_legacy": "Legacy（文字）",
     "keyboard_mode_map": "Map（物理スキャンコード）",
     "display_settings": "表示設定",

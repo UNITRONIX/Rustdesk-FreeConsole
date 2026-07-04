@@ -1113,7 +1113,7 @@
     "reset_keyboard": "重設鍵盤狀態",
     "reset_keyboard_done": "已在遠端重設鍵盤狀態",
     "keyboard_mode": "鍵盤模式",
-    "keyboard_mode_auto": "自動（Windows 使用 Map）",
+    "keyboard_mode_auto": "自動（Map，與 RustDesk 相同）",
     "keyboard_mode_legacy": "Legacy（字元）",
     "keyboard_mode_map": "Map（實體掃描碼）",
     "display_settings": "顯示設置",

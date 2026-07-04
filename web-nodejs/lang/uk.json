@@ -1098,7 +1098,7 @@
     "reset_keyboard": "Скинути стан клавіатури",
     "reset_keyboard_done": "Стан клавіатури на віддаленому ПК скинуто",
     "keyboard_mode": "Режим клавіатури",
-    "keyboard_mode_auto": "Авто (Map у Windows)",
+    "keyboard_mode_auto": "Авто (Map, як RustDesk)",
     "keyboard_mode_legacy": "Legacy (символ)",
     "keyboard_mode_map": "Map (фізичний scancode)",
     "display_settings": "Налаштування дисплея",

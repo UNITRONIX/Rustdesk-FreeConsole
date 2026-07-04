@@ -1113,7 +1113,7 @@
     "reset_keyboard": "Réinitialiser le clavier",
     "reset_keyboard_done": "État du clavier réinitialisé à distance",
     "keyboard_mode": "Mode clavier",
-    "keyboard_mode_auto": "Auto (Map sous Windows)",
+    "keyboard_mode_auto": "Auto (Map, comme RustDesk)",
     "keyboard_mode_legacy": "Legacy (caractère)",
     "keyboard_mode_map": "Map (scancode physique)",
     "display_settings": "Paramètres d'affichage",

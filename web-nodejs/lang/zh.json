@@ -1094,7 +1094,7 @@
     "reset_keyboard": "重置键盘状态",
     "reset_keyboard_done": "已在远程端重置键盘状态",
     "keyboard_mode": "键盘模式",
-    "keyboard_mode_auto": "自动（Windows 使用 Map）",
+    "keyboard_mode_auto": "自动（Map，与 RustDesk 相同）",
     "keyboard_mode_legacy": "Legacy（字符）",
     "keyboard_mode_map": "Map（物理扫描码）",
     "display_settings": "显示设置",

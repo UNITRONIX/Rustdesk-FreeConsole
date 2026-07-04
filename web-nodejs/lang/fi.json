@@ -1098,7 +1098,7 @@
     "reset_keyboard": "Nollaa näppäimistön tila",
     "reset_keyboard_done": "Näppäimistön tila nollattu etäkoneella",
     "keyboard_mode": "Näppäimistötila",
-    "keyboard_mode_auto": "Auto (Map Windowsissa)",
+    "keyboard_mode_auto": "Auto (Map, kuten RustDesk)",
     "keyboard_mode_legacy": "Legacy (merkki)",
     "keyboard_mode_map": "Map (fyysinen skannauskoodi)",
     "display_settings": "Näyttöasetukset",

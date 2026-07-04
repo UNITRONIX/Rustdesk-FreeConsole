@@ -1194,7 +1194,7 @@
     "reset_keyboard": "إعادة تعيين حالة لوحة المفاتيح",
     "reset_keyboard_done": "تمت إعادة تعيين لوحة المفاتيح على الجهاز البعيد",
     "keyboard_mode": "وضع لوحة المفاتيح",
-    "keyboard_mode_auto": "تلقائي (Map على Windows)",
+    "keyboard_mode_auto": "تلقائي (Map، مثل RustDesk)",
     "keyboard_mode_legacy": "Legacy (حرف)",
     "keyboard_mode_map": "Map (رمز مسح فعلي)"
   },

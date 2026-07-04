@@ -1,6 +1,6 @@
 # RdClient Web — keyboard troubleshooting
 
-Symptoms such as wrong characters after some time, broken shortcuts, or Hyper-V / VM Connect typing issues often involve **sticky remote modifiers** or **nested remote keyboard translation**.
+Symptoms such as wrong characters after some time, broken Shift/Caps Lock, or Hyper-V / VM Connect typing issues often involve **sticky remote modifiers**, **Legacy vs Map encoding**, or **nested remote keyboard translation**.
 
 ## Quick recovery (operator)
 
@@ -12,28 +12,33 @@ Symptoms such as wrong characters after some time, broken shortcuts, or Hyper-V 
 
 1. Connect via **Settings → Remote** (rdclient web).
 2. Hold **Shift** or **Ctrl**, then switch to another browser tab or click the address bar **without** releasing the modifier.
-3. Return to the remote tab and type — if characters are wrong, the issue matches missing keyup sync (fixed in recent builds via blur/tab release).
+3. Return to the remote tab and type — if characters are wrong, the issue matches missing keyup sync (fixed via blur/tab release).
 4. Click **Reset Keyboard State** — typing should return to normal.
 
 ## Compare with native RustDesk client
 
 | Step | Native RustDesk | rdclient web |
 |------|-----------------|--------------|
-| Same host, same task (e.g. Hyper-V Manager) | Baseline | If only web fails → web pipeline |
-| After tab switch with modifier held | May also stick | Should auto-release after fix |
-| Hyper-V VM Connect nested in session | Known fragile | Use **Keyboard Mode → Map** or connect directly to guest |
+| Same host, same task (e.g. Hyper-V Manager) | Baseline | Should match after parity encoder |
+| Shift + letter | Uppercase | Same (Map scancode + Shift controlKey, or Legacy `a` + Shift modifier) |
+| After tab switch with modifier held | May also stick | Auto-releases tracked keys on blur |
+| Hyper-V VM Connect nested in session | Known fragile | Prefer **Auto** or **Map**; connect to guest when possible |
 
-**Interpretation:** If native RustDesk works but rdclient web fails on the same host, focus on web client settings (Keyboard Mode, Reset Keyboard). If both fail inside VM Connect, prefer **Enhanced Session**, direct RDP to the guest, or RustDesk installed on the VM.
+**Interpretation:** If native RustDesk works but rdclient web fails on the same host, try **Reset Keyboard State**, then **Legacy** mode for accented typing (ą, ü). If both fail inside VM Connect, prefer **Enhanced Session**, direct RDP to the guest, or RustDesk on the VM.
 
 ## Keyboard modes (Display settings)
 
 | Mode | When to use |
 |------|-------------|
-| **Auto** (default) | Map (scancode) for Windows peers; Legacy elsewhere |
-| **Legacy** | Normal text entry, accented characters (ą, ü, …) |
-| **Map** | Hyper-V, VM console, BIOS, apps needing physical key positions |
+| **Auto** (default) | **Map (scancode) for all keys** — same default as the RustDesk desktop client. Best for Windows, Hyper-V, VM console, Shift+symbols. |
+| **Legacy** | Layout-specific characters (ą, ü, …), AltGr, or when Map misbehaves on a specific app |
+| **Map** | Explicit scancode mode (same wire format as Auto) |
 
-Map mode sends RustDesk `KeyEvent` with `mode: Map` and scancode in `chr` (same contract as the desktop client).
+### Wire contract (matches RustDesk native)
+
+- **Auto / Map:** printable keys → `KeyEvent.mode = Map`, scancode in `chr`; Shift/Ctrl/Alt sent as separate Legacy `controlKey` events; `modifiers` on Map chr events carry **CapsLock/NumLock only**.
+- **Legacy:** printable keys → lowercase `chr` + `modifiers` (Shift/Ctrl/Alt as needed); server applies case via `need_to_uppercase()`.
+- **Caps Lock / Num Lock / Scroll Lock keys:** no wire event (state synced via `modifiers` on following letter/numpad keys).
 
 ## Hyper-V / nested remote
 
@@ -41,10 +46,11 @@ Chain: **Browser → rdclient → RustDesk on host → Hyper-V / VM Connect → 
 
 - Avoid configuring VMs through double/triple nested remote when possible.
 - Connect rdclient **directly to the guest** if it runs RustDesk.
-- For host-only Hyper-V Manager work, **Map** or **Auto** mode on Windows peers improves scancode fidelity.
+- **Auto** (Map) is the recommended default for host Hyper-V Manager and VM Connect.
 
 ## Related code
 
-- [`web-nodejs/public/js/rdclient/input.js`](../../web-nodejs/public/js/rdclient/input.js) — capture, release, Legacy/Map
+- [`web-nodejs/public/js/rdclient/keyboard-encoder.js`](../../web-nodejs/public/js/rdclient/keyboard-encoder.js) — RustDesk-compatible KeyEvent encoder
+- [`web-nodejs/public/js/rdclient/input.js`](../../web-nodejs/public/js/rdclient/input.js) — DOM capture, blur/stop release
 - [`web-nodejs/public/js/rdclient/keyboard-scancode.js`](../../web-nodejs/public/js/rdclient/keyboard-scancode.js) — DOM `code` → scancode tables
-- [`web-nodejs/tests/rdclient.input.test.js`](../../web-nodejs/tests/rdclient.input.test.js) — regression tests
+- [`web-nodejs/tests/rdclient.input.test.js`](../../web-nodejs/tests/rdclient.input.test.js) — parity regression tests

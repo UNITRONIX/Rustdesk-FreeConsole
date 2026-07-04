@@ -1092,7 +1092,7 @@
     "reset_keyboard": "Reimposta stato tastiera",
     "reset_keyboard_done": "Stato tastiera reimpostato sul remoto",
     "keyboard_mode": "Modalità tastiera",
-    "keyboard_mode_auto": "Auto (Map su Windows)",
+    "keyboard_mode_auto": "Auto (Map, come RustDesk)",
     "keyboard_mode_legacy": "Legacy (carattere)",
     "keyboard_mode_map": "Map (scancode fisico)",
     "display_settings": "Impostazioni schermo",

@@ -1098,7 +1098,7 @@
     "reset_keyboard": "Resetează starea tastaturii",
     "reset_keyboard_done": "Starea tastaturii a fost resetată la distanță",
     "keyboard_mode": "Mod tastatură",
-    "keyboard_mode_auto": "Auto (Map pe Windows)",
+    "keyboard_mode_auto": "Auto (Map, ca RustDesk)",
     "keyboard_mode_legacy": "Legacy (caracter)",
     "keyboard_mode_map": "Map (scancode fizic)",
     "display_settings": "Setări de afișare",

@@ -1098,7 +1098,7 @@
     "reset_keyboard": "Tilbakestill tastaturtilstand",
     "reset_keyboard_done": "Tastaturtilstand tilbakestilt på ekstern maskin",
     "keyboard_mode": "Tastaturmodus",
-    "keyboard_mode_auto": "Auto (Map på Windows)",
+    "keyboard_mode_auto": "Auto (Map, som RustDesk)",
     "keyboard_mode_legacy": "Legacy (tegn)",
     "keyboard_mode_map": "Map (fysisk scancode)",
     "display_settings": "Skjerminnstillinger",

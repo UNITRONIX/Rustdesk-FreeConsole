@@ -1092,7 +1092,7 @@
     "reset_keyboard": "Reset stavu klávesnice",
     "reset_keyboard_done": "Stav klávesnice na vzdáleném PC byl resetován",
     "keyboard_mode": "Režim klávesnice",
-    "keyboard_mode_auto": "Auto (Map ve Windows)",
+    "keyboard_mode_auto": "Auto (Map, jako RustDesk)",
     "keyboard_mode_legacy": "Legacy (znak)",
     "keyboard_mode_map": "Map (fyzický scancode)",
     "display_settings": "Nastavení zobrazení",
