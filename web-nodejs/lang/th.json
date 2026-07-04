@@ -257,7 +257,7 @@
     "change_id_failed": "ไม่สามารถเปลี่ยนรหัสอุปกรณ์",
     "invalid_id": "รหัสอุปกรณ์ไม่ถูกต้อง (ต้องมีอักขระ 6-16 ตัว)",
     "invalid_id_format": "รูปแบบรหัสไม่ถูกต้อง (ตัวอักษร ตัวเลข ขีดกลาง ขีดล่างเท่านั้น)",
-    "id_exists": "รหัสอุปกรณ์มีอยู่แล้ว",,
+    "id_exists": "รหัสอุปกรณ์มีอยู่แล้ว",
     "id_reserved_deleted": "ID นี้เป็นของอุปกรณ์ที่ถูกลบ กู้คืนหรือลบถาวรเพื่อปล่อย ID ให้ใช้ซ้ำได้",
     "show_deleted": "แสดงอุปกรณ์ที่ถูกลบ",
     "deleted_badge": "ถูกลบ",
@@ -268,7 +268,7 @@
     "permanent_delete_title": "ลบอุปกรณ์ถาวร",
     "permanent_delete_confirm": "ลบอุปกรณ์ {id} ถาวรหรือไม่? จะปล่อย ID และไม่สามารถย้อนกลับได้",
     "permanent_delete_success": "ลบอุปกรณ์ถาวรแล้ว",
-    "filter_deleted": "ถูกลบ"
+    "filter_deleted": "ถูกลบ",
     "no_selection": "ไม่ได้เลือกอุปกรณ์",
     "device_type": "Type",
     "filter_type_all": "All Types",

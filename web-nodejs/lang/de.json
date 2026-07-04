@@ -251,7 +251,7 @@
     "change_id_failed": "Geräte-ID konnte nicht geändert werden",
     "invalid_id": "Ungültige Geräte-ID",
     "invalid_id_format": "Ungültiges ID-Format",
-    "id_exists": "Diese Geräte-ID ist bereits vorhanden",,
+    "id_exists": "Diese Geräte-ID ist bereits vorhanden",
     "id_reserved_deleted": "Diese ID gehört zu einem gelöschten Gerät. Stellen Sie es wieder her oder löschen Sie es dauerhaft, um die ID wieder freizugeben.",
     "show_deleted": "Gelöschte Geräte anzeigen",
     "deleted_badge": "Gelöscht",
@@ -262,7 +262,7 @@
     "permanent_delete_title": "Gerät dauerhaft löschen",
     "permanent_delete_confirm": "Gerät {id} dauerhaft löschen? Die ID wird freigegeben und dies kann nicht rückgängig gemacht werden.",
     "permanent_delete_success": "Gerät dauerhaft gelöscht",
-    "filter_deleted": "Gelöscht"
+    "filter_deleted": "Gelöscht",
     "no_selection": "Keine Geräte ausgewählt",
     "device_type": "Gerätetyp",
     "filter_type_all": "All Types",

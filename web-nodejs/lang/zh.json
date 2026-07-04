@@ -251,7 +251,7 @@
     "change_id_failed": "更改设备 ID 失败",
     "invalid_id": "设备 ID 无效（需要 6-16 个字符）",
     "invalid_id_format": "ID 格式无效（仅允许字母、数字、连字符和下划线）",
-    "id_exists": "设备 ID 已存在",,
+    "id_exists": "设备 ID 已存在",
     "id_reserved_deleted": "此 ID 属于已删除的设备。请恢复该设备或永久删除以释放 ID 供重复使用。",
     "show_deleted": "显示已删除设备",
     "deleted_badge": "已删除",
@@ -262,7 +262,7 @@
     "permanent_delete_title": "永久删除设备",
     "permanent_delete_confirm": "永久删除设备 {id}？将释放其 ID，且无法撤销。",
     "permanent_delete_success": "设备已永久删除",
-    "filter_deleted": "已删除"
+    "filter_deleted": "已删除",
     "no_selection": "未选择任何设备",
     "device_type": "类型",
     "filter_type_all": "所有类型",

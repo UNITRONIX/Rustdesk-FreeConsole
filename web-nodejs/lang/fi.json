@@ -257,7 +257,7 @@
     "change_id_failed": "Laitetunnuksen muuttaminen epäonnistui",
     "invalid_id": "Virheellinen laitetunnus (6–16 merkkiä vaaditaan)",
     "invalid_id_format": "Virheellinen tunnusmuoto (vain kirjaimet, numerot, väliviivat, alaviivat)",
-    "id_exists": "Laitetunnus on jo olemassa",,
+    "id_exists": "Laitetunnus on jo olemassa",
     "id_reserved_deleted": "Tämä tunnus kuuluu poistetulle laitteelle. Palauta se tai poista se pysyvästi vapauttaaksesi tunnuksen.",
     "show_deleted": "Näytä poistetut laitteet",
     "deleted_badge": "Poistettu",
@@ -268,7 +268,7 @@
     "permanent_delete_title": "Poista laite pysyvästi",
     "permanent_delete_confirm": "Poistetaanko laite {id} pysyvästi? Tunnus vapautuu eikä toimintoa voi perua.",
     "permanent_delete_success": "Laite poistettu pysyvästi",
-    "filter_deleted": "Poistetut"
+    "filter_deleted": "Poistetut",
     "no_selection": "Ei valittuja laitteita",
     "device_type": "Type",
     "filter_type_all": "All Types",

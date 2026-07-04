@@ -257,7 +257,7 @@
     "change_id_failed": "Không thể thay đổi ID thiết bị",
     "invalid_id": "ID thiết bị không hợp lệ (yêu cầu 6-16 ký tự)",
     "invalid_id_format": "Định dạng ID không hợp lệ (chỉ chữ cái, số, dấu gạch ngang, dấu gạch dưới)",
-    "id_exists": "ID thiết bị đã tồn tại",,
+    "id_exists": "ID thiết bị đã tồn tại",
     "id_reserved_deleted": "ID này thuộc về thiết bị đã xóa. Khôi phục hoặc xóa vĩnh viễn để giải phóng ID cho việc sử dụng lại.",
     "show_deleted": "Hiển thị thiết bị đã xóa",
     "deleted_badge": "Đã xóa",
@@ -268,7 +268,7 @@
     "permanent_delete_title": "Xóa vĩnh viễn thiết bị",
     "permanent_delete_confirm": "Xóa vĩnh viễn thiết bị {id}? ID sẽ được giải phóng và không thể hoàn tác.",
     "permanent_delete_success": "Đã xóa vĩnh viễn thiết bị",
-    "filter_deleted": "Đã xóa"
+    "filter_deleted": "Đã xóa",
     "no_selection": "Không có thiết bị nào được chọn",
     "device_type": "Type",
     "filter_type_all": "All Types",

@@ -257,7 +257,7 @@
     "change_id_failed": "Nu s-a putut schimba ID-ul dispozitivului",
     "invalid_id": "ID dispozitiv nevalid (6-16 caractere necesare)",
     "invalid_id_format": "Format de identificare nevalid (numai litere, cifre, liniuțe, litere de subliniere)",
-    "id_exists": "ID-ul dispozitivului există deja",,
+    "id_exists": "ID-ul dispozitivului există deja",
     "id_reserved_deleted": "Acest ID aparține unui dispozitiv șters. Restaurați-l sau ștergeți-l permanent pentru a elibera ID-ul.",
     "show_deleted": "Afișează dispozitivele șterse",
     "deleted_badge": "Șters",
@@ -268,7 +268,7 @@
     "permanent_delete_title": "Șterge permanent dispozitivul",
     "permanent_delete_confirm": "Ștergeți permanent dispozitivul {id}? Eliberează ID-ul și nu poate fi anulat.",
     "permanent_delete_success": "Dispozitiv șters permanent",
-    "filter_deleted": "Șterse"
+    "filter_deleted": "Șterse",
     "no_selection": "Niciun dispozitiv selectat",
     "device_type": "Type",
     "filter_type_all": "All Types",

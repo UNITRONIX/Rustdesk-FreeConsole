@@ -257,7 +257,7 @@
     "change_id_failed": "Nem sikerült módosítani az eszközazonosítót",
     "invalid_id": "Érvénytelen eszközazonosító (6-16 karakter szükséges)",
     "invalid_id_format": "Érvénytelen azonosító formátum (csak betűk, számok, kötőjelek, aláhúzásjelek)",
-    "id_exists": "Az eszközazonosító már létezik",,
+    "id_exists": "Az eszközazonosító már létezik",
     "id_reserved_deleted": "Ez az azonosító egy törölt eszközhöz tartozik. Állítsa vissza, vagy törölje véglegesen az azonosító felszabadításához.",
     "show_deleted": "Törölt eszközök megjelenítése",
     "deleted_badge": "Törölve",
@@ -268,7 +268,7 @@
     "permanent_delete_title": "Eszköz végleges törlése",
     "permanent_delete_confirm": "Véglegesen törli az {id} eszközt? Felszabadítja az azonosítót, és nem vonható vissza.",
     "permanent_delete_success": "Eszköz véglegesen törölve",
-    "filter_deleted": "Töröltek"
+    "filter_deleted": "Töröltek",
     "no_selection": "Nincsenek kiválasztott eszközök",
     "device_type": "Type",
     "filter_type_all": "All Types",

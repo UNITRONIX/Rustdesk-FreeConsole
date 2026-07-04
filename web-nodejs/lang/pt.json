@@ -251,7 +251,7 @@
     "change_id_failed": "Não foi possível alterar o ID do dispositivo",
     "invalid_id": "ID de dispositivo inválido",
     "invalid_id_format": "Formato de ID inválido",
-    "id_exists": "Este ID de dispositivo já existe",,
+    "id_exists": "Este ID de dispositivo já existe",
     "id_reserved_deleted": "Este ID pertence a um dispositivo eliminado. Restaure-o ou elimine-o permanentemente para libertar o ID.",
     "show_deleted": "Mostrar dispositivos eliminados",
     "deleted_badge": "Eliminado",
@@ -262,7 +262,7 @@
     "permanent_delete_title": "Eliminar dispositivo permanentemente",
     "permanent_delete_confirm": "Eliminar permanentemente o dispositivo {id}? Liberta o ID e não pode ser anulado.",
     "permanent_delete_success": "Dispositivo eliminado permanentemente",
-    "filter_deleted": "Eliminados"
+    "filter_deleted": "Eliminados",
     "no_selection": "Nenhum dispositivo selecionado",
     "device_type": "Tipo de dispositivo",
     "filter_type_all": "All Types",

@@ -251,7 +251,7 @@
     "change_id_failed": "Apparaat-ID kon niet worden gewijzigd",
     "invalid_id": "Ongeldige apparaat-ID",
     "invalid_id_format": "Ongeldig ID-formaat",
-    "id_exists": "Deze apparaat-ID bestaat al",,
+    "id_exists": "Deze apparaat-ID bestaat al",
     "id_reserved_deleted": "Dit ID hoort bij een verwijderd apparaat. Herstel het of verwijder het permanent om het ID vrij te geven.",
     "show_deleted": "Verwijderde apparaten tonen",
     "deleted_badge": "Verwijderd",
@@ -262,7 +262,7 @@
     "permanent_delete_title": "Apparaat permanent verwijderen",
     "permanent_delete_confirm": "Apparaat {id} permanent verwijderen? Dit geeft het ID vrij en kan niet ongedaan worden gemaakt.",
     "permanent_delete_success": "Apparaat permanent verwijderd",
-    "filter_deleted": "Verwijderd"
+    "filter_deleted": "Verwijderd",
     "no_selection": "Geen apparaten geselecteerd",
     "device_type": "Apparaattype",
     "filter_type_all": "All Types",

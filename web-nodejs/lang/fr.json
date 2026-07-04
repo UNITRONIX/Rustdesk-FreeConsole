@@ -258,7 +258,7 @@
     "change_id_failed": "Failed to change device ID",
     "invalid_id": "Invalid device ID (6-16 characters required)",
     "invalid_id_format": "Invalid ID format (letters, numbers, dashes, underscores only)",
-    "id_exists": "Device ID already exists",,
+    "id_exists": "Device ID already exists",
     "id_reserved_deleted": "Cet ID appartient à un appareil supprimé. Restaurez-le ou supprimez-le définitivement pour libérer l'ID.",
     "show_deleted": "Afficher les appareils supprimés",
     "deleted_badge": "Supprimé",
@@ -269,7 +269,7 @@
     "permanent_delete_title": "Supprimer définitivement l'appareil",
     "permanent_delete_confirm": "Supprimer définitivement l'appareil {id} ? Cela libère son ID et est irréversible.",
     "permanent_delete_success": "Appareil supprimé définitivement",
-    "filter_deleted": "Supprimés"
+    "filter_deleted": "Supprimés",
     "no_selection": "No devices selected",
     "device_type": "Type d'appareil",
     "tags": "Tags",

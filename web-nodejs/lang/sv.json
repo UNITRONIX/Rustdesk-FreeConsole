@@ -257,7 +257,7 @@
     "change_id_failed": "Det gick inte att ändra enhets-ID",
     "invalid_id": "Ogiltigt enhets-ID (6–16 tecken krävs)",
     "invalid_id_format": "Ogiltigt ID-format (endast bokstäver, siffror, bindestreck, understreck)",
-    "id_exists": "Enhets-ID finns redan",,
+    "id_exists": "Enhets-ID finns redan",
     "id_reserved_deleted": "Detta ID tillhör en borttagen enhet. Återställ den eller ta bort den permanent för att frigöra ID:t.",
     "show_deleted": "Visa borttagna enheter",
     "deleted_badge": "Borttagen",
@@ -268,7 +268,7 @@
     "permanent_delete_title": "Ta bort enhet permanent",
     "permanent_delete_confirm": "Ta bort enhet {id} permanent? Det frigör ID:t och kan inte ångras.",
     "permanent_delete_success": "Enhet borttagen permanent",
-    "filter_deleted": "Borttagna"
+    "filter_deleted": "Borttagna",
     "no_selection": "Inga enheter har valts",
     "device_type": "Type",
     "filter_type_all": "All Types",

@@ -257,7 +257,7 @@
     "change_id_failed": "Kunne ikke ændre enheds-id",
     "invalid_id": "Ugyldigt enheds-id (6-16 tegn påkrævet)",
     "invalid_id_format": "Ugyldigt id-format (kun bogstaver, tal, bindestreger, understregninger)",
-    "id_exists": "Enheds-id findes allerede",,
+    "id_exists": "Enheds-id findes allerede",
     "id_reserved_deleted": "Dette ID tilhører en slettet enhed. Gendan den, eller slet den permanent for at frigive ID'et.",
     "show_deleted": "Vis slettede enheder",
     "deleted_badge": "Slettet",
@@ -268,7 +268,7 @@
     "permanent_delete_title": "Slet enhed permanent",
     "permanent_delete_confirm": "Slet enhed {id} permanent? Det frigiver ID'et og kan ikke fortrydes.",
     "permanent_delete_success": "Enhed slettet permanent",
-    "filter_deleted": "Slettede"
+    "filter_deleted": "Slettede",
     "no_selection": "Ingen enheder valgt",
     "device_type": "Type",
     "filter_type_all": "All Types",
