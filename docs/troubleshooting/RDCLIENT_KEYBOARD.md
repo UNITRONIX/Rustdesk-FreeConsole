@@ -20,9 +20,10 @@ Symptoms such as wrong characters after some time, broken Shift/Caps Lock, or Hy
 | Step | Native RustDesk | rdclient web |
 |------|-----------------|--------------|
 | Same host, same task (e.g. Hyper-V Manager) | Baseline | Should match after parity encoder |
-| Shift + letter | Uppercase | Same (Map scancode + Shift controlKey, or Legacy `a` + Shift modifier) |
+| Shift + letter | Uppercase | Map scancodes for Shift + letter (Auto/Windows) |
+| Shift + symbol | Correct symbol | Map scancodes when modifier held; Legacy chr when unshifted |
 | After tab switch with modifier held | May also stick | Auto-releases tracked keys on blur |
-| Hyper-V VM Connect nested in session | Known fragile | Prefer **Auto** or **Map**; connect to guest when possible |
+| Hyper-V VM Connect nested in session | Known fragile | Prefer **Auto**; connect to guest when possible |
 
 **Interpretation:** If native RustDesk works but rdclient web fails on the same host, try **Reset Keyboard State**, then **Legacy** mode for accented typing (ą, ü). If both fail inside VM Connect, prefer **Enhanced Session**, direct RDP to the guest, or RustDesk on the VM.
 
@@ -30,15 +31,18 @@ Symptoms such as wrong characters after some time, broken Shift/Caps Lock, or Hy
 
 | Mode | When to use |
 |------|-------------|
-| **Auto** (default) | **Map (scancode) for all keys** — same default as the RustDesk desktop client. Best for Windows, Hyper-V, VM console, Shift+symbols. |
+| **Auto** (default) | **Windows peers:** Map scancodes for letters, modifiers, and nav keys; Legacy `chr` for unshifted digits/symbols. Best for desktop + Hyper-V. |
 | **Legacy** | Layout-specific characters (ą, ü, …), AltGr, or when Map misbehaves on a specific app |
-| **Map** | Explicit scancode mode (same wire format as Auto) |
+| **Map** | Full physical scancode path for every key (matches RustDesk Map mode) |
 
 ### Wire contract (matches RustDesk native)
 
-- **Auto / Map:** printable keys → `KeyEvent.mode = Map`, scancode in `chr`; Shift/Ctrl/Alt sent as separate Legacy `controlKey` events; `modifiers` on Map chr events carry **CapsLock/NumLock only**.
-- **Legacy:** printable keys → lowercase `chr` + `modifiers` (Shift/Ctrl/Alt as needed); server applies case via `need_to_uppercase()`.
+- **Map / Auto (Windows, physical keys):** `KeyEvent.mode = Map`, scancode in `chr` — including **Shift, Ctrl, Alt, F-keys, arrows**. Do **not** mix Legacy `controlKey` with Map `chr` in the same sequence; the host uses one injection path per mode.
+- **Auto (Windows, unshifted digits/symbols):** `KeyEvent.mode = Legacy`, character in `chr`.
+- **Auto (Linux/macOS):** Legacy by default.
+- **Legacy:** printable keys → `chr` + `modifiers` (Shift/Ctrl/Alt as needed); navigation/modifiers → `controlKey`.
 - **Caps Lock / Num Lock / Scroll Lock keys:** no wire event (state synced via `modifiers` on following letter/numpad keys).
+- **Toolbar specials** (`CtrlAltDel`, `LockScreen`): always Legacy `controlKey`.
 
 ## Hyper-V / nested remote
 
@@ -46,7 +50,7 @@ Chain: **Browser → rdclient → RustDesk on host → Hyper-V / VM Connect → 
 
 - Avoid configuring VMs through double/triple nested remote when possible.
 - Connect rdclient **directly to the guest** if it runs RustDesk.
-- **Auto** (Map) is the recommended default for host Hyper-V Manager and VM Connect.
+- **Auto** is the recommended default for host Hyper-V Manager and VM Connect.
 
 ## Related code
 

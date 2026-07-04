@@ -191,3 +191,70 @@ describe('RDClient file transfer message encoding', () => {
         expect(decoded.fileResponse.digest.lastModified).toBe('1700000000');
     });
 });
+
+describe('RDClient KeyEvent protobuf encoding', () => {
+    let Message;
+
+    beforeAll(async () => {
+        const root = await protobuf.load([
+            path.join(__dirname, '../protos/message.proto')
+        ]);
+        Message = root.lookupType('hbb.Message');
+    });
+
+    it('encodes Map scancode keyEvent with mode Map', () => {
+        const buf = Message.encode(Message.fromObject({
+            keyEvent: { chr: 0x1E, down: true, press: false, modifiers: [], mode: 'Map' },
+        })).finish();
+        expect(buf.length).toBeGreaterThan(0);
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.keyEvent.chr).toBe(30);
+        expect(decoded.keyEvent.mode).toBe('Map');
+    });
+
+    it('encodes Legacy controlKey with string enum name', () => {
+        const buf = Message.encode(Message.fromObject({
+            keyEvent: {
+                controlKey: 'Shift',
+                down: true,
+                press: false,
+                modifiers: [],
+                mode: 'Legacy',
+            },
+        })).finish();
+        expect(buf.length).toBeGreaterThan(0);
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.keyEvent.controlKey).toBe('Shift');
+        expect(decoded.keyEvent.mode).toBe('Legacy');
+    });
+
+    it('encodes Legacy chr with CapsLock modifier', () => {
+        const buf = Message.encode(Message.fromObject({
+            keyEvent: {
+                chr: 97,
+                down: true,
+                press: false,
+                modifiers: ['CapsLock'],
+                mode: 'Legacy',
+            },
+        })).finish();
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.keyEvent.modifiers).toEqual(['CapsLock']);
+    });
+
+    it('does not encode control_key snake_case alias on KeyEvent', () => {
+        const buf = Message.encode(Message.fromObject({
+            keyEvent: { control_key: 'Shift', down: true, mode: 'Legacy' },
+        })).finish();
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.keyEvent?.controlKey).toBeUndefined();
+    });
+
+    it('create() leaves controlKey as Unknown (regression guard)', () => {
+        const msg = Message.create({
+            keyEvent: { controlKey: 'Shift', down: true, mode: 'Legacy' },
+        });
+        const decoded = Message.decode(Message.encode(msg).finish()).toJSON();
+        expect(decoded.keyEvent.controlKey).toBe('Unknown');
+    });
+});

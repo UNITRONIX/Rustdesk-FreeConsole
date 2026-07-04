@@ -1,9 +1,9 @@
 /**
  * RustDesk-compatible KeyEvent encoder (mirrors upstream keyboard.rs client path).
  *
- * Legacy: lowercase chr + legacy_modifiers + lock_modes on chr/control events.
- * Map: scancode in chr; modifiers on chr events are lock_modes only (Caps/Num).
- * Modifier / navigation keys always use Legacy controlKey.
+ * Map/Auto: scancode in chr for physical keys (including Shift/Ctrl/Alt); lock_modes only.
+ * Auto/Windows hybrid: letters + modifiers/nav → Map; unshifted digits/symbols → Legacy chr.
+ * Legacy: controlKey for nav/modifiers; lowercase chr + legacy_modifiers for printable keys.
  */
 /* eslint-disable no-unused-vars */
 /* global RDKeyboardScancode */
@@ -19,7 +19,7 @@ const RDKeyboardEncoder = {
     /** Upstream legacy_keyboard_mode: no wire event for lock keys. */
     SILENT_LOCK_CODES: ['CapsLock', 'NumLock', 'ScrollLock'],
 
-    /** DOM code → RustDesk ControlKey name (Legacy path). */
+    /** DOM code → RustDesk ControlKey name (Legacy fallback). */
     KEY_MAP: {
         Escape: 'Escape',
         Backspace: 'Backspace',
@@ -91,13 +91,29 @@ const RDKeyboardEncoder = {
     },
 
     /**
-     * Resolve UI keyboard mode to wire mode (Auto → Map, matching native default).
+     * Whether this key should use Map scancode encoding.
+     * @param {string} code
      * @param {'Legacy'|'Map'|'Auto'} keyboardMode
-     * @returns {'Legacy'|'Map'}
+     * @param {string} peerPlatform
+     * @param {{ shift: boolean, ctrl: boolean, alt: boolean, meta: boolean }} modState
+     * @param {object|null} scancodeLib
+     * @returns {boolean}
      */
-    resolveWireMode(keyboardMode) {
-        if (keyboardMode === 'Legacy') return 'Legacy';
-        return 'Map';
+    shouldUseMapScancode(code, keyboardMode, peerPlatform, modState, scancodeLib) {
+        if (keyboardMode === 'Legacy') return false;
+        if (keyboardMode === 'Map') return true;
+
+        const platform = (peerPlatform || '').toLowerCase();
+        if (platform !== 'windows') return false;
+
+        if (this.isLetterCode(code)) return true;
+        if (this.KEY_MAP[code]) return true;
+
+        const scLib = this._getScancodeLib(scancodeLib);
+        if (modState.shift || modState.ctrl || modState.alt || modState.meta) {
+            return scLib?.codeToScancode(code, peerPlatform) != null;
+        }
+        return false;
     },
 
     /**
@@ -156,11 +172,50 @@ const RDKeyboardEncoder = {
     },
 
     /**
+     * Apply Shift XOR CapsLock case for Legacy ASCII letters (matches RustDesk client).
+     * @param {KeyboardEvent|null} e
+     * @returns {string}
+     */
+    resolveLegacyLetterCase(e) {
+        const key = e?.key;
+        if (!key || key.length !== 1 || !this.isLetterCode(e.code)) return key || '';
+        const cp = key.codePointAt(0);
+        if (cp === undefined || cp < 0x41 || cp > 0x7A) return key;
+        if (cp > 0x5A && cp < 0x61) return key;
+
+        const caps = typeof e.getModifierState === 'function' &&
+            e.getModifierState('CapsLock');
+        const upper = e.shiftKey !== caps;
+        if (upper) {
+            return String.fromCodePoint(cp <= 0x5A ? cp : cp - 32);
+        }
+        return String.fromCodePoint(cp >= 0x61 ? cp : cp + 32);
+    },
+
+    /**
+     * Legacy chr already encodes Shift/Caps; strip them unless Ctrl/Alt/Meta hotkey.
+     * @param {number[]} mods
+     * @param {KeyboardEvent|null} e
+     * @returns {number[]}
+     */
+    stripResolvedCharModifiers(mods, e) {
+        if (!e || e.ctrlKey || e.altKey || e.metaKey) return mods;
+        return mods.filter((m) => m !== this.MOD_SHIFT && m !== this.MOD_CAPS_LOCK);
+    },
+
+    /**
      * @param {string} code
      * @param {string} key
+     * @param {KeyboardEvent|null} e
      * @returns {number|null}
      */
-    legacyCharCodePoint(code, key) {
+    legacyCharCodePoint(code, key, e) {
+        if (this.isLetterCode(code) && e) {
+            const resolved = this.resolveLegacyLetterCase(e);
+            if (resolved && resolved.length === 1) {
+                return resolved.codePointAt(0);
+            }
+        }
         const mapped = this.LEGACY_CHAR_MAP[code];
         if (mapped) return mapped.codePointAt(0);
         if (!key || key.length === 0 || key === 'Unidentified' || key === 'Dead') {
@@ -220,12 +275,39 @@ const RDKeyboardEncoder = {
             scancodeLib = null,
         } = opts;
 
-        const wireMode = this.resolveWireMode(keyboardMode);
         const modState = this.modifierStateFromPressed(pressedCodes);
+        const scLib = this._getScancodeLib(scancodeLib);
         const controlKey = this.KEY_MAP[code];
+        const useMap = this.shouldUseMapScancode(
+            code, keyboardMode, peerPlatform, modState, scLib
+        );
 
         if (this.SILENT_LOCK_CODES.includes(code)) {
             return null;
+        }
+
+        if (useMap) {
+            const sc = scLib?.codeToScancode(code, peerPlatform);
+            if (sc != null) {
+                return {
+                    chr: sc,
+                    down,
+                    press,
+                    modifiers: this.lockModeModifiers(code, e),
+                    mode: 'Map',
+                };
+            }
+            if (controlKey) {
+                let modifiers = this.legacyModifiers(code, modState);
+                modifiers = modifiers.concat(this.lockModeModifiers(code, e));
+                return {
+                    controlKey,
+                    down,
+                    press,
+                    modifiers,
+                    mode: 'Legacy',
+                };
+            }
         }
 
         if (controlKey) {
@@ -240,27 +322,13 @@ const RDKeyboardEncoder = {
             };
         }
 
-        const scLib = this._getScancodeLib(scancodeLib);
-
-        if (wireMode === 'Map') {
-            const sc = scLib?.codeToScancode(code, peerPlatform);
-            if (sc != null) {
-                return {
-                    chr: sc,
-                    down,
-                    press,
-                    modifiers: this.lockModeModifiers(code, e),
-                    mode: 'Map',
-                };
-            }
-        }
-
-        const chr = this.legacyCharCodePoint(code, key);
+        const chr = this.legacyCharCodePoint(code, key, e);
         if (chr == null) return null;
 
         let modifiers = this.legacyModifiers(code, modState);
         modifiers = modifiers.concat(this.lockModeModifiers(code, e));
         modifiers = this.applyAltGrLegacyFilter(code, e, modifiers);
+        modifiers = this.stripResolvedCharModifiers(modifiers, e);
 
         return {
             chr,
@@ -272,22 +340,41 @@ const RDKeyboardEncoder = {
     },
 
     /**
-     * Build modifier keyup events for toolbar recovery (always Legacy controlKey).
+     * Build modifier keyup events for toolbar recovery.
      * @param {object|null} scancodeLib
+     * @param {'Legacy'|'Map'|'Auto'} keyboardMode
+     * @param {string} [peerPlatform]
      * @returns {object[]}
      */
-    buildModifierReleaseEvents(scancodeLib) {
+    buildModifierReleaseEvents(scancodeLib, keyboardMode, peerPlatform = '') {
         const lib = this._getScancodeLib(scancodeLib);
         const codes = lib?.MODIFIER_CODES || [
             'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
             'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight',
         ];
+        const platform = (peerPlatform || '').toLowerCase();
+        const useMapRelease = keyboardMode === 'Map' ||
+            (keyboardMode === 'Auto' && platform === 'windows');
+
         const events = [];
         for (const code of codes) {
-            const controlKey = this.KEY_MAP[code];
-            if (controlKey) {
+            if (useMapRelease) {
+                const sc = lib?.codeToScancode(code, peerPlatform);
+                if (sc != null) {
+                    events.push({
+                        chr: sc,
+                        down: false,
+                        press: false,
+                        modifiers: [],
+                        mode: 'Map',
+                    });
+                    continue;
+                }
+            }
+            const ck = this.KEY_MAP[code];
+            if (ck) {
                 events.push({
-                    controlKey,
+                    controlKey: ck,
                     down: false,
                     press: false,
                     modifiers: [],

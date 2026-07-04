@@ -329,15 +329,6 @@ class RDProtocol {
     }
 
     /**
-     * Build KeyEvent message
-     */
-    buildKeyEvent(keyData) {
-        return {
-            keyEvent: keyData
-        };
-    }
-
-    /**
      * Build TestDelay message (ping)
      */
     buildTestDelay() {

@@ -26,8 +26,6 @@ class RDInput {
         this.pointerLocked = false;
         /** @type {Map<string, { key: string }>} Currently pressed keys (code → metadata) */
         this.pressedKeys = new Map();
-        /** @type {number} Mouse button state bitmask */
-        this.buttonMask = 0;
 
         /** @type {string} PeerInfo.platform for Map-mode scancode target */
         this.peerPlatform = '';
@@ -120,7 +118,6 @@ class RDInput {
         }
 
         this.pressedKeys.clear();
-        this.buttonMask = 0;
         this.enabled = false;
     }
 
@@ -195,7 +192,6 @@ class RDInput {
 
         if (button) {
             const mask = RDInput.MOUSE_TYPE_DOWN | (button << 3);
-            this.buttonMask |= button;
             this.sendMessage({
                 mouseEvent: {
                     mask: mask,
@@ -223,7 +219,6 @@ class RDInput {
 
         if (button) {
             const mask = RDInput.MOUSE_TYPE_UP | (button << 3);
-            this.buttonMask &= ~button;
             this.sendMessage({
                 mouseEvent: {
                     mask: mask,
@@ -309,8 +304,15 @@ class RDInput {
 
     _releaseAllModifiers() {
         const enc = this._encoder();
-        if (!enc) return;
-        const events = enc.buildModifierReleaseEvents(this._getScancodeLib());
+        if (!enc) {
+            console.error('[RDInput] RDKeyboardEncoder not loaded — cannot release modifiers');
+            return;
+        }
+        const events = enc.buildModifierReleaseEvents(
+            this._getScancodeLib(),
+            this.keyboardMode,
+            this.peerPlatform
+        );
         for (const keyEvent of events) {
             this.sendMessage({ keyEvent });
         }
@@ -329,7 +331,15 @@ class RDInput {
      */
     _sendKeyForCode(code, key, down, press, e) {
         const enc = this._encoder();
-        if (!enc) return;
+        if (!enc) {
+            console.error('[RDInput] RDKeyboardEncoder not loaded — key event dropped:', code);
+            return;
+        }
+        const scLib = this._getScancodeLib();
+        if (!scLib) {
+            console.error('[RDInput] RDKeyboardScancode not loaded — key event dropped:', code);
+            return;
+        }
 
         const keyEvent = enc.encodeKeyEvent({
             code,
@@ -340,7 +350,7 @@ class RDInput {
             keyboardMode: this.keyboardMode,
             peerPlatform: this.peerPlatform,
             pressedCodes: this.pressedKeys.keys(),
-            scancodeLib: this._getScancodeLib(),
+            scancodeLib: scLib,
         });
 
         if (keyEvent) {
@@ -405,6 +415,7 @@ class RDInput {
     _isInputFocused() {
         const el = document.activeElement;
         if (!el) return false;
+        if (el.isContentEditable) return true;
         const tag = el.tagName?.toLowerCase();
         if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') return false;
         if (el.type === 'hidden' || el.offsetParent === null) return false;

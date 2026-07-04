@@ -136,11 +136,8 @@ describe('RDAudio session isolation', () => {
 
 describe('RDInput multi-session keyboard isolation', () => {
     let RDInput;
-    let keydownHandlers;
 
     beforeAll(() => {
-        keydownHandlers = [];
-
         const documentListeners = { keydown: [], keyup: [], pointerlockchange: [] };
         const document = {
             activeElement: null,
