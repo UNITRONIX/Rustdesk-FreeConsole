@@ -8,6 +8,7 @@
 ## [3.3.109] — 2026-07-05
 
 ### Fixed
+- **Email/SMTP settings (Fixes #240):** Settings → Email “Test connection” no longer returns HTTP 415 — SMTP save/test/load now use `Utils.api()` so requests include `Content-Type: application/json` required by panel API middleware.
 - **Panel tabs redirect to dashboard (401):** RustDesk client API routes (`GET /api/devices`, `/api/strategies`) no longer shadow panel session routes — browser requests without Bearer token fall through to panel handlers; `users.js` uses `/api/panel/strategies`; `Utils.api` no longer redirects logged-in users to `/login` (which bounced to dashboard) on incidental 401.
 - **Devices/Users 429 rate limit:** extended panel poll whitelist (`/api/folders`, `/api/tags`, `/api/device-groups`, `/api/bd/notifications`, `/api/panel/*`); dedicated limiter for `POST /api/desktop/layout`; staggered Devices page API loads; desktop widget layout saves gated when desktop mode is inactive.
 

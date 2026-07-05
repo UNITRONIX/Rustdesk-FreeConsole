@@ -4935,13 +4935,7 @@
                 if (!confirmed) return;
             }
             try {
-                const res = await fetch('/api/settings/email/smtp', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.BetterDesk?.csrfToken || '' },
-                    body: JSON.stringify(body),
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Save failed');
+                await Utils.api('/api/settings/email/smtp', { method: 'PUT', body });
                 Notifications.success(_('settings.email.smtp_saved'));
                 document.getElementById('email-smtp-pass').value = '';
                 await loadEmailSmtpConfig();
@@ -4952,11 +4946,7 @@
 
         testBtn.addEventListener('click', async () => {
             try {
-                const res = await fetch('/api/settings/email/smtp/test', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-Token': window.BetterDesk?.csrfToken || '' },
-                });
-                const data = await res.json();
+                const data = await Utils.api('/api/settings/email/smtp/test', { method: 'POST', body: {} });
                 if (data.success) {
                     Notifications.success(_('settings.email.smtp_test_success'));
                 } else {
@@ -4970,8 +4960,7 @@
 
     async function loadEmailSmtpConfig() {
         try {
-            const res = await fetch('/api/settings/email/smtp');
-            const config = await res.json();
+            const config = await Utils.api('/api/settings/email/smtp');
             if (!config.configured) {
                 _smtpWasConfigured = false;
                 return;
