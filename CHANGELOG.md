@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.109] — 2026-07-05
+
 ### Fixed
 - **Panel tabs redirect to dashboard (401):** RustDesk client API routes (`GET /api/devices`, `/api/strategies`) no longer shadow panel session routes — browser requests without Bearer token fall through to panel handlers; `users.js` uses `/api/panel/strategies`; `Utils.api` no longer redirects logged-in users to `/login` (which bounced to dashboard) on incidental 401.
 - **Devices/Users 429 rate limit:** extended panel poll whitelist (`/api/folders`, `/api/tags`, `/api/device-groups`, `/api/bd/notifications`, `/api/panel/*`); dedicated limiter for `POST /api/desktop/layout`; staggered Devices page API loads; desktop widget layout saves gated when desktop mode is inactive.
@@ -1623,3 +1630,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.106]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.105...v3.3.106
 [3.3.107]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.106...v3.3.107
 [3.3.108]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.107...v3.3.108
+[3.3.109]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.108...v3.3.109
