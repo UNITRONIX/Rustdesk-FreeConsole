@@ -1,4 +1,4 @@
-﻿{
+{
   "_meta": {
     "name": "Hindi",
     "native_name": "हिन्दी",
@@ -393,7 +393,16 @@
     "manage_user_groups": "उपयोगकर्ता समूह प्रबंधित करें",
     "restore_failed": "डिवाइस पुनर्स्थापित करने में विफल",
     "no_signal_tooltip": "क्लाइंट ने हाल ही में API से संपर्क किया, लेकिन सिग्नल सर्वर (UDP :21116) पर पंजीकृत नहीं है। सर्वर माइग्रेशन के बाद क्लाइंट को पुनः प्रारंभ करें।",
-    "per_page": "प्रति पृष्ठ"
+    "per_page": "प्रति पृष्ठ",
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "सर्वर कुंजी",

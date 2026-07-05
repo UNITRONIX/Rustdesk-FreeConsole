@@ -1,4 +1,4 @@
-﻿{
+{
   "meta": {
     "lang": "ko",
     "name": "Korean",
@@ -387,7 +387,16 @@
     "manage_user_groups": "사용자 그룹 관리",
     "restore_failed": "기기 복원에 실패했습니다",
     "no_signal_tooltip": "클라이언트가 최근 API에 연락했지만 시그널 서버(UDP :21116)에 등록되지 않았습니다. 서버 마이그레이션 후 클라이언트를 재시작하세요.",
-    "per_page": "페이지당"
+    "per_page": "페이지당",
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "서버 키",

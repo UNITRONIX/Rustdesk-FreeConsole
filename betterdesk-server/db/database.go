@@ -648,6 +648,17 @@ type Database interface {
 	UpdateStrategy(guid string, s *Strategy) error
 	DeleteStrategy(guid string) error
 
+	// Pro-style direct strategy assignments (device / user / device group)
+	AssignStrategy(strategyGUID string, peerKeys, userKeys, groupKeys []string) error
+	GetStrategyAssignmentSummary(strategyGUID string) (*StrategyAssignmentSummary, error)
+	ResolvePeerAssignmentKey(ref string) (string, error)
+	ResolveUserAssignmentKey(ref string) (string, error)
+	ResolveDeviceGroupAssignmentKey(ref string) (string, error)
+	EnsurePeerGUID(id string) (string, error)
+	GetPeerIDByGUID(guid string) (string, error)
+	SetStrategyEnabled(guid string, enabled bool) error
+	ListProDeviceRefs(idFilter string, limit, offset int) ([]ProDeviceRef, int, error)
+
 	// Billing / commercialization
 	CreateBillingPackage(p *BillingPackage) error
 	GetBillingPackage(id string) (*BillingPackage, error)

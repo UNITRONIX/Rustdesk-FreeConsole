@@ -1104,6 +1104,56 @@ async function exchangeOIDCCode(code) {
     }
 }
 
+/** POST /api/strategies/assign */
+async function assignStrategy(payload) {
+    try {
+        const { data } = await apiClient.post('/strategies/assign', payload);
+        return wrap(data);
+    } catch (e) {
+        if (e.response?.data) return wrap(e.response.data);
+        return { success: false, error: e.message };
+    }
+}
+
+/** GET /api/strategies/:guid */
+async function getStrategy(guid) {
+    try {
+        const { data } = await apiClient.get(`/strategies/${encodeURIComponent(guid)}`);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/** PUT /api/strategies/:guid/status — body is raw true/false JSON */
+async function setStrategyStatus(guid, enabled) {
+    try {
+        const { data } = await apiClient.put(
+            `/strategies/${encodeURIComponent(guid)}/status`,
+            enabled,
+            { headers: { 'Content-Type': 'application/json' } }
+        );
+        return wrap(data);
+    } catch (e) {
+        if (e.response?.data) return wrap(e.response.data);
+        return { success: false, error: e.message };
+    }
+}
+
+/** GET /api/devices — Pro admin device list (id + guid) */
+async function listProDevices(params = {}) {
+    try {
+        const qs = new URLSearchParams();
+        if (params.id) qs.set('id', params.id);
+        if (params.pageSize) qs.set('pageSize', String(params.pageSize));
+        const suffix = qs.toString();
+        const { data } = await apiClient.get(`/devices${suffix ? '?' + suffix : ''}`);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message, data: { total: 0, data: [] } };
+    }
+}
+
 module.exports = {
     // Health / Stats
     getHealth,
@@ -1189,6 +1239,10 @@ module.exports = {
     testOIDCDiscovery,
     getOIDCStatus,
     exchangeOIDCCode,
+    assignStrategy,
+    getStrategy,
+    setStrategyStatus,
+    listProDevices,
     // Help Requests
     listHelpRequests,
     acknowledgeHelpRequest,

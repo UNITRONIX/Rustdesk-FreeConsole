@@ -1,4 +1,4 @@
-﻿{
+{
   "meta": {
     "lang": "nl",
     "name": "Dutch",
@@ -387,7 +387,16 @@
     "manage_user_groups": "Gebruikersgroepen beheren",
     "restore_failed": "Gerat konnte nicht wiederhergestellt werden",
     "no_signal_tooltip": "De client heeft onlangs de API bereikt maar is niet geregistreerd op de signalserver (UDP :21116). Herstart de client na servermigratie.",
-    "per_page": "Per pagina"
+    "per_page": "Per pagina",
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "Serversleutels",

@@ -1,4 +1,4 @@
-﻿{
+{
   "meta": {
     "lang": "de",
     "name": "German",
@@ -387,7 +387,16 @@
     "manage_user_groups": "Benutzergruppen verwalten",
     "restore_failed": "Gerät konnte nicht wiederhergestellt werden",
     "no_signal_tooltip": "Der Client hat kürzlich die API kontaktiert, ist aber nicht auf dem Signalserver registriert (UDP :21116). Starten Sie den Client nach der Servermigration neu.",
-    "per_page": "Pro Seite"
+    "per_page": "Pro Seite",
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "Dashboard",

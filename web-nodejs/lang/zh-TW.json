@@ -1,4 +1,4 @@
-﻿{
+{
   "meta": {
     "language": "繁體中文",
     "code": "zh-TW",
@@ -391,7 +391,16 @@
       "no_data": "暫無硬件數據",
       "title": "硬件信息",
       "gpu": "顯卡"
-    }
+    },
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "服務器密鑰",

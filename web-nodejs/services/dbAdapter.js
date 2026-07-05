@@ -514,6 +514,15 @@ function createSqliteAdapter(config) {
                 created_at TEXT DEFAULT (datetime('now')),
                 updated_at TEXT DEFAULT (datetime('now'))
             );
+            CREATE TABLE IF NOT EXISTS strategy_assignments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target_type TEXT NOT NULL,
+                target_key TEXT NOT NULL,
+                strategy_guid TEXT NOT NULL DEFAULT '',
+                updated_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(target_type, target_key)
+            );
+            CREATE INDEX IF NOT EXISTS idx_strategy_assignments_strategy ON strategy_assignments (strategy_guid);
             CREATE TABLE IF NOT EXISTS notification_reads (
                 user_id INTEGER NOT NULL,
                 notification_id TEXT NOT NULL,
@@ -548,6 +557,7 @@ function createSqliteAdapter(config) {
             { name: 'phone',      sql: "TEXT DEFAULT ''" },
             { name: 'role_display', sql: "TEXT DEFAULT ''" },
             { name: 'avatar_url', sql: "TEXT DEFAULT ''" },
+            { name: 'guid', sql: "TEXT DEFAULT ''" },
         ];
         try {
             const existingUserCols = new Set(db.prepare('PRAGMA table_info(users)').all().map(c => c.name));
@@ -3114,7 +3124,146 @@ function createSqliteAdapter(config) {
         },
 
         async deleteStrategy(guid) {
+            openAuth().prepare('DELETE FROM strategy_assignments WHERE strategy_guid = ?').run(guid);
             openAuth().prepare('DELETE FROM strategies WHERE guid = ?').run(guid);
+        },
+
+        _ensurePeerGuidColumnSqlite(db) {
+            try {
+                const cols = new Set(db.prepare('PRAGMA table_info(peers)').all().map(c => c.name));
+                if (cols.size > 0 && !cols.has('guid')) {
+                    db.exec("ALTER TABLE peers ADD COLUMN guid TEXT DEFAULT ''");
+                }
+            } catch (_) { /* peers table may not exist yet */ }
+        },
+
+        _ensurePeerGuidSqlite(peerId) {
+            const db = openMain();
+            this._ensurePeerGuidColumnSqlite(db);
+            let row = db.prepare(`SELECT id, COALESCE(uuid, '') AS uuid, COALESCE(guid, '') AS guid FROM peers WHERE id = ?`).get(peerId);
+            if (!row) return null;
+            if (row.guid) return row.guid;
+            const crypto = require('crypto');
+            const isUuid = (s) => typeof s === 'string' && s.length === 36 && (s.match(/-/g) || []).length === 4;
+            const guid = isUuid(row.uuid) ? row.uuid.toLowerCase() : crypto.randomUUID();
+            db.prepare('UPDATE peers SET guid = ? WHERE id = ?').run(guid, peerId);
+            return guid;
+        },
+
+        async resolvePeerAssignmentKey(ref) {
+            const key = String(ref || '').trim();
+            if (!key) throw new Error('empty peer reference');
+            const db = openMain();
+            this._ensurePeerGuidColumnSqlite(db);
+            const row = db.prepare(`
+                SELECT id FROM peers
+                WHERE id = ? OR guid = ? OR uuid = ?
+                LIMIT 1
+            `).get(key, key, key);
+            if (!row) throw new Error('peer not found');
+            const guid = this._ensurePeerGuidSqlite(row.id);
+            if (!guid) throw new Error('peer not found');
+            return guid;
+        },
+
+        async resolveUserAssignmentKey(ref) {
+            const key = String(ref || '').trim();
+            if (!key) throw new Error('empty user reference');
+            const row = openAuth().prepare(`
+                SELECT id, COALESCE(guid, '') AS guid FROM users
+                WHERE guid = ? OR username = ? OR CAST(id AS TEXT) = ?
+                LIMIT 1
+            `).get(key, key, key);
+            if (!row) throw new Error('user not found');
+            if (row.guid) return row.guid;
+            const crypto = require('crypto');
+            const guid = crypto.randomUUID();
+            openAuth().prepare('UPDATE users SET guid = ? WHERE id = ?').run(guid, row.id);
+            return guid;
+        },
+
+        async resolveDeviceGroupAssignmentKey(ref) {
+            const key = String(ref || '').trim();
+            if (!key) throw new Error('empty device group reference');
+            const row = openAuth().prepare(`
+                SELECT guid FROM device_groups WHERE guid = ? OR name = ? LIMIT 1
+            `).get(key, key);
+            if (!row) throw new Error('device group not found');
+            return row.guid;
+        },
+
+        async assignStrategy(strategyGuid, { peers = [], users = [], groups = [] } = {}) {
+            strategyGuid = String(strategyGuid || '').trim();
+            if (strategyGuid) {
+                const st = await this.getStrategyByGuid(strategyGuid);
+                if (!st) throw new Error('strategy not found');
+            }
+            const auth = openAuth();
+            const upsert = (targetType, keys) => {
+                for (const raw of keys) {
+                    const targetKey = String(raw || '').trim();
+                    if (!targetKey) continue;
+                    if (!strategyGuid) {
+                        auth.prepare('DELETE FROM strategy_assignments WHERE target_type = ? AND target_key = ?')
+                            .run(targetType, targetKey);
+                        continue;
+                    }
+                    auth.prepare(`
+                        INSERT INTO strategy_assignments (target_type, target_key, strategy_guid, updated_at)
+                        VALUES (?, ?, ?, datetime('now'))
+                        ON CONFLICT(target_type, target_key) DO UPDATE SET
+                            strategy_guid = excluded.strategy_guid,
+                            updated_at = excluded.updated_at
+                    `).run(targetType, targetKey, strategyGuid);
+                }
+            };
+            upsert('peer', peers);
+            upsert('user', users);
+            upsert('device_group', groups);
+        },
+
+        async getStrategyAssignmentSummary(strategyGuid) {
+            const rows = openAuth().prepare(`
+                SELECT target_type, target_key FROM strategy_assignments
+                WHERE strategy_guid = ? ORDER BY target_type, target_key
+            `).all(strategyGuid);
+            const summary = { peer_count: 0, user_count: 0, device_group_count: 0, peers: [], users: [], groups: [] };
+            for (const row of rows) {
+                if (row.target_type === 'peer') { summary.peer_count++; summary.peers.push(row.target_key); }
+                else if (row.target_type === 'user') { summary.user_count++; summary.users.push(row.target_key); }
+                else if (row.target_type === 'device_group') { summary.device_group_count++; summary.groups.push(row.target_key); }
+            }
+            return summary;
+        },
+
+        async getStrategyAssignmentDisplayRefs(strategyGuid) {
+            const summary = await this.getStrategyAssignmentSummary(strategyGuid);
+            const peerIds = [];
+            const userNames = [];
+            try {
+                const db = openMain();
+                this._ensurePeerGuidColumnSqlite(db);
+                for (const guid of summary.peers) {
+                    const row = db.prepare('SELECT id FROM peers WHERE guid = ? LIMIT 1').get(guid);
+                    if (row) peerIds.push(row.id);
+                }
+            } catch (_) {}
+            for (const guid of summary.users) {
+                const row = openAuth().prepare('SELECT username FROM users WHERE guid = ? LIMIT 1').get(guid);
+                if (row?.username) userNames.push(row.username);
+            }
+            return {
+                ...summary,
+                peer_ids: peerIds,
+                user_names: userNames,
+                group_guids: summary.groups,
+            };
+        },
+
+        async setStrategyEnabled(guid, enabled) {
+            const row = await this.updateStrategy(guid, { enabled: !!enabled });
+            if (!row) throw new Error('strategy not found');
+            return row;
         },
 
         // ---- Folder batch operations ----
@@ -4077,6 +4226,17 @@ function createPostgresAdapter() {
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
         `);
+        await q(`
+            CREATE TABLE IF NOT EXISTS strategy_assignments (
+                id SERIAL PRIMARY KEY,
+                target_type TEXT NOT NULL,
+                target_key TEXT NOT NULL,
+                strategy_guid TEXT NOT NULL DEFAULT '',
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                UNIQUE(target_type, target_key)
+            )
+        `);
+        await q('CREATE INDEX IF NOT EXISTS idx_strategy_assignments_strategy ON strategy_assignments (strategy_guid)');
 
         // Seed default groups if empty
         const ugCheck = await one('SELECT COUNT(*)::INTEGER AS c FROM user_groups');
@@ -4110,6 +4270,9 @@ function createPostgresAdapter() {
         }
         if (!existingCols.has('totp_recovery_codes')) {
             await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_recovery_codes TEXT DEFAULT NULL');
+        }
+        if (!existingCols.has('guid')) {
+            await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS guid TEXT DEFAULT ''");
         }
 
         const deviceGroupColumnCheck = await all(`SELECT column_name FROM information_schema.columns WHERE table_name = 'device_groups'`);
@@ -6198,7 +6361,128 @@ function createPostgresAdapter() {
         },
 
         async deleteStrategy(guid) {
+            await q('DELETE FROM strategy_assignments WHERE strategy_guid = $1', [guid]);
             await q('DELETE FROM strategies WHERE guid = $1', [guid]);
+        },
+
+        async _ensurePeerGuidPg(peerId) {
+            await q("ALTER TABLE peers ADD COLUMN IF NOT EXISTS guid TEXT DEFAULT ''");
+            const row = await one(`SELECT id, COALESCE(uuid, '') AS uuid, COALESCE(guid, '') AS guid FROM peers WHERE id = $1`, [peerId]);
+            if (!row) return null;
+            if (row.guid) return row.guid;
+            const crypto = require('crypto');
+            const isUuid = (s) => typeof s === 'string' && s.length === 36 && (s.match(/-/g) || []).length === 4;
+            const guid = isUuid(row.uuid) ? row.uuid.toLowerCase() : crypto.randomUUID();
+            await q('UPDATE peers SET guid = $1 WHERE id = $2', [guid, peerId]);
+            return guid;
+        },
+
+        async resolvePeerAssignmentKey(ref) {
+            const key = String(ref || '').trim();
+            if (!key) throw new Error('empty peer reference');
+            await q("ALTER TABLE peers ADD COLUMN IF NOT EXISTS guid TEXT DEFAULT ''");
+            const row = await one(`
+                SELECT id FROM peers
+                WHERE id = $1 OR guid = $1 OR uuid = $1
+                LIMIT 1
+            `, [key]);
+            if (!row) throw new Error('peer not found');
+            const guid = await this._ensurePeerGuidPg(row.id);
+            if (!guid) throw new Error('peer not found');
+            return guid;
+        },
+
+        async resolveUserAssignmentKey(ref) {
+            const key = String(ref || '').trim();
+            if (!key) throw new Error('empty user reference');
+            const row = await one(`
+                SELECT id, COALESCE(guid, '') AS guid FROM users
+                WHERE guid = $1 OR username = $1 OR id::text = $1
+                LIMIT 1
+            `, [key]);
+            if (!row) throw new Error('user not found');
+            if (row.guid) return row.guid;
+            const crypto = require('crypto');
+            const guid = crypto.randomUUID();
+            await q('UPDATE users SET guid = $1 WHERE id = $2', [guid, row.id]);
+            return guid;
+        },
+
+        async resolveDeviceGroupAssignmentKey(ref) {
+            const key = String(ref || '').trim();
+            if (!key) throw new Error('empty device group reference');
+            const row = await one(`SELECT guid FROM device_groups WHERE guid = $1 OR name = $1 LIMIT 1`, [key]);
+            if (!row) throw new Error('device group not found');
+            return row.guid;
+        },
+
+        async assignStrategy(strategyGuid, { peers = [], users = [], groups = [] } = {}) {
+            strategyGuid = String(strategyGuid || '').trim();
+            if (strategyGuid) {
+                const st = await this.getStrategyByGuid(strategyGuid);
+                if (!st) throw new Error('strategy not found');
+            }
+            const upsert = async (targetType, keys) => {
+                for (const raw of keys) {
+                    const targetKey = String(raw || '').trim();
+                    if (!targetKey) continue;
+                    if (!strategyGuid) {
+                        await q('DELETE FROM strategy_assignments WHERE target_type = $1 AND target_key = $2', [targetType, targetKey]);
+                        continue;
+                    }
+                    await q(`
+                        INSERT INTO strategy_assignments (target_type, target_key, strategy_guid, updated_at)
+                        VALUES ($1, $2, $3, NOW())
+                        ON CONFLICT (target_type, target_key) DO UPDATE SET
+                            strategy_guid = EXCLUDED.strategy_guid,
+                            updated_at = EXCLUDED.updated_at
+                    `, [targetType, targetKey, strategyGuid]);
+                }
+            };
+            await upsert('peer', peers);
+            await upsert('user', users);
+            await upsert('device_group', groups);
+        },
+
+        async getStrategyAssignmentSummary(strategyGuid) {
+            const rows = await all(`
+                SELECT target_type, target_key FROM strategy_assignments
+                WHERE strategy_guid = $1 ORDER BY target_type, target_key
+            `, [strategyGuid]);
+            const summary = { peer_count: 0, user_count: 0, device_group_count: 0, peers: [], users: [], groups: [] };
+            for (const row of rows) {
+                if (row.target_type === 'peer') { summary.peer_count++; summary.peers.push(row.target_key); }
+                else if (row.target_type === 'user') { summary.user_count++; summary.users.push(row.target_key); }
+                else if (row.target_type === 'device_group') { summary.device_group_count++; summary.groups.push(row.target_key); }
+            }
+            return summary;
+        },
+
+        async getStrategyAssignmentDisplayRefs(strategyGuid) {
+            const summary = await this.getStrategyAssignmentSummary(strategyGuid);
+            const peerIds = [];
+            const userNames = [];
+            await q("ALTER TABLE peers ADD COLUMN IF NOT EXISTS guid TEXT DEFAULT ''");
+            for (const guid of summary.peers) {
+                const row = await one('SELECT id FROM peers WHERE guid = $1 LIMIT 1', [guid]);
+                if (row?.id) peerIds.push(row.id);
+            }
+            for (const guid of summary.users) {
+                const row = await one('SELECT username FROM users WHERE guid = $1 LIMIT 1', [guid]);
+                if (row?.username) userNames.push(row.username);
+            }
+            return {
+                ...summary,
+                peer_ids: peerIds,
+                user_names: userNames,
+                group_guids: summary.groups,
+            };
+        },
+
+        async setStrategyEnabled(guid, enabled) {
+            const row = await this.updateStrategy(guid, { enabled: !!enabled });
+            if (!row) throw new Error('strategy not found');
+            return row;
         },
 
         // ---- Folder batch operations ----

@@ -1,4 +1,4 @@
-﻿{
+{
   "_meta": {
     "name": "Arabic",
     "native_name": "العربية",
@@ -394,7 +394,16 @@
     "manage_user_groups": "إدارة مجموعات المستخدمين",
     "restore_failed": "فشل استعادة الجهاز",
     "no_signal_tooltip": "اتصل العميل بـ API مؤخرًا لكنه غير مسجل على خادم الإشارة (UDP :21116). أعد تشغيل العميل بعد ترحيل الخادم.",
-    "per_page": "لكل صفحة"
+    "per_page": "لكل صفحة",
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "مفاتيح الخادم",

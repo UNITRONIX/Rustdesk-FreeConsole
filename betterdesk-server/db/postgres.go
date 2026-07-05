@@ -474,6 +474,15 @@ func (pg *PostgresDB) Migrate() error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		`CREATE TABLE IF NOT EXISTS strategy_assignments (
+			id BIGSERIAL PRIMARY KEY,
+			target_type TEXT NOT NULL,
+			target_key TEXT NOT NULL,
+			strategy_guid TEXT NOT NULL DEFAULT '',
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(target_type, target_key)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_strategy_assignments_strategy ON strategy_assignments(strategy_guid)`,
 
 		// Panel sync (folders, group members, ACL — consolidated from auth.db)
 		`CREATE TABLE IF NOT EXISTS folders (
@@ -565,6 +574,9 @@ func (pg *PostgresDB) Migrate() error {
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT NOT NULL DEFAULT 'local'`,
 		// org_users: server_user_id for linking existing users (Issue #106)
 		`ALTER TABLE org_users ADD COLUMN IF NOT EXISTS server_user_id BIGINT NOT NULL DEFAULT 0`,
+		// peers/users: Pro strategy assignment GUIDs
+		`ALTER TABLE peers ADD COLUMN IF NOT EXISTS guid TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS guid TEXT NOT NULL DEFAULT ''`,
 	}
 
 	for _, ddl := range columnMigrations {

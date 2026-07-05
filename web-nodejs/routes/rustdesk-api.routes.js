@@ -1969,6 +1969,105 @@ router.delete('/api/strategies/:guid', requireAuth, requireAdmin, async (req, re
     }
 });
 
+async function resolveRustDeskStrategyRefs(body = {}) {
+    const peers = [];
+    for (const ref of body.peers || []) {
+        peers.push(await db.resolvePeerAssignmentKey(ref));
+    }
+    const users = [];
+    for (const ref of body.users || []) {
+        users.push(await db.resolveUserAssignmentKey(ref));
+    }
+    const groups = [];
+    for (const ref of body.groups || []) {
+        groups.push(await db.resolveDeviceGroupAssignmentKey(ref));
+    }
+    return { peers, users, groups };
+}
+
+/**
+ * GET /api/strategies/:guid
+ */
+router.get('/api/strategies/:guid', requireAuth, async (req, res) => {
+    try {
+        const guid = sanitizeStr(req.params.guid || '', 64);
+        if (!guid) return res.status(400).json({ error: 'Strategy guid is required' });
+        const strategy = await db.getStrategyByGuid(guid);
+        if (!strategy) return res.status(404).json({ error: 'Strategy not found' });
+        const summary = await db.getStrategyAssignmentSummary(guid);
+        return res.json({
+            guid: strategy.guid,
+            name: strategy.name,
+            user_group_guid: strategy.user_group_guid || '',
+            device_group_guid: strategy.device_group_guid || '',
+            enabled: strategy.enabled === 1 || strategy.enabled === true,
+            permissions: strategy.permissions || {},
+            ...summary,
+        });
+    } catch (err) {
+        console.error('[API:STRATEGIES] Get error:', err.message);
+        return res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * POST /api/strategies/assign
+ */
+router.post('/api/strategies/assign', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (!(body.peers?.length || body.users?.length || body.groups?.length)) {
+            return res.status(400).json({ error: 'At least one target is required' });
+        }
+        const strategyGuid = sanitizeStr(body.strategy || '', 64);
+        const resolved = await resolveRustDeskStrategyRefs(body);
+        await db.assignStrategy(strategyGuid, resolved);
+        return res.json({ status: 'ok' });
+    } catch (err) {
+        console.error('[API:STRATEGIES] Assign error:', err.message);
+        return res.status(400).json({ error: err.message || 'Assign failed' });
+    }
+});
+
+/**
+ * PUT /api/strategies/:guid/status — body is raw JSON true/false
+ */
+router.put('/api/strategies/:guid/status', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const guid = sanitizeStr(req.params.guid || '', 64);
+        if (!guid) return res.status(400).json({ error: 'Strategy guid is required' });
+        const enabled = req.body === true || req.body === 'true';
+        await db.setStrategyEnabled(guid, enabled);
+        return res.json({ status: 'ok' });
+    } catch (err) {
+        console.error('[API:STRATEGIES] Status error:', err.message);
+        const status = err.message?.includes('not found') ? 404 : 500;
+        return res.status(status).json({ error: err.message || 'Server error' });
+    }
+});
+
+/**
+ * GET /api/devices — Pro admin list (id + guid)
+ */
+router.get('/api/devices', requireAuth, async (req, res) => {
+    try {
+        const idFilter = sanitizeStr(req.query.id || '', 64);
+        const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 50, 1), 1000);
+        const devices = await db.getAllDevices({ includeDeleted: false, limit: pageSize });
+        let rows = devices.map(d => ({ id: d.id, guid: d.guid || d.uuid || '' }));
+        if (idFilter) rows = rows.filter(d => d.id === idFilter);
+        for (const row of rows) {
+            if (!row.guid) {
+                try { row.guid = await db.resolvePeerAssignmentKey(row.id); } catch (_) {}
+            }
+        }
+        return res.json({ total: rows.length, data: rows });
+    } catch (err) {
+        console.error('[API:DEVICES] List error:', err.message);
+        return res.json({ total: 0, data: [] });
+    }
+});
+
 // ==================== Security: Peer Key Endpoint ====================
 
 /**

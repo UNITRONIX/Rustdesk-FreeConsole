@@ -482,9 +482,12 @@ func (s *Server) handleClientUsersList(w http.ResponseWriter, r *http.Request) {
 		statusInt := 1
 		isAdmin := u.Role == "admin" || u.Role == "super_admin" || u.IsServerAdmin
 
+		userGUID, _ := s.db.ResolveUserAssignmentKey(u.Username)
+
 		result = append(result, map[string]any{
 			"name":         u.Username,
 			"display_name": u.Username,
+			"guid":         userGUID,
 			"email":        "",
 			"note":         "",
 			"status":       statusInt,

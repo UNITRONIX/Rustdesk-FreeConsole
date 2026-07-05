@@ -1,4 +1,4 @@
-﻿{
+{
   "meta": {
     "lang": "zh",
     "name": "中文",
@@ -387,7 +387,16 @@
     "manage_user_groups": "管理用户组",
     "restore_failed": "恢复设备失败",
     "no_signal_tooltip": "客户端最近联系了 API，但未在信号服务器（UDP :21116）上注册。服务器迁移后请重启客户端。",
-    "per_page": "每页"
+    "per_page": "每页",
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "服务器密钥",

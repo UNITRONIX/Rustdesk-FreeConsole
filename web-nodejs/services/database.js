@@ -250,6 +250,13 @@ const facade = {
     createStrategy:   (data) => adapter.createStrategy(data),
     updateStrategy:   (guid, data) => adapter.updateStrategy(guid, data),
     deleteStrategy:   (guid) => adapter.deleteStrategy(guid),
+    assignStrategy:   (strategyGuid, payload) => adapter.assignStrategy(strategyGuid, payload),
+    getStrategyAssignmentSummary: (guid) => adapter.getStrategyAssignmentSummary(guid),
+    getStrategyAssignmentDisplayRefs: (guid) => adapter.getStrategyAssignmentDisplayRefs(guid),
+    resolvePeerAssignmentKey: (ref) => adapter.resolvePeerAssignmentKey(ref),
+    resolveUserAssignmentKey: (ref) => adapter.resolveUserAssignmentKey(ref),
+    resolveDeviceGroupAssignmentKey: (ref) => adapter.resolveDeviceGroupAssignmentKey(ref),
+    setStrategyEnabled: (guid, enabled) => adapter.setStrategyEnabled(guid, enabled),
 
     // ---- Housekeeping ----
     runIntegrationHousekeeping: () => adapter.runIntegrationHousekeeping(),

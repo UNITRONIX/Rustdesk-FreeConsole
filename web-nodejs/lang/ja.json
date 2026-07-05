@@ -1,4 +1,4 @@
-﻿{
+{
   "meta": {
     "lang": "ja",
     "name": "Japanese",
@@ -387,7 +387,16 @@
     "manage_user_groups": "ユーザーグループの管理",
     "restore_failed": "デバイスの復元に失敗しました",
     "no_signal_tooltip": "クライアントは最近 API に接続しましたが、シグナルサーバー (UDP :21116) に登録されていません。サーバー移行後にクライアントを再起動してください。",
-    "per_page": "1ページあたり"
+    "per_page": "1ページあたり",
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "サーバーキー",

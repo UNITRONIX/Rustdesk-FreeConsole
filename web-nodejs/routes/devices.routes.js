@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../services/database');
 const serverBackend = require('../services/serverBackend');
+const betterdeskApi = require('../services/betterdeskApi');
 const addressBookSync = require('../services/rustdeskAddressBookSync');
 const deviceGroupService = require('../services/deviceGroupService');
 const { requireAuth, requirePermission } = require('../middleware/auth');
@@ -1187,6 +1188,120 @@ router.patch('/api/panel/strategies/:guid', requireAuth, requirePermission('devi
             success: false,
             error: err.status === 400 ? err.message : req.t('errors.server_error'),
         });
+    }
+});
+
+async function resolveStrategyAssignKeys(body = {}) {
+    const peers = [];
+    for (const ref of body.peers || []) {
+        peers.push(await db.resolvePeerAssignmentKey(ref));
+    }
+    const users = [];
+    for (const ref of body.users || []) {
+        users.push(await db.resolveUserAssignmentKey(ref));
+    }
+    const groups = [];
+    for (const ref of body.groups || []) {
+        groups.push(await db.resolveDeviceGroupAssignmentKey(ref));
+    }
+    return { peers, users, groups };
+}
+
+async function syncStrategyAssignToGo(strategyGuid, body = {}) {
+    if (!(await serverBackend.isBetterDesk())) return;
+    try {
+        await betterdeskApi.assignStrategy({
+            strategy: strategyGuid || undefined,
+            peers: body.peers || [],
+            users: body.users || [],
+            groups: body.groups || [],
+        });
+    } catch (err) {
+        console.warn('[strategies] Go assign sync failed:', err.message);
+    }
+}
+
+/**
+ * GET /api/panel/strategies/:guid — strategy details + direct assignments.
+ */
+router.get('/api/panel/strategies/:guid', requireAuth, requirePermission('device.view'), async (req, res) => {
+    try {
+        const guid = String(req.params.guid || '').trim();
+        if (!isValidGroupGuid(guid)) {
+            return res.status(400).json({ success: false, error: 'Invalid strategy identifier' });
+        }
+        let strategy = await db.getStrategyByGuid(guid);
+        if (!strategy && (await serverBackend.isBetterDesk())) {
+            const remote = await betterdeskApi.getStrategy(guid);
+            if (remote.success !== false && remote.guid) strategy = remote;
+        }
+        if (!strategy) {
+            return res.status(404).json({ success: false, error: req.t('devices.strategy_not_found') });
+        }
+        const summary = await db.getStrategyAssignmentDisplayRefs(guid);
+        res.json({
+            success: true,
+            data: {
+                strategy: {
+                    ...serializeStrategy(strategy),
+                    ...summary,
+                },
+            },
+        });
+    } catch (err) {
+        console.error('Get strategy detail error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/panel/strategies/:guid/assign — assign strategy to devices/users/groups.
+ */
+router.post('/api/panel/strategies/:guid/assign', requireAuth, requirePermission('device.edit'), async (req, res) => {
+    try {
+        const guid = String(req.params.guid || '').trim();
+        if (!isValidGroupGuid(guid)) {
+            return res.status(400).json({ success: false, error: 'Invalid strategy identifier' });
+        }
+        const existing = await db.getStrategyByGuid(guid);
+        if (!existing) {
+            return res.status(404).json({ success: false, error: req.t('devices.strategy_not_found') });
+        }
+        const body = req.body || {};
+        if (!(body.peers?.length || body.users?.length || body.groups?.length)) {
+            return res.status(400).json({ success: false, error: 'At least one target is required' });
+        }
+        const resolved = await resolveStrategyAssignKeys(body);
+        await db.assignStrategy(guid, resolved);
+        await syncStrategyAssignToGo(guid, body);
+        const summary = await db.getStrategyAssignmentSummary(guid);
+        await db.logAction(req.session.userId, 'strategy_assigned', `Assigned strategy: ${existing.name}`, req.ip);
+        res.json({ success: true, data: { summary } });
+    } catch (err) {
+        console.error('Assign strategy error:', err);
+        res.status(err.message?.includes('not found') ? 400 : 500).json({
+            success: false,
+            error: err.message?.includes('not found') ? err.message : req.t('errors.server_error'),
+        });
+    }
+});
+
+/**
+ * POST /api/panel/strategies/unassign — remove direct assignments (empty strategy).
+ */
+router.post('/api/panel/strategies/unassign', requireAuth, requirePermission('device.edit'), async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (!(body.peers?.length || body.users?.length || body.groups?.length)) {
+            return res.status(400).json({ success: false, error: 'At least one target is required' });
+        }
+        const resolved = await resolveStrategyAssignKeys(body);
+        await db.assignStrategy('', resolved);
+        await syncStrategyAssignToGo('', body);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Unassign strategy error:', err);
+        res.status(400).json({ success: false, error: err.message || req.t('errors.server_error') });
     }
 });
 

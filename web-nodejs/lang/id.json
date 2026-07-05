@@ -1,4 +1,4 @@
-﻿{
+{
   "_meta": {
     "name": "Indonesian",
     "native_name": "Bahasa Indonesia",
@@ -393,7 +393,16 @@
     "manage_user_groups": "Kelola grup pengguna",
     "restore_failed": "Gagal memulihkan perangkat",
     "no_signal_tooltip": "Klien baru saja menghubungi API tetapi tidak terdaftar di server sinyal (UDP :21116). Mulai ulang klien setelah migrasi server.",
-    "per_page": "Per halaman"
+    "per_page": "Per halaman",
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "Kunci Server",

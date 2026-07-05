@@ -460,6 +460,9 @@ func (s *SQLiteDB) UpdateStrategy(guid string, st *Strategy) error {
 func (s *SQLiteDB) DeleteStrategy(guid string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, err := s.db.Exec(`DELETE FROM strategy_assignments WHERE strategy_guid = ?`, guid); err != nil {
+		return err
+	}
 	_, err := s.db.Exec(`DELETE FROM strategies WHERE guid = ?`, guid)
 	return err
 }

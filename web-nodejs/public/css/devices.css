@@ -2066,6 +2066,30 @@ td.column-hidden {
     font-size: var(--font-size-xs) !important;
 }
 
+.strategy-assign-count {
+    font-size: var(--font-size-xs) !important;
+    color: var(--text-muted);
+}
+
+.strategy-assign-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: var(--space-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-secondary, var(--bg-secondary));
+}
+
+.strategy-assign-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--font-size-sm);
+}
+
 .strategy-status-badge {
     font-size: var(--font-size-xs);
     padding: 2px 8px;

@@ -8,6 +8,7 @@
 ### Changed
 - **Panel UX:** Device list reloads on live ID-change events; online-device warning before change-ID from both list and detail views.
 - **RustDesk Pro parity:** Panel strategies manager on Devices page; org address book structured editor; `/api/device-group/accessible` returns accessible payload (matches Go); Go API supports `POST /api/device-group`, strategy update/delete; device detail panel receives live status and ID-change events.
+- **RustDesk Pro strategy assign:** Direct device/user/device-group strategy assignments via `POST /api/strategies/assign`, `GET /api/strategies/{guid}`, `PUT /api/strategies/{guid}/status`, and `GET /api/devices` (id + guid); panel UI “Assign targets” on the strategies manager; BetterDesk Go server mirrors the same endpoints.
 
 ---
 

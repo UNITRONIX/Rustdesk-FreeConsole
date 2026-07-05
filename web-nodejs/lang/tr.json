@@ -1,4 +1,4 @@
-﻿{
+{
   "_meta": {
     "name": "Turkish",
     "native_name": "Türkçe",
@@ -393,7 +393,16 @@
     "manage_user_groups": "Kullanıcı gruplarını yönet",
     "restore_failed": "Cihaz geri yükleme başarısız",
     "no_signal_tooltip": "İstemci yakın zamanda API ile iletişim kurdu ancak sinyal sunucusuna (UDP :21116) kayıtlı değil. Sunucu geçişinden sonra istemciyi yeniden başlatın.",
-    "per_page": "Sayfa başına"
+    "per_page": "Sayfa başına",
+    "strategy_assign": "Assign targets",
+    "strategy_assign_title": "Assign strategy: {name}",
+    "strategy_assign_devices": "Devices",
+    "strategy_assign_users": "Users",
+    "strategy_assign_groups": "Device groups",
+    "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
+    "strategy_assign_saved": "Strategy assignments saved",
+    "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
+    "strategy_assign_none": "No direct assignments"
   },
   "keys": {
     "title": "Sunucu Anahtarları",

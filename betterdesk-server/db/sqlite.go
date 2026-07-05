@@ -446,6 +446,15 @@ func (s *SQLiteDB) Migrate() error {
 			created_at TEXT DEFAULT (datetime('now')),
 			updated_at TEXT DEFAULT (datetime('now'))
 		)`,
+		`CREATE TABLE IF NOT EXISTS strategy_assignments (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			target_type TEXT NOT NULL,
+			target_key TEXT NOT NULL,
+			strategy_guid TEXT NOT NULL DEFAULT '',
+			updated_at TEXT DEFAULT (datetime('now')),
+			UNIQUE(target_type, target_key)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_strategy_assignments_strategy ON strategy_assignments(strategy_guid)`,
 	}
 
 	for _, stmt := range statements {
@@ -483,6 +492,9 @@ func (s *SQLiteDB) Migrate() error {
 		{"users", "auth_provider", `ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local'`},
 		// org_users: server_user_id for linking existing users (Issue #106)
 		{"org_users", "server_user_id", `ALTER TABLE org_users ADD COLUMN server_user_id INTEGER DEFAULT 0`},
+		// peers/users: Pro strategy assignment GUIDs
+		{"peers", "guid", `ALTER TABLE peers ADD COLUMN guid TEXT DEFAULT ''`},
+		{"users", "guid", `ALTER TABLE users ADD COLUMN guid TEXT DEFAULT ''`},
 	}
 
 	for _, m := range columnMigrations {

@@ -45,6 +45,8 @@ const ALLOWED_PATHS = new Set([
     '/api/user/group',
     '/api/user-groups',
     '/api/strategies',
+    '/api/strategies/assign',
+    '/api/devices',
     // Address book
     '/api/ab',
     '/api/ab/personal',
@@ -70,7 +72,10 @@ const ALLOWED_PATHS = new Set([
  * Checked when exact match fails.
  */
 const ALLOWED_PATH_PATTERNS = [
-    /^\/api\/peer-key\/[a-zA-Z0-9_-]{1,32}$/
+    /^\/api\/peer-key\/[a-zA-Z0-9_-]{1,32}$/,
+    /^\/api\/strategies\/[0-9a-f-]{36}$/i,
+    /^\/api\/strategies\/[0-9a-f-]{36}\/status$/i,
+    /^\/api\/devices\/[0-9a-f-]{36}\/assign$/i
 ];
 
 const ALLOWED_METHODS = {
@@ -91,6 +96,8 @@ const ALLOWED_METHODS = {
     '/api/user/group': 'GET',
     '/api/user-groups': '*',
     '/api/strategies': '*',
+    '/api/strategies/assign': 'POST',
+    '/api/devices': 'GET',
     '/api/ab': '*',
     '/api/ab/personal': '*',
     '/api/ab/tags': 'GET',

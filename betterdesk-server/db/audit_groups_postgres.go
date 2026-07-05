@@ -425,6 +425,9 @@ func (pg *PostgresDB) UpdateStrategy(guid string, st *Strategy) error {
 
 // DeleteStrategy removes a strategy by GUID.
 func (pg *PostgresDB) DeleteStrategy(guid string) error {
+	if _, err := pg.pool.Exec(pg.ctx, `DELETE FROM strategy_assignments WHERE strategy_guid = $1`, guid); err != nil {
+		return err
+	}
 	_, err := pg.pool.Exec(pg.ctx, `DELETE FROM strategies WHERE guid = $1`, guid)
 	return err
 }
