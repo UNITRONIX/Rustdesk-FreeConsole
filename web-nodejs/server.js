@@ -18,7 +18,7 @@ const https = require('https');
 const config = require('./config/config');
 const securityMiddleware = require('./middleware/security');
 const { initI18n } = require('./middleware/i18n');
-const { apiLimiter, widgetLimiter } = require('./middleware/rateLimiter');
+const { apiLimiter, widgetLimiter, getPanelPollMountPaths } = require('./middleware/rateLimiter');
 const { csrfTokenProvider, doubleCsrfProtection, downgradeToHttp: csrfDowngradeToHttp } = require('./middleware/csrf');
 const { roleHasPermission, isSuperAdminRole } = require('./middleware/auth');
 const authService = require('./services/authService');
@@ -154,8 +154,7 @@ app.use('/wallpapers', express.static(path.join(__dirname, 'wallpapers'), {
 // SECURITY (audit fix M-03, 2026-04-10): high-frequency widget refresh paths
 // have their own higher-quota limiter mounted BEFORE the general one so they
 // are still bounded but do not eat into the regular API budget.
-const widgetPaths = ['/api/stats', '/api/server/status', '/api/devices', '/api/audit/conn'];
-for (const p of widgetPaths) {
+for (const p of getPanelPollMountPaths()) {
     app.use(p, widgetLimiter);
 }
 app.use('/api/', apiLimiter);

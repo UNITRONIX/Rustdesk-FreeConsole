@@ -2,6 +2,7 @@
 
 ### Fixed
 - **Server Admin navigation:** `server_admin` can open sidebar pages gated by `server.config` (Policies, Attestation, DataGuard, Generator, Users) — routes no longer require legacy `admin`/`global_admin` only; 403 template fixed for role checks; stale desktop-mode overlay cleared on load.
+- **Dashboard 429 rate limit:** panel poll endpoints (`/api/dashboard/client-config`, activity, widgets, stats, etc.) now use the higher widget quota and no longer consume the 100/min general API budget — fixes `Too Many Requests` on dashboard load/refresh.
 
 ### Changed
 - _(none yet)_
