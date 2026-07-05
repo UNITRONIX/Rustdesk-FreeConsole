@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.112] — 2026-07-05
+
 ### Fixed
 - **Panel ID change (regression on v3.3.101):** Web Console no longer forces custom device IDs to uppercase — case is preserved end-to-end (`MacPro1` stays `MacPro1`, not `MACPRO1`). After a panel-side rename, the Go signal server redirects heartbeats from the stale client ID to the successor row (preventing duplicate offline/online peer entries) and pushes a `PeerDiscovery` `change_id` notification to connected clients. Panel DB cascade uses the exact case sent to the Go API.
 
@@ -1651,3 +1658,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.109]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.108...v3.3.109
 [3.3.110]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.109...v3.3.110
 [3.3.111]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.110...v3.3.111
+[3.3.112]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.111...v3.3.112
