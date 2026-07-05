@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Server Admin navigation:** `server_admin` can open sidebar pages gated by `server.config` (Policies, Attestation, DataGuard, Generator, Users) — routes no longer require legacy `admin`/`global_admin` only; 403 template fixed for role checks; stale desktop-mode overlay cleared on load.
+
 ### Changed
 - _(none yet)_
 

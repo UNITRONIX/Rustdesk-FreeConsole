@@ -241,7 +241,7 @@ function requireRole(role) {
             if (req.path.startsWith('/api/')) {
                 return res.status(403).json({ success: false, error: 'Forbidden' });
             }
-            return res.status(403).render('error', { 
+            return res.status(403).render('errors/403', {
                 title: 'Forbidden',
                 message: 'You do not have permission to access this resource'
             });
@@ -275,7 +275,8 @@ function guestOnly(req, res, next) {
 }
 
 /**
- * Require admin role (super_admin, admin, or global_admin for user management)
+ * Require an elevated admin role (super_admin, admin, global_admin, or server_admin).
+ * Prefer requirePermission() for new routes — this helper exists for legacy call sites.
  */
 function requireAdmin(req, res, next) {
     if (!req.session || !req.session.userId) {
@@ -286,11 +287,14 @@ function requireAdmin(req, res, next) {
     }
     
     const userRole = req.session.user && req.session.user.role;
-    if (!isSuperAdminRole(userRole) && userRole !== 'global_admin') {
+    const allowed = isSuperAdminRole(userRole)
+        || userRole === 'global_admin'
+        || userRole === 'server_admin';
+    if (!allowed) {
         if (req.path.startsWith('/api/')) {
             return res.status(403).json({ success: false, error: 'Admin access required' });
         }
-        return res.status(403).render('errors/403', { 
+        return res.status(403).render('errors/403', {
             title: 'Forbidden',
             message: 'You do not have permission to access this resource'
         });

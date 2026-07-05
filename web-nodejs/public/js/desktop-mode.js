@@ -114,8 +114,11 @@
 
     function getApps() {
         var t = typeof _ === 'function' ? _ : function(k) { return k; };
-        var isAdmin = window.BetterDesk && window.BetterDesk.user &&
-                      window.BetterDesk.user.role === 'admin';
+        var role = window.BetterDesk && window.BetterDesk.user && window.BetterDesk.user.role;
+        var isAdmin = role === 'admin'
+            || role === 'super_admin'
+            || role === 'server_admin'
+            || role === 'global_admin';
         var apps = [
             // Main
             { id: 'dashboard',     icon: 'dashboard',        route: '/',              color: '#58a6ff',  name: t('nav.dashboard'),      category: 'main' },
@@ -167,6 +170,15 @@
 
         // Desktop beta mode retired — clear persisted state, do not auto-restore
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_MODE);
+        document.cookie = 'betterdesk_desktop_mode=;path=/;max-age=0;SameSite=Lax';
+        if (document.body.classList.contains('desktop-active')) {
+            active = false;
+            document.body.classList.remove(
+                'desktop-active', 'desktop-entering',
+                'desktop-mode-widgets', 'desktop-mode-windows', 'desktop-mode-unified'
+            );
+        }
     }
 
     // ============ Foldable Phone Detection ============

@@ -114,27 +114,44 @@ function normalizeUserGroupPayload(body) {
 }
 
 async function serializeUserForList(u) {
-    const folderIds = await userScopeService.getUserFolderIds(db, u.username);
-    const peerGrants = await userScopeService.getUserPeerGrantIds(db, u.id);
-    let strategyGuid = '';
-    if (typeof db.getUserStrategyGuid === 'function') {
-        try {
-            strategyGuid = await db.getUserStrategyGuid(u.id);
-        } catch (_) {}
+    try {
+        const folderIds = await userScopeService.getUserFolderIds(db, u.username);
+        const peerGrants = await userScopeService.getUserPeerGrantIds(db, u.id);
+        let strategyGuid = '';
+        if (typeof db.getUserStrategyGuid === 'function') {
+            try {
+                strategyGuid = await db.getUserStrategyGuid(u.id);
+            } catch (_) {}
+        }
+        return {
+            id: u.id,
+            username: u.username,
+            role: u.role,
+            email: u.email || '',
+            auth_provider: u.auth_provider || 'local',
+            created_at: u.created_at,
+            last_login: u.last_login,
+            user_groups: await getUserGroupGuids(u.id),
+            folder_ids: folderIds,
+            peer_grants: peerGrants,
+            strategy_guid: strategyGuid
+        };
+    } catch (err) {
+        console.warn(`[users] scope enrichment failed for ${u?.username || u?.id}:`, err.message);
+        return {
+            id: u.id,
+            username: u.username,
+            role: u.role,
+            email: u.email || '',
+            auth_provider: u.auth_provider || 'local',
+            created_at: u.created_at,
+            last_login: u.last_login,
+            user_groups: [],
+            folder_ids: [],
+            peer_grants: [],
+            strategy_guid: ''
+        };
     }
-    return {
-        id: u.id,
-        username: u.username,
-        role: u.role,
-        email: u.email || '',
-        auth_provider: u.auth_provider || 'local',
-        created_at: u.created_at,
-        last_login: u.last_login,
-        user_groups: await getUserGroupGuids(u.id),
-        folder_ids: folderIds,
-        peer_grants: peerGrants,
-        strategy_guid: strategyGuid
-    };
 }
 
 async function applyUserScopeFromBody(userId, username, body) {

@@ -79,6 +79,17 @@ describe('Users Routes', () => {
         expect(res.body.data.users[1].user_groups).toEqual(['volunteers']);
     });
 
+    it('does not forbid server_admin from the Users management page', async () => {
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'admin', role: 'server_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app).get('/users');
+
+        expect(res.status).not.toBe(403);
+        expect(res.status).not.toBe(401);
+    });
+
     it('returns user groups for panel assignment UIs', async () => {
         const app = createTestApp();
         withAuth(app, { id: 1, username: 'admin', role: 'server_admin' });
