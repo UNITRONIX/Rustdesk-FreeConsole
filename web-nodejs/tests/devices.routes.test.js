@@ -278,6 +278,41 @@ describe('Devices Routes', () => {
             expect(db.updateDeviceGroup.mock.calls[0][1]).not.toHaveProperty('team_id');
         });
 
+        it('should preserve team_id when editing allowed users/groups without resending team_id (Refs #230)', async () => {
+            db.updateDeviceGroup.mockResolvedValue({
+                guid: 'org-group-1',
+                name: 'Org Devices',
+                team_id: 'org-abc',
+                source_type: 'manual',
+                tag_filter: ''
+            });
+            db.setDeviceGroupUserAccess.mockResolvedValueOnce({
+                guid: 'org-group-1',
+                name: 'Org Devices',
+                allowed_users: ['operator1']
+            });
+
+            const res = await request(app)
+                .post('/api/device-groups')
+                .send({
+                    guid: 'org-group-1',
+                    name: 'Org Devices',
+                    source_type: 'manual',
+                    allowed_users: 'operator1',
+                    allowed_groups: ['volunteers']
+                });
+
+            expect(res.status).toBe(200);
+            expect(db.updateDeviceGroup).toHaveBeenCalledWith('org-group-1', {
+                name: 'Org Devices',
+                source_type: 'manual',
+                tag_filter: ''
+            });
+            expect(db.updateDeviceGroup.mock.calls[0][1]).not.toHaveProperty('team_id');
+            expect(db.setDeviceGroupUserAccess).toHaveBeenCalledWith('org-group-1', ['operator1']);
+            expect(db.setDeviceGroupUserGroupAccess).toHaveBeenCalledWith('org-group-1', ['volunteers']);
+        });
+
         it('should scope operator devices through user group ACLs', async () => {
             const scopedApp = createTestApp();
             scopedApp.use((req, _res, next) => {
