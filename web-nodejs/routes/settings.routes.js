@@ -30,6 +30,7 @@ const clientConfigHost = require('../services/clientConfigHost');
 const { getSmtpSettings, putSmtpSettings, testSmtpSettings } = require('../lib/smtpSettingsHandlers');
 const { apiClient } = require('../services/betterdeskApi');
 const { requireAuth, requirePermission, roleHasPermission } = require('../middleware/auth');
+const deviceGroupService = require('../services/deviceGroupService');
 const os = require('os');
 const multer = require('multer');
 
@@ -138,7 +139,41 @@ router.get('/api/settings/server-info', requireAuth, (req, res) => {
 });
 
 /**
+ * GET /api/settings/device-scope - Default device visibility mode for non-admin users.
+ */
+router.get('/api/settings/device-scope', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const stored = await db.getSetting('device_scope_default');
+        const mode = stored && String(stored).toLowerCase() === 'restricted' ? 'restricted' : 'open';
+        res.json({ success: true, data: { mode } });
+    } catch (err) {
+        console.error('Get device scope setting error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/device-scope - Set default device visibility mode.
+ */
+router.post('/api/settings/device-scope', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const mode = String((req.body && req.body.mode) || 'open').toLowerCase();
+        if (mode !== 'open' && mode !== 'restricted') {
+            return res.status(400).json({ success: false, error: req.t('settings.device_scope_invalid') });
+        }
+        await db.setSetting('device_scope_default', mode);
+        deviceGroupService.invalidateDeviceScopeDefaultCache();
+        await db.logAction(req.session.userId, 'device_scope_default_updated', `Device scope default: ${mode}`, req.ip);
+        res.json({ success: true, data: { mode } });
+    } catch (err) {
+        console.error('Set device scope setting error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
  * GET /api/settings/audit - Get audit log
+ */
  */
 router.get('/api/settings/audit', requireAuth, async (req, res) => {
     try {

@@ -5,6 +5,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 
 	_ "modernc.org/sqlite"
@@ -298,4 +299,42 @@ func (c *ConsoleAuthDB) FolderGroupAccess(folderID int64) ([]string, []string, e
 		return nil, nil, err
 	}
 	return c.loadDeviceGroupAccess(id)
+}
+
+// ListUserPeerGrants returns peer IDs directly granted to a panel user.
+func (c *ConsoleAuthDB) ListUserPeerGrants(userID int64) ([]string, error) {
+	if userID <= 0 || !c.hasTable("user_peer_grants") {
+		return nil, nil
+	}
+	rows, err := c.db.Query(`
+		SELECT peer_id FROM user_peer_grants WHERE user_id = ? ORDER BY peer_id ASC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		id = strings.TrimSpace(id)
+		if id != "" {
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
+}
+
+// DeviceScopeDefaultRestricted reads panel settings for default-deny device visibility.
+func (c *ConsoleAuthDB) DeviceScopeDefaultRestricted() bool {
+	if !c.hasTable("settings") {
+		return strings.EqualFold(strings.TrimSpace(os.Getenv("DEVICE_SCOPE_DEFAULT")), "restricted")
+	}
+	var value string
+	err := c.db.QueryRow(`SELECT value FROM settings WHERE key = 'device_scope_default' LIMIT 1`).Scan(&value)
+	if err == sql.ErrNoRows || strings.TrimSpace(value) == "" {
+		return strings.EqualFold(strings.TrimSpace(os.Getenv("DEVICE_SCOPE_DEFAULT")), "restricted")
+	}
+	return strings.EqualFold(strings.TrimSpace(value), "restricted")
 }

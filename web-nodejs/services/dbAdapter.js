@@ -523,6 +523,14 @@ function createSqliteAdapter(config) {
                 UNIQUE(target_type, target_key)
             );
             CREATE INDEX IF NOT EXISTS idx_strategy_assignments_strategy ON strategy_assignments (strategy_guid);
+            CREATE TABLE IF NOT EXISTS user_peer_grants (
+                user_id INTEGER NOT NULL,
+                peer_id TEXT NOT NULL,
+                granted_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (user_id, peer_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_user_peer_grants_user ON user_peer_grants (user_id);
             CREATE TABLE IF NOT EXISTS notification_reads (
                 user_id INTEGER NOT NULL,
                 notification_id TEXT NOT NULL,
@@ -3260,6 +3268,61 @@ function createSqliteAdapter(config) {
             };
         },
 
+        async getUserStrategyGuid(userId) {
+            const userGuid = await this.ensureUserGuid(userId);
+            if (!userGuid) return '';
+            const row = openAuth().prepare(`
+                SELECT strategy_guid FROM strategy_assignments
+                WHERE target_type = 'user' AND target_key = ?
+                LIMIT 1
+            `).get(userGuid);
+            return row?.strategy_guid || '';
+        },
+
+        async setUserStrategyAssignment(userId, strategyGuid) {
+            const userGuid = await this.ensureUserGuid(userId);
+            if (!userGuid) throw new Error('user not found');
+            strategyGuid = String(strategyGuid || '').trim();
+            if (!strategyGuid) {
+                openAuth().prepare(`
+                    DELETE FROM strategy_assignments WHERE target_type = 'user' AND target_key = ?
+                `).run(userGuid);
+                return '';
+            }
+            const st = await this.getStrategyByGuid(strategyGuid);
+            if (!st) throw new Error('strategy not found');
+            openAuth().prepare(`
+                INSERT INTO strategy_assignments (target_type, target_key, strategy_guid, updated_at)
+                VALUES ('user', ?, ?, datetime('now'))
+                ON CONFLICT(target_type, target_key) DO UPDATE SET
+                    strategy_guid = excluded.strategy_guid,
+                    updated_at = excluded.updated_at
+            `).run(userGuid, strategyGuid);
+            return strategyGuid;
+        },
+
+        async getUserPeerGrants(userId) {
+            const rows = openAuth().prepare(`
+                SELECT peer_id FROM user_peer_grants WHERE user_id = ? ORDER BY peer_id ASC
+            `).all(userId);
+            return rows.map(r => r.peer_id);
+        },
+
+        async setUserPeerGrants(userId, peerIds = []) {
+            const auth = openAuth();
+            const normalized = Array.from(new Set(
+                (peerIds || []).map(id => String(id || '').trim()).filter(Boolean)
+            )).slice(0, 500);
+            auth.prepare('DELETE FROM user_peer_grants WHERE user_id = ?').run(userId);
+            const insert = auth.prepare(`
+                INSERT INTO user_peer_grants (user_id, peer_id) VALUES (?, ?)
+            `);
+            auth.transaction((ids) => {
+                for (const peerId of ids) insert.run(userId, peerId);
+            })(normalized);
+            return normalized;
+        },
+
         async setStrategyEnabled(guid, enabled) {
             const row = await this.updateStrategy(guid, { enabled: !!enabled });
             if (!row) throw new Error('strategy not found');
@@ -4237,6 +4300,15 @@ function createPostgresAdapter() {
             )
         `);
         await q('CREATE INDEX IF NOT EXISTS idx_strategy_assignments_strategy ON strategy_assignments (strategy_guid)');
+        await q(`
+            CREATE TABLE IF NOT EXISTS user_peer_grants (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                peer_id TEXT NOT NULL,
+                granted_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (user_id, peer_id)
+            )
+        `);
+        await q('CREATE INDEX IF NOT EXISTS idx_user_peer_grants_user ON user_peer_grants (user_id)');
 
         // Seed default groups if empty
         const ugCheck = await one('SELECT COUNT(*)::INTEGER AS c FROM user_groups');
@@ -6477,6 +6549,68 @@ function createPostgresAdapter() {
                 user_names: userNames,
                 group_guids: summary.groups,
             };
+        },
+
+        async getUserStrategyGuid(userId) {
+            const userGuid = await this.ensureUserGuid(userId);
+            if (!userGuid) return '';
+            const row = await one(`
+                SELECT strategy_guid FROM strategy_assignments
+                WHERE target_type = 'user' AND target_key = $1
+                LIMIT 1
+            `, [userGuid]);
+            return row?.strategy_guid || '';
+        },
+
+        async setUserStrategyAssignment(userId, strategyGuid) {
+            const userGuid = await this.ensureUserGuid(userId);
+            if (!userGuid) throw new Error('user not found');
+            strategyGuid = String(strategyGuid || '').trim();
+            if (!strategyGuid) {
+                await q(`DELETE FROM strategy_assignments WHERE target_type = 'user' AND target_key = $1`, [userGuid]);
+                return '';
+            }
+            const st = await this.getStrategyByGuid(strategyGuid);
+            if (!st) throw new Error('strategy not found');
+            await q(`
+                INSERT INTO strategy_assignments (target_type, target_key, strategy_guid, updated_at)
+                VALUES ('user', $1, $2, NOW())
+                ON CONFLICT (target_type, target_key) DO UPDATE SET
+                    strategy_guid = EXCLUDED.strategy_guid,
+                    updated_at = EXCLUDED.updated_at
+            `, [userGuid, strategyGuid]);
+            return strategyGuid;
+        },
+
+        async getUserPeerGrants(userId) {
+            const rows = await all(`
+                SELECT peer_id FROM user_peer_grants WHERE user_id = $1 ORDER BY peer_id ASC
+            `, [userId]);
+            return rows.map(r => r.peer_id);
+        },
+
+        async setUserPeerGrants(userId, peerIds = []) {
+            const normalized = Array.from(new Set(
+                (peerIds || []).map(id => String(id || '').trim()).filter(Boolean)
+            )).slice(0, 500);
+            const client = await getPool().connect();
+            try {
+                await client.query('BEGIN');
+                await client.query('DELETE FROM user_peer_grants WHERE user_id = $1', [userId]);
+                for (const peerId of normalized) {
+                    await client.query(
+                        'INSERT INTO user_peer_grants (user_id, peer_id) VALUES ($1, $2)',
+                        [userId, peerId]
+                    );
+                }
+                await client.query('COMMIT');
+            } catch (err) {
+                await client.query('ROLLBACK');
+                throw err;
+            } finally {
+                client.release();
+            }
+            return normalized;
         },
 
         async setStrategyEnabled(guid, enabled) {

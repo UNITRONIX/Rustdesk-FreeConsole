@@ -8,10 +8,12 @@ type PanelSyncStore interface {
 	ListPanelDeviceGroups() ([]PanelDeviceGroup, error)
 	ListDeviceGroupMemberPeerIDs(deviceGroupID int64) ([]string, error)
 	ListUserGroupGUIDsForUser(userID int64) ([]string, error)
+	ListUserPeerGrants(userID int64) ([]string, error)
 	ListFolders() ([]PanelFolder, error)
 	ListFolderAssignments() (map[string]int64, error)
 	ListPeerSysinfo() (map[string]ConsolePeerSysinfo, error)
 	FolderGroupAccess(folderID int64) ([]string, []string, error)
+	DeviceScopeDefaultRestricted() bool
 }
 
 // ConsoleAuthDB implements PanelSyncStore for legacy SQLite auth.db deployments.

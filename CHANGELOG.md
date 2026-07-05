@@ -1,7 +1,10 @@
 ## [Unreleased]
 
+### Added
+- **User scope UX (#227):** User Management now assigns **folders**, **direct devices**, and **RustDesk Pro strategies** per user; effective device count badge; folder ACL supports **allowed user groups**; optional **restricted default visibility** in Settings (`DEVICE_SCOPE_DEFAULT` / panel setting); docs [SCOPED_REMOTE_USER.md](docs/features/SCOPED_REMOTE_USER.md) and draft GitHub reply.
+
 ### Changed
-- _(none yet)_
+- **Role labels (UI only):** `operator` → “Remote Operator”, `pro` → “Pro License (client API only)”; dynamic role descriptions and scope hints in user form (all 26 locales).
 
 ---
 

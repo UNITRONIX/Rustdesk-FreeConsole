@@ -2940,10 +2940,21 @@
         requestAnimationFrame(updateTableHScroll);
     }
     
+    function selectedFolderUserGroupGuids() {
+        return Array.from(document.querySelectorAll('#folder-user-groups-list input:checked')).map(input => input.value);
+    }
+
+    function renderFolderUserGroupOptions(selectedGuids) {
+        const container = document.getElementById('folder-user-groups-list');
+        if (!container) return;
+        container.innerHTML = renderUserGroupAccessOptions(selectedGuids || []);
+    }
+
     /**
      * Show add folder modal
      */
-    function showAddFolderModal() {
+    async function showAddFolderModal() {
+        await ensureUserGroupsLoaded();
         const template = document.getElementById('folder-form-template');
         if (!template) return;
         
@@ -2960,6 +2971,7 @@
             ],
             onOpen: () => {
                 initColorPicker();
+                renderFolderUserGroupOptions([]);
                 document.getElementById('folder-name')?.focus();
             }
         });
@@ -2969,6 +2981,7 @@
      * Edit folder
      */
     async function editFolder(folderId) {
+        await ensureUserGroupsLoaded();
         const folder = findFolderById(folderId);
         if (!folder) return;
         
@@ -2991,6 +3004,7 @@
                 document.getElementById('folder-name').value = folder.name;
                 document.getElementById('folder-color').value = folder.color;
                 document.getElementById('folder-allowed-users').value = (folder.allowed_users || []).join(', ');
+                renderFolderUserGroupOptions(folder.allowed_groups || []);
                 
                 // Set active color
                 document.querySelectorAll('.color-option').forEach(btn => {
@@ -3020,6 +3034,7 @@
         const name = document.getElementById('folder-name')?.value.trim();
         const color = document.getElementById('folder-color')?.value;
         const allowedUsers = document.getElementById('folder-allowed-users')?.value || '';
+        const allowedGroups = selectedFolderUserGroupGuids();
         
         if (!name) {
             Notifications.error(_('folders.name_required'));
@@ -3030,13 +3045,13 @@
             if (folderId) {
                 await Utils.api(`/api/folders/${folderId}`, {
                     method: 'PATCH',
-                    body: { name, color, allowed_users: allowedUsers }
+                    body: { name, color, allowed_users: allowedUsers, allowed_groups: allowedGroups }
                 });
                 Notifications.success(_('folders.updated'));
             } else {
                 await Utils.api('/api/folders', {
                     method: 'POST',
-                    body: { name, color, allowed_users: allowedUsers }
+                    body: { name, color, allowed_users: allowedUsers, allowed_groups: allowedGroups }
                 });
                 Notifications.success(_('folders.created'));
             }

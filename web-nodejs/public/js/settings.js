@@ -41,6 +41,7 @@
         loadAuditLog();
         loadServerInfo();
         initMeshSettingsSection();
+        initDeviceScopeSection();
         initConnectionModeSection();
         initPublicEndpointsSection();
         initAuthSubnav();
@@ -364,6 +365,56 @@
         if (minutes > 0 || parts.length === 0) parts.push(`${minutes}m`);
         
         return parts.join(' ');
+    }
+
+    // ==================== Device scope default ====================
+
+    function initDeviceScopeSection() {
+        const form = document.getElementById('device-scope-form');
+        if (!form) return;
+
+        const warningEl = document.getElementById('device-scope-warning');
+
+        function updateWarning() {
+            const restricted = document.getElementById('device-scope-restricted')?.checked;
+            if (warningEl) warningEl.hidden = !restricted;
+        }
+
+        async function loadDeviceScopeSetting() {
+            try {
+                const data = await Utils.api('/api/settings/device-scope');
+                const mode = data.mode === 'restricted' ? 'restricted' : 'open';
+                const openEl = document.getElementById('device-scope-open');
+                const restrictedEl = document.getElementById('device-scope-restricted');
+                if (openEl) openEl.checked = mode === 'open';
+                if (restrictedEl) restrictedEl.checked = mode === 'restricted';
+                updateWarning();
+            } catch (err) {
+                console.error('Failed to load device scope setting:', err);
+            }
+        }
+
+        form.querySelectorAll('input[name="device_scope_mode"]').forEach(input => {
+            input.addEventListener('change', updateWarning);
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const selected = form.querySelector('input[name="device_scope_mode"]:checked');
+            const mode = selected ? selected.value : 'open';
+            try {
+                await Utils.api('/api/settings/device-scope', {
+                    method: 'POST',
+                    body: { mode }
+                });
+                Notifications.success(_('settings.device_scope_saved'));
+                updateWarning();
+            } catch (err) {
+                Notifications.error(err.message || _('errors.server_error'));
+            }
+        });
+
+        loadDeviceScopeSetting();
     }
 
     // ==================== MeshCentral compatibility ====================

@@ -12,6 +12,10 @@
     let users = [];
     let userGroups = [];
     let userGroupsLoaded = false;
+    let folders = [];
+    let foldersLoaded = false;
+    let strategies = [];
+    let strategiesLoaded = false;
     let editingUserId = null;
     // Cache: userId -> [{ id, org_id, name, org_name, role }]
     const userOrgsCache = new Map();
@@ -25,6 +29,8 @@
         userGroupsManager = document.getElementById('user-groups-manager-list');
         
         loadUserGroups();
+        loadFolders();
+        loadStrategies();
         loadUsers();
         initEventListeners();
         focusUserGroupsFromHash();
@@ -117,6 +123,104 @@
 
     function selectedUserGroupGuids() {
         return Array.from(document.querySelectorAll('#user-groups-list input:checked')).map(input => input.value);
+    }
+
+    async function loadFolders() {
+        try {
+            const response = await Utils.api('/api/folders');
+            folders = response.folders || [];
+            foldersLoaded = true;
+        } catch (error) {
+            folders = [];
+            foldersLoaded = true;
+            console.error('Failed to load folders:', error);
+        }
+    }
+
+    async function loadStrategies() {
+        try {
+            const response = await Utils.api('/api/strategies');
+            strategies = Array.isArray(response) ? response : (response.data || []);
+            strategiesLoaded = true;
+        } catch (error) {
+            strategies = [];
+            strategiesLoaded = true;
+        }
+    }
+
+    async function ensureFoldersLoaded() {
+        if (!foldersLoaded) await loadFolders();
+    }
+
+    async function ensureStrategiesLoaded() {
+        if (!strategiesLoaded) await loadStrategies();
+    }
+
+    function renderFolderCheckboxes(selectedIds) {
+        const selected = new Set((selectedIds || []).map(id => Number(id)).filter(Number.isFinite));
+        const container = document.getElementById('user-folders-list');
+        if (!container) return;
+        if (!folders.length) {
+            container.innerHTML = `<div class="empty-state-inline">${_('users.no_folders') || 'No folders'}</div>`;
+            return;
+        }
+        container.innerHTML = folders.map(folder => `
+            <label class="user-group-option">
+                <input type="checkbox" value="${folder.id}" ${selected.has(Number(folder.id)) ? 'checked' : ''}>
+                <span class="material-icons">folder</span>
+                <span>${Utils.escapeHtml(folder.name || folder.id)}</span>
+            </label>`).join('');
+    }
+
+    function selectedFolderIds() {
+        return Array.from(document.querySelectorAll('#user-folders-list input:checked'))
+            .map(input => Number.parseInt(input.value, 10))
+            .filter(Number.isFinite);
+    }
+
+    function renderStrategyOptions(selectedGuid) {
+        const select = document.getElementById('user-strategy');
+        if (!select) return;
+        const current = String(selectedGuid || '');
+        select.innerHTML = `<option value="">${Utils.escapeHtml(_('users.pro_strategy_none') || 'None')}</option>` +
+            strategies.map(st => `
+                <option value="${Utils.escapeHtml(st.guid)}" ${st.guid === current ? 'selected' : ''}>
+                    ${Utils.escapeHtml(st.name || st.guid)}
+                </option>`).join('');
+    }
+
+    const ROLE_DESC_KEYS = {
+        viewer: 'users.role_desc_viewer',
+        operator: 'users.role_desc_operator',
+        pro: 'users.role_desc_pro',
+        admin: 'users.role_desc_admin',
+        super_admin: 'users.role_desc_super_admin',
+        server_admin: 'users.role_desc_server_admin',
+        global_admin: 'users.role_desc_global_admin'
+    };
+
+    function updateRoleDescription() {
+        const role = document.getElementById('user-role')?.value || 'viewer';
+        const descEl = document.getElementById('user-role-desc');
+        if (!descEl) return;
+        const key = ROLE_DESC_KEYS[role];
+        descEl.textContent = key ? (_(key) || '') : '';
+    }
+
+    async function loadEffectiveScopeCounts() {
+        if (!tableBody) return;
+        const cells = tableBody.querySelectorAll('.user-scope-cell');
+        await Promise.all(Array.from(cells).map(async cell => {
+            const userId = cell.dataset.userId;
+            if (!userId) return;
+            try {
+                const resp = await Utils.api(`/api/users/${userId}/effective-scope`);
+                const count = resp.data?.count ?? 0;
+                cell.textContent = _('users.effective_scope_count', { count }) || `${count} devices`;
+            } catch (_) {
+                cell.textContent = '—';
+            }
+        }));
     }
 
     function renderUserGroupsManager() {
@@ -343,6 +447,9 @@
                     </span>
                 </td>
                 <td>
+                    <span class="user-scope-cell text-muted" data-user-id="${user.id}">…</span>
+                </td>
+                <td>
                     <span class="provider-badge provider-${provider}" title="${Utils.escapeHtml(providerLabel)}">
                         ${Utils.escapeHtml(providerLabel)}
                     </span>
@@ -385,6 +492,7 @@
                 if (id && username) showOrganizationsModal(id, username);
             });
         });
+        loadEffectiveScopeCounts();
     }
     
     /**
@@ -411,7 +519,7 @@
      * Show add user modal
      */
     async function showAddUserModal() {
-        await ensureUserGroupsLoaded();
+        await Promise.all([ensureUserGroupsLoaded(), ensureFoldersLoaded(), ensureStrategiesLoaded()]);
         editingUserId = null;
         
         const template = document.getElementById('user-form-template');
@@ -429,6 +537,10 @@
             onOpen: () => {
                 initFormListeners();
                 renderUserGroupCheckboxes([]);
+                renderFolderCheckboxes([]);
+                renderStrategyOptions('');
+                updateRoleDescription();
+                document.getElementById('user-direct-devices').value = '';
                 document.getElementById('user-username')?.focus();
             }
         });
@@ -438,7 +550,7 @@
      * Show edit user modal
      */
     async function showEditUserModal(userId) {
-        await ensureUserGroupsLoaded();
+        await Promise.all([ensureUserGroupsLoaded(), ensureFoldersLoaded(), ensureStrategiesLoaded()]);
         const user = users.find(u => Number(u.id) === Number(userId));
         if (!user) return;
         
@@ -491,6 +603,13 @@
                     }
                 }
                 renderUserGroupCheckboxes(user.user_groups || []);
+                renderFolderCheckboxes(user.folder_ids || []);
+                renderStrategyOptions(user.strategy_guid || '');
+                updateRoleDescription();
+                const directDevices = document.getElementById('user-direct-devices');
+                if (directDevices) {
+                    directDevices.value = Array.isArray(user.peer_grants) ? user.peer_grants.join(', ') : '';
+                }
             }
         });
     }
@@ -516,6 +635,8 @@
         document.getElementById('user-password')?.addEventListener('input', function() {
             updatePasswordStrength(this.value);
         });
+
+        document.getElementById('user-role')?.addEventListener('change', updateRoleDescription);
     }
     
     /**
@@ -572,6 +693,10 @@
         const role = document.getElementById('user-role')?.value;
         const email = document.getElementById('user-email')?.value.trim();
         const groupGuids = selectedUserGroupGuids();
+        const folderIds = selectedFolderIds();
+        const strategyGuid = document.getElementById('user-strategy')?.value || '';
+        const peerIdsRaw = document.getElementById('user-direct-devices')?.value || '';
+        const peerIds = peerIdsRaw.split(/[,;\s]+/).map(v => v.trim()).filter(Boolean);
         
         // Validate
         if (!editingUserId) {
@@ -595,9 +720,8 @@
         try {
             if (editingUserId) {
                 // Update existing user
-                const data = { role, email };
+                const data = { role, email, groupGuids, folderIds, peerIds, strategyGuid };
                 if (password) data.password = password;
-                data.groupGuids = groupGuids;
                 
                 await Utils.api(`/api/users/${editingUserId}`, {
                     method: 'PATCH',
@@ -608,7 +732,7 @@
                 // Create new user
                 await Utils.api('/api/users', {
                     method: 'POST',
-                    body: { username, password, role, email, groupGuids }
+                    body: { username, password, role, email, groupGuids, folderIds, peerIds, strategyGuid }
                 });
                 Notifications.success(_('users.user_created'));
             }

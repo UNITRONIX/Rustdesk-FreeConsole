@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -254,4 +255,41 @@ func (pg *PostgresDB) FolderGroupAccess(folderID int64) ([]string, []string, err
 		return nil, nil, err
 	}
 	return pg.loadDeviceGroupAccess(id)
+}
+
+// ListUserPeerGrants returns peer IDs directly granted to a panel user.
+func (pg *PostgresDB) ListUserPeerGrants(userID int64) ([]string, error) {
+	if userID <= 0 || !pg.pgHasTable("user_peer_grants") {
+		return nil, nil
+	}
+	rows, err := pg.pool.Query(pg.ctx, `
+		SELECT peer_id FROM user_peer_grants WHERE user_id = $1 ORDER BY peer_id ASC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		id = strings.TrimSpace(id)
+		if id != "" {
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
+}
+
+// DeviceScopeDefaultRestricted reads panel settings for default-deny device visibility.
+func (pg *PostgresDB) DeviceScopeDefaultRestricted() bool {
+	if pg.pgHasTable("settings") {
+		var value string
+		err := pg.pool.QueryRow(pg.ctx, `SELECT value FROM settings WHERE key = 'device_scope_default' LIMIT 1`).Scan(&value)
+		if err == nil && strings.TrimSpace(value) != "" {
+			return strings.EqualFold(strings.TrimSpace(value), "restricted")
+		}
+	}
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("DEVICE_SCOPE_DEFAULT")), "restricted")
 }

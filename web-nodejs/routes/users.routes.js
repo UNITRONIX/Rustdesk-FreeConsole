@@ -10,6 +10,9 @@ const db = require('../services/database');
 const { apiClient } = require('../services/betterdeskApi');
 const { assertSafeApiId } = require('../lib/goApiPath');
 const userSync = require('../services/userSync');
+const userScopeService = require('../services/userScopeService');
+const deviceGroupService = require('../services/deviceGroupService');
+const serverBackend = require('../services/serverBackend');
 const { requireAuth, requirePermission, roleHasPermission, isSuperAdminRole } = require('../middleware/auth');
 const { passwordChangeLimiter } = require('../middleware/rateLimiter');
 
@@ -110,6 +113,59 @@ function normalizeUserGroupPayload(body) {
     return { name, note, team_id: teamId };
 }
 
+async function serializeUserForList(u) {
+    const folderIds = await userScopeService.getUserFolderIds(db, u.username);
+    const peerGrants = await userScopeService.getUserPeerGrantIds(db, u.id);
+    let strategyGuid = '';
+    if (typeof db.getUserStrategyGuid === 'function') {
+        try {
+            strategyGuid = await db.getUserStrategyGuid(u.id);
+        } catch (_) {}
+    }
+    return {
+        id: u.id,
+        username: u.username,
+        role: u.role,
+        email: u.email || '',
+        auth_provider: u.auth_provider || 'local',
+        created_at: u.created_at,
+        last_login: u.last_login,
+        user_groups: await getUserGroupGuids(u.id),
+        folder_ids: folderIds,
+        peer_grants: peerGrants,
+        strategy_guid: strategyGuid
+    };
+}
+
+async function applyUserScopeFromBody(userId, username, body) {
+    if (Object.prototype.hasOwnProperty.call(body || {}, 'folderIds')) {
+        await userScopeService.syncUserFolderAccess(db, username, body.folderIds);
+    }
+    if (Object.prototype.hasOwnProperty.call(body || {}, 'peerIds')) {
+        await userScopeService.syncUserPeerGrants(db, userId, body.peerIds);
+    }
+    if (Object.prototype.hasOwnProperty.call(body || {}, 'strategyGuid') && typeof db.setUserStrategyAssignment === 'function') {
+        const strategyGuid = await db.setUserStrategyAssignment(userId, body.strategyGuid || '');
+        if (await serverBackend.isBetterDesk()) {
+            try {
+                const userKey = typeof db.resolveUserAssignmentKey === 'function'
+                    ? await db.resolveUserAssignmentKey(username)
+                    : username;
+                await apiClient({
+                    method: 'POST',
+                    url: '/strategies/assign',
+                    data: {
+                        strategy: strategyGuid || undefined,
+                        users: userKey ? [userKey] : []
+                    }
+                });
+            } catch (err) {
+                console.warn('[users] Strategy assign Go sync failed:', err.message);
+            }
+        }
+    }
+}
+
 async function getUserGroupGuids(userId) {
     if (typeof db.getUserGroupsForUser !== 'function') return [];
     const groups = await db.getUserGroupsForUser(userId);
@@ -175,16 +231,7 @@ router.get('/api/users', requireAuth, requirePermission('user.view'), async (req
         const users = await db.getAllUsers();
         
         // Remove sensitive data
-        const safeUsers = await Promise.all(users.map(async u => ({
-            id: u.id,
-            username: u.username,
-            role: u.role,
-            email: u.email || '',
-            auth_provider: u.auth_provider || 'local',
-            created_at: u.created_at,
-            last_login: u.last_login,
-            user_groups: await getUserGroupGuids(u.id)
-        })));
+        const safeUsers = await Promise.all(users.map(u => serializeUserForList(u)));
         
         res.json({
             success: true,
@@ -356,6 +403,12 @@ router.post('/api/users', requireAuth, requirePermission('user.create'), passwor
         // (Issue #125). Best-effort — does not fail panel-side creation.
         runBestEffortUserSync(() => userSync.mirrorCreate(username, password, userRole));
 
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'folderIds') ||
+            Object.prototype.hasOwnProperty.call(req.body || {}, 'peerIds') ||
+            Object.prototype.hasOwnProperty.call(req.body || {}, 'strategyGuid')) {
+            await applyUserScopeFromBody(result.id, username, req.body);
+        }
+
         // Log action
         await db.logAction(req.session.userId, 'user_created', `Created user: ${username} (${userRole})`, req.ip);
         
@@ -366,7 +419,9 @@ router.post('/api/users', requireAuth, requirePermission('user.create'), passwor
                 username,
                 role: userRole,
                 email: savedEmail,
-                user_groups: groupGuids
+                user_groups: groupGuids,
+                folder_ids: await userScopeService.getUserFolderIds(db, username),
+                peer_grants: await userScopeService.getUserPeerGrantIds(db, result.id)
             }
         });
     } catch (err) {
@@ -453,6 +508,7 @@ router.patch('/api/users/:id', requireAuth, requirePermission('user.edit'), asyn
         }
 
         await updateUserGroupMembershipsFromBody(userId, req.body);
+        await applyUserScopeFromBody(userId, user.username, req.body);
 
         if (email !== undefined) {
             const normalizedEmail = normalizeUserEmail(email);
@@ -469,6 +525,33 @@ router.patch('/api/users/:id', requireAuth, requirePermission('user.edit'), asyn
             success: false,
             error: err.status === 400 ? err.message : req.t('errors.server_error')
         });
+    }
+});
+
+/**
+ * GET /api/users/:id/effective-scope - Count devices visible to a user (admin).
+ */
+router.get('/api/users/:id/effective-scope', requireAuth, requirePermission('user.view'), async (req, res) => {
+    try {
+        const userId = parseInt(req.params.id, 10);
+        if (isNaN(userId) || userId <= 0) {
+            return res.status(400).json({ success: false, error: 'Invalid user ID' });
+        }
+        const user = await db.getUserById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, error: req.t('users.not_found') });
+        }
+        let devices = [];
+        try {
+            devices = await serverBackend.getAllDevices({});
+        } catch (_) {
+            devices = [];
+        }
+        const result = await userScopeService.countEffectiveScope(db, user, devices);
+        res.json({ success: true, data: result });
+    } catch (err) {
+        console.error('Effective scope error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
     }
 });
 

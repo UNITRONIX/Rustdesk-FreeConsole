@@ -143,6 +143,39 @@
             </div>
 
             ${canServerConfig ? `
+            <div class="settings-panel" id="device-scope-settings-panel">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
+                        <span class="material-icons">devices</span>
+                        ${_('settings.device_scope_title')}
+                    </h2>
+                    <p class="settings-panel-desc">${_('settings.device_scope_desc')}</p>
+                </div>
+                <div class="settings-panel-body">
+                    <form class="settings-form" id="device-scope-form">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="radio" name="device_scope_mode" value="open" id="device-scope-open">
+                                ${_('settings.device_scope_open')}
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="radio" name="device_scope_mode" value="restricted" id="device-scope-restricted">
+                                ${_('settings.device_scope_restricted')}
+                            </label>
+                        </div>
+                        <p class="form-hint" id="device-scope-warning" hidden>${_('settings.device_scope_restricted_warning')}</p>
+                        <button type="submit" class="btn btn-primary">
+                            <span class="material-icons">save</span>
+                            ${_('settings.device_scope_save')}
+                        </button>
+                    </form>
+                </div>
+            </div>
+            ` : ''}
+
+            ${canServerConfig ? `
             <div class="settings-panel" id="mesh-settings-panel">
                 <div class="settings-panel-header">
                     <h2 class="settings-panel-title">

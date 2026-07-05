@@ -225,11 +225,26 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 	if s.panelStore == nil {
 		return nil
 	}
+
+	restrictedDefault := s.panelStore.DeviceScopeDefaultRestricted()
+
+	var peerGrants []string
+	if user != nil && user.ID > 0 {
+		if grants, err := s.panelStore.ListUserPeerGrants(user.ID); err == nil {
+			peerGrants = grants
+		}
+	}
+
 	panelGroups, err := s.panelStore.ListPanelDeviceGroups()
 	if err != nil {
 		return nil
 	}
 	userGroupGUIDs := s.consoleUserGroupGUIDs(user.ID)
+
+	assignments := map[string]int64{}
+	if a, err := s.panelStore.ListFolderAssignments(); err == nil {
+		assignments = a
+	}
 
 	hasRestricted := false
 	for _, g := range panelGroups {
@@ -239,6 +254,19 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 		}
 	}
 	if !hasRestricted {
+		folders, _ := s.panelStore.ListFolders()
+		for _, folder := range folders {
+			allowedUsers, allowedGroups, _ := s.panelStore.FolderGroupAccess(folder.ID)
+			if len(allowedUsers) > 0 || len(allowedGroups) > 0 {
+				hasRestricted = true
+				break
+			}
+		}
+	}
+	if !hasRestricted && len(peerGrants) == 0 {
+		if restrictedDefault {
+			return map[string]bool{}
+		}
 		return nil
 	}
 
@@ -256,6 +284,34 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 		for _, id := range peerIDs {
 			target[id] = true
 		}
+	}
+
+	folders, _ := s.panelStore.ListFolders()
+	for _, folder := range folders {
+		allowedUsers, allowedGroups, _ := s.panelStore.FolderGroupAccess(folder.ID)
+		if len(allowedUsers) == 0 && len(allowedGroups) == 0 {
+			continue
+		}
+		target := restricted
+		if panelAccessAllowed(user, role, userGroupGUIDs, allowedUsers, allowedGroups) {
+			target = allowed
+		}
+		for deviceID, folderID := range assignments {
+			if folderID != folder.ID {
+				continue
+			}
+			if _, ok := peerByID[deviceID]; !ok {
+				continue
+			}
+			target[deviceID] = true
+		}
+	}
+	for _, id := range peerGrants {
+		allowed[id] = true
+	}
+
+	if restrictedDefault {
+		return allowed
 	}
 
 	visible := make(map[string]bool)

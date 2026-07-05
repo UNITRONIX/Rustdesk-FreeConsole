@@ -1,6 +1,32 @@
 'use strict';
 
 const { isSuperAdminRole } = require('../middleware/auth');
+const config = require('../config/config');
+
+let scopeDefaultCache = { value: null, at: 0 };
+
+async function isDeviceScopeRestrictedDefault(db) {
+    const envRestricted = String(config.deviceScopeDefault || 'open').toLowerCase() === 'restricted';
+    if (!db || typeof db.getSetting !== 'function') return envRestricted;
+    const now = Date.now();
+    if (scopeDefaultCache.value !== null && now - scopeDefaultCache.at < 30000) {
+        return scopeDefaultCache.value;
+    }
+    try {
+        const stored = await db.getSetting('device_scope_default');
+        const restricted = stored
+            ? String(stored).toLowerCase() === 'restricted'
+            : envRestricted;
+        scopeDefaultCache = { value: restricted, at: now };
+        return restricted;
+    } catch (_) {
+        return envRestricted;
+    }
+}
+
+function invalidateDeviceScopeDefaultCache() {
+    scopeDefaultCache = { value: null, at: 0 };
+}
 
 function normalizeTags(value) {
     if (!value) return [];
@@ -177,13 +203,26 @@ async function getDeviceScopeForUser(db, user, devices = []) {
 
     if (typeof db.getAllDeviceGroups !== 'function') return null;
 
+    const restrictedDefault = await isDeviceScopeRestrictedDefault(db);
     const accessUser = await getUserAccessContext(db, user);
     const groups = await db.getAllDeviceGroups();
     const restrictedGroups = (groups || []).filter(group =>
         normalizeUsernames(group.allowed_users).length > 0 ||
         normalizeGroupGuids(group.allowed_groups || group.allowed_user_groups).length > 0
     );
-    if (restrictedGroups.length === 0) return null;
+
+    let peerGrants = [];
+    if (typeof db.getUserPeerGrants === 'function') {
+        try {
+            peerGrants = await db.getUserPeerGrants(user.id);
+        } catch (_) {
+            peerGrants = [];
+        }
+    }
+
+    if (restrictedGroups.length === 0 && peerGrants.length === 0) {
+        return restrictedDefault ? new Set() : null;
+    }
 
     const allowedIds = new Set();
     const restrictedIds = new Set();
@@ -191,6 +230,11 @@ async function getDeviceScopeForUser(db, user, devices = []) {
         const ids = await getGroupPeerIds(db, group, devices);
         const target = groupAllowedForUser(group, accessUser) ? allowedIds : restrictedIds;
         for (const id of ids) target.add(id);
+    }
+    for (const id of peerGrants) allowedIds.add(String(id));
+
+    if (restrictedDefault) {
+        return allowedIds;
     }
 
     const visible = new Set();
@@ -313,4 +357,5 @@ module.exports = {
     resolveOperatorUsernamesForDevice,
     resolveOperatorEmailsForDevice,
     resolveFolderNameForDevice,
+    invalidateDeviceScopeDefaultCache,
 };
