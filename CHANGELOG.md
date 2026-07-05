@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Panel ID change (regression on v3.3.101):** Web Console no longer forces custom device IDs to uppercase — case is preserved end-to-end (`MacPro1` stays `MacPro1`, not `MACPRO1`). After a panel-side rename, the Go signal server redirects heartbeats from the stale client ID to the successor row (preventing duplicate offline/online peer entries) and pushes a `PeerDiscovery` `change_id` notification to connected clients. Panel DB cascade uses the exact case sent to the Go API.
+
 ### Changed
 - _(none yet)_
 

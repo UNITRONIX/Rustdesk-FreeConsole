@@ -434,20 +434,21 @@ describe('Devices Routes', () => {
             expect(res.body.error).toBe('devices.id_reserved_deleted');
         });
 
-        it('should cascade panel peer ID change into local databases', async () => {
+        it('should preserve mixed-case IDs when cascading panel peer ID change', async () => {
             serverBackend.getDeviceById.mockImplementation(async (id) => {
-                if (id === 'OLDCAS') return { id: 'OLDCAS', online: false };
+                if (id === 'MacPro') return { id: 'MacPro', online: true };
                 return null;
             });
             serverBackend.changePeerId.mockResolvedValue({ success: true });
 
             const res = await request(app)
-                .post('/api/devices/OLDCAS/change-id')
-                .send({ newId: 'NEWCAS' });
+                .post('/api/devices/MacPro/change-id')
+                .send({ newId: 'MacPro1' });
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(db.cascadePeerIdChange).toHaveBeenCalledWith('OLDCAS', 'NEWCAS');
+            expect(serverBackend.changePeerId).toHaveBeenCalledWith('MacPro', 'MacPro1');
+            expect(db.cascadePeerIdChange).toHaveBeenCalledWith('MacPro', 'MacPro1');
         });
     });
 

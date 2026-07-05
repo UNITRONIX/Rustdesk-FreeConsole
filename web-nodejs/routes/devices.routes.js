@@ -621,7 +621,7 @@ router.post('/api/devices/:id/change-id', requireAuth, requirePermission('device
 
         try {
             if (typeof db.cascadePeerIdChange === 'function') {
-                await db.cascadePeerIdChange(oldId, newId.toUpperCase());
+                await db.cascadePeerIdChange(oldId, newId);
             }
         } catch (cascadeErr) {
             console.warn('Change ID panel cascade failed:', cascadeErr.message);

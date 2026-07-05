@@ -1346,7 +1346,7 @@ const DeviceDetail = (function () {
         try {
             await Utils.api('/api/devices/' + encodeURIComponent(deviceId) + '/change-id', {
                 method: 'POST',
-                body: { newId: newId.toUpperCase() }
+                body: { newId }
             });
             Notifications.success(_('devices.change_id_success'));
             close();

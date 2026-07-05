@@ -240,6 +240,8 @@ router.post('/register', identifyDevice, async (req, res) => {
             return res.status(400).json({ error: 'device_id is required' });
         }
 
+        let effectiveId = id;
+
         // Reject registration with a stale/renamed peer ID unless same device (#97, #213)
         if (typeof db.shouldRejectRenamedPeerRegistration === 'function') {
             const renameCheck = await db.shouldRejectRenamedPeerRegistration(id, {
@@ -253,6 +255,9 @@ router.post('/register', identifyDevice, async (req, res) => {
                     new_id: renameCheck.new_id,
                     message: `This device ID was renamed to ${renameCheck.new_id}. Please update your configuration.`,
                 });
+            }
+            if (renameCheck.redirect_id) {
+                effectiveId = renameCheck.redirect_id;
             }
         } else {
             const newId = db.getRenamedPeerId ? await db.getRenamedPeerId(id) : null;
@@ -274,16 +279,16 @@ router.post('/register', identifyDevice, async (req, res) => {
         });
 
         // Upsert peer in DB
-        await db.upsertPeer({ id, uuid: uuid || '', pk: public_key || null, info, ip });
+        await db.upsertPeer({ id: effectiveId, uuid: uuid || '', pk: public_key || null, info, ip });
 
         // Update online status
         try {
-            await db.updatePeerOnlineStatus(id);
+            await db.updatePeerOnlineStatus(effectiveId);
         } catch (_) {}
 
         res.json({
             success: true,
-            device_id: id,
+            device_id: effectiveId,
             server_time: Date.now(),
             heartbeat_interval: 15, // seconds
         });

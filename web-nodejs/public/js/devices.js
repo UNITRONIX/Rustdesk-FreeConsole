@@ -1716,7 +1716,7 @@
         try {
             await Utils.api(`/api/devices/${deviceId}/change-id`, {
                 method: 'POST',
-                body: { newId: newId.toUpperCase() }
+                body: { newId }
             });
             Notifications.success(_('devices.change_id_success'));
             loadDevices();

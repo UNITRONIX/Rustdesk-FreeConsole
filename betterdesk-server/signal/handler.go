@@ -197,6 +197,13 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 		}
 	}
 
+	// Panel rename: map stale client IDs to the successor row before lookup.
+	if effectiveID, ok := s.resolveRegistrationPeerID(id, clientHost, nil, nil); !ok {
+		return
+	} else if effectiveID != id {
+		id = effectiveID
+	}
+
 	// Check if peer exists in memory map
 	existing := s.peers.Get(id)
 	var dbPeer *db.Peer
@@ -268,12 +275,6 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 				"reason": "banned",
 			})
 		}
-		return
-	}
-
-	// Check if this ID was previously changed to a different one (#97) —
-	// allow the same device to keep using the old ID until it adopts the new one (#213).
-	if s.rejectRenamedPeerRegistration(id, clientHost, nil, nil) {
 		return
 	}
 
@@ -367,6 +368,14 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 		return s.processIDChange(msg)
 	}
 
+	// Panel rename: map stale client IDs to the successor row before enrollment/DB checks.
+	if effectiveID, ok := s.resolveRegistrationPeerID(id, clientHost, msg.Uuid, msg.Pk); !ok {
+		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+	} else if effectiveID != id {
+		id = effectiveID
+		msg.Id = effectiveID
+	}
+
 	// Handle no_register_device (key-only exchange, no DB entry)
 	if msg.NoRegisterDevice {
 		return registerPkResponse(pb.RegisterPkResponse_OK)
@@ -408,11 +417,6 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 	banned, _ := s.db.IsPeerBanned(id)
 	if banned {
 		log.Printf("[signal] Rejected banned peer: %s", id)
-		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
-	}
-
-	// Check if this ID was previously changed to a different one (#97).
-	if s.rejectRenamedPeerRegistration(id, clientHost, msg.Uuid, msg.Pk) {
 		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
 	}
 

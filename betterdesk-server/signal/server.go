@@ -339,6 +339,7 @@ func (s *Server) Start(ctx context.Context) error {
 	go s.serveWS()
 	go s.heartbeatCleaner()
 	go s.cleanupTCPPunchConns()
+	s.startPeerIDChangeListener()
 
 	return nil
 }

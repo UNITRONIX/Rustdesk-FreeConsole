@@ -393,7 +393,7 @@ func TestProcessIDChangeRejectsWrongPKWhenPKSent(t *testing.T) {
 	}
 }
 
-func TestRejectRenamedPeerRegistrationAllowsSameIP(t *testing.T) {
+func TestResolveRegistrationPeerIDRedirectsSameDevice(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
 
 	if err := database.UpsertPeer(&db.Peer{
@@ -408,11 +408,13 @@ func TestRejectRenamedPeerRegistrationAllowsSameIP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if srv.rejectRenamedPeerRegistration("MACPRO1", "203.0.113.50", nil, nil) {
-		t.Fatal("same IP should be allowed on renamed old ID")
+	effective, ok := srv.resolveRegistrationPeerID("MACPRO1", "203.0.113.50", nil, nil)
+	if !ok || effective != "MACPRO2" {
+		t.Fatalf("resolveRegistrationPeerID same IP = (%q, %v), want (MACPRO2, true)", effective, ok)
 	}
-	if !srv.rejectRenamedPeerRegistration("MACPRO1", "198.51.100.99", nil, nil) {
-		t.Fatal("different IP should be rejected on renamed old ID")
+	effective, ok = srv.resolveRegistrationPeerID("MACPRO1", "198.51.100.99", nil, nil)
+	if ok {
+		t.Fatalf("resolveRegistrationPeerID different IP = (%q, %v), want reject", effective, ok)
 	}
 }
 

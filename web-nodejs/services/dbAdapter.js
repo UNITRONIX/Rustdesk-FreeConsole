@@ -1171,9 +1171,9 @@ function createSqliteAdapter(config) {
 
         const pkVal = pk || '';
         const uuidVal = uuid || '';
-        if (pkVal && successor.pk && pkEqual(pkVal, successor.pk)) return { reject: false };
-        if (uuidVal && successor.uuid && uuidEqual(uuidVal, successor.uuid)) return { reject: false };
-        if (!pkVal && !uuidVal && ip && peerIPMatches(ip, successor.ip || '')) return { reject: false };
+        if (pkVal && successor.pk && pkEqual(pkVal, successor.pk)) return { reject: false, redirect_id: newId };
+        if (uuidVal && successor.uuid && uuidEqual(uuidVal, successor.uuid)) return { reject: false, redirect_id: newId };
+        if (!pkVal && !uuidVal && ip && peerIPMatches(ip, successor.ip || '')) return { reject: false, redirect_id: newId };
 
         return { reject: true, new_id: newId };
     }
@@ -4519,9 +4519,9 @@ function createPostgresAdapter() {
 
         const pkVal = pk || '';
         const uuidVal = uuid || '';
-        if (pkVal && successor.pk && pkEqual(pkVal, successor.pk)) return { reject: false };
-        if (uuidVal && successor.uuid && uuidEqual(uuidVal, successor.uuid)) return { reject: false };
-        if (!pkVal && !uuidVal && ip && peerIPMatches(ip, successor.ip || '')) return { reject: false };
+        if (pkVal && successor.pk && pkEqual(pkVal, successor.pk)) return { reject: false, redirect_id: newId };
+        if (uuidVal && successor.uuid && uuidEqual(uuidVal, successor.uuid)) return { reject: false, redirect_id: newId };
+        if (!pkVal && !uuidVal && ip && peerIPMatches(ip, successor.ip || '')) return { reject: false, redirect_id: newId };
 
         return { reject: true, new_id: newId };
     }

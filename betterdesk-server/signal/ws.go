@@ -308,6 +308,12 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 		}
 	}
 
+	if effectiveID, ok := s.resolveRegistrationPeerID(id, clientHost, nil, nil); !ok {
+		return nil
+	} else if effectiveID != id {
+		id = effectiveID
+	}
+
 	existing := s.peers.Get(id)
 	knownPeer := existing != nil
 	if !knownPeer {
@@ -368,10 +374,6 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 	// map after ban but trying to re-register via WS)
 	if banned, _ := s.db.IsPeerBanned(id); banned {
 		log.Printf("[signal] Rejected banned WS peer registration: %s from %s", id, remoteAddr)
-		return nil
-	}
-
-	if s.rejectRenamedPeerRegistration(id, clientHost, nil, nil) {
 		return nil
 	}
 
