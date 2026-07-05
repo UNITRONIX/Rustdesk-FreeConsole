@@ -361,6 +361,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/group/get", s.handleClientGroupList)
 	mux.HandleFunc("GET /api/device-group", s.handleClientGroupList)
 	mux.HandleFunc("GET /api/device-group/accessible", s.handleClientGroupList)
+	mux.HandleFunc("POST /api/device-group", s.requirePanelAdmin(s.handleDeviceGroupsPost))
 	mux.HandleFunc("GET /api/peers/list", s.handleClientGroupPeers)
 	mux.HandleFunc("POST /api/peers/list", s.handleClientGroupPeers)
 
@@ -378,6 +379,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/user-groups", s.requirePanelAdmin(s.handleUserGroupsPost))
 	mux.HandleFunc("GET /api/strategies", s.handleStrategiesGet)
 	mux.HandleFunc("POST /api/strategies", s.requirePanelAdmin(s.handleStrategiesPost))
+	mux.HandleFunc("DELETE /api/strategies/{guid}", s.requirePanelAdmin(s.handleStrategiesDelete))
 	mux.HandleFunc("POST /api/audit/conn", s.handleAuditConnPost)
 	mux.HandleFunc("GET /api/audit/conn", s.requirePermission(auth.PermAuditView, s.handleAuditConnGet))
 	mux.HandleFunc("POST /api/audit/file", s.handleAuditFilePost)
@@ -1294,7 +1296,7 @@ func (s *Server) handleChangePeerID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.ChangePeerID(oldID, body.NewID); err != nil {
+	if err := s.db.ChangePeerID(oldID, body.NewID, "panel"); err != nil {
 		if errors.Is(err, db.ErrPeerIDExists) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "Device ID already exists"})
 			return
@@ -1322,6 +1324,17 @@ func (s *Server) handleChangePeerID(w http.ResponseWriter, r *http.Request) {
 
 	if s.auditLog != nil {
 		s.auditLog.Log(audit.ActionPeerIDChanged, s.remoteIP(r), oldID, map[string]string{"new_id": body.NewID})
+	}
+
+	if s.eventBus != nil {
+		s.eventBus.Publish(eventsModule.Event{
+			Type: eventsModule.EventPeerIDChanged,
+			Data: map[string]string{
+				"old_id": oldID,
+				"new_id": body.NewID,
+				"source": "panel",
+			},
+		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{

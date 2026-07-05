@@ -4,13 +4,14 @@
  * Connects to Go server's WebSocket event bus and pushes device status
  * changes to browser clients in real time.
  *
- * Go server endpoint: GET /api/ws/events?filter=peer_online
+ * Go server endpoint: GET /api/ws/events
  * Browser endpoint:   WS /ws/device-status
  */
 
 'use strict';
 
 const WebSocket = require('ws');
+const db = require('./database');
 
 const log = {
     info:  (...a) => console.log('[DeviceStatus]', ...a),
@@ -91,7 +92,7 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
             .replace(/^https:/, 'wss:')
             .replace(/\/api$/, '');
 
-        const url = `${wsUrl}/api/ws/events?filter=peer_online&api_key=${encodeURIComponent(apiKey)}`;
+        const url = `${wsUrl}/api/ws/events?api_key=${encodeURIComponent(apiKey)}`;
 
         log.info('Connecting to Go event bus...');
 
@@ -111,13 +112,33 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
         goWs.on('message', (data) => {
             try {
                 const event = JSON.parse(data.toString());
+                const payload = event.data || {};
+
+                if (event.type === 'peer_id_changed') {
+                    const oldId = payload.old_id;
+                    const newId = payload.new_id;
+                    if (oldId && newId && typeof db.cascadePeerIdChange === 'function') {
+                        Promise.resolve(db.cascadePeerIdChange(oldId, newId)).catch((err) => {
+                            log.warn('Panel ID cascade failed:', err.message || err);
+                        });
+                    }
+                    broadcast({
+                        type: 'device_id_changed',
+                        old_id: oldId,
+                        new_id: newId,
+                        source: payload.source || '',
+                        timestamp: event.timestamp || Date.now(),
+                    });
+                    return;
+                }
+
                 // Forward peer status events to browser clients
                 if (event.type === 'peer_online' || event.type === 'peer_offline' ||
                     event.type === 'peer_status_changed' || event.type === 'peer_registered') {
                     broadcast({
                         type: 'device_status',
-                        device_id: event.peer_id || event.id || event.device_id,
-                        status: event.status || (event.type === 'peer_online' ? 'online' : 'offline'),
+                        device_id: payload.peer_id || payload.id || event.peer_id || event.id || event.device_id,
+                        status: payload.status || event.status || (event.type === 'peer_online' ? 'online' : 'offline'),
                         timestamp: event.timestamp || Date.now(),
                         details: event,
                     });

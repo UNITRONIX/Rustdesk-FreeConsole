@@ -272,9 +272,8 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 	}
 
 	// Check if this ID was previously changed to a different one (#97) —
-	// do not allow a device to come back under its old ID.
-	if renamed, _ := s.db.IsRenamedPeerID(id); renamed {
-		log.Printf("[signal] Rejected registration for renamed peer ID: %s from %s", id, raddr.IP)
+	// allow the same device to keep using the old ID until it adopts the new one (#213).
+	if s.rejectRenamedPeerRegistration(id, clientHost, nil, nil) {
 		return
 	}
 
@@ -412,9 +411,8 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
 	}
 
-	// Check if this ID was previously changed to a different one (#97)
-	if renamed, _ := s.db.IsRenamedPeerID(id); renamed {
-		log.Printf("[signal] Rejected PK registration for renamed peer ID: %s", id)
+	// Check if this ID was previously changed to a different one (#97).
+	if s.rejectRenamedPeerRegistration(id, clientHost, msg.Uuid, msg.Pk) {
 		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
 	}
 
@@ -487,13 +485,24 @@ func (s *Server) processIDChange(msg *pb.RegisterPk) *pb.RendezvousMessage {
 	if oldPeer == nil {
 		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
 	}
-	if oldPeer.UUID != "" && oldPeer.UUID != fmt.Sprintf("%x", msg.Uuid) {
-		log.Printf("[signal] Rejected ID change %s → %s: UUID mismatch", oldID, newID)
-		return registerPkResponse(pb.RegisterPkResponse_UUID_MISMATCH)
-	}
-	if len(oldPeer.PK) > 0 && !bytes.Equal(oldPeer.PK, msg.Pk) {
+
+	// RustDesk 1.4.x change-ID sends RegisterPk without pk (see change_id_shared).
+	// When pk is omitted, use the stored key; when present, enforce a match (#213).
+	effectivePK := msg.Pk
+	if len(effectivePK) == 0 {
+		effectivePK = oldPeer.PK
+	} else if len(oldPeer.PK) > 0 && !bytes.Equal(oldPeer.PK, effectivePK) {
 		log.Printf("[signal] Rejected ID change %s → %s: PK mismatch", oldID, newID)
 		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	// UUID: stock clients send machine_uid bytes on ID change (not 16-byte get_uuid()).
+	// Enforce match only for wire-format 16-byte UUIDs.
+	if len(msg.Uuid) == 16 && oldPeer.UUID != "" {
+		if !peerUUIDEqual(peerUUIDFromDB(oldPeer.UUID), msg.Uuid) {
+			log.Printf("[signal] Rejected ID change %s → %s: UUID mismatch", oldID, newID)
+			return registerPkResponse(pb.RegisterPkResponse_UUID_MISMATCH)
+		}
 	}
 
 	// Validate new ID doesn't exist
@@ -512,7 +521,7 @@ func (s *Server) processIDChange(msg *pb.RegisterPk) *pb.RendezvousMessage {
 	}
 
 	// Perform the change
-	if err := s.db.ChangePeerID(oldID, newID); err != nil {
+	if err := s.db.ChangePeerID(oldID, newID, "client"); err != nil {
 		if errors.Is(err, db.ErrPeerIDExists) || errors.Is(err, db.ErrPeerIDSoftDeleted) {
 			return registerPkResponse(pb.RegisterPkResponse_ID_EXISTS)
 		}
@@ -527,12 +536,24 @@ func (s *Server) processIDChange(msg *pb.RegisterPk) *pb.RendezvousMessage {
 	oldEntry := s.peers.Remove(oldID)
 	if oldEntry != nil {
 		oldEntry.ID = newID
-		oldEntry.PK = msg.Pk
-		oldEntry.UUID = msg.Uuid
+		oldEntry.PK = effectivePK
+		if len(msg.Uuid) > 0 {
+			oldEntry.UUID = normalizePeerUUIDBytes(msg.Uuid)
+		}
 		s.peers.Put(oldEntry)
 	}
 
 	log.Printf("[signal] ID changed: %s → %s", oldID, newID)
+	if s.eventBus != nil {
+		s.eventBus.Publish(events.Event{
+			Type: events.EventPeerIDChanged,
+			Data: map[string]string{
+				"old_id": oldID,
+				"new_id": newID,
+				"source": "client",
+			},
+		})
+	}
 	return registerPkResponse(pb.RegisterPkResponse_OK)
 }
 

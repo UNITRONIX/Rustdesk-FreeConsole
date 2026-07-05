@@ -26,7 +26,9 @@ jest.mock('../services/database', () => ({
     removeDeviceFromGroup: jest.fn().mockResolvedValue(undefined),
     getAllFolders: jest.fn().mockResolvedValue([]),
     getAllFolderAssignments: jest.fn().mockResolvedValue({}),
-    cleanupDeletedPeerData: jest.fn().mockResolvedValue(undefined)
+    cleanupDeletedPeerData: jest.fn().mockResolvedValue(undefined),
+    cascadePeerIdChange: jest.fn().mockResolvedValue(undefined),
+    purgePanelPeerRecord: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../services/serverBackend', () => ({
@@ -396,6 +398,22 @@ describe('Devices Routes', () => {
             expect(res.body.success).toBe(false);
             expect(res.body.error).toBe('devices.id_reserved_deleted');
         });
+
+        it('should cascade panel peer ID change into local databases', async () => {
+            serverBackend.getDeviceById.mockImplementation(async (id) => {
+                if (id === 'OLDCAS') return { id: 'OLDCAS', online: false };
+                return null;
+            });
+            serverBackend.changePeerId.mockResolvedValue({ success: true });
+
+            const res = await request(app)
+                .post('/api/devices/OLDCAS/change-id')
+                .send({ newId: 'NEWCAS' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(db.cascadePeerIdChange).toHaveBeenCalledWith('OLDCAS', 'NEWCAS');
+        });
     });
 
     describe('DELETE /api/devices/:id', () => {
@@ -413,6 +431,7 @@ describe('Devices Routes', () => {
                 cascade: false,
                 hard: true
             });
+            expect(db.purgePanelPeerRecord).toHaveBeenCalledWith('MACPRO');
         });
 
         it('should hard delete a soft-deleted device when active lookup misses', async () => {

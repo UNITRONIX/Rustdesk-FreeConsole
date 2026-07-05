@@ -638,14 +638,28 @@ async function getRustDeskPeerList(user, params = {}) {
     };
 }
 
-async function sendRustDeskDeviceGroups(req, res) {
+function rustDeskAccessibleDeviceGroupPayload(group, index) {
+    const guid = String(group.guid || '').trim();
+    return {
+        name: group.name || '',
+        guid,
+        note: group.note || '',
+        sort: typeof index === 'number' ? index : 0
+    };
+}
+
+async function sendRustDeskDeviceGroups(req, res, accessibleOnly = null) {
     try {
         if (req.authUser && req.authUser.role === 'pro') {
             return res.json({ data: [], total: 0, msg: 'success' });
         }
+        const useAccessible = accessibleOnly !== null
+            ? accessibleOnly
+            : String(req.path || '').includes('/device-group');
         const groups = await getRustDeskDeviceGroups(req.authUser);
+        const payloadFn = useAccessible ? rustDeskAccessibleDeviceGroupPayload : rustDeskDeviceGroupPayload;
         return res.json({
-            data: groups.map((g, i) => rustDeskDeviceGroupPayload(g, i)),
+            data: groups.map((g, i) => payloadFn(g, i)),
             total: groups.length,
             msg: 'success'
         });
@@ -1929,6 +1943,28 @@ router.post('/api/strategies', requireAuth, requireAdmin, async (req, res) => {
         }
     } catch (err) {
         console.error('[API:STRATEGIES] Create/update error:', err.message);
+        return res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * DELETE /api/strategies/:guid
+ * Remove an access control strategy (admin only).
+ */
+router.delete('/api/strategies/:guid', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const guid = sanitizeStr(req.params.guid || '', 64);
+        if (!guid) {
+            return res.status(400).json({ error: 'Strategy guid is required' });
+        }
+        const existing = await db.getStrategyByGuid(guid);
+        if (!existing) {
+            return res.status(404).json({ error: 'Strategy not found' });
+        }
+        await db.deleteStrategy(guid);
+        return res.json({ status: 'deleted', guid });
+    } catch (err) {
+        console.error('[API:STRATEGIES] Delete error:', err.message);
         return res.status(500).json({ error: 'Server error' });
     }
 });

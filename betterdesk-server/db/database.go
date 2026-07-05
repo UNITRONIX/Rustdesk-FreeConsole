@@ -467,11 +467,15 @@ type Database interface {
 	RestorePeer(id string) error
 
 	// ID change
-	ChangePeerID(oldID, newID string) error
+	ChangePeerID(oldID, newID, reason string) error
 	GetIDChangeHistory(id string) ([]*IDChangeHistory, error)
 	// IsRenamedPeerID returns true if the given ID was previously used and
 	// changed to a different one (appears as old_id in id_change_history).
 	IsRenamedPeerID(id string) (bool, error)
+	// GetLatestRenameTarget returns the most recent new_id for a renamed old_id.
+	GetLatestRenameTarget(oldID string) (string, error)
+	// ReleasePeerID clears id_change_history rows involving id so the ID can be reused.
+	ReleasePeerID(id string) error
 
 	// CDAP: linked device queries
 	GetLinkedPeers(id string) ([]*Peer, error)

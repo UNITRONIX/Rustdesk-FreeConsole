@@ -406,7 +406,7 @@ func TestChangePeerID(t *testing.T) {
 
 	db.UpsertPeer(&Peer{ID: "OLD1", Hostname: "mypc", Status: "ONLINE"})
 
-	if err := db.ChangePeerID("OLD1", "NEW1"); err != nil {
+	if err := db.ChangePeerID("OLD1", "NEW1", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -441,7 +441,7 @@ func TestChangePeerIDDuplicate(t *testing.T) {
 	db.UpsertPeer(&Peer{ID: "A1", Status: "ONLINE"})
 	db.UpsertPeer(&Peer{ID: "B1", Status: "ONLINE"})
 
-	err := db.ChangePeerID("A1", "B1")
+	err := db.ChangePeerID("A1", "B1", "")
 	if err == nil {
 		t.Error("expected error when changing to existing ID")
 	}
@@ -468,12 +468,12 @@ func TestChangePeerIDSoftDeletedTarget(t *testing.T) {
 		t.Fatalf("MACPRO state = %s, want %s", state, PeerIDSoftDeleted)
 	}
 
-	err = db.ChangePeerID("NEWCLIENT", "MACPRO")
+	err = db.ChangePeerID("NEWCLIENT", "MACPRO", "")
 	if !errors.Is(err, ErrPeerIDSoftDeleted) {
 		t.Fatalf("ChangePeerID to soft-deleted target error = %v, want ErrPeerIDSoftDeleted", err)
 	}
 
-	if err := db.ChangePeerID("NEWCLIENT", "MACPRO1"); err != nil {
+	if err := db.ChangePeerID("NEWCLIENT", "MACPRO1", ""); err != nil {
 		t.Fatalf("ChangePeerID to free target: %v", err)
 	}
 	peer, err := db.GetPeer("MACPRO1")
@@ -495,7 +495,7 @@ func TestChangePeerIDSoftDeletedSourceDoesNotMoveReservation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := db.ChangePeerID("MACPRO", "MACPRO1")
+	err := db.ChangePeerID("MACPRO", "MACPRO1", "")
 	if !errors.Is(err, ErrPeerNotFound) {
 		t.Fatalf("ChangePeerID from soft-deleted source error = %v, want ErrPeerNotFound", err)
 	}
@@ -599,6 +599,63 @@ func TestHardDelete(t *testing.T) {
 		if p.ID == "HARD1" {
 			t.Error("hard-deleted peer should not appear at all")
 		}
+	}
+}
+
+func TestHardDeleteReleasesIDHistory(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := db.UpsertPeer(&Peer{ID: "OLDREL", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ChangePeerID("OLDREL", "NEWREL", "client"); err != nil {
+		t.Fatal(err)
+	}
+	renamed, err := db.IsRenamedPeerID("OLDREL")
+	if err != nil || !renamed {
+		t.Fatalf("OLDREL should be reserved before hard delete: %v %v", renamed, err)
+	}
+
+	if err := db.HardDeletePeer("NEWREL"); err != nil {
+		t.Fatal(err)
+	}
+	renamed, err = db.IsRenamedPeerID("OLDREL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if renamed {
+		t.Fatal("OLDREL should be released after permanent delete of successor")
+	}
+}
+
+func TestChangePeerIDCascadesDeviceTokens(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := db.UpsertPeer(&Peer{ID: "OLDCAS", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	token := &DeviceToken{
+		Token:     "cascadetoken12345",
+		TokenHash: "hash-cascade-token",
+		Name:      "Cascade test",
+		PeerID:    "OLDCAS",
+		Status:    TokenStatusPending,
+		MaxUses:   1,
+	}
+	if err := db.CreateDeviceToken(token); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.ChangePeerID("OLDCAS", "NEWCAS", "panel"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := db.GetDeviceTokenByPeerID("NEWCAS")
+	if err != nil || got == nil {
+		t.Fatalf("device token should follow ID change: %v %+v", err, got)
+	}
+	if stale, _ := db.GetDeviceTokenByPeerID("OLDCAS"); stale != nil {
+		t.Fatalf("token should not remain on old ID: %+v", stale)
 	}
 }
 

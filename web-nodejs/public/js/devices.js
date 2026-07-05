@@ -54,6 +54,8 @@
     let filteredDevices = [];
     let folders = [];
     let deviceGroups = [];
+    let accessStrategies = [];
+    let strategiesLoaded = false;
     let availableUserGroups = [];
     let userGroupsLoaded = false;
     let availableTags = [];
@@ -90,6 +92,7 @@
         loadFolders();
         loadUserGroups();
         loadDeviceGroups();
+        loadStrategies();
         loadTags();
         loadDevices();
         
@@ -102,6 +105,7 @@
         initSync();
         initFolders();
         initDeviceGroups();
+        initStrategies();
         initDragDrop();
         attachFolderDropEvents();  // For static folder chips
         attachGroupDropEvents();   // For static group chips
@@ -127,6 +131,7 @@
             loadFolders();
             loadUserGroups();
             loadDeviceGroups();
+            loadStrategies();
             loadTags();
             loadDevices();
         });
@@ -166,6 +171,14 @@
                     const data = JSON.parse(event.data);
                     if (data.type === 'device_status') {
                         updateDeviceStatusInPlace(data.device_id, data.status);
+                        document.dispatchEvent(new CustomEvent('devices:live-status', {
+                            detail: { id: data.device_id, status: data.status }
+                        }));
+                    } else if (data.type === 'device_id_changed') {
+                        document.dispatchEvent(new CustomEvent('devices:id-changed', {
+                            detail: { old_id: data.old_id, new_id: data.new_id, source: data.source || '' }
+                        }));
+                        loadDevices();
                     }
                 } catch (_) {}
             };
@@ -1655,6 +1668,17 @@
      * Change device ID
      */
     async function changeDeviceId(deviceId) {
+        const device = devices.find(d => d.id === deviceId);
+        if (device?.online) {
+            const proceed = await Modal.confirm({
+                title: _('devices.change_id_title'),
+                message: _('devices.change_id_online_warn'),
+                confirmLabel: _('devices.change_id'),
+                danger: false
+            });
+            if (!proceed) return;
+        }
+
         const newId = await Modal.prompt({
             title: _('devices.change_id_title'),
             label: _('devices.new_id'),
@@ -2321,6 +2345,214 @@
     function initDeviceGroups() {
         document.getElementById('add-device-group-btn')?.addEventListener('click', () => showDeviceGroupModal());
         document.querySelector('.group-chip[data-group="all"]')?.addEventListener('click', () => selectDeviceGroup('all'));
+    }
+
+    const RUSTDESK_STRATEGY_PERM_KEYS = [
+        { key: 'enable-file-transfer', labelKey: 'devices.strategy_perm_file_transfer' },
+        { key: 'disable-clipboard', labelKey: 'devices.strategy_perm_disable_clipboard' },
+        { key: 'enable-clipboard', labelKey: 'devices.strategy_perm_enable_clipboard' },
+        { key: 'enable-audio', labelKey: 'devices.strategy_perm_audio' },
+        { key: 'enable-tunnel', labelKey: 'devices.strategy_perm_tunnel' },
+        { key: 'enable-camera', labelKey: 'devices.strategy_perm_camera' },
+        { key: 'enable-remote-restart', labelKey: 'devices.strategy_perm_restart' },
+        { key: 'enable-block-input', labelKey: 'devices.strategy_perm_block_input' },
+    ];
+
+    async function loadStrategies() {
+        try {
+            const response = await Utils.api('/api/panel/strategies');
+            accessStrategies = response.strategies || [];
+            strategiesLoaded = true;
+            renderStrategies();
+        } catch (error) {
+            console.error('Failed to load strategies:', error);
+            strategiesLoaded = true;
+            accessStrategies = [];
+            renderStrategies();
+        }
+    }
+
+    function renderStrategies() {
+        const container = document.getElementById('devices-strategies-list');
+        if (!container) return;
+        if (!strategiesLoaded) {
+            container.innerHTML = `<div class="empty-state-inline">${_('devices.loading_strategies')}</div>`;
+            return;
+        }
+        if (!accessStrategies.length) {
+            container.innerHTML = `<div class="empty-state-inline">${_('devices.no_strategies')}</div>`;
+            return;
+        }
+
+        const userGroupName = (guid) => {
+            const group = availableUserGroups.find(item => item.guid === guid);
+            return group ? group.name : (guid || _('devices.strategy_any_user_group'));
+        };
+        const deviceGroupName = (guid) => {
+            const group = deviceGroups.find(item => item.guid === guid);
+            return group ? group.name : (guid || _('devices.strategy_any_device_group'));
+        };
+
+        container.innerHTML = accessStrategies.map(strategy => {
+            const enabled = strategy.enabled !== false;
+            const permCount = Object.keys(strategy.permissions || {}).length;
+            return `<div class="strategy-manager-item ${enabled ? '' : 'strategy-disabled'}" data-guid="${Utils.escapeHtml(strategy.guid)}">
+                <div class="strategy-manager-main">
+                    <span class="material-icons">policy</span>
+                    <div class="strategy-manager-text">
+                        <strong>${Utils.escapeHtml(strategy.name)}</strong>
+                        <span>${Utils.escapeHtml(userGroupName(strategy.user_group_guid))} → ${Utils.escapeHtml(deviceGroupName(strategy.device_group_guid))}</span>
+                        <span class="strategy-perm-count">${_('devices.strategy_permissions_count', { count: permCount }) || permCount + ' settings'}</span>
+                    </div>
+                </div>
+                <span class="strategy-status-badge ${enabled ? 'enabled' : 'disabled'}">${enabled ? _('devices.strategy_enabled') : _('devices.strategy_disabled')}</span>
+                <div class="strategy-manager-actions">
+                    <button type="button" class="action-btn" data-action="edit-strategy" data-guid="${Utils.escapeHtml(strategy.guid)}" title="${_('devices.edit_strategy')}">
+                        <span class="material-icons">edit</span>
+                    </button>
+                    <button type="button" class="action-btn danger" data-action="delete-strategy" data-guid="${Utils.escapeHtml(strategy.guid)}" title="${_('devices.delete_strategy')}">
+                        <span class="material-icons">delete</span>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+
+        container.querySelectorAll('[data-action="edit-strategy"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const strategy = accessStrategies.find(item => item.guid === btn.dataset.guid);
+                if (strategy) showStrategyModal(strategy);
+            });
+        });
+        container.querySelectorAll('[data-action="delete-strategy"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const strategy = accessStrategies.find(item => item.guid === btn.dataset.guid);
+                if (strategy) deleteStrategy(strategy);
+            });
+        });
+    }
+
+    function renderStrategyPermissionOptions(permissions = {}) {
+        return RUSTDESK_STRATEGY_PERM_KEYS.map(item => {
+            const current = permissions[item.key];
+            const checked = current === 'Y' || current === true;
+            const denied = current === 'N' || current === false;
+            return `<label class="strategy-perm-option">
+                <span>${Utils.escapeHtml(_(item.labelKey))}</span>
+                <select class="form-input strategy-perm-select" data-perm-key="${Utils.escapeHtml(item.key)}">
+                    <option value="" ${!checked && !denied ? 'selected' : ''}>${_('devices.strategy_perm_default')}</option>
+                    <option value="Y" ${checked ? 'selected' : ''}>${_('devices.strategy_perm_allow')}</option>
+                    <option value="N" ${denied ? 'selected' : ''}>${_('devices.strategy_perm_deny')}</option>
+                </select>
+            </label>`;
+        }).join('');
+    }
+
+    function readStrategyPermissionsFromForm() {
+        const permissions = {};
+        document.querySelectorAll('.strategy-perm-select').forEach(select => {
+            const key = select.dataset.permKey;
+            const value = select.value;
+            if (key && (value === 'Y' || value === 'N')) permissions[key] = value;
+        });
+        return permissions;
+    }
+
+    async function showStrategyModal(strategy = null) {
+        await ensureUserGroupsLoaded();
+        if (!deviceGroups.length) await loadDeviceGroups();
+        const editing = !!strategy;
+        const userGroupOptions = [
+            `<option value="">${Utils.escapeHtml(_('devices.strategy_any_user_group'))}</option>`,
+            ...availableUserGroups.map(group => `<option value="${Utils.escapeHtml(group.guid)}" ${strategy?.user_group_guid === group.guid ? 'selected' : ''}>${Utils.escapeHtml(group.name)}</option>`)
+        ].join('');
+        const deviceGroupOptions = [
+            `<option value="">${Utils.escapeHtml(_('devices.strategy_any_device_group'))}</option>`,
+            ...deviceGroups.map(group => `<option value="${Utils.escapeHtml(group.guid)}" ${strategy?.device_group_guid === group.guid ? 'selected' : ''}>${Utils.escapeHtml(group.name)}</option>`)
+        ].join('');
+
+        Modal.show({
+            title: editing ? _('devices.edit_strategy') : _('devices.create_strategy'),
+            content: `
+                <form id="strategy-form" class="device-group-form">
+                    <div class="form-group">
+                        <label for="strategy-name">${_('devices.strategy_name')}</label>
+                        <input type="text" id="strategy-name" class="form-input" maxlength="80" required value="${Utils.escapeHtml(strategy?.name || '')}">
+                    </div>
+                    <div class="form-group">
+                        <label for="strategy-user-group">${_('devices.strategy_user_group')}</label>
+                        <select id="strategy-user-group" class="form-input">${userGroupOptions}</select>
+                    </div>
+                    <div class="form-group">
+                        <label for="strategy-device-group">${_('devices.strategy_device_group')}</label>
+                        <select id="strategy-device-group" class="form-input">${deviceGroupOptions}</select>
+                    </div>
+                    <label class="toggle-row">
+                        <input type="checkbox" id="strategy-enabled" ${strategy?.enabled !== false ? 'checked' : ''}>
+                        <span>${_('devices.strategy_enabled_label')}</span>
+                    </label>
+                    <div class="form-group">
+                        <label>${_('devices.strategy_permissions')}</label>
+                        <div class="strategy-perm-grid">${renderStrategyPermissionOptions(strategy?.permissions || {})}</div>
+                        <p class="form-hint">${_('devices.strategy_permissions_hint')}</p>
+                    </div>
+                </form>
+            `,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                { label: _('actions.save'), class: 'btn-primary', onClick: () => saveStrategy(strategy) }
+            ],
+            onOpen: () => document.getElementById('strategy-name')?.focus()
+        });
+    }
+
+    async function saveStrategy(strategy = null) {
+        const name = document.getElementById('strategy-name')?.value.trim() || '';
+        if (!name) {
+            Notifications.error(_('devices.strategy_name_required'));
+            return;
+        }
+        const payload = {
+            name,
+            user_group_guid: document.getElementById('strategy-user-group')?.value || '',
+            device_group_guid: document.getElementById('strategy-device-group')?.value || '',
+            enabled: !!document.getElementById('strategy-enabled')?.checked,
+            permissions: readStrategyPermissionsFromForm(),
+        };
+        try {
+            const url = strategy
+                ? `/api/panel/strategies/${encodeURIComponent(strategy.guid)}`
+                : '/api/panel/strategies';
+            await Utils.api(url, { method: strategy ? 'PATCH' : 'POST', body: payload });
+            Notifications.success(strategy ? _('devices.strategy_updated') : _('devices.strategy_created'));
+            Modal.close();
+            strategiesLoaded = false;
+            await loadStrategies();
+        } catch (error) {
+            Notifications.error(error.message || _('errors.server_error'));
+        }
+    }
+
+    async function deleteStrategy(strategy) {
+        const confirmed = await Modal.confirm({
+            title: _('devices.delete_strategy'),
+            message: (_('devices.delete_strategy_confirm') || 'Delete strategy {name}?').replace('{name}', strategy.name),
+            confirmLabel: _('actions.delete'),
+            danger: true
+        });
+        if (!confirmed) return;
+        try {
+            await Utils.api(`/api/panel/strategies/${encodeURIComponent(strategy.guid)}`, { method: 'DELETE' });
+            Notifications.success(_('devices.strategy_deleted'));
+            strategiesLoaded = false;
+            await loadStrategies();
+        } catch (error) {
+            Notifications.error(error.message || _('errors.server_error'));
+        }
+    }
+
+    function initStrategies() {
+        document.getElementById('add-strategy-btn')?.addEventListener('click', () => showStrategyModal());
     }
     
     // ==================== Folder Functions ====================

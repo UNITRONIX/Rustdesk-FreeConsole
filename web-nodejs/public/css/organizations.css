@@ -275,6 +275,42 @@
     resize: vertical;
 }
 
+.org-address-book-structured {
+    margin-top: var(--space-md);
+}
+
+.org-ab-section-header {
+    margin-bottom: var(--space-sm);
+}
+
+.org-ab-table-wrap {
+    margin-bottom: var(--space-md);
+}
+
+.org-address-book-table .form-input {
+    width: 100%;
+    min-width: 0;
+}
+
+.org-ab-actions {
+    width: 48px;
+    text-align: right;
+}
+
+.org-ab-empty {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: var(--space-md);
+}
+
+.org-address-book-advanced {
+    margin-top: var(--space-md);
+}
+
+.org-address-book-json-wrap.hidden {
+    display: none;
+}
+
 /* Empty state */
 .empty-state {
     text-align: center;

@@ -338,6 +338,120 @@ func TestProcessIDChangeRejectsPKMismatch(t *testing.T) {
 	}
 }
 
+func TestProcessIDChangeSuccessEmptyPK(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	storedPK := bytes.Repeat([]byte{0x42}, 32)
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "MACPRO1",
+		Status: "ONLINE",
+		PK:     storedPK,
+		UUID:   "aabbccddeeff00112233445566778899",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := &pb.RegisterPk{
+		Id:    "MACPRO",
+		OldId: "MACPRO1",
+		Uuid:  []byte("machine-uid-bytes"),
+	}
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_OK)
+	}
+
+	peer, err := database.GetPeer("MACPRO")
+	if err != nil || peer == nil {
+		t.Fatalf("GetPeer MACPRO: %v %+v", err, peer)
+	}
+	if len(peer.PK) != 32 || !bytes.Equal(peer.PK, storedPK) {
+		t.Fatalf("PK not preserved: len=%d", len(peer.PK))
+	}
+	if old, _ := database.GetPeer("MACPRO1"); old != nil {
+		t.Fatalf("MACPRO1 should be removed after ID change: %+v", old)
+	}
+}
+
+func TestProcessIDChangeRejectsWrongPKWhenPKSent(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "OLD213",
+		Status: "ONLINE",
+		PK:     bytes.Repeat([]byte{0x99}, 32),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := newRegisterPk("NEW213")
+	msg.OldId = "OLD213"
+	msg.Pk = bytes.Repeat([]byte{0x42}, 32)
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+}
+
+func TestRejectRenamedPeerRegistrationAllowsSameIP(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "MACPRO1",
+		Status: "ONLINE",
+		IP:     "203.0.113.50",
+		PK:     bytes.Repeat([]byte{0x42}, 32),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.ChangePeerID("MACPRO1", "MACPRO2", "panel"); err != nil {
+		t.Fatal(err)
+	}
+
+	if srv.rejectRenamedPeerRegistration("MACPRO1", "203.0.113.50", nil, nil) {
+		t.Fatal("same IP should be allowed on renamed old ID")
+	}
+	if !srv.rejectRenamedPeerRegistration("MACPRO1", "198.51.100.99", nil, nil) {
+		t.Fatal("different IP should be rejected on renamed old ID")
+	}
+}
+
+func TestTCPIDChangeEmptyPKRustDesk147(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	storedPK := bytes.Repeat([]byte{0x42}, 32)
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "MACPRO1",
+		Status: "ONLINE",
+		PK:     storedPK,
+		IP:     "203.0.113.10",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeAddr, err := net.ResolveTCPAddr("tcp", "203.0.113.10:50123")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := srv.handleRegisterPkTCP(&pb.RegisterPk{
+		OldId: "MACPRO1",
+		Id:    "MACPRO",
+		Uuid:  []byte("machine-uid-bytes"),
+	}, fakeAddr)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("TCP ID change result = %v, want OK", got)
+	}
+
+	peer, err := database.GetPeer("MACPRO")
+	if err != nil || peer == nil {
+		t.Fatalf("GetPeer MACPRO: %v %+v", err, peer)
+	}
+	if !bytes.Equal(peer.PK, storedPK) {
+		t.Fatal("stored PK should be preserved when client omits pk")
+	}
+}
+
 func TestProcessRegisterPkManagedAllowsTokenBoundPeer(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
 

@@ -371,8 +371,7 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 		return nil
 	}
 
-	if renamed, _ := s.db.IsRenamedPeerID(id); renamed {
-		log.Printf("[signal] Rejected WS registration for renamed peer ID: %s from %s", id, remoteAddr)
+	if s.rejectRenamedPeerRegistration(id, clientHost, nil, nil) {
 		return nil
 	}
 

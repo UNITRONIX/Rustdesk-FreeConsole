@@ -746,13 +746,26 @@ func (s *SQLiteDB) DeletePeer(id string) error {
 	return err
 }
 
-// HardDeletePeer permanently removes a peer from the database.
+// HardDeletePeer permanently removes a peer from the database and releases
+// any id_change_history reservations for that ID (#213).
 func (s *SQLiteDB) HardDeletePeer(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, err := s.db.Exec(`DELETE FROM peers WHERE id = ?`, id)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM peers WHERE id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(
+		`DELETE FROM id_change_history WHERE old_id = ? OR new_id = ?`, id, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ListPeers returns all peers, optionally including soft-deleted ones.
@@ -1024,8 +1037,25 @@ func (s *SQLiteDB) UpdatePeerFields(id string, fields map[string]string) error {
 	return err
 }
 
+func (s *SQLiteDB) cascadePeerIDInTx(tx *sql.Tx, oldID, newID string) error {
+	stmts := []struct {
+		query string
+		args  []any
+	}{
+		{`UPDATE device_tokens SET peer_id = ? WHERE peer_id = ?`, []any{newID, oldID}},
+		{`UPDATE org_devices SET device_id = ? WHERE device_id = ?`, []any{newID, oldID}},
+		{`UPDATE peers SET linked_peer_id = ? WHERE linked_peer_id = ?`, []any{newID, oldID}},
+	}
+	for _, st := range stmts {
+		if _, err := tx.Exec(st.query, st.args...); err != nil {
+			return fmt.Errorf("db: cascadePeerID %s→%s: %w", oldID, newID, err)
+		}
+	}
+	return nil
+}
+
 // ChangePeerID changes a peer's ID and records it in history.
-func (s *SQLiteDB) ChangePeerID(oldID, newID string) error {
+func (s *SQLiteDB) ChangePeerID(oldID, newID, reason string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1074,10 +1104,14 @@ func (s *SQLiteDB) ChangePeerID(oldID, newID string) error {
 		return fmt.Errorf("db: ChangePeerID delete: %w", err)
 	}
 
+	if err := s.cascadePeerIDInTx(tx, oldID, newID); err != nil {
+		return err
+	}
+
 	// Record in history
 	if _, err := tx.Exec(
-		`INSERT INTO id_change_history (old_id, new_id) VALUES (?, ?)`,
-		oldID, newID); err != nil {
+		`INSERT INTO id_change_history (old_id, new_id, reason) VALUES (?, ?, ?)`,
+		oldID, newID, reason); err != nil {
 		return fmt.Errorf("db: ChangePeerID history: %w", err)
 	}
 
@@ -1124,6 +1158,34 @@ func (s *SQLiteDB) IsRenamedPeerID(id string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// GetLatestRenameTarget returns the most recent new_id for old_id.
+func (s *SQLiteDB) GetLatestRenameTarget(oldID string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var newID string
+	err := s.db.QueryRow(
+		`SELECT new_id FROM id_change_history WHERE old_id = ? ORDER BY rowid DESC LIMIT 1`,
+		oldID).Scan(&newID)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return newID, nil
+}
+
+// ReleasePeerID clears id_change_history rows involving id.
+func (s *SQLiteDB) ReleasePeerID(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.Exec(
+		`DELETE FROM id_change_history WHERE old_id = ? OR new_id = ?`, id, id)
+	return err
 }
 
 // GetLinkedPeers returns all non-deleted peers that have linked_peer_id matching the given ID.

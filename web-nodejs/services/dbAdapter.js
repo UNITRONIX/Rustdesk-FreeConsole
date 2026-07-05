@@ -28,6 +28,39 @@ const { hashAccessToken } = require('../lib/tokenHash');
 
 // Lazy-loaded drivers — keeps startup fast when one backend isn't installed.
 let _sqlite = null;
+
+/** Match Go signal peerIPMatches — client host vs stored peer IP (may include port). */
+function peerIPMatches(clientHost, storedIP) {
+    if (!clientHost || !storedIP) return false;
+    let storedHost = storedIP;
+    const idx = storedIP.lastIndexOf(':');
+    if (idx > 0) {
+        const hostPart = storedIP.slice(0, idx);
+        if (/^\d+\.\d+\.\d+\.\d+$/.test(hostPart)) storedHost = hostPart;
+    }
+    return clientHost === storedHost || storedIP.startsWith(`${clientHost}:`);
+}
+
+function pkEqual(a, b) {
+    if (!a || !b) return false;
+    try {
+        const toBuf = (v) => {
+            if (Buffer.isBuffer(v)) return v;
+            const s = String(v);
+            return /^[0-9a-f]+$/i.test(s) ? Buffer.from(s, 'hex') : Buffer.from(s);
+        };
+        const bufA = toBuf(a);
+        const bufB = toBuf(b);
+        return bufA.length === bufB.length && bufA.equals(bufB);
+    } catch (_) {
+        return false;
+    }
+}
+
+function uuidEqual(a, b) {
+    if (!a || !b) return false;
+    return String(a).replace(/-/g, '').toLowerCase() === String(b).replace(/-/g, '').toLowerCase();
+}
 let _pg = null;
 
 function getSqliteDriver() {
@@ -1021,6 +1054,112 @@ function createSqliteAdapter(config) {
     let _lastGoPeerSyncSqlite = 0;
     const GO_SYNC_INTERVAL_SQLITE_MS = 30_000;
 
+    function cascadePeerIdChangeSqlite(oldId, newId) {
+        if (!oldId || !newId || oldId === newId) return;
+        try {
+            openMain().prepare('UPDATE peer SET id = ? WHERE id = ?').run(newId, oldId);
+        } catch (err) {
+            console.warn('[DB] cascadePeerIdChange peer table:', err.message);
+        }
+        try {
+            const authDb = openAuth();
+            const stmts = [
+                ['UPDATE peer_sysinfo SET peer_id = ? WHERE peer_id = ?', [newId, oldId]],
+                ['UPDATE peer_metrics SET peer_id = ? WHERE peer_id = ?', [newId, oldId]],
+                ['UPDATE device_folder_assignments SET device_id = ? WHERE device_id = ?', [newId, oldId]],
+                ['UPDATE device_folder_assignments SET peer_id = ? WHERE peer_id = ?', [newId, oldId]],
+                ['UPDATE device_group_peers SET peer_id = ? WHERE peer_id = ?', [newId, oldId]],
+                ['UPDATE access_tokens SET client_id = ? WHERE client_id = ?', [newId, oldId]],
+                ['UPDATE audit_connections SET peer_id = ? WHERE peer_id = ?', [newId, oldId]],
+                ['UPDATE audit_files SET peer_id = ? WHERE peer_id = ?', [newId, oldId]],
+                ['UPDATE audit_alarms SET peer_id = ? WHERE peer_id = ?', [newId, oldId]],
+            ];
+            for (const [sql, params] of stmts) {
+                try {
+                    authDb.prepare(sql).run(...params);
+                } catch (err) {
+                    if (!err.message.includes('no such table') && !err.message.includes('no such column')) {
+                        console.warn('[DB] cascadePeerIdChange:', err.message);
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('[DB] cascadePeerIdChange auth:', err.message);
+        }
+    }
+
+    function syncPanelPeerIdRenamesFromGoSqlite() {
+        const db = openMain();
+        try {
+            const histTbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='id_change_history'").get();
+            const peersTbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='peers'").get();
+            if (!histTbl || !peersTbl) return;
+            const rows = db.prepare(`
+                SELECT h.old_id, h.new_id FROM id_change_history h
+                INNER JOIN peers p ON p.id = h.new_id AND (p.soft_deleted IS NULL OR p.soft_deleted = 0)
+                WHERE EXISTS (SELECT 1 FROM peer WHERE id = h.old_id)
+            `).all();
+            for (const row of rows) {
+                cascadePeerIdChangeSqlite(row.old_id, row.new_id);
+            }
+        } catch (err) {
+            if (!err.message.includes('no such table')) {
+                console.warn('[DB] syncPanelPeerIdRenamesFromGo:', err.message);
+            }
+        }
+    }
+
+    function purgePanelPeerRecordSqlite(id) {
+        if (!id) return;
+        try {
+            openMain().prepare('DELETE FROM peer WHERE id = ?').run(id);
+        } catch (err) {
+            console.warn('[DB] purgePanelPeerRecord:', err.message);
+        }
+    }
+
+    /**
+     * Identity-aware rename guard — mirrors Go signal rejectRenamedPeerRegistration (#213).
+     * @returns {{ reject: boolean, new_id?: string }}
+     */
+    function shouldRejectRenamedPeerRegistrationSqlite(oldId, { uuid, pk, ip } = {}) {
+        const newId = (() => {
+            try {
+                const db = openMain();
+                const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='id_change_history'").get();
+                if (!tbl) return null;
+                const row = db.prepare('SELECT new_id FROM id_change_history WHERE old_id = ? ORDER BY rowid DESC LIMIT 1').get(oldId);
+                return row ? row.new_id : null;
+            } catch (_) {
+                return null;
+            }
+        })();
+        if (!newId) return { reject: false };
+
+        const db = openMain();
+        let successor = null;
+        try {
+            const peersTbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='peers'").get();
+            if (peersTbl) {
+                successor = db.prepare('SELECT pk, uuid, ip FROM peers WHERE id = ? AND NOT soft_deleted').get(newId);
+            }
+        } catch (_) {}
+        if (!successor) {
+            try {
+                successor = db.prepare('SELECT pk, uuid, ip FROM peer WHERE id = ? AND is_deleted = 0').get(newId);
+            } catch (_) {}
+        }
+        if (!successor) return { reject: false };
+
+        const pkVal = pk || '';
+        const uuidVal = uuid || '';
+        if (pkVal && successor.pk && pkEqual(pkVal, successor.pk)) return { reject: false };
+        if (uuidVal && successor.uuid && uuidEqual(uuidVal, successor.uuid)) return { reject: false };
+        if (!pkVal && !uuidVal && ip && peerIPMatches(ip, successor.ip || '')) return { reject: false };
+
+        return { reject: true, new_id: newId };
+    }
+
     function syncGoPeersSqlite() {
         const now = Date.now();
         if (now - _lastGoPeerSyncSqlite < GO_SYNC_INTERVAL_SQLITE_MS) return;
@@ -1078,6 +1217,7 @@ function createSqliteAdapter(config) {
                     console.log(`[DB] syncGoPeersSqlite: cleaned up ${result.changes} ghost peer(s) from ID changes`);
                 }
             }
+            syncPanelPeerIdRenamesFromGoSqlite();
         } catch (err) {
             if (!err.message.includes('no such table')) {
                 console.warn('[DB] syncGoPeersSqlite error:', err.message);
@@ -1233,6 +1373,21 @@ function createSqliteAdapter(config) {
                 const row = db.prepare('SELECT new_id FROM id_change_history WHERE old_id = ? ORDER BY rowid DESC LIMIT 1').get(oldId);
                 return row ? row.new_id : null;
             } catch (_) { return null; }
+        },
+
+        /**
+         * Update auth.db and panel peer rows when a device ID changes (#213).
+         */
+        cascadePeerIdChange(oldId, newId) {
+            cascadePeerIdChangeSqlite(oldId, newId);
+        },
+
+        purgePanelPeerRecord(id) {
+            purgePanelPeerRecordSqlite(id);
+        },
+
+        shouldRejectRenamedPeerRegistration(oldId, identity) {
+            return shouldRejectRenamedPeerRegistrationSqlite(oldId, identity);
         },
 
         async setBanStatus(id, banned, reason = '') {
@@ -4048,6 +4203,94 @@ function createPostgresAdapter() {
     let _lastGoPeerSync = 0;
     const GO_SYNC_INTERVAL_MS = 30_000; // sync at most every 30 seconds
 
+    async function cascadePeerIdChangePg(oldId, newId) {
+        if (!oldId || !newId || oldId === newId) return;
+        try {
+            await q('UPDATE peer SET id = $1 WHERE id = $2', [newId, oldId]);
+        } catch (err) {
+            console.warn('[DB] cascadePeerIdChange peer table:', err.message);
+        }
+        const stmts = [
+            ['UPDATE peer_sysinfo SET peer_id = $1 WHERE peer_id = $2', [newId, oldId]],
+            ['UPDATE peer_metrics SET peer_id = $1 WHERE peer_id = $2', [newId, oldId]],
+            ['UPDATE device_folder_assignments SET device_id = $1 WHERE device_id = $2', [newId, oldId]],
+            ['UPDATE device_group_peers SET peer_id = $1 WHERE peer_id = $2', [newId, oldId]],
+            ['UPDATE access_tokens SET client_id = $1 WHERE client_id = $2', [newId, oldId]],
+            ['UPDATE audit_connections SET peer_id = $1 WHERE peer_id = $2', [newId, oldId]],
+            ['UPDATE audit_files SET peer_id = $1 WHERE peer_id = $2', [newId, oldId]],
+            ['UPDATE audit_alarms SET peer_id = $1 WHERE peer_id = $2', [newId, oldId]],
+        ];
+        for (const [sql, params] of stmts) {
+            try {
+                await q(sql, params);
+            } catch (err) {
+                if (!err.message.includes('does not exist')) {
+                    console.warn('[DB] cascadePeerIdChange:', err.message);
+                }
+            }
+        }
+    }
+
+    async function syncPanelPeerIdRenamesFromGoPg() {
+        try {
+            const rows = await all(`
+                SELECT h.old_id, h.new_id FROM id_change_history h
+                INNER JOIN peers p ON p.id = h.new_id AND NOT p.soft_deleted
+                WHERE EXISTS (SELECT 1 FROM peer WHERE id = h.old_id)
+            `);
+            for (const row of rows) {
+                await cascadePeerIdChangePg(row.old_id, row.new_id);
+            }
+        } catch (err) {
+            if (!err.message.includes('does not exist')) {
+                console.warn('[DB] syncPanelPeerIdRenamesFromGo:', err.message);
+            }
+        }
+    }
+
+    async function purgePanelPeerRecordPg(id) {
+        if (!id) return;
+        try {
+            await q('DELETE FROM peer WHERE id = $1', [id]);
+        } catch (err) {
+            console.warn('[DB] purgePanelPeerRecord:', err.message);
+        }
+    }
+
+    /**
+     * Identity-aware rename guard — mirrors Go signal rejectRenamedPeerRegistration (#213).
+     * @returns {Promise<{ reject: boolean, new_id?: string }>}
+     */
+    async function shouldRejectRenamedPeerRegistrationPg(oldId, { uuid, pk, ip } = {}) {
+        let newId = null;
+        try {
+            const row = await q1('SELECT new_id FROM id_change_history WHERE old_id = $1 ORDER BY id DESC LIMIT 1', [oldId]);
+            newId = row ? row.new_id : null;
+        } catch (_) {
+            return { reject: false };
+        }
+        if (!newId) return { reject: false };
+
+        let successor = null;
+        try {
+            successor = await q1('SELECT pk, uuid, ip FROM peers WHERE id = $1 AND NOT soft_deleted', [newId]);
+        } catch (_) {}
+        if (!successor) {
+            try {
+                successor = await q1('SELECT pk, uuid, ip FROM peer WHERE id = $1 AND is_deleted = FALSE', [newId]);
+            } catch (_) {}
+        }
+        if (!successor) return { reject: false };
+
+        const pkVal = pk || '';
+        const uuidVal = uuid || '';
+        if (pkVal && successor.pk && pkEqual(pkVal, successor.pk)) return { reject: false };
+        if (uuidVal && successor.uuid && uuidEqual(uuidVal, successor.uuid)) return { reject: false };
+        if (!pkVal && !uuidVal && ip && peerIPMatches(ip, successor.ip || '')) return { reject: false };
+
+        return { reject: true, new_id: newId };
+    }
+
     /**
      * Sync devices from Go server's "peers" table into Node.js "peer" table.
      * Called before bulk queries (getAllPeers, getPeerStats) to ensure the
@@ -4088,6 +4331,14 @@ function createPostgresAdapter() {
                     info          = CASE WHEN peer.info IS NULL OR peer.info = '{}' THEN EXCLUDED.info ELSE peer.info END,
                     is_deleted    = FALSE
             `);
+            await q(`
+                DELETE FROM peer WHERE id IN (
+                    SELECT h.old_id FROM id_change_history h
+                    LEFT JOIN peers p ON p.id = h.old_id AND NOT p.soft_deleted
+                    WHERE p.id IS NULL
+                )
+            `);
+            await syncPanelPeerIdRenamesFromGoPg();
         } catch (err) {
             // 'peers' table might not exist when Go server is not used
             if (!err.message.includes('does not exist')) {
@@ -4225,6 +4476,18 @@ function createPostgresAdapter() {
                 const row = await q1('SELECT new_id FROM id_change_history WHERE old_id = $1 ORDER BY id DESC LIMIT 1', [oldId]);
                 return row ? row.new_id : null;
             } catch (_) { return null; }
+        },
+
+        async cascadePeerIdChange(oldId, newId) {
+            await cascadePeerIdChangePg(oldId, newId);
+        },
+
+        async purgePanelPeerRecord(id) {
+            await purgePanelPeerRecordPg(id);
+        },
+
+        async shouldRejectRenamedPeerRegistration(oldId, identity) {
+            return shouldRejectRenamedPeerRegistrationPg(oldId, identity);
         },
 
         async setBanStatus(id, banned, reason = '') {

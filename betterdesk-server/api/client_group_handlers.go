@@ -130,9 +130,10 @@ func (s *Server) handleStrategiesGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": data, "total": len(data)})
 }
 
-// handleStrategiesPost creates a strategy. Auth enforced by route wrapper.
+// handleStrategiesPost creates or updates a strategy. Auth enforced by route wrapper.
 func (s *Server) handleStrategiesPost(w http.ResponseWriter, r *http.Request) {
 	var body struct {
+		GUID            string          `json:"guid"`
 		Name            string          `json:"name"`
 		UserGroupGUID   string          `json:"user_group_guid"`
 		DeviceGroupGUID string          `json:"device_group_guid"`
@@ -156,6 +157,38 @@ func (s *Server) handleStrategiesPost(w http.ResponseWriter, r *http.Request) {
 	if len(body.Permissions) > 0 && string(body.Permissions) != "null" {
 		perms = string(body.Permissions)
 	}
+
+	guid := truncStr(body.GUID, maxIDLen)
+	if guid != "" {
+		existing, err := s.db.GetStrategy(guid)
+		if err != nil {
+			writeInternalError(w, err, "GetStrategy")
+			return
+		}
+		if existing == nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "Strategy not found"})
+			return
+		}
+		st := &db.Strategy{
+			Name:            body.Name,
+			UserGroupGUID:   truncStr(body.UserGroupGUID, maxIDLen),
+			DeviceGroupGUID: truncStr(body.DeviceGroupGUID, maxIDLen),
+			Enabled:         enabled,
+			Permissions:     perms,
+		}
+		if err := s.db.UpdateStrategy(guid, st); err != nil {
+			writeInternalError(w, err, "UpdateStrategy")
+			return
+		}
+		updated, err := s.db.GetStrategy(guid)
+		if err != nil {
+			writeInternalError(w, err, "GetStrategy")
+			return
+		}
+		writeJSON(w, http.StatusOK, updated)
+		return
+	}
+
 	st := &db.Strategy{
 		Name:            body.Name,
 		UserGroupGUID:   truncStr(body.UserGroupGUID, maxIDLen),
@@ -168,4 +201,27 @@ func (s *Server) handleStrategiesPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, st)
+}
+
+// handleStrategiesDelete removes a strategy by GUID.
+func (s *Server) handleStrategiesDelete(w http.ResponseWriter, r *http.Request) {
+	guid := truncStr(r.PathValue("guid"), maxIDLen)
+	if guid == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "guid is required"})
+		return
+	}
+	existing, err := s.db.GetStrategy(guid)
+	if err != nil {
+		writeInternalError(w, err, "GetStrategy")
+		return
+	}
+	if existing == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "Strategy not found"})
+		return
+	}
+	if err := s.db.DeleteStrategy(guid); err != nil {
+		writeInternalError(w, err, "DeleteStrategy")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }

@@ -240,14 +240,29 @@ router.post('/register', identifyDevice, async (req, res) => {
             return res.status(400).json({ error: 'device_id is required' });
         }
 
-        // Reject registration with a stale/renamed peer ID (Issue #97)
-        const newId = db.getRenamedPeerId ? await db.getRenamedPeerId(id) : null;
-        if (newId) {
-            return res.status(409).json({
-                error: 'Device ID has been changed',
-                new_id: newId,
-                message: `This device ID was renamed to ${newId}. Please update your configuration.`,
+        // Reject registration with a stale/renamed peer ID unless same device (#97, #213)
+        if (typeof db.shouldRejectRenamedPeerRegistration === 'function') {
+            const renameCheck = await db.shouldRejectRenamedPeerRegistration(id, {
+                uuid: uuid || '',
+                pk: public_key || '',
+                ip,
             });
+            if (renameCheck.reject && renameCheck.new_id) {
+                return res.status(409).json({
+                    error: 'Device ID has been changed',
+                    new_id: renameCheck.new_id,
+                    message: `This device ID was renamed to ${renameCheck.new_id}. Please update your configuration.`,
+                });
+            }
+        } else {
+            const newId = db.getRenamedPeerId ? await db.getRenamedPeerId(id) : null;
+            if (newId) {
+                return res.status(409).json({
+                    error: 'Device ID has been changed',
+                    new_id: newId,
+                    message: `This device ID was renamed to ${newId}. Please update your configuration.`,
+                });
+            }
         }
 
         // Build info JSON

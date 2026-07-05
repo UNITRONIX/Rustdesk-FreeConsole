@@ -22,8 +22,47 @@ const DeviceDetail = (function () {
         if (typeof detail.note === 'string') {
             device.note = detail.note;
         }
+        if (typeof detail.online === 'boolean' || detail.status || detail.live_status) {
+            device.online = detail.online ?? device.online;
+            device.status = detail.status || device.status;
+            device.live_status = detail.live_status || detail.status || device.live_status;
+        }
 
         _render();
+    });
+
+    document.addEventListener('devices:live-status', function (event) {
+        const detail = event.detail || {};
+        if (!device || !detail.id || device.id !== detail.id) return;
+        const normalized = String(detail.status || '').toLowerCase();
+        device.live_status = normalized;
+        device.online = normalized === 'online';
+        device.status = normalized;
+        const statusBar = overlayEl?.querySelector('.device-panel-status-bar');
+        if (statusBar) {
+            const statusInfo = _resolveDeviceStatus(device);
+            const badge = statusBar.querySelector('.device-panel-status-badge');
+            if (badge) {
+                badge.className = 'device-panel-status-badge ' + statusInfo.className;
+                if (statusInfo.title) badge.title = statusInfo.title;
+                else badge.removeAttribute('title');
+                badge.innerHTML = '<span class="status-dot"></span>' + statusInfo.label;
+            }
+        }
+    });
+
+    document.addEventListener('devices:id-changed', function (event) {
+        const detail = event.detail || {};
+        if (!device || !detail.old_id || device.id !== detail.old_id) return;
+        const newId = detail.new_id;
+        if (!newId) return;
+        device.id = newId;
+        _stopRefresh();
+        _startRefresh(newId);
+        const titleEl = overlayEl?.querySelector('.device-panel-device-id');
+        if (titleEl) titleEl.textContent = newId;
+        const copyBtn = overlayEl?.querySelector('.device-panel-copy-btn[data-copy]');
+        if (copyBtn) copyBtn.dataset.copy = newId;
     });
 
     // ──────────────────────────────────────────────────────────────────────
@@ -1278,6 +1317,16 @@ const DeviceDetail = (function () {
         // Capture device ID before async operation — panel close sets device=null
         const deviceId = device && device.id;
         if (!deviceId) return;
+
+        if (device.online) {
+            const proceed = await Modal.confirm({
+                title: _('devices.change_id_title'),
+                message: _('devices.change_id_online_warn'),
+                confirmLabel: _('devices.change_id'),
+                danger: false
+            });
+            if (!proceed) return;
+        }
 
         const newId = await Modal.prompt({
             title: _('devices.change_id_title'),

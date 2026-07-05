@@ -1,7 +1,13 @@
 ## [Unreleased]
 
+### Fixed
+- **Device ID change (#213):** RustDesk 1.4.x client rename works again — the server accepts `RegisterPk` ID-change requests with an empty PK (stock client wire format) instead of returning `NOT_SUPPORT` / “Not yet supported by the server”.
+- **Panel ID change:** Permanent delete now clears `id_change_history` so released IDs can be reused; panel/API ID changes cascade to enrollment tokens, org assignments, and linked peers; renamed-ID registration allows the same device (matching IP or PK/UUID) to stay connected after a panel-side rename.
+- **Panel sync:** Go `peer_id_changed` events now cascade panel DB rows in real time; periodic Go→panel sync applies client-side renames; hard delete purges stale panel `peer` rows; BD-API `/register` uses the same identity-aware rename guard as the signal server.
+
 ### Changed
-- _(none yet)_
+- **Panel UX:** Device list reloads on live ID-change events; online-device warning before change-ID from both list and detail views.
+- **RustDesk Pro parity:** Panel strategies manager on Devices page; org address book structured editor; `/api/device-group/accessible` returns accessible payload (matches Go); Go API supports `POST /api/device-group`, strategy update/delete; device detail panel receives live status and ID-change events.
 
 ---
 

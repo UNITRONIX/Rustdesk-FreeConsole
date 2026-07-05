@@ -751,10 +751,23 @@ func (pg *PostgresDB) DeletePeer(id string) error {
 	return err
 }
 
-// HardDeletePeer permanently removes a peer from the database.
+// HardDeletePeer permanently removes a peer from the database and releases
+// any id_change_history reservations for that ID (#213).
 func (pg *PostgresDB) HardDeletePeer(id string) error {
-	_, err := pg.pool.Exec(pg.ctx, `DELETE FROM peers WHERE id = $1`, id)
-	return err
+	tx, err := pg.pool.Begin(pg.ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(pg.ctx)
+
+	if _, err := tx.Exec(pg.ctx, `DELETE FROM peers WHERE id = $1`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(pg.ctx,
+		`DELETE FROM id_change_history WHERE old_id = $1 OR new_id = $1`, id); err != nil {
+		return err
+	}
+	return tx.Commit(pg.ctx)
 }
 
 // ListPeers returns all peers, optionally including soft-deleted ones.
@@ -952,9 +965,28 @@ func (pg *PostgresDB) UpdatePeerFields(id string, fields map[string]string) erro
 
 // ── ID Change ─────────────────────────────────────────────────────────
 
+func (pg *PostgresDB) cascadePeerIDInTx(ctx context.Context, tx pgx.Tx, oldID, newID string) error {
+	stmts := []struct {
+		query string
+		args  []any
+	}{
+		{`UPDATE device_tokens SET peer_id = $1 WHERE peer_id = $2`, []any{newID, oldID}},
+		{`UPDATE org_devices SET device_id = $1 WHERE device_id = $2`, []any{newID, oldID}},
+		{`UPDATE peers SET linked_peer_id = $1 WHERE linked_peer_id = $2`, []any{newID, oldID}},
+		{`UPDATE device_folder_assignments SET device_id = $1 WHERE device_id = $2`, []any{newID, oldID}},
+		{`UPDATE device_group_members SET peer_id = $1 WHERE peer_id = $2`, []any{newID, oldID}},
+	}
+	for _, st := range stmts {
+		if _, err := tx.Exec(ctx, st.query, st.args...); err != nil {
+			return fmt.Errorf("db: cascadePeerID %s→%s: %w", oldID, newID, err)
+		}
+	}
+	return nil
+}
+
 // ChangePeerID changes a peer's ID and records it in history.
 // Uses a PostgreSQL transaction with row-level locking.
-func (pg *PostgresDB) ChangePeerID(oldID, newID string) error {
+func (pg *PostgresDB) ChangePeerID(oldID, newID, reason string) error {
 	tx, err := pg.pool.Begin(pg.ctx)
 	if err != nil {
 		return err
@@ -996,9 +1028,13 @@ func (pg *PostgresDB) ChangePeerID(oldID, newID string) error {
 		return fmt.Errorf("db: ChangePeerID delete: %w", err)
 	}
 
+	if err := pg.cascadePeerIDInTx(pg.ctx, tx, oldID, newID); err != nil {
+		return err
+	}
+
 	if _, err := tx.Exec(pg.ctx,
-		`INSERT INTO id_change_history (old_id, new_id) VALUES ($1, $2)`,
-		oldID, newID); err != nil {
+		`INSERT INTO id_change_history (old_id, new_id, reason) VALUES ($1, $2, $3)`,
+		oldID, newID, reason); err != nil {
 		return fmt.Errorf("db: ChangePeerID history: %w", err)
 	}
 
@@ -1036,6 +1072,28 @@ func (pg *PostgresDB) IsRenamedPeerID(id string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// GetLatestRenameTarget returns the most recent new_id for old_id.
+func (pg *PostgresDB) GetLatestRenameTarget(oldID string) (string, error) {
+	var newID string
+	err := pg.pool.QueryRow(pg.ctx,
+		`SELECT new_id FROM id_change_history WHERE old_id = $1 ORDER BY id DESC LIMIT 1`,
+		oldID).Scan(&newID)
+	if err == pgx.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return newID, nil
+}
+
+// ReleasePeerID clears id_change_history rows involving id.
+func (pg *PostgresDB) ReleasePeerID(id string) error {
+	_, err := pg.pool.Exec(pg.ctx,
+		`DELETE FROM id_change_history WHERE old_id = $1 OR new_id = $1`, id)
+	return err
 }
 
 // GetLinkedPeers returns all non-deleted peers that have linked_peer_id matching the given ID.
