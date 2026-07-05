@@ -34,7 +34,7 @@
 services:
   # BetterDesk Server (Go) — handles signal, relay, and API
   server:
-    image: ghcr.io/unitronix/betterdesk-server:${BETTERDESK_IMAGE_TAG:-3.3.102}
+    image: ghcr.io/unitronix/betterdesk-server:${BETTERDESK_IMAGE_TAG:-3.3.103}
     container_name: betterdesk-server
     hostname: betterdesk-server
     command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-api-port", "21114", "-key-file", "/opt/rustdesk/id_ed25519"]
@@ -89,7 +89,7 @@ services:
 
   # BetterDesk Console — Web Management Interface
   console:
-    image: ghcr.io/unitronix/betterdesk-console:${BETTERDESK_IMAGE_TAG:-3.3.102}
+    image: ghcr.io/unitronix/betterdesk-console:${BETTERDESK_IMAGE_TAG:-3.3.103}
     container_name: betterdesk-console
     hostname: betterdesk-console
     ports:
@@ -119,7 +119,7 @@ services:
       - WS_HBBR_PORT=21117
       - DOCKER=true
       - BETTERDESK_UPDATE_MODE=image
-      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.3.102}
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.3.103}
     networks:
       - betterdesk-net
     depends_on:
