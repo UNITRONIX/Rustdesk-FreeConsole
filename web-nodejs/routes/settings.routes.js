@@ -174,7 +174,6 @@ router.post('/api/settings/device-scope', requireAuth, requirePermission('server
 /**
  * GET /api/settings/audit - Get audit log
  */
- */
 router.get('/api/settings/audit', requireAuth, async (req, res) => {
     try {
         const limit = parseInt(req.query.limit, 10) || 100;
