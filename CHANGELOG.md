@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.105] — 2026-07-05
+
 ### Added
 - **User scope UX (#227):** User Management now assigns **folders**, **direct devices**, and **RustDesk Pro strategies** per user; effective device count badge; folder ACL supports **allowed user groups**; optional **restricted default visibility** in Settings (`DEVICE_SCOPE_DEFAULT` / panel setting); docs [SCOPED_REMOTE_USER.md](docs/features/SCOPED_REMOTE_USER.md) and draft GitHub reply.
 
@@ -1583,3 +1590,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.102]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.101...v3.3.102
 [3.3.103]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.102...v3.3.103
 [3.3.104]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.103...v3.3.104
+[3.3.105]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.104...v3.3.105
