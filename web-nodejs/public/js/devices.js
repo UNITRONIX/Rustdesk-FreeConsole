@@ -75,6 +75,19 @@
     const PER_PAGE_OPTIONS = [10, 20, 50, 100];
     let contextMenuState = null;
     let hScrollSyncing = false;
+    const pendingRequests = new Map();
+    const LOAD_STAGGER_MS = 120;
+    
+    function fetchOnce(endpoint, fetcher) {
+        if (pendingRequests.has(endpoint)) return pendingRequests.get(endpoint);
+        const request = fetcher().finally(() => pendingRequests.delete(endpoint));
+        pendingRequests.set(endpoint, request);
+        return request;
+    }
+
+    function scheduleLoad(fn, index) {
+        setTimeout(fn, index * LOAD_STAGGER_MS);
+    }
     
     // Elements
     let tableBody, pagination, emptyState, bulkActions, selectedCountEl;
@@ -88,13 +101,13 @@
         bulkActions = document.getElementById('bulk-actions');
         selectedCountEl = document.getElementById('selected-count');
         
-        // Load data
-        loadFolders();
-        loadUserGroups();
-        loadDeviceGroups();
-        loadStrategies();
-        loadTags();
-        loadDevices();
+        // Load data (staggered to avoid rate-limit bursts on page entry)
+        scheduleLoad(loadFolders, 0);
+        scheduleLoad(loadUserGroups, 1);
+        scheduleLoad(loadDeviceGroups, 2);
+        scheduleLoad(loadStrategies, 3);
+        scheduleLoad(loadTags, 4);
+        scheduleLoad(loadDevices, 5);
         
         // Event listeners
         initSearch();
@@ -643,7 +656,8 @@
     async function loadDevices() {
         try {
             const qs = showDeleted ? '?includeDeleted=true' : '';
-            const response = await Utils.api('/api/devices' + qs);
+            const endpoint = '/api/devices' + qs;
+            const response = await fetchOnce(endpoint, () => Utils.api(endpoint));
             devices = response.devices || [];
             
             // Update count
@@ -691,7 +705,7 @@
 
     async function loadUserGroups() {
         try {
-            const response = await Utils.api('/api/panel/user-groups');
+            const response = await fetchOnce('/api/panel/user-groups', () => Utils.api('/api/panel/user-groups'));
             availableUserGroups = response.groups || [];
             userGroupsLoaded = true;
         } catch (error) {
@@ -2183,7 +2197,7 @@
 
     async function loadTags() {
         try {
-            const response = await Utils.api('/api/tags');
+            const response = await fetchOnce('/api/tags', () => Utils.api('/api/tags'));
             availableTags = response.tags || [];
             renderTagFilters();
         } catch (error) {
@@ -2238,7 +2252,7 @@
 
     async function loadDeviceGroups() {
         try {
-            const response = await Utils.api('/api/device-groups');
+            const response = await fetchOnce('/api/device-groups', () => Utils.api('/api/device-groups'));
             deviceGroups = response.groups || [];
             window._betterdesk_device_groups = deviceGroups;
             renderDeviceGroups();
@@ -2360,7 +2374,7 @@
 
     async function loadStrategies() {
         try {
-            const response = await Utils.api('/api/panel/strategies');
+            const response = await fetchOnce('/api/panel/strategies', () => Utils.api('/api/panel/strategies'));
             accessStrategies = response.strategies || [];
             strategiesLoaded = true;
             renderStrategies();
@@ -2679,7 +2693,7 @@
      */
     async function loadFolders() {
         try {
-            const response = await Utils.api('/api/folders');
+            const response = await fetchOnce('/api/folders', () => Utils.api('/api/folders'));
             folders = response.folders || [];
             // Expose folders globally for DeviceDetail panel
             window._betterdesk_folders = folders;

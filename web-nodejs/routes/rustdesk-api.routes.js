@@ -129,6 +129,17 @@ async function authenticateRequest(req) {
 }
 
 /**
+ * Panel browser requests use session cookies, not Bearer tokens.
+ * Fall through to panel routes mounted later in server.js (same as GET /api/users).
+ */
+function fallthroughUnlessBearer(req, res, next) {
+    if (!extractBearerToken(req)) {
+        return next('route');
+    }
+    next();
+}
+
+/**
  * Middleware: require Bearer auth
  */
 async function requireAuth(req, res, next) {
@@ -1888,7 +1899,7 @@ router.post('/api/user-groups', requireAuth, requireAdmin, async (req, res) => {
  * GET /api/strategies
  * List all access control strategies.
  */
-router.get('/api/strategies', requireAuth, async (req, res) => {
+router.get('/api/strategies', fallthroughUnlessBearer, requireAuth, async (req, res) => {
     try {
         const strategies = await db.getAllStrategies();
         return res.json({
@@ -1988,7 +1999,7 @@ async function resolveRustDeskStrategyRefs(body = {}) {
 /**
  * GET /api/strategies/:guid
  */
-router.get('/api/strategies/:guid', requireAuth, async (req, res) => {
+router.get('/api/strategies/:guid', fallthroughUnlessBearer, requireAuth, async (req, res) => {
     try {
         const guid = sanitizeStr(req.params.guid || '', 64);
         if (!guid) return res.status(400).json({ error: 'Strategy guid is required' });
@@ -2049,7 +2060,7 @@ router.put('/api/strategies/:guid/status', requireAuth, requireAdmin, async (req
 /**
  * GET /api/devices — Pro admin list (id + guid)
  */
-router.get('/api/devices', requireAuth, async (req, res) => {
+router.get('/api/devices', fallthroughUnlessBearer, requireAuth, async (req, res) => {
     try {
         const idFilter = sanitizeStr(req.query.id || '', 64);
         const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 50, 1), 1000);

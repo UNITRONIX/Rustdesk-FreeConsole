@@ -18,7 +18,7 @@ const https = require('https');
 const config = require('./config/config');
 const securityMiddleware = require('./middleware/security');
 const { initI18n } = require('./middleware/i18n');
-const { apiLimiter, widgetLimiter, getPanelPollMountPaths } = require('./middleware/rateLimiter');
+const { apiLimiter, widgetLimiter, panelPreferenceLimiter, getPanelPollMountPaths } = require('./middleware/rateLimiter');
 const { csrfTokenProvider, doubleCsrfProtection, downgradeToHttp: csrfDowngradeToHttp } = require('./middleware/csrf');
 const { roleHasPermission, isSuperAdminRole } = require('./middleware/auth');
 const authService = require('./services/authService');
@@ -157,6 +157,8 @@ app.use('/wallpapers', express.static(path.join(__dirname, 'wallpapers'), {
 for (const p of getPanelPollMountPaths()) {
     app.use(p, widgetLimiter);
 }
+app.use('/api/panel', widgetLimiter);
+app.use('/api/desktop/layout', panelPreferenceLimiter);
 app.use('/api/', apiLimiter);
 
 // RustDesk Client API — mounted BEFORE CSRF because desktop clients use Bearer

@@ -31,12 +31,17 @@ const PANEL_POLL_PATHS = new Set([
     '/api/system/info',
     '/api/logs/recent',
     '/api/database/stats',
-    '/api/docker/containers'
+    '/api/docker/containers',
+    '/api/folders',
+    '/api/tags',
+    '/api/device-groups',
+    '/api/bd/notifications'
 ]);
 
 /** Prefixes for read-only dashboard sub-routes (future-safe). */
 const PANEL_POLL_PREFIXES = [
-    '/api/dashboard/'
+    '/api/dashboard/',
+    '/api/panel/'
 ];
 
 function isPanelPollRequest(req) {
@@ -45,6 +50,13 @@ function isPanelPollRequest(req) {
     const path = req.path || '';
     if (PANEL_POLL_PATHS.has(path)) return true;
     return PANEL_POLL_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+/** Session-authenticated UI preference writes (desktop layout save). */
+function isPanelPreferenceWrite(req) {
+    const method = String(req.method || 'GET').toUpperCase();
+    if (method !== 'POST') return false;
+    return (req.path || '') === '/api/desktop/layout';
 }
 
 /** Paths that receive widgetLimiter in server.js (exact paths only). */
@@ -70,7 +82,7 @@ const apiLimiter = rateLimit({
         error: 'Too many requests. Please try again later.'
     },
     keyGenerator: defaultKeyGenerator,
-    skip: (req) => isPanelPollRequest(req)
+    skip: (req) => isPanelPollRequest(req) || isPanelPreferenceWrite(req)
 });
 
 /**
@@ -88,6 +100,25 @@ const widgetLimiter = rateLimit({
         error: 'Too many widget requests. Please slow down.'
     },
     keyGenerator: defaultKeyGenerator
+});
+
+/**
+ * Desktop layout / wallpaper preference saves (session + CSRF, debounced in UI).
+ */
+const panelPreferenceLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: parseInt(process.env.PANEL_PREFERENCE_RATE_LIMIT_MAX, 10) || 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        success: false,
+        error: 'Too many layout save requests. Please slow down.'
+    },
+    keyGenerator: (req) => {
+        const userId = req.session && req.session.userId;
+        if (userId) return `pref:${userId}`;
+        return defaultKeyGenerator(req);
+    }
 });
 
 /**
@@ -170,12 +201,14 @@ const fileAccessLimiter = rateLimit({
 module.exports = {
     apiLimiter,
     widgetLimiter,
+    panelPreferenceLimiter,
     rdClientPageLimiter,
     loginLimiter,
     passwordChangeLimiter,
     uploadLimiter,
     fileAccessLimiter,
     isPanelPollRequest,
+    isPanelPreferenceWrite,
     getPanelPollMountPaths,
     PANEL_POLL_PATHS
 };

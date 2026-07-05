@@ -253,11 +253,17 @@ const Utils = {
         } catch (error) {
             if (error.status === 401) {
                 var path = window.location.pathname || '';
+                var panelUser = window.BetterDesk && window.BetterDesk.user;
                 if (path.startsWith('/remote') && !path.startsWith('/remote/login')) {
                     window.location.href = '/remote/login?return=' +
                         encodeURIComponent(path + (window.location.search || '')) + '&expired=1';
-                } else {
+                } else if (!panelUser) {
                     window.location.href = '/login';
+                } else if (typeof Notifications !== 'undefined' && Notifications.error) {
+                    var msg = (typeof _ === 'function' ? _('auth.totp_session_expired') : null)
+                        || error.message
+                        || 'Unauthorized';
+                    Notifications.error(msg);
                 }
             }
             throw error;

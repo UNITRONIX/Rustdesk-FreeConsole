@@ -139,8 +139,8 @@
 
     async function loadStrategies() {
         try {
-            const response = await Utils.api('/api/strategies');
-            strategies = Array.isArray(response) ? response : (response.data || []);
+            const response = await Utils.api('/api/panel/strategies');
+            strategies = response.strategies || [];
             strategiesLoaded = true;
         } catch (error) {
             strategies = [];

@@ -382,8 +382,13 @@
         } catch (_) { /* ignore corrupt data */ }
     }
 
+    function layoutPersistenceEnabled() {
+        return document.body.classList.contains('desktop-active') || _widgets.size > 0;
+    }
+
     var _saveTimeout = null;
     function saveLayout() {
+        if (!layoutPersistenceEnabled()) return;
         clearTimeout(_saveTimeout);
         _saveTimeout = setTimeout(function () {
             var arr = [];
@@ -395,6 +400,7 @@
     }
 
     function saveLayoutToServer(arr) {
+        if (!layoutPersistenceEnabled()) return;
         if (!window.BetterDesk || !window.BetterDesk.csrfToken) return;
         if (typeof Utils === 'undefined' || !Utils.api) return;
         Utils.api('/api/desktop/layout', {
@@ -2041,6 +2047,7 @@
     var _prevCanvasArea = null;
 
     function autoReposition() {
+        if (!layoutPersistenceEnabled()) return;
         var area = getCanvasArea();
         if (area.w < 200 || area.h < 200) return;
 
@@ -2091,6 +2098,7 @@
     // Watch for window resize and auto-reposition
     var _repositionTimeout = null;
     window.addEventListener('resize', function () {
+        if (!layoutPersistenceEnabled()) return;
         clearTimeout(_repositionTimeout);
         _repositionTimeout = setTimeout(autoReposition, 300);
     });
