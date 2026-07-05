@@ -34,7 +34,7 @@ FROM alpine:3.20
 
 LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk Server - RustDesk-compatible signal + relay"
-LABEL version="3.3.109"
+LABEL version="3.3.110"
 
 RUN apk add --no-cache \
     ca-certificates \
