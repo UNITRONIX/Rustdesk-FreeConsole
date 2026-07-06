@@ -64,6 +64,8 @@ class RDClient {
 
         // Codec / quality control
         this._codecAbilities = null;          // probed VideoDecoder support map
+        this._peerEncoding = null;            // peer SupportedEncoding from handshake
+        this._windowsSessions = { sessions: [], currentSid: 0 };
         this._preferCodec = opts.preferCodec || 'Auto';
         this._adaptivePaused = false;         // true once the user picks codec/quality manually
         this._codecFallbackDone = false;      // one automatic downgrade per session
@@ -1064,6 +1066,7 @@ class RDClient {
     }
 
     async _applyRemoteClipboard(clipboards) {
+        if (this._viewOnly) return;
         const list = clipboards || [];
         if (!list.length) return;
 
@@ -1137,6 +1140,11 @@ class RDClient {
             this._emit('switch_display', misc.switchDisplay);
             return;
         }
+        if (misc.supportedEncoding || misc.supported_encoding) {
+            this._peerEncoding = misc.supportedEncoding || misc.supported_encoding;
+            this._emit('peer_encoding', this._peerEncoding);
+            return;
+        }
     }
 
     // ---- Session Management ----
@@ -1207,6 +1215,8 @@ class RDClient {
         // Proactively request an initial keyframe so the decoder can start
         // immediately even if we joined an already-running stream on a delta.
         this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
+
+        this._advertiseSupportedEncoding();
 
         // Start ping interval
         this._pingInterval = setInterval(() => {
@@ -1445,6 +1455,7 @@ class RDClient {
      */
     sendClipboard(text) {
         if (this._state !== 'streaming') return;
+        if (this._viewOnly) return;
         void this._sendClipboard(text);
     }
 
@@ -1663,9 +1674,62 @@ class RDClient {
             this._currentDisplay = 0;
         }
         this._virtualDisplay = this._parseVirtualDisplaySupport(info);
+        if (info.encoding) {
+            this._peerEncoding = info.encoding;
+        }
+        this._windowsSessions = this._parseWindowsSessions(info);
         if (this.input && info.platform) {
             this.input.setPeerPlatform(info.platform);
         }
+    }
+
+    /**
+     * @param {Object} info
+     * @returns {{sessions: Array<{sid:number,name:string}>, currentSid: number}}
+     */
+    _parseWindowsSessions(info) {
+        const raw = info.windowsSessions || info.windows_sessions;
+        if (!raw) return { sessions: [], currentSid: 0 };
+        const list = Array.isArray(raw.sessions) ? raw.sessions : [];
+        const sessions = list.map(function (s) {
+            return {
+                sid: s.sid,
+                name: s.name || ('Session ' + s.sid)
+            };
+        });
+        const currentSid = raw.currentSid != null ? raw.currentSid : (raw.current_sid || 0);
+        return { sessions: sessions, currentSid: currentSid };
+    }
+
+    /**
+     * Windows session list reported by the peer (multi-session hosts).
+     * @returns {{sessions: Array<{sid:number,name:string}>, currentSid: number}}
+     */
+    getWindowsSessions() {
+        return this._windowsSessions || { sessions: [], currentSid: 0 };
+    }
+
+    /**
+     * Switch the controlled Windows session (RustDesk selected_sid).
+     * @param {number} sid
+     */
+    selectWindowsSession(sid) {
+        if (this._state !== 'streaming') return;
+        const n = Number(sid);
+        if (!Number.isFinite(n) || n < 0) return;
+        this._sendPeerMessage(this.proto.buildMisc('selectedSid', n));
+        if (this._windowsSessions) this._windowsSessions.currentSid = n;
+        this._emit('windows_session_selected', n);
+    }
+
+    /**
+     * Advertise operator decode capabilities to the peer (Misc.supported_encoding).
+     * @private
+     */
+    _advertiseSupportedEncoding() {
+        if (!this.proto || typeof this.proto.buildSupportedEncoding !== 'function') return;
+        const enc = this.proto.buildSupportedEncoding(this._codecAbilities);
+        this._sendPeerMessage(this.proto.buildMisc('supportedEncoding', enc));
     }
 
     /**

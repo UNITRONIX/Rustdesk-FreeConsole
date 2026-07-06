@@ -284,3 +284,42 @@ describe('RDClient KeyEvent protobuf encoding', () => {
         expect(decoded.keyEvent.controlKey).toBe('Unknown');
     });
 });
+
+describe('RDClient SupportedEncoding protobuf encoding', () => {
+    let Message;
+    let SupportedEncoding;
+
+    beforeAll(async () => {
+        const root = await protobuf.load([
+            path.join(__dirname, '../protos/message.proto')
+        ]);
+        Message = root.lookupType('hbb.Message');
+        SupportedEncoding = root.lookupType('hbb.SupportedEncoding');
+    });
+
+    it('encodes Misc.supported_encoding with codec flags', () => {
+        const enc = SupportedEncoding.fromObject({
+            h264: true,
+            h265: true,
+            vp8: false,
+            av1: true,
+            i444: { h264: false, h265: false, vp8: false, vp9: false, av1: false }
+        });
+        const buf = Message.encode(Message.fromObject({
+            misc: { supportedEncoding: enc }
+        })).finish();
+        expect(buf.length).toBeGreaterThan(0);
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.misc.supportedEncoding.h264).toBe(true);
+        expect(decoded.misc.supportedEncoding.h265).toBe(true);
+        expect(decoded.misc.supportedEncoding.av1).toBe(true);
+    });
+
+    it('encodes Misc.selected_sid for Windows session switch', () => {
+        const buf = Message.encode(Message.fromObject({
+            misc: { selectedSid: 2 }
+        })).finish();
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.misc.selectedSid).toBe(2);
+    });
+});

@@ -153,7 +153,8 @@ class RDProtocol {
         return this.types.Message.decode(protoBytes);
     }
 
-    // ---- Protocol message builders ----
+    // Client version advertised to RustDesk peers (keep in sync with product baseline)
+    static CLIENT_VERSION = 'BetterDesk-Web/1.4.8';
 
     /**
      * Build PunchHoleRequest for connecting to a device
@@ -169,7 +170,7 @@ class RDProtocol {
                 licenceKey: serverKey || '',
                 connType: ct,
                 token: '',
-                version: 'BetterDesk-Web/1.3.9',
+                version: RDProtocol.CLIENT_VERSION,
                 forceRelay: true // Browser must use relay
             }
         };
@@ -238,7 +239,7 @@ class RDProtocol {
                 myId: opts.myId || 'web-client-ft',
                 myName: opts.myName || 'BetterDesk Web',
                 myPlatform: 'Web',
-                version: 'BetterDesk-Web/1.3.9',
+                version: RDProtocol.CLIENT_VERSION,
                 sessionId: Date.now(),
                 fileTransfer: {
                     dir: opts.dir != null ? opts.dir : '',
@@ -263,7 +264,7 @@ class RDProtocol {
                 myId: opts.myId || 'web-client',
                 myName: opts.myName || 'BetterDesk Web',
                 myPlatform: 'Web',
-                version: 'BetterDesk-Web/1.3.9',
+                version: RDProtocol.CLIENT_VERSION,
                 sessionId: Date.now(),
                 option: {
                     imageQuality: this.enums.ImageQuality.values[quality] || this.enums.ImageQuality.values.Best,
@@ -312,10 +313,35 @@ class RDProtocol {
         return {
             abilityVp9: can('vp9', hasWebCodecs),
             abilityH264: can('h264', hasWebCodecs || hasJMuxer),
-            abilityH265: can('h265', false),
+            abilityH265: can('h265', hasWebCodecs),
             abilityAv1: can('av1', hasWebCodecs),
             abilityVp8: can('vp8', hasWebCodecs),
             prefer: this.preferCodecValue(o.prefer || (hasWebCodecs ? 'Auto' : 'H264'))
+        };
+    }
+
+    /**
+     * Build SupportedEncoding for Misc.supported_encoding (RustDesk 1.4.x negotiation).
+     * @param {Object} [abilities] - probed { h264, h265, vp8, av1 } booleans
+     * @returns {Object}
+     */
+    buildSupportedEncoding(abilities) {
+        const a = abilities || {};
+        const has = (key, fallback) => (a[key] != null ? !!a[key] : !!fallback);
+        const hasWebCodecs = typeof VideoDecoder !== 'undefined';
+        const hasJMuxer = typeof JMuxer !== 'undefined';
+        return {
+            h264: has('h264', hasWebCodecs || hasJMuxer),
+            h265: has('h265', hasWebCodecs),
+            vp8: has('vp8', hasWebCodecs),
+            av1: has('av1', hasWebCodecs),
+            i444: {
+                vp8: false,
+                vp9: false,
+                av1: false,
+                h264: false,
+                h265: false
+            }
         };
     }
 

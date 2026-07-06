@@ -81,7 +81,7 @@ const CODE_TO_LINUX_SCAN = {
     Home: 110, ArrowUp: 111, PageUp: 112,
     ArrowLeft: 113, ArrowRight: 114,
     End: 115, ArrowDown: 116, PageDown: 117,
-    Insert: 118, Delete: 119,
+    Insert: 118, Delete: 111,
     MetaLeft: 133, MetaRight: 134, ContextMenu: 135,
     NumpadEnter: 104, NumpadDivide: 106, PrintScreen: 107, Pause: 119,
 };

@@ -272,85 +272,176 @@
     text-align: center;
 }
 
-/* ---- Toolbar (floating RustDesk-style collapsible pill) ---- */
-.viewer-toolbar {
-    position: fixed;
-    top: 44px;
+.password-form-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 4px;
+    text-align: left;
+}
+
+.session-remember-peer {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    user-select: none;
+}
+
+.session-remember-peer-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    accent-color: var(--accent-blue, #388bfd);
+    cursor: pointer;
+}
+
+.session-remember-peer span {
+    flex: 1;
+}
+
+.password-form-footer .session-btn-authenticate {
+    margin-top: 0;
+}
+
+/* ---- Toolbar (notch integrated in session tab bar) ---- */
+.toolbar-notch-slot {
+    position: absolute;
     left: 50%;
+    top: 0;
     transform: translateX(-50%);
+    z-index: 230;
+    pointer-events: none;
+    -webkit-app-region: no-drag;
+}
+
+.viewer-toolbar {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
     padding: 0;
     background: transparent;
     border: none;
-    z-index: 50;
+    pointer-events: auto;
 }
 
-/* Expanded action pill — only visible when the toolbar is expanded */
+/* Expanded action bar — hangs from tab bar as a longer notch */
 .toolbar-expanded {
     display: none;
-    position: relative;
-    /* Sit above the compact handle so dropdown menus (which extend downward
-       into the handle's region) are not covered by it. */
-    z-index: 2;
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
-    gap: 4px;
-    max-width: calc(100vw - 24px);
-    padding: 6px 10px;
-    background: linear-gradient(180deg, rgba(22, 27, 34, 0.97) 0%, rgba(22, 27, 34, 0.92) 100%);
+    gap: 6px;
+    max-width: calc(100vw - 120px);
+    padding: 5px 12px 8px;
+    background: linear-gradient(180deg, var(--bg-secondary, #161b22) 0%, rgba(22, 27, 34, 0.97) 100%);
     backdrop-filter: blur(10px);
     border: 1px solid var(--border-primary, #30363d);
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-    /* overflow must stay visible so dropdown menus (top:100%) can escape the pill */
+    border-top: none;
+    border-radius: 0 0 14px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     overflow: visible;
 }
 
-.viewer-toolbar.expanded .toolbar-expanded {
+.viewer-toolbar.expanded .toolbar-expanded,
+.viewer-toolbar.pinned .toolbar-expanded {
     display: flex;
-    animation: toolbar-pop 0.18s ease;
+    animation: notch-expand 0.2s ease;
 }
 
-@keyframes toolbar-pop {
-    from { opacity: 0; transform: translateY(-6px); }
-    to { opacity: 1; transform: translateY(0); }
+@keyframes notch-expand {
+    from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* Compact handle — always visible */
+/* Compact notch handle — droplet attached to tab bar bottom edge */
 .toolbar-handle {
     display: flex;
-    position: relative;
-    z-index: 1;
     align-items: center;
-    gap: 2px;
-    padding: 3px 5px;
-    background: linear-gradient(180deg, rgba(22, 27, 34, 0.95) 0%, rgba(22, 27, 34, 0.88) 100%);
-    backdrop-filter: blur(10px);
+    justify-content: center;
+    gap: 0;
+    min-width: 36px;
+    height: 14px;
+    padding: 0 4px 2px;
+    background: var(--bg-secondary, #161b22);
     border: 1px solid var(--border-primary, #30363d);
-    border-radius: 999px;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
-    opacity: 0.6;
-    transition: opacity 0.15s;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    opacity: 0.55;
+    overflow: hidden;
+    transition: opacity 0.18s ease, min-width 0.2s ease, height 0.2s ease, padding 0.2s ease, gap 0.2s ease;
 }
 
-.toolbar-handle:hover,
+.toolbar-handle .handle-btn {
+    width: 0;
+    min-width: 0;
+    height: 0;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transition: width 0.18s ease, min-width 0.18s ease, height 0.18s ease, opacity 0.15s ease;
+}
+
+.viewer-toolbar.hover-preview .toolbar-handle,
 .viewer-toolbar.expanded .toolbar-handle,
-.viewer-toolbar.dragging .toolbar-handle {
+.viewer-toolbar.pinned .toolbar-handle,
+.toolbar-handle:hover,
+.toolbar-handle:focus-within {
     opacity: 1;
+    min-width: 72px;
+    height: 26px;
+    padding: 2px 6px 4px;
+    gap: 2px;
+}
+
+.viewer-toolbar.hover-preview .toolbar-handle .handle-btn,
+.viewer-toolbar.expanded .toolbar-handle .handle-btn,
+.viewer-toolbar.pinned .toolbar-handle .handle-btn,
+.toolbar-handle:hover .handle-btn,
+.toolbar-handle:focus-within .handle-btn {
+    width: 28px;
+    min-width: 28px;
+    height: 22px;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.viewer-toolbar.expanded .toolbar-handle,
+.viewer-toolbar.pinned .toolbar-handle {
+    border-radius: 0;
+    border-bottom: none;
+    box-shadow: none;
+    min-width: 48px;
+    height: 4px;
+    padding: 0;
+    gap: 0;
+}
+
+.viewer-toolbar.expanded .toolbar-handle .handle-btn,
+.viewer-toolbar.pinned .toolbar-handle .handle-btn {
+    display: none;
 }
 
 .handle-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 28px;
     border: none;
-    border-radius: 999px;
+    border-radius: 6px;
     background: transparent;
     color: var(--text-secondary, #8b949e);
     cursor: pointer;
@@ -363,15 +454,7 @@
 }
 
 .handle-btn .material-icons {
-    font-size: 18px;
-}
-
-.handle-drag {
-    cursor: grab;
-}
-
-.viewer-toolbar.dragging .handle-drag {
-    cursor: grabbing;
+    font-size: 16px;
 }
 
 .handle-expand.active {
@@ -379,15 +462,52 @@
 }
 
 .toolbar-left,
-.toolbar-center,
 .toolbar-right {
     display: flex;
     align-items: center;
     gap: 4px;
+    flex-shrink: 0;
 }
 
-.toolbar-center {
+.toolbar-monitor-strip {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 4px;
+    border-left: 1px solid var(--border-primary, #30363d);
+    border-right: 1px solid var(--border-primary, #30363d);
+    margin: 0 2px;
+}
+
+.toolbar-monitor-strip[hidden] {
+    display: none !important;
+}
+
+.toolbar-monitor-btn {
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary, #8b949e);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.toolbar-monitor-btn:hover {
+    background: var(--bg-tertiary, #21262d);
+    color: var(--text-primary, #e6edf3);
+}
+
+.toolbar-monitor-btn.active {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent-blue, #58a6ff);
 }
 
 /* Toolbar button */
@@ -442,13 +562,6 @@
 
 .toolbar-status {
     color: var(--text-secondary, #8b949e);
-}
-
-/* Stats in toolbar center */
-.toolbar-stats {
-    font-size: 12px;
-    color: var(--text-secondary, #8b949e);
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
 }
 
 /* ---- Toolbar Dropdowns ---- */
@@ -613,10 +726,6 @@
     50% { opacity: 0.5; }
 }
 
-/* Pinned toolbar — keeps the expanded pill open (no auto-collapse) */
-.viewer-toolbar.pinned .toolbar-expanded {
-    display: flex;
-}
 
 /* ---- Chat Panel ---- */
 .chat-panel {
@@ -1354,16 +1463,8 @@
 
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
-    .toolbar-center {
-        display: none;
-    }
-
     .toolbar-device-info {
         display: none;
-    }
-
-    .viewer-toolbar {
-        top: 40px;
     }
 
     .toolbar-expanded {

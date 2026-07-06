@@ -597,4 +597,24 @@ describe('RDInput keyboard parity (RustDesk contract)', () => {
         expect(sent[0].keyEvent.modifiers).toContain(3);
         expect(sent[0].keyEvent.modifiers).not.toContain(29);
     });
+
+    it('maps Pause to Windows extended scancode 0xE046', () => {
+        const sent = [];
+        const input = makeInput((msg) => sent.push(msg));
+        input.setPeerPlatform('Windows');
+        input.setKeyboardMode('Map');
+        input.start();
+
+        input._handleKeyDown(keyEvt({ code: 'Pause', key: 'Pause' }));
+
+        expect(sent[0].keyEvent.mode).toBe('Map');
+        expect(sent[0].keyEvent.chr).toBe(0xE046);
+    });
+
+    it('maps Delete and Pause to distinct Linux scancodes', () => {
+        const sc = loadBrowserScripts(['public/js/rdclient/keyboard-scancode.js']);
+        const codeToScancode = sc.RDKeyboardScancode.codeToScancode;
+        expect(codeToScancode('Delete', 'Linux')).toBe(111);
+        expect(codeToScancode('Pause', 'Linux')).toBe(119);
+    });
 });
