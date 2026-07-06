@@ -56,9 +56,41 @@ class RDFileTransfer {
             FILE_LINK: 5
         };
 
-        // Block size for uploads (64KB, matching RustDesk default)
-        this.BLOCK_SIZE = 65536;
+        // Block size for uploads (128KB, matching hbb_common BUF_SIZE)
+        this.BLOCK_SIZE = 131072;
         this.TRANSFER_STALL_MS = 15000;
+
+        /** @type {'overwrite'|'skip'|null} Session-wide overwrite strategy */
+        this._overwriteStrategy = null;
+
+        /** @type {Map<number, Object>} Pending overwrite prompts */
+        this._pendingOverwrite = new Map();
+    }
+
+    /** Extensions that skip zstd compression (RustDesk is_compressed_file parity) */
+    static get COMPRESSED_EXTENSIONS() {
+        return new Set(['xz', 'gz', 'zip', '7z', 'rar', 'bz2', 'tgz', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'mp3', 'avi', 'mkv']);
+    }
+
+    /**
+     * @param {string} fileName
+     * @returns {boolean}
+     */
+    static isPreCompressedFileName(fileName) {
+        const ext = String(fileName || '').split('.').pop().toLowerCase();
+        return RDFileTransfer.COMPRESSED_EXTENSIONS.has(ext);
+    }
+
+    /**
+     * @param {number} transferredSize
+     * @param {number} blockSize
+     * @returns {number}
+     */
+    static computeOffsetBlk(transferredSize, blockSize) {
+        const size = Number(transferredSize || 0);
+        const blk = Number(blockSize || 131072);
+        if (!size || !blk) return 0;
+        return Math.floor(size / blk);
     }
 
     /**
@@ -85,16 +117,26 @@ class RDFileTransfer {
         return dir + (dir.endsWith(sep) ? '' : sep) + (fileName || '');
     }
 
-    _failTransfer(id, message) {
+    _failTransfer(id, message, opts) {
+        const options = opts || {};
         const transfer = this._transfers.get(id);
         if (!transfer) return;
         this._clearTransferTimeout(id);
         const fileName = transfer.fileName;
-        this._transfers.delete(id);
+        const resumable = !!options.resumable;
+        if (resumable) {
+            transfer.status = 'error';
+            transfer.errorMessage = message || 'Transfer failed';
+            transfer.resumable = true;
+        } else {
+            this._transfers.delete(id);
+        }
         this._emit('file_transfer_error', {
             id: id,
             fileName: fileName,
-            error: message || 'Transfer failed'
+            error: message || 'Transfer failed',
+            resumable: resumable,
+            type: transfer.type
         });
     }
 
@@ -135,11 +177,17 @@ class RDFileTransfer {
             const t = self._transfers.get(id);
             if (!t || t.status !== 'pending') return;
             t.status = 'error';
-            self._transfers.delete(id);
+            t.resumable = (t.type === 'upload' && (t.sentBytes || 0) > 0)
+                || (t.type === 'download' && (t.receivedBytes || 0) > 0);
+            if (!t.resumable) {
+                self._transfers.delete(id);
+            }
             self._emit('file_transfer_error', {
                 id: id,
                 fileName: t.fileName,
-                error: 'Remote did not start transfer'
+                error: 'Remote did not start transfer',
+                resumable: t.resumable,
+                type: t.type
             });
         }, this.TRANSFER_STALL_MS);
     }
@@ -170,6 +218,84 @@ class RDFileTransfer {
     get enabled() { return this._enabled; }
     get currentPath() { return this._currentPath; }
     get entries() { return this._entries; }
+    get showHidden() { return this._showHidden; }
+
+    /**
+     * Respond to overwrite prompt from UI.
+     * @param {number} id
+     * @param {boolean} skip
+     * @param {boolean} [applyToAll]
+     */
+    confirmOverwrite(id, skip, applyToAll) {
+        const pending = this._pendingOverwrite.get(id);
+        if (!pending) return;
+        this._pendingOverwrite.delete(id);
+        if (applyToAll) {
+            this._overwriteStrategy = skip ? 'skip' : 'overwrite';
+        }
+        pending.resolve(!!skip);
+    }
+
+    /**
+     * Resume a failed transfer when checkpoint data is available.
+     * @param {number} id
+     */
+    resumeTransfer(id) {
+        const transfer = this._transfers.get(id);
+        if (!transfer || !transfer.resumable) return;
+
+        transfer.status = 'pending';
+        transfer.errorMessage = null;
+        transfer.resumable = false;
+        const self = this;
+
+        this._emit('file_transfer_start', {
+            id: id,
+            type: transfer.type,
+            fileName: transfer.fileName,
+            fileSize: transfer.fileSize
+        });
+
+        this._runWithConnection(function () {
+            try {
+                if (transfer.type === 'upload') {
+                    const modified = transfer.file && transfer.file.lastModified
+                        ? Math.floor(transfer.file.lastModified / 1000) : 0;
+                    const startOffset = transfer.sentBytes || 0;
+                    const isResume = startOffset > 0;
+                    if (!isResume) {
+                        const file = transfer.file;
+                        const files = [{
+                            entryType: self.FILE_TYPE.FILE,
+                            name: file.name,
+                            size: file.size,
+                            modifiedTime: modified
+                        }];
+                        self._sendMessageSafe(self._proto.buildFileReceiveRequest(
+                            id, transfer.remotePath, files, transfer.fileNum || 0, Number(file.size)
+                        ));
+                    }
+                    self._sendMessageSafe(self._proto.buildFileDigest(
+                        id, transfer.fileNum || 0, transfer.fileSize, modified,
+                        { isUpload: true, isResume: isResume, transferredSize: startOffset }
+                    ));
+                    self._armTransferTimeout(id);
+                } else if (transfer.type === 'download') {
+                    const fullPath = RDFileTransfer.buildRemoteFilePath(
+                        transfer.remotePath, transfer.fileName
+                    );
+                    self._sendMessageSafe(self._proto.buildFileSendRequest(
+                        id, fullPath, self._showHidden, transfer.fileNum || 0
+                    ));
+                    self._armTransferTimeout(id);
+                }
+            } catch (err) {
+                self._failTransfer(id, err.message || String(err));
+            }
+        }).catch(function (err) {
+            self._failTransfer(id, err.message || 'Could not connect file transfer session');
+        });
+    }
 
     /**
      * Browse a directory on the remote machine
@@ -493,9 +619,20 @@ class RDFileTransfer {
 
         const fileNum = transfer.fileNum;
         const isIdentical = !!(digest.isIdentical || digest.is_identical);
+        const transferredSize = Number(
+            digest.transferredSize != null ? digest.transferredSize : (digest.transferred_size || 0)
+        );
+        const isResume = !!(digest.isResume || digest.is_resume);
 
         if (transfer.type === 'download') {
-            this._sendMessageSafe(this._proto.buildFileSendConfirm(id, fileNum, false, 0));
+            let offsetBlk = 0;
+            if (isResume && transferredSize > 0) {
+                offsetBlk = RDFileTransfer.computeOffsetBlk(transferredSize, this.BLOCK_SIZE);
+                transfer.receivedBytes = transferredSize;
+            } else if (transfer.receivedBytes > 0) {
+                offsetBlk = RDFileTransfer.computeOffsetBlk(transfer.receivedBytes, this.BLOCK_SIZE);
+            }
+            this._sendMessageSafe(this._proto.buildFileSendConfirm(id, fileNum, false, offsetBlk));
         } else if (transfer.type === 'upload') {
             // Peer-initiated digest (overwrite check) — operator already sent initial digest.
             if (!(digest.isUpload || digest.is_upload)) return;
@@ -511,16 +648,57 @@ class RDFileTransfer {
                 });
                 return;
             }
-            this._sendMessageSafe(this._proto.buildFileSendConfirm(id, fileNum, false, 0));
-            this._sendUploadBlocks(transfer);
+            const self = this;
+            const proceedUpload = function (skip) {
+                if (skip) {
+                    self._sendMessageSafe(self._proto.buildFileSendConfirm(id, fileNum, true, 0));
+                    self._transfers.delete(id);
+                    self._emit('file_transfer_complete', {
+                        id: id,
+                        fileName: transfer.fileName,
+                        fileSize: transfer.fileSize,
+                        type: 'upload',
+                        elapsed: (Date.now() - transfer.startTime) / 1000,
+                        skipped: true
+                    });
+                    return;
+                }
+                self._sendMessageSafe(self._proto.buildFileSendConfirm(id, fileNum, false, 0));
+                self._sendUploadBlocks(transfer, transfer.sentBytes || 0);
+            };
+
+            if (this._overwriteStrategy === 'skip') {
+                proceedUpload(true);
+                return;
+            }
+            if (this._overwriteStrategy === 'overwrite') {
+                proceedUpload(false);
+                return;
+            }
+
+            this._pendingOverwrite.set(id, {
+                resolve: proceedUpload
+            });
+            this._emit('file_transfer_overwrite_prompt', {
+                id: id,
+                fileName: transfer.fileName,
+                fileSize: transfer.fileSize,
+                remotePath: transfer.remotePath
+            });
+            return;
         }
 
+        const startTransferred = transfer.type === 'download'
+            ? (transfer.receivedBytes || transferredSize || 0)
+            : (transfer.sentBytes || 0);
         this._emit('file_transfer_progress', {
             id: id,
             fileName: transfer.fileName,
             fileSize: transfer.fileSize,
-            transferred: 0,
-            percent: 0,
+            transferred: startTransferred,
+            percent: transfer.fileSize > 0
+                ? Math.min(100, Math.round((startTransferred / transfer.fileSize) * 100))
+                : 0,
             type: transfer.type,
             phase: 'transferring'
         });
@@ -550,17 +728,26 @@ class RDFileTransfer {
             return;
         }
 
+        const offsetBlk = Number(
+            confirm.offsetBlk != null ? confirm.offsetBlk : (confirm.offset_blk || 0)
+        );
+        const startOffset = offsetBlk > 0
+            ? offsetBlk * this.BLOCK_SIZE
+            : (transfer.sentBytes || 0);
+
         transfer.status = 'transferring';
         this._emit('file_transfer_progress', {
             id: id,
             fileName: transfer.fileName,
             fileSize: transfer.fileSize,
-            transferred: 0,
-            percent: 0,
+            transferred: startOffset,
+            percent: transfer.fileSize > 0
+                ? Math.min(100, Math.round((startOffset / transfer.fileSize) * 100))
+                : 0,
             type: 'upload',
             phase: 'transferring'
         });
-        this._sendUploadBlocks(transfer);
+        this._sendUploadBlocks(transfer, startOffset);
     }
 
     /**
@@ -664,37 +851,52 @@ class RDFileTransfer {
         if (transfer) {
             this._clearTransferTimeout(id);
             transfer.status = 'error';
-            this._transfers.delete(id);
+            transfer.resumable = (transfer.receivedBytes || transfer.sentBytes || 0) > 0;
+            if (!transfer.resumable) {
+                this._transfers.delete(id);
+            }
         }
 
         this._emit('file_transfer_error', {
             id: id,
             fileName: fileName,
-            error: error.error || 'Unknown error'
+            error: error.error || 'Unknown error',
+            resumable: transfer ? transfer.resumable : false,
+            type: transfer ? transfer.type : null
         });
     }
 
     // ---- Upload block streaming ----
 
+    async _tryCompressBlock(data, fileName) {
+        if (RDFileTransfer.isPreCompressedFileName(fileName)) {
+            return { data: data, compressed: false };
+        }
+        const result = await RDCompress.compressZstd(data);
+        return { data: result.content, compressed: result.compress };
+    }
+
     /**
      * Stream file blocks for upload
      * @param {Object} transfer
+     * @param {number} [startOffset=0]
      */
-    async _sendUploadBlocks(transfer) {
+    async _sendUploadBlocks(transfer, startOffset) {
         const file = transfer.file;
         if (!file) return;
 
         try {
-            let offset = 0;
-            let blkId = 0;
+            let offset = Math.max(0, Number(startOffset || 0));
+            let blkId = RDFileTransfer.computeOffsetBlk(offset, this.BLOCK_SIZE);
 
             while (offset < file.size && transfer.status === 'transferring') {
                 const end = Math.min(offset + this.BLOCK_SIZE, file.size);
                 const slice = file.slice(offset, end);
-                const data = new Uint8Array(await slice.arrayBuffer());
+                const raw = new Uint8Array(await slice.arrayBuffer());
+                const packed = await this._tryCompressBlock(raw, file.name);
 
                 this._sendMessageSafe(this._proto.buildFileBlock(
-                    transfer.id, transfer.fileNum, data, false, blkId
+                    transfer.id, transfer.fileNum, packed.data, packed.compressed, blkId
                 ));
 
                 transfer.sentBytes = end;
@@ -723,12 +925,17 @@ class RDFileTransfer {
             }
         } catch (err) {
             transfer.status = 'error';
+            transfer.resumable = (transfer.sentBytes || 0) > 0 && (transfer.sentBytes || 0) < file.size;
             this._emit('file_transfer_error', {
                 id: transfer.id,
                 fileName: transfer.fileName,
-                error: err.message || 'Upload failed'
+                error: err.message || 'Upload failed',
+                resumable: transfer.resumable,
+                type: 'upload'
             });
-            this._transfers.delete(transfer.id);
+            if (!transfer.resumable) {
+                this._transfers.delete(transfer.id);
+            }
         }
     }
 
@@ -854,4 +1061,8 @@ class RDFileTransfer {
         }
         return { active: active, count: active.length };
     }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports.RDFileTransfer = RDFileTransfer;
 }

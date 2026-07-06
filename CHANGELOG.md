@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+- **Web Remote — File Transfer drop zone:** left panel shows a drag-and-drop upload box (click to pick files, multi-file supported). Uploads go to the folder currently open on the remote side; progress appears in the Transfers column.
+- **Web Remote — RustDesk file transfer parity:** 128 KB blocks, zstd upload compression, resume via `offset_blk` / `transferred_size`, overwrite confirmation dialog (Skip / Overwrite / apply to all), remote context menu (rename, delete, new folder), hidden-files toggle, and Resume in the transfer queue after errors.
+
 ### Changed
 - **Docker — official single container (default):** `install.sh` and quick-start docs now deploy one pre-built image (`ghcr.io/unitronix/betterdesk`) via `docker-compose.quick.single.yml`. Updates are a single `docker compose pull && up -d`. Legacy two-container layout remains available with `install.sh --split` or `docker-compose.quick.yml`. Panel update instructions respect `BETTERDESK_DOCKER_LAYOUT` (`single` vs `split`). Migrating from split to single reuses the same named volumes; RustDesk client API URL changes from port `21114` to `21121`.
 

@@ -1449,6 +1449,7 @@
     flex-direction: column;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
     overflow: hidden;
+    position: relative;
 }
 
 .ft-modal-header {
@@ -1661,14 +1662,191 @@
     font-size: 36px;
 }
 
-.ft-local-hint {
-    padding: 6px 10px;
-    font-size: 11px;
+.ft-local-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.ft-local-dropzone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 12px;
+    min-height: 180px;
+    padding: 24px 16px;
+    border: 2px dashed var(--border-primary, #30363d);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+}
+
+.ft-local-dropzone.compact {
+    flex: 0 0 auto;
+    min-height: 0;
+    padding: 10px 12px;
+    margin: 8px;
+    gap: 2px;
+}
+
+.ft-local-dropzone.compact .ft-dropzone-icon {
+    font-size: 24px !important;
+}
+
+.ft-local-dropzone.compact .ft-dropzone-subtitle,
+.ft-local-dropzone.compact .ft-dropzone-multiple {
+    display: none;
+}
+
+.ft-local-dropzone:hover:not(.ft-dropzone-disabled) {
+    border-color: var(--accent, #3884ff);
+    background: rgba(56, 132, 255, 0.04);
+}
+
+.ft-local-dropzone.ft-dropzone-active {
+    border-color: var(--accent, #3884ff);
+    background: rgba(56, 132, 255, 0.08);
+}
+
+.ft-local-dropzone.ft-dropzone-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.ft-dropzone-icon {
+    font-size: 40px !important;
+    color: var(--accent, #3884ff);
+}
+
+.ft-dropzone-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary, #e6edf3);
+}
+
+.ft-dropzone-subtitle,
+.ft-dropzone-multiple {
+    font-size: 12px;
     color: var(--text-secondary, #8b949e);
 }
 
-.ft-local-hint .ft-hint-text {
-    display: inline;
+.ft-dropzone-target {
+    font-size: 11px;
+    color: var(--text-secondary, #8b949e);
+    margin-top: 4px;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 8px;
+}
+
+.ft-btn.active {
+    color: var(--accent, #3884ff);
+}
+
+.ft-overwrite-dialog {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.ft-overwrite-dialog[hidden] {
+    display: none !important;
+}
+
+.ft-overwrite-panel {
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid var(--border-primary, #30363d);
+    border-radius: 8px;
+    padding: 16px 20px;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.ft-overwrite-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.ft-overwrite-message {
+    font-size: 12px;
+    color: var(--text-secondary, #8b949e);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.ft-overwrite-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.ft-context-menu {
+    position: fixed;
+    z-index: 300;
+    min-width: 160px;
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid var(--border-primary, #30363d);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    padding: 4px 0;
+}
+
+.ft-context-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: var(--text-primary, #e6edf3);
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.ft-context-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ft-context-item .material-icons {
+    font-size: 16px;
+    color: var(--text-secondary, #8b949e);
+}
+
+.ft-transfer-resume {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--accent, #3884ff);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.ft-transfer-resume:hover {
+    background: rgba(56, 132, 255, 0.12);
+}
+
+.ft-transfer-resume .material-icons {
+    font-size: 16px;
 }
 
 .ft-btn:disabled {

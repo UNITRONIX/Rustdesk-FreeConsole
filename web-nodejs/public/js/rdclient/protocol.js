@@ -631,6 +631,10 @@ class RDProtocol {
         };
         if (opts.isUpload) digest.isUpload = true;
         if (opts.isIdentical) digest.isIdentical = true;
+        if (opts.isResume) digest.isResume = true;
+        if (opts.transferredSize != null) {
+            digest.transferredSize = Number(opts.transferredSize);
+        }
         return { fileResponse: { digest: digest } };
     }
 

@@ -190,6 +190,32 @@ describe('RDClient file transfer message encoding', () => {
         expect(decoded.fileResponse.digest.fileSize).toBe('12345');
         expect(decoded.fileResponse.digest.lastModified).toBe('1700000000');
     });
+
+    it('encodes FileResponse.digest with resume fields', () => {
+        const msg = Message.create({
+            fileResponse: {
+                digest: {
+                    id: 9,
+                    fileNum: 0,
+                    fileSize: 999999,
+                    lastModified: 1700000001,
+                    isResume: true,
+                    transferredSize: 131072
+                }
+            }
+        });
+        const decoded = Message.decode(Message.encode(msg).finish()).toJSON();
+        expect(decoded.fileResponse.digest.isResume).toBe(true);
+        expect(decoded.fileResponse.digest.transferredSize).toBe('131072');
+    });
+
+    it('encodes FileAction.send_confirm with offset_blk for resume', () => {
+        const action = FileAction.create({
+            sendConfirm: { id: 2, fileNum: 0, offsetBlk: 4 }
+        });
+        const decoded = FileAction.decode(FileAction.encode(action).finish()).toJSON();
+        expect(decoded.sendConfirm.offsetBlk).toBe(4);
+    });
 });
 
 describe('RDClient KeyEvent protobuf encoding', () => {
