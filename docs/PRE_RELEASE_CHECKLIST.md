@@ -62,7 +62,8 @@ Use this checklist before every tagged release to ensure quality and stability.
 - [ ] **Start stack**: `docker compose up -d` — all containers healthy
 - [ ] **API reachable**: `curl http://localhost:21114/api/health` returns OK
 - [ ] **Console reachable**: `curl http://localhost:5000` returns HTML
-- [ ] **Single-container**: `docker compose -f docker-compose.single.yml up -d` works
+- [ ] **Single-container (local build):** `docker compose -f docker-compose.single.yml up -d` works
+- [ ] **Official quick-start (GHCR pull):** `docker compose -f docker-compose.quick.single.yml pull && up -d` works
 
 ## 8. Installer Scripts
 
@@ -81,7 +82,7 @@ Applies only to merges into **`main`** (stable). Version bump, tag, and GitHub R
 - [ ] **README.md:** reflects current features
 - [ ] **Version parity:** `node scripts/bump-version.js --verify` passes locally (CI enforces on version file changes)
 - [ ] **After merge:** verify CI created tag `v<version>` and GitHub Release
-- [ ] **GHCR image tags:** verify `ghcr.io/unitronix/betterdesk-server`, `betterdesk-console`, and `betterdesk` show semver tag (e.g. `3.1.0`) and git ref (`v3.1.0`) after workflow completes
+- [ ] **GHCR image tags:** verify `ghcr.io/unitronix/betterdesk` (official), `betterdesk-server`, and `betterdesk-console` show semver tag (e.g. `3.1.0`) and git ref (`v3.1.0`) after workflow completes
 - [ ] **Sync dev:** merge `main` → `dev` so development continues from the new minor version
 - [ ] **Manual fallback:** Actions → “Build & Publish Docker Images” → Run workflow → tag input `v<version>` if release trigger was skipped
 - [ ] **No secrets in diff:** `git diff --cached` has no API keys / passwords

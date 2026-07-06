@@ -3687,7 +3687,7 @@
     "rebuild_server_success": "服務器二進制文件已重新編譯並重啓",
     "rebuild_server_failed": "服務器二進制文件重新編譯失敗",
     "docker_title": "Docker 鏡像部署",
-    "docker_desc": "本控制檯運行於預構建容器鏡像。更新通過從 GHCR 拉取較新鏡像完成，而非應用內安裝或 Go 重新編譯。",
+    "docker_desc": "本控制檯運行於預構建容器鏡像（官方 all-in-one 或舊版 split）。更新在主機上透過從 GHCR 拉取較新容器鏡像完成，而非應用內安裝或 Go 重新編譯。",
     "docker_install_note": "Docker 中已禁用應用內安裝。請在主機上運行上述命令，然後刷新本頁。",
     "docker_update_available": "有新的容器鏡像可用",
     "docker_sha_unknown": "已是最新（鏡像 commit 未知）",

@@ -3300,6 +3300,7 @@ function Update-FromGitHub {
     $scriptFiles = @(
         "betterdesk.sh", "betterdesk.ps1", "betterdesk-docker.sh",
         "docker-compose.yml", "docker-compose.single.yml", "docker-compose.quick.yml",
+        "docker-compose.quick.single.yml", "docker-compose.quick.single.macvlan.yml",
         "Dockerfile", "Dockerfile.server", "Dockerfile.console", "VERSION"
     )
     $scriptsUpdated = 0

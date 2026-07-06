@@ -4001,6 +4001,7 @@ update_from_github() {
     local scripts_updated=0
     for script_file in betterdesk.sh betterdesk.ps1 betterdesk-docker.sh \
                        docker-compose.yml docker-compose.single.yml docker-compose.quick.yml \
+                       docker-compose.quick.single.yml docker-compose.quick.single.macvlan.yml \
                        Dockerfile Dockerfile.server Dockerfile.console VERSION; do
         if [ -f "$clone_dir/$script_file" ]; then
             cp "$clone_dir/$script_file" "$SCRIPT_DIR/$script_file" 2>/dev/null || true

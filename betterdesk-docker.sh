@@ -67,6 +67,8 @@ COMMON_DATA_PATHS=(
 # Container names
 SERVER_CONTAINER="betterdesk-server"
 CONSOLE_CONTAINER="betterdesk-console"
+AIO_CONTAINER="betterdesk"
+DOCKER_LAYOUT="${DOCKER_LAYOUT:-single}"
 # Set by update_docker_from_github; consumed after container rebuild (#192)
 LAST_UPDATE_REMOTE_SHA=""
 # Legacy aliases for backwards compatibility in detect functions
@@ -598,11 +600,19 @@ detect_installation() {
     HBBS_RUNNING=false
     HBBR_RUNNING=false
     CONSOLE_RUNNING=false
+    AIO_RUNNING=false
     IMAGES_BUILT=false
     DATA_EXISTS=false
-    
-    # Check if images exist (new Go architecture: betterdesk-server + betterdesk-console)
-    if docker images | grep -q "betterdesk-server\|betterdesk-console"; then
+
+    if docker ps --format '{{.Names}}' | grep -q "^${AIO_CONTAINER}$"; then
+        AIO_RUNNING=true
+        SERVER_RUNNING=true
+        CONSOLE_RUNNING=true
+        DOCKER_LAYOUT="single"
+    fi
+
+    # Check if images exist (split or all-in-one)
+    if docker images | grep -qE "betterdesk-server|betterdesk-console|ghcr.io/unitronix/betterdesk|betterdesk:local"; then
         IMAGES_BUILT=true
         INSTALL_STATUS="partial"
     fi
@@ -612,18 +622,22 @@ detect_installation() {
         DATA_EXISTS=true
     fi
     
-    # Check containers
+    # Check split containers
     if docker ps --format '{{.Names}}' | grep -q "$SERVER_CONTAINER"; then
         SERVER_RUNNING=true
         HBBS_RUNNING=true   # Alias for legacy checks
         HBBR_RUNNING=true   # Go server includes relay
+        DOCKER_LAYOUT="split"
     fi
     
     if docker ps --format '{{.Names}}' | grep -q "$CONSOLE_CONTAINER"; then
         CONSOLE_RUNNING=true
+        DOCKER_LAYOUT="split"
     fi
     
-    if [ "$IMAGES_BUILT" = true ] && [ "$DATA_EXISTS" = true ] && \
+    if [ "$AIO_RUNNING" = true ] && [ "$DATA_EXISTS" = true ]; then
+        INSTALL_STATUS="complete"
+    elif [ "$IMAGES_BUILT" = true ] && [ "$DATA_EXISTS" = true ] && \
        [ "$SERVER_RUNNING" = true ] && [ "$CONSOLE_RUNNING" = true ]; then
         INSTALL_STATUS="complete"
     fi
@@ -653,8 +667,8 @@ print_status() {
     echo -e "${WHITE}${BOLD}═══ Image Status ═══${NC}"
     echo ""
     
-    for image in "betterdesk-server" "betterdesk-console"; do
-        if docker images --format '{{.Repository}}' | grep -q "^$image$"; then
+    for image in "betterdesk" "betterdesk-server" "betterdesk-console"; do
+        if docker images --format '{{.Repository}}' | grep -qE "^${image}$|^ghcr.io/unitronix/${image}$"; then
             local size=$(docker images --format '{{.Size}}' "$image:latest" 2>/dev/null)
             echo -e "  $image: ${GREEN}✓ Built${NC} ($size)"
         else
@@ -666,13 +680,17 @@ print_status() {
     echo -e "${WHITE}${BOLD}═══ Container Status ═══${NC}"
     echo ""
     
-    if [ "$SERVER_RUNNING" = true ]; then
+    if [ "$AIO_RUNNING" = true ]; then
+        echo -e "  All-in-One:     ${GREEN}● Running${NC}  (server + console)"
+    elif [ "$SERVER_RUNNING" = true ]; then
         echo -e "  Server (Go):    ${GREEN}● Running${NC}  (signal + relay + API)"
     else
         echo -e "  Server (Go):    ${RED}○ Stopped${NC}"
     fi
     
-    if [ "$CONSOLE_RUNNING" = true ]; then
+    if [ "$AIO_RUNNING" = true ]; then
+        echo -e "  Web Console:    ${GREEN}● Running${NC}  (inside all-in-one)"
+    elif [ "$CONSOLE_RUNNING" = true ]; then
         echo -e "  Web Console:    ${GREEN}● Running${NC}"
     else
         echo -e "  Web Console:    ${RED}○ Stopped${NC}"
@@ -721,6 +739,33 @@ install_docker() {
     systemctl start docker
     
     print_success "Docker installed"
+}
+
+choose_docker_layout() {
+    if [ "$AUTO_MODE" = true ]; then
+        print_info "Using ${DOCKER_LAYOUT} container layout (auto mode)"
+        return
+    fi
+
+    echo ""
+    local _menu_items=(
+        $'Single container\tOfficial all-in-one image (recommended)'
+        $'Split containers\tLegacy server + console images'
+    )
+    local _menu_returns=( 1 2 )
+    menu_choose "Select Docker Layout" "Single container is easier to update (one image pull)"
+    local layout_choice="$MENU_CHOICE"
+
+    case "$layout_choice" in
+        2)
+            DOCKER_LAYOUT="split"
+            print_info "Split container layout selected (legacy)"
+            ;;
+        *)
+            DOCKER_LAYOUT="single"
+            print_info "Single container layout selected (recommended)"
+            ;;
+    esac
 }
 
 choose_database_type() {
@@ -792,7 +837,97 @@ preserve_compose_database_config() {
     fi
 }
 
+create_compose_file_single() {
+        print_step "Creating docker-compose.yml (single container)..."
+
+        local admin_password signal_rate_limit server_ip
+        admin_password="${DOCKER_ADMIN_PASSWORD:-}"
+        if [ -z "$admin_password" ]; then
+            if [ -n "$ADMIN_PASSWORD" ]; then
+                admin_password="$ADMIN_PASSWORD"
+            else
+                admin_password=$(openssl rand -hex 16)
+            fi
+        fi
+        DOCKER_ADMIN_PASSWORD="$admin_password"
+        server_ip=$(resolve_relay_ip)
+        signal_rate_limit="${SIGNAL_RATE_LIMIT_PER_IP:-20}"
+
+        cat > "$COMPOSE_FILE" << EOF
+version: '3.8'
+
+services:
+    betterdesk:
+        container_name: $AIO_CONTAINER
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: betterdesk:local
+        pull_policy: never
+        ports:
+            - "5000:5000"
+            - "21115:21115"
+            - "21116:21116"
+            - "21116:21116/udp"
+            - "21117:21117"
+            - "21118:21118"
+            - "21119:21119"
+            - "21121:21121"
+        volumes:
+            - $DATA_DIR:/opt/rustdesk
+            - console_data:/app/data
+        environment:
+            - NODE_ENV=production
+            - PORT=5000
+            - HOST=0.0.0.0
+            - API_HOST=0.0.0.0
+            - API_ENABLED=false
+            - ENCRYPTED_ONLY=1
+            - SERVER_BACKEND=betterdesk
+            - HBBS_API_URL=http://127.0.0.1:21121/api
+            - BETTERDESK_API_URL=http://127.0.0.1:21121/api
+            - RUSTDESK_PATH=/opt/rustdesk
+            - DATA_DIR=/app/data
+            - DB_PATH=/opt/rustdesk/db_v2.sqlite3
+            - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
+            - API_KEY_PATH=/opt/rustdesk/.api_key
+            - DOCKER=true
+            - BETTERDESK_UPDATE_MODE=image
+            - BETTERDESK_DOCKER_LAYOUT=single
+            - RELAY_SERVERS=$server_ip
+            - SIGNAL_RATE_LIMIT_PER_IP=$signal_rate_limit
+            - AUTH_DB_PATH=/app/data/auth.db
+            - INIT_ADMIN_USER=admin
+            - INIT_ADMIN_PASS=$admin_password
+            - DEFAULT_ADMIN_USERNAME=admin
+            - DEFAULT_ADMIN_PASSWORD=$admin_password
+        healthcheck:
+            test: ["CMD-SHELL", "curl -sf http://localhost:21121/api/health && curl -sf http://localhost:5000/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 45s
+        restart: unless-stopped
+        networks:
+            - betterdesk
+
+networks:
+    betterdesk:
+        driver: bridge
+
+volumes:
+    console_data:
+EOF
+
+        print_success "docker-compose.yml created (single container)"
+}
+
 create_compose_file() {
+        if [ "$DOCKER_LAYOUT" = "single" ]; then
+            create_compose_file_single
+            return
+        fi
+
         print_step "Creating docker-compose.yml..."
 
         # Start composing docker-compose.yml
@@ -1052,7 +1187,11 @@ start_containers() {
         local api_key_sql
         api_key_sql=$(sql_escape_literal "$api_key")
         # Use sqlite3 inside the server container to insert the API key
-        docker exec "$SERVER_CONTAINER" sh -c "
+        local exec_container="$SERVER_CONTAINER"
+        if [ "$DOCKER_LAYOUT" = "single" ] || docker ps --format '{{.Names}}' | grep -q "^${AIO_CONTAINER}$"; then
+            exec_container="$AIO_CONTAINER"
+        fi
+        docker exec "$exec_container" sh -c "
             if command -v sqlite3 >/dev/null 2>&1; then
                 sqlite3 /opt/rustdesk/db_v2.sqlite3 \"INSERT OR REPLACE INTO server_config (key, value) VALUES ('api_key', '$api_key_sql');\" 2>/dev/null
             fi
@@ -1066,7 +1205,9 @@ start_containers() {
     
     detect_installation
     
-    if [ "$SERVER_RUNNING" = true ] && [ "$CONSOLE_RUNNING" = true ]; then
+    if [ "$AIO_RUNNING" = true ]; then
+        print_success "All-in-one container running"
+    elif [ "$SERVER_RUNNING" = true ] && [ "$CONSOLE_RUNNING" = true ]; then
         print_success "All containers running"
     else
         print_warning "Some containers might not be working properly"
@@ -1099,7 +1240,12 @@ create_admin_user() {
     # Node.js console auto-creates admin user on startup if no users exist
     # We use the reset-password script to set a secure password
     # Arguments: <password> [username] — password first, then optional username
-    docker exec "$CONSOLE_CONTAINER" node /app/scripts/reset-password.js "$admin_password" admin 2>/dev/null || {
+    local target_container="$CONSOLE_CONTAINER"
+    if [ "$DOCKER_LAYOUT" = "single" ] || docker ps --format '{{.Names}}' | grep -q "^${AIO_CONTAINER}$"; then
+        target_container="$AIO_CONTAINER"
+    fi
+
+    docker exec "$target_container" node /app/scripts/reset-password.js "$admin_password" admin 2>/dev/null || {
         # If script fails, try via environment variable approach
         print_info "Setting admin password via API..."
         
@@ -1109,7 +1255,7 @@ create_admin_user() {
         
         # Use curl to change password (requires internal API)
         # If this fails, admin will use default password which must be changed
-        docker exec "$CONSOLE_CONTAINER" sh -c "
+        docker exec "$target_container" sh -c "
             if [ -f /app/scripts/reset-password.js ]; then
                 node /app/scripts/reset-password.js '$admin_password' admin 2>/dev/null
             fi
@@ -1174,6 +1320,9 @@ do_install() {
         stop_containers
     fi
     
+    # Choose Docker layout (single recommended)
+    choose_docker_layout
+
     # Choose database type (SQLite or PostgreSQL)
     choose_database_type
     
@@ -1428,6 +1577,7 @@ update_docker_from_github() {
     # Update Dockerfiles and compose files
     for df in Dockerfile Dockerfile.server Dockerfile.console \
               docker-compose.yml docker-compose.single.yml docker-compose.quick.yml \
+              docker-compose.quick.single.yml docker-compose.quick.single.macvlan.yml \
               docker/entrypoint.sh docker/supervisord.conf docker/server-entrypoint.sh docker/console-entrypoint.sh \
               betterdesk-docker.sh betterdesk.sh betterdesk.ps1 VERSION; do
         if [ -f "$clone_dir/$df" ]; then

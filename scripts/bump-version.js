@@ -123,6 +123,26 @@ const FILE_RULES = [
             content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
     },
     {
+        id: 'docker-compose-quick-single',
+        path: 'docker-compose.quick.single.yml',
+        extract: (content) => {
+            const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
+            return m?.[1];
+        },
+        apply: (content, version) =>
+            content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
+    },
+    {
+        id: 'docker-compose-quick-single-macvlan',
+        path: 'docker-compose.quick.single.macvlan.yml',
+        extract: (content) => {
+            const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
+            return m?.[1];
+        },
+        apply: (content, version) =>
+            content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
+    },
+    {
         id: 'docker-compose-quick-macvlan',
         path: 'docker-compose.quick.macvlan.yml',
         extract: (content) => {

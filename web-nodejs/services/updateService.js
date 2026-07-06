@@ -167,6 +167,7 @@ const COMPONENTS = {
         files: [
             'betterdesk.sh', 'betterdesk.ps1', 'betterdesk-docker.sh',
             'docker-compose.yml', 'docker-compose.single.yml', 'docker-compose.quick.yml',
+            'docker-compose.quick.single.yml', 'docker-compose.quick.single.macvlan.yml',
             'Dockerfile', 'Dockerfile.server', 'Dockerfile.console'
         ],
         label: 'Scripts & Docker',
@@ -411,9 +412,32 @@ function getImageEmbeddedSHA() {
     return null;
 }
 
+function getDockerLayout() {
+    const layout = (process.env.BETTERDESK_DOCKER_LAYOUT || '').trim().toLowerCase();
+    if (layout === 'single' || layout === 'split') return layout;
+    return 'split';
+}
+
 function getDockerUpdateInstructions() {
     const tag = (process.env.BETTERDESK_IMAGE_TAG || 'latest').trim() || 'latest';
     const owner = (process.env.UPDATE_GITHUB_OWNER || GITHUB_OWNER).toLowerCase();
+    const layout = getDockerLayout();
+
+    if (layout === 'single') {
+        return {
+            summary: 'Pull and recreate the official all-in-one container image.',
+            commands: [
+                'docker compose pull',
+                'docker compose up -d'
+            ],
+            images: [
+                `ghcr.io/${owner}/betterdesk:${tag}`
+            ],
+            composeHint: 'docker-compose.quick.single.yml',
+            layout: 'single'
+        };
+    }
+
     return {
         summary: 'Pull and recreate the published container images.',
         commands: [
@@ -424,7 +448,8 @@ function getDockerUpdateInstructions() {
             `ghcr.io/${owner}/betterdesk-console:${tag}`,
             `ghcr.io/${owner}/betterdesk-server:${tag}`
         ],
-        composeHint: 'docker-compose.quick.yml'
+        composeHint: 'docker-compose.quick.yml',
+        layout: 'split'
     };
 }
 

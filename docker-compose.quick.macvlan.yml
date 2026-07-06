@@ -103,6 +103,7 @@ services:
       - WS_HBBR_PORT=21117
       - DOCKER=true
       - BETTERDESK_UPDATE_MODE=image
+      - BETTERDESK_DOCKER_LAYOUT=split
       - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.3.112}
       - TZ=${TZ:-UTC}
     depends_on:

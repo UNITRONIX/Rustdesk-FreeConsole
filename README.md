@@ -510,7 +510,7 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 **One-line install:**
 
 ```bash
-# Docker (pre-built images, auto-configured)
+# Docker (official all-in-one image, auto-configured)
 curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
 
 # Native (git clone + betterdesk.sh --auto)
@@ -573,11 +573,14 @@ The script installs Go, compiles the server, sets up NSSM services (`BetterDeskS
 curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
 ```
 
-The installer downloads pre-built GHCR images, detects your relay address, opens firewall ports (UFW/firewalld when active), starts containers, and prints admin credentials plus RustDesk client settings.
+The installer downloads the **official all-in-one** GHCR image (`ghcr.io/unitronix/betterdesk`), detects your relay address, opens firewall ports (UFW/firewalld when active), starts the container, and prints admin credentials plus RustDesk client settings.
 
 **Options:**
 
 ```bash
+# Legacy two-container layout (server + console images)
+curl -fsSL .../install.sh | sudo bash -s -- --split
+
 # LAN-only server (use host LAN IP for relay)
 curl -fsSL .../install.sh | sudo bash -s -- --relay-mode local
 
@@ -590,18 +593,15 @@ curl -fsSL .../install.sh | sudo bash -s -- --native
 
 Install files land in `/opt/betterdesk/docker` (Docker) or `/opt/betterdesk/source` (native). See `install.sh --help` for all flags.
 
-**🚀 Quick Start (no build required):**
+**🚀 Quick Start (no build required — official single image):**
 
 ```bash
-# Download and run - that's it!
-curl -fsSL https://raw.githubusercontent.com/UNITRONIX/Rustdesk-FreeConsole/main/docker-compose.quick.yml -o docker-compose.yml
-docker compose up -d
-
-# Get admin password (helper re-execs as betterdesk — required with cap_drop:ALL)
-docker compose exec console betterdesk-show-admin-credentials
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.single.yml -o docker-compose.yml
+docker compose pull && docker compose up -d
+docker compose exec betterdesk betterdesk-show-admin-credentials
 ```
 
-Open http://localhost:5000 — done in 30 seconds! See [DOCKER_QUICKSTART.md](docs/docker/DOCKER_QUICKSTART.md) for more options.
+Open http://localhost:5000 — API on port **21121**. See [DOCKER_QUICKSTART.md](docs/docker/DOCKER_QUICKSTART.md) for legacy split layout and more options.
 
 **Build from source (advanced):**
 

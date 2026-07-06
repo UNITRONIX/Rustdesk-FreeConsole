@@ -3742,7 +3742,7 @@
     "channel_apply_hint": "确认后立即保存。然后点击检查更新。",
     "channel_confirm_switch": "将更新源从 {from} 切换到 {to}？在点击检查更新之前，已安装的 commit 基准不变。",
     "docker_title": "Docker 镜像部署",
-    "docker_desc": "本控制台运行于预构建容器镜像。更新通过从 GHCR 拉取较新镜像完成，而非应用内安装或 Go 重新编译。",
+    "docker_desc": "本控制台运行于预构建容器镜像（官方 all-in-one 或旧版 split）。更新在主机上通过从 GHCR 拉取较新容器镜像完成，而非应用内安装或 Go 重新编译。",
     "docker_install_note": "Docker 中已禁用应用内安装。请在主机上运行上述命令，然后刷新本页。",
     "docker_update_available": "有新的容器镜像可用",
     "docker_sha_unknown": "已是最新（镜像 commit 未知）",

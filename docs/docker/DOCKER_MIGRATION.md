@@ -260,6 +260,29 @@ environment:
 
 ---
 
+## Migrate split Docker → single container (official image)
+
+If you already run the legacy **two-container** quick-start (`betterdesk-server` + `betterdesk-console`), you can switch to the official **all-in-one** image without losing data. Named volumes (`betterdesk-data`, `betterdesk-console-data`) are reused.
+
+```bash
+cd /opt/betterdesk/docker   # or your compose directory
+docker compose down
+
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.single.yml -o docker-compose.yml
+
+# Keep BETTERDESK_IMAGE_TAG / RELAY_SERVERS from your existing .env
+docker compose --env-file .env pull
+docker compose --env-file .env up -d
+
+docker compose exec betterdesk betterdesk-show-admin-credentials
+```
+
+**Client change:** if you configured the RustDesk API server, update from port `21114` to `21121` (`http://YOUR_HOST:21121`).
+
+To stay on split images, use `install.sh --split` or keep `docker-compose.quick.yml`.
+
+---
+
 ## FAQ
 
 **Q: Will my existing clients need to be reconfigured?**
@@ -284,4 +307,4 @@ A: Yes! Use `betterdesk.sh` (Linux) or `betterdesk.ps1` (Windows) instead — th
 
 ---
 
-*Last updated: 2026-02-22*
+*Last updated: 2026-07-06*

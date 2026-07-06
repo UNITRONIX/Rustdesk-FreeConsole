@@ -1,0 +1,123 @@
+# =============================================================================
+# BetterDesk — Official Quick Start (Single Container, Pre-built Image)
+# =============================================================================
+# NO BUILD REQUIRED — uses the official all-in-one image from GHCR.
+# Go server + Node.js console in one container (recommended for all deployments).
+#
+# Image tag (aligned with CHANGELOG / git tag):
+#   Default: 3.3.112  |  Rolling: BETTERDESK_IMAGE_TAG=latest
+#
+# Usage (automated — recommended):
+#   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
+#
+# Usage (manual):
+#   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.single.yml -o docker-compose.yml
+#   docker compose pull && docker compose up -d
+#
+# Pin a specific release:
+#   BETTERDESK_IMAGE_TAG=3.3.112 docker compose up -d
+#
+# Web Console: http://localhost:5000
+# RustDesk client API: http://localhost:21121 (Go server — all-in-one default port)
+# Default credentials are written to the shared credentials file:
+#   docker compose exec betterdesk betterdesk-show-admin-credentials
+#
+# Legacy two-container layout (split images): use docker-compose.quick.yml or
+#   curl .../install.sh | sudo bash -s -- --split
+#
+# MACVLAN / dedicated LAN IP: use docker-compose.quick.single.macvlan.yml instead.
+# See docs/docker/DOCKER_QUICKSTART.md
+#
+# TROUBLESHOOTING: If you get "denied" or "pull access denied" error,
+# images may not be published yet. Build from source instead:
+#   docker compose -f docker-compose.single.yml up -d --build
+# =============================================================================
+
+services:
+  betterdesk:
+    image: ghcr.io/unitronix/betterdesk:${BETTERDESK_IMAGE_TAG:-3.3.112}
+    container_name: betterdesk
+    hostname: betterdesk
+    ports:
+      - "5000:5000"             # Web Console (LAN)
+      - "21115:21115"           # NAT type test
+      - "21116:21116/tcp"       # Signal TCP
+      - "21116:21116/udp"       # Signal UDP
+      - "21117:21117"           # Relay TCP
+      - "21118:21118"           # WebSocket Signal
+      - "21119:21119"           # WebSocket Relay
+      - "21121:21121"           # HTTP API (RustDesk client + REST, WAN-facing)
+    volumes:
+      - betterdesk-data:/opt/rustdesk
+      - console-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - HOST=0.0.0.0
+      - API_HOST=0.0.0.0
+      - API_ENABLED=false
+      - ENCRYPTED_ONLY=1
+      - SERVER_BACKEND=betterdesk
+      - HBBS_API_URL=http://127.0.0.1:21121/api
+      - BETTERDESK_API_URL=http://127.0.0.1:21121/api
+      - RUSTDESK_PATH=/opt/rustdesk
+      - DATA_DIR=/app/data
+      - DB_PATH=/opt/rustdesk/db_v2.sqlite3
+      - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
+      - API_KEY_PATH=/opt/rustdesk/.api_key
+      - SESSION_SECRET=${SESSION_SECRET:-}
+      - DOCKER=true
+      - BETTERDESK_UPDATE_MODE=image
+      - BETTERDESK_DOCKER_LAYOUT=single
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.3.112}
+      - DB_TYPE=${DB_TYPE:-sqlite}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - DB_URL=${DATABASE_URL:-}
+      # Set this when clients are outside the Docker network. Use the host's
+      # public IP/DNS, or the host LAN IP for LAN-only deployments.
+      # Example: RELAY_SERVERS=203.0.113.10:21117 docker compose up -d
+      - RELAY_SERVERS=${RELAY_SERVERS:-}
+      - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
+      # Enrollment policy. Fresh volumes default to "managed" (operator approves
+      # new devices); pre-existing volumes keep their current mode. Override with
+      # "open", "managed", or "locked".
+      - ENROLLMENT_MODE=${ENROLLMENT_MODE:-}
+      - NTP_SERVERS=${NTP_SERVERS:-pool.ntp.org,time.google.com,time.cloudflare.com}
+      - BILLING_MAX_CLOCK_SKEW_MS=${BILLING_MAX_CLOCK_SKEW_MS:-2000}
+      - BILLING_REQUIRE_SYNCED_CLOCK=${BILLING_REQUIRE_SYNCED_CLOCK:-1}
+      - BILLING_TRUST_OS_NTP=${BILLING_TRUST_OS_NTP:-Y}
+      - AUTH_DB_PATH=/app/data/auth.db
+      # Admin credentials (first run only; existing users are not overwritten).
+      - INIT_ADMIN_USER=${ADMIN_USERNAME:-admin}
+      - INIT_ADMIN_PASS=${ADMIN_PASSWORD:-}
+      - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - TZ=${TZ:-UTC}
+    networks:
+      - betterdesk-net
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+      - FOWNER
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:21121/api/health && curl -sf http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+networks:
+  betterdesk-net:
+    driver: bridge
+
+volumes:
+  betterdesk-data:
+    name: betterdesk-data
+  console-data:
+    name: betterdesk-console-data
