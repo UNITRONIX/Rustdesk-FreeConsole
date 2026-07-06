@@ -213,14 +213,17 @@
 
     function toggleToolbar() {
         if (toolbar.classList.contains('expanded')) {
-            toolbarPinned = false;
-            document.getElementById('btn-pin')?.classList.remove('active');
             toolbar.classList.remove('expanded', 'hover-preview');
             const exp = document.getElementById('btn-toolbar-expand');
             if (exp) {
                 exp.classList.remove('active');
                 const ic = exp.querySelector('.material-icons');
                 if (ic) ic.textContent = 'expand_more';
+            }
+            if (toolbarPinned) {
+                toolbarPinned = false;
+                toolbar.classList.remove('pinned');
+                document.getElementById('btn-pin')?.classList.remove('active');
             }
         } else {
             expandToolbar();

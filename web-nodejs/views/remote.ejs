@@ -29,6 +29,14 @@
     <div class="session-tabs" id="session-tabs"></div>
     <div class="toolbar-notch-slot" id="toolbar-notch-slot">
         <div class="viewer-toolbar" id="viewer-toolbar">
+            <div class="toolbar-handle" id="toolbar-handle">
+                <button type="button" class="handle-btn" id="btn-handle-fullscreen" title="${_('remote.fullscreen')}">
+                    <span class="material-icons">fullscreen</span>
+                </button>
+                <button type="button" class="handle-btn handle-expand" id="btn-toolbar-expand" title="${_('remote.toggle_menu')}">
+                    <span class="material-icons">expand_more</span>
+                </button>
+            </div>
             <div class="toolbar-expanded" id="toolbar-expanded">
                 <div class="toolbar-left">
                     <span class="toolbar-device-info">
@@ -174,14 +182,6 @@
                         <span class="material-icons">power_settings_new</span>
                     </button>
                 </div>
-            </div>
-            <div class="toolbar-handle" id="toolbar-handle">
-                <button type="button" class="handle-btn" id="btn-handle-fullscreen" title="${_('remote.fullscreen')}">
-                    <span class="material-icons">fullscreen</span>
-                </button>
-                <button type="button" class="handle-btn handle-expand" id="btn-toolbar-expand" title="${_('remote.toggle_menu')}">
-                    <span class="material-icons">expand_more</span>
-                </button>
             </div>
         </div>
     </div>
