@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.3.113] — 2026-07-06
+
+### Changed
 - **Docker — official single container (default):** `install.sh` and quick-start docs now deploy one pre-built image (`ghcr.io/unitronix/betterdesk`) via `docker-compose.quick.single.yml`. Updates are a single `docker compose pull && up -d`. Legacy two-container layout remains available with `install.sh --split` or `docker-compose.quick.yml`. Panel update instructions respect `BETTERDESK_DOCKER_LAYOUT` (`single` vs `split`). Migrating from split to single reuses the same named volumes; RustDesk client API URL changes from port `21114` to `21121`.
 
 ---
@@ -1659,3 +1666,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.110]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.109...v3.3.110
 [3.3.111]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.110...v3.3.111
 [3.3.112]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.111...v3.3.112
+[3.3.113]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.112...v3.3.113
