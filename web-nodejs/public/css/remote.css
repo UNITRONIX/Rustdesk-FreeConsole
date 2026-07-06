@@ -374,7 +374,8 @@
     }
 
     .toolbar-drawer,
-    .toolbar-handle {
+    .toolbar-handle,
+    .toolbar-expanded {
         transition: none;
     }
 }
@@ -412,10 +413,65 @@
     pointer-events: auto;
 }
 
-/* Pull handle — compact tab under session bar; drags the drawer open */
+/* Drawer shell — content panel + pull handle slide out together */
+.toolbar-drawer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: max-content;
+    max-width: calc(100vw - 120px);
+    transform-origin: top center;
+    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.viewer-toolbar.drawer-pulling .toolbar-drawer {
+    transition-duration: 0.42s;
+}
+
+/* Expanded action bar */
+.toolbar-expanded {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    max-height: 0;
+    opacity: 0;
+    padding: 0 14px;
+    overflow: hidden;
+    pointer-events: none;
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid transparent;
+    border-top: none;
+    border-radius: 0 0 14px 14px;
+    box-shadow: none;
+    transform: translateY(-8px) scaleY(0.9);
+    transform-origin: top center;
+    transition:
+        max-height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.28s ease,
+        transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+        padding 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.22s ease,
+        box-shadow 0.32s ease;
+}
+
+.viewer-toolbar.expanded .toolbar-expanded,
+.viewer-toolbar.pinned .toolbar-expanded {
+    max-height: 60px;
+    opacity: 1;
+    padding: 7px 16px 8px;
+    pointer-events: auto;
+    border-color: var(--border-primary, #30363d);
+    border-bottom: none;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.48);
+    transform: translateY(0) scaleY(1);
+    overflow: visible;
+}
+
+/* Pull handle — collapsed: top droplet; expanded: bottom center tab */
 .toolbar-handle {
-    position: relative;
-    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -434,7 +490,8 @@
     cursor: grab;
     transition: opacity 0.18s ease, min-width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
         height 0.24s cubic-bezier(0.22, 1, 0.36, 1), padding 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-        gap 0.2s ease, border-radius 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        gap 0.2s ease, border-radius 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease,
+        margin-top 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .toolbar-handle:focus-visible {
@@ -443,17 +500,13 @@
 }
 
 .toolbar-handle-grip {
-    display: inline-flex;
+    display: none;
     align-items: center;
     justify-content: center;
-    width: 0;
-    min-width: 0;
-    height: 0;
-    opacity: 0;
-    overflow: hidden;
+    min-width: 24px;
+    height: 18px;
     color: var(--accent-blue, #58a6ff);
     pointer-events: none;
-    transition: width 0.18s ease, min-width 0.18s ease, height 0.18s ease, opacity 0.15s ease;
 }
 
 .toolbar-handle-grip .material-icons {
@@ -481,7 +534,7 @@
         opacity 0.15s ease, background-color 0.15s, color 0.15s;
 }
 
-/* Collapsed: reveal handle controls on hover / focus */
+/* Collapsed: top droplet under tab bar */
 .viewer-toolbar:not(.expanded):not(.pinned).hover-preview .toolbar-handle,
 .viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:hover,
 .viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:focus-within {
@@ -502,42 +555,29 @@
     pointer-events: auto;
 }
 
-.viewer-toolbar:not(.expanded):not(.pinned).hover-preview .toolbar-handle-grip,
-.viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:hover .toolbar-handle-grip,
-.viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:focus-within .toolbar-handle-grip {
-    display: none;
-}
-
-/* Expanded: handle becomes narrow pull tab attached to drawer */
+/* Expanded: bottom center collapse tab with blue chevron */
 .viewer-toolbar.expanded .toolbar-handle,
 .viewer-toolbar.pinned .toolbar-handle {
     opacity: 1;
-    min-width: 52px;
-    height: 22px;
-    padding: 1px 8px 0;
+    min-width: 54px;
+    height: 20px;
+    margin-top: -1px;
+    padding: 0 10px 2px;
     gap: 0;
     cursor: pointer;
-    border-radius: 0;
-    border-bottom: none;
-    box-shadow: none;
+    border-radius: 0 0 10px 10px;
+    border-top: none;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
 
 .viewer-toolbar.expanded .toolbar-handle-grip,
 .viewer-toolbar.pinned .toolbar-handle-grip {
-    width: auto;
-    min-width: 24px;
-    height: 20px;
-    opacity: 1;
+    display: inline-flex;
 }
 
 .viewer-toolbar.expanded .toolbar-handle .handle-btn,
 .viewer-toolbar.pinned .toolbar-handle .handle-btn {
     display: none;
-}
-
-.viewer-toolbar.expanded .toolbar-handle-grip .material-icons,
-.viewer-toolbar.pinned .toolbar-handle-grip .material-icons {
-    transform: rotate(180deg);
 }
 
 .viewer-toolbar.drawer-pulling .toolbar-handle {
@@ -557,64 +597,38 @@
     color: var(--accent-blue, #58a6ff);
 }
 
-/* Drawer shell — slides down from under the pull handle */
-.toolbar-drawer {
-    position: relative;
-    z-index: 1;
-    width: max-content;
-    max-width: calc(100vw - 120px);
-    margin-top: -1px;
-    max-height: 0;
-    opacity: 0;
-    overflow: hidden;
-    pointer-events: none;
-    background: linear-gradient(180deg, var(--bg-secondary, #161b22) 0%, rgba(22, 27, 34, 0.97) 100%);
-    backdrop-filter: blur(10px);
-    border: 1px solid transparent;
-    border-top: none;
-    border-radius: 0 0 14px 14px;
-    box-shadow: none;
-    transform: translateY(-10px) scaleY(0.88);
-    transform-origin: top center;
-    transition:
-        max-height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
-        opacity 0.28s ease,
-        transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
-        border-color 0.22s ease,
-        box-shadow 0.32s ease;
-}
-
-.viewer-toolbar.expanded .toolbar-drawer,
-.viewer-toolbar.pinned .toolbar-drawer {
-    max-height: 88px;
-    opacity: 1;
-    pointer-events: auto;
-    border-color: var(--border-primary, #30363d);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.48);
-    transform: translateY(0) scaleY(1);
-}
-
-.viewer-toolbar.drawer-pulling .toolbar-drawer {
-    transition-duration: 0.42s;
-}
-
-/* Drawer contents */
-.toolbar-expanded {
-    display: flex;
-    align-items: center;
-    flex-wrap: nowrap;
-    justify-content: center;
-    gap: 6px;
-    padding: 5px 12px 8px;
-    overflow: visible;
-}
-
 .toolbar-left,
 .toolbar-right {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
     flex-shrink: 0;
+}
+
+.viewer-toolbar.expanded .toolbar-device-info,
+.viewer-toolbar.pinned .toolbar-device-info {
+    margin-left: 0;
+    margin-right: 8px;
+    padding-right: 6px;
+    border-right: 1px solid var(--border-primary, #30363d);
+}
+
+.viewer-toolbar.expanded .toolbar-status-sep,
+.viewer-toolbar.pinned .toolbar-status-sep,
+.viewer-toolbar.expanded .toolbar-status,
+.viewer-toolbar.pinned .toolbar-status {
+    display: none !important;
+}
+
+.viewer-toolbar.expanded .toolbar-btn,
+.viewer-toolbar.pinned .toolbar-btn {
+    width: 32px;
+    height: 32px;
+}
+
+.viewer-toolbar.expanded .toolbar-btn .material-icons,
+.viewer-toolbar.pinned .toolbar-btn .material-icons {
+    font-size: 18px;
 }
 
 .toolbar-monitor-strip {
