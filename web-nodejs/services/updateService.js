@@ -349,9 +349,17 @@ function ghGet(urlPath, { bypassCache = false } = {}) {
 }
 
 /**
- * Download raw file content from GitHub (binary-safe).
+ * Download raw file content from GitHub (binary-safe), with retry on rate limits.
  */
-function ghDownloadFile(owner, repo, ref, filePath) {
+function isRetryableDownloadStatus(statusCode) {
+    return statusCode === 429 || statusCode === 502 || statusCode === 503 || statusCode === 504;
+}
+
+function getDownloadRetryDelayMs(attempt) {
+    return Math.min(1000 * Math.pow(2, Math.max(0, attempt - 1)), 15000);
+}
+
+function ghDownloadFileOnce(owner, repo, ref, filePath) {
     const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(ref)}/${filePath}`;
     return new Promise((resolve, reject) => {
         const headers = { 'User-Agent': USER_AGENT };
@@ -374,6 +382,30 @@ function ghDownloadFile(owner, repo, ref, filePath) {
         };
         follow(url);
     });
+}
+
+async function ghDownloadFile(owner, repo, ref, filePath, opts = {}) {
+    const maxAttempts = Number(opts.maxAttempts) > 0 ? Number(opts.maxAttempts) : 4;
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await ghDownloadFileOnce(owner, repo, ref, filePath);
+        } catch (err) {
+            lastErr = err;
+            const match = /Download failed \((\d+)\)/.exec(err.message || '');
+            const statusCode = match ? Number(match[1]) : 0;
+            if (!isRetryableDownloadStatus(statusCode) || attempt >= maxAttempts) {
+                throw err;
+            }
+            const delayMs = getDownloadRetryDelayMs(attempt);
+            console.warn(
+                `[UPDATE] Download retry ${attempt}/${maxAttempts} for ${filePath}`
+                + ` after ${delayMs}ms (${err.message})`
+            );
+            await new Promise((r) => setTimeout(r, delayMs));
+        }
+    }
+    throw lastErr;
 }
 
 // ======================== Docker image deployment ========================
@@ -3256,6 +3288,8 @@ module.exports = {
     isNonCriticalUpdateFailure,
     GITHUB_COMPARE_FILE_LIMIT,
     isCompareLikelyTruncated,
+    isRetryableDownloadStatus,
+    getDownloadRetryDelayMs,
     resolveConsoleRequire,
     collectConsoleRequiredFiles,
     isResolvedByIndexModule,

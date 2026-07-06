@@ -4,6 +4,8 @@ const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
 const {
     GITHUB_COMPARE_FILE_LIMIT,
     isCompareLikelyTruncated,
+    isRetryableDownloadStatus,
+    getDownloadRetryDelayMs,
 } = require('../services/updateService');
 
 describe('updateService console sync helpers', () => {
@@ -49,5 +51,14 @@ describe('updateService console sync helpers', () => {
         ]);
         expect(required.has('routes/auth.routes.js')).toBe(true);
         expect(required.has('services/serverAttestation.js')).toBe(true);
+    });
+
+    test('retries GitHub raw downloads on rate limit status codes', () => {
+        expect(isRetryableDownloadStatus(429)).toBe(true);
+        expect(isRetryableDownloadStatus(503)).toBe(true);
+        expect(isRetryableDownloadStatus(404)).toBe(false);
+        expect(getDownloadRetryDelayMs(1)).toBe(1000);
+        expect(getDownloadRetryDelayMs(2)).toBe(2000);
+        expect(getDownloadRetryDelayMs(6)).toBe(15000);
     });
 });

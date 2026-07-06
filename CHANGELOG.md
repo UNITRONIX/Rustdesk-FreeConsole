@@ -3,6 +3,7 @@
 ### Added
 - **Web Remote — File Transfer drop zone:** left panel shows a drag-and-drop upload box (click to pick files, multi-file supported). Uploads go to the folder currently open on the remote side; progress appears in the Transfers column.
 - **Web Remote — RustDesk file transfer parity:** 128 KB blocks, zstd upload compression, resume via `offset_blk` / `transferred_size`, overwrite confirmation dialog (Skip / Overwrite / apply to all), remote context menu (rename, delete, new folder), hidden-files toggle, and Resume in the transfer queue after errors.
+- **Panel updater:** GitHub raw file downloads retry automatically on HTTP 429/502/503/504 (exponential backoff), reducing failed locale syncs during large updates.
 
 ### Changed
 - _(none yet)_
