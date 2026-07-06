@@ -263,16 +263,74 @@
         expandToolbar();
     }
 
+    let toolbarChromeExiting = false;
+
+    function forceCollapseToolbar() {
+        toolbarPinned = false;
+        toolbar.classList.remove('expanded', 'pinned', 'hover-preview');
+        document.getElementById('btn-pin')?.classList.remove('active');
+        const exp = document.getElementById('btn-toolbar-expand');
+        if (exp) {
+            exp.classList.remove('active');
+            const ic = exp.querySelector('.material-icons');
+            if (ic) ic.textContent = 'expand_more';
+        }
+    }
+
     function setToolbarChromeVisible(visible) {
         if (!toolbarNotchSlot) return;
         const wasHidden = toolbarNotchSlot.classList.contains('toolbar-chrome-hidden');
-        toolbarNotchSlot.classList.toggle('toolbar-chrome-hidden', !visible);
+
         if (!visible) {
-            collapseToolbar();
-            toolbarNotchSlot.classList.remove('toolbar-chrome-enter');
+            if (wasHidden || toolbarChromeExiting) return;
+            const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reducedMotion) {
+                toolbarNotchSlot.classList.add('toolbar-chrome-hidden');
+                forceCollapseToolbar();
+                toolbarNotchSlot.classList.remove('toolbar-chrome-enter', 'toolbar-chrome-exit');
+                return;
+            }
+            toolbarChromeExiting = true;
+            playToolbarChromeExit(() => {
+                toolbarNotchSlot.classList.add('toolbar-chrome-hidden');
+                forceCollapseToolbar();
+                toolbarNotchSlot.classList.remove('toolbar-chrome-enter', 'toolbar-chrome-exit');
+                toolbarChromeExiting = false;
+            });
             return;
         }
+
+        toolbarChromeExiting = false;
+        toolbarNotchSlot.classList.remove('toolbar-chrome-hidden', 'toolbar-chrome-exit');
         if (wasHidden) playToolbarChromeEnter();
+    }
+
+    function playToolbarChromeExit(done) {
+        if (!toolbarNotchSlot) {
+            done?.();
+            return;
+        }
+        toolbarNotchSlot.classList.remove('toolbar-chrome-enter');
+        void toolbarNotchSlot.offsetWidth;
+        toolbarNotchSlot.classList.add('toolbar-chrome-exit');
+
+        let finished = false;
+        const finish = () => {
+            if (finished) return;
+            finished = true;
+            toolbarNotchSlot.classList.remove('toolbar-chrome-exit');
+            toolbarNotchSlot.removeEventListener('animationend', onEnd);
+            clearTimeout(fallback);
+            done?.();
+        };
+
+        const onEnd = (ev) => {
+            if (ev.target !== toolbarNotchSlot) return;
+            finish();
+        };
+
+        toolbarNotchSlot.addEventListener('animationend', onEnd);
+        const fallback = setTimeout(finish, 420);
     }
 
     function playToolbarChromeEnter() {
@@ -297,6 +355,12 @@
         }
         setToolbarChromeVisible(true);
         if (!toolbarPinned) collapseToolbar();
+    }
+
+    // Keep toolbar chrome in sync when session ends (disconnect / error / idle).
+    function hideToolbarChromeForSession(session) {
+        if (!session || !isActive(session)) return;
+        setToolbarChromeVisible(false);
     }
 
     function setToolbarAutoHide(enable) {
@@ -668,7 +732,10 @@
         c.on('state', (state) => {
             session.state = state;
             updateTabState(session.deviceId, state);
-            if (isActive(session)) syncToolbarToSession(session);
+            if (isActive(session)) {
+                if (state !== 'streaming') hideToolbarChromeForSession(session);
+                syncToolbarToSession(session);
+            }
             handleSessionState(session, state);
         });
 
@@ -981,28 +1048,14 @@
     }
 
     function syncToolbarToSession(session) {
-        const stateLabels = {
-            'idle': _('remote.status_idle'),
-            'connecting': _('remote.connecting'),
-            'waiting_password': _('remote.waiting_password'),
-            'authenticating': _('remote.authenticating'),
-            'streaming': _('remote.streaming'),
-            'disconnected': _('remote.disconnected'),
-            'error': _('remote.error')
-        };
         const isStreaming = session.state === 'streaming';
         toolbar.classList.toggle('toolbar-streaming', isStreaming);
-        if (toolbarStatus) {
-            if (isStreaming) {
-                toolbarStatus.style.display = 'none';
-            } else {
-                toolbarStatus.style.display = '';
-                toolbarStatus.textContent = stateLabels[session.state] || session.state;
-            }
-        }
-        document.querySelector('.toolbar-status-sep')?.style.setProperty('display', isStreaming ? 'none' : '');
+        if (toolbarStatus) toolbarStatus.style.display = 'none';
+        document.querySelector('.toolbar-status-sep')?.style.setProperty('display', 'none');
 
-        syncToolbarChrome(session);
+        if (isStreaming) {
+            syncToolbarChrome(session);
+        }
 
         // Audio icon
         const audioBtn = document.getElementById('btn-audio');

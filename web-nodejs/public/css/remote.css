@@ -331,6 +331,11 @@
 }
 
 /* First appearance after login — droplet drops from tab bar */
+.toolbar-notch-slot.toolbar-chrome-enter,
+.toolbar-notch-slot.toolbar-chrome-exit {
+    transition: none;
+}
+
 .toolbar-notch-slot.toolbar-chrome-enter {
     transform: translateX(-50%) translateY(0);
 }
@@ -362,6 +367,32 @@
 @media (prefers-reduced-motion: reduce) {
     .toolbar-notch-slot.toolbar-chrome-enter .toolbar-handle {
         animation: none;
+    }
+
+    .toolbar-notch-slot.toolbar-chrome-exit {
+        animation: none;
+    }
+}
+
+/* Exit after disconnect — retract into tab bar */
+.toolbar-notch-slot.toolbar-chrome-exit {
+    pointer-events: none;
+    animation: notch-chrome-exit 0.38s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes notch-chrome-exit {
+    0% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+    }
+    55% {
+        opacity: 0.65;
+        transform: translateX(-50%) translateY(-6px) scale(0.96);
+    }
+    100% {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateX(-50%) translateY(-14px) scale(0.88);
     }
 }
 
