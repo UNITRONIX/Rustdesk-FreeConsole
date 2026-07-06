@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.114] — 2026-07-06
+
 ### Added
 - **Web Remote — File Transfer drop zone:** left panel shows a drag-and-drop upload box (click to pick files, multi-file supported). Uploads go to the folder currently open on the remote side; progress appears in the Transfers column.
 - **Web Remote — RustDesk file transfer parity:** 128 KB blocks, zstd upload compression, resume via `offset_blk` / `transferred_size`, overwrite confirmation dialog (Skip / Overwrite / apply to all), remote context menu (rename, delete, new folder), hidden-files toggle, and Resume in the transfer queue after errors.
@@ -1671,3 +1678,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.111]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.110...v3.3.111
 [3.3.112]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.111...v3.3.112
 [3.3.113]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.112...v3.3.113
+[3.3.114]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.113...v3.3.114
