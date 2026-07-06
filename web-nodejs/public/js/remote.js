@@ -184,44 +184,59 @@
     const tabBar = document.getElementById('session-tabs');
 
     // ---- Notch toolbar (integrated in session tab bar) ----
-    // Compact droplet is always visible; hover reveals handle icons; expand
-    // button opens the full action bar as a longer notch.
+    // Compact handle pulls the action drawer open; fullscreen stays on the handle only.
     let toolbarPinned = false;
+    let drawerPullTimer = null;
+
+    function syncToolbarHandleAria(expanded) {
+        if (!toolbarHandle) return;
+        toolbarHandle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }
+
+    function setDrawerPulling(active) {
+        toolbar?.classList.toggle('drawer-pulling', active);
+        if (!active) {
+            clearTimeout(drawerPullTimer);
+            drawerPullTimer = null;
+            return;
+        }
+        clearTimeout(drawerPullTimer);
+        drawerPullTimer = setTimeout(() => toolbar?.classList.remove('drawer-pulling'), 440);
+    }
+
+    function syncExpandControlIcon(expanded) {
+        const exp = document.getElementById('btn-toolbar-expand');
+        if (!exp) return;
+        exp.classList.toggle('active', expanded);
+        const ic = exp.querySelector('.material-icons');
+        if (ic) ic.textContent = expanded ? 'expand_less' : 'expand_more';
+    }
 
     function expandToolbar() {
         if (toolbarNotchSlot?.classList.contains('toolbar-chrome-hidden')) return;
         toolbar.classList.remove('hover-preview');
         toolbar.classList.add('expanded');
-        const exp = document.getElementById('btn-toolbar-expand');
-        if (exp) {
-            exp.classList.add('active');
-            const ic = exp.querySelector('.material-icons');
-            if (ic) ic.textContent = 'expand_less';
-        }
+        syncToolbarHandleAria(true);
+        syncExpandControlIcon(true);
+        setDrawerPulling(true);
     }
 
     function collapseToolbar() {
         if (toolbarPinned) return;
         if (document.querySelector('.toolbar-dropdown-menu.open')) return;
+        setDrawerPulling(true);
         toolbar.classList.remove('expanded');
         toolbar.classList.remove('hover-preview');
-        const exp = document.getElementById('btn-toolbar-expand');
-        if (exp) {
-            exp.classList.remove('active');
-            const ic = exp.querySelector('.material-icons');
-            if (ic) ic.textContent = 'expand_more';
-        }
+        syncToolbarHandleAria(false);
+        syncExpandControlIcon(false);
     }
 
     function toggleToolbar() {
-        if (toolbar.classList.contains('expanded')) {
+        if (toolbar.classList.contains('expanded') || toolbar.classList.contains('pinned')) {
             toolbar.classList.remove('expanded', 'hover-preview');
-            const exp = document.getElementById('btn-toolbar-expand');
-            if (exp) {
-                exp.classList.remove('active');
-                const ic = exp.querySelector('.material-icons');
-                if (ic) ic.textContent = 'expand_more';
-            }
+            syncExpandControlIcon(false);
+            syncToolbarHandleAria(false);
+            setDrawerPulling(true);
             if (toolbarPinned) {
                 toolbarPinned = false;
                 toolbar.classList.remove('pinned');
@@ -253,6 +268,18 @@
                 toolbar.classList.remove('hover-preview');
             }
         });
+        toolbarHandle.addEventListener('click', (e) => {
+            if (toolbarNotchSlot?.classList.contains('toolbar-chrome-hidden')) return;
+            if (e.target.closest('#btn-handle-fullscreen')) return;
+            e.preventDefault();
+            toggleToolbar();
+        });
+        toolbarHandle.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.target.closest('#btn-handle-fullscreen')) return;
+            e.preventDefault();
+            toggleToolbar();
+        });
     }
 
     // Legacy compatibility shims — older code paths call these to surface the
@@ -267,14 +294,12 @@
 
     function forceCollapseToolbar() {
         toolbarPinned = false;
-        toolbar.classList.remove('expanded', 'pinned', 'hover-preview');
+        toolbar.classList.remove('expanded', 'pinned', 'hover-preview', 'drawer-pulling');
         document.getElementById('btn-pin')?.classList.remove('active');
-        const exp = document.getElementById('btn-toolbar-expand');
-        if (exp) {
-            exp.classList.remove('active');
-            const ic = exp.querySelector('.material-icons');
-            if (ic) ic.textContent = 'expand_more';
-        }
+        syncToolbarHandleAria(false);
+        syncExpandControlIcon(false);
+        clearTimeout(drawerPullTimer);
+        drawerPullTimer = null;
     }
 
     function setToolbarChromeVisible(visible) {
@@ -1643,13 +1668,7 @@
         if (toolbarPinned) expandToolbar();
     });
 
-    // ---- Compact handle: expand / collapse the action pill ----
-    document.getElementById('btn-toolbar-expand')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleToolbar();
-    });
-
-    // ---- Compact handle: fullscreen ----
+    // ---- Compact handle: fullscreen (drawer toggle is on the handle itself) ----
     document.getElementById('btn-handle-fullscreen')?.addEventListener('click', (e) => {
         e.stopPropagation();
         toggleViewerShellFullscreen();

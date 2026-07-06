@@ -372,6 +372,11 @@
     .toolbar-notch-slot.toolbar-chrome-exit {
         animation: none;
     }
+
+    .toolbar-drawer,
+    .toolbar-handle {
+        transition: none;
+    }
 }
 
 /* Exit after disconnect — retract into tab bar */
@@ -407,8 +412,10 @@
     pointer-events: auto;
 }
 
-/* Droplet handle — bridges tab bar bottom edge to expanded panel */
+/* Pull handle — compact tab under session bar; drags the drawer open */
 .toolbar-handle {
+    position: relative;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -424,8 +431,33 @@
     opacity: 0.5;
     overflow: hidden;
     flex-shrink: 0;
-    transition: opacity 0.18s ease, min-width 0.2s ease, height 0.2s ease,
-        padding 0.2s ease, gap 0.2s ease, border-radius 0.15s ease;
+    cursor: grab;
+    transition: opacity 0.18s ease, min-width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+        height 0.24s cubic-bezier(0.22, 1, 0.36, 1), padding 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+        gap 0.2s ease, border-radius 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.toolbar-handle:focus-visible {
+    outline: 2px solid var(--accent-blue, #58a6ff);
+    outline-offset: 2px;
+}
+
+.toolbar-handle-grip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0;
+    min-width: 0;
+    height: 0;
+    opacity: 0;
+    overflow: hidden;
+    color: var(--accent-blue, #58a6ff);
+    pointer-events: none;
+    transition: width 0.18s ease, min-width 0.18s ease, height 0.18s ease, opacity 0.15s ease;
+}
+
+.toolbar-handle-grip .material-icons {
+    font-size: 18px;
 }
 
 .toolbar-handle .handle-btn {
@@ -449,10 +481,10 @@
         opacity 0.15s ease, background-color 0.15s, color 0.15s;
 }
 
-/* Collapsed: reveal icons on hover / focus */
-.viewer-toolbar:not(.expanded).hover-preview .toolbar-handle,
-.viewer-toolbar:not(.expanded) .toolbar-handle:hover,
-.viewer-toolbar:not(.expanded) .toolbar-handle:focus-within {
+/* Collapsed: reveal handle controls on hover / focus */
+.viewer-toolbar:not(.expanded):not(.pinned).hover-preview .toolbar-handle,
+.viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:hover,
+.viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:focus-within {
     opacity: 1;
     min-width: 72px;
     height: 26px;
@@ -460,9 +492,9 @@
     gap: 2px;
 }
 
-.viewer-toolbar:not(.expanded).hover-preview .toolbar-handle .handle-btn,
-.viewer-toolbar:not(.expanded) .toolbar-handle:hover .handle-btn,
-.viewer-toolbar:not(.expanded) .toolbar-handle:focus-within .handle-btn {
+.viewer-toolbar:not(.expanded):not(.pinned).hover-preview .toolbar-handle .handle-btn,
+.viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:hover .handle-btn,
+.viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:focus-within .handle-btn {
     width: 28px;
     min-width: 28px;
     height: 22px;
@@ -470,34 +502,46 @@
     pointer-events: auto;
 }
 
-/* Expanded: handle stays visible as bridge with collapse control */
+.viewer-toolbar:not(.expanded):not(.pinned).hover-preview .toolbar-handle-grip,
+.viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:hover .toolbar-handle-grip,
+.viewer-toolbar:not(.expanded):not(.pinned) .toolbar-handle:focus-within .toolbar-handle-grip {
+    display: none;
+}
+
+/* Expanded: handle becomes narrow pull tab attached to drawer */
 .viewer-toolbar.expanded .toolbar-handle,
 .viewer-toolbar.pinned .toolbar-handle {
     opacity: 1;
     min-width: 52px;
-    height: 24px;
-    padding: 2px 8px 3px;
-    gap: 2px;
+    height: 22px;
+    padding: 1px 8px 0;
+    gap: 0;
+    cursor: pointer;
     border-radius: 0;
     border-bottom: none;
     box-shadow: none;
-    transition: opacity 0.18s ease, min-width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-        height 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-radius 0.2s ease;
+}
+
+.viewer-toolbar.expanded .toolbar-handle-grip,
+.viewer-toolbar.pinned .toolbar-handle-grip {
+    width: auto;
+    min-width: 24px;
+    height: 20px;
+    opacity: 1;
 }
 
 .viewer-toolbar.expanded .toolbar-handle .handle-btn,
 .viewer-toolbar.pinned .toolbar-handle .handle-btn {
-    width: 28px;
-    min-width: 28px;
-    height: 20px;
-    opacity: 1;
-    pointer-events: auto;
+    display: none;
 }
 
-/* Fullscreen only in collapsed droplet */
-.viewer-toolbar.expanded #btn-handle-fullscreen,
-.viewer-toolbar.pinned #btn-handle-fullscreen {
-    display: none;
+.viewer-toolbar.expanded .toolbar-handle-grip .material-icons,
+.viewer-toolbar.pinned .toolbar-handle-grip .material-icons {
+    transform: rotate(180deg);
+}
+
+.viewer-toolbar.drawer-pulling .toolbar-handle {
+    cursor: grabbing;
 }
 
 .handle-btn:hover {
@@ -513,43 +557,55 @@
     color: var(--accent-blue, #58a6ff);
 }
 
-/* Expanded action bar — slides out from under the handle */
-.toolbar-expanded {
-    display: flex;
-    align-items: center;
-    flex-wrap: nowrap;
-    justify-content: center;
-    gap: 6px;
+/* Drawer shell — slides down from under the pull handle */
+.toolbar-drawer {
+    position: relative;
+    z-index: 1;
+    width: max-content;
     max-width: calc(100vw - 120px);
+    margin-top: -1px;
     max-height: 0;
     opacity: 0;
-    padding: 0 12px;
     overflow: hidden;
+    pointer-events: none;
     background: linear-gradient(180deg, var(--bg-secondary, #161b22) 0%, rgba(22, 27, 34, 0.97) 100%);
     backdrop-filter: blur(10px);
     border: 1px solid transparent;
     border-top: none;
     border-radius: 0 0 14px 14px;
     box-shadow: none;
-    transform: translateY(-4px) scaleY(0.94);
+    transform: translateY(-10px) scaleY(0.88);
     transform-origin: top center;
     transition:
-        max-height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-        opacity 0.26s ease,
-        transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-        padding 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-        border-color 0.2s ease,
-        box-shadow 0.3s ease;
+        max-height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.28s ease,
+        transform 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.22s ease,
+        box-shadow 0.32s ease;
 }
 
-.viewer-toolbar.expanded .toolbar-expanded,
-.viewer-toolbar.pinned .toolbar-expanded {
-    max-height: 80px;
+.viewer-toolbar.expanded .toolbar-drawer,
+.viewer-toolbar.pinned .toolbar-drawer {
+    max-height: 88px;
     opacity: 1;
-    padding: 5px 12px 8px;
+    pointer-events: auto;
     border-color: var(--border-primary, #30363d);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.48);
     transform: translateY(0) scaleY(1);
+}
+
+.viewer-toolbar.drawer-pulling .toolbar-drawer {
+    transition-duration: 0.42s;
+}
+
+/* Drawer contents */
+.toolbar-expanded {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 6px;
+    padding: 5px 12px 8px;
     overflow: visible;
 }
 
@@ -1559,7 +1615,7 @@
         display: none;
     }
 
-    .toolbar-expanded {
+    .toolbar-drawer {
         max-width: calc(100vw - 16px);
     }
 

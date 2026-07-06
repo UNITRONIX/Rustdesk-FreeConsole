@@ -29,14 +29,18 @@
     <div class="session-tabs" id="session-tabs"></div>
     <div class="toolbar-notch-slot toolbar-chrome-hidden" id="toolbar-notch-slot">
         <div class="viewer-toolbar" id="viewer-toolbar">
-            <div class="toolbar-handle" id="toolbar-handle">
+            <div class="toolbar-handle" id="toolbar-handle" role="button" tabindex="0" aria-expanded="false" aria-controls="toolbar-drawer" title="${_('remote.toggle_menu')}">
                 <button type="button" class="handle-btn" id="btn-handle-fullscreen" title="${_('remote.fullscreen')}">
                     <span class="material-icons">fullscreen</span>
                 </button>
+                <span class="toolbar-handle-grip" aria-hidden="true">
+                    <span class="material-icons">expand_more</span>
+                </span>
                 <button type="button" class="handle-btn handle-expand" id="btn-toolbar-expand" title="${_('remote.toggle_menu')}">
                     <span class="material-icons">expand_more</span>
                 </button>
             </div>
+            <div class="toolbar-drawer" id="toolbar-drawer">
             <div class="toolbar-expanded" id="toolbar-expanded">
                 <div class="toolbar-left">
                     <span class="toolbar-device-info">
@@ -182,6 +186,7 @@
                         <span class="material-icons">power_settings_new</span>
                     </button>
                 </div>
+            </div>
             </div>
         </div>
     </div>
