@@ -178,6 +178,7 @@
     const viewerShell = document.getElementById('rd-viewer-shell');
     const toolbar = document.getElementById('viewer-toolbar');
     const toolbarHandle = document.getElementById('toolbar-handle');
+    const toolbarNotchSlot = document.getElementById('toolbar-notch-slot');
     const toolbarStatus = document.getElementById('toolbar-status');
     const toolbarDeviceId = document.getElementById('toolbar-device-id');
     const tabBar = document.getElementById('session-tabs');
@@ -188,6 +189,7 @@
     let toolbarPinned = false;
 
     function expandToolbar() {
+        if (toolbarNotchSlot?.classList.contains('toolbar-chrome-hidden')) return;
         toolbar.classList.remove('hover-preview');
         toolbar.classList.add('expanded');
         const exp = document.getElementById('btn-toolbar-expand');
@@ -256,14 +258,52 @@
     // Legacy compatibility shims — older code paths call these to surface the
     // status while overlays are visible. They now drive expand/collapse only,
     // never an auto-hide timer.
-    function showToolbar() { expandToolbar(); }
-    function setToolbarAutoHide(enable) {
-        // enable === true  -> session is streaming, keep the pill collapsed.
-        // enable === false -> an overlay is shown, expand so status is visible.
-        if (enable) {
+    function showToolbar() {
+        if (toolbarNotchSlot?.classList.contains('toolbar-chrome-hidden')) return;
+        expandToolbar();
+    }
+
+    function setToolbarChromeVisible(visible) {
+        if (!toolbarNotchSlot) return;
+        const wasHidden = toolbarNotchSlot.classList.contains('toolbar-chrome-hidden');
+        toolbarNotchSlot.classList.toggle('toolbar-chrome-hidden', !visible);
+        if (!visible) {
             collapseToolbar();
+            toolbarNotchSlot.classList.remove('toolbar-chrome-enter');
+            return;
+        }
+        if (wasHidden) playToolbarChromeEnter();
+    }
+
+    function playToolbarChromeEnter() {
+        if (!toolbarNotchSlot) return;
+        toolbarNotchSlot.classList.remove('toolbar-chrome-enter');
+        void toolbarNotchSlot.offsetWidth;
+        toolbarNotchSlot.classList.add('toolbar-chrome-enter');
+        const onEnd = (ev) => {
+            if (ev.target !== toolbarNotchSlot && !ev.target.classList.contains('toolbar-handle')) return;
+            toolbarNotchSlot.classList.remove('toolbar-chrome-enter');
+            toolbarNotchSlot.removeEventListener('animationend', onEnd);
+        };
+        toolbarNotchSlot.addEventListener('animationend', onEnd);
+        setTimeout(() => toolbarNotchSlot.classList.remove('toolbar-chrome-enter'), 500);
+    }
+
+    /** Show notch only during active streaming; hidden on login/connect overlays. */
+    function syncToolbarChrome(session) {
+        if (!session || !isActive(session) || session.state !== 'streaming') {
+            setToolbarChromeVisible(false);
+            return;
+        }
+        setToolbarChromeVisible(true);
+        if (!toolbarPinned) collapseToolbar();
+    }
+
+    function setToolbarAutoHide(enable) {
+        if (enable) {
+            syncToolbarChrome(getActiveSession());
         } else {
-            expandToolbar();
+            setToolbarChromeVisible(false);
         }
     }
 
@@ -544,9 +584,9 @@
         if (session.state === 'streaming') {
             session.canvas.focus();
             session.client.renderer.resize();
-            setToolbarAutoHide(true);
+            syncToolbarChrome(session);
         } else {
-            setToolbarAutoHide(false);
+            syncToolbarChrome(session);
         }
 
         syncSessionMediaCapture();
@@ -642,7 +682,7 @@
             setSessionStatus(session, 'error', msg);
             showSessionActions(session);
             if (meta && meta.cdapFallback) showCdapFallback(session);
-            if (isActive(session)) setToolbarAutoHide(false);
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('cdap_fallback_available', () => {
@@ -652,7 +692,7 @@
         c.on('disconnected', (reason) => {
             setSessionStatus(session, 'info', reason || _('remote.disconnected'));
             showSessionActions(session);
-            if (isActive(session)) setToolbarAutoHide(false);
+            if (isActive(session)) setToolbarChromeVisible(false);
             if (typeof window.BillingReport !== 'undefined') {
                 window.BillingReport.promptAfterSession(session.deviceId, session.deviceName)
                     .then((submitted) => {
@@ -676,6 +716,7 @@
                 }).catch(function () { /* ignore */ });
             }
             if (isActive(session)) session.passwordInput.focus();
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('login_error', (error) => {
@@ -698,6 +739,7 @@
             session.tfaInput.value = '';
             session.tfaOverlay.style.display = 'flex';
             if (isActive(session)) session.tfaInput.focus();
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('2fa_required', () => {
@@ -707,6 +749,7 @@
             session.tfaError.style.display = 'none';
             session.tfaInput.value = '';
             if (isActive(session)) session.tfaInput.focus();
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('login_success', () => {
@@ -733,7 +776,7 @@
             syncSessionMediaCapture();
             if (isActive(session)) {
                 session.canvas.focus();
-                setToolbarAutoHide(true);
+                syncToolbarChrome(session);
                 try { refreshMonitorButton(session); } catch { /* not ready */ }
             }
             if (session.client.video) {
@@ -898,7 +941,7 @@
             session.connectionOverlay.style.display = 'flex';
             session.passwordOverlay.style.display = 'none';
             setSessionStatus(session, 'loading', _('remote.connecting'));
-            if (isActive(session)) setToolbarAutoHide(false);
+            if (isActive(session)) setToolbarChromeVisible(false);
             break;
         case 'streaming':
             session.connectionOverlay.style.display = 'none';
@@ -907,7 +950,7 @@
             syncSessionMediaCapture();
             attachMobileTouch(session);
             syncMobileTouchForActive();
-            if (isActive(session)) setToolbarAutoHide(true);
+            if (isActive(session)) syncToolbarChrome(session);
             break;
         case 'disconnected':
         case 'error':
@@ -916,7 +959,7 @@
             setSessionStatus(session, state === 'error' ? 'error' : 'info',
                 state === 'error' ? _('remote.error') : _('remote.disconnected'));
             showSessionActions(session);
-            if (isActive(session)) setToolbarAutoHide(false);
+            if (isActive(session)) setToolbarChromeVisible(false);
             break;
         }
     }
@@ -958,6 +1001,8 @@
             }
         }
         document.querySelector('.toolbar-status-sep')?.style.setProperty('display', isStreaming ? 'none' : '');
+
+        syncToolbarChrome(session);
 
         // Audio icon
         const audioBtn = document.getElementById('btn-audio');
@@ -1538,6 +1583,7 @@
 
     // Pin Toolbar toggle — keeps the expanded action pill open
     document.getElementById('btn-pin')?.addEventListener('click', function () {
+        if (toolbarNotchSlot?.classList.contains('toolbar-chrome-hidden')) return;
         toolbarPinned = !toolbarPinned;
         toolbar.classList.toggle('pinned', toolbarPinned);
         this.classList.toggle('active', toolbarPinned);

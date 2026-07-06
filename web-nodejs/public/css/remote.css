@@ -318,6 +318,51 @@
     z-index: 230;
     pointer-events: none;
     -webkit-app-region: no-drag;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.22s ease, visibility 0.22s ease, transform 0.22s ease;
+}
+
+.toolbar-notch-slot.toolbar-chrome-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(-4px);
+}
+
+/* First appearance after login — droplet drops from tab bar */
+.toolbar-notch-slot.toolbar-chrome-enter {
+    transform: translateX(-50%) translateY(0);
+}
+
+.toolbar-notch-slot.toolbar-chrome-enter .toolbar-handle {
+    animation: notch-droplet-enter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes notch-droplet-enter {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px) scaleY(0.4);
+        min-width: 32px;
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    }
+    65% {
+        opacity: 1;
+        transform: translateY(3px) scaleY(1.08);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.42);
+    }
+    100% {
+        opacity: 0.5;
+        transform: translateY(0) scaleY(1);
+        min-width: 40px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.38);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toolbar-notch-slot.toolbar-chrome-enter .toolbar-handle {
+        animation: none;
+    }
 }
 
 .viewer-toolbar {
@@ -405,6 +450,8 @@
     border-radius: 0;
     border-bottom: none;
     box-shadow: none;
+    transition: opacity 0.18s ease, min-width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+        height 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-radius 0.2s ease;
 }
 
 .viewer-toolbar.expanded .toolbar-handle .handle-btn,
@@ -435,33 +482,44 @@
     color: var(--accent-blue, #58a6ff);
 }
 
-/* Expanded action bar — flows below handle as longer notch */
+/* Expanded action bar — slides out from under the handle */
 .toolbar-expanded {
-    display: none;
+    display: flex;
     align-items: center;
     flex-wrap: nowrap;
     justify-content: center;
     gap: 6px;
     max-width: calc(100vw - 120px);
-    padding: 5px 12px 8px;
+    max-height: 0;
+    opacity: 0;
+    padding: 0 12px;
+    overflow: hidden;
     background: linear-gradient(180deg, var(--bg-secondary, #161b22) 0%, rgba(22, 27, 34, 0.97) 100%);
     backdrop-filter: blur(10px);
-    border: 1px solid var(--border-primary, #30363d);
+    border: 1px solid transparent;
     border-top: none;
     border-radius: 0 0 14px 14px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-    overflow: visible;
+    box-shadow: none;
+    transform: translateY(-4px) scaleY(0.94);
+    transform-origin: top center;
+    transition:
+        max-height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.26s ease,
+        transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        padding 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.2s ease,
+        box-shadow 0.3s ease;
 }
 
 .viewer-toolbar.expanded .toolbar-expanded,
 .viewer-toolbar.pinned .toolbar-expanded {
-    display: flex;
-    animation: notch-expand 0.2s ease;
-}
-
-@keyframes notch-expand {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
+    max-height: 80px;
+    opacity: 1;
+    padding: 5px 12px 8px;
+    border-color: var(--border-primary, #30363d);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    transform: translateY(0) scaleY(1);
+    overflow: visible;
 }
 
 .toolbar-left,
