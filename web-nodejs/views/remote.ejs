@@ -75,74 +75,82 @@
                             <span class="material-icons">tune</span>
                         </button>
                         <div class="toolbar-dropdown-menu toolbar-dropdown-wide" id="display-menu">
-                            <div class="dropdown-label">${_('remote.image_quality')}</div>
-                            <button class="dropdown-item quality-item active" data-quality="Best">
-                                <span class="material-icons">hd</span> ${_('remote.quality_best')}
-                            </button>
-                            <button class="dropdown-item quality-item" data-quality="Balanced">
-                                <span class="material-icons">tune</span> ${_('remote.quality_balanced')}
-                            </button>
-                            <button class="dropdown-item quality-item" data-quality="Low">
-                                <span class="material-icons">speed</span> ${_('remote.quality_low')}
-                            </button>
-                            <div class="dropdown-separator"></div>
-                            <div class="dropdown-label">${_('remote.codec')}</div>
-                            <button class="dropdown-item codec-item active" data-codec="Auto">
-                                <span class="material-icons">auto_awesome</span> ${_('remote.codec_auto')}
-                            </button>
-                            <button class="dropdown-item codec-item" data-codec="VP9">
-                                <span class="material-icons">memory</span> VP9
-                            </button>
-                            <button class="dropdown-item codec-item" data-codec="AV1">
-                                <span class="material-icons">memory</span> AV1
-                            </button>
-                            <button class="dropdown-item codec-item" data-codec="H264">
-                                <span class="material-icons">memory</span> H264
-                            </button>
-                            <button class="dropdown-item codec-item" data-codec="VP8">
-                                <span class="material-icons">memory</span> VP8
-                            </button>
-                            <button class="dropdown-item codec-item" data-codec="H265">
-                                <span class="material-icons">memory</span> H265
-                            </button>
-                            <div class="dropdown-separator"></div>
-                            <div class="dropdown-label">${_('remote.keyboard_mode')}</div>
-                            <button class="dropdown-item keyboard-mode-item active" data-keyboard-mode="Auto">
-                                <span class="material-icons">auto_awesome</span> ${_('remote.keyboard_mode_auto')}
-                            </button>
-                            <button class="dropdown-item keyboard-mode-item" data-keyboard-mode="Legacy">
-                                <span class="material-icons">translate</span> ${_('remote.keyboard_mode_legacy')}
-                            </button>
-                            <button class="dropdown-item keyboard-mode-item" data-keyboard-mode="Map">
-                                <span class="material-icons">keyboard</span> ${_('remote.keyboard_mode_map')}
-                            </button>
-                            <div class="dropdown-separator"></div>
-                            <div class="dropdown-label">${_('remote.scale_mode')}</div>
-                            <button class="dropdown-item scale-item active" data-scale="fit">
-                                <span class="material-icons">fit_screen</span> ${_('remote.scale_fit')}
-                            </button>
-                            <button class="dropdown-item scale-item" data-scale="fill">
-                                <span class="material-icons">crop_free</span> ${_('remote.scale_fill')}
-                            </button>
-                            <button class="dropdown-item scale-item" data-scale="1:1">
-                                <span class="material-icons">filter_1</span> ${_('remote.scale_original')}
-                            </button>
-                            <button class="dropdown-item scale-item" data-scale="stretch">
-                                <span class="material-icons">open_in_full</span> ${_('remote.scale_stretch')}
-                            </button>
-                            <div class="dropdown-separator"></div>
-                            <button class="dropdown-item toggle-item" id="btn-show-cursor" data-active="true">
-                                <span class="material-icons">mouse</span> ${_('remote.show_cursor')}
-                            </button>
-                            <button class="dropdown-item toggle-item" id="btn-lock-session" data-active="false">
-                                <span class="material-icons">lock_clock</span> ${_('remote.lock_after_session')}
-                            </button>
-                            <button class="dropdown-item toggle-item" id="btn-privacy-mode" data-active="false">
-                                <span class="material-icons">visibility_off</span> ${_('remote.privacy_mode')}
-                            </button>
-                            <button class="dropdown-item toggle-item" id="btn-disable-clipboard" data-active="false">
-                                <span class="material-icons">content_paste_off</span> ${_('remote.disable_clipboard')}
-                            </button>
+                            <div class="display-menu-grid">
+                                <section class="display-menu-section">
+                                    <div class="dropdown-label">${_('remote.image_quality')}</div>
+                                    <button class="dropdown-item quality-item active" data-quality="Best">
+                                        <span class="material-icons">hd</span> ${_('remote.quality_best')}
+                                    </button>
+                                    <button class="dropdown-item quality-item" data-quality="Balanced">
+                                        <span class="material-icons">tune</span> ${_('remote.quality_balanced')}
+                                    </button>
+                                    <button class="dropdown-item quality-item" data-quality="Low">
+                                        <span class="material-icons">speed</span> ${_('remote.quality_low')}
+                                    </button>
+                                </section>
+                                <section class="display-menu-section">
+                                    <div class="dropdown-label">${_('remote.codec')}</div>
+                                    <button class="dropdown-item codec-item active" data-codec="Auto">
+                                        <span class="material-icons">auto_awesome</span> ${_('remote.codec_auto')}
+                                    </button>
+                                    <button class="dropdown-item codec-item" data-codec="VP9">
+                                        <span class="material-icons">memory</span> VP9
+                                    </button>
+                                    <button class="dropdown-item codec-item" data-codec="AV1">
+                                        <span class="material-icons">memory</span> AV1
+                                    </button>
+                                    <button class="dropdown-item codec-item" data-codec="H264">
+                                        <span class="material-icons">memory</span> H264
+                                    </button>
+                                    <button class="dropdown-item codec-item" data-codec="VP8">
+                                        <span class="material-icons">memory</span> VP8
+                                    </button>
+                                    <button class="dropdown-item codec-item" data-codec="H265">
+                                        <span class="material-icons">memory</span> H265
+                                    </button>
+                                </section>
+                                <section class="display-menu-section">
+                                    <div class="dropdown-label">${_('remote.keyboard_mode')}</div>
+                                    <button class="dropdown-item keyboard-mode-item active" data-keyboard-mode="Auto">
+                                        <span class="material-icons">auto_awesome</span> ${_('remote.keyboard_mode_auto')}
+                                    </button>
+                                    <button class="dropdown-item keyboard-mode-item" data-keyboard-mode="Legacy">
+                                        <span class="material-icons">translate</span> ${_('remote.keyboard_mode_legacy')}
+                                    </button>
+                                    <button class="dropdown-item keyboard-mode-item" data-keyboard-mode="Map">
+                                        <span class="material-icons">keyboard</span> ${_('remote.keyboard_mode_map')}
+                                    </button>
+                                </section>
+                                <section class="display-menu-section">
+                                    <div class="dropdown-label">${_('remote.scale_mode')}</div>
+                                    <button class="dropdown-item scale-item active" data-scale="fit">
+                                        <span class="material-icons">fit_screen</span> ${_('remote.scale_fit')}
+                                    </button>
+                                    <button class="dropdown-item scale-item" data-scale="fill">
+                                        <span class="material-icons">crop_free</span> ${_('remote.scale_fill')}
+                                    </button>
+                                    <button class="dropdown-item scale-item" data-scale="1:1">
+                                        <span class="material-icons">filter_1</span> ${_('remote.scale_original')}
+                                    </button>
+                                    <button class="dropdown-item scale-item" data-scale="stretch">
+                                        <span class="material-icons">open_in_full</span> ${_('remote.scale_stretch')}
+                                    </button>
+                                </section>
+                                <section class="display-menu-section display-menu-section--full">
+                                    <button class="dropdown-item toggle-item" id="btn-show-cursor" data-active="true">
+                                        <span class="material-icons">mouse</span> ${_('remote.show_cursor')}
+                                    </button>
+                                    <button class="dropdown-item toggle-item" id="btn-lock-session" data-active="false">
+                                        <span class="material-icons">lock_clock</span> ${_('remote.lock_after_session')}
+                                    </button>
+                                    <button class="dropdown-item toggle-item" id="btn-privacy-mode" data-active="false">
+                                        <span class="material-icons">visibility_off</span> ${_('remote.privacy_mode')}
+                                    </button>
+                                    <button class="dropdown-item toggle-item" id="btn-disable-clipboard" data-active="false">
+                                        <span class="material-icons">content_paste_off</span> ${_('remote.disable_clipboard')}
+                                    </button>
+                                </section>
+                            </div>
                         </div>
                     </div>
                     <button class="toolbar-btn" id="btn-audio" title="${_('remote.toggle_audio')}">

@@ -1289,7 +1289,6 @@
             if (session) updateSessionViewerPref(session, { quality: this.dataset.quality });
             document.querySelectorAll('.quality-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            closeAllDropdowns();
         });
     });
 
@@ -1304,7 +1303,6 @@
             if (session) updateSessionViewerPref(session, { keyboardMode: mode });
             document.querySelectorAll('.keyboard-mode-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            closeAllDropdowns();
         });
     });
 
@@ -1316,7 +1314,6 @@
             if (session) updateSessionViewerPref(session, { scale: this.dataset.scale });
             document.querySelectorAll('.scale-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            closeAllDropdowns();
         });
     });
 
@@ -1329,7 +1326,6 @@
             if (session) updateSessionViewerPref(session, { codec: this.dataset.codec });
             document.querySelectorAll('.codec-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            closeAllDropdowns();
         });
     });
 
