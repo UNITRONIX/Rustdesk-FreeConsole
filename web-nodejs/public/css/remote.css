@@ -866,13 +866,16 @@
 
 /* ---- Monitors & Virtual Displays ---- */
 #monitors-menu.toolbar-dropdown-menu {
-    display: flex;
-    flex-direction: column;
     min-width: 240px;
     max-width: min(300px, calc(100vw - 24px));
     max-height: min(75vh, calc(100dvh - 120px));
     overflow: hidden;
     padding: 4px;
+}
+
+#monitors-menu.toolbar-dropdown-menu.open {
+    display: flex;
+    flex-direction: column;
 }
 
 #monitors-menu > .dropdown-label {

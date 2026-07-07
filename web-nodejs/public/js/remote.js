@@ -1479,9 +1479,6 @@
         // display support.
         if (monitors.length < 2 && !(vd && vd.supported)) return;
 
-        const btn = document.getElementById('btn-monitors');
-        if (btn) btn.style.display = '';
-
         const label = menu.querySelector('.dropdown-label');
         menu.innerHTML = '';
         if (label) menu.appendChild(label);
