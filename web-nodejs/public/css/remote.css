@@ -865,6 +865,46 @@
 }
 
 /* ---- Monitors & Virtual Displays ---- */
+#monitors-menu.toolbar-dropdown-menu {
+    min-width: 240px;
+    max-width: min(300px, calc(100vw - 24px));
+}
+
+.monitor-item {
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.monitor-item .material-icons {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.monitor-item-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.monitor-item-name {
+    font-size: 13px;
+    line-height: 1.3;
+    word-break: break-all;
+}
+
+.monitor-item-meta {
+    font-size: 11px;
+    line-height: 1.2;
+    color: var(--text-secondary, #8b949e);
+}
+
+.monitor-item.active::after {
+    align-self: center;
+    flex-shrink: 0;
+}
+
 .dropdown-divider {
     height: 1px;
     background: var(--border-primary, #30363d);
@@ -887,14 +927,17 @@
 .virtual-display-counter {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    justify-content: center;
+    gap: 12px;
+    padding: 6px 12px;
+    box-sizing: border-box;
 }
 
 .vd-count-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     width: 28px;
     height: 28px;
     border: 1px solid var(--border-primary, #30363d);

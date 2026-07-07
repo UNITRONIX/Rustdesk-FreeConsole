@@ -1491,10 +1491,15 @@
             const item = document.createElement('button');
             item.className = 'dropdown-item monitor-item' + (m.current ? ' active' : '');
             item.dataset.idx = m.idx;
+            const res = (m.width && m.height)
+                ? '<span class="monitor-item-meta">' + m.width + '\u00d7' + m.height + '</span>'
+                : '';
             item.innerHTML = '<span class="material-icons">' +
                 (m.primary ? 'desktop_windows' : 'monitor') +
-                '</span> ' + escapeHtml(m.name) +
-                (m.width ? ' (' + m.width + '\u00d7' + m.height + ')' : '');
+                '</span><span class="monitor-item-text">' +
+                '<span class="monitor-item-name">' + escapeHtml(m.name) + '</span>' +
+                res +
+                '</span>';
             item.addEventListener('click', () => {
                 session.client.switchMonitor(m.idx);
                 menu.querySelectorAll('.monitor-item').forEach(i => i.classList.remove('active'));
@@ -1533,7 +1538,7 @@
             } else if (vd.impl === 'amyuni_idd') {
                 const count = (typeof vd.amyuniCount === 'number') ? vd.amyuniCount : 0;
                 const row = document.createElement('div');
-                row.className = 'dropdown-item virtual-display-counter';
+                row.className = 'virtual-display-counter';
 
                 const minus = document.createElement('button');
                 minus.className = 'vd-count-btn';
