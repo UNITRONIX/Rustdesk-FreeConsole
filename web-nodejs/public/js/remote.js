@@ -1486,6 +1486,9 @@
         menu.innerHTML = '';
         if (label) menu.appendChild(label);
 
+        const listWrap = document.createElement('div');
+        listWrap.className = 'monitors-menu-list';
+
         // Physical monitors
         monitors.forEach(m => {
             const item = document.createElement('button');
@@ -1506,19 +1509,20 @@
                 item.classList.add('active');
                 refreshMonitorButton(session);
             });
-            menu.appendChild(item);
+            listWrap.appendChild(item);
         });
+
+        menu.appendChild(listWrap);
 
         // Virtual displays (RustDesk IDD / Amyuni IDD)
         if (vd && vd.supported) {
-            const divider = document.createElement('div');
-            divider.className = 'dropdown-divider';
-            menu.appendChild(divider);
+            const vdWrap = document.createElement('div');
+            vdWrap.className = 'monitors-menu-vd';
 
             const vdLabel = document.createElement('div');
             vdLabel.className = 'dropdown-label';
             vdLabel.textContent = t('remote.virtual_displays', 'Virtual displays');
-            menu.appendChild(vdLabel);
+            vdWrap.appendChild(vdLabel);
 
             if (vd.impl === 'rustdesk_idd') {
                 const active = Array.isArray(vd.rustdeskDisplays) ? vd.rustdeskDisplays : [];
@@ -1533,7 +1537,7 @@
                     item.addEventListener('click', () => {
                         session.client.toggleVirtualDisplay(idx, !on);
                     });
-                    menu.appendChild(item);
+                    vdWrap.appendChild(item);
                 }
             } else if (vd.impl === 'amyuni_idd') {
                 const count = (typeof vd.amyuniCount === 'number') ? vd.amyuniCount : 0;
@@ -1565,7 +1569,7 @@
                 row.appendChild(minus);
                 row.appendChild(num);
                 row.appendChild(plus);
-                menu.appendChild(row);
+                vdWrap.appendChild(row);
             }
 
             // Plug out all
@@ -1576,7 +1580,8 @@
             plugOut.addEventListener('click', () => {
                 session.client.toggleVirtualDisplay(-1, false);
             });
-            menu.appendChild(plugOut);
+            vdWrap.appendChild(plugOut);
+            menu.appendChild(vdWrap);
         }
     }
 

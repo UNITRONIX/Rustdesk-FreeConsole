@@ -866,8 +866,42 @@
 
 /* ---- Monitors & Virtual Displays ---- */
 #monitors-menu.toolbar-dropdown-menu {
+    display: flex;
+    flex-direction: column;
     min-width: 240px;
     max-width: min(300px, calc(100vw - 24px));
+    max-height: min(75vh, calc(100dvh - 120px));
+    overflow: hidden;
+    padding: 4px;
+}
+
+#monitors-menu > .dropdown-label {
+    flex-shrink: 0;
+}
+
+.monitors-menu-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-primary, #30363d) transparent;
+}
+
+.monitors-menu-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.monitors-menu-list::-webkit-scrollbar-thumb {
+    background: var(--border-primary, #30363d);
+    border-radius: 3px;
+}
+
+.monitors-menu-vd {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border-primary, #30363d);
+    margin-top: 4px;
+    padding-top: 4px;
+    background: var(--bg-secondary, #161b22);
 }
 
 .monitor-item {
