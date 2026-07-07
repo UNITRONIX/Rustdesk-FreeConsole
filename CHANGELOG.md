@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Linux HTTP/HTTPS toggle (#219)** — `ensure_betterdesk_console_user` no longer prints repair warnings to stdout (they corrupted `User=` in `betterdesk-console.service` → `bad-setting`). Added `repair_console_service_user_line`, unified HTTPS repair on update/toggle, `SIGNAL_PORT=21116` / `RELAY_PORT=21117` in panel update service patch, ExecStartPre exits 0 on LE warnings-only, and port cleanup after graceful stop.
+
 ### Changed
 - _(none yet)_
 

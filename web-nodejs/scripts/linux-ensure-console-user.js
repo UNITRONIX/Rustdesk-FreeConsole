@@ -608,6 +608,40 @@ function verifyConsoleUserAccess() {
     return verifyDirWritableByUser(RUSTDESK_PATH, 'Go server data');
 }
 
+const VALID_CONSOLE_SERVICE_USERS = new Set(['root', SVC_USER]);
+
+/** @returns {boolean} */
+function serviceUserLineIsValid(content) {
+    const matches = String(content || '').match(/^User=(.*)$/gm) || [];
+    if (matches.length !== 1) return false;
+    const user = matches[0].replace(/^User=/, '').trim();
+    return VALID_CONSOLE_SERVICE_USERS.has(user);
+}
+
+/**
+ * Replace malformed User= lines (e.g. stdout pollution from ensure_betterdesk_console_user).
+ * @param {string} content
+ * @param {string} [wantUser]
+ * @returns {{ content: string, changed: boolean }}
+ */
+function repairInvalidServiceUserLine(content, wantUser = SVC_USER) {
+    const unit = String(content || '');
+    if (!unit.trim()) {
+        return { content: unit, changed: false };
+    }
+    if (serviceUserLineIsValid(unit)) {
+        return { content: unit, changed: false };
+    }
+
+    let updated = unit.replace(/^User=.*\n?/gm, '');
+    if (/^\[Service\]/m.test(updated)) {
+        updated = updated.replace(/^\[Service\]/m, `[Service]\nUser=${wantUser}`);
+    } else {
+        updated = `User=${wantUser}\n${updated}`;
+    }
+    return { content: updated, changed: true };
+}
+
 function patchServiceUserLine() {
     const { servicePath, content } = readServiceFile();
     if (!servicePath || !content) {
@@ -620,7 +654,11 @@ function patchServiceUserLine() {
     let updated = content;
     let changed = false;
 
-    if (/^User=root/m.test(updated)) {
+    const userRepair = repairInvalidServiceUserLine(updated, SVC_USER);
+    if (userRepair.changed) {
+        updated = userRepair.content;
+        changed = true;
+    } else if (/^User=root/m.test(updated)) {
         updated = updated.replace(/^User=root/m, `User=${SVC_USER}`);
         changed = true;
     }
@@ -632,7 +670,7 @@ function patchServiceUserLine() {
     }
 
     if (!changed) {
-        if (!/^User=root/m.test(content)) {
+        if (serviceUserLineIsValid(content)) {
             return { changed: false, reason: 'User is not root (already patched or custom)' };
         }
         return { changed: false, reason: 'service unit already current' };
@@ -641,6 +679,9 @@ function patchServiceUserLine() {
     writeServiceFile(servicePath, updated);
     runPrivilegedArgv(resolveSystemctlPath(), ['daemon-reload']);
     const result = { changed: true, user: SVC_USER, servicePath };
+    if (userRepair.changed) {
+        result.repairedInvalidUser = true;
+    }
     if (needsBindCapability) {
         result.bindCapability = true;
     }
@@ -648,10 +689,10 @@ function patchServiceUserLine() {
 }
 
 /**
- * @returns {{ changed: boolean, user?: string, changes: string[], error?: string, skipped?: boolean }}
+ * @returns {{ changed: boolean, user?: string, changes: string[], warnings?: string[], error?: string, fatal?: boolean, skipped?: boolean, permissionsOk?: boolean }}
  */
 function ensureLinuxConsoleServiceUser() {
-    const result = { changed: false, changes: [], permissionsOk: false };
+    const result = { changed: false, changes: [], warnings: [], permissionsOk: false, fatal: false };
     if (process.platform !== 'linux') {
         return { ...result, skipped: true, reason: 'not-linux' };
     }
@@ -667,7 +708,7 @@ function ensureLinuxConsoleServiceUser() {
             if (deployScript.changed) {
                 result.changes.push('server binary deploy helper marked executable');
             } else if (deployScript.error) {
-                result.changes.push(`deploy helper chmod skipped: ${deployScript.error}`);
+                result.warnings.push(`deploy helper chmod skipped: ${deployScript.error}`);
             }
             const sudoers = ensureConsoleUpdateSudoers();
             if (sudoers.changed) {
@@ -679,13 +720,14 @@ function ensureLinuxConsoleServiceUser() {
                 result.permissionsOk = true;
                 result.changes.push('permissions synced for betterdesk console user');
             } else if (perm.error) {
+                result.fatal = true;
                 result.error = perm.error;
             }
             const leRepair = repairLetsEncryptSslMaterial({ runFn: runPrivilegedArgv });
             if (leRepair.changed) {
                 result.changes.push("Let's Encrypt TLS material redeployed for console user (#219)");
             } else if (leRepair.error && leRepair.error !== 'no root/sudo for LE cert redeploy') {
-                result.changes.push(`LE TLS repair: ${leRepair.error}`);
+                result.warnings.push(`LE TLS repair: ${leRepair.error}`);
             }
         } else if (userExists(SVC_USER)) {
             const access = verifyConsoleUserAccess();
@@ -694,32 +736,44 @@ function ensureLinuxConsoleServiceUser() {
                 result.changes.push(`${SVC_USER} user present; data dir writable`);
             } else {
                 result.changes.push(`${SVC_USER} user present; permission sync skipped (no sudo)`);
+                result.fatal = true;
                 result.error = access.error || 'permission sync requires root/sudo';
             }
         } else {
+            result.fatal = true;
             result.error = `System user ${SVC_USER} is missing and cannot be created without root/sudo`;
         }
 
         const access = verifyConsoleUserAccess();
-        if (access.ok) result.permissionsOk = true;
+        if (access.ok) {
+            result.permissionsOk = true;
+        } else if (!result.fatal) {
+            result.fatal = true;
+            result.error = access.error || `console user ${SVC_USER} cannot access required directories`;
+        }
 
-        // Only switch User=root → betterdesk when permissions are verified.
+        // Repair User= / root→betterdesk when permissions are verified.
         if (result.permissionsOk && privileged) {
             const patch = patchServiceUserLine();
             if (patch.changed) {
                 result.changed = true;
                 result.user = patch.user;
-                result.changes.push(`console service User=${patch.user}`);
+                if (patch.repairedInvalidUser) {
+                    result.changes.push(`repaired invalid console service User=${patch.user} (#219)`);
+                } else {
+                    result.changes.push(`console service User=${patch.user}`);
+                }
                 if (patch.bindCapability) {
                     result.changes.push('CAP_NET_BIND_SERVICE added for privileged HTTPS/HTTP ports');
                 }
             } else if (patch.reason) {
                 result.changes.push(patch.reason);
             }
-        } else if (!result.permissionsOk) {
+        } else if (!result.permissionsOk && !result.fatal) {
             result.changes.push('skipped service User= patch until permissions are fixed');
         }
     } catch (err) {
+        result.fatal = true;
         result.error = err.message || String(err);
     }
     return result;
@@ -727,8 +781,13 @@ function ensureLinuxConsoleServiceUser() {
 
 if (require.main === module) {
     const out = ensureLinuxConsoleServiceUser();
+    if (out.warnings && out.warnings.length) {
+        for (const w of out.warnings) {
+            console.error(`[linux-ensure-console-user] warning: ${w}`);
+        }
+    }
     console.log(JSON.stringify(out, null, 2));
-    process.exit(out.error ? 1 : 0);
+    process.exit(out.fatal ? 1 : 0);
 }
 
 module.exports = {
@@ -746,6 +805,8 @@ module.exports = {
     resolveSystemctlPath,
     resolveEnsureConsoleUserScriptPath,
     patchServiceUserLine,
+    repairInvalidServiceUserLine,
+    serviceUserLineIsValid,
     readEnvFileValue,
     isTruthyEnvValue,
     inferLeLiveDirFromCertSan,

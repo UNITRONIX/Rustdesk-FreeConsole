@@ -15,6 +15,8 @@ const {
     shouldRedeployLetsEncryptMaterial,
     safeCopyTlsFile,
     upsertEnvFileValue,
+    repairInvalidServiceUserLine,
+    serviceUserLineIsValid,
     SHARED_GO_DATA_DIR_MODE,
     SHARED_GO_SSL_DIR_MODE,
     SVC_USER,
@@ -192,5 +194,25 @@ describe('linux-ensure-console-user helpers', () => {
         expect(calls[0][1]).toBe('-L');
         expect(calls[1][0]).toBe('mv');
         fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    test('serviceUserLineIsValid accepts root or betterdesk only (#219)', () => {
+        expect(serviceUserLineIsValid('[Service]\nUser=betterdesk\nExecStart=node server.js')).toBe(true);
+        expect(serviceUserLineIsValid('[Service]\nUser=root\nExecStart=node server.js')).toBe(true);
+        expect(serviceUserLineIsValid('[Service]\nUser=!\nUser=betterdesk\n')).toBe(false);
+    });
+
+    test('repairInvalidServiceUserLine fixes stdout-polluted User= (#219)', () => {
+        const corrupted = [
+            '[Service]',
+            'User=! LE certificate symlinks detected but live dir not found',
+            'betterdesk',
+            'ExecStart=/usr/bin/node server.js',
+        ].join('\n');
+        const repaired = repairInvalidServiceUserLine(corrupted, SVC_USER);
+        expect(repaired.changed).toBe(true);
+        expect(repaired.content).toMatch(/^User=betterdesk$/m);
+        expect(repaired.content.match(/^User=/gm)).toHaveLength(1);
+        expect(serviceUserLineIsValid(repaired.content)).toBe(true);
     });
 });

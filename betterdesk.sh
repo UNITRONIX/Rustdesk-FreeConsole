@@ -555,9 +555,36 @@ wait_for_service_stop() {
 }
 
 # Kill any stale processes that might be holding files/ports
+# Free BetterDesk ports when systemd stop left orphan listeners (#219).
+kill_processes_holding_ports() {
+    local port pids
+    for port in 21116 21117 5000 5443; do
+        if ! ss -tlnH 2>/dev/null | grep -q ":${port} "; then
+            continue
+        fi
+        pids=$(lsof -t -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+            print_warning "Port ${port} still in use (pids: $pids) — terminating (#219)"
+            for pid in $pids; do
+                kill -TERM "$pid" 2>/dev/null || true
+            done
+            sleep 1
+            pids=$(lsof -t -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true)
+            if [ -n "$pids" ]; then
+                for pid in $pids; do
+                    kill -9 "$pid" 2>/dev/null || true
+                done
+            fi
+        elif command -v fuser &>/dev/null; then
+            fuser -k "${port}/tcp" 2>/dev/null || true
+        fi
+    done
+    sleep 1
+}
+
 kill_stale_processes() {
     local process_name="$1"
-    
+
     # Find and kill any remaining processes
     local pids=$(pgrep -f "$process_name" 2>/dev/null || true)
     
@@ -678,9 +705,7 @@ graceful_stop_services() {
     kill_stale_processes "betterdesk-server"
     kill_stale_processes "hbbs"
     kill_stale_processes "hbbr"
-    
-    # Verify ports are free
-    sleep 2
+    kill_processes_holding_ports
     
     print_success "All services stopped"
 }
@@ -980,6 +1005,8 @@ repair_https_stuck_state() {
     local quiet="${1:-}"
     local changed=0
 
+    repair_console_service_user_line "betterdesk"
+
     if ensure_go_server_signal_ports; then
         changed=1
     fi
@@ -1256,6 +1283,8 @@ prepare_console_after_update() {
         return 0
     fi
     systemctl reset-failed betterdesk-console 2>/dev/null || true
+    repair_console_service_user_line "betterdesk"
+    repair_https_stuck_state yes
     if [ -f "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" ] && command -v node &>/dev/null; then
         if [ "$(id -u)" -eq 0 ]; then
             node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission sync reported issues"
@@ -1265,6 +1294,7 @@ prepare_console_after_update() {
             print_warning "Console permission sync skipped (run as root: sudo node $CONSOLE_PATH/scripts/linux-ensure-console-user.js)"
         fi
     fi
+    repair_console_service_user_line "betterdesk"
     ensure_console_tls_material_readable 2>/dev/null || true
 }
 
@@ -2897,6 +2927,7 @@ patch_service_definitions() {
     if [ -f "$console_svc" ]; then
         local console_user
         console_user=$(ensure_betterdesk_console_user)
+        repair_console_service_user_line "$console_user"
         local content new_content backup
         content=$(cat "$console_svc")
         new_content=$(printf '%s' "$content" \
@@ -2960,21 +2991,42 @@ maybe_update_services() {
     print_info "Service units present — patched in place (Repair → Repair services for full recreate)"
 }
 
-# Create a dedicated unprivileged user for the web console (audit H-7).
-# The Go server may still run as root for low-port binding; the console does not need it.
-ensure_betterdesk_console_user() {
+# Repair corrupted User= lines in betterdesk-console.service (#219).
+# Command substitution must never capture repair warnings on stdout.
+repair_console_service_user_line() {
+    local want_user="${1:-betterdesk}"
+    local svc_file="/etc/systemd/system/betterdesk-console.service"
+    local user_count valid_count
+
+    [ -f "$svc_file" ] || return 0
+
+    user_count=$(grep -c '^User=' "$svc_file" 2>/dev/null || echo 0)
+    valid_count=$(grep -cE "^User=(root|betterdesk)$" "$svc_file" 2>/dev/null || echo 0)
+
+    if [ "$user_count" -eq 1 ] && [ "$valid_count" -eq 1 ]; then
+        return 0
+    fi
+
+    print_warning "Repairing invalid User= in betterdesk-console.service (#219)"
+    sed -i '/^User=/d' "$svc_file"
+    sed -i "/^\[Service\]/a User=${want_user}" "$svc_file"
+    systemctl daemon-reload 2>/dev/null || true
+}
+
+# Internal: permissions + optional LE repair (may print to stderr only).
+_sync_betterdesk_console_user_permissions() {
     local svc_user="betterdesk"
+
     if ! id "$svc_user" &>/dev/null; then
         useradd -r -s /usr/sbin/nologin -d /var/lib/betterdesk -c "BetterDesk web console" "$svc_user" 2>/dev/null \
             || print_warning "Could not create system user '$svc_user' — console will stay on root"
     fi
     if ! id "$svc_user" &>/dev/null; then
-        echo "root"
-        return
+        return 1
     fi
+
     mkdir -p /var/lib/betterdesk "$CONSOLE_PATH/data" "$RUSTDESK_PATH" "$RUSTDESK_PATH/ssl"
     chown -R "$svc_user:$svc_user" "$CONSOLE_PATH" 2>/dev/null || true
-    # Shared Go data dir: setgid so root Go server files inherit group betterdesk (#206)
     chown root:"$svc_user" "$RUSTDESK_PATH" 2>/dev/null || true
     chmod 2775 "$RUSTDESK_PATH" 2>/dev/null || true
     if [ -d "$RUSTDESK_PATH/ssl" ]; then
@@ -2997,8 +3049,18 @@ ensure_betterdesk_console_user() {
             chmod 640 "$RUSTDESK_PATH/$f" 2>/dev/null || true
         fi
     done
-    maybe_repair_le_ssl_symlinks 2>/dev/null || true
-    echo "$svc_user"
+    { maybe_repair_le_ssl_symlinks || true; } >&2
+    return 0
+}
+
+# Create a dedicated unprivileged user for the web console (audit H-7).
+# stdout must contain ONLY the username (used in command substitution).
+ensure_betterdesk_console_user() {
+    if ! _sync_betterdesk_console_user_permissions; then
+        echo "root"
+        return
+    fi
+    echo "betterdesk"
 }
 
 setup_services() {
@@ -3266,6 +3328,7 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
         print_success "Created betterdesk-console.service (Node.js)"
+        repair_console_service_user_line "$console_user"
         
         # Remove legacy betterdesk.service if exists
         if [ -f /etc/systemd/system/betterdesk.service ]; then
@@ -3901,6 +3964,8 @@ update_from_github() {
                     cp "$RUSTDESK_PATH/betterdesk-server" \
                        "$RUSTDESK_PATH/betterdesk-server.bak.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
                 fi
+                kill_stale_processes "betterdesk-server"
+                kill_processes_holding_ports
                 cp "$GO_SERVER_SOURCE/betterdesk-server" "$RUSTDESK_PATH/betterdesk-server"
                 chmod +x "$RUSTDESK_PATH/betterdesk-server"
                 print_success "Go server binary deployed to $RUSTDESK_PATH"

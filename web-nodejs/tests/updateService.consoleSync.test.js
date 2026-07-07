@@ -6,6 +6,7 @@ const {
     isCompareLikelyTruncated,
     isRetryableDownloadStatus,
     getDownloadRetryDelayMs,
+    ensureGoServerSignalRelayPorts,
 } = require('../services/updateService');
 
 describe('updateService console sync helpers', () => {
@@ -60,5 +61,21 @@ describe('updateService console sync helpers', () => {
         expect(getDownloadRetryDelayMs(1)).toBe(1000);
         expect(getDownloadRetryDelayMs(2)).toBe(2000);
         expect(getDownloadRetryDelayMs(6)).toBe(15000);
+    });
+
+    test('ensureGoServerSignalRelayPorts adds SIGNAL_PORT and RELAY_PORT (#219)', () => {
+        const unit = [
+            '[Service]',
+            'User=root',
+            'Environment=AUTH_DB_PATH=/opt/console/data/auth.db',
+            'ExecStart=/opt/betterdesk/betterdesk-server -mode all',
+        ].join('\n');
+        const patched = ensureGoServerSignalRelayPorts(unit);
+        expect(patched.changed).toBe(true);
+        expect(patched.text).toMatch(/^Environment=SIGNAL_PORT=21116$/m);
+        expect(patched.text).toMatch(/^Environment=RELAY_PORT=21117$/m);
+
+        const again = ensureGoServerSignalRelayPorts(patched.text);
+        expect(again.changed).toBe(false);
     });
 });

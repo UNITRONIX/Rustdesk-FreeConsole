@@ -8,6 +8,9 @@
 - `deploy_ssl_material_to_rustdesk_dir()` — copies TLS cert/key into `$RUSTDESK_PATH/ssl/betterdesk.{crt,key}` (not symlinks); tracks `LE_CERT_LIVE_DIR` for certbot renew (#219).
 - `install_le_certbot_renew_hook()` — deploy hook re-copies renewed LE certs then restarts services.
 - `maybe_repair_le_ssl_symlinks()` — auto-fixes legacy LE symlink installs when `ensure_betterdesk_console_user` runs.
+- `repair_console_service_user_line()` — fixes corrupted `User=` lines in `betterdesk-console.service` when repair warnings were captured into command substitution (#219).
+- `_sync_betterdesk_console_user_permissions()` — internal permission sync; LE repair output goes to stderr so `ensure_betterdesk_console_user` stdout stays username-only (#219).
+- `kill_processes_holding_ports()` — frees 21116/21117/5000/5443 after graceful stop when orphan listeners remain (#219).
 - `ensure_console_tls_material_readable()` — on update/repair/toggle restart, re-copies LE material when HTTPS is enabled but the console user cannot read the TLS key (#219).
 - `_wait_for_http_code()` — retry helper used by `run_protocol_tests()` so post-restart checks wait for Node boot (#219).
 - `linux-ensure-console-user.js` → `repairLetsEncryptSslMaterial()` — same LE redeploy during Settings → Updates (#219); resolves live dir from `LE_CERT_LIVE_DIR`, cert paths, or `LE_CERT_DOMAIN`.
@@ -31,5 +34,11 @@
 
 ## Invariant kept
 - Go API :21114 always HTTP. Only -tls-signal/-tls-relay + -tls-cert/-tls-key for TLS. Never -tls-api/-force-https.
+
+## HTTPS toggle expectations (operators)
+- Toggle lives in **`sudo betterdesk.sh`** → **Protocol Toggle (T)** or **SSL Configuration (C)** — not in the web panel Settings UI.
+- After enabling HTTPS with Let's Encrypt, open **`https://<your-domain>:5443`** (cert SAN matches the domain; raw IP often shows certificate errors).
+- HTTP `:5000` is a redirect listener only when HTTPS + `HTTP_REDIRECT_HTTPS=true`; plain panel URL in HTTP mode is `http://<server>:5000`.
+- If stuck after a failed toggle: **Repair → Repair HTTPS / TLS**, then restart services. Panel updates also re-run LE redeploy + `SIGNAL_PORT=21116` isolation (#219).
 
 NOT yet mirrored to betterdesk.ps1 / betterdesk-docker.sh.

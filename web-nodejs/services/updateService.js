@@ -898,6 +898,38 @@ function ensureGoServerEnvironmentFile(unitText, envFilePath) {
     return { text: `${envLine}\n${unitText}`, changed: true };
 }
 
+/**
+ * Ensure Go signal/relay ports are not overridden by panel PORT=5000 in shared .env (#219).
+ * @param {string} unitText
+ * @returns {{ text: string, changed: boolean }}
+ */
+function ensureGoServerSignalRelayPorts(unitText) {
+    if (!unitText || typeof unitText !== 'string') {
+        return { text: unitText, changed: false };
+    }
+    let text = unitText;
+    let changed = false;
+    const ports = [
+        ['SIGNAL_PORT', '21116'],
+        ['RELAY_PORT', '21117'],
+    ];
+    for (const [key, value] of ports) {
+        const line = `Environment=${key}=${value}`;
+        if (new RegExp(`^Environment=${key}=`, 'm').test(text)) {
+            continue;
+        }
+        if (/^Environment=AUTH_DB_PATH=/m.test(text)) {
+            text = text.replace(/^(Environment=AUTH_DB_PATH=.*)$/m, `$1\n${line}`);
+        } else if (/^\[Service\]/m.test(text)) {
+            text = text.replace(/^\[Service\]/m, `[Service]\n${line}`);
+        } else {
+            text = `${line}\n${text}`;
+        }
+        changed = true;
+    }
+    return { text, changed };
+}
+
 function sanitizeGoServerServiceConfig() {
     const result = { changed: false, changes: [], error: null, needsRestart: false };
 
@@ -998,6 +1030,13 @@ function sanitizeGoServerServiceConfig() {
             clean = envFilePatch.text;
             result.needsRestart = true;
             result.changes.push('set EnvironmentFile for console .env on betterdesk-server systemd unit');
+        }
+
+        const signalPortPatch = ensureGoServerSignalRelayPorts(clean);
+        if (signalPortPatch.changed) {
+            clean = signalPortPatch.text;
+            result.needsRestart = true;
+            result.changes.push('set SIGNAL_PORT=21116 / RELAY_PORT=21117 on betterdesk-server systemd unit (#219)');
         }
 
         if (clean !== original) {
@@ -2312,8 +2351,14 @@ function patchServiceDefinitions() {
             goPatch.changed = true;
             goPatch.changes.push(...(consolePatch.changes || []));
         }
-        if (consolePatch.error) {
+        if (consolePatch.fatal && consolePatch.error) {
             goPatch.consoleUserError = consolePatch.error;
+        }
+        if (consolePatch.warnings && consolePatch.warnings.length) {
+            goPatch.consoleUserWarnings = consolePatch.warnings;
+        }
+        if (consolePatch.error && !consolePatch.fatal) {
+            goPatch.consoleUserWarnings = (goPatch.consoleUserWarnings || []).concat(consolePatch.error);
         }
         if (typeof consolePatch.permissionsOk === 'boolean') {
             goPatch.consolePermissionsOk = consolePatch.permissionsOk;
@@ -3282,6 +3327,8 @@ module.exports = {
     getDockerUpdateInstructions,
     isGithubRateLimitError,
     ensureMeshEnabledInServiceEnv,
+    ensureGoServerEnvironmentFile,
+    ensureGoServerSignalRelayPorts,
     githubApiError,
     COMPONENTS,
     NON_CRITICAL_UPDATE_FAILURES,
