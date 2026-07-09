@@ -6,6 +6,7 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const { escapeHtml } = require('../lib/escapeHtml');
 
 /**
  * Create a minimal Express app for testing routes.
@@ -26,8 +27,9 @@ function createTestApp() {
     }));
 
     // Mock i18n - req.t() returns the key
-    app.use((req, _res, next) => {
+    app.use((req, res, next) => {
         req.t = (key) => key;
+        res.locals.escapeHtml = escapeHtml;
         next();
     });
 

@@ -105,12 +105,23 @@ router.get('/organizations', requireAuth, (req, res) => {
 });
 
 router.get('/organizations/:id', requireAuth, (req, res) => {
-    res.render('organization-detail', {
-        title: 'Organization Details',
-        user: req.session.user,
-        currentPage: 'organizations',
-        orgId: req.params.id,
-    });
+    try {
+        const orgId = assertSafeApiId(req.params.id, 'orgId');
+        res.render('organization-detail', {
+            title: 'Organization Details',
+            user: req.session.user,
+            currentPage: 'organizations',
+            orgId,
+        });
+    } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).render('errors/404', {
+                title: 'Bad Request',
+                activePage: 'error',
+            });
+        }
+        throw err;
+    }
 });
 
 // ---------------------------------------------------------------------------

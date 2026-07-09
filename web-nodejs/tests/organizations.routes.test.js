@@ -87,4 +87,15 @@ describe('Organizations Routes', () => {
         expect(res.body.error).toMatch(/Invalid orgId/i);
         expect(apiClient).not.toHaveBeenCalled();
     });
+
+    it('rejects invalid org id on organization detail page', async () => {
+        const app = createTestApp();
+        withAuth(app);
+        app.use(organizationsRoutes);
+
+        const res = await request(app).get('/organizations/foo%3Cbar%3E');
+
+        expect(res.status).toBe(400);
+        expect(res.text).not.toMatch(/foo&lt;bar&gt;/);
+    });
 });

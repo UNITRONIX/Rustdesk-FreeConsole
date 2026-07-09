@@ -8,7 +8,7 @@
         { label: _('cdap.device_detail') }
     ],
     body: `
-        <div class="cdap-device-page" data-device-id="${deviceId}">
+        <div class="cdap-device-page" data-device-id="${escapeHtml(deviceId)}">
             <!-- Device Header -->
             <div class="cdap-device-header">
                 <div class="cdap-device-title">
@@ -16,7 +16,7 @@
                         <span class="material-icons">arrow_back</span>
                     </a>
                     <div class="cdap-device-identity">
-                        <h1 id="cdap-device-name">${deviceId}</h1>
+                        <h1 id="cdap-device-name">${escapeHtml(deviceId)}</h1>
                         <div class="cdap-device-meta" id="cdap-device-meta">
                             <span class="cdap-meta-item" id="cdap-device-type">
                                 <span class="material-icons">memory</span>

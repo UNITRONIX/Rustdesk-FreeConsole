@@ -8,7 +8,7 @@
         { label: _('organizations.detail') || 'Details' }
     ],
     body: `
-        <div class="org-detail-page" data-org-id="${orgId}">
+        <div class="org-detail-page" data-org-id="${escapeHtml(orgId)}">
             <!-- Header -->
             <div class="org-detail-header" id="org-detail-header">
                 <div class="org-detail-info">

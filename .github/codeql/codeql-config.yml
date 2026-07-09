@@ -4,6 +4,7 @@ name: BetterDesk CodeQL
 paths-ignore:
   - web-nodejs/tests
   - web-nodejs/scripts/dev-i18n
+  - web-nodejs/scripts/patch-role-scope-i18n.js
   - scripts/bump-version.js
   - betterdesk-mgmt
   # MeshAgent tunnel TLS pin (checkServerIdentity); not default chain validation.
@@ -120,3 +121,4 @@ query-filters:
       id: js/prototype-pollution-utility
       paths:
         - web-nodejs/scripts/dev-i18n/apply-i18n-audit.js
+        - web-nodejs/scripts/patch-role-scope-i18n.js

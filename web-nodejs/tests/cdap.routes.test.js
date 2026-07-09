@@ -76,4 +76,15 @@ describe('CDAP Routes', () => {
         expect(res.status).toBe(500);
         expect(res.body.error).toBe('Failed to get CDAP device info');
     });
+
+    it('rejects invalid device id on CDAP device detail page', async () => {
+        const app = createTestApp();
+        withAuth(app);
+        app.use(cdapRoutes);
+
+        const res = await request(app).get('/cdap/devices/foo%3Cbar%3E');
+
+        expect(res.status).toBe(400);
+        expect(res.text).not.toMatch(/foo&lt;bar&gt;/);
+    });
 });

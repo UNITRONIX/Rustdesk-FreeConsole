@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Security
+- **CodeQL:** advanced setup workflow (`.github/workflows/codeql.yml`) wires `.github/codeql/codeql-config.yml` so documented exclusions apply; `patch-role-scope-i18n.js` hardened against prototype pollution (`UNSAFE_NESTED_KEYS` guard).
+- **XSS (org/CDAP pages):** page routes validate `orgId` / `deviceId` via `assertSafeApiId`; views escape IDs with server-side `escapeHtml`.
+
 ### Changed
 - _(none yet)_
 
