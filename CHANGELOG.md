@@ -3,6 +3,9 @@
 ### Changed
 - _(none yet)_
 
+### Docs
+- **Server migration:** added manual / out-of-order migration troubleshooting (native install + `rust2go`, `TestNatRequest` without registration) in `docs/troubleshooting/SERVER_MIGRATION.md`.
+
 ---
 
 ## [3.3.126] — 2026-07-07
