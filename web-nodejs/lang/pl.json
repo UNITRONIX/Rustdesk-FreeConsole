@@ -691,7 +691,8 @@
             "auth_sub_oidc": "OIDC / logowanie SSO",
             "branding_rdclient": "Klient RdClient",
             "connection_p2p_hint": "Najpierw połączenie P2P; przełączenie na relay, gdy P2P nie działa.",
-            "connection_relay_hint": "Cały ruch klientów przez serwer relay."
+            "connection_relay_hint": "Cały ruch klientów przez serwer relay.",
+            "auth_sub_client_sessions": "Klienci RustDesk"
         },
         "confirm": {
             "connection_mode_title": "Zapisać strategię połączenia?",
@@ -742,7 +743,16 @@
         "device_scope_save": "Zapisz domyślną widoczność",
         "device_scope_saved": "Zapisano domyślną widoczność urządzeń",
         "device_scope_invalid": "Nieprawidłowy tryb widoczności",
-        "device_scope_restricted_warning": "Tryb restricted jest aktywny. Upewnij się, że użytkownicy mają granty folderów, grup lub urządzeń — inaczej zobaczą pustą listę."
+        "device_scope_restricted_warning": "Tryb restricted jest aktywny. Upewnij się, że użytkownicy mają granty folderów, grup lub urządzeń — inaczej zobaczą pustą listę.",
+        "client_sessions_title": "Sesje klienta RustDesk",
+        "client_sessions_desc": "Określ, jak długo aplikacje RustDesk (desktop i mobile) pozostają zalogowane do konta BetterDesk.",
+        "client_sessions_expiry_days": "Czas trwania sesji (dni)",
+        "client_sessions_expiry_hint": "Domyślnie 7 dni. Bez przedłużania sesji przy aktywności klient musi zalogować się ponownie.",
+        "client_sessions_sliding": "Przedłużaj sesję przy aktywności",
+        "client_sessions_sliding_hint": "Gdy klient jest używany, sesja jest odnawiana do maksymalnego czasu poniżej.",
+        "client_sessions_max_days": "Maksymalny czas sesji (dni)",
+        "client_sessions_max_days_hint": "Górny limit przedłużania od pierwszego logowania (domyślnie 30 dni).",
+        "client_sessions_save": "Zapisz ustawienia sesji"
     },
     "audit": {
         "time": "Czas",

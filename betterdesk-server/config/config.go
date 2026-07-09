@@ -62,9 +62,12 @@ type Config struct {
 	AdminPort int // TCP admin interface port (0 = disabled)
 
 	// Security — Authentication
-	JWTSecret       string // Secret key for JWT signing (auto-generated if empty)
-	JWTExpiry       int    // JWT token expiry in hours (default 24)
-	AdminPassword   string // Password for admin TCP interface (empty = no auth)
+	JWTSecret               string // Secret key for JWT signing (auto-generated if empty)
+	JWTExpiry               int    // JWT token expiry in hours (default 24)
+	ClientSessionExpiryDays int    // RustDesk client session TTL in days (default 7)
+	ClientSessionSliding    bool   // Extend client session on activity (default true)
+	ClientSessionMaxDays    int    // Max sliding session lifetime from login (default 30)
+	AdminPassword           string // Password for admin TCP interface (empty = no auth)
 	ForceHTTPS      bool   // Reject non-TLS API requests (except behind reverse proxy)
 	TrustProxy      bool   // Trust X-Forwarded-For / X-Real-IP headers from reverse proxy
 	RelayMaxConnsIP int    // Max relay connections per IP (0 = unlimited)
@@ -154,6 +157,9 @@ func DefaultConfig() *Config {
 		DBPath:               "./db_v2.sqlite3",
 		KeyFile:              "id_ed25519",
 		JWTExpiry:            24,
+		ClientSessionExpiryDays: 7,
+		ClientSessionSliding:    true,
+		ClientSessionMaxDays:    30,
 		RelayMaxConnsIP:      20,
 		EnrollmentMode:       EnrollmentModeOpen, // Backward compatible default
 		CDAPPort:             21122,
@@ -253,6 +259,24 @@ func (c *Config) LoadEnv() {
 	if v := os.Getenv("JWT_EXPIRY_HOURS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.JWTExpiry = n
+		}
+	}
+	if v := os.Getenv("CLIENT_SESSION_EXPIRY_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.ClientSessionExpiryDays = n
+		}
+	}
+	if v := os.Getenv("CLIENT_SESSION_SLIDING"); v != "" {
+		switch strings.ToUpper(strings.TrimSpace(v)) {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.ClientSessionSliding = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.ClientSessionSliding = false
+		}
+	}
+	if v := os.Getenv("CLIENT_SESSION_MAX_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.ClientSessionMaxDays = n
 		}
 	}
 	if v := os.Getenv("ADMIN_PASSWORD"); v != "" {

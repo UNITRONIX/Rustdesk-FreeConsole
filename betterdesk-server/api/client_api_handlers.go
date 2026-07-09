@@ -33,12 +33,13 @@ import (
 
 // tfaSession holds temporary state for a two-factor auth flow in progress.
 type tfaSession struct {
-	username  string
-	role      string
-	userID    int64
-	clientID  string
-	clientIP  string
-	createdAt time.Time
+	username   string
+	role       string
+	userID     int64
+	clientID   string
+	clientUUID string
+	clientIP   string
+	createdAt  time.Time
 }
 
 // tfaSessionStore is a concurrency-safe in-memory store for pending 2FA sessions.
@@ -197,12 +198,13 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 		tfaSecret := hex.EncodeToString(secret)
 
 		s.clientTFASessions.put(tfaSecret, &tfaSession{
-			username:  user.Username,
-			role:      user.Role,
-			userID:    user.ID,
-			clientID:  body.ID,
-			clientIP:  clientIP,
-			createdAt: time.Now(),
+			username:   user.Username,
+			role:       user.Role,
+			userID:     user.ID,
+			clientID:   body.ID,
+			clientUUID: body.UUID,
+			clientIP:   clientIP,
+			createdAt:  time.Now(),
 		})
 
 		if s.auditLog != nil {
@@ -218,8 +220,8 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No 2FA — issue token
-	token, err := s.jwtManager.Generate(user.Username, user.Role)
+	// No 2FA — issue client session token
+	token, err := s.issueClientSession(user, body.ID, body.UUID, clientIP)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
 		return
@@ -271,7 +273,7 @@ func (s *Server) handleClientTFAVerify(w http.ResponseWriter, clientIP, totpCode
 		return
 	}
 
-	token, err := s.jwtManager.Generate(user.Username, user.Role)
+	token, err := s.issueClientSession(user, sess.clientID, sess.clientUUID, clientIP)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
 		return
@@ -299,8 +301,8 @@ func (s *Server) handleClientLoginOptions(w http.ResponseWriter, r *http.Request
 
 // handleClientLogout handles logout for RustDesk clients.
 // POST /api/logout
-// With stateless JWT tokens, this is essentially a no-op on the server side.
 func (s *Server) handleClientLogout(w http.ResponseWriter, r *http.Request) {
+	s.revokeClientSessionToken(bearerTokenFromRequest(r))
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

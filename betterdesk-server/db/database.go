@@ -76,6 +76,20 @@ type RolePermission struct {
 	Granted    bool   `json:"granted"`    // true = allowed, false = denied
 }
 
+// ClientSession represents a RustDesk desktop client login session (opaque bearer token).
+type ClientSession struct {
+	ID         int64  `json:"id"`
+	TokenHash  string `json:"-"`
+	UserID     int64  `json:"user_id"`
+	ClientID   string `json:"client_id"`
+	ClientUUID string `json:"client_uuid"`
+	ExpiresAt  string `json:"expires_at"`
+	LastUsed   string `json:"last_used,omitempty"`
+	CreatedAt  string `json:"created_at"`
+	Revoked    bool   `json:"revoked"`
+	IPAddress  string `json:"ip_address,omitempty"`
+}
+
 // APIKey represents a scoped API key for programmatic access.
 type APIKey struct {
 	ID        int64  `json:"id"`
@@ -693,6 +707,14 @@ type Database interface {
 	CreateBillingWorkReport(r *BillingWorkReport) error
 	GetBillingWorkReportBySession(sessionID string) (*BillingWorkReport, error)
 	ListBillingWorkReports(orgID string, limit int) ([]*BillingWorkReport, error)
+
+	// RustDesk client sessions (Issue #242 — DB-backed opaque tokens with sliding expiry)
+	CreateClientSession(sess *ClientSession) error
+	GetClientSessionByTokenHash(tokenHash string) (*ClientSession, error)
+	TouchClientSession(id int64, expiresAt, lastUsed string) error
+	RevokeClientSessionByTokenHash(tokenHash string) error
+	RevokeClientSessionsForDevice(userID int64, clientID, clientUUID string) error
+	CleanupExpiredClientSessions() (int64, error)
 
 	ListBillingCurrencies() ([]*BillingCurrency, error)
 	UpsertBillingCurrency(c *BillingCurrency) error

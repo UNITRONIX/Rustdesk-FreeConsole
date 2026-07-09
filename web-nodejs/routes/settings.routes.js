@@ -1597,6 +1597,98 @@ router.post('/api/settings/ldap/test', requireAuth, requirePermission('server.co
     }
 });
 
+});
+
+// ==================== RustDesk client sessions (Issue #242) ==================
+
+const { upsertEnvKey } = require('../lib/envMerge');
+const CLIENT_SESSIONS_ENV_PATH = path.join(__dirname, '..', '.env');
+
+function clampClientSessionDays(value, fallback) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n) || n < 1) return fallback;
+    return Math.min(n, 365);
+}
+
+function parseClientSessionBool(value, fallback) {
+    if (value === undefined || value === null || value === '') return fallback;
+    const v = String(value).toLowerCase();
+    if (v === '1' || v === 'true' || v === 'yes' || v === 'on') return true;
+    if (v === '0' || v === 'false' || v === 'no' || v === 'off') return false;
+    return fallback;
+}
+
+/**
+ * GET /api/settings/client-sessions
+ */
+router.get('/api/settings/client-sessions', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const [expiryR, slidingR, maxR] = await Promise.all([
+            betterdeskApi.getConfig('client_session_expiry_days'),
+            betterdeskApi.getConfig('client_session_sliding'),
+            betterdeskApi.getConfig('client_session_max_days'),
+        ]);
+
+        const expiryRaw = expiryR.success ? expiryR.data?.value : '';
+        const slidingRaw = slidingR.success ? slidingR.data?.value : '';
+        const maxRaw = maxR.success ? maxR.data?.value : '';
+
+        res.json({
+            success: true,
+            data: {
+                expiry_days: clampClientSessionDays(expiryRaw, 7),
+                sliding: parseClientSessionBool(slidingRaw, true),
+                max_days: clampClientSessionDays(maxRaw, 30),
+            },
+        });
+    } catch (err) {
+        console.error('Get client session settings error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * PUT /api/settings/client-sessions
+ * Body: { expiry_days?, sliding?, max_days? }
+ */
+router.put('/api/settings/client-sessions', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const body = req.body || {};
+        const expiryDays = clampClientSessionDays(body.expiry_days, 7);
+        const maxDays = clampClientSessionDays(body.max_days, 30);
+        const sliding = body.sliding !== false;
+
+        const results = await Promise.all([
+            betterdeskApi.setConfig('client_session_expiry_days', String(expiryDays)),
+            betterdeskApi.setConfig('client_session_sliding', sliding ? 'true' : 'false'),
+            betterdeskApi.setConfig('client_session_max_days', String(maxDays)),
+        ]);
+        const failed = results.find(r => !r.success);
+        if (failed) {
+            return res.status(500).json({ success: false, error: failed.error || 'Failed to save client session settings' });
+        }
+
+        if (fs.existsSync(CLIENT_SESSIONS_ENV_PATH)) {
+            let content = fs.readFileSync(CLIENT_SESSIONS_ENV_PATH, 'utf8');
+            content = upsertEnvKey(content, 'API_TOKEN_EXPIRY_DAYS', String(expiryDays));
+            fs.writeFileSync(CLIENT_SESSIONS_ENV_PATH, content, { mode: 0o600 });
+        }
+        process.env.API_TOKEN_EXPIRY_DAYS = String(expiryDays);
+
+        await db.logAction(
+            req.session?.userId,
+            'client_session_settings_changed',
+            `RustDesk client sessions: ${expiryDays}d sliding=${sliding} max=${maxDays}d`,
+            req.ip
+        );
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Save client session settings error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
 // ==================== OIDC Configuration API (proxy to Go server) ===========
 
 /**

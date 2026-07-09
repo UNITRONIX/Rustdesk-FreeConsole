@@ -691,7 +691,8 @@
             "auth_sub_oidc": "OIDC / SSO",
             "branding_rdclient": "RdClient",
             "connection_p2p_hint": "Zuerst direkte P2P-Verbindung; Relay bei P2P-Fehler.",
-            "connection_relay_hint": "Gesamten Client-Traffic über den Relay-Server leiten."
+            "connection_relay_hint": "Gesamten Client-Traffic über den Relay-Server leiten.",
+            "auth_sub_client_sessions": "RustDesk-Clients"
         },
         "confirm": {
             "connection_mode_title": "Verbindungsstrategie speichern?",
@@ -742,7 +743,16 @@
         "device_scope_save": "Save visibility default",
         "device_scope_saved": "Device visibility default saved",
         "device_scope_invalid": "Invalid visibility mode",
-        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list."
+        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list.",
+        "client_sessions_title": "RustDesk-Clientsitzungen",
+        "client_sessions_desc": "Legen Sie fest, wie lange RustDesk-Desktop- und -Mobil-Apps bei Ihrem BetterDesk-Konto angemeldet bleiben.",
+        "client_sessions_expiry_days": "Sitzungsdauer (Tage)",
+        "client_sessions_expiry_hint": "Standard sind 7 Tage. Ohne gleitende Verlängerung müssen sich Clients danach erneut anmelden.",
+        "client_sessions_sliding": "Sitzung bei Aktivität verlängern",
+        "client_sessions_sliding_hint": "Während der Client genutzt wird, wird die Sitzung bis zur maximalen Laufzeit unten verlängert.",
+        "client_sessions_max_days": "Maximale Sitzungsdauer (Tage)",
+        "client_sessions_max_days_hint": "Obergrenze für gleitende Verlängerung ab erster Anmeldung (Standard 30 Tage).",
+        "client_sessions_save": "Sitzungseinstellungen speichern"
     },
     "audit": {
         "time": "Zeit",

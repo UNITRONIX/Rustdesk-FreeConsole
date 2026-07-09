@@ -697,7 +697,8 @@
             "auth_sub_oidc": "OIDC / SSO",
             "branding_rdclient": "RdClient",
             "connection_p2p_hint": "Try direct peer connection first; fall back to relay when P2P fails.",
-            "connection_relay_hint": "Route all client traffic through the relay server."
+            "connection_relay_hint": "Route all client traffic through the relay server.",
+            "auth_sub_client_sessions": "Клієнти RustDesk"
         },
         "confirm": {
             "connection_mode_title": "Save connection strategy?",
@@ -748,7 +749,16 @@
         "device_scope_save": "Save visibility default",
         "device_scope_saved": "Device visibility default saved",
         "device_scope_invalid": "Invalid visibility mode",
-        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list."
+        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list.",
+        "client_sessions_title": "Сесії клієнта RustDesk",
+        "client_sessions_desc": "Керуйте тим, як довго застосунки RustDesk залишаються в акаунті BetterDesk.",
+        "client_sessions_expiry_days": "Тривалість сесії (дні)",
+        "client_sessions_expiry_hint": "За замовчуванням 7 днів. Без ковзного подовження клієнти мають увійти знову.",
+        "client_sessions_sliding": "Подовжувати сесію під час активності",
+        "client_sessions_sliding_hint": "Під час використання клієнта сесія оновлюється до максимуму нижче.",
+        "client_sessions_max_days": "Максимальна тривалість сесії (дні)",
+        "client_sessions_max_days_hint": "Верхня межа ковзного подовження від першого входу (за замовчуванням 30 днів).",
+        "client_sessions_save": "Зберегти налаштування сесії"
     },
     "audit": {
         "time": "Time",

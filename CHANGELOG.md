@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **RustDesk client sessions (#242):** desktop/mobile clients no longer drop out after ~24 hours. Login now uses DB-backed session tokens (default **7 days**, sliding renewal on activity, max **30 days**). Configure under **Settings → Authentication → RustDesk clients**. Ships via panel update; sign in once in the client after updating.
+
 ### Changed
 - _(none yet)_
 

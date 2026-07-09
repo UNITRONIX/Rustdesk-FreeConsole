@@ -1481,6 +1481,10 @@
                 <span class="material-icons" aria-hidden="true">how_to_reg</span>
                 ${_('settings.ui.auth_sub_enrollment')}
             </button>
+            <button type="button" class="settings-auth-subtab" role="tab" aria-selected="false" data-auth-panel="client-sessions" id="settings-auth-tab-client-sessions">
+                <span class="material-icons" aria-hidden="true">devices</span>
+                ${_('settings.ui.auth_sub_client_sessions')}
+            </button>
             <button type="button" class="settings-auth-subtab" role="tab" aria-selected="false" data-auth-panel="ldap" id="settings-auth-tab-ldap">
                 <span class="material-icons" aria-hidden="true">domain</span>
                 ${_('settings.ui.auth_sub_ldap')}
@@ -1562,6 +1566,48 @@
                             ${_('settings.enrollment_open_requests')}
                         </a>
                     </div>
+                </div>
+            </div>
+        </div>
+        </div>
+        <div class="settings-auth-panel" id="auth-panel-client-sessions" role="tabpanel" aria-labelledby="settings-auth-tab-client-sessions" hidden>
+        <div class="settings-stack">
+            <div class="settings-panel" id="client-sessions-settings-section">
+                <div class="settings-panel-header">
+                    <h2 class="settings-panel-title">
+                        <span class="material-icons">devices</span>
+                        ${_('settings.client_sessions_title')}
+                    </h2>
+                    <p class="settings-panel-desc">${_('settings.client_sessions_desc')}</p>
+                </div>
+                <div class="settings-panel-body">
+                    <form class="settings-form" id="client-sessions-form" style="max-width: 520px;">
+                        <div class="form-group">
+                            <label class="form-label" for="client-sessions-expiry-days">${_('settings.client_sessions_expiry_days')}</label>
+                            <input type="number" id="client-sessions-expiry-days" class="form-input" min="1" max="365" value="7" style="max-width: 120px;">
+                            <small class="form-hint">${_('settings.client_sessions_expiry_hint')}</small>
+                        </div>
+                        <div class="settings-row">
+                            <div class="settings-row-label">
+                                <label class="form-label" for="client-sessions-sliding">${_('settings.client_sessions_sliding')}</label>
+                                <p class="settings-row-hint">${_('settings.client_sessions_sliding_hint')}</p>
+                            </div>
+                            <div class="settings-row-control">
+                                <input type="checkbox" id="client-sessions-sliding" class="toggle-switch" checked>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="client-sessions-max-days">${_('settings.client_sessions_max_days')}</label>
+                            <input type="number" id="client-sessions-max-days" class="form-input" min="1" max="365" value="30" style="max-width: 120px;">
+                            <small class="form-hint">${_('settings.client_sessions_max_days_hint')}</small>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <span class="material-icons">save</span>
+                                ${_('settings.client_sessions_save')}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

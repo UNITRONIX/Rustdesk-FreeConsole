@@ -697,7 +697,8 @@
             "auth_sub_oidc": "OIDC / SSO",
             "branding_rdclient": "RdClient",
             "connection_p2p_hint": "Try direct peer connection first; fall back to relay when P2P fails.",
-            "connection_relay_hint": "Route all client traffic through the relay server."
+            "connection_relay_hint": "Route all client traffic through the relay server.",
+            "auth_sub_client_sessions": "RustDesk क्लाइंट"
         },
         "confirm": {
             "connection_mode_title": "Save connection strategy?",
@@ -748,7 +749,16 @@
         "device_scope_save": "Save visibility default",
         "device_scope_saved": "Device visibility default saved",
         "device_scope_invalid": "Invalid visibility mode",
-        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list."
+        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list.",
+        "client_sessions_title": "RustDesk क्लाइंट सत्र",
+        "client_sessions_desc": "नियंत्रित करें कि RustDesk डेस्कटॉप और मोबाइल ऐप आपके BetterDesk खाते में कितने समय तक लॉग इन रहें।",
+        "client_sessions_expiry_days": "सत्र अवधि (दिन)",
+        "client_sessions_expiry_hint": "डिफ़ॉल्ट 7 दिन है। स्लाइडिंग नवीनीकरण बंद होने पर क्लाइंट को फिर से साइन इन करना होगा।",
+        "client_sessions_sliding": "गतिविधि पर सत्र बढ़ाएँ",
+        "client_sessions_sliding_hint": "क्लाइंट उपयोग में रहने पर सत्र नीचे दी अधिकतम अवधि तक नवीनीकृत होता है।",
+        "client_sessions_max_days": "अधिकतम सत्र अवधि (दिन)",
+        "client_sessions_max_days_hint": "पहले लॉगिन से स्लाइडिंग नवीनीकरण की सीमा (डिफ़ॉल्ट 30 दिन)।",
+        "client_sessions_save": "सत्र सेटिंग्स सहेजें"
     },
     "audit": {
         "time": "Time",

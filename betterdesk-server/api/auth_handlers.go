@@ -1042,12 +1042,20 @@ func hashAPIKey(key string) string {
 // Returns (username, role, ok). If ok is false, an error response has been written.
 // Auth order: Bearer JWT → X-API-Key (scoped DB lookup).
 func (s *Server) authenticateRequest(r *http.Request) (username, role string, ok bool) {
-	// 1. Bearer JWT
-	if bearer := r.Header.Get("Authorization"); len(bearer) > 7 && bearer[:7] == "Bearer " {
-		token := bearer[7:]
-		claims, err := s.jwtManager.Validate(token)
-		if err == nil && claims.Role != "__2fa_pending__" {
-			return claims.Sub, claims.Role, true
+	// 1. Bearer token — opaque client session (RustDesk desktop) or JWT (panel/API)
+	if bearer := r.Header.Get("Authorization"); len(bearer) > 7 && strings.EqualFold(bearer[:7], "Bearer ") {
+		token := strings.TrimSpace(bearer[7:])
+		if isOpaqueClientToken(token) {
+			if username, role, ok := s.authenticateClientSession(token); ok {
+				return username, role, true
+			}
+			return "", "", false
+		}
+		if s.jwtManager != nil {
+			claims, err := s.jwtManager.Validate(token)
+			if err == nil && claims.Role != "__2fa_pending__" {
+				return claims.Sub, claims.Role, true
+			}
 		}
 	}
 

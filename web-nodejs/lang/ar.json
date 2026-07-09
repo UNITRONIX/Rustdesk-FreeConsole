@@ -698,7 +698,8 @@
             "auth_sub_oidc": "OIDC / SSO",
             "branding_rdclient": "عميل RdClient",
             "connection_p2p_hint": "محاولة P2P أولاً؛ التحويل إلى relay عند الفشل.",
-            "connection_relay_hint": "توجيه كل حركة العملاء عبر خادم relay."
+            "connection_relay_hint": "توجيه كل حركة العملاء عبر خادم relay.",
+            "auth_sub_client_sessions": "عملاء RustDesk"
         },
         "confirm": {
             "connection_mode_title": "حفظ استراتيجية الاتصال؟",
@@ -749,7 +750,16 @@
         "device_scope_save": "Save visibility default",
         "device_scope_saved": "Device visibility default saved",
         "device_scope_invalid": "Invalid visibility mode",
-        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list."
+        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list.",
+        "client_sessions_title": "جلسات عميل RustDesk",
+        "client_sessions_desc": "تحكم في مدة بقاء تطبيقات RustDesk للسطح المكتب والجوال مسجلة الدخول إلى حساب BetterDesk.",
+        "client_sessions_expiry_days": "مدة الجلسة (أيام)",
+        "client_sessions_expiry_hint": "الافتراضي 7 أيام. عند إيقاف التجديد التلقائي، يجب على العملاء تسجيل الدخول مرة أخرى بعد هذه المدة.",
+        "client_sessions_sliding": "تمديد الجلسة عند النشاط",
+        "client_sessions_sliding_hint": "أثناء استخدام العميل، تُجدَّد الجلسة حتى الحد الأقصى للمدة أدناه.",
+        "client_sessions_max_days": "الحد الأقصى لمدة الجلسة (أيام)",
+        "client_sessions_max_days_hint": "الحد الأقصى للتجديد التلقائي منذ أول تسجيل دخول (افتراضي 30 يومًا).",
+        "client_sessions_save": "حفظ إعدادات الجلسة"
     },
     "audit": {
         "time": "Time",

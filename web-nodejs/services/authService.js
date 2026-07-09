@@ -1160,7 +1160,7 @@ function generateRecoveryCodes(count = 8) {
 
 // ==================== RustDesk Client API Token Functions ====================
 
-const TOKEN_EXPIRY_DAYS = parseInt(process.env.API_TOKEN_EXPIRY_DAYS, 10) || 7;
+const TOKEN_EXPIRY_DAYS = () => parseInt(process.env.API_TOKEN_EXPIRY_DAYS, 10) || 7;
 const MAX_FAILED_ATTEMPTS = parseInt(process.env.API_MAX_FAILED_ATTEMPTS, 10) || 10;
 const LOCKOUT_MINUTES = parseInt(process.env.API_LOCKOUT_MINUTES, 10) || 15;
 const IP_RATE_LIMIT = parseInt(process.env.API_IP_RATE_LIMIT, 10) || 30;
@@ -1178,7 +1178,7 @@ async function generateAccessToken(userId, clientId, clientUuid, ipAddress) {
     const token = crypto.randomBytes(32).toString('hex');
 
     // Calculate expiry
-    const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+    const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_DAYS() * 24 * 60 * 60 * 1000)
         .toISOString().replace('T', ' ').replace('Z', '');
 
     await db.createAccessToken(token, userId, clientId, clientUuid, expiresAt, ipAddress);

@@ -691,7 +691,8 @@
             "auth_sub_oidc": "OIDC / SSO",
             "branding_rdclient": "Klient RdClient",
             "connection_p2p_hint": "Nejprve P2P; při selhání přepnutí na relay.",
-            "connection_relay_hint": "Veškerý provoz klientů přes relay server."
+            "connection_relay_hint": "Veškerý provoz klientů přes relay server.",
+            "auth_sub_client_sessions": "Klienti RustDesk"
         },
         "confirm": {
             "connection_mode_title": "Uložit strategii připojení?",
@@ -742,7 +743,16 @@
         "device_scope_save": "Save visibility default",
         "device_scope_saved": "Device visibility default saved",
         "device_scope_invalid": "Invalid visibility mode",
-        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list."
+        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list.",
+        "client_sessions_title": "Relace klienta RustDesk",
+        "client_sessions_desc": "Nastavte, jak dlouho zůstanou desktopové a mobilní aplikace RustDesk přihláené k účtu BetterDesk.",
+        "client_sessions_expiry_days": "Délka relace (dny)",
+        "client_sessions_expiry_hint": "Výchozí hodnota je 7 dní. Bez posuvného obnovení se klienti musí znovu přihlásit.",
+        "client_sessions_sliding": "Prodloužit relaci při aktivitě",
+        "client_sessions_sliding_hint": "Při používání klienta se relace obnovuje až do maximální doby níže.",
+        "client_sessions_max_days": "Maximální délka relace (dny)",
+        "client_sessions_max_days_hint": "Horní limit posuvného obnovení od prvního přihlášení (výchozí 30 dní).",
+        "client_sessions_save": "Uložit nastavení relace"
     },
     "audit": {
         "time": "Čas",

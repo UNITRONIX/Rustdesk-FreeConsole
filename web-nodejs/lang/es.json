@@ -691,7 +691,8 @@
             "auth_sub_oidc": "OIDC / SSO",
             "branding_rdclient": "RdClient",
             "connection_p2p_hint": "Try direct peer connection first; fall back to relay when P2P fails.",
-            "connection_relay_hint": "Route all client traffic through the relay server."
+            "connection_relay_hint": "Route all client traffic through the relay server.",
+            "auth_sub_client_sessions": "Clientes RustDesk"
         },
         "confirm": {
             "connection_mode_title": "Save connection strategy?",
@@ -742,7 +743,16 @@
         "device_scope_save": "Save visibility default",
         "device_scope_saved": "Device visibility default saved",
         "device_scope_invalid": "Invalid visibility mode",
-        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list."
+        "device_scope_restricted_warning": "Restricted mode is active. Ensure users have folder, group, or direct device grants or they will see an empty device list.",
+        "client_sessions_title": "Sesiones de cliente RustDesk",
+        "client_sessions_desc": "Controla cuánto tiempo permanecen conectadas las apps de RustDesk a tu cuenta BetterDesk.",
+        "client_sessions_expiry_days": "Duración de sesión (días)",
+        "client_sessions_expiry_hint": "El valor predeterminado es 7 días. Sin renovación deslizante, los clientes deben iniciar sesión de nuevo.",
+        "client_sessions_sliding": "Extender sesión con actividad",
+        "client_sessions_sliding_hint": "Mientras el cliente está en uso, la sesión se renueva hasta el máximo indicado abajo.",
+        "client_sessions_max_days": "Duración máxima de sesión (días)",
+        "client_sessions_max_days_hint": "Límite superior de renovación desde el primer inicio de sesión (predeterminado 30 días).",
+        "client_sessions_save": "Guardar ajustes de sesión"
     },
     "audit": {
         "time": "Hora",

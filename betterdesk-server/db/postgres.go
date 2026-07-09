@@ -229,6 +229,23 @@ func (pg *PostgresDB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_help_requests_created ON help_requests(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_help_requests_org ON help_requests(org_id)`,
 
+		// RustDesk client login sessions (Issue #242)
+		`CREATE TABLE IF NOT EXISTS client_sessions (
+			id          BIGSERIAL PRIMARY KEY,
+			token_hash  TEXT UNIQUE NOT NULL,
+			user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			client_id   TEXT NOT NULL DEFAULT '',
+			client_uuid TEXT NOT NULL DEFAULT '',
+			expires_at  TIMESTAMPTZ NOT NULL,
+			last_used   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			revoked     BOOLEAN NOT NULL DEFAULT FALSE,
+			ip_address  TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_client_sessions_hash ON client_sessions(token_hash)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_user ON client_sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_expires ON client_sessions(expires_at)`,
+
 		// Organizations (v3.0.0)
 		`CREATE TABLE IF NOT EXISTS organizations (
 			id         TEXT PRIMARY KEY,

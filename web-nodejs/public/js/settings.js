@@ -21,6 +21,7 @@
         // Only init server-config sections when the tab is visible (requires server.config permission)
         if (document.getElementById('tab-auth') && document.getElementById('tab-auth').style.display !== 'none') {
             initEnrollmentSection();
+            initClientSessionsSection();
             initLdapSection();
             initOidcSection();
         }
@@ -4155,6 +4156,49 @@
         }
 
         await loadEnrollmentSettings();
+    }
+
+    async function initClientSessionsSection() {
+        const form = document.getElementById('client-sessions-form');
+        if (!form) return;
+
+        const expiryInput = document.getElementById('client-sessions-expiry-days');
+        const slidingCb = document.getElementById('client-sessions-sliding');
+        const maxDaysInput = document.getElementById('client-sessions-max-days');
+
+        async function loadClientSessionsSettings() {
+            try {
+                const res = await Utils.api('/api/settings/client-sessions');
+                const data = res.data || res;
+                if (expiryInput) expiryInput.value = String(data.expiry_days ?? 7);
+                if (slidingCb) slidingCb.checked = data.sliding !== false;
+                if (maxDaysInput) maxDaysInput.value = String(data.max_days ?? 30);
+            } catch (err) {
+                console.error('Load client session settings:', err);
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const expiryDays = parseInt(expiryInput?.value, 10) || 7;
+            const maxDays = parseInt(maxDaysInput?.value, 10) || 30;
+            try {
+                await Utils.api('/api/settings/client-sessions', {
+                    method: 'PUT',
+                    body: {
+                        expiry_days: expiryDays,
+                        sliding: !!slidingCb?.checked,
+                        max_days: maxDays,
+                    },
+                });
+                Notifications?.success?.(window.BetterDesk?.translations?.common?.saved || 'Saved');
+                await loadClientSessionsSettings();
+            } catch (err) {
+                Notifications?.error?.(err.message || 'Save failed');
+            }
+        });
+
+        await loadClientSessionsSettings();
     }
 
     async function initLdapSection() {
