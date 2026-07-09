@@ -899,7 +899,7 @@ function ensureGoServerEnvironmentFile(unitText, envFilePath) {
 }
 
 /**
- * Ensure Go signal/relay ports are not overridden by panel PORT=5000 in shared .env (#219).
+ * Ensure Go signal/relay/API ports are not overridden by shared console .env (#219).
  * @param {string} unitText
  * @returns {{ text: string, changed: boolean }}
  */
@@ -912,6 +912,7 @@ function ensureGoServerSignalRelayPorts(unitText) {
     const ports = [
         ['SIGNAL_PORT', '21116'],
         ['RELAY_PORT', '21117'],
+        ['GO_API_PORT', '21114'],
     ];
     for (const [key, value] of ports) {
         const line = `Environment=${key}=${value}`;
@@ -1036,7 +1037,7 @@ function sanitizeGoServerServiceConfig() {
         if (signalPortPatch.changed) {
             clean = signalPortPatch.text;
             result.needsRestart = true;
-            result.changes.push('set SIGNAL_PORT=21116 / RELAY_PORT=21117 on betterdesk-server systemd unit (#219)');
+            result.changes.push('set SIGNAL_PORT=21116 / RELAY_PORT=21117 / GO_API_PORT=21114 on betterdesk-server systemd unit (#219)');
         }
 
         if (clean !== original) {

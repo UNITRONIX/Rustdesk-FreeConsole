@@ -200,7 +200,14 @@ func (c *Config) LoadEnv() {
 			c.RelayPort = n
 		}
 	}
-	if v := os.Getenv("API_PORT"); v != "" {
+	// GO_API_PORT takes precedence over API_PORT.
+	// Shared .env sets API_PORT=21121 for the Node Client API compat proxy; Go handlers
+	// stay on GO_API_PORT (default 21114). Without this, LoadEnv would override -api-port.
+	if v := os.Getenv("GO_API_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.APIPort = n
+		}
+	} else if v := os.Getenv("API_PORT"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.APIPort = n
 		}

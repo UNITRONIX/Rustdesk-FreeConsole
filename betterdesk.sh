@@ -830,10 +830,11 @@ _safe_cp_tls_file() {
     return 0
 }
 
-# Ensure Go signal/relay ports are not overridden by panel PORT=5000 in .env (#219).
+# Ensure Go signal/relay/API ports are not overridden by shared .env (#219).
 ensure_go_server_signal_ports() {
     local go_svc_file="/etc/systemd/system/betterdesk-server.service"
     local changed=0
+    local go_api_port="${GO_API_PORT:-21114}"
 
     [ -f "$go_svc_file" ] || return 1
 
@@ -845,9 +846,18 @@ ensure_go_server_signal_ports() {
         _upsert_systemd_env "$go_svc_file" RELAY_PORT 21117
         changed=1
     fi
+    if ! grep -q "^Environment=GO_API_PORT=${go_api_port}" "$go_svc_file" 2>/dev/null; then
+        _upsert_systemd_env "$go_svc_file" GO_API_PORT "$go_api_port"
+        changed=1
+    fi
+    if [ -f "$go_svc_file" ] && grep -qE '\-api-port[[:space:]]+21121\b' "$go_svc_file" 2>/dev/null; then
+        print_info "Migrating Go -api-port 21121 → ${go_api_port} (handlers on Go; clients stay on :${CLIENT_API_PORT:-21121} proxy)"
+        sed -i "s/-api-port 21121/-api-port ${go_api_port}/" "$go_svc_file"
+        changed=1
+    fi
     if [ "$changed" -eq 1 ]; then
         systemctl daemon-reload 2>/dev/null || true
-        print_info "Go server uses SIGNAL_PORT=21116 (panel PORT in .env is console-only)"
+        print_info "Go server uses SIGNAL_PORT=21116, GO_API_PORT=${go_api_port} (panel PORT/API_PORT in .env are console-only)"
     fi
     [ "$changed" -eq 1 ]
 }
@@ -3204,6 +3214,7 @@ Environment=AUTH_DB_PATH=$CONSOLE_PATH/data/auth.db
 Environment=MESH_ENABLED=Y
 Environment=SIGNAL_PORT=21116
 Environment=RELAY_PORT=21117
+Environment=GO_API_PORT=${GO_API_PORT:-21114}
 $CONNECTION_MODE_ENV_BLOCK
 ExecStart=$RUSTDESK_PATH/betterdesk-server -mode all -relay-servers $server_ip $systemd_db_arg -key-file $RUSTDESK_PATH/id_ed25519 -api-port $API_PORT -signal-rate-limit-per-ip $signal_rate_limit $init_admin_arg $tls_arg
 Restart=always
@@ -6169,13 +6180,27 @@ run_protocol_tests() {
     fi
 
     # ── 4. Go API (RustDesk client + REST) on GO_API_PORT (default 21114) ──
-    local api_code
-    api_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 \
-        "http://127.0.0.1:${GO_API_PORT:-21114}/api/server/stats" 2>/dev/null || echo "000")
+    local go_api_port="${GO_API_PORT:-21114}"
+    local client_api_port="${CLIENT_API_PORT:-21121}"
+    local api_code _api_elapsed=0
+    while [ "$_api_elapsed" -lt 15 ]; do
+        api_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 \
+            "http://127.0.0.1:${go_api_port}/api/server/stats" 2>/dev/null || echo "000")
+        if [[ "$api_code" =~ ^(200|401|403|404)$ ]]; then
+            break
+        fi
+        sleep 1
+        _api_elapsed=$((_api_elapsed + 1))
+    done
     if [[ "$api_code" =~ ^(200|401|403|404)$ ]]; then
-        _test_ok "Go API responding over HTTP on :${GO_API_PORT:-21114} (HTTP $api_code)"
+        _test_ok "Go API responding over HTTP on :${go_api_port} (HTTP $api_code)"
     else
-        _test_fail "Go API not responding over HTTP on :${GO_API_PORT:-21114} (got $api_code)"
+        _test_fail "Go API not responding over HTTP on :${go_api_port} (got $api_code)"
+        if ! ss -tlnH 2>/dev/null | grep -q ":${go_api_port} "; then
+            if ss -tlnpH 2>/dev/null | grep ":${client_api_port} " | grep -qiE 'betterdesk-server|betterdesk-serv'; then
+                echo -e "      ${DIM}Hint: Go API bound to :${client_api_port} — API_PORT from .env leaked; run Repair → Repair HTTPS/TLS or update (#219)${NC}"
+            fi
+        fi
     fi
 
     # ── 4b. Client API compat proxy (:21121) — scheme matches RUSTDESK_API_TLS ──

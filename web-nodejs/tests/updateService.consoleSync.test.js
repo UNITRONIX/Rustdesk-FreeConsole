@@ -63,7 +63,7 @@ describe('updateService console sync helpers', () => {
         expect(getDownloadRetryDelayMs(6)).toBe(15000);
     });
 
-    test('ensureGoServerSignalRelayPorts adds SIGNAL_PORT and RELAY_PORT (#219)', () => {
+    test('ensureGoServerSignalRelayPorts adds SIGNAL_PORT, RELAY_PORT, and GO_API_PORT (#219)', () => {
         const unit = [
             '[Service]',
             'User=root',
@@ -74,6 +74,7 @@ describe('updateService console sync helpers', () => {
         expect(patched.changed).toBe(true);
         expect(patched.text).toMatch(/^Environment=SIGNAL_PORT=21116$/m);
         expect(patched.text).toMatch(/^Environment=RELAY_PORT=21117$/m);
+        expect(patched.text).toMatch(/^Environment=GO_API_PORT=21114$/m);
 
         const again = ensureGoServerSignalRelayPorts(patched.text);
         expect(again.changed).toBe(false);
