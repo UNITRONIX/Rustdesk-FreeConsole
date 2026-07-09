@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.131] — 2026-07-09
+
 ### Security
 - **CodeQL:** advanced setup workflow (`.github/workflows/codeql.yml`) wires `.github/codeql/codeql-config.yml` so documented exclusions apply; `patch-role-scope-i18n.js` hardened against prototype pollution (`UNSAFE_NESTED_KEYS` guard).
 - **XSS (org/CDAP pages):** page routes validate `orgId` / `deviceId` via `assertSafeApiId`; views escape IDs with server-side `escapeHtml`.
@@ -1822,3 +1829,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.128]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.127...v3.3.128
 [3.3.129]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.128...v3.3.129
 [3.3.130]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.129...v3.3.130
+[3.3.131]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.130...v3.3.131
