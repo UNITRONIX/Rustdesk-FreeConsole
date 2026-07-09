@@ -3991,10 +3991,13 @@
             "status_os": "OS-klok gesynchroniseerd",
             "status_error": "Laatste fout",
             "os_yes": "Ja",
-            "os_no": "Nee"
+            "os_no": "Nee",
+            "checked": "Clock check completed"
         },
         "stats": {
-            "active_sessions": "Actieve factureerbare sessies"
+            "active_sessions": "Actieve factureerbare sessies",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "Nieuw pakket",
@@ -4007,14 +4010,21 @@
             "create_title": "Nieuw pakket voor organisatie",
             "create_submit": "Pakket aanmaken",
             "select_org": "Organisatie",
-            "select_org_placeholder": "Selecteer organisatie…"
+            "select_org_placeholder": "Selecteer organisatie…",
+            "description": "Description",
+            "edit_title": "Edit package",
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "Apparaat",
             "operator": "Operator",
             "duration": "Duur",
             "phase": "Fase",
-            "amount": "Bedrag"
+            "amount": "Bedrag",
+            "org": "Organization"
         },
         "reports": {
             "session": "Sessie",
@@ -4034,7 +4044,18 @@
             "select_org": "Selecteer organisatie",
             "select_package": "Selecteer pakket",
             "no_orgs": "Geen organisaties gevonden",
-            "no_packages": "Maak eerst een pakket aan"
+            "no_packages": "Maak eerst een pakket aan",
+            "assignments_title": "Package assignments",
+            "target": "Target",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "export": {
             "csv": "Exporteer CSV",
@@ -4060,7 +4081,13 @@
         },
         "assign": {
             "title": "Bestaand pakket toewijzen",
-            "submit": "Toewijzen"
+            "submit": "Toewijzen",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
         },
         "form": {
             "cancel": "Annuleren"
@@ -4078,6 +4105,34 @@
             "include_folder_in_subject": "Include folder name in the email subject",
             "save": "Save notification settings",
             "saved": "Notification settings saved"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         }
     },
     "remote_dashboard": {

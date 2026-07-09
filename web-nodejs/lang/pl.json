@@ -3991,10 +3991,13 @@
             "status_os": "Zegar OS zsynchronizowany",
             "status_error": "Ostatni błąd",
             "os_yes": "Tak",
-            "os_no": "Nie"
+            "os_no": "Nie",
+            "checked": "Sprawdzenie zegara zakończone"
         },
         "stats": {
-            "active_sessions": "Aktywne sesje rozliczeniowe"
+            "active_sessions": "Aktywne sesje rozliczeniowe",
+            "expiring_contracts": "Kontrakty wygasające (30 dni)",
+            "expiring_hint": "Aktywne przypisania z datą końca w ciągu 30 dni"
         },
         "packages": {
             "new": "Nowy pakiet",
@@ -4004,17 +4007,24 @@
             "currency": "Waluta",
             "heading": "Pakiety wsparcia",
             "prompt_name": "Nazwa pakietu",
-            "create_title": "Nowy pakiet dla organizacji",
+            "create_title": "Nowy pakiet wsparcia",
             "create_submit": "Utwórz pakiet",
             "select_org": "Organizacja",
-            "select_org_placeholder": "Wybierz organizację…"
+            "select_org_placeholder": "Wybierz organizację…",
+            "description": "Opis",
+            "edit_title": "Edytuj pakiet",
+            "created": "Pakiet utworzony",
+            "updated": "Pakiet zaktualizowany",
+            "deleted": "Pakiet usunięty",
+            "delete_confirm": "Usunąć ten pakiet? Najpierw usuń powiązane przypisania."
         },
         "sessions": {
             "device": "Urządzenie",
             "operator": "Operator",
             "duration": "Czas",
             "phase": "Faza",
-            "amount": "Kwota"
+            "amount": "Kwota",
+            "org": "Organizacja"
         },
         "reports": {
             "session": "Sesja",
@@ -4034,11 +4044,28 @@
             "select_org": "Wybierz organizację",
             "select_package": "Wybierz pakiet",
             "no_orgs": "Brak organizacji",
-            "no_packages": "Najpierw utwórz pakiet"
+            "no_packages": "Najpierw utwórz pakiet",
+            "assignments_title": "Przypisania pakietów",
+            "target": "Cel",
+            "hourly_rate": "Stawka godzinowa",
+            "custom_overage": "Własna stawka po limicie / h",
+            "validity": "Ważność",
+            "valid_from": "Ważny od",
+            "valid_until": "Ważny do",
+            "edit_title": "Edytuj przypisanie",
+            "updated": "Przypisanie zaktualizowane",
+            "deleted": "Przypisanie usunięte",
+            "delete_confirm": "Usunąć to przypisanie pakietu?"
         },
         "assign": {
-            "title": "Przypisz istniejący pakiet",
-            "submit": "Przypisz"
+            "title": "Przypisz pakiet",
+            "submit": "Przypisz",
+            "target_type": "Typ celu",
+            "target": "Cel",
+            "select_target": "Wybierz cel…",
+            "missing_fields": "Wybierz cel i pakiet",
+            "optional": "Opcjonalnie",
+            "success": "Pakiet przypisany"
         },
         "form": {
             "cancel": "Anuluj"
@@ -4050,7 +4077,7 @@
         },
         "empty": {
             "packages": "Brak pakietów. Utwórz pierwszy przyciskiem powyżej.",
-            "contracts": "Brak kontraktów organizacji. Przypisz pakiet do organizacji.",
+            "contracts": "Brak przypisań pakietów. Przypisz pakiet do organizacji, grupy, folderu lub urządzenia.",
             "sessions": "Brak zarejestrowanych sesji rozliczeniowych.",
             "reports": "Brak przesłanych raportów pracy."
         },
@@ -4078,6 +4105,34 @@
             "include_folder_in_subject": "Dołącz nazwę folderu w temacie wiadomości",
             "save": "Zapisz ustawienia powiadomień",
             "saved": "Ustawienia powiadomień zapisane"
+        },
+        "targets": {
+            "org": "Organizacja",
+            "device_group": "Grupa urządzeń",
+            "folder": "Folder",
+            "device": "Urządzenie"
+        },
+        "actions": {
+            "edit": "Edytuj",
+            "delete": "Usuń",
+            "save": "Zapisz",
+            "refresh": "Odśwież"
+        },
+        "filters": {
+            "target_type": "Typ celu",
+            "all_types": "Wszystkie typy",
+            "all_statuses": "Wszystkie statusy",
+            "all_orgs": "Wszystkie organizacje",
+            "organization": "Organizacja",
+            "search": "Szukaj",
+            "search_placeholder": "Nazwa lub pakiet…",
+            "device_id_placeholder": "ID urządzenia"
+        },
+        "status": {
+            "active": "Aktywny",
+            "suspended": "Wstrzymany",
+            "pending_report": "Oczekuje raportu",
+            "closed": "Zamknięty"
         }
     },
     "remote_dashboard": {

@@ -348,9 +348,10 @@ func (s *SQLiteDB) Migrate() error {
 			created_at TEXT DEFAULT (datetime('now')),
 			updated_at TEXT DEFAULT (datetime('now'))
 		)`,
-		`CREATE TABLE IF NOT EXISTS billing_org_contracts (
+		`CREATE TABLE IF NOT EXISTS billing_contracts (
 			id TEXT PRIMARY KEY,
-			org_id TEXT NOT NULL,
+			target_type TEXT NOT NULL DEFAULT 'org',
+			target_key TEXT NOT NULL,
 			package_id TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'active',
 			remaining_minutes INTEGER NOT NULL DEFAULT 0,
@@ -361,10 +362,11 @@ func (s *SQLiteDB) Migrate() error {
 			valid_until TEXT,
 			created_at TEXT DEFAULT (datetime('now')),
 			updated_at TEXT DEFAULT (datetime('now')),
-			FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE,
+			UNIQUE(target_type, target_key),
 			FOREIGN KEY (package_id) REFERENCES billing_packages(id)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_org ON billing_org_contracts(org_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_target ON billing_contracts(target_type, target_key)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_status ON billing_contracts(status)`,
 		`CREATE TABLE IF NOT EXISTS billing_sessions (
 			id TEXT PRIMARY KEY,
 			org_id TEXT NOT NULL,
@@ -535,6 +537,37 @@ func (s *SQLiteDB) Migrate() error {
 		}
 	}
 
+	if err := s.migrateBillingOrgContracts(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// migrateBillingOrgContracts copies legacy billing_org_contracts rows into billing_contracts.
+func (s *SQLiteDB) migrateBillingOrgContracts() error {
+	var name string
+	err := s.db.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='table' AND name='billing_org_contracts'`,
+	).Scan(&name)
+	if err != nil {
+		return nil // table does not exist
+	}
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM billing_contracts`).Scan(&n); err != nil {
+		return fmt.Errorf("db: billing_contracts count: %w", err)
+	}
+	if n > 0 {
+		return nil
+	}
+	_, err = s.db.Exec(`
+		INSERT OR IGNORE INTO billing_contracts
+			(id, target_type, target_key, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at)
+		SELECT id, 'org', org_id, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at
+		FROM billing_org_contracts`)
+	if err != nil {
+		return fmt.Errorf("db: migrate billing_org_contracts: %w", err)
+	}
 	return nil
 }
 

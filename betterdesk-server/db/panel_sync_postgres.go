@@ -140,6 +140,35 @@ func (pg *PostgresDB) ListDeviceGroupMemberPeerIDs(deviceGroupID int64) ([]strin
 	return ids, rows.Err()
 }
 
+// ListDeviceGroupGUIDsForPeer returns device-group GUIDs that include the peer.
+func (pg *PostgresDB) ListDeviceGroupGUIDsForPeer(peerID string) ([]string, error) {
+	peerID = strings.TrimSpace(peerID)
+	if peerID == "" || !pg.pgHasTable("device_group_members") || !pg.pgHasTable("device_groups") {
+		return nil, nil
+	}
+	rows, err := pg.pool.Query(pg.ctx, `
+		SELECT g.guid FROM device_groups g
+		INNER JOIN device_group_members m ON m.device_group_id = g.id
+		WHERE m.peer_id = $1
+		ORDER BY g.name ASC`, peerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var guids []string
+	for rows.Next() {
+		var guid string
+		if err := rows.Scan(&guid); err != nil {
+			return nil, err
+		}
+		guid = strings.TrimSpace(guid)
+		if guid != "" {
+			guids = append(guids, guid)
+		}
+	}
+	return guids, rows.Err()
+}
+
 // ListUserGroupGUIDsForUser returns user-group GUIDs the user belongs to.
 func (pg *PostgresDB) ListUserGroupGUIDsForUser(userID int64) ([]string, error) {
 	if !pg.pgHasTable("user_group_members") || !pg.pgHasTable("user_groups") {

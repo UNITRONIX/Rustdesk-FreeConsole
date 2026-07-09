@@ -378,9 +378,10 @@ func (pg *PostgresDB) Migrate() error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
-		`CREATE TABLE IF NOT EXISTS billing_org_contracts (
+		`CREATE TABLE IF NOT EXISTS billing_contracts (
 			id TEXT PRIMARY KEY,
-			org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+			target_type TEXT NOT NULL DEFAULT 'org',
+			target_key TEXT NOT NULL,
 			package_id TEXT NOT NULL REFERENCES billing_packages(id),
 			status TEXT NOT NULL DEFAULT 'active',
 			remaining_minutes INTEGER NOT NULL DEFAULT 0,
@@ -390,9 +391,11 @@ func (pg *PostgresDB) Migrate() error {
 			valid_from TIMESTAMPTZ,
 			valid_until TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(target_type, target_key)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_org ON billing_org_contracts(org_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_target ON billing_contracts(target_type, target_key)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_status ON billing_contracts(status)`,
 		`CREATE TABLE IF NOT EXISTS billing_sessions (
 			id TEXT PRIMARY KEY,
 			org_id TEXT NOT NULL,
@@ -611,6 +614,40 @@ func (pg *PostgresDB) Migrate() error {
 		}
 	}
 
+	if err := pg.migrateBillingOrgContracts(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// migrateBillingOrgContracts copies legacy billing_org_contracts into billing_contracts.
+func (pg *PostgresDB) migrateBillingOrgContracts() error {
+	var exists bool
+	err := pg.pool.QueryRow(pg.ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema = current_schema() AND table_name = 'billing_org_contracts'
+		)`).Scan(&exists)
+	if err != nil || !exists {
+		return err
+	}
+	var n int
+	if err := pg.pool.QueryRow(pg.ctx, `SELECT COUNT(*) FROM billing_contracts`).Scan(&n); err != nil {
+		return fmt.Errorf("db: billing_contracts count: %w", err)
+	}
+	if n > 0 {
+		return nil
+	}
+	_, err = pg.pool.Exec(pg.ctx, `
+		INSERT INTO billing_contracts
+			(id, target_type, target_key, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at)
+		SELECT id, 'org', org_id, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at
+		FROM billing_org_contracts
+		ON CONFLICT (target_type, target_key) DO NOTHING`)
+	if err != nil {
+		return fmt.Errorf("db: migrate billing_org_contracts: %w", err)
+	}
 	return nil
 }
 

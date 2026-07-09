@@ -3997,10 +3997,13 @@
             "status_os": "OS saati senkron",
             "status_error": "Son hata",
             "os_yes": "Evet",
-            "os_no": "Hayır"
+            "os_no": "Hayır",
+            "checked": "Clock check completed"
         },
         "stats": {
-            "active_sessions": "Aktif faturalandırılabilir oturumlar"
+            "active_sessions": "Aktif faturalandırılabilir oturumlar",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "Yeni paket",
@@ -4013,14 +4016,21 @@
             "create_title": "Kuruluş için yeni paket",
             "create_submit": "Paket oluştur",
             "select_org": "Kuruluş",
-            "select_org_placeholder": "Kuruluş seçin…"
+            "select_org_placeholder": "Kuruluş seçin…",
+            "description": "Description",
+            "edit_title": "Edit package",
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "Cihaz",
             "operator": "Operatör",
             "duration": "Süre",
             "phase": "Aşama",
-            "amount": "Tutar"
+            "amount": "Tutar",
+            "org": "Organization"
         },
         "reports": {
             "session": "Oturum",
@@ -4040,7 +4050,18 @@
             "select_org": "Kuruluş seçin",
             "select_package": "Paket seçin",
             "no_orgs": "Kuruluş bulunamadı",
-            "no_packages": "Önce bir paket oluşturun"
+            "no_packages": "Önce bir paket oluşturun",
+            "assignments_title": "Package assignments",
+            "target": "Target",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "export": {
             "csv": "CSV dışa aktar",
@@ -4066,7 +4087,13 @@
         },
         "assign": {
             "title": "Mevcut paketi ata",
-            "submit": "Ata"
+            "submit": "Ata",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
         },
         "form": {
             "cancel": "İptal"
@@ -4084,6 +4111,34 @@
             "include_folder_in_subject": "Include folder name in the email subject",
             "save": "Save notification settings",
             "saved": "Notification settings saved"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         }
     },
     "remote_dashboard": {

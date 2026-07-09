@@ -100,6 +100,14 @@ router.put('/api/panel/billing/contracts/:id', requireAuth, requirePermission('b
     proxyToGo(apiClient, req, res, 'PUT', () => `/billing/contracts/${safeSegment(req.params.id, 'contractId')}`, req.body);
 });
 
+router.delete('/api/panel/billing/contracts/:id', requireAuth, requirePermission('billing.manage'), (req, res) => {
+    proxyToGo(apiClient, req, res, 'DELETE', () => `/billing/contracts/${safeSegment(req.params.id, 'contractId')}`);
+});
+
+router.get('/api/panel/billing/stats', requireAuth, requirePermission('billing.view'), (req, res) => {
+    proxyToGo(apiClient, req, res, 'GET', '/billing/stats');
+});
+
 router.get('/api/panel/billing/sessions', requireAuth, requirePermission('billing.view'), (req, res) => {
     const q = new URLSearchParams(req.query).toString();
     proxyToGo(apiClient, req, res, 'GET', () => `/billing/sessions${q ? `?${q}` : ''}`);

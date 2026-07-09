@@ -3998,10 +3998,13 @@
             "status_os": "ساعة OS متزامنة",
             "status_error": "آخر خطأ",
             "os_yes": "نعم",
-            "os_no": "لا"
+            "os_no": "لا",
+            "checked": "Clock check completed"
         },
         "stats": {
-            "active_sessions": "جلسات قابلة للفوترة نشطة"
+            "active_sessions": "جلسات قابلة للفوترة نشطة",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "حزمة جديدة",
@@ -4014,14 +4017,21 @@
             "create_title": "حزمة جديدة للمنظمة",
             "create_submit": "إنشاء حزمة",
             "select_org": "المنظمة",
-            "select_org_placeholder": "اختر المنظمة…"
+            "select_org_placeholder": "اختر المنظمة…",
+            "description": "Description",
+            "edit_title": "Edit package",
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "الجهاز",
             "operator": "المشغّل",
             "duration": "المدة",
             "phase": "المرحلة",
-            "amount": "المبلغ"
+            "amount": "المبلغ",
+            "org": "Organization"
         },
         "reports": {
             "session": "الجلسة",
@@ -4041,7 +4051,18 @@
             "select_org": "اختر المنظمة",
             "select_package": "اختر الحزمة",
             "no_orgs": "لم يتم العثور على منظمات",
-            "no_packages": "أنشئ حزمة أولاً"
+            "no_packages": "أنشئ حزمة أولاً",
+            "assignments_title": "Package assignments",
+            "target": "Target",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "export": {
             "csv": "تصدير CSV",
@@ -4067,7 +4088,13 @@
         },
         "assign": {
             "title": "تعيين حزمة موجودة",
-            "submit": "تعيين"
+            "submit": "تعيين",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
         },
         "form": {
             "cancel": "إلغاء"
@@ -4085,6 +4112,34 @@
             "include_folder_in_subject": "Include folder name in the email subject",
             "save": "Save notification settings",
             "saved": "Notification settings saved"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         }
     },
     "remote_dashboard": {

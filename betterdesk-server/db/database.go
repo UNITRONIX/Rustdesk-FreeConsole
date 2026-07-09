@@ -672,6 +672,15 @@ type Database interface {
 	ListBillingOrgContracts(filter BillingContractFilter) ([]*BillingOrgContract, error)
 	UpdateBillingOrgContract(c *BillingOrgContract) error
 
+	CreateBillingContract(c *BillingContract) error
+	GetBillingContract(id string) (*BillingContract, error)
+	GetActiveBillingContract(targetType, targetKey string) (*BillingContract, error)
+	ListBillingContracts(filter BillingContractFilter) ([]*BillingContract, error)
+	UpdateBillingContract(c *BillingContract) error
+	DeleteBillingContract(id string) error
+	CountBillingContractsByPackage(packageID string) (int, error)
+	CountBillingContractsExpiringWithin(days int) (int, error)
+
 	CreateBillingSession(s *BillingSession) error
 	GetBillingSession(id string) (*BillingSession, error)
 	GetBillingSessionByRelayUUID(relayUUID string) (*BillingSession, error)

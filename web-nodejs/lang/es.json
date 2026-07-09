@@ -3991,10 +3991,13 @@
             "status_os": "Reloj del SO sincronizado",
             "status_error": "Último error",
             "os_yes": "Sí",
-            "os_no": "No"
+            "os_no": "No",
+            "checked": "Clock check completed"
         },
         "stats": {
-            "active_sessions": "Sesiones facturables activas"
+            "active_sessions": "Sesiones facturables activas",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "Nuevo paquete",
@@ -4007,14 +4010,21 @@
             "create_title": "Nuevo paquete para organización",
             "create_submit": "Crear paquete",
             "select_org": "Organización",
-            "select_org_placeholder": "Seleccionar organización…"
+            "select_org_placeholder": "Seleccionar organización…",
+            "description": "Description",
+            "edit_title": "Edit package",
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "Dispositivo",
             "operator": "Operador",
             "duration": "Duración",
             "phase": "Fase",
-            "amount": "Importe"
+            "amount": "Importe",
+            "org": "Organization"
         },
         "reports": {
             "session": "Sesión",
@@ -4034,7 +4044,18 @@
             "select_org": "Seleccionar organización",
             "select_package": "Seleccionar paquete",
             "no_orgs": "No se encontraron organizaciones",
-            "no_packages": "Cree un paquete primero"
+            "no_packages": "Cree un paquete primero",
+            "assignments_title": "Package assignments",
+            "target": "Target",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "export": {
             "csv": "Exportar CSV",
@@ -4060,7 +4081,13 @@
         },
         "assign": {
             "title": "Asignar paquete existente",
-            "submit": "Asignar"
+            "submit": "Asignar",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
         },
         "form": {
             "cancel": "Cancelar"
@@ -4078,6 +4105,34 @@
             "include_folder_in_subject": "Incluir nombre de carpeta en el asunto del correo",
             "save": "Guardar ajustes de notificación",
             "saved": "Ajustes de notificación guardados"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         }
     },
     "remote_dashboard": {

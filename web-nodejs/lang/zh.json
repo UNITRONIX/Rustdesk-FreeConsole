@@ -3991,10 +3991,13 @@
             "status_os": "OS 时钟已同步",
             "status_error": "最后错误",
             "os_yes": "是",
-            "os_no": "否"
+            "os_no": "否",
+            "checked": "Clock check completed"
         },
         "stats": {
-            "active_sessions": "活动可计费会话"
+            "active_sessions": "活动可计费会话",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "新建套餐",
@@ -4007,14 +4010,21 @@
             "create_title": "为组织新建套餐",
             "create_submit": "创建套餐",
             "select_org": "组织",
-            "select_org_placeholder": "选择组织…"
+            "select_org_placeholder": "选择组织…",
+            "description": "Description",
+            "edit_title": "Edit package",
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "设备",
             "operator": "操作员",
             "duration": "时长",
             "phase": "阶段",
-            "amount": "金额"
+            "amount": "金额",
+            "org": "Organization"
         },
         "reports": {
             "session": "会话",
@@ -4034,7 +4044,18 @@
             "select_org": "选择组织",
             "select_package": "选择套餐",
             "no_orgs": "未找到组织",
-            "no_packages": "请先创建套餐"
+            "no_packages": "请先创建套餐",
+            "assignments_title": "Package assignments",
+            "target": "Target",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "export": {
             "csv": "导出 CSV",
@@ -4060,7 +4081,13 @@
         },
         "assign": {
             "title": "分配现有套餐",
-            "submit": "分配"
+            "submit": "分配",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
         },
         "form": {
             "cancel": "取消"
@@ -4078,6 +4105,34 @@
             "include_folder_in_subject": "Include folder name in the email subject",
             "save": "Save notification settings",
             "saved": "Notification settings saved"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         }
     },
     "remote_dashboard": {

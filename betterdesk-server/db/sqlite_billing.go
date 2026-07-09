@@ -128,7 +128,7 @@ func formatSQLiteTimePtr(t *time.Time) any {
 	return t.UTC().Format("2006-01-02 15:04:05")
 }
 
-func (s *SQLiteDB) CreateBillingOrgContract(c *BillingOrgContract) error {
+func (s *SQLiteDB) CreateBillingContract(c *BillingContract) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var overage sql.NullFloat64
@@ -136,43 +136,72 @@ func (s *SQLiteDB) CreateBillingOrgContract(c *BillingOrgContract) error {
 		overage = sql.NullFloat64{Float64: *c.OverageRate, Valid: true}
 	}
 	_, err := s.db.Exec(
-		`INSERT INTO billing_org_contracts (id, org_id, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-		c.ID, c.OrgID, c.PackageID, c.Status, c.RemainingMinutes, overage, c.HourlyRate, c.Currency,
+		`INSERT INTO billing_contracts (id, target_type, target_key, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+		c.ID, c.TargetType, c.TargetKey, c.PackageID, c.Status, c.RemainingMinutes, overage, c.HourlyRate, c.Currency,
 		formatSQLiteTimePtr(c.ValidFrom), formatSQLiteTimePtr(c.ValidUntil),
 	)
 	return err
 }
 
-func (s *SQLiteDB) GetBillingOrgContract(id string) (*BillingOrgContract, error) {
+func (s *SQLiteDB) CreateBillingOrgContract(c *BillingOrgContract) error {
+	return s.CreateBillingContract(c)
+}
+
+func (s *SQLiteDB) GetBillingContract(id string) (*BillingContract, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.queryBillingOrgContract(`WHERE c.id = ?`, id)
+	c, err := s.queryBillingContract(`WHERE c.id = ?`, id)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return c, err
+}
+
+func (s *SQLiteDB) GetBillingOrgContract(id string) (*BillingOrgContract, error) {
+	return s.GetBillingContract(id)
+}
+
+func (s *SQLiteDB) GetActiveBillingContract(targetType, targetKey string) (*BillingContract, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	c, err := s.queryBillingContract(
+		`WHERE c.target_type = ? AND c.target_key = ? AND c.status = 'active' ORDER BY c.updated_at DESC LIMIT 1`,
+		targetType, targetKey,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return c, err
 }
 
 func (s *SQLiteDB) GetActiveBillingOrgContract(orgID string) (*BillingOrgContract, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.queryBillingOrgContract(
-		`WHERE c.org_id = ? AND c.status = 'active' ORDER BY c.updated_at DESC LIMIT 1`, orgID,
-	)
+	return s.GetActiveBillingContract(BillingTargetOrg, orgID)
 }
 
-func (s *SQLiteDB) queryBillingOrgContract(where string, args ...any) (*BillingOrgContract, error) {
-	query := `SELECT c.id, c.org_id, c.package_id, c.status, c.remaining_minutes, c.overage_rate,
-		c.hourly_rate, c.currency, c.valid_from, c.valid_until, c.created_at, c.updated_at,
-		COALESCE(p.name, ''), COALESCE(o.name, '')
-		FROM billing_org_contracts c
-		LEFT JOIN billing_packages p ON p.id = c.package_id
-		LEFT JOIN organizations o ON o.id = c.org_id ` + where
+const billingContractTargetNameSQL = `
+	COALESCE(
+		CASE c.target_type
+			WHEN 'org' THEN (SELECT name FROM organizations WHERE id = c.target_key LIMIT 1)
+			WHEN 'device' THEN (SELECT COALESCE(NULLIF(display_name, ''), hostname, c.target_key) FROM peers WHERE id = c.target_key LIMIT 1)
+			WHEN 'device_group' THEN (SELECT name FROM device_groups WHERE guid = c.target_key LIMIT 1)
+			ELSE c.target_key
+		END, c.target_key)`
 
-	var c BillingOrgContract
+func (s *SQLiteDB) queryBillingContract(where string, args ...any) (*BillingContract, error) {
+	query := `SELECT c.id, c.target_type, c.target_key, c.package_id, c.status, c.remaining_minutes, c.overage_rate,
+		c.hourly_rate, c.currency, c.valid_from, c.valid_until, c.created_at, c.updated_at,
+		COALESCE(p.name, ''), ` + billingContractTargetNameSQL + `
+		FROM billing_contracts c
+		LEFT JOIN billing_packages p ON p.id = c.package_id ` + where
+
+	var c BillingContract
 	var overage sql.NullFloat64
 	var validFrom, validUntil, createdAt, updatedAt sql.NullString
 	err := s.db.QueryRow(query, args...).Scan(
-		&c.ID, &c.OrgID, &c.PackageID, &c.Status, &c.RemainingMinutes, &overage,
+		&c.ID, &c.TargetType, &c.TargetKey, &c.PackageID, &c.Status, &c.RemainingMinutes, &overage,
 		&c.HourlyRate, &c.Currency, &validFrom, &validUntil, &createdAt, &updatedAt,
-		&c.PackageName, &c.OrgName,
+		&c.PackageName, &c.TargetName,
 	)
 	if err != nil {
 		return nil, err
@@ -191,28 +220,38 @@ func (s *SQLiteDB) queryBillingOrgContract(where string, args ...any) (*BillingO
 	}
 	c.CreatedAt = parseSQLiteTime(createdAt.String)
 	c.UpdatedAt = parseSQLiteTime(updatedAt.String)
+	c.FillLegacyOrgFields()
 	return &c, nil
 }
 
-func (s *SQLiteDB) ListBillingOrgContracts(filter BillingContractFilter) ([]*BillingOrgContract, error) {
+func (s *SQLiteDB) ListBillingContracts(filter BillingContractFilter) ([]*BillingContract, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var conds []string
 	var args []any
-	if filter.OrgID != "" {
-		conds = append(conds, "c.org_id = ?")
+	if filter.TargetType != "" && filter.TargetKey != "" {
+		conds = append(conds, "c.target_type = ?")
+		args = append(args, filter.TargetType)
+		conds = append(conds, "c.target_key = ?")
+		args = append(args, filter.TargetKey)
+	} else if filter.OrgID != "" {
+		conds = append(conds, "c.target_type = ?")
+		args = append(args, BillingTargetOrg)
+		conds = append(conds, "c.target_key = ?")
 		args = append(args, filter.OrgID)
+	} else if filter.TargetType != "" {
+		conds = append(conds, "c.target_type = ?")
+		args = append(args, filter.TargetType)
 	}
 	if filter.Status != "" {
 		conds = append(conds, "c.status = ?")
 		args = append(args, filter.Status)
 	}
-	query := `SELECT c.id, c.org_id, c.package_id, c.status, c.remaining_minutes, c.overage_rate,
+	query := `SELECT c.id, c.target_type, c.target_key, c.package_id, c.status, c.remaining_minutes, c.overage_rate,
 		c.hourly_rate, c.currency, c.valid_from, c.valid_until, c.created_at, c.updated_at,
-		COALESCE(p.name, ''), COALESCE(o.name, '')
-		FROM billing_org_contracts c
-		LEFT JOIN billing_packages p ON p.id = c.package_id
-		LEFT JOIN organizations o ON o.id = c.org_id`
+		COALESCE(p.name, ''), ` + billingContractTargetNameSQL + `
+		FROM billing_contracts c
+		LEFT JOIN billing_packages p ON p.id = c.package_id`
 	if len(conds) > 0 {
 		query += " WHERE " + strings.Join(conds, " AND ")
 	}
@@ -222,15 +261,15 @@ func (s *SQLiteDB) ListBillingOrgContracts(filter BillingContractFilter) ([]*Bil
 		return nil, err
 	}
 	defer rows.Close()
-	var out []*BillingOrgContract
+	var out []*BillingContract
 	for rows.Next() {
-		var c BillingOrgContract
+		var c BillingContract
 		var overage sql.NullFloat64
 		var validFrom, validUntil, createdAt, updatedAt sql.NullString
 		if err := rows.Scan(
-			&c.ID, &c.OrgID, &c.PackageID, &c.Status, &c.RemainingMinutes, &overage,
+			&c.ID, &c.TargetType, &c.TargetKey, &c.PackageID, &c.Status, &c.RemainingMinutes, &overage,
 			&c.HourlyRate, &c.Currency, &validFrom, &validUntil, &createdAt, &updatedAt,
-			&c.PackageName, &c.OrgName,
+			&c.PackageName, &c.TargetName,
 		); err != nil {
 			return nil, err
 		}
@@ -248,12 +287,17 @@ func (s *SQLiteDB) ListBillingOrgContracts(filter BillingContractFilter) ([]*Bil
 		}
 		c.CreatedAt = parseSQLiteTime(createdAt.String)
 		c.UpdatedAt = parseSQLiteTime(updatedAt.String)
+		c.FillLegacyOrgFields()
 		out = append(out, &c)
 	}
 	return out, rows.Err()
 }
 
-func (s *SQLiteDB) UpdateBillingOrgContract(c *BillingOrgContract) error {
+func (s *SQLiteDB) ListBillingOrgContracts(filter BillingContractFilter) ([]*BillingOrgContract, error) {
+	return s.ListBillingContracts(filter)
+}
+
+func (s *SQLiteDB) UpdateBillingContract(c *BillingContract) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var overage sql.NullFloat64
@@ -261,11 +305,46 @@ func (s *SQLiteDB) UpdateBillingOrgContract(c *BillingOrgContract) error {
 		overage = sql.NullFloat64{Float64: *c.OverageRate, Valid: true}
 	}
 	_, err := s.db.Exec(
-		`UPDATE billing_org_contracts SET status=?, remaining_minutes=?, overage_rate=?, hourly_rate=?, currency=?, valid_from=?, valid_until=?, updated_at=datetime('now') WHERE id=?`,
+		`UPDATE billing_contracts SET status=?, remaining_minutes=?, overage_rate=?, hourly_rate=?, currency=?, valid_from=?, valid_until=?, updated_at=datetime('now') WHERE id=?`,
 		c.Status, c.RemainingMinutes, overage, c.HourlyRate, c.Currency,
 		formatSQLiteTimePtr(c.ValidFrom), formatSQLiteTimePtr(c.ValidUntil), c.ID,
 	)
 	return err
+}
+
+func (s *SQLiteDB) UpdateBillingOrgContract(c *BillingOrgContract) error {
+	return s.UpdateBillingContract(c)
+}
+
+func (s *SQLiteDB) DeleteBillingContract(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`DELETE FROM billing_contracts WHERE id = ?`, id)
+	return err
+}
+
+func (s *SQLiteDB) CountBillingContractsByPackage(packageID string) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM billing_contracts WHERE package_id = ?`, packageID).Scan(&n)
+	return n, err
+}
+
+func (s *SQLiteDB) CountBillingContractsExpiringWithin(days int) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if days <= 0 {
+		days = 30
+	}
+	var n int
+	err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM billing_contracts
+		 WHERE status = 'active' AND valid_until IS NOT NULL
+		 AND valid_until <= datetime('now', '+' || ? || ' days')`,
+		days,
+	).Scan(&n)
+	return n, err
 }
 
 func (s *SQLiteDB) CreateBillingSession(sess *BillingSession) error {

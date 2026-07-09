@@ -3991,10 +3991,13 @@
             "status_os": "Orologio OS sincronizzato",
             "status_error": "Ultimo errore",
             "os_yes": "Sì",
-            "os_no": "No"
+            "os_no": "No",
+            "checked": "Clock check completed"
         },
         "stats": {
-            "active_sessions": "Sessioni fatturabili attive"
+            "active_sessions": "Sessioni fatturabili attive",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "Nuovo pacchetto",
@@ -4007,14 +4010,21 @@
             "create_title": "Nuovo pacchetto per organizzazione",
             "create_submit": "Crea pacchetto",
             "select_org": "Organizzazione",
-            "select_org_placeholder": "Seleziona organizzazione…"
+            "select_org_placeholder": "Seleziona organizzazione…",
+            "description": "Description",
+            "edit_title": "Edit package",
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "Dispositivo",
             "operator": "Operatore",
             "duration": "Durata",
             "phase": "Fase",
-            "amount": "Importo"
+            "amount": "Importo",
+            "org": "Organization"
         },
         "reports": {
             "session": "Sessione",
@@ -4034,7 +4044,18 @@
             "select_org": "Seleziona organizzazione",
             "select_package": "Seleziona pacchetto",
             "no_orgs": "Nessuna organizzazione trovata",
-            "no_packages": "Crea prima un pacchetto"
+            "no_packages": "Crea prima un pacchetto",
+            "assignments_title": "Package assignments",
+            "target": "Target",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "export": {
             "csv": "Esporta CSV",
@@ -4060,7 +4081,13 @@
         },
         "assign": {
             "title": "Assegna pacchetto esistente",
-            "submit": "Assegna"
+            "submit": "Assegna",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
         },
         "form": {
             "cancel": "Annulla"
@@ -4078,6 +4105,34 @@
             "include_folder_in_subject": "Include folder name in the email subject",
             "save": "Save notification settings",
             "saved": "Notification settings saved"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         }
     },
     "remote_dashboard": {

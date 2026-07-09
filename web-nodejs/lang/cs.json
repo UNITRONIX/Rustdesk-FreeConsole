@@ -3991,10 +3991,13 @@
             "status_os": "OS hodiny synchronizovány",
             "status_error": "Poslední chyba",
             "os_yes": "Ano",
-            "os_no": "Ne"
+            "os_no": "Ne",
+            "checked": "Clock check completed"
         },
         "stats": {
-            "active_sessions": "Aktivní fakturovatelné relace"
+            "active_sessions": "Aktivní fakturovatelné relace",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "Nový balíček",
@@ -4007,14 +4010,21 @@
             "create_title": "Nový balíček pro organizaci",
             "create_submit": "Vytvořit balíček",
             "select_org": "Organizace",
-            "select_org_placeholder": "Vyberte organizaci…"
+            "select_org_placeholder": "Vyberte organizaci…",
+            "description": "Description",
+            "edit_title": "Edit package",
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "Zařízení",
             "operator": "Operátor",
             "duration": "Trvání",
             "phase": "Fáze",
-            "amount": "Částka"
+            "amount": "Částka",
+            "org": "Organization"
         },
         "reports": {
             "session": "Relace",
@@ -4034,7 +4044,18 @@
             "select_org": "Vyberte organizaci",
             "select_package": "Vyberte balíček",
             "no_orgs": "Nebyly nalezeny žádné organizace",
-            "no_packages": "Nejprve vytvořte balíček"
+            "no_packages": "Nejprve vytvořte balíček",
+            "assignments_title": "Package assignments",
+            "target": "Target",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "export": {
             "csv": "Exportovat CSV",
@@ -4060,7 +4081,13 @@
         },
         "assign": {
             "title": "Přiřadit existující balíček",
-            "submit": "Přiřadit"
+            "submit": "Přiřadit",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
         },
         "form": {
             "cancel": "Zrušit"
@@ -4078,6 +4105,34 @@
             "include_folder_in_subject": "Include folder name in the email subject",
             "save": "Save notification settings",
             "saved": "Notification settings saved"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         }
     },
     "remote_dashboard": {

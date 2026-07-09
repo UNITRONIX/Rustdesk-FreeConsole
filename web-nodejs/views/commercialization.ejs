@@ -25,12 +25,18 @@
                 <h3>${_('commercialization.stats.active_sessions')}</h3>
                 <p class="stat-value" id="stat-active-sessions">0</p>
             </div>
+            <div class="stat-card">
+                <h3>${_('commercialization.stats.expiring_contracts')}</h3>
+                <p class="stat-value" id="stat-expiring-contracts">0</p>
+                <p class="stat-meta">${_('commercialization.stats.expiring_hint')}</p>
+            </div>
         </div>
     </section>
 
     <section id="tab-packages" class="tab-panel ${activeTab === 'packages' ? '' : 'hidden'}">
         <div class="panel-toolbar">
             <button type="button" class="btn btn-primary" id="btn-new-package">${_('commercialization.packages.new')}</button>
+            <button type="button" class="btn btn-secondary" id="btn-new-contract">${_('commercialization.contracts.new')}</button>
         </div>
         <h3 class="section-heading">${_('commercialization.packages.heading')}</h3>
         <div class="table-wrap">
@@ -38,27 +44,48 @@
                 <thead>
                     <tr>
                         <th>${_('commercialization.packages.name')}</th>
+                        <th>${_('commercialization.packages.description')}</th>
                         <th>${_('commercialization.packages.included_minutes')}</th>
                         <th>${_('commercialization.packages.overage_rate')}</th>
                         <th>${_('commercialization.packages.currency')}</th>
+                        <th>${_('commercialization.contracts.actions')}</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
             </table>
         </div>
 
-        <h3 class="section-heading">${_('commercialization.contracts.title')}</h3>
-        <div class="panel-toolbar">
-            <button type="button" class="btn btn-primary" id="btn-new-contract">${_('commercialization.contracts.new')}</button>
+        <h3 class="section-heading">${_('commercialization.contracts.assignments_title')}</h3>
+        <div class="panel-toolbar filters-toolbar">
+            <label class="filter-label">${_('commercialization.filters.target_type')}
+                <select id="filter-contract-type" class="form-control">
+                    <option value="">${_('commercialization.filters.all_types')}</option>
+                    <option value="org">${_('commercialization.targets.org')}</option>
+                    <option value="device_group">${_('commercialization.targets.device_group')}</option>
+                    <option value="folder">${_('commercialization.targets.folder')}</option>
+                    <option value="device">${_('commercialization.targets.device')}</option>
+                </select>
+            </label>
+            <label class="filter-label">${_('commercialization.contracts.status')}
+                <select id="filter-contract-status" class="form-control">
+                    <option value="">${_('commercialization.filters.all_statuses')}</option>
+                    <option value="active">${_('commercialization.status.active')}</option>
+                    <option value="suspended">${_('commercialization.status.suspended')}</option>
+                </select>
+            </label>
+            <label class="filter-label">${_('commercialization.filters.search')}
+                <input type="search" id="filter-contract-search" class="form-control" placeholder="${_('commercialization.filters.search_placeholder')}">
+            </label>
         </div>
         <div class="table-wrap">
             <table class="data-table" id="contracts-table">
                 <thead>
                     <tr>
-                        <th>${_('commercialization.contracts.org')}</th>
+                        <th>${_('commercialization.contracts.target')}</th>
                         <th>${_('commercialization.contracts.package')}</th>
                         <th>${_('commercialization.contracts.remaining')}</th>
                         <th>${_('commercialization.contracts.status')}</th>
+                        <th>${_('commercialization.contracts.validity')}</th>
                         <th>${_('commercialization.contracts.actions')}</th>
                     </tr>
                 </thead>
@@ -68,7 +95,22 @@
     </section>
 
     <section id="tab-sessions" class="tab-panel ${activeTab === 'sessions' ? '' : 'hidden'}">
-        <div class="panel-toolbar">
+        <div class="panel-toolbar filters-toolbar">
+            <label class="filter-label">${_('commercialization.filters.organization')}
+                <select id="filter-session-org" class="form-control"></select>
+            </label>
+            <label class="filter-label">${_('commercialization.contracts.status')}
+                <select id="filter-session-status" class="form-control">
+                    <option value="">${_('commercialization.filters.all_statuses')}</option>
+                    <option value="active">${_('commercialization.status.active')}</option>
+                    <option value="pending_report">${_('commercialization.status.pending_report')}</option>
+                    <option value="closed">${_('commercialization.status.closed')}</option>
+                </select>
+            </label>
+            <label class="filter-label">${_('commercialization.sessions.device')}
+                <input type="text" id="filter-session-device" class="form-control" placeholder="${_('commercialization.filters.device_id_placeholder')}">
+            </label>
+            <button type="button" class="btn btn-secondary" id="btn-refresh-sessions">${_('commercialization.actions.refresh')}</button>
             <button type="button" class="btn btn-secondary" id="btn-export-sessions">${_('commercialization.export.sessions_csv')}</button>
         </div>
         <div class="table-wrap">
@@ -76,6 +118,7 @@
                 <thead>
                     <tr>
                         <th>${_('commercialization.sessions.device')}</th>
+                        <th>${_('commercialization.sessions.org')}</th>
                         <th>${_('commercialization.sessions.operator')}</th>
                         <th>${_('commercialization.sessions.duration')}</th>
                         <th>${_('commercialization.sessions.phase')}</th>
@@ -88,7 +131,11 @@
     </section>
 
     <section id="tab-reports" class="tab-panel ${activeTab === 'reports' ? '' : 'hidden'}">
-        <div class="panel-toolbar">
+        <div class="panel-toolbar filters-toolbar">
+            <label class="filter-label">${_('commercialization.filters.organization')}
+                <select id="filter-report-org" class="form-control"></select>
+            </label>
+            <button type="button" class="btn btn-secondary" id="btn-refresh-reports">${_('commercialization.actions.refresh')}</button>
             <button type="button" class="btn btn-secondary" id="btn-export-reports-csv">${_('commercialization.export.csv')}</button>
             <button type="button" class="btn btn-secondary" id="btn-export-reports-pdf">${_('commercialization.export.pdf')}</button>
         </div>
@@ -162,15 +209,15 @@
 <div class="modal-overlay" id="package-modal">
     <div class="modal" role="dialog" aria-modal="true">
         <div class="modal-header">
-            <h2 class="modal-title">${_('commercialization.packages.create_title')}</h2>
+            <h2 class="modal-title" id="package-modal-title">${_('commercialization.packages.create_title')}</h2>
             <button type="button" class="modal-close" data-close-modal="package-modal">&times;</button>
         </div>
         <div class="modal-body">
-            <label class="form-label">${_('commercialization.packages.select_org')}
-                <select id="package-org-select" class="form-control" required></select>
-            </label>
             <label class="form-label">${_('commercialization.packages.name')}
                 <input type="text" id="package-name" class="form-control" maxlength="128" required>
+            </label>
+            <label class="form-label">${_('commercialization.packages.description')}
+                <textarea id="package-description" class="form-control" rows="2" maxlength="512"></textarea>
             </label>
             <label class="form-label">${_('commercialization.packages.included_minutes')}
                 <input type="number" id="package-minutes" class="form-control" value="600" min="1" step="1" required>
@@ -191,18 +238,45 @@
 </div>
 
 <div class="modal-overlay" id="assign-modal">
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal modal-wide" role="dialog" aria-modal="true">
         <div class="modal-header">
-            <h2 class="modal-title">${_('commercialization.assign.title')}</h2>
+            <h2 class="modal-title" id="assign-modal-title">${_('commercialization.assign.title')}</h2>
             <button type="button" class="modal-close" data-close-modal="assign-modal">&times;</button>
         </div>
         <div class="modal-body">
-            <label class="form-label">${_('commercialization.packages.select_org')}
-                <select id="assign-org-select" class="form-control" required></select>
+            <label class="form-label">${_('commercialization.assign.target_type')}
+                <select id="assign-target-type" class="form-control">
+                    <option value="org">${_('commercialization.targets.org')}</option>
+                    <option value="device_group">${_('commercialization.targets.device_group')}</option>
+                    <option value="folder">${_('commercialization.targets.folder')}</option>
+                    <option value="device">${_('commercialization.targets.device')}</option>
+                </select>
+            </label>
+            <label class="form-label">${_('commercialization.assign.target')}
+                <select id="assign-target-select" class="form-control" required></select>
             </label>
             <label class="form-label">${_('commercialization.contracts.package')}
                 <select id="assign-package-select" class="form-control" required></select>
             </label>
+            <div class="form-row">
+                <label class="form-label">${_('commercialization.contracts.remaining')}
+                    <input type="number" id="assign-remaining" class="form-control" min="0" step="1" placeholder="${_('commercialization.assign.optional')}">
+                </label>
+                <label class="form-label">${_('commercialization.contracts.hourly_rate')}
+                    <input type="number" id="assign-hourly-rate" class="form-control" min="0" step="0.01" placeholder="${_('commercialization.assign.optional')}">
+                </label>
+            </div>
+            <div class="form-row">
+                <label class="form-label">${_('commercialization.contracts.custom_overage')}
+                    <input type="number" id="assign-overage-rate" class="form-control" min="0" step="0.01" placeholder="${_('commercialization.assign.optional')}">
+                </label>
+                <label class="form-label">${_('commercialization.contracts.valid_from')}
+                    <input type="date" id="assign-valid-from" class="form-control">
+                </label>
+                <label class="form-label">${_('commercialization.contracts.valid_until')}
+                    <input type="date" id="assign-valid-until" class="form-control">
+                </label>
+            </div>
             <p id="assign-modal-error" class="form-error hidden"></p>
         </div>
         <div class="modal-footer">

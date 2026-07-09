@@ -186,6 +186,35 @@ func (c *ConsoleAuthDB) ListDeviceGroupMemberPeerIDs(deviceGroupID int64) ([]str
 	return ids, rows.Err()
 }
 
+// ListDeviceGroupGUIDsForPeer returns device-group GUIDs that include the peer.
+func (c *ConsoleAuthDB) ListDeviceGroupGUIDsForPeer(peerID string) ([]string, error) {
+	peerID = strings.TrimSpace(peerID)
+	if peerID == "" || !c.hasTable("device_group_members") || !c.hasTable("device_groups") {
+		return nil, nil
+	}
+	rows, err := c.db.Query(`
+		SELECT g.guid FROM device_groups g
+		INNER JOIN device_group_members m ON m.device_group_id = g.id
+		WHERE m.peer_id = ?
+		ORDER BY g.name ASC`, peerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var guids []string
+	for rows.Next() {
+		var guid string
+		if err := rows.Scan(&guid); err != nil {
+			return nil, err
+		}
+		guid = strings.TrimSpace(guid)
+		if guid != "" {
+			guids = append(guids, guid)
+		}
+	}
+	return guids, rows.Err()
+}
+
 // ListUserGroupGUIDsForUser returns user-group GUIDs the user belongs to.
 func (c *ConsoleAuthDB) ListUserGroupGUIDsForUser(userID int64) ([]string, error) {
 	if !c.hasTable("user_group_members") || !c.hasTable("user_groups") {

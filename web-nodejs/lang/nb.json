@@ -3997,10 +3997,13 @@
             "status_os": "OS-klokke synkronisert",
             "status_error": "Siste feil",
             "os_yes": "Ja",
-            "os_no": "Nei"
+            "os_no": "Nei",
+            "checked": "Clock check completed"
         },
         "stats": {
-            "active_sessions": "Aktive fakturerbare økter"
+            "active_sessions": "Aktive fakturerbare økter",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "Ny pakke",
@@ -4013,14 +4016,21 @@
             "create_title": "Ny pakke for organisasjon",
             "create_submit": "Opprett pakke",
             "select_org": "Organisasjon",
-            "select_org_placeholder": "Velg organisasjon…"
+            "select_org_placeholder": "Velg organisasjon…",
+            "description": "Description",
+            "edit_title": "Edit package",
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "Enhet",
             "operator": "Operatør",
             "duration": "Varighet",
             "phase": "Fase",
-            "amount": "Beløp"
+            "amount": "Beløp",
+            "org": "Organization"
         },
         "reports": {
             "session": "Økt",
@@ -4040,7 +4050,18 @@
             "select_org": "Velg organisasjon",
             "select_package": "Velg pakke",
             "no_orgs": "Ingen organisasjoner funnet",
-            "no_packages": "Opprett en pakke først"
+            "no_packages": "Opprett en pakke først",
+            "assignments_title": "Package assignments",
+            "target": "Target",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "export": {
             "csv": "Eksporter CSV",
@@ -4066,7 +4087,13 @@
         },
         "assign": {
             "title": "Tildel eksisterende pakke",
-            "submit": "Tildel"
+            "submit": "Tildel",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
         },
         "form": {
             "cancel": "Avbryt"
@@ -4084,6 +4111,34 @@
             "include_folder_in_subject": "Include folder name in the email subject",
             "save": "Save notification settings",
             "saved": "Notification settings saved"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         }
     },
     "remote_dashboard": {

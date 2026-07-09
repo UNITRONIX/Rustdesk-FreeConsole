@@ -3995,10 +3995,13 @@
             "status_os": "Horloge OS synchronisée",
             "status_error": "Dernière erreur",
             "os_yes": "Oui",
-            "os_no": "Non"
+            "os_no": "Non",
+            "checked": "Clock check completed"
         },
         "stats": {
-            "active_sessions": "Aktive abrechenbare Sitzungen"
+            "active_sessions": "Aktive abrechenbare Sitzungen",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "Neues Paket",
@@ -4011,14 +4014,21 @@
             "create_title": "Neues Paket für Organisation",
             "create_submit": "Paket erstellen",
             "select_org": "Organisation",
-            "select_org_placeholder": "Organisation wählen…"
+            "select_org_placeholder": "Organisation wählen…",
+            "description": "Description",
+            "edit_title": "Edit package",
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "Gerät",
             "operator": "Operator",
             "duration": "Dauer",
             "phase": "Phase",
-            "amount": "Betrag"
+            "amount": "Betrag",
+            "org": "Organization"
         },
         "reports": {
             "session": "Sitzung",
@@ -4038,11 +4048,28 @@
             "select_org": "Organisation wählen",
             "select_package": "Paket wählen",
             "no_orgs": "Keine Organisationen gefunden",
-            "no_packages": "Erstellen Sie zuerst ein Paket"
+            "no_packages": "Erstellen Sie zuerst ein Paket",
+            "assignments_title": "Package assignments",
+            "target": "Target",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "assign": {
             "title": "Vorhandenes Paket zuweisen",
-            "submit": "Zuweisen"
+            "submit": "Zuweisen",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
         },
         "form": {
             "cancel": "Abbrechen"
@@ -4082,6 +4109,34 @@
             "include_folder_in_subject": "Inclure le nom du dossier dans l'objet de l'e-mail",
             "save": "Enregistrer les paramètres de notification",
             "saved": "Paramètres de notification enregistrés"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         }
     },
     "remote_dashboard": {

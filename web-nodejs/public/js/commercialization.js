@@ -13,14 +13,30 @@
     }
 
     async function api(path, opts = {}) {
-        const resp = await fetch(path, {
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            credentials: 'same-origin',
-            ...opts
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok) throw new Error(data.error || resp.statusText);
-        return data;
+        const method = (opts.method || 'GET').toUpperCase();
+        const payload = { ...opts };
+        if (payload.body && typeof payload.body === 'string') {
+            try {
+                payload.body = JSON.parse(payload.body);
+            } catch (_) { /* keep string */ }
+        }
+        return Utils.api(path, payload);
+    }
+
+    function notifySuccess(msg) {
+        if (typeof Notifications !== 'undefined' && Notifications.success) {
+            Notifications.success(msg);
+        } else {
+            alert(msg);
+        }
+    }
+
+    function notifyError(msg) {
+        if (typeof Notifications !== 'undefined' && Notifications.error) {
+            Notifications.error(msg);
+        } else {
+            alert(msg);
+        }
     }
 
     function formatMinutes(m) {
@@ -84,26 +100,25 @@
         });
     });
 
-    async function loadOrgs() {
-        const data = await api('/api/panel/org');
-        return data.organizations || data.orgs || [];
+    function targetTypeLabel(type) {
+        const map = {
+            org: t('commercialization.targets.org', 'Organization'),
+            device_group: t('commercialization.targets.device_group', 'Device group'),
+            folder: t('commercialization.targets.folder', 'Folder'),
+            device: t('commercialization.targets.device', 'Device')
+        };
+        return map[type] || type;
     }
 
-    async function populateOrgSelect(selectEl, placeholderKey) {
-        const orgs = await loadOrgs();
-        selectEl.innerHTML = '';
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = t(placeholderKey, 'Select organization…');
-        selectEl.appendChild(placeholder);
-        orgs.forEach((org) => {
-            const opt = document.createElement('option');
-            opt.value = org.id;
-            opt.textContent = org.name || org.id;
-            selectEl.appendChild(opt);
-        });
-        return orgs;
+    function formatValidity(c) {
+        if (!c.valid_from && !c.valid_until) return '—';
+        const from = c.valid_from ? String(c.valid_from).slice(0, 10) : '…';
+        const until = c.valid_until ? String(c.valid_until).slice(0, 10) : '…';
+        return `${from} → ${until}`;
     }
+
+    let editingPackageId = null;
+    let editingContractId = null;
 
     async function loadTimesync() {
         try {
@@ -140,6 +155,20 @@
         }
     }
 
+    async function loadOverviewStats() {
+        try {
+            const stats = await api('/api/panel/billing/stats');
+            const expEl = document.getElementById('stat-expiring-contracts');
+            if (expEl) expEl.textContent = String(stats.contracts_expiring_30d || 0);
+            const activeEl = document.getElementById('stat-active-sessions');
+            if (activeEl && stats.active_sessions != null) {
+                activeEl.textContent = String(stats.active_sessions);
+            }
+        } catch (e) {
+            console.warn('[commercialization] stats', e);
+        }
+    }
+
     async function loadClockSettings() {
         try {
             const data = await api('/api/panel/billing/clock/settings');
@@ -165,61 +194,148 @@
         const pkgs = data.packages || [];
         pkgs.forEach((p) => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${escapeHtml(p.name)}</td><td>${p.included_minutes}</td><td>${p.overage_rate}</td><td>${escapeHtml(p.currency)}</td>`;
+            tr.innerHTML = `
+                <td>${escapeHtml(p.name)}</td>
+                <td>${escapeHtml(p.description || '')}</td>
+                <td>${p.included_minutes}</td>
+                <td>${p.overage_rate}</td>
+                <td>${escapeHtml(p.currency)}</td>
+                <td class="actions-cell">
+                    <button type="button" class="btn-link" data-edit-package="${escapeHtml(p.id)}">${t('commercialization.actions.edit', 'Edit')}</button>
+                    <button type="button" class="btn-link danger" data-delete-package="${escapeHtml(p.id)}">${t('commercialization.actions.delete', 'Delete')}</button>
+                </td>`;
             tbody.appendChild(tr);
+        });
+        tbody.querySelectorAll('[data-edit-package]').forEach((btn) => {
+            btn.addEventListener('click', () => openPackageModal(btn.getAttribute('data-edit-package')));
+        });
+        tbody.querySelectorAll('[data-delete-package]').forEach((btn) => {
+            btn.addEventListener('click', () => deletePackage(btn.getAttribute('data-delete-package')));
         });
         setEmptyState('packages-table', 'packages-empty', pkgs.length === 0,
             t('commercialization.empty.packages', 'No packages yet. Create one with the button above.'));
         return pkgs;
     }
 
+    async function deletePackage(id) {
+        if (!id) return;
+        const ok = window.confirm(t('commercialization.packages.delete_confirm', 'Delete this package?'));
+        if (!ok) return;
+        try {
+            await api(`/api/panel/billing/packages/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            notifySuccess(t('commercialization.packages.deleted', 'Package deleted'));
+            await loadPackages();
+        } catch (e) {
+            notifyError(e.message);
+        }
+    }
+
+    function getContractFilters() {
+        return {
+            target_type: document.getElementById('filter-contract-type')?.value || '',
+            status: document.getElementById('filter-contract-status')?.value || '',
+            search: (document.getElementById('filter-contract-search')?.value || '').trim().toLowerCase()
+        };
+    }
+
     async function loadContracts() {
         const tbody = document.querySelector('#contracts-table tbody');
         if (!tbody) return;
-        const data = await api('/api/panel/billing/contracts');
+        const filters = getContractFilters();
+        const params = new URLSearchParams();
+        if (filters.target_type) params.set('target_type', filters.target_type);
+        if (filters.status) params.set('status', filters.status);
+        const qs = params.toString();
+        const data = await api(`/api/panel/billing/contracts${qs ? `?${qs}` : ''}`);
         tbody.innerHTML = '';
-        (data.contracts || []).forEach((c) => {
+        let contracts = data.contracts || [];
+        if (filters.search) {
+            contracts = contracts.filter((c) => {
+                const hay = `${c.target_name || ''} ${c.target_key || ''} ${c.package_name || ''}`.toLowerCase();
+                return hay.includes(filters.search);
+            });
+        }
+        contracts.forEach((c) => {
             const tr = document.createElement('tr');
-            const orgLabel = escapeHtml(c.org_name || c.org_id);
-            const pkgLabel = escapeHtml(c.package_name || c.package_id);
+            const targetLabel = `${targetTypeLabel(c.target_type)}: ${escapeHtml(c.target_name || c.target_key)}`;
             const isSuspended = c.status === 'suspended';
             const toggleLabel = isSuspended
                 ? t('commercialization.contracts.activate', 'Activate')
                 : t('commercialization.contracts.suspend', 'Suspend');
             tr.innerHTML = `
-                <td>${orgLabel}</td>
-                <td>${pkgLabel}</td>
+                <td>${targetLabel}</td>
+                <td>${escapeHtml(c.package_name || c.package_id)}</td>
                 <td>${formatMinutes(c.remaining_minutes)}</td>
                 <td>${escapeHtml(c.status)}</td>
-                <td><button type="button" class="btn-link ${isSuspended ? '' : 'danger'}" data-contract-id="${escapeHtml(c.id)}" data-status="${isSuspended ? 'active' : 'suspended'}">${toggleLabel}</button></td>`;
+                <td>${formatValidity(c)}</td>
+                <td class="actions-cell">
+                    <button type="button" class="btn-link" data-edit-contract="${escapeHtml(c.id)}">${t('commercialization.actions.edit', 'Edit')}</button>
+                    <button type="button" class="btn-link ${isSuspended ? '' : 'danger'}" data-contract-id="${escapeHtml(c.id)}" data-status="${isSuspended ? 'active' : 'suspended'}">${toggleLabel}</button>
+                    <button type="button" class="btn-link danger" data-delete-contract="${escapeHtml(c.id)}">${t('commercialization.actions.delete', 'Delete')}</button>
+                </td>`;
             tbody.appendChild(tr);
         });
         tbody.querySelectorAll('[data-contract-id]').forEach((btn) => {
             btn.addEventListener('click', async () => {
                 const id = btn.getAttribute('data-contract-id');
                 const status = btn.getAttribute('data-status');
-                await api(`/api/panel/billing/contracts/${encodeURIComponent(id)}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ status })
-                });
-                await loadContracts();
+                try {
+                    await api(`/api/panel/billing/contracts/${encodeURIComponent(id)}`, {
+                        method: 'PUT',
+                        body: { status }
+                    });
+                    await loadContracts();
+                } catch (e) {
+                    notifyError(e.message);
+                }
             });
         });
-        setEmptyState('contracts-table', 'contracts-empty', (data.contracts || []).length === 0,
-            t('commercialization.empty.contracts', 'No organization contracts yet. Assign a package to an organization.'));
+        tbody.querySelectorAll('[data-edit-contract]').forEach((btn) => {
+            btn.addEventListener('click', () => openContractEditModal(btn.getAttribute('data-edit-contract')));
+        });
+        tbody.querySelectorAll('[data-delete-contract]').forEach((btn) => {
+            btn.addEventListener('click', () => deleteContract(btn.getAttribute('data-delete-contract')));
+        });
+        setEmptyState('contracts-table', 'contracts-empty', contracts.length === 0,
+            t('commercialization.empty.contracts', 'No package assignments yet.'));
+    }
+
+    async function deleteContract(id) {
+        if (!id) return;
+        const ok = window.confirm(t('commercialization.contracts.delete_confirm', 'Remove this package assignment?'));
+        if (!ok) return;
+        try {
+            await api(`/api/panel/billing/contracts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            notifySuccess(t('commercialization.contracts.deleted', 'Assignment removed'));
+            await loadContracts();
+        } catch (e) {
+            notifyError(e.message);
+        }
+    }
+
+    function sessionQuery() {
+        const params = new URLSearchParams();
+        const orgId = document.getElementById('filter-session-org')?.value;
+        const status = document.getElementById('filter-session-status')?.value;
+        const deviceId = document.getElementById('filter-session-device')?.value?.trim();
+        if (orgId) params.set('org_id', orgId);
+        if (status) params.set('status', status);
+        if (deviceId) params.set('device_id', deviceId);
+        return params.toString();
     }
 
     async function loadSessions() {
         const tbody = document.querySelector('#sessions-table tbody');
         if (!tbody) return;
-        const data = await api('/api/panel/billing/sessions');
+        const qs = sessionQuery();
+        const data = await api(`/api/panel/billing/sessions${qs ? `?${qs}` : ''}`);
         tbody.innerHTML = '';
         let active = 0;
         (data.sessions || []).forEach((s) => {
             if (s.status === 'active') active++;
             const amount = (s.amount_included || 0) + (s.amount_overage || 0);
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${escapeHtml(s.device_id)}</td><td>${escapeHtml(s.operator_id)}</td><td>${formatMinutes(s.billed_minutes)}</td><td>${escapeHtml(s.billing_phase)}</td><td>${amount.toFixed(2)} ${escapeHtml(s.currency)}</td>`;
+            tr.innerHTML = `<td>${escapeHtml(s.device_name || s.device_id)}</td><td>${escapeHtml(s.org_id || '')}</td><td>${escapeHtml(s.operator_id)}</td><td>${formatMinutes(s.billed_minutes)}</td><td>${escapeHtml(s.billing_phase)}</td><td>${amount.toFixed(2)} ${escapeHtml(s.currency)}</td>`;
             tbody.appendChild(tr);
         });
         const stat = document.getElementById('stat-active-sessions');
@@ -231,7 +347,9 @@
     async function loadReports() {
         const tbody = document.querySelector('#reports-table tbody');
         if (!tbody) return;
-        const data = await api('/api/panel/billing/reports');
+        const orgId = document.getElementById('filter-report-org')?.value;
+        const params = orgId ? `?org_id=${encodeURIComponent(orgId)}` : '';
+        const data = await api(`/api/panel/billing/reports${params}`);
         tbody.innerHTML = '';
         (data.reports || []).forEach((r) => {
             const tr = document.createElement('tr');
@@ -253,84 +371,133 @@
         }
     }
 
-    async function openPackageModal() {
-        const orgSelect = document.getElementById('package-org-select');
+    async function openPackageModal(editId) {
+        editingPackageId = editId || null;
         const errEl = document.getElementById('package-modal-error');
         showModalError(errEl, '');
-        const orgs = await populateOrgSelect(orgSelect, 'commercialization.packages.select_org_placeholder');
-        if (!orgs.length) {
-            alert(t('commercialization.contracts.no_orgs', 'No organizations found'));
-            return;
+        const titleEl = document.getElementById('package-modal-title');
+        const submitEl = document.getElementById('package-modal-submit');
+        if (editId) {
+            if (titleEl) titleEl.textContent = t('commercialization.packages.edit_title', 'Edit package');
+            if (submitEl) submitEl.textContent = t('commercialization.actions.save', 'Save');
+            const data = await api('/api/panel/billing/packages');
+            const pkg = (data.packages || []).find((p) => p.id === editId);
+            if (!pkg) return;
+            document.getElementById('package-name').value = pkg.name || '';
+            document.getElementById('package-description').value = pkg.description || '';
+            document.getElementById('package-minutes').value = pkg.included_minutes || 600;
+            document.getElementById('package-overage').value = pkg.overage_rate || 0;
+            document.getElementById('package-currency').value = pkg.currency || 'PLN';
+        } else {
+            if (titleEl) titleEl.textContent = t('commercialization.packages.create_title', 'New support package');
+            if (submitEl) submitEl.textContent = t('commercialization.packages.create_submit', 'Create package');
+            document.getElementById('package-name').value = '';
+            document.getElementById('package-description').value = '';
+            document.getElementById('package-minutes').value = '600';
+            document.getElementById('package-overage').value = '100';
+            document.getElementById('package-currency').value = 'PLN';
         }
-        document.getElementById('package-name').value = '';
-        document.getElementById('package-minutes').value = '600';
-        document.getElementById('package-overage').value = '100';
-        document.getElementById('package-currency').value = 'PLN';
         openModal('package-modal');
     }
 
     async function submitPackageModal() {
         const errEl = document.getElementById('package-modal-error');
-        const orgId = document.getElementById('package-org-select')?.value;
         const name = document.getElementById('package-name')?.value.trim();
+        const description = document.getElementById('package-description')?.value.trim();
         const includedMinutes = parseInt(document.getElementById('package-minutes')?.value, 10);
         const overageRate = parseFloat(document.getElementById('package-overage')?.value);
         const currency = document.getElementById('package-currency')?.value.trim().toUpperCase();
 
-        if (!orgId) {
-            showModalError(errEl, t('commercialization.packages.select_org_placeholder', 'Select organization…'));
-            return;
-        }
         if (!name) {
             showModalError(errEl, t('commercialization.packages.prompt_name', 'Package name'));
             return;
         }
 
+        const body = {
+            name,
+            description,
+            included_minutes: includedMinutes,
+            overage_rate: overageRate,
+            currency: currency || 'PLN'
+        };
+
         try {
-            const pkg = await api('/api/panel/billing/packages', {
-                method: 'POST',
-                body: JSON.stringify({
-                    name,
-                    included_minutes: includedMinutes,
-                    overage_rate: overageRate,
-                    currency: currency || 'PLN'
-                })
-            });
-            await api('/api/panel/billing/contracts', {
-                method: 'POST',
-                body: JSON.stringify({
-                    org_id: orgId,
-                    package_id: pkg.id,
-                    currency: pkg.currency || currency || 'PLN'
-                })
-            });
+            if (editingPackageId) {
+                await api(`/api/panel/billing/packages/${encodeURIComponent(editingPackageId)}`, {
+                    method: 'PUT',
+                    body
+                });
+                notifySuccess(t('commercialization.packages.updated', 'Package updated'));
+            } else {
+                await api('/api/panel/billing/packages', { method: 'POST', body });
+                notifySuccess(t('commercialization.packages.created', 'Package created'));
+            }
             closeModal('package-modal');
             await loadPackages();
-            await loadContracts();
         } catch (e) {
             showModalError(errEl, e.message);
         }
     }
 
+    async function loadTargetOptions(targetType) {
+        const select = document.getElementById('assign-target-select');
+        if (!select) return;
+        select.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = t('commercialization.assign.select_target', 'Select target…');
+        select.appendChild(placeholder);
+
+        if (targetType === 'org') {
+            const data = await api('/api/panel/org');
+            (data.organizations || data.orgs || []).forEach((org) => {
+                const opt = document.createElement('option');
+                opt.value = org.id;
+                opt.textContent = org.name || org.id;
+                select.appendChild(opt);
+            });
+        } else if (targetType === 'device_group') {
+            const data = await api('/api/device-groups');
+            (data.groups || data.device_groups || []).forEach((g) => {
+                const opt = document.createElement('option');
+                opt.value = g.guid || g.id;
+                opt.textContent = g.name || g.guid;
+                select.appendChild(opt);
+            });
+        } else if (targetType === 'folder') {
+            const data = await api('/api/folders');
+            (data.folders || []).forEach((f) => {
+                const opt = document.createElement('option');
+                opt.value = String(f.id);
+                opt.textContent = f.name || f.id;
+                select.appendChild(opt);
+            });
+        } else if (targetType === 'device') {
+            const data = await api('/api/devices');
+            (data.devices || []).forEach((d) => {
+                const opt = document.createElement('option');
+                opt.value = d.id || d.device_id;
+                opt.textContent = d.name || d.hostname || d.id;
+                select.appendChild(opt);
+            });
+        }
+    }
+
     async function openAssignModal() {
-        const orgSelect = document.getElementById('assign-org-select');
-        const pkgSelect = document.getElementById('assign-package-select');
+        resetAssignModalFields();
+        editingContractId = null;
         const errEl = document.getElementById('assign-modal-error');
         showModalError(errEl, '');
+        document.getElementById('assign-modal-title').textContent = t('commercialization.assign.title', 'Assign package');
+        document.getElementById('assign-modal-submit').textContent = t('commercialization.assign.submit', 'Assign');
 
-        const [orgs, pkgs] = await Promise.all([
-            populateOrgSelect(orgSelect, 'commercialization.packages.select_org_placeholder'),
-            api('/api/panel/billing/packages')
-        ]);
-        if (!orgs.length) {
-            alert(t('commercialization.contracts.no_orgs', 'No organizations found'));
-            return;
-        }
+        const pkgs = await api('/api/panel/billing/packages');
         const packages = pkgs.packages || [];
         if (!packages.length) {
-            alert(t('commercialization.contracts.no_packages', 'Create a package first'));
+            notifyError(t('commercialization.contracts.no_packages', 'Create a package first'));
             return;
         }
+        const pkgSelect = document.getElementById('assign-package-select');
         pkgSelect.innerHTML = '';
         packages.forEach((p) => {
             const opt = document.createElement('option');
@@ -338,38 +505,142 @@
             opt.textContent = `${p.name} (${p.included_minutes} min)`;
             pkgSelect.appendChild(opt);
         });
+
+        const typeSelect = document.getElementById('assign-target-type');
+        if (typeSelect && !typeSelect.dataset.bound) {
+            typeSelect.dataset.bound = '1';
+            typeSelect.addEventListener('change', () => loadTargetOptions(typeSelect.value));
+        }
+        await loadTargetOptions(typeSelect?.value || 'org');
         openModal('assign-modal');
+    }
+
+    async function openContractEditModal(contractId) {
+        const data = await api('/api/panel/billing/contracts');
+        const contract = (data.contracts || []).find((c) => c.id === contractId);
+        if (!contract) return;
+        editingContractId = contractId;
+        document.getElementById('assign-modal-title').textContent = t('commercialization.contracts.edit_title', 'Edit assignment');
+        document.getElementById('assign-modal-submit').textContent = t('commercialization.actions.save', 'Save');
+        showModalError(document.getElementById('assign-modal-error'), '');
+
+        const typeSelect = document.getElementById('assign-target-type');
+        typeSelect.value = contract.target_type || 'org';
+        typeSelect.disabled = true;
+        await loadTargetOptions(typeSelect.value);
+        const targetSelect = document.getElementById('assign-target-select');
+        targetSelect.value = contract.target_key;
+        targetSelect.disabled = true;
+        document.getElementById('assign-package-select').disabled = true;
+
+        document.getElementById('assign-remaining').value = contract.remaining_minutes ?? 0;
+        document.getElementById('assign-hourly-rate').value = contract.hourly_rate ?? 0;
+        document.getElementById('assign-overage-rate').value = contract.overage_rate ?? '';
+        document.getElementById('assign-valid-from').value = contract.valid_from ? String(contract.valid_from).slice(0, 10) : '';
+        document.getElementById('assign-valid-until').value = contract.valid_until ? String(contract.valid_until).slice(0, 10) : '';
+
+        openModal('assign-modal');
+    }
+
+    function resetAssignModalFields() {
+        const typeSelect = document.getElementById('assign-target-type');
+        const targetSelect = document.getElementById('assign-target-select');
+        const pkgSelect = document.getElementById('assign-package-select');
+        if (typeSelect) typeSelect.disabled = false;
+        if (targetSelect) targetSelect.disabled = false;
+        if (pkgSelect) pkgSelect.disabled = false;
+        document.getElementById('assign-remaining').value = '';
+        document.getElementById('assign-hourly-rate').value = '';
+        document.getElementById('assign-overage-rate').value = '';
+        document.getElementById('assign-valid-from').value = '';
+        document.getElementById('assign-valid-until').value = '';
     }
 
     async function submitAssignModal() {
         const errEl = document.getElementById('assign-modal-error');
-        const orgId = document.getElementById('assign-org-select')?.value;
+        const targetType = document.getElementById('assign-target-type')?.value;
+        const targetKey = document.getElementById('assign-target-select')?.value;
         const packageId = document.getElementById('assign-package-select')?.value;
-        if (!orgId || !packageId) {
-            showModalError(errEl, t('commercialization.contracts.select_org', 'Select organization'));
+        const remainingRaw = document.getElementById('assign-remaining')?.value;
+        const hourlyRate = parseFloat(document.getElementById('assign-hourly-rate')?.value);
+        const overageRaw = document.getElementById('assign-overage-rate')?.value;
+        const validFrom = document.getElementById('assign-valid-from')?.value;
+        const validUntil = document.getElementById('assign-valid-until')?.value;
+
+        if (editingContractId) {
+            const patch = {};
+            if (remainingRaw !== '') patch.remaining_minutes = parseInt(remainingRaw, 10);
+            if (!Number.isNaN(hourlyRate)) patch.hourly_rate = hourlyRate;
+            if (overageRaw !== '') patch.overage_rate = parseFloat(overageRaw);
+            patch.valid_from = validFrom ? `${validFrom}T00:00:00Z` : null;
+            patch.valid_until = validUntil ? `${validUntil}T23:59:59Z` : null;
+            try {
+                await api(`/api/panel/billing/contracts/${encodeURIComponent(editingContractId)}`, {
+                    method: 'PUT',
+                    body: patch
+                });
+                closeModal('assign-modal');
+                resetAssignModalFields();
+                editingContractId = null;
+                notifySuccess(t('commercialization.contracts.updated', 'Assignment updated'));
+                await loadContracts();
+            } catch (e) {
+                showModalError(errEl, e.message);
+            }
+            return;
+        }
+
+        if (!targetType || !targetKey || !packageId) {
+            showModalError(errEl, t('commercialization.assign.missing_fields', 'Select target and package'));
             return;
         }
         try {
             const pkgs = await api('/api/panel/billing/packages');
             const pkg = (pkgs.packages || []).find((p) => p.id === packageId);
-            await api('/api/panel/billing/contracts', {
-                method: 'POST',
-                body: JSON.stringify({
-                    org_id: orgId,
-                    package_id: packageId,
-                    currency: pkg?.currency || 'PLN'
-                })
-            });
+            const body = {
+                target_type: targetType,
+                target_key: targetKey,
+                package_id: packageId,
+                currency: pkg?.currency || 'PLN'
+            };
+            if (remainingRaw !== '') body.remaining_minutes = parseInt(remainingRaw, 10);
+            if (!Number.isNaN(hourlyRate)) body.hourly_rate = hourlyRate;
+            if (overageRaw !== '') body.overage_rate = parseFloat(overageRaw);
+            if (validFrom) body.valid_from = `${validFrom}T00:00:00Z`;
+            if (validUntil) body.valid_until = `${validUntil}T23:59:59Z`;
+
+            await api('/api/panel/billing/contracts', { method: 'POST', body });
             closeModal('assign-modal');
+            resetAssignModalFields();
+            notifySuccess(t('commercialization.assign.success', 'Package assigned'));
             await loadContracts();
         } catch (e) {
             showModalError(errEl, e.message);
         }
     }
 
+    async function populateOrgFilterSelect(selectEl) {
+        if (!selectEl) return;
+        const data = await api('/api/panel/org');
+        const current = selectEl.value;
+        selectEl.innerHTML = `<option value="">${t('commercialization.filters.all_orgs', 'All organizations')}</option>`;
+        (data.organizations || data.orgs || []).forEach((org) => {
+            const opt = document.createElement('option');
+            opt.value = org.id;
+            opt.textContent = org.name || org.id;
+            selectEl.appendChild(opt);
+        });
+        if (current) selectEl.value = current;
+    }
+
     document.getElementById('btn-timesync-check')?.addEventListener('click', async () => {
-        await api('/api/panel/billing/timesync/check', { method: 'POST' });
-        await loadTimesync();
+        try {
+            await api('/api/panel/billing/timesync/check', { method: 'POST' });
+            notifySuccess(t('commercialization.clock.checked', 'Clock check completed'));
+            await loadTimesync();
+        } catch (e) {
+            notifyError(e.message);
+        }
     });
 
     document.getElementById('btn-save-clock-settings')?.addEventListener('click', async () => {
@@ -381,22 +652,22 @@
         try {
             await api('/api/panel/billing/clock/settings', {
                 method: 'PUT',
-                body: JSON.stringify({
+                body: {
                     ntp_servers: document.getElementById('clock-ntp-servers')?.value || '',
                     max_skew_ms: Number(document.getElementById('clock-max-skew')?.value || 2000),
                     require_synced_clock: document.getElementById('clock-require-sync')?.checked !== false,
-                    trust_os_ntp: document.getElementById('clock-trust-os')?.checked !== false,
-                })
+                    trust_os_ntp: document.getElementById('clock-trust-os')?.checked !== false
+                }
             });
-            alert(t('commercialization.clock.saved', 'Clock settings saved. Go server restart initiated.'));
+            notifySuccess(t('commercialization.clock.saved', 'Clock settings saved. Go server restart initiated.'));
             await loadTimesync();
         } catch (e) {
-            alert(e.message);
+            notifyError(e.message);
         }
     });
 
     document.getElementById('btn-new-package')?.addEventListener('click', () => {
-        openPackageModal().catch((e) => alert(e.message));
+        openPackageModal().catch((e) => notifyError(e.message));
     });
 
     document.getElementById('package-modal-submit')?.addEventListener('click', () => {
@@ -404,7 +675,8 @@
     });
 
     document.getElementById('btn-new-contract')?.addEventListener('click', () => {
-        openAssignModal().catch((e) => alert(e.message));
+        resetAssignModalFields();
+        openAssignModal().catch((e) => notifyError(e.message));
     });
 
     document.getElementById('assign-modal-submit')?.addEventListener('click', () => {
@@ -412,16 +684,32 @@
     });
 
     document.getElementById('btn-export-sessions')?.addEventListener('click', () => {
-        triggerDownload('/api/panel/billing/sessions/export?format=csv');
+        const qs = sessionQuery();
+        triggerDownload(`/api/panel/billing/sessions/export?format=csv${qs ? `&${qs}` : ''}`);
     });
 
     document.getElementById('btn-export-reports-csv')?.addEventListener('click', () => {
-        triggerDownload('/api/panel/billing/reports/export?format=csv');
+        const orgId = document.getElementById('filter-report-org')?.value;
+        triggerDownload(`/api/panel/billing/reports/export?format=csv${orgId ? `&org_id=${encodeURIComponent(orgId)}` : ''}`);
     });
 
     document.getElementById('btn-export-reports-pdf')?.addEventListener('click', () => {
-        triggerDownload('/api/panel/billing/reports/export?format=pdf');
+        const orgId = document.getElementById('filter-report-org')?.value;
+        triggerDownload(`/api/panel/billing/reports/export?format=pdf${orgId ? `&org_id=${encodeURIComponent(orgId)}` : ''}`);
     });
+
+    ['filter-contract-type', 'filter-contract-status'].forEach((id) => {
+        document.getElementById(id)?.addEventListener('change', () => loadContracts().catch(console.warn));
+    });
+    document.getElementById('filter-contract-search')?.addEventListener('input', () => {
+        clearTimeout(window._commContractSearchTimer);
+        window._commContractSearchTimer = setTimeout(() => loadContracts().catch(console.warn), 300);
+    });
+    document.getElementById('btn-refresh-sessions')?.addEventListener('click', () => loadSessions().catch(console.warn));
+    document.getElementById('btn-refresh-reports')?.addEventListener('click', () => loadReports().catch(console.warn));
+    document.getElementById('filter-session-org')?.addEventListener('change', () => loadSessions().catch(console.warn));
+    document.getElementById('filter-session-status')?.addEventListener('change', () => loadSessions().catch(console.warn));
+    document.getElementById('filter-report-org')?.addEventListener('change', () => loadReports().catch(console.warn));
 
     async function loadEmailNotificationSettings() {
         const statusEl = document.getElementById('email-smtp-status');
@@ -452,16 +740,16 @@
         try {
             await api('/api/panel/commercialization/email-config', {
                 method: 'PUT',
-                body: JSON.stringify({
+                body: {
                     help_requests_enabled: document.getElementById('notif-help-requests-enabled')?.checked !== false,
                     notify_assigned_operators: document.getElementById('notif-assigned-operators')?.checked !== false,
                     fallback_alert_email: document.getElementById('notif-fallback-alert')?.checked !== false,
-                    include_folder_in_subject: document.getElementById('notif-folder-subject')?.checked !== false,
-                })
+                    include_folder_in_subject: document.getElementById('notif-folder-subject')?.checked !== false
+                }
             });
-            alert(t('commercialization.notifications.saved', 'Notification settings saved'));
+            notifySuccess(t('commercialization.notifications.saved', 'Notification settings saved'));
         } catch (e) {
-            alert(e.message);
+            notifyError(e.message);
         }
     });
 
@@ -469,11 +757,16 @@
     if (tab === 'overview' || tab === 'settings') {
         loadTimesync();
     }
+    if (tab === 'overview') {
+        loadOverviewStats().catch(console.warn);
+        loadSessions().catch(console.warn);
+    }
     if (tab === 'settings') {
         loadEmailNotificationSettings().catch(console.warn);
         loadClockSettings().catch(console.warn);
     }
-    if (tab === 'overview' || tab === 'sessions') {
+    if (tab === 'sessions') {
+        populateOrgFilterSelect(document.getElementById('filter-session-org')).catch(console.warn);
         loadSessions().catch(console.warn);
     }
     if (tab === 'packages') {
@@ -481,6 +774,7 @@
         loadContracts().catch(console.warn);
     }
     if (tab === 'reports') {
+        populateOrgFilterSelect(document.getElementById('filter-report-org')).catch(console.warn);
         loadReports().catch(console.warn);
     }
 })();

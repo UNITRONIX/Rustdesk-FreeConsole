@@ -42,14 +42,15 @@ type ConnectionCheckResult struct {
 
 // Service manages billable remote sessions.
 type Service struct {
-	db       db.Database
-	clock    *timesync.Service
-	roundMin int
+	db            db.Database
+	panel         PanelContext
+	clock         *timesync.Service
+	roundMin      int
 	requireReport bool
 
-	mu       sync.Mutex
-	pending  map[string]*pendingRelay // relayUUID -> meta
-	active   map[string]*activeSession
+	mu      sync.Mutex
+	pending map[string]*pendingRelay // relayUUID -> meta
+	active  map[string]*activeSession
 }
 
 type pendingRelay struct {
@@ -90,6 +91,23 @@ func NewService(database db.Database, clock *timesync.Service, roundingMinutes i
 	}
 }
 
+// SetPanelSyncStore supplies folder/group membership for contract resolution.
+func (s *Service) SetPanelSyncStore(panel PanelContext) {
+	s.panel = panel
+}
+
+func (s *Service) resolveContract(deviceID string) (*db.BillingContract, string, error) {
+	contract, err := ResolveContractForDevice(s.db, s.panel, deviceID)
+	if err != nil {
+		return nil, "", err
+	}
+	orgID, err := s.db.GetDeviceOrgID(deviceID)
+	if err != nil {
+		return nil, "", err
+	}
+	return contract, orgID, nil
+}
+
 // Start launches the session ticker.
 func (s *Service) Start(ctx context.Context) {
 	go s.ticker(ctx)
@@ -127,20 +145,26 @@ func (s *Service) PendingRelayCount() int {
 	return len(s.pending)
 }
 
+// ActiveSessionCount returns in-progress billable sessions.
+func (s *Service) ActiveSessionCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.active)
+}
+
 // CheckConnection evaluates whether a connection to deviceID may proceed.
 func (s *Service) CheckConnection(deviceID string) ConnectionCheckResult {
-	orgID, err := s.db.GetDeviceOrgID(deviceID)
-	if err != nil || orgID == "" {
-		return ConnectionCheckResult{Allowed: true}
+	contract, orgID, err := s.resolveContract(deviceID)
+	if err != nil {
+		log.Printf("[billing] CheckConnection resolve: %v", err)
+		return ConnectionCheckResult{Allowed: true, OrgID: orgID}
+	}
+	if contract == nil {
+		return ConnectionCheckResult{Allowed: true, OrgID: orgID}
 	}
 
 	if s.clock != nil && !s.clock.IsSynced() {
-		return ConnectionCheckResult{Allowed: false, Reason: "clock_unsynced", OrgID: orgID}
-	}
-
-	contract, err := s.db.GetActiveBillingOrgContract(orgID)
-	if err != nil || contract == nil {
-		return ConnectionCheckResult{Allowed: true, OrgID: orgID}
+		return ConnectionCheckResult{Allowed: false, Reason: "clock_unsynced", OrgID: orgID, HasBilling: true}
 	}
 	if contract.Status == ContractSuspended {
 		return ConnectionCheckResult{Allowed: false, Reason: "billing_suspended", OrgID: orgID, HasBilling: true}
@@ -160,7 +184,7 @@ func (s *Service) PrepareRelay(relayUUID, deviceID, operatorID string) error {
 	if !check.HasBilling {
 		return nil
 	}
-	contract, err := s.db.GetActiveBillingOrgContract(check.OrgID)
+	contract, _, err := s.resolveContract(deviceID)
 	if err != nil || contract == nil {
 		return nil
 	}
@@ -199,7 +223,7 @@ func (s *Service) ActivateRelay(relayUUID string) {
 	delete(s.pending, relayUUID)
 	s.mu.Unlock()
 
-	contract, err := s.db.GetBillingOrgContract(meta.ContractID)
+	contract, err := s.db.GetBillingContract(meta.ContractID)
 	if err != nil || contract == nil {
 		return
 	}
@@ -380,13 +404,13 @@ func (s *Service) finalizeSession(a *activeSession) {
 		EventType: LedgerSessionEnd,
 	})
 
-	if contract, err := s.db.GetBillingOrgContract(a.ContractID); err == nil && contract != nil {
+	if contract, err := s.db.GetBillingContract(a.ContractID); err == nil && contract != nil {
 		newRemaining := contract.RemainingMinutes - includedUsed
 		if newRemaining < 0 {
 			newRemaining = 0
 		}
 		contract.RemainingMinutes = newRemaining
-		_ = s.db.UpdateBillingOrgContract(contract)
+		_ = s.db.UpdateBillingContract(contract)
 	}
 }
 

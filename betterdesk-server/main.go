@@ -352,7 +352,7 @@ func main() {
 		defer relaySrv.Stop()
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), relaySrv, Version)
-		defer attachPanelSync(apiSrv, database, cfg.AuthDBPath)()
+		defer attachPanelSync(apiSrv, billingSvc, database, cfg.AuthDBPath)()
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -438,7 +438,7 @@ func main() {
 		defer sig.Stop()
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), nil, Version)
-		defer attachPanelSync(apiSrv, database, cfg.AuthDBPath)()
+		defer attachPanelSync(apiSrv, billingSvc, database, cfg.AuthDBPath)()
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -680,9 +680,12 @@ func resolveAuthDBPath(explicit, dbPath string) string {
 }
 
 // attachPanelSync wires RustDesk group/folder sync to PostgreSQL or legacy auth.db.
-func attachPanelSync(apiSrv *api.Server, database db.Database, authDBPath string) func() {
+func attachPanelSync(apiSrv *api.Server, billingSvc *billing.Service, database db.Database, authDBPath string) func() {
 	if pg, ok := database.(*db.PostgresDB); ok {
 		apiSrv.SetPanelStore(pg)
+		if billingSvc != nil {
+			billingSvc.SetPanelSyncStore(pg)
+		}
 		log.Printf("RustDesk panel sync: PostgreSQL (device groups, folders, ACL)")
 		return func() {}
 	}
@@ -696,6 +699,9 @@ func attachPanelSync(apiSrv *api.Server, database db.Database, authDBPath string
 		return func() {}
 	}
 	apiSrv.SetPanelStore(consoleAuth)
+	if billingSvc != nil {
+		billingSvc.SetPanelSyncStore(consoleAuth)
+	}
 	log.Printf("RustDesk panel sync: legacy auth.db at %s", authDBPath)
 	return func() { _ = consoleAuth.Close() }
 }

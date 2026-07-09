@@ -4031,6 +4031,7 @@
             "trust_os_hint": "Use systemd-timesyncd/chrony status when UDP NTP to public servers is blocked (DMZ/firewall).",
             "save": "Save NTP settings",
             "saved": "Clock settings saved. Go server restart initiated.",
+            "checked": "Clock check completed",
             "save_restart": "Save NTP settings and restart the BetterDesk Go server? Active sessions may disconnect briefly.",
             "status_offset": "Offset",
             "status_server": "NTP source",
@@ -4040,23 +4041,30 @@
             "os_no": "No"
         },
         "stats": {
-            "active_sessions": "Active billable sessions"
+            "active_sessions": "Active billable sessions",
+            "expiring_contracts": "Contracts expiring (30 days)",
+            "expiring_hint": "Active assignments with end date within 30 days"
         },
         "packages": {
             "new": "New package",
             "name": "Name",
+            "description": "Description",
             "included_minutes": "Included minutes",
             "overage_rate": "Overage rate / h",
             "currency": "Currency",
             "heading": "Support packages",
             "prompt_name": "Package name",
-            "create_title": "New package for organization",
+            "create_title": "New support package",
+            "edit_title": "Edit package",
             "create_submit": "Create package",
-            "select_org": "Organization",
-            "select_org_placeholder": "Select organization…"
+            "created": "Package created",
+            "updated": "Package updated",
+            "deleted": "Package deleted",
+            "delete_confirm": "Delete this package? Assignments using it must be removed first."
         },
         "sessions": {
             "device": "Device",
+            "org": "Organization",
             "operator": "Operator",
             "duration": "Duration",
             "phase": "Phase",
@@ -4069,10 +4077,17 @@
         },
         "contracts": {
             "title": "Organization contracts",
+            "assignments_title": "Package assignments",
             "new": "Assign package",
+            "target": "Target",
             "org": "Organization",
             "package": "Package",
             "remaining": "Remaining minutes",
+            "hourly_rate": "Hourly rate",
+            "custom_overage": "Custom overage rate / h",
+            "validity": "Validity",
+            "valid_from": "Valid from",
+            "valid_until": "Valid until",
             "status": "Status",
             "actions": "Actions",
             "suspend": "Suspend",
@@ -4080,11 +4095,49 @@
             "select_org": "Select organization",
             "select_package": "Select package",
             "no_orgs": "No organizations found",
-            "no_packages": "Create a package first"
+            "no_packages": "Create a package first",
+            "edit_title": "Edit assignment",
+            "updated": "Assignment updated",
+            "deleted": "Assignment removed",
+            "delete_confirm": "Remove this package assignment?"
         },
         "assign": {
-            "title": "Assign existing package",
-            "submit": "Assign"
+            "title": "Assign package",
+            "submit": "Assign",
+            "target_type": "Target type",
+            "target": "Target",
+            "select_target": "Select target…",
+            "missing_fields": "Select target and package",
+            "optional": "Optional",
+            "success": "Package assigned"
+        },
+        "targets": {
+            "org": "Organization",
+            "device_group": "Device group",
+            "folder": "Folder",
+            "device": "Device"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save",
+            "refresh": "Refresh"
+        },
+        "filters": {
+            "target_type": "Target type",
+            "all_types": "All types",
+            "all_statuses": "All statuses",
+            "all_orgs": "All organizations",
+            "organization": "Organization",
+            "search": "Search",
+            "search_placeholder": "Name or package…",
+            "device_id_placeholder": "Device ID"
+        },
+        "status": {
+            "active": "Active",
+            "suspended": "Suspended",
+            "pending_report": "Pending report",
+            "closed": "Closed"
         },
         "form": {
             "cancel": "Cancel"
@@ -4096,7 +4149,7 @@
         },
         "empty": {
             "packages": "No packages yet. Create one with the button above.",
-            "contracts": "No organization contracts yet. Assign a package to an organization.",
+            "contracts": "No package assignments yet. Assign a package to an organization, group, folder, or device.",
             "sessions": "No billable sessions recorded yet.",
             "reports": "No work reports submitted yet."
         },

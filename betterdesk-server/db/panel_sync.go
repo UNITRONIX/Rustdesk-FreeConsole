@@ -7,6 +7,7 @@ type PanelSyncStore interface {
 	GetUserIDByUsername(username string) (int64, error)
 	ListPanelDeviceGroups() ([]PanelDeviceGroup, error)
 	ListDeviceGroupMemberPeerIDs(deviceGroupID int64) ([]string, error)
+	ListDeviceGroupGUIDsForPeer(peerID string) ([]string, error)
 	ListUserGroupGUIDsForUser(userID int64) ([]string, error)
 	ListUserPeerGrants(userID int64) ([]string, error)
 	ListFolders() ([]PanelFolder, error)

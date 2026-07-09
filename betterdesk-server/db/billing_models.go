@@ -2,6 +2,14 @@ package db
 
 import "time"
 
+// Billing package / contract target types.
+const (
+	BillingTargetOrg         = "org"
+	BillingTargetDeviceGroup = "device_group"
+	BillingTargetFolder      = "folder"
+	BillingTargetDevice      = "device"
+)
+
 // BillingPackage is a reusable support-hours template.
 type BillingPackage struct {
 	ID              string    `json:"id"`
@@ -14,23 +22,43 @@ type BillingPackage struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
-// BillingOrgContract links an organization to a billing package.
-type BillingOrgContract struct {
-	ID                string     `json:"id"`
-	OrgID             string     `json:"org_id"`
-	PackageID         string     `json:"package_id"`
-	Status            string     `json:"status"` // active, suspended, expired
-	RemainingMinutes  int        `json:"remaining_minutes"`
-	OverageRate       *float64   `json:"overage_rate,omitempty"`
-	HourlyRate        float64    `json:"hourly_rate"` // base hourly rate for org
-	Currency          string     `json:"currency"`
-	ValidFrom         *time.Time `json:"valid_from,omitempty"`
-	ValidUntil        *time.Time `json:"valid_until,omitempty"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
-	PackageName       string     `json:"package_name,omitempty"`
-	OrgName           string     `json:"org_name,omitempty"`
+// BillingContract links a billing package to an org, group, folder, or device.
+type BillingContract struct {
+	ID               string     `json:"id"`
+	TargetType       string     `json:"target_type"`
+	TargetKey        string     `json:"target_key"`
+	PackageID        string     `json:"package_id"`
+	Status           string     `json:"status"` // active, suspended, expired
+	RemainingMinutes int        `json:"remaining_minutes"`
+	OverageRate      *float64   `json:"overage_rate,omitempty"`
+	HourlyRate       float64    `json:"hourly_rate"`
+	Currency         string     `json:"currency"`
+	ValidFrom        *time.Time `json:"valid_from,omitempty"`
+	ValidUntil       *time.Time `json:"valid_until,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	PackageName      string     `json:"package_name,omitempty"`
+	TargetName       string     `json:"target_name,omitempty"`
+	// Legacy JSON fields when target_type=org
+	OrgID   string `json:"org_id,omitempty"`
+	OrgName string `json:"org_name,omitempty"`
 }
+
+// FillLegacyOrgFields sets org_id/org_name when the target is an organization.
+func (c *BillingContract) FillLegacyOrgFields() {
+	if c == nil {
+		return
+	}
+	if c.TargetType == BillingTargetOrg {
+		c.OrgID = c.TargetKey
+		if c.TargetName != "" {
+			c.OrgName = c.TargetName
+		}
+	}
+}
+
+// BillingOrgContract is kept as a type alias for backward-compatible internal references.
+type BillingOrgContract = BillingContract
 
 // BillingSession is the authoritative billable remote session record.
 type BillingSession struct {
@@ -71,19 +99,19 @@ type BillingSessionLedger struct {
 
 // BillingWorkReport is submitted by a technician after a session.
 type BillingWorkReport struct {
-	ID          int64     `json:"id"`
-	SessionID   string    `json:"session_id"`
-	OperatorID  string    `json:"operator_id"`
-	Summary     string    `json:"summary"`
-	Category    string    `json:"category,omitempty"`
-	TicketRef   string    `json:"ticket_ref,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID         int64     `json:"id"`
+	SessionID  string    `json:"session_id"`
+	OperatorID string    `json:"operator_id"`
+	Summary    string    `json:"summary"`
+	Category   string    `json:"category,omitempty"`
+	TicketRef  string    `json:"ticket_ref,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // BillingCurrency stores manual FX rates relative to server base currency.
 type BillingCurrency struct {
-	Code             string  `json:"code"`
-	Symbol           string  `json:"symbol"`
+	Code               string  `json:"code"`
+	Symbol             string  `json:"symbol"`
 	ExchangeRateToBase float64 `json:"exchange_rate_to_base"`
 }
 
@@ -96,8 +124,10 @@ type BillingSessionFilter struct {
 	Offset   int
 }
 
-// BillingContractFilter filters org contracts.
+// BillingContractFilter filters billing contracts.
 type BillingContractFilter struct {
-	OrgID  string
-	Status string
+	TargetType string
+	TargetKey  string
+	OrgID      string // legacy: maps to org target
+	Status     string
 }
