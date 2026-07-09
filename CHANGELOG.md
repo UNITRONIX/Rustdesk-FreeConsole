@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.129] — 2026-07-09
+
 ### Fixed
 - **RustDesk client sessions (#242):** desktop/mobile clients no longer drop out after ~24 hours. Login now uses DB-backed session tokens (default **7 days**, sliding renewal on activity, max **30 days**). Configure under **Settings → Authentication → RustDesk clients**. Ships via panel update; sign in once in the client after updating.
 - **Linux HTTP/HTTPS toggle (#219):** Go server now honours `GO_API_PORT=21114` over shared `.env` `API_PORT=21121` (Node Client API proxy), matching existing `SIGNAL_PORT` isolation. Installer and panel update patch `Environment=GO_API_PORT=21114` on `betterdesk-server.service`; post-toggle tests wait for Go API and hint when handlers leaked to `:21121`.
@@ -1802,3 +1809,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.126]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.125...v3.3.126
 [3.3.127]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.126...v3.3.127
 [3.3.128]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.127...v3.3.128
+[3.3.129]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.128...v3.3.129
