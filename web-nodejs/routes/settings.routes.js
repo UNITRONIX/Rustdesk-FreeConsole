@@ -1597,8 +1597,6 @@ router.post('/api/settings/ldap/test', requireAuth, requirePermission('server.co
     }
 });
 
-});
-
 // ==================== RustDesk client sessions (Issue #242) ==================
 
 const { upsertEnvKey } = require('../lib/envMerge');
