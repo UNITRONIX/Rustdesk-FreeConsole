@@ -116,6 +116,17 @@ function ensureBindCapabilityInServiceUnit(content) {
     return { content: lines.join('\n'), changed: true };
 }
 
+/**
+ * Build Location URL for HTTP→HTTPS redirect. Omits :443 (and :80 on HTTP side is implicit).
+ */
+function formatHttpsRedirectUrl(hostname, httpsPort, urlPath) {
+    const host = String(hostname || 'localhost');
+    const path = urlPath != null && urlPath !== '' ? urlPath : '/';
+    const port = Number(httpsPort);
+    const suffix = Number.isInteger(port) && port > 0 && port !== 443 ? `:${port}` : '';
+    return `https://${host}${suffix}${path}`;
+}
+
 function attachPrivilegedPortErrorHandler(server, { port, label }) {
     if (!server || typeof server.on !== 'function') return;
     server.on('error', (err) => {
@@ -144,5 +155,6 @@ module.exports = {
     consoleEnvUsesPrivilegedPorts,
     serviceUnitHasBindCapability,
     ensureBindCapabilityInServiceUnit,
+    formatHttpsRedirectUrl,
     attachPrivilegedPortErrorHandler,
 };

@@ -43,6 +43,7 @@ const { getWanMiddlewareStack } = require('./middleware/wanSecurity');
 const { parseTrustProxy } = require('./lib/parseTrustProxy');
 const {
     resolvePortForCurrentUser,
+    formatHttpsRedirectUrl,
     attachPrivilegedPortErrorHandler,
 } = require('./lib/privilegedPorts');
 
@@ -409,11 +410,11 @@ function shouldUseRustDeskApiTls(sslOptions) {
 function createHttpRedirectServer(httpsPort) {
     const redirectApp = express();
     redirectApp.use((req, res) => {
-        const httpsUrl = `https://${req.hostname}:${httpsPort}${req.url}`;
+        const httpsUrl = formatHttpsRedirectUrl(req.hostname, httpsPort, req.url);
         res.setHeader('Cache-Control', 'no-store');
         res.redirect(307, httpsUrl);
     });
-    
+
     return http.createServer(redirectApp);
 }
 

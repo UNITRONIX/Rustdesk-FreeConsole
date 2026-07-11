@@ -8,6 +8,7 @@ const {
     consoleEnvUsesPrivilegedPorts,
     ensureBindCapabilityInServiceUnit,
     serviceUnitHasBindCapability,
+    formatHttpsRedirectUrl,
 } = require('../lib/privilegedPorts');
 
 describe('privilegedPorts', () => {
@@ -90,5 +91,11 @@ describe('privilegedPorts', () => {
         } finally {
             process.getuid = originalGetuid;
         }
+    });
+
+    test('formatHttpsRedirectUrl omits :443 for standard HTTPS port', () => {
+        expect(formatHttpsRedirectUrl('desk.example.com', 443, '/login')).toBe('https://desk.example.com/login');
+        expect(formatHttpsRedirectUrl('desk.example.com', 5443, '/login')).toBe('https://desk.example.com:5443/login');
+        expect(formatHttpsRedirectUrl('desk.example.com', 5443, '')).toBe('https://desk.example.com:5443/');
     });
 });

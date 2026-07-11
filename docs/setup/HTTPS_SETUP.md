@@ -37,35 +37,68 @@ Restart the console service and access it at `https://your-server:5443`.
 
 ### Option 2: Let's Encrypt (Production)
 
-Using [Certbot](https://certbot.eff.org/):
+The recommended path on Linux is **`sudo betterdesk.sh`** → **Protocol Toggle (T)** or **SSL Configuration (C)** → **Let's Encrypt**. The installer runs certbot, **copies** certificate material into `$RUSTDESK_PATH/ssl/betterdesk.{crt,key}` (readable by the `betterdesk` console user — see #219), and configures auto-renew via a certbot deploy hook.
+
+After setup, open the panel at **`https://your-domain:5443`** (default HTTPS port). Use the domain from the certificate SAN, not the raw server IP.
+
+Manual certbot (only if you are not using the installer menus):
 
 ```bash
-# Install certbot
 sudo apt install certbot
-
-# Get certificate (standalone mode - stop BetterDesk console first)
 sudo systemctl stop betterdesk-console
 sudo certbot certonly --standalone -d console.yourdomain.com
 sudo systemctl start betterdesk-console
 ```
 
-Update `.env`:
+Then deploy the certificate for the console user (copy, do not symlink into `/etc/letsencrypt/`):
+
+```bash
+sudo betterdesk.sh   # Protocol Toggle → HTTPS → Keep existing certificate
+# Or SSL Configuration → Let's Encrypt / keep existing
+```
+
+Certificate paths in `.env` (set automatically by the installer):
 
 ```env
 HTTPS_ENABLED=true
-HTTPS_PORT=443
-SSL_CERT_PATH=/etc/letsencrypt/live/console.yourdomain.com/fullchain.pem
-SSL_KEY_PATH=/etc/letsencrypt/live/console.yourdomain.com/privkey.pem
-SSL_CA_PATH=/etc/letsencrypt/live/console.yourdomain.com/chain.pem
+HTTPS_PORT=5443
+SSL_CERT_PATH=/opt/rustdesk/ssl/betterdesk.crt
+SSL_KEY_PATH=/opt/rustdesk/ssl/betterdesk.key
 HTTP_REDIRECT_HTTPS=true
 ```
 
-Set up auto-renewal:
+Certbot renewal is handled by the BetterDesk deploy hook at `/etc/letsencrypt/renewal-hooks/deploy/betterdesk-reload.sh` when you use the installer LE flow.
 
-```bash
-# Add to crontab
-0 0 1 * * certbot renew --pre-hook "systemctl stop betterdesk-console" --post-hook "systemctl start betterdesk-console"
-```
+### Standard HTTPS port 443 (no `:5443` in the URL)
+
+By default the panel listens on **5443** so it does not conflict with nginx or certbot on ports 80/443 without extra capabilities.
+
+To serve **`https://your-domain`** without a port number:
+
+**Option A — Native HTTPS on :443**
+
+1. Enable HTTPS first (Protocol Toggle / SSL Configuration with Let's Encrypt or your own cert).
+2. When prompted, choose **Use standard HTTPS port 443**, or edit `/opt/BetterDeskConsole/.env`:
+   ```env
+   HTTPS_PORT=443
+   PORT=80
+   HTTP_REDIRECT_HTTPS=true
+   ```
+3. Run **Settings → Updates** or `sudo betterdesk.sh` → **Repair → Repair permissions** — adds `CAP_NET_BIND_SERVICE` to `betterdesk-console.service` so the `betterdesk` user can bind ports 80/443.
+4. Ensure nothing else listens on **443** (stop nginx on that host, or use Option B below).
+5. Open firewall ports if needed:
+   ```bash
+   sudo ufw allow 443/tcp
+   sudo ufw allow 80/tcp   # only when HTTP redirect on :80 is enabled
+   ```
+6. Restart: `sudo systemctl restart betterdesk-console`
+7. Verify: `curl -sI https://your-domain/ | head -3`
+
+RustDesk signal/relay ports (**21116/21117**) are unchanged — only the web panel URL changes.
+
+**Option B — Reverse proxy on :443**
+
+If nginx, Caddy, or Nginx Proxy Manager already uses port 443, leave the panel on `:5443` (or `:5000` with `HTTPS_ENABLED=false`) and terminate TLS at the proxy. See Options 3/4 below and [RustDesk Client WSS Through Nginx](#rustdesk-client-wss-through-nginx).
 
 ### Option 3: Reverse Proxy with Caddy (Recommended for Production)
 
@@ -307,20 +340,29 @@ When HTTPS is **not** enabled (default), these stricter policies are disabled to
 
 ## Firewall Rules
 
-If you enable native HTTPS, make sure to open the HTTPS port:
+If you enable native HTTPS, open the listening port(s):
 
 ```bash
-# Linux (ufw)
+# Linux (ufw) — default panel HTTPS port
 sudo ufw allow 5443/tcp
+
+# Standard port 443 (when HTTPS_PORT=443)
+sudo ufw allow 443/tcp
+sudo ufw allow 80/tcp   # optional HTTP→HTTPS redirect
 
 # Linux (firewalld)
 sudo firewall-cmd --permanent --add-port=5443/tcp
+sudo firewall-cmd --permanent --add-port=443/tcp
+sudo firewall-cmd --permanent --add-port=80/tcp
 sudo firewall-cmd --reload
 ```
 
 ```powershell
-# Windows
+# Windows — default panel HTTPS port
 New-NetFirewallRule -DisplayName "BetterDesk HTTPS" -Direction Inbound -Protocol TCP -LocalPort 5443 -Action Allow
+
+# Standard port 443
+New-NetFirewallRule -DisplayName "BetterDesk HTTPS 443" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
 ```
 
 ## Troubleshooting

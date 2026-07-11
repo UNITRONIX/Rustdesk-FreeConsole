@@ -1253,6 +1253,26 @@ resolve_panel_health_port() {
     fi
 }
 
+# Offer native HTTPS on standard port 443 after enabling TLS (#219 follow-up).
+maybe_offer_standard_https_port() {
+    local env_file="${CONSOLE_PATH}/.env"
+    local current_https_port
+
+    current_https_port=$(read_effective_console_setting HTTPS_PORT 5443)
+    [ "$current_https_port" = "443" ] && return 0
+
+    echo ""
+    print_info "Panel HTTPS defaults to port 5443 (avoids conflicts with nginx/certbot on :443)."
+    if confirm "Use standard HTTPS port 443 (https://your-domain without :5443)?"; then
+        _upsert_env_line "$env_file" HTTPS_PORT 443
+        _upsert_env_line "$env_file" PORT 80
+        _upsert_env_line "$env_file" HTTP_REDIRECT_HTTPS true
+        ensure_betterdesk_console_user >/dev/null
+        print_success "Standard ports configured: HTTPS :443, HTTP redirect :80"
+        print_info "Ensure nothing else listens on :443/:80; open firewall: ufw allow 443/tcp (and 80/tcp if redirecting)"
+    fi
+}
+
 # True when Client API (:21121) should be probed over HTTPS (RUSTDESK_API_TLS + cert present).
 client_api_should_use_tls() {
     local mode cert_path key_path
@@ -2824,9 +2844,11 @@ generate_ssl_certificates() {
         }
     }
     
-    # Secure private key permissions
-    chmod 600 "$ssl_dir/betterdesk.key"
-    chmod 644 "$ssl_dir/betterdesk.crt"
+    # Deploy with console-user-readable permissions (#219)
+    if ! deploy_ssl_material_to_rustdesk_dir "$ssl_dir/betterdesk.crt" "$ssl_dir/betterdesk.key"; then
+        print_error "Failed to set permissions on self-signed certificate"
+        return 1
+    fi
     
     # Also symlink to console SSL directory for Node.js
     if [ -d "$CONSOLE_PATH" ]; then
@@ -6051,6 +6073,7 @@ do_configure_ssl() {
         sync_go_server_signal_relay_tls "$ssl_dir"
         ensure_betterdesk_console_user >/dev/null
         print_info "Signal/relay TLS enabled; Go API stays HTTP (RustDesk client compatibility)"
+        maybe_offer_standard_https_port
     fi
 
     echo ""
@@ -6285,6 +6308,10 @@ run_protocol_tests() {
         echo -e "  ${YELLOW}Some checks failed — review the messages above and the service logs.${NC}"
     else
         echo -e "  ${GREEN}Configuration verified successfully.${NC}"
+        if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" = "true" ] && [ "$https_port" = "5443" ]; then
+            echo ""
+            echo -e "  ${DIM}Tip: for https://your-domain without :5443, set HTTPS_PORT=443 in .env and run Repair → Repair permissions, or re-run Protocol Toggle / SSL config and choose standard port 443. See docs/setup/HTTPS_SETUP.md${NC}"
+        fi
     fi
     echo ""
 
@@ -6517,6 +6544,7 @@ do_toggle_protocol() {
             else
                 print_info "  Client API:    HTTP  :${CLIENT_API_PORT:-21121}"
             fi
+            maybe_offer_standard_https_port
             ;;
         0|*)
             return
