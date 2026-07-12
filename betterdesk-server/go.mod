@@ -5,7 +5,7 @@ go 1.25.0
 toolchain go1.26.2
 
 require (
-	github.com/coder/websocket v1.8.14
+	github.com/coder/websocket v1.8.15
 	github.com/go-ldap/ldap/v3 v3.4.13
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
