@@ -3331,7 +3331,7 @@ do_configure_ssl() {
         1)
             print_warning "Let's Encrypt for Docker requires additional setup."
             print_info "Recommended: Use a reverse proxy (nginx/traefik) with Let's Encrypt."
-            print_info "See: https://github.com/UNITRONIX/Rustdesk-FreeConsole/wiki/TLS-SSL"
+            print_info "See: https://github.com/UNITRONIX/BetterDesk/wiki/TLS-SSL"
             press_enter
             return
             ;;

@@ -2,6 +2,8 @@
 
 This directory contains comprehensive documentation for BetterDesk Console, organized by topic.
 
+> **GitHub Wiki:** User-facing wiki pages are maintained in [`wiki/`](wiki/) and published to [github.com/UNITRONIX/BetterDesk/wiki](https://github.com/UNITRONIX/BetterDesk/wiki) via `scripts/sync-wiki.sh` or `scripts/sync-wiki.ps1`.
+
 ## Setup & Installation
 
 - **[Installation Guide](setup/INSTALLATION_V1.4.0.md)** — Full installation instructions
