@@ -52,28 +52,6 @@ const patches = {
 
 const enFallback = JSON.parse(fs.readFileSync(path.join(langDir, 'en.json'), 'utf8'));
 
-const UNSAFE_NESTED_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
-
-function deepSet(obj, keyPath, value) {
-    const parts = keyPath.split('.');
-    let cur = obj;
-    for (let i = 0; i < parts.length - 1; i++) {
-        const p = parts[i];
-        if (UNSAFE_NESTED_KEYS.has(p)) {
-            throw new Error(`Unsafe key segment: ${p}`);
-        }
-        if (!cur[p] || typeof cur[p] !== 'object' || Array.isArray(cur[p])) {
-            cur[p] = Object.create(null);
-        }
-        cur = cur[p];
-    }
-    const leaf = parts[parts.length - 1];
-    if (UNSAFE_NESTED_KEYS.has(leaf)) {
-        throw new Error(`Unsafe key segment: ${leaf}`);
-    }
-    cur[leaf] = value;
-}
-
 for (const file of locales) {
     const locale = file.replace('.json', '');
     const filePath = path.join(langDir, file);

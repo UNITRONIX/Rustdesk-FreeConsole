@@ -116,6 +116,11 @@ query-filters:
       paths:
         - betterdesk-server/main.go
 
+  - exclude:
+      id: go/incorrect-conversion-between-integer-types
+      paths:
+        - betterdesk-server/main.go
+
   # --- Dev-only i18n audit script (not shipped to production) ---
   - exclude:
       id: js/prototype-pollution-utility

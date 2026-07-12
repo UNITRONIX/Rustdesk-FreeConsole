@@ -18,6 +18,18 @@ func NewConnLimiter(maxPerIP int32) *ConnLimiter {
 	}
 }
 
+// NewConnLimiterFromInt creates a limiter from an int, clamping to int32 range.
+func NewConnLimiterFromInt(maxPerIP int) *ConnLimiter {
+	const maxInt32 = 1<<31 - 1
+	if maxPerIP > maxInt32 {
+		maxPerIP = maxInt32
+	}
+	if maxPerIP < 0 {
+		maxPerIP = 0
+	}
+	return NewConnLimiter(int32(maxPerIP))
+}
+
 // Acquire attempts to register a new connection from the given IP.
 // Returns true if the connection is allowed, false if the IP is at its limit.
 func (l *ConnLimiter) Acquire(ip string) bool {

@@ -240,22 +240,12 @@ func main() {
     // Initialize per-IP relay connection limiter
 	var connLimiter *ratelimit.ConnLimiter
 	if cfg.RelayMaxConnsIP > 0 {
-		limit := cfg.RelayMaxConnsIP
-		const maxInt32 = 1<<31 - 1
-		if limit > maxInt32 {
-			limit = maxInt32
-		}
-		connLimiter = ratelimit.NewConnLimiter(int32(limit))
+		connLimiter = ratelimit.NewConnLimiterFromInt(cfg.RelayMaxConnsIP)
 		log.Printf("Relay per-IP connection limit: %d", cfg.RelayMaxConnsIP)
 	}
 	var sessionLimiter *ratelimit.ConnLimiter
 	if cfg.RelayMaxConnsIP > 0 {
-		limit := cfg.RelayMaxConnsIP
-		const maxInt32 = 1<<31 - 1
-		if limit > maxInt32 {
-			limit = maxInt32
-		}
-		sessionLimiter = ratelimit.NewConnLimiter(int32(limit))
+		sessionLimiter = ratelimit.NewConnLimiterFromInt(cfg.RelayMaxConnsIP)
 		log.Printf("Relay active-session per-IP limit: %d", cfg.RelayMaxConnsIP)
 	}
 

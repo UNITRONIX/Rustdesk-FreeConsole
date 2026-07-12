@@ -63,6 +63,16 @@ func TestConnLimiterRelease(t *testing.T) {
 	}
 }
 
+func TestConnLimiterFromIntClamps(t *testing.T) {
+	l := NewConnLimiterFromInt(1<<31 + 1000)
+	if l.maxConn != 1<<31-1 {
+		t.Errorf("Expected clamped maxConn %d, got %d", 1<<31-1, l.maxConn)
+	}
+	if !l.Acquire("1.1.1.1") {
+		t.Error("Acquire should succeed after clamp")
+	}
+}
+
 func TestConnLimiterConcurrent(t *testing.T) {
 	l := NewConnLimiter(100)
 	var wg sync.WaitGroup
