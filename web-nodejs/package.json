@@ -39,7 +39,7 @@
     "multer": "^2.2.0",
     "nodemailer": "^9.0.1",
     "otplib": "^12.0.1",
-    "protobufjs": "^7.4.0",
+    "protobufjs": "^8.7.0",
     "qrcode": "^1.5.4",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
