@@ -8,7 +8,7 @@ require (
 	github.com/coder/websocket v1.8.14
 	github.com/go-ldap/ldap/v3 v3.4.13
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.9.2
+	github.com/jackc/pgx/v5 v5.10.0
 	golang.org/x/crypto v0.52.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.48.1
