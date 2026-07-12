@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.137] — 2026-07-12
+
 ### Security
 - **npm (dev):** bumped vitest/vite/esbuild in root and agent-client lockfiles; added `web-nodejs` overrides for `@babel/core` and `js-yaml` (Dependabot alerts #40–#48).
 - **CodeQL:** `NewConnLimiterFromInt` for relay per-IP limits; removed dead `deepSet` from `patch-role-scope-i18n.js`; extended Dependabot npm coverage to repo root and agent-client; added `go/incorrect-conversion-between-integer-types` query filter.
@@ -1880,3 +1887,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.134]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.133...v3.3.134
 [3.3.135]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.134...v3.3.135
 [3.3.136]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.135...v3.3.136
+[3.3.137]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.136...v3.3.137
