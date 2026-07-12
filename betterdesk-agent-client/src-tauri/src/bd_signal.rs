@@ -44,11 +44,14 @@ impl ConnSpec {
         if !cfg.is_registered() {
             return None;
         }
+        if cfg.auth_token.trim().is_empty() && cfg.api_key.trim().is_empty() {
+            return None;
+        }
         Some(Self {
             server_address: cfg.server_address.clone(),
             device_id: cfg.device_id.clone(),
             auth_token: if cfg.auth_token.is_empty() {
-                cfg.device_id.clone() // fallback — current Node.js endpoint accepts any non-empty token
+                cfg.api_key.clone()
             } else {
                 cfg.auth_token.clone()
             },
