@@ -25,3 +25,21 @@ updates:
       # GitHub Dependabot alert #11: glib::VariantStrIter unsoundness (RUSTSEC-2024-0429).
       # Same Tauri gtk3 / webkit2gtk transitive chain as rdclient-desktop; see comment above.
       - dependency-name: "glib"
+
+  - package-ecosystem: "npm"
+    directory: "/web-nodejs"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "gomod"
+    directory: "/betterdesk-server"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "gomod"
+    directory: "/betterdesk-agent"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3

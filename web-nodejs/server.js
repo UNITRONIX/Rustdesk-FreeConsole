@@ -16,6 +16,8 @@ const http = require('http');
 const https = require('https');
 
 const config = require('./config/config');
+const { redactUrlForLog } = require('./lib/logRedact');
+const logger = require('./lib/logger');
 const securityMiddleware = require('./middleware/security');
 const { initI18n } = require('./middleware/i18n');
 const { apiLimiter, widgetLimiter, panelPreferenceLimiter, getPanelPollMountPaths } = require('./middleware/rateLimiter');
@@ -266,7 +268,7 @@ app.use((req, res, next) => {
 
 // 500 Server Error
 app.use((err, req, res, next) => {
-    console.error('Server error:', err);
+    logger.error('Server error:', err);
     
     res.status(err.status || 500);
     
@@ -814,6 +816,18 @@ function printStartupBanner(protocol, port) {
         console.log('');
     }
 
+    if (config.isProduction && config.host === '0.0.0.0' && !config.httpsEnabled) {
+        const betterdeskApi = require('./services/betterdeskApi');
+        betterdeskApi.getEnrollmentMode().then((result) => {
+            const mode = (result && result.data && (result.data.mode || result.data)) || 'open';
+            if (String(mode).toLowerCase() === 'open') {
+                console.log('  ⛔ ERROR [SECURITY]: Production panel on 0.0.0.0 without HTTPS and enrollment=open.');
+                console.log('     Prefer managed/locked enrollment, enable HTTPS, or bind HOST=127.0.0.1 behind a reverse proxy.');
+                console.log('');
+            }
+        }).catch(() => { /* Go API may not be ready yet */ });
+    }
+
     // BD-2026-008: Warn if plaintext credentials file exists
     const credFile = path.join(config.keysPath, '.admin_credentials');
     if (fs.existsSync(credFile)) {
@@ -855,20 +869,6 @@ function printStartupBanner(protocol, port) {
             console.log('     The web panel still enforces 2FA independently.');
             console.log('');
         }
-    }
-}
-
-function redactUrlForLog(rawUrl) {
-    const value = String(rawUrl || '').trim();
-    if (!value) return '';
-
-    try {
-        const parsed = new URL(value);
-        parsed.username = '';
-        parsed.password = '';
-        return parsed.toString();
-    } catch (_) {
-        return value.replace(/\/\/[^/@]+@/, '//***@');
     }
 }
 

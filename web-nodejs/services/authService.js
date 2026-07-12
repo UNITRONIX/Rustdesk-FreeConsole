@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./database');
 const config = require('../config/config');
+const authLog = require('../lib/logger').child('AUTH');
 
 const SALT_ROUNDS = 12;
 
@@ -417,7 +418,7 @@ async function syncLocalUserFromGoResult(localUser, goResult, password, ssoStatu
     }
 
     await db.syncUserFromGo(localUser.id, sync);
-    console.log(`[AUTH] Synced '${localUser.username}' from Go (provider=${authProvider}, role=${role})`);
+    authLog.info(`[AUTH] Synced '${localUser.username}' from Go (provider=${authProvider}, role=${role})`);
     return {
         ...localUser,
         role: sync.role || localUser.role,
@@ -604,7 +605,7 @@ function tryLdapVerifyOnGo(username, password) {
 async function authenticate(username, password) {
     // Safeguard: reject empty username immediately (Issue #104)
     if (!username || typeof username !== 'string' || username.trim() === '') {
-        console.log(`[AUTH] Rejected authenticate() with empty/invalid username: ${JSON.stringify(username)}`);
+        authLog.info(`[AUTH] Rejected authenticate() with empty/invalid username: ${JSON.stringify(username)}`);
         return null;
     }
 
@@ -615,17 +616,17 @@ async function authenticate(username, password) {
         const provider = normalizeAuthProvider(user.auth_provider);
 
         if (provider === 'oidc') {
-            console.log(`[AUTH] Login failed: '${username}' is an SSO account (password login not allowed)`);
+            authLog.info(`[AUTH] Login failed: '${username}' is an SSO account (password login not allowed)`);
             return null;
         }
 
         if (provider === 'ldap') {
             const goResult = await tryGoServerAuth(username, password);
             if (!goResult) {
-                console.log(`[AUTH] Login failed: LDAP credentials rejected for '${username}'`);
+                authLog.info(`[AUTH] Login failed: LDAP credentials rejected for '${username}'`);
                 return null;
             }
-            console.log(`[AUTH] Go server accepted LDAP login for '${username}' — syncing local account`);
+            authLog.info(`[AUTH] Go server accepted LDAP login for '${username}' — syncing local account`);
             user = await syncLocalUserFromGoResult(user, goResult, null, ssoStatus);
             const result = authSuccessFromUser(user, goResult);
             if (!result) return null;
@@ -639,7 +640,7 @@ async function authenticate(username, password) {
         const hashType = isPBKDF2Hash(user.password_hash) ? 'PBKDF2'
             : (user.password_hash && user.password_hash.startsWith('$2')) ? 'bcrypt'
             : 'unknown';
-        console.log(`[AUTH] Verifying password for '${username}' (hash type: ${hashType}, length: ${(user.password_hash || '').length})`);
+        authLog.info(`[AUTH] Verifying password for '${username}' (hash type: ${hashType}, length: ${(user.password_hash || '').length})`);
 
         const { valid, needsMigration } = await verifyPasswordEx(password, user.password_hash);
 
@@ -651,29 +652,29 @@ async function authenticate(username, password) {
                 // If Go accepted the password via an external provider, treat this as a
                 // username collision and require admin intervention (Issue #148 follow-up).
                 if (isExternalAuthResult(goResult)) {
-                    console.log(`[AUTH] Login blocked: username collision for local '${username}' (Go provider=${normalizeAuthProvider(goResult.auth_provider)})`);
+                    authLog.info(`[AUTH] Login blocked: username collision for local '${username}' (Go provider=${normalizeAuthProvider(goResult.auth_provider)})`);
                     return authFailure('username_collision');
                 }
-                console.log(`[AUTH] Go server accepted password for local '${username}' — syncing hash`);
+                authLog.info(`[AUTH] Go server accepted password for local '${username}' — syncing hash`);
                 user = await syncLocalUserFromGoResult(user, goResult, password, ssoStatus);
             } else if (ssoStatus.ldap && await tryLdapVerifyOnGo(username, password)) {
                 // Go /api/auth/login skips LDAP for local-bound accounts; probe LDAP
                 // directly so users get a collision message instead of "wrong password".
-                console.log(`[AUTH] Login blocked: username collision for local '${username}' (LDAP credentials valid)`);
+                authLog.info(`[AUTH] Login blocked: username collision for local '${username}' (LDAP credentials valid)`);
                 return authFailure('username_collision');
             } else {
-                console.log(`[AUTH] Login failed: password mismatch for '${username}' (hash type: ${hashType})`);
+                authLog.info(`[AUTH] Login failed: password mismatch for '${username}' (hash type: ${hashType})`);
                 return null;
             }
         } else {
-            console.log(`[AUTH] Login successful for '${username}'`);
+            authLog.info(`[AUTH] Login successful for '${username}'`);
             if (needsMigration) {
                 try {
                     const bcryptHash = await hashPassword(password);
                     await db.updateUserPassword(user.id, bcryptHash);
-                    console.log(`[AUTH] Migrated password hash from PBKDF2 to bcrypt for user: ${username}`);
+                    authLog.info(`[AUTH] Migrated password hash from PBKDF2 to bcrypt for user: ${username}`);
                 } catch (err) {
-                    console.warn('[AUTH] Failed to migrate password hash for user id', user.id, ':', err.message);
+                    authLog.warn('[AUTH] Failed to migrate password hash for user id', user.id, ':', err.message);
                 }
             }
         }
@@ -699,7 +700,7 @@ async function authenticate(username, password) {
                 : ssoStatus.ldap && ssoStatus.oidc ? 'LDAP+OIDC enabled on Go server'
                 : ssoStatus.ldap ? 'LDAP enabled on Go server'
                 : 'OIDC enabled on Go server';
-            console.log(`[AUTH] Go server accepted credentials for '${username}' — provisioning local user (${reason})`);
+            authLog.info(`[AUTH] Go server accepted credentials for '${username}' — provisioning local user (${reason})`);
             const created = await provisionLocalUserFromGo(username, password, goResult, ssoStatus);
             if (created) {
                 const result = authSuccessFromUser(created, goResult);
@@ -712,7 +713,7 @@ async function authenticate(username, password) {
         }
     }
 
-    console.log(`[AUTH] Login failed: user '${username}' not found in database`);
+    authLog.info(`[AUTH] Login failed: user '${username}' not found in database`);
     return null;
 }
 
@@ -742,10 +743,10 @@ async function ensureLocalUserFromGo(username, password, role, authProvider = 'l
             await db.createUser(username, bcryptHash, role, provider);
             localUser = await db.getUserByUsername(username);
             if (localUser) {
-                console.log(`[AUTH] Auto-created local user '${username}' (role: ${role}, provider: ${provider}) for session storage`);
+                authLog.info(`[AUTH] Auto-created local user '${username}' (role: ${role}, provider: ${provider}) for session storage`);
             }
         } catch (err) {
-            console.warn(`[AUTH] Failed to auto-create local user '${username}': ${err.message}`);
+            authLog.warn(`[AUTH] Failed to auto-create local user '${username}': ${err.message}`);
         }
     } else if (shouldSyncHash) {
         // Update local hash so emergency fallback always has current password
@@ -753,7 +754,7 @@ async function ensureLocalUserFromGo(username, password, role, authProvider = 'l
             const bcryptHash = await hashPassword(password);
             await db.updateUserPassword(localUser.id, bcryptHash);
         } catch (err) {
-            console.warn(`[AUTH] Failed to sync local hash for '${username}': ${err.message}`);
+            authLog.warn(`[AUTH] Failed to sync local hash for '${username}': ${err.message}`);
         }
         // Sync role if changed on Go side
         if (localUser.role !== role) {
@@ -775,7 +776,7 @@ async function ensureLocalUserFromGo(username, password, role, authProvider = 'l
 function checkForcePasswordUpdate() {
     // Env var (Docker installs set FORCE_PASSWORD_UPDATE=true in compose)
     if (process.env.FORCE_PASSWORD_UPDATE === 'true') {
-        console.log(`[AUTH] FORCE_PASSWORD_UPDATE env var detected — will force admin password update`);
+        authLog.info(`[AUTH] FORCE_PASSWORD_UPDATE env var detected — will force admin password update`);
         // Clear the env var so it only takes effect once per startup
         delete process.env.FORCE_PASSWORD_UPDATE;
         return true;
@@ -784,7 +785,7 @@ function checkForcePasswordUpdate() {
     const sentinelPath = path.join(config.dataDir || '.', '.force_password_update');
     try {
         if (fs.existsSync(sentinelPath)) {
-            console.log(`[AUTH] .force_password_update sentinel file detected — will force admin password update`);
+            authLog.info(`[AUTH] .force_password_update sentinel file detected — will force admin password update`);
             fs.unlinkSync(sentinelPath);
             return true;
         }
@@ -828,7 +829,7 @@ function readAdminCredentialsFile() {
                 const content = fs.readFileSync(filePath, 'utf8');
                 const match = content.match(/^Admin Password:\s*(.+)$/m);
                 if (match && match[1].trim()) {
-                    console.log(`[AUTH] Read admin password from ${filePath}`);
+                    authLog.info(`[AUTH] Read admin password from ${filePath}`);
                     return match[1].trim();
                 }
             }
@@ -856,7 +857,7 @@ async function ensureDefaultAdmin() {
 
     const forceUpdate = checkForcePasswordUpdate();
 
-    console.log(`[AUTH] ensureDefaultAdmin: checking for existing users...`);
+    authLog.info(`[AUTH] ensureDefaultAdmin: checking for existing users...`);
 
     if (await db.hasUsers()) {
         // Users exist — check if the admin's hash needs migration from PBKDF2 to bcrypt.
@@ -864,29 +865,29 @@ async function ensureDefaultAdmin() {
         if (defaultPassword) {
             const admin = await db.getUserByUsername(defaultUsername);
             if (admin && isPBKDF2Hash(admin.password_hash)) {
-                console.log(`[AUTH] Found admin user with PBKDF2 hash (created by Go server). Migrating to bcrypt...`);
+                authLog.info(`[AUTH] Found admin user with PBKDF2 hash (created by Go server). Migrating to bcrypt...`);
                 if (verifyPBKDF2(defaultPassword, admin.password_hash)) {
                     const bcryptHash = await hashPassword(defaultPassword);
                     await db.updateUserPassword(admin.id, bcryptHash);
-                    console.log(`[AUTH] Admin password hash migrated from PBKDF2 to bcrypt successfully`);
+                    authLog.info(`[AUTH] Admin password hash migrated from PBKDF2 to bcrypt successfully`);
                 } else {
-                    console.warn(`[AUTH] DEFAULT_ADMIN_PASSWORD does not match existing PBKDF2 hash — skipping migration`);
+                    authLog.warn(`[AUTH] DEFAULT_ADMIN_PASSWORD does not match existing PBKDF2 hash — skipping migration`);
                 }
             } else if (admin) {
                 const hashType = (admin.password_hash || '').startsWith('$2') ? 'bcrypt' : 'unknown';
                 // Only force password write on explicit fresh-install sentinel (issue #158).
                 // Routine updates must never change users.password_hash in auth.db / PostgreSQL.
                 if (forceUpdate && defaultPassword) {
-                    console.log(`[AUTH] Force password update requested — updating admin password`);
+                    authLog.info(`[AUTH] Force password update requested — updating admin password`);
                     const bcryptHash = await hashPassword(defaultPassword);
                     await db.updateUserPassword(admin.id, bcryptHash);
-                    console.log(`[AUTH] Admin password hash force-updated to match DEFAULT_ADMIN_PASSWORD`);
+                    authLog.info(`[AUTH] Admin password hash force-updated to match DEFAULT_ADMIN_PASSWORD`);
                 } else {
-                    console.log(`[AUTH] Default admin account exists (${hashType}) — password unchanged`);
+                    authLog.info(`[AUTH] Default admin account exists (${hashType}) — password unchanged`);
                 }
             }
         } else {
-            console.log(`[AUTH] Users exist, no DEFAULT_ADMIN_PASSWORD set — skipping admin check`);
+            authLog.info(`[AUTH] Users exist, no DEFAULT_ADMIN_PASSWORD set — skipping admin check`);
         }
         return false;
     }
@@ -897,11 +898,11 @@ async function ensureDefaultAdmin() {
     if (!defaultPassword) {
         const retryDelays = [2000, 3000, 5000, 5000, 10000]; // 5 retries: 2s, 3s, 5s, 5s, 10s (total 25s max)
         for (let i = 0; i < retryDelays.length; i++) {
-            console.log(`[AUTH] No admin password found. Waiting for Go server (attempt ${i + 1}/${retryDelays.length})...`);
+            authLog.info(`[AUTH] No admin password found. Waiting for Go server (attempt ${i + 1}/${retryDelays.length})...`);
             await new Promise(resolve => setTimeout(resolve, retryDelays[i]));
             defaultPassword = readAdminCredentialsFile() || '';
             if (defaultPassword) {
-                console.log(`[AUTH] Found admin password from Go server on retry ${i + 1}`);
+                authLog.info(`[AUTH] Found admin password from Go server on retry ${i + 1}`);
                 break;
             }
         }
@@ -916,9 +917,9 @@ async function ensureDefaultAdmin() {
         try {
             const credsContent = `Admin Username: ${defaultUsername}\nAdmin Password: ${password}\nGenerated by: BetterDesk Console (Node.js)\nTimestamp: ${new Date().toISOString()}\n`;
             fs.writeFileSync(credsPath, credsContent, { mode: 0o600 });
-            console.log(`[AUTH] Wrote generated admin credentials to ${credsPath}`);
+            authLog.info(`[AUTH] Wrote generated admin credentials to ${credsPath}`);
         } catch (e) {
-            console.warn(`[AUTH] Could not write .admin_credentials to ${credsPath}: ${e.message}`);
+            authLog.warn(`[AUTH] Could not write .admin_credentials to ${credsPath}: ${e.message}`);
         }
     }
 
@@ -931,28 +932,28 @@ async function ensureDefaultAdmin() {
     if (created) {
         verifyStatus = await verifyAdminPasswordHash(created.id, created.password_hash, password);
     } else {
-        console.error('[AUTH] CRITICAL: createUser succeeded but getUserByUsername returned null for default admin');
+        authLog.error('[AUTH] CRITICAL: createUser succeeded but getUserByUsername returned null for default admin');
     }
     password = '';
 
     switch (verifyStatus) {
         case 'verified':
-            console.log('[AUTH] Default admin user created and verified successfully');
+            authLog.info('[AUTH] Default admin user created and verified successfully');
             break;
         case 'recovered':
-            console.log(`[AUTH] Admin password self-test recovered after re-hash`);
+            authLog.info(`[AUTH] Admin password self-test recovered after re-hash`);
             break;
         case 'failed':
-            console.error(`[AUTH] CRITICAL: Admin password self-test STILL FAILING — bcrypt may be broken`);
+            authLog.error(`[AUTH] CRITICAL: Admin password self-test STILL FAILING — bcrypt may be broken`);
             break;
         default:
             break;
     }
     
     if (!defaultPassword) {
-        console.log(`[AUTH] Generated admin credentials written to ${path.join(config.dataDir, '.admin_credentials')} — change password immediately`);
+        authLog.info(`[AUTH] Generated admin credentials written to ${path.join(config.dataDir, '.admin_credentials')} — change password immediately`);
     } else {
-        console.log('[AUTH] Default admin account created from configured credentials');
+        authLog.info('[AUTH] Default admin account created from configured credentials');
     }
     
     return true;
@@ -1293,7 +1294,7 @@ async function cleanupHousekeeping() {
         await db.cleanupExpiredTokens();
         await db.cleanupOldLoginAttempts();
     } catch (err) {
-        console.error('Housekeeping error:', err.message);
+        authLog.error('Housekeeping error:', err.message);
     }
 }
 

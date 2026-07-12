@@ -125,20 +125,74 @@ func detectLevel(msg string) string {
 	}
 }
 
-// Setup configures the global logger based on the format string.
+// Setup configures the global logger based on the format and minimum level strings.
+// level: error | warn | info | debug (default info).
 // Returns a cleanup function (currently a no-op, reserved for future use).
-func Setup(format string) func() {
+func Setup(format string, level string) func() {
+	minLevel := ParseLevel(level)
+	filter := &levelFilter{minLevel: minLevel, inner: os.Stderr}
+
 	switch Format(strings.ToLower(format)) {
 	case FormatJSON:
-		jw := NewJSONWriter(os.Stderr)
+		jw := NewJSONWriter(filter)
 		log.SetOutput(jw)
 		log.SetFlags(0) // No stdlib prefix — JSONWriter handles timestamps
 		return func() {}
 	default:
-		// text format — use default stdlib logging
+		// text format — use default stdlib logging with level filter
+		log.SetOutput(filter)
 		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 		return func() {}
 	}
+}
+
+// ParseLevel normalizes a log level string (error, warn, info, debug).
+func ParseLevel(level string) string {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "error", "fatal":
+		return "error"
+	case "warn", "warning":
+		return "warn"
+	case "debug":
+		return "debug"
+	default:
+		return "info"
+	}
+}
+
+func levelRank(level string) int {
+	switch strings.ToLower(level) {
+	case "fatal", "error":
+		return 0
+	case "warn", "warning":
+		return 1
+	case "debug":
+		return 3
+	default:
+		return 2
+	}
+}
+
+func shouldEmit(msgLevel, minLevel string) bool {
+	return levelRank(msgLevel) <= levelRank(minLevel)
+}
+
+// levelFilter drops log lines below the configured minimum level.
+type levelFilter struct {
+	minLevel string
+	inner    io.Writer
+}
+
+func (f *levelFilter) Write(p []byte) (n int, err error) {
+	line := strings.TrimSpace(string(p))
+	if line == "" {
+		return len(p), nil
+	}
+	msg := stripTimestamp(line)
+	if !shouldEmit(detectLevel(msg), f.minLevel) {
+		return len(p), nil
+	}
+	return f.inner.Write(p)
 }
 
 // Logf is a helper for structured logging with component prefix.

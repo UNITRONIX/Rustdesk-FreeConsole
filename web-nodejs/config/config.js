@@ -245,7 +245,10 @@ module.exports = {
 
     // App info
     appName: 'BetterDesk Console',
-    appVersion: pkgVersion
+    appVersion: pkgVersion,
+
+    // Logging (default warn in production — see lib/logger.js)
+    logLevel: (process.env.LOG_LEVEL || '').trim().toLowerCase() || (isProduction ? 'warn' : 'info'),
 };
 
 // H-2: warn when console→Go API traffic leaves localhost in production.

@@ -57,6 +57,7 @@ type Config struct {
 
 	// Logging
 	LogFormat string // "text" or "json"
+	LogLevel  string // error | warn | info | debug
 
 	// Admin
 	AdminPort int // TCP admin interface port (0 = disabled)
@@ -173,6 +174,7 @@ func DefaultConfig() *Config {
 		SameNATRelay:         true, // issue #121: auto-fallback to relay on shared public IP
 		P2PFirst:             true, // issue #157: give direct P2P a real chance before relay
 		P2PFallbackMs:             2000, // grace period for target hole punch before relay fallback
+		LogLevel:                  "info",
 		BillingMaxClockSkewMS:     2000,
 		BillingRequireSyncedClock: true,
 		BillingTrustOSNTP:         runtime.GOOS == "linux",
@@ -253,6 +255,12 @@ func (c *Config) LoadEnv() {
 		lv := strings.ToLower(v)
 		if lv == "text" || lv == "json" {
 			c.LogFormat = lv
+		}
+	}
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "error", "fatal", "warn", "warning", "info", "debug":
+			c.LogLevel = strings.ToLower(strings.TrimSpace(v))
 		}
 	}
 	if v := os.Getenv("ADMIN_PORT"); v != "" {

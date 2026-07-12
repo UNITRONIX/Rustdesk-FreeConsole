@@ -27,6 +27,7 @@ type Server struct {
 	cfg         *config.Config
 	bwLimiter   *ratelimit.BandwidthLimiter
 	connLimiter *ratelimit.ConnLimiter
+	sessionLimiter *ratelimit.ConnLimiter // active paired sessions per IP (post-pair)
 	tcpLn       net.Listener
 	wsHTTP      *http.Server // WebSocket relay listener
 	ctx         context.Context
@@ -70,6 +71,11 @@ func (s *Server) SetBandwidthLimiter(bl *ratelimit.BandwidthLimiter) {
 // SetConnLimiter sets the per-IP connection limiter for relay abuse prevention.
 func (s *Server) SetConnLimiter(cl *ratelimit.ConnLimiter) {
 	s.connLimiter = cl
+}
+
+// SetSessionLimiter limits active (paired) relay sessions per IP.
+func (s *Server) SetSessionLimiter(cl *ratelimit.ConnLimiter) {
+	s.sessionLimiter = cl
 }
 
 // SetBillingCallbacks registers hooks when relay sessions start/end (commercialization).
@@ -237,6 +243,28 @@ func (s *Server) pairIncomingConn(conn net.Conn, uuid string) {
 
 // startRelay runs the bidirectional byte copy between two paired connections.
 func (s *Server) startRelay(conn1, conn2 net.Conn, uuid string) {
+	if s.sessionLimiter != nil {
+		ips := make([]string, 0, 2)
+		for _, c := range []net.Conn{conn1, conn2} {
+			ip, _, err := net.SplitHostPort(c.RemoteAddr().String())
+			if err != nil {
+				ip = c.RemoteAddr().String()
+			}
+			if !s.sessionLimiter.Acquire(ip) {
+				log.Printf("[relay] Active session limit exceeded for %s (UUID %s)", ip, uuid)
+				conn1.Close()
+				conn2.Close()
+				return
+			}
+			ips = append(ips, ip)
+		}
+		defer func() {
+			for _, ip := range ips {
+				s.sessionLimiter.Release(ip)
+			}
+		}()
+	}
+
 	s.ActiveSessions.Add(1)
 	s.TotalRelayed.Add(1)
 

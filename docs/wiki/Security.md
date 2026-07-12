@@ -189,15 +189,53 @@ Banned devices:
 
 ### Node.js Console
 
-- `npm audit --omit=dev` reports **0 vulnerabilities**
-- `tar` package overridden for CVE fix
-- Dependencies pinned via `package-lock.json`
+- `npm audit --omit=dev --audit-level=moderate` must report **0 vulnerabilities** (CI enforced)
+- `tar` package overridden to ^7.5.16+ (GHSA-vmf3-w455-68vh)
+- Dependencies pinned via committed `web-nodejs/package-lock.json`; production installs use `npm ci`
 
 ### Go Server
 
 - Go toolchain version pinned in `go.mod`
+- `govulncheck ./...` in CI
 - No CGO dependencies (static binary)
 - Minimal external dependencies
+
+### Rust (Tauri clients)
+
+- `cargo audit` in CI (known glib RUSTSEC-2024-0429 ignored until GTK stack migration)
+- Dependabot weekly for Cargo, npm (`web-nodejs`), and Go modules
+
+---
+
+## Logging (3.4+)
+
+| Component | Control | Default (production) |
+|-----------|---------|-------------------|
+| Node console | `LOG_LEVEL=error\|warn\|info\|debug` | `warn` |
+| Go server | `LOG_LEVEL` or `-log-level` | `info` |
+
+Auth and audit details redact usernames and secrets before stdout/DB insert. Set `LOG_LEVEL=info` temporarily when debugging auth issues.
+
+Operational logs: use systemd journal or Docker log driver; optional Go audit JSONL via `AUDIT_LOG_FILE` (configure logrotate externally).
+
+---
+
+## Production deployment (3.4+)
+
+Recommended before Internet-facing deployment:
+
+| Control | Variable | Recommended |
+|---------|----------|-------------|
+| Signal TLS | `TLS_SIGNAL=Y` | Required on WAN |
+| Relay TLS | `TLS_RELAY=Y` | Required on WAN |
+| Enrollment | `ENROLLMENT_MODE` | `managed` or `locked` |
+| WS origins | `WS_ALLOWED_ORIGINS` | Explicit panel URL(s) |
+| Panel bind | `HOST` | `127.0.0.1` behind reverse proxy |
+| Panel TLS | `SSL_CERT_PATH` / `SSL_KEY_PATH` | Valid public certificate |
+| Relay limits | `RELAY_MAX_CONNS_PER_IP` | `20` (adjust for NAT scale) |
+| Signal rate limit | `SIGNAL_RATE_LIMIT_PER_IP` | Default `20`; raise for large NAT |
+
+Startup banners log **ERROR** when open enrollment is combined with missing signal/relay TLS (Go) or HTTP panel on `0.0.0.0` with open enrollment (Node).
 
 ---
 

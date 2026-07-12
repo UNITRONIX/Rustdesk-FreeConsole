@@ -10,10 +10,6 @@
 web-nodejs/data/
 web-nodejs/uploads/
 
-# Package lock is rebuilt in Docker
-# (remove this line if you commit package-lock.json)
-web-nodejs/package-lock.json
-
 # Git
 .git/
 .gitignore

@@ -45,7 +45,7 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++ || { sleep 2 && apk add --no-cache python3 make g++; }
 
 COPY web-nodejs/package.json web-nodejs/package-lock.json* ./
-RUN npm install --production
+RUN npm ci --omit=dev
 
 # ============= Stage 3: Production runtime =============
 # Note: supervisord requires root to manage child processes with user= directive.

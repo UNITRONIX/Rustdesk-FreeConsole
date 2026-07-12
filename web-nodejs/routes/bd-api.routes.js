@@ -30,6 +30,7 @@ const crypto = require('crypto');
 const config = require('../config/config');
 const db = require('../services/database');
 const bdRelay = require('../services/bdRelay');
+const remoteRelay = require('../services/remoteRelay');
 const brandingService = require('../services/brandingService');
 const authService = require('../services/authService');
 const betterdeskApi = require('../services/betterdeskApi');
@@ -334,6 +335,27 @@ router.post('/heartbeat', identifyDevice, async (req, res) => {
     } catch (err) {
         console.error('[BD-API] Heartbeat error:', err.message);
         res.status(500).json({ error: 'Heartbeat failed' });
+    }
+});
+
+// ---------------------------------------------------------------------------
+//  POST /api/bd/remote-agent-token — Single-use token for /ws/remote-agent
+// ---------------------------------------------------------------------------
+
+router.post('/remote-agent-token', identifyDevice, async (req, res) => {
+    try {
+        const id = req.body.device_id || req.deviceId;
+        if (!id || !/^[A-Za-z0-9_-]{3,64}$/.test(id)) {
+            return res.status(400).json({ error: 'device_id is required' });
+        }
+        if (req.deviceId && req.deviceId !== id) {
+            return res.status(403).json({ error: 'device_id mismatch' });
+        }
+        const issued = remoteRelay.issueRemoteAgentToken(id);
+        res.json({ success: true, device_id: id, ...issued });
+    } catch (err) {
+        console.error('[BD-API] remote-agent-token error:', err.message);
+        res.status(500).json({ error: 'Token issuance failed' });
     }
 });
 

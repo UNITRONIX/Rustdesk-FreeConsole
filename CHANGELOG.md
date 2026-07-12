@@ -1,7 +1,13 @@
 ## [Unreleased]
 
+### Security
+- **Pre-3.4 hardening:** committed `web-nodejs/package-lock.json`; CI uses `npm ci` and blocks moderate+ npm audit findings; added `govulncheck` (Go), `cargo audit` (Tauri), Dependabot for npm/gomod.
+- **Logging:** central Node logger (`LOG_LEVEL`, username redaction in stdout and `audit_log.details`); Go server `-log-level` / `LOG_LEVEL` filtering.
+- **WebSocket auth:** `/ws/bd-signal` validates enrollment/access tokens; `/ws/remote-agent` requires single-use token from `POST /api/bd/remote-agent-token` or valid enrollment token; removed agent-client device_id token fallback.
+- **Relay:** active paired sessions counted against per-IP limit (separate from pairing-phase limit); startup ERROR when `ENROLLMENT_MODE=open` without TLS on signal/relay.
+
 ### Changed
-- _(none yet)_
+- Docker console build uses `npm ci --omit=dev` instead of `npm install --production`.
 
 ---
 

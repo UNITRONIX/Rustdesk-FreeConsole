@@ -26,6 +26,8 @@
 
 const WebSocket = require('ws');
 const crypto = require('crypto');
+const db = require('./database');
+const { verifyDeviceWsAuth } = require('../lib/deviceTokenAuth');
 
 // ---------------------------------------------------------------------------
 //  Constants
@@ -236,7 +238,9 @@ function initBdRelay(server) {
     // ---- Signal connections ----
 
     signalWss.on('connection', (ws, req) => {
-        handleSignalConnection(ws, req);
+        handleSignalConnection(ws, req).catch(() => {
+            try { ws.close(4500, 'Auth error'); } catch (_) { /* closed */ }
+        });
     });
 
     // Cleanup interval
@@ -391,7 +395,7 @@ function teardownSession(sessionId, code, reason) {
 //  Signal connection handler (presence / push)
 // ---------------------------------------------------------------------------
 
-function handleSignalConnection(ws, req) {
+async function handleSignalConnection(ws, req) {
     const ip = clientIp(req);
     const url = new URL(req.url, `http://${req.headers.host}`);
     const deviceId = url.searchParams.get('device_id');
@@ -399,6 +403,17 @@ function handleSignalConnection(ws, req) {
 
     if (!deviceId || !token) {
         ws.close(4400, 'Missing device_id or token');
+        return;
+    }
+
+    if (!/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
+        ws.close(4400, 'Invalid device_id');
+        return;
+    }
+
+    const authed = await verifyDeviceWsAuth(deviceId, token, db);
+    if (!authed) {
+        ws.close(4403, 'Invalid token');
         return;
     }
 

@@ -25,6 +25,7 @@
 const path = require('path');
 const agentBundleService = require('./agentBundleService');
 const { hashAccessToken } = require('../lib/tokenHash');
+const { redactAuditDetails } = require('../lib/logRedact');
 
 // Lazy-loaded drivers — keeps startup fast when one backend isn't installed.
 let _sqlite = null;
@@ -1749,7 +1750,8 @@ function createSqliteAdapter(config) {
         // ---- Audit ----
 
         async logAction(userId, action, details, ipAddress) {
-            openAuth().prepare('INSERT INTO audit_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)').run(userId, action, details, ipAddress);
+            const safeDetails = redactAuditDetails(details);
+            openAuth().prepare('INSERT INTO audit_log (user_id, action, details, ip_address) VALUES (?, ?, ?, ?)').run(userId, action, safeDetails, ipAddress);
         },
         async getAuditLogs(limit = 100, offset = 0) {
             return openAuth().prepare(`
@@ -5027,7 +5029,8 @@ function createPostgresAdapter() {
         // ---- Audit ----
 
         async logAction(userId, action, details, ipAddress) {
-            await q('INSERT INTO audit_log (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)', [userId, action, details, ipAddress]);
+            const safeDetails = redactAuditDetails(details);
+            await q('INSERT INTO audit_log (user_id, action, details, ip_address) VALUES ($1, $2, $3, $4)', [userId, action, safeDetails, ipAddress]);
         },
         async getAuditLogs(limit = 100, offset = 0) {
             return all(`SELECT a.*, u.username FROM audit_log a LEFT JOIN users u ON a.user_id = u.id ORDER BY a.created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]);

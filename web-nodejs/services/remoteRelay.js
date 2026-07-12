@@ -19,8 +19,7 @@
  *   8. Session ends when viewer disconnects or sends { "type": "stop" }
  *
  * Security:
- *   - Agent identified by device_id only (no token — relies on network isolation
- *     and the fact that only registered devices can reach the server)
+ *   - Agent requires single-use token (POST /api/bd/remote-agent-token) or valid enrollment token
  *   - Viewer requires valid session cookie (admin or operator role)
  *   - Input events are forwarded verbatim — agent validates the whitelist
  *   - Max binary frame: 2 MB (covers 1920×1080 JPEG at high quality)
@@ -30,11 +29,18 @@
 'use strict';
 
 const WebSocket = require('ws');
+const crypto = require('crypto');
+const db = require('./database');
+const { verifyDeviceWsAuth } = require('../lib/deviceTokenAuth');
 
 const MAX_BINARY_FRAME  = 2 * 1024 * 1024; // 2 MB
 const MAX_VIEWERS       = 5;
 const PING_INTERVAL     = 20000; // ms
 const AGENT_IDLE_TTL    = 90000; // close idle agent after 90 s of no viewer
+const AGENT_TOKEN_TTL_MS = 60 * 1000;
+
+// deviceId → { token, expiresAt }
+const pendingAgentTokens = new Map();
 
 const log = {
     info:  (...a) => console.log('[RemoteRelay]', ...a),
@@ -111,6 +117,36 @@ function scheduleIdleClose(session, deviceId) {
             session.agentWs.close(1000, 'Idle timeout');
         }
     }, AGENT_IDLE_TTL);
+}
+
+function issueRemoteAgentToken(deviceId) {
+    const token = crypto.randomBytes(32).toString('hex');
+    pendingAgentTokens.set(deviceId, { token, expiresAt: Date.now() + AGENT_TOKEN_TTL_MS });
+    return { token, expires_in: Math.floor(AGENT_TOKEN_TTL_MS / 1000) };
+}
+
+function consumeRemoteAgentToken(deviceId, token) {
+    const entry = pendingAgentTokens.get(deviceId);
+    if (!entry || !token) return false;
+    if (Date.now() > entry.expiresAt) {
+        pendingAgentTokens.delete(deviceId);
+        return false;
+    }
+    try {
+        const a = Buffer.from(entry.token);
+        const b = Buffer.from(String(token));
+        if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+    } catch (_) {
+        return false;
+    }
+    pendingAgentTokens.delete(deviceId);
+    return true;
+}
+
+async function verifyAgentConnection(deviceId, token) {
+    if (!token) return false;
+    if (consumeRemoteAgentToken(deviceId, token)) return true;
+    return verifyDeviceWsAuth(deviceId, token, db);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,14 +293,27 @@ function initRemoteRelay(server, sessionMiddleware) {
         if (agentMatch) {
             if (!enforceOrigin(req, socket, `remote-agent ${path}`)) return;
             const deviceId = decodeURIComponent(agentMatch[1]);
+            const token = url.searchParams.get('token') || '';
             // Validate device ID format (reject path traversal etc.)
             if (!/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
                 socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
                 socket.destroy();
                 return;
             }
-            wss.handleUpgrade(req, socket, head, (ws) => {
-                handleAgentConnection(ws, deviceId);
+            verifyAgentConnection(deviceId, token).then((ok) => {
+                if (!ok) {
+                    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
+                wss.handleUpgrade(req, socket, head, (ws) => {
+                    handleAgentConnection(ws, deviceId);
+                });
+            }).catch(() => {
+                try {
+                    socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+                    socket.destroy();
+                } catch (_) { /* closed */ }
             });
             return;
         }
@@ -298,6 +347,7 @@ function initRemoteRelay(server, sessionMiddleware) {
 
 module.exports = {
     initRemoteRelay,
+    issueRemoteAgentToken,
     /** Get session state (for admin REST API) */
     getSessionState(deviceId) {
         const s = sessions.get(deviceId);

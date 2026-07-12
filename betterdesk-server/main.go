@@ -55,7 +55,7 @@ func main() {
 	cfg := parseFlags()
 
 	// Configure log format (must be before any log output)
-	logCleanup := logging.Setup(cfg.LogFormat)
+	logCleanup := logging.Setup(cfg.LogFormat, cfg.LogLevel)
 	defer logCleanup()
 
 	log.Printf("========================================")
@@ -248,6 +248,22 @@ func main() {
 		connLimiter = ratelimit.NewConnLimiter(int32(limit))
 		log.Printf("Relay per-IP connection limit: %d", cfg.RelayMaxConnsIP)
 	}
+	var sessionLimiter *ratelimit.ConnLimiter
+	if cfg.RelayMaxConnsIP > 0 {
+		limit := cfg.RelayMaxConnsIP
+		const maxInt32 = 1<<31 - 1
+		if limit > maxInt32 {
+			limit = maxInt32
+		}
+		sessionLimiter = ratelimit.NewConnLimiter(int32(limit))
+		log.Printf("Relay active-session per-IP limit: %d", cfg.RelayMaxConnsIP)
+	}
+
+	if cfg.EnrollmentMode == config.EnrollmentModeOpen {
+		if !cfg.SignalTLSEnabled() || !cfg.RelayTLSEnabled() {
+			log.Printf("  ⛔ ERROR [SECURITY]: ENROLLMENT_MODE=open without TLS_SIGNAL and TLS_RELAY — unsafe for Internet-facing production")
+		}
+	}
 
 	// Initialize audit logger
 	auditLogger := audit.NewLogger(cfg.AuditLogFile)
@@ -344,6 +360,9 @@ func main() {
 		relaySrv.SetBandwidthLimiter(bwLimiter)
 		if connLimiter != nil {
 			relaySrv.SetConnLimiter(connLimiter)
+		}
+		if sessionLimiter != nil {
+			relaySrv.SetSessionLimiter(sessionLimiter)
 		}
 		relaySrv.SetBillingCallbacks(billingSvc.ActivateRelay, billingSvc.EndRelay)
 		if err := relaySrv.Start(ctx); err != nil {
@@ -465,6 +484,9 @@ func main() {
 		relaySrv.SetBandwidthLimiter(bwLimiter)
 		if connLimiter != nil {
 			relaySrv.SetConnLimiter(connLimiter)
+		}
+		if sessionLimiter != nil {
+			relaySrv.SetSessionLimiter(sessionLimiter)
 		}
 		if err := relaySrv.Start(ctx); err != nil {
 			log.Fatalf("Failed to start relay server: %v", err)
@@ -724,6 +746,7 @@ func parseFlags() *config.Config {
 	flag.StringVar(&cfg.TLSCertFile, "tls-cert", cfg.TLSCertFile, "Path to TLS certificate file")
 	flag.StringVar(&cfg.TLSKeyFile, "tls-key", cfg.TLSKeyFile, "Path to TLS key file")
 	flag.StringVar(&cfg.LogFormat, "log-format", cfg.LogFormat, "Log format: text (default) or json")
+	flag.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "Log level: error, warn, info (default), debug")
 	flag.IntVar(&cfg.AdminPort, "admin-port", cfg.AdminPort, "TCP admin interface port (0 = disabled)")
 	flag.StringVar(&cfg.JWTSecret, "jwt-secret", cfg.JWTSecret, "JWT signing secret (auto-generated if empty)")
 	flag.IntVar(&cfg.JWTExpiry, "jwt-expiry", cfg.JWTExpiry, "JWT token expiry in hours (default 24)")
