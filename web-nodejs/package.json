@@ -26,20 +26,20 @@
   "author": "UNITRONIX",
   "license": "AGPL-3.0",
   "dependencies": {
-    "axios": "^1.9.0",
-    "bcrypt": "^5.1.1",
-    "better-sqlite3": "^11.3.0",
+    "axios": "^1.18.1",
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.11.1",
     "cookie-parser": "^1.4.7",
-    "csrf-csrf": "^3.0.6",
-    "ejs": "^3.1.10",
-    "express": "^4.21.2",
-    "express-rate-limit": "^7.4.1",
+    "csrf-csrf": "^4.0.3",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
     "express-session": "^1.18.1",
-    "helmet": "^7.2.0",
+    "helmet": "^8.3.0",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.1",
-    "otplib": "^12.0.1",
-    "protobufjs": "^7.4.0",
+    "nodemailer": "^9.0.3",
+    "otplib": "^13.4.1",
+    "protobufjs": "^8.7.1",
     "qrcode": "^1.5.4",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
@@ -47,7 +47,7 @@
   },
   "optionalDependencies": {
     "node-pty": "^1.0.0",
-    "pg": "^8.13.0"
+    "pg": "^8.22.0"
   },
   "overrides": {
     "@babel/core": "^7.29.6",
@@ -58,7 +58,7 @@
     "form-data": "^4.0.6"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
+    "jest": "^30.4.2",
     "supertest": "^7.2.2"
   },
   "engines": {
