@@ -15,6 +15,12 @@ function loadRdclientModules() {
         CompressionStream: typeof CompressionStream !== 'undefined' ? CompressionStream : undefined,
         Response: typeof Response !== 'undefined' ? Response : undefined,
         navigator: { clipboard: { writeText: jest.fn(), write: jest.fn() } },
+        DOMParser: class {
+            parseFromString(html) {
+                const text = String(html).replace(/<[^>]+>/g, '');
+                return { body: { textContent: text } };
+            }
+        },
         window: {},
         globalThis: {},
     };
@@ -22,12 +28,16 @@ function loadRdclientModules() {
     sandbox.globalThis = sandbox;
 
     const base = path.join(__dirname, '..', 'public/js/rdclient');
-    vm.runInNewContext(fs.readFileSync(path.join(base, 'compress.js'), 'utf8'), sandbox, {
-        filename: 'compress.js'
-    });
-    vm.runInNewContext(fs.readFileSync(path.join(base, 'clipboard.js'), 'utf8'), sandbox, {
-        filename: 'clipboard.js'
-    });
+    vm.runInNewContext(
+        fs.readFileSync(path.join(base, 'compress.js'), 'utf8') + '\nglobalThis.RDCompress = RDCompress;',
+        sandbox,
+        { filename: 'compress.js' }
+    );
+    vm.runInNewContext(
+        fs.readFileSync(path.join(base, 'clipboard.js'), 'utf8') + '\nglobalThis.RDClipboard = RDClipboard;',
+        sandbox,
+        { filename: 'clipboard.js' }
+    );
     return sandbox;
 }
 

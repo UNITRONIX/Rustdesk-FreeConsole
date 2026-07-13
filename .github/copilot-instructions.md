@@ -655,7 +655,7 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 199. [x] **cdap-widgets.js updates**: Audio widget renderer (status indicator, level meter, mute/connect buttons), desktop toolbar with clipboard indicator, audio connect/mute event listeners.
 200. [x] **cdap.css** (~170 lines added): Audio widget styles (streaming/connecting/disconnected status, level meter with color thresholds), desktop toolbar, clipboard indicator (fade animation), monitor selector, .cdap-widget-md grid span.
 201. [x] **i18n**: 7 new keys in EN/PL/ZH: connect_audio, audio_connecting, audio_streaming, clipboard_in, clipboard_out, monitor_select, keyframe_request, quality_auto.
-202. [x] **Deployed & verified**: Go binary (28MB) + 10 Node.js files deployed to 192.168.0.110. Both services active. CDAP endpoint returns JSON, console returns 302 (auth redirect) — all correct.
+202. [x] **Deployed & verified**: Go binary (28MB) + 10 Node.js files deployed to lab host `203.0.113.10`. Both services active. CDAP endpoint returns JSON, console returns 302 (auth redirect) — all correct.
 
 #### Native BetterDesk Agent — Go Binary (Phase 34) ✅ COMPLETED 2026-03-21
 203. [x] **betterdesk-agent/main.go**: CLI entry point with 14 flags, signal handling (SIGINT/SIGTERM), graceful shutdown.
@@ -670,7 +670,7 @@ sudo apt-get install -y build-essential libsqlite3-dev pkg-config libssl-dev git
 212. [x] **install/install.sh**: Linux systemd installer with ProtectSystem=strict, PrivateTmp, NoNewPrivileges security hardening.
 213. [x] **install/install.ps1**: Windows NSSM service installer.
 214. [x] **Protocol mismatches fixed**: terminal_output (not terminal_data), terminal_end (not terminal_close), file_write_response (not file_write_ack), file_delete_response (not file_delete_ack), flat widget fields (label/group, not nested config), heartbeat_interval (not heartbeat).
-215. [x] **Deployed & verified**: Binary on 192.168.0.110, device_id=CDAP-6A9A5452, type=os_agent, 9 widgets, heartbeat=15s, telemetry flowing (CPU/Memory/Disk/Hostname/Uptime). CDAP API key created via REST (`POST /api/keys`), `api_keys` table entry active.
+215. [x] **Deployed & verified**: Binary on lab host `203.0.113.10`, device_id=CDAP-EXAMPLE01, type=os_agent, 9 widgets, heartbeat=15s, telemetry flowing (CPU/Memory/Disk/Hostname/Uptime). CDAP API key created via REST (`POST /api/keys`), `api_keys` table entry active.
 
 #### Bridge Ecosystem SDK — Python + Node.js + Reference Bridges (Phase 35) ✅ COMPLETED 2026-03-21
 216. [x] **sdks/python/**: betterdesk-cdap v1.0.0 — CDAPBridge async class (~330 lines), Widget dataclass + 9 factory helpers, Message dataclass, all CDAP constants. Deps: websockets>=12.0.

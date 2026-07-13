@@ -60,7 +60,7 @@ fn build_go_sidecar() {
         .env("GOOS", goos)
         .env("GOARCH", goarch)
         .env("CGO_ENABLED", "0")
-        .args(["build", "-ldflags", "-s -w", "-o", output_path.to_str().unwrap(), "."])
+        .args(["build", "-trimpath", "-ldflags", "-s -w", "-o", output_path.to_str().unwrap(), "."])
         .status();
 
     match status {

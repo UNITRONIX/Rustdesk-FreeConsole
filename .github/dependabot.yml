@@ -4,7 +4,11 @@ updates:
     directory: "/rdclient-desktop/src-tauri"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      rdclient-cargo:
+        patterns:
+          - "*"
     ignore:
       # GitHub Dependabot alert #34: glib::VariantStrIter unsoundness.
       #
@@ -20,7 +24,11 @@ updates:
     directory: "/betterdesk-agent-client/src-tauri"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      agent-client-cargo:
+        patterns:
+          - "*"
     ignore:
       # GitHub Dependabot alert #11: glib::VariantStrIter unsoundness (RUSTSEC-2024-0429).
       # Same Tauri gtk3 / webkit2gtk transitive chain as rdclient-desktop; see comment above.
@@ -30,28 +38,48 @@ updates:
     directory: "/web-nodejs"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      web-nodejs-npm:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 2
+    groups:
+      root-npm:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/betterdesk-agent-client"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 2
+    groups:
+      agent-client-npm:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/betterdesk-server"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      betterdesk-server-gomod:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/betterdesk-agent"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 2
+    groups:
+      betterdesk-agent-gomod:
+        patterns:
+          - "*"

@@ -21,6 +21,7 @@ defaults:
 
 jobs:
   test:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +44,7 @@ jobs:
         run: govulncheck ./...
 
   mesh-interop:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

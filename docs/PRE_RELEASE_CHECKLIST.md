@@ -17,8 +17,9 @@ Use this checklist before every tagged release to ensure quality and stability.
 ## 2. Node.js Console
 
 - [ ] **Install**: `cd web-nodejs && npm ci` — exits 0
-- [ ] **Audit**: `npm audit --omit=dev` — 0 vulnerabilities (or documented exceptions)
-- [ ] **Unit tests**: `npm test` — all pass
+- [ ] **Audit**: `npm audit --omit=dev --audit-level=moderate` — 0 moderate+ vulnerabilities (or documented exceptions)
+- [ ] **Unit tests**: `npm run test:ci` — all pass (same command as Web Console CI)
+- [ ] **Secret scan**: `gitleaks detect --source . --config .gitleaks.toml` and `bash scripts/check-no-sensitive-paths.sh` — no operator fingerprints
 - [ ] **i18n coverage**: `npm run i18n:check` — 0 missing keys across all languages
 - [ ] **Startup**: `node server.js` starts without errors, serves on port 5000
 - [ ] **Login**: Admin login works, session created

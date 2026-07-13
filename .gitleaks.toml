@@ -13,6 +13,12 @@ title = "BetterDesk Gitleaks Config"
     '''.*package-lock\.json$''',
     '''docs/private/''',
     '''scripts/check-no-sensitive-paths\.sh''',
+    '''\.cargo-cache/''',
+    '''node_modules/''',
+    '''betterdesk-agent-client/src-tauri/binaries/''',
+    '''betterdesk-agent-client/src-tauri/target/''',
+    '''rdclient-desktop/src-tauri/target/''',
+    '''betterdesk-mgmt/''',
   ]
 
 # Operator-specific infrastructure fingerprints — must not reappear in tracked files.

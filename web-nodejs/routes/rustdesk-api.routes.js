@@ -664,9 +664,9 @@ async function sendRustDeskDeviceGroups(req, res, accessibleOnly = null) {
         if (req.authUser && req.authUser.role === 'pro') {
             return res.json({ data: [], total: 0, msg: 'success' });
         }
-        const useAccessible = accessibleOnly !== null
+        const useAccessible = typeof accessibleOnly === 'boolean'
             ? accessibleOnly
-            : String(req.path || '').includes('/device-group');
+            : String(req.path || '').includes('/device-group/accessible');
         const groups = await getRustDeskDeviceGroups(req.authUser);
         const payloadFn = useAccessible ? rustDeskAccessibleDeviceGroupPayload : rustDeskDeviceGroupPayload;
         return res.json({

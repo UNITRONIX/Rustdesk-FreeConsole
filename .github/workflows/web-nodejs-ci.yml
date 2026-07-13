@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   test-and-audit:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
     runs-on: ubuntu-latest
     defaults:
       run:

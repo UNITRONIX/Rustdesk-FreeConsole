@@ -1,13 +1,14 @@
 'use strict';
 
-const { describe, it } = require('node:test');
-const assert = require('node:assert/strict');
+jest.mock('../services/database', () => ({}));
+jest.mock('../services/agentBundleService', () => ({}));
+jest.mock('../config/config', () => ({ dataDir: '/tmp/betterdesk-test' }));
 
 describe('agentClientBuildWorker module', () => {
     it('exports startWorker and enqueueBuildsForHash', () => {
         const worker = require('../services/agentClientBuildWorker');
-        assert.equal(typeof worker.startWorker, 'function');
-        assert.equal(typeof worker.enqueueBuildsForHash, 'function');
-        assert.equal(typeof worker.rebuildBundleById, 'function');
+        expect(typeof worker.startWorker).toBe('function');
+        expect(typeof worker.enqueueBuildsForHash).toBe('function');
+        expect(typeof worker.rebuildBundleById).toBe('function');
     });
 });

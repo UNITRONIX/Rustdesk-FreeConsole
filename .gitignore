@@ -163,6 +163,8 @@ web-nodejs/_fix_*.sh
 # Whole tree excluded to avoid GitHub noise (Dependabot, i18n, stale CI).
 betterdesk-mgmt/
 # betterdesk-agent-client/ — restored to git (production readiness plan)
+betterdesk-agent-client/src-tauri/binaries/**
+!betterdesk-agent-client/src-tauri/binaries/.gitkeep
 
 # --- BetterDesk Agent binaries & config (compiled locally) ---
 betterdesk-agent/betterdesk-agent

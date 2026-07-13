@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: version-bump-dev
+  cancel-in-progress: false
+
 jobs:
   bump-patch:
     if: "!contains(github.event.head_commit.message, '[version-bump]')"
@@ -47,4 +51,12 @@ jobs:
             exit 0
           fi
           git commit -m "chore: bump version to ${NEW_VERSION} [version-bump]"
-          git push
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push failed (attempt ${attempt}/5) — rebasing and retrying..."
+            git pull --rebase origin dev
+          done
+          echo "Version bump push failed after retries"
+          exit 1
