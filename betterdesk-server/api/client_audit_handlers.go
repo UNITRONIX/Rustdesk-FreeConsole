@@ -3,11 +3,14 @@ package api
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/unitronix/betterdesk-server/auth"
 	"github.com/unitronix/betterdesk-server/db"
@@ -55,6 +58,118 @@ func coerceStr(v any) string {
 	}
 }
 
+func coerceInt(v any) int {
+	switch value := v.(type) {
+	case float64:
+		return int(value)
+	case string:
+		n, _ := strconv.Atoi(value)
+		return n
+	case json.Number:
+		n, _ := strconv.Atoi(value.String())
+		return n
+	default:
+		return 0
+	}
+}
+
+func firstBodyString(body map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(coerceStr(body[key])); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+// RustDesk 1.4.4+ sends peer as [controller_id, controller_display_name].
+// Keep accepting the older flat aliases used by the consolidated Node API.
+func auditPeer(body map[string]any) (string, string) {
+	peerID := firstBodyString(body, "peer_id")
+	peerName := firstBodyString(body, "peer_name")
+	if peer, ok := body["peer"].([]any); ok {
+		if len(peer) > 0 {
+			peerID = coerceStr(peer[0])
+		}
+		if len(peer) > 1 {
+			peerName = coerceStr(peer[1])
+		}
+	}
+	return peerID, peerName
+}
+
+// canonicalDeviceUUID accepts the UUID representations used by RustDesk's
+// different storage and audit paths. The peer table can contain the ASCII
+// UUID hex-encoded, while the official client audit endpoint sends the same
+// ASCII UUID base64-encoded. Only values that decode to a real 128-bit UUID
+// are accepted, so this does not weaken the device identity check.
+func canonicalDeviceUUID(value string) (string, bool) {
+	parse := func(candidate string) (string, bool) {
+		candidate = strings.TrimSpace(strings.Trim(candidate, "{}"))
+		compact := strings.ReplaceAll(strings.ToLower(candidate), "-", "")
+		if len(compact) != 32 {
+			return "", false
+		}
+		if _, err := hex.DecodeString(compact); err != nil {
+			return "", false
+		}
+		return compact, true
+	}
+	if canonical, ok := parse(value); ok {
+		return canonical, true
+	}
+	if decoded, err := hex.DecodeString(strings.TrimSpace(value)); err == nil {
+		if len(decoded) == 16 {
+			return hex.EncodeToString(decoded), true
+		}
+		if canonical, ok := parse(string(decoded)); ok {
+			return canonical, true
+		}
+	}
+	for _, encoding := range []*base64.Encoding{
+		base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding,
+	} {
+		if decoded, err := encoding.DecodeString(strings.TrimSpace(value)); err == nil {
+			if len(decoded) == 16 {
+				return hex.EncodeToString(decoded), true
+			}
+			if canonical, ok := parse(string(decoded)); ok {
+				return canonical, true
+			}
+		}
+	}
+	return "", false
+}
+
+func sameDeviceUUID(reported, stored string) bool {
+	reported = strings.TrimSpace(reported)
+	stored = strings.TrimSpace(stored)
+	if reported == stored {
+		return true
+	}
+	reportedCanonical, reportedOK := canonicalDeviceUUID(reported)
+	storedCanonical, storedOK := canonicalDeviceUUID(stored)
+	return reportedOK && storedOK && reportedCanonical == storedCanonical
+}
+
+func nativeRemoteSessionKey(targetID, targetUUID, sessionID, connectionID string, connType int) string {
+	if canonical, ok := canonicalDeviceUUID(targetUUID); ok {
+		targetUUID = canonical
+	}
+	// session_id is stable across the authorised and close audit events and is
+	// the RustDesk session identity. conn_id is local to one controlled-client
+	// connection and is only a fallback for legacy payloads without session_id.
+	// Ignoring conn_id when session_id exists also lets an accepted audit event
+	// be safely reconciled after an API restart.
+	stableID := sessionID
+	if stableID == "" || stableID == "0" {
+		stableID = connectionID
+	}
+	identity := strings.Join([]string{targetID, targetUUID, stableID, strconv.Itoa(connType)}, "\x00")
+	sum := sha256.Sum256([]byte(identity))
+	return fmt.Sprintf("native:%x", sum[:])
+}
+
 // queryLimitOffset parses limit/offset query params with sane defaults.
 func queryLimitOffset(r *http.Request) (int, int) {
 	limit := 100
@@ -82,14 +197,16 @@ func (s *Server) handleAuditConnPost(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
-	hostID := truncStr(coerceStr(body["host_id"]), maxIDLen)
+	// Official RustDesk uses id/uuid/type/peer/conn_id. The host_* and
+	// peer_* aliases are retained for backward compatibility.
+	hostID := truncStr(firstBodyString(body, "host_id", "id"), maxIDLen)
 	if hostID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "host_id is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "id is required"})
 		return
 	}
-	connType := 0
-	if v, ok := body["conn_type"].(float64); ok {
-		connType = int(v)
+	connType := coerceInt(body["conn_type"])
+	if _, exists := body["conn_type"]; !exists {
+		connType = coerceInt(body["type"])
 	}
 	if !connTypes[connType] {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid conn_type"})
@@ -99,19 +216,74 @@ func (s *Server) handleAuditConnPost(w http.ResponseWriter, r *http.Request) {
 	if ip == "" {
 		ip = s.remoteIP(r)
 	}
+	hostUUID := truncStr(firstBodyString(body, "host_uuid", "uuid"), maxHostnameLen)
+	peerID, peerName := auditPeer(body)
+	peerID = truncStr(peerID, maxIDLen)
+	peerName = truncStr(peerName, maxHostnameLen)
+	action := strings.ToLower(truncStr(firstBodyString(body, "action"), 32))
+	// An authorised RustDesk connection is the second audit event: it has a
+	// peer tuple and no action. "new" is only a connection attempt.
+	if action == "" && peerID != "" {
+		action = "connect"
+	} else if action == "" {
+		action = "event"
+	}
+	sessionID := truncStr(firstBodyString(body, "session_id"), 64)
+	connectionID := truncStr(firstBodyString(body, "conn_id", "connection_id"), 64)
 	rec := &db.AuditConnection{
 		HostID:    hostID,
-		HostUUID:  truncStr(coerceStr(body["host_uuid"]), maxIDLen),
-		PeerID:    truncStr(coerceStr(body["peer_id"]), maxIDLen),
-		PeerName:  truncStr(coerceStr(body["peer_name"]), maxHostnameLen),
-		Action:    truncStr(defaultStr(coerceStr(body["action"]), "connect"), 32),
+		HostUUID:  hostUUID,
+		PeerID:    peerID,
+		PeerName:  peerName,
+		Action:    action,
 		ConnType:  connType,
-		SessionID: truncStr(coerceStr(body["session_id"]), 64),
+		SessionID: sessionID,
 		IP:        ip,
 	}
 	if err := s.db.InsertAuditConnection(rec); err != nil {
 		writeInternalError(w, err, "InsertAuditConnection")
 		return
+	}
+
+	// Only non-zero, authorised sessions become work-time records. Validate
+	// the target identity before accepting an unauthenticated client audit.
+	if sessionID != "" && sessionID != "0" && (action == "connect" || action == "close" || action == "disconnect") {
+		peer, peerErr := s.db.GetPeer(hostID)
+		if peerErr != nil {
+			writeInternalError(w, peerErr, "AuditConnectionPeer")
+			return
+		}
+		if peer == nil || (hostUUID != "" && peer.UUID != "" && !sameDeviceUUID(hostUUID, peer.UUID)) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown device identity"})
+			return
+		}
+		key := nativeRemoteSessionKey(hostID, hostUUID, sessionID, connectionID, connType)
+		now := time.Now().UTC()
+		if action == "connect" && peerID != "" {
+			operator, lookupErr := s.db.FindActiveClientUsernameByDevice(peerID)
+			if lookupErr != nil {
+				log.Printf("[audit] operator lookup for %s failed: %v", peerID, lookupErr)
+			}
+			if operator == "" {
+				operator = strings.TrimSpace(peerName)
+			}
+			if operator == "" {
+				operator = peerID
+			}
+			if err := s.db.UpsertRemoteAccessSession(&db.RemoteAccessSession{
+				SessionKey: key, TargetID: hostID, TargetUUID: hostUUID,
+				OperatorUsername: operator, ControllerID: peerID, ControllerName: peerName,
+				ConnectionType: connType, Source: "rustdesk_audit", StartedAt: now, LastSeenAt: now,
+			}); err != nil {
+				writeInternalError(w, err, "UpsertRemoteAccessSession")
+				return
+			}
+		} else if action == "close" || action == "disconnect" {
+			if err := s.db.EndRemoteAccessSession(key, now, action); err != nil {
+				writeInternalError(w, err, "EndRemoteAccessSession")
+				return
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{})
 }

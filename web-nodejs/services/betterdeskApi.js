@@ -547,8 +547,59 @@ function normalisePeer(peer) {
         cdap_connected: !!peer.cdap_connected,
         mesh_connected: !!peer.mesh_connected,
         mesh_node_id: peer.mesh_node_id || '',
-        linked_peer_id: peer.linked_peer_id || ''
+        linked_peer_id: peer.linked_peer_id || '',
+        online_since: peer.online_since || null,
+        online_seconds: Number(peer.online_seconds) || 0,
+        remote_live: peer.remote_live === true,
+        remote_live_since: peer.remote_live_since || null,
+        remote_live_seconds: Number(peer.remote_live_seconds) || 0,
+        active_session_count: Number(peer.active_session_count) || 0,
+        active_operators: Array.isArray(peer.active_operators) ? peer.active_operators : [],
+        active_remote_sessions: Array.isArray(peer.active_remote_sessions)
+            ? peer.active_remote_sessions.map(session => ({
+                operator: String(session?.operator || ''),
+                controller_id: String(session?.controller_id || ''),
+                controller_name: String(session?.controller_name || ''),
+                started_at: session?.started_at || null
+            }))
+            : []
     };
+}
+
+/** POST /api/peers/activity/report — server-observed online-time report. */
+async function getDeviceActivityReport(payload = {}) {
+    try {
+        const { data } = await apiClient.post('/peers/activity/report', payload);
+        return wrap(data);
+    } catch (err) {
+        if (err.response?.data) return wrap(err.response.data);
+        return { success: false, error: err.message };
+    }
+}
+
+/** Record a trusted web-console remote-session lifecycle event. */
+async function recordRemoteSessionEvent(payload = {}) {
+    try {
+        const { data } = await apiClient.post('/peers/remote-sessions/event', payload);
+        return wrap(data);
+    } catch (err) {
+        if (err.response?.data) return wrap(err.response.data);
+        return { success: false, error: err.message };
+    }
+}
+
+/** Forward the public RustDesk client connection-audit payload unchanged. */
+async function forwardClientAuditConnection(payload = {}) {
+    try {
+        const { data, status } = await apiClient.post('/audit/conn', payload);
+        return { success: true, data, status };
+    } catch (err) {
+        return {
+            success: false,
+            error: err.response?.data?.error || err.message,
+            status: err.response?.status || 502
+        };
+    }
 }
 
 async function getMeshStatus() {
@@ -1363,6 +1414,9 @@ module.exports = {
     getStrategy,
     setStrategyStatus,
     listProDevices,
+    getDeviceActivityReport,
+    recordRemoteSessionEvent,
+    forwardClientAuditConnection,
     // Help Requests
     listHelpRequests,
     acknowledgeHelpRequest,

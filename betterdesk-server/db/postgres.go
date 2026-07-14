@@ -189,6 +189,22 @@ func (pg *PostgresDB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_peer_metrics_created_at ON peer_metrics(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_peer_metrics_peer_created ON peer_metrics(peer_id, created_at DESC)`,
 
+		// Server-observed device presence intervals used by online-time reports.
+		`CREATE TABLE IF NOT EXISTS device_online_sessions (
+			id           BIGSERIAL PRIMARY KEY,
+			peer_id      TEXT NOT NULL,
+			started_at   TIMESTAMPTZ NOT NULL,
+			last_seen_at TIMESTAMPTZ NOT NULL,
+			ended_at     TIMESTAMPTZ,
+			end_reason   TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_device_online_one_open
+			ON device_online_sessions(peer_id) WHERE ended_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_device_online_peer_started
+			ON device_online_sessions(peer_id, started_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_device_online_range
+			ON device_online_sessions(started_at, ended_at)`,
+
 		// Chat messages
 		`CREATE TABLE IF NOT EXISTS chat_messages (
 			id              BIGSERIAL PRIMARY KEY,
@@ -343,6 +359,30 @@ func (pg *PostgresDB) Migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_conn_host ON audit_connections(host_id, created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_conn_peer ON audit_connections(peer_id, created_at)`,
+
+		// Actual remote sessions, independent from device availability.
+		`CREATE TABLE IF NOT EXISTS remote_access_sessions (
+			id BIGSERIAL PRIMARY KEY,
+			session_key TEXT UNIQUE NOT NULL,
+			target_id TEXT NOT NULL,
+			target_uuid TEXT NOT NULL DEFAULT '',
+			operator_username TEXT NOT NULL DEFAULT '',
+			controller_id TEXT NOT NULL DEFAULT '',
+			controller_name TEXT NOT NULL DEFAULT '',
+			connection_type INTEGER NOT NULL DEFAULT 0,
+			source TEXT NOT NULL DEFAULT 'rustdesk_audit',
+			started_at TIMESTAMPTZ NOT NULL,
+			last_seen_at TIMESTAMPTZ NOT NULL,
+			ended_at TIMESTAMPTZ,
+			end_reason TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_remote_access_session_key ON remote_access_sessions(session_key)`,
+		`CREATE INDEX IF NOT EXISTS idx_remote_access_target_started ON remote_access_sessions(target_id, started_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_remote_access_operator_started ON remote_access_sessions(operator_username, started_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_remote_access_range ON remote_access_sessions(started_at, ended_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_remote_access_open_target ON remote_access_sessions(target_id) WHERE ended_at IS NULL`,
 
 		`CREATE TABLE IF NOT EXISTS audit_files (
 			id BIGSERIAL PRIMARY KEY,
@@ -801,9 +841,27 @@ func (pg *PostgresDB) UpsertPeer(p *Peer) error {
 
 // DeletePeer marks a peer as soft-deleted.
 func (pg *PostgresDB) DeletePeer(id string) error {
-	_, err := pg.pool.Exec(pg.ctx,
-		`UPDATE peers SET soft_deleted = TRUE, deleted_at = NOW() WHERE id = $1`, id)
-	return err
+	tx, err := pg.pool.Begin(pg.ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(pg.ctx)
+	if _, err := tx.Exec(pg.ctx, `
+		UPDATE device_online_sessions
+		SET ended_at = GREATEST(started_at, NOW()), end_reason = 'device_deleted'
+		WHERE peer_id = $1 AND ended_at IS NULL`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(pg.ctx, `UPDATE remote_access_sessions
+		SET ended_at = GREATEST(started_at, NOW()), last_seen_at = GREATEST(last_seen_at, NOW()),
+		    end_reason = 'device_deleted', updated_at = NOW()
+		WHERE target_id = $1 AND ended_at IS NULL`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(pg.ctx, `UPDATE peers SET soft_deleted = TRUE, deleted_at = NOW() WHERE id = $1`, id); err != nil {
+		return err
+	}
+	return tx.Commit(pg.ctx)
 }
 
 // HardDeletePeer permanently removes a peer from the database and releases
@@ -815,6 +873,14 @@ func (pg *PostgresDB) HardDeletePeer(id string) error {
 	}
 	defer tx.Rollback(pg.ctx)
 
+	// Permanent deletion must also remove presence history so a released ID
+	// cannot attribute the previous device's time to a future device.
+	if _, err := tx.Exec(pg.ctx, `DELETE FROM device_online_sessions WHERE peer_id = $1`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(pg.ctx, `DELETE FROM remote_access_sessions WHERE target_id = $1`, id); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(pg.ctx, `DELETE FROM peers WHERE id = $1`, id); err != nil {
 		return err
 	}
@@ -907,7 +973,15 @@ func (pg *PostgresDB) UpdatePeerStatus(id string, status string, ip string) erro
 	_, err := pg.pool.Exec(ctx,
 		`UPDATE peers SET status = $1, ip = $2, last_online = NOW() WHERE id = $3 AND soft_deleted = FALSE`,
 		status, ip, id)
-	return err
+	if err != nil {
+		return err
+	}
+	switch status {
+	case "OFFLINE":
+		return pg.CloseDeviceOnlineSession(id, time.Now().UTC(), "server_offline")
+	default:
+		return nil
+	}
 }
 
 // BatchUpdatePeerStatus sets status for many peers in one query.
@@ -920,6 +994,13 @@ func (pg *PostgresDB) BatchUpdatePeerStatus(ids []string, status string) error {
 	_, err := pg.pool.Exec(ctx,
 		`UPDATE peers SET status = $1, last_online = NOW() WHERE soft_deleted = FALSE AND id = ANY($2)`,
 		status, ids)
+	if err != nil || status != "OFFLINE" {
+		return err
+	}
+	_, err = pg.pool.Exec(ctx, `
+		UPDATE device_online_sessions
+		SET ended_at = GREATEST(started_at, NOW()), end_reason = 'server_offline'
+		WHERE ended_at IS NULL AND peer_id = ANY($1)`, ids)
 	return err
 }
 
@@ -938,18 +1019,42 @@ func (pg *PostgresDB) UpdatePeerSysinfo(id, hostname, os, version string) error 
 
 // SetAllOffline marks all peers as OFFLINE. Called at server startup.
 func (pg *PostgresDB) SetAllOffline() error {
-	_, err := pg.pool.Exec(pg.ctx, `UPDATE peers SET status = 'OFFLINE'`)
-	return err
+	tx, err := pg.pool.Begin(pg.ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(pg.ctx)
+	if _, err := tx.Exec(pg.ctx, `
+		UPDATE device_online_sessions
+		SET ended_at = GREATEST(started_at, last_seen_at), end_reason = 'server_restart'
+		WHERE ended_at IS NULL`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(pg.ctx, `UPDATE peers SET status = 'OFFLINE'`); err != nil {
+		return err
+	}
+	return tx.Commit(pg.ctx)
 }
 
 // ── Ban System ────────────────────────────────────────────────────────
 
 // BanPeer bans a specific peer by ID.
 func (pg *PostgresDB) BanPeer(id string, reason string) error {
-	_, err := pg.pool.Exec(pg.ctx,
-		`UPDATE peers SET banned = TRUE, ban_reason = $1, banned_at = NOW() WHERE id = $2`,
-		reason, id)
-	return err
+	tx, err := pg.pool.Begin(pg.ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(pg.ctx)
+	if _, err := tx.Exec(pg.ctx, `
+		UPDATE device_online_sessions
+		SET ended_at = GREATEST(started_at, NOW()), end_reason = 'device_banned'
+		WHERE peer_id = $1 AND ended_at IS NULL`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(pg.ctx, `UPDATE peers SET banned = TRUE, ban_reason = $1, banned_at = NOW() WHERE id = $2`, reason, id); err != nil {
+		return err
+	}
+	return tx.Commit(pg.ctx)
 }
 
 // UnbanPeer removes the ban from a peer.
@@ -1030,6 +1135,8 @@ func (pg *PostgresDB) cascadePeerIDInTx(ctx context.Context, tx pgx.Tx, oldID, n
 		{`UPDATE peers SET linked_peer_id = $1 WHERE linked_peer_id = $2`, []any{newID, oldID}},
 		{`UPDATE device_folder_assignments SET device_id = $1 WHERE device_id = $2`, []any{newID, oldID}},
 		{`UPDATE device_group_members SET peer_id = $1 WHERE peer_id = $2`, []any{newID, oldID}},
+		{`UPDATE device_online_sessions SET peer_id = $1 WHERE peer_id = $2`, []any{newID, oldID}},
+		{`UPDATE remote_access_sessions SET target_id = $1 WHERE target_id = $2`, []any{newID, oldID}},
 	}
 	for _, st := range stmts {
 		if _, err := tx.Exec(ctx, st.query, st.args...); err != nil {

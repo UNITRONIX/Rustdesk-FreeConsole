@@ -139,6 +139,14 @@ func TestListPeersEndpoint(t *testing.T) {
 
 	database.UpsertPeer(&db.Peer{ID: "P1", Hostname: "pc-1", Status: "ONLINE"})
 	database.UpsertPeer(&db.Peer{ID: "P2", Hostname: "pc-2", Status: "OFFLINE"})
+	now := time.Now().UTC()
+	if err := database.UpsertRemoteAccessSession(&db.RemoteAccessSession{
+		SessionKey: "test-live-p1", TargetID: "P1", OperatorUsername: "alice",
+		ControllerID: "SUPPORT-PC-ID", ControllerName: "Alice support PC",
+		Source: "rustdesk_audit", StartedAt: now, LastSeenAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	peerMap := peer.NewMap()
 
@@ -159,6 +167,22 @@ func TestListPeersEndpoint(t *testing.T) {
 
 	if len(peers) != 2 {
 		t.Errorf("expected 2 peers, got %d", len(peers))
+	}
+	for _, item := range peers {
+		if item["id"] != "P1" {
+			continue
+		}
+		if item["remote_live"] != true {
+			t.Fatalf("remote_live = %v, want true", item["remote_live"])
+		}
+		sessions, ok := item["active_remote_sessions"].([]any)
+		if !ok || len(sessions) != 1 {
+			t.Fatalf("active_remote_sessions = %#v", item["active_remote_sessions"])
+		}
+		session := sessions[0].(map[string]any)
+		if session["controller_id"] != "SUPPORT-PC-ID" || session["operator"] != "alice" {
+			t.Fatalf("active remote session = %#v", session)
+		}
 	}
 }
 

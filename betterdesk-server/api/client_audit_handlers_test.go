@@ -3,15 +3,18 @@ package api
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/unitronix/betterdesk-server/config"
 	cryptopkg "github.com/unitronix/betterdesk-server/crypto"
+	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/peer"
 )
 
@@ -34,6 +37,54 @@ func startTestServer(t *testing.T, port int) (*config.Config, func()) {
 	return cfg, func() {
 		srv.Stop()
 		database.Close()
+	}
+}
+
+func TestAuditConnOfficialRustDeskPayloadCreatesAndClosesLiveSession(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	targetUUID := "9d63f01d-1bf5-4a59-af72-e91072a45c10"
+	storedUUID := hex.EncodeToString([]byte(targetUUID))
+	reportedUUID := base64.StdEncoding.EncodeToString([]byte(targetUUID))
+	if err := database.UpsertPeer(&db.Peer{ID: "TARGET01", UUID: storedUUID}); err != nil {
+		t.Fatal(err)
+	}
+	srv := New(config.DefaultConfig(), database, peer.NewMap(), nil, "test")
+	post := func(payload map[string]any) *httptest.ResponseRecorder {
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/api/audit/conn", bytes.NewReader(body))
+		rec := httptest.NewRecorder()
+		srv.handleAuditConnPost(rec, req)
+		return rec
+	}
+
+	connect := map[string]any{
+		"id": "TARGET01", "uuid": reportedUUID, "conn_id": 77, "action": "connect",
+		"session_id": 99123, "peer": []any{"HELPPC01", "Alice Support"}, "type": 0,
+	}
+	if rec := post(connect); rec.Code != http.StatusOK {
+		t.Fatalf("connect status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	rows, err := database.ListRemoteAccessSessions(db.RemoteAccessSessionFilter{
+		TargetIDs: []string{"TARGET01"}, From: time.Now().Add(-time.Hour), To: time.Now().Add(time.Hour),
+	})
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("sessions=%+v err=%v", rows, err)
+	}
+	if rows[0].OperatorUsername != "Alice Support" || rows[0].ControllerID != "HELPPC01" || rows[0].EndedAt != nil {
+		t.Fatalf("session=%+v", rows[0])
+	}
+
+	closePayload := map[string]any{
+		"id": "TARGET01", "uuid": reportedUUID, "conn_id": 88,
+		"session_id": 99123, "action": "close", "type": 0,
+	}
+	if rec := post(closePayload); rec.Code != http.StatusOK {
+		t.Fatalf("close status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	open, err := database.GetOpenRemoteAccessSessions([]string{"TARGET01"})
+	if err != nil || len(open["TARGET01"]) != 0 {
+		t.Fatalf("open=%+v err=%v", open, err)
 	}
 }
 

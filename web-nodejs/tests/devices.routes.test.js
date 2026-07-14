@@ -40,8 +40,24 @@ jest.mock('../services/serverBackend', () => ({
     changePeerId: jest.fn().mockResolvedValue({ success: true })
 }));
 
+jest.mock('../services/betterdeskApi', () => ({
+    getDeviceActivityReport: jest.fn().mockResolvedValue({
+        success: true,
+        data: {
+            from_date: '2026-07-01',
+            to_date: '2026-07-31',
+            timezone: 'Europe/Bratislava',
+            totals: { devices: 0, operators: 0, live_sessions: 0, sessions: 0, connected_seconds: 0 },
+            operators: [],
+            devices: []
+        }
+    }),
+    recordRemoteSessionEvent: jest.fn().mockResolvedValue({ success: true, data: { ok: true } })
+}));
+
 const serverBackend = require('../services/serverBackend');
 const db = require('../services/database');
+const betterdeskApi = require('../services/betterdeskApi');
 const devicesRoutes = require('../routes/devices.routes');
 
 describe('Devices Routes', () => {
@@ -138,6 +154,139 @@ describe('Devices Routes', () => {
                     includeDeleted: true
                 })
             );
+        });
+    });
+
+    describe('Remote-session reports', () => {
+        it('passes only currently Live visible PCs when requested', async () => {
+            serverBackend.getAllDevices.mockResolvedValue([
+                { id: 'CONNECTED1', hostname: 'pc-connected', online: true, remote_live: true },
+                { id: 'ONLINE002', hostname: 'pc-online', online: true, remote_live: false }
+            ]);
+            betterdeskApi.getDeviceActivityReport.mockResolvedValueOnce({
+                success: true,
+                data: {
+                    from_date: '2026-07-01', to_date: '2026-07-31', timezone: 'Europe/Bratislava',
+                    totals: { devices: 1, operators: 1, live_sessions: 1, sessions: 1, connected_seconds: 3600 },
+                    operators: [{ username: 'admin', connected_seconds: 3600 }],
+                    devices: [{ peer_id: 'CONNECTED1', hostname: 'pc-connected', live: true, connected_seconds: 3600, intervals: [] }]
+                }
+            });
+
+            const res = await request(app)
+                .post('/api/devices/activity/report')
+                .send({
+                    from_date: '2026-07-01',
+                    to_date: '2026-07-31',
+                    timezone: 'Europe/Bratislava',
+                    live_only: true
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.devices[0].peer_id).toBe('CONNECTED1');
+            expect(betterdeskApi.getDeviceActivityReport).toHaveBeenCalledWith(expect.objectContaining({
+                device_ids: ['CONNECTED1']
+            }));
+        });
+
+        it('does not expand an empty visible selection to every server device', async () => {
+            serverBackend.getAllDevices.mockResolvedValue([]);
+
+            const res = await request(app)
+                .post('/api/devices/activity/report')
+                .send({ live_only: true });
+
+            expect(res.status).toBe(200);
+            expect(betterdeskApi.getDeviceActivityReport).toHaveBeenCalledWith(expect.objectContaining({
+                device_ids: ['__no_visible_devices__']
+            }));
+        });
+
+        it('exports one UTF-8 CSV row per actual remote session', async () => {
+            serverBackend.getAllDevices.mockResolvedValue([
+                { id: 'WORKPC01', hostname: 'accounting-01', online: true }
+            ]);
+            betterdeskApi.getDeviceActivityReport.mockResolvedValueOnce({
+                success: true,
+                data: {
+                    from_date: '2026-07-01', to_date: '2026-07-31', timezone: 'Europe/Bratislava',
+                    totals: { devices: 1, operators: 1, live_sessions: 0, sessions: 1, connected_seconds: 45296 },
+                    operators: [{ username: 'alice', connected_seconds: 45296 }],
+                    devices: [{
+                        peer_id: 'WORKPC01', display_name: 'Accounting PC', hostname: '=accounting-01',
+                        intervals: [{
+                            operator: 'alice', controller_id: 'SUPPORT1', controller_name: 'Alice PC',
+                            started_at: '2026-07-14T08:00:00Z', ended_at: '2026-07-14T20:34:56Z',
+                            ongoing: false, connection_type: 0, source: 'rustdesk_audit',
+                            connected_seconds: 45296, actual_connected_seconds: 50000
+                        }]
+                    }]
+                }
+            });
+
+            const res = await request(app)
+                .post('/api/devices/activity/export')
+                .send({
+                    from_date: '2026-07-01',
+                    to_date: '2026-07-31',
+                    timezone: 'Europe/Bratislava',
+                    device_ids: ['WORKPC01']
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.headers['content-type']).toContain('text/csv');
+            expect(res.headers['content-disposition']).toContain('remote-live-sessions_2026-07-01_2026-07-31.csv');
+            expect(res.text).toContain('"User","Controller Remote PC ID","Controller name","Target Remote PC ID"');
+            expect(res.text).toContain('"alice","SUPPORT1","Alice PC","WORKPC01","Accounting PC","\'=accounting-01"');
+            expect(res.text).toContain('"12:34:56","45296"');
+            expect(res.text).toContain('"Full session duration","Full session duration seconds"');
+            expect(res.text).toContain('"13:53:20","50000"');
+        });
+
+        it('downloads CSV directly with GET for sandboxed desktop windows', async () => {
+            serverBackend.getAllDevices.mockResolvedValue([{ id: 'WORKPC01', online: true }]);
+            betterdeskApi.getDeviceActivityReport.mockResolvedValueOnce({
+                success: true,
+                data: {
+                    from_date: '2026-07-01', to_date: '2026-07-31', timezone: 'Europe/Bratislava',
+                    totals: { sessions: 1 }, operators: [],
+                    devices: [{
+                        peer_id: 'WORKPC01', display_name: 'Accounting PC', hostname: 'accounting-01',
+                        intervals: [{
+                            operator: 'alice', controller_id: 'SUPPORT1', controller_name: 'Alice PC',
+                            started_at: '2026-07-14T08:00:00Z', ended_at: '2026-07-14T09:00:00Z',
+                            ongoing: false, connection_type: 0, source: 'rustdesk_audit', connected_seconds: 3600
+                        }]
+                    }]
+                }
+            });
+
+            const res = await request(app).get('/api/devices/activity/export')
+                .query({
+                    from_date: '2026-07-01', to_date: '2026-07-31',
+                    timezone: 'Europe/Bratislava', operator: 'alice'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.headers['content-disposition']).toContain('attachment;');
+            expect(res.headers['content-disposition']).toContain('.csv');
+            expect(res.text).toContain('"alice","SUPPORT1","Alice PC","WORKPC01"');
+            expect(betterdeskApi.getDeviceActivityReport).toHaveBeenCalledWith(expect.objectContaining({
+                operators: ['alice']
+            }));
+        });
+
+        it('records browser Live sessions using the authenticated operator', async () => {
+            serverBackend.getAllDevices.mockResolvedValue([{ id: 'WORKPC01', remote_live: false }]);
+            const sessionId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+            const res = await request(app).post('/api/devices/remote-sessions/event').send({
+                action: 'start', session_id: sessionId, device_id: 'WORKPC01', connection_type: 0,
+                operator_username: 'spoofed'
+            });
+            expect(res.status).toBe(200);
+            expect(betterdeskApi.recordRemoteSessionEvent).toHaveBeenCalledWith(expect.objectContaining({
+                action: 'start', session_id: sessionId, device_id: 'WORKPC01', operator_username: 'admin'
+            }));
         });
     });
 

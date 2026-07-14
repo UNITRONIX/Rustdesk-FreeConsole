@@ -264,6 +264,9 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 
 		// Update heartbeat
 		s.peers.UpdateHeartbeat(id, raddr, msg.Serial)
+		if err := s.db.TouchDeviceOnlineSession(id, time.Now().UTC(), config.RegTimeout); err != nil {
+			log.Printf("[signal] Failed to record online heartbeat for %s: %v", id, err)
+		}
 
 		// Respond: don't need PK (we already have it)
 		requestPk := len(existing.PK) == 0
@@ -356,6 +359,9 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 
 	log.Printf("[signal] New peer registered: %s from %s (pk_loaded=%v)", id, raddr, len(entry.PK) > 0)
 	s.db.UpdatePeerStatus(id, "ONLINE", raddr.IP.String())
+	if err := s.db.TouchDeviceOnlineSession(id, now.UTC(), config.RegTimeout); err != nil {
+		log.Printf("[signal] Failed to start online session for %s: %v", id, err)
+	}
 	s.publishPeerOnline(id)
 }
 

@@ -77,6 +77,15 @@
     let hScrollSyncing = false;
     const pendingRequests = new Map();
     const LOAD_STAGGER_MS = 120;
+
+    function formatConnectedDuration(seconds) {
+        const totalMinutes = Math.max(0, Math.floor((Number(seconds) || 0) / 60));
+        const days = Math.floor(totalMinutes / 1440);
+        const hours = Math.floor((totalMinutes % 1440) / 60);
+        const minutes = totalMinutes % 60;
+        if (days > 0) return `${days} d ${String(hours).padStart(2, '0')} h ${String(minutes).padStart(2, '0')} min`;
+        return `${String(hours).padStart(2, '0')} h ${String(minutes).padStart(2, '0')} min`;
+    }
     
     function fetchOnce(endpoint, fetcher) {
         if (pendingRequests.has(endpoint)) return pendingRequests.get(endpoint);
@@ -127,6 +136,10 @@
         initContextMenu();
         initPerPage();
         initTableHScroll();
+        setInterval(updateConnectedDurations, 30000);
+        // Remote-session state is persisted in the server DB and may change
+        // independently of device online/offline heartbeats.
+        setInterval(loadDevices, 15000);
 
         const savedPerPage = parseInt(localStorage.getItem(STORAGE_PER_PAGE) || '', 10);
         if (PER_PAGE_OPTIONS.includes(savedPerPage)) {
@@ -160,6 +173,14 @@
 
         // Real-time device status push via WebSocket
         initDeviceStatusWS();
+    }
+
+    function updateConnectedDurations() {
+        document.querySelectorAll('[data-remote-live-since]').forEach(el => {
+            const started = new Date(el.dataset.remoteLiveSince).getTime();
+            if (!Number.isFinite(started)) return;
+            el.textContent = formatConnectedDuration((Date.now() - started) / 1000);
+        });
     }
 
     /**
@@ -214,23 +235,23 @@
      */
     function updateDeviceStatusInPlace(deviceId, status) {
         const row = tableBody?.querySelector(`tr[data-id="${deviceId}"]`);
-        if (!row) return;
-
         const normalizedStatus = String(status || '').toLowerCase();
         const statusClassName = ['online', 'offline', 'no_signal', 'degraded', 'critical'].includes(normalizedStatus)
             ? normalizedStatus
             : 'offline';
-        const statusText = _('status.' + statusClassName);
-        const statusLabel = statusText === 'status.' + statusClassName ? statusClassName : statusText;
+        const statusText = statusClassName === 'online'
+            ? _('status.online')
+            : (statusClassName === 'offline' ? _('status.offline') : _('status.' + statusClassName));
+        const statusLabel = statusText.startsWith('status.') ? statusClassName : statusText;
 
-        const dot = row.querySelector('.device-status-dot');
+        const dot = row?.querySelector('.device-status-dot');
         if (dot) {
             dot.className = 'device-status-dot';
             dot.classList.add(statusClassName);
             dot.title = statusLabel;
         }
 
-        const badge = row.querySelector('[data-column="status"] .status-badge');
+        const badge = row?.querySelector('[data-column="status"] .status-badge');
         if (badge) {
             badge.className = `status-badge ${statusClassName}`;
             badge.innerHTML = `<span class="status-dot"></span>${statusLabel}`;
@@ -239,11 +260,25 @@
         // Also update the device in our local state
         const dev = devices.find(d => d.id === deviceId);
         if (dev) {
+            const wasOnline = dev.online === true;
             dev.status = status;
             dev.live_status = statusClassName;
             dev.live_online = statusClassName === 'online';
             dev.online = statusClassName === 'online';
             dev.no_signal = statusClassName === 'no_signal';
+            if (dev.online && (!wasOnline || !dev.online_since)) {
+                dev.online_since = new Date().toISOString();
+                dev.online_seconds = 0;
+            } else if (!dev.online) {
+                dev.online_since = null;
+                dev.online_seconds = 0;
+            }
+
+            // A device that changes state must immediately enter or leave the
+            // Online/Offline filtered lists. Live is a separate remote session.
+            if (currentFilter === 'online' || currentFilter === 'offline') {
+                applyFilters();
+            }
         }
     }
 
@@ -781,6 +816,25 @@
                 ${rest > 0 ? `<span class="device-tag-more">+${rest}</span>` : ''}
             </div>`;
     }
+
+    function renderLiveRemoteIDs(device) {
+        const sessions = Array.isArray(device.active_remote_sessions) ? device.active_remote_sessions : [];
+        if (sessions.length === 0) {
+            return `<small>${Utils.escapeHtml((device.active_operators || []).join(', ') || '—')}</small>`;
+        }
+        const seen = new Set();
+        const identities = sessions.filter(session => {
+            const key = `${session.operator || ''}\u0000${session.controller_id || ''}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+        return `<div class="remote-live-identities">${identities.map(session => {
+            const operator = Utils.escapeHtml(session.operator || session.controller_name || session.controller_id || '—');
+            const remoteID = String(session.controller_id || '').trim();
+            return `<small><span>${operator}</span>${remoteID ? ` <span aria-hidden="true">·</span> <span class="remote-live-id">ID <code>${Utils.escapeHtml(remoteID)}</code></span>` : ''}</small>`;
+        }).join('')}</div>`;
+    }
     
     /**
      * Apply current filters and render
@@ -811,6 +865,7 @@
             
             // Status filter
             if (currentFilter === 'online' && !device.online) return false;
+            if (currentFilter === 'live' && !device.remote_live) return false;
             if (currentFilter === 'offline' && (device.online || device.banned)) return false;
             if (currentFilter === 'banned' && !device.banned) return false;
             if (currentFilter === 'mesh_agent' && String(device.device_type || '').toLowerCase() !== 'mesh_agent') return false;
@@ -919,6 +974,11 @@
                 </td>
                 <td data-column="last_online">
                     <span class="last-seen-text" title="${Utils.formatDate(device.last_online)}">${Utils.formatRelativeTime(device.last_online)}</span>
+                </td>
+                <td data-column="connected_for">
+                    ${device.remote_live && device.remote_live_since
+                        ? `<div class="remote-live-cell"><span class="status-badge live"><span class="status-dot"></span>${Utils.escapeHtml(_('devices.live'))}</span><strong class="connected-duration" data-remote-live-since="${Utils.escapeHtml(device.remote_live_since)}" title="${Utils.escapeHtml(_('devices.live_since'))}: ${Utils.formatDate(device.remote_live_since)}">${formatConnectedDuration(device.remote_live_seconds)}</strong>${renderLiveRemoteIDs(device)}</div>`
+                        : '<span class="connected-duration muted">—</span>'}
                 </td>
                 <td data-column="status">
                     <span class="status-badge ${sc}"${statusInfo.title ? ` title="${Utils.escapeHtml(statusInfo.title)}"` : ''}><span class="status-dot"></span>${statusInfo.label}</span>

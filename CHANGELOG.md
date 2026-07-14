@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+- **Device connected-time reports** — persist server-observed presence intervals in SQLite or PostgreSQL, show the current connection duration on Devices, provide date and “Connected only” filters with per-PC/day totals, and export selected devices as a UTF-8 CSV. Presence reports measure device connectivity, not keyboard or mouse activity.
+
 ### Fixed
 - **Device List widget popout:** load the complete widget stylesheet in
   detached windows, retain a compact fallback layout, prioritize connected

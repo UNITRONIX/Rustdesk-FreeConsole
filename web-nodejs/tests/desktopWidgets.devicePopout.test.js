@@ -30,9 +30,9 @@ function loadWidgetPlugins(devices) {
         String,
         Utils: { api: jest.fn(() => Promise.resolve({ devices })) },
         _: (key) => ({
-            'devices.connected': 'Connected',
-            'devices.disconnected': 'Disconnected',
-            'devices.connected_for': 'Connected for',
+            'status.online': 'Online',
+            'status.offline': 'Offline',
+            'devices.live': 'Live',
         }[key] || key),
     };
     sandbox.window = sandbox;
@@ -43,10 +43,11 @@ function loadWidgetPlugins(devices) {
 }
 
 describe('Device List widget popout presentation', () => {
-    test('renders connected devices first with an exact compact duration', async () => {
+    test('keeps Online separate and renders Live sessions first with duration and operator', async () => {
         const plugins = loadWidgetPlugins([
             { id: 'OFFLINE1', hostname: 'alpha', platform: 'Linux', online: false },
-            { id: 'ONLINE1', hostname: 'office-pc', platform: 'Windows 11', online: true, online_seconds: 93784 },
+            { id: 'ONLINE1', hostname: 'office-pc', platform: 'Windows 11', online: true },
+            { id: 'LIVEPC01', hostname: 'customer-pc', platform: 'Windows 11', online: true, remote_live: true, remote_live_seconds: 93784, active_operators: ['alice'] },
         ]);
         const list = { innerHTML: '' };
         const body = { querySelector: (selector) => selector === '.widget-device-list' ? list : null };
@@ -54,16 +55,18 @@ describe('Device List widget popout presentation', () => {
         plugins.get('device-list').update(body);
         await new Promise(resolve => setImmediate(resolve));
 
-        expect(list.innerHTML.indexOf('ONLINE1')).toBeLessThan(list.innerHTML.indexOf('OFFLINE1'));
-        expect(list.innerHTML).toContain('Connected');
+        expect(list.innerHTML.indexOf('LIVEPC01')).toBeLessThan(list.innerHTML.indexOf('ONLINE1'));
+        expect(list.innerHTML).toContain('Online');
+        expect(list.innerHTML).toContain('Live');
         expect(list.innerHTML).toContain('1d 02h 03m');
-        expect(list.innerHTML).toContain('Disconnected');
+        expect(list.innerHTML).toContain('alice');
+        expect(list.innerHTML).toContain('Offline');
         expect(list.innerHTML).toContain('widget-device-identity');
     });
 
     test('escapes device names used in popup title attributes', async () => {
         const plugins = loadWidgetPlugins([
-            { id: 'SAFE1', hostname: 'office"<pc', online: true, online_seconds: 60 },
+            { id: 'SAFE1', hostname: 'office"<pc', online: true },
         ]);
         const list = { innerHTML: '' };
         const body = { querySelector: () => list };

@@ -1164,6 +1164,30 @@
     white-space: nowrap;
 }
 
+.widget-device-live {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 1px 4px;
+    border-radius: 999px;
+    background: rgba(255, 77, 77, 0.14);
+    color: #ff6b6b;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.widget-device-operator {
+    display: block;
+    max-width: 120px;
+    margin-top: 2px;
+    overflow: hidden;
+    color: #8b949e;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Network Monitor Widget */
 .widget-net-targets {
     display: flex;

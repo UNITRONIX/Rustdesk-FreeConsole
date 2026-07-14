@@ -69,14 +69,14 @@
         return Math.floor(seconds / 86400) + 'd';
     }
 
-    function connectedSeconds(peer) {
-        if (peer && peer.online_since) {
-            var startedAt = new Date(peer.online_since).getTime();
+    function remoteLiveSeconds(peer) {
+        if (peer && peer.remote_live_since) {
+            var startedAt = new Date(peer.remote_live_since).getTime();
             if (Number.isFinite(startedAt)) {
                 return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
             }
         }
-        var reported = Number(peer && peer.online_seconds);
+        var reported = Number(peer && peer.remote_live_seconds);
         return Number.isFinite(reported) && reported >= 0 ? Math.floor(reported) : null;
     }
 
@@ -304,6 +304,9 @@
 
                 var html = '';
                 peers.slice().sort(function (a, b) {
+                    var aLive = !!a.remote_live;
+                    var bLive = !!b.remote_live;
+                    if (aLive !== bLive) return aLive ? -1 : 1;
                     var aOnline = !!(a.live_online || a.online);
                     var bOnline = !!(b.live_online || b.online);
                     if (aOnline !== bOnline) return aOnline ? -1 : 1;
@@ -316,10 +319,11 @@
                     var deviceId = String(p.id || '-');
                     var deviceName = String(p.display_name || p.hostname || p.name || deviceId);
                     var platform = String(p.platform || p.os || '');
-                    var seconds = online ? connectedSeconds(p) : null;
-                    var duration = online ? formatConnectedDuration(seconds) : '';
-                    var statusLabel = online ? t('devices.connected') : t('devices.disconnected');
-                    var durationTitle = duration ? t('devices.connected_for') + ' ' + duration : statusLabel;
+                    var live = p.remote_live === true;
+                    var duration = live ? formatConnectedDuration(remoteLiveSeconds(p)) : '';
+                    var operators = Array.isArray(p.active_operators) ? p.active_operators.join(', ') : '';
+                    var statusLabel = online ? t('status.online') : t('status.offline');
+                    var durationTitle = live ? t('devices.live') + (duration ? ' · ' + duration : '') + (operators ? ' · ' + operators : '') : statusLabel;
                     html += '<div class="widget-device-row">' +
                         '<div class="widget-device-dot ' + status + '"></div>' +
                         '<div class="widget-device-identity">' +
@@ -329,9 +333,11 @@
                                 '<span class="widget-device-platform">' + esc(platform) + '</span>' +
                             '</div>' +
                         '</div>' +
-                        '<div class="widget-device-connection ' + status + '" title="' + escAttr(durationTitle) + '">' +
+                        '<div class="widget-device-connection ' + (live ? 'live' : status) + '" title="' + escAttr(durationTitle) + '">' +
                             '<span class="widget-device-connection-status">' + esc(statusLabel) + '</span>' +
+                            (live ? '<span class="widget-device-live">' + esc(t('devices.live')) + '</span>' : '') +
                             (duration ? '<span class="widget-device-duration">' + esc(duration) + '</span>' : '') +
+                            (operators ? '<span class="widget-device-operator">' + esc(operators) + '</span>' : '') +
                         '</div>' +
                     '</div>';
                 });

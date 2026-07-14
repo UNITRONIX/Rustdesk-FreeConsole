@@ -88,6 +88,208 @@ router.get('/api/devices', requireAuth, requirePermission('device.view'), async 
     }
 });
 
+function normalizeActivityReportBody(body, visibleDevices) {
+    const payload = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    const fromDate = String(payload.from_date || '').trim();
+    const toDate = String(payload.to_date || '').trim();
+    const timezone = String(payload.timezone || 'UTC').trim();
+    if ((fromDate && !datePattern.test(fromDate)) || (toDate && !datePattern.test(toDate))) {
+        const err = new Error('Dates must use YYYY-MM-DD');
+        err.status = 400;
+        throw err;
+    }
+    if (!/^[A-Za-z0-9_+./-]{1,64}$/.test(timezone)) {
+        const err = new Error('Invalid timezone');
+        err.status = 400;
+        throw err;
+    }
+
+    const visibleById = new Map((visibleDevices || []).map(device => [String(device.id), device]));
+    let selected = Array.isArray(payload.device_ids)
+        ? Array.from(new Set(payload.device_ids.map(String))).filter(id => visibleById.has(id))
+        : Array.from(visibleById.keys());
+    if (payload.live_only === true || payload.connected_only === true) {
+        selected = selected.filter(id => visibleById.get(id)?.remote_live === true);
+    }
+    if (selected.length > 1000) {
+        const err = new Error('Too many devices selected');
+        err.status = 400;
+        throw err;
+    }
+    const operators = Array.isArray(payload.operators)
+        ? Array.from(new Set(payload.operators.map(value => String(value).trim()).filter(Boolean))).slice(0, 100)
+        : [];
+    return {
+        from_date: fromDate,
+        to_date: toDate,
+        timezone,
+        device_ids: selected,
+        live_only: payload.live_only === true || payload.connected_only === true,
+        operators
+    };
+}
+
+async function buildVisibleActivityReport(req, requestBody = req.body) {
+    const visibleDevices = await getVisibleDevicesForRequest(req);
+    const payload = normalizeActivityReportBody(requestBody, visibleDevices);
+    const result = await betterdeskApi.getDeviceActivityReport({
+        from_date: payload.from_date,
+        to_date: payload.to_date,
+        timezone: payload.timezone,
+        // A non-empty sentinel keeps an empty scoped selection from being
+        // interpreted by the Go API as "all server devices".
+        device_ids: payload.device_ids.length > 0 ? payload.device_ids : ['__no_visible_devices__'],
+        operators: payload.operators
+    });
+    if (!result.success) {
+        const err = new Error(result.error || 'Failed to generate connected-time report');
+        err.status = 502;
+        throw err;
+    }
+    return result.data;
+}
+
+/**
+ * POST /api/devices/activity/report - Connected-time report scoped to devices
+ * visible to the signed-in console user.
+ */
+router.post('/api/devices/activity/report', requireAuth, requirePermission('device.view'), async (req, res) => {
+    try {
+        const report = await buildVisibleActivityReport(req);
+        res.json({ success: true, data: report });
+    } catch (err) {
+        console.error('Device activity report error:', err);
+        res.status(err.status || 500).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * Browser remote viewer lifecycle. The signed-in console user is always the
+ * operator; clients cannot submit another username.
+ */
+router.post('/api/devices/remote-sessions/event', requireAuth, requirePermission('device.view'), async (req, res) => {
+    try {
+        const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+        const action = String(payload.action || '').trim().toLowerCase();
+        const sessionId = String(payload.session_id || '').trim();
+        const deviceId = String(payload.device_id || '').trim();
+        const reason = String(payload.reason || '').trim().slice(0, 64);
+        const connectionType = Number.isInteger(payload.connection_type) ? payload.connection_type : 0;
+        if (!['start', 'heartbeat', 'end'].includes(action) ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId) ||
+            ![0, 1, 2, 3, 4].includes(connectionType)) {
+            return res.status(400).json({ success: false, error: 'Invalid remote-session event' });
+        }
+        if (action === 'start') {
+            const visibleDevices = await getVisibleDevicesForRequest(req);
+            if (!deviceId || !visibleDevices.some(device => String(device.id) === deviceId)) {
+                return res.status(403).json({ success: false, error: 'Device is not visible to this user' });
+            }
+        }
+        const operator = String(req.session.user?.username || req.session.user?.name || '').trim();
+        if (!operator) return res.status(401).json({ success: false, error: 'Authenticated operator is required' });
+        const result = await betterdeskApi.recordRemoteSessionEvent({
+            action,
+            session_id: sessionId,
+            device_id: deviceId,
+            operator_username: operator,
+            connection_type: connectionType,
+            reason
+        });
+        if (!result.success) {
+            return res.status(502).json({ success: false, error: result.error || 'Failed to record remote session' });
+        }
+        res.json({ success: true, data: result.data });
+    } catch (err) {
+        console.error('Remote session event error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+function csvCell(value) {
+    let text = String(value ?? '');
+    // Prevent spreadsheet applications from treating device-supplied values
+    // (hostname, display name, user) as formulas when the CSV is opened.
+    if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+}
+
+function csvDuration(seconds) {
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+async function sendDeviceActivityCSV(req, res, requestBody) {
+    try {
+        const report = await buildVisibleActivityReport(req, requestBody);
+        const rows = [[
+            'User', 'Controller Remote PC ID', 'Controller name', 'Target Remote PC ID',
+            'Target display name', 'Target hostname', 'Started at', 'Ended at',
+            'Live', 'Connection type', 'Source', 'Duration in report range', 'Duration seconds in report range',
+            'Full session duration', 'Full session duration seconds',
+            'Report from', 'Report to', 'Timezone'
+        ]];
+        for (const device of report.devices || []) {
+            for (const session of (device.intervals || [])) {
+                rows.push([
+                    session.operator || '',
+                    session.controller_id || '',
+                    session.controller_name || '',
+                    device.peer_id,
+                    device.display_name || device.hostname || device.peer_id,
+                    device.hostname || '',
+                    session.started_at || '',
+                    session.ended_at || '',
+                    session.ongoing ? 'yes' : 'no',
+                    session.connection_type ?? 0,
+                    session.source || '',
+                    csvDuration(session.connected_seconds),
+                    session.connected_seconds || 0,
+                    csvDuration(session.actual_connected_seconds ?? session.connected_seconds),
+                    session.actual_connected_seconds ?? session.connected_seconds ?? 0,
+                    report.from_date,
+                    report.to_date,
+                    report.timezone
+                ]);
+            }
+        }
+        const csv = '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+        const filename = `remote-live-sessions_${report.from_date}_${report.to_date}.csv`;
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(csv);
+        try {
+            await db.logAction(req.session.userId, 'device_activity_exported',
+                `Remote-session CSV exported (${report.from_date}..${report.to_date}, ${report.totals?.sessions || 0} sessions)`, req.ip);
+        } catch (_) {}
+    } catch (err) {
+        console.error('Device activity CSV export error:', err);
+        res.status(err.status || 500).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+}
+
+/** POST /api/devices/activity/export - legacy JSON export request. */
+router.post('/api/devices/activity/export', requireAuth, requirePermission('device.view'), async (req, res) => {
+    await sendDeviceActivityCSV(req, res, req.body);
+});
+
+/** GET /api/devices/activity/export - direct browser download, not a Blob. */
+router.get('/api/devices/activity/export', requireAuth, requirePermission('device.view'), async (req, res) => {
+    const operatorQuery = req.query.operator;
+    await sendDeviceActivityCSV(req, res, {
+        from_date: req.query.from_date,
+        to_date: req.query.to_date,
+        timezone: req.query.timezone,
+        live_only: req.query.live_only === 'true',
+        operators: Array.isArray(operatorQuery) ? operatorQuery : (operatorQuery ? [operatorQuery] : [])
+    });
+});
+
 /**
  * GET /api/tags - Get all visible device tags.
  */
