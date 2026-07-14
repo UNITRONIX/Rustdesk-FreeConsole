@@ -86,7 +86,7 @@ To serve **`https://your-domain`** without a port number:
    PORT=80
    HTTP_REDIRECT_HTTPS=true
    ```
-3. Run **Settings → Updates** or `sudo betterdesk.sh` → **Repair → Repair permissions** — adds `CAP_NET_BIND_SERVICE` to `betterdesk-console.service` so the `betterdesk` user can bind ports 80/443.
+3. Run **Settings → Updates** or `sudo betterdesk.sh` → **Repair → Repair permissions** — adds `CAP_NET_BIND_SERVICE` and `BETTERDESK_HAS_BIND_SERVICE=1` to `betterdesk-console.service` so the `betterdesk` user can bind ports 80/443.
 4. Ensure nothing else listens on **443** (stop nginx on that host, or use Option B below).
 5. Open firewall ports if needed:
    ```bash

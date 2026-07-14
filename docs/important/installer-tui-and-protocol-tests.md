@@ -21,7 +21,7 @@
 - `do_configure_ssl` (menu **C**) — unified with `apply_console_protocol_mode` + cert deploy/repair (#219); option **6 External reverse proxy** (#267).
 - `resolve_panel_http_port()` / `resolve_panel_https_port()` / `resolve_panel_health_port()` — HTTPS mode health checks use `HTTPS_PORT` (5443), not `PORT` (5000 redirect listener).
 - `run_protocol_tests()` — post-config checks: services active, TLS key readable by `betterdesk` user, panel on correct scheme/port, optional HTTP→HTTPS redirect, Go API HTTP on :21114, Client API on :21121 with matching TLS mode, signal/relay listeners, cert validity+expiry+SAN, live TLS handshake on :21116; **reverse-proxy mode** checks (`TRUST_PROXY`, localhost bind, snippet dir); prints effective runtime config at end; hints about standard port 443 when panel is on :5443 or reverse-proxy snippets when `TRUST_PROXY=Y`.
-- `maybe_offer_standard_https_port()` — after enabling HTTPS in menus **C** / **T**, optionally sets `HTTPS_PORT=443` + `PORT=80` and runs permission repair for `CAP_NET_BIND_SERVICE`.
+- `maybe_offer_standard_https_port()` — after enabling HTTPS in menus **C** / **T**, optionally sets `HTTPS_PORT=443` + `PORT=80` and runs permission repair for `CAP_NET_BIND_SERVICE` + `BETTERDESK_HAS_BIND_SERVICE=1`.
 
 ## main() menu
 - Uses `menu_labels[]` (label\tdesc) + `menu_actions[]` (tokens 1..9 L C T M B S 0) mapped 1:1 to existing case dispatch. TUI when available, else classic show_menu numeric fallback.

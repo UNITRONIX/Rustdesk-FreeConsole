@@ -8,7 +8,10 @@ const {
     consoleEnvUsesPrivilegedPorts,
     ensureBindCapabilityInServiceUnit,
     serviceUnitHasBindCapability,
-    formatHttpsRedirectUrl,
+    serviceUnitHasBindServiceEnv,
+    processHasBindServiceCapability,
+    canBindPrivilegedPorts,
+    BIND_SERVICE_ENV,
 } = require('../lib/privilegedPorts');
 
 describe('privilegedPorts', () => {
@@ -67,7 +70,7 @@ describe('privilegedPorts', () => {
         })).toBe(false);
     });
 
-    test('ensureBindCapabilityInServiceUnit is idempotent', () => {
+    test('ensureBindCapabilityInServiceUnit adds capability and bind-service env', () => {
         const base = [
             '[Service]',
             'User=betterdesk',
@@ -76,24 +79,55 @@ describe('privilegedPorts', () => {
         const first = ensureBindCapabilityInServiceUnit(base);
         expect(first.changed).toBe(true);
         expect(serviceUnitHasBindCapability(first.content)).toBe(true);
+        expect(serviceUnitHasBindServiceEnv(first.content)).toBe(true);
         expect(first.content).toContain('AmbientCapabilities=CAP_NET_BIND_SERVICE');
+        expect(first.content).toContain(`Environment=${BIND_SERVICE_ENV}=1`);
 
         const second = ensureBindCapabilityInServiceUnit(first.content);
         expect(second.changed).toBe(false);
     });
 
-    test('resolvePortForCurrentUser falls back for privileged ports when not root', () => {
+    test('resolvePortForCurrentUser falls back for privileged ports when not root and no bind capability', () => {
         const originalGetuid = process.getuid;
+        const originalEnv = process.env[BIND_SERVICE_ENV];
         process.getuid = () => 1000;
+        delete process.env[BIND_SERVICE_ENV];
         try {
             expect(resolvePortForCurrentUser(443, 5443, 'HTTPS')).toBe(5443);
+            expect(resolvePortForCurrentUser(80, 5000, 'HTTP')).toBe(5000);
             expect(resolvePortForCurrentUser(5443, 5000, 'HTTPS')).toBe(5443);
         } finally {
             process.getuid = originalGetuid;
+            if (originalEnv === undefined) {
+                delete process.env[BIND_SERVICE_ENV];
+            } else {
+                process.env[BIND_SERVICE_ENV] = originalEnv;
+            }
+        }
+    });
+
+    test('resolvePortForCurrentUser keeps privileged port when BETTERDESK_HAS_BIND_SERVICE is set (#219)', () => {
+        const originalGetuid = process.getuid;
+        const originalEnv = process.env[BIND_SERVICE_ENV];
+        process.getuid = () => 1000;
+        process.env[BIND_SERVICE_ENV] = '1';
+        try {
+            expect(resolvePortForCurrentUser(443, 5443, 'HTTPS')).toBe(443);
+            expect(resolvePortForCurrentUser(80, 5000, 'HTTP')).toBe(80);
+            expect(canBindPrivilegedPorts()).toBe(true);
+            expect(processHasBindServiceCapability()).toBe(true);
+        } finally {
+            process.getuid = originalGetuid;
+            if (originalEnv === undefined) {
+                delete process.env[BIND_SERVICE_ENV];
+            } else {
+                process.env[BIND_SERVICE_ENV] = originalEnv;
+            }
         }
     });
 
     test('formatHttpsRedirectUrl omits :443 for standard HTTPS port', () => {
+        const { formatHttpsRedirectUrl } = require('../lib/privilegedPorts');
         expect(formatHttpsRedirectUrl('desk.example.com', 443, '/login')).toBe('https://desk.example.com/login');
         expect(formatHttpsRedirectUrl('desk.example.com', 5443, '/login')).toBe('https://desk.example.com:5443/login');
         expect(formatHttpsRedirectUrl('desk.example.com', 5443, '')).toBe('https://desk.example.com:5443/');

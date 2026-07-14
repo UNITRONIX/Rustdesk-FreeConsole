@@ -626,6 +626,34 @@ check_port_available() {
 }
 
 # Verify that a service is healthy (running and listening on expected port)
+_tcp_port_is_listening() {
+    local port="$1"
+    ss -tlnH 2>/dev/null | grep -q ":${port} " || \
+        netstat -tln 2>/dev/null | grep -q ":${port} "
+}
+
+# Hint when .env requests a privileged panel port but Node bound a fallback (#219).
+_hint_panel_privileged_port_mismatch() {
+    local expected_port="$1"
+    local https_enabled
+    https_enabled=$(read_effective_console_setting HTTPS_ENABLED false)
+
+    if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" != "true" ]; then
+        return 0
+    fi
+
+    if [ "$expected_port" = "443" ] && _tcp_port_is_listening 5443; then
+        print_info "  Panel is listening on :5443 instead of configured :443"
+        print_info "  → Run Repair → Repair permissions (adds CAP_NET_BIND_SERVICE), then restart betterdesk-console"
+        print_info "  → Or set HTTPS_PORT=5443 and use a reverse proxy on :443 (docs/setup/REVERSE_PROXY.md)"
+        return 0
+    fi
+
+    if [ "$expected_port" = "80" ] && _tcp_port_is_listening 5000; then
+        print_info "  HTTP redirect is on :5000 instead of configured :80 — set PORT=80 and run Repair → Repair permissions"
+    fi
+}
+
 verify_service_health() {
     local service_name="$1"
     local expected_port="$2"
@@ -642,8 +670,7 @@ verify_service_health() {
     # If port specified, wait for it to be bound
     if [ -n "$expected_port" ]; then
         while [ $elapsed -lt $timeout ]; do
-            if ss -tlnp 2>/dev/null | grep -q ":${expected_port} " || \
-               netstat -tlnp 2>/dev/null | grep -q ":${expected_port} "; then
+            if _tcp_port_is_listening "$expected_port"; then
                 return 0
             fi
             sleep 1
@@ -651,6 +678,9 @@ verify_service_health() {
         done
         
         print_error "Service $service_name is running but not listening on port $expected_port"
+        if [ "$service_name" = "betterdesk-console" ]; then
+            _hint_panel_privileged_port_mismatch "$expected_port"
+        fi
         show_service_logs "$service_name" 20
         return 1
     fi
@@ -1010,6 +1040,30 @@ maybe_repair_le_ssl_symlinks() {
     return 0
 }
 
+# When HTTPS uses standard port 443, align HTTP redirect listener to :80 (#219).
+_ensure_standard_https_redirect_ports() {
+    local env_file="${CONSOLE_PATH}/.env"
+    local https_port http_port https_enabled
+
+    https_enabled=$(read_effective_console_setting HTTPS_ENABLED false)
+    if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" != "true" ]; then
+        return 1
+    fi
+
+    https_port=$(read_effective_console_setting HTTPS_PORT 5443)
+    [ "$https_port" = "443" ] || return 1
+
+    http_port=$(read_effective_console_setting PORT 5000)
+    if [ "$http_port" != "80" ]; then
+        _upsert_env_line "$env_file" PORT 80
+        _upsert_env_line "$env_file" HTTP_REDIRECT_HTTPS true
+        ensure_betterdesk_console_user >/dev/null
+        print_info "Standard HTTPS ports synced: HTTPS :443, HTTP redirect :80 (#219)"
+        return 0
+    fi
+    return 1
+}
+
 # Repair HTTPS stuck state: Go signal port isolation + LE material redeploy (#219).
 repair_https_stuck_state() {
     local quiet="${1:-}"
@@ -1032,6 +1086,9 @@ repair_https_stuck_state() {
             changed=1
         fi
         _sync_deployed_ssl_paths_to_env 2>/dev/null || true
+        if _ensure_standard_https_redirect_ports; then
+            changed=1
+        fi
     fi
 
     if [ "$changed" -eq 1 ] && [ "$quiet" != "yes" ]; then
@@ -6555,10 +6612,23 @@ run_protocol_tests() {
     if [[ "$panel_code" =~ ^(200|301|302|304|401|403)$ ]]; then
         _test_ok "Web panel reachable: ${panel_scheme}://<server>:${panel_port} (HTTP $panel_code)"
     else
-        _test_fail "Web panel NOT reachable on ${panel_scheme}://127.0.0.1:${panel_port} (got $panel_code)"
+        local alt_panel_port=""
+        if [ "$panel_scheme" = "https" ] && [ "$panel_port" = "443" ] && _tcp_port_is_listening 5443; then
+            alt_panel_port="5443"
+            panel_code=$(_wait_for_http_code "https://127.0.0.1:5443/" 5 "$panel_insecure" || true)
+            if [[ "$panel_code" =~ ^(200|301|302|304|401|403)$ ]]; then
+                _test_fail "Web panel NOT reachable on https://127.0.0.1:443 (panel bound :5443 instead — run Repair → Repair permissions for CAP_NET_BIND_SERVICE)"
+            else
+                _test_fail "Web panel NOT reachable on ${panel_scheme}://127.0.0.1:${panel_port} (got $panel_code)"
+            fi
+        else
+            _test_fail "Web panel NOT reachable on ${panel_scheme}://127.0.0.1:${panel_port} (got $panel_code)"
+        fi
         if systemctl is-active --quiet betterdesk-console 2>/dev/null && [ "$panel_scheme" = "https" ]; then
             if journalctl -u betterdesk-console --no-pager -n 80 2>/dev/null | grep -qi 'Falling back to HTTP'; then
                 echo -e "      ${DIM}Hint: console logged HTTPS fallback — check TLS key permissions (runuser -u betterdesk test -r key)${NC}"
+            elif [ -n "$alt_panel_port" ]; then
+                echo -e "      ${DIM}Hint: configured HTTPS_PORT=443 but Node bound :5443 — Repair → Repair permissions, then restart (#219)${NC}"
             fi
         fi
     fi
@@ -6570,13 +6640,25 @@ run_protocol_tests() {
         redirect_hdr=""
         while [ "$_r_elapsed" -lt 10 ]; do
             redirect_hdr=$(curl -sI --max-time 4 "http://127.0.0.1:${http_port}/" 2>/dev/null | grep -i '^location:' | head -1)
-            if echo "$redirect_hdr" | grep -qi ":${https_port}"; then
+            if [ "$https_port" = "443" ]; then
+                if echo "$redirect_hdr" | grep -qi 'https://' \
+                    && { ! echo "$redirect_hdr" | grep -qiE ':[0-9]+' || echo "$redirect_hdr" | grep -qi ':443'; }; then
+                    break
+                fi
+            elif echo "$redirect_hdr" | grep -qi ":${https_port}"; then
                 break
             fi
             sleep 1
             _r_elapsed=$((_r_elapsed + 1))
         done
-        if echo "$redirect_hdr" | grep -qi ":${https_port}"; then
+        if [ "$https_port" = "443" ]; then
+            if echo "$redirect_hdr" | grep -qi 'https://' \
+                && { ! echo "$redirect_hdr" | grep -qiE ':[0-9]+' || echo "$redirect_hdr" | grep -qi ':443'; }; then
+                _test_ok "HTTP redirect active: :${http_port} → HTTPS :${https_port}"
+            else
+                _test_fail "HTTP redirect missing or wrong target on :${http_port} (got: ${redirect_hdr:-none})"
+            fi
+        elif echo "$redirect_hdr" | grep -qi ":${https_port}"; then
             _test_ok "HTTP redirect active: :${http_port} → HTTPS :${https_port}"
         else
             _test_fail "HTTP redirect missing or wrong target on :${http_port} (got: ${redirect_hdr:-none})"
