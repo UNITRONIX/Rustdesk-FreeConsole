@@ -357,7 +357,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cfg := s.oidcProvider.GetConfig()
+	cfg := s.loadOIDCConfigFromDB()
 	loginErr := func(code string) {
 		http.Redirect(w, r, oidcLoginRedirectURL(cfg, code), http.StatusFound)
 	}
