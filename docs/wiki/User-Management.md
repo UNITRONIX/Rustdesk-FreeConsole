@@ -97,6 +97,12 @@ Enter username/password, then the 6-digit TOTP code (30-second window with toler
 
 ---
 
+## LDAP / Active Directory
+
+Directory authentication for the web console and RustDesk desktop client. Configure under **Settings → Authentication → LDAP**. See [[LDAP / Active Directory|LDAP-AD]] for AD setup, group→role mapping, and client login steps.
+
+---
+
 ## OIDC / SSO
 
 External identity providers (Azure AD, Okta, Google, Keycloak) can replace or supplement local login. See [[OIDC SSO|OIDC-SSO]] for IdP configuration.
@@ -147,6 +153,7 @@ Login, 2FA, password changes, user CRUD, and role changes are logged. Super admi
 ## See also
 
 - [[Organizations and RBAC|Organizations-and-RBAC]] — org roles and data scoping
+- [[LDAP / Active Directory|LDAP-AD]] — LDAP/AD sign-in
 - [[OIDC SSO|OIDC-SSO]] — single sign-on
 - [[Security]] — encryption and audit model
 - [[API Reference|API-Reference]]

@@ -1,7 +1,32 @@
 ## [Unreleased]
 
+### Security
+- **Pre-3.4 hardening:** committed `web-nodejs/package-lock.json`; CI uses `npm ci` and blocks moderate+ npm audit findings; added `govulncheck` (Go), `cargo audit` (Tauri), Dependabot for npm/gomod.
+- **Logging:** central Node logger (`LOG_LEVEL`, username redaction in stdout and `audit_log.details`); Go server `-log-level` / `LOG_LEVEL` filtering.
+- **WebSocket auth:** `/ws/bd-signal` validates enrollment/access tokens; `/ws/remote-agent` requires single-use token from `POST /api/bd/remote-agent-token` or valid enrollment token; removed agent-client device_id token fallback.
+- **Relay:** active paired sessions counted against per-IP limit; startup ERROR when `ENROLLMENT_MODE=open` without TLS on signal/relay.
+- **CodeQL / XSS:** advanced CodeQL workflow; org/CDAP page ID validation and server-side escaping.
+
+### Fixed
+- **RustDesk client LDAP login (#218):** `POST /api/login` on the Go API now uses the same provider-bound LDAP/AD authentication as the web console. LDAP-bound and auto-provisioned directory users can sign in to the RustDesk desktop client with domain username/password; TOTP still applies when enabled locally. Resolves #260.
+- **RustDesk client sessions (#242):** desktop/mobile clients no longer drop out after ~24 hours. DB-backed session tokens (default 7 days, sliding renewal, max 30 days). Configure under Settings → Authentication → RustDesk clients.
+- **Linux HTTP/HTTPS toggle (#219):** installer and panel update sync `.env` and systemd units consistently; Go API honours `GO_API_PORT=21114`; health checks use correct scheme and ports.
+- **Web Remote file transfer (#217):** dedicated `FILE_TRANSFER` relay session, RustDesk-style modal UI, resume and overwrite handling.
+- **OIDC SSO login (#225):** panel callback calls `exchangeOIDCCode` after IdP redirect.
+- **RustDesk Pro ID change (#213):** panel ID change case preservation and rename sync.
+- **Panel update (Linux):** systemd unit patch uses whitelisted passwordless-sudo helper; no interactive `sudo tee`.
+
+### Added
+- **Web Remote:** file transfer drop zone, zstd compression, resume, remote context menu, hidden-files toggle.
+- **Update channel:** Settings → Updates → switch between stable (`main`) and development (`dev`) branches.
+- **LDAP operator guide:** `docs/wiki/LDAP-AD.md` — AD setup, RustDesk client login, troubleshooting.
+
 ### Changed
-- _(none yet)_
+- Docker console build uses `npm ci --omit=dev` instead of `npm install --production`.
+- Web Remote toolbar UX: fullscreen covers tab bar and floating toolbar; hides status noise while streaming.
+
+### Docs
+- **Server migration:** manual / out-of-order migration troubleshooting in `docs/troubleshooting/SERVER_MIGRATION.md`.
 
 ---
 

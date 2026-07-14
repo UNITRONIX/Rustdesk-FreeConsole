@@ -10,6 +10,7 @@
 - [[Desktop Widget Dashboard|Desktop-Dashboard]]
 - [[User Management|User-Management]]
 - [[Organizations and RBAC|Organizations-and-RBAC]]
+- [[LDAP / Active Directory|LDAP-AD]]
 - [[OIDC SSO|OIDC-SSO]]
 - [[Client Generator|Client-Generator]]
 - [[Fleet and Policies|Fleet-and-Policies]]
