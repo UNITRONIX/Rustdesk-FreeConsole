@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.143] — 2026-07-14
+
 ### Fixed
 - **External reverse proxy (#267):** wizard asks whether Caddy/Nginx runs on the same host; remote-proxy setups get `HOST=0.0.0.0` and LAN upstream in generated snippets (instead of always `127.0.0.1`).
 
@@ -1937,3 +1944,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.140]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.139...v3.3.140
 [3.3.141]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.140...v3.3.141
 [3.3.142]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.141...v3.3.142
+[3.3.143]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.142...v3.3.143
