@@ -98,6 +98,19 @@ describe('RDClient raw relay messages', () => {
         expect(client._handleRelayMessage).toHaveBeenCalledTimes(1);
         expect(Array.from(client._handleRelayMessage.mock.calls[0][0])).toEqual(Array.from(raw));
     });
+
+    it('accepts PeerInfo with the legacy 3.3.2 input implementation', () => {
+        const RDClient = loadBrowserScript('public/js/rdclient/client.js').RDClient;
+        const client = Object.create(RDClient.prototype);
+        client.input = {}; // Legacy RDInput has no platform/mode helper methods.
+        client._parseVirtualDisplaySupport = jest.fn(() => ({ supported: false }));
+        client._parseWindowsSessions = jest.fn(() => ({ sessions: [], currentSid: 0 }));
+
+        expect(() => client._processPeerInfo({ platform: 'Windows', currentDisplay: 0 })).not.toThrow();
+        expect(() => client.resetKeyboard()).not.toThrow();
+        expect(() => client.setKeyboardMode('Auto')).not.toThrow();
+        expect(client._currentDisplay).toBe(0);
+    });
 });
 
 describe('RDFileConnection raw relay messages', () => {

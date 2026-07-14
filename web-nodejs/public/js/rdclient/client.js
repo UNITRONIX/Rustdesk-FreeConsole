@@ -1688,7 +1688,10 @@ class RDClient {
             this._peerEncoding = info.encoding;
         }
         this._windowsSessions = this._parseWindowsSessions(info);
-        if (this.input && info.platform) {
+        // Older 3.3.2 console images ship the legacy RDInput implementation.
+        // Peer platform is an input enhancement, not a reason to abort a
+        // successful login when the optional setter is unavailable.
+        if (this.input && info.platform && typeof this.input.setPeerPlatform === 'function') {
             this.input.setPeerPlatform(info.platform);
         }
     }
@@ -1746,14 +1749,18 @@ class RDClient {
      * Release stuck remote modifiers / keys (toolbar recovery).
      */
     resetKeyboard() {
-        if (this.input) this.input.resetKeyboard();
+        if (this.input && typeof this.input.resetKeyboard === 'function') {
+            this.input.resetKeyboard();
+        }
     }
 
     /**
      * @param {'Legacy'|'Map'|'Auto'} mode
      */
     setKeyboardMode(mode) {
-        if (this.input) this.input.setKeyboardMode(mode);
+        if (this.input && typeof this.input.setKeyboardMode === 'function') {
+            this.input.setKeyboardMode(mode);
+        }
     }
 
     /**
