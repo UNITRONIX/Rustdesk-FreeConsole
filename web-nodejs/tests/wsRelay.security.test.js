@@ -138,7 +138,7 @@ describe('wsRelay — security: session validation on WS upgrade', () => {
         await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
         address = server.address();
 
-        const result = await rawUpgrade(address, '/ws/relay');
+        const result = await rawUpgrade(address, '/ws/relay?transport=message');
         expect(result.statusLine).toBe('HTTP/1.1 401 Unauthorized');
     });
 

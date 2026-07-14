@@ -123,7 +123,12 @@ class RDConnection {
     connectRelay() {
         return new Promise((resolve, reject) => {
             this._setState('relay');
-            const url = `${this.wsBase}/ws/relay${this._guestQuerySuffix()}`;
+            // Native hbbr WebSocket framing: one raw RustDesk payload per WS
+            // binary message. The query also lets the optional Node TCP bridge
+            // translate BytesCodec framing when a reverse proxy does not route
+            // /ws/relay directly to hbbr WSS.
+            const guestQuery = this._guestQuerySuffix();
+            const url = `${this.wsBase}/ws/relay${guestQuery}${guestQuery ? '&' : '?'}transport=message`;
 
             const ws = new WebSocket(url);
             ws.binaryType = 'arraybuffer';

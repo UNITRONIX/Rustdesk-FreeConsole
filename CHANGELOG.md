@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### Fixed
+- **Browser Remote Desktop over relay WSS:** send raw RustDesk protobuf
+  payloads as native WebSocket messages and translate framing only in the
+  optional Node TCP bridge, including mixed browser-WebSocket/desktop-TCP
+  sessions.
+
 ### Changed
 - _(none yet)_
 
