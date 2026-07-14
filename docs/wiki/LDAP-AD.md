@@ -70,7 +70,7 @@ Configure **LDAP or Active Directory** authentication so operators sign in with 
 
 After LDAP is enabled and saved:
 
-1. Update BetterDesk to a build that includes RustDesk client LDAP support (**3.3.64+** on development channel; **3.4+** on stable)
+1. Update BetterDesk to a build that includes RustDesk client LDAP support (**v3.3.64+** on the **Development** update channel — Settings → Updates → Update channel)
 2. Confirm web console LDAP login works for the same account
 3. In the RustDesk client: account icon → **Login**
 4. Server URL: `http(s)://<your-server>:21114` (direct Go API) or `:21121` (Client API proxy)
@@ -97,7 +97,7 @@ Browser redirect / OIDC for the desktop app is a separate feature and is **not**
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Test connection fails | Wrong host, port, TLS mode, or bind DN/password | Verify LDAPS vs StartTLS; check firewall to DC |
-| Web login works, client says "Invalid credentials" | Server not updated to LDAP client login build | Update via Settings → Updates (dev channel for 3.3.64+, stable **3.4+**) |
+| Web login works, client says "Invalid credentials" | Server not updated to LDAP client login build | Update via Settings → Updates on the **Development** channel (v3.3.64+) |
 | Valid AD password rejected in panel | User exists as `local` provider | Remove or rename local collision; use LDAP-only account |
 | User gets wrong role | Group map mismatch | Check **Group → Role Map** DNs; confirm **Default Role** |
 | TLS / certificate errors | Self-signed or private CA | Install trusted CA on server, or use lab-only **Skip TLS verify** |
