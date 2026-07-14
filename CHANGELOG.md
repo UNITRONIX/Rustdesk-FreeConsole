@@ -30,6 +30,13 @@
 
 ---
 
+## [3.3.138] — 2026-07-13
+
+### Changed
+- _(none yet)_
+
+---
+
 ## [3.3.137] — 2026-07-12
 
 ### Security
@@ -1913,3 +1920,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.135]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.134...v3.3.135
 [3.3.136]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.135...v3.3.136
 [3.3.137]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.136...v3.3.137
+[3.3.138]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.137...v3.3.138
