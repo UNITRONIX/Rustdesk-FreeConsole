@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Fixed
+- **Device List widget popout:** load the complete widget stylesheet in
+  detached windows, retain a compact fallback layout, prioritize connected
+  devices and show their current server-observed duration.
+
 ### Changed
 - _(none yet)_
 

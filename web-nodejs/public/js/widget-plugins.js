@@ -16,6 +16,10 @@
         return d.innerHTML;
     }
 
+    function escAttr(s) {
+        return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     // ============ Registry API ============
 
     function register(type, config) {
@@ -63,6 +67,28 @@
         if (seconds < 3600) return Math.floor(seconds / 60) + 'm';
         if (seconds < 86400) return Math.floor(seconds / 3600) + 'h';
         return Math.floor(seconds / 86400) + 'd';
+    }
+
+    function connectedSeconds(peer) {
+        if (peer && peer.online_since) {
+            var startedAt = new Date(peer.online_since).getTime();
+            if (Number.isFinite(startedAt)) {
+                return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+            }
+        }
+        var reported = Number(peer && peer.online_seconds);
+        return Number.isFinite(reported) && reported >= 0 ? Math.floor(reported) : null;
+    }
+
+    function formatConnectedDuration(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) return '';
+        var totalMinutes = Math.floor(seconds / 60);
+        var days = Math.floor(totalMinutes / 1440);
+        var hours = Math.floor((totalMinutes % 1440) / 60);
+        var minutes = totalMinutes % 60;
+        if (days > 0) return days + 'd ' + String(hours).padStart(2, '0') + 'h ' + String(minutes).padStart(2, '0') + 'm';
+        if (hours > 0) return hours + 'h ' + String(minutes).padStart(2, '0') + 'm';
+        return minutes + 'm';
     }
 
     // ============ Built-in Widgets ============
@@ -268,7 +294,6 @@
                 var peers = [];
                 if (data && data.devices) peers = data.devices;
                 else if (Array.isArray(data)) peers = data;
-                if (!peers.length) return;
 
                 var list = body.querySelector('.widget-device-list');
                 if (!list) return;
@@ -278,14 +303,36 @@
                 }
 
                 var html = '';
-                peers.slice(0, 50).forEach(function (p) {
+                peers.slice().sort(function (a, b) {
+                    var aOnline = !!(a.live_online || a.online);
+                    var bOnline = !!(b.live_online || b.online);
+                    if (aOnline !== bOnline) return aOnline ? -1 : 1;
+                    var aName = a.display_name || a.hostname || a.name || a.id || '';
+                    var bName = b.display_name || b.hostname || b.name || b.id || '';
+                    return aName.localeCompare(bName);
+                }).slice(0, 50).forEach(function (p) {
                     var online = p.live_online || p.online || false;
                     var status = online ? 'online' : 'offline';
+                    var deviceId = String(p.id || '-');
+                    var deviceName = String(p.display_name || p.hostname || p.name || deviceId);
+                    var platform = String(p.platform || p.os || '');
+                    var seconds = online ? connectedSeconds(p) : null;
+                    var duration = online ? formatConnectedDuration(seconds) : '';
+                    var statusLabel = online ? t('devices.connected') : t('devices.disconnected');
+                    var durationTitle = duration ? t('devices.connected_for') + ' ' + duration : statusLabel;
                     html += '<div class="widget-device-row">' +
                         '<div class="widget-device-dot ' + status + '"></div>' +
-                        '<div class="widget-device-id">' + esc(p.id) + '</div>' +
-                        '<div class="widget-device-name">' + esc(p.hostname || p.name || '-') + '</div>' +
-                        '<div class="widget-device-platform">' + esc(p.platform || p.os || '') + '</div>' +
+                        '<div class="widget-device-identity">' +
+                            '<div class="widget-device-name" title="' + escAttr(deviceName) + '">' + esc(deviceName) + '</div>' +
+                            '<div class="widget-device-meta">' +
+                                '<span class="widget-device-id">' + esc(deviceId) + '</span>' +
+                                '<span class="widget-device-platform">' + esc(platform) + '</span>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="widget-device-connection ' + status + '" title="' + escAttr(durationTitle) + '">' +
+                            '<span class="widget-device-connection-status">' + esc(statusLabel) + '</span>' +
+                            (duration ? '<span class="widget-device-duration">' + esc(duration) + '</span>' : '') +
+                        '</div>' +
                     '</div>';
                 });
                 list.innerHTML = html;
