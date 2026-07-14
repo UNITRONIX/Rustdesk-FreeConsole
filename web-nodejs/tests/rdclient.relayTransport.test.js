@@ -111,6 +111,47 @@ describe('RDClient raw relay messages', () => {
         expect(() => client.setKeyboardMode('Auto')).not.toThrow();
         expect(client._currentDisplay).toBe(0);
     });
+
+    it('lazy-loads dedicated file-transfer dependencies for legacy viewer layouts', async () => {
+        const appended = [];
+        let sandbox;
+        const document = {
+            scripts: [{ src: 'https://console.example.test/js/rdclient/client.js?v=runtime-42' }],
+            querySelector: () => null,
+            createElement: () => {
+                const handlers = {};
+                return {
+                    dataset: {},
+                    addEventListener(type, fn) { handlers[type] = fn; },
+                    _dispatch(type) { if (handlers[type]) handlers[type](); },
+                };
+            },
+            head: {
+                appendChild(script) {
+                    appended.push(script.src);
+                    if (script.src.includes('/compress.js')) sandbox.RDCompress = function RDCompress() {};
+                    if (script.src.includes('/file-connection.js')) sandbox.RDFileConnection = function RDFileConnection() {};
+                    script._dispatch('load');
+                },
+            },
+        };
+        sandbox = loadBrowserScript('public/js/rdclient/client.js', {
+            document,
+            location: { href: 'https://console.example.test/remote/device' },
+            URL,
+        });
+        const client = Object.create(sandbox.RDClient.prototype);
+        client._fileTransferRuntimePromise = null;
+
+        await client._loadFileTransferRuntime();
+
+        expect(appended).toEqual([
+            '/js/rdclient/compress.js?v=runtime-42',
+            '/js/rdclient/file-connection.js?v=runtime-42',
+        ]);
+        expect(typeof sandbox.RDCompress).toBe('function');
+        expect(typeof sandbox.RDFileConnection).toBe('function');
+    });
 });
 
 describe('RDFileConnection raw relay messages', () => {

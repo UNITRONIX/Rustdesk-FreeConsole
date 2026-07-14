@@ -41,6 +41,7 @@ class RDClient {
         this.renderer = new RDRenderer(canvas);
         this.input = new RDInput(canvas, this.renderer, (msg) => this._sendPeerMessage(msg));
         this._fileConnection = null;
+        this._fileTransferRuntimePromise = null;
         this._sessionPassword = '';
         this.fileTransfer = new RDFileTransfer({
             proto: this.proto,
@@ -269,13 +270,61 @@ class RDClient {
         return !!(this._fileConnection && this._fileConnection.state === 'ready');
     }
 
-    async ensureFileConnection() {
-        if (typeof RDFileConnection !== 'function') {
-            throw new Error('File transfer module not loaded');
+    _loadRuntimeScript(path, ready) {
+        if (ready()) return Promise.resolve();
+        if (typeof document === 'undefined' || !document.head) {
+            return Promise.reject(new Error('File transfer runtime is unavailable'));
         }
+
+        return new Promise((resolve, reject) => {
+            const existing = document.querySelector('script[data-rd-runtime="' + path + '"]');
+            const script = existing || document.createElement('script');
+            const finish = () => ready()
+                ? resolve()
+                : reject(new Error('Could not load ' + path));
+
+            script.addEventListener('load', finish, { once: true });
+            script.addEventListener('error', () => reject(new Error('Could not load ' + path)), { once: true });
+            if (existing) return;
+
+            const clientScript = Array.from(document.scripts || []).find((node) =>
+                node.src && node.src.includes('/js/rdclient/client.js')
+            );
+            let versionQuery = '';
+            if (clientScript && clientScript.src) {
+                try { versionQuery = new URL(clientScript.src, window.location.href).search; }
+                catch (_e) { versionQuery = ''; }
+            }
+            script.src = path + versionQuery;
+            script.async = false;
+            script.dataset.rdRuntime = path;
+            document.head.appendChild(script);
+        });
+    }
+
+    _loadFileTransferRuntime() {
+        const hasConnection = () => typeof window !== 'undefined'
+            && typeof window.RDFileConnection === 'function';
+        const hasCompression = () => typeof window !== 'undefined'
+            && typeof window.RDCompress === 'function';
+        if (hasConnection() && hasCompression()) return Promise.resolve();
+        if (this._fileTransferRuntimePromise) return this._fileTransferRuntimePromise;
+
+        this._fileTransferRuntimePromise = Promise.resolve()
+            .then(() => this._loadRuntimeScript('/js/rdclient/compress.js', hasCompression))
+            .then(() => this._loadRuntimeScript('/js/rdclient/file-connection.js', hasConnection))
+            .catch((err) => {
+                this._fileTransferRuntimePromise = null;
+                throw err;
+            });
+        return this._fileTransferRuntimePromise;
+    }
+
+    async ensureFileConnection() {
+        await this._loadFileTransferRuntime();
         if (!this.proto.loaded) await this.proto.load();
         if (!this._fileConnection) {
-            this._fileConnection = new RDFileConnection({
+            this._fileConnection = new window.RDFileConnection({
                 deviceId: this.deviceId,
                 serverPubKey: this.opts.serverPubKey || '',
                 myName: this.opts.myName || 'BetterDesk Web',

@@ -1,6 +1,9 @@
 ## [Unreleased]
 
 ### Fixed
+- **Browser file transfer on legacy viewer layouts:** lazy-load the dedicated
+  file relay and compression runtime, wait for the file-transfer session before
+  browsing, and report connection failures through the UI.
 - **Browser Remote Desktop over relay WSS:** send raw RustDesk protobuf
   payloads as native WebSocket messages and translate framing only in the
   optional Node TCP bridge, including mixed browser-WebSocket/desktop-TCP
