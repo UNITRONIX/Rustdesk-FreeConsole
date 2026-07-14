@@ -568,6 +568,8 @@
         "oidc_client_secret": "ग्राहक रहस्य",
         "oidc_redirect_url": "URL को पुनर्निर्देशित करें (कॉलबैक)",
         "oidc_redirect_url_hint": "आपके आईडीपी में जो कॉन्फ़िगर किया गया है उससे बिल्कुल मेल खाना चाहिए। आमतौर पर: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "पैनल URL",
+        "oidc_panel_url_hint": "URL जिसका उपयोग ऑपरेटर वेब कंसोल खोलने के लिए करते हैं (पोर्ट 5000 या reverse-proxy होस्टनाम)। SSO लॉगिन के लिए आवश्यक जब OIDC callback Go API पोर्ट पर चलता है।",
         "oidc_scopes": "कार्यक्षेत्र",
         "oidc_use_pkce": "PKCE का उपयोग करें (अनुशंसित)",
         "oidc_auto_discovery": "स्वत: खोज",

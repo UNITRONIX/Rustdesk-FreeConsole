@@ -562,6 +562,8 @@
         "oidc_client_secret": "クライアントシークレット",
         "oidc_redirect_url": "URL リダイレクト (コールバック)",
         "oidc_redirect_url_hint": "IdP で構成されている内容と正確に一致する必要があります。通常: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "パネル URL",
+        "oidc_panel_url_hint": "オペレーターが Web コンソールを開く URL（ポート 5000 またはリバースプロキシのホスト名）。OIDC コールバックが Go API ポートで動作する場合の SSO ログインに必要です。",
         "oidc_scopes": "スコープ",
         "oidc_use_pkce": "PKCE を使用します (推奨)",
         "oidc_auto_discovery": "自動検出",

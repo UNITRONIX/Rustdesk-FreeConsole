@@ -562,6 +562,8 @@
         "oidc_client_secret": "Segreto client",
         "oidc_redirect_url": "URL di reindirizzamento (callback)",
         "oidc_redirect_url_hint": "Deve corrispondere esattamente alla configurazione nel provider IdP. Di solito: http(s)://tuo-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "URL del pannello",
+        "oidc_panel_url_hint": "URL usato dagli operatori per aprire la console web (porta 5000 o hostname del reverse proxy). Obbligatorio per l'accesso SSO quando il callback OIDC è sul porto API Go.",
         "oidc_scopes": "Ambiti",
         "oidc_use_pkce": "Usa PKCE (consigliato)",
         "oidc_auto_discovery": "Discovery automatica",

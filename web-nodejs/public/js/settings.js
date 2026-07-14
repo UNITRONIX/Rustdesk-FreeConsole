@@ -4520,6 +4520,7 @@
         setVal('oidc-client-id', data.client_id);
         setVal('oidc-client-secret', data.client_secret);
         setVal('oidc-redirect-url', data.redirect_url);
+        setVal('oidc-panel-url', data.panel_url || window.location.origin);
         setVal('oidc-scopes', data.scopes || 'openid profile email');
         setChecked('oidc-use-pkce', data.use_pkce);
         setChecked('oidc-auto-discovery', data.auto_discovery !== false);
@@ -4558,6 +4559,7 @@
             client_id: getVal('oidc-client-id'),
             client_secret: getVal('oidc-client-secret'),
             redirect_url: getVal('oidc-redirect-url'),
+            panel_url: getVal('oidc-panel-url') || window.location.origin,
             scopes: getVal('oidc-scopes'),
             use_pkce: getChecked('oidc-use-pkce'),
             auto_discovery: getChecked('oidc-auto-discovery'),

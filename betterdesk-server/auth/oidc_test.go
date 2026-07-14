@@ -393,3 +393,91 @@ func TestCleanupStates(t *testing.T) {
 		t.Error("expired state should have been cleaned up")
 	}
 }
+
+func TestIsValidPanelBaseURL(t *testing.T) {
+	tests := []struct {
+		url  string
+		want bool
+	}{
+		{"http://192.168.1.10:5000", true},
+		{"https://console.example.com", true},
+		{"http://console.example.com/", true},
+		{"", false},
+		{"/api/auth/oidc/session", false},
+		{"ftp://console.example.com", false},
+		{"https://console.example.com/path", false},
+	}
+	for _, tt := range tests {
+		got := IsValidPanelBaseURL(tt.url)
+		if got != tt.want {
+			t.Errorf("IsValidPanelBaseURL(%q) = %v, want %v", tt.url, got, tt.want)
+		}
+	}
+}
+
+func TestBuildOIDCSessionURL(t *testing.T) {
+	code := "abc123"
+	got := BuildOIDCSessionURL("http://192.168.1.10:5000", code)
+	want := "http://192.168.1.10:5000/api/auth/oidc/session?code=abc123"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+
+	relative := BuildOIDCSessionURL("", code)
+	if relative != "/api/auth/oidc/session?code=abc123" {
+		t.Errorf("empty panel base should be relative, got %q", relative)
+	}
+}
+
+func TestExchangeCodePreservesReturnURL(t *testing.T) {
+	payload := map[string]interface{}{
+		"preferred_username": "sso-user",
+	}
+	payloadJSON, _ := json.Marshal(payload)
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payloadJSON)
+	idToken := "eyJhbGciOiJSUzI1NiJ9." + payloadB64 + ".fakesignature"
+
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/token" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"access_token": "access-token",
+			"id_token":     idToken,
+		})
+	}))
+	defer tokenSrv.Close()
+
+	cfg := &OIDCConfig{
+		Enabled:          true,
+		ClientID:         "client",
+		RedirectURL:      "http://localhost/callback",
+		AuthorizationURL: "https://idp.example.com/authorize",
+		TokenURL:         tokenSrv.URL + "/token",
+		Scopes:           "openid",
+		ClaimUsername:    "preferred_username",
+	}
+	p := NewOIDCProvider(cfg)
+
+	_, state, err := p.BuildAuthURL("/dashboard")
+	if err != nil {
+		t.Fatalf("BuildAuthURL error: %v", err)
+	}
+
+	result, err := p.ExchangeCode(context.Background(), "code123", state)
+	if err != nil {
+		t.Fatalf("ExchangeCode error: %v", err)
+	}
+	if result.ReturnURL != "/dashboard" {
+		t.Errorf("ReturnURL = %q, want /dashboard", result.ReturnURL)
+	}
+	if result.Username != "sso-user" {
+		t.Errorf("Username = %q, want sso-user", result.Username)
+	}
+
+	// State is consumed — GetReturnURL should no longer find it.
+	if got := p.GetReturnURL(state); got != "" {
+		t.Errorf("GetReturnURL after ExchangeCode = %q, want empty", got)
+	}
+}

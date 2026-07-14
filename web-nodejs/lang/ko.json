@@ -562,6 +562,8 @@
         "oidc_client_secret": "클라이언트 비밀번호",
         "oidc_redirect_url": "URL 리디��션(콜백)",
         "oidc_redirect_url_hint": "IdP에 구성된 것과 정확히 일치해야 합니다. 일반적으로: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "패널 URL",
+        "oidc_panel_url_hint": "운영자가 웹 콘솔을 여는 URL(포트 5000 또는 리버스 프록시 호스트명). OIDC 콜백이 Go API 포트에서 실행될 때 SSO 로그인에 필요합니다.",
         "oidc_scopes": "범위",
         "oidc_use_pkce": "PKCE 사용(권장)",
         "oidc_auto_discovery": "자동 검색",

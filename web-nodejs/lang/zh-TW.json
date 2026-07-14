@@ -562,6 +562,8 @@
         "oidc_client_secret": "客戶端密鑰",
         "oidc_redirect_url": "重定向 URL (回調)",
         "oidc_redirect_url_hint": "必須與身份提供商中的配置完全匹配。通常爲: http(s)://your-server:21121/api/auth/oidc/callback",
+        "oidc_panel_url": "面板 URL",
+        "oidc_panel_url_hint": "操作員用於開啟 Web 控制台的 URL（連接埠 5000 或反向代理主機名稱）。當 OIDC 回呼在 Go API 連接埠上執行時，SSO 登入需要此設定。",
         "oidc_scopes": "作用域",
         "oidc_use_pkce": "使用 PKCE (推薦)",
         "oidc_auto_discovery": "自動發現",

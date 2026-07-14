@@ -568,6 +568,8 @@
         "oidc_client_secret": "Ügyfél titka",
         "oidc_redirect_url": "URL átirányítása (visszahívás)",
         "oidc_redirect_url_hint": "Pontosan meg kell egyeznie az IdP-ben konfiguráltal. Általában: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "Panel URL",
+        "oidc_panel_url_hint": "URL, amelyen az operátorok megnyitják a webes konzolt (5000-es port vagy reverse proxy gazdagép). Szükséges az SSO bejelentkezéshez, ha az OIDC visszahívás a Go API porton fut.",
         "oidc_scopes": "Hatókör",
         "oidc_use_pkce": "PKCE használata (ajánlott)",
         "oidc_auto_discovery": "Automatikus felfedezés",

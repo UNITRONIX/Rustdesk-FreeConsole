@@ -568,6 +568,8 @@
         "oidc_client_secret": "Klientens hemmelighed",
         "oidc_redirect_url": "Omdiriger URL (tilbagekald)",
         "oidc_redirect_url_hint": "Skal matche nøjagtigt det, der er konfigureret i din IdP. Normalt: http(s)://din-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "Panel-URL",
+        "oidc_panel_url_hint": "URL operatører bruger til at åbne webkonsollen (port 5000 eller reverse-proxy-værtsnavn). Påkrævet til SSO-login, når OIDC-callback kører på Go API-porten.",
         "oidc_scopes": "Omfang",
         "oidc_use_pkce": "Brug PKCE (anbefales)",
         "oidc_auto_discovery": "Automatisk opdagelse",

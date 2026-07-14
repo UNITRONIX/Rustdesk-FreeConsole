@@ -558,6 +558,8 @@
         "oidc_client_secret": "Sekret klienta",
         "oidc_redirect_url": "URL przekierowania (Callback)",
         "oidc_redirect_url_hint": "Musi dokładnie odpowiadać konfiguracji w dostawcy. Zwykle: http(s)://twoj-serwer:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "URL panelu",
+        "oidc_panel_url_hint": "Adres URL, pod którym operatorzy otwierają konsolę web (port 5000 lub nazwa hosta reverse proxy). Wymagany do logowania SSO, gdy callback OIDC działa na porcie Go API.",
         "oidc_scopes": "Zakresy",
         "oidc_use_pkce": "Użyj PKCE (zalecane)",
         "oidc_auto_discovery": "Auto-odkrywanie",

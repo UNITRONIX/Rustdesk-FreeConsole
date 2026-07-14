@@ -25,6 +25,9 @@
 
         // Check OIDC status and show SSO button if enabled
         checkOIDCStatus();
+
+        // Show OIDC/SSO error from redirect query string (?error=oidc_*)
+        showOidcLoginError();
         
         // Password visibility toggle
         passwordToggle?.addEventListener('click', () => {
@@ -212,6 +215,30 @@
                 errorContainer.style.animation = '';
             }, 500);
         }
+    }
+
+    /**
+     * Display OIDC login errors passed via ?error=oidc_* after IdP redirect.
+     */
+    function showOidcLoginError() {
+        const errorContainer = document.getElementById('login-error');
+        const errorMessage = document.getElementById('error-message');
+        if (!errorContainer || !errorMessage) return;
+
+        const params = new URLSearchParams(window.location.search);
+        const errCode = params.get('error');
+        if (!errCode || !errCode.startsWith('oidc_')) return;
+
+        const i18nKey = `auth.${errCode}`;
+        const message = (typeof _ === 'function' && _(i18nKey)) || errCode;
+        errorMessage.textContent = message;
+        errorContainer.classList.remove('hidden');
+
+        // Clean the URL so refresh does not re-show the error
+        params.delete('error');
+        const cleanQuery = params.toString();
+        const cleanUrl = window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '');
+        window.history.replaceState({}, document.title, cleanUrl);
     }
 
     /**

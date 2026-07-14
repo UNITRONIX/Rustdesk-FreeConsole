@@ -568,6 +568,8 @@
         "oidc_client_secret": "Bí mật khách hàng",
         "oidc_redirect_url": "Chuyển hướng URL (Gọi lại)",
         "oidc_redirect_url_hint": "Phải khớp chính xác với những gì được định cấu hình trong IdP của bạn. Thông thường: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "URL bảng điều khiển",
+        "oidc_panel_url_hint": "URL mà người vận hành dùng để mở bảng điều khiển web (cổng 5000 hoặc tên máy chủ reverse proxy). Bắt buộc cho đăng nhập SSO khi callback OIDC chạy trên cổng Go API.",
         "oidc_scopes": "Phạm vi",
         "oidc_use_pkce": "Sử dụng PKCE (được khuyến nghị)",
         "oidc_auto_discovery": "Tự động phát hiện",

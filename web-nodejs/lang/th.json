@@ -568,6 +568,8 @@
         "oidc_client_secret": "ความลับของลูกค้า",
         "oidc_redirect_url": "เปลี่ยนเส้นทาง URL (โทรกลับ)",
         "oidc_redirect_url_hint": "ต้องตรงกันทุกประการกับสิ่งที่กำหนดค่าไว้ใน IdP ของคุณ โดยปกติ: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "URL แผงควบคุม",
+        "oidc_panel_url_hint": "URL ที่ผู้ดำเนินการใช้เปิดคอนโซลเว็บ (พอร์ต 5000 หรือชื่อโฮสต์ reverse proxy) จำเป็นสำหรับการเข้าสู่ระบบ SSO เมื่อ OIDC callback ทำงานบนพอร์ต Go API",
         "oidc_scopes": "ขอบเขต",
         "oidc_use_pkce": "ใช้ PKCE (แนะนำ)",
         "oidc_auto_discovery": "การค้นพบอัตโนมัติ",

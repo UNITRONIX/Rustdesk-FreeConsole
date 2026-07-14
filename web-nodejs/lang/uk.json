@@ -568,6 +568,8 @@
         "oidc_client_secret": "Секрет клієнта",
         "oidc_redirect_url": "Перенаправлення URL (Зворотний дзвінок)",
         "oidc_redirect_url_hint": "Має точно збігатися з тим, що налаштовано у вашому IdP. Зазвичай: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "URL панелі",
+        "oidc_panel_url_hint": "URL, який оператори використовують для відкриття веб-консолі (порт 5000 або ім'я хоста reverse proxy). Потрібен для SSO-входу, коли OIDC callback працює на порту Go API.",
         "oidc_scopes": "Області застосування",
         "oidc_use_pkce": "Використовуйте PKCE (рекомендовано)",
         "oidc_auto_discovery": "Автоматичне виявлення",

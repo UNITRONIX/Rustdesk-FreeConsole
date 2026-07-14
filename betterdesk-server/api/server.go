@@ -492,6 +492,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/auth/oidc/status", s.handleOIDCLoginStatus)
 	mux.HandleFunc("GET /api/auth/oidc/authorize", s.handleOIDCAuthorize)
 	mux.HandleFunc("GET /api/auth/oidc/callback", s.handleOIDCCallback)
+	mux.HandleFunc("GET /api/auth/oidc/session", s.handleOIDCSessionRedirect)
 	mux.HandleFunc("POST /api/auth/oidc/exchange", s.handleOIDCExchange)
 
 	// Combined SSO status — public, used by Node.js console to detect

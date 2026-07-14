@@ -569,6 +569,8 @@
         "oidc_client_secret": "سر العميل",
         "oidc_redirect_url": "إعادة توجيه URL (رد الاتصال)",
         "oidc_redirect_url_hint": "يجب أن يتطابق تمامًا مع ما تم تكوينه في IdP الخاص بك. عادةً: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "رابط لوحة التحكم",
+        "oidc_panel_url_hint": "عنوان URL الذي يستخدمه المشغّلون لفتح وحدة التحكم (المنفذ 5000 أو اسم مضيف وكيل عكسي). مطلوب لتسجيل الدخول عبر SSO عندما يعمل رد الاتصال OIDC على منفذ Go API.",
         "oidc_scopes": "النطاقات",
         "oidc_use_pkce": "استخدم PKCE (مستحسن)",
         "oidc_auto_discovery": "الاكتشاف التلقائي",

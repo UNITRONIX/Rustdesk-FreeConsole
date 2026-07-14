@@ -568,6 +568,8 @@
         "oidc_client_secret": "Müşteri Sırrı",
         "oidc_redirect_url": "URL'yi yönlendir (Geri arama)",
         "oidc_redirect_url_hint": "IdP'nizde yapılandırılanlarla tam olarak eşleşmelidir. Genellikle: http(s):://sunucunuz:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "Panel URL",
+        "oidc_panel_url_hint": "Operatörlerin web konsolunu açmak için kullandığı URL (5000 portu veya reverse proxy ana bilgisayar adı). OIDC geri araması Go API portunda çalıştığında SSO girişi için gereklidir.",
         "oidc_scopes": "Kapsamlar",
         "oidc_use_pkce": "PKCE kullanın (önerilir)",
         "oidc_auto_discovery": "Otomatik keşif",

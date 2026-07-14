@@ -568,6 +568,8 @@
         "oidc_client_secret": "Secretul clientului",
         "oidc_redirect_url": "Redirecționare URL (apel invers)",
         "oidc_redirect_url_hint": "Trebuie să se potrivească exact cu ceea ce este configurat în IdP. De obicei: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "URL panou",
+        "oidc_panel_url_hint": "URL folosit de operatori pentru a deschide consola web (port 5000 sau nume gazdă reverse proxy). Necesar pentru autentificarea SSO când callback-ul OIDC rulează pe portul API Go.",
         "oidc_scopes": "Domenii de aplicare",
         "oidc_use_pkce": "Utilizați PKCE (recomandat)",
         "oidc_auto_discovery": "Descoperire automată",

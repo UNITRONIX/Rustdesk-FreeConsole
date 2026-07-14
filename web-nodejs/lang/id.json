@@ -568,6 +568,8 @@
         "oidc_client_secret": "Rahasia Klien",
         "oidc_redirect_url": "Pengalihan URL (Panggilan Balik)",
         "oidc_redirect_url_hint": "Harus sama persis dengan apa yang dikonfigurasi di IdP Anda. Biasanya: http://server-Anda:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "URL Panel",
+        "oidc_panel_url_hint": "URL yang digunakan operator untuk membuka konsol web (port 5000 atau hostname reverse proxy). Diperlukan untuk login SSO saat callback OIDC berjalan di port Go API.",
         "oidc_scopes": "Lingkup",
         "oidc_use_pkce": "Gunakan PKCE (disarankan)",
         "oidc_auto_discovery": "Penemuan otomatis",

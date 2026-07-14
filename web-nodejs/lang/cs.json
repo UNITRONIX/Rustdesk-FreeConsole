@@ -562,6 +562,8 @@
         "oidc_client_secret": "Tajný klíč klienta",
         "oidc_redirect_url": "Adresa URL přesměrování (callback)",
         "oidc_redirect_url_hint": "Musí přesně odpovídat nastavení u vašeho IdP. Obvykle: http(s)://vas-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "URL panelu",
+        "oidc_panel_url_hint": "URL, kterou operátoři používají pro otevření webové konzole (port 5000 nebo hostname reverse proxy). Vyžadováno pro SSO přihlášení, když OIDC callback běží na Go API portu.",
         "oidc_scopes": "Rozsahy",
         "oidc_use_pkce": "Použít PKCE (doporučeno)",
         "oidc_auto_discovery": "Automatické zjištění",

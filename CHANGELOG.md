@@ -9,6 +9,7 @@
 
 ### Fixed
 - **External reverse proxy (#267):** wizard asks whether Caddy/Nginx runs on the same host; remote-proxy setups get `HOST=0.0.0.0` and LAN upstream in generated snippets (instead of always `127.0.0.1`).
+- **OIDC SSO login (#269):** after IdP callback on the Go API port, the browser is redirected to the configured **Panel URL** (Settings → Authentication → OIDC) so the Node.js console can create the session cookie. Fixes `Invalid or missing credentials` on Docker / split-port setups. Also preserves post-login return URL from OAuth state and shows OIDC error messages on the login page.
 
 ### Changed
 - _(none yet)_

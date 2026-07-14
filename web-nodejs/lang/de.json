@@ -562,6 +562,8 @@
         "oidc_client_secret": "Client-Secret",
         "oidc_redirect_url": "Weiterleitungs-URL (Callback)",
         "oidc_redirect_url_hint": "Muss exakt mit der Konfiguration in Ihrem IdP übereinstimmen. Üblicherweise: http(s)://ihr-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "Panel-URL",
+        "oidc_panel_url_hint": "URL, über die Operatoren die Web-Konsole öffnen (Port 5000 oder Reverse-Proxy-Hostname). Erforderlich für SSO-Anmeldung, wenn der OIDC-Callback auf dem Go-API-Port läuft.",
         "oidc_scopes": "Scopes",
         "oidc_use_pkce": "PKCE verwenden (empfohlen)",
         "oidc_auto_discovery": "Automatische Discovery",

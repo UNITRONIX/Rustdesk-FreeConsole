@@ -562,6 +562,8 @@
         "oidc_client_secret": "Clientgeheim",
         "oidc_redirect_url": "Omleidings-URL (callback)",
         "oidc_redirect_url_hint": "Moet exact overeenkomen met de configuratie in uw IdP. Meestal: http(s)://uw-server:21114/api/auth/oidc/callback",
+        "oidc_panel_url": "Panel-URL",
+        "oidc_panel_url_hint": "URL die operators gebruiken om de webconsole te openen (poort 5000 of reverse-proxy-hostname). Vereist voor SSO-aanmelding wanneer de OIDC-callback op de Go API-poort draait.",
         "oidc_scopes": "Scopes",
         "oidc_use_pkce": "PKCE gebruiken (aanbevolen)",
         "oidc_auto_discovery": "Automatische discovery",

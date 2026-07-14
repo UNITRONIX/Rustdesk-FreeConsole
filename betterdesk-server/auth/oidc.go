@@ -35,6 +35,7 @@ type OIDCConfig struct {
 	ClientID         string `json:"client_id"`          // OAuth2 client ID
 	ClientSecret     string `json:"client_secret"`      // OAuth2 client secret
 	RedirectURL      string `json:"redirect_url"`       // e.g. "https://betterdesk.example.com/api/auth/oidc/callback"
+	PanelURL         string `json:"panel_url"`          // e.g. "https://betterdesk.example.com" (Node console origin)
 	Scopes           string `json:"scopes"`             // space-separated, default "openid profile email"
 	UsePKCE          bool   `json:"use_pkce"`           // enable PKCE (S256)
 	AutoDiscovery    bool   `json:"auto_discovery"`     // use .well-known/openid-configuration
@@ -59,6 +60,7 @@ type OIDCResult struct {
 	Role          string
 	Groups        []string
 	IDToken       string // raw ID token for audit
+	ReturnURL     string // post-login relative path from OAuth state
 }
 
 // oidcDiscovery holds discovered OIDC endpoints.
@@ -313,6 +315,8 @@ func (p *OIDCProvider) ExchangeCode(ctx context.Context, code, state string) (*O
 		return nil, fmt.Errorf("invalid or expired state parameter")
 	}
 
+	returnURL := stateEntry.ReturnURL
+
 	// Check state age (10 minute max)
 	if time.Since(stateEntry.CreatedAt) > 10*time.Minute {
 		return nil, fmt.Errorf("state parameter expired")
@@ -444,6 +448,7 @@ func (p *OIDCProvider) ExchangeCode(ctx context.Context, code, state string) (*O
 
 	// Map groups to role
 	result.Role = p.resolveRole(result.Groups)
+	result.ReturnURL = returnURL
 
 	return result, nil
 }
@@ -543,6 +548,47 @@ func (p *OIDCProvider) cleanupStates() {
 		}
 		p.mu.Unlock()
 	}
+}
+
+// NormalizePanelBaseURL trims whitespace and trailing slashes from a panel origin URL.
+func NormalizePanelBaseURL(u string) string {
+	return strings.TrimRight(strings.TrimSpace(u), "/")
+}
+
+// IsValidPanelBaseURL validates a panel origin (scheme + host only, http/https).
+func IsValidPanelBaseURL(u string) bool {
+	u = NormalizePanelBaseURL(u)
+	if u == "" {
+		return false
+	}
+	if strings.ContainsAny(u, "\r\n\x00") {
+		return false
+	}
+	parsed, err := url.Parse(u)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return false
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	return true
+}
+
+// BuildOIDCSessionURL builds the browser redirect target after IdP callback.
+// When panelBase is empty, returns a relative path (legacy split-port behavior).
+func BuildOIDCSessionURL(panelBase, authCode string) string {
+	path := "/api/auth/oidc/session?code=" + url.QueryEscape(authCode)
+	base := NormalizePanelBaseURL(panelBase)
+	if base == "" || !IsValidPanelBaseURL(base) {
+		return path
+	}
+	return base + path
 }
 
 // IsRelativeReturnURL validates that a return URL is a safe relative path.
