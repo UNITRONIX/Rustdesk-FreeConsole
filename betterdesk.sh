@@ -1146,6 +1146,7 @@ apply_console_protocol_mode() {
         _upsert_env_line "$env_file" RUSTDESK_API_TLS false
         _upsert_env_line "$env_file" ALLOW_SELF_SIGNED_CERTS false
         _upsert_env_line "$env_file" HTTP_REDIRECT_HTTPS false
+        _upsert_env_line "$env_file" TRUST_PROXY false
         _upsert_env_line "$env_file" HBBS_API_URL "http://localhost:${go_port}/api"
         _upsert_env_line "$env_file" BETTERDESK_API_URL "http://localhost:${go_port}/api"
         _remove_env_line "$env_file" NODE_EXTRA_CA_CERTS
@@ -1156,15 +1157,18 @@ apply_console_protocol_mode() {
             _upsert_systemd_env "$svc_file" RUSTDESK_API_TLS false
             _upsert_systemd_env "$svc_file" ALLOW_SELF_SIGNED_CERTS false
             _upsert_systemd_env "$svc_file" HTTP_REDIRECT_HTTPS false
+            _upsert_systemd_env "$svc_file" TRUST_PROXY false
             sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
             sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
             _remove_systemd_env "$svc_file" NODE_EXTRA_CA_CERTS
             _remove_systemd_env "$svc_file" ENTERPRISE_TLS
         fi
+        sync_go_server_trust_proxy no
     elif [ "$mode" = "https" ]; then
         _upsert_env_line "$env_file" HTTPS_ENABLED true
         _upsert_env_line "$env_file" SSL_CERT_PATH "$cert_crt"
         _upsert_env_line "$env_file" SSL_KEY_PATH "$cert_key"
+        _upsert_env_line "$env_file" TRUST_PROXY false
         if ! grep -q '^HTTPS_PORT=' "$env_file" 2>/dev/null; then
             _upsert_env_line "$env_file" HTTPS_PORT 5443
         fi
@@ -1186,6 +1190,7 @@ apply_console_protocol_mode() {
             _upsert_systemd_env "$svc_file" HTTP_REDIRECT_HTTPS true
             _upsert_systemd_env "$svc_file" RUSTDESK_API_TLS "$api_tls"
             _upsert_systemd_env "$svc_file" ALLOW_SELF_SIGNED_CERTS "$allow_self_signed"
+            _upsert_systemd_env "$svc_file" TRUST_PROXY false
             sed -i "s|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|" "$svc_file"
             sed -i "s|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|" "$svc_file"
             if [ "$allow_self_signed" = "true" ]; then
@@ -1194,6 +1199,7 @@ apply_console_protocol_mode() {
                 _remove_systemd_env "$svc_file" NODE_EXTRA_CA_CERTS
             fi
         fi
+        sync_go_server_trust_proxy no
     else
         print_error "apply_console_protocol_mode: unknown mode '$mode'"
         return 1
@@ -1230,6 +1236,347 @@ clear_go_server_signal_relay_tls() {
     sed -i 's/ -tls-api//g' "$go_svc_file"
     sed -i 's/ -force-https//g' "$go_svc_file"
     systemctl daemon-reload 2>/dev/null || true
+}
+
+# Enable or disable Go server reverse-proxy trust (#267).
+sync_go_server_trust_proxy() {
+    local enable="${1:-yes}"
+    local go_svc_file="/etc/systemd/system/betterdesk-server.service"
+
+    [ -f "$go_svc_file" ] || return 0
+    if [ "$enable" = "yes" ]; then
+        _upsert_systemd_env "$go_svc_file" TRUST_PROXY Y
+        if ! grep -q '\-trust-proxy' "$go_svc_file" 2>/dev/null; then
+            sed -i 's|\(ExecStart=.*betterdesk-server[^$]*\)|\1 -trust-proxy|' "$go_svc_file"
+        fi
+    else
+        _remove_systemd_env "$go_svc_file" TRUST_PROXY
+        sed -i 's/ -trust-proxy//g' "$go_svc_file"
+    fi
+    systemctl daemon-reload 2>/dev/null || true
+}
+
+# Console + Go settings for TLS termination at an external reverse proxy (#267).
+apply_console_reverse_proxy_mode() {
+    local panel_host="${1:-}"
+    local server_id="${2:-}"
+    local ws_origins="${3:-}"
+    local env_file="${CONSOLE_PATH}/.env"
+    local svc_file="/etc/systemd/system/betterdesk-console.service"
+    local go_port="${GO_API_PORT:-21114}"
+
+    apply_console_protocol_mode http
+    clear_go_server_signal_relay_tls
+
+    _upsert_env_line "$env_file" HOST 127.0.0.1
+    _upsert_env_line "$env_file" TRUST_PROXY Y
+    _upsert_env_line "$env_file" HTTP_REDIRECT_HTTPS false
+    _upsert_env_line "$env_file" HBBS_API_URL "http://localhost:${go_port}/api"
+    _upsert_env_line "$env_file" BETTERDESK_API_URL "http://localhost:${go_port}/api"
+
+    if [ -n "$panel_host" ]; then
+        _upsert_env_line "$env_file" PANEL_PUBLIC_HOST "$panel_host"
+        _upsert_env_line "$env_file" PANEL_PUBLIC_URL "https://${panel_host}"
+    fi
+    if [ -n "$server_id" ]; then
+        _upsert_env_line "$env_file" PUBLIC_SERVER_ID "$server_id"
+    elif [ -n "$panel_host" ]; then
+        _upsert_env_line "$env_file" PUBLIC_SERVER_ID "$panel_host"
+    fi
+    if [ -n "$ws_origins" ]; then
+        _upsert_env_line "$env_file" WS_ALLOWED_ORIGINS "$ws_origins"
+    elif [ -n "$panel_host" ]; then
+        _upsert_env_line "$env_file" WS_ALLOWED_ORIGINS "https://${panel_host}"
+    fi
+
+    if [ -f "$svc_file" ]; then
+        _upsert_systemd_env "$svc_file" HOST 127.0.0.1
+        _upsert_systemd_env "$svc_file" TRUST_PROXY Y
+        _upsert_systemd_env "$svc_file" HTTPS_ENABLED false
+        _upsert_systemd_env "$svc_file" HTTP_REDIRECT_HTTPS false
+        _upsert_systemd_env "$svc_file" RUSTDESK_API_TLS false
+    fi
+
+    sync_go_server_trust_proxy yes
+    systemctl daemon-reload 2>/dev/null || true
+}
+
+# Write Caddy/Nginx snippets and verify script under $RUSTDESK_PATH/reverse-proxy/ (#267).
+generate_reverse_proxy_config() {
+    local panel_host="${1:-}"
+    local proxy_type="${2:-caddy}"
+    local route_wss="${3:-yes}"
+    local server_id="${4:-}"
+
+    if [ -z "$panel_host" ]; then
+        read -p "Public panel hostname (e.g., console.example.com): " panel_host
+        if [ -z "$panel_host" ]; then
+            print_error "Hostname is required for reverse-proxy snippets"
+            return 1
+        fi
+    fi
+
+    if [ -z "$proxy_type" ] || [ "$proxy_type" = "prompt" ]; then
+        echo ""
+        echo "  1) Caddy"
+        echo "  2) Nginx"
+        read -p "Proxy type [1]: " _proxy_pick
+        case "${_proxy_pick:-1}" in
+            2) proxy_type="nginx" ;;
+            *) proxy_type="caddy" ;;
+        esac
+    fi
+
+    if [ -z "$route_wss" ] || [ "$route_wss" = "prompt" ]; then
+        if confirm "Route RustDesk WSS paths (/ws/id, /ws/relay) on the same hostname?"; then
+            route_wss="yes"
+        else
+            route_wss="no"
+        fi
+    fi
+
+    if [ -z "$server_id" ]; then
+        if confirm "Use a different hostname for RustDesk ID/relay clients than the panel?"; then
+            read -p "RustDesk ID server hostname (e.g., desk.example.com): " server_id
+        fi
+    fi
+    [ -z "$server_id" ] && server_id="$panel_host"
+
+    local out_dir="$RUSTDESK_PATH/reverse-proxy"
+    mkdir -p "$out_dir"
+
+    local ws_origins="https://${panel_host}"
+    [ "$panel_host" != "$server_id" ] && ws_origins="${ws_origins},https://${server_id}"
+
+    cat > "$out_dir/betterdesk.env.snippet" << EOF
+# BetterDesk reverse-proxy mode (#267) — merge into $CONSOLE_PATH/.env
+HOST=127.0.0.1
+HTTPS_ENABLED=false
+HTTP_REDIRECT_HTTPS=false
+TRUST_PROXY=Y
+PORT=5000
+PANEL_PUBLIC_HOST=${panel_host}
+PANEL_PUBLIC_URL=https://${panel_host}
+PUBLIC_SERVER_ID=${server_id}
+WS_ALLOWED_ORIGINS=${ws_origins}
+EOF
+
+    if [ "$proxy_type" = "nginx" ]; then
+        cat > "$out_dir/nginx.betterdesk.conf.snippet" << EOF
+# BetterDesk reverse-proxy snippet (#267) — merge into your nginx site config.
+# TLS certificates: use certbot --nginx or your existing cert setup.
+
+map \$http_upgrade \$connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    server_name ${panel_host};
+
+    client_max_body_size 100M;
+EOF
+        if [ "$route_wss" = "yes" ]; then
+            cat >> "$out_dir/nginx.betterdesk.conf.snippet" << EOF
+
+    location = /ws/id {
+        proxy_pass http://127.0.0.1:21118;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_buffering off;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+
+    location = /ws/relay {
+        proxy_pass http://127.0.0.1:21119;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_buffering off;
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+EOF
+        fi
+        cat >> "$out_dir/nginx.betterdesk.conf.snippet" << EOF
+
+    location ~ ^/ws/ {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_socket_keepalive on;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        proxy_read_timeout 86400s;
+    }
+}
+EOF
+        print_success "Nginx snippet: $out_dir/nginx.betterdesk.conf.snippet"
+    else
+        cat > "$out_dir/caddy.Caddyfile.snippet" << EOF
+# BetterDesk reverse-proxy snippet (#267) — merge into /etc/caddy/Caddyfile
+# Caddy obtains TLS automatically when this block is active.
+
+${panel_host} {
+EOF
+        if [ "$route_wss" = "yes" ]; then
+            cat >> "$out_dir/caddy.Caddyfile.snippet" << EOF
+    handle /ws/id {
+        reverse_proxy 127.0.0.1:21118
+    }
+    handle /ws/relay {
+        reverse_proxy 127.0.0.1:21119
+    }
+EOF
+        fi
+        cat >> "$out_dir/caddy.Caddyfile.snippet" << EOF
+    reverse_proxy 127.0.0.1:5000
+
+    encode gzip zstd
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}
+EOF
+        if [ "$panel_host" != "$server_id" ]; then
+            cat >> "$out_dir/caddy.Caddyfile.snippet" << EOF
+
+# Optional second site when ID/relay clients use a different hostname:
+# ${server_id} {
+#     handle /ws/id { reverse_proxy 127.0.0.1:21118 }
+#     handle /ws/relay { reverse_proxy 127.0.0.1:21119 }
+# }
+EOF
+        fi
+        print_success "Caddy snippet: $out_dir/caddy.Caddyfile.snippet"
+    fi
+
+    cat > "$out_dir/firewall-notes.txt" << EOF
+BetterDesk reverse-proxy firewall (#267)
+
+Through your reverse proxy (HTTPS :443):
+  - Panel + console WebSockets -> http://127.0.0.1:5000
+$( [ "$route_wss" = "yes" ] && echo "  - RustDesk WSS /ws/id -> :21118, /ws/relay -> :21119" )
+
+Must reach this host directly (not HTTP reverse-proxied):
+  - 21116/tcp + 21116/udp  Signal
+  - 21117/tcp              Relay
+  - 21121/tcp              Client API (unless proxied separately)
+
+Example (ufw):
+  sudo ufw allow 443/tcp
+  sudo ufw allow 21116/tcp
+  sudo ufw allow 21116/udp
+  sudo ufw allow 21117/tcp
+  sudo ufw allow 21121/tcp
+EOF
+
+    cat > "$out_dir/verify.sh" << 'VERIFYEOF'
+#!/usr/bin/env bash
+# BetterDesk reverse-proxy verification (#267)
+set -euo pipefail
+PANEL_HOST="${1:-}"
+if [ -z "$PANEL_HOST" ]; then
+    echo "Usage: $0 <public-hostname>"
+    exit 1
+fi
+echo "=== Local panel (HTTP) ==="
+curl -sI "http://127.0.0.1:5000/" | head -5 || true
+echo ""
+echo "=== Public panel (HTTPS via proxy) ==="
+curl -sI "https://${PANEL_HOST}/" | head -5 || true
+echo ""
+echo "=== Console WebSocket upgrade ==="
+curl -i -N --max-time 8 \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  "https://${PANEL_HOST}/ws/bd-signal" 2>/dev/null | head -8 || true
+VERIFYEOF
+    chmod +x "$out_dir/verify.sh"
+    # Inject hostname into verify script usage (already passed as arg)
+
+    echo ""
+    print_info "Reverse-proxy files written to: $out_dir"
+    print_info "  betterdesk.env.snippet"
+    [ "$proxy_type" = "nginx" ] && print_info "  nginx.betterdesk.conf.snippet" || print_info "  caddy.Caddyfile.snippet"
+    print_info "  verify.sh $panel_host"
+    print_info "  firewall-notes.txt"
+    print_info "Documentation: docs/setup/REVERSE_PROXY.md"
+    echo ""
+    print_warning "Configure your proxy, then open https://${panel_host}/ (not :5443)"
+    if [ "$panel_host" != "$server_id" ]; then
+        print_info "RustDesk clients: ID server ${server_id} (set PUBLIC_SERVER_ID in .env)"
+    fi
+
+    REVERSE_PROXY_GENERATED_HOST="$panel_host"
+    REVERSE_PROXY_GENERATED_SERVER_ID="$server_id"
+    REVERSE_PROXY_GENERATED_WS_ORIGINS="$ws_origins"
+}
+
+# Interactive reverse-proxy wizard: apply BetterDesk settings + emit proxy snippets (#267).
+do_configure_reverse_proxy() {
+    local panel_host server_id ws_origins
+
+    echo ""
+    print_step "Configuring BetterDesk for external reverse proxy (TLS at Caddy/Nginx)..."
+    print_info "Panel stays HTTP on 127.0.0.1:5000; your proxy terminates TLS on :443"
+    echo ""
+
+    read -p "Public panel hostname (e.g., console.example.com): " panel_host
+    if [ -z "$panel_host" ]; then
+        print_error "Hostname is required"
+        return 1
+    fi
+
+    if ! generate_reverse_proxy_config "$panel_host" "prompt" "prompt" ""; then
+        return 1
+    fi
+
+    server_id="${REVERSE_PROXY_GENERATED_SERVER_ID:-$panel_host}"
+    ws_origins="${REVERSE_PROXY_GENERATED_WS_ORIGINS:-https://${panel_host}}"
+
+    apply_console_reverse_proxy_mode "$panel_host" "$server_id" "$ws_origins"
+
+    print_success "BetterDesk configured for external reverse proxy"
+    echo ""
+    print_info "  Panel (local):  http://127.0.0.1:$(resolve_panel_http_port)"
+    print_info "  Panel (public): https://${panel_host}/"
+    print_info "  TRUST_PROXY:    Y (console + Go server)"
+    print_info "  Signal/Relay:   TCP :21116 / :21117 (direct — not HTTP-proxied)"
+    echo ""
+    print_info "Copy proxy snippet from $RUSTDESK_PATH/reverse-proxy/ into Caddy/Nginx, then reload the proxy."
 }
 
 # HTTP redirect listener port (always PORT, default 5000).
@@ -3779,13 +4126,16 @@ do_install() {
     echo -e "${CYAN}║  Key:           ${WHITE}${public_key:0:20}...${CYAN}                          ║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     
-    # Offer HTTPS Enterprise configuration for fresh installs
+    # Offer TLS configuration for fresh installs
     if [ "$install_ok" = true ] && [ "$AUTO_MODE" = false ]; then
         echo ""
-        print_info "🔒 Enterprise TLS enables HTTPS for panel/signal/relay; Go API stays HTTP for compatibility"
-        print_info "   Recommended for production deployments behind trusted operator access"
+        print_info "Production TLS options:"
+        print_info "  • External reverse proxy (Caddy/Nginx on :443) — recommended when a proxy already handles certificates"
+        print_info "  • Enterprise TLS (Option 5 in SSL menu) — BetterDesk-native HTTPS on panel + signal/relay"
         echo ""
-        if confirm "Would you like to configure HTTPS Enterprise now? (Option 5 in SSL menu)"; then
+        if confirm "Will TLS terminate at an external reverse proxy (Caddy/Nginx)?"; then
+            do_configure_reverse_proxy || true
+        elif confirm "Would you like to configure HTTPS Enterprise now? (Option 5 in SSL menu)"; then
             do_configure_ssl
         fi
     fi
@@ -5865,9 +6215,10 @@ do_configure_ssl() {
         $'Self-signed certificate\tLAN / testing only'
         $'Disable SSL\tRevert the console to plain HTTP'
         $'Enterprise TLS\tPanel + signal + relay TLS (API stays HTTP)'
+        $'External reverse proxy\tTLS at Caddy/Nginx — panel HTTP on localhost'
     )
-    local _menu_returns=( 1 2 3 4 5 )
-    menu_choose "SSL Certificate Configuration" "Enables HTTPS for the admin panel + client API"
+    local _menu_returns=( 1 2 3 4 5 6 )
+    menu_choose "SSL Certificate Configuration" "HTTPS for the panel, or TLS at an external reverse proxy"
     local ssl_choice="$MENU_CHOICE"
 
     case "${ssl_choice:-1}" in
@@ -6062,6 +6413,9 @@ do_configure_ssl() {
             print_info "  Relay TLS:   :21117"
             print_info "  Go API HTTP: :${GO_API_PORT:-21114} (RustDesk client compatibility)"
             ;;
+        6)
+            do_configure_reverse_proxy || true
+            ;;
         *)
             print_warning "Invalid option"
             press_enter
@@ -6149,6 +6503,33 @@ run_protocol_tests() {
         panel_port="$https_port"
     else
         panel_port="$http_port"
+    fi
+
+    # ── 2c. External reverse-proxy mode (TRUST_PROXY + plain HTTP panel) ──
+    local trust_proxy_val host_bind
+    trust_proxy_val=$(read_effective_console_setting TRUST_PROXY false)
+    host_bind=$(read_effective_console_setting HOST "127.0.0.1")
+    local _trust_on="no"
+    case "$(echo "$trust_proxy_val" | tr '[:upper:]' '[:lower:]')" in
+        y|yes|1|true|on) _trust_on="yes" ;;
+    esac
+    if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" != "true" ] && [ "$_trust_on" = "yes" ]; then
+        if [ "$host_bind" = "127.0.0.1" ] || [ "$host_bind" = "localhost" ]; then
+            _test_ok "Reverse-proxy mode: panel bound to localhost ($host_bind)"
+        else
+            _test_warn "TRUST_PROXY enabled but HOST=$host_bind (recommended: 127.0.0.1 behind external proxy)"
+        fi
+        if [ -f "$go_svc_file" ] && grep -qE 'Environment=TRUST_PROXY=Y|-trust-proxy' "$go_svc_file" 2>/dev/null; then
+            _test_ok "Go server trusts reverse-proxy headers (TRUST_PROXY / -trust-proxy)"
+        else
+            _test_fail "Go server TRUST_PROXY not enabled — API rate limits may use proxy IP only"
+        fi
+        local rp_dir="$RUSTDESK_PATH/reverse-proxy"
+        if [ -d "$rp_dir" ] && { [ -f "$rp_dir/caddy.Caddyfile.snippet" ] || [ -f "$rp_dir/nginx.betterdesk.conf.snippet" ]; }; then
+            _test_ok "Reverse-proxy snippets in $rp_dir/"
+        else
+            _test_warn "No snippets in $rp_dir/ — re-run SSL menu → External reverse proxy"
+        fi
     fi
 
     # ── 2b. TLS key readable by console user (HTTPS only) ──
@@ -6311,6 +6692,9 @@ run_protocol_tests() {
         if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" = "true" ] && [ "$https_port" = "5443" ]; then
             echo ""
             echo -e "  ${DIM}Tip: for https://your-domain without :5443, set HTTPS_PORT=443 in .env and run Repair → Repair permissions, or re-run Protocol Toggle / SSL config and choose standard port 443. See docs/setup/HTTPS_SETUP.md${NC}"
+        elif [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" != "true" ] && [ "$_trust_on" = "yes" ]; then
+            echo ""
+            echo -e "  ${DIM}Tip: configure Caddy/Nginx using $RUSTDESK_PATH/reverse-proxy/ snippets, then open https://your-domain/ (not :5443). See docs/setup/REVERSE_PROXY.md${NC}"
         fi
     fi
     echo ""
@@ -6348,10 +6732,11 @@ do_toggle_protocol() {
     local _menu_items=(
         $'Switch to HTTP\tEverything plain — LAN / testing'
         $'Switch to HTTPS\tPanel HTTPS + signal/relay TLS'
+        $'External reverse proxy\tTLS at Caddy/Nginx — panel HTTP on localhost'
         $'Back\tReturn to the main menu'
     )
-    local _menu_returns=( 1 2 0 )
-    menu_choose "Protocol Toggle (HTTP / HTTPS)" "Current: ${current_mode} | signal TLS: ${tls_signal} | relay TLS: ${tls_relay}"
+    local _menu_returns=( 1 2 3 0 )
+    menu_choose "Protocol Toggle (HTTP / HTTPS / reverse proxy)" "Current: ${current_mode} | signal TLS: ${tls_signal} | relay TLS: ${tls_relay}"
     local proto_choice="$MENU_CHOICE"
 
     case "${proto_choice:-0}" in
@@ -6546,7 +6931,10 @@ do_toggle_protocol() {
             fi
             maybe_offer_standard_https_port
             ;;
-        0|*)
+        3)
+            do_configure_reverse_proxy || true
+            ;;
+        0|4|*)
             return
             ;;
     esac

@@ -846,6 +846,8 @@ Ensure the following **outbound** ports are accessible from clients to the serve
 
 BetterDesk supports TLS on all layers: Go server transport (signal + relay), Go server HTTPS API, and the Node.js web console.
 
+**External reverse proxy (Caddy/Nginx on :443):** terminate TLS at the proxy; BetterDesk panel stays HTTP on `127.0.0.1:5000`. See [docs/setup/REVERSE_PROXY.md](docs/setup/REVERSE_PROXY.md) and `sudo betterdesk.sh` → SSL Configuration → **External reverse proxy**.
+
 ### Self-Signed Certificate (Quick Start)
 
 For testing or internal networks, generate a self-signed certificate:

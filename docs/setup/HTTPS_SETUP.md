@@ -2,6 +2,8 @@
 
 BetterDesk Console supports native HTTPS with TLS certificates, as well as reverse proxy configurations with Caddy or Nginx.
 
+> **Using Caddy/Nginx on port 443?** See the dedicated [External Reverse Proxy Guide](REVERSE_PROXY.md) — TLS should terminate at your proxy, not via the installer's Let's Encrypt when both would conflict.
+
 ## Quick Start
 
 ### Option 1: Native HTTPS (Self-Signed Certificate)
@@ -102,6 +104,8 @@ If nginx, Caddy, or Nginx Proxy Manager already uses port 443, leave the panel o
 
 ### Option 3: Reverse Proxy with Caddy (Recommended for Production)
 
+> **Full guide:** [REVERSE_PROXY.md](REVERSE_PROXY.md) — decision table, `.env`, firewall, troubleshooting, and installer wizard (`betterdesk.sh` → SSL Configuration → External reverse proxy).
+
 [Caddy](https://caddyserver.com/) automatically provisions and renews HTTPS certificates.
 
 ```bash
@@ -116,6 +120,14 @@ Create `/etc/caddy/Caddyfile`:
 
 ```caddy
 console.yourdomain.com {
+    # RustDesk native client WSS (when allow-websocket=Y) — before catch-all panel route
+    handle /ws/id {
+        reverse_proxy 127.0.0.1:21118
+    }
+    handle /ws/relay {
+        reverse_proxy 127.0.0.1:21119
+    }
+
     reverse_proxy localhost:5000
 
     # Optional: compress responses
@@ -128,6 +140,19 @@ console.yourdomain.com {
         Referrer-Policy strict-origin-when-cross-origin
     }
 }
+```
+
+Caddy sets `X-Forwarded-Proto`, `X-Forwarded-For`, and related headers on upstream requests automatically.
+
+BetterDesk `.env` when using an external proxy:
+
+```env
+HOST=127.0.0.1
+HTTPS_ENABLED=false
+HTTP_REDIRECT_HTTPS=false
+TRUST_PROXY=Y
+PANEL_PUBLIC_HOST=console.yourdomain.com
+WS_ALLOWED_ORIGINS=https://console.yourdomain.com
 ```
 
 ```bash
@@ -407,7 +432,11 @@ If you access the console via HTTPS but see mixed content warnings, ensure `HTTP
 
 ### Behind a Reverse Proxy
 
-When using a reverse proxy (Caddy/Nginx), keep `HTTPS_ENABLED=false` and let the proxy handle TLS. The proxy should set `X-Forwarded-Proto: https` so the application knows the original protocol. Express trusts proxy headers when configured—this is handled automatically.
+When using a reverse proxy (Caddy/Nginx), keep `HTTPS_ENABLED=false` and let the proxy handle TLS. Set **`TRUST_PROXY=Y`** in `.env` (Node.js panel and Go server both accept `Y`; Node also accepts `1` / `yes`). Bind the panel to **`HOST=127.0.0.1`** so it is not exposed without proxy TLS.
+
+The proxy must send **`X-Forwarded-Proto: https`** so secure cookies and redirects work. Caddy does this by default; for Nginx use `proxy_set_header X-Forwarded-Proto $scheme`.
+
+See [REVERSE_PROXY.md](REVERSE_PROXY.md) for the full checklist, generated snippets from `betterdesk.sh`, and RustDesk WSS routing.
 
 ### RustDesk WSS Symptom Guide
 

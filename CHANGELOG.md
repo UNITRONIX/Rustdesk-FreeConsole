@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **External reverse proxy guidance (#267):** new [docs/setup/REVERSE_PROXY.md](docs/setup/REVERSE_PROXY.md); `betterdesk.sh` **External reverse proxy** mode (SSL menu **C** / Protocol Toggle **T**) applies `TRUST_PROXY=Y`, binds panel to localhost, enables Go `-trust-proxy`, and writes Caddy/Nginx snippets under `$RUSTDESK_PATH/reverse-proxy/`.
+
 ### Changed
 - _(none yet)_
 

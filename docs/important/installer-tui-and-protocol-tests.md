@@ -5,6 +5,9 @@
 - `tui_select "title" "subtitle" item...` — pure-bash arrow-key menu. Items use `label\tdesc`. Result in global `TUI_RESULT` (0-based index). Returns 0=selected, 2=cancel(q/Esc/0), 1=unavailable. Hides cursor, `_tui_restore` on exit/INT/TERM.
 - `read_effective_console_setting(key)` — runtime value from systemd `Environment=` (overrides `.env`).
 - `apply_console_protocol_mode(http|https)` — syncs `.env` + `betterdesk-console.service` for protocol toggle (#219).
+- `apply_console_reverse_proxy_mode()` — panel HTTP on `127.0.0.1`, `TRUST_PROXY=Y`, Go `-trust-proxy`; clears panel/signal native TLS (#267).
+- `sync_go_server_trust_proxy()` / cleared when switching to plain HTTP or native HTTPS.
+- `generate_reverse_proxy_config()` / `do_configure_reverse_proxy()` — writes Caddy/Nginx snippets + verify script to `$RUSTDESK_PATH/reverse-proxy/` (#267).
 - `deploy_ssl_material_to_rustdesk_dir()` — copies TLS cert/key into `$RUSTDESK_PATH/ssl/betterdesk.{crt,key}` (not symlinks); tracks `LE_CERT_LIVE_DIR` for certbot renew (#219).
 - `install_le_certbot_renew_hook()` — deploy hook re-copies renewed LE certs then restarts services.
 - `maybe_repair_le_ssl_symlinks()` — auto-fixes legacy LE symlink installs when `ensure_betterdesk_console_user` runs.
@@ -15,9 +18,9 @@
 - `_wait_for_http_code()` — retry helper used by `run_protocol_tests()` so post-restart checks wait for Node boot (#219).
 - `linux-ensure-console-user.js` → `repairLetsEncryptSslMaterial()` — same LE redeploy during Settings → Updates (#219); resolves live dir from `LE_CERT_LIVE_DIR`, cert paths, or `LE_CERT_DOMAIN`.
 - `sync_go_server_signal_relay_tls()` / `clear_go_server_signal_relay_tls()` — shared Go server TLS patching for menus **C** and **T**.
-- `do_configure_ssl` (menu **C**) — unified with `apply_console_protocol_mode` + cert deploy/repair (#219); no separate sed-only `.env` path.
+- `do_configure_ssl` (menu **C**) — unified with `apply_console_protocol_mode` + cert deploy/repair (#219); option **6 External reverse proxy** (#267).
 - `resolve_panel_http_port()` / `resolve_panel_https_port()` / `resolve_panel_health_port()` — HTTPS mode health checks use `HTTPS_PORT` (5443), not `PORT` (5000 redirect listener).
-- `run_protocol_tests()` — post-config checks: services active, TLS key readable by `betterdesk` user, panel on correct scheme/port, optional HTTP→HTTPS redirect, Go API HTTP on :21114, Client API on :21121 with matching TLS mode, signal/relay listeners, cert validity+expiry+SAN, live TLS handshake on :21116; prints effective runtime config at end; hints about standard port 443 when panel is on :5443.
+- `run_protocol_tests()` — post-config checks: services active, TLS key readable by `betterdesk` user, panel on correct scheme/port, optional HTTP→HTTPS redirect, Go API HTTP on :21114, Client API on :21121 with matching TLS mode, signal/relay listeners, cert validity+expiry+SAN, live TLS handshake on :21116; **reverse-proxy mode** checks (`TRUST_PROXY`, localhost bind, snippet dir); prints effective runtime config at end; hints about standard port 443 when panel is on :5443 or reverse-proxy snippets when `TRUST_PROXY=Y`.
 - `maybe_offer_standard_https_port()` — after enabling HTTPS in menus **C** / **T**, optionally sets `HTTPS_PORT=443` + `PORT=80` and runs permission repair for `CAP_NET_BIND_SERVICE`.
 
 ## main() menu
@@ -28,7 +31,11 @@
 - Fix: read DB_TYPE from $CONSOLE_PATH/.env first (also checks -db postgres:// in betterdesk-server.service), branch postgres vs sqlite. Mirrors print_status()/detect_installation() pattern.
 
 ## do_toggle_protocol HTTPS branch
+- Menu: HTTP, HTTPS, **External reverse proxy**, Back (#267).
 - Cert choice: 1=keep existing (auto-repairs LE symlinks), 2=self-signed (RSA4096+SAN), 3=Let's Encrypt (certbot standalone + **copy** to `$RUSTDESK_PATH/ssl/` + deploy renew hook), 4=custom paths (validates X.509). Calls `apply_console_protocol_mode` + `run_protocol_tests` after restart.
+
+## Fresh install TLS prompt
+- Asks **external reverse proxy first** (#267); if yes → `do_configure_reverse_proxy`; else optional Enterprise TLS (menu C option 5).
 
 ## do_configure_ssl (menu C)
 - All branches (LE, custom, self-signed, disable, Enterprise) use the same helpers as Protocol Toggle: `deploy_ssl_material_to_rustdesk_dir`, `apply_console_protocol_mode`, `sync_go_server_signal_relay_tls`, `ensure_console_tls_material_readable` on restart (#219).

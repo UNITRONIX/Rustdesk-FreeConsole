@@ -104,12 +104,17 @@ LOG_LEVEL=info
 
 #### `TRUST_PROXY`
 
-Set to `true` if running behind a reverse proxy (nginx, Caddy, Cloudflare). This enables:
+Set to **`Y`** or **`1`** when running behind a reverse proxy (nginx, Caddy, Cloudflare). This enables:
 - Reading `X-Forwarded-For` for real client IPs in rate limiting
 - Proper `req.protocol` detection for secure cookies
 
+The Go server requires **`TRUST_PROXY=Y`** (or `-trust-proxy`); the Node.js panel also accepts `1` / `yes`.
+
 > [!NOTE]
 > UDP/TCP signal on port **21116** cannot use HTTP headers like `X-Forwarded-For`. `TRUST_PROXY` applies to HTTP/API traffic only.
+
+> [!TIP]
+> External reverse proxy (TLS on Caddy/Nginx :443): see [External Reverse Proxy Guide](../setup/REVERSE_PROXY.md). Use `HOST=127.0.0.1`, `HTTPS_ENABLED=false`, and run `sudo betterdesk.sh` → **External reverse proxy** to generate Caddy/Nginx snippets.
 
 #### `GO_API_PORT` vs `API_PORT`
 
@@ -140,6 +145,15 @@ Switch in **Settings → Updates → Update channel**. See [[Panel Updates|Panel
 | 21121 | TCP (HTTP) | Client API | RustDesk Client API (Node.js) |
 | 21122 | WS | CDAP | CDAP WebSocket gateway |
 | 5000 | TCP (HTTP) | Web Console | Admin/operator panel |
+
+### Reverse proxy vs direct ports
+
+When TLS terminates at **Caddy/Nginx on :443**:
+
+- **HTTP-proxied:** panel (`:5000`), console WebSockets, optional RustDesk WSS paths `/ws/id` → `:21118` and `/ws/relay` → `:21119`
+- **Direct to host (not HTTP reverse proxy):** signal **21116** (TCP+UDP), relay **21117** (TCP), Client API **21121** unless you add a separate API vhost
+
+See [External Reverse Proxy Guide](../setup/REVERSE_PROXY.md).
 
 ### Firewall Configuration
 

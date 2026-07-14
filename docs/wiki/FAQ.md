@@ -118,7 +118,7 @@ See [[TLS / SSL Certificates|TLS-SSL]] for details.
 
 ### Can I use a reverse proxy?
 
-Yes. See the [[Configuration]] page for Nginx examples. Set `TRUST_PROXY=true` in `.env`.
+Yes. See [External Reverse Proxy Guide](../setup/REVERSE_PROXY.md) and [[Configuration]] for Nginx/Caddy examples. Set **`TRUST_PROXY=Y`** (or `1`) in `.env` and `HOST=127.0.0.1` when TLS terminates at the proxy.
 
 ---
 
