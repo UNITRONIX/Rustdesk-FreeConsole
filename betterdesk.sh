@@ -1318,6 +1318,7 @@ apply_console_reverse_proxy_mode() {
     local panel_host="${1:-}"
     local server_id="${2:-}"
     local ws_origins="${3:-}"
+    local panel_bind="${4:-127.0.0.1}"
     local env_file="${CONSOLE_PATH}/.env"
     local svc_file="/etc/systemd/system/betterdesk-console.service"
     local go_port="${GO_API_PORT:-21114}"
@@ -1325,7 +1326,7 @@ apply_console_reverse_proxy_mode() {
     apply_console_protocol_mode http
     clear_go_server_signal_relay_tls
 
-    _upsert_env_line "$env_file" HOST 127.0.0.1
+    _upsert_env_line "$env_file" HOST "$panel_bind"
     _upsert_env_line "$env_file" TRUST_PROXY Y
     _upsert_env_line "$env_file" HTTP_REDIRECT_HTTPS false
     _upsert_env_line "$env_file" HBBS_API_URL "http://localhost:${go_port}/api"
@@ -1347,7 +1348,7 @@ apply_console_reverse_proxy_mode() {
     fi
 
     if [ -f "$svc_file" ]; then
-        _upsert_systemd_env "$svc_file" HOST 127.0.0.1
+        _upsert_systemd_env "$svc_file" HOST "$panel_bind"
         _upsert_systemd_env "$svc_file" TRUST_PROXY Y
         _upsert_systemd_env "$svc_file" HTTPS_ENABLED false
         _upsert_systemd_env "$svc_file" HTTP_REDIRECT_HTTPS false
@@ -1364,6 +1365,8 @@ generate_reverse_proxy_config() {
     local proxy_type="${2:-caddy}"
     local route_wss="${3:-yes}"
     local server_id="${4:-}"
+    local panel_bind="${5:-}"
+    local upstream_addr="${6:-}"
 
     if [ -z "$panel_host" ]; then
         read -p "Public panel hostname (e.g., console.example.com): " panel_host
@@ -1371,6 +1374,29 @@ generate_reverse_proxy_config() {
             print_error "Hostname is required for reverse-proxy snippets"
             return 1
         fi
+    fi
+
+    if [ -z "$panel_bind" ]; then
+        if confirm "Is the reverse proxy on THIS server (same host as BetterDesk)?"; then
+            panel_bind="127.0.0.1"
+            upstream_addr="127.0.0.1"
+        else
+            panel_bind="0.0.0.0"
+            upstream_addr=$(ip route get 1 2>/dev/null | awk '{print $7; exit}')
+            [ -z "$upstream_addr" ] && upstream_addr=$(hostname -I 2>/dev/null | awk '{print $1}')
+            echo ""
+            read -p "BetterDesk LAN IP for proxy upstream [${upstream_addr}]: " _custom_up
+            [ -n "$_custom_up" ] && upstream_addr="$_custom_up"
+            if [ -z "$upstream_addr" ]; then
+                print_error "LAN IP required when the proxy runs on another host"
+                return 1
+            fi
+            print_warning "Panel will listen on 0.0.0.0:5000 — restrict firewall to your proxy host"
+        fi
+    fi
+    [ -z "$upstream_addr" ] && upstream_addr="$panel_bind"
+    if [ "$panel_bind" = "0.0.0.0" ] && [ "$upstream_addr" = "0.0.0.0" ]; then
+        upstream_addr=$(ip route get 1 2>/dev/null | awk '{print $7; exit}')
     fi
 
     if [ -z "$proxy_type" ] || [ "$proxy_type" = "prompt" ]; then
@@ -1407,7 +1433,7 @@ generate_reverse_proxy_config() {
 
     cat > "$out_dir/betterdesk.env.snippet" << EOF
 # BetterDesk reverse-proxy mode (#267) — merge into $CONSOLE_PATH/.env
-HOST=127.0.0.1
+HOST=${panel_bind}
 HTTPS_ENABLED=false
 HTTP_REDIRECT_HTTPS=false
 TRUST_PROXY=Y
@@ -1438,7 +1464,7 @@ EOF
             cat >> "$out_dir/nginx.betterdesk.conf.snippet" << EOF
 
     location = /ws/id {
-        proxy_pass http://127.0.0.1:21118;
+        proxy_pass http://${upstream_addr}:21118;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "Upgrade";
@@ -1452,7 +1478,7 @@ EOF
     }
 
     location = /ws/relay {
-        proxy_pass http://127.0.0.1:21119;
+        proxy_pass http://${upstream_addr}:21119;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "Upgrade";
@@ -1469,7 +1495,7 @@ EOF
         cat >> "$out_dir/nginx.betterdesk.conf.snippet" << EOF
 
     location ~ ^/ws/ {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://${upstream_addr}:5000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection \$connection_upgrade;
@@ -1485,7 +1511,7 @@ EOF
     }
 
     location / {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://${upstream_addr}:5000;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -1508,15 +1534,15 @@ EOF
         if [ "$route_wss" = "yes" ]; then
             cat >> "$out_dir/caddy.Caddyfile.snippet" << EOF
     handle /ws/id {
-        reverse_proxy 127.0.0.1:21118
+        reverse_proxy ${upstream_addr}:21118
     }
     handle /ws/relay {
-        reverse_proxy 127.0.0.1:21119
+        reverse_proxy ${upstream_addr}:21119
     }
 EOF
         fi
         cat >> "$out_dir/caddy.Caddyfile.snippet" << EOF
-    reverse_proxy 127.0.0.1:5000
+    reverse_proxy ${upstream_addr}:5000
 
     encode gzip zstd
     header {
@@ -1531,8 +1557,8 @@ EOF
 
 # Optional second site when ID/relay clients use a different hostname:
 # ${server_id} {
-#     handle /ws/id { reverse_proxy 127.0.0.1:21118 }
-#     handle /ws/relay { reverse_proxy 127.0.0.1:21119 }
+#     handle /ws/id { reverse_proxy ${upstream_addr}:21118 }
+#     handle /ws/relay { reverse_proxy ${upstream_addr}:21119 }
 # }
 EOF
         fi
@@ -1543,8 +1569,9 @@ EOF
 BetterDesk reverse-proxy firewall (#267)
 
 Through your reverse proxy (HTTPS :443):
-  - Panel + console WebSockets -> http://127.0.0.1:5000
-$( [ "$route_wss" = "yes" ] && echo "  - RustDesk WSS /ws/id -> :21118, /ws/relay -> :21119" )
+  - Panel + console WebSockets -> http://${upstream_addr}:5000
+$( [ "$route_wss" = "yes" ] && echo "  - RustDesk WSS /ws/id -> ${upstream_addr}:21118, /ws/relay -> ${upstream_addr}:21119" )
+$( [ "$panel_bind" = "0.0.0.0" ] && echo "  - Panel bind: 0.0.0.0:5000 (remote proxy) — restrict :5000 to proxy IP in firewall" )
 
 Must reach this host directly (not HTTP reverse-proxied):
   - 21116/tcp + 21116/udp  Signal
@@ -1600,15 +1627,17 @@ VERIFYEOF
     REVERSE_PROXY_GENERATED_HOST="$panel_host"
     REVERSE_PROXY_GENERATED_SERVER_ID="$server_id"
     REVERSE_PROXY_GENERATED_WS_ORIGINS="$ws_origins"
+    REVERSE_PROXY_PANEL_BIND="$panel_bind"
+    REVERSE_PROXY_UPSTREAM_ADDR="$upstream_addr"
 }
 
 # Interactive reverse-proxy wizard: apply BetterDesk settings + emit proxy snippets (#267).
 do_configure_reverse_proxy() {
-    local panel_host server_id ws_origins
+    local panel_host server_id ws_origins panel_bind
 
     echo ""
     print_step "Configuring BetterDesk for external reverse proxy (TLS at Caddy/Nginx)..."
-    print_info "Panel stays HTTP on 127.0.0.1:5000; your proxy terminates TLS on :443"
+    print_info "Your proxy terminates TLS on :443; BetterDesk panel stays plain HTTP"
     echo ""
 
     read -p "Public panel hostname (e.g., console.example.com): " panel_host
@@ -1623,12 +1652,18 @@ do_configure_reverse_proxy() {
 
     server_id="${REVERSE_PROXY_GENERATED_SERVER_ID:-$panel_host}"
     ws_origins="${REVERSE_PROXY_GENERATED_WS_ORIGINS:-https://${panel_host}}"
+    panel_bind="${REVERSE_PROXY_PANEL_BIND:-127.0.0.1}"
 
-    apply_console_reverse_proxy_mode "$panel_host" "$server_id" "$ws_origins"
+    apply_console_reverse_proxy_mode "$panel_host" "$server_id" "$ws_origins" "$panel_bind"
 
     print_success "BetterDesk configured for external reverse proxy"
     echo ""
-    print_info "  Panel (local):  http://127.0.0.1:$(resolve_panel_http_port)"
+    if [ "$panel_bind" = "0.0.0.0" ]; then
+        print_info "  Panel (bind):   http://0.0.0.0:$(resolve_panel_http_port) (remote proxy host)"
+        print_info "  Proxy upstream: http://${REVERSE_PROXY_UPSTREAM_ADDR:-<lan-ip>}:$(resolve_panel_http_port)"
+    else
+        print_info "  Panel (local):  http://127.0.0.1:$(resolve_panel_http_port)"
+    fi
     print_info "  Panel (public): https://${panel_host}/"
     print_info "  TRUST_PROXY:    Y (console + Go server)"
     print_info "  Signal/Relay:   TCP :21116 / :21117 (direct — not HTTP-proxied)"
@@ -6573,8 +6608,10 @@ run_protocol_tests() {
     if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" != "true" ] && [ "$_trust_on" = "yes" ]; then
         if [ "$host_bind" = "127.0.0.1" ] || [ "$host_bind" = "localhost" ]; then
             _test_ok "Reverse-proxy mode: panel bound to localhost ($host_bind)"
+        elif [ "$host_bind" = "0.0.0.0" ]; then
+            _test_ok "Reverse-proxy mode: panel bound to all interfaces (remote proxy host)"
         else
-            _test_warn "TRUST_PROXY enabled but HOST=$host_bind (recommended: 127.0.0.1 behind external proxy)"
+            _test_warn "TRUST_PROXY enabled with HOST=$host_bind (use 127.0.0.1 same-host or 0.0.0.0 remote proxy)"
         fi
         if [ -f "$go_svc_file" ] && grep -qE 'Environment=TRUST_PROXY=Y|-trust-proxy' "$go_svc_file" 2>/dev/null; then
             _test_ok "Go server trusts reverse-proxy headers (TRUST_PROXY / -trust-proxy)"

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **External reverse proxy (#267):** wizard asks whether Caddy/Nginx runs on the same host; remote-proxy setups get `HOST=0.0.0.0` and LAN upstream in generated snippets (instead of always `127.0.0.1`).
+
 ### Changed
 - _(none yet)_
 

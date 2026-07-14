@@ -95,10 +95,15 @@ Set **`TRUST_PROXY=Y`** in `betterdesk-server.service` (installer does this auto
 
 ### Bind addresses
 
-| Setting | Reverse-proxy value | Why |
-|---------|---------------------|-----|
-| `HOST` | `127.0.0.1` | Panel not exposed without proxy TLS |
-| `API_HOST` | `0.0.0.0` (default) | RustDesk Client API (`:21121`) still WAN-reachable unless you proxy it separately |
+| Setting | Same-host proxy | Remote proxy (Caddy on another server) |
+|---------|-----------------|----------------------------------------|
+| `HOST` | `127.0.0.1` (default wizard) | `0.0.0.0` — wizard asks and sets this |
+| Upstream in Caddy/Nginx | `127.0.0.1:5000` | BetterDesk LAN IP, e.g. `192.168.1.10:5000` |
+| Firewall | Panel not WAN-exposed | Restrict `:5000` to proxy IP only |
+
+`API_HOST` stays `0.0.0.0` by default so Client API (`:21121`) remains WAN-reachable unless you proxy it separately.
+
+The installer wizard asks **“Is the reverse proxy on this server?”** — answer **No** when Caddy runs elsewhere; it sets `HOST=0.0.0.0` and uses your LAN IP in generated snippets.
 
 ---
 
