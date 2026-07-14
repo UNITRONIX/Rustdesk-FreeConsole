@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.141] — 2026-07-14
+
 ### Added
 - **External reverse proxy guidance (#267):** new [docs/setup/REVERSE_PROXY.md](docs/setup/REVERSE_PROXY.md); `betterdesk.sh` **External reverse proxy** mode (SSL menu **C** / Protocol Toggle **T**) applies `TRUST_PROXY=Y`, binds panel to localhost, enables Go `-trust-proxy`, and writes Caddy/Nginx snippets under `$RUSTDESK_PATH/reverse-proxy/`.
 
@@ -1918,3 +1925,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.138]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.137...v3.3.138
 [3.3.139]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.138...v3.3.139
 [3.3.140]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.139...v3.3.140
+[3.3.141]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.140...v3.3.141
