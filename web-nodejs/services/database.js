@@ -221,6 +221,26 @@ const facade = {
     getAgentBundleBuild:        (q) => adapter.getAgentBundleBuild(q),
     upsertAgentBundleBuild:     (data) => adapter.upsertAgentBundleBuild(data),
 
+    // ---- Real RustDesk client generator ----
+    listRealClientConfigs:      () => adapter.listRealClientConfigs(),
+    getRealClientConfig:        (id) => adapter.getRealClientConfig(id),
+    createRealClientConfig:     (data) => adapter.createRealClientConfig(data),
+    updateRealClientConfig:     (id, data) => adapter.updateRealClientConfig(id, data),
+    deleteRealClientConfig:     (id) => adapter.deleteRealClientConfig(id),
+    setRealClientConfigLastBuild: (configId, build) => adapter.setRealClientConfigLastBuild(configId, build),
+    createRealClientBuild:      (data) => adapter.createRealClientBuild(data),
+    getRealClientBuild:         (id) => adapter.getRealClientBuild(id),
+    listRealClientBuilds:       (opts) => adapter.listRealClientBuilds(opts),
+    listActiveRealClientBuilds: () => adapter.listActiveRealClientBuilds(),
+    updateRealClientBuild:      (id, fields) => adapter.updateRealClientBuild(id, fields),
+    listExpiredRealClientBuilds: () => adapter.listExpiredRealClientBuilds(),
+    deleteRealClientBuild:      (id) => adapter.deleteRealClientBuild(id),
+
+    // ---- Organizations / tenants (shared by scoped generator configs) ----
+    getTenants:                 () => adapter.getTenants(),
+    getTenantById:              (id) => adapter.getTenantById(id),
+    getTenantUsers:             (id) => adapter.getTenantUsers(id),
+
     // ---- User Groups ----
     getAllUserGroups:    () => adapter.getAllUserGroups(),
     getUserGroupByGuid: (guid) => adapter.getUserGroupByGuid(guid),

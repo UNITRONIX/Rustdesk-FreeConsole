@@ -1,7 +1,8 @@
+<% const realClientPanel = include('partials/real-client-generator'); %>
 <%- include('layouts/main', {
     title: _('nav.generator'),
     pageStyles: ['pages', 'generator'],
-    pageScripts: ['generator'],
+    pageScripts: ['generator', 'real-client-generator'],
     currentPage: 'generator',
     breadcrumb: [{ label: _('nav.generator') }],
     body: `
@@ -25,14 +26,20 @@
                         <span class="material-icons">add</span>
                         ${_('generator.agent_client_tab')}
                     </button>
-                    <button id="gen-new-support" class="btn btn-secondary btn-sm" title="${_('generator.support_agent_new_bundle')}">
-                        <span class="material-icons">support_agent</span>
-                        ${_('generator.support_agent_tab')}
-                    </button>
-                    <button id="gen-new-rdclient" class="btn btn-secondary btn-sm" title="${_('generator.rdclient_new_bundle')}">
-                        <span class="material-icons">connected_tv</span>
-                        ${_('generator.rdclient_tab')}
-                    </button>
+                    <div class="generator-bundle-actions">
+                        <button id="gen-new-support" class="btn btn-secondary btn-sm" title="${_('generator.support_agent_new_bundle')}">
+                            <span class="material-icons">support_agent</span>
+                            ${_('generator.support_agent_tab')}
+                        </button>
+                        <button id="gen-new-rdclient" class="btn btn-secondary btn-sm" title="${_('generator.rdclient_new_bundle')}">
+                            <span class="material-icons">connected_tv</span>
+                            ${_('generator.rdclient_tab')}
+                        </button>
+                        <button id="gen-new-real-client" class="btn btn-secondary btn-sm" title="Open RustDesk Client Generator">
+                            <span class="material-icons">desktop_windows</span>
+                            RustDesk Client Generator
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div id="gen-bundle-list" class="bundle-list">
@@ -297,5 +304,6 @@
                 </div>
             </section>
         </div>
+        ${realClientPanel}
     `
 }) %>

@@ -454,6 +454,10 @@ async function startServer() {
         // Initialize database adapter (creates tables, runs migrations)
         await db.init();
 
+        // Resume queued Real Client GitHub builds after every restart. The
+        // service uses an unref'ed timer, so it does not delay clean shutdown.
+        require('./services/realClientBuildService').start();
+
         // Warm branding cache from database (must run after db.init)
         const brandingService = require('./services/brandingService');
         await brandingService.loadBranding();

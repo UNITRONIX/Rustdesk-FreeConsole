@@ -983,6 +983,107 @@ function createSqliteAdapter(config) {
         }
     }
 
+    // -- Real RustDesk client generator -----------------------------------
+    // Kept separate from agent_bundles: these records describe reproducible
+    // source builds and their provider history, not BetterDesk enrollment
+    // bundles.  config_json/assets_json never contain provider credentials or
+    // per-build secrets.
+    function ensureRealClientTables(db) {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS real_client_configs (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                owner_user_id INTEGER DEFAULT NULL,
+                organization_id TEXT DEFAULT NULL,
+                config_json TEXT NOT NULL DEFAULT '{}',
+                assets_json TEXT NOT NULL DEFAULT '{}',
+                target_platform TEXT DEFAULT NULL,
+                target_arch TEXT DEFAULT NULL,
+                target_package TEXT DEFAULT NULL,
+                build_provider TEXT NOT NULL DEFAULT 'github',
+                rustdesk_version TEXT DEFAULT NULL,
+                last_platform TEXT DEFAULT NULL,
+                last_arch TEXT DEFAULT NULL,
+                last_package TEXT DEFAULT NULL,
+                last_provider TEXT DEFAULT NULL,
+                last_version TEXT DEFAULT NULL,
+                last_status TEXT DEFAULT NULL,
+                last_build_id TEXT DEFAULT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_real_client_configs_owner
+                ON real_client_configs (owner_user_id, updated_at);
+
+            CREATE TABLE IF NOT EXISTS real_client_builds (
+                id TEXT PRIMARY KEY,
+                config_id TEXT DEFAULT NULL,
+                config_name TEXT NOT NULL DEFAULT '',
+                config_snapshot_json TEXT NOT NULL DEFAULT '{}',
+                requested_by INTEGER DEFAULT NULL,
+                owner_user_id INTEGER DEFAULT NULL,
+                organization_id TEXT DEFAULT NULL,
+                batch_id TEXT DEFAULT NULL,
+                client_variant TEXT NOT NULL DEFAULT 'client',
+                platform TEXT NOT NULL,
+                arch TEXT NOT NULL,
+                package_type TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                rustdesk_version TEXT NOT NULL,
+                source_commit TEXT DEFAULT NULL,
+                status TEXT NOT NULL DEFAULT 'queued',
+                provider_run_id TEXT DEFAULT NULL,
+                provider_run_url TEXT DEFAULT NULL,
+                provider_status TEXT DEFAULT NULL,
+                artifact_name TEXT DEFAULT NULL,
+                artifact_path TEXT DEFAULT NULL,
+                artifact_size INTEGER NOT NULL DEFAULT 0,
+                artifact_sha256 TEXT DEFAULT NULL,
+                log_summary TEXT NOT NULL DEFAULT '',
+                error_message TEXT NOT NULL DEFAULT '',
+                queued_at TEXT NOT NULL DEFAULT (datetime('now')),
+                started_at TEXT DEFAULT NULL,
+                finished_at TEXT DEFAULT NULL,
+                cancelled_at TEXT DEFAULT NULL,
+                expires_at TEXT DEFAULT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (config_id) REFERENCES real_client_configs(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_real_client_builds_config
+                ON real_client_builds (config_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_real_client_builds_status
+                ON real_client_builds (status, updated_at);
+        `);
+        const configColumns = new Set(db.prepare('PRAGMA table_info(real_client_configs)').all().map((column) => column.name));
+        const additions = [
+            ['target_platform', 'TEXT DEFAULT NULL'],
+            ['target_arch', 'TEXT DEFAULT NULL'],
+            ['target_package', 'TEXT DEFAULT NULL'],
+            ['build_provider', "TEXT NOT NULL DEFAULT 'github'"],
+            ['rustdesk_version', 'TEXT DEFAULT NULL'],
+        ];
+        for (const [name, definition] of additions) {
+            if (!configColumns.has(name)) db.exec(`ALTER TABLE real_client_configs ADD COLUMN ${name} ${definition}`);
+        }
+        const buildColumns = new Set(db.prepare('PRAGMA table_info(real_client_builds)').all().map((column) => column.name));
+        const buildAdditions = [
+            ['owner_user_id', 'INTEGER DEFAULT NULL'],
+            ['organization_id', 'TEXT DEFAULT NULL'],
+            ['batch_id', 'TEXT DEFAULT NULL'],
+            ['client_variant', "TEXT NOT NULL DEFAULT 'client'"],
+            ['source_commit', 'TEXT DEFAULT NULL'],
+        ];
+        for (const [name, definition] of buildAdditions) {
+            if (!buildColumns.has(name)) db.exec(`ALTER TABLE real_client_builds ADD COLUMN ${name} ${definition}`);
+        }
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_real_client_builds_owner
+            ON real_client_builds (owner_user_id, organization_id, created_at)`);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_real_client_builds_batch
+            ON real_client_builds (batch_id, created_at)`);
+    }
+
     // -- Multi-tenancy tables ----------------------------------------------
     function ensureTenantTables(db) {
         db.exec(`
@@ -1263,6 +1364,7 @@ function createSqliteAdapter(config) {
             ensureTenantTables(main);
             ensureRegistrationTables(main);
             ensureAgentBundleTables(main);
+            ensureRealClientTables(main);
             ensureAuthTables(auth);
             console.log('[DB] SQLite adapter initialized');
         },
@@ -3530,6 +3632,158 @@ function createSqliteAdapter(config) {
             return this.getAgentBundleBuild({ brandingHash, platform, arch, format });
         },
 
+        // ---- Real client generator ----
+
+        async listRealClientConfigs() {
+            return openMain().prepare(`
+                SELECT * FROM real_client_configs ORDER BY updated_at DESC, name ASC
+            `).all();
+        },
+
+        async getRealClientConfig(id) {
+            return openMain().prepare('SELECT * FROM real_client_configs WHERE id = ?').get(id) || null;
+        },
+
+        async createRealClientConfig(data) {
+            const db = openMain();
+            db.prepare(`
+                INSERT INTO real_client_configs (
+                    id, name, description, owner_user_id, organization_id,
+                    config_json, assets_json, target_platform, target_arch,
+                    target_package, build_provider, rustdesk_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                data.id, data.name, data.description || '', data.ownerUserId || null,
+                data.organizationId || null, data.configJson || '{}', data.assetsJson || '{}',
+                data.targetPlatform || null, data.targetArch || null, data.targetPackage || null,
+                data.buildProvider || 'github', data.rustdeskVersion || null
+            );
+            return db.prepare('SELECT * FROM real_client_configs WHERE id = ?').get(data.id);
+        },
+
+        async updateRealClientConfig(id, data) {
+            const db = openMain();
+            db.prepare(`
+                UPDATE real_client_configs SET
+                    name = ?, description = ?, organization_id = ?,
+                    config_json = ?, assets_json = ?, target_platform = ?,
+                    target_arch = ?, target_package = ?, build_provider = ?,
+                    rustdesk_version = ?, updated_at = datetime('now')
+                WHERE id = ?
+            `).run(
+                data.name, data.description || '', data.organizationId || null,
+                data.configJson || '{}', data.assetsJson || '{}', data.targetPlatform || null,
+                data.targetArch || null, data.targetPackage || null, data.buildProvider || 'github',
+                data.rustdeskVersion || null, id
+            );
+            return db.prepare('SELECT * FROM real_client_configs WHERE id = ?').get(id) || null;
+        },
+
+        async deleteRealClientConfig(id) {
+            return openMain().prepare('DELETE FROM real_client_configs WHERE id = ?').run(id).changes > 0;
+        },
+
+        async setRealClientConfigLastBuild(configId, build) {
+            openMain().prepare(`
+                UPDATE real_client_configs SET
+                    last_platform = ?, last_arch = ?, last_package = ?,
+                    last_provider = ?, last_version = ?, last_status = ?,
+                    last_build_id = ?
+                WHERE id = ?
+            `).run(
+                build.platform || null, build.arch || null, build.packageType || null,
+                build.provider || null, build.rustdeskVersion || null,
+                build.status || null, build.id || null, configId
+            );
+        },
+
+        async createRealClientBuild(data) {
+            const db = openMain();
+            db.prepare(`
+                INSERT INTO real_client_builds (
+                    id, config_id, config_name, config_snapshot_json, requested_by,
+                    owner_user_id, organization_id, batch_id, client_variant,
+                    platform, arch, package_type, provider, rustdesk_version,
+                    source_commit, status, log_summary, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                data.id, data.configId || null, data.configName || '',
+                data.configSnapshotJson || '{}', data.requestedBy || null,
+                data.ownerUserId || null, data.organizationId || null,
+                data.batchId || null, data.clientVariant || 'client', data.platform,
+                data.arch, data.packageType, data.provider, data.rustdeskVersion,
+                data.sourceCommit || null, data.status || 'queued', data.logSummary || '', data.expiresAt || null
+            );
+            return db.prepare('SELECT * FROM real_client_builds WHERE id = ?').get(data.id);
+        },
+
+        async getRealClientBuild(id) {
+            return openMain().prepare('SELECT * FROM real_client_builds WHERE id = ?').get(id) || null;
+        },
+
+        async listRealClientBuilds({ configId = null, batchId = null, limit = 100 } = {}) {
+            const capped = Math.max(1, Math.min(Number(limit) || 100, 500));
+            if (batchId) {
+                return openMain().prepare(`
+                    SELECT * FROM real_client_builds WHERE batch_id = ?
+                    ORDER BY created_at ASC LIMIT ?
+                `).all(batchId, capped);
+            }
+            if (configId) {
+                return openMain().prepare(`
+                    SELECT * FROM real_client_builds WHERE config_id = ?
+                    ORDER BY created_at DESC LIMIT ?
+                `).all(configId, capped);
+            }
+            return openMain().prepare(`
+                SELECT * FROM real_client_builds ORDER BY created_at DESC LIMIT ?
+            `).all(capped);
+        },
+
+        async listActiveRealClientBuilds() {
+            return openMain().prepare(`
+                SELECT * FROM real_client_builds
+                WHERE status IN ('queued', 'dispatching', 'building', 'cancelling')
+                ORDER BY updated_at ASC
+            `).all();
+        },
+
+        async updateRealClientBuild(id, fields = {}) {
+            const columns = {
+                status: 'status', providerRunId: 'provider_run_id', providerRunUrl: 'provider_run_url',
+                providerStatus: 'provider_status', artifactName: 'artifact_name',
+                artifactPath: 'artifact_path', artifactSize: 'artifact_size',
+                artifactSha256: 'artifact_sha256', logSummary: 'log_summary',
+                errorMessage: 'error_message', startedAt: 'started_at',
+                finishedAt: 'finished_at', cancelledAt: 'cancelled_at', expiresAt: 'expires_at'
+            };
+            const updates = [];
+            const values = [];
+            for (const [key, column] of Object.entries(columns)) {
+                if (Object.prototype.hasOwnProperty.call(fields, key)) {
+                    updates.push(`${column} = ?`);
+                    values.push(fields[key]);
+                }
+            }
+            if (!updates.length) return this.getRealClientBuild(id);
+            updates.push("updated_at = datetime('now')");
+            values.push(id);
+            openMain().prepare(`UPDATE real_client_builds SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+            return this.getRealClientBuild(id);
+        },
+
+        async listExpiredRealClientBuilds() {
+            return openMain().prepare(`
+                SELECT * FROM real_client_builds
+                WHERE expires_at IS NOT NULL AND datetime(expires_at) <= datetime('now')
+                ORDER BY expires_at ASC
+            `).all();
+        },
+
+        async deleteRealClientBuild(id) {
+            return openMain().prepare('DELETE FROM real_client_builds WHERE id = ?').run(id).changes > 0;
+        },
+
         // ---- Integration Housekeeping ----
 
         async runIntegrationHousekeeping() {
@@ -4126,6 +4380,92 @@ function createPostgresAdapter() {
         `);
         await q('CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_hash ON agent_bundle_builds (branding_hash)');
         await q('CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_status ON agent_bundle_builds (status)');
+
+        // -- Real RustDesk client generator.  Separate from agent_bundles so
+        // source-build history and BetterDesk enrollment bundles keep their
+        // own lifecycle. Provider credentials and per-build secrets are never
+        // persisted in these JSON columns.
+        await q(`
+            CREATE TABLE IF NOT EXISTS real_client_configs (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                owner_user_id INTEGER DEFAULT NULL,
+                organization_id TEXT DEFAULT NULL,
+                config_json TEXT NOT NULL DEFAULT '{}',
+                assets_json TEXT NOT NULL DEFAULT '{}',
+                target_platform TEXT DEFAULT NULL,
+                target_arch TEXT DEFAULT NULL,
+                target_package TEXT DEFAULT NULL,
+                build_provider TEXT NOT NULL DEFAULT 'github',
+                rustdesk_version TEXT DEFAULT NULL,
+                last_platform TEXT DEFAULT NULL,
+                last_arch TEXT DEFAULT NULL,
+                last_package TEXT DEFAULT NULL,
+                last_provider TEXT DEFAULT NULL,
+                last_version TEXT DEFAULT NULL,
+                last_status TEXT DEFAULT NULL,
+                last_build_id TEXT DEFAULT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        `);
+        await q(`CREATE INDEX IF NOT EXISTS idx_real_client_configs_owner
+            ON real_client_configs (owner_user_id, updated_at)`);
+        await q("ALTER TABLE real_client_configs ADD COLUMN IF NOT EXISTS target_platform TEXT DEFAULT NULL");
+        await q("ALTER TABLE real_client_configs ADD COLUMN IF NOT EXISTS target_arch TEXT DEFAULT NULL");
+        await q("ALTER TABLE real_client_configs ADD COLUMN IF NOT EXISTS target_package TEXT DEFAULT NULL");
+        await q("ALTER TABLE real_client_configs ADD COLUMN IF NOT EXISTS build_provider TEXT NOT NULL DEFAULT 'github'");
+        await q("ALTER TABLE real_client_configs ADD COLUMN IF NOT EXISTS rustdesk_version TEXT DEFAULT NULL");
+        await q(`
+            CREATE TABLE IF NOT EXISTS real_client_builds (
+                id TEXT PRIMARY KEY,
+                config_id TEXT DEFAULT NULL REFERENCES real_client_configs(id) ON DELETE SET NULL,
+                config_name TEXT NOT NULL DEFAULT '',
+                config_snapshot_json TEXT NOT NULL DEFAULT '{}',
+                requested_by INTEGER DEFAULT NULL,
+                owner_user_id INTEGER DEFAULT NULL,
+                organization_id TEXT DEFAULT NULL,
+                batch_id TEXT DEFAULT NULL,
+                client_variant TEXT NOT NULL DEFAULT 'client',
+                platform TEXT NOT NULL,
+                arch TEXT NOT NULL,
+                package_type TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                rustdesk_version TEXT NOT NULL,
+                source_commit TEXT DEFAULT NULL,
+                status TEXT NOT NULL DEFAULT 'queued',
+                provider_run_id TEXT DEFAULT NULL,
+                provider_run_url TEXT DEFAULT NULL,
+                provider_status TEXT DEFAULT NULL,
+                artifact_name TEXT DEFAULT NULL,
+                artifact_path TEXT DEFAULT NULL,
+                artifact_size BIGINT NOT NULL DEFAULT 0,
+                artifact_sha256 TEXT DEFAULT NULL,
+                log_summary TEXT NOT NULL DEFAULT '',
+                error_message TEXT NOT NULL DEFAULT '',
+                queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                started_at TIMESTAMPTZ DEFAULT NULL,
+                finished_at TIMESTAMPTZ DEFAULT NULL,
+                cancelled_at TIMESTAMPTZ DEFAULT NULL,
+                expires_at TIMESTAMPTZ DEFAULT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        `);
+        await q('ALTER TABLE real_client_builds ADD COLUMN IF NOT EXISTS owner_user_id INTEGER DEFAULT NULL');
+        await q('ALTER TABLE real_client_builds ADD COLUMN IF NOT EXISTS organization_id TEXT DEFAULT NULL');
+        await q('ALTER TABLE real_client_builds ADD COLUMN IF NOT EXISTS batch_id TEXT DEFAULT NULL');
+        await q("ALTER TABLE real_client_builds ADD COLUMN IF NOT EXISTS client_variant TEXT NOT NULL DEFAULT 'client'");
+        await q('ALTER TABLE real_client_builds ADD COLUMN IF NOT EXISTS source_commit TEXT DEFAULT NULL');
+        await q(`CREATE INDEX IF NOT EXISTS idx_real_client_builds_config
+            ON real_client_builds (config_id, created_at)`);
+        await q(`CREATE INDEX IF NOT EXISTS idx_real_client_builds_status
+            ON real_client_builds (status, updated_at)`);
+        await q(`CREATE INDEX IF NOT EXISTS idx_real_client_builds_owner
+            ON real_client_builds (owner_user_id, organization_id, created_at)`);
+        await q(`CREATE INDEX IF NOT EXISTS idx_real_client_builds_batch
+            ON real_client_builds (batch_id, created_at)`);
 
         // -- RustDesk Client Integration tables --
         await q(`
@@ -6825,6 +7165,155 @@ function createPostgresAdapter() {
                     updated_at = NOW()
                 RETURNING *
             `, [brandingHash, platform, arch, format, status, artifactPath || null, artifactSize || 0, artifactSha256 || null, errorMessage || '']);
+        },
+
+        // ---- Real client generator ----
+
+        async listRealClientConfigs() {
+            return all('SELECT * FROM real_client_configs ORDER BY updated_at DESC, name ASC');
+        },
+
+        async getRealClientConfig(id) {
+            return one('SELECT * FROM real_client_configs WHERE id = $1', [id]);
+        },
+
+        async createRealClientConfig(data) {
+            return one(`
+                INSERT INTO real_client_configs (
+                    id, name, description, owner_user_id, organization_id,
+                    config_json, assets_json, target_platform, target_arch,
+                    target_package, build_provider, rustdesk_version
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                RETURNING *
+            `, [
+                data.id, data.name, data.description || '', data.ownerUserId || null,
+                data.organizationId || null, data.configJson || '{}', data.assetsJson || '{}',
+                data.targetPlatform || null, data.targetArch || null, data.targetPackage || null,
+                data.buildProvider || 'github', data.rustdeskVersion || null
+            ]);
+        },
+
+        async updateRealClientConfig(id, data) {
+            return one(`
+                UPDATE real_client_configs SET
+                    name = $1, description = $2, organization_id = $3,
+                    config_json = $4, assets_json = $5, target_platform = $6,
+                    target_arch = $7, target_package = $8, build_provider = $9,
+                    rustdesk_version = $10, updated_at = NOW()
+                WHERE id = $11 RETURNING *
+            `, [
+                data.name, data.description || '', data.organizationId || null,
+                data.configJson || '{}', data.assetsJson || '{}', data.targetPlatform || null,
+                data.targetArch || null, data.targetPackage || null, data.buildProvider || 'github',
+                data.rustdeskVersion || null, id
+            ]);
+        },
+
+        async deleteRealClientConfig(id) {
+            const { rowCount } = await q('DELETE FROM real_client_configs WHERE id = $1', [id]);
+            return rowCount > 0;
+        },
+
+        async setRealClientConfigLastBuild(configId, build) {
+            await q(`
+                UPDATE real_client_configs SET
+                    last_platform = $1, last_arch = $2, last_package = $3,
+                    last_provider = $4, last_version = $5, last_status = $6,
+                    last_build_id = $7
+                WHERE id = $8
+            `, [
+                build.platform || null, build.arch || null, build.packageType || null,
+                build.provider || null, build.rustdeskVersion || null,
+                build.status || null, build.id || null, configId
+            ]);
+        },
+
+        async createRealClientBuild(data) {
+            return one(`
+                INSERT INTO real_client_builds (
+                    id, config_id, config_name, config_snapshot_json, requested_by,
+                    owner_user_id, organization_id, batch_id, client_variant,
+                    platform, arch, package_type, provider, rustdesk_version,
+                    source_commit, status, log_summary, expires_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                RETURNING *
+            `, [
+                data.id, data.configId || null, data.configName || '',
+                data.configSnapshotJson || '{}', data.requestedBy || null,
+                data.ownerUserId || null, data.organizationId || null,
+                data.batchId || null, data.clientVariant || 'client', data.platform,
+                data.arch, data.packageType, data.provider, data.rustdeskVersion,
+                data.sourceCommit || null, data.status || 'queued', data.logSummary || '', data.expiresAt || null
+            ]);
+        },
+
+        async getRealClientBuild(id) {
+            return one('SELECT * FROM real_client_builds WHERE id = $1', [id]);
+        },
+
+        async listRealClientBuilds({ configId = null, batchId = null, limit = 100 } = {}) {
+            const capped = Math.max(1, Math.min(Number(limit) || 100, 500));
+            if (batchId) {
+                return all(`
+                    SELECT * FROM real_client_builds WHERE batch_id = $1
+                    ORDER BY created_at ASC LIMIT $2
+                `, [batchId, capped]);
+            }
+            if (configId) {
+                return all(`
+                    SELECT * FROM real_client_builds WHERE config_id = $1
+                    ORDER BY created_at DESC LIMIT $2
+                `, [configId, capped]);
+            }
+            return all(`SELECT * FROM real_client_builds ORDER BY created_at DESC LIMIT $1`, [capped]);
+        },
+
+        async listActiveRealClientBuilds() {
+            return all(`
+                SELECT * FROM real_client_builds
+                WHERE status IN ('queued', 'dispatching', 'building', 'cancelling')
+                ORDER BY updated_at ASC
+            `);
+        },
+
+        async updateRealClientBuild(id, fields = {}) {
+            const columns = {
+                status: 'status', providerRunId: 'provider_run_id', providerRunUrl: 'provider_run_url',
+                providerStatus: 'provider_status', artifactName: 'artifact_name',
+                artifactPath: 'artifact_path', artifactSize: 'artifact_size',
+                artifactSha256: 'artifact_sha256', logSummary: 'log_summary',
+                errorMessage: 'error_message', startedAt: 'started_at',
+                finishedAt: 'finished_at', cancelledAt: 'cancelled_at', expiresAt: 'expires_at'
+            };
+            const updates = [];
+            const values = [];
+            let index = 1;
+            for (const [key, column] of Object.entries(columns)) {
+                if (Object.prototype.hasOwnProperty.call(fields, key)) {
+                    updates.push(`${column} = $${index++}`);
+                    values.push(fields[key]);
+                }
+            }
+            if (!updates.length) return this.getRealClientBuild(id);
+            updates.push('updated_at = NOW()');
+            values.push(id);
+            return one(`
+                UPDATE real_client_builds SET ${updates.join(', ')}
+                WHERE id = $${index} RETURNING *
+            `, values);
+        },
+
+        async listExpiredRealClientBuilds() {
+            return all(`
+                SELECT * FROM real_client_builds
+                WHERE expires_at IS NOT NULL AND expires_at <= NOW()
+                ORDER BY expires_at ASC
+            `);
+        },
+
+        async deleteRealClientBuild(id) {
+            const { rowCount } = await q('DELETE FROM real_client_builds WHERE id = $1', [id]);
+            return rowCount > 0;
         },
 
         // ---- Integration Housekeeping ----
