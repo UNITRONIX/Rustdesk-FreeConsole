@@ -711,6 +711,7 @@ type Database interface {
 	// RustDesk client sessions (Issue #242 — DB-backed opaque tokens with sliding expiry)
 	CreateClientSession(sess *ClientSession) error
 	GetClientSessionByTokenHash(tokenHash string) (*ClientSession, error)
+	GetActiveClientSessionByClient(clientID, clientUUID string) (*ClientSession, error)
 	TouchClientSession(id int64, expiresAt, lastUsed string) error
 	RevokeClientSessionByTokenHash(tokenHash string) error
 	RevokeClientSessionsForDevice(userID int64, clientID, clientUUID string) error

@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -35,6 +36,43 @@ func (s *SQLiteDB) GetClientSessionByTokenHash(tokenHash string) (*ClientSession
 		FROM client_sessions
 		WHERE token_hash = ? AND revoked = 0 AND expires_at > datetime('now')`,
 		tokenHash).Scan(
+		&sess.ID, &sess.TokenHash, &sess.UserID, &sess.ClientID, &sess.ClientUUID,
+		&sess.ExpiresAt, &sess.LastUsed, &sess.CreatedAt, &revoked, &sess.IPAddress)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	sess.Revoked = revoked != 0
+	return sess, nil
+}
+
+// GetActiveClientSessionByClient returns the newest active session for a RustDesk
+// client id and/or uuid, or nil when none match.
+func (s *SQLiteDB) GetActiveClientSessionByClient(clientID, clientUUID string) (*ClientSession, error) {
+	clientID = strings.TrimSpace(clientID)
+	clientUUID = strings.TrimSpace(clientUUID)
+	if clientID == "" && clientUUID == "" {
+		return nil, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sess := &ClientSession{}
+	var revoked int
+	err := s.db.QueryRow(`SELECT id, token_hash, user_id, client_id, client_uuid, expires_at,
+		last_used, created_at, revoked, ip_address
+		FROM client_sessions
+		WHERE revoked = 0 AND expires_at > datetime('now')
+		  AND (
+		    (? != '' AND client_id = ?)
+		    OR (? != '' AND client_uuid = ?)
+		  )
+		ORDER BY COALESCE(last_used, created_at) DESC, id DESC
+		LIMIT 1`,
+		clientID, clientID, clientUUID, clientUUID).Scan(
 		&sess.ID, &sess.TokenHash, &sess.UserID, &sess.ClientID, &sess.ClientUUID,
 		&sess.ExpiresAt, &sess.LastUsed, &sess.CreatedAt, &revoked, &sess.IPAddress)
 	if err == sql.ErrNoRows {

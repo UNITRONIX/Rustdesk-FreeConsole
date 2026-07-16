@@ -6,7 +6,84 @@ import (
 	"regexp"
 	"testing"
 	"time"
+
+	"github.com/unitronix/betterdesk-server/db"
 )
+
+func TestHandleClientLoginBindsPeerOwner(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	createClientLoginTestUser(t, database, "admin", "correct-password", false)
+
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "testdev-bind",
+		UUID:   "test-uuid-bind",
+		Status: "ONLINE",
+	}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+
+	srv := newClientLoginTestServer(database)
+	rec, _ := postClientLogin(t, srv, map[string]any{
+		"username": "admin",
+		"password": "correct-password",
+		"type":     "account",
+		"id":       "testdev-bind",
+		"uuid":     "test-uuid-bind",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+
+	peer, err := database.GetPeer("testdev-bind")
+	if err != nil || peer == nil {
+		t.Fatalf("GetPeer: %v peer=%v", err, peer)
+	}
+	if peer.User != "admin" {
+		t.Fatalf("peers.user = %q, want %q", peer.User, "admin")
+	}
+}
+
+func TestApplyActiveSessionOwnerBindsAfterPeerAppears(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	createClientLoginTestUser(t, database, "admin", "correct-password", false)
+
+	srv := newClientLoginTestServer(database)
+	rec, _ := postClientLogin(t, srv, map[string]any{
+		"username": "admin",
+		"password": "correct-password",
+		"type":     "account",
+		"id":       "late-peer-1",
+		"uuid":     "late-uuid-1",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d; body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Peer did not exist at login time.
+	if peer, _ := database.GetPeer("late-peer-1"); peer != nil {
+		t.Fatal("expected no peer yet")
+	}
+
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "late-peer-1",
+		UUID:   "late-uuid-1",
+		Status: "ONLINE",
+	}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+
+	db.ApplyActiveSessionOwner(database, "late-peer-1", "late-uuid-1")
+
+	peer, err := database.GetPeer("late-peer-1")
+	if err != nil || peer == nil {
+		t.Fatalf("GetPeer: %v", err)
+	}
+	if peer.User != "admin" {
+		t.Fatalf("peers.user = %q, want admin after ApplyActiveSessionOwner", peer.User)
+	}
+}
 
 func TestHandleClientLoginIssuesOpaqueSessionToken(t *testing.T) {
 	database := testSetupDB(t)

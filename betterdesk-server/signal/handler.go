@@ -453,6 +453,9 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 	}
 	if err := s.db.UpsertPeer(dbPeer); err != nil {
 		log.Printf("[signal] Failed to upsert peer %s: %v", id, err)
+	} else {
+		// Bind peers.user when an active RustDesk client login exists for this device.
+		db.ApplyActiveSessionOwner(s.db, id, dbPeer.UUID)
 	}
 
 	log.Printf("[signal] PK registered for %s (pk=%d bytes)", id, len(msg.Pk))

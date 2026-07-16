@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -35,6 +36,45 @@ func (pg *PostgresDB) GetClientSessionByTokenHash(tokenHash string) (*ClientSess
 		 FROM client_sessions
 		 WHERE token_hash = $1 AND revoked = FALSE AND expires_at > NOW()`,
 		tokenHash,
+	).Scan(
+		&sess.ID, &sess.TokenHash, &sess.UserID, &sess.ClientID, &sess.ClientUUID,
+		&sess.ExpiresAt, &sess.LastUsed, &sess.CreatedAt, &revoked, &sess.IPAddress)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	sess.Revoked = revoked
+	return sess, nil
+}
+
+// GetActiveClientSessionByClient returns the newest active session for a RustDesk
+// client id and/or uuid, or nil when none match.
+func (pg *PostgresDB) GetActiveClientSessionByClient(clientID, clientUUID string) (*ClientSession, error) {
+	clientID = strings.TrimSpace(clientID)
+	clientUUID = strings.TrimSpace(clientUUID)
+	if clientID == "" && clientUUID == "" {
+		return nil, nil
+	}
+
+	sess := &ClientSession{}
+	var revoked bool
+	err := pg.pool.QueryRow(pg.ctx,
+		`SELECT id, token_hash, user_id, client_id, client_uuid,
+			to_char(expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'),
+			to_char(last_used AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'),
+			to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'),
+			revoked, ip_address
+		 FROM client_sessions
+		 WHERE revoked = FALSE AND expires_at > NOW()
+		   AND (
+		     ($1 <> '' AND client_id = $1)
+		     OR ($2 <> '' AND client_uuid = $2)
+		   )
+		 ORDER BY COALESCE(last_used, created_at) DESC, id DESC
+		 LIMIT 1`,
+		clientID, clientUUID,
 	).Scan(
 		&sess.ID, &sess.TokenHash, &sess.UserID, &sess.ClientID, &sess.ClientUUID,
 		&sess.ExpiresAt, &sess.LastUsed, &sess.CreatedAt, &revoked, &sess.IPAddress)
