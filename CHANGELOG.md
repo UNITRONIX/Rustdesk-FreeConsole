@@ -3,6 +3,13 @@
 ### Added
 - **RustDesk client login → device owner (#270):** successful client login maps the device (`peers.user`) to the BetterDesk account for inventory/audit (shared logins, credential misuse). Does **not** block remote connections.
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.146] — 2026-07-16
+
 ### Fixed
 - **Windows panel update (#272):** default install under `C:\BetterDeskConsole` no longer treats drive root `C:\` as the project root. Installer/Docker files are written beside the console (avoids `EPERM: mkdir 'C:\'`), quick compose filenames are non-critical for SHA tracking, and NSSM `Access is denied` when restarting BetterDeskServer no longer leaves a stuck “updates available” state.
 
@@ -1968,3 +1975,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.143]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.142...v3.3.143
 [3.3.144]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.143...v3.3.144
 [3.3.145]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.144...v3.3.145
+[3.3.146]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.145...v3.3.146
