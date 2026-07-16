@@ -1203,7 +1203,12 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
                 svc = updateService.restartService(serviceName);
             }
             if (svc.success) result.servicesRestarted.push('server');
-            else result.servicesFailed.push({ service: 'server', error: svc.error });
+            else {
+                const fail = { service: 'server', error: svc.error };
+                if (svc.nonCritical) fail.nonCritical = true;
+                if (svc.hint) fail.hint = svc.hint;
+                result.servicesFailed.push(fail);
+            }
         }
 
         // Restart console after response is sent (systemd/NSSM restarts automatically)
@@ -1227,7 +1232,8 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
         try {
             const rootDir = path.join(__dirname, '..');
             const { critical: criticalFailures } = splitUpdateFailures(result.failed || [], rootDir);
-            const servicesFailed = result.servicesFailed || [];
+            // Access-denied NSSM restarts are non-critical on Windows (#272).
+            const servicesFailed = (result.servicesFailed || []).filter(s => !s.nonCritical);
             const consoleRestartBlocked = result.consoleRestartBlocked || null;
             if (criticalFailures.length === 0 && servicesFailed.length === 0 && !consoleRestartBlocked) {
                 clearLastUpdateResult(config.dataDir);

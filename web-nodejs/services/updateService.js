@@ -48,6 +48,11 @@ const {
     resolveDeployScriptPath,
 } = require('../lib/linuxServerBinaryDeploy');
 const { resolveLastUpdateResultForDisplay } = require('../lib/updateResultStore');
+const {
+    resolveProjectRoot: resolveProjectRootFromConsole,
+    ensureParentDirForFile,
+    isUpdatePermissionError,
+} = require('../lib/updateProjectRoot');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -92,14 +97,10 @@ const IS_WINDOWS         = process.platform === 'win32';
  * Repo checkout: ROOT_DIR = web-nodejs/, project root = parent directory.
  * Flat Linux install: console files live directly under ROOT_DIR (e.g.
  * /opt/BetterDeskConsole) with betterdesk-server/ beside services/.
+ * Windows default: C:\BetterDeskConsole — must NOT use drive root C:\ (#272).
  */
-function resolveProjectRoot() {
-    const parentAsRepo = path.join(ROOT_DIR, '..');
-    const flatServerMod = path.join(ROOT_DIR, 'betterdesk-server', 'go.mod');
-    if (fs.existsSync(flatServerMod)) {
-        return ROOT_DIR;
-    }
-    return parentAsRepo;
+function resolveProjectRoot(rootDir = ROOT_DIR, opts) {
+    return resolveProjectRootFromConsole(rootDir, opts);
 }
 
 const PROJECT_ROOT       = resolveProjectRoot();
@@ -1243,15 +1244,19 @@ function detectServerBinaryPath() {
     // 3. Well-known installation paths
     const candidates = IS_WINDOWS
         ? [
+            path.join(config.rustdeskDir || 'C:\\BetterDesk', 'betterdesk-server.exe'),
+            'C:\\BetterDesk\\betterdesk-server.exe',
             'C:\\betterdesk\\betterdesk-server.exe',
             'C:\\Program Files\\BetterDesk\\betterdesk-server.exe',
-            path.join(PROJECT_ROOT, 'betterdesk-server', 'betterdesk-server.exe')
+            path.join(PROJECT_ROOT, 'betterdesk-server', 'betterdesk-server.exe'),
+            path.join(ROOT_DIR, 'betterdesk-server', 'betterdesk-server.exe'),
         ]
         : [
             '/opt/rustdesk/betterdesk-server',
             '/opt/betterdesk/betterdesk-server',
             '/usr/local/bin/betterdesk-server',
-            path.join(PROJECT_ROOT, 'betterdesk-server', 'betterdesk-server')
+            path.join(PROJECT_ROOT, 'betterdesk-server', 'betterdesk-server'),
+            path.join(ROOT_DIR, 'betterdesk-server', 'betterdesk-server'),
         ];
 
     for (const p of candidates) {
@@ -2533,7 +2538,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     continue;
                 }
                 const content = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, file.path);
-                fs.mkdirSync(path.dirname(dest), { recursive: true });
+                ensureParentDirForFile(dest);
                 fs.writeFileSync(dest, content);
                 if (!IS_WINDOWS && file.localPath.endsWith('.sh')) {
                     try { fs.chmodSync(dest, 0o755); } catch (_e) { /* ok */ }
@@ -2541,9 +2546,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 results.applied.push(file.path);
             } catch (err) {
                 const entry = { file: file.path, error: err.message };
-                if (err.code === 'EACCES' || /permission denied/i.test(err.message || '')) {
+                if (isUpdatePermissionError(err)) {
                     entry.nonCritical = true;
-                    console.warn(`[UPDATE] Skipping root-owned script (no write access): ${file.path}`);
+                    console.warn(`[UPDATE] Skipping installer script (no write access): ${file.path}`);
                 }
                 results.failed.push(entry);
             }
@@ -2662,9 +2667,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 results.applied.push(file.path);
             } catch (err) {
                 const entry = { file: file.path, error: err.message };
-                if (err.code === 'EACCES' || /permission denied/i.test(err.message || '')) {
+                if (isUpdatePermissionError(err)) {
                     entry.nonCritical = true;
-                    console.warn(`[UPDATE] Skipping root-owned server source file (no write access): ${file.path}`);
+                    console.warn(`[UPDATE] Skipping server source file (no write access): ${file.path}`);
                 }
                 results.failed.push(entry);
             }
@@ -2857,7 +2862,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         // ---- Pull remote VERSION file ----
         try {
             const versionContent = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, 'VERSION');
-            fs.writeFileSync(path.join(PROJECT_ROOT, 'VERSION'), versionContent);
+            const versionDest = path.join(PROJECT_ROOT, 'VERSION');
+            ensureParentDirForFile(versionDest);
+            fs.writeFileSync(versionDest, versionContent);
         } catch (_e) { /* non-critical */ }
 
         if (nonCriticalFailures.length > 0) {
@@ -2917,7 +2924,20 @@ function restartService(serviceName) {
         }
         return { success: true, service: serviceName };
     } catch (err) {
-        return { success: false, service: serviceName, error: err.message };
+        const message = err.message || String(err);
+        // Console service account often lacks rights to OpenService on sibling
+        // NSSM units (BetterDeskServer). Treat as non-critical so SHA save /
+        // success banner are not blocked — operator can restart via PS1 (#272).
+        const nonCritical = IS_WINDOWS && /access is denied|OpenService/i.test(message);
+        return {
+            success: false,
+            service: serviceName,
+            error: message,
+            nonCritical,
+            hint: nonCritical
+                ? 'Restart BetterDeskServer manually (Admin PowerShell: nssm restart BetterDeskServer) or run betterdesk.ps1 → Update'
+                : undefined,
+        };
     }
 }
 
@@ -3345,6 +3365,9 @@ module.exports = {
     splitUpdateFailures,
     repairMissingConsoleFiles,
     resolveServerSourceRootForUpdate,
+    resolveProjectRoot,
+    ensureParentDirForFile,
+    isUpdatePermissionError,
     readLastUpdateResult: () => require('../lib/updateResultStore').readLastUpdateResult(config.dataDir),
     ensureConsoleSource,
 };

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Windows panel update (#272):** default install under `C:\BetterDeskConsole` no longer treats drive root `C:\` as the project root. Installer/Docker files are written beside the console (avoids `EPERM: mkdir 'C:\'`), quick compose filenames are non-critical for SHA tracking, and NSSM `Access is denied` when restarting BetterDeskServer no longer leaves a stuck “updates available” state.
+
 ### Changed
 - _(none yet)_
 

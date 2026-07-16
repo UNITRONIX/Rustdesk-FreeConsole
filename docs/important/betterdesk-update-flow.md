@@ -8,6 +8,7 @@
 - After update, if server source changed but binary build/deploy failed, `applyUpdate` attempts **auto-rebuild** via `rebuildServerBinary` before leaving a stale marker.
 - Console update merges new keys from `web-nodejs/.env.example` into existing `.env` using `buildEnvSubstitutions()` (resolved paths, no raw `__PLACEHOLDER__` values).
 - After server updates, `patchServiceDefinitions()` sanitizes systemd/NSSM units in place.
+- **Windows path root (#272):** `resolveProjectRoot()` must never resolve to a drive root (`C:\`). Default layout `C:\BetterDeskConsole` + `C:\BetterDesk` writes Scripts & Docker files under the console directory. `ensureParentDirForFile()` skips `mkdir` on filesystem roots (Node throws `EPERM` on `mkdir('C:\\')`). NSSM OpenService Access Denied when restarting `BetterDeskServer` is non-critical — restart the Go service manually or via `betterdesk.ps1` if needed.
 
 ## Issue #158 — server build / config preservation
 
