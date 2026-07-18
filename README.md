@@ -988,7 +988,7 @@ You can **upgrade to Let's Encrypt** or a custom certificate at any time using m
 | `-init-admin-pass` | *(auto)* | `INIT_ADMIN_PASS` | Initial admin password (auto-generated if omitted) |
 | `-version` | — | — | Show version and exit |
 
-> Signal proxy note: UDP/TCP signal traffic on port `21116` cannot use HTTP headers such as `X-Forwarded-For`. `TRUST_PROXY` only affects HTTP/API traffic. For NGINX stream or Docker proxy deployments, set `SIGNAL_RATE_LIMIT_PER_IP` higher for very large fleets, or `0` only on trusted private networks. Current builds scope registration buckets by proxy/client address plus peer ID to avoid false positives when multiple devices share one proxy address.
+> Signal proxy note: UDP/TCP signal traffic on port `21116` cannot use HTTP headers such as `X-Forwarded-For`. `TRUST_PROXY` applies to HTTP/API traffic and to signal **WebSocket** (`/ws/id`) client address headers. For NGINX stream or Docker proxy deployments, set `SIGNAL_RATE_LIMIT_PER_IP` higher for very large fleets, or `0` only on trusted private networks. Current builds scope registration buckets by proxy/client address plus peer ID to avoid false positives when multiple devices share one proxy address.
 
 ### Environment-Only Variables
 

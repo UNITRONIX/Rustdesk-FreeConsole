@@ -83,7 +83,7 @@ func (s *Server) handleWSUpgrade(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[signal] WS upgrade error: %v", err)
 		return
 	}
-	remoteAddr := wsEffectiveRemoteAddr(r)
+	remoteAddr := wsEffectiveRemoteAddr(r, s.cfg.TrustProxy)
 
 	log.Printf("[signal] WS upgrade remote=%s effective=%s path=%s origin=%q ua=%q xff=%q xri=%q",
 		r.RemoteAddr, remoteAddr, r.URL.Path,
@@ -100,22 +100,49 @@ func (s *Server) handleWSUpgrade(w http.ResponseWriter, r *http.Request) {
 }
 
 // wsEffectiveRemoteAddr returns the client address for WS signal registration.
-// When behind a reverse proxy, prefer X-Real-IP then the first X-Forwarded-For
-// hop (same behaviour as rustdesk-server WS upgrade).
-func wsEffectiveRemoteAddr(r *http.Request) string {
-	clientIP := strings.TrimSpace(r.Header.Get("X-Real-IP"))
-	if clientIP == "" {
+// When TrustProxy is enabled, prefer X-Real-IP then the first X-Forwarded-For
+// hop. Forwarded values are parsed with net.SplitHostPort / net.ParseIP so
+// IP-only headers keep the proxy connection port (never synthesise :0) and
+// IP:port headers are not double-wrapped into malformed [IP:port]:0 keys
+// (issue #276).
+func wsEffectiveRemoteAddr(r *http.Request, trustProxy bool) string {
+	if !trustProxy {
+		return r.RemoteAddr
+	}
+	fwd := strings.TrimSpace(r.Header.Get("X-Real-IP"))
+	if fwd == "" {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			clientIP = strings.TrimSpace(strings.SplitN(xff, ",", 2)[0])
+			fwd = strings.TrimSpace(strings.SplitN(xff, ",", 2)[0])
 		}
 	}
-	if clientIP != "" {
-		if strings.Contains(clientIP, ":") {
-			return fmt.Sprintf("[%s]:0", clientIP)
-		}
-		return fmt.Sprintf("%s:0", clientIP)
+	if fwd == "" {
+		return r.RemoteAddr
 	}
-	return r.RemoteAddr
+	return joinForwardedClientAddr(fwd, r.RemoteAddr)
+}
+
+// joinForwardedClientAddr builds a host:port session key from a forwarded
+// client address and the direct RemoteAddr (used for the port when the
+// forwarded value is IP-only).
+func joinForwardedClientAddr(fwd, remoteAddr string) string {
+	if host, port, err := net.SplitHostPort(fwd); err == nil {
+		if ip := net.ParseIP(host); ip != nil {
+			return net.JoinHostPort(ip.String(), port)
+		}
+		return net.JoinHostPort(host, port)
+	}
+	// Bracketed IPv6 without port: "[2001:db8::1]"
+	if len(fwd) >= 2 && fwd[0] == '[' && fwd[len(fwd)-1] == ']' {
+		fwd = fwd[1 : len(fwd)-1]
+	}
+	if ip := net.ParseIP(fwd); ip != nil {
+		_, port, err := net.SplitHostPort(remoteAddr)
+		if err != nil || port == "" {
+			return remoteAddr
+		}
+		return net.JoinHostPort(ip.String(), port)
+	}
+	return remoteAddr
 }
 
 func bindPeerWSConn(s *Server, peerID string, wsc *codec.WSConn) {
@@ -191,7 +218,11 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			}
 
 		case msg.GetPunchHoleRequest() != nil:
-			fakeAddr, _ := net.ResolveUDPAddr("udp", remoteAddr)
+			fakeAddr, err := net.ResolveUDPAddr("udp", remoteAddr)
+			if err != nil || fakeAddr == nil {
+				log.Printf("[signal] WS PunchHoleRequest: invalid remote addr %q: %v", remoteAddr, err)
+				continue
+			}
 			resp := s.handlePunchHoleRequestTCP(msg.GetPunchHoleRequest(), fakeAddr)
 			if resp != nil {
 				wsc.WriteMessage(resp)
@@ -199,7 +230,11 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 
 		case msg.GetTestNatRequest() != nil:
 			// NAT test over WS — extract port from remote address (limited value)
-			fakeAddr, _ := net.ResolveTCPAddr("tcp", remoteAddr)
+			fakeAddr, err := net.ResolveTCPAddr("tcp", remoteAddr)
+			if err != nil || fakeAddr == nil {
+				log.Printf("[signal] WS TestNatRequest: invalid remote addr %q: %v", remoteAddr, err)
+				continue
+			}
 			resp := s.handleTestNat(msg.GetTestNatRequest(), fakeAddr)
 			if resp != nil {
 				wsc.WriteMessage(resp)
@@ -215,25 +250,31 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			// Use the TCP handler which returns an immediate RelayResponse with
 			// signed PK — the UDP handler would send the response via UDP which
 			// the WebSocket client cannot receive.
-			fakeAddr, _ := net.ResolveUDPAddr("udp", remoteAddr)
-			if fakeAddr != nil {
-				resp := s.handleRequestRelayTCP(msg.GetRequestRelay(), fakeAddr)
-				if resp != nil {
-					wsc.WriteMessage(resp)
-				}
+			fakeAddr, err := net.ResolveUDPAddr("udp", remoteAddr)
+			if err != nil || fakeAddr == nil {
+				log.Printf("[signal] WS RequestRelay: invalid remote addr %q: %v", remoteAddr, err)
+				continue
+			}
+			resp := s.handleRequestRelayTCP(msg.GetRequestRelay(), fakeAddr)
+			if resp != nil {
+				wsc.WriteMessage(resp)
 			}
 
 		case msg.GetFetchLocalAddr() != nil:
-			fakeAddr, _ := net.ResolveUDPAddr("udp", remoteAddr)
-			if fakeAddr != nil {
-				s.handleFetchLocalAddr(msg.GetFetchLocalAddr(), fakeAddr)
+			fakeAddr, err := net.ResolveUDPAddr("udp", remoteAddr)
+			if err != nil || fakeAddr == nil {
+				log.Printf("[signal] WS FetchLocalAddr: invalid remote addr %q: %v", remoteAddr, err)
+				continue
 			}
+			s.handleFetchLocalAddr(msg.GetFetchLocalAddr(), fakeAddr)
 
 		case msg.GetLocalAddr() != nil:
-			fakeAddr, _ := net.ResolveUDPAddr("udp", remoteAddr)
-			if fakeAddr != nil {
-				s.handleLocalAddr(msg.GetLocalAddr(), fakeAddr)
+			fakeAddr, err := net.ResolveUDPAddr("udp", remoteAddr)
+			if err != nil || fakeAddr == nil {
+				log.Printf("[signal] WS LocalAddr: invalid remote addr %q: %v", remoteAddr, err)
+				continue
 			}
+			s.handleLocalAddr(msg.GetLocalAddr(), fakeAddr)
 
 		case msg.GetHc() != nil:
 			resp := &pb.RendezvousMessage{

@@ -3,6 +3,9 @@
 ### Added
 - **RustDesk client login → device owner (#270):** successful client login maps the device (`peers.user`) to the BetterDesk account for inventory/audit (shared logins, credential misuse). Does **not** block remote connections.
 
+### Fixed
+- **WebSocket mode behind Nginx (#276):** signal WSS no longer builds session keys as `IP:0` / `[IP:port]:0` from `X-Real-IP` / `X-Forwarded-For`. Forwarded addresses are parsed correctly when `TRUST_PROXY=Y`, and async PunchHole/RelayResponse delivery reaches WebSocket initiators (not only TCP punch connections).
+
 ### Changed
 - _(none yet)_
 

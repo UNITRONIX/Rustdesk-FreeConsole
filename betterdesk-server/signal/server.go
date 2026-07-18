@@ -644,12 +644,53 @@ func (s *Server) forwardToTCPInitiator(initiatorAddr string, msg *pb.RendezvousM
 	normAddr := normalizeAddrKey(initiatorAddr)
 	val, ok := s.tcpPunchConns.Load(normAddr)
 	if !ok {
-		log.Printf("[signal] TCP forwarding: no conn found for key %q (raw=%q)", normAddr, initiatorAddr)
 		return false
 	}
 	pc := val.(*tcpPunchConn)
 	if err := pc.writeProto(msg); err != nil {
 		log.Printf("[signal] TCP forward write to %s: %v", initiatorAddr, err)
+		return false
+	}
+	return true
+}
+
+// forwardToInitiator delivers an async punch/relay message to the initiator
+// over TCP (tcpPunchConns) or WebSocket (peer map). Required for WSS clients
+// behind reverse proxies which are never registered in tcpPunchConns (#276).
+func (s *Server) forwardToInitiator(initiatorAddr string, msg *pb.RendezvousMessage) bool {
+	if s.forwardToTCPInitiator(initiatorAddr, msg) {
+		return true
+	}
+	if s.forwardToWSInitiator(initiatorAddr, msg) {
+		return true
+	}
+	log.Printf("[signal] initiator forwarding: no TCP/WS conn for key %q (raw=%q)",
+		normalizeAddrKey(initiatorAddr), initiatorAddr)
+	return false
+}
+
+// forwardToWSInitiator looks up a WebSocket peer by the public IP in
+// initiatorAddr and writes msg on its bound WSConn.
+func (s *Server) forwardToWSInitiator(initiatorAddr string, msg *pb.RendezvousMessage) bool {
+	normAddr := normalizeAddrKey(initiatorAddr)
+	host, _, err := net.SplitHostPort(normAddr)
+	if err != nil {
+		host = normAddr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	entry := s.peers.FindByIP(ip)
+	if entry == nil || entry.ConnType != peer.ConnWS || entry.WSConn == nil {
+		return false
+	}
+	wsc, ok := entry.WSConn.(*codec.WSConn)
+	if !ok {
+		return false
+	}
+	if err := wsc.WriteMessage(msg); err != nil {
+		log.Printf("[signal] WS forward write to peer %s (addr=%s): %v", entry.ID, initiatorAddr, err)
 		return false
 	}
 	return true

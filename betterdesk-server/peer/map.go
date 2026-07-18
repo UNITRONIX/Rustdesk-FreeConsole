@@ -500,15 +500,32 @@ func (m *Map) ForEach(fn func(e *Entry)) {
 	}
 }
 
-// FindByIP returns the first peer whose UDPAddr has the given IP.
-// This is used to forward messages to a peer when we only know their public IP
-// (e.g., from a decoded socket_addr in RelayResponse). If multiple peers share
+// FindByIP returns the first peer whose public IP matches.
+// Prefers peers with a UDPAddr; otherwise matches the host portion of entry.IP
+// (WebSocket/TCP peers store "ip:port" without UDPAddr). Used when forwarding
+// PunchHole/RelayResponse from a decoded socket_addr. If multiple peers share
 // the same IP (behind NAT), only the first match is returned.
 func (m *Map) FindByIP(ip net.IP) *Entry {
+	if ip == nil {
+		return nil
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, e := range m.entries {
 		if e.UDPAddr != nil && e.UDPAddr.IP.Equal(ip) {
+			return e
+		}
+	}
+	// Second pass: WS/TCP peers keyed by IP string only.
+	for _, e := range m.entries {
+		if e.UDPAddr != nil || e.IP == "" {
+			continue
+		}
+		host, _, err := net.SplitHostPort(e.IP)
+		if err != nil {
+			host = e.IP
+		}
+		if parsed := net.ParseIP(host); parsed != nil && parsed.Equal(ip) {
 			return e
 		}
 	}

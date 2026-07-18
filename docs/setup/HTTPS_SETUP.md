@@ -436,6 +436,8 @@ When using a reverse proxy (Caddy/Nginx), keep `HTTPS_ENABLED=false` and let the
 
 The proxy must send **`X-Forwarded-Proto: https`** so secure cookies and redirects work. Caddy does this by default; for Nginx use `proxy_set_header X-Forwarded-Proto $scheme`.
 
+For RustDesk **WebSocket Mode** (`allow-websocket=Y` / `wss://…/ws/id`), `TRUST_PROXY=Y` is also required so the Go signal server can use `X-Real-IP` / `X-Forwarded-For` for client session keys. Use IP-only values in those headers (standard Nginx `$remote_addr` / `$proxy_add_x_forwarded_for`); do not put `IP:port` in `X-Real-IP` unless your proxy documents that form.
+
 See [REVERSE_PROXY.md](REVERSE_PROXY.md) for the full checklist, generated snippets from `betterdesk.sh`, and RustDesk WSS routing.
 
 ### RustDesk WSS Symptom Guide
@@ -448,6 +450,7 @@ See [REVERSE_PROXY.md](REVERSE_PROXY.md) for the full checklist, generated snipp
 | `Rendezvous connection is reset by the peer` ~30s after handshake | Peer marked offline; keepalive not reaching server | Same as above; confirm `/ws/id` reaches port `21118`, not console `:5000` |
 | `HTTP/1.1 401` or `403` on WebSocket upgrade | Console session / origin check (panel paths, not RustDesk `/ws/id`) | Route `/ws/id` and `/ws/relay` to Go ports `21118` / `21119` |
 | Server log `WS read ... EOF` immediately after `101`, client retries in a loop (`allow-websocket=Y`) | Client closed before the first protobuf frame; often proxy idle timeout or desktop `RegisterPk` delay (~1s) | Update BetterDesk (fix in [#229](https://github.com/UNITRONIX/BetterDesk/issues/229)); set `WS_DEBUG_FRAMES=1` on the Go server and retest; use `ws-register-test --mode=register-pk --delay-ms=1000 ws://127.0.0.1:21118/ws/id PEERID` |
+| Server log `TCP forwarding: no conn found for key "…:0"` / `effective=…:0` / relay timeout with WebSocket Mode | Invalid port in proxied WSS session key; PunchHole/RelayResponse not delivered to WS initiator | Update BetterDesk (fix in [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)); set `TRUST_PROXY=Y`; confirm Nginx sends `X-Real-IP` / `X-Forwarded-For` as IP-only |
 
 **Diagnostic commands** (run from the reverse-proxy host):
 

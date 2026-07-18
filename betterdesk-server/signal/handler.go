@@ -744,6 +744,10 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 // they arrive later — this provides an update but is no longer required for the
 // initiator to proceed.
 func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.UDPAddr) *pb.RendezvousMessage {
+	if raddr == nil {
+		log.Printf("[signal] PunchHoleRequest (TCP): nil address, ignoring")
+		return nil
+	}
 	targetID := msg.Id
 	if targetID == "" {
 		return nil
@@ -906,7 +910,7 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 		s.schedulePunchFallback(initiatorKey, func() {
 			log.Printf("[signal] P2P-first (TCP): target %s did not complete hole punch in time, forwarding relay fallback to %s",
 				targetID, initiatorKey)
-			s.forwardToTCPInitiator(initiatorKey, resp)
+			s.forwardToInitiator(initiatorKey, resp)
 		})
 		return nil
 	}
@@ -1019,9 +1023,9 @@ func (s *Server) handlePunchHoleSent(phs *pb.PunchHoleSent, senderAddr *net.UDPA
 		log.Printf("[signal] P2P-first: cancelled relay fallback for %s — direct P2P response incoming", addrStr)
 	}
 
-	// Try TCP delivery first (initiator may have an open TCP connection).
-	if s.forwardToTCPInitiator(addrStr, resp) {
-		log.Printf("[signal] PunchHoleResponse forwarded via TCP to %s (target=%s)", addrStr, phs.Id)
+	// Try TCP then WebSocket delivery (initiator may be on either transport).
+	if s.forwardToInitiator(addrStr, resp) {
+		log.Printf("[signal] PunchHoleResponse forwarded to %s (target=%s)", addrStr, phs.Id)
 		return
 	}
 
@@ -1189,6 +1193,10 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 // Previous behavior (sending nothing back and waiting for the target's
 // RelayResponse) caused timeouts for TCP signaling clients (e.g. logged-in users).
 func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr) *pb.RendezvousMessage {
+	if raddr == nil {
+		log.Printf("[signal] RequestRelay (TCP): nil address, ignoring")
+		return nil
+	}
 	targetID := msg.Id
 
 	// Generate UUID if the client sent an empty one (see handleRequestRelay comment).
@@ -1395,9 +1403,9 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 		},
 	}
 
-	// Primary delivery: TCP forwarding via tcpPunchConns.
-	if s.forwardToTCPInitiator(addrStr, initiatorResp) {
-		log.Printf("[signal] RelayResponse forwarded via TCP to %s (uuid=%s, relay=%s, signedPk=%d bytes)", addrStr, rr.Uuid, relayServer, len(signedPk))
+	// Primary delivery: TCP punch map or WebSocket peer (#276).
+	if s.forwardToInitiator(addrStr, initiatorResp) {
+		log.Printf("[signal] RelayResponse forwarded to %s (uuid=%s, relay=%s, signedPk=%d bytes)", addrStr, rr.Uuid, relayServer, len(signedPk))
 		return
 	}
 

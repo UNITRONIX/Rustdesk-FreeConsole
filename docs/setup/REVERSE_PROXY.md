@@ -87,11 +87,13 @@ sudo systemctl restart betterdesk-console betterdesk-server
 
 ### Go server trust proxy
 
-The Go REST API uses `X-Forwarded-For` for rate limits only when proxy trust is enabled.
+The Go REST API uses `X-Forwarded-For` for rate limits only when proxy trust is enabled. The Go **signal WebSocket** (`/ws/id` on port `21118`) also uses `X-Real-IP` / `X-Forwarded-For` for client session keys when trust is enabled — required for RustDesk WebSocket Mode behind Nginx/Caddy ([#276](https://github.com/UNITRONIX/BetterDesk/issues/276)).
 
 Set **`TRUST_PROXY=Y`** in `betterdesk-server.service` (installer does this automatically), or add `-trust-proxy` to `ExecStart`.
 
 > **Note:** `TRUST_PROXY=Y` in `.env` enables trust for **both** the Node.js panel and the Go server. Node also accepts `1` / `yes`; Go requires **`Y`**.
+
+> **UDP/TCP signal** on port **21116** cannot use HTTP headers. `TRUST_PROXY` does not apply to native UDP/TCP rendezvous.
 
 ### Bind addresses
 

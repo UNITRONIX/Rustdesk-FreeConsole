@@ -455,3 +455,32 @@ func TestConnTypeString(t *testing.T) {
 		}
 	}
 }
+
+func TestFindByIPMatchesWSPeerIPString(t *testing.T) {
+	m := NewMap()
+	m.Put(&Entry{
+		ID:       "WS1",
+		IP:       "203.0.113.50:50123",
+		ConnType: ConnWS,
+		LastReg:  time.Now(),
+	})
+	m.Put(&Entry{
+		ID:       "UDP1",
+		IP:       "198.51.100.1:21116",
+		UDPAddr:  &net.UDPAddr{IP: net.ParseIP("198.51.100.1"), Port: 21116},
+		ConnType: ConnUDP,
+		LastReg:  time.Now(),
+	})
+
+	got := m.FindByIP(net.ParseIP("203.0.113.50"))
+	if got == nil || got.ID != "WS1" {
+		t.Fatalf("FindByIP WS peer = %+v, want WS1", got)
+	}
+	got = m.FindByIP(net.ParseIP("198.51.100.1"))
+	if got == nil || got.ID != "UDP1" {
+		t.Fatalf("FindByIP UDP peer = %+v, want UDP1", got)
+	}
+	if m.FindByIP(nil) != nil {
+		t.Fatal("FindByIP(nil) should be nil")
+	}
+}
