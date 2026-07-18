@@ -741,6 +741,9 @@ graceful_stop_services() {
 }
 
 # Read console setting with systemd Environment= overriding .env (matches runtime order).
+# Prefer .env over unit Environment= — matches systemd EnvironmentFile= precedence
+# (EnvironmentFile overrides Environment=). Stale Environment=PORT=5000 must not
+# win over .env PORT=80 when probing redirect / panel ports (#219).
 read_effective_console_setting() {
     local key="$1"
     local default="${2:-}"
@@ -748,16 +751,47 @@ read_effective_console_setting() {
     local env_file="${CONSOLE_PATH}/.env"
     local val=""
 
-    if [ -f "$svc_file" ]; then
-        val=$(grep -E "^Environment=${key}=" "$svc_file" 2>/dev/null | tail -1 | sed "s/^Environment=${key}=//")
-    fi
-    if [ -z "$val" ] && [ -f "$env_file" ]; then
+    if [ -f "$env_file" ]; then
         val=$(grep -m1 "^${key}=" "$env_file" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')
+    fi
+    if [ -z "$val" ] && [ -f "$svc_file" ]; then
+        val=$(grep -E "^Environment=${key}=" "$svc_file" 2>/dev/null | tail -1 | sed "s/^Environment=${key}=//")
     fi
     if [ -z "$val" ]; then
         val="$default"
     fi
     echo "$val"
+}
+
+# Keep betterdesk-console.service Environment=PORT/HTTPS_PORT aligned with .env (#219).
+_sync_console_panel_ports_to_systemd() {
+    local svc_file="/etc/systemd/system/betterdesk-console.service"
+    local env_file="${CONSOLE_PATH}/.env"
+    local http_port https_port changed=0
+
+    [ -f "$svc_file" ] || return 1
+
+    http_port=$(grep -m1 '^PORT=' "$env_file" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')
+    https_port=$(grep -m1 '^HTTPS_PORT=' "$env_file" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')
+    [ -n "$http_port" ] || http_port="5000"
+    [ -n "$https_port" ] || https_port="5443"
+
+    if ! grep -qE "^Environment=PORT=${http_port}$" "$svc_file" 2>/dev/null; then
+        _upsert_systemd_env "$svc_file" PORT "$http_port"
+        changed=1
+    fi
+    if [ "$(read_effective_console_setting HTTPS_ENABLED false | tr '[:upper:]' '[:lower:]')" = "true" ]; then
+        if ! grep -qE "^Environment=HTTPS_PORT=${https_port}$" "$svc_file" 2>/dev/null; then
+            _upsert_systemd_env "$svc_file" HTTPS_PORT "$https_port"
+            changed=1
+        fi
+    fi
+
+    if [ "$changed" -eq 1 ]; then
+        systemctl daemon-reload 2>/dev/null || true
+        return 0
+    fi
+    return 1
 }
 
 _upsert_env_line() {
@@ -1043,7 +1077,9 @@ maybe_repair_le_ssl_symlinks() {
 # When HTTPS uses standard port 443, align HTTP redirect listener to :80 (#219).
 _ensure_standard_https_redirect_ports() {
     local env_file="${CONSOLE_PATH}/.env"
-    local https_port http_port https_enabled
+    local svc_file="/etc/systemd/system/betterdesk-console.service"
+    local https_port http_port https_enabled changed=0
+    local svc_port svc_https
 
     https_enabled=$(read_effective_console_setting HTTPS_ENABLED false)
     if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" != "true" ]; then
@@ -1057,6 +1093,20 @@ _ensure_standard_https_redirect_ports() {
     if [ "$http_port" != "80" ]; then
         _upsert_env_line "$env_file" PORT 80
         _upsert_env_line "$env_file" HTTP_REDIRECT_HTTPS true
+        changed=1
+    fi
+    if [ -f "$svc_file" ]; then
+        svc_port=$(grep -E '^Environment=PORT=' "$svc_file" 2>/dev/null | tail -1 | sed 's/^Environment=PORT=//')
+        svc_https=$(grep -E '^Environment=HTTPS_PORT=' "$svc_file" 2>/dev/null | tail -1 | sed 's/^Environment=HTTPS_PORT=//')
+        if [ "$svc_port" != "80" ] || [ "$svc_https" != "443" ]; then
+            _upsert_systemd_env "$svc_file" HTTPS_PORT 443
+            _upsert_systemd_env "$svc_file" PORT 80
+            _upsert_systemd_env "$svc_file" HTTP_REDIRECT_HTTPS true
+            systemctl daemon-reload 2>/dev/null || true
+            changed=1
+        fi
+    fi
+    if [ "$changed" -eq 1 ]; then
         ensure_betterdesk_console_user >/dev/null
         print_info "Standard HTTPS ports synced: HTTPS :443, HTTP redirect :80 (#219)"
         return 0
@@ -1087,6 +1137,9 @@ repair_https_stuck_state() {
         fi
         _sync_deployed_ssl_paths_to_env 2>/dev/null || true
         if _ensure_standard_https_redirect_ports; then
+            changed=1
+        fi
+        if _sync_console_panel_ports_to_systemd; then
             changed=1
         fi
     fi
@@ -1695,6 +1748,7 @@ resolve_panel_health_port() {
 # Offer native HTTPS on standard port 443 after enabling TLS (#219 follow-up).
 maybe_offer_standard_https_port() {
     local env_file="${CONSOLE_PATH}/.env"
+    local svc_file="/etc/systemd/system/betterdesk-console.service"
     local current_https_port
 
     current_https_port=$(read_effective_console_setting HTTPS_PORT 5443)
@@ -1706,6 +1760,12 @@ maybe_offer_standard_https_port() {
         _upsert_env_line "$env_file" HTTPS_PORT 443
         _upsert_env_line "$env_file" PORT 80
         _upsert_env_line "$env_file" HTTP_REDIRECT_HTTPS true
+        if [ -f "$svc_file" ]; then
+            _upsert_systemd_env "$svc_file" HTTPS_PORT 443
+            _upsert_systemd_env "$svc_file" PORT 80
+            _upsert_systemd_env "$svc_file" HTTP_REDIRECT_HTTPS true
+            systemctl daemon-reload 2>/dev/null || true
+        fi
         ensure_betterdesk_console_user >/dev/null
         print_success "Standard ports configured: HTTPS :443, HTTP redirect :80"
         print_info "Ensure nothing else listens on :443/:80; open firewall: ufw allow 443/tcp (and 80/tcp if redirecting)"
@@ -6673,10 +6733,19 @@ run_protocol_tests() {
     # ── 3b. HTTP→HTTPS redirect (only when HTTPS + redirect enabled) ──
     if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" = "true" ] \
         && [ "$(echo "$http_redirect" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
-        local redirect_hdr _r_elapsed=0
+        local redirect_hdr _r_elapsed=0 redirect_probe_port="$http_port"
+        # When panel is on :443, redirect is on :80 — never probe stale :5000 from
+        # unit Environment= while EnvironmentFile/.env already has PORT=80 (#219).
+        if [ "$https_port" = "443" ] && [ "$http_port" != "80" ]; then
+            if _tcp_port_is_listening 80; then
+                redirect_probe_port="80"
+            fi
+        elif [ "$https_port" = "443" ] && [ "$http_port" = "80" ]; then
+            redirect_probe_port="80"
+        fi
         redirect_hdr=""
         while [ "$_r_elapsed" -lt 10 ]; do
-            redirect_hdr=$(curl -sI --max-time 4 "http://127.0.0.1:${http_port}/" 2>/dev/null | grep -i '^location:' | head -1)
+            redirect_hdr=$(curl -sI --max-time 4 "http://127.0.0.1:${redirect_probe_port}/" 2>/dev/null | grep -i '^location:' | head -1)
             if [ "$https_port" = "443" ]; then
                 if echo "$redirect_hdr" | grep -qi 'https://' \
                     && { ! echo "$redirect_hdr" | grep -qiE ':[0-9]+' || echo "$redirect_hdr" | grep -qi ':443'; }; then
@@ -6685,15 +6754,27 @@ run_protocol_tests() {
             elif echo "$redirect_hdr" | grep -qi ":${https_port}"; then
                 break
             fi
+            # Fallback: configured http_port silent but :80 has redirect (stale PORT=5000)
+            if [ "$https_port" = "443" ] && [ "$redirect_probe_port" != "80" ] && _tcp_port_is_listening 80; then
+                redirect_probe_port="80"
+                redirect_hdr=$(curl -sI --max-time 4 "http://127.0.0.1:80/" 2>/dev/null | grep -i '^location:' | head -1)
+                if echo "$redirect_hdr" | grep -qi 'https://' \
+                    && { ! echo "$redirect_hdr" | grep -qiE ':[0-9]+' || echo "$redirect_hdr" | grep -qi ':443'; }; then
+                    break
+                fi
+            fi
             sleep 1
             _r_elapsed=$((_r_elapsed + 1))
         done
         if [ "$https_port" = "443" ]; then
             if echo "$redirect_hdr" | grep -qi 'https://' \
                 && { ! echo "$redirect_hdr" | grep -qiE ':[0-9]+' || echo "$redirect_hdr" | grep -qi ':443'; }; then
-                _test_ok "HTTP redirect active: :${http_port} → HTTPS :${https_port}"
+                _test_ok "HTTP redirect active: :${redirect_probe_port} → HTTPS :${https_port}"
             else
-                _test_fail "HTTP redirect missing or wrong target on :${http_port} (got: ${redirect_hdr:-none})"
+                _test_fail "HTTP redirect missing or wrong target on :${redirect_probe_port} (got: ${redirect_hdr:-none})"
+                if [ "$redirect_probe_port" = "5000" ] && _tcp_port_is_listening 80; then
+                    echo -e "      ${DIM}Hint: redirect listens on :80 — sync PORT=80 (.env + systemd) via Repair → Repair HTTPS/TLS (#219)${NC}"
+                fi
             fi
         elif echo "$redirect_hdr" | grep -qi ":${https_port}"; then
             _test_ok "HTTP redirect active: :${http_port} → HTTPS :${https_port}"

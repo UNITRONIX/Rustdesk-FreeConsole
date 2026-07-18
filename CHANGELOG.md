@@ -10,6 +10,9 @@
 ### Added
 - **Guest Access Links for Web Remote / RdClient (#274):** operators can create a time-limited opaque link with a device allowlist. Guests open `/remote/guest?t=…`, see only those devices, and cannot use the plus/session-picker/quick-connect paths to reach other peers. No panel Console session is created. Mesh single-device share tunnel auth no longer requires a panel login when `mesh_share` is valid.
 
+### Fixed
+- **Linux HTTP/HTTPS post-toggle false fail (#219):** when the panel uses `HTTPS_PORT=443` / `PORT=80`, post-configuration tests no longer probe a stale `Environment=PORT=5000` from the systemd unit. Effective settings prefer `.env` (matches `EnvironmentFile=` precedence), standard-port repair syncs `PORT`/`HTTPS_PORT` into `betterdesk-console.service`, and redirect checks fall back to `:80` when that listener is active.
+
 ### Changed
 - _(none yet)_
 
