@@ -37,7 +37,11 @@ set -e
 
 # Version
 VERSION="3.3.150"
+# Bump when installer control-flow changes must apply mid-session after Update (#219).
+BETTERDESK_SH_REVISION="20260718-reexec"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Preserve argv before shift — used to re-exec after installer self-update (#219).
+BETTERDESK_ORIG_ARGV=("$@")
 
 # Auto mode flag
 AUTO_MODE=false
@@ -628,8 +632,11 @@ check_port_available() {
 # Verify that a service is healthy (running and listening on expected port)
 _tcp_port_is_listening() {
     local port="$1"
-    ss -tlnH 2>/dev/null | grep -q ":${port} " || \
-        netstat -tln 2>/dev/null | grep -q ":${port} "
+    # Match :PORT followed by whitespace or end — covers ss/netstat layouts
+    # like "0.0.0.0:80", "*:80", "[::]:80" (#219).
+    ss -tlnH 2>/dev/null | grep -qE ":${port}([[:space:]]|$)" || \
+        ss -tln 2>/dev/null | grep -qE ":${port}([[:space:]]|$)" || \
+        netstat -tln 2>/dev/null | grep -qE ":${port}([[:space:]]|$)"
 }
 
 # Hint when .env requests a privileged panel port but Node bound a fallback (#219).
@@ -3816,6 +3823,20 @@ Environment=SSL_CERT_PATH=$ssl_dir/betterdesk.crt
             print_warning "Node.js binary not found at $node_path — service may fail to start"
         fi
 
+        # Preserve panel listen ports from .env (do not reset :80/:443 → :5000/:5443 on recreate) (#219).
+        local console_http_port=5000
+        local console_https_port=""
+        local console_https_port_env=""
+        if [ -f "$CONSOLE_PATH/.env" ]; then
+            console_http_port=$(grep -m1 '^PORT=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')
+            [ -n "$console_http_port" ] || console_http_port=5000
+            console_https_port=$(grep -m1 '^HTTPS_PORT=' "$CONSOLE_PATH/.env" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')
+        fi
+        if [ -n "$tls_env" ] || grep -qiE '^HTTPS_ENABLED=true' "$CONSOLE_PATH/.env" 2>/dev/null; then
+            [ -n "$console_https_port" ] || console_https_port=5443
+            console_https_port_env="Environment=HTTPS_PORT=${console_https_port}"
+        fi
+
         local console_user
         console_user=$(ensure_betterdesk_console_user)
         print_info "Web console service user: $console_user"
@@ -3849,7 +3870,8 @@ Environment=API_PORT=${CLIENT_API_PORT:-21121}
 Environment=RUSTDESK_API_PROXY=true
 Environment=GO_API_PORT=${GO_API_PORT:-21114}
 Environment=API_HOST=0.0.0.0
-Environment=PORT=5000
+Environment=PORT=${console_http_port}
+${console_https_port_env}
 Environment=HOST=0.0.0.0
 $tls_env
 $([ "$tls_is_selfsigned" = true ] && echo "Environment=NODE_EXTRA_CA_CERTS=$ssl_dir/betterdesk.crt" || true)
@@ -4643,6 +4665,43 @@ update_from_github() {
     return 0
 }
 
+# After update replaces betterdesk.sh on disk, re-exec so Repair / Protocol Toggle
+# use the new functions (bash keeps the old script in memory otherwise) (#219).
+reexec_installer_after_update() {
+    if [ "${AUTO_MODE:-false}" = "true" ]; then
+        return 0
+    fi
+    if [ "${BETTERDESK_REEXECED:-}" = "1" ]; then
+        return 0
+    fi
+    local self="${SCRIPT_DIR}/betterdesk.sh"
+    if [ ! -f "$self" ]; then
+        self="${BASH_SOURCE[0]}"
+    fi
+    print_info "Reloading installer so the next menu action uses the updated betterdesk.sh (#219)"
+    press_enter
+    exec env BETTERDESK_REEXECED=1 bash "$self" "${BETTERDESK_ORIG_ARGV[@]}"
+}
+
+# If Update already wrote a newer betterdesk.sh, re-exec before Repair/Toggle (#219).
+maybe_reexec_if_installer_on_disk_is_newer() {
+    if [ "${AUTO_MODE:-false}" = "true" ]; then
+        return 0
+    fi
+    if [ "${BETTERDESK_REEXECED:-}" = "1" ]; then
+        return 0
+    fi
+    local self="${SCRIPT_DIR}/betterdesk.sh"
+    [ -f "$self" ] || return 0
+    local disk_rev
+    disk_rev=$(grep -m1 '^BETTERDESK_SH_REVISION=' "$self" 2>/dev/null | cut -d= -f2- | tr -d "\"'[:space:]")
+    if [ -z "$disk_rev" ] || [ "$disk_rev" = "${BETTERDESK_SH_REVISION:-}" ]; then
+        return 0
+    fi
+    print_info "Installer on disk is newer (revision $disk_rev) — reloading before this action (#219)"
+    exec env BETTERDESK_REEXECED=1 bash "$self" "${BETTERDESK_ORIG_ARGV[@]}"
+}
+
 do_update() {
     print_header
     echo -e "${WHITE}${BOLD}══════════ UPDATE ══════════${NC}"
@@ -4712,7 +4771,7 @@ do_update() {
             2)
                 if run_terminal_project_update; then
                     print_success "Online project update completed"
-                    press_enter
+                    reexec_installer_after_update
                     return
                 else
                     update_rc=$?
@@ -4740,7 +4799,7 @@ do_update() {
                 maybe_create_admin_user_on_update
                 start_services_with_verification
                 print_success "Local update completed!"
-                press_enter
+                reexec_installer_after_update
                 return
                 ;;
             1|*)
@@ -4789,7 +4848,7 @@ do_update() {
     if [ -n "${remote_version:-}" ]; then
         print_info "BetterDesk is now at version $remote_version"
     fi
-    press_enter
+    reexec_installer_after_update
 }
 
 #===============================================================================
@@ -4797,6 +4856,7 @@ do_update() {
 #===============================================================================
 
 do_repair() {
+    maybe_reexec_if_installer_on_disk_is_newer
     print_header
     echo -e "${WHITE}${BOLD}══════════ REPAIR INSTALLATION ══════════${NC}"
     echo ""
@@ -6345,6 +6405,7 @@ do_uninstall() {
 #===============================================================================
 
 do_configure_ssl() {
+    maybe_reexec_if_installer_on_disk_is_newer
     print_header
     echo -e "${WHITE}${BOLD}══════════ SSL CERTIFICATE CONFIGURATION ══════════${NC}"
     echo ""
@@ -6734,13 +6795,8 @@ run_protocol_tests() {
     if [ "$(echo "$https_enabled" | tr '[:upper:]' '[:lower:]')" = "true" ] \
         && [ "$(echo "$http_redirect" | tr '[:upper:]' '[:lower:]')" = "true" ]; then
         local redirect_hdr _r_elapsed=0 redirect_probe_port="$http_port"
-        # When panel is on :443, redirect is on :80 — never probe stale :5000 from
-        # unit Environment= while EnvironmentFile/.env already has PORT=80 (#219).
-        if [ "$https_port" = "443" ] && [ "$http_port" != "80" ]; then
-            if _tcp_port_is_listening 80; then
-                redirect_probe_port="80"
-            fi
-        elif [ "$https_port" = "443" ] && [ "$http_port" = "80" ]; then
+        # Standard HTTPS on :443 always redirects from :80 — never probe stale :5000 (#219).
+        if [ "$https_port" = "443" ]; then
             redirect_probe_port="80"
         fi
         redirect_hdr=""
@@ -6754,15 +6810,6 @@ run_protocol_tests() {
             elif echo "$redirect_hdr" | grep -qi ":${https_port}"; then
                 break
             fi
-            # Fallback: configured http_port silent but :80 has redirect (stale PORT=5000)
-            if [ "$https_port" = "443" ] && [ "$redirect_probe_port" != "80" ] && _tcp_port_is_listening 80; then
-                redirect_probe_port="80"
-                redirect_hdr=$(curl -sI --max-time 4 "http://127.0.0.1:80/" 2>/dev/null | grep -i '^location:' | head -1)
-                if echo "$redirect_hdr" | grep -qi 'https://' \
-                    && { ! echo "$redirect_hdr" | grep -qiE ':[0-9]+' || echo "$redirect_hdr" | grep -qi ':443'; }; then
-                    break
-                fi
-            fi
             sleep 1
             _r_elapsed=$((_r_elapsed + 1))
         done
@@ -6772,8 +6819,8 @@ run_protocol_tests() {
                 _test_ok "HTTP redirect active: :${redirect_probe_port} → HTTPS :${https_port}"
             else
                 _test_fail "HTTP redirect missing or wrong target on :${redirect_probe_port} (got: ${redirect_hdr:-none})"
-                if [ "$redirect_probe_port" = "5000" ] && _tcp_port_is_listening 80; then
-                    echo -e "      ${DIM}Hint: redirect listens on :80 — sync PORT=80 (.env + systemd) via Repair → Repair HTTPS/TLS (#219)${NC}"
+                if [ "$redirect_probe_port" = "80" ]; then
+                    echo -e "      ${DIM}Hint: set PORT=80 in .env, run Repair → Repair HTTPS/TLS, ensure CAP_NET_BIND_SERVICE (#219)${NC}"
                 fi
             fi
         elif echo "$redirect_hdr" | grep -qi ":${https_port}"; then
@@ -6907,6 +6954,7 @@ run_protocol_tests() {
 #===============================================================================
 
 do_toggle_protocol() {
+    maybe_reexec_if_installer_on_disk_is_newer
     print_header
     echo -e "${WHITE}${BOLD}══════════ PROTOCOL TOGGLE (HTTP / HTTPS) ══════════${NC}"
     echo ""

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Linux installer stale script after update (#219):** after Update replaces `betterdesk.sh` on disk, the interactive manager re-execs itself so Repair / Protocol Toggle use the new post-toggle tests (avoids false `HTTP redirect … on :5000` from the old in-memory script). Recreating systemd units preserves `PORT`/`HTTPS_PORT` from `.env` instead of resetting to `5000`/`5443`. Standard HTTPS (`:443`) post-tests always probe redirect on `:80`.
+
 ### Changed
 - _(none yet)_
 
