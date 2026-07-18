@@ -4310,5 +4310,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "التحكم عن بُعد للضيف",
+        "subtitle": "وصول مؤقت — الأجهزة المشتركة فقط",
+        "menu": "رابط وصول الضيف",
+        "create_title": "إنشاء رابط وصول الضيف",
+        "create_hint": "رابط RdClient محدود زمنياً. يمكن للمستلم الاتصال بالأجهزة المحددة فقط — بدون تسجيل دخول Console أو قائمة كاملة.",
+        "devices": "الأجهزة",
+        "ttl": "صالح لمدة (دقائق)",
+        "label": "تسمية (اختياري)",
+        "view_only": "عرض فقط",
+        "url": "رابط المشاركة",
+        "create": "إنشاء الرابط",
+        "created": "تم إنشاء رابط الضيف",
+        "invalid_title": "رابط ضيف غير صالح",
+        "missing_token": "رابط الضيف هذا يفتقد الرمز.",
+        "expired": "رابط الضيف هذا غير صالح أو منتهٍ.",
+        "device_denied": "الرابط غير صالح أو منتهٍ أو لا يسمح بهذا الجهاز.",
+        "empty": "لا توجد أجهزة على رابط الضيف هذا.",
+        "expires": "ينتهي",
+        "back_to_list": "العودة إلى قائمة الضيف"
     }
 }

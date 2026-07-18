@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Remote tamu",
+        "subtitle": "Akses sementara — hanya perangkat yang dibagikan",
+        "menu": "Tautan akses tamu",
+        "create_title": "Buat tautan akses tamu",
+        "create_hint": "Tautan RdClient berbatas waktu. Penerima hanya dapat terhubung ke perangkat yang dipilih — tanpa login Console atau daftar lengkap.",
+        "devices": "Perangkat",
+        "ttl": "Berlaku (menit)",
+        "label": "Label (opsional)",
+        "view_only": "Hanya lihat",
+        "url": "URL berbagi",
+        "create": "Buat tautan",
+        "created": "Tautan tamu dibuat",
+        "invalid_title": "Tautan tamu tidak valid",
+        "missing_token": "Tautan tamu ini tidak memiliki token.",
+        "expired": "Tautan tamu ini tidak valid atau kedaluwarsa.",
+        "device_denied": "Tautan tidak valid, kedaluwarsa, atau tidak mengizinkan perangkat ini.",
+        "empty": "Tidak ada perangkat pada tautan ini.",
+        "expires": "Kedaluwarsa",
+        "back_to_list": "Kembali ke daftar tamu"
     }
 }

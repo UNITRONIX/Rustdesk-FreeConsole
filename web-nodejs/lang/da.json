@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Gæste-remote",
+        "subtitle": "Midlertidig adgang — kun delte enheder",
+        "menu": "Gæsteadgangslink",
+        "create_title": "Opret gæsteadgangslink",
+        "create_hint": "Tidsbegrænset RdClient-link. Modtageren kan kun oprette forbindelse til valgte enheder — ingen Console-login og ingen fuld liste.",
+        "devices": "Enheder",
+        "ttl": "Gyldig i (minutter)",
+        "label": "Etiket (valgfrit)",
+        "view_only": "Kun visning",
+        "url": "Delings-URL",
+        "create": "Opret link",
+        "created": "Gæstelink oprettet",
+        "invalid_title": "Ugyldigt gæstelink",
+        "missing_token": "Dette gæstelink mangler et token.",
+        "expired": "Dette gæstelink er ugyldigt eller udløbet.",
+        "device_denied": "Linket er ugyldigt, udløbet eller tillader ikke denne enhed.",
+        "empty": "Ingen enheder på dette gæstelink.",
+        "expires": "Udløber",
+        "back_to_list": "Tilbage til gæstelisten"
     }
 }

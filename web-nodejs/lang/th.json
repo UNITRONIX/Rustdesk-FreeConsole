@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "รีโมตผู้เยี่ยมชม",
+        "subtitle": "การเข้าถึงชั่วคราว — เฉพาะอุปกรณ์ที่แชร์",
+        "menu": "ลิงก์เข้าถึงผู้เยี่ยมชม",
+        "create_title": "สร้างลิงก์เข้าถึงผู้เยี่ยมชม",
+        "create_hint": "ลิงก์ RdClient แบบจำกัดเวลา ผู้รับเชื่อมต่อได้เฉพาะอุปกรณ์ที่เลือก — ไม่ต้องเข้าสู่ระบบ Console และไม่มีรายการทั้งหมด",
+        "devices": "อุปกรณ์",
+        "ttl": "มีผล (นาที)",
+        "label": "ป้ายชื่อ (ไม่บังคับ)",
+        "view_only": "ดูอย่างเดียว",
+        "url": "URL สำหรับแชร์",
+        "create": "สร้างลิงก์",
+        "created": "สร้างลิงก์ผู้เยี่ยมชมแล้ว",
+        "invalid_title": "ลิงก์ผู้เยี่ยมชมไม่ถูกต้อง",
+        "missing_token": "ลิงก์นี้ไม่มีโทเค็น",
+        "expired": "ลิงก์นี้ไม่ถูกต้องหรือหมดอายุ",
+        "device_denied": "ลิงก์ไม่ถูกต้อง หมดอายุ หรือไม่อนุญาตอุปกรณ์นี้",
+        "empty": "ไม่มีอุปกรณ์ในลิงก์นี้",
+        "expires": "หมดอายุ",
+        "back_to_list": "กลับไปรายการผู้เยี่ยมชม"
     }
 }

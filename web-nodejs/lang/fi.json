@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Vieras-remote",
+        "subtitle": "Tilapäinen pääsy — vain jaetut laitteet",
+        "menu": "Vieraspääsylinkki",
+        "create_title": "Luo vieraspääsylinkki",
+        "create_hint": "Aikarajoitettu RdClient-linkki. Vastaanottaja voi yhdistää vain valittuihin laitteisiin — ei Console-kirjautumista eikä täyttä listaa.",
+        "devices": "Laitteet",
+        "ttl": "Voimassa (minuuttia)",
+        "label": "Nimike (valinnainen)",
+        "view_only": "Vain katselu",
+        "url": "Jakamis-URL",
+        "create": "Luo linkki",
+        "created": "Vieraslinkki luotu",
+        "invalid_title": "Virheellinen vieraslinkki",
+        "missing_token": "Tästä vieraslinkistä puuttuu token.",
+        "expired": "Tämä vieraslinkki on virheellinen tai vanhentunut.",
+        "device_denied": "Linkki on virheellinen, vanhentunut tai ei salli tätä laitetta.",
+        "empty": "Tällä vieraslinkillä ei ole laitteita.",
+        "expires": "Vanhenee",
+        "back_to_list": "Takaisin vieraslistaan"
     }
 }

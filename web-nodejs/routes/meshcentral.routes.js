@@ -46,9 +46,44 @@ router.get('/api/mesh/download.msh', requireAuth, requirePermission('server.conf
     }
 });
 
-router.post('/api/mesh/devices/:id/desktop', requireAuth, requirePermission('device.connect'), async (req, res) => {
+router.post('/api/mesh/devices/:id/desktop', async (req, res, next) => {
     const id = req.params.id;
-    return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/desktop`);
+    const meshShare = String(req.query.mesh_share || '').trim();
+    const guest = String(req.query.guest || req.query.t || '').trim();
+
+    // Guest / mesh_share: no panel session — validate then proxy with API key
+    if (meshShare || guest) {
+        try {
+            if (meshShare) {
+                const result = await betterdeskApi.apiClient.get('/mesh/share/validate', {
+                    params: { token: meshShare, peer_id: id },
+                });
+                if (!result.data?.valid) {
+                    return res.status(403).json({ error: 'Invalid or expired share link' });
+                }
+            } else if (guest) {
+                const result = await betterdeskApi.apiClient.get('/guest/access-links/validate', {
+                    params: { token: guest, peer_id: id },
+                });
+                if (!result.data?.valid) {
+                    return res.status(403).json({ error: 'Invalid or expired guest link' });
+                }
+                if (result.data.view_only && !req.query.view_only) {
+                    req.query.view_only = '1';
+                }
+            }
+        } catch {
+            return res.status(403).json({ error: 'Invalid or expired share link' });
+        }
+        return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => {
+            const qs = new URLSearchParams(req.query).toString();
+            return `/mesh/devices/${encodeURIComponent(id)}/desktop` + (qs ? `?${qs}` : '');
+        });
+    }
+
+    return requireAuth(req, res, () => requirePermission('device.connect')(req, res, () => {
+        return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/desktop`);
+    }));
 });
 
 router.post('/api/mesh/devices/:id/terminal', requireAuth, requirePermission('mesh.terminal'), async (req, res) => {

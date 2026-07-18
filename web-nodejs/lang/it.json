@@ -4303,5 +4303,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Remote ospite",
+        "subtitle": "Accesso temporaneo — solo i dispositivi condivisi",
+        "menu": "Link accesso ospite",
+        "create_title": "Crea link accesso ospite",
+        "create_hint": "Link RdClient a tempo limitato. Il destinatario può collegarsi solo ai dispositivi selezionati — senza login Console né elenco completo.",
+        "devices": "Dispositivi",
+        "ttl": "Valido per (minuti)",
+        "label": "Etichetta (opzionale)",
+        "view_only": "Solo visualizzazione",
+        "url": "URL di condivisione",
+        "create": "Crea link",
+        "created": "Link ospite creato",
+        "invalid_title": "Link ospite non valido",
+        "missing_token": "A questo link ospite manca il token.",
+        "expired": "Questo link ospite non è valido o è scaduto.",
+        "device_denied": "Questo link non è valido, è scaduto o non consente questo dispositivo.",
+        "empty": "Nessun dispositivo su questo link.",
+        "expires": "Scade",
+        "back_to_list": "Torna all'elenco ospite"
     }
 }

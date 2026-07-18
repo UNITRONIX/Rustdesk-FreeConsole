@@ -4307,5 +4307,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Remote invité",
+        "subtitle": "Accès temporaire — uniquement les appareils partagés",
+        "menu": "Lien d'accès invité",
+        "create_title": "Créer un lien d'accès invité",
+        "create_hint": "Lien RdClient à durée limitée. Le destinataire ne peut se connecter qu’aux appareils sélectionnés — sans compte Console ni inventaire complet.",
+        "devices": "Appareils",
+        "ttl": "Valide pendant (minutes)",
+        "label": "Libellé (optionnel)",
+        "view_only": "Lecture seule",
+        "url": "URL de partage",
+        "create": "Créer le lien",
+        "created": "Lien invité créé",
+        "invalid_title": "Lien invité invalide",
+        "missing_token": "Ce lien invité n’a pas de jeton.",
+        "expired": "Ce lien invité est invalide ou expiré.",
+        "device_denied": "Ce lien invité est invalide, expiré ou n’autorise pas cet appareil.",
+        "empty": "Aucun appareil sur ce lien invité.",
+        "expires": "Expire",
+        "back_to_list": "Retour à la liste invitée"
     }
 }

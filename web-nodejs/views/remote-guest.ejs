@@ -1,0 +1,41 @@
+<%- include('layouts/remote-desk', {
+    title: typeof title !== 'undefined' ? title : _('guest_access.title'),
+    pageStyles: ['remote-dashboard'],
+    pageScripts: ['remote-guest'],
+    body: `
+<div class="rd-desk-app remote-dashboard-layout" id="rd-guest-app">
+    <header class="rd-desk-header">
+        <div class="rd-desk-brand">
+            <div class="rd-desk-logo" id="rd-desk-logo"></div>
+            <div class="rd-desk-brand-text">
+                <h1 class="rd-desk-title">${_('guest_access.title')}</h1>
+                <p class="rd-desk-subtitle" id="rd-guest-subtitle">${_('guest_access.subtitle')}</p>
+            </div>
+        </div>
+        <div class="rd-desk-header-actions">
+            <span class="rd-desk-user" id="rd-guest-expiry"></span>
+        </div>
+    </header>
+
+    <section class="rd-desk-quick-connect" id="rd-guest-banner" style="display:none;">
+        <div class="rd-desk-quick-connect-inner">
+            <span class="material-icons rd-desk-quick-icon">link</span>
+            <span id="rd-guest-label"></span>
+        </div>
+    </section>
+
+    <div class="rd-desk-workspace" style="grid-template-columns: 1fr;">
+        <main class="rd-desk-main" style="width:100%;">
+            <div id="rd-guest-loading" class="rd-desk-loading">${_('remote_dashboard.loading')}</div>
+            <div id="rd-guest-error" class="rd-desk-error" hidden></div>
+            <div id="rd-guest-empty" class="rd-desk-empty" hidden>${_('guest_access.empty')}</div>
+            <div id="rd-guest-grid" class="rd-desk-device-grid" hidden></div>
+        </main>
+    </div>
+</div>
+<script>
+window.__guestAccess = ${JSON.stringify(typeof guestMeta !== 'undefined' ? guestMeta : {})};
+window.__guestToken = ${JSON.stringify(typeof guestToken !== 'undefined' ? guestToken : '')};
+</script>
+`
+}); %>

@@ -4303,5 +4303,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Gast-remote",
+        "subtitle": "Tijdelijke toegang — alleen gedeelde apparaten",
+        "menu": "Gasttoegangslink",
+        "create_title": "Gasttoegangslink maken",
+        "create_hint": "Tijdbegrensde RdClient-link. Ontvangers verbinden alleen met geselecteerde apparaten — geen Console-login, geen volledige lijst.",
+        "devices": "Apparaten",
+        "ttl": "Geldig voor (minuten)",
+        "label": "Label (optioneel)",
+        "view_only": "Alleen bekijken",
+        "url": "Deel-URL",
+        "create": "Link maken",
+        "created": "Gastlink gemaakt",
+        "invalid_title": "Ongeldige gastlink",
+        "missing_token": "Deze gastlink mist een token.",
+        "expired": "Deze gastlink is ongeldig of verlopen.",
+        "device_denied": "Deze gastlink is ongeldig, verlopen of staat dit apparaat niet toe.",
+        "empty": "Geen apparaten op deze gastlink.",
+        "expires": "Verloopt",
+        "back_to_list": "Terug naar gastenlijst"
     }
 }

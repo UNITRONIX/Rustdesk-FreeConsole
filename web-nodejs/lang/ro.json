@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Remote oaspete",
+        "subtitle": "Acces temporar — doar dispozitivele partajate",
+        "menu": "Link acces oaspete",
+        "create_title": "Creează link acces oaspete",
+        "create_hint": "Link RdClient cu durată limitată. Destinatarul se poate conecta doar la dispozitivele selectate — fără login Console și fără lista completă.",
+        "devices": "Dispozitive",
+        "ttl": "Valabil (minute)",
+        "label": "Etichetă (opțional)",
+        "view_only": "Doar vizualizare",
+        "url": "URL de partajare",
+        "create": "Creează link",
+        "created": "Link oaspete creat",
+        "invalid_title": "Link oaspete invalid",
+        "missing_token": "Acestui link oaspete îi lipsește tokenul.",
+        "expired": "Acest link oaspete este invalid sau a expirat.",
+        "device_denied": "Linkul este invalid, a expirat sau nu permite acest dispozitiv.",
+        "empty": "Niciun dispozitiv pe acest link.",
+        "expires": "Expiră",
+        "back_to_list": "Înapoi la lista oaspete"
     }
 }

@@ -11,10 +11,36 @@ const config = require('../config/config');
 const { requireRdClientAuth, rdClientGuestOnly, normalizeRdClientReturnUrl } = require('../middleware/auth');
 const { rdClientPageLimiter } = require('../middleware/rateLimiter');
 const betterdeskApi = require('../services/betterdeskApi');
+const {
+    getGuestToken,
+    setGuestCookie,
+    attachGuestGrant,
+    peerAllowedByGrant,
+} = require('../middleware/guestAccess');
 
 async function requireRemoteAccess(req, res, next) {
-    const share = String(req.query.mesh_share || '').trim();
     const deviceId = req.params.deviceId;
+
+    // Multi-device Guest Access Link — token present means guest-only path (no panel login fallback)
+    const guestToken = getGuestToken(req);
+    if (guestToken && deviceId) {
+        try {
+            const grant = await attachGuestGrant(req, betterdeskApi, deviceId);
+            if (grant && peerAllowedByGrant(grant, deviceId)) {
+                setGuestCookie(res, guestToken, grant.expires_at);
+                return next();
+            }
+        } catch {
+            // invalid grant
+        }
+        return res.status(403).render('errors/403', {
+            title: req.t('guest_access.invalid_title', 'Invalid guest link'),
+            message: req.t('guest_access.device_denied', 'This guest link is invalid, expired, or does not allow this device.'),
+        });
+    }
+
+    // Legacy mesh single-device share
+    const share = String(req.query.mesh_share || '').trim();
     if (share && deviceId) {
         try {
             const result = await betterdeskApi.apiClient.get('/mesh/share/validate', {
@@ -59,6 +85,49 @@ router.get('/remote/login', rdClientPageLimiter, rdClientGuestOnly, (req, res) =
         returnUrl,
         sessionExpired,
     });
+});
+
+/**
+ * GET /remote/guest - Guest Access Link entry (allowlist mini RdClient, no Console).
+ */
+router.get('/remote/guest', rdClientPageLimiter, async (req, res) => {
+    const token = getGuestToken(req);
+    if (!token) {
+        return res.status(400).render('errors/403', {
+            title: req.t('guest_access.invalid_title', 'Invalid guest link'),
+            message: req.t('guest_access.missing_token', 'This guest link is missing a token.'),
+        });
+    }
+    try {
+        const result = await betterdeskApi.apiClient.get('/guest/access-links/peers', {
+            params: { token },
+        });
+        const data = result.data || {};
+        if (!data.valid) {
+            return res.status(403).render('errors/403', {
+                title: req.t('guest_access.invalid_title', 'Invalid guest link'),
+                message: data.error || req.t('guest_access.expired', 'This guest link is invalid or expired.'),
+            });
+        }
+        setGuestCookie(res, token, data.expires_at);
+        res.render('remote-guest', {
+            title: req.t('guest_access.title', 'Guest Remote'),
+            activePage: 'remote',
+            guestToken: token,
+            guestMeta: {
+                view_only: !!data.view_only,
+                expires_at: data.expires_at || '',
+                label: data.label || '',
+                devices: data.devices || [],
+            },
+        });
+    } catch (err) {
+        const msg = err.response?.data?.error || err.message;
+        return res.status(403).render('errors/403', {
+            title: req.t('guest_access.invalid_title', 'Invalid guest link'),
+            message: msg,
+        });
+    }
 });
 
 /**
@@ -124,6 +193,9 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async 
         device_type: goPeer && goPeer.device_type ? String(goPeer.device_type) : '',
         mesh_share: req.meshShareGrant ? true : false,
         mesh_view_only: req.meshShareGrant && req.meshShareGrant.view_only ? true : false,
+        guest_access: !!req.guestGrant,
+        guest_view_only: !!(req.guestGrant && req.guestGrant.view_only),
+        guest_peer_ids: req.guestGrant && Array.isArray(req.guestGrant.peer_ids) ? req.guestGrant.peer_ids : [],
     };
 
     res.render('remote', {

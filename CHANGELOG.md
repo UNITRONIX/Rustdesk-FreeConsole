@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **Guest Access Links for Web Remote / RdClient (#274):** operators can create a time-limited opaque link with a device allowlist. Guests open `/remote/guest?t=…`, see only those devices, and cannot use the plus/session-picker/quick-connect paths to reach other peers. No panel Console session is created. Mesh single-device share tunnel auth no longer requires a panel login when `mesh_share` is valid.
+
 ### Changed
 - _(none yet)_
 

@@ -34,6 +34,64 @@
         if (t === 'cdap') return 'cdap';
         return 'rd';
     }
+
+    function isGuestAccessMode() {
+        const caps = window.__capabilities || {};
+        return !!(caps.guest_access || caps.mesh_share);
+    }
+
+    function guestAllowedPeerIds() {
+        const caps = window.__capabilities || {};
+        if (Array.isArray(caps.guest_peer_ids) && caps.guest_peer_ids.length) {
+            return caps.guest_peer_ids.map(String);
+        }
+        if (caps.mesh_share && window.__initialDeviceId) {
+            return [String(window.__initialDeviceId)];
+        }
+        return [];
+    }
+
+    function isPeerAllowedForGuest(deviceId) {
+        if (!isGuestAccessMode()) return true;
+        const allowed = guestAllowedPeerIds();
+        if (!allowed.length) return false;
+        return allowed.includes(String(deviceId));
+    }
+
+    function applyGuestUiLockdown() {
+        if (!isGuestAccessMode()) return;
+        const hideIds = ['btn-add-session', 'session-picker-backdrop', 'session-picker-panel'];
+        hideIds.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.hidden = true;
+                el.style.display = 'none';
+            }
+        });
+        const back = document.getElementById('btn-back-devices');
+        if (back) {
+            back.title = t('guest_access.back_to_list', 'Back to guest devices');
+            back.onclick = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const token = new URLSearchParams(window.location.search).get('guest')
+                    || new URLSearchParams(window.location.search).get('t')
+                    || '';
+                window.location.href = token ? ('/remote/guest?t=' + encodeURIComponent(token)) : '/remote/guest';
+            };
+        }
+        if (window.__capabilities && (window.__capabilities.guest_view_only || window.__capabilities.mesh_view_only)) {
+            // View-only: leave transport adapters to enforce; hide file transfer / chat when present
+            ['btn-file-transfer', 'btn-chat'].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.disabled = true;
+                    el.classList.add('disabled');
+                    el.style.display = 'none';
+                }
+            });
+        }
+    }
     function createTransportClient(canvas, opts) {
         const name = getTransportName();
         if (name === 'mesh' && typeof MeshSession === 'function') {
@@ -598,6 +656,10 @@
     // ---- Session Lifecycle ----
 
     function createSession(deviceId, deviceName, platform) {
+        if (!isPeerAllowedForGuest(deviceId)) {
+            console.warn('Guest access: refused session outside allowlist', deviceId);
+            return;
+        }
         if (sessions.has(deviceId)) {
             switchSession(deviceId);
             return;
@@ -1190,13 +1252,13 @@
 
     function applyTransportCapabilities() {
         const fileBtn = document.getElementById('btn-file-transfer');
-        if (!fileBtn) return;
-        if (getTransportName() === 'cdap') {
+        if (fileBtn && getTransportName() === 'cdap') {
             fileBtn.disabled = true;
             fileBtn.classList.add('disabled');
             fileBtn.title = t('remote.file_transfer_unavailable_cdap',
                 'File transfer is not available for CDAP snapshot sessions.');
         }
+        applyGuestUiLockdown();
     }
 
     // Disconnect
@@ -1768,6 +1830,10 @@
     }
 
     function initSessionPicker() {
+        if (isGuestAccessMode()) {
+            applyGuestUiLockdown();
+            return;
+        }
         if (!window.RemoteAddressBook || !document.getElementById('session-picker-panel')) return;
 
         sessionPicker = window.RemoteAddressBook.create({
@@ -2028,7 +2094,7 @@
         }
 
         // Support opening additional sessions via URL hash: #add=DEVICE_ID
-        if (window.location.hash) {
+        if (window.location.hash && !isGuestAccessMode()) {
             const match = window.location.hash.match(/add=([A-Za-z0-9_-]+)/);
             if (match && match[1] && match[1] !== deviceId) {
                 createSession(match[1], '');
@@ -2046,6 +2112,7 @@
                 if (msg.type === 'add-session' && msg.deviceId) {
                     // Validate deviceId format (alphanumeric, hyphens, underscores)
                     if (!/^[A-Za-z0-9_-]+$/.test(msg.deviceId)) return;
+                    if (!isPeerAllowedForGuest(msg.deviceId)) return;
                     createSession(msg.deviceId, msg.deviceName || '');
                     // Acknowledge so the sender knows we handled it
                     bc.postMessage({ type: 'session-added', deviceId: msg.deviceId });

@@ -1163,7 +1163,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			path == "/api/auth/oidc/status" || path == "/api/auth/oidc/authorize" || path == "/api/auth/oidc/callback" ||
 			path == "/api/auth/oidc/session" || path == "/api/auth/oidc/exchange" || path == "/api/auth/sso/status" ||
 			strings.HasPrefix(path, "/ws/bd-mgmt/") ||
-			path == "/api/devices/register" || path == "/api/devices/register/status" {
+			path == "/api/devices/register" || path == "/api/devices/register/status" ||
+			path == "/api/guest/access-links/validate" || path == "/api/guest/access-links/peers" {
 			next.ServeHTTP(w, r)
 			return
 		}

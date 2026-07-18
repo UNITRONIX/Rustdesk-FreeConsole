@@ -544,6 +544,13 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/mesh/devices/{id}/files", s.requirePermission(auth.PermMeshFiles, s.handleMeshFilesTunnel))
 	mux.HandleFunc("POST /api/mesh/devices/{id}/share", s.requireRole(auth.RoleOperator, s.handleMeshShareCreate))
 	mux.HandleFunc("GET /api/mesh/share/validate", s.handleMeshShareValidate)
+
+	// Guest Access Links (temporary RdClient allowlist links)
+	mux.HandleFunc("POST /api/guest/access-links", s.requirePermission(auth.PermDeviceConnect, s.handleGuestAccessCreate))
+	mux.HandleFunc("GET /api/guest/access-links", s.requirePermission(auth.PermDeviceConnect, s.handleGuestAccessList))
+	mux.HandleFunc("DELETE /api/guest/access-links/{id}", s.requirePermission(auth.PermDeviceConnect, s.handleGuestAccessRevoke))
+	mux.HandleFunc("GET /api/guest/access-links/validate", s.handleGuestAccessValidate)
+	mux.HandleFunc("GET /api/guest/access-links/peers", s.handleGuestAccessPeers)
 	mux.HandleFunc("POST /api/mesh/devices/{id}/tcp", s.requirePermission(auth.PermDeviceConnect, s.handleMeshTcpRelay))
 	mux.HandleFunc("POST /api/mesh/devices/{id}/udp", s.requirePermission(auth.PermDeviceConnect, s.handleMeshUdpRelay))
 	mux.HandleFunc("POST /api/mesh/devices/{id}/power", s.requirePermission(auth.PermMeshPower, s.handleMeshPower))

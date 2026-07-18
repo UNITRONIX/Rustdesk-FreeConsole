@@ -4301,5 +4301,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Guest Remote",
+        "subtitle": "Temporary access — only the devices shared with you",
+        "menu": "Guest access link",
+        "create_title": "Create guest access link",
+        "create_hint": "Time-limited RdClient link. Recipients can connect only to the selected devices — no Console login, no full device list.",
+        "devices": "Devices",
+        "ttl": "Valid for (minutes)",
+        "label": "Label (optional)",
+        "view_only": "View only",
+        "url": "Share URL",
+        "create": "Create link",
+        "created": "Guest link created",
+        "invalid_title": "Invalid guest link",
+        "missing_token": "This guest link is missing a token.",
+        "expired": "This guest link is invalid or expired.",
+        "device_denied": "This guest link is invalid, expired, or does not allow this device.",
+        "empty": "No devices on this guest link.",
+        "expires": "Expires",
+        "back_to_list": "Back to guest devices"
     }
 }

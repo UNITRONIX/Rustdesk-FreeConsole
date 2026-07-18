@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Misafir Remote",
+        "subtitle": "Geçici erişim — yalnızca paylaşılan cihazlar",
+        "menu": "Misafir erişim bağlantısı",
+        "create_title": "Misafir erişim bağlantısı oluştur",
+        "create_hint": "Süreli RdClient bağlantısı. Alıcı yalnızca seçilen cihazlara bağlanabilir — Console girişi ve tam liste yok.",
+        "devices": "Cihazlar",
+        "ttl": "Geçerlilik (dakika)",
+        "label": "Etiket (isteğe bağlı)",
+        "view_only": "Yalnızca görüntüleme",
+        "url": "Paylaşım URL’si",
+        "create": "Bağlantı oluştur",
+        "created": "Misafir bağlantısı oluşturuldu",
+        "invalid_title": "Geçersiz misafir bağlantısı",
+        "missing_token": "Bu misafir bağlantısında jeton yok.",
+        "expired": "Bu misafir bağlantısı geçersiz veya süresi dolmuş.",
+        "device_denied": "Bu bağlantı geçersiz, süresi dolmuş veya bu cihaza izin vermiyor.",
+        "empty": "Bu misafir bağlantısında cihaz yok.",
+        "expires": "Bitiş",
+        "back_to_list": "Misafir listesine dön"
     }
 }

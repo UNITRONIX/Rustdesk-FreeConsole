@@ -99,7 +99,37 @@ function initWsProxy(server, sessionMiddleware) {
         fakeRes.on = () => {};
 
         sessionMiddleware(request, fakeRes, () => {
-            if (!request.session || !request.session.userId) {
+            const hasUser = request.session && request.session.userId;
+            let hasGuest = false;
+            if (!hasUser) {
+                try {
+                    const { GUEST_COOKIE } = require('../middleware/guestAccess');
+                    const raw = request.headers.cookie || '';
+                    const names = [GUEST_COOKIE, 'bd.guest', 'betterdesk.guest'];
+                    for (const cookieName of names) {
+                        const match = raw.split(';').map((p) => p.trim()).find((p) => p.startsWith(cookieName + '='));
+                        if (match) {
+                            const val = decodeURIComponent(match.slice(cookieName.length + 1) || '');
+                            if (val) {
+                                hasGuest = true;
+                                request.guestToken = val;
+                                break;
+                            }
+                        }
+                    }
+                    // Also accept ?guest= on WS URL (fallback)
+                    if (!hasGuest) {
+                        const g = url.searchParams.get('guest') || url.searchParams.get('t');
+                        if (g) {
+                            hasGuest = true;
+                            request.guestToken = g;
+                        }
+                    }
+                } catch {
+                    hasGuest = false;
+                }
+            }
+            if (!hasUser && !hasGuest) {
                 console.warn(`WS proxy: Rejected upgrade to ${pathname} — no authenticated session (ip: ${request.socket?.remoteAddress})`);
                 socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
                 socket.destroy();

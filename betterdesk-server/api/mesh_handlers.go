@@ -116,6 +116,21 @@ func (s *Server) handleMeshDesktopTunnel(w http.ResponseWriter, r *http.Request)
 			username = grant.CreatedBy
 		}
 	}
+	guestToken := strings.TrimSpace(r.URL.Query().Get("guest"))
+	if guestToken != "" {
+		grant, err := s.guestAccessStore().Validate(guestToken, peerID)
+		if err != nil {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+			return
+		}
+		viewOnly = viewOnly || grant.ViewOnly
+		if grant.CreatedBy != "" {
+			username = grant.CreatedBy
+		}
+	}
+	if v := r.URL.Query().Get("view_only"); v == "1" || strings.EqualFold(v, "true") {
+		viewOnly = true
+	}
 	record := r.URL.Query().Get("record") == "1" || strings.EqualFold(r.URL.Query().Get("record"), "true")
 	relayBase := r.URL.Query().Get("relay_base")
 	if relayBase == "" {

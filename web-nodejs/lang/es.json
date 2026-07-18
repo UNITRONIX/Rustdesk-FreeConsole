@@ -4303,5 +4303,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Remoto de invitado",
+        "subtitle": "Acceso temporal — solo los dispositivos compartidos",
+        "menu": "Enlace de acceso de invitado",
+        "create_title": "Crear enlace de acceso de invitado",
+        "create_hint": "Enlace RdClient con tiempo limitado. El destinatario solo puede conectar a los dispositivos seleccionados — sin inicio de sesión en Console ni lista completa.",
+        "devices": "Dispositivos",
+        "ttl": "Válido durante (minutos)",
+        "label": "Etiqueta (opcional)",
+        "view_only": "Solo ver",
+        "url": "URL para compartir",
+        "create": "Crear enlace",
+        "created": "Enlace de invitado creado",
+        "invalid_title": "Enlace de invitado no válido",
+        "missing_token": "A este enlace de invitado le falta el token.",
+        "expired": "Este enlace de invitado no es válido o ha caducado.",
+        "device_denied": "Este enlace no es válido, ha caducado o no permite este dispositivo.",
+        "empty": "No hay dispositivos en este enlace.",
+        "expires": "Caduca",
+        "back_to_list": "Volver a la lista de invitado"
     }
 }

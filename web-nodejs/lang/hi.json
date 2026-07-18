@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "गेस्ट रिमोट",
+        "subtitle": "अस्थायी पहुँच — केवल साझा डिवाइस",
+        "menu": "गेस्ट एक्सेस लिंक",
+        "create_title": "गेस्ट एक्सेस लिंक बनाएँ",
+        "create_hint": "समय-सीमित RdClient लिंक। प्राप्तकर्ता केवल चयनित डिवाइस से कनेक्ट कर सकते हैं — Console लॉगिन या पूरी सूची नहीं।",
+        "devices": "डिवाइस",
+        "ttl": "वैधता (मिनट)",
+        "label": "लेबल (वैकल्पिक)",
+        "view_only": "केवल देखें",
+        "url": "शेयर URL",
+        "create": "लिंक बनाएँ",
+        "created": "गेस्ट लिंक बनाया गया",
+        "invalid_title": "अमान्य गेस्ट लिंक",
+        "missing_token": "इस गेस्ट लिंक में टोकन नहीं है।",
+        "expired": "यह गेस्ट लिंक अमान्य या समाप्त है।",
+        "device_denied": "यह लिंक अमान्य/समाप्त है या इस डिवाइस की अनुमति नहीं देता।",
+        "empty": "इस गेस्ट लिंक पर कोई डिवाइस नहीं।",
+        "expires": "समाप्ति",
+        "back_to_list": "गेस्ट सूची पर वापस"
     }
 }

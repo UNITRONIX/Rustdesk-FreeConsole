@@ -4307,5 +4307,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "訪客遠端",
+        "subtitle": "暫時存取 — 僅限共用的裝置",
+        "menu": "訪客存取連結",
+        "create_title": "建立訪客存取連結",
+        "create_hint": "限時 RdClient 連結。收件者只能連線到所選裝置 — 無需 Console 登入，也無完整裝置清單。",
+        "devices": "裝置",
+        "ttl": "有效時間（分鐘）",
+        "label": "標籤（選填）",
+        "view_only": "僅檢視",
+        "url": "分享 URL",
+        "create": "建立連結",
+        "created": "已建立訪客連結",
+        "invalid_title": "無效的訪客連結",
+        "missing_token": "此訪客連結缺少權杖。",
+        "expired": "此訪客連結無效或已過期。",
+        "device_denied": "此連結無效、已過期或不允許此裝置。",
+        "empty": "此訪客連結上沒有裝置。",
+        "expires": "到期",
+        "back_to_list": "返回訪客清單"
     }
 }

@@ -108,6 +108,7 @@ router.use('/', generatorRoutes);
 router.use('/', usersRoutes);
 router.use('/', foldersRoutes);
 router.use('/', remoteRoutes);
+router.use('/', require('./guest.routes'));
 router.use('/api/i18n', i18nRoutes);
 // bdApiRoutes now mounted in server.js (before CSRF) for desktop client access
 router.use('/api/bd', inventoryRoutes);     // device-facing: /api/bd/inventory, /api/bd/telemetry

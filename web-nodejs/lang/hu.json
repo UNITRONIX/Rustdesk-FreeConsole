@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Vendég remote",
+        "subtitle": "Ideiglenes hozzáférés — csak a megosztott eszközök",
+        "menu": "Vendég hozzáférési link",
+        "create_title": "Vendég hozzáférési link létrehozása",
+        "create_hint": "Időkorlátos RdClient link. A címzett csak a kiválasztott eszközökhöz csatlakozhat — Console bejelentkezés és teljes lista nélkül.",
+        "devices": "Eszközök",
+        "ttl": "Érvényesség (perc)",
+        "label": "Címke (opcionális)",
+        "view_only": "Csak megtekintés",
+        "url": "Megosztási URL",
+        "create": "Link létrehozása",
+        "created": "Vendéglink létrehozva",
+        "invalid_title": "Érvénytelen vendéglink",
+        "missing_token": "Ehhez a vendéglinkhez hiányzik a token.",
+        "expired": "Ez a vendéglink érvénytelen vagy lejárt.",
+        "device_denied": "A link érvénytelen, lejárt, vagy nem engedi ezt az eszközt.",
+        "empty": "Nincs eszköz ezen a vendéglinken.",
+        "expires": "Lejár",
+        "back_to_list": "Vissza a vendéglistához"
     }
 }

@@ -64,13 +64,23 @@
         if (pageQs.get('mesh_share')) {
             tunnelQs.set('mesh_share', pageQs.get('mesh_share'));
         }
+        if (pageQs.get('guest') || pageQs.get('t')) {
+            tunnelQs.set('guest', pageQs.get('guest') || pageQs.get('t'));
+        }
+        const capsEarly = window.__capabilities || {};
+        if (capsEarly.guest_view_only || capsEarly.mesh_view_only) {
+            tunnelQs.set('view_only', '1');
+        }
         if (pageQs.get('record') === '1' || this.opts.serverRecord) {
             tunnelQs.set('record', '1');
         }
+        const csrf = (window.BetterDesk && window.BetterDesk.csrfToken) || '';
+        const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+        if (csrf) headers['X-CSRF-Token'] = csrf;
         const resp = await fetch(`/api/mesh/devices/${encodeURIComponent(this._deviceId)}/desktop?${tunnelQs.toString()}`, {
             method: 'POST',
             credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            headers,
         });
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
@@ -89,7 +99,7 @@
         this._desktop.attachWebSocket(this._ws);
 
         const caps = window.__capabilities || {};
-        if (caps.mesh_view_only && typeof this._desktop.setViewOnly === 'function') {
+        if ((caps.mesh_view_only || caps.guest_view_only) && typeof this._desktop.setViewOnly === 'function') {
             this._desktop.setViewOnly(true);
         }
 

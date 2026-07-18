@@ -4303,5 +4303,26 @@
         "onboarding_step_msh": "Pobierz plik .msh i ustaw nazwę grupy mesh.",
         "onboarding_step_install": "Zainstaluj MeshAgent na endpointach używając pliku .msh.",
         "onboarding_step_verify": "Sprawdź, że urządzenia są mesh_agent i online."
+    },
+    "guest_access": {
+        "title": "Gość — Remote",
+        "subtitle": "Tymczasowy dostęp — tylko udostępnione urządzenia",
+        "menu": "Link gościnny",
+        "create_title": "Utwórz link gościnny",
+        "create_hint": "Czasowy link RdClient. Odbiorca łączy się tylko z wybranymi urządzeniami — bez logowania do Console i bez pełnej listy.",
+        "devices": "Urządzenia",
+        "ttl": "Ważny przez (minuty)",
+        "label": "Etykieta (opcjonalnie)",
+        "view_only": "Tylko podgląd",
+        "url": "URL do udostępnienia",
+        "create": "Utwórz link",
+        "created": "Utworzono link gościnny",
+        "invalid_title": "Nieprawidłowy link gościnny",
+        "missing_token": "Brak tokenu w linku gościnnym.",
+        "expired": "Link gościnny jest nieprawidłowy lub wygasł.",
+        "device_denied": "Link nie zezwala na to urządzenie albo wygasł.",
+        "empty": "Brak urządzeń na tym linku.",
+        "expires": "Wygasa",
+        "back_to_list": "Wróć do listy gościa"
     }
 }

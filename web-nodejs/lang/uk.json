@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Гостьовий Remote",
+        "subtitle": "Тимчасовий доступ — лише спільні пристрої",
+        "menu": "Посилання гостьового доступу",
+        "create_title": "Створити посилання гостьового доступу",
+        "create_hint": "Тимчасове посилання RdClient. Отримувач може підключатися лише до вибраних пристроїв — без входу в Console і без повного списку.",
+        "devices": "Пристрої",
+        "ttl": "Дійсне (хвилини)",
+        "label": "Мітка (необов’язково)",
+        "view_only": "Лише перегляд",
+        "url": "URL для спільного доступу",
+        "create": "Створити посилання",
+        "created": "Гостьове посилання створено",
+        "invalid_title": "Недійсне гостьове посилання",
+        "missing_token": "У цьому гостьовому посиланні немає токена.",
+        "expired": "Це гостьове посилання недійсне або прострочене.",
+        "device_denied": "Посилання недійсне, прострочене або не дозволяє цей пристрій.",
+        "empty": "На цьому посиланні немає пристроїв.",
+        "expires": "Закінчується",
+        "back_to_list": "Назад до списку гостя"
     }
 }

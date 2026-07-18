@@ -366,6 +366,10 @@
                 <span class="material-icons">screen_share</span>
                 <span>${_('actions.web_remote') || 'Web Remote'}</span>
             </button>
+            <button type="button" class="kebab-menu-item" data-action="guest-access" data-id="${eid}">
+                <span class="material-icons">share</span>
+                <span>${_('guest_access.menu') || 'Guest access link'}</span>
+            </button>
             ${meshActions}
             ${meshOfflineWake}
             <button type="button" class="kebab-menu-item" data-action="cdap-viewer" data-id="${eid}">
@@ -1092,6 +1096,9 @@
             case 'mesh-share':
                 showMeshShareModal(deviceId);
                 break;
+            case 'guest-access':
+                showGuestAccessModal([deviceId]);
+                break;
 
             case 'mesh-port-tcp':
                 if (typeof openMeshPortForward === 'function') {
@@ -1425,6 +1432,75 @@
         } catch (err) {
             Notifications.error(err.message || _('errors.server_error'));
         }
+    }
+
+    async function showGuestAccessModal(peerIds) {
+        const ids = (peerIds || []).filter(Boolean);
+        if (!ids.length) return;
+        Modal.show({
+            title: _('guest_access.create_title') || 'Create guest access link',
+            content: `
+                <p class="form-hint">${_('guest_access.create_hint') || 'Time-limited RdClient link. Recipients can connect only to the selected devices — no Console login, no full device list.'}</p>
+                <div class="form-group">
+                    <label>${_('guest_access.devices') || 'Devices'}</label>
+                    <div class="form-hint" style="margin:0;">${ids.map((id) => Utils.escapeHtml(id)).join(', ')}</div>
+                </div>
+                <div class="form-group">
+                    <label for="guest-access-ttl">${_('guest_access.ttl') || 'Valid for (minutes)'}</label>
+                    <input type="number" id="guest-access-ttl" class="form-input" min="15" max="1440" value="120">
+                </div>
+                <div class="form-group">
+                    <label for="guest-access-label">${_('guest_access.label') || 'Label (optional)'}</label>
+                    <input type="text" id="guest-access-label" class="form-input" maxlength="120" placeholder="">
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="guest-access-view-only" checked>
+                        ${_('guest_access.view_only') || 'View only'}
+                    </label>
+                </div>
+                <div class="form-group" id="guest-access-result" style="display:none;">
+                    <label>${_('guest_access.url') || 'Share URL'}</label>
+                    <input type="text" id="guest-access-url" class="form-input" readonly>
+                </div>`,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                {
+                    label: _('guest_access.create') || 'Create link',
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        const ttl = parseInt(document.getElementById('guest-access-ttl').value, 10) || 120;
+                        const label = (document.getElementById('guest-access-label') || {}).value || '';
+                        const viewOnly = !!(document.getElementById('guest-access-view-only') || {}).checked;
+                        try {
+                            const resp = await Utils.api('/api/guest/access-links', {
+                                method: 'POST',
+                                body: {
+                                    peer_ids: ids,
+                                    ttl_minutes: ttl,
+                                    view_only: viewOnly,
+                                    label: label,
+                                },
+                            });
+                            const data = resp.data || resp;
+                            const path = data.path || '';
+                            const full = window.location.origin + path;
+                            const result = document.getElementById('guest-access-result');
+                            const urlInput = document.getElementById('guest-access-url');
+                            if (result && urlInput) {
+                                urlInput.value = full;
+                                result.style.display = 'block';
+                                urlInput.select();
+                            }
+                            Notifications.success(_('guest_access.created') || 'Guest link created');
+                        } catch (err) {
+                            Notifications.error(err.message || _('errors.server_error'));
+                        }
+                    },
+                },
+            ],
+        });
     }
 
     async function showMeshShareModal(deviceId) {

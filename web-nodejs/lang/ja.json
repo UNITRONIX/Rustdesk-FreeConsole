@@ -4303,5 +4303,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "ゲストリモート",
+        "subtitle": "一時アクセス — 共有された端末のみ",
+        "menu": "ゲストアクセスリンク",
+        "create_title": "ゲストアクセスリンクを作成",
+        "create_hint": "有効期限付きの RdClient リンク。受信者は選択した端末にのみ接続できます（Console ログインや全端末一覧はありません）。",
+        "devices": "端末",
+        "ttl": "有効時間（分）",
+        "label": "ラベル（任意）",
+        "view_only": "表示のみ",
+        "url": "共有 URL",
+        "create": "リンクを作成",
+        "created": "ゲストリンクを作成しました",
+        "invalid_title": "無効なゲストリンク",
+        "missing_token": "このゲストリンクにはトークンがありません。",
+        "expired": "このゲストリンクは無効か期限切れです。",
+        "device_denied": "このリンクは無効・期限切れ、またはこの端末を許可していません。",
+        "empty": "このゲストリンクに端末がありません。",
+        "expires": "期限",
+        "back_to_list": "ゲスト一覧に戻る"
     }
 }

@@ -4303,5 +4303,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Hostitelský remote",
+        "subtitle": "Dočasný přístup — pouze sdílená zařízení",
+        "menu": "Odkaz pro hosta",
+        "create_title": "Vytvořit odkaz pro hosta",
+        "create_hint": "Časově omezený odkaz RdClient. Příjemce se připojí jen k vybraným zařízením — bez přihlášení do Console a bez úplného seznamu.",
+        "devices": "Zařízení",
+        "ttl": "Platnost (minuty)",
+        "label": "Štítek (volitelně)",
+        "view_only": "Jen prohlížení",
+        "url": "URL ke sdílení",
+        "create": "Vytvořit odkaz",
+        "created": "Odkaz pro hosta vytvořen",
+        "invalid_title": "Neplatný odkaz pro hosta",
+        "missing_token": "Tomuto odkazu chybí token.",
+        "expired": "Tento odkaz je neplatný nebo vypršel.",
+        "device_denied": "Odkaz je neplatný, vypršel nebo nepovoluje toto zařízení.",
+        "empty": "Na tomto odkazu nejsou žádná zařízení.",
+        "expires": "Vyprší",
+        "back_to_list": "Zpět na seznam hosta"
     }
 }

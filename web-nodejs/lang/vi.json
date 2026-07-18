@@ -4309,5 +4309,26 @@
         "onboarding_step_msh": "Download the .msh file and set the mesh group name.",
         "onboarding_step_install": "Install unmodified MeshAgent on endpoints using the .msh file.",
         "onboarding_step_verify": "Confirm devices appear as mesh_agent and show online."
+    },
+    "guest_access": {
+        "title": "Remote khách",
+        "subtitle": "Truy cập tạm thời — chỉ thiết bị được chia sẻ",
+        "menu": "Liên kết truy cập khách",
+        "create_title": "Tạo liên kết truy cập khách",
+        "create_hint": "Liên kết RdClient có thời hạn. Người nhận chỉ kết nối được các thiết bị đã chọn — không đăng nhập Console, không danh sách đầy đủ.",
+        "devices": "Thiết bị",
+        "ttl": "Có hiệu lực (phút)",
+        "label": "Nhãn (tuỳ chọn)",
+        "view_only": "Chỉ xem",
+        "url": "URL chia sẻ",
+        "create": "Tạo liên kết",
+        "created": "Đã tạo liên kết khách",
+        "invalid_title": "Liên kết khách không hợp lệ",
+        "missing_token": "Liên kết khách thiếu token.",
+        "expired": "Liên kết khách không hợp lệ hoặc đã hết hạn.",
+        "device_denied": "Liên kết không hợp lệ, hết hạn hoặc không cho phép thiết bị này.",
+        "empty": "Không có thiết bị trên liên kết này.",
+        "expires": "Hết hạn",
+        "back_to_list": "Quay lại danh sách khách"
     }
 }
