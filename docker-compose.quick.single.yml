@@ -35,7 +35,7 @@
 
 services:
   betterdesk:
-    image: ghcr.io/unitronix/betterdesk:${BETTERDESK_IMAGE_TAG:-3.3.148}
+    image: ghcr.io/unitronix/betterdesk:${BETTERDESK_IMAGE_TAG:-3.3.149}
     container_name: betterdesk
     hostname: betterdesk
     ports:
@@ -69,7 +69,7 @@ services:
       - DOCKER=true
       - BETTERDESK_UPDATE_MODE=image
       - BETTERDESK_DOCKER_LAYOUT=single
-      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.3.148}
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.3.149}
       - DB_TYPE=${DB_TYPE:-sqlite}
       - DATABASE_URL=${DATABASE_URL:-}
       - DB_URL=${DATABASE_URL:-}

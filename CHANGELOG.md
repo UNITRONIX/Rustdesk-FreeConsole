@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.149] — 2026-07-18
+
 ### Added
 - **Guest Access Links for Web Remote / RdClient (#274):** operators can create a time-limited opaque link with a device allowlist. Guests open `/remote/guest?t=…`, see only those devices, and cannot use the plus/session-picker/quick-connect paths to reach other peers. No panel Console session is created. Mesh single-device share tunnel auth no longer requires a panel login when `mesh_share` is valid.
 
@@ -1998,3 +2005,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.146]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.145...v3.3.146
 [3.3.147]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.146...v3.3.147
 [3.3.148]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.147...v3.3.148
+[3.3.149]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.148...v3.3.149
