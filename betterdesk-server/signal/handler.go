@@ -583,15 +583,15 @@ func (s *Server) processIDChange(msg *pb.RegisterPk) *pb.RendezvousMessage {
 		return registerPkResponse(pb.RegisterPkResponse_SERVER_ERROR)
 	}
 
-	// Update in-memory map
-	oldEntry := s.peers.Remove(oldID)
-	if oldEntry != nil {
-		oldEntry.ID = newID
+	// Move the in-memory identity without closing its persistent registration.
+	// Remove+Put closes TCP/WSS and leaves the renamed device unable to receive
+	// inbound rendezvous requests until the client happens to reconnect.
+	oldEntry, moved := s.peers.Rename(oldID, newID)
+	if moved {
 		oldEntry.PK = effectivePK
 		if len(msg.Uuid) > 0 {
 			oldEntry.UUID = normalizePeerUUIDBytes(msg.Uuid)
 		}
-		s.peers.Put(oldEntry)
 	}
 
 	log.Printf("[signal] ID changed: %s → %s", oldID, newID)

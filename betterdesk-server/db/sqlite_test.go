@@ -629,6 +629,35 @@ func TestHardDeleteReleasesIDHistory(t *testing.T) {
 	}
 }
 
+func TestRoundTripRenameTreatsCurrentIDAsActive(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := db.UpsertPeer(&Peer{ID: "ROUND_A", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ChangePeerID("ROUND_A", "ROUND_B", "client"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ChangePeerID("ROUND_B", "ROUND_A", "client"); err != nil {
+		t.Fatal(err)
+	}
+
+	renamed, err := db.IsRenamedPeerID("ROUND_A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if renamed {
+		t.Fatal("current ROUND_A must not be treated as a stale renamed ID")
+	}
+	renamed, err = db.IsRenamedPeerID("ROUND_B")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !renamed {
+		t.Fatal("non-current ROUND_B should remain reserved as a renamed ID")
+	}
+}
+
 func TestChangePeerIDCascadesDeviceTokens(t *testing.T) {
 	db := newTestDB(t)
 
