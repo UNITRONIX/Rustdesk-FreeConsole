@@ -771,6 +771,88 @@ func TestWSSignalDesktopRegisterPkDelayed(t *testing.T) {
 	}
 }
 
+func TestWSSignalIDChangeKeepsInboundRegistrationOpen(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.SignalPort = 29400
+	cfg.RelayPort = 29401
+	dir := t.TempDir()
+	cfg.DBPath = dir + "/test.db"
+	cfg.KeyFile = dir + "/id_ed25519"
+
+	database, err := db.OpenSQLite(cfg.DBPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(); err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	kp, err := crypto.LoadOrGenerateKeyPair(cfg.KeyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(cfg, kp, database)
+	ctx := t.Context()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+	time.Sleep(200 * time.Millisecond)
+
+	ws, _, err := websocket.Dial(ctx, "ws://127.0.0.1:29402/ws/id", nil)
+	if err != nil {
+		t.Fatalf("WS dial: %v", err)
+	}
+	defer ws.CloseNow()
+
+	writeProto := func(msg *pb.RendezvousMessage) {
+		t.Helper()
+		data, err := proto.Marshal(msg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
+			t.Fatalf("WS write: %v", err)
+		}
+	}
+
+	writeProto(&pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RegisterPk{
+			RegisterPk: &pb.RegisterPk{
+				Id: "WSOLD01", Uuid: []byte("desktop-ws-uuid1"), Pk: make([]byte, 32),
+			},
+		},
+	})
+	if got := readWSProtoSkippingKeepAlive(t, ctx, ws).GetRegisterPkResponse().GetResult(); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("initial RegisterPk result = %v, want OK", got)
+	}
+
+	// RustDesk 1.4.x omits pk in its ID-change RegisterPk request.
+	writeProto(&pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RegisterPk{
+			RegisterPk: &pb.RegisterPk{
+				Id: "WSNEW01", OldId: "WSOLD01", Uuid: []byte("desktop-ws-uuid1"),
+			},
+		},
+	})
+	if got := readWSProtoSkippingKeepAlive(t, ctx, ws).GetRegisterPkResponse().GetResult(); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("ID-change RegisterPk result = %v, want OK", got)
+	}
+
+	if srv.PeerMap().Get("WSOLD01") != nil || srv.PeerMap().Get("WSNEW01") == nil {
+		t.Fatal("renamed WSS peer was not moved to its new ID")
+	}
+	if err := srv.sendToWSPeer("WSNEW01", &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_Hc{Hc: &pb.HealthCheck{Token: "inbound-after-id-change"}},
+	}); err != nil {
+		t.Fatalf("send inbound message after ID change: %v", err)
+	}
+	if got := readWSProtoSkippingKeepAlive(t, ctx, ws).GetHc(); got == nil || got.Token != "inbound-after-id-change" {
+		t.Fatalf("unexpected inbound message after ID change: %v", got)
+	}
+}
+
 func TestWSSignalXForwardedFor(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.SignalPort = 29170

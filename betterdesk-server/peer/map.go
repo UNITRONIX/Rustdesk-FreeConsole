@@ -291,6 +291,60 @@ func (m *Map) Remove(id string) *Entry {
 	return e
 }
 
+// Rename moves a live peer to a new ID without closing its transport.
+//
+// ID changes are metadata updates, not disconnects. Using Remove followed by
+// Put here would close the peer's persistent TCP/WebSocket registration and
+// reinsert an entry that points at an already-closed connection. The renamed
+// device would then be able to initiate short-lived outbound requests, but it
+// could no longer receive inbound rendezvous messages.
+//
+// The second return value is false when oldID does not exist or newID is
+// already occupied. A no-op rename (oldID == newID) succeeds when the entry
+// exists.
+func (m *Map) Rename(oldID, newID string) (*Entry, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	e, ok := m.entries[oldID]
+	if !ok {
+		return nil, false
+	}
+	if oldID == newID {
+		return e, true
+	}
+	if _, exists := m.entries[newID]; exists {
+		return nil, false
+	}
+
+	delete(m.entries, oldID)
+	e.ID = newID
+	m.entries[newID] = e
+	return e, true
+}
+
+// TouchWSHeartbeat refreshes the peer currently bound to conn. Matching by
+// connection instead of a captured ID keeps heartbeats working when a live
+// WebSocket registration is renamed by another signal/API request.
+func (m *Map) TouchWSHeartbeat(conn interface{}) bool {
+	if conn == nil {
+		return false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range m.entries {
+		if e.WSConn != conn {
+			continue
+		}
+		e.LastReg = time.Now()
+		e.MissedBeats = 0
+		e.StatusTier = StatusOnline
+		e.HeartbeatCount++
+		return true
+	}
+	return false
+}
+
 // Count returns the number of peers currently in the map.
 func (m *Map) Count() int {
 	m.mu.RLock()

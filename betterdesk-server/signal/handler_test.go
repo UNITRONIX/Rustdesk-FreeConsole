@@ -18,6 +18,15 @@ import (
 	"github.com/unitronix/betterdesk-server/ratelimit"
 )
 
+type signalTestCloser struct {
+	closed bool
+}
+
+func (c *signalTestCloser) Close() error {
+	c.closed = true
+	return nil
+}
+
 func newTestSignalServer(t *testing.T, mode string) (*Server, db.Database) {
 	t.Helper()
 
@@ -376,6 +385,41 @@ func TestProcessIDChangeSuccessEmptyPK(t *testing.T) {
 	}
 }
 
+func TestProcessIDChangePreservesLiveWSRegistration(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	storedPK := bytes.Repeat([]byte{0x42}, 32)
+	if err := database.UpsertPeer(&db.Peer{
+		ID: "LIVEOLD", PK: storedPK, Status: "ONLINE",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	conn := &signalTestCloser{}
+	entry := &peer.Entry{
+		ID:       "LIVEOLD",
+		PK:       storedPK,
+		ConnType: peer.ConnWS,
+		WSConn:   conn,
+		LastReg:  time.Now(),
+	}
+	srv.peers.Put(entry)
+
+	resp := srv.processIDChange(&pb.RegisterPk{
+		Id: "LIVENEW", OldId: "LIVEOLD", Uuid: []byte("machine-uid-bytes"),
+	})
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_OK)
+	}
+	if conn.closed {
+		t.Fatal("ID change closed the persistent WS registration")
+	}
+	if srv.peers.Get("LIVEOLD") != nil || srv.peers.Get("LIVENEW") != entry {
+		t.Fatal("live peer map was not moved to the new ID")
+	}
+	if entry.WSConn != conn {
+		t.Fatal("renamed peer lost its WS connection binding")
+	}
+}
+
 func TestProcessIDChangeRejectsWrongPKWhenPKSent(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
 
@@ -418,6 +462,31 @@ func TestResolveRegistrationPeerIDRedirectsSameDevice(t *testing.T) {
 	effective, ok = srv.resolveRegistrationPeerID("MACPRO1", "198.51.100.99", nil, nil)
 	if ok {
 		t.Fatalf("resolveRegistrationPeerID different IP = (%q, %v), want reject", effective, ok)
+	}
+}
+
+func TestResolveRegistrationPeerIDAllowsCurrentRoundTripID(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	pk := bytes.Repeat([]byte{0x42}, 32)
+	if err := database.UpsertPeer(&db.Peer{
+		ID: "ROUND_A", Status: "ONLINE", PK: pk,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.ChangePeerID("ROUND_A", "ROUND_B", "client"); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.ChangePeerID("ROUND_B", "ROUND_A", "client"); err != nil {
+		t.Fatal(err)
+	}
+
+	effective, ok := srv.resolveRegistrationPeerID("ROUND_A", "198.51.100.99", nil, nil)
+	if !ok || effective != "ROUND_A" {
+		t.Fatalf("current round-trip ID resolved as (%q, %v), want (ROUND_A, true)", effective, ok)
+	}
+	effective, ok = srv.resolveRegistrationPeerID("ROUND_B", "198.51.100.99", nil, pk)
+	if !ok || effective != "ROUND_A" {
+		t.Fatalf("stale round-trip ID resolved as (%q, %v), want (ROUND_A, true)", effective, ok)
 	}
 }
 

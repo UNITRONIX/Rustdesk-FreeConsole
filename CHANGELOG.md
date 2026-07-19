@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Fixed
+- **Peer ID changes while connected (#213):** renaming a registered device now
+  preserves its live TCP/WSS transport, follows the renamed WSS identity for
+  heartbeats, and permits safe round-trip renames without treating the current
+  ID as stale history. Incoming sessions can reach the device immediately
+  after the rename, with SQLite and PostgreSQL behavior kept consistent.
+
 ### Changed
 - _(none yet)_
 

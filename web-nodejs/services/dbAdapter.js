@@ -1138,10 +1138,31 @@ function createSqliteAdapter(config) {
     }
 
     /**
+     * True when id is a current Go signal-server identity. Rename history is
+     * append-only, so an ID may appear as old_id and later become current
+     * again after A -> B -> A.
+     */
+    function isCurrentPeerIdSqlite(id) {
+        const db = openMain();
+        try {
+            const hasGoPeers = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='peers'").get();
+            if (hasGoPeers) {
+                return !!db.prepare('SELECT 1 FROM peers WHERE id = ? LIMIT 1').get(id);
+            }
+        } catch (_) {}
+        try {
+            return !!db.prepare('SELECT 1 FROM peer WHERE id = ? LIMIT 1').get(id);
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
      * Identity-aware rename guard — mirrors Go signal rejectRenamedPeerRegistration (#213).
      * @returns {{ reject: boolean, new_id?: string }}
      */
     function shouldRejectRenamedPeerRegistrationSqlite(oldId, { uuid, pk, ip } = {}) {
+        if (isCurrentPeerIdSqlite(oldId)) return { reject: false };
         const newId = (() => {
             try {
                 const db = openMain();
@@ -1387,6 +1408,7 @@ function createSqliteAdapter(config) {
         getRenamedPeerId(oldId) {
             try {
                 const db = openMain();
+                if (isCurrentPeerIdSqlite(oldId)) return null;
                 const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='id_change_history'").get();
                 if (!tbl) return null;
                 const row = db.prepare('SELECT new_id FROM id_change_history WHERE old_id = ? ORDER BY rowid DESC LIMIT 1').get(oldId);
@@ -4494,11 +4516,24 @@ function createPostgresAdapter() {
         }
     }
 
+    async function isCurrentPeerIdPg(id) {
+        try {
+            return !!(await q1('SELECT 1 AS present FROM peers WHERE id = $1 LIMIT 1', [id]));
+        } catch (_) {
+            try {
+                return !!(await q1('SELECT 1 AS present FROM peer WHERE id = $1 LIMIT 1', [id]));
+            } catch (_) {
+                return false;
+            }
+        }
+    }
+
     /**
      * Identity-aware rename guard — mirrors Go signal rejectRenamedPeerRegistration (#213).
      * @returns {Promise<{ reject: boolean, new_id?: string }>}
      */
     async function shouldRejectRenamedPeerRegistrationPg(oldId, { uuid, pk, ip } = {}) {
+        if (await isCurrentPeerIdPg(oldId)) return { reject: false };
         let newId = null;
         try {
             const row = await q1('SELECT new_id FROM id_change_history WHERE old_id = $1 ORDER BY id DESC LIMIT 1', [oldId]);
@@ -4710,6 +4745,7 @@ function createPostgresAdapter() {
          */
         async getRenamedPeerId(oldId) {
             try {
+                if (await isCurrentPeerIdPg(oldId)) return null;
                 const row = await q1('SELECT new_id FROM id_change_history WHERE old_id = $1 ORDER BY id DESC LIMIT 1', [oldId]);
                 return row ? row.new_id : null;
             } catch (_) { return null; }
