@@ -26,6 +26,19 @@ class RDConnection {
 
     get state() { return this._state; }
 
+    /**
+     * Guest Access Link token for WS auth (?guest=) — do not rely only on cookie.
+     * @returns {string}
+     */
+    _guestQuerySuffix() {
+        try {
+            const q = new URLSearchParams(window.location.search);
+            const token = q.get('guest') || q.get('t') || window.__guestToken || '';
+            if (token) return `?guest=${encodeURIComponent(token)}`;
+        } catch (_) { /* ignore */ }
+        return '';
+    }
+
     // ---- Event emitter ----
 
     on(event, fn) {
@@ -54,7 +67,7 @@ class RDConnection {
     connectRendezvous() {
         return new Promise((resolve, reject) => {
             this._setState('rendezvous');
-            const url = `${this.wsBase}/ws/rendezvous`;
+            const url = `${this.wsBase}/ws/rendezvous${this._guestQuerySuffix()}`;
 
             const ws = new WebSocket(url);
             ws.binaryType = 'arraybuffer';
@@ -110,7 +123,7 @@ class RDConnection {
     connectRelay() {
         return new Promise((resolve, reject) => {
             this._setState('relay');
-            const url = `${this.wsBase}/ws/relay`;
+            const url = `${this.wsBase}/ws/relay${this._guestQuerySuffix()}`;
 
             const ws = new WebSocket(url);
             ws.binaryType = 'arraybuffer';

@@ -20,6 +20,7 @@ try {
     };
 }
 const { guestOnly, requireAuth } = require('../middleware/auth');
+const { clearGuestCookie } = require('../middleware/guestAccess');
 const { loginLimiter, passwordChangeLimiter } = require('../middleware/rateLimiter');
 
 /**
@@ -184,6 +185,9 @@ router.post('/api/auth/login', loginLimiter, async (req, res) => {
             if (user.emergencyMode) {
                 req.session.emergencyMode = true;
             }
+
+            // Drop stale guest cookie so Web Remote is not guest-hijacked after login
+            clearGuestCookie(res);
             
             // Log successful login
             await db.logAction(user.id, 'login', `User logged in`, req.ip);
@@ -426,6 +430,7 @@ router.get('/api/auth/oidc/session', async (req, res) => {
             };
             req.session.goToken = token;
             req.session.authMethod = 'oidc';
+            clearGuestCookie(res);
 
             req.session.save((saveErr) => {
                 if (saveErr) {
@@ -542,6 +547,7 @@ function finalizeLoginSession(req, res, pendingUser, method) {
                 username: pendingUser.username,
                 role: pendingUser.role
             };
+            clearGuestCookie(res);
 
             try {
                 await db.updateLastLogin(pendingUser.id);

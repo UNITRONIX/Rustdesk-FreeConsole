@@ -8,12 +8,15 @@ const router = express.Router();
 const fs = require('fs');
 const db = require('../services/database');
 const config = require('../config/config');
-const { requireRdClientAuth, rdClientGuestOnly, normalizeRdClientReturnUrl } = require('../middleware/auth');
+const logger = require('../lib/logger').child('REMOTE');
+const { requireRdClientAuth, rdClientGuestOnly, normalizeRdClientReturnUrl, roleHasPermission } = require('../middleware/auth');
 const { rdClientPageLimiter } = require('../middleware/rateLimiter');
 const betterdeskApi = require('../services/betterdeskApi');
 const {
     getGuestToken,
+    getGuestTokenFromQuery,
     setGuestCookie,
+    clearGuestCookie,
     attachGuestGrant,
     peerAllowedByGrant,
 } = require('../middleware/guestAccess');
@@ -21,8 +24,17 @@ const {
 async function requireRemoteAccess(req, res, next) {
     const deviceId = req.params.deviceId;
 
-    // Multi-device Guest Access Link — token present means guest-only path (no panel login fallback)
+    // Panel session with device.connect wins over a stale guest cookie (avoids hijack 403).
+    const role = req.session && req.session.user && req.session.user.role;
+    if (req.session && req.session.userId && role !== 'pro' && roleHasPermission(role, 'device.connect')) {
+        return requireRdClientAuth('device.connect')(req, res, next);
+    }
+
+    const queryToken = getGuestTokenFromQuery(req);
     const guestToken = getGuestToken(req);
+
+    // Guest Access Link — hard deny only for an explicit ?guest= / ?t= without a valid grant.
+    // Cookie-only failures fall through to panel auth / login.
     if (guestToken && deviceId) {
         try {
             const grant = await attachGuestGrant(req, betterdeskApi, deviceId);
@@ -30,13 +42,17 @@ async function requireRemoteAccess(req, res, next) {
                 setGuestCookie(res, guestToken, grant.expires_at);
                 return next();
             }
-        } catch {
-            // invalid grant
+        } catch (err) {
+            logger.warn('Guest grant validate failed:', err.message || err);
         }
-        return res.status(403).render('errors/403', {
-            title: req.t('guest_access.invalid_title', 'Invalid guest link'),
-            message: req.t('guest_access.device_denied', 'This guest link is invalid, expired, or does not allow this device.'),
-        });
+        if (queryToken) {
+            logger.info('Guest remote deny (explicit query, invalid/expired/not allowed):', deviceId);
+            return res.status(403).render('errors/403', {
+                title: req.t('guest_access.invalid_title', 'Invalid guest link'),
+                message: req.t('guest_access.device_denied', 'This guest link is invalid, expired, or does not allow this device.'),
+            });
+        }
+        logger.debug('Stale guest cookie ignored; falling through to panel auth');
     }
 
     // Legacy mesh single-device share
@@ -104,29 +120,42 @@ router.get('/remote/guest', rdClientPageLimiter, async (req, res) => {
         });
         const data = result.data || {};
         if (!data.valid) {
+            logger.info('Guest peers invalid/expired');
             return res.status(403).render('errors/403', {
                 title: req.t('guest_access.invalid_title', 'Invalid guest link'),
                 message: data.error || req.t('guest_access.expired', 'This guest link is invalid or expired.'),
             });
         }
         setGuestCookie(res, token, data.expires_at);
-        res.render('remote-guest', {
-            title: req.t('guest_access.title', 'Guest Remote'),
-            activePage: 'remote',
-            guestToken: token,
-            guestMeta: {
-                view_only: !!data.view_only,
-                expires_at: data.expires_at || '',
-                label: data.label || '',
-                devices: data.devices || [],
-            },
-        });
+        const guestMeta = {
+            view_only: !!data.view_only,
+            expires_at: data.expires_at || '',
+            label: data.label || '',
+            devices: data.devices || [],
+        };
+        try {
+            res.render('remote-guest', {
+                title: req.t('guest_access.title', 'Guest Remote'),
+                activePage: 'remote',
+                guestToken: token,
+                guestMeta,
+            });
+        } catch (renderErr) {
+            logger.error('Guest remote-guest render failed:', renderErr);
+            if (!res.headersSent) {
+                res.status(500).type('text/plain').send(
+                    'Guest Remote page failed to render. Check console logs (LOG_LEVEL=info) and try again after updating.'
+                );
+            }
+        }
     } catch (err) {
-        const msg = err.response?.data?.error || err.message;
-        return res.status(403).render('errors/403', {
-            title: req.t('guest_access.invalid_title', 'Invalid guest link'),
-            message: msg,
-        });
+        logger.warn('Guest /remote/guest peers/API error:', err.response?.data?.error || err.message);
+        if (!res.headersSent) {
+            return res.status(403).render('errors/403', {
+                title: req.t('guest_access.invalid_title', 'Invalid guest link'),
+                message: err.response?.data?.error || err.message,
+            });
+        }
     }
 });
 
@@ -134,6 +163,7 @@ router.get('/remote/guest', rdClientPageLimiter, async (req, res) => {
  * GET /remote - RdClient operator dashboard (device list + connect)
  */
 router.get('/remote', rdClientPageLimiter, requireRdClientAuth('device.connect'), (req, res) => {
+    clearGuestCookie(res);
     res.render('remote-dashboard', {
         title: req.t('remote_dashboard.title'),
         activePage: 'remote',
@@ -205,6 +235,7 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async 
         device: device || { id: deviceId, hostname: '', platform: '', note: '' },
         serverPubKey: serverPubKey,
         capabilities,
+        guestToken: req.guestToken || getGuestTokenFromQuery(req) || '',
         layout: 'viewer'
     });
 });

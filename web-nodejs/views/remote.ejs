@@ -434,6 +434,7 @@
     window.__initialDeviceId = ` + JSON.stringify(deviceId) + `;
     window.__initialDeviceName = ` + JSON.stringify(device && device.hostname ? device.hostname : '') + `;
     window.__capabilities = ` + JSON.stringify(capabilities || { transport: 'rd' }) + `;
+    window.__guestToken = ` + JSON.stringify((typeof guestToken !== 'undefined' && guestToken) ? guestToken : '') + `;
 </script>
 
 `

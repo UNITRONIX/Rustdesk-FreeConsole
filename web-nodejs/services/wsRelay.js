@@ -103,26 +103,26 @@ function initWsProxy(server, sessionMiddleware) {
             let hasGuest = false;
             if (!hasUser) {
                 try {
-                    const { GUEST_COOKIE } = require('../middleware/guestAccess');
-                    const raw = request.headers.cookie || '';
-                    const names = [GUEST_COOKIE, 'bd.guest', 'betterdesk.guest'];
-                    for (const cookieName of names) {
-                        const match = raw.split(';').map((p) => p.trim()).find((p) => p.startsWith(cookieName + '='));
-                        if (match) {
-                            const val = decodeURIComponent(match.slice(cookieName.length + 1) || '');
-                            if (val) {
-                                hasGuest = true;
-                                request.guestToken = val;
-                                break;
-                            }
-                        }
+                    // Prefer ?guest= on WS URL (session pages always append it for guests)
+                    const g = url.searchParams.get('guest') || url.searchParams.get('t');
+                    if (g) {
+                        hasGuest = true;
+                        request.guestToken = g;
                     }
-                    // Also accept ?guest= on WS URL (fallback)
                     if (!hasGuest) {
-                        const g = url.searchParams.get('guest') || url.searchParams.get('t');
-                        if (g) {
-                            hasGuest = true;
-                            request.guestToken = g;
+                        const { GUEST_COOKIE } = require('../middleware/guestAccess');
+                        const raw = request.headers.cookie || '';
+                        const names = [GUEST_COOKIE, 'bd.guest', 'betterdesk.guest'];
+                        for (const cookieName of names) {
+                            const match = raw.split(';').map((p) => p.trim()).find((p) => p.startsWith(cookieName + '='));
+                            if (match) {
+                                const val = decodeURIComponent(match.slice(cookieName.length + 1) || '');
+                                if (val) {
+                                    hasGuest = true;
+                                    request.guestToken = val;
+                                    break;
+                                }
+                            }
                         }
                     }
                 } catch {

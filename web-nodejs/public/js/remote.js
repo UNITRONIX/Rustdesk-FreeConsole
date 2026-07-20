@@ -76,6 +76,7 @@
                 e.stopPropagation();
                 const token = new URLSearchParams(window.location.search).get('guest')
                     || new URLSearchParams(window.location.search).get('t')
+                    || window.__guestToken
                     || '';
                 window.location.href = token ? ('/remote/guest?t=' + encodeURIComponent(token)) : '/remote/guest';
             };

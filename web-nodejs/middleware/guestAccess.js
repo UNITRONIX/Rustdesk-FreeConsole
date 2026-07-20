@@ -13,11 +13,18 @@ function hashToken(token) {
     return crypto.createHash('sha256').update(String(token)).digest('hex');
 }
 
-function getGuestToken(req) {
-    const q = String(req.query?.guest || req.query?.t || '').trim();
-    if (q) return q;
+/** Explicit guest link query (?guest= / ?t=) — conscious navigation. */
+function getGuestTokenFromQuery(req) {
+    return String(req.query?.guest || req.query?.t || '').trim();
+}
+
+function getGuestTokenFromCookie(req) {
     const c = req.cookies && req.cookies[GUEST_COOKIE];
     return c ? String(c).trim() : '';
+}
+
+function getGuestToken(req) {
+    return getGuestTokenFromQuery(req) || getGuestTokenFromCookie(req);
 }
 
 function setGuestCookie(res, token, expiresAt) {
@@ -75,6 +82,8 @@ module.exports = {
     GUEST_COOKIE,
     hashToken,
     getGuestToken,
+    getGuestTokenFromQuery,
+    getGuestTokenFromCookie,
     setGuestCookie,
     clearGuestCookie,
     attachGuestGrant,

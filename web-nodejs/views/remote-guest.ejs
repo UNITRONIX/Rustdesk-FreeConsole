@@ -34,8 +34,8 @@
     </div>
 </div>
 <script>
-window.__guestAccess = ${JSON.stringify(typeof guestMeta !== 'undefined' ? guestMeta : {})};
-window.__guestToken = ${JSON.stringify(typeof guestToken !== 'undefined' ? guestToken : '')};
+    window.__guestAccess = ` + JSON.stringify(typeof guestMeta !== 'undefined' ? guestMeta : {}) + `;
+    window.__guestToken = ` + JSON.stringify(typeof guestToken !== 'undefined' ? guestToken : '') + `;
 </script>
 `
 }); %>
