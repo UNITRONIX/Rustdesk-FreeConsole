@@ -96,6 +96,16 @@ RustDesk client login tokens are **DB-backed** (v3.3.129+):
 
 After a server update that changes session handling, users may need to **sign in once** in the RustDesk client.
 
+If login shows **Token generation failed**, update to a build that includes the #284 fix, restart `betterdesk-server`, and sign in again. Check Go logs for `issueClientSession failed` if it persists.
+
+### Supported client versions
+
+| Client | Notes |
+|--------|--------|
+| RustDesk **1.4.7+** | Full AB + TOTP challenge shape |
+| RustDesk **1.4.9** | Compatible; audit attribution enhancements are optional server follow-up |
+| RustDesk **≤1.4.6** | TOTP challenge shape may fail; prefer 1.4.7+ or disable client TOTP only via documented Node env (legacy) |
+
 ### User Roles on Client
 
 | Role | Client Behavior |

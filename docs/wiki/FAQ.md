@@ -14,6 +14,8 @@ BetterDesk is a complete RustDesk-compatible remote desktop infrastructure. It r
 
 Yes. BetterDesk is fully compatible with standard RustDesk desktop and mobile clients. No custom client required — just point your existing RustDesk client to your BetterDesk server.
 
+**Tested baseline:** RustDesk **1.4.7+** (TOTP `email_check` / `tfa_check`, address-book personal probe). **1.4.9** is supported for login, address book, groups, and remote sessions. Richer connection-audit fields from 1.4.9 (controller user attribution, primary auth / 2FA method) are accepted safely but not yet shown in the panel — see the server compatibility notes in `docs/RDCLIENT_VS_RUSTDESK_AUDIT.md`.
+
 ### What's the difference between BetterDesk and RustDesk Server Pro?
 
 BetterDesk is an independent, open-source project that provides features beyond the RustDesk OSS server:

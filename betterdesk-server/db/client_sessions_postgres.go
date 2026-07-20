@@ -8,6 +8,36 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// clientSessionsPostgresDDL creates the RustDesk client session table (#242 / #284).
+const clientSessionsPostgresDDL = `CREATE TABLE IF NOT EXISTS client_sessions (
+			id          BIGSERIAL PRIMARY KEY,
+			token_hash  TEXT UNIQUE NOT NULL,
+			user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			client_id   TEXT NOT NULL DEFAULT '',
+			client_uuid TEXT NOT NULL DEFAULT '',
+			expires_at  TIMESTAMPTZ NOT NULL,
+			last_used   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			revoked     BOOLEAN NOT NULL DEFAULT FALSE,
+			ip_address  TEXT NOT NULL DEFAULT ''
+		)`
+
+// EnsureClientSessionsSchema creates client_sessions + indexes if missing (idempotent).
+func (pg *PostgresDB) EnsureClientSessionsSchema() error {
+	statements := []string{
+		clientSessionsPostgresDDL,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_client_sessions_hash ON client_sessions(token_hash)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_user ON client_sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_expires ON client_sessions(expires_at)`,
+	}
+	for _, stmt := range statements {
+		if _, err := pg.pool.Exec(pg.ctx, stmt); err != nil {
+			return fmt.Errorf("db: EnsureClientSessionsSchema: %w", err)
+		}
+	}
+	return nil
+}
+
 // CreateClientSession inserts a new RustDesk client session.
 func (pg *PostgresDB) CreateClientSession(sess *ClientSession) error {
 	err := pg.pool.QueryRow(pg.ctx,
@@ -124,4 +154,21 @@ func (pg *PostgresDB) CleanupExpiredClientSessions() (int64, error) {
 		return 0, err
 	}
 	return tag.RowsAffected(), nil
+}
+
+// DropClientSessionsTableForTest removes client_sessions so tests can verify
+// EnsureClientSessionsSchema / login recovery (#284).
+func DropClientSessionsTableForTest(database Database) error {
+	switch d := database.(type) {
+	case *SQLiteDB:
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		_, err := d.db.Exec(`DROP TABLE IF EXISTS client_sessions`)
+		return err
+	case *PostgresDB:
+		_, err := d.pool.Exec(d.ctx, `DROP TABLE IF EXISTS client_sessions`)
+		return err
+	default:
+		return fmt.Errorf("db: DropClientSessionsTableForTest: unsupported database type %T", database)
+	}
 }

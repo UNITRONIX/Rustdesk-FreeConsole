@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -180,5 +181,58 @@ func TestClientSessionSlidingExtendsExpiry(t *testing.T) {
 	}
 	if after.ExpiresAt <= before.ExpiresAt {
 		t.Fatalf("expected sliding expiry to extend session: before=%s after=%s", before.ExpiresAt, after.ExpiresAt)
+	}
+}
+
+func TestIsMissingClientSessionsTable(t *testing.T) {
+	cases := []struct {
+		err  error
+		want bool
+	}{
+		{nil, false},
+		{fmt.Errorf("db: CreateClientSession: no such table: client_sessions"), true},
+		{fmt.Errorf(`ERROR: relation "client_sessions" does not exist (SQLSTATE 42P01)`), true},
+		{fmt.Errorf("FOREIGN KEY constraint failed"), false},
+	}
+	for _, tc := range cases {
+		if got := isMissingClientSessionsTable(tc.err); got != tc.want {
+			t.Errorf("isMissingClientSessionsTable(%v) = %v, want %v", tc.err, got, tc.want)
+		}
+	}
+}
+
+func TestIssueClientSessionRejectsZeroUserID(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	srv := newClientLoginTestServer(database)
+	_, err := srv.issueClientSession(&db.User{ID: 0, Username: "nobody"}, "dev", "uuid", "127.0.0.1")
+	if err == nil {
+		t.Fatal("expected error for user id 0")
+	}
+}
+
+func TestIssueClientSessionRecoversMissingTable(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+	createClientLoginTestUser(t, database, "admin", "correct-password", false)
+
+	if err := db.DropClientSessionsTableForTest(database); err != nil {
+		t.Fatalf("DropClientSessionsTableForTest: %v", err)
+	}
+
+	srv := newClientLoginTestServer(database)
+	rec, resp := postClientLogin(t, srv, map[string]any{
+		"username": "admin",
+		"password": "correct-password",
+		"type":     "account",
+		"id":       "recover-dev",
+		"uuid":     "recover-uuid",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	token, _ := resp["access_token"].(string)
+	if !regexp.MustCompile(`^[a-f0-9]{64}$`).MatchString(token) {
+		t.Fatalf("access_token = %q, want 64-hex", token)
 	}
 }

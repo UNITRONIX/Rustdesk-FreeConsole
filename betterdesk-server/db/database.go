@@ -709,6 +709,7 @@ type Database interface {
 	ListBillingWorkReports(orgID string, limit int) ([]*BillingWorkReport, error)
 
 	// RustDesk client sessions (Issue #242 — DB-backed opaque tokens with sliding expiry)
+	EnsureClientSessionsSchema() error
 	CreateClientSession(sess *ClientSession) error
 	GetClientSessionByTokenHash(tokenHash string) (*ClientSession, error)
 	GetActiveClientSessionByClient(clientID, clientUUID string) (*ClientSession, error)

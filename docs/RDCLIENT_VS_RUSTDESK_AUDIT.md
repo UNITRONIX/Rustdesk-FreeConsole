@@ -115,3 +115,25 @@ Audit against upstream tag **1.4.8** (June 2026). No breaking wire-format change
 4. Windows multi-session host — Actions → Windows sessions.
 5. View-only — clipboard paste and auto-sync blocked.
 6. HTTPS + WebCodecs — H265 negotiates when peer supports it.
+
+## RustDesk 1.4.9 server compatibility (2026-07-20)
+
+Audit of upstream tag **1.4.9** ([release](https://github.com/rustdesk/rustdesk/releases/tag/1.4.9)) against BetterDesk Go API + rendezvous proto. **No HTTP login/AB breaking changes** vs 1.4.8 — safe for production peers once server sessions work (#284).
+
+| Area | Status | Notes |
+|---|---|---|
+| Account login / AB / groups / peers / heartbeat / sysinfo | **OK** | Same endpoints as 1.4.7+; TOTP `email_check` + `tfa_type: tfa_check` |
+| PunchHole / Relay / RegisterPk | **OK** | New optional proto fields ignored when absent |
+| Session scope permission (#15469) | **OK** | Client-only enforcement |
+| Clipboard / MSI / FUSE / reconnect monitor | n/a | Client-only |
+| Audit JSON `primary_auth` / `two_factor` (#15456) | **Accepted, not stored** | Extra fields ignored by `POST /api/audit/conn` |
+| Controller user (#15407 `ControlledContext`) | **Not implemented** | BetterDesk does not emit `conn_audit_ref` — attribution unavailable until follow-up |
+| `ControlPermissions.privacy_mode = 12` | **Ignored bit** | Bitmap remains forward-compatible |
+| `RegisterPkResponse.NOT_DEPLOYED` / HttpProxy rendezvous | **Not implemented** | Pro-oriented; not required for normal RD |
+
+### Smoke with RustDesk 1.4.9 peer
+
+1. Login (local / LDAP / TOTP) → address book sync.
+2. Remote + file transfer + terminal sessions.
+3. Connection audit row appears in panel (without controller-user column — expected).
+4. Upgrade peer 1.4.8 → 1.4.9 without server change.

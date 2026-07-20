@@ -124,6 +124,10 @@ func main() {
 	if err := database.Migrate(); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
+	// Defensive: ensure client_sessions exists even if an older binary skipped #242 DDL (#284).
+	if err := database.EnsureClientSessionsSchema(); err != nil {
+		log.Fatalf("Failed to ensure client_sessions schema: %v", err)
+	}
 
 	// Load API key from .api_key file or API_KEY env var and sync to database.
 	// This ensures the Node.js console and Go server share the same API key

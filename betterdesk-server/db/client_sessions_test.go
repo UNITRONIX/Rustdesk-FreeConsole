@@ -127,6 +127,41 @@ func TestBindPeerOwnerAndApplyActiveSessionOwner(t *testing.T) {
 	}
 }
 
+func TestEnsureClientSessionsSchemaAfterDrop(t *testing.T) {
+	database := openTestSQLiteDB(t)
+	defer database.Close()
+
+	user := &User{Username: "ensureuser", PasswordHash: "hash", Role: "admin"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := DropClientSessionsTableForTest(database); err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+
+	expires := time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05")
+	err := database.CreateClientSession(&ClientSession{
+		TokenHash: "hash-missing-table",
+		UserID:    user.ID,
+		ExpiresAt: expires,
+	})
+	if err == nil {
+		t.Fatal("expected CreateClientSession to fail without table")
+	}
+
+	if err := database.EnsureClientSessionsSchema(); err != nil {
+		t.Fatalf("EnsureClientSessionsSchema: %v", err)
+	}
+	if err := database.CreateClientSession(&ClientSession{
+		TokenHash: "hash-after-ensure",
+		UserID:    user.ID,
+		ExpiresAt: expires,
+	}); err != nil {
+		t.Fatalf("CreateClientSession after ensure: %v", err)
+	}
+}
+
 func openTestSQLiteDB(t *testing.T) Database {
 	t.Helper()
 	db, err := OpenSQLite(":memory:")

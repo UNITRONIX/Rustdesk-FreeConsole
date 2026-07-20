@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+// clientSessionsSQLiteDDL creates the RustDesk client session table (#242 / #284).
+const clientSessionsSQLiteDDL = `CREATE TABLE IF NOT EXISTS client_sessions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			token_hash TEXT UNIQUE NOT NULL,
+			user_id INTEGER NOT NULL,
+			client_id TEXT DEFAULT '',
+			client_uuid TEXT DEFAULT '',
+			expires_at TEXT NOT NULL,
+			last_used TEXT DEFAULT (datetime('now')),
+			created_at TEXT DEFAULT (datetime('now')),
+			revoked INTEGER DEFAULT 0,
+			ip_address TEXT DEFAULT '',
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`
+
+// EnsureClientSessionsSchema creates client_sessions + indexes if missing (idempotent).
+func (s *SQLiteDB) EnsureClientSessionsSchema() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	statements := []string{
+		clientSessionsSQLiteDDL,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_client_sessions_hash ON client_sessions(token_hash)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_user ON client_sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_expires ON client_sessions(expires_at)`,
+	}
+	for _, stmt := range statements {
+		if _, err := s.db.Exec(stmt); err != nil {
+			return fmt.Errorf("db: EnsureClientSessionsSchema: %w", err)
+		}
+	}
+	return nil
+}
+
 // CreateClientSession inserts a new RustDesk client session.
 func (s *SQLiteDB) CreateClientSession(sess *ClientSession) error {
 	s.mu.Lock()

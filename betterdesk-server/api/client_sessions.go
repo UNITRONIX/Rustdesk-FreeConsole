@@ -100,8 +100,16 @@ func (s *Server) issueClientSession(user *db.User, clientID, clientUUID, clientI
 	if user == nil {
 		return "", fmt.Errorf("user required")
 	}
+	if user.ID <= 0 {
+		return "", fmt.Errorf("user id required (got %d for %q)", user.ID, user.Username)
+	}
+
 	if err := s.db.RevokeClientSessionsForDevice(user.ID, clientID, clientUUID); err != nil {
-		return "", err
+		if retryErr := s.retryAfterMissingClientSessions(err, func() error {
+			return s.db.RevokeClientSessionsForDevice(user.ID, clientID, clientUUID)
+		}); retryErr != nil {
+			return "", fmt.Errorf("revoke client sessions: %w", retryErr)
+		}
 	}
 
 	plainToken, err := generateOpaqueClientToken()
@@ -122,13 +130,45 @@ func (s *Server) issueClientSession(user *db.User, clientID, clientUUID, clientI
 		IPAddress:  clientIP,
 	}
 	if err := s.db.CreateClientSession(sess); err != nil {
-		return "", err
+		if retryErr := s.retryAfterMissingClientSessions(err, func() error {
+			return s.db.CreateClientSession(sess)
+		}); retryErr != nil {
+			return "", fmt.Errorf("create client session: %w", retryErr)
+		}
 	}
 	// Map this RustDesk client device to the BetterDesk account (inventory/audit).
 	// No connection blocking — ownership only. If the peer row does not exist yet,
 	// heartbeat / RegisterPk will apply the binding via ApplyActiveSessionOwner.
 	db.BindPeerOwner(s.db, clientID, clientUUID, user.Username)
 	return plainToken, nil
+}
+
+// retryAfterMissingClientSessions re-creates the client_sessions table when a
+// post-update Go binary races an older DB that never ran the #242 migration,
+// then retries the failed operation once.
+func (s *Server) retryAfterMissingClientSessions(orig error, retry func() error) error {
+	if !isMissingClientSessionsTable(orig) {
+		return orig
+	}
+	if err := s.db.EnsureClientSessionsSchema(); err != nil {
+		return fmt.Errorf("ensure client_sessions: %w (original: %v)", err, orig)
+	}
+	return retry()
+}
+
+func isMissingClientSessionsTable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "no such table") && strings.Contains(msg, "client_sessions") {
+		return true
+	}
+	// PostgreSQL: relation "client_sessions" does not exist
+	if strings.Contains(msg, "client_sessions") && strings.Contains(msg, "does not exist") {
+		return true
+	}
+	return false
 }
 
 func (s *Server) authenticateClientSession(token string) (username, role string, ok bool) {

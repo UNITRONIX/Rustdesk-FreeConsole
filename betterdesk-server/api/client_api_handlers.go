@@ -223,6 +223,8 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 	// No 2FA — issue client session token
 	token, err := s.issueClientSession(user, body.ID, body.UUID, clientIP)
 	if err != nil {
+		log.Printf("[api] /api/login: issueClientSession failed for user=%q id=%q uuid=%q: %v",
+			user.Username, body.ID, body.UUID, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
 		return
 	}
@@ -275,6 +277,8 @@ func (s *Server) handleClientTFAVerify(w http.ResponseWriter, clientIP, totpCode
 
 	token, err := s.issueClientSession(user, sess.clientID, sess.clientUUID, clientIP)
 	if err != nil {
+		log.Printf("[api] /api/login TFA: issueClientSession failed for user=%q id=%q uuid=%q: %v",
+			user.Username, sess.clientID, sess.clientUUID, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
 		return
 	}
