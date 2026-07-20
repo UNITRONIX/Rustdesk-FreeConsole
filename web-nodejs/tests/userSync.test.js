@@ -43,6 +43,20 @@ function createSqliteMock(goUsers = [], inserts = [], updates = []) {
                     })
                 };
             }
+            if (sql.startsWith('INSERT INTO users')) {
+                return {
+                    run: jest.fn((...args) => {
+                        inserts.push({ sql, args });
+                        goUsers.push({
+                            id: goUsers.length + 1,
+                            username: args[0],
+                            password_hash: args[1],
+                            role: args[2],
+                            auth_provider: args[3] || 'local',
+                        });
+                    }),
+                };
+            }
             if (sql.startsWith('SELECT')) return { all: jest.fn(() => goUsers) };
             if (sql.startsWith('UPDATE users SET totp_')) {
                 return { run: jest.fn((...args) => updates.push({ sql, args })) };
@@ -190,5 +204,41 @@ describe('userSync', () => {
         expect(updates[0].args).toEqual([7]);
         expect(mockApiClient.post).not.toHaveBeenCalled();
         expect(mockApiClient.put).not.toHaveBeenCalled();
+    });
+
+    it('backfillFromNode copies panel password_hash into missing Go SQLite users', async () => {
+        const inserts = [];
+        const { goDb } = createSqliteMock([], inserts);
+        mockDb.getDb.mockReturnValue(goDb);
+        mockApiClient.get.mockResolvedValue({ data: [{ id: 1, username: 'admin' }] });
+        mockDb.getAllUsers.mockResolvedValue([
+            { id: 1, username: 'admin', password_hash: '$2b$10$existing', role: 'admin', auth_provider: 'local' },
+            { id: 2, username: 'operator1', password_hash: '$2b$10$panelhash', role: 'operator', auth_provider: 'local' },
+        ]);
+
+        await userSync.backfillFromNode();
+
+        expect(inserts).toHaveLength(1);
+        expect(inserts[0].sql).toContain('INSERT INTO users');
+        expect(inserts[0].args).toEqual(['operator1', '$2b$10$panelhash', 'operator', 'local']);
+        expect(mockApiClient.post).not.toHaveBeenCalled();
+    });
+
+    it('backfillFromNode falls back to API placeholder password when hash insert is unavailable', async () => {
+        mockDb.type = 'postgres';
+        mockApiClient.get.mockResolvedValue({ data: [] });
+        mockDb.getAllUsers.mockResolvedValue([
+            { id: 2, username: 'operator1', password_hash: '$2b$10$panelhash', role: 'operator', auth_provider: 'local' },
+        ]);
+        mockApiClient.post.mockResolvedValue({ data: { id: 9 } });
+
+        await userSync.backfillFromNode();
+
+        expect(mockApiClient.post).toHaveBeenCalledTimes(1);
+        const body = mockApiClient.post.mock.calls[0][1];
+        expect(body.username).toBe('operator1');
+        expect(body.role).toBe('operator');
+        expect(body.password).toEqual(expect.any(String));
+        expect(body.password.length).toBeGreaterThanOrEqual(16);
     });
 });

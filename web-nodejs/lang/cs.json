@@ -506,7 +506,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Nastavte externí ověřování přes LDAP nebo Active Directory. Uživatelé se budou moci přihlašovat doménovými přihlašovacími údaji.",
         "ldap_enabled": "Povolit ověřování LDAP",
-        "ldap_enabled_hint": "Když je zapnuto, uživatelé se mohou přihlašovat pomocí údajů LDAP/AD. Místní účty stále fungují jako záloha.",
+        "ldap_enabled_hint": "Po zapnutí se mohou uživatelé adresáře přihlašovat pomocí LDAP/AD. Každý účet je vázán na jednoho poskytovatele (local, LDAP nebo OIDC) — lokální hesla pro LDAP účty nefungují.",
         "ldap_connection": "Připojení k serveru",
         "ldap_host": "Hostitel",
         "ldap_port": "Port",
@@ -754,7 +754,8 @@
         "client_sessions_sliding_hint": "Při používání klienta se relace obnovuje až do maximální doby níže.",
         "client_sessions_max_days": "Maximální délka relace (dny)",
         "client_sessions_max_days_hint": "Horní limit posuvného obnovení od prvního přihlášení (výchozí 30 dní).",
-        "client_sessions_save": "Uložit nastavení relace"
+        "client_sessions_save": "Uložit nastavení relace",
+        "enrollment_ldap_hint": "Nastavení LDAP/AD a OIDC najdete na kartách LDAP / AD a OIDC / SSO výše."
     },
     "audit": {
         "time": "Čas",

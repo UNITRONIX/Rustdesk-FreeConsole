@@ -513,7 +513,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "قم بتكوين المصادقة الخارجية عبر LDAP أو Active Directory. سيتمكن المستخدمون من تسجيل الدخول باستخدام بيانات اعتماد المجال الخاصة بهم.",
         "ldap_enabled": "تمكين مصادقة LDAP",
-        "ldap_enabled_hint": "عند التمكين، يمكن للمستخدمين تسجيل الدخول باستخدام بيانات اعتماد LDAP/AD. لا تزال الحسابات المحلية تعمل كاحتياطي.",
+        "ldap_enabled_hint": "عند التفعيل يمكن لمستخدمي الدليل تسجيل الدخول ببيانات LDAP/AD. كل حساب مرتبط بمزوّد واحد (local أو LDAP أو OIDC) — كلمات المرور المحلية غير مقبولة لحسابات LDAP.",
         "ldap_connection": "اتصال الخادم",
         "ldap_host": "يستضيف",
         "ldap_port": "ميناء",
@@ -761,7 +761,8 @@
         "client_sessions_sliding_hint": "أثناء استخدام العميل، تُجدَّد الجلسة حتى الحد الأقصى للمدة أدناه.",
         "client_sessions_max_days": "الحد الأقصى لمدة الجلسة (أيام)",
         "client_sessions_max_days_hint": "الحد الأقصى للتجديد التلقائي منذ أول تسجيل دخول (افتراضي 30 يومًا).",
-        "client_sessions_save": "حفظ إعدادات الجلسة"
+        "client_sessions_save": "حفظ إعدادات الجلسة",
+        "enrollment_ldap_hint": "إعدادات LDAP/AD وOIDC موجودة في علامتي التبويب LDAP / AD وOIDC / SSO أعلاه."
     },
     "audit": {
         "time": "Time",

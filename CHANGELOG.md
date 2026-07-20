@@ -2,9 +2,10 @@
 
 ### Fixed
 - **Guest Web Remote 500 + cookie hijack (#274):** `/remote/guest` no longer crashes during EJS render (guest bootstrap JSON uses the same safe pattern as the viewer). Panel sessions with `device.connect` win over a stale `betterdesk.guest` / `bd.guest` cookie, so operators are not hard-403’d on other device IDs after opening a guest link. Guest cookie is cleared on login and on `GET /remote` dashboard; RD WebSocket upgrades prefer `?guest=` on the session URL.
+- **SQLite dual-DB local password for RustDesk client (#260):** startup `backfillFromNode` now copies the panel `password_hash` into missing Go `users` rows instead of creating a random placeholder password, so local panel passwords work for desktop client login without a manual reset.
 
 ### Changed
-- _(none yet)_
+- **LDAP settings discoverability (#260):** Enrollment sub-tab hints that LDAP/AD and OIDC live under their own Authentication tabs; operator wiki and `ldap_enabled_hint` no longer imply LDAP fallthrough for local accounts.
 
 ---
 

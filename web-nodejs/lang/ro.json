@@ -512,7 +512,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Configurați autentificarea externă prin LDAP sau Active Directory. Utilizatorii se vor putea conecta cu acreditările de domeniu.",
         "ldap_enabled": "Activați autentificarea LDAP",
-        "ldap_enabled_hint": "Când este activat, utilizatorii se pot conecta cu acreditările LDAP/AD. Conturile locale funcționează în continuare ca rezervă.",
+        "ldap_enabled_hint": "Când este activat, utilizatorii din director se pot autentifica cu credențiale LDAP/AD. Fiecare cont este legat de un furnizor (local, LDAP sau OIDC) — parolele locale nu sunt acceptate pentru conturile LDAP.",
         "ldap_connection": "Conexiune la server",
         "ldap_host": "Gazdă",
         "ldap_port": "Port",
@@ -760,7 +760,8 @@
         "client_sessions_sliding_hint": "Cât timp clientul este folosit, sesiunea se reînnoiește până la maximul de mai jos.",
         "client_sessions_max_days": "Durata maximă a sesiunii (zile)",
         "client_sessions_max_days_hint": "Limita superioară a reînnoirii de la prima autentificare (implicit 30 zile).",
-        "client_sessions_save": "Salvează setările sesiunii"
+        "client_sessions_save": "Salvează setările sesiunii",
+        "enrollment_ldap_hint": "Setările LDAP/AD și OIDC sunt în filele LDAP / AD și OIDC / SSO de mai sus."
     },
     "audit": {
         "time": "Time",

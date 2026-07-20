@@ -512,7 +512,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "LDAP या Active Directory के माध्यम से बाहरी प्रमाणीकरण कॉन्फ़िगर करें। उपयोगकर्ता अपने डोमेन क्रेडेंशियल के साथ साइन इन करने में सक्षम होंगे।",
         "ldap_enabled": "LDAP प्रमाणीकरण सक्षम करें",
-        "ldap_enabled_hint": "सक्षम होने पर, उपयोगकर्ता LDAP/AD क्रेडेंशियल के साथ साइन इन कर सकते हैं। स्थानीय खाते अभी भी फ़ॉलबैक के रूप में कार्य करते हैं.",
+        "ldap_enabled_hint": "सक्षम होने पर निर्देशिका उपयोगकर्ता LDAP/AD क्रेडेंशियल से साइन इन कर सकते हैं। प्रत्येक खाता एक प्रदाता से जुड़ा होता है (local, LDAP या OIDC) — LDAP खातों के लिए स्थानीय पासवर्ड स्वीकार नहीं होते।",
         "ldap_connection": "सर्वर कनेक्शन",
         "ldap_host": "मेज़बान",
         "ldap_port": "पत्तन",
@@ -760,7 +760,8 @@
         "client_sessions_sliding_hint": "क्लाइंट उपयोग में रहने पर सत्र नीचे दी अधिकतम अवधि तक नवीनीकृत होता है।",
         "client_sessions_max_days": "अधिकतम सत्र अवधि (दिन)",
         "client_sessions_max_days_hint": "पहले लॉगिन से स्लाइडिंग नवीनीकरण की सीमा (डिफ़ॉल्ट 30 दिन)।",
-        "client_sessions_save": "सत्र सेटिंग्स सहेजें"
+        "client_sessions_save": "सत्र सेटिंग्स सहेजें",
+        "enrollment_ldap_hint": "LDAP/AD और OIDC सेटिंग्स ऊपर LDAP / AD और OIDC / SSO टैब में हैं।"
     },
     "audit": {
         "time": "Time",

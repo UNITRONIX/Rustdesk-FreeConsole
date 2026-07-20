@@ -502,7 +502,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Skonfiguruj zewnętrzne uwierzytelnianie przez LDAP lub Active Directory. Użytkownicy będą mogli logować się za pomocą poświadczeń domenowych.",
         "ldap_enabled": "Włącz uwierzytelnianie LDAP",
-        "ldap_enabled_hint": "Po włączeniu użytkownicy mogą logować się za pomocą poświadczeń LDAP/AD. Konta lokalne nadal działają jako awaryjne.",
+        "ldap_enabled_hint": "Po włączeniu użytkownicy katalogowi mogą logować się danymi LDAP/AD. Każde konto jest powiązane z jednym dostawcą (local, LDAP lub OIDC) — hasła lokalne nie działają dla kont LDAP.",
         "ldap_connection": "Połączenie z serwerem",
         "ldap_host": "Host",
         "ldap_port": "Port",
@@ -754,7 +754,8 @@
         "client_sessions_sliding_hint": "Gdy klient jest używany, sesja jest odnawiana do maksymalnego czasu poniżej.",
         "client_sessions_max_days": "Maksymalny czas sesji (dni)",
         "client_sessions_max_days_hint": "Górny limit przedłużania od pierwszego logowania (domyślnie 30 dni).",
-        "client_sessions_save": "Zapisz ustawienia sesji"
+        "client_sessions_save": "Zapisz ustawienia sesji",
+        "enrollment_ldap_hint": "Ustawienia LDAP/AD i OIDC znajdują się w zakładkach LDAP / AD oraz OIDC / SSO powyżej."
     },
     "audit": {
         "time": "Czas",

@@ -506,7 +506,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "LDAP または Active Directory を介して外部認証を構成します。ユーザーはドメイン資格情報を使用してサインインできるようになります。",
         "ldap_enabled": "LDAP 認証を有効にする",
-        "ldap_enabled_hint": "有効にすると、ユーザーは LDAP/AD 資格情報を使用してサインインできます。ローカル アカウントは引き続きフォールバックとして機能します。",
+        "ldap_enabled_hint": "有効にすると、ディレクトリユーザーは LDAP/AD 資格情報でサインインできます。各アカウントは 1 つの認証プロバイダー（local、LDAP、OIDC）に紐づき、LDAP アカウントではローカルパスワードは受け付けられません。",
         "ldap_connection": "サーバー接続",
         "ldap_host": "ホスト",
         "ldap_port": "港",
@@ -754,7 +754,8 @@
         "client_sessions_sliding_hint": "クライアント使用中は、下記の最大期間までセッションが更新されます。",
         "client_sessions_max_days": "セッション最大期間（日）",
         "client_sessions_max_days_hint": "初回ログインからのスライディング更新の上限（既定 30 日）。",
-        "client_sessions_save": "セッション設定を保存"
+        "client_sessions_save": "セッション設定を保存",
+        "enrollment_ldap_hint": "LDAP/AD および OIDC の設定は、上の LDAP / AD と OIDC / SSO タブにあります。"
     },
     "audit": {
         "time": "Time",

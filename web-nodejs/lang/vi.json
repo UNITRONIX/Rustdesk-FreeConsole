@@ -512,7 +512,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Định cấu hình xác th��c bên ngoài thông qua LDAP hoặc Active Directory. Người dùng sẽ có thể đăng nhập bằng thông tin xác thực tên miền của họ.",
         "ldap_enabled": "Kích hoạt xác thực LDAP",
-        "ldap_enabled_hint": "Khi được bật, người dùng có thể đăng nhập bằng thông tin đăng nhập LDAP/AD. Tài khoản cục bộ vẫn hoạt động như dự phòng.",
+        "ldap_enabled_hint": "Khi bật, người dùng thư mục có thể đăng nhập bằng thông tin LDAP/AD. Mỗi tài khoản gắn với một nhà cung cấp (local, LDAP hoặc OIDC) — mật khẩu cục bộ không được chấp nhận cho tài khoản LDAP.",
         "ldap_connection": "Kết nối máy chủ",
         "ldap_host": "Máy chủ",
         "ldap_port": "Cảng",
@@ -760,7 +760,8 @@
         "client_sessions_sliding_hint": "Khi client đang dùng, phiên được gia hạn đến thời hạn tối đa bên dưới.",
         "client_sessions_max_days": "Thời gian phiên tối đa (ngày)",
         "client_sessions_max_days_hint": "Giới hạn gia hạn trượt từ lần đăng nhập đầu (mặc định 30 ngày).",
-        "client_sessions_save": "Lưu cài đặt phiên"
+        "client_sessions_save": "Lưu cài đặt phiên",
+        "enrollment_ldap_hint": "Cài đặt LDAP/AD và OIDC nằm trong các tab LDAP / AD và OIDC / SSO phía trên."
     },
     "audit": {
         "time": "Time",

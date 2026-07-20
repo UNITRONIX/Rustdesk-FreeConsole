@@ -506,7 +506,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "配置通過 LDAP 或 Active Directory 進行的外部身份驗證。用戶將能夠使用其域憑據登錄。",
         "ldap_enabled": "啓用 LDAP 認證",
-        "ldap_enabled_hint": "啓用後，用戶可以使用 LDAP/AD 憑據登錄。本地帳戶仍可作爲備用。",
+        "ldap_enabled_hint": "啟用後，目錄使用者可以使用 LDAP/AD 認證登入。每個帳戶綁定至一個驗證提供者（local、LDAP 或 OIDC）——LDAP 帳戶不接受本機密碼。",
         "ldap_connection": "服務器連接",
         "ldap_host": "主機",
         "ldap_port": "端口",
@@ -758,7 +758,8 @@
         "client_sessions_sliding_hint": "用戶端使用中，工作階段會續期至下方的最長時間。",
         "client_sessions_max_days": "最長工作階段（天）",
         "client_sessions_max_days_hint": "自首次登入起滑動續期的上限（預設 30 天）。",
-        "client_sessions_save": "儲存工作階段設定"
+        "client_sessions_save": "儲存工作階段設定",
+        "enrollment_ldap_hint": "LDAP/AD 與 OIDC 設定位於上方的 LDAP / AD 和 OIDC / SSO 索引標籤。"
     },
     "audit": {
         "time": "時間",

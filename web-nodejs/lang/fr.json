@@ -506,7 +506,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Konfigurieren Sie externe Authentifizierung über LDAP oder Active Directory. Benutzer können sich mit ihren Domänenanmeldedaten anmelden.",
         "ldap_enabled": "LDAP-Authentifizierung aktivieren",
-        "ldap_enabled_hint": "Wenn aktiviert, können sich Benutzer mit LDAP/AD-Anmeldedaten anmelden. Lokale Konten funktionieren weiterhin als Fallback.",
+        "ldap_enabled_hint": "Une fois activé, les utilisateurs d'annuaire peuvent se connecter avec des identifiants LDAP/AD. Chaque compte est lié à un fournisseur (local, LDAP ou OIDC) — les mots de passe locaux ne sont pas acceptés pour les comptes LDAP.",
         "ldap_connection": "Serververbindung",
         "ldap_host": "Host",
         "ldap_port": "Port",
@@ -758,7 +758,8 @@
         "client_sessions_sliding_hint": "Tant que le client est utilisé, la session est renouvelée jusqu'à la durée maximale ci-dessous.",
         "client_sessions_max_days": "Durée maximale de session (jours)",
         "client_sessions_max_days_hint": "Limite supérieure du renouvellement depuis la première connexion (30 jours par défaut).",
-        "client_sessions_save": "Enregistrer les paramètres de session"
+        "client_sessions_save": "Enregistrer les paramètres de session",
+        "enrollment_ldap_hint": "Les paramètres LDAP/AD et OIDC se trouvent dans les onglets LDAP / AD et OIDC / SSO ci-dessus."
     },
     "audit": {
         "time": "Heure",

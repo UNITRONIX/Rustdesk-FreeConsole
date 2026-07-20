@@ -506,7 +506,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "LDAP 또는 Active Directory를 통해 외부 인증을 구성합니다. 사용자는 도메인 자격 증명을 사용하여 로그인할 수 있습니다.",
         "ldap_enabled": "LDAP 인증 활성화",
-        "ldap_enabled_hint": "활성화되면 사용자는 LDAP/AD 자격 증명을 사용하여 로그인할 수 있습니다. 로컬 계정은 여전히 ​​대체 수단으로 작동합니다.",
+        "ldap_enabled_hint": "활성화되면 디렉터리 사용자가 LDAP/AD 자격 증명으로 로그인할 수 있습니다. 각 계정은 하나의 인증 제공자(local, LDAP, OIDC)에 바인딩되며 LDAP 계정에는 로컬 비밀번호가 허용되지 않습니다.",
         "ldap_connection": "서버 연결",
         "ldap_host": "호스트",
         "ldap_port": "항구",
@@ -754,7 +754,8 @@
         "client_sessions_sliding_hint": "클라이언트 사용 중 세션이 아래 최대 기간까지 갱신됩니다.",
         "client_sessions_max_days": "최대 세션 수명(일)",
         "client_sessions_max_days_hint": "첫 로그인 이후 슬라이딩 갱신 상한(기본 30일).",
-        "client_sessions_save": "세션 설정 저장"
+        "client_sessions_save": "세션 설정 저장",
+        "enrollment_ldap_hint": "LDAP/AD 및 OIDC 설정은 위의 LDAP / AD 및 OIDC / SSO 탭에 있습니다."
     },
     "audit": {
         "time": "Time",

@@ -535,7 +535,7 @@
         "client_sessions_save": "Save session settings",
         "ldap_desc": "Configure external authentication via LDAP or Active Directory. Users will be able to sign in with their domain credentials.",
         "ldap_enabled": "Enable LDAP Authentication",
-        "ldap_enabled_hint": "When enabled, users can sign in with LDAP/AD credentials. Local accounts still work as fallback.",
+        "ldap_enabled_hint": "When enabled, directory users can sign in with LDAP/AD credentials. Each account stays bound to one auth provider (local, LDAP, or OIDC) — local passwords are not accepted for LDAP-bound users.",
         "ldap_connection": "Server Connection",
         "ldap_host": "Host",
         "ldap_port": "Port",
@@ -762,7 +762,8 @@
             "smtp_saved": "Email settings saved",
             "smtp_test_success": "Connection successful",
             "smtp_test_failed": "Connection failed"
-        }
+        },
+        "enrollment_ldap_hint": "LDAP/AD and OIDC settings are under the LDAP / AD and OIDC / SSO tabs above."
     },
     "audit": {
         "time": "Time",

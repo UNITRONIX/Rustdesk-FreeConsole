@@ -512,7 +512,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Konfigurálja a külső hitelesítést a LDAP vagy Active Directory segítségével. A felhasználók a domain hitelesítési adataikkal jelentkezhetnek be.",
         "ldap_enabled": "Engedélyezze a LDAP hitelesítést",
-        "ldap_enabled_hint": "Ha engedélyezve van, a felhasználók LDAP/AD hitelesítő adatokkal jelentkezhetnek be. A helyi fiókok továbbra is tartalékként működnek.",
+        "ldap_enabled_hint": "Bekapcsolva a címtárfelhasználók LDAP/AD hitelesítő adatokkal jelentkezhetnek be. Minden fiók egy szolgáltatóhoz van kötve (local, LDAP vagy OIDC) — a helyi jelszavak LDAP-fiókoknál nem fogadhatók el.",
         "ldap_connection": "Szerver kapcsolat",
         "ldap_host": "Házigazda",
         "ldap_port": "Port",
@@ -760,7 +760,8 @@
         "client_sessions_sliding_hint": "Használat közben a munkamenet megújul az alábbi maximális időtartamig.",
         "client_sessions_max_days": "Maximális munkamenet-idő (nap)",
         "client_sessions_max_days_hint": "A csúszó meghosszabbítás felső határa az első bejelentkezéstől (alapértelmezett 30 nap).",
-        "client_sessions_save": "Munkamenet-beállítások mentése"
+        "client_sessions_save": "Munkamenet-beállítások mentése",
+        "enrollment_ldap_hint": "Az LDAP/AD és OIDC beállítások a fenti LDAP / AD és OIDC / SSO lapokon találhatók."
     },
     "audit": {
         "time": "Time",

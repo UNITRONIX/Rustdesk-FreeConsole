@@ -506,7 +506,7 @@
         "ldap_title": "LDAP / Active Directory-integratie",
         "ldap_desc": "Configureer externe authenticatie via LDAP of Active Directory. Gebruikers kunnen zich aanmelden met hun domeinreferenties.",
         "ldap_enabled": "LDAP-authenticatie inschakelen",
-        "ldap_enabled_hint": "Wanneer ingeschakeld kunnen gebruikers zich aanmelden met LDAP/AD-referenties. Lokale accounts blijven als fallback werken.",
+        "ldap_enabled_hint": "Indien ingeschakeld kunnen directorygebruikers inloggen met LDAP/AD-gegevens. Elk account is gekoppeld aan één provider (local, LDAP of OIDC) — lokale wachtwoorden worden niet geaccepteerd voor LDAP-accounts.",
         "ldap_connection": "Serververbinding",
         "ldap_host": "Hostnaam",
         "ldap_port": "Poort",
@@ -754,7 +754,8 @@
         "client_sessions_sliding_hint": "Tijdens gebruik wordt de sessie verlengd tot de maximale duur hieronder.",
         "client_sessions_max_days": "Maximale sessieduur (dagen)",
         "client_sessions_max_days_hint": "Bovengrens voor glijdende verlenging sinds eerste login (standaard 30 dagen).",
-        "client_sessions_save": "Sessie-instellingen opslaan"
+        "client_sessions_save": "Sessie-instellingen opslaan",
+        "enrollment_ldap_hint": "LDAP/AD- en OIDC-instellingen staan onder de tabbladen LDAP / AD en OIDC / SSO hierboven."
     },
     "audit": {
         "time": "Tijd",

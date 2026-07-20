@@ -425,7 +425,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "配置通过 LDAP 或 Active Directory 进行的外部身份验证。用户将能够使用其域凭据登录。",
         "ldap_enabled": "启用 LDAP 认证",
-        "ldap_enabled_hint": "启用后，用户可以使用 LDAP/AD 凭据登录。本地帐户仍可作为备用。",
+        "ldap_enabled_hint": "启用后，目录用户可以使用 LDAP/AD 凭据登录。每个账户绑定到一个认证提供方（local、LDAP 或 OIDC）——LDAP 账户不接受本地密码。",
         "ldap_connection": "服务器连接",
         "ldap_host": "主机",
         "ldap_port": "端口",
@@ -754,7 +754,8 @@
         "client_sessions_sliding_hint": "客户端使用中，会话会续期至下方的最长时限。",
         "client_sessions_max_days": "最长会话时间（天）",
         "client_sessions_max_days_hint": "自首次登录起滑动续期的上限（默认 30 天）。",
-        "client_sessions_save": "保存会话设置"
+        "client_sessions_save": "保存会话设置",
+        "enrollment_ldap_hint": "LDAP/AD 与 OIDC 设置位于上方的 LDAP / AD 和 OIDC / SSO 选项卡。"
     },
     "audit": {
         "time": "时间",

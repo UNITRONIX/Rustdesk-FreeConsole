@@ -159,10 +159,54 @@ function mirrorTotpToGoSqlite(username, { enabled, secret } = {}) {
 }
 
 function randomPassword() {
-    // 32 hex chars — used only as a Go-side placeholder. Panel login keeps
-    // using the Node bcrypt hash; admin can later reset the password through
-    // the panel which mirrors the new password to Go.
+    // 32 hex chars — used only as a Go-side placeholder when the panel hash
+    // cannot be copied (API-only path). Prefer insertGoUserWithPasswordHash.
     return crypto.randomBytes(16).toString('hex');
+}
+
+/**
+ * Insert a missing Go SQLite user with the panel password_hash so RustDesk
+ * client login (Go /api/login) accepts the same local password as the panel.
+ * Returns true on success.
+ */
+function insertGoUserWithPasswordHash(username, passwordHash, role, authProvider = 'local') {
+    const normalized = String(username || '').trim();
+    const hash = String(passwordHash || '').trim();
+    if (!normalized || !hash) return false;
+
+    const goDb = getGoSqliteDbForWrite();
+    if (!goDb) return false;
+    if (!sqliteTableExists(goDb, 'users')) return false;
+
+    const cols = sqliteColumns(goDb, 'users');
+    if (!cols.has('username') || !cols.has('password_hash') || !cols.has('role')) {
+        console.warn('[userSync] Go hash insert skipped: users table missing required columns');
+        return false;
+    }
+
+    const provider = ['local', 'ldap', 'oidc'].includes(String(authProvider || '').trim())
+        ? String(authProvider).trim()
+        : 'local';
+    const goRole = normalizeRole(role);
+
+    try {
+        if (cols.has('auth_provider')) {
+            goDb.prepare(
+                `INSERT INTO users (username, password_hash, role, auth_provider) VALUES (?, ?, ?, ?)`
+            ).run(normalized, hash, goRole, provider);
+        } else {
+            goDb.prepare(
+                `INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)`
+            ).run(normalized, hash, goRole);
+        }
+        console.log(`[userSync] backfill: inserted Go SQLite user '${normalized}' with panel password hash (${goRole})`);
+        return true;
+    } catch (err) {
+        // UNIQUE username — already present (race with API or concurrent startup).
+        if (String(err.message || '').includes('UNIQUE')) return true;
+        console.warn(`[userSync] Go hash insert failed for '${normalized}': ${err.message}`);
+        return false;
+    }
 }
 
 async function readGoUsersFromApi() {
@@ -299,9 +343,11 @@ async function mirrorTotpDisable(username) {
 
 /**
  * Backfill: ensure every Node panel user has a matching Go-side user record.
- * Called once at startup. Missing users are created on the Go side with a
- * random throwaway password (panel login keeps using the Node bcrypt hash —
- * the Go password is irrelevant unless the operator later resets it).
+ * Called once at startup. On SQLite dual-DB installs, missing Go users are
+ * created with the panel password_hash so RustDesk client login accepts the
+ * same local password. Falls back to a random API password only when the hash
+ * cannot be copied (then a panel password reset is required for client login).
+ * PostgreSQL shared-DB installs normally already share the users table.
  */
 async function backfillFromNode() {
     let nodeUsers;
@@ -327,18 +373,29 @@ async function backfillFromNode() {
     const missing = nodeUsers.filter(u => !goUsernames.has(String(u.username || '').toLowerCase()));
     if (missing.length === 0) {
         console.log(`[userSync] backfill: all ${nodeUsers.length} panel users already present on Go side`);
+        if (db.type === 'sqlite') {
+            for (const u of nodeUsers) {
+                if (localUserHasTotp(u)) {
+                    mirrorTotpToGoSqlite(u.username, { enabled: true, secret: u.totp_secret });
+                }
+            }
+        }
         return;
     }
 
     console.log(`[userSync] backfill: mirroring ${missing.length} panel user(s) to Go server`);
     for (const u of missing) {
+        const hash = String(u.password_hash || '').trim();
+        if (db.type === 'sqlite' && hash && insertGoUserWithPasswordHash(u.username, hash, u.role, u.auth_provider)) {
+            continue;
+        }
         try {
             await apiClient.post('/users', {
                 username: u.username,
                 password: randomPassword(),
                 role: normalizeRole(u.role),
             });
-            console.log(`[userSync] backfill: created Go user '${u.username}' (${normalizeRole(u.role)})`);
+            console.log(`[userSync] backfill: created Go user '${u.username}' (${normalizeRole(u.role)}) via API (placeholder password)`);
         } catch (err) {
             const status = err.response?.status;
             if (status === 409) continue; // race — already exists, fine.
@@ -519,6 +576,7 @@ module.exports = {
     mirrorDelete,
     mirrorTotpEnable,
     mirrorTotpDisable,
+    insertGoUserWithPasswordHash,
     backfillFromGo,
     backfillFromNode,
 };

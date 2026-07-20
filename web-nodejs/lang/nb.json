@@ -512,7 +512,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Konfigurer ekstern autentisering via LDAP eller Active Directory. Brukere vil kunne logge på med domenelegitimasjonen.",
         "ldap_enabled": "Aktiver LDAP-autentisering",
-        "ldap_enabled_hint": "Når aktivert, kan brukere logge på med LDAP/AD-legitimasjon. Lokale kontoer fungerer fortsatt som reserve.",
+        "ldap_enabled_hint": "Når aktivert kan katalogbrukere logge inn med LDAP/AD-opplysninger. Hver konto er bundet til én leverandør (local, LDAP eller OIDC) — lokale passord godtas ikke for LDAP-kontoer.",
         "ldap_connection": "Servertilkobling",
         "ldap_host": "Vert",
         "ldap_port": "Port",
@@ -760,7 +760,8 @@
         "client_sessions_sliding_hint": "Mens klienten er i bruk, fornyes økten til maksimal levetid nedenfor.",
         "client_sessions_max_days": "Maksimal øktlevetid (dager)",
         "client_sessions_max_days_hint": "Øvre grense for glidende fornyelse siden første innlogging (standard 30 dager).",
-        "client_sessions_save": "Lagre øktinnstillinger"
+        "client_sessions_save": "Lagre øktinnstillinger",
+        "enrollment_ldap_hint": "LDAP/AD- og OIDC-innstillinger finnes under fanene LDAP / AD og OIDC / SSO ovenfor."
     },
     "audit": {
         "time": "Time",

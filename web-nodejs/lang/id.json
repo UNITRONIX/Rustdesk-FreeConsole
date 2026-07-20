@@ -512,7 +512,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Konfigurasikan autentikasi eksternal melalui LDAP atau Active Directory. Pengguna akan dapat masuk dengan kredensial domain mereka.",
         "ldap_enabled": "Aktifkan Otentikasi LDAP",
-        "ldap_enabled_hint": "Jika diaktifkan, pengguna dapat masuk dengan kredensial LDAP/AD. Akun lokal masih berfungsi sebagai cadangan.",
+        "ldap_enabled_hint": "Jika diaktifkan, pengguna direktori dapat masuk dengan kredensial LDAP/AD. Setiap akun terikat ke satu penyedia (local, LDAP, atau OIDC) — kata sandi lokal tidak diterima untuk akun LDAP.",
         "ldap_connection": "Koneksi Server",
         "ldap_host": "Tuan rumah",
         "ldap_port": "Pelabuhan",
@@ -760,7 +760,8 @@
         "client_sessions_sliding_hint": "Saat klien digunakan, sesi diperpanjang hingga batas maksimum di bawah.",
         "client_sessions_max_days": "Masa hidup sesi maksimum (hari)",
         "client_sessions_max_days_hint": "Batas atas perpanjangan geser sejak login pertama (default 30 hari).",
-        "client_sessions_save": "Simpan pengaturan sesi"
+        "client_sessions_save": "Simpan pengaturan sesi",
+        "enrollment_ldap_hint": "Pengaturan LDAP/AD dan OIDC ada di tab LDAP / AD dan OIDC / SSO di atas."
     },
     "audit": {
         "time": "Time",

@@ -512,7 +512,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Konfigurer ekstern godkendelse via LDAP eller Active Directory. Brugere vil være i stand til at logge ind med deres domæneoplysninger.",
         "ldap_enabled": "Aktiver LDAP-godkendelse",
-        "ldap_enabled_hint": "Når det er aktiveret, kan brugere logge ind med LDAP/AD-legitimationsoplysninger. Lokale konti fungerer stadig som reserve.",
+        "ldap_enabled_hint": "Når aktiveret kan mappebrugere logge ind med LDAP/AD-oplysninger. Hver konto er bundet til én udbyder (local, LDAP eller OIDC) — lokale adgangskoder accepteres ikke for LDAP-konti.",
         "ldap_connection": "Serverforbindelse",
         "ldap_host": "vært",
         "ldap_port": "Havn",
@@ -760,7 +760,8 @@
         "client_sessions_sliding_hint": "Mens klienten er i brug, fornyes sessionen indtil maksimal levetid nedenfor.",
         "client_sessions_max_days": "Maksimal sessionslevetid (dage)",
         "client_sessions_max_days_hint": "Øvre grænse for fornyelse siden første login (standard 30 dage).",
-        "client_sessions_save": "Gem sessionsindstillinger"
+        "client_sessions_save": "Gem sessionsindstillinger",
+        "enrollment_ldap_hint": "LDAP/AD- og OIDC-indstillinger findes under fanerne LDAP / AD og OIDC / SSO ovenfor."
     },
     "audit": {
         "time": "Time",

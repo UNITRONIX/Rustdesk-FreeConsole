@@ -506,7 +506,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Configure autenticação externa via LDAP ou Active Directory. Os usuários poderão entrar com suas credenciais de domínio.",
         "ldap_enabled": "Ativar autenticação LDAP",
-        "ldap_enabled_hint": "Quando ativado, os usuários podem entrar com credenciais LDAP/AD. Contas locais continuam funcionando como fallback.",
+        "ldap_enabled_hint": "Quando ativado, utilizadores do diretório podem iniciar sessão com credenciais LDAP/AD. Cada conta fica ligada a um fornecedor (local, LDAP ou OIDC) — palavras-passe locais não são aceites em contas LDAP.",
         "ldap_connection": "Conexão do servidor",
         "ldap_host": "Host",
         "ldap_port": "Porta",
@@ -754,7 +754,8 @@
         "client_sessions_sliding_hint": "Enquanto o cliente está em uso, a sessão é renovada até o máximo abaixo.",
         "client_sessions_max_days": "Vida máxima da sessão (dias)",
         "client_sessions_max_days_hint": "Limite superior de renovação desde o primeiro login (padrão 30 dias).",
-        "client_sessions_save": "Salvar configurações de sessão"
+        "client_sessions_save": "Salvar configurações de sessão",
+        "enrollment_ldap_hint": "As definições LDAP/AD e OIDC estão nos separadores LDAP / AD e OIDC / SSO acima."
     },
     "audit": {
         "time": "Hora",

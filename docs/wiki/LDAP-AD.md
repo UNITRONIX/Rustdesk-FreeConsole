@@ -6,7 +6,7 @@ Configure **LDAP or Active Directory** authentication so operators sign in with 
 
 ## Overview
 
-- Optional — local username/password accounts remain available as fallback
+- Optional — existing **local** accounts keep using local passwords; **LDAP** accounts use directory credentials only (no cross-provider fallthrough)
 - Panel login at **http://your-server:5000** (or HTTPS **5443**)
 - LDAP settings are stored in the Go server database (`server_config`, keys prefixed `ldap.*`)
 - **RustDesk desktop client** uses the same directory authentication via `POST /api/login` on the Go API (port **21114**, or **21121** through the Client API proxy)
@@ -15,9 +15,12 @@ Configure **LDAP or Active Directory** authentication so operators sign in with 
 > [!IMPORTANT]
 > Each BetterDesk user has a fixed **auth provider** (`local`, `ldap`, or `oidc`). LDAP-bound accounts authenticate only with directory credentials — local password login is rejected for those users, and vice versa.
 
+> [!TIP]
+> In the web console open **Settings → Authentication → LDAP / AD** (Development channel uses Authentication **sub-tabs**; the first tab is Enrollment, not LDAP).
+
 ---
 
-## Configuration (Settings → Authentication → LDAP)
+## Configuration (Settings → Authentication → LDAP / AD)
 
 | Field | Description |
 |-------|-------------|
@@ -96,9 +99,12 @@ Browser redirect / OIDC for the desktop app is a separate feature and is **not**
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
+| Cannot find LDAP settings | Looking at Enrollment sub-tab only | Open **Settings → Authentication → LDAP / AD** |
 | Test connection fails | Wrong host, port, TLS mode, or bind DN/password | Verify LDAPS vs StartTLS; check firewall to DC |
-| Web login works, client says "Invalid credentials" | Server not updated to LDAP client login build | Update via Settings → Updates on the **Development** channel (v3.3.64+) |
+| Web LDAP login works, client says "Invalid credentials" | Server not updated to LDAP client login build, or Go not restarted | Update via Settings → Updates on the **Development** channel (v3.3.64+); restart BetterDeskServer |
+| Local password works in panel but not in RustDesk client (SQLite dual-DB) | Go `users` row was created with a placeholder password | Change the password once in the panel (mirrors to Go), or update to a build that copies the panel password hash on backfill |
 | Valid AD password rejected in panel | User exists as `local` provider | Remove or rename local collision; use LDAP-only account |
+| Local password rejected after LDAP attempts | Account `auth_provider` is already `ldap` | Use directory password, or recreate as a local user with a different username |
 | User gets wrong role | Group map mismatch | Check **Group → Role Map** DNs; confirm **Default Role** |
 | TLS / certificate errors | Self-signed or private CA | Install trusted CA on server, or use lab-only **Skip TLS verify** |
 | Login works but no email/display name | Attribute mapping | Set **Email Attribute** / **Display Name Attribute** to AD attrs (`mail`, `displayName`) |

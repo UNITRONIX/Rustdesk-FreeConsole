@@ -506,7 +506,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "Konfigurieren Sie externe Authentifizierung über LDAP oder Active Directory. Benutzer können sich mit ihren Domänenanmeldedaten anmelden.",
         "ldap_enabled": "LDAP-Authentifizierung aktivieren",
-        "ldap_enabled_hint": "Wenn aktiviert, können sich Benutzer mit LDAP/AD-Anmeldedaten anmelden. Lokale Konten funktionieren weiterhin als Fallback.",
+        "ldap_enabled_hint": "Wenn aktiviert, können Verzeichnisbenutzer sich mit LDAP/AD-Anmeldedaten anmelden. Jedes Konto ist an einen Anbieter gebunden (local, LDAP oder OIDC) — lokale Passwörter gelten nicht für LDAP-Konten.",
         "ldap_connection": "Serververbindung",
         "ldap_host": "Host",
         "ldap_port": "Port",
@@ -754,7 +754,8 @@
         "client_sessions_sliding_hint": "Während der Client genutzt wird, wird die Sitzung bis zur maximalen Laufzeit unten verlängert.",
         "client_sessions_max_days": "Maximale Sitzungsdauer (Tage)",
         "client_sessions_max_days_hint": "Obergrenze für gleitende Verlängerung ab erster Anmeldung (Standard 30 Tage).",
-        "client_sessions_save": "Sitzungseinstellungen speichern"
+        "client_sessions_save": "Sitzungseinstellungen speichern",
+        "enrollment_ldap_hint": "LDAP/AD- und OIDC-Einstellungen finden Sie in den Registerkarten LDAP / AD und OIDC / SSO oben."
     },
     "audit": {
         "time": "Zeit",

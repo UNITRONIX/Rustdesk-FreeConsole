@@ -512,7 +512,7 @@
         "ldap_title": "LDAP / Active Directory",
         "ldap_desc": "LDAP veya Active Directory aracılığıyla harici kimlik doğrulamayı yapılandırın. Kullanıcılar alan adı kimlik bilgileriyle oturum açabilecektir.",
         "ldap_enabled": "LDAP Kimlik Doğrulamasını Etkinleştir",
-        "ldap_enabled_hint": "Etkinleştirildiğinde kullanıcılar LDAP/AD kimlik bilgileriyle oturum açabilir. Yerel hesaplar hala yedek olarak çalışıyor.",
+        "ldap_enabled_hint": "Etkinleştirildiğinde dizin kullanıcıları LDAP/AD kimlik bilgileriyle oturum açabilir. Her hesap bir sağlayıcıya bağlıdır (local, LDAP veya OIDC) — yerel parolalar LDAP hesaplarında kabul edilmez.",
         "ldap_connection": "Sunucu Bağlantısı",
         "ldap_host": "Sunucu",
         "ldap_port": "Liman",
@@ -760,7 +760,8 @@
         "client_sessions_sliding_hint": "İstemci kullanılırken oturum aşağıdaki maksimum süreye kadar yenilenir.",
         "client_sessions_max_days": "Maksimum oturum süresi (gün)",
         "client_sessions_max_days_hint": "İlk girişten itibaren kaydırmalı yenileme üst sınırı (varsayılan 30 gün).",
-        "client_sessions_save": "Oturum ayarlarını kaydet"
+        "client_sessions_save": "Oturum ayarlarını kaydet",
+        "enrollment_ldap_hint": "LDAP/AD ve OIDC ayarları yukarıdaki LDAP / AD ve OIDC / SSO sekmelerindedir."
     },
     "audit": {
         "time": "Time",
