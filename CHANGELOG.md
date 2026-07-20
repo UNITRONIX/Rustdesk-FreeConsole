@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.152] — 2026-07-20
+
 ### Fixed
 - **RustDesk address book login “Token generation failed” (#284):** `POST /api/login` now logs the underlying `issueClientSession` error, validates user id before insert, and recreates the `client_sessions` table if a post-update DB was missing the #242 schema. Restart Go after panel update, then sign in once in the RustDesk client.
 
@@ -2031,3 +2038,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.149]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.148...v3.3.149
 [3.3.150]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.149...v3.3.150
 [3.3.151]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.150...v3.3.151
+[3.3.152]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.151...v3.3.152
