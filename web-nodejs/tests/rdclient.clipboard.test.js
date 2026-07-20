@@ -17,7 +17,12 @@ function loadRdclientModules() {
         navigator: { clipboard: { writeText: jest.fn(), write: jest.fn() } },
         DOMParser: class {
             parseFromString(html) {
-                const text = String(html).replace(/<[^>]+>/g, '');
+                let text = String(html);
+                let prev;
+                do {
+                    prev = text;
+                    text = text.replace(/<[^>]+>/g, '');
+                } while (text !== prev);
                 return { body: { textContent: text } };
             }
         },

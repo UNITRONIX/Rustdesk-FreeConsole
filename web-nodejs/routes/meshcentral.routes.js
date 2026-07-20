@@ -5,6 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { rdClientPageLimiter } = require('../middleware/rateLimiter');
 const { proxyToGo } = require('../lib/goApiProxy');
 const betterdeskApi = require('../services/betterdeskApi');
 
@@ -46,7 +47,7 @@ router.get('/api/mesh/download.msh', requireAuth, requirePermission('server.conf
     }
 });
 
-router.post('/api/mesh/devices/:id/desktop', async (req, res, next) => {
+router.post('/api/mesh/devices/:id/desktop', rdClientPageLimiter, async (req, res, next) => {
     const id = req.params.id;
     const meshShare = String(req.query.mesh_share || '').trim();
     const guest = String(req.query.guest || req.query.t || '').trim();
@@ -101,7 +102,7 @@ router.post('/api/mesh/devices/:id/share', requireAuth, requirePermission('devic
     return proxyToGo(betterdeskApi.apiClient, req, res, 'POST', () => `/mesh/devices/${encodeURIComponent(id)}/share`, req.body);
 });
 
-router.get('/api/mesh/share/validate', async (req, res) => {
+router.get('/api/mesh/share/validate', rdClientPageLimiter, async (req, res) => {
     return proxyToGo(betterdeskApi.apiClient, req, res, 'GET', () => {
         const qs = new URLSearchParams(req.query).toString();
         return '/mesh/share/validate' + (qs ? `?${qs}` : '');

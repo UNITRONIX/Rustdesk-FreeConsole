@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Security
+- **Dependabot:** bumped `axios` to ≥1.18.0 and `brace-expansion` override to ≥1.1.16 in `web-nodejs` (DoS / prototype-pollution advisories).
+- **CodeQL:** explicit `rdClientPageLimiter` on public mesh share/desktop routes; OIDC session redirect validates configured panel base instead of `HasPrefix`; ConnLimiter int→int32 clamp uses `math.MaxInt32`; clipboard test DOMParser mock uses stable multi-pass strip.
+
 ### Changed
 - _(none yet)_
 

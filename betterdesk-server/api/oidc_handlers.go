@@ -490,8 +490,7 @@ func (s *Server) handleOIDCSessionRedirect(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	target := auth.BuildOIDCSessionURL(panelBase, code)
-	if strings.HasPrefix(target, "/") {
+	if panelBase == "" {
 		log.Printf("[OIDC] GET /api/auth/oidc/session on Go API but panel URL is not configured")
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
 			"error": "OIDC panel URL is not configured — set Panel URL in Settings → Authentication → OIDC",
@@ -499,6 +498,7 @@ func (s *Server) handleOIDCSessionRedirect(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	target := auth.BuildOIDCSessionURL(panelBase, code)
 	http.Redirect(w, r, target, http.StatusFound)
 }
 

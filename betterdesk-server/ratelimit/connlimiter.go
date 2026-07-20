@@ -1,6 +1,9 @@
 package ratelimit
 
-import "sync"
+import (
+	"math"
+	"sync"
+)
 
 // ConnLimiter limits the number of concurrent connections per IP address.
 // Used to prevent a single IP from exhausting relay resources.
@@ -20,14 +23,16 @@ func NewConnLimiter(maxPerIP int32) *ConnLimiter {
 
 // NewConnLimiterFromInt creates a limiter from an int, clamping to int32 range.
 func NewConnLimiterFromInt(maxPerIP int) *ConnLimiter {
-	const maxInt32 = 1<<31 - 1
-	if maxPerIP > maxInt32 {
-		maxPerIP = maxInt32
+	var capped int32
+	switch {
+	case maxPerIP <= 0:
+		capped = 0
+	case maxPerIP > math.MaxInt32:
+		capped = math.MaxInt32
+	default:
+		capped = int32(maxPerIP)
 	}
-	if maxPerIP < 0 {
-		maxPerIP = 0
-	}
-	return NewConnLimiter(int32(maxPerIP))
+	return NewConnLimiter(capped)
 }
 
 // Acquire attempts to register a new connection from the given IP.

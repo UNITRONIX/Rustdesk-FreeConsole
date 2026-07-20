@@ -54,7 +54,7 @@
     "js-yaml": "^3.15.0",
     "tar": "^7.5.16",
     "path-to-regexp": "^0.1.13",
-    "brace-expansion": "^1.1.13",
+    "brace-expansion": "^1.1.16",
     "form-data": "^4.0.6"
   },
   "devDependencies": {
