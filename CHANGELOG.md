@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.156] — 2026-07-20
+
 ### Security
 - **Dependabot:** bumped `axios` to ≥1.18.0 and `brace-expansion` override to ≥1.1.16 in `web-nodejs` (DoS / prototype-pollution advisories).
 - **CodeQL:** explicit `rdClientPageLimiter` on public mesh share/desktop routes; OIDC session redirect validates configured panel base instead of `HasPrefix`; ConnLimiter int→int32 clamp uses `math.MaxInt32`; clipboard test DOMParser mock uses stable multi-pass strip.
@@ -2072,3 +2079,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.153]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.152...v3.3.153
 [3.3.154]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.153...v3.3.154
 [3.3.155]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.154...v3.3.155
+[3.3.156]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.155...v3.3.156
