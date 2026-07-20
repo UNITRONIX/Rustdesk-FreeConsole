@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.154] — 2026-07-20
+
 ### Fixed
 - **Guest Web Remote 500 + cookie hijack (#274):** `/remote/guest` no longer crashes during EJS render (guest bootstrap JSON uses the same safe pattern as the viewer). Panel sessions with `device.connect` win over a stale `betterdesk.guest` / `bd.guest` cookie, so operators are not hard-403’d on other device IDs after opening a guest link. Guest cookie is cleared on login and on `GET /remote` dashboard; RD WebSocket upgrades prefer `?guest=` on the session URL.
 - **SQLite dual-DB local password for RustDesk client (#260):** startup `backfillFromNode` now copies the panel `password_hash` into missing Go `users` rows instead of creating a random placeholder password, so local panel passwords work for desktop client login without a manual reset.
@@ -2052,3 +2059,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.151]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.150...v3.3.151
 [3.3.152]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.151...v3.3.152
 [3.3.153]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.152...v3.3.153
+[3.3.154]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.153...v3.3.154
