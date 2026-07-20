@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **WebSocket Mode relay timeout behind Nginx (#276 residual):** after the session-key fix, ephemeral WSS `RequestRelay` connections still failed because the signal server sent an immediate empty keepalive after HTTP 101. Desktop clients parse that as `RendezvousMessage{union:None}` and disconnect before `RelayResponse`. Keepalives now start after `RegisterPeer`/`RegisterPk`, or after a short idle delay only when the client has not sent any frame yet. Stale closed `WSConn` handles are cleared on forward failure.
 - **RustDesk address book login “Token generation failed” (#284):** `POST /api/login` now logs the underlying `issueClientSession` error, validates user id before insert, and recreates the `client_sessions` table if a post-update DB was missing the #242 schema. Restart Go after panel update, then sign in once in the RustDesk client.
 
 ### Changed

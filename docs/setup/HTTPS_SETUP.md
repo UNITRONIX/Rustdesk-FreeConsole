@@ -451,6 +451,7 @@ See [REVERSE_PROXY.md](REVERSE_PROXY.md) for the full checklist, generated snipp
 | `HTTP/1.1 401` or `403` on WebSocket upgrade | Console session / origin check (panel paths, not RustDesk `/ws/id`) | Route `/ws/id` and `/ws/relay` to Go ports `21118` / `21119` |
 | Server log `WS read ... EOF` immediately after `101`, client retries in a loop (`allow-websocket=Y`) | Client closed before the first protobuf frame; often proxy idle timeout or desktop `RegisterPk` delay (~1s) | Update BetterDesk (fix in [#229](https://github.com/UNITRONIX/BetterDesk/issues/229)); set `WS_DEBUG_FRAMES=1` on the Go server and retest; use `ws-register-test --mode=register-pk --delay-ms=1000 ws://127.0.0.1:21118/ws/id PEERID` |
 | Server log `TCP forwarding: no conn found for key "…:0"` / `effective=…:0` / relay timeout with WebSocket Mode | Invalid port in proxied WSS session key; PunchHole/RelayResponse not delivered to WS initiator | Update BetterDesk (fix in [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)); set `TRUST_PROXY=Y`; confirm Nginx sends `X-Real-IP` / `X-Forwarded-For` as IP-only |
+| Client `Unexpected protobuf msg … union: None` / server `WS read … EOF (uptime=~10ms write_frames=2 peer="")` on WebSocket Mode | Empty keepalive sent on ephemeral WSS `RequestRelay` before `RelayResponse` | Update BetterDesk (residual fix in [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)); keep `TRUST_PROXY=Y`; retest WebSocket Mode through the proxy |
 
 **Diagnostic commands** (run from the reverse-proxy host):
 

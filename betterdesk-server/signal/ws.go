@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -18,6 +19,11 @@ import (
 )
 
 var wsSignalKeepAliveInterval = time.Duration(config.HeartbeatSuggestion) * time.Second / 2
+
+// Delayed empty keepalive for long-lived register sessions that idle after HTTP
+// 101 before RegisterPk (RustDesk desktop ~1s — issue #229). Must stay below
+// typical proxy idle cuts but above ephemeral RequestRelay RTT (issue #276).
+var wsSignalIdleKeepAliveDelay = 800 * time.Millisecond
 
 // serveWS starts the WebSocket signal listener (e.g., port 21118).
 // RustDesk web clients connect here for the same signal protocol,
@@ -179,7 +185,12 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 		}
 	})
 	keepAliveDone := make(chan struct{})
-	go s.wsSignalKeepAlive(wsc, keepAliveDone)
+	registered := make(chan struct{})
+	var registerOnce sync.Once
+	notifyRegistered := func() {
+		registerOnce.Do(func() { close(registered) })
+	}
+	go s.wsSignalKeepAlive(wsc, keepAliveDone, registered)
 	defer close(keepAliveDone)
 
 	for {
@@ -204,6 +215,7 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			resp := s.handleRegisterPeerWS(msg.GetRegisterPeer(), remoteAddr)
 			if resp != nil {
 				bindPeerWSConn(s, peerID, wsc)
+				notifyRegistered()
 				wsc.WriteMessage(resp)
 			}
 
@@ -213,6 +225,7 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			if resp != nil {
 				if rpk := resp.GetRegisterPkResponse(); rpk != nil && rpk.GetResult() == pb.RegisterPkResponse_OK {
 					bindPeerWSConn(s, peerID, wsc)
+					notifyRegistered()
 				}
 				wsc.WriteMessage(resp)
 			}
@@ -290,16 +303,66 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 	}
 }
 
-func (s *Server) wsSignalKeepAlive(wsc *codec.WSConn, done <-chan struct{}) {
+// wsSignalKeepAlive sends empty binary keepalive frames on long-lived register
+// sessions. It must NOT send an immediate empty frame after HTTP 101: ephemeral
+// WebSocket RequestRelay connections treat the first binary frame as a
+// RendezvousMessage and disconnect on union:None (issue #276 residual).
+//
+// Keepalives start after RegisterPeer/RegisterPk, or after a short idle delay
+// when the client has not sent any frame yet (desktop RegisterPk delay, #229).
+func (s *Server) wsSignalKeepAlive(wsc *codec.WSConn, done <-chan struct{}, registered <-chan struct{}) {
 	if wsSignalKeepAliveInterval <= 0 {
 		return
 	}
 
-	// Send an immediate empty frame so proxies and RustDesk desktop clients see
-	// activity right after the HTTP 101 (desktop may wait ~1s before RegisterPk).
+	idleTimer := time.NewTimer(wsSignalIdleKeepAliveDelay)
+	defer idleTimer.Stop()
+
+	registeredOK := false
+	for !registeredOK {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-done:
+			return
+		case <-registered:
+			registeredOK = true
+		case <-idleTimer.C:
+			// Client already exchanged real frames (e.g. RequestRelay) — never
+			// inject empty keepalive on this ephemeral session.
+			if wsc.FramesRead() > 0 {
+				select {
+				case <-s.ctx.Done():
+					return
+				case <-done:
+					return
+				case <-registered:
+					registeredOK = true
+				}
+				continue
+			}
+			// Still idle before register — one empty frame for proxies (#229).
+			if err := wsc.WriteKeepAlive(); err != nil {
+				if !isNormalClose(err) {
+					log.Printf("[signal] WS idle keepalive write to %s: %v", wsc.RemoteAddr(), err)
+				}
+				return
+			}
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-done:
+				return
+			case <-registered:
+				registeredOK = true
+			}
+		}
+	}
+
+	// First keepalive right after registration (or continue periodic after idle).
 	if err := wsc.WriteKeepAlive(); err != nil {
 		if !isNormalClose(err) {
-			log.Printf("[signal] WS initial keepalive write to %s: %v", wsc.RemoteAddr(), err)
+			log.Printf("[signal] WS post-register keepalive write to %s: %v", wsc.RemoteAddr(), err)
 		}
 		return
 	}

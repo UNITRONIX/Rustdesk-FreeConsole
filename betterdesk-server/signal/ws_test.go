@@ -494,6 +494,10 @@ func httptestNewRequest(method, target, remoteAddr string) *http.Request {
 }
 
 func TestWSSignalImmediateKeepAlive(t *testing.T) {
+	oldDelay := wsSignalIdleKeepAliveDelay
+	wsSignalIdleKeepAliveDelay = 80 * time.Millisecond
+	defer func() { wsSignalIdleKeepAliveDelay = oldDelay }()
+
 	cfg := config.DefaultConfig()
 	cfg.SignalPort = 29150
 	cfg.RelayPort = 29151
@@ -528,14 +532,110 @@ func TestWSSignalImmediateKeepAlive(t *testing.T) {
 	}
 	defer ws.CloseNow()
 
+	// Idle register path (#229): empty keepalive after delay when client is silent.
+	// Must not be immediate after 101 (that breaks ephemeral RequestRelay — #276).
 	readCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	typ, frame, err := ws.Read(readCtx)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("WS idle keepalive read: %v", err)
+	}
+	if typ != websocket.MessageBinary || len(frame) != 0 {
+		t.Fatalf("expected delayed empty keepalive, got type=%v len=%d", typ, len(frame))
+	}
+	if elapsed < 50*time.Millisecond {
+		t.Fatalf("keepalive arrived too soon (%v); must not be immediate after HTTP 101", elapsed)
+	}
+}
+
+func TestWSRequestRelayFirstFrameIsRelayResponse(t *testing.T) {
+	oldDelay := wsSignalIdleKeepAliveDelay
+	wsSignalIdleKeepAliveDelay = 2 * time.Second
+	defer func() { wsSignalIdleKeepAliveDelay = oldDelay }()
+
+	cfg := config.DefaultConfig()
+	cfg.SignalPort = 29190
+	cfg.RelayPort = 29191
+
+	dir := t.TempDir()
+	cfg.DBPath = dir + "/test.db"
+	cfg.KeyFile = dir + "/id_ed25519"
+
+	database, err := db.OpenSQLite(cfg.DBPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database.Migrate()
+	defer database.Close()
+
+	kp, err := crypto.LoadOrGenerateKeyPair(cfg.KeyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(cfg, kp, database)
+	ctx := t.Context()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+	time.Sleep(200 * time.Millisecond)
+
+	targetAddr := &net.UDPAddr{IP: net.ParseIP("198.51.100.20"), Port: 21116}
+	srv.PeerMap().Put(&peer.Entry{
+		ID:       "RELAYTGT",
+		PK:       make([]byte, 32),
+		IP:       targetAddr.String(),
+		UDPAddr:  targetAddr,
+		ConnType: peer.ConnUDP,
+		LastReg:  time.Now(),
+	})
+
+	ws, _, err := websocket.Dial(ctx, "ws://127.0.0.1:29192/ws/id", nil)
+	if err != nil {
+		t.Fatalf("WS dial: %v", err)
+	}
+	defer ws.CloseNow()
+
+	req := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RequestRelay{
+			RequestRelay: &pb.RequestRelay{
+				Id:     "RELAYTGT",
+				Uuid:   "11111111-1111-1111-1111-111111111111",
+				Secure: true,
+			},
+		},
+	}
+	data, _ := proto.Marshal(req)
+	if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
+		t.Fatalf("WS RequestRelay write: %v", err)
+	}
+
+	// First non-empty server frame must be RelayResponse — not an empty keepalive
+	// that desktop parses as RendezvousMessage{union:None} (#276 residual).
+	readCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	typ, frame, err := ws.Read(readCtx)
 	if err != nil {
-		t.Fatalf("WS immediate keepalive read: %v", err)
+		t.Fatalf("WS read after RequestRelay: %v", err)
 	}
-	if typ != websocket.MessageBinary || len(frame) != 0 {
-		t.Fatalf("expected immediate empty keepalive, got type=%v len=%d", typ, len(frame))
+	if typ != websocket.MessageBinary {
+		t.Fatalf("expected binary frame, got %v", typ)
+	}
+	if len(frame) == 0 {
+		t.Fatal("first server frame must not be empty keepalive on RequestRelay session")
+	}
+	resp := &pb.RendezvousMessage{}
+	if err := proto.Unmarshal(frame, resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.GetRelayResponse() == nil {
+		t.Fatalf("expected RelayResponse as first frame, got: %v", resp)
+	}
+	if resp.GetRelayResponse().Uuid != "11111111-1111-1111-1111-111111111111" {
+		t.Fatalf("RelayResponse uuid = %q", resp.GetRelayResponse().Uuid)
 	}
 }
 

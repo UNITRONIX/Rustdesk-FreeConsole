@@ -690,6 +690,12 @@ func (s *Server) forwardToWSInitiator(initiatorAddr string, msg *pb.RendezvousMe
 		return false
 	}
 	if err := wsc.WriteMessage(msg); err != nil {
+		// Stale WSConn after transport switch / cleanup — drop the handle so
+		// subsequent forwards do not keep failing on a closed socket.
+		if isNormalClose(err) || strings.Contains(err.Error(), "use of closed network connection") {
+			entry.WSConn = nil
+			return false
+		}
 		log.Printf("[signal] WS forward write to peer %s (addr=%s): %v", entry.ID, initiatorAddr, err)
 		return false
 	}
