@@ -154,7 +154,7 @@ func isLoopbackOrigin(origin string) bool {
 
 // pairWSConn pairs a WebSocket-derived net.Conn using the same UUID logic as TCP.
 func (s *Server) pairWSConn(conn net.Conn, uuid string) {
-	s.pairIncomingConn(conn, uuid)
+	s.pairIncomingConn(conn, uuid, relayTransportWS)
 }
 
 // NOTE: confirmRelay was removed — the RustDesk client does not expect

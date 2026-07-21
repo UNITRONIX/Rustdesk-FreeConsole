@@ -51,11 +51,22 @@ var (
 	timeAfter = func(d time.Duration) <-chan time.Time { return time.After(d) }
 )
 
+// relayTransport identifies how a peer reached the relay (framing differs).
+// TCP uses RustDesk BytesCodec; WebSocket uses one raw protobuf per binary frame.
+// Mixing them after UUID pairing corrupts the E2E handshake (#290).
+type relayTransport string
+
+const (
+	relayTransportTCP relayTransport = "tcp"
+	relayTransportWS  relayTransport = "ws"
+)
+
 // pendingConn holds a connection waiting for its pair.
 type pendingConn struct {
-	conn    net.Conn
-	created time.Time
-	done    chan struct{} // closed when paired or timed out
+	conn      net.Conn
+	transport relayTransport
+	created   time.Time
+	done      chan struct{} // closed when paired or timed out
 }
 
 // New creates a new relay server instance.
@@ -203,23 +214,32 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 
 	log.Printf("[relay] Connection from %s for UUID %s", conn.RemoteAddr(), uuid)
-	s.pairIncomingConn(conn, uuid)
+	s.pairIncomingConn(conn, uuid, relayTransportTCP)
 }
 
 // pairIncomingConn pairs two relay connections sharing the same session UUID.
 // LoadOrStore avoids a race where simultaneous connections both miss LoadAndDelete
 // and overwrite each other in pending without ever pairing.
-func (s *Server) pairIncomingConn(conn net.Conn, uuid string) {
+// Peers must use the same transport (TCP or WS); mixed framing is rejected (#290).
+func (s *Server) pairIncomingConn(conn net.Conn, uuid string, transport relayTransport) {
 	pc := &pendingConn{
-		conn:    conn,
-		created: timeNow(),
-		done:    make(chan struct{}),
+		conn:      conn,
+		transport: transport,
+		created:   timeNow(),
+		done:      make(chan struct{}),
 	}
 
 	if val, loaded := s.pending.LoadOrStore(uuid, pc); loaded {
 		existing := val.(*pendingConn)
 		s.pending.Delete(uuid)
 		close(existing.done)
+		if existing.transport != transport {
+			log.Printf("[relay] Protocol mismatch for UUID %s: %s <-> %s (rejecting mixed WebSocket/native relay)",
+				uuid, existing.transport, transport)
+			existing.conn.Close()
+			conn.Close()
+			return
+		}
 		s.startRelay(existing.conn, conn, uuid)
 		return
 	}

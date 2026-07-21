@@ -586,7 +586,7 @@ func TestWSRequestRelayFirstFrameIsRelayResponse(t *testing.T) {
 		PK:       make([]byte, 32),
 		IP:       targetAddr.String(),
 		UDPAddr:  targetAddr,
-		ConnType: peer.ConnUDP,
+		ConnType: peer.ConnWS, // same transport family as WS initiator (#290)
 		LastReg:  time.Now(),
 	})
 

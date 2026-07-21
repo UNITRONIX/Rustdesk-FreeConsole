@@ -21,6 +21,18 @@ import (
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
 
+// refuseRelayProtocolMismatch is returned when one peer uses WebSocket Mode
+// and the other uses native TCP/UDP — their relay framings are incompatible (#290).
+const refuseRelayProtocolMismatch = "Protocol mismatch: WebSocket and native TCP/UDP cannot share a relay session"
+
+// relayTransportMismatch reports whether initiator and target use incompatible
+// relay transports (WebSocket Mode vs native TCP/UDP). Signaling may still be
+// mixed; this gate only covers the typical case where ConnType reflects the
+// client's relay mode. The relay server remains the hard barrier.
+func relayTransportMismatch(initiator, target peer.ConnType) bool {
+	return (initiator == peer.ConnWS) != (target == peer.ConnWS)
+}
+
 // handleUDPMessage dispatches a UDP message to the appropriate handler.
 func (s *Server) handleUDPMessage(msg *pb.RendezvousMessage, raddr *net.UDPAddr) {
 	switch {
@@ -117,7 +129,7 @@ func (s *Server) handleMessage(msg *pb.RendezvousMessage, raddr net.Addr) *pb.Re
 		// TCP relay request: forward to target via UDP AND send immediate
 		// RelayResponse to TCP initiator with signed PK (matching UDP behavior).
 		udpAddr, _ := net.ResolveUDPAddr("udp", raddr.String())
-		return s.handleRequestRelayTCP(msg.GetRequestRelay(), udpAddr)
+		return s.handleRequestRelayTCP(msg.GetRequestRelay(), udpAddr, peer.ConnTCP)
 	case msg.GetRelayResponse() != nil:
 		// Target sends RelayResponse to be forwarded to the initiator via TCP.
 		udpAddr, _ := net.ResolveUDPAddr("udp", raddr.String())
@@ -1098,6 +1110,26 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		return
 	}
 
+	// WebSocket Mode and native TCP/UDP cannot share a relay session (#290).
+	initiatorType := peer.ConnUDP
+	if initiator := s.peers.FindByIP(raddr.IP); initiator != nil {
+		initiatorType = initiator.ConnType
+	}
+	if relayTransportMismatch(initiatorType, target.ConnType) {
+		log.Printf("[signal] RequestRelay: protocol mismatch initiator=%s target=%s (%s vs %s)",
+			raddr, targetID, initiatorType, target.ConnType)
+		resp := &pb.RendezvousMessage{
+			Union: &pb.RendezvousMessage_RelayResponse{
+				RelayResponse: &pb.RelayResponse{
+					RefuseReason: refuseRelayProtocolMismatch,
+					RelayServer:  relayServer,
+				},
+			},
+		}
+		s.sendUDP(resp, raddr)
+		return
+	}
+
 	initiatorID := s.peerIDForAddr(raddr)
 	if s.billing != nil {
 		if check := s.billing.CheckConnection(targetID); !check.Allowed {
@@ -1192,7 +1224,10 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 //
 // Previous behavior (sending nothing back and waiting for the target's
 // RelayResponse) caused timeouts for TCP signaling clients (e.g. logged-in users).
-func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr) *pb.RendezvousMessage {
+//
+// initiatorHint is ConnTCP for native TCP signal or ConnWS for WebSocket Mode;
+// if the initiator is registered, their stored ConnType wins.
+func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr, initiatorHint peer.ConnType) *pb.RendezvousMessage {
 	if raddr == nil {
 		log.Printf("[signal] RequestRelay (TCP): nil address, ignoring")
 		return nil
@@ -1233,6 +1268,24 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr)
 			Union: &pb.RendezvousMessage_RelayResponse{
 				RelayResponse: &pb.RelayResponse{
 					RefuseReason: "Target offline",
+					RelayServer:  relayServer,
+				},
+			},
+		}
+	}
+
+	// WebSocket Mode and native TCP/UDP cannot share a relay session (#290).
+	initiatorType := initiatorHint
+	if initiator := s.peers.FindByIP(raddr.IP); initiator != nil {
+		initiatorType = initiator.ConnType
+	}
+	if relayTransportMismatch(initiatorType, target.ConnType) {
+		log.Printf("[signal] RequestRelay (TCP): protocol mismatch initiator=%s target=%s (%s vs %s)",
+			raddr, targetID, initiatorType, target.ConnType)
+		return &pb.RendezvousMessage{
+			Union: &pb.RendezvousMessage_RelayResponse{
+				RelayResponse: &pb.RelayResponse{
+					RefuseReason: refuseRelayProtocolMismatch,
 					RelayServer:  relayServer,
 				},
 			},

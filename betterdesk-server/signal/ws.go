@@ -289,7 +289,7 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 				log.Printf("[signal] WS RequestRelay: invalid remote addr %q: %v", remoteAddr, err)
 				continue
 			}
-			resp := s.handleRequestRelayTCP(msg.GetRequestRelay(), fakeAddr)
+			resp := s.handleRequestRelayTCP(msg.GetRequestRelay(), fakeAddr, peer.ConnWS)
 			if resp != nil {
 				wsc.WriteMessage(resp)
 			}

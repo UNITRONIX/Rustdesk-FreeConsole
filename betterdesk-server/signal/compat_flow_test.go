@@ -46,7 +46,7 @@ func TestSignalRelayWireFlow(t *testing.T) {
 	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
 		Id:   "COMPATGT",
 		Uuid: relayUUID,
-	}, udpAddr("127.0.0.1", 52002))
+	}, udpAddr("127.0.0.1", 52002), peer.ConnTCP)
 	if resp == nil {
 		t.Fatal("handleRequestRelayTCP returned nil")
 	}

@@ -566,7 +566,7 @@ func TestHandleRequestRelayTCPSamePublicIPIgnoresPrivateRelayHint(t *testing.T) 
 		Id:          "TARGET121",
 		Uuid:        "issue-121-relay-uuid",
 		RelayServer: "10.0.0.20:21117",
-	}, udpAddr("203.0.113.44", 51000))
+	}, udpAddr("203.0.113.44", 51000), peer.ConnTCP)
 
 	rr := resp.GetRelayResponse()
 	if rr == nil {
@@ -574,6 +574,82 @@ func TestHandleRequestRelayTCPSamePublicIPIgnoresPrivateRelayHint(t *testing.T) 
 	}
 	if rr.RelayServer != "198.51.100.20:21117" {
 		t.Fatalf("relay = %q, want public relay", rr.RelayServer)
+	}
+}
+
+func TestHandleRequestRelayTCPProtocolMismatch(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.localIP.Store("198.51.100.20")
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "NATIVETGT",
+		UDPAddr:    udpAddr("203.0.113.50", 52000),
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "NATIVETGT",
+		Uuid: "issue-290-mismatch-uuid",
+	}, udpAddr("198.51.100.30", 51000), peer.ConnWS)
+
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != refuseRelayProtocolMismatch {
+		t.Fatalf("RefuseReason = %q, want %q", rr.RefuseReason, refuseRelayProtocolMismatch)
+	}
+}
+
+func TestHandleRequestRelayTCPMatchingWSAllowed(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.localIP.Store("198.51.100.20")
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "WSTARGET",
+		UDPAddr:    udpAddr("203.0.113.60", 52000),
+		ConnType:   peer.ConnWS,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "WSTARGET",
+		Uuid: "issue-290-match-uuid",
+	}, udpAddr("198.51.100.40", 51000), peer.ConnWS)
+
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("unexpected RefuseReason %q", rr.RefuseReason)
+	}
+	if rr.Uuid != "issue-290-match-uuid" {
+		t.Fatalf("uuid = %q", rr.Uuid)
+	}
+}
+
+func TestRelayTransportMismatchHelper(t *testing.T) {
+	cases := []struct {
+		a, b peer.ConnType
+		want bool
+	}{
+		{peer.ConnWS, peer.ConnTCP, true},
+		{peer.ConnWS, peer.ConnUDP, true},
+		{peer.ConnTCP, peer.ConnWS, true},
+		{peer.ConnUDP, peer.ConnWS, true},
+		{peer.ConnWS, peer.ConnWS, false},
+		{peer.ConnTCP, peer.ConnUDP, false},
+		{peer.ConnTCP, peer.ConnTCP, false},
+		{peer.ConnUDP, peer.ConnUDP, false},
+	}
+	for _, tc := range cases {
+		if got := relayTransportMismatch(tc.a, tc.b); got != tc.want {
+			t.Errorf("relayTransportMismatch(%s, %s) = %v, want %v", tc.a, tc.b, got, tc.want)
+		}
 	}
 }
 

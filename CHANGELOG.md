@@ -9,6 +9,7 @@
 
 ### Fixed
 - **Public Client Endpoints survive Docker recreate (#291):** Settings → Public client endpoints now persist on the `console-data` volume (`/app/data/public-endpoints.env`) instead of only ephemeral `/app/.env`. Optional Compose `PUBLIC_*` env vars override when non-empty; empty Compose keys no longer mask saved values.
+- **Mixed WSS / native relay crash (#290):** relay sessions that pair a WebSocket peer (`:21119`) with a native TCP/TLS peer (`:21117`) are rejected instead of forwarding incompatible framings (`invalid message format` / `payload too large`). Signal returns `RefuseReason: Protocol mismatch…` when initiator and target connection types differ (WebSocket Mode vs native).
 
 ### Changed
 - _(none yet)_
