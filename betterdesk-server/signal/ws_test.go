@@ -125,9 +125,8 @@ func TestWSSignalHealthCheckProxyPath(t *testing.T) {
 }
 
 func TestWSSignalRustDeskKeepAlive(t *testing.T) {
-	oldInterval := wsSignalKeepAliveInterval
-	wsSignalKeepAliveInterval = 50 * time.Millisecond
-	defer func() { wsSignalKeepAliveInterval = oldInterval }()
+	oldInterval := setWSSignalKeepAliveInterval(50 * time.Millisecond)
+	defer setWSSignalKeepAliveInterval(oldInterval)
 
 	cfg := config.DefaultConfig()
 	cfg.SignalPort = 29140
@@ -494,9 +493,8 @@ func httptestNewRequest(method, target, remoteAddr string) *http.Request {
 }
 
 func TestWSSignalImmediateKeepAlive(t *testing.T) {
-	oldDelay := wsSignalIdleKeepAliveDelay
-	wsSignalIdleKeepAliveDelay = 80 * time.Millisecond
-	defer func() { wsSignalIdleKeepAliveDelay = oldDelay }()
+	oldDelay := setWSSignalIdleKeepAliveDelay(80 * time.Millisecond)
+	defer setWSSignalIdleKeepAliveDelay(oldDelay)
 
 	cfg := config.DefaultConfig()
 	cfg.SignalPort = 29150
@@ -551,9 +549,8 @@ func TestWSSignalImmediateKeepAlive(t *testing.T) {
 }
 
 func TestWSRequestRelayFirstFrameIsRelayResponse(t *testing.T) {
-	oldDelay := wsSignalIdleKeepAliveDelay
-	wsSignalIdleKeepAliveDelay = 2 * time.Second
-	defer func() { wsSignalIdleKeepAliveDelay = oldDelay }()
+	oldDelay := setWSSignalIdleKeepAliveDelay(2 * time.Second)
+	defer setWSSignalIdleKeepAliveDelay(oldDelay)
 
 	cfg := config.DefaultConfig()
 	cfg.SignalPort = 29190

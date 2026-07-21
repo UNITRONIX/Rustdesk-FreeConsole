@@ -39,7 +39,7 @@
     "multer": "^2.2.0",
     "nodemailer": "^9.0.1",
     "otplib": "^12.0.1",
-    "protobufjs": "^7.4.0",
+    "protobufjs": "^7.6.5",
     "qrcode": "^1.5.4",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
@@ -55,7 +55,9 @@
     "tar": "^7.5.16",
     "path-to-regexp": "^0.1.13",
     "brace-expansion": "^1.1.16",
-    "form-data": "^4.0.6"
+    "form-data": "^4.0.6",
+    "body-parser": "^1.20.6",
+    "protobufjs": "^7.6.5"
   },
   "devDependencies": {
     "jest": "^29.7.0",

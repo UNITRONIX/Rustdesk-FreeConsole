@@ -13,6 +13,11 @@ permissions:
   security-events: write
   actions: read
 
+# Avoid concurrent SARIF uploads for the same ref (push + dynamic races).
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})

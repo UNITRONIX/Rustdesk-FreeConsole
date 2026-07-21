@@ -74,8 +74,10 @@ func (g *Gateway) handleRelayWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 	if g.ctx != nil {
 		ctx2, c2 := context.WithCancel(g.ctx)
+		defer c2()
 		go func() {
 			select {
 			case <-g.ctx.Done():

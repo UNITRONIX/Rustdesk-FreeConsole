@@ -1,5 +1,13 @@
 ## [Unreleased]
 
+### Security
+- **npm audit:** bump `protobufjs` to ≥7.6.5 and override `body-parser` to ≥1.20.6 (DoS advisories).
+- **CI:** Secret Scan installs ripgrep before fingerprint script; CodeQL concurrency avoids SARIF upload races.
+- **Go signal:** keepalive timing overrides use atomics so `-race` tests no longer flake.
+
+### Fixed
+- **Mesh relay:** `go vet` context cancel leak in `meshcentral/relay_ws.go` (defer cancel on all paths).
+
 ### Changed
 - _(none yet)_
 

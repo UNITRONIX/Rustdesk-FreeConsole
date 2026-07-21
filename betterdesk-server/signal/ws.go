@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -18,12 +19,32 @@ import (
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
 
-var wsSignalKeepAliveInterval = time.Duration(config.HeartbeatSuggestion) * time.Second / 2
+// Package-level keepalive timings use atomic nanoseconds so tests can override
+// them without racing concurrent wsSignalKeepAlive goroutines (-race).
+var wsSignalKeepAliveIntervalNs = int64(time.Duration(config.HeartbeatSuggestion) * time.Second / 2)
 
 // Delayed empty keepalive for long-lived register sessions that idle after HTTP
 // 101 before RegisterPk (RustDesk desktop ~1s — issue #229). Must stay below
 // typical proxy idle cuts but above ephemeral RequestRelay RTT (issue #276).
-var wsSignalIdleKeepAliveDelay = 800 * time.Millisecond
+var wsSignalIdleKeepAliveDelayNs = int64(800 * time.Millisecond)
+
+func wsSignalKeepAliveInterval() time.Duration {
+	return time.Duration(atomic.LoadInt64(&wsSignalKeepAliveIntervalNs))
+}
+
+func wsSignalIdleKeepAliveDelay() time.Duration {
+	return time.Duration(atomic.LoadInt64(&wsSignalIdleKeepAliveDelayNs))
+}
+
+func setWSSignalKeepAliveInterval(d time.Duration) (old time.Duration) {
+	old = time.Duration(atomic.SwapInt64(&wsSignalKeepAliveIntervalNs, int64(d)))
+	return old
+}
+
+func setWSSignalIdleKeepAliveDelay(d time.Duration) (old time.Duration) {
+	old = time.Duration(atomic.SwapInt64(&wsSignalIdleKeepAliveDelayNs, int64(d)))
+	return old
+}
 
 // serveWS starts the WebSocket signal listener (e.g., port 21118).
 // RustDesk web clients connect here for the same signal protocol,
@@ -311,11 +332,12 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 // Keepalives start after RegisterPeer/RegisterPk, or after a short idle delay
 // when the client has not sent any frame yet (desktop RegisterPk delay, #229).
 func (s *Server) wsSignalKeepAlive(wsc *codec.WSConn, done <-chan struct{}, registered <-chan struct{}) {
-	if wsSignalKeepAliveInterval <= 0 {
+	interval := wsSignalKeepAliveInterval()
+	if interval <= 0 {
 		return
 	}
 
-	idleTimer := time.NewTimer(wsSignalIdleKeepAliveDelay)
+	idleTimer := time.NewTimer(wsSignalIdleKeepAliveDelay())
 	defer idleTimer.Stop()
 
 	registeredOK := false
@@ -367,7 +389,7 @@ func (s *Server) wsSignalKeepAlive(wsc *codec.WSConn, done <-chan struct{}, regi
 		return
 	}
 
-	ticker := time.NewTicker(wsSignalKeepAliveInterval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
