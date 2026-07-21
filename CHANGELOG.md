@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.157] — 2026-07-21
+
 ### Security
 - **npm audit:** bump `protobufjs` to ≥7.6.5 and override `body-parser` to ≥1.20.6 (DoS advisories).
 - **CI:** Secret Scan installs ripgrep before fingerprint script; CodeQL concurrency avoids SARIF upload races.
@@ -2088,3 +2095,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.154]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.153...v3.3.154
 [3.3.155]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.154...v3.3.155
 [3.3.156]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.155...v3.3.156
+[3.3.157]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.156...v3.3.157
