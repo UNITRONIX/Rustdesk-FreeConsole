@@ -9,8 +9,9 @@
 
 ### Security
 - **npm audit:** bump `protobufjs` to ≥7.6.5 and override `body-parser` to ≥1.20.6 (DoS advisories).
-- **CI:** Secret Scan installs ripgrep before fingerprint script; CodeQL concurrency avoids SARIF upload races.
+- **CI:** Secret Scan installs ripgrep before fingerprint script; CodeQL advanced workflow no longer runs on every push (conflicts with GitHub default setup SARIF upload).
 - **Go signal:** keepalive timing overrides use atomics so `-race` tests no longer flake.
+- **Go toolchain:** bump `betterdesk-server` toolchain to `go1.26.5` for govulncheck (GO-2026-5856 / stdlib TLS fixes).
 
 ### Fixed
 - **Mesh relay:** `go vet` context cancel leak in `meshcentral/relay_ws.go` (defer cancel on all paths).
