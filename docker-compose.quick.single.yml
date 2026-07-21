@@ -63,6 +63,12 @@ services:
       - RUSTDESK_PATH=/opt/rustdesk
       - DATA_DIR=/app/data
       - DB_PATH=/opt/rustdesk/db_v2.sqlite3
+      # Optional public client endpoints (IaC). Non-empty values override
+      # /app/data/public-endpoints.env from Settings UI. Leave unset to use the panel.
+      # Do not set empty PUBLIC_*= keys.
+      # - PUBLIC_SERVER_ID=gateway.example.net
+      # - PUBLIC_RELAY_SERVER=gateway.example.net
+      # - PUBLIC_API_URL=https://api.example.net:21121
       - PUB_KEY_PATH=/opt/rustdesk/id_ed25519.pub
       - API_KEY_PATH=/opt/rustdesk/.api_key
       - SESSION_SECRET=${SESSION_SECRET:-}

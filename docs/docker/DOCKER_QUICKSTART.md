@@ -112,6 +112,21 @@ RELAY_SERVERS=192.168.1.10:21117 docker compose up -d
 
 Use the Docker host address, not the container IP. Make sure TCP port `21117` is open and forwarded to the host.
 
+### Public Client Endpoints (survive container recreate)
+
+Settings → **Public client endpoints** (ID server, relay, API URL) are stored on the **`console-data` volume** at `/app/data/public-endpoints.env`. They survive `docker compose pull`, `up -d`, and `--force-recreate`.
+
+Alternatively, set them declaratively in compose (non-empty values override the panel file):
+
+```yaml
+environment:
+  - PUBLIC_SERVER_ID=gateway.example.net
+  - PUBLIC_RELAY_SERVER=gateway.example.net
+  - PUBLIC_API_URL=https://api.example.net:21121
+```
+
+Do **not** add empty `PUBLIC_*=` entries — leave the keys unset when using the panel. See [REVERSE_PROXY.md](../setup/REVERSE_PROXY.md#split-dns--multiple-hostnames).
+
 ### Custom Admin Password
 
 ```bash
@@ -315,3 +330,5 @@ Configure your RustDesk clients with:
 | Key | (get from web console Settings page) |
 
 Or scan the QR code from the web console Settings page.
+
+For a public hostname that differs from the Docker service name (`betterdesk-server` / `127.0.0.1`), configure **Settings → Public client endpoints** (persisted on the `console-data` volume) or set `PUBLIC_*` in compose — see [Public Client Endpoints](#public-client-endpoints-survive-container-recreate).

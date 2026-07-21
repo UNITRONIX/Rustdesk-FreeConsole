@@ -187,6 +187,8 @@ When the panel, ID server, relay, and Client API use different public names:
 
 You can also edit these in **Settings → Public client endpoints** (no console restart required for display values).
 
+**Docker:** panel saves to `/app/data/public-endpoints.env` on the `console-data` volume (survives container recreate). Non-empty Compose `environment:` values for these keys take precedence over the file. Do not set empty `PUBLIC_*=` keys in compose. On first read after upgrade, values are migrated from console `.env` if the durable file is empty.
+
 See [RustDesk Client Deployment](RUSTDESK_CLIENT_DEPLOYMENT.md).
 
 ---

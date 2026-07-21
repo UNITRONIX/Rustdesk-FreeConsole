@@ -1992,7 +1992,7 @@ router.post('/api/settings/connection-mode/restart', requireAuth, requirePermiss
 });
 
 /**
- * GET /api/settings/public-endpoints — RustDesk public client endpoints from .env
+ * GET /api/settings/public-endpoints — RustDesk public client endpoints (durable dataDir + .env)
  */
 router.get('/api/settings/public-endpoints', requireAuth, requirePermission('server.config'), (req, res) => {
     try {
@@ -2011,7 +2011,7 @@ router.get('/api/settings/public-endpoints', requireAuth, requirePermission('ser
 });
 
 /**
- * PUT /api/settings/public-endpoints — persist RustDesk public client endpoints to .env
+ * PUT /api/settings/public-endpoints — persist RustDesk public client endpoints (dataDir + .env)
  */
 router.put('/api/settings/public-endpoints', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {

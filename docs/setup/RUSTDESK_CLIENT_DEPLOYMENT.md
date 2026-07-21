@@ -78,6 +78,7 @@ For lab or early production with a public IP and no certificates:
   - `PUBLIC_SERVER_ID=remote.example.com`
   - `PUBLIC_RELAY_SERVER=remote.example.com` (optional; defaults to ID server)
   - `PUBLIC_API_URL=https://api.example.com` (full URL clients use for login/API — port 21114 by default)
+- **Docker:** the panel persists these on the `console-data` volume (`/app/data/public-endpoints.env`) so they survive container recreate; see [DOCKER_QUICKSTART.md](../docker/DOCKER_QUICKSTART.md#public-client-endpoints-survive-container-recreate).
 
 ## Intune / Robopack / PSADT 4.x
 

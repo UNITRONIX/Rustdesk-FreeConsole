@@ -108,6 +108,12 @@ services:
       - RUSTDESK_PATH=/opt/rustdesk
       - DATA_DIR=/app/data
       - DB_PATH=/app/data/db_v2.sqlite3
+      # Optional public client endpoints (IaC). Non-empty values override the panel
+      # file at /app/data/public-endpoints.env. Leave unset to use Settings UI.
+      # Do not set empty PUBLIC_*= keys — empty env must not wipe durable values.
+      # - PUBLIC_SERVER_ID=gateway.example.net
+      # - PUBLIC_RELAY_SERVER=gateway.example.net
+      # - PUBLIC_API_URL=https://api.example.net:21121
       # Admin credentials (first run only; existing users are not overwritten).
       - DEFAULT_ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - DEFAULT_ADMIN_PASSWORD=${ADMIN_PASSWORD:-}

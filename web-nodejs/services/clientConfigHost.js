@@ -6,7 +6,6 @@
 
 'use strict';
 
-const fs = require('fs');
 const conn = require('./agentBundleConnection');
 const keyService = require('./keyService');
 const publicEndpoints = require('./rustDeskPublicEndpointsService');
@@ -28,17 +27,9 @@ function stripRequestHost(rawHost) {
     return firstHost;
 }
 
+/** Same precedence as PUBLIC_*: non-empty process.env → durable → .env */
 function readPanelPublicHost() {
-    const content = publicEndpoints.parseEnvFile(
-        fs.existsSync(publicEndpoints.ENV_PATH)
-            ? fs.readFileSync(publicEndpoints.ENV_PATH, 'utf8')
-            : ''
-    );
-    const fromFile = content.PANEL_PUBLIC_HOST;
-    if (fromFile !== undefined && fromFile !== '') {
-        return String(fromFile).trim();
-    }
-    return process.env.PANEL_PUBLIC_HOST || '';
+    return publicEndpoints.readPanelPublicHostValue();
 }
 
 /**

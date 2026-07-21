@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Public Client Endpoints survive Docker recreate (#291):** Settings → Public client endpoints now persist on the `console-data` volume (`/app/data/public-endpoints.env`) instead of only ephemeral `/app/.env`. Optional Compose `PUBLIC_*` env vars override when non-empty; empty Compose keys no longer mask saved values.
+
 ### Changed
 - _(none yet)_
 
