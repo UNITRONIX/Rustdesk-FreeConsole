@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.159] — 2026-07-21
+
 ### Fixed
 - **Public Client Endpoints survive Docker recreate (#291):** Settings → Public client endpoints now persist on the `console-data` volume (`/app/data/public-endpoints.env`) instead of only ephemeral `/app/.env`. Optional Compose `PUBLIC_*` env vars override when non-empty; empty Compose keys no longer mask saved values.
 
@@ -2108,3 +2115,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.156]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.155...v3.3.156
 [3.3.157]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.156...v3.3.157
 [3.3.158]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.157...v3.3.158
+[3.3.159]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.158...v3.3.159
