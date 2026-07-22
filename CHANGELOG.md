@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **False MaxListenersExceededWarning on panel WebSocket upgrades (#295):** console WebSocket services now share a single HTTP `upgrade` dispatcher instead of stacking 11 separate listeners (Node's default max is 10). Reconnects never added listeners — the warning was a startup false positive, not a reconnect leak. Session `MemoryStore` remains intentional for the single-process console (shared store is for future multi-instance HA only).
+
 ### Changed
 - _(none yet)_
 

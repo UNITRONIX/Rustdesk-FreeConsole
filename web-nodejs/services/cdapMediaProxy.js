@@ -41,51 +41,56 @@ function createCdapMediaProxy(server, sessionMiddleware, opts) {
 
     const wss = new WebSocket.Server({ noServer: true });
     const { enforceOrigin } = require('../middleware/wsOrigin');
+    const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
-    server.on('upgrade', (req, socket, head) => {
-        const url = new URL(req.url, `http://${req.headers.host}`);
-        const match = url.pathname.match(pattern);
-        if (!match) return;
+    registerUpgradeHandler(
+        server,
+        (pathname) => pattern.test(pathname),
+        (req, socket, head) => {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const match = url.pathname.match(pattern);
+            if (!match) return;
 
-        const deviceId = match[1];
+            const deviceId = match[1];
 
-        // CSWSH protection — reject before validating session.
-        if (!enforceOrigin(req, socket, `cdap-${label} ${url.pathname}`)) return;
+            // CSWSH protection — reject before validating session.
+            if (!enforceOrigin(req, socket, `cdap-${label} ${url.pathname}`)) return;
 
-        sessionMiddleware(req, {}, () => {
-            if (!req.session || !req.session.userId) {
-                console.warn(`[CDAP ${label}] 401 upgrade rejected for ${url.pathname} (no session; ip=${req.socket?.remoteAddress})`);
-                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                socket.destroy();
-                return;
-            }
+            sessionMiddleware(req, {}, () => {
+                if (!req.session || !req.session.userId) {
+                    console.warn(`[CDAP ${label}] 401 upgrade rejected for ${url.pathname} (no session; ip=${req.socket?.remoteAddress})`);
+                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
 
-            // Session stores the user under req.session.user; older code paths
-            // also write flat fields. Accept either shape.
-            const sessUser = req.session.user || {};
-            const userRole = sessUser.role || req.session.role || '';
-            const userName = sessUser.username || req.session.username || `user#${req.session.userId}`;
+                // Session stores the user under req.session.user; older code paths
+                // also write flat fields. Accept either shape.
+                const sessUser = req.session.user || {};
+                const userRole = sessUser.role || req.session.role || '';
+                const userName = sessUser.username || req.session.username || `user#${req.session.userId}`;
 
-            const userLevel = roleLevel[userRole] || 0;
-            const requiredLevel = roleLevel[minRole] || 3;
-            if (userLevel < requiredLevel) {
-                console.warn(`[CDAP ${label}] 403 upgrade rejected for ${url.pathname} (user=${userName} role=${userRole} level=${userLevel} < required=${requiredLevel})`);
-                socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-                socket.destroy();
-                return;
-            }
+                const userLevel = roleLevel[userRole] || 0;
+                const requiredLevel = roleLevel[minRole] || 3;
+                if (userLevel < requiredLevel) {
+                    console.warn(`[CDAP ${label}] 403 upgrade rejected for ${url.pathname} (user=${userName} role=${userRole} level=${userLevel} < required=${requiredLevel})`);
+                    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
 
-            console.log(`[CDAP ${label}] Upgrade accepted for device=${deviceId} user=${userName} role=${userRole}`);
+                console.log(`[CDAP ${label}] Upgrade accepted for device=${deviceId} user=${userName} role=${userRole}`);
 
-            // Attach normalized fields so the connection handler can use them.
-            req._cdapUserName = userName;
-            req._cdapUserRole = userRole;
+                // Attach normalized fields so the connection handler can use them.
+                req._cdapUserName = userName;
+                req._cdapUserRole = userRole;
 
-            wss.handleUpgrade(req, socket, head, (ws) => {
-                wss.emit('connection', ws, req, deviceId);
+                wss.handleUpgrade(req, socket, head, (ws) => {
+                    wss.emit('connection', ws, req, deviceId);
+                });
             });
-        });
-    });
+        }
+    );
 
     wss.on('connection', (browserWs, req, deviceId) => {
         const username = req._cdapUserName || req.session?.user?.username || req.session?.username || 'admin';

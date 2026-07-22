@@ -34,24 +34,26 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
     // Browser-facing WebSocket server
     const wss = new WebSocket.Server({ noServer: true });
     const clients = new Set();
+    const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
-    // Handle upgrade requests
-    httpServer.on('upgrade', (req, socket, head) => {
-        const url = new URL(req.url, `http://${req.headers.host}`);
-        if (url.pathname !== '/ws/device-status') return;
-
-        // Authenticate via session
-        sessionMiddleware(req, {}, () => {
-            if (!req.session || !req.session.userId) {
-                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                socket.destroy();
-                return;
-            }
-            wss.handleUpgrade(req, socket, head, (ws) => {
-                wss.emit('connection', ws, req);
+    // Handle upgrade requests via shared router (#295)
+    registerUpgradeHandler(
+        httpServer,
+        (pathname) => pathname === '/ws/device-status',
+        (req, socket, head) => {
+            // Authenticate via session
+            sessionMiddleware(req, {}, () => {
+                if (!req.session || !req.session.userId) {
+                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
+                wss.handleUpgrade(req, socket, head, (ws) => {
+                    wss.emit('connection', ws, req);
+                });
             });
-        });
-    });
+        }
+    );
 
     wss.on('connection', (ws) => {
         clients.add(ws);

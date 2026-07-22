@@ -283,59 +283,63 @@ function handleViewerConnection(ws, deviceId, operatorName) {
 function initRemoteRelay(server, sessionMiddleware) {
     const wss = new WebSocket.Server({ noServer: true });
     const { enforceOrigin } = require('../middleware/wsOrigin');
+    const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
-    server.on('upgrade', (req, socket, head) => {
-        const url    = new URL(req.url, `http://${req.headers.host}`);
-        const path   = url.pathname;
+    registerUpgradeHandler(
+        server,
+        (path) => /^\/ws\/remote-agent\/[^/]+$/.test(path) || /^\/ws\/remote-viewer\/[^/]+$/.test(path),
+        (req, socket, head) => {
+            const url    = new URL(req.url, `http://${req.headers.host}`);
+            const path   = url.pathname;
 
-        // Agent: /ws/remote-agent/<device_id>
-        const agentMatch = path.match(/^\/ws\/remote-agent\/([^/]+)$/);
-        if (agentMatch) {
-            if (!enforceOrigin(req, socket, `remote-agent ${path}`)) return;
-            const deviceId = decodeURIComponent(agentMatch[1]);
-            const token = url.searchParams.get('token') || '';
-            // Validate device ID format (reject path traversal etc.)
-            if (!/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
-                socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
-                socket.destroy();
+            // Agent: /ws/remote-agent/<device_id>
+            const agentMatch = path.match(/^\/ws\/remote-agent\/([^/]+)$/);
+            if (agentMatch) {
+                if (!enforceOrigin(req, socket, `remote-agent ${path}`)) return;
+                const deviceId = decodeURIComponent(agentMatch[1]);
+                const token = url.searchParams.get('token') || '';
+                // Validate device ID format (reject path traversal etc.)
+                if (!/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
+                    socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
+                verifyAgentConnection(deviceId, token).then((ok) => {
+                    if (!ok) {
+                        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                        socket.destroy();
+                        return;
+                    }
+                    wss.handleUpgrade(req, socket, head, (ws) => {
+                        handleAgentConnection(ws, deviceId);
+                    });
+                }).catch(() => {
+                    try {
+                        socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+                        socket.destroy();
+                    } catch (_) { /* closed */ }
+                });
                 return;
             }
-            verifyAgentConnection(deviceId, token).then((ok) => {
-                if (!ok) {
-                    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-                    socket.destroy();
-                    return;
-                }
-                wss.handleUpgrade(req, socket, head, (ws) => {
-                    handleAgentConnection(ws, deviceId);
-                });
-            }).catch(() => {
-                try {
-                    socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
-                    socket.destroy();
-                } catch (_) { /* closed */ }
-            });
-            return;
-        }
 
-        // Viewer (operator): /ws/remote-viewer/<device_id>
-        const viewerMatch = path.match(/^\/ws\/remote-viewer\/([^/]+)$/);
-        if (viewerMatch) {
-            if (!enforceOrigin(req, socket, `remote-viewer ${path}`)) return;
-            sessionMiddleware(req, {}, () => {
-                if (!req.session || !req.session.userId) {
-                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                    socket.destroy();
-                    return;
-                }
-                wss.handleUpgrade(req, socket, head, (ws) => {
-                    const opName = req.session.username || 'operator';
-                    handleViewerConnection(ws, viewerMatch[1], opName);
+            // Viewer (operator): /ws/remote-viewer/<device_id>
+            const viewerMatch = path.match(/^\/ws\/remote-viewer\/([^/]+)$/);
+            if (viewerMatch) {
+                if (!enforceOrigin(req, socket, `remote-viewer ${path}`)) return;
+                sessionMiddleware(req, {}, () => {
+                    if (!req.session || !req.session.userId) {
+                        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                        socket.destroy();
+                        return;
+                    }
+                    wss.handleUpgrade(req, socket, head, (ws) => {
+                        const opName = req.session.username || 'operator';
+                        handleViewerConnection(ws, viewerMatch[1], opName);
+                    });
                 });
-            });
-            return;
+            }
         }
-    });
+    );
 
     log.info('Remote relay initialized (/ws/remote-agent/:id, /ws/remote-viewer/:id)');
     return wss;

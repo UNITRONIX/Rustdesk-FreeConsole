@@ -107,12 +107,18 @@ app.use(cookieParser());
 // Session management — also kept as a standalone middleware ref for WebSocket upgrades
 // Use a different cookie name in HTTP mode to avoid collision with stale
 // Secure cookies left over from a previous HTTPS configuration (Issue #82).
+//
+// MemoryStore is intentional for the single-process console (GitHub #295).
+// express-session warns in production that MemoryStore is not for multi-process
+// or HA; BetterDesk runs one Node panel per host. Shared store (PostgreSQL/Redis)
+// is planned only for multi-instance HA — see docs/enterprise/IMPLEMENTATION_PLAN.md.
 const SESSION_COOKIE = config.httpsEnabled ? 'betterdesk.sid' : 'bd.sid';
 const sessionMiddleware = session({
     secret: config.sessionSecret,
     name: SESSION_COOKIE,
     resave: false,
     saveUninitialized: false,
+    store: new session.MemoryStore(),
     cookie: {
         secure: config.httpsEnabled,
         httpOnly: true,

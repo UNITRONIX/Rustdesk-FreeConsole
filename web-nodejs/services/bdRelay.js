@@ -208,26 +208,29 @@ function initBdRelay(server) {
     const relayWss  = new WebSocket.Server({ noServer: true, maxPayload: MAX_FRAME_BYTES });
     const signalWss = new WebSocket.Server({ noServer: true, maxPayload: 64 * 1024 });
     const { enforceOrigin } = require('../middleware/wsOrigin');
+    const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
-    // Attach to server upgrade — only handle /ws/bd-relay and /ws/bd-signal,
-    // let other handlers (remoteRelay, chatRelay, cdap) handle their paths.
-    server.on('upgrade', (request, socket, head) => {
-        const url = new URL(request.url, `http://${request.headers.host}`);
-        const pathname = url.pathname;
+    // Shared upgrade router — paths /ws/bd-relay and /ws/bd-signal (#295).
+    registerUpgradeHandler(
+        server,
+        (pathname) => pathname === '/ws/bd-relay' || pathname === '/ws/bd-signal',
+        (request, socket, head) => {
+            const url = new URL(request.url, `http://${request.headers.host}`);
+            const pathname = url.pathname;
 
-        if (pathname === '/ws/bd-relay') {
-            if (!enforceOrigin(request, socket, `bd-relay ${pathname}`)) return;
-            relayWss.handleUpgrade(request, socket, head, (ws) => {
-                relayWss.emit('connection', ws, request);
-            });
-        } else if (pathname === '/ws/bd-signal') {
-            if (!enforceOrigin(request, socket, `bd-signal ${pathname}`)) return;
-            signalWss.handleUpgrade(request, socket, head, (ws) => {
-                signalWss.emit('connection', ws, request);
-            });
+            if (pathname === '/ws/bd-relay') {
+                if (!enforceOrigin(request, socket, `bd-relay ${pathname}`)) return;
+                relayWss.handleUpgrade(request, socket, head, (ws) => {
+                    relayWss.emit('connection', ws, request);
+                });
+            } else if (pathname === '/ws/bd-signal') {
+                if (!enforceOrigin(request, socket, `bd-signal ${pathname}`)) return;
+                signalWss.handleUpgrade(request, socket, head, (ws) => {
+                    signalWss.emit('connection', ws, request);
+                });
+            }
         }
-        // Other paths: do nothing — let other upgrade handlers deal with them
-    });
+    );
 
     // ---- Relay connections ----
 

@@ -233,32 +233,34 @@ function startShell(cols, rows, userInfo) {
 function initServerTerminalProxy(server, sessionMiddleware, opts) {
     const wss = new WebSocket.Server({ noServer: true });
     const audit = opts && typeof opts.logAction === 'function' ? opts.logAction : null;
+    const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
-    server.on('upgrade', (req, socket, head) => {
-        const url = new URL(req.url, `http://${req.headers.host}`);
-        if (url.pathname !== '/ws/server-management/terminal') return;
-
-        sessionMiddleware(req, {}, () => {
-            if (!req.session || !req.session.userId) {
-                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                return socket.destroy();
-            }
-            const sessUser = req.session.user || {};
-            const role = sessUser.role || req.session.role || '';
-            const username = sessUser.username || `user#${req.session.userId}`;
-            // RBAC: only super_admin / admin / server_admin
-            if (!(role === 'super_admin' || role === 'admin' || role === 'server_admin')) {
-                console.warn(`[srv-term] 403 upgrade rejected (user=${username} role=${role})`);
-                socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-                return socket.destroy();
-            }
-            req._smUserName = username;
-            req._smUserRole = role;
-            req._smUserId = req.session.userId;
-            req._smIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
-            wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
-        });
-    });
+    registerUpgradeHandler(
+        server,
+        (pathname) => pathname === '/ws/server-management/terminal',
+        (req, socket, head) => {
+            sessionMiddleware(req, {}, () => {
+                if (!req.session || !req.session.userId) {
+                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                    return socket.destroy();
+                }
+                const sessUser = req.session.user || {};
+                const role = sessUser.role || req.session.role || '';
+                const username = sessUser.username || `user#${req.session.userId}`;
+                // RBAC: only super_admin / admin / server_admin
+                if (!(role === 'super_admin' || role === 'admin' || role === 'server_admin')) {
+                    console.warn(`[srv-term] 403 upgrade rejected (user=${username} role=${role})`);
+                    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                    return socket.destroy();
+                }
+                req._smUserName = username;
+                req._smUserRole = role;
+                req._smUserId = req.session.userId;
+                req._smIp = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+                wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+            });
+        }
+    );
 
     wss.on('connection', (ws, req) => {
         const sessionId = makeSessionId();
