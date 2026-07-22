@@ -591,7 +591,8 @@ func (s *SQLiteDB) ListUsersNotInOrg(orgID string) ([]*User, error) {
 	defer s.mu.RUnlock()
 
 	rows, err := s.db.Query(
-		`SELECT id, username, role, is_server_admin, totp_enabled, created_at, last_login
+		`SELECT id, username, role, COALESCE(is_server_admin, 0), totp_enabled,
+		        COALESCE(created_at, datetime('now')), last_login
 		 FROM users
 		 WHERE id NOT IN (
 			SELECT server_user_id FROM org_users WHERE org_id = ? AND server_user_id > 0

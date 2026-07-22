@@ -799,3 +799,112 @@ func TestUpdatePeerSysinfo(t *testing.T) {
 		t.Fatalf("UpdatePeerSysinfo non-existent: %v", err)
 	}
 }
+
+// Issue #292: never-logged-in users may have NULL last_login / totp_secret.
+// Scans into string must not fail; delete must clear org_users links.
+func TestListUsersToleratesNullLastLogin(t *testing.T) {
+	db := newTestDB(t)
+
+	admin := &User{Username: "admin292", PasswordHash: "h", Role: "super_admin"}
+	viewer := &User{Username: "fresh292", PasswordHash: "h", Role: "viewer"}
+	if err := db.CreateUser(admin); err != nil {
+		t.Fatalf("CreateUser admin: %v", err)
+	}
+	if err := db.CreateUser(viewer); err != nil {
+		t.Fatalf("CreateUser viewer: %v", err)
+	}
+
+	// Simulate legacy / never-logged-in row (NULL last_login + totp_secret).
+	if _, err := db.db.Exec(`UPDATE users SET last_login = NULL, totp_secret = NULL WHERE id = ?`, viewer.ID); err != nil {
+		t.Fatalf("force NULL columns: %v", err)
+	}
+
+	users, err := db.ListUsers()
+	if err != nil {
+		t.Fatalf("ListUsers with NULL last_login: %v", err)
+	}
+	if len(users) < 2 {
+		t.Fatalf("ListUsers: got %d users, want >= 2", len(users))
+	}
+
+	got, err := db.GetUserByID(viewer.ID)
+	if err != nil || got == nil {
+		t.Fatalf("GetUserByID: user=%v err=%v", got, err)
+	}
+	if got.LastLogin != "" {
+		t.Errorf("LastLogin: got %q, want empty string after COALESCE", got.LastLogin)
+	}
+	if got.TOTPSecret != "" {
+		t.Errorf("TOTPSecret: got %q, want empty string after COALESCE", got.TOTPSecret)
+	}
+}
+
+func TestDeleteUserClearsOrgLinks(t *testing.T) {
+	db := newTestDB(t)
+
+	u := &User{Username: "orglink292", PasswordHash: "h", Role: "viewer"}
+	if err := db.CreateUser(u); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	org := &Organization{
+		ID:        "org-292",
+		Name:      "Org 292",
+		Slug:      "org-292",
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := db.CreateOrganization(org); err != nil {
+		t.Fatalf("CreateOrganization: %v", err)
+	}
+	if _, err := db.LinkUserToOrg(org.ID, u.ID, "member"); err != nil {
+		t.Fatalf("LinkUserToOrg: %v", err)
+	}
+
+	if _, err := db.db.Exec(`UPDATE users SET last_login = NULL WHERE id = ?`, u.ID); err != nil {
+		t.Fatalf("force NULL last_login: %v", err)
+	}
+
+	if err := db.DeleteUser(u.ID); err != nil {
+		t.Fatalf("DeleteUser: %v", err)
+	}
+
+	got, err := db.GetUserByID(u.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID after delete: %v", err)
+	}
+	if got != nil {
+		t.Fatal("user row should be gone")
+	}
+
+	var n int
+	if err := db.db.QueryRow(`SELECT COUNT(*) FROM org_users WHERE server_user_id = ?`, u.ID).Scan(&n); err != nil {
+		t.Fatalf("count org_users: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("org_users links remaining: %d, want 0", n)
+	}
+}
+
+func TestMigrateBackfillsNullUserTimestamps(t *testing.T) {
+	db := newTestDB(t)
+	u := &User{Username: "nullmig292", PasswordHash: "h", Role: "viewer"}
+	if err := db.CreateUser(u); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if _, err := db.db.Exec(`UPDATE users SET last_login = NULL, totp_secret = NULL WHERE id = ?`, u.ID); err != nil {
+		t.Fatalf("force NULL: %v", err)
+	}
+	if err := db.Migrate(); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	var lastLogin, totp any
+	if err := db.db.QueryRow(`SELECT last_login, totp_secret FROM users WHERE id = ?`, u.ID).Scan(&lastLogin, &totp); err != nil {
+		t.Fatalf("SELECT: %v", err)
+	}
+	if lastLogin == nil {
+		t.Error("last_login still NULL after Migrate backfill")
+	}
+	if totp == nil {
+		t.Error("totp_secret still NULL after Migrate backfill")
+	}
+}

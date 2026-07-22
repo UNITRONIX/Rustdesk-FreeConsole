@@ -543,6 +543,22 @@ func (s *SQLiteDB) Migrate() error {
 		}
 	}
 
+	// Users: never-logged-in / legacy rows may store NULL in text columns that
+	// Scan into string (Issue #292). Normalize so ListUsers/GetUser do not 500.
+	userNullBackfills := []string{
+		`UPDATE users SET last_login = '' WHERE last_login IS NULL`,
+		`UPDATE users SET totp_secret = '' WHERE totp_secret IS NULL`,
+		`UPDATE users SET created_at = datetime('now') WHERE created_at IS NULL`,
+	}
+	for _, stmt := range userNullBackfills {
+		if _, err := s.db.Exec(stmt); err != nil {
+			// Table may not exist yet on very early migrate failures — ignore.
+			if !strings.Contains(err.Error(), "no such table") {
+				return fmt.Errorf("db: user null backfill failed: %w\nStatement: %s", err, stmt)
+			}
+		}
+	}
+
 	if err := s.migrateBillingOrgContracts(); err != nil {
 		return err
 	}
@@ -1424,6 +1440,12 @@ func formatTime(t time.Time) string {
 
 // --- User Operations ---
 
+// userSelectCols is the shared SELECT list for GetUser/GetUserByID/ListUsers.
+// COALESCE guards against NULL text columns that Scan into string (Issue #292).
+const userSelectCols = `id, username, password_hash, role, COALESCE(is_server_admin, 0),
+		COALESCE(auth_provider, 'local'), COALESCE(totp_secret, ''), totp_enabled, COALESCE(totp_recovery_codes, ''),
+		COALESCE(created_at, datetime('now')), COALESCE(last_login, '')`
+
 // CreateUser inserts a new user.
 func (s *SQLiteDB) CreateUser(u *User) error {
 	s.mu.Lock()
@@ -1431,9 +1453,9 @@ func (s *SQLiteDB) CreateUser(u *User) error {
 	if u.AuthProvider == "" {
 		u.AuthProvider = AuthProviderLocal
 	}
-	res, err := s.db.Exec(`INSERT INTO users (username, password_hash, role, auth_provider, totp_secret, totp_enabled)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		u.Username, u.PasswordHash, u.Role, u.AuthProvider, u.TOTPSecret, u.TOTPEnabled)
+	res, err := s.db.Exec(`INSERT INTO users (username, password_hash, role, auth_provider, totp_secret, totp_enabled, last_login)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		u.Username, u.PasswordHash, u.Role, u.AuthProvider, u.TOTPSecret, u.TOTPEnabled, "")
 	if err != nil {
 		return fmt.Errorf("db: CreateUser: %w", err)
 	}
@@ -1446,8 +1468,7 @@ func (s *SQLiteDB) GetUser(username string) (*User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	u := &User{}
-	err := s.db.QueryRow(`SELECT id, username, password_hash, role, COALESCE(is_server_admin, 0),
-		COALESCE(auth_provider, 'local'), totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users WHERE username = ?`, username).Scan(
+	err := s.db.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE username = ?`, username).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsServerAdmin,
 		&u.AuthProvider, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin)
 	if err == sql.ErrNoRows {
@@ -1461,8 +1482,7 @@ func (s *SQLiteDB) GetUserByID(id int64) (*User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	u := &User{}
-	err := s.db.QueryRow(`SELECT id, username, password_hash, role, COALESCE(is_server_admin, 0),
-		COALESCE(auth_provider, 'local'), totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users WHERE id = ?`, id).Scan(
+	err := s.db.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE id = ?`, id).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsServerAdmin,
 		&u.AuthProvider, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin)
 	if err == sql.ErrNoRows {
@@ -1475,8 +1495,7 @@ func (s *SQLiteDB) GetUserByID(id int64) (*User, error) {
 func (s *SQLiteDB) ListUsers() ([]*User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	rows, err := s.db.Query(`SELECT id, username, password_hash, role, COALESCE(is_server_admin, 0),
-		COALESCE(auth_provider, 'local'), totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users ORDER BY id`)
+	rows, err := s.db.Query(`SELECT ` + userSelectCols + ` FROM users ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("db: ListUsers: %w", err)
 	}
@@ -1506,10 +1525,16 @@ func (s *SQLiteDB) UpdateUser(u *User) error {
 	return err
 }
 
-// DeleteUser removes a user by ID.
+// DeleteUser removes a user by ID and clears org membership links (Issue #292).
 func (s *SQLiteDB) DeleteUser(id int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, err := s.db.Exec(`DELETE FROM org_users WHERE server_user_id = ? AND server_user_id > 0`, id); err != nil {
+		// org_users may be absent on very old DBs before org migrations.
+		if !strings.Contains(err.Error(), "no such table") {
+			return fmt.Errorf("db: DeleteUser org cleanup: %w", err)
+		}
+	}
 	_, err := s.db.Exec(`DELETE FROM users WHERE id=?`, id)
 	return err
 }
@@ -1519,6 +1544,15 @@ func (s *SQLiteDB) UpdateUserLogin(id int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, err := s.db.Exec(`UPDATE users SET last_login=datetime('now') WHERE id=?`, id)
+	return err
+}
+
+// NullifyUserLoginFieldsForTest sets last_login/totp_secret to SQL NULL for
+// Issue #292 regression tests (never-logged-in / legacy rows).
+func (s *SQLiteDB) NullifyUserLoginFieldsForTest(id int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`UPDATE users SET last_login = NULL, totp_secret = NULL WHERE id = ?`, id)
 	return err
 }
 

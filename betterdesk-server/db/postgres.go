@@ -1380,8 +1380,12 @@ func (pg *PostgresDB) UpdateUser(u *User) error {
 	return err
 }
 
-// DeleteUser removes a user by ID.
+// DeleteUser removes a user by ID and clears org membership links (Issue #292).
 func (pg *PostgresDB) DeleteUser(id int64) error {
+	if _, err := pg.pool.Exec(pg.ctx,
+		`DELETE FROM org_users WHERE server_user_id = $1 AND server_user_id > 0`, id); err != nil {
+		return fmt.Errorf("db: DeleteUser org cleanup: %w", err)
+	}
 	_, err := pg.pool.Exec(pg.ctx, `DELETE FROM users WHERE id = $1`, id)
 	return err
 }

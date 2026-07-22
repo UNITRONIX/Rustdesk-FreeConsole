@@ -691,7 +691,12 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 		// Prevent demoting the last super-admin/admin.
 		if auth.IsSuperAdminRole(user.Role) && !auth.IsSuperAdminRole(body.Role) {
-			users, _ := s.db.ListUsers()
+			users, listErr := s.db.ListUsers()
+			if listErr != nil {
+				log.Printf("api: update user %d: list users for last-admin check failed: %v", user.ID, listErr)
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+				return
+			}
 			adminCount := 0
 			for _, u := range users {
 				if auth.IsSuperAdminRole(u.Role) {
@@ -746,7 +751,12 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	// Prevent deleting the last super-admin/admin (Discussion #99).
 	if auth.IsSuperAdminRole(user.Role) {
-		users, _ := s.db.ListUsers()
+		users, listErr := s.db.ListUsers()
+		if listErr != nil {
+			log.Printf("api: delete user %d: list users for last-admin check failed: %v", id, listErr)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
 		adminCount := 0
 		for _, u := range users {
 			if auth.IsSuperAdminRole(u.Role) {

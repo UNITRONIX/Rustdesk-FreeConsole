@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **User delete/demote silent failure on SQLite dual-DB (#292):** Go `ListUsers`/`GetUser*` no longer crash on NULL `last_login`/`totp_secret` (never-logged-in users). Migrate backfills NULLs; `CreateUser` sets `last_login=''`; last-admin guards honor `ListUsers` errors; `DeleteUser` clears `org_users` links. Panel `userSync` logs clearly when Go `/api/users` returns 500 so mirrors are not silently skipped.
+
 ### Changed
 - _(none yet)_
 

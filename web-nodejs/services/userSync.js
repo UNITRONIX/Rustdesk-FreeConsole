@@ -215,7 +215,14 @@ async function readGoUsersFromApi() {
         return Array.isArray(data) ? data : [];
     } catch (err) {
         const status = err.response?.status;
-        console.warn(`[userSync] readGoUsersFromApi failed: status=${status} ${err.message}`);
+        // Issue #292: 500 often means Go ListUsers failed (e.g. NULL last_login scan).
+        // Returning [] makes mirrorDelete/Update silently no-op — log loudly.
+        console.warn(
+            `[userSync] readGoUsersFromApi failed: status=${status} ${err.message}` +
+            (status === 500
+                ? ' — Go user list broken; mirror create/update/delete will be skipped until fixed'
+                : '')
+        );
         return [];
     }
 }

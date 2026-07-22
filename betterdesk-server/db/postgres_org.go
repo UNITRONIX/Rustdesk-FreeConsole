@@ -458,7 +458,7 @@ func (pg *PostgresDB) UnlinkUserFromOrg(orgID string, serverUserID int64) error 
 // ListUsersNotInOrg returns server-level users not yet linked to the organization.
 func (pg *PostgresDB) ListUsersNotInOrg(orgID string) ([]*User, error) {
 	rows, err := pg.pool.Query(pg.ctx,
-		`SELECT id, username, role, is_server_admin, totp_enabled, created_at, last_login
+		`SELECT id, username, role, COALESCE(is_server_admin, FALSE), totp_enabled, created_at, last_login
 		 FROM users
 		 WHERE id NOT IN (
 			SELECT server_user_id FROM org_users WHERE org_id = $1 AND server_user_id > 0
