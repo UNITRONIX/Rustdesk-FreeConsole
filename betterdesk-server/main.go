@@ -746,7 +746,8 @@ func parseFlags() *config.Config {
 	flag.IntVar(&cfg.JWTExpiry, "jwt-expiry", cfg.JWTExpiry, "JWT token expiry in hours (default 24)")
 	flag.StringVar(&cfg.AdminPassword, "admin-password", cfg.AdminPassword, "Password for admin TCP interface")
 	flag.BoolVar(&cfg.ForceHTTPS, "force-https", cfg.ForceHTTPS, "Reject non-TLS API requests")
-	flag.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "Trust X-Forwarded-For/X-Real-IP headers from reverse proxy")
+	flag.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "Trust X-Forwarded-For/X-Real-IP headers from reverse proxy (requires --trusted-proxies)")
+	trustedProxiesFlag := flag.String("trusted-proxies", "", "Comma-separated CIDR/IP allowlist of reverse proxies that may set X-Forwarded-* (required with --trust-proxy)")
 	flag.IntVar(&cfg.RelayMaxConnsIP, "relay-max-conns-ip", cfg.RelayMaxConnsIP, "Max relay connections per IP (0 = unlimited)")
 	flag.IntVar(&cfg.SignalRateLimitPerIP, "signal-rate-limit-per-ip", cfg.SignalRateLimitPerIP, "Max signal registrations per IP per minute (0 = unlimited; raise for large NAT deployments — issue #122)")
 	flag.BoolVar(&cfg.SameNATRelay, "same-nat-relay", cfg.SameNATRelay, "Auto-fallback to relay when both peers share the same public IP (avoids NAT hairpin failures — issue #121)")
@@ -772,6 +773,16 @@ func parseFlags() *config.Config {
 	// Override with environment variables
 	cfg.LoadEnv()
 	cfg.AuthDBPath = resolveAuthDBPath(cfg.AuthDBPath, cfg.DBPath)
+
+	// CLI --trusted-proxies overrides env when set (LoadEnv already applied TRUSTED_PROXIES).
+	if *trustedProxiesFlag != "" {
+		nets, err := config.ParseTrustedProxies(*trustedProxiesFlag)
+		if err != nil {
+			log.Fatalf("Invalid --trusted-proxies: %v", err)
+		}
+		cfg.TrustedProxies = nets
+	}
+	cfg.WarnProxyTrustMisconfig()
 
 	// Validate mode
 	cfg.Mode = strings.ToLower(cfg.Mode)

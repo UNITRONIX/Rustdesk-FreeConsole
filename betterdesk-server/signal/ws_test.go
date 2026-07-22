@@ -400,13 +400,15 @@ func TestWSSignalOnlineRequest(t *testing.T) {
 
 func TestWSEffectiveRemoteAddr(t *testing.T) {
 	t.Parallel()
+	loopbackNet := mustCIDR(t, "10.0.0.0/8")
 	cases := []struct {
-		name       string
-		trustProxy bool
-		remoteAddr string
-		xri        string
-		xff        string
-		want       string
+		name            string
+		trustProxy      bool
+		trustedProxies  []*net.IPNet
+		remoteAddr      string
+		xri             string
+		xff             string
+		want            string
 	}{
 		{
 			name:       "no proxy trust ignores headers",
@@ -416,53 +418,92 @@ func TestWSEffectiveRemoteAddr(t *testing.T) {
 			want:       "10.0.0.2:50123",
 		},
 		{
-			name:       "xff ip-only uses remote port",
-			trustProxy: true,
-			remoteAddr: "10.0.0.2:50123",
-			xff:        "203.0.113.10, 10.0.0.1",
-			want:       "203.0.113.10:50123",
+			name:           "trust proxy without allowlist ignores headers",
+			trustProxy:     true,
+			trustedProxies: nil,
+			remoteAddr:     "10.0.0.2:50123",
+			xff:            "203.0.113.10",
+			want:           "10.0.0.2:50123",
 		},
 		{
-			name:       "x-real-ip preferred over xff",
-			trustProxy: true,
-			remoteAddr: "10.0.0.10:48438",
-			xri:        "203.0.113.99",
-			xff:        "198.51.100.1",
-			want:       "203.0.113.99:48438",
+			name:           "untrusted remote ignores headers",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{mustCIDR(t, "127.0.0.1/32")},
+			remoteAddr:     "10.0.0.2:50123",
+			xff:            "203.0.113.10",
+			want:           "10.0.0.2:50123",
 		},
 		{
-			name:       "xff with port is not double-wrapped",
-			trustProxy: true,
-			remoteAddr: "10.0.0.2:50124",
-			xff:        "203.0.113.10:50200",
-			want:       "203.0.113.10:50200",
+			name:           "xff ip-only uses remote port",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{loopbackNet},
+			remoteAddr:     "10.0.0.2:50123",
+			xff:            "203.0.113.10, 10.0.0.1",
+			want:           "203.0.113.10:50123",
 		},
 		{
-			name:       "x-real-ip with port",
-			trustProxy: true,
-			remoteAddr: "10.0.0.2:50124",
-			xri:        "203.0.113.10:50200",
-			want:       "203.0.113.10:50200",
+			name:           "x-real-ip preferred over xff",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{loopbackNet},
+			remoteAddr:     "10.0.0.10:48438",
+			xri:            "203.0.113.99",
+			xff:            "198.51.100.1",
+			want:           "203.0.113.99:48438",
 		},
 		{
-			name:       "ipv6 forwarded with remote port",
-			trustProxy: true,
-			remoteAddr: "10.0.0.2:50125",
-			xri:        "2001:db8::1",
-			want:       "[2001:db8::1]:50125",
+			name:           "xff with port is not double-wrapped",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{loopbackNet},
+			remoteAddr:     "10.0.0.2:50124",
+			xff:            "203.0.113.10:50200",
+			want:           "203.0.113.10:50200",
 		},
 		{
-			name:       "ipv6 hostport in header",
-			trustProxy: true,
-			remoteAddr: "10.0.0.2:50125",
-			xri:        "[2001:db8::1]:443",
-			want:       "[2001:db8::1]:443",
+			name:           "x-real-ip with port",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{loopbackNet},
+			remoteAddr:     "10.0.0.2:50124",
+			xri:            "203.0.113.10:50200",
+			want:           "203.0.113.10:50200",
 		},
 		{
-			name:       "no forwarded headers",
-			trustProxy: true,
-			remoteAddr: "203.0.113.50:60000",
-			want:       "203.0.113.50:60000",
+			name:           "hostname in header rejected",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{loopbackNet},
+			remoteAddr:     "10.0.0.2:50124",
+			xri:            "evil.example:443",
+			want:           "10.0.0.2:50124",
+		},
+		{
+			name:           "port zero in header rejected",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{loopbackNet},
+			remoteAddr:     "10.0.0.2:50124",
+			xri:            "203.0.113.10:0",
+			want:           "10.0.0.2:50124",
+		},
+		{
+			name:           "ipv6 forwarded with remote port",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{loopbackNet},
+			remoteAddr:     "10.0.0.2:50125",
+			xri:            "2001:db8::1",
+			want:           "[2001:db8::1]:50125",
+		},
+		{
+			name:           "ipv6 hostport in header",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{loopbackNet},
+			remoteAddr:     "10.0.0.2:50125",
+			xri:            "[2001:db8::1]:443",
+			want:           "[2001:db8::1]:443",
+		},
+		{
+			name:           "no forwarded headers",
+			trustProxy:     true,
+			trustedProxies: []*net.IPNet{loopbackNet},
+			remoteAddr:     "203.0.113.50:60000",
+			want:           "203.0.113.50:60000",
 		},
 	}
 	for _, tc := range cases {
@@ -474,12 +515,25 @@ func TestWSEffectiveRemoteAddr(t *testing.T) {
 			if tc.xff != "" {
 				req.Header.Set("X-Forwarded-For", tc.xff)
 			}
-			got := wsEffectiveRemoteAddr(req, tc.trustProxy)
+			cfg := &config.Config{
+				TrustProxy:     tc.trustProxy,
+				TrustedProxies: tc.trustedProxies,
+			}
+			got := wsEffectiveRemoteAddr(req, cfg)
 			if got != tc.want {
 				t.Fatalf("effective addr = %q, want %q", got, tc.want)
 			}
 		})
 	}
+}
+
+func mustCIDR(t *testing.T, cidr string) *net.IPNet {
+	t.Helper()
+	_, n, err := net.ParseCIDR(cidr)
+	if err != nil {
+		t.Fatalf("ParseCIDR(%q): %v", cidr, err)
+	}
+	return n
 }
 
 func httptestNewRequest(method, target, remoteAddr string) *http.Request {
@@ -714,6 +768,7 @@ func TestWSSignalXForwardedFor(t *testing.T) {
 	cfg.SignalPort = 29170
 	cfg.RelayPort = 29171
 	cfg.TrustProxy = true
+	cfg.TrustedProxies = []*net.IPNet{mustCIDR(t, "127.0.0.1/32")}
 
 	dir := t.TempDir()
 	cfg.DBPath = dir + "/test.db"
@@ -781,6 +836,7 @@ func TestWSPunchHoleSentForwardsToWSInitiator(t *testing.T) {
 	cfg.SignalPort = 29180
 	cfg.RelayPort = 29181
 	cfg.TrustProxy = true
+	cfg.TrustedProxies = []*net.IPNet{mustCIDR(t, "127.0.0.1/32")}
 	cfg.P2PFirst = true
 
 	dir := t.TempDir()
@@ -860,5 +916,119 @@ func TestWSPunchHoleSentForwardsToWSInitiator(t *testing.T) {
 	}
 	if len(phr.SocketAddr) == 0 {
 		t.Fatal("PunchHoleResponse should carry target socket addr")
+	}
+}
+
+func TestWSPunchHoleSentExactPortNotSiblingNAT(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.SignalPort = 29190
+	cfg.RelayPort = 29191
+	cfg.TrustProxy = true
+	cfg.TrustedProxies = []*net.IPNet{mustCIDR(t, "127.0.0.1/32")}
+	cfg.P2PFirst = true
+
+	dir := t.TempDir()
+	cfg.DBPath = dir + "/test.db"
+	cfg.KeyFile = dir + "/id_ed25519"
+
+	database, err := db.OpenSQLite(cfg.DBPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database.Migrate()
+	defer database.Close()
+
+	kp, err := crypto.LoadOrGenerateKeyPair(cfg.KeyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(cfg, kp, database)
+	ctx := t.Context()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+	time.Sleep(200 * time.Millisecond)
+
+	dialWS := func(id string) *websocket.Conn {
+		t.Helper()
+		ws, _, err := websocket.Dial(ctx, "ws://127.0.0.1:29192/ws/id", &websocket.DialOptions{
+			HTTPHeader: http.Header{
+				"X-Forwarded-For": []string{"203.0.113.88"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("WS dial %s: %v", id, err)
+		}
+		reg := &pb.RendezvousMessage{
+			Union: &pb.RendezvousMessage_RegisterPeer{
+				RegisterPeer: &pb.RegisterPeer{Id: id, Serial: 1},
+			},
+		}
+		data, _ := proto.Marshal(reg)
+		if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
+			t.Fatalf("WS write %s: %v", id, err)
+		}
+		readWSProtoSkippingKeepAlive(t, ctx, ws)
+		return ws
+	}
+
+	wsA := dialWS("NATA0001")
+	defer wsA.CloseNow()
+	wsB := dialWS("NATB0001")
+	defer wsB.CloseNow()
+
+	peerA := srv.PeerMap().Get("NATA0001")
+	peerB := srv.PeerMap().Get("NATB0001")
+	if peerA == nil || peerB == nil {
+		t.Fatal("both NAT peers should register")
+	}
+	if peerA.IP == peerB.IP {
+		t.Fatalf("expected distinct ip:port keys, both %q", peerA.IP)
+	}
+	hostA, _, _ := net.SplitHostPort(peerA.IP)
+	hostB, _, _ := net.SplitHostPort(peerB.IP)
+	if hostA != "203.0.113.88" || hostB != "203.0.113.88" {
+		t.Fatalf("want shared public IP, got A=%q B=%q", peerA.IP, peerB.IP)
+	}
+	if srv.PeerMap().CountWSByIP(net.ParseIP("203.0.113.88")) != 2 {
+		t.Fatal("CountWSByIP should be 2")
+	}
+
+	initiatorAddr, err := net.ResolveUDPAddr("udp", peerA.IP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetAddr := &net.UDPAddr{IP: net.ParseIP("198.51.100.20"), Port: 21116}
+	srv.PeerMap().Put(&peer.Entry{
+		ID:       "TARGNAT1",
+		PK:       make([]byte, 32),
+		IP:       targetAddr.String(),
+		UDPAddr:  targetAddr,
+		ConnType: peer.ConnUDP,
+		LastReg:  time.Now(),
+	})
+
+	srv.handlePunchHoleSent(&pb.PunchHoleSent{
+		Id:         "TARGNAT1",
+		SocketAddr: crypto.EncodeAddr(initiatorAddr),
+		NatType:    pb.NatType_ASYMMETRIC,
+	}, targetAddr, false)
+
+	resp := readWSProtoSkippingKeepAlive(t, ctx, wsA)
+	if resp.GetPunchHoleResponse() == nil {
+		t.Fatalf("peer A should receive PunchHoleResponse, got %v", resp)
+	}
+
+	readCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer cancel()
+	_, data, err := wsB.Read(readCtx)
+	if err == nil {
+		var msg pb.RendezvousMessage
+		_ = proto.Unmarshal(data, &msg)
+		if msg.GetPunchHoleResponse() != nil {
+			t.Fatal("peer B must not receive PunchHoleResponse intended for peer A")
+		}
 	}
 }

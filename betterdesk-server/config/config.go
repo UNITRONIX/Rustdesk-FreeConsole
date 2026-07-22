@@ -71,7 +71,11 @@ type Config struct {
 	AdminPassword           string // Password for admin TCP interface (empty = no auth)
 	ForceHTTPS      bool   // Reject non-TLS API requests (except behind reverse proxy)
 	TrustProxy      bool   // Trust X-Forwarded-For / X-Real-IP headers from reverse proxy
-	RelayMaxConnsIP int    // Max relay connections per IP (0 = unlimited)
+	// TrustedProxies is the CIDR allowlist of reverse proxies that may set
+	// X-Forwarded-For / X-Real-IP. Required when TrustProxy is true — empty
+	// means forwarded headers are ignored (security-first, issue #276).
+	TrustedProxies []*net.IPNet
+	RelayMaxConnsIP int // Max relay connections per IP (0 = unlimited)
 	InitAdminUser   string // Initial admin username (created on first start)
 	InitAdminPass   string // Initial admin password (auto-generated if empty)
 
@@ -302,6 +306,14 @@ func (c *Config) LoadEnv() {
 	}
 	if strings.ToUpper(os.Getenv("TRUST_PROXY")) == "Y" {
 		c.TrustProxy = true
+	}
+	if v := os.Getenv("TRUSTED_PROXIES"); v != "" {
+		nets, err := ParseTrustedProxies(v)
+		if err != nil {
+			log.Printf("[config] TRUSTED_PROXIES parse error: %v — forwarded headers will not be honored", err)
+		} else {
+			c.TrustedProxies = nets
+		}
 	}
 	if v := os.Getenv("RELAY_MAX_CONNS_PER_IP"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {

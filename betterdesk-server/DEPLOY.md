@@ -194,7 +194,8 @@ sudo firewall-cmd --reload
 | `TLS_CERT`             | -          | TLS certificate path                |
 | `TLS_KEY`              | -          | TLS private key path                |
 | `PEER_TIMEOUT_SECS`    | 15         | Seconds before peer marked offline  |
-| `TRUST_PROXY`          | N          | Trust X-Forwarded-For header        |
+| `TRUST_PROXY`          | N          | Trust X-Forwarded-For / X-Real-IP (requires `TRUSTED_PROXIES`) |
+| `TRUSTED_PROXIES`       | (empty)    | Comma-separated CIDR/IP allowlist of reverse proxies; empty = ignore forwarded headers |
 | `NTP_SERVERS`            | public pools | Comma-separated NTP hostnames/IPs for billing clock checks |
 | `BILLING_MAX_CLOCK_SKEW_MS` | 2000    | Max allowed clock offset vs NTP (ms) |
 | `BILLING_REQUIRE_SYNCED_CLOCK` | Y (Linux default) | Block billable sessions when clock unsynced |

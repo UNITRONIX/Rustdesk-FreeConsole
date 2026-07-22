@@ -110,7 +110,7 @@ func (s *Server) handleWSUpgrade(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[signal] WS upgrade error: %v", err)
 		return
 	}
-	remoteAddr := wsEffectiveRemoteAddr(r, s.cfg.TrustProxy)
+	remoteAddr := wsEffectiveRemoteAddr(r, s.cfg)
 
 	log.Printf("[signal] WS upgrade remote=%s effective=%s path=%s origin=%q ua=%q xff=%q xri=%q",
 		r.RemoteAddr, remoteAddr, r.URL.Path,
@@ -127,13 +127,16 @@ func (s *Server) handleWSUpgrade(w http.ResponseWriter, r *http.Request) {
 }
 
 // wsEffectiveRemoteAddr returns the client address for WS signal registration.
-// When TrustProxy is enabled, prefer X-Real-IP then the first X-Forwarded-For
-// hop. Forwarded values are parsed with net.SplitHostPort / net.ParseIP so
-// IP-only headers keep the proxy connection port (never synthesise :0) and
-// IP:port headers are not double-wrapped into malformed [IP:port]:0 keys
-// (issue #276).
-func wsEffectiveRemoteAddr(r *http.Request, trustProxy bool) string {
-	if !trustProxy {
+// When TrustProxy is enabled and the direct peer is in TRUSTED_PROXIES, prefer
+// X-Real-IP then the first X-Forwarded-For hop. Forwarded values are parsed
+// with net.SplitHostPort / net.ParseIP so IP-only headers keep the proxy
+// connection port (never synthesise :0) and IP:port headers are not
+// double-wrapped into malformed [IP:port]:0 keys (issue #276).
+func wsEffectiveRemoteAddr(r *http.Request, cfg *config.Config) string {
+	if r == nil {
+		return ""
+	}
+	if cfg == nil || !cfg.ShouldHonorForwardedHeaders(r.RemoteAddr) {
 		return r.RemoteAddr
 	}
 	fwd := strings.TrimSpace(r.Header.Get("X-Real-IP"))
@@ -150,13 +153,17 @@ func wsEffectiveRemoteAddr(r *http.Request, trustProxy bool) string {
 
 // joinForwardedClientAddr builds a host:port session key from a forwarded
 // client address and the direct RemoteAddr (used for the port when the
-// forwarded value is IP-only).
+// forwarded value is IP-only). Non-IP hostnames and port 0 are rejected.
 func joinForwardedClientAddr(fwd, remoteAddr string) string {
 	if host, port, err := net.SplitHostPort(fwd); err == nil {
-		if ip := net.ParseIP(host); ip != nil {
-			return net.JoinHostPort(ip.String(), port)
+		if port == "" || port == "0" {
+			return remoteAddr
 		}
-		return net.JoinHostPort(host, port)
+		ip := net.ParseIP(host)
+		if ip == nil {
+			return remoteAddr
+		}
+		return net.JoinHostPort(ip.String(), port)
 	}
 	// Bracketed IPv6 without port: "[2001:db8::1]"
 	if len(fwd) >= 2 && fwd[0] == '[' && fwd[len(fwd)-1] == ']' {
@@ -164,7 +171,7 @@ func joinForwardedClientAddr(fwd, remoteAddr string) string {
 	}
 	if ip := net.ParseIP(fwd); ip != nil {
 		_, port, err := net.SplitHostPort(remoteAddr)
-		if err != nil || port == "" {
+		if err != nil || port == "" || port == "0" {
 			return remoteAddr
 		}
 		return net.JoinHostPort(ip.String(), port)
@@ -197,6 +204,7 @@ func isLoopbackOrigin(origin string) bool {
 // heartbeats and bi-directional signaling.
 func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 	defer wsc.Close()
+	defer s.unregisterWSPunchConn(wsc.RemoteAddr(), wsc)
 
 	remoteAddr := wsc.RemoteAddr()
 	peerID := ""
@@ -236,6 +244,7 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			resp := s.handleRegisterPeerWS(msg.GetRegisterPeer(), remoteAddr)
 			if resp != nil {
 				bindPeerWSConn(s, peerID, wsc)
+				s.registerWSPunchConn(remoteAddr, wsc)
 				notifyRegistered()
 				wsc.WriteMessage(resp)
 			}
@@ -246,6 +255,7 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			if resp != nil {
 				if rpk := resp.GetRegisterPkResponse(); rpk != nil && rpk.GetResult() == pb.RegisterPkResponse_OK {
 					bindPeerWSConn(s, peerID, wsc)
+					s.registerWSPunchConn(remoteAddr, wsc)
 					notifyRegistered()
 				}
 				wsc.WriteMessage(resp)
@@ -257,6 +267,7 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 				log.Printf("[signal] WS PunchHoleRequest: invalid remote addr %q: %v", remoteAddr, err)
 				continue
 			}
+			s.registerWSPunchConn(remoteAddr, wsc)
 			resp := s.handlePunchHoleRequestTCP(msg.GetPunchHoleRequest(), fakeAddr)
 			if resp != nil {
 				wsc.WriteMessage(resp)
@@ -289,6 +300,7 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 				log.Printf("[signal] WS RequestRelay: invalid remote addr %q: %v", remoteAddr, err)
 				continue
 			}
+			s.registerWSPunchConn(remoteAddr, wsc)
 			resp := s.handleRequestRelayTCP(msg.GetRequestRelay(), fakeAddr, peer.ConnWS)
 			if resp != nil {
 				wsc.WriteMessage(resp)
@@ -309,6 +321,24 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 				continue
 			}
 			s.handleLocalAddr(msg.GetLocalAddr(), fakeAddr)
+
+		case msg.GetRelayResponse() != nil:
+			s.registerWSPunchConn(remoteAddr, wsc)
+			fakeAddr, err := net.ResolveUDPAddr("udp", remoteAddr)
+			if err != nil || fakeAddr == nil {
+				log.Printf("[signal] WS RelayResponse: invalid remote addr %q: %v", remoteAddr, err)
+				continue
+			}
+			s.handleRelayResponseForward(msg, fakeAddr)
+
+		case msg.GetPunchHoleSent() != nil:
+			s.registerWSPunchConn(remoteAddr, wsc)
+			fakeAddr, err := net.ResolveUDPAddr("udp", remoteAddr)
+			if err != nil || fakeAddr == nil {
+				log.Printf("[signal] WS PunchHoleSent: invalid remote addr %q: %v", remoteAddr, err)
+				continue
+			}
+			s.handlePunchHoleSent(msg.GetPunchHoleSent(), fakeAddr, false)
 
 		case msg.GetHc() != nil:
 			resp := &pb.RendezvousMessage{

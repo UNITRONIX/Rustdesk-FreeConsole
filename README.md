@@ -459,7 +459,7 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 | **Audit logging** | Ring buffer (10K events) + optional JSON-lines file output |
 | **Error handling** | Never exposes internal details to clients |
 | **Credentials file** | Admin password file written with mode `0600` |
-| **Proxy trust** | `X-Forwarded-For` only when `TRUST_PROXY=Y` |
+| **Proxy trust** | `X-Forwarded-For` only when `TRUST_PROXY=Y` and (Go) `TRUSTED_PROXIES` lists the proxy |
 
 ### Console-Level Security
 
@@ -981,14 +981,15 @@ You can **upgrade to Let's Encrypt** or a custom certificate at any time using m
 | `-jwt-secret` | *(auto)* | `JWT_SECRET` | JWT signing secret (auto-generated if omitted) |
 | `-jwt-expiry` | `24` | `JWT_EXPIRY_HOURS` | JWT token expiry in hours |
 | `-force-https` | `false` | `FORCE_HTTPS=Y` | Reject non-TLS API requests |
-| `-trust-proxy` | `false` | `TRUST_PROXY=Y` | Trust `X-Forwarded-For` / `X-Real-IP` headers |
+| `-trust-proxy` | `false` | `TRUST_PROXY=Y` | Trust `X-Forwarded-For` / `X-Real-IP` when peer is in `--trusted-proxies` |
+| `-trusted-proxies` | (empty) | `TRUSTED_PROXIES` | Comma-separated CIDR/IP allowlist of reverse proxies |
 | `-relay-max-conns-ip` | `20` | `RELAY_MAX_CONNS_PER_IP` | Max relay connections per IP |
 | `-signal-rate-limit-per-ip` | `20` | `SIGNAL_RATE_LIMIT_PER_IP` | Max signal registrations per proxy/client bucket per minute (`0` = disabled) |
 | `-init-admin-user` | `admin` | `INIT_ADMIN_USER` | Initial admin username |
 | `-init-admin-pass` | *(auto)* | `INIT_ADMIN_PASS` | Initial admin password (auto-generated if omitted) |
 | `-version` | — | — | Show version and exit |
 
-> Signal proxy note: UDP/TCP signal traffic on port `21116` cannot use HTTP headers such as `X-Forwarded-For`. `TRUST_PROXY` applies to HTTP/API traffic and to signal **WebSocket** (`/ws/id`) client address headers. For NGINX stream or Docker proxy deployments, set `SIGNAL_RATE_LIMIT_PER_IP` higher for very large fleets, or `0` only on trusted private networks. Current builds scope registration buckets by proxy/client address plus peer ID to avoid false positives when multiple devices share one proxy address.
+> Signal proxy note: UDP/TCP signal traffic on port `21116` cannot use HTTP headers such as `X-Forwarded-For`. `TRUST_PROXY` + `TRUSTED_PROXIES` apply to HTTP/API traffic and to signal **WebSocket** (`/ws/id`) client address headers. For NGINX stream or Docker proxy deployments, set `SIGNAL_RATE_LIMIT_PER_IP` higher for very large fleets, or `0` only on trusted private networks. Current builds scope registration buckets by proxy/client address plus peer ID to avoid false positives when multiple devices share one proxy address.
 
 ### Environment-Only Variables
 
@@ -1028,7 +1029,8 @@ RUSTDESK_API_PROXY=true
 HTTPS_ENABLED=false    # Enable HTTPS on console
 SSL_CERT_PATH=         # SSL certificate path
 SSL_KEY_PATH=          # SSL key path
-TRUST_PROXY=false      # Trust X-Forwarded-For
+TRUST_PROXY=false      # Trust X-Forwarded-For (Go also needs TRUSTED_PROXIES)
+TRUSTED_PROXIES=       # e.g. 127.0.0.1/32,::1/128 when TRUST_PROXY=Y
 DB_PATH=               # Path to SQLite database
 BETTERDESK_API_URL=    # Go server API URL (http://localhost:21114/api)
 BETTERDESK_API_KEY=    # API key for Go server (env: BETTERDESK_API_KEY or HBBS_API_KEY)

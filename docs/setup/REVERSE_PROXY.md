@@ -89,11 +89,29 @@ sudo systemctl restart betterdesk-console betterdesk-server
 
 The Go REST API uses `X-Forwarded-For` for rate limits only when proxy trust is enabled. The Go **signal WebSocket** (`/ws/id` on port `21118`) also uses `X-Real-IP` / `X-Forwarded-For` for client session keys when trust is enabled — required for RustDesk WebSocket Mode behind Nginx/Caddy ([#276](https://github.com/UNITRONIX/BetterDesk/issues/276)).
 
-Set **`TRUST_PROXY=Y`** in `betterdesk-server.service` (installer does this automatically), or add `-trust-proxy` to `ExecStart`.
+Set **`TRUST_PROXY=Y`** and **`TRUSTED_PROXIES`** to the reverse proxy’s address(es) as CIDR or bare IP.
 
-> **Note:** `TRUST_PROXY=Y` in `.env` enables trust for **both** the Node.js panel and the Go server. Node also accepts `1` / `yes`; Go requires **`Y`**.
+Same-host Nginx/Caddy (typical):
 
-> **UDP/TCP signal** on port **21116** cannot use HTTP headers. `TRUST_PROXY` does not apply to native UDP/TCP rendezvous.
+```bash
+TRUST_PROXY=Y
+TRUSTED_PROXIES=127.0.0.1/32,::1/128
+```
+
+Remote proxy on the LAN:
+
+```bash
+TRUST_PROXY=Y
+TRUSTED_PROXIES=192.168.1.5/32
+```
+
+Or add `-trust-proxy` and `-trusted-proxies=127.0.0.1/32` to `ExecStart`. The installer sets `-trust-proxy` in reverse-proxy mode; after this release, also set `TRUSTED_PROXIES` in `.env` (panel update merges the key from `.env.example`).
+
+> **Security:** `TRUST_PROXY=Y` alone is not enough. If `TRUSTED_PROXIES` is empty, the Go server **ignores** forwarded headers and logs a configuration warning. Bind signal/API so only the proxy can connect, or attackers could otherwise spoof client IPs.
+
+> **Note:** `TRUST_PROXY=Y` in `.env` enables trust for **both** the Node.js panel and the Go server. Node also accepts `1` / `yes`; Go requires **`Y`**. `TRUSTED_PROXIES` is read by the **Go server** (session keys / API client IP).
+
+> **UDP/TCP signal** on port **21116** cannot use HTTP headers. `TRUST_PROXY` / `TRUSTED_PROXIES` do not apply to native UDP/TCP rendezvous.
 
 ### Bind addresses
 

@@ -82,7 +82,8 @@ DB_TYPE=sqlite             # sqlite or postgresql
 DATABASE_URL=              # PostgreSQL DSN (required when DB_TYPE=postgresql)
 
 # Security
-TRUST_PROXY=false          # Set true behind reverse proxy
+TRUST_PROXY=false          # Set Y behind reverse proxy (Go also needs TRUSTED_PROXIES)
+# TRUSTED_PROXIES=127.0.0.1/32,::1/128
 STORE_ADMIN_CREDENTIALS=false  # Persist admin credentials to file
 
 # Chat
@@ -110,8 +111,17 @@ Set to **`Y`** or **`1`** when running behind a reverse proxy (nginx, Caddy, Clo
 
 The Go server requires **`TRUST_PROXY=Y`** (or `-trust-proxy`); the Node.js panel also accepts `1` / `yes`.
 
+#### `TRUSTED_PROXIES`
+
+Go server only. Comma-separated CIDR or bare IP of reverse proxies allowed to set `X-Forwarded-For` / `X-Real-IP`. Required with `TRUST_PROXY=Y` — if empty, the Go server **ignores** forwarded headers (security-first, [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)).
+
+```env
+TRUST_PROXY=Y
+TRUSTED_PROXIES=127.0.0.1/32,::1/128
+```
+
 > [!NOTE]
-> UDP/TCP signal on port **21116** cannot use HTTP headers like `X-Forwarded-For`. `TRUST_PROXY` applies to HTTP/API traffic only.
+> UDP/TCP signal on port **21116** cannot use HTTP headers like `X-Forwarded-For`. `TRUST_PROXY` / `TRUSTED_PROXIES` apply to HTTP/API and signal **WebSocket** (`/ws/id`).
 
 > [!TIP]
 > External reverse proxy (TLS on Caddy/Nginx :443): see [External Reverse Proxy Guide](../setup/REVERSE_PROXY.md). Use `HOST=127.0.0.1`, `HTTPS_ENABLED=false`, and run `sudo betterdesk.sh` → **External reverse proxy** to generate Caddy/Nginx snippets.

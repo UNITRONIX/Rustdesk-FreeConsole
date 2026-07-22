@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Security
+- **Trusted proxy allowlist (#276):** Go signal/API honor `X-Real-IP` / `X-Forwarded-For` only when `TRUST_PROXY=Y` **and** the direct peer is listed in `TRUSTED_PROXIES` (CIDR/IP). Empty allowlist ignores forwarded headers (prevents spoofing if the Go port is reachable). WebSocket initiator delivery uses exact `ip:port` (`wsPunchConns`) so shared-NAT peers no longer receive another client's PunchHole/RelayResponse / signed PK.
+
 ### Changed
 - _(none yet)_
 

@@ -1355,19 +1355,31 @@ clear_go_server_signal_relay_tls() {
     systemctl daemon-reload 2>/dev/null || true
 }
 
-# Enable or disable Go server reverse-proxy trust (#267).
+# Enable or disable Go server reverse-proxy trust (#267 / #276).
+# Optional 2nd arg: TRUSTED_PROXIES CIDR list. Omitted → loopback default.
+# Empty string → enable TRUST_PROXY but do not write TRUSTED_PROXIES (remote proxy).
 sync_go_server_trust_proxy() {
     local enable="${1:-yes}"
+    local trusted_cidrs
+    if [ "$#" -ge 2 ]; then
+        trusted_cidrs="$2"
+    else
+        trusted_cidrs="127.0.0.1/32,::1/128"
+    fi
     local go_svc_file="/etc/systemd/system/betterdesk-server.service"
 
     [ -f "$go_svc_file" ] || return 0
     if [ "$enable" = "yes" ]; then
         _upsert_systemd_env "$go_svc_file" TRUST_PROXY Y
+        if [ -n "$trusted_cidrs" ]; then
+            _upsert_systemd_env "$go_svc_file" TRUSTED_PROXIES "$trusted_cidrs"
+        fi
         if ! grep -q '\-trust-proxy' "$go_svc_file" 2>/dev/null; then
             sed -i 's|\(ExecStart=.*betterdesk-server[^$]*\)|\1 -trust-proxy|' "$go_svc_file"
         fi
     else
         _remove_systemd_env "$go_svc_file" TRUST_PROXY
+        _remove_systemd_env "$go_svc_file" TRUSTED_PROXIES
         sed -i 's/ -trust-proxy//g' "$go_svc_file"
     fi
     systemctl daemon-reload 2>/dev/null || true
@@ -1388,6 +1400,14 @@ apply_console_reverse_proxy_mode() {
 
     _upsert_env_line "$env_file" HOST "$panel_bind"
     _upsert_env_line "$env_file" TRUST_PROXY Y
+    # Same-host proxy: loopback. Remote proxy (HOST=0.0.0.0): operator must set the proxy CIDR.
+    local trusted_cidrs="127.0.0.1/32,::1/128"
+    if [ "$panel_bind" = "0.0.0.0" ]; then
+        trusted_cidrs=""
+    fi
+    if [ -n "$trusted_cidrs" ]; then
+        _upsert_env_line "$env_file" TRUSTED_PROXIES "$trusted_cidrs"
+    fi
     _upsert_env_line "$env_file" HTTP_REDIRECT_HTTPS false
     _upsert_env_line "$env_file" HBBS_API_URL "http://localhost:${go_port}/api"
     _upsert_env_line "$env_file" BETTERDESK_API_URL "http://localhost:${go_port}/api"
@@ -1415,7 +1435,7 @@ apply_console_reverse_proxy_mode() {
         _upsert_systemd_env "$svc_file" RUSTDESK_API_TLS false
     fi
 
-    sync_go_server_trust_proxy yes
+    sync_go_server_trust_proxy yes "$trusted_cidrs"
     systemctl daemon-reload 2>/dev/null || true
 }
 
@@ -1497,6 +1517,7 @@ HOST=${panel_bind}
 HTTPS_ENABLED=false
 HTTP_REDIRECT_HTTPS=false
 TRUST_PROXY=Y
+TRUSTED_PROXIES=127.0.0.1/32,::1/128
 PORT=5000
 PANEL_PUBLIC_HOST=${panel_host}
 PANEL_PUBLIC_URL=https://${panel_host}
@@ -1726,6 +1747,11 @@ do_configure_reverse_proxy() {
     fi
     print_info "  Panel (public): https://${panel_host}/"
     print_info "  TRUST_PROXY:    Y (console + Go server)"
+    if [ "$panel_bind" = "0.0.0.0" ]; then
+        print_info "  TRUSTED_PROXIES: set to your reverse-proxy IP/CIDR in .env (required for Go WSS)"
+    else
+        print_info "  TRUSTED_PROXIES: 127.0.0.1/32,::1/128 (same-host)"
+    fi
     print_info "  Signal/Relay:   TCP :21116 / :21117 (direct — not HTTP-proxied)"
     echo ""
     print_info "Copy proxy snippet from $RUSTDESK_PATH/reverse-proxy/ into Caddy/Nginx, then reload the proxy."
@@ -6736,6 +6762,12 @@ run_protocol_tests() {
         fi
         if [ -f "$go_svc_file" ] && grep -qE 'Environment=TRUST_PROXY=Y|-trust-proxy' "$go_svc_file" 2>/dev/null; then
             _test_ok "Go server trusts reverse-proxy headers (TRUST_PROXY / -trust-proxy)"
+            if grep -qE 'Environment=TRUSTED_PROXIES=.+' "$go_svc_file" 2>/dev/null || \
+               grep -qE '^TRUSTED_PROXIES=.+' "${CONSOLE_PATH}/.env" 2>/dev/null; then
+                _test_ok "TRUSTED_PROXIES allowlist configured (#276)"
+            else
+                _test_warn "TRUSTED_PROXIES empty — Go ignores X-Forwarded-* until set (e.g. 127.0.0.1/32)"
+            fi
         else
             _test_fail "Go server TRUST_PROXY not enabled — API rate limits may use proxy IP only"
         fi

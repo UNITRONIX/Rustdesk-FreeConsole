@@ -98,6 +98,11 @@ type Server struct {
 	// initiator's addr key and forward the message over their TCP connection.
 	tcpPunchConns sync.Map // map[string]*tcpPunchConn
 
+	// wsPunchConns maps normalizeAddrKey(ip:port) → *codec.WSConn for WebSocket
+	// initiators waiting for async PunchHole/RelayResponse (#276). Exact port
+	// matching avoids delivering signed PKs to the wrong peer behind shared NAT.
+	wsPunchConns sync.Map // map[string]*codec.WSConn
+
 	// pendingRelayUUIDs tracks the UUID we send to each target when forwarding
 	// RequestRelay or PunchHole (force-relay). Some RustDesk clients respond with
 	// an empty UUID in RelayResponse — this map lets us recover the original UUID
@@ -655,8 +660,9 @@ func (s *Server) forwardToTCPInitiator(initiatorAddr string, msg *pb.RendezvousM
 }
 
 // forwardToInitiator delivers an async punch/relay message to the initiator
-// over TCP (tcpPunchConns) or WebSocket (peer map). Required for WSS clients
-// behind reverse proxies which are never registered in tcpPunchConns (#276).
+// over TCP (tcpPunchConns) or WebSocket (wsPunchConns / unique-IP fallback).
+// Required for WSS clients behind reverse proxies which are never registered
+// in tcpPunchConns (#276).
 func (s *Server) forwardToInitiator(initiatorAddr string, msg *pb.RendezvousMessage) bool {
 	if s.forwardToTCPInitiator(initiatorAddr, msg) {
 		return true
@@ -669,10 +675,51 @@ func (s *Server) forwardToInitiator(initiatorAddr string, msg *pb.RendezvousMess
 	return false
 }
 
-// forwardToWSInitiator looks up a WebSocket peer by the public IP in
-// initiatorAddr and writes msg on its bound WSConn.
+// registerWSPunchConn stores a WebSocket connection under its full ip:port key
+// so async PunchHole/RelayResponse can be delivered without IP-only ambiguity.
+func (s *Server) registerWSPunchConn(addr string, wsc *codec.WSConn) {
+	if wsc == nil || addr == "" {
+		return
+	}
+	key := normalizeAddrKey(addr)
+	s.wsPunchConns.Store(key, wsc)
+}
+
+// unregisterWSPunchConn removes the punch-map entry only if it still points at wsc.
+func (s *Server) unregisterWSPunchConn(addr string, wsc *codec.WSConn) {
+	if wsc == nil || addr == "" {
+		return
+	}
+	key := normalizeAddrKey(addr)
+	if val, ok := s.wsPunchConns.Load(key); ok {
+		if existing, ok := val.(*codec.WSConn); ok && existing == wsc {
+			s.wsPunchConns.Delete(key)
+		}
+	}
+}
+
+// forwardToWSInitiator delivers msg to a WebSocket initiator using the exact
+// ip:port key first. Falls back to FindWSByIP only when exactly one WS peer
+// shares that IP (legacy register-only sessions).
 func (s *Server) forwardToWSInitiator(initiatorAddr string, msg *pb.RendezvousMessage) bool {
 	normAddr := normalizeAddrKey(initiatorAddr)
+	if val, ok := s.wsPunchConns.Load(normAddr); ok {
+		wsc, ok := val.(*codec.WSConn)
+		if !ok || wsc == nil {
+			s.wsPunchConns.Delete(normAddr)
+			return false
+		}
+		if err := wsc.WriteMessage(msg); err != nil {
+			if isNormalClose(err) || strings.Contains(err.Error(), "use of closed network connection") {
+				s.wsPunchConns.Delete(normAddr)
+				return false
+			}
+			log.Printf("[signal] WS punch forward write to %s: %v", initiatorAddr, err)
+			return false
+		}
+		return true
+	}
+
 	host, _, err := net.SplitHostPort(normAddr)
 	if err != nil {
 		host = normAddr
@@ -681,8 +728,11 @@ func (s *Server) forwardToWSInitiator(initiatorAddr string, msg *pb.RendezvousMe
 	if ip == nil {
 		return false
 	}
-	entry := s.peers.FindByIP(ip)
-	if entry == nil || entry.ConnType != peer.ConnWS || entry.WSConn == nil {
+	if s.peers.CountWSByIP(ip) != 1 {
+		return false
+	}
+	entry := s.peers.FindWSByIP(ip)
+	if entry == nil || entry.WSConn == nil {
 		return false
 	}
 	wsc, ok := entry.WSConn.(*codec.WSConn)
@@ -690,8 +740,6 @@ func (s *Server) forwardToWSInitiator(initiatorAddr string, msg *pb.RendezvousMe
 		return false
 	}
 	if err := wsc.WriteMessage(msg); err != nil {
-		// Stale WSConn after transport switch / cleanup — drop the handle so
-		// subsequent forwards do not keep failing on a closed socket.
 		if isNormalClose(err) || strings.Contains(err.Error(), "use of closed network connection") {
 			entry.WSConn = nil
 			return false

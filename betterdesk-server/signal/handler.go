@@ -970,7 +970,9 @@ func (s *Server) handlePunchHoleSent(phs *pb.PunchHoleSent, senderAddr *net.UDPA
 	// Fallback: if phs.Id is empty, try to identify the sender by IP lookup.
 	// Older RustDesk clients may not populate the id field in PunchHoleSent.
 	if targetID == "" {
-		if entry := s.peers.FindByIP(senderAddr.IP); entry != nil {
+		if n := s.peers.CountByIP(senderAddr.IP); n > 1 {
+			log.Printf("[signal] PunchHoleSent: ambiguous IP lookup for %s (%d peers) — cannot resolve empty id", senderAddr.IP, n)
+		} else if entry := s.peers.FindByIP(senderAddr.IP); entry != nil {
 			targetID = entry.ID
 			log.Printf("[signal] PunchHoleSent: resolved sender %s to peer %s via IP lookup", senderAddr, targetID)
 		}
@@ -1391,7 +1393,9 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 	// Fallback: if id field is empty (common with some RustDesk client versions),
 	// identify the sender by their IP address in the peer map.
 	if targetID == "" && senderAddr != nil {
-		if entry := s.peers.FindByIP(senderAddr.IP); entry != nil {
+		if n := s.peers.CountByIP(senderAddr.IP); n > 1 {
+			log.Printf("[signal] RelayResponse forward: ambiguous IP lookup for %s (%d peers) — cannot resolve empty id", senderAddr.IP, n)
+		} else if entry := s.peers.FindByIP(senderAddr.IP); entry != nil {
 			targetID = entry.ID
 			log.Printf("[signal] RelayResponse forward: resolved sender %s to peer %s via IP lookup", senderAddr, targetID)
 		}
