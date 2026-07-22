@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.164] — 2026-07-22
+
 ### Fixed
 - **Signal secure TCP `unhandled type <nil>` (#296):** after KeyExchange, modern clients may send `HttpProxyRequest` (protobuf field 27). The Go signal schema stopped at field 26 (`hc`), so decrypt succeeded but `Union` stayed nil and the connection was closed. Proto now includes `HttpProxyRequest`/`HttpProxyResponse`; the server replies with `error: "not supported"` (no open HTTP egress proxy). Empty encrypted frames are soft-ignored; unknown oneof fields log field numbers instead of opaque `<nil>`.
 - **False MaxListenersExceededWarning on panel WebSocket upgrades (#295):** console WebSocket services now share a single HTTP `upgrade` dispatcher instead of stacking 11 separate listeners (Node's default max is 10). Reconnects never added listeners — the warning was a startup false positive, not a reconnect leak. Session `MemoryStore` remains intentional for the single-process console (shared store is for future multi-instance HA only).
@@ -2159,3 +2166,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.161]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.160...v3.3.161
 [3.3.162]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.161...v3.3.162
 [3.3.163]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.162...v3.3.163
+[3.3.164]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.163...v3.3.164
