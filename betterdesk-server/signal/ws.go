@@ -348,6 +348,17 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			}
 			wsc.WriteMessage(resp)
 
+		case msg.GetHttpProxyRequest() != nil:
+			req := msg.GetHttpProxyRequest()
+			log.Printf("[signal] WS HttpProxyRequest from %s (method=%s path=%s)", remoteAddr, req.GetMethod(), req.GetPath())
+			wsc.WriteMessage(&pb.RendezvousMessage{
+				Union: &pb.RendezvousMessage_HttpProxyResponse{
+					HttpProxyResponse: &pb.HttpProxyResponse{
+						Error: "not supported",
+					},
+				},
+			})
+
 		default:
 			log.Printf("[signal] WS: unhandled message from %s", remoteAddr)
 		}

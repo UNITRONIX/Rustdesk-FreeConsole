@@ -161,6 +161,16 @@ func (s *Server) handleMessage(msg *pb.RendezvousMessage, raddr net.Addr) *pb.Re
 				Hc: &pb.HealthCheck{Token: msg.GetHc().Token},
 			},
 		}
+	case msg.GetHttpProxyRequest() != nil:
+		// Recognized so clients no longer see Union=<nil> (#296), but we do not
+		// implement an open HTTP egress proxy (SSRF risk). Honest rejection.
+		return &pb.RendezvousMessage{
+			Union: &pb.RendezvousMessage_HttpProxyResponse{
+				HttpProxyResponse: &pb.HttpProxyResponse{
+					Error: "not supported",
+				},
+			},
+		}
 	default:
 		return nil
 	}

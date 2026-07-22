@@ -28,6 +28,7 @@ import (
 	"github.com/unitronix/betterdesk-server/policy"
 	"github.com/unitronix/betterdesk-server/ratelimit"
 	"github.com/unitronix/betterdesk-server/security"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -508,6 +509,13 @@ func (s *Server) handleSecureTCPConn(sc *crypto.SecureTCPConn, addrKey string) {
 			return
 		}
 
+		if skip, closeConn := s.handleEmptyOrUnknownUnion(msg, addrKey, true); skip {
+			if closeConn {
+				return
+			}
+			continue
+		}
+
 		keepAlive := s.logAndCheckKeepAlive(msg, addrKey, true)
 
 		if keepAlive && !registered {
@@ -544,24 +552,30 @@ func (s *Server) handlePlainTCPConn(conn net.Conn, addrKey string, firstMsg *pb.
 
 	// Process the first message that was already read during handshake.
 	if firstMsg != nil {
-		keepAlive := s.logAndCheckKeepAlive(firstMsg, addrKey, false)
-
-		if keepAlive && !registered {
-			s.tcpPunchConns.Store(addrKey, pc)
-			registered = true
-			log.Printf("[signal] TCP punch conn registered: %s", addrKey)
-		}
-
-		resp := s.handleMessage(firstMsg, conn.RemoteAddr())
-		if resp != nil {
-			if err := pc.writeProto(resp); err != nil {
-				log.Printf("[signal] TCP write to %s: %v", addrKey, err)
+		if skip, closeConn := s.handleEmptyOrUnknownUnion(firstMsg, addrKey, false); skip {
+			if closeConn {
 				return
 			}
-		}
+		} else {
+			keepAlive := s.logAndCheckKeepAlive(firstMsg, addrKey, false)
 
-		if !keepAlive {
-			return
+			if keepAlive && !registered {
+				s.tcpPunchConns.Store(addrKey, pc)
+				registered = true
+				log.Printf("[signal] TCP punch conn registered: %s", addrKey)
+			}
+
+			resp := s.handleMessage(firstMsg, conn.RemoteAddr())
+			if resp != nil {
+				if err := pc.writeProto(resp); err != nil {
+					log.Printf("[signal] TCP write to %s: %v", addrKey, err)
+					return
+				}
+			}
+
+			if !keepAlive {
+				return
+			}
 		}
 	}
 
@@ -573,6 +587,13 @@ func (s *Server) handlePlainTCPConn(conn net.Conn, addrKey string, firstMsg *pb.
 				log.Printf("[signal] TCP read from %s: %v", addrKey, err)
 			}
 			return
+		}
+
+		if skip, closeConn := s.handleEmptyOrUnknownUnion(msg, addrKey, false); skip {
+			if closeConn {
+				return
+			}
+			continue
 		}
 
 		keepAlive := s.logAndCheckKeepAlive(msg, addrKey, false)
@@ -595,6 +616,30 @@ func (s *Server) handlePlainTCPConn(conn net.Conn, addrKey string, firstMsg *pb.
 			return
 		}
 	}
+}
+
+// handleEmptyOrUnknownUnion handles RendezvousMessage with Union==nil.
+// Returns (skip, closeConn):
+//   - empty message (no unknown fields): soft-ignore keepalive → skip=true, closeConn=false
+//   - unknown protobuf fields (schema drift): log field numbers → skip=true, closeConn=true
+//   - Union set: skip=false (caller should dispatch normally)
+func (s *Server) handleEmptyOrUnknownUnion(msg *pb.RendezvousMessage, addrKey string, secure bool) (skip, closeConn bool) {
+	if msg == nil || msg.Union != nil {
+		return false, false
+	}
+	tag := ""
+	if secure {
+		tag = " (secure)"
+	}
+	unknown := msg.ProtoReflect().GetUnknown()
+	if len(unknown) == 0 {
+		// Encrypted empty ping (or empty protobuf) — keep the connection (#296 / WS-style).
+		return true, false
+	}
+	nums := unknownProtobufFieldNumbers(unknown)
+	log.Printf("[signal] TCP msg from %s%s: empty Union with unknown protobuf fields %v (%d unknown bytes)",
+		addrKey, tag, nums, len(unknown))
+	return true, true
 }
 
 // logAndCheckKeepAlive logs the message type and returns true if the message
@@ -630,10 +675,37 @@ func (s *Server) logAndCheckKeepAlive(msg *pb.RendezvousMessage, addrKey string,
 		log.Printf("[signal] TCP msg from %s%s: TestNatRequest", addrKey, tag)
 	case msg.GetHc() != nil:
 		// don't log health checks
+	case msg.GetHttpProxyRequest() != nil:
+		req := msg.GetHttpProxyRequest()
+		log.Printf("[signal] TCP msg from %s%s: HttpProxyRequest (method=%s path=%s)", addrKey, tag, req.GetMethod(), req.GetPath())
 	default:
 		log.Printf("[signal] TCP msg from %s%s: unhandled type %T", addrKey, tag, msg.Union)
 	}
 	return false
+}
+
+// unknownProtobufFieldNumbers extracts distinct field numbers from raw unknown protobuf bytes.
+func unknownProtobufFieldNumbers(b []byte) []int32 {
+	var nums []int32
+	seen := map[protowire.Number]struct{}{}
+	for len(b) > 0 {
+		num, typ, n := protowire.ConsumeTag(b)
+		if n < 0 {
+			break
+		}
+		b = b[n:]
+		n = protowire.ConsumeFieldValue(num, typ, b)
+		if n < 0 {
+			break
+		}
+		b = b[n:]
+		if _, ok := seen[num]; ok {
+			continue
+		}
+		seen[num] = struct{}{}
+		nums = append(nums, int32(num))
+	}
+	return nums
 }
 
 // forwardToTCPInitiator looks up the initiator's TCP connection by address

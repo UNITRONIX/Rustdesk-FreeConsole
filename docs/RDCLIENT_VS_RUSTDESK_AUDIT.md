@@ -129,7 +129,7 @@ Audit of upstream tag **1.4.9** ([release](https://github.com/rustdesk/rustdesk/
 | Audit JSON `primary_auth` / `two_factor` (#15456) | **Accepted, not stored** | Extra fields ignored by `POST /api/audit/conn` |
 | Controller user (#15407 `ControlledContext`) | **Not implemented** | BetterDesk does not emit `conn_audit_ref` — attribution unavailable until follow-up |
 | `ControlPermissions.privacy_mode = 12` | **Ignored bit** | Bitmap remains forward-compatible |
-| `RegisterPkResponse.NOT_DEPLOYED` / HttpProxy rendezvous | **Not implemented** | Pro-oriented; not required for normal RD |
+| `RegisterPkResponse.NOT_DEPLOYED` / HttpProxy rendezvous | **Recognized / rejected** | Proto fields 27–28 synced; `HttpProxyRequest` returns `HttpProxyResponse{error:"not supported"}` (no open SSRF proxy). Fixes secure-TCP `unhandled type <nil>` (#296). |
 
 ### Smoke with RustDesk 1.4.9 peer
 
