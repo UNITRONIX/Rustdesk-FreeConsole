@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **OIDC SSO authorize redirect (#298):** clicking “Sign in with OIDC” no longer browser-redirects to the internal Go API URL (`http://localhost:21114/...`). The panel resolves the IdP authorize URL server-to-server and sends the browser only to the identity provider.
+
 ### Changed
 - _(none yet)_
 

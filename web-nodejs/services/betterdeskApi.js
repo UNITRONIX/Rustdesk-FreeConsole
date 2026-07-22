@@ -1104,6 +1104,55 @@ async function exchangeOIDCCode(code) {
     }
 }
 
+/**
+ * Absolute http(s) URL check for IdP authorize redirects (issue #298).
+ * Go returns 302 Location to the identity provider — never follow it from Node.
+ */
+function isAbsoluteHttpUrl(value) {
+    if (typeof value !== 'string' || !value) return false;
+    try {
+        const u = new URL(value);
+        return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * GET /api/auth/oidc/authorize — Server-to-server: capture Go's 302 Location (IdP URL).
+ * The browser must never be redirected to BETTERDESK_API_URL (often localhost).
+ */
+async function startOIDCAuthorize(returnUrl) {
+    const qs = new URLSearchParams();
+    if (returnUrl) qs.set('return_url', String(returnUrl));
+    const suffix = qs.toString();
+    const path = `/auth/oidc/authorize${suffix ? `?${suffix}` : ''}`;
+
+    const extractLocation = (headers) => {
+        if (!headers) return '';
+        return headers.location || headers.Location || '';
+    };
+
+    try {
+        const response = await apiClient.get(path, {
+            maxRedirects: 0,
+            validateStatus: (status) => status >= 200 && status < 400,
+        });
+        const location = extractLocation(response.headers);
+        if (!isAbsoluteHttpUrl(location)) {
+            return { success: false, error: 'OIDC authorize did not return an IdP redirect URL' };
+        }
+        return { success: true, data: { auth_url: location } };
+    } catch (e) {
+        const location = extractLocation(e.response?.headers);
+        if (isAbsoluteHttpUrl(location)) {
+            return { success: true, data: { auth_url: location } };
+        }
+        const bodyErr = e.response?.data?.error;
+        return { success: false, error: typeof bodyErr === 'string' ? bodyErr : e.message };
+    }
+}
+
 /** POST /api/strategies/assign */
 async function assignStrategy(payload) {
     try {
@@ -1239,6 +1288,7 @@ module.exports = {
     testOIDCDiscovery,
     getOIDCStatus,
     exchangeOIDCCode,
+    startOIDCAuthorize,
     assignStrategy,
     getStrategy,
     setStrategyStatus,

@@ -39,6 +39,12 @@ You can also set **`PANEL_PUBLIC_URL`** in the console `.env` as a fallback pane
 
 ## Docker / split-port note
 
+| Port | Typical use |
+|------|-------------|
+| **21114** | Default Go API (native install / split Docker). OIDC callback often `http(s)://host:21114/api/auth/oidc/callback`. |
+| **21121** | All-in-one Docker Go API / RustDesk Client API. OIDC callback often `http(s)://host:21121/api/auth/oidc/callback`. |
+| **5000** | Web console (login UI, session cookies). Set **Panel URL** to this origin (or your reverse-proxy hostname). |
+
 The all-in-one Docker image exposes:
 
 - **:5000** — web console (login UI, session cookies)
@@ -87,6 +93,7 @@ See [REVERSE_PROXY.md](../setup/REVERSE_PROXY.md).
 
 | Error | Cause | Fix |
 |-------|-------|-----|
+| SSO button opens `http://localhost:21114/api/auth/oidc/authorize` | Older panel versions redirected the browser to the internal Go API URL | Update the panel; authorize is resolved server-to-server and the browser goes straight to the IdP |
 | `Invalid or missing credentials` (JSON) | Browser hit Go API for `/api/auth/oidc/session` instead of the panel | Set **Panel URL** in OIDC settings (or `PANEL_PUBLIC_URL`); use reverse-proxy path rules |
 | `oidc_invalid` | State/nonce mismatch or bad auth code | Retry; check clock sync |
 | `oidc_denied` | User cancelled or IdP denied | IdP policy / consent |

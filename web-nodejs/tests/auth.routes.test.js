@@ -46,6 +46,7 @@ jest.mock('../middleware/rateLimiter', () => ({
 jest.mock('../services/betterdeskApi', () => ({
     exchangeOIDCCode: jest.fn(),
     getOIDCStatus: jest.fn().mockResolvedValue({ success: true, data: { enabled: false } }),
+    startOIDCAuthorize: jest.fn(),
 }));
 
 const authService = require('../services/authService');
@@ -243,6 +244,55 @@ describe('Auth Routes', () => {
             expect(res.body.success).toBe(true);
             expect(authService.verifyPassword).toHaveBeenCalledWith('current-password', expect.anything());
             expect(userSync.mirrorTotpDisable).toHaveBeenCalledWith('admin');
+        });
+    });
+
+    describe('GET /api/auth/oidc/authorize', () => {
+        it('redirects the browser to the IdP URL from Go (not localhost API)', async () => {
+            const idpUrl = 'https://idp.example.com/oauth/authorize?client_id=abc&redirect_uri=https%3A%2F%2Fdomain.com%2Fapi%2Fauth%2Foidc%2Fcallback';
+            betterdeskApi.startOIDCAuthorize.mockResolvedValue({
+                success: true,
+                data: { auth_url: idpUrl },
+            });
+
+            const res = await request(app).get('/api/auth/oidc/authorize?return_url=%2Fdashboard');
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe(idpUrl);
+            expect(res.headers.location).not.toMatch(/localhost|127\.0\.0\.1/);
+            expect(betterdeskApi.startOIDCAuthorize).toHaveBeenCalledWith('/dashboard');
+        });
+
+        it('sanitizes unsafe return_url before calling Go', async () => {
+            betterdeskApi.startOIDCAuthorize.mockResolvedValue({
+                success: true,
+                data: { auth_url: 'https://idp.example.com/auth' },
+            });
+
+            await request(app).get('/api/auth/oidc/authorize?return_url=https://evil.example');
+
+            expect(betterdeskApi.startOIDCAuthorize).toHaveBeenCalledWith('/');
+        });
+
+        it('redirects to oidc_error when Go authorize fails', async () => {
+            betterdeskApi.startOIDCAuthorize.mockResolvedValue({
+                success: false,
+                error: 'OIDC is not enabled',
+            });
+
+            const res = await request(app).get('/api/auth/oidc/authorize');
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('/login?error=oidc_error');
+        });
+
+        it('redirects to oidc_error when auth_url is missing', async () => {
+            betterdeskApi.startOIDCAuthorize.mockResolvedValue({ success: true, data: {} });
+
+            const res = await request(app).get('/api/auth/oidc/authorize');
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('/login?error=oidc_error');
         });
     });
 
