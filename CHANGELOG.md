@@ -8,6 +8,7 @@
 ## [3.3.166] — 2026-07-22
 
 ### Fixed
+- **WSS relay decryption error after PeerInfo / H.265 (#293):** WebSocket relay no longer pipes paired peers through `websocket.NetConn` + `io.Copy`. That path split each large binary frame into ~32 KiB WebSocket messages, so encrypted video failed with `decryption error(0)` while small handshake messages (SignedId, PeerInfo) still worked. Relay now forwards complete WS messages end-to-end (same pattern as MeshCentral WS relay) and raises the WS read limit to 16 MiB.
 - **User delete/demote silent failure on SQLite dual-DB (#292):** Go `ListUsers`/`GetUser*` no longer crash on NULL `last_login`/`totp_secret` (never-logged-in users). Migrate backfills NULLs; `CreateUser` sets `last_login=''`; last-admin guards honor `ListUsers` errors; `DeleteUser` clears `org_users` links. Panel `userSync` logs clearly when Go `/api/users` returns 500 so mirrors are not silently skipped.
 
 ### Changed

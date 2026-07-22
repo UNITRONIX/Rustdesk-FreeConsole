@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -100,14 +101,100 @@ func TestWSRelayPairing(t *testing.T) {
 	// Send RequestRelay from second side with same UUID
 	ws2.Write(ctx, websocket.MessageBinary, data)
 
-	// Both sides should receive RelayResponse confirmation via the net.Conn adapter.
-	// Since websocket.NetConn wraps binary messages, the framed RelayResponse
-	// arrives as codec.WriteRawFrame bytes. We just verify the connection pair
-	// was established by checking stats.
+	// Verify the connection pair was established (no RelayResponse from server —
+	// clients expect peer SignedId next; see startRelay comment).
 	time.Sleep(300 * time.Millisecond)
 
 	if srv.TotalRelayed.Load() < 1 {
 		t.Errorf("expected at least 1 relay session, got %d", srv.TotalRelayed.Load())
+	}
+}
+
+// TestWSRelayLargeMessagePreserved ensures payloads larger than io.Copy's default
+// buffer (~32 KiB) stay as a single WebSocket message after relay (#293).
+func TestWSRelayLargeMessagePreserved(t *testing.T) {
+	cfg := config.DefaultConfig()
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	cfg.RelayPort = port
+	srv := New(cfg)
+	ctx := t.Context()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+	time.Sleep(200 * time.Millisecond)
+
+	uuid := "ws-relay-large-msg-293"
+	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/", cfg.WSRelayPort())
+
+	ws1, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("WS dial 1: %v", err)
+	}
+	defer ws1.CloseNow()
+	ws1.SetReadLimit(MaxWSRelayMessage)
+
+	rr := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RequestRelay{
+			RequestRelay: &pb.RequestRelay{Uuid: uuid},
+		},
+	}
+	reqData, _ := proto.Marshal(rr)
+	if err := ws1.Write(ctx, websocket.MessageBinary, reqData); err != nil {
+		t.Fatalf("WS1 RequestRelay: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	ws2, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("WS dial 2: %v", err)
+	}
+	defer ws2.CloseNow()
+	ws2.SetReadLimit(MaxWSRelayMessage)
+	if err := ws2.Write(ctx, websocket.MessageBinary, reqData); err != nil {
+		t.Fatalf("WS2 RequestRelay: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for srv.TotalRelayed.Load() < 1 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if srv.TotalRelayed.Load() < 1 {
+		t.Fatal("relay pair not established")
+	}
+
+	const payloadSize = 100 * 1024 // well above 32 KiB io.Copy default buffer
+	payload := make([]byte, payloadSize)
+	for i := range payload {
+		payload[i] = byte(i % 251)
+	}
+
+	if err := ws1.Write(ctx, websocket.MessageBinary, payload); err != nil {
+		t.Fatalf("send large payload: %v", err)
+	}
+
+	readCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	typ, got, err := ws2.Read(readCtx)
+	if err != nil {
+		t.Fatalf("recv large payload: %v", err)
+	}
+	if typ != websocket.MessageBinary {
+		t.Fatalf("message type = %v, want binary", typ)
+	}
+	if len(got) != payloadSize {
+		t.Fatalf("payload len = %d, want %d (message was split or truncated)", len(got), payloadSize)
+	}
+	for i := range payload {
+		if got[i] != payload[i] {
+			t.Fatalf("payload mismatch at byte %d", i)
+		}
 	}
 }
 
