@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.162] — 2026-07-22
+
 ### Fixed
 - **OIDC SSO authorize redirect (#298):** clicking “Sign in with OIDC” no longer browser-redirects to the internal Go API URL (`http://localhost:21114/...`). The panel resolves the IdP authorize URL server-to-server and sends the browser only to the identity provider.
 
@@ -2139,3 +2146,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.159]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.158...v3.3.159
 [3.3.160]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.159...v3.3.160
 [3.3.161]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.160...v3.3.161
+[3.3.162]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.161...v3.3.162
