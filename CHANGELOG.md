@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.161] — 2026-07-22
+
 ### Security
 - **Trusted proxy allowlist (#276):** Go signal/API honor `X-Real-IP` / `X-Forwarded-For` only when `TRUST_PROXY=Y` **and** the direct peer is listed in `TRUSTED_PROXIES` (CIDR/IP). Empty allowlist ignores forwarded headers (prevents spoofing if the Go port is reachable). WebSocket initiator delivery uses exact `ip:port` (`wsPunchConns`) so shared-NAT peers no longer receive another client's PunchHole/RelayResponse / signed PK.
 
@@ -2128,3 +2135,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.158]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.157...v3.3.158
 [3.3.159]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.158...v3.3.159
 [3.3.160]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.159...v3.3.160
+[3.3.161]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.160...v3.3.161
