@@ -254,9 +254,15 @@ async function resolveGoUserId(localUserId) {
 /**
  * Mirror a freshly created Node user into the Go users table.
  * Safe to call when the user already exists on the Go side (logged + ignored).
+ *
+ * PostgreSQL shared-DB: the panel INSERT already wrote the row Go reads — skip
+ * POST /users (would always 409). Issue #301.
  */
 async function mirrorCreate(username, password, role) {
     if (!username || !password) return;
+    if (db.type === 'postgres') {
+        return;
+    }
     try {
         await apiClient.post('/users', {
             username,
@@ -267,8 +273,9 @@ async function mirrorCreate(username, password, role) {
     } catch (err) {
         const status = err.response?.status;
         // 409 = username already exists on Go side → still sync the role/password.
+        // allowCreate:false prevents mirrorUpdate → mirrorCreate recursion (Issue #301).
         if (status === 409) {
-            await mirrorUpdate(username, { password, role });
+            await mirrorUpdate(username, { password, role, allowCreate: false });
             return;
         }
         console.warn(`[userSync] mirrorCreate('${username}') failed: status=${status} ${err.message}`);
@@ -278,8 +285,14 @@ async function mirrorCreate(username, password, role) {
 /**
  * Mirror an update (role and/or password) to the Go side.
  * Looks up the Go user by username (IDs differ between stores).
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.password]
+ * @param {string} [opts.role]
+ * @param {boolean} [opts.allowCreate=true] When false (e.g. after POST 409), never
+ *   call mirrorCreate — avoids unbounded INSERT loops when GET /users fails.
  */
-async function mirrorUpdate(username, { password, role } = {}) {
+async function mirrorUpdate(username, { password, role, allowCreate = true } = {}) {
     if (!username) return;
     if (!password && !role) return;
 
@@ -287,12 +300,19 @@ async function mirrorUpdate(username, { password, role } = {}) {
 
     // If the user does not yet exist on Go and we have a plaintext password,
     // create the record so subsequent operations (org linking) work.
-    if (!goUser && password) {
+    if (!goUser && password && allowCreate) {
         await mirrorCreate(username, password, role);
         return;
     }
     if (!goUser) {
-        // No Go record and no plaintext password — nothing we can do safely.
+        // No Go record: either no plaintext password, or create was forbidden
+        // after a 409 (list API broken / empty) — do not retry INSERT.
+        if (!allowCreate) {
+            console.warn(
+                `[userSync] mirrorUpdate('${username}'): conflict (409) but GET /users ` +
+                'could not resolve the user; skipping create to avoid retry loop (issue #301)'
+            );
+        }
         return;
     }
 

@@ -241,4 +241,65 @@ describe('userSync', () => {
         expect(body.password).toEqual(expect.any(String));
         expect(body.password.length).toBeGreaterThanOrEqual(16);
     });
+
+    // Issue #301: POST 409 + empty GET must not recurse into endless CreateUser INSERTs.
+    it('mirrorCreate on 409 does not recurse when GET /users returns empty', async () => {
+        mockApiClient.post.mockRejectedValue({
+            response: { status: 409 },
+            message: 'Request failed with status code 409',
+        });
+        mockApiClient.get.mockResolvedValue({ data: [] });
+
+        await expect(userSync.mirrorCreate('Gerardo', 'StrongPass1!', 'viewer')).resolves.toBeUndefined();
+
+        expect(mockApiClient.post).toHaveBeenCalledTimes(1);
+        expect(mockApiClient.put).not.toHaveBeenCalled();
+    });
+
+    it('mirrorCreate on 409 updates existing Go user when list resolves', async () => {
+        mockApiClient.post.mockRejectedValue({
+            response: { status: 409 },
+            message: 'Request failed with status code 409',
+        });
+        mockApiClient.get.mockResolvedValue({
+            data: [{ id: 42, username: 'Gerardo', role: 'viewer' }],
+        });
+        mockApiClient.put.mockResolvedValue({ data: {} });
+
+        await userSync.mirrorCreate('Gerardo', 'StrongPass1!', 'operator');
+
+        expect(mockApiClient.post).toHaveBeenCalledTimes(1);
+        expect(mockApiClient.put).toHaveBeenCalledTimes(1);
+        expect(mockApiClient.put.mock.calls[0][0]).toBe('/users/42');
+        expect(mockApiClient.put.mock.calls[0][1]).toEqual({
+            password: 'StrongPass1!',
+            role: 'operator',
+        });
+    });
+
+    it('mirrorCreate is a no-op on shared PostgreSQL', async () => {
+        mockDb.type = 'postgres';
+
+        await userSync.mirrorCreate('Gerardo', 'StrongPass1!', 'viewer');
+
+        expect(mockApiClient.post).not.toHaveBeenCalled();
+        expect(mockApiClient.get).not.toHaveBeenCalled();
+        expect(mockApiClient.put).not.toHaveBeenCalled();
+    });
+
+    it('mirrorUpdate with allowCreate false never posts create', async () => {
+        mockApiClient.get.mockRejectedValue({
+            response: { status: 500 },
+            message: 'Request failed with status code 500',
+        });
+
+        await userSync.mirrorUpdate('Gerardo', {
+            password: 'StrongPass1!',
+            role: 'viewer',
+            allowCreate: false,
+        });
+
+        expect(mockApiClient.post).not.toHaveBeenCalled();
+        expect(mockApiClient.put).not.toHaveBeenCalled();
+    });
 });

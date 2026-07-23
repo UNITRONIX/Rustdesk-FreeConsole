@@ -158,6 +158,25 @@ describe('Users Routes', () => {
         expect(mockDb.setUserGroupMemberships).toHaveBeenCalledWith(22, ['volunteers']);
     });
 
+    it('maps unique username constraint errors to username_exists', async () => {
+        const uniqueErr = new Error('duplicate key value violates unique constraint "users_username_key"');
+        uniqueErr.code = '23505';
+        mockDb.createUser.mockRejectedValue(uniqueErr);
+
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'admin', role: 'global_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app)
+            .post('/api/users')
+            .send({ username: 'Gerardo', password: 'StrongPass123!', role: 'viewer' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBe(false);
+        expect(String(res.body.error || '')).toMatch(/exists|username/i);
+        expect(mockUserSync.mirrorCreate).not.toHaveBeenCalled();
+    });
+
     it('uses the Go user ID when assigning a local user to an organization', async () => {
         mockDb.getUserById.mockResolvedValue({ id: 12, username: 'operator1', role: 'operator' });
         mockUserSync.resolveGoUserId.mockResolvedValue(7);

@@ -443,6 +443,14 @@ router.post('/api/users', requireAuth, requirePermission('user.create'), passwor
         });
     } catch (err) {
         console.error('Create user error:', err);
+        // Unique username race / constraint (SQLite UNIQUE, PG 23505 / users_username_key).
+        const msg = String(err.message || err.detail || '');
+        if (err.code === '23505' || /unique|users_username_key/i.test(msg)) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('users.username_exists')
+            });
+        }
         res.status(err.status || 500).json({
             success: false,
             error: err.status === 400 ? err.message : req.t('errors.server_error')

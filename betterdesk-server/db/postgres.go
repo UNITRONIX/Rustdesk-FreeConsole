@@ -1317,11 +1317,17 @@ func scanUser(row pgx.Row) (*User, error) {
 	return u, nil
 }
 
+// userSelectColsPG is the shared SELECT list for GetUser/GetUserByID/ListUsers.
+// COALESCE(totp_secret, '') matches SQLite (Issue #292/#301): Node panel inserts
+// often leave totp_secret NULL; scanning NULL into Go string fails and breaks
+// GET /api/users, which in turn triggered mirrorCreate retry loops.
+const userSelectColsPG = `id, username, password_hash, role, COALESCE(totp_secret, ''), totp_enabled,
+		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local')`
+
 // GetUser returns a user by username, or nil if not found.
 func (pg *PostgresDB) GetUser(username string) (*User, error) {
 	row := pg.pool.QueryRow(pg.ctx,
-		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local') FROM users WHERE username = $1`, username)
+		`SELECT `+userSelectColsPG+` FROM users WHERE username = $1`, username)
 	u, err := scanUser(row)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -1332,8 +1338,7 @@ func (pg *PostgresDB) GetUser(username string) (*User, error) {
 // GetUserByID returns a user by numeric ID, or nil if not found.
 func (pg *PostgresDB) GetUserByID(id int64) (*User, error) {
 	row := pg.pool.QueryRow(pg.ctx,
-		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local') FROM users WHERE id = $1`, id)
+		`SELECT `+userSelectColsPG+` FROM users WHERE id = $1`, id)
 	u, err := scanUser(row)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -1344,8 +1349,7 @@ func (pg *PostgresDB) GetUserByID(id int64) (*User, error) {
 // ListUsers returns all users.
 func (pg *PostgresDB) ListUsers() ([]*User, error) {
 	rows, err := pg.pool.Query(pg.ctx,
-		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local') FROM users ORDER BY id`)
+		`SELECT `+userSelectColsPG+` FROM users ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("db: ListUsers: %w", err)
 	}
