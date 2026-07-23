@@ -38,13 +38,17 @@ func (pg *PostgresDB) EnsureClientSessionsSchema() error {
 	return nil
 }
 
+// createClientSessionReturning formats TIMESTAMPTZ as text so pgx can scan into
+// ClientSession.CreatedAt (string). Raw created_at fails with OID 1184 (#300).
+const createClientSessionReturning = `id, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`
+
 // CreateClientSession inserts a new RustDesk client session.
 func (pg *PostgresDB) CreateClientSession(sess *ClientSession) error {
 	err := pg.pool.QueryRow(pg.ctx,
 		`INSERT INTO client_sessions
 			(token_hash, user_id, client_id, client_uuid, expires_at, last_used, ip_address)
 		 VALUES ($1, $2, $3, $4, $5::timestamptz, NOW(), $6)
-		 RETURNING id, created_at`,
+		 RETURNING `+createClientSessionReturning,
 		sess.TokenHash, sess.UserID, sess.ClientID, sess.ClientUUID, sess.ExpiresAt, sess.IPAddress,
 	).Scan(&sess.ID, &sess.CreatedAt)
 	if err != nil {
