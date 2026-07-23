@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.168] — 2026-07-23
+
 ### Fixed
 - **Postgres RustDesk `/api/login` Token generation failed (#300):** `CreateClientSession` no longer scans `RETURNING created_at` (TIMESTAMPTZ) into a Go `string`. INSERT now returns `to_char(... UTC)` like the existing session SELECT paths, so client login on PostgreSQL succeeds. Ships via panel update; restart Go, then sign in once in the RustDesk client.
 - **Infinite user-create INSERT loop on PostgreSQL (#301):** panel `userSync.mirrorCreate` no longer POSTs to Go on shared Postgres (row already exists) and no longer recurses into create after a 409 when `GET /users` fails. Go Postgres `ListUsers`/`GetUser*` now `COALESCE(totp_secret, '')` so NULL secrets from panel inserts do not 500 the user list. Duplicate username at the DB layer returns a friendly `username_exists` error instead of a generic 500.
@@ -2199,3 +2206,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.165]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.164...v3.3.165
 [3.3.166]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.165...v3.3.166
 [3.3.167]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.166...v3.3.167
+[3.3.168]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.167...v3.3.168

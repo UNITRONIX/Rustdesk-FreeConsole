@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.3.167
+#   BetterDesk Console Manager v3.3.168
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -36,7 +36,7 @@
 set -e
 
 # Version
-VERSION="3.3.167"
+VERSION="3.3.168"
 # Bump when installer control-flow changes must apply mid-session after Update (#219).
 BETTERDESK_SH_REVISION="20260718-reexec"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
