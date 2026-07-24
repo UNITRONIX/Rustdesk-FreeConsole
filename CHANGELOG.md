@@ -1,12 +1,5 @@
 ## [Unreleased]
 
-### Changed
-- _(none yet)_
-
----
-
-## [3.3.173] — 2026-07-24
-
 ### Added
 - **OIDC login for stock RustDesk desktop clients (#304):** when panel OIDC is enabled, RustDesk Login shows an SSO option (`/api/login-options` + `/api/oidc/auth` / `auth-query`, same IdP config as panel SSO). Ships via panel update (Go API restart). Verify: enable OIDC → client SSO button → IdP login → access token.
 - **Guest Access Links for Web Remote / RdClient (#274):** time-limited opaque links with a device allowlist; guests open `/remote/guest?t=…` without a Console session. Mesh single-device share tunnel auth works with a valid `mesh_share` token.
@@ -30,10 +23,19 @@
 - **Trusted proxy allowlist (#276):** honor `X-Real-IP` / `X-Forwarded-For` only when `TRUST_PROXY=Y` and the direct peer is in `TRUSTED_PROXIES` (empty allowlist ignores forwarded headers).
 - **Enrollment outbound gate (#302):** PunchHole/RequestRelay require a live registered initiator; in managed/locked modes the peer must be approved (pending enrollment alone is refused). Anonymous rendezvous without registration is blocked.
 - **HttpProxyRequest (#296):** schema support with `error: "not supported"` (no open HTTP egress proxy).
-- Dependency / CI hardening: npm audit overrides, govulncheck, Go toolchain bump, WebSocket auth for bd-signal / remote-agent.
+- **Guest WebSocket proxy:** `/ws/rendezvous` and `/ws/relay` validate guest tokens via Go `/guest/access-links/validate` before upgrade (non-empty `?guest=` alone is no longer sufficient).
+- **RustDesk OIDC auth-query:** when the pending login recorded a device `id`/`uuid`, poll requests must supply matching non-empty values (omission no longer skips binding).
+- Dependency / CI hardening: npm audit overrides (`tar` ≥7.5.21), govulncheck, Go toolchain bump, WebSocket auth for bd-signal / remote-agent.
 
 ### Changed
-- Stable channel jump from **3.3.39** (previous `main`) through development patches **3.3.40–3.3.172**. Full per-patch history remains below; this section is the operator-facing **3.4.0** release summary (CI renames `[Unreleased]` on merge to `main`).
+- Stable channel jump from **3.3.39** (previous `main`) through development patches **3.3.40–3.3.173**. Full per-patch history remains below; this section is the operator-facing **3.4.0** release summary (CI renames `[Unreleased]` on merge to `main`).
+
+---
+
+## [3.3.173] — 2026-07-24
+
+### Changed
+- Release prep for upcoming stable **3.4.0** (curated notes live under `[Unreleased]` until `dev` → `main` merge).
 
 ---
 

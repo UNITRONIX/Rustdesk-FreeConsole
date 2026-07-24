@@ -91,13 +91,19 @@ func (s *Server) handleClientOIDCAuthQuery(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if pending.ClientID != "" && clientID != "" && pending.ClientID != clientID {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "device id mismatch"})
-		return
+	// When the pending login bound a device, require matching non-empty id/uuid on
+	// every poll (omitting params must not skip binding — token theft via leaked state).
+	if pending.ClientID != "" {
+		if clientID == "" || pending.ClientID != clientID {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "device id mismatch"})
+			return
+		}
 	}
-	if pending.ClientUUID != "" && clientUUID != "" && pending.ClientUUID != clientUUID {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "device uuid mismatch"})
-		return
+	if pending.ClientUUID != "" {
+		if clientUUID == "" || pending.ClientUUID != clientUUID {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "device uuid mismatch"})
+			return
+		}
 	}
 
 	consumed := s.oidcProvider.ConsumeClientPending(code)

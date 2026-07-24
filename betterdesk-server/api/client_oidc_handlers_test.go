@@ -106,3 +106,26 @@ func TestHandleClientOIDCAuthQueryDeviceMismatch(t *testing.T) {
 		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestHandleClientOIDCAuthQueryOmittingDeviceRejected(t *testing.T) {
+	p := auth.NewOIDCProvider(&auth.OIDCConfig{
+		Enabled: true, ClientID: "c",
+		AuthorizationURL: "https://idp.example.com/a",
+		RedirectURL:      "http://localhost/cb",
+	})
+	_, code, err := p.BuildClientAuthURL("dev", "uuid", auth.ClientDeviceInfo{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.CompleteClientPending(code, 1, "alice", "viewer") {
+		t.Fatal("complete failed")
+	}
+	s := &Server{oidcProvider: p}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/oidc/auth-query?code="+code, nil)
+	rec := httptest.NewRecorder()
+	s.handleClientOIDCAuthQuery(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+	}
+}

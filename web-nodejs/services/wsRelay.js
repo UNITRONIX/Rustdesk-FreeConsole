@@ -97,52 +97,70 @@ function initWsProxy(server, sessionMiddleware) {
             fakeRes.on = () => {};
 
             sessionMiddleware(request, fakeRes, () => {
-                const hasUser = request.session && request.session.userId;
-                let hasGuest = false;
-                if (!hasUser) {
-                    try {
-                        // Prefer ?guest= on WS URL (session pages always append it for guests)
-                        const g = url.searchParams.get('guest') || url.searchParams.get('t');
-                        if (g) {
-                            hasGuest = true;
-                            request.guestToken = g;
-                        }
-                        if (!hasGuest) {
-                            const { GUEST_COOKIE } = require('../middleware/guestAccess');
-                            const raw = request.headers.cookie || '';
-                            const names = [GUEST_COOKIE, 'bd.guest', 'betterdesk.guest'];
-                            for (const cookieName of names) {
-                                const match = raw.split(';').map((p) => p.trim()).find((p) => p.startsWith(cookieName + '='));
-                                if (match) {
-                                    const val = decodeURIComponent(match.slice(cookieName.length + 1) || '');
-                                    if (val) {
-                                        hasGuest = true;
-                                        request.guestToken = val;
-                                        break;
+                void (async () => {
+                    const hasUser = request.session && request.session.userId;
+                    let hasGuest = false;
+                    if (!hasUser) {
+                        let guestToken = '';
+                        try {
+                            // Prefer ?guest= on WS URL (session pages always append it for guests)
+                            guestToken = String(
+                                url.searchParams.get('guest') || url.searchParams.get('t') || ''
+                            ).trim();
+                            if (!guestToken) {
+                                const { GUEST_COOKIE } = require('../middleware/guestAccess');
+                                const raw = request.headers.cookie || '';
+                                const names = [GUEST_COOKIE, 'bd.guest', 'betterdesk.guest'];
+                                for (const cookieName of names) {
+                                    const match = raw.split(';').map((p) => p.trim()).find((p) => p.startsWith(cookieName + '='));
+                                    if (match) {
+                                        guestToken = decodeURIComponent(match.slice(cookieName.length + 1) || '').trim();
+                                        if (guestToken) break;
                                     }
                                 }
                             }
+                        } catch {
+                            guestToken = '';
                         }
-                    } catch {
-                        hasGuest = false;
-                    }
-                }
-                if (!hasUser && !hasGuest) {
-                    console.warn(`WS proxy: Rejected upgrade to ${pathname} — no authenticated session (ip: ${request.socket?.remoteAddress})`);
-                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                    socket.destroy();
-                    return;
-                }
 
-                if (pathname === '/ws/rendezvous') {
-                    rendezvousWss.handleUpgrade(request, socket, head, (ws) => {
-                        rendezvousWss.emit('connection', ws, request);
-                    });
-                } else {
-                    relayWss.handleUpgrade(request, socket, head, (ws) => {
-                        relayWss.emit('connection', ws, request);
-                    });
-                }
+                        if (guestToken) {
+                            try {
+                                // Must validate against Go store — non-empty guest= alone is not auth.
+                                const betterdeskApi = require('./betterdeskApi');
+                                const result = await betterdeskApi.apiClient.get('/guest/access-links/validate', {
+                                    params: { token: guestToken },
+                                    timeout: 5000,
+                                });
+                                const data = result.data || {};
+                                if (data.valid) {
+                                    hasGuest = true;
+                                    request.guestToken = guestToken;
+                                    request.guestGrant = data;
+                                }
+                            } catch (err) {
+                                console.warn(
+                                    `WS proxy: guest token validation failed for ${pathname}: ${err.message || err}`
+                                );
+                            }
+                        }
+                    }
+                    if (!hasUser && !hasGuest) {
+                        console.warn(`WS proxy: Rejected upgrade to ${pathname} — no authenticated session (ip: ${request.socket?.remoteAddress})`);
+                        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                        socket.destroy();
+                        return;
+                    }
+
+                    if (pathname === '/ws/rendezvous') {
+                        rendezvousWss.handleUpgrade(request, socket, head, (ws) => {
+                            rendezvousWss.emit('connection', ws, request);
+                        });
+                    } else {
+                        relayWss.handleUpgrade(request, socket, head, (ws) => {
+                            relayWss.emit('connection', ws, request);
+                        });
+                    }
+                })();
             });
         }
     );
