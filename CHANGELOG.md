@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.3.172] — 2026-07-24
+
 ### Added
 - **OIDC login for stock RustDesk desktop clients (#304):** when panel OIDC is enabled, `GET /api/login-options` advertises `oidc/<display name>`; clients use `POST /api/oidc/auth` + `GET /api/oidc/auth-query` (same IdP config / redirect family as panel SSO). Ships via panel update (Go API restart). Verify: enable OIDC → open RustDesk Login → SSO button appears → complete IdP login → client receives access token.
 
@@ -2238,3 +2245,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.169]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.168...v3.3.169
 [3.3.170]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.169...v3.3.170
 [3.3.171]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.170...v3.3.171
+[3.3.172]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.171...v3.3.172
