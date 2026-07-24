@@ -7,6 +7,10 @@ toolchains described below. Do not enable a target merely because these files
 were copied successfully: a target/version pair becomes visible in BetterDesk
 only after its real signed package passes the E2E gate.
 
+For the complete sequence from an empty deployment to the first verified
+package, start with
+[RustDesk Client Generator — Setup from a clean installation](../features/REAL_CLIENT_GENERATOR.md#setup-from-a-clean-installation).
+
 Copy these files into the private RustDesk fork used for BetterDesk builds:
 
 - `decrypt-payload.mjs` → `.betterdesk/decrypt-payload.mjs`

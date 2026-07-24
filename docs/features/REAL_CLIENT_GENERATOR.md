@@ -7,6 +7,136 @@ BetterDesk's RustDesk Client Generator is a native Node.js module inside the exi
 
 It is intentionally separate from `agent_bundles`: an Agent bundle enrolls a BetterDesk support/agent client, while a RustDesk client build produces a branded RustDesk desktop or mobile binary from source. Existing internal identifiers retain the `real-client` prefix to keep API routes, environment variables, database records and deployed integrations backward compatible.
 
+## Setup from a clean installation
+
+### RDGen is a compatibility source, not another service
+
+Do not deploy the public RDGen web application next to BetterDesk. The
+integrated generator does not call an RDGen server. BetterDesk owns the admin
+UI, database, encrypted payload and artifact lifecycle, while a dedicated
+private RustDesk fork runs the revision-pinned build adapter through GitHub
+Actions. The reviewed RDGen fixes and settings are carried into that adapter
+without RDGen's public callback, shared archive password, mutable patches or
+signature-verification bypass.
+
+The minimum supported setup therefore consists of:
+
+- one BetterDesk Console with a public HTTPS URL;
+- one private RustDesk fork/build repository;
+- a fine-grained GitHub token limited to that repository with Actions
+  read/write access;
+- the payload and custom-configuration signing keys described below; and
+- a suitable runner for every target enabled in the verified matrix.
+
+Linux x64 and Android can use the fixed GitHub-hosted `ubuntu-22.04` fallback.
+Windows, Linux ARM64 and macOS require the dedicated runners described in the
+platform table. Production Windows, Android, macOS and Flatpak packages also
+require their platform signing material.
+
+### 1. Install the adapter in the private RustDesk fork
+
+Start with a clean checkout of the private fork. From the BetterDesk checkout,
+run:
+
+```bash
+node docs/real-client-build-repository/install-central-adapter.mjs \
+  /path/to/private-rustdesk-fork --install --init-vendors
+git -C /path/to/private-rustdesk-fork diff --check
+git -C /path/to/private-rustdesk-fork add .betterdesk .github .gitmodules
+git -C /path/to/private-rustdesk-fork commit \
+  -m "Install BetterDesk RustDesk client adapter"
+node docs/real-client-build-repository/install-central-adapter.mjs \
+  /path/to/private-rustdesk-fork --check
+git -C /path/to/private-rustdesk-fork push origin HEAD:main
+git -C /path/to/private-rustdesk-fork rev-parse HEAD
+```
+
+The final command prints the immutable value for
+`REAL_CLIENT_GITHUB_WORKFLOW_COMMIT`. The installer refuses a dirty or
+non-RustDesk target and does not overwrite a differing adapter unless
+`--force` is explicitly supplied.
+
+### 2. Create the payload and custom-config keys
+
+Run the commands in [Server configuration](#server-configuration) with a
+restrictive umask:
+
+```bash
+umask 077
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out real-client-payload-private.pem
+openssl pkey -in real-client-payload-private.pem -pubout -out real-client-payload-public.pem
+openssl genpkey -algorithm ED25519 -out real-client-custom-config-signing.pem
+base64 -w0 real-client-payload-public.pem
+```
+
+Add the private RSA PEM to the build repository as the
+`REAL_CLIENT_PAYLOAD_PRIVATE_KEY` Actions secret and the private Ed25519 PEM as
+`REAL_CLIENT_CUSTOM_CONFIG_SIGNING_KEY`. Only the final Base64 public-key output
+belongs on the BetterDesk server as `REAL_CLIENT_PAYLOAD_PUBLIC_KEY`.
+
+### 3. Configure the build repository
+
+Create the protected GitHub Environments listed below. Add the repository
+variable `BETTERDESK_PAYLOAD_ORIGIN` with the exact public HTTPS origin of the
+BetterDesk Console, without a trailing path. Configure the required
+`REAL_CLIENT_RUNNER_*` repository variables for dedicated runners; Linux x64
+and Android may leave their variables empty to use `ubuntu-22.04`.
+
+Add signing secrets only to the environment for their platform. A minimal
+Linux x64 DEB evaluation needs the `betterdesk-real-client-linux` environment,
+but no platform signing secret.
+
+### 4. Configure BetterDesk
+
+Copy the variables from [Server configuration](#server-configuration) into the
+Console environment or the `.env` consumed by Docker Compose. For a minimal
+Linux x64 DEB setup, the allow-lists are:
+
+```dotenv
+REAL_CLIENT_GITHUB_WORKFLOWS={"linux":"real-client-build.yml"}
+REAL_CLIENT_GITHUB_MATRIX={"linux-x64-deb":["1.4.9"]}
+REAL_CLIENT_GITHUB_REVISIONS={"1.4.9":"6c578292e8ebbbec708b76986ba8c4bc7c509747"}
+```
+
+Keep `REAL_CLIENT_GITHUB_REF` on the protected branch containing the exact
+workflow commit. Never use a branch name or tag in
+`REAL_CLIENT_GITHUB_REVISIONS`; it accepts immutable 40-character RustDesk
+source commits only.
+
+Recreate the Console after changing its environment:
+
+```bash
+docker compose up -d --force-recreate
+docker compose logs --tail=100
+```
+
+For a native installation, restart the existing BetterDesk Console service
+instead.
+
+### 5. Verify the first build
+
+Sign in as an administrator, open **Generator**, then
+**RustDesk Client Generator**. The provider banner must show `ready`, at least
+one verified target and version `1.4.9`. Save one configuration, preflight a
+Linux x64 DEB build, start it and confirm all of the following:
+
+1. a `BetterDesk Real Client` workflow appears in the private build repository;
+2. the resulting artifact is ingested into BetterDesk;
+3. its displayed SHA-256 matches the downloaded package;
+4. the package installs and starts on a clean machine;
+5. it registers with the configured ID server; and
+6. direct and relayed remote sessions both succeed.
+
+Do not add more target/version pairs to `REAL_CLIENT_GITHUB_MATRIX` until the
+same installation, signing, registration, connection, update/uninstall and
+download checks pass for that exact pair.
+
+If the UI says `Build provider is not ready`, its message names the missing or
+invalid environment variable. A workflow revision mismatch means the protected
+branch no longer resolves to `REAL_CLIENT_GITHUB_WORKFLOW_COMMIT`; review the
+central-repository diff, rerun the admission and E2E checks, then deliberately
+update the pin.
+
 ## Security model
 
 - The GitHub token exists only in `REAL_CLIENT_GITHUB_TOKEN` on the BetterDesk server.
