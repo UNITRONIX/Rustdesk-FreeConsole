@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **OIDC login for stock RustDesk desktop clients (#304):** when panel OIDC is enabled, `GET /api/login-options` advertises `oidc/<display name>`; clients use `POST /api/oidc/auth` + `GET /api/oidc/auth-query` (same IdP config / redirect family as panel SSO). Ships via panel update (Go API restart). Verify: enable OIDC → open RustDesk Login → SSO button appears → complete IdP login → client receives access token.
+
 ### Changed
 - _(none yet)_
 

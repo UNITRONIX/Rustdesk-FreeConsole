@@ -1,6 +1,6 @@
 # OIDC SSO
 
-Configure **OpenID Connect (OIDC) / OAuth2** single sign-on so operators log in with Azure AD, Okta, Google, Keycloak, or any OIDC-compliant IdP.
+Configure **OpenID Connect (OIDC) / OAuth2** single sign-on so operators log in with Azure AD, Okta, Google, Keycloak, or any OIDC-compliant IdP. The same configuration also enables SSO in the **official RustDesk desktop client** (stock Pro-style account login).
 
 ---
 
@@ -8,6 +8,7 @@ Configure **OpenID Connect (OIDC) / OAuth2** single sign-on so operators log in 
 
 - Optional — local username/password login remains available unless disabled
 - Panel login at **http://your-server:5000**
+- Desktop client login via API server (typically port **21114** / **21121**) when OIDC is enabled
 - IdP callback handled by the Go server API (typically port **21114** or **21121** in Docker)
 - Session cookie created by the Node.js panel after callback (same host/port as the login page)
 - Supports **PKCE** (recommended) and automatic issuer discovery
@@ -86,6 +87,28 @@ See [REVERSE_PROXY.md](../setup/REVERSE_PROXY.md).
 - First SSO login may create a user (if auto-provisioning enabled)
 - If auto-provisioning is **disabled**, users must exist in BetterDesk first — otherwise login fails with `oidc_no_account`
 - Map IdP groups to server roles manually after first login (or via future automation)
+
+---
+
+## RustDesk desktop client (#304)
+
+Official RustDesk clients already support OIDC when the API server advertises it. BetterDesk reuses the **same** OIDC settings as the panel (no second IdP app required if the Redirect URL is reachable from the browser).
+
+### How it works
+
+1. Client calls `GET /api/login-options` → receives `["", "oidc/<Display name>"]` when OIDC is enabled
+2. Client calls `POST /api/oidc/auth` → opens the returned IdP URL in the system browser
+3. After IdP login, the browser hits the same **Redirect URL** as panel SSO (`…/api/auth/oidc/callback` or `…/api/oidc/callback`)
+4. Client polls `GET /api/oidc/auth-query` until it receives an `access_token`
+
+### Operator checklist
+
+1. Configure OIDC under **Settings → Authentication → OIDC** (same as panel)
+2. Ensure the IdP **Redirect URL** points at the Go API origin (port **21114** / **21121**, or reverse-proxy path)
+3. Point the RustDesk client **API server** at that same BetterDesk API origin
+4. Open Login in RustDesk — an SSO button appears next to username/password
+
+Accounts bound to OIDC still cannot use a local password in the desktop client (use the SSO button). LDAP/AD password login remains available for directory accounts.
 
 ---
 

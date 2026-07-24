@@ -343,6 +343,9 @@ func (s *Server) Start(ctx context.Context) error {
 	// fall back to signal_port - 2 (21114).
 	mux.HandleFunc("POST /api/login", s.handleClientLogin)
 	mux.HandleFunc("GET /api/login-options", s.handleClientLoginOptions)
+	mux.HandleFunc("POST /api/oidc/auth", s.handleClientOIDCAuth)
+	mux.HandleFunc("GET /api/oidc/auth-query", s.handleClientOIDCAuthQuery)
+	mux.HandleFunc("GET /api/oidc/callback", s.handleOIDCCallback) // alias; same IdP Redirect URL family
 	mux.HandleFunc("POST /api/logout", s.handleClientLogout)
 	mux.HandleFunc("GET /api/currentUser", s.handleClientCurrentUser)
 	mux.HandleFunc("POST /api/currentUser", s.handleClientCurrentUser)

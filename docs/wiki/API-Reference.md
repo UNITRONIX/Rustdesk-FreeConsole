@@ -168,7 +168,9 @@ These endpoints mirror the standard RustDesk server API:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/login` | Client login (username/password) |
-| `GET` | `/api/login-options` | Available login methods |
+| `GET` | `/api/login-options` | Available login methods (`""` + optional `oidc/<name>`) |
+| `POST` | `/api/oidc/auth` | Start OIDC for desktop client (`{code,url}`) |
+| `GET` | `/api/oidc/auth-query` | Poll OIDC login until `access_token` |
 | `POST` | `/api/logout` | Client logout |
 | `GET` | `/api/currentUser` | Current authenticated user info |
 

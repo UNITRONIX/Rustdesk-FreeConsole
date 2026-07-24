@@ -684,12 +684,22 @@ async function sendRustDeskDeviceGroups(req, res, accessibleOnly = null) {
 
 /**
  * GET /api/login-options
- * Returns available login methods.
- * RustDesk client calls this to check for OIDC providers.
- * We only support account-password.
+ * Returns available login methods for the stock RustDesk client.
+ * When OIDC is enabled on the Go API, includes oidc/<displayName>.
+ * Legacy Node-only mode falls back to password-only.
  */
-router.get('/api/login-options', (req, res) => {
-    res.json(['']);
+router.get('/api/login-options', async (req, res) => {
+    if (config.serverBackend === 'betterdesk') {
+        try {
+            const result = await betterdeskApi.apiClient.get('/login-options', { timeout: 5000 });
+            if (result && result.data && Array.isArray(result.data)) {
+                return res.json(result.data);
+            }
+        } catch (err) {
+            console.warn('[API] login-options proxy failed:', err.message);
+        }
+    }
+    return res.json(['']);
 });
 
 /**

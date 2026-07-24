@@ -82,7 +82,7 @@ After LDAP is enabled and saved:
 
 On success the client receives a session token and syncs the address book. **TOTP/2FA** applies when enabled on the BetterDesk user account.
 
-Browser redirect / OIDC for the desktop app is a separate feature and is **not** required for AD username/password login.
+Browser redirect / OIDC for the desktop app is supported when OIDC is enabled under Settings → Authentication — see [[OIDC SSO|OIDC-SSO]]. LDAP password login does not require OIDC.
 
 ---
 

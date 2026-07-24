@@ -481,3 +481,120 @@ func TestExchangeCodePreservesReturnURL(t *testing.T) {
 		t.Errorf("GetReturnURL after ExchangeCode = %q, want empty", got)
 	}
 }
+
+func TestBuildClientAuthURLAndPending(t *testing.T) {
+	cfg := &OIDCConfig{
+		Enabled:          true,
+		ClientID:         "my-client",
+		DisplayName:      "Azure AD",
+		RedirectURL:      "http://localhost/api/auth/oidc/callback",
+		AuthorizationURL: "https://idp.example.com/authorize",
+		Scopes:           "openid profile email",
+	}
+	p := NewOIDCProvider(cfg)
+
+	if tok := p.ClientLoginOptionToken(); tok != "oidc/Azure AD" {
+		t.Fatalf("ClientLoginOptionToken = %q", tok)
+	}
+
+	authURL, code, err := p.BuildClientAuthURL("dev1", "uuid-1", ClientDeviceInfo{
+		Name: "pc", OS: "windows", Type: "client",
+	})
+	if err != nil {
+		t.Fatalf("BuildClientAuthURL: %v", err)
+	}
+	if code == "" || !strings.Contains(authURL, "state="+code) {
+		t.Fatalf("expected state in URL matching code; code=%q url=%s", code, authURL)
+	}
+
+	pending := p.PeekClientPending(code)
+	if pending == nil || pending.Authed || pending.ClientID != "dev1" {
+		t.Fatalf("unexpected pending: %+v", pending)
+	}
+
+	if !p.CompleteClientPending(code, 42, "alice", "operator") {
+		t.Fatal("CompleteClientPending failed")
+	}
+	pending = p.PeekClientPending(code)
+	if pending == nil || !pending.Authed || pending.Username != "alice" {
+		t.Fatalf("expected authed pending, got %+v", pending)
+	}
+
+	consumed := p.ConsumeClientPending(code)
+	if consumed == nil || consumed.Username != "alice" || consumed.UserID != 42 {
+		t.Fatalf("ConsumeClientPending = %+v", consumed)
+	}
+	if p.PeekClientPending(code) != nil {
+		t.Fatal("pending should be gone after consume")
+	}
+	if p.ConsumeClientPending(code) != nil {
+		t.Fatal("second consume should fail")
+	}
+}
+
+func TestClientPendingRejectsMismatchDevice(t *testing.T) {
+	p := NewOIDCProvider(&OIDCConfig{
+		Enabled: true, ClientID: "c",
+		AuthorizationURL: "https://idp.example.com/a",
+		RedirectURL:      "http://localhost/cb",
+	})
+	_, code, err := p.BuildClientAuthURL("id-a", "uuid-a", ClientDeviceInfo{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.CompleteClientPending(code, 1, "bob", "viewer") {
+		t.Fatal("complete failed")
+	}
+	pending := p.PeekClientPending(code)
+	if pending.ClientID != "id-a" || pending.ClientUUID != "uuid-a" {
+		t.Fatalf("device binding lost: %+v", pending)
+	}
+}
+
+func TestExchangeCodePreservesClientFlow(t *testing.T) {
+	payload := map[string]interface{}{
+		"preferred_username": "cli-user",
+	}
+	payloadJSON, _ := json.Marshal(payload)
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payloadJSON)
+	idToken := "eyJhbGciOiJSUzI1NiJ9." + payloadB64 + ".fakesignature"
+
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/token" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"access_token": "access-token",
+			"id_token":     idToken,
+		})
+	}))
+	defer tokenSrv.Close()
+
+	p := NewOIDCProvider(&OIDCConfig{
+		Enabled: true, ClientID: "client",
+		RedirectURL:      "http://localhost/callback",
+		AuthorizationURL: "https://idp.example.com/authorize",
+		TokenURL:         tokenSrv.URL + "/token",
+		ClaimUsername:    "preferred_username",
+	})
+
+	_, code, err := p.BuildClientAuthURL("d1", "u1", ClientDeviceInfo{Name: "n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := p.ExchangeCode(context.Background(), "authcode", code)
+	if err != nil {
+		t.Fatalf("ExchangeCode: %v", err)
+	}
+	if result.Flow != OIDCFlowClient {
+		t.Fatalf("Flow = %q, want client", result.Flow)
+	}
+	if result.ClientID != "d1" || result.ClientUUID != "u1" || result.State != code {
+		t.Fatalf("client fields: %+v", result)
+	}
+	if result.Username != "cli-user" {
+		t.Fatalf("Username = %q", result.Username)
+	}
+}

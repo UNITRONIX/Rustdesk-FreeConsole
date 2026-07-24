@@ -1162,6 +1162,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			path == "/api/auth/ldap/verify" ||
 			path == "/api/server/pubkey" || path == "/api/server/stats" ||
 			path == "/api/login" || path == "/api/login-options" || path == "/api/logout" ||
+			path == "/api/oidc/auth" || path == "/api/oidc/auth-query" || path == "/api/oidc/callback" ||
 			path == "/api/heartbeat" || path == "/api/sysinfo" || path == "/api/sysinfo_ver" ||
 			path == "/api/branding" ||
 			path == "/api/server-key" || path == "/api/server-key/fingerprint" ||

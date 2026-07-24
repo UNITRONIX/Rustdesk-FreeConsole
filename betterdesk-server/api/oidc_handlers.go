@@ -12,7 +12,6 @@ import (
 
 	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/auth"
-	"github.com/unitronix/betterdesk-server/db"
 )
 
 // loadOIDCConfigFromDB reads OIDC configuration from the server_config table.
@@ -322,116 +321,77 @@ func (s *Server) handleOIDCAuthorize(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleOIDCCallback handles the IdP callback with the authorization code.
-// GET /api/auth/oidc/callback
-// Public endpoint — exchanges code for tokens, creates/updates user, issues JWT.
+// GET /api/auth/oidc/callback and GET /api/oidc/callback
+// Public endpoint — exchanges code for tokens, creates/updates user.
+// Panel flow issues a one-time panel auth code; client flow completes pending poll.
 func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	if s.oidcProvider == nil || !s.oidcProvider.IsEnabled() {
 		http.Error(w, "OIDC is not enabled", http.StatusBadRequest)
 		return
 	}
 
+	cfg := s.loadOIDCConfigFromDB()
+	stateParam := r.URL.Query().Get("state")
+
 	// Check for error from IdP
 	if errCode := r.URL.Query().Get("error"); errCode != "" {
 		errDesc := r.URL.Query().Get("error_description")
 		log.Printf("[OIDC] IdP returned error: %s — %s", errCode, errDesc)
-		cfg := s.loadOIDCConfigFromDB()
+		if pending := s.oidcProvider.PeekClientPending(stateParam); pending != nil {
+			s.oidcProvider.FailClientPending(stateParam)
+			writeClientOIDCResultPage(w, false, clientOIDCErrorMessage("oidc_denied"))
+			return
+		}
 		http.Redirect(w, r, oidcLoginRedirectURL(cfg, "oidc_denied"), http.StatusFound)
 		return
 	}
 
 	code := r.URL.Query().Get("code")
-	state := r.URL.Query().Get("state")
+	state := stateParam
 
 	if code == "" || state == "" {
-		cfg := s.loadOIDCConfigFromDB()
+		if pending := s.oidcProvider.PeekClientPending(state); pending != nil {
+			s.oidcProvider.FailClientPending(state)
+			writeClientOIDCResultPage(w, false, clientOIDCErrorMessage("oidc_invalid"))
+			return
+		}
 		http.Redirect(w, r, oidcLoginRedirectURL(cfg, "oidc_invalid"), http.StatusFound)
 		return
 	}
+
+	// Prefer client branch when a desktop poll session exists for this state
+	// (covers races before ExchangeCode copies Flow onto the result).
+	isClientPending := s.oidcProvider.PeekClientPending(state) != nil
 
 	// Exchange code for tokens and user info
 	result, err := s.oidcProvider.ExchangeCode(r.Context(), code, state)
 	if err != nil {
 		log.Printf("[OIDC] Code exchange failed: %v", err)
-		cfg := s.loadOIDCConfigFromDB()
+		if isClientPending {
+			s.oidcProvider.FailClientPending(state)
+			writeClientOIDCResultPage(w, false, clientOIDCErrorMessage("oidc_failed"))
+			return
+		}
 		http.Redirect(w, r, oidcLoginRedirectURL(cfg, "oidc_failed"), http.StatusFound)
 		return
 	}
 
-	cfg := s.loadOIDCConfigFromDB()
+	if result.Flow == auth.OIDCFlowClient || isClientPending {
+		if result.State == "" {
+			result.State = state
+		}
+		s.finishClientOIDCCallback(w, r, result, cfg)
+		return
+	}
+
 	loginErr := func(code string) {
 		http.Redirect(w, r, oidcLoginRedirectURL(cfg, code), http.StatusFound)
 	}
 
-	// Find or create local user
-	user, err := s.db.GetUser(result.Username)
-	if err != nil {
-		log.Printf("[OIDC] DB error looking up user %s: %v", result.Username, err)
-		loginErr("oidc_error")
+	user, errCode := s.ensureOIDCUser(result, cfg)
+	if errCode != "" {
+		loginErr(errCode)
 		return
-	}
-
-	if user == nil {
-		// Auto-provision new user
-		if !cfg.AllowSignup {
-			log.Printf("[OIDC] User %s not found and auto-signup disabled", result.Username)
-			loginErr("oidc_no_account")
-			return
-		}
-
-		// Generate a random password (user will authenticate via OIDC, not local password)
-		randomPass, err := auth.GenerateRandomString(32)
-		if err != nil {
-			log.Printf("[OIDC] Failed to generate random password: %v", err)
-			loginErr("oidc_error")
-			return
-		}
-		hash, err := auth.HashPassword(randomPass)
-		if err != nil {
-			log.Printf("[OIDC] Failed to hash password: %v", err)
-			loginErr("oidc_error")
-			return
-		}
-
-		role := result.Role
-		if role == "" {
-			role = auth.RoleViewer
-		}
-
-		newUser := &db.User{
-			Username:     result.Username,
-			PasswordHash: hash,
-			Role:         role,
-			AuthProvider: db.AuthProviderOIDC,
-		}
-		if createErr := s.db.CreateUser(newUser); createErr != nil {
-			log.Printf("[OIDC] Failed to create user %s: %v", result.Username, createErr)
-			loginErr("oidc_error")
-			return
-		}
-
-		user, _ = s.db.GetUser(result.Username)
-		if user == nil {
-			loginErr("oidc_error")
-			return
-		}
-
-		log.Printf("[OIDC] Auto-provisioned user %s with role %s", result.Username, role)
-	} else {
-		// Update role from OIDC group mapping if changed, and ensure the
-		// account is bound to the OIDC provider (Issue #148).
-		changed := false
-		if result.Role != "" && result.Role != user.Role {
-			user.Role = result.Role
-			changed = true
-			log.Printf("[OIDC] Updated role for %s to %s", result.Username, result.Role)
-		}
-		if user.AuthProvider != db.AuthProviderOIDC {
-			user.AuthProvider = db.AuthProviderOIDC
-			changed = true
-		}
-		if changed {
-			_ = s.db.UpdateUser(user)
-		}
 	}
 
 	// Audit log

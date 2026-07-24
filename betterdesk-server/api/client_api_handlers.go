@@ -299,8 +299,13 @@ func (s *Server) handleClientTFAVerify(w http.ResponseWriter, clientIP, totpCode
 
 // handleClientLoginOptions returns available authentication methods.
 // GET /api/login-options
+// Stock RustDesk expects [""] for password plus "oidc/<name>" entries when SSO is enabled.
 func (s *Server) handleClientLoginOptions(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, []string{""})
+	opts := []string{""}
+	if s.oidcProvider != nil && s.oidcProvider.IsEnabled() {
+		opts = append(opts, s.oidcProvider.ClientLoginOptionToken())
+	}
+	writeJSON(w, http.StatusOK, opts)
 }
 
 // handleClientLogout handles logout for RustDesk clients.
