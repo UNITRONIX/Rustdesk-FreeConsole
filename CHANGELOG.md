@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.4.0] — 2026-07-24
+
 ### Added
 - **OIDC login for stock RustDesk desktop clients (#304):** when panel OIDC is enabled, RustDesk Login shows an SSO option (`/api/login-options` + `/api/oidc/auth` / `auth-query`, same IdP config as panel SSO). Ships via panel update (Go API restart). Verify: enable OIDC → client SSO button → IdP login → access token.
 - **Guest Access Links for Web Remote / RdClient (#274):** time-limited opaque links with a device allowlist; guests open `/remote/guest?t=…` without a Console session. Mesh single-device share tunnel auth works with a valid `mesh_share` token.
@@ -2292,3 +2299,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.3.172]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.171...v3.3.172
 [3.3.173]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.172...v3.3.173
 [3.3.174]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.173...v3.3.174
+[3.4.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.174...v3.4.0
