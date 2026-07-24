@@ -24,6 +24,11 @@ const (
 	// RustDesk messages are typically small; this prevents memory abuse.
 	MaxFrameSize = 64 * 1024
 
+	// RelayMaxFrameSize permits complete desktop/video messages while retaining
+	// a hard allocation bound for untrusted TCP frame headers. It matches the
+	// WebSocket relay message limit.
+	RelayMaxFrameSize = 16 * 1024 * 1024
+
 	// HeaderSize is the size of the legacy TCP frame header (2 bytes).
 	// Used only by internal framed communication, not RustDesk protocol.
 	HeaderSize = 2
@@ -149,8 +154,12 @@ func WriteRawProto(conn net.Conn, msg *pb.RendezvousMessage) error {
 
 // WriteRawBytes writes raw bytes with variable-length header to a TCP connection.
 func WriteRawBytes(conn net.Conn, data []byte) error {
-	if len(data) > MaxFrameSize {
-		return fmt.Errorf("codec: data too large (%d > %d)", len(data), MaxFrameSize)
+	return writeRawBytesLimit(conn, data, MaxFrameSize)
+}
+
+func writeRawBytesLimit(conn net.Conn, data []byte, maxFrameSize int) error {
+	if len(data) > maxFrameSize {
+		return fmt.Errorf("codec: data too large (%d > %d)", len(data), maxFrameSize)
 	}
 	header := encodeHeader(len(data))
 	frame := make([]byte, len(header)+len(data))
@@ -162,6 +171,10 @@ func WriteRawBytes(conn net.Conn, data []byte) error {
 
 // ReadRawBytes reads a variable-length-framed raw byte payload from a TCP connection.
 func ReadRawBytes(conn net.Conn, timeout time.Duration) ([]byte, error) {
+	return readRawBytesLimit(conn, timeout, MaxFrameSize)
+}
+
+func readRawBytesLimit(conn net.Conn, timeout time.Duration, maxFrameSize int) ([]byte, error) {
 	if timeout > 0 {
 		if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
 			return nil, err
@@ -177,8 +190,8 @@ func ReadRawBytes(conn net.Conn, timeout time.Duration) ([]byte, error) {
 	if payloadLen == 0 {
 		return nil, fmt.Errorf("codec: zero-length payload")
 	}
-	if payloadLen > MaxFrameSize {
-		return nil, fmt.Errorf("codec: payload too large (%d > %d)", payloadLen, MaxFrameSize)
+	if payloadLen > maxFrameSize {
+		return nil, fmt.Errorf("codec: payload too large (%d > %d)", payloadLen, maxFrameSize)
 	}
 
 	payload := make([]byte, payloadLen)
@@ -186,6 +199,18 @@ func ReadRawBytes(conn net.Conn, timeout time.Duration) ([]byte, error) {
 		return nil, err
 	}
 	return payload, nil
+}
+
+// ReadRelayFrame reads one RustDesk BytesCodec frame in a mixed native
+// TCP/WebSocket relay session.
+func ReadRelayFrame(conn net.Conn) ([]byte, error) {
+	return readRawBytesLimit(conn, 0, RelayMaxFrameSize)
+}
+
+// WriteRelayFrame writes one RustDesk BytesCodec frame in a mixed native
+// TCP/WebSocket relay session.
+func WriteRelayFrame(conn net.Conn, payload []byte) error {
+	return writeRawBytesLimit(conn, payload, RelayMaxFrameSize)
 }
 
 // WriteFrame writes a framed protobuf message using RustDesk variable-length codec.
