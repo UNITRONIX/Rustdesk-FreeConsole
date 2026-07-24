@@ -34,7 +34,7 @@
 
 services:
   server:
-    image: ghcr.io/unitronix/betterdesk-server:${BETTERDESK_IMAGE_TAG:-3.3.173}
+    image: ghcr.io/unitronix/betterdesk-server:${BETTERDESK_IMAGE_TAG:-3.3.174}
     container_name: betterdesk-server
     hostname: betterdesk-server
     command: ["/usr/local/bin/betterdesk-server", "-mode", "all", "-api-port", "21114", "-key-file", "/opt/rustdesk/id_ed25519"]
@@ -73,7 +73,7 @@ services:
       start_period: 60s
 
   console:
-    image: ghcr.io/unitronix/betterdesk-console:${BETTERDESK_IMAGE_TAG:-3.3.173}
+    image: ghcr.io/unitronix/betterdesk-console:${BETTERDESK_IMAGE_TAG:-3.3.174}
     container_name: betterdesk-console
     # Shares server network stack — panel and RustDesk ports use MACVLAN_IPV4.
     network_mode: service:server
@@ -110,7 +110,7 @@ services:
       - DOCKER=true
       - BETTERDESK_UPDATE_MODE=image
       - BETTERDESK_DOCKER_LAYOUT=split
-      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.3.173}
+      - BETTERDESK_IMAGE_TAG=${BETTERDESK_IMAGE_TAG:-3.3.174}
       - TZ=${TZ:-UTC}
     depends_on:
       # service_started (not healthy): avoids deadlock with auth.db on first boot (#138, #186).
