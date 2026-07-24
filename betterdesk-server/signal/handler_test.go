@@ -660,7 +660,7 @@ func TestHandleRequestRelayTCPSamePublicIPIgnoresPrivateRelayHint(t *testing.T) 
 	}
 }
 
-func TestHandleRequestRelayTCPProtocolMismatch(t *testing.T) {
+func TestHandleRequestRelayTCPMixedTransportAllowed(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	srv.localIP.Store("198.51.100.20")
 
@@ -681,15 +681,18 @@ func TestHandleRequestRelayTCPProtocolMismatch(t *testing.T) {
 
 	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
 		Id:   "NATIVETGT",
-		Uuid: "issue-290-mismatch-uuid",
+		Uuid: "issue-290-mixed-uuid",
 	}, udpAddr("198.51.100.30", 51000), peer.ConnWS)
 
 	rr := resp.GetRelayResponse()
 	if rr == nil {
 		t.Fatalf("expected RelayResponse, got %+v", resp)
 	}
-	if rr.RefuseReason != refuseRelayProtocolMismatch {
-		t.Fatalf("RefuseReason = %q, want %q", rr.RefuseReason, refuseRelayProtocolMismatch)
+	if rr.RefuseReason != "" {
+		t.Fatalf("unexpected RefuseReason %q", rr.RefuseReason)
+	}
+	if rr.Uuid != "issue-290-mixed-uuid" {
+		t.Fatalf("uuid = %q", rr.Uuid)
 	}
 }
 
@@ -726,27 +729,6 @@ func TestHandleRequestRelayTCPMatchingWSAllowed(t *testing.T) {
 	}
 	if rr.Uuid != "issue-290-match-uuid" {
 		t.Fatalf("uuid = %q", rr.Uuid)
-	}
-}
-
-func TestRelayTransportMismatchHelper(t *testing.T) {
-	cases := []struct {
-		a, b peer.ConnType
-		want bool
-	}{
-		{peer.ConnWS, peer.ConnTCP, true},
-		{peer.ConnWS, peer.ConnUDP, true},
-		{peer.ConnTCP, peer.ConnWS, true},
-		{peer.ConnUDP, peer.ConnWS, true},
-		{peer.ConnWS, peer.ConnWS, false},
-		{peer.ConnTCP, peer.ConnUDP, false},
-		{peer.ConnTCP, peer.ConnTCP, false},
-		{peer.ConnUDP, peer.ConnUDP, false},
-	}
-	for _, tc := range cases {
-		if got := relayTransportMismatch(tc.a, tc.b); got != tc.want {
-			t.Errorf("relayTransportMismatch(%s, %s) = %v, want %v", tc.a, tc.b, got, tc.want)
-		}
 	}
 }
 

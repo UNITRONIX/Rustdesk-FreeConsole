@@ -1,6 +1,8 @@
 // Package relay implements the BetterDesk relay server (hbbr equivalent).
-// It pairs two clients by UUID and creates a bidirectional byte stream between them.
-// The relay does NOT parse message.proto content — it's an opaque byte pipe.
+// It pairs two clients by UUID and relays their opaque message payloads.
+// Native TCP pairs use a raw byte pipe, WebSocket pairs preserve message
+// boundaries, and mixed pairs translate WebSocket messages to/from RustDesk
+// BytesCodec frames.
 package relay
 
 import (
@@ -25,15 +27,15 @@ import (
 
 // Server is the relay server instance.
 type Server struct {
-	cfg         *config.Config
-	bwLimiter   *ratelimit.BandwidthLimiter
-	connLimiter *ratelimit.ConnLimiter
+	cfg            *config.Config
+	bwLimiter      *ratelimit.BandwidthLimiter
+	connLimiter    *ratelimit.ConnLimiter
 	sessionLimiter *ratelimit.ConnLimiter // active paired sessions per IP (post-pair)
-	tcpLn       net.Listener
-	wsHTTP      *http.Server // WebSocket relay listener
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	tcpLn          net.Listener
+	wsHTTP         *http.Server // WebSocket relay listener
+	ctx            context.Context
+	cancel         context.CancelFunc
+	wg             sync.WaitGroup
 
 	// Pending connections waiting for a pair (key: UUID string)
 	pending sync.Map // map[string]*pendingConn
@@ -53,8 +55,8 @@ var (
 )
 
 // relayTransport identifies how a peer reached the relay (framing differs).
-// TCP uses RustDesk BytesCodec; WebSocket uses one raw protobuf per binary frame.
-// Mixing them after UUID pairing corrupts the E2E handshake (#290).
+// TCP uses RustDesk BytesCodec while WebSocket uses one payload per binary
+// message. Mixed pairs therefore require a framing bridge.
 type relayTransport string
 
 const (
@@ -250,24 +252,25 @@ func (s *Server) handleConn(conn net.Conn) {
 // pairIncomingConn pairs two relay connections sharing the same session UUID.
 // LoadOrStore avoids a race where simultaneous connections both miss LoadAndDelete
 // and overwrite each other in pending without ever pairing.
-// Peers must use the same transport (TCP or WS); mixed framing is rejected (#290).
 func (s *Server) pairIncomingConn(pc *pendingConn, uuid string) {
 	if val, loaded := s.pending.LoadOrStore(uuid, pc); loaded {
 		existing := val.(*pendingConn)
-		s.pending.Delete(uuid)
-		close(existing.done)
-		if existing.transport != pc.transport {
-			log.Printf("[relay] Protocol mismatch for UUID %s: %s <-> %s (rejecting mixed WebSocket/native relay)",
-				uuid, existing.transport, pc.transport)
-			existing.close()
+		// A timeout or cleanup goroutine may concurrently remove the waiter.
+		// Only the goroutine that claims the exact entry may pair it.
+		if !s.pending.CompareAndDelete(uuid, existing) {
 			pc.close()
 			return
 		}
-		if pc.transport == relayTransportWS {
+		close(existing.done)
+		if existing.transport == relayTransportWS && pc.transport == relayTransportWS {
 			s.startWSRelay(existing.ws, pc.ws, existing.remoteAddr(), pc.remoteAddr(), uuid)
 			return
 		}
-		s.startRelay(existing.conn, pc.conn, uuid)
+		if existing.transport == relayTransportTCP && pc.transport == relayTransportTCP {
+			s.startRelay(existing.conn, pc.conn, uuid)
+			return
+		}
+		s.startMixedRelay(existing, pc, uuid)
 		return
 	}
 
@@ -275,14 +278,12 @@ func (s *Server) pairIncomingConn(pc *pendingConn, uuid string) {
 	case <-pc.done:
 		return
 	case <-timeAfter(config.RelayPairTimeout):
-		if val, ok := s.pending.Load(uuid); ok && val.(*pendingConn) == pc {
-			s.pending.Delete(uuid)
+		if s.pending.CompareAndDelete(uuid, pc) {
 			pc.close()
 			log.Printf("[relay] Pair timeout for UUID %s", uuid)
 		}
 	case <-s.ctx.Done():
-		if val, ok := s.pending.Load(uuid); ok && val.(*pendingConn) == pc {
-			s.pending.Delete(uuid)
+		if s.pending.CompareAndDelete(uuid, pc) {
 			pc.close()
 		}
 	}
@@ -414,6 +415,154 @@ func (c *idleTimeoutConn) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// startMixedRelay translates complete WebSocket binary messages to and from
+// native RustDesk BytesCodec frames. Payload bytes remain opaque, preserving
+// the peer-to-peer E2E handshake and encrypted desktop/video messages.
+func (s *Server) startMixedRelay(first, second *pendingConn, uuid string) {
+	var wsPeer, tcpPeer *pendingConn
+	if first.transport == relayTransportWS {
+		wsPeer, tcpPeer = first, second
+	} else {
+		wsPeer, tcpPeer = second, first
+	}
+	if wsPeer.ws == nil || tcpPeer.conn == nil {
+		log.Printf("[relay] Invalid mixed relay endpoints for UUID %s", uuid)
+		first.close()
+		second.close()
+		return
+	}
+
+	if !s.acquireRelaySessions(first, second, uuid) {
+		return
+	}
+	defer s.releaseRelaySessions(first, second)
+
+	s.ActiveSessions.Add(1)
+	s.TotalRelayed.Add(1)
+	defer s.ActiveSessions.Add(-1)
+
+	log.Printf("[relay] Pair established: %s <-> %s (UUID: %s, transport=ws/tcp)",
+		first.remoteAddr(), second.remoteAddr(), uuid)
+	if s.onRelayStart != nil {
+		s.onRelayStart(uuid)
+	}
+	defer func() {
+		if s.onRelayEnd != nil {
+			s.onRelayEnd(uuid)
+		}
+		first.close()
+		second.close()
+		log.Printf("[relay] Session ended: UUID %s (active: %d)", uuid, s.ActiveSessions.Load()-1)
+	}()
+
+	var wsPace, tcpPace io.Writer
+	if s.bwLimiter != nil {
+		// Register two independently paced directions, matching native and
+		// WebSocket relay accounting.
+		_ = s.bwLimiter.WrapReader(strings.NewReader(""))
+		_ = s.bwLimiter.WrapReader(strings.NewReader(""))
+		wsPace = s.bwLimiter.WrapWriter(io.Discard)
+		tcpPace = s.bwLimiter.WrapWriter(io.Discard)
+		defer s.bwLimiter.SessionDone()
+		defer s.bwLimiter.SessionDone()
+	}
+
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	done := make(chan struct{})
+	var once sync.Once
+	finish := func() { once.Do(func() { close(done) }) }
+
+	// WebSocket -> TCP: one WS message becomes exactly one BytesCodec frame.
+	go func() {
+		defer finish()
+		for {
+			readCtx, cancel := context.WithTimeout(ctx, config.RelayIdleTimeout)
+			typ, payload, err := wsPeer.ws.Read(readCtx)
+			cancel()
+			if err != nil {
+				return
+			}
+			if typ != websocket.MessageBinary || len(payload) == 0 {
+				continue
+			}
+			if wsPace != nil {
+				_, _ = wsPace.Write(payload)
+			}
+			if err := tcpPeer.conn.SetWriteDeadline(time.Now().Add(config.RelayIdleTimeout)); err != nil {
+				return
+			}
+			if err := codec.WriteRelayFrame(tcpPeer.conn, payload); err != nil {
+				return
+			}
+		}
+	}()
+
+	// TCP -> WebSocket: one BytesCodec frame becomes exactly one WS message.
+	go func() {
+		defer finish()
+		for {
+			if err := tcpPeer.conn.SetReadDeadline(time.Now().Add(config.RelayIdleTimeout)); err != nil {
+				return
+			}
+			payload, err := codec.ReadRelayFrame(tcpPeer.conn)
+			if err != nil {
+				return
+			}
+			if tcpPace != nil {
+				_, _ = tcpPace.Write(payload)
+			}
+			writeCtx, cancel := context.WithTimeout(ctx, config.RelayIdleTimeout)
+			err = wsPeer.ws.Write(writeCtx, websocket.MessageBinary, payload)
+			cancel()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	<-done
+}
+
+func (s *Server) acquireRelaySessions(first, second *pendingConn, uuid string) bool {
+	if s.sessionLimiter == nil {
+		return true
+	}
+	acquired := make([]string, 0, 2)
+	for _, endpoint := range []*pendingConn{first, second} {
+		ip, _, err := net.SplitHostPort(endpoint.remoteAddr())
+		if err != nil {
+			ip = endpoint.remoteAddr()
+		}
+		if !s.sessionLimiter.Acquire(ip) {
+			log.Printf("[relay] Active session limit exceeded for %s (UUID %s)", ip, uuid)
+			for _, acquiredIP := range acquired {
+				s.sessionLimiter.Release(acquiredIP)
+			}
+			first.close()
+			second.close()
+			return false
+		}
+		acquired = append(acquired, ip)
+	}
+	return true
+}
+
+func (s *Server) releaseRelaySessions(first, second *pendingConn) {
+	if s.sessionLimiter == nil {
+		return
+	}
+	for _, endpoint := range []*pendingConn{first, second} {
+		ip, _, err := net.SplitHostPort(endpoint.remoteAddr())
+		if err != nil {
+			ip = endpoint.remoteAddr()
+		}
+		s.sessionLimiter.Release(ip)
+	}
+}
+
 // cleanupPending periodically removes stale pending connections.
 func (s *Server) cleanupPending() {
 	defer s.wg.Done()
@@ -429,7 +578,7 @@ func (s *Server) cleanupPending() {
 			s.pending.Range(func(key, value any) bool {
 				pc := value.(*pendingConn)
 				if time.Since(pc.created) > config.RelayPairTimeout {
-					if _, loaded := s.pending.LoadAndDelete(key); loaded {
+					if s.pending.CompareAndDelete(key, pc) {
 						pc.close()
 						close(pc.done)
 					}

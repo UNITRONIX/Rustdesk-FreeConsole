@@ -198,7 +198,7 @@ func TestWSRelayLargeMessagePreserved(t *testing.T) {
 	}
 }
 
-func TestRelayRejectsMixedTCPAndWS(t *testing.T) {
+func TestMixedWSAndTCPRelayPreservesFraming(t *testing.T) {
 	cfg := config.DefaultConfig()
 	ln, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -219,7 +219,7 @@ func TestRelayRejectsMixedTCPAndWS(t *testing.T) {
 	uuid := "mixed-transport-uuid-290"
 	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/", cfg.WSRelayPort())
 
-	// First peer: WebSocket RequestRelay
+	// First peer: WebSocket RequestRelay.
 	ws, _, err := websocket.Dial(ctx, wsURL, nil)
 	if err != nil {
 		t.Fatalf("WS dial: %v", err)
@@ -235,9 +235,7 @@ func TestRelayRejectsMixedTCPAndWS(t *testing.T) {
 	if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
 		t.Fatalf("WS write: %v", err)
 	}
-	time.Sleep(50 * time.Millisecond)
-
-	// Second peer: native TCP RequestRelay with same UUID
+	// Second peer: native TCP RequestRelay with the same UUID.
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 5*time.Second)
 	if err != nil {
 		t.Fatalf("TCP dial: %v", err)
@@ -252,13 +250,51 @@ func TestRelayRejectsMixedTCPAndWS(t *testing.T) {
 	}
 
 	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if srv.TotalRelayed.Load() > 0 {
-			t.Fatal("mixed TCP/WS pair must not start a relay session")
-		}
-		time.Sleep(20 * time.Millisecond)
+	for srv.TotalRelayed.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
 	}
-	if srv.ActiveSessions.Load() != 0 {
-		t.Fatalf("active sessions = %d, want 0", srv.ActiveSessions.Load())
+	if srv.TotalRelayed.Load() == 0 {
+		t.Fatal("mixed relay pair was not established")
+	}
+
+	// Native TCP -> WebSocket: remove the BytesCodec header and preserve one
+	// complete WebSocket binary message.
+	fromTCP := []byte("signed-id-over-framed-tcp")
+	if err := codec.WriteRelayFrame(conn, fromTCP); err != nil {
+		t.Fatalf("TCP framed write: %v", err)
+	}
+	readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	typ, gotWS, err := ws.Read(readCtx)
+	if err != nil {
+		t.Fatalf("WS read after TCP frame: %v", err)
+	}
+	if typ != websocket.MessageBinary || string(gotWS) != string(fromTCP) {
+		t.Fatalf("TCP->WS mismatch: type=%v got=%q want=%q", typ, gotWS, fromTCP)
+	}
+
+	// WebSocket -> native TCP: add exactly one RustDesk BytesCodec header.
+	fromWS := []byte("public-key-over-websocket")
+	if err := ws.Write(ctx, websocket.MessageBinary, fromWS); err != nil {
+		t.Fatalf("WS data write: %v", err)
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatalf("TCP deadline: %v", err)
+	}
+	gotTCP, err := codec.ReadRelayFrame(conn)
+	if err != nil {
+		t.Fatalf("TCP framed read after WS message: %v", err)
+	}
+	if string(gotTCP) != string(fromWS) {
+		t.Fatalf("WS->TCP mismatch: got=%q want=%q", gotTCP, fromWS)
+	}
+
+	// Ending the TCP side must produce a standards-compliant WS close frame.
+	conn.Close()
+	closeCtx, closeCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer closeCancel()
+	_, _, err = ws.Read(closeCtx)
+	if status := websocket.CloseStatus(err); status != websocket.StatusNormalClosure {
+		t.Fatalf("WS close status=%v, err=%v; want normal closure", status, err)
 	}
 }
