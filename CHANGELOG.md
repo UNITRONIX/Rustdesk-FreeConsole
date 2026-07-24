@@ -1,12 +1,5 @@
 ## [Unreleased]
 
-### Changed
-- _(none yet)_
-
----
-
-## [3.3.174] — 2026-07-24
-
 ### Added
 - **OIDC login for stock RustDesk desktop clients (#304):** when panel OIDC is enabled, RustDesk Login shows an SSO option (`/api/login-options` + `/api/oidc/auth` / `auth-query`, same IdP config as panel SSO). Ships via panel update (Go API restart). Verify: enable OIDC → client SSO button → IdP login → access token.
 - **Guest Access Links for Web Remote / RdClient (#274):** time-limited opaque links with a device allowlist; guests open `/remote/guest?t=…` without a Console session. Mesh single-device share tunnel auth works with a valid `mesh_share` token.
@@ -35,7 +28,17 @@
 - Dependency / CI hardening: npm audit overrides (`tar` ≥7.5.21), govulncheck, Go toolchain bump, WebSocket auth for bd-signal / remote-agent.
 
 ### Changed
-- Stable channel jump from **3.3.39** (previous `main`) through development patches **3.3.40–3.3.173**. Full per-patch history remains below; this section is the operator-facing **3.4.0** release summary (CI renames `[Unreleased]` on merge to `main`).
+- Stable channel jump from **3.3.39** (previous `main`) through development patches **3.3.40–3.3.174**. Full per-patch history remains below; this section is the operator-facing **3.4.0** release summary (CI renames `[Unreleased]` on merge to `main`).
+
+---
+
+## [3.3.174] — 2026-07-24
+
+### Security
+- Guest WebSocket proxy validates access-link tokens before upgrade; RustDesk OIDC auth-query requires device id/uuid when pending recorded them; `tar` and `golang.org/x/text` bumps for audit/govulncheck.
+
+### Changed
+- _(none yet)_
 
 ---
 
