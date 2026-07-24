@@ -74,39 +74,53 @@ func (s *Server) handleUpdateBillingPackage(w http.ResponseWriter, r *http.Reque
 
 // DELETE /api/billing/packages/{id}
 func (s *Server) handleDeleteBillingPackage(w http.ResponseWriter, r *http.Request) {
-	if err := s.db.DeleteBillingPackage(r.PathValue("id")); err != nil {
+	id := r.PathValue("id")
+	if n, err := s.db.CountBillingContractsByPackage(id); err == nil && n > 0 {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "package has active assignments"})
+		return
+	}
+	if err := s.db.DeleteBillingPackage(id); err != nil {
 		writeInternalError(w, err, "DeleteBillingPackage")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 }
 
-// GET /api/billing/contracts?org_id=
+// GET /api/billing/contracts?target_type=&target_key=&org_id=&status=
 func (s *Server) handleListBillingContracts(w http.ResponseWriter, r *http.Request) {
 	filter := db.BillingContractFilter{
-		OrgID:  r.URL.Query().Get("org_id"),
-		Status: r.URL.Query().Get("status"),
+		TargetType: r.URL.Query().Get("target_type"),
+		TargetKey:  r.URL.Query().Get("target_key"),
+		OrgID:      r.URL.Query().Get("org_id"),
+		Status:     r.URL.Query().Get("status"),
 	}
-	contracts, err := s.db.ListBillingOrgContracts(filter)
+	contracts, err := s.db.ListBillingContracts(filter)
 	if err != nil {
-		writeInternalError(w, err, "ListBillingOrgContracts")
+		writeInternalError(w, err, "ListBillingContracts")
 		return
 	}
 	if contracts == nil {
-		contracts = []*db.BillingOrgContract{}
+		contracts = []*db.BillingContract{}
+	}
+	for _, c := range contracts {
+		c.FillLegacyOrgFields()
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"contracts": contracts})
 }
 
 // POST /api/billing/contracts
 func (s *Server) handleCreateBillingContract(w http.ResponseWriter, r *http.Request) {
-	var body db.BillingOrgContract
+	var body db.BillingContract
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
-	if body.OrgID == "" || body.PackageID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "org_id and package_id required"})
+	if err := billing.NormalizeContractTarget(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if body.PackageID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "package_id required"})
 		return
 	}
 	if body.ID == "" {
@@ -123,19 +137,28 @@ func (s *Server) handleCreateBillingContract(w http.ResponseWriter, r *http.Requ
 			body.RemainingMinutes = pkg.IncludedMinutes
 		}
 	}
-	if err := s.db.CreateBillingOrgContract(&body); err != nil {
-		writeInternalError(w, err, "CreateBillingOrgContract")
+	if existing, _ := s.db.GetActiveBillingContract(body.TargetType, body.TargetKey); existing != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "assignment already exists for this target"})
 		return
 	}
+	if err := s.db.CreateBillingContract(&body); err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "assignment already exists for this target"})
+			return
+		}
+		writeInternalError(w, err, "CreateBillingContract")
+		return
+	}
+	body.FillLegacyOrgFields()
 	writeJSON(w, http.StatusCreated, body)
 }
 
 // PUT /api/billing/contracts/{id}
 func (s *Server) handleUpdateBillingContract(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	existing, err := s.db.GetBillingOrgContract(id)
+	existing, err := s.db.GetBillingContract(id)
 	if err != nil {
-		writeInternalError(w, err, "GetBillingOrgContract")
+		writeInternalError(w, err, "GetBillingContract")
 		return
 	}
 	if existing == nil {
@@ -177,11 +200,47 @@ func (s *Server) handleUpdateBillingContract(w http.ResponseWriter, r *http.Requ
 			existing.Currency = cur
 		}
 	}
-	if err := s.db.UpdateBillingOrgContract(existing); err != nil {
-		writeInternalError(w, err, "UpdateBillingOrgContract")
+	if raw, ok := patch["valid_from"]; ok {
+		var t *time.Time
+		if err := json.Unmarshal(raw, &t); err == nil {
+			existing.ValidFrom = t
+		}
+	}
+	if raw, ok := patch["valid_until"]; ok {
+		var t *time.Time
+		if err := json.Unmarshal(raw, &t); err == nil {
+			existing.ValidUntil = t
+		}
+	}
+	if err := s.db.UpdateBillingContract(existing); err != nil {
+		writeInternalError(w, err, "UpdateBillingContract")
 		return
 	}
+	existing.FillLegacyOrgFields()
 	writeJSON(w, http.StatusOK, existing)
+}
+
+// DELETE /api/billing/contracts/{id}
+func (s *Server) handleDeleteBillingContract(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.db.DeleteBillingContract(id); err != nil {
+		writeInternalError(w, err, "DeleteBillingContract")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
+// GET /api/billing/stats
+func (s *Server) handleBillingStats(w http.ResponseWriter, r *http.Request) {
+	expiring, _ := s.db.CountBillingContractsExpiringWithin(30)
+	active := 0
+	if s.billing != nil {
+		active = s.billing.ActiveSessionCount()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"active_sessions":      active,
+		"contracts_expiring_30d": expiring,
+	})
 }
 
 // GET /api/billing/sessions

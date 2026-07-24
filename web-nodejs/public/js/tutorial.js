@@ -86,13 +86,6 @@
                 highlight: false
             },
             {
-                selector: '#desktop-toggle-btn',
-                title: t('tutorial.console_desktop_title', 'Desktop Mode'),
-                text: t('tutorial.console_desktop_text', 'Switch to desktop mode for a windowed workspace with widgets. Perfect for multi-tasking and monitoring dashboards.'),
-                position: 'left',
-                highlight: true
-            },
-            {
                 selector: null,
                 title: t('tutorial.console_complete_title', 'You\'re Ready!'),
                 text: t('tutorial.console_complete_text', 'Explore the sidebar categories to discover all features. Click the Help icon anytime to restart this guide.'),

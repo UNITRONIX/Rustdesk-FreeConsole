@@ -496,36 +496,40 @@ function initChatRelay(server, sessionMiddleware, betterdeskApi) {
 
     const wss = new WebSocket.Server({ noServer: true });
     const { enforceOrigin } = require('../middleware/wsOrigin');
+    const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
-    server.on('upgrade', (req, socket, head) => {
-        const url = new URL(req.url, `http://${req.headers.host}`);
-        const pathname = url.pathname;
+    registerUpgradeHandler(
+        server,
+        (pathname) => /^\/ws\/chat\/[^/]+$/.test(pathname) || /^\/ws\/chat-operator\/[^/]+$/.test(pathname),
+        (req, socket, head) => {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const pathname = url.pathname;
 
-        const agentMatch = pathname.match(/^\/ws\/chat\/([^/]+)$/);
-        if (agentMatch) {
-            if (!enforceOrigin(req, socket, `chat-agent ${pathname}`)) return;
-            wss.handleUpgrade(req, socket, head, (ws) => {
-                wss.emit('connection', ws, req, 'agent', agentMatch[1]);
-            });
-            return;
-        }
-
-        const opMatch = pathname.match(/^\/ws\/chat-operator\/([^/]+)$/);
-        if (opMatch) {
-            if (!enforceOrigin(req, socket, `chat-operator ${pathname}`)) return;
-            sessionMiddleware(req, {}, () => {
-                if (!req.session || !req.session.userId) {
-                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                    socket.destroy();
-                    return;
-                }
+            const agentMatch = pathname.match(/^\/ws\/chat\/([^/]+)$/);
+            if (agentMatch) {
+                if (!enforceOrigin(req, socket, `chat-agent ${pathname}`)) return;
                 wss.handleUpgrade(req, socket, head, (ws) => {
-                    wss.emit('connection', ws, req, 'operator', opMatch[1]);
+                    wss.emit('connection', ws, req, 'agent', agentMatch[1]);
                 });
-            });
-            return;
+                return;
+            }
+
+            const opMatch = pathname.match(/^\/ws\/chat-operator\/([^/]+)$/);
+            if (opMatch) {
+                if (!enforceOrigin(req, socket, `chat-operator ${pathname}`)) return;
+                sessionMiddleware(req, {}, () => {
+                    if (!req.session || !req.session.userId) {
+                        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                        socket.destroy();
+                        return;
+                    }
+                    wss.handleUpgrade(req, socket, head, (ws) => {
+                        wss.emit('connection', ws, req, 'operator', opMatch[1]);
+                    });
+                });
+            }
         }
-    });
+    );
 
     wss.on('connection', (ws, req, role, deviceId) => {
         if (role === 'agent') {

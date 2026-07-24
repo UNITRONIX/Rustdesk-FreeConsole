@@ -171,6 +171,9 @@ module.exports = {
     // bypass is ignored and TOTP is enforced normally on :21121.
     rustdeskApiDisableTotpAck: (process.env.RUSTDESK_API_DISABLE_TOTP_ACKNOWLEDGED || 'false').toLowerCase() === 'true',
 
+    // Device visibility for non-admin roles: open (legacy overlay ACL) or restricted (default-deny).
+    deviceScopeDefault: (process.env.DEVICE_SCOPE_DEFAULT || 'open').toLowerCase(),
+
     // HTTPS / SSL
     httpsEnabled: (process.env.HTTPS_ENABLED || 'false').toLowerCase() === 'true',
     httpsPort: parseInt(process.env.HTTPS_PORT, 10) || 5443,
@@ -242,7 +245,10 @@ module.exports = {
 
     // App info
     appName: 'BetterDesk Console',
-    appVersion: pkgVersion
+    appVersion: pkgVersion,
+
+    // Logging (default warn in production — see lib/logger.js)
+    logLevel: (process.env.LOG_LEVEL || '').trim().toLowerCase() || (isProduction ? 'warn' : 'info'),
 };
 
 // H-2: warn when console→Go API traffic leaves localhost in production.

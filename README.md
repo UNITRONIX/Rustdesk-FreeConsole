@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)
-![Version](https://img.shields.io/badge/version-3.3.39-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-3.3.174-brightgreen.svg)
 ![Security](https://img.shields.io/badge/Security-TLS%20%2B%20NaCl%20%2B%20TOTP%20%2B%20E2EE-green.svg)
 ![Database](https://img.shields.io/badge/DB-SQLite%20%2B%20PostgreSQL-blue.svg)
 ![CDAP](https://img.shields.io/badge/CDAP-v1.0-orange.svg)
@@ -459,7 +459,7 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 | **Audit logging** | Ring buffer (10K events) + optional JSON-lines file output |
 | **Error handling** | Never exposes internal details to clients |
 | **Credentials file** | Admin password file written with mode `0600` |
-| **Proxy trust** | `X-Forwarded-For` only when `TRUST_PROXY=Y` |
+| **Proxy trust** | `X-Forwarded-For` only when `TRUST_PROXY=Y` and (Go) `TRUSTED_PROXIES` lists the proxy |
 
 ### Console-Level Security
 
@@ -510,7 +510,7 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 **One-line install:**
 
 ```bash
-# Docker (pre-built images, auto-configured)
+# Docker (official all-in-one image, auto-configured)
 curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
 
 # Native (git clone + betterdesk.sh --auto)
@@ -573,11 +573,14 @@ The script installs Go, compiles the server, sets up NSSM services (`BetterDeskS
 curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
 ```
 
-The installer downloads pre-built GHCR images, detects your relay address, opens firewall ports (UFW/firewalld when active), starts containers, and prints admin credentials plus RustDesk client settings.
+The installer downloads the **official all-in-one** GHCR image (`ghcr.io/unitronix/betterdesk`), detects your relay address, opens firewall ports (UFW/firewalld when active), starts the container, and prints admin credentials plus RustDesk client settings.
 
 **Options:**
 
 ```bash
+# Legacy two-container layout (server + console images)
+curl -fsSL .../install.sh | sudo bash -s -- --split
+
 # LAN-only server (use host LAN IP for relay)
 curl -fsSL .../install.sh | sudo bash -s -- --relay-mode local
 
@@ -590,18 +593,15 @@ curl -fsSL .../install.sh | sudo bash -s -- --native
 
 Install files land in `/opt/betterdesk/docker` (Docker) or `/opt/betterdesk/source` (native). See `install.sh --help` for all flags.
 
-**🚀 Quick Start (no build required):**
+**🚀 Quick Start (no build required — official single image):**
 
 ```bash
-# Download and run - that's it!
-curl -fsSL https://raw.githubusercontent.com/UNITRONIX/Rustdesk-FreeConsole/main/docker-compose.quick.yml -o docker-compose.yml
-docker compose up -d
-
-# Get admin password (helper re-execs as betterdesk — required with cap_drop:ALL)
-docker compose exec console betterdesk-show-admin-credentials
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.single.yml -o docker-compose.yml
+docker compose pull && docker compose up -d
+docker compose exec betterdesk betterdesk-show-admin-credentials
 ```
 
-Open http://localhost:5000 — done in 30 seconds! See [DOCKER_QUICKSTART.md](docs/docker/DOCKER_QUICKSTART.md) for more options.
+Open http://localhost:5000 — API on port **21121**. See [DOCKER_QUICKSTART.md](docs/docker/DOCKER_QUICKSTART.md) for legacy split layout and more options.
 
 **Build from source (advanced):**
 
@@ -687,13 +687,22 @@ After installing BetterDesk server, configure your RustDesk desktop clients to c
 
 ### Mass Deployment
 
-For deploying to many clients, use the RustDesk configuration string:
+BetterDesk supports three automated configuration paths. Full Windows / Intune / PSADT steps: **[docs/setup/RUSTDESK_CLIENT_DEPLOYMENT.md](docs/setup/RUSTDESK_CLIENT_DEPLOYMENT.md)**.
+
+The web console **Dashboard → RustDesk Client Configuration** card provides manual fields, a QR code, **Copy deploy string** (for scripts), and an **Intune / PSADT script** snippet. Set **Client server address** if the panel URL differs from the IP/DNS clients use, set `PANEL_PUBLIC_HOST` in the console `.env` for a single shared host, or configure **Settings → Public client endpoints** (or `PUBLIC_SERVER_ID` / `PUBLIC_RELAY_SERVER` / `PUBLIC_API_URL` in `.env`) when ID server, relay, and API use different public hostnames.
+
+#### 1. QR / deep link
 
 ```
-rustdesk://config/<base64-encoded-json>
+rustdesk://config/<standard-base64-encoded-json>
 ```
 
-JSON structure:
+#### 2. CLI / Import (`rustdesk.exe --config`)
+
+Uses a **reversed** base64 string (no `=` padding) — the same format as **Settings → Network → Import Server Config** in the RustDesk client. **Do not** pass raw JSON.
+
+JSON payload (before encoding):
+
 ```json
 {
   "host": "betterdesk.example.com",
@@ -703,10 +712,16 @@ JSON structure:
 }
 ```
 
-You can also use the `--config` command-line flag when starting RustDesk:
-```bash
-rustdesk --config '{"host":"betterdesk.example.com","key":"<pubkey>"}'
+PowerShell (generate deploy string):
+
+```powershell
+$json = @{ host='betterdesk.example.com'; relay='betterdesk.example.com'; api='http://betterdesk.example.com:21114'; key='<pubkey>' } | ConvertTo-Json -Compress
+$b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json)).TrimEnd('=')
+$CfgString = -join ($b64[-1..-($b64.Length)] -join '')
+& "${env:ProgramFiles}\RustDesk\rustdesk.exe" --config $CfgString
 ```
+
+Example template script: [`scripts/deploy/rustdesk-apply-config.ps1.example`](scripts/deploy/rustdesk-apply-config.ps1.example).
 
 ### Desktop Client Login
 
@@ -716,10 +731,10 @@ RustDesk desktop clients can **log in** to the BetterDesk server using their use
 
 1. Open the RustDesk client
 2. Click the **account icon** (person silhouette) in the bottom-left corner
-3. Enter your **username** and **password** (the same credentials used for the Web Console)
+3. Enter your **username** and **password** — the same credentials as the Web Console (local accounts or **LDAP/Active Directory** when LDAP is enabled in Settings)
 4. Click **Login**
 
-> **Note:** Login is handled by **Go on 21114**. Use **`http://<server>:21114`** (default) or **`http://<server>:21121`** (backward compatibility). The web panel (5000) is management UI only.
+> **Note:** Login is handled by **Go on 21114**. Use **`http://<server>:21114`** (default) or **`http://<server>:21121`** (backward compatibility). The web panel (5000) is management UI only. With LDAP enabled, directory users sign in here with their AD password; accounts are auto-provisioned on first successful login (same as the web console).
 
 #### What Login Enables
 
@@ -751,6 +766,7 @@ RustDesk desktop clients can **log in** to the BetterDesk server using their use
 | "Failed to parse response" with `https://` | Use **plain HTTP** on :21114 or :21121 |
 | TOTP 2FA prompt | Enter the 6-digit code from your authenticator app (if 2FA is enabled for your account) |
 | "Invalid credentials" | Reset password via Web Console → Users, or run the installer with option 6 |
+| LDAP/AD "Invalid credentials" in client but web console works | Update to latest release (Fixes #218); confirm LDAP test in Settings → LDAP; use API URL `:21114` or `:21121`, not the panel port `:5000` |
 
 ### Enabling Pro Features
 
@@ -801,16 +817,11 @@ After logging in, you can confirm Pro features are working:
 
 #### Mass Deployment with Pro Enabled
 
-To deploy pre-configured clients with Pro features active across your organization:
+Use the dashboard **Copy deploy string** or generate the reversed base64 string (see [Mass Deployment](#mass-deployment) above). After deployment, users log in individually to activate per-user Pro features.
 
-```bash
-# Configuration string (Base64-encoded JSON)
-rustdesk://config/eyJob3N0IjoiYmV0dGVyZGVzay5leGFtcGxlLmNvbSIsInJlbGF5IjoiYmV0dGVyZGVzay5leGFtcGxlLmNvbSIsImFwaSI6Imh0dHA6Ly9iZXR0ZXJkZXNrLmV4YW1wbGUuY29tOjIxMTIxIiwia2V5IjoiPHB1YmtleT4ifQ==
-```
-
-Or via command line:
-```bash
-rustdesk --config '{"host":"betterdesk.example.com","relay":"betterdesk.example.com","api":"http://betterdesk.example.com:21114","key":"<pubkey>"}'
+```powershell
+# After MSI — elevated PowerShell
+& "${env:ProgramFiles}\RustDesk\rustdesk.exe" --config '<deploy-string-from-dashboard>'
 ```
 
 > **Note:** Users still need to log in individually after initial configuration to activate per-user features (address book sync, audit trail, etc.).
@@ -834,6 +845,8 @@ Ensure the following **outbound** ports are accessible from clients to the serve
 ## 🔒 TLS / SSL Certificates
 
 BetterDesk supports TLS on all layers: Go server transport (signal + relay), Go server HTTPS API, and the Node.js web console.
+
+**External reverse proxy (Caddy/Nginx on :443):** terminate TLS at the proxy; BetterDesk panel stays HTTP on `127.0.0.1:5000`. See [docs/setup/REVERSE_PROXY.md](docs/setup/REVERSE_PROXY.md) and `sudo betterdesk.sh` → SSL Configuration → **External reverse proxy**.
 
 ### Self-Signed Certificate (Quick Start)
 
@@ -968,14 +981,15 @@ You can **upgrade to Let's Encrypt** or a custom certificate at any time using m
 | `-jwt-secret` | *(auto)* | `JWT_SECRET` | JWT signing secret (auto-generated if omitted) |
 | `-jwt-expiry` | `24` | `JWT_EXPIRY_HOURS` | JWT token expiry in hours |
 | `-force-https` | `false` | `FORCE_HTTPS=Y` | Reject non-TLS API requests |
-| `-trust-proxy` | `false` | `TRUST_PROXY=Y` | Trust `X-Forwarded-For` / `X-Real-IP` headers |
+| `-trust-proxy` | `false` | `TRUST_PROXY=Y` | Trust `X-Forwarded-For` / `X-Real-IP` when peer is in `--trusted-proxies` |
+| `-trusted-proxies` | (empty) | `TRUSTED_PROXIES` | Comma-separated CIDR/IP allowlist of reverse proxies |
 | `-relay-max-conns-ip` | `20` | `RELAY_MAX_CONNS_PER_IP` | Max relay connections per IP |
 | `-signal-rate-limit-per-ip` | `20` | `SIGNAL_RATE_LIMIT_PER_IP` | Max signal registrations per proxy/client bucket per minute (`0` = disabled) |
 | `-init-admin-user` | `admin` | `INIT_ADMIN_USER` | Initial admin username |
 | `-init-admin-pass` | *(auto)* | `INIT_ADMIN_PASS` | Initial admin password (auto-generated if omitted) |
 | `-version` | — | — | Show version and exit |
 
-> Signal proxy note: UDP/TCP signal traffic on port `21116` cannot use HTTP headers such as `X-Forwarded-For`. `TRUST_PROXY` only affects HTTP/API traffic. For NGINX stream or Docker proxy deployments, set `SIGNAL_RATE_LIMIT_PER_IP` higher for very large fleets, or `0` only on trusted private networks. Current builds scope registration buckets by proxy/client address plus peer ID to avoid false positives when multiple devices share one proxy address.
+> Signal proxy note: UDP/TCP signal traffic on port `21116` cannot use HTTP headers such as `X-Forwarded-For`. `TRUST_PROXY` + `TRUSTED_PROXIES` apply to HTTP/API traffic and to signal **WebSocket** (`/ws/id`) client address headers. For NGINX stream or Docker proxy deployments, set `SIGNAL_RATE_LIMIT_PER_IP` higher for very large fleets, or `0` only on trusted private networks. Current builds scope registration buckets by proxy/client address plus peer ID to avoid false positives when multiple devices share one proxy address.
 
 ### Environment-Only Variables
 
@@ -1015,7 +1029,8 @@ RUSTDESK_API_PROXY=true
 HTTPS_ENABLED=false    # Enable HTTPS on console
 SSL_CERT_PATH=         # SSL certificate path
 SSL_KEY_PATH=          # SSL key path
-TRUST_PROXY=false      # Trust X-Forwarded-For
+TRUST_PROXY=false      # Trust X-Forwarded-For (Go also needs TRUSTED_PROXIES)
+TRUSTED_PROXIES=       # e.g. 127.0.0.1/32,::1/128 when TRUST_PROXY=Y
 DB_PATH=               # Path to SQLite database
 BETTERDESK_API_URL=    # Go server API URL (http://localhost:21114/api)
 BETTERDESK_API_KEY=    # API key for Go server (env: BETTERDESK_API_KEY or HBBS_API_KEY)

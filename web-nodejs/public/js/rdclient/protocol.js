@@ -153,22 +153,24 @@ class RDProtocol {
         return this.types.Message.decode(protoBytes);
     }
 
-    // ---- Protocol message builders ----
+    // Client version advertised to RustDesk peers (keep in sync with product baseline)
+    static CLIENT_VERSION = 'BetterDesk-Web/1.4.8';
 
     /**
      * Build PunchHoleRequest for connecting to a device
      * @param {string} deviceId
      * @param {string} [serverKey] - Server public key (base64) for licence_key validation
      */
-    buildPunchHoleRequest(deviceId, serverKey) {
+    buildPunchHoleRequest(deviceId, serverKey, connType) {
+        const ct = connType != null ? connType : this.enums.ConnType.values.DEFAULT_CONN;
         return {
             punchHoleRequest: {
                 id: deviceId,
                 natType: this.enums.NatType.values.SYMMETRIC, // Browser always NAT
                 licenceKey: serverKey || '',
-                connType: this.enums.ConnType.values.DEFAULT_CONN,
+                connType: ct,
                 token: '',
-                version: 'BetterDesk-Web/1.0',
+                version: RDProtocol.CLIENT_VERSION,
                 forceRelay: true // Browser must use relay
             }
         };
@@ -181,7 +183,8 @@ class RDProtocol {
      * @param {string} relayServer - Relay server address
      * @param {string} [serverKey] - Server public key for licence_key validation (hbbr checks this)
      */
-    buildRequestRelay(deviceId, uuid, relayServer, serverKey) {
+    buildRequestRelay(deviceId, uuid, relayServer, serverKey, connType) {
+        const ct = connType != null ? connType : this.enums.ConnType.values.DEFAULT_CONN;
         return {
             requestRelay: {
                 id: deviceId,
@@ -189,7 +192,7 @@ class RDProtocol {
                 relayServer: relayServer || '',
                 licenceKey: serverKey || '',
                 secure: false,
-                connType: this.enums.ConnType.values.DEFAULT_CONN,
+                connType: ct,
                 token: ''
             }
         };
@@ -223,6 +226,29 @@ class RDProtocol {
      * @param {Uint8Array} passwordHash
      * @param {Object} opts
      */
+    /**
+     * Build LoginRequest for a dedicated FILE_TRANSFER session (RustDesk file manager).
+     * @param {Uint8Array} passwordHash
+     * @param {Object} opts
+     */
+    buildFileTransferLoginRequest(passwordHash, opts = {}) {
+        return {
+            loginRequest: {
+                username: opts.username || '',
+                password: passwordHash,
+                myId: opts.myId || 'web-client-ft',
+                myName: opts.myName || 'BetterDesk Web',
+                myPlatform: 'Web',
+                version: RDProtocol.CLIENT_VERSION,
+                sessionId: Date.now(),
+                fileTransfer: {
+                    dir: opts.dir != null ? opts.dir : '',
+                    showHidden: !!opts.showHidden
+                }
+            }
+        };
+    }
+
     buildLoginRequest(passwordHash, opts = {}) {
         // Dynamically detect codec support
         const hasWebCodecs = typeof VideoDecoder !== 'undefined';
@@ -238,7 +264,7 @@ class RDProtocol {
                 myId: opts.myId || 'web-client',
                 myName: opts.myName || 'BetterDesk Web',
                 myPlatform: 'Web',
-                version: 'BetterDesk-Web/1.0',
+                version: RDProtocol.CLIENT_VERSION,
                 sessionId: Date.now(),
                 option: {
                     imageQuality: this.enums.ImageQuality.values[quality] || this.enums.ImageQuality.values.Best,
@@ -287,10 +313,35 @@ class RDProtocol {
         return {
             abilityVp9: can('vp9', hasWebCodecs),
             abilityH264: can('h264', hasWebCodecs || hasJMuxer),
-            abilityH265: can('h265', false),
+            abilityH265: can('h265', hasWebCodecs),
             abilityAv1: can('av1', hasWebCodecs),
             abilityVp8: can('vp8', hasWebCodecs),
             prefer: this.preferCodecValue(o.prefer || (hasWebCodecs ? 'Auto' : 'H264'))
+        };
+    }
+
+    /**
+     * Build SupportedEncoding for Misc.supported_encoding (RustDesk 1.4.x negotiation).
+     * @param {Object} [abilities] - probed { h264, h265, vp8, av1 } booleans
+     * @returns {Object}
+     */
+    buildSupportedEncoding(abilities) {
+        const a = abilities || {};
+        const has = (key, fallback) => (a[key] != null ? !!a[key] : !!fallback);
+        const hasWebCodecs = typeof VideoDecoder !== 'undefined';
+        const hasJMuxer = typeof JMuxer !== 'undefined';
+        return {
+            h264: has('h264', hasWebCodecs || hasJMuxer),
+            h265: has('h265', hasWebCodecs),
+            vp8: has('vp8', hasWebCodecs),
+            av1: has('av1', hasWebCodecs),
+            i444: {
+                vp8: false,
+                vp9: false,
+                av1: false,
+                h264: false,
+                h265: false
+            }
         };
     }
 
@@ -300,15 +351,6 @@ class RDProtocol {
     buildMouseEvent(mask, x, y, modifiers = []) {
         return {
             mouseEvent: { mask, x, y, modifiers }
-        };
-    }
-
-    /**
-     * Build KeyEvent message
-     */
-    buildKeyEvent(keyData) {
-        return {
-            keyEvent: keyData
         };
     }
 
@@ -327,14 +369,20 @@ class RDProtocol {
     }
 
     /**
-     * Build Clipboard message
+     * Build Clipboard message (optional zstd compression for large payloads)
+     * @param {string} text
+     * @returns {Promise<Object>}
      */
-    buildClipboard(text) {
+    async buildClipboard(text) {
         const encoder = new TextEncoder();
+        const raw = encoder.encode(text || '');
+        const packed = (typeof RDCompress !== 'undefined')
+            ? await RDCompress.compressZstd(raw)
+            : { content: raw, compress: false };
         return {
             clipboard: {
-                compress: false,
-                content: encoder.encode(text),
+                compress: packed.compress,
+                content: packed.content,
                 format: this.enums.ClipboardFormat.values.Text
             }
         };
@@ -443,7 +491,7 @@ class RDProtocol {
     }
 
     /**
-     * Build FileAction.receive (request download from remote)
+     * Build FileAction.receive (operator uploads to remote — remote dir + FileEntry[]).
      * @param {number} id - Transfer ID
      * @param {string} path - Remote directory path
      * @param {Array<Object>} files - Array of { name, size, modified_time, entry_type }
@@ -452,12 +500,25 @@ class RDProtocol {
      * @returns {Object}
      */
     buildFileReceiveRequest(id, path, files, fileNum, totalSize) {
+        const normalized = (files || []).map((f) => {
+            const entry = {
+                entryType: f.entryType != null ? f.entryType : (f.entry_type != null ? f.entry_type : 4),
+                name: f.name || '',
+                size: Number(f.size || 0),
+                modifiedTime: Number(f.modifiedTime != null ? f.modifiedTime : (f.modified_time || 0)),
+                isHidden: !!(f.isHidden || f.is_hidden)
+            };
+            if (this.types.FileEntry) {
+                return this.types.FileEntry.create(entry);
+            }
+            return entry;
+        });
         return {
             fileAction: {
                 receive: {
                     id: id,
                     path: path,
-                    files: files || [],
+                    files: normalized,
                     fileNum: fileNum || 0,
                     totalSize: totalSize || 0
                 }
@@ -466,7 +527,7 @@ class RDProtocol {
     }
 
     /**
-     * Build FileAction.send (request upload to remote)
+     * Build FileAction.send (operator downloads from remote — full remote file path).
      * @param {number} id - Transfer ID
      * @param {string} path - Remote destination path
      * @param {boolean} [includeHidden]
@@ -576,6 +637,31 @@ class RDProtocol {
                 rename: { id: id, path: path, newName: newName }
             }
         };
+    }
+
+    /**
+     * Build FileResponse.digest (operator sends local file metadata before upload blocks).
+     * @param {number} id
+     * @param {number} fileNum
+     * @param {number} fileSize
+     * @param {number} lastModified - Unix seconds
+     * @param {Object} [opts]
+     * @returns {Object}
+     */
+    buildFileDigest(id, fileNum, fileSize, lastModified, opts = {}) {
+        const digest = {
+            id: id,
+            fileNum: fileNum || 0,
+            fileSize: Number(fileSize || 0),
+            lastModified: Number(lastModified || 0)
+        };
+        if (opts.isUpload) digest.isUpload = true;
+        if (opts.isIdentical) digest.isIdentical = true;
+        if (opts.isResume) digest.isResume = true;
+        if (opts.transferredSize != null) {
+            digest.transferredSize = Number(opts.transferredSize);
+        }
+        return { fileResponse: { digest: digest } };
     }
 
     /**
@@ -794,6 +880,11 @@ class RDProtocol {
                         buffer.copyWithin(0, offset, dataLen);
                     }
                     dataLen = remaining;
+                }
+
+                // Release oversized backing store after large spikes
+                if (dataLen === 0 && buffer.length > 65536) {
+                    buffer = new Uint8Array(0);
                 }
 
                 return frames;

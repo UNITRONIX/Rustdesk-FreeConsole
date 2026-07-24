@@ -6,26 +6,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../services/database');
 const keyService = require('../services/keyService');
+const clientConfigHost = require('../services/clientConfigHost');
 const config = require('../config/config');
 const serverBackend = require('../services/serverBackend');
 const { requireAuth } = require('../middleware/auth');
-
-function getRequestHost(req) {
-    const rawHost = String(req.headers['x-forwarded-host'] || req.headers.host || req.hostname || 'localhost');
-    const firstHost = rawHost.split(',')[0].trim();
-
-    if (firstHost.startsWith('[')) {
-        const end = firstHost.indexOf(']');
-        return end > 0 ? firstHost.slice(1, end) : firstHost;
-    }
-
-    const colonCount = (firstHost.match(/:/g) || []).length;
-    if (colonCount === 1) {
-        return firstHost.split(':')[0];
-    }
-
-    return firstHost;
-}
 
 /**
  * GET / - Dashboard page
@@ -162,14 +146,18 @@ router.get('/api/server/status', requireAuth, async (req, res) => {
  */
 router.get('/api/dashboard/client-config', requireAuth, async (req, res) => {
     try {
-        const serverHost = getRequestHost(req);
-        const clientConfig = keyService.getClientConfig(serverHost);
-        const qr = await keyService.getServerConfigQR(serverHost);
+        const queryHost = typeof req.query.host === 'string' ? req.query.host : '';
+        const endpoints = clientConfigHost.resolveRustDeskEndpoints(req, queryHost);
+        const clientConfig = keyService.getClientConfig(endpoints);
+        const qr = await keyService.getServerConfigQR(endpoints);
 
         res.json({
             success: true,
             data: {
                 ...clientConfig,
+                client_server_host: endpoints.host,
+                endpoint_sources: endpoints.sources,
+                env_override_active: endpoints.env_override_active,
                 qr
             }
         });

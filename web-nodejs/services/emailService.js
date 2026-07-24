@@ -24,6 +24,15 @@ const appConfig = require('../config/config');
 let _transporter = null;
 let _cachedConfig = null;
 
+function countRecipients(to) {
+    if (Array.isArray(to)) return to.filter(Boolean).length;
+    return String(to || '')
+        .split(',')
+        .map((recipient) => recipient.trim())
+        .filter(Boolean)
+        .length;
+}
+
 /**
  * Load SMTP configuration from DB.
  * Falls back to environment variables.
@@ -110,7 +119,7 @@ async function sendEmail({ to, subject, text, html }) {
             text,
             html,
         });
-        console.log(`[Email] Sent to ${to}: ${subject}`);
+        console.log(`[Email] Sent message to ${countRecipients(to)} recipient(s)`);
         return true;
     } catch (err) {
         console.error(`[Email] Send failed: ${err.message}`);

@@ -22,6 +22,7 @@ const DEFAULTS = {
     codec: 'Auto',
     adaptiveQuality: true,
     backgroundFps: BACKGROUND_FPS,
+    keyboardMode: 'Auto',
 };
 
 function sanitizePrefs(raw) {
@@ -43,6 +44,9 @@ function sanitizePrefs(raw) {
     const bg = Number(source.backgroundFps);
     if (Number.isFinite(bg) && bg >= 1 && bg <= 5) {
         clean.backgroundFps = Math.round(bg);
+    }
+    if (['Legacy', 'Map', 'Auto'].includes(source.keyboardMode)) {
+        clean.keyboardMode = source.keyboardMode;
     }
 
     return clean;

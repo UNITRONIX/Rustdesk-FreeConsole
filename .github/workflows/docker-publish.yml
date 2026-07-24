@@ -72,6 +72,7 @@ jobs:
 
   build-server:
     needs: read-version
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -147,6 +148,7 @@ jobs:
 
   build-console:
     needs: read-version
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -188,6 +190,7 @@ jobs:
 
   build-allinone:
     needs: read-version
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -231,7 +234,7 @@ jobs:
   update-description:
     needs: [build-server, build-console, build-allinone]
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]'))
     permissions:
       contents: read
 
@@ -260,18 +263,24 @@ jobs:
             echo "| \`ghcr.io/${{ github.repository_owner }}/betterdesk-console\` | ${console_tags:-n/a} |"
             echo "| \`ghcr.io/${{ github.repository_owner }}/betterdesk\` | ${allinone_tags:-n/a} |"
             echo ""
-            echo "### Pin a version (production)"
+            echo "### Pin a version (production — official all-in-one)"
             echo "\`\`\`bash"
             echo "export BETTERDESK_IMAGE_TAG=3.0.0"
-            echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.quick.yml -o docker-compose.yml"
+            echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.quick.single.yml -o docker-compose.yml"
             echo "docker compose pull"
             echo "docker compose up -d"
             echo "\`\`\`"
             echo ""
             echo "### Quick start (rolling latest)"
             echo "\`\`\`bash"
-            echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.quick.yml -o docker-compose.yml"
+            echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.quick.single.yml -o docker-compose.yml"
             echo "BETTERDESK_IMAGE_TAG=latest docker compose up -d"
+            echo "\`\`\`"
+            echo ""
+            echo "### Legacy split layout (two images)"
+            echo "\`\`\`bash"
+            echo "curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.quick.yml -o docker-compose.yml"
+            echo "docker compose pull && docker compose up -d"
             echo "\`\`\`"
             echo ""
             echo "### Package visibility"

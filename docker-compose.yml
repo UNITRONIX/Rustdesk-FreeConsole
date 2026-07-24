@@ -49,6 +49,10 @@ services:
       # new devices); pre-existing volumes keep their current mode. Set to
       # "open", "managed", or "locked" to override.
       - ENROLLMENT_MODE=${ENROLLMENT_MODE:-}
+      - NTP_SERVERS=${NTP_SERVERS:-pool.ntp.org,time.google.com,time.cloudflare.com}
+      - BILLING_MAX_CLOCK_SKEW_MS=${BILLING_MAX_CLOCK_SKEW_MS:-2000}
+      - BILLING_REQUIRE_SYNCED_CLOCK=${BILLING_REQUIRE_SYNCED_CLOCK:-1}
+      - BILLING_TRUST_OS_NTP=${BILLING_TRUST_OS_NTP:-Y}
     networks:
       - betterdesk-net
     restart: unless-stopped

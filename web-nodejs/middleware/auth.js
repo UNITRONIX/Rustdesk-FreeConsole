@@ -94,20 +94,33 @@ function roleHasPermission(role, permission) {
 /**
  * Safe relative return URL for RdClient pages only (/remote…).
  */
+function normalizeRdClientReturnUrl(u) {
+    if (typeof u !== 'string' || u.length === 0) return null;
+    if (/[\r\n\x00\\]/.test(u) || /%(?:00|0a|0d|5c)/i.test(u)) return null;
+    if (!u.startsWith('/') || u.startsWith('//')) return null;
+
+    let parsed;
+    try {
+        parsed = new URL(u, 'https://betterdesk.local');
+    } catch (_) {
+        return null;
+    }
+
+    if (parsed.origin !== 'https://betterdesk.local') return null;
+    if (parsed.pathname !== '/remote' && !parsed.pathname.startsWith('/remote/')) return null;
+    if (parsed.pathname === '/remote/login' || parsed.pathname.startsWith('/remote/login/')) return null;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+}
+
 function isSafeRdClientReturnUrl(u) {
-    if (typeof u !== 'string' || u.length === 0) return false;
-    if (/[\r\n\x00]/.test(u)) return false;
-    if (!u.startsWith('/remote')) return false;
-    if (u.startsWith('//') || u.startsWith('/\\')) return false;
-    if (u.startsWith('/remote/login')) return false;
-    return true;
+    return normalizeRdClientReturnUrl(u) !== null;
 }
 
 function rdClientLoginRedirect(req) {
     const requested = req.originalUrl || req.url || '/remote';
-    const returnParam = isSafeRdClientReturnUrl(requested)
-        ? requested
-        : (isSafeRdClientReturnUrl(req.query.return) ? req.query.return : '/remote');
+    const returnParam = normalizeRdClientReturnUrl(requested)
+        || normalizeRdClientReturnUrl(req.query.return)
+        || '/remote';
     return `/remote/login?return=${encodeURIComponent(returnParam)}`;
 }
 
@@ -160,7 +173,7 @@ function requireRdClientAuth(permission) {
 function rdClientGuestOnly(req, res, next) {
     const role = req.session && req.session.user && req.session.user.role;
     if (req.session && req.session.userId && role !== 'pro' && roleHasPermission(role, 'device.connect')) {
-        const dest = isSafeRdClientReturnUrl(req.query.return) ? req.query.return : '/remote';
+        const dest = normalizeRdClientReturnUrl(req.query.return) || '/remote';
         return res.redirect(dest);
     }
     next();
@@ -228,7 +241,7 @@ function requireRole(role) {
             if (req.path.startsWith('/api/')) {
                 return res.status(403).json({ success: false, error: 'Forbidden' });
             }
-            return res.status(403).render('error', { 
+            return res.status(403).render('errors/403', {
                 title: 'Forbidden',
                 message: 'You do not have permission to access this resource'
             });
@@ -262,7 +275,8 @@ function guestOnly(req, res, next) {
 }
 
 /**
- * Require admin role (super_admin, admin, or global_admin for user management)
+ * Require an elevated admin role (super_admin, admin, global_admin, or server_admin).
+ * Prefer requirePermission() for new routes — this helper exists for legacy call sites.
  */
 function requireAdmin(req, res, next) {
     if (!req.session || !req.session.userId) {
@@ -273,11 +287,14 @@ function requireAdmin(req, res, next) {
     }
     
     const userRole = req.session.user && req.session.user.role;
-    if (!isSuperAdminRole(userRole) && userRole !== 'global_admin') {
+    const allowed = isSuperAdminRole(userRole)
+        || userRole === 'global_admin'
+        || userRole === 'server_admin';
+    if (!allowed) {
         if (req.path.startsWith('/api/')) {
             return res.status(403).json({ success: false, error: 'Admin access required' });
         }
-        return res.status(403).render('errors/403', { 
+        return res.status(403).render('errors/403', {
             title: 'Forbidden',
             message: 'You do not have permission to access this resource'
         });
@@ -324,6 +341,7 @@ module.exports = {
     requirePermission,
     requireRdClientAuth,
     rdClientGuestOnly,
+    normalizeRdClientReturnUrl,
     isSafeRdClientReturnUrl,
     optionalAuth,
     guestOnly,

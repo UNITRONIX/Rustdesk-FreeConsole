@@ -1,11 +1,11 @@
 <%- include('layouts/main', {
     title: _('nav.devices'),
     pageStyles: ['devices', 'device-detail'],
-    pageScripts: ['devices', 'deviceDetail'],
+    pageScripts: ['devices', 'deviceDetail', 'rdclient/mesh-terminal', 'rdclient/mesh-port-forward'],
     currentPage: 'devices',
     breadcrumb: [{ label: _('nav.devices') }],
     body: `
-        <div class="devices-page">
+        <div class="devices-page devices-layout">
             <!-- Header -->
             <div class="devices-header">
                 <div class="devices-title">
@@ -20,9 +20,10 @@
                 </div>
             </div>
 
-            <!-- Folder Tiles -->
-            <div class="folders-bar" id="folders-bar">
-                <div class="folders-chips" id="folders-chips">
+            <!-- Folder & group tiles -->
+            <div class="devices-tile-bars">
+                <div class="folders-bar" id="folders-bar">
+                <div class="folders-chips mobile-tabs-scroll" id="folders-chips">
                     <button class="folder-chip active" data-folder="all">
                         <span class="material-icons chip-icon">devices</span>
                         <span class="chip-label">${_('folders.all_devices')}</span>
@@ -39,10 +40,10 @@
                         <span class="chip-label">${_('folders.create')}</span>
                     </button>
                 </div>
-            </div>
+                </div>
 
-            <!-- Device Group Tiles -->
-            <div class="groups-bar" id="groups-bar">
+                <!-- Device Group Tiles -->
+                <div class="groups-bar" id="groups-bar">
                 <div class="groups-chips" id="groups-chips">
                     <button class="group-chip active" data-group="all">
                         <span class="material-icons chip-icon">hub</span>
@@ -55,10 +56,28 @@
                         <span class="chip-label">${_('devices.create_group')}</span>
                     </button>
                 </div>
+                </div>
+
+                <!-- Access control strategies (RustDesk Pro) -->
+                <div class="devices-strategies-card" id="devices-strategies-card">
+                    <div class="devices-strategies-header">
+                        <div>
+                            <h3>${_('devices.strategies_title')}</h3>
+                            <p>${_('devices.strategies_hint')}</p>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="add-strategy-btn">
+                            <span class="material-icons">policy</span>
+                            ${_('devices.create_strategy')}
+                        </button>
+                    </div>
+                    <div class="devices-strategies-list" id="devices-strategies-list">
+                        <div class="empty-state-inline">${_('devices.loading_strategies')}</div>
+                    </div>
+                </div>
             </div>
 
             <!-- Toolbar -->
-            <div class="devices-toolbar">
+            <div class="devices-toolbar mobile-sticky-toolbar">
                 <div class="toolbar-search search-wrapper">
                     <span class="material-icons">search</span>
                     <input type="text" class="form-input" id="search-input"
@@ -68,8 +87,13 @@
                     <button class="filter-btn active" data-filter="all">${_('devices.filter_all')}</button>
                     <button class="filter-btn" data-filter="online">${_('devices.filter_online')}</button>
                     <button class="filter-btn" data-filter="offline">${_('devices.filter_offline')}</button>
+                    <button class="filter-btn" data-filter="mesh_agent">${_('mesh.filter_mesh')}</button>
                     <button class="filter-btn" data-filter="banned">${_('devices.filter_banned')}</button>
                 </div>
+                <label class="show-deleted-toggle toolbar-toggle" for="show-deleted-input" title="${_('devices.show_deleted')}">
+                    <input type="checkbox" id="show-deleted-input">
+                    <span>${_('devices.show_deleted')}</span>
+                </label>
                 <div class="tag-filter-dropdown">
                     <button class="btn-icon toolbar-icon" id="tags-filter-btn" title="${_('devices.filter_by_tags')}">
                         <span class="material-icons">sell</span>
@@ -108,7 +132,7 @@
             </div>
 
             <!-- Table -->
-            <div class="devices-table-container">
+            <div class="devices-table-container mobile-card-list">
                 <div class="devices-table-scroll" id="devices-table-scroll">
                     <table class="devices-table" id="devices-table">
                         <thead>
@@ -196,6 +220,11 @@
                     <input type="text" id="folder-allowed-users" name="allowed_users" class="form-input"
                         placeholder="operator1, operator2">
                     <p class="form-hint">${_('devices.group_allowed_users_hint')}</p>
+                </div>
+                <div class="form-group">
+                    <label>${_('devices.group_allowed_user_groups')}</label>
+                    <div class="group-membership-list compact" id="folder-user-groups-list"></div>
+                    <p class="form-hint">${_('devices.group_allowed_user_groups_hint')}</p>
                 </div>
             </form>
         </template>

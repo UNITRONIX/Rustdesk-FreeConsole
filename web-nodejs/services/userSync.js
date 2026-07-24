@@ -159,10 +159,54 @@ function mirrorTotpToGoSqlite(username, { enabled, secret } = {}) {
 }
 
 function randomPassword() {
-    // 32 hex chars — used only as a Go-side placeholder. Panel login keeps
-    // using the Node bcrypt hash; admin can later reset the password through
-    // the panel which mirrors the new password to Go.
+    // 32 hex chars — used only as a Go-side placeholder when the panel hash
+    // cannot be copied (API-only path). Prefer insertGoUserWithPasswordHash.
     return crypto.randomBytes(16).toString('hex');
+}
+
+/**
+ * Insert a missing Go SQLite user with the panel password_hash so RustDesk
+ * client login (Go /api/login) accepts the same local password as the panel.
+ * Returns true on success.
+ */
+function insertGoUserWithPasswordHash(username, passwordHash, role, authProvider = 'local') {
+    const normalized = String(username || '').trim();
+    const hash = String(passwordHash || '').trim();
+    if (!normalized || !hash) return false;
+
+    const goDb = getGoSqliteDbForWrite();
+    if (!goDb) return false;
+    if (!sqliteTableExists(goDb, 'users')) return false;
+
+    const cols = sqliteColumns(goDb, 'users');
+    if (!cols.has('username') || !cols.has('password_hash') || !cols.has('role')) {
+        console.warn('[userSync] Go hash insert skipped: users table missing required columns');
+        return false;
+    }
+
+    const provider = ['local', 'ldap', 'oidc'].includes(String(authProvider || '').trim())
+        ? String(authProvider).trim()
+        : 'local';
+    const goRole = normalizeRole(role);
+
+    try {
+        if (cols.has('auth_provider')) {
+            goDb.prepare(
+                `INSERT INTO users (username, password_hash, role, auth_provider) VALUES (?, ?, ?, ?)`
+            ).run(normalized, hash, goRole, provider);
+        } else {
+            goDb.prepare(
+                `INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)`
+            ).run(normalized, hash, goRole);
+        }
+        console.log(`[userSync] backfill: inserted Go SQLite user '${normalized}' with panel password hash (${goRole})`);
+        return true;
+    } catch (err) {
+        // UNIQUE username — already present (race with API or concurrent startup).
+        if (String(err.message || '').includes('UNIQUE')) return true;
+        console.warn(`[userSync] Go hash insert failed for '${normalized}': ${err.message}`);
+        return false;
+    }
 }
 
 async function readGoUsersFromApi() {
@@ -171,7 +215,14 @@ async function readGoUsersFromApi() {
         return Array.isArray(data) ? data : [];
     } catch (err) {
         const status = err.response?.status;
-        console.warn(`[userSync] readGoUsersFromApi failed: status=${status} ${err.message}`);
+        // Issue #292: 500 often means Go ListUsers failed (e.g. NULL last_login scan).
+        // Returning [] makes mirrorDelete/Update silently no-op — log loudly.
+        console.warn(
+            `[userSync] readGoUsersFromApi failed: status=${status} ${err.message}` +
+            (status === 500
+                ? ' — Go user list broken; mirror create/update/delete will be skipped until fixed'
+                : '')
+        );
         return [];
     }
 }
@@ -203,9 +254,15 @@ async function resolveGoUserId(localUserId) {
 /**
  * Mirror a freshly created Node user into the Go users table.
  * Safe to call when the user already exists on the Go side (logged + ignored).
+ *
+ * PostgreSQL shared-DB: the panel INSERT already wrote the row Go reads — skip
+ * POST /users (would always 409). Issue #301.
  */
 async function mirrorCreate(username, password, role) {
     if (!username || !password) return;
+    if (db.type === 'postgres') {
+        return;
+    }
     try {
         await apiClient.post('/users', {
             username,
@@ -216,8 +273,9 @@ async function mirrorCreate(username, password, role) {
     } catch (err) {
         const status = err.response?.status;
         // 409 = username already exists on Go side → still sync the role/password.
+        // allowCreate:false prevents mirrorUpdate → mirrorCreate recursion (Issue #301).
         if (status === 409) {
-            await mirrorUpdate(username, { password, role });
+            await mirrorUpdate(username, { password, role, allowCreate: false });
             return;
         }
         console.warn(`[userSync] mirrorCreate('${username}') failed: status=${status} ${err.message}`);
@@ -227,8 +285,14 @@ async function mirrorCreate(username, password, role) {
 /**
  * Mirror an update (role and/or password) to the Go side.
  * Looks up the Go user by username (IDs differ between stores).
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.password]
+ * @param {string} [opts.role]
+ * @param {boolean} [opts.allowCreate=true] When false (e.g. after POST 409), never
+ *   call mirrorCreate — avoids unbounded INSERT loops when GET /users fails.
  */
-async function mirrorUpdate(username, { password, role } = {}) {
+async function mirrorUpdate(username, { password, role, allowCreate = true } = {}) {
     if (!username) return;
     if (!password && !role) return;
 
@@ -236,12 +300,19 @@ async function mirrorUpdate(username, { password, role } = {}) {
 
     // If the user does not yet exist on Go and we have a plaintext password,
     // create the record so subsequent operations (org linking) work.
-    if (!goUser && password) {
+    if (!goUser && password && allowCreate) {
         await mirrorCreate(username, password, role);
         return;
     }
     if (!goUser) {
-        // No Go record and no plaintext password — nothing we can do safely.
+        // No Go record: either no plaintext password, or create was forbidden
+        // after a 409 (list API broken / empty) — do not retry INSERT.
+        if (!allowCreate) {
+            console.warn(
+                `[userSync] mirrorUpdate('${username}'): conflict (409) but GET /users ` +
+                'could not resolve the user; skipping create to avoid retry loop (issue #301)'
+            );
+        }
         return;
     }
 
@@ -299,9 +370,11 @@ async function mirrorTotpDisable(username) {
 
 /**
  * Backfill: ensure every Node panel user has a matching Go-side user record.
- * Called once at startup. Missing users are created on the Go side with a
- * random throwaway password (panel login keeps using the Node bcrypt hash —
- * the Go password is irrelevant unless the operator later resets it).
+ * Called once at startup. On SQLite dual-DB installs, missing Go users are
+ * created with the panel password_hash so RustDesk client login accepts the
+ * same local password. Falls back to a random API password only when the hash
+ * cannot be copied (then a panel password reset is required for client login).
+ * PostgreSQL shared-DB installs normally already share the users table.
  */
 async function backfillFromNode() {
     let nodeUsers;
@@ -327,18 +400,29 @@ async function backfillFromNode() {
     const missing = nodeUsers.filter(u => !goUsernames.has(String(u.username || '').toLowerCase()));
     if (missing.length === 0) {
         console.log(`[userSync] backfill: all ${nodeUsers.length} panel users already present on Go side`);
+        if (db.type === 'sqlite') {
+            for (const u of nodeUsers) {
+                if (localUserHasTotp(u)) {
+                    mirrorTotpToGoSqlite(u.username, { enabled: true, secret: u.totp_secret });
+                }
+            }
+        }
         return;
     }
 
     console.log(`[userSync] backfill: mirroring ${missing.length} panel user(s) to Go server`);
     for (const u of missing) {
+        const hash = String(u.password_hash || '').trim();
+        if (db.type === 'sqlite' && hash && insertGoUserWithPasswordHash(u.username, hash, u.role, u.auth_provider)) {
+            continue;
+        }
         try {
             await apiClient.post('/users', {
                 username: u.username,
                 password: randomPassword(),
                 role: normalizeRole(u.role),
             });
-            console.log(`[userSync] backfill: created Go user '${u.username}' (${normalizeRole(u.role)})`);
+            console.log(`[userSync] backfill: created Go user '${u.username}' (${normalizeRole(u.role)}) via API (placeholder password)`);
         } catch (err) {
             const status = err.response?.status;
             if (status === 409) continue; // race — already exists, fine.
@@ -519,6 +603,7 @@ module.exports = {
     mirrorDelete,
     mirrorTotpEnable,
     mirrorTotpDisable,
+    insertGoUserWithPasswordHash,
     backfillFromGo,
     backfillFromNode,
 };

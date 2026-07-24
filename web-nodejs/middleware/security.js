@@ -15,6 +15,18 @@ const connectSources = config.httpsEnabled
     ? ["'self'", "wss:", "https://cdn.jsdelivr.net"]
     : ["'self'", "ws:", "https://cdn.jsdelivr.net"];
 
+/**
+ * HSTS is disabled for self-signed / LAN installs so HTTP↔HTTPS toggles do not
+ * leave a year-long browser enforcement (#219). Set HSTS_ENABLED=true to force it.
+ */
+function shouldSendStrictTransportSecurity() {
+    if (!config.httpsEnabled) return false;
+    const hstsEnv = String(process.env.HSTS_ENABLED || '').toLowerCase();
+    if (hstsEnv === 'false' || hstsEnv === '0' || hstsEnv === 'off') return false;
+    if (hstsEnv === 'true' || hstsEnv === '1' || hstsEnv === 'on') return true;
+    return !config.allowSelfSignedCerts;
+}
+
 function buildHelmetMiddleware(req, res) {
     const nonce = crypto.randomBytes(16).toString('base64');
     const isRemoteViewerPage = req.path.startsWith('/remote');
@@ -54,7 +66,7 @@ function buildHelmetMiddleware(req, res) {
         crossOriginResourcePolicy: { policy: 'same-origin' },
         crossOriginOpenerPolicy: config.httpsEnabled ? { policy: 'same-origin' } : false,
         originAgentCluster: config.httpsEnabled,
-        strictTransportSecurity: config.httpsEnabled
+        strictTransportSecurity: shouldSendStrictTransportSecurity()
             ? { maxAge: 31536000, includeSubDomains: true, preload: false }
             : false,
         dnsPrefetchControl: { allow: false },

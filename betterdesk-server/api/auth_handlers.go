@@ -222,161 +222,20 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.db.GetUser(body.Username)
-	if err != nil {
+	login := s.authenticatePasswordLogin(body.Username, body.Password, clientIP)
+	switch login.Status {
+	case passwordLoginInternal:
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
 		return
-	}
-
-	// Determine the authentication provider bound to this account. An account
-	// is authoritatively tied to a single provider (Issue #148): accounts
-	// provisioned via LDAP/OIDC can ONLY authenticate through that provider,
-	// and local accounts can ONLY authenticate with their local password.
-	// This eliminates the dual-password hole where a same-name AD account and
-	// local account could each log in with their own password, and guarantees
-	// that LDAP group→role mapping is always re-applied on LDAP logins.
-	provider := db.AuthProviderLocal
-	if user != nil && user.AuthProvider != "" {
-		provider = user.AuthProvider
-	}
-
-	// OIDC-bound accounts must authenticate through single sign-on, never with
-	// a password on this endpoint.
-	if user != nil && provider == db.AuthProviderOIDC {
-		if s.auditLog != nil {
-			s.auditLog.Log(audit.ActionAuthLoginFailed, s.remoteIP(r), body.Username, map[string]string{"reason": "oidc_account_password_login"})
-		}
+	case passwordLoginOIDC:
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "This account uses single sign-on. Please log in with your identity provider."})
 		return
-	}
-
-	ldapEnabled := s.ldapProvider != nil && s.ldapProvider.IsEnabled()
-
-	// Authenticate through LDAP only when the account is LDAP-bound, or when
-	// it is an unknown user and LDAP is enabled (first-time auto-provisioning).
-	// A local account is NEVER probed against LDAP, even on a username clash.
-	if ldapEnabled && (user == nil || provider == db.AuthProviderLDAP) {
-		ldapResult, ldapErr := s.ldapProvider.Authenticate(body.Username, body.Password)
-		if ldapErr != nil {
-			log.Printf("[LDAP] Auth error for %s: %v", body.Username, ldapErr)
-			ldapResult = nil
-		}
-
-		if ldapResult != nil && ldapResult.Authenticated {
-			role := ldapResult.Role
-			if role == "" {
-				role = auth.RoleViewer
-			}
-
-			if user == nil {
-				// Auto-provision an LDAP-bound account. The local password hash
-				// is a random, unusable value — the AD password is NEVER stored
-				// as a local credential, so it cannot be replayed via the local
-				// password path.
-				randomSecret, randErr := auth.GenerateRandomString(32)
-				if randErr != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
-					return
-				}
-				unusable, hashErr := auth.HashPassword(randomSecret)
-				if hashErr != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
-					return
-				}
-				newUser := &db.User{
-					Username:     body.Username,
-					PasswordHash: unusable,
-					Role:         role,
-					AuthProvider: db.AuthProviderLDAP,
-				}
-				if createErr := s.db.CreateUser(newUser); createErr != nil {
-					log.Printf("[LDAP] Failed to auto-create user %s: %v", body.Username, createErr)
-					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
-					return
-				}
-				user, _ = s.db.GetUser(body.Username)
-				if user == nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
-					return
-				}
-				log.Printf("[LDAP] Auto-provisioned user %s with role %s", body.Username, role)
-			} else {
-				// Existing LDAP-bound account — always re-apply the AD group→role
-				// mapping so permission changes in AD take effect on next login.
-				changed := false
-				if ldapResult.Role != "" && ldapResult.Role != user.Role {
-					user.Role = ldapResult.Role
-					changed = true
-					log.Printf("[LDAP] Updated role for %s to %s", body.Username, ldapResult.Role)
-				}
-				if user.AuthProvider != db.AuthProviderLDAP {
-					user.AuthProvider = db.AuthProviderLDAP
-					changed = true
-				}
-				if changed {
-					_ = s.db.UpdateUser(user)
-				}
-			}
-
-			if s.auditLog != nil {
-				s.auditLog.Log(audit.ActionAuthLogin, s.remoteIP(r), user.Username, map[string]string{"method": "ldap"})
-			}
-
-			// TOTP is managed locally; if enabled, still require it for LDAP users.
-			if user.TOTPEnabled {
-				partialToken, tokenErr := s.jwtManager.GenerateWithTTL(user.Username, "__2fa_pending__", 5*time.Minute)
-				if tokenErr != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
-					return
-				}
-				writeJSON(w, http.StatusOK, map[string]any{
-					"requires_2fa":  true,
-					"partial_token": partialToken,
-				})
-				return
-			}
-
-			token, tokenErr := s.jwtManager.Generate(user.Username, user.Role)
-			if tokenErr != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
-				return
-			}
-			_ = s.db.UpdateUserLogin(user.ID)
-			writeLoginSuccess(w, user, token)
-			return
-		}
-
-		// LDAP authentication failed. An LDAP-bound account must NOT fall back
-		// to local password verification — reject immediately.
-		if user != nil && provider == db.AuthProviderLDAP {
-			if s.auditLog != nil {
-				s.auditLog.Log(audit.ActionAuthLoginFailed, s.remoteIP(r), body.Username, map[string]string{"method": "ldap"})
-			}
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
-			return
-		}
-		// Unknown user with failed LDAP — fall through to the local check below,
-		// which returns 401 because user == nil.
-	}
-
-	// Local password verification — only for local accounts. LDAP-bound and
-	// unknown users are rejected here.
-	if user == nil || provider != db.AuthProviderLocal || !auth.VerifyPassword(user.PasswordHash, body.Password) {
-		if s.auditLog != nil {
-			s.auditLog.Log(audit.ActionAuthLoginFailed, s.remoteIP(r), body.Username, nil)
-		}
+	case passwordLoginInvalid:
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
 	}
 
-	// Rehash bcrypt/legacy passwords to PBKDF2 on successful login
-	if auth.NeedsRehash(user.PasswordHash) {
-		if newHash, hashErr := auth.HashPassword(body.Password); hashErr == nil {
-			user.PasswordHash = newHash
-			_ = s.db.UpdateUser(user)
-			log.Printf("[auth] Rehashed password for %s (migrated to PBKDF2)", user.Username)
-		}
-	}
+	user := login.User
 
 	// If TOTP is enabled, issue a short-lived partial token that requires 2FA completion.
 	// H4: Use 5-minute TTL instead of the default 24h to limit brute-force window.
@@ -401,11 +260,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = s.db.UpdateUserLogin(user.ID)
-
-	if s.auditLog != nil {
-		s.auditLog.Log(audit.ActionAuthLogin, s.remoteIP(r), user.Username, nil)
-	}
-
 	writeLoginSuccess(w, user, token)
 }
 
@@ -628,9 +482,12 @@ func (s *Server) handleClientUsersList(w http.ResponseWriter, r *http.Request) {
 		statusInt := 1
 		isAdmin := u.Role == "admin" || u.Role == "super_admin" || u.IsServerAdmin
 
+		userGUID, _ := s.db.ResolveUserAssignmentKey(u.Username)
+
 		result = append(result, map[string]any{
 			"name":         u.Username,
 			"display_name": u.Username,
+			"guid":         userGUID,
 			"email":        "",
 			"note":         "",
 			"status":       statusInt,
@@ -834,7 +691,12 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 		// Prevent demoting the last super-admin/admin.
 		if auth.IsSuperAdminRole(user.Role) && !auth.IsSuperAdminRole(body.Role) {
-			users, _ := s.db.ListUsers()
+			users, listErr := s.db.ListUsers()
+			if listErr != nil {
+				log.Printf("api: update user %d: list users for last-admin check failed: %v", user.ID, listErr)
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+				return
+			}
 			adminCount := 0
 			for _, u := range users {
 				if auth.IsSuperAdminRole(u.Role) {
@@ -889,7 +751,12 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	// Prevent deleting the last super-admin/admin (Discussion #99).
 	if auth.IsSuperAdminRole(user.Role) {
-		users, _ := s.db.ListUsers()
+		users, listErr := s.db.ListUsers()
+		if listErr != nil {
+			log.Printf("api: delete user %d: list users for last-admin check failed: %v", id, listErr)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
 		adminCount := 0
 		for _, u := range users {
 			if auth.IsSuperAdminRole(u.Role) {
@@ -1185,12 +1052,20 @@ func hashAPIKey(key string) string {
 // Returns (username, role, ok). If ok is false, an error response has been written.
 // Auth order: Bearer JWT → X-API-Key (scoped DB lookup).
 func (s *Server) authenticateRequest(r *http.Request) (username, role string, ok bool) {
-	// 1. Bearer JWT
-	if bearer := r.Header.Get("Authorization"); len(bearer) > 7 && bearer[:7] == "Bearer " {
-		token := bearer[7:]
-		claims, err := s.jwtManager.Validate(token)
-		if err == nil && claims.Role != "__2fa_pending__" {
-			return claims.Sub, claims.Role, true
+	// 1. Bearer token — opaque client session (RustDesk desktop) or JWT (panel/API)
+	if bearer := r.Header.Get("Authorization"); len(bearer) > 7 && strings.EqualFold(bearer[:7], "Bearer ") {
+		token := strings.TrimSpace(bearer[7:])
+		if isOpaqueClientToken(token) {
+			if username, role, ok := s.authenticateClientSession(token); ok {
+				return username, role, true
+			}
+			return "", "", false
+		}
+		if s.jwtManager != nil {
+			claims, err := s.jwtManager.Validate(token)
+			if err == nil && claims.Role != "__2fa_pending__" {
+				return claims.Sub, claims.Role, true
+			}
 		}
 	}
 
@@ -1269,12 +1144,25 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		// Limit request body size to 1 MB for all requests (S10)
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
+		// MeshCentral compatibility — binary agent auth on the WebSocket itself (no JWT).
+		if path == "/agent.ashx" || path == "/meshrelay.ashx" ||
+			path == "/bettercore.js" || path == "/meshcore.js" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// control.ashx uses x-meshauth / Bearer inside handleControlWS.
+		if path == "/control.ashx" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Public endpoints — no auth required
 		if path == "/api/health" || path == "/metrics" ||
 			path == "/api/auth/login" || path == "/api/auth/login/2fa" ||
 			path == "/api/auth/ldap/verify" ||
 			path == "/api/server/pubkey" || path == "/api/server/stats" ||
 			path == "/api/login" || path == "/api/login-options" || path == "/api/logout" ||
+			path == "/api/oidc/auth" || path == "/api/oidc/auth-query" || path == "/api/oidc/callback" ||
 			path == "/api/heartbeat" || path == "/api/sysinfo" || path == "/api/sysinfo_ver" ||
 			path == "/api/branding" ||
 			path == "/api/server-key" || path == "/api/server-key/fingerprint" ||
@@ -1284,9 +1172,10 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			path == "/api/audit/alarm" && r.Method == http.MethodPost ||
 			path == "/api/org/login" ||
 			path == "/api/auth/oidc/status" || path == "/api/auth/oidc/authorize" || path == "/api/auth/oidc/callback" ||
-			path == "/api/auth/oidc/exchange" || path == "/api/auth/sso/status" ||
+			path == "/api/auth/oidc/session" || path == "/api/auth/oidc/exchange" || path == "/api/auth/sso/status" ||
 			strings.HasPrefix(path, "/ws/bd-mgmt/") ||
-			path == "/api/devices/register" || path == "/api/devices/register/status" {
+			path == "/api/devices/register" || path == "/api/devices/register/status" ||
+			path == "/api/guest/access-links/validate" || path == "/api/guest/access-links/peers" {
 			next.ServeHTTP(w, r)
 			return
 		}

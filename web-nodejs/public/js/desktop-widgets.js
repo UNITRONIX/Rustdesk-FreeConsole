@@ -200,6 +200,7 @@
             };
             probe.src = saved;
         } else {
+            if (applyBrandingWallpaper(fit)) return;
             // Probe if wallpapers exist before loading default
             probeWallpapers(function(available) {
                 if (available) {
@@ -209,6 +210,43 @@
                 }
             });
         }
+    }
+
+    function applyBrandingWallpaper(fit) {
+        var branding = (window.BetterDesk && window.BetterDesk.branding) || {};
+        var type = branding.bgType || 'none';
+        if (type === 'color' && /^#[0-9a-fA-F]{6}$/.test(String(branding.bgColor || ''))) {
+            applyWallpaper('solid:' + branding.bgColor, fit, false);
+            localStorage.removeItem(STORAGE_WALL);
+            return true;
+        }
+        var el = document.querySelector('.desktop-wallpaper');
+        if (!el) return false;
+        if (type === 'gradient' && branding.bgGradient) {
+            _wallpaperPath = 'branding:gradient';
+            el.style.backgroundImage = String(branding.bgGradient);
+            el.style.backgroundColor = '';
+            el.style.backgroundSize = 'cover';
+            el.style.backgroundRepeat = 'no-repeat';
+            el.style.backgroundPosition = 'center';
+            return true;
+        }
+        if (type === 'image' && branding.bgImageUrl) {
+            _wallpaperPath = branding.bgImageUrl;
+            el.style.backgroundImage = 'url("' + String(branding.bgImageUrl).replace(/"/g, '%22') + '")';
+            el.style.backgroundColor = '';
+            applyBackgroundSizeMode(el, branding.bgSize);
+            return true;
+        }
+        return false;
+    }
+
+    function applyBackgroundSizeMode(el, size) {
+        var mode = String(size || 'cover').trim();
+        if (['cover', 'contain', 'auto', 'center', 'repeat'].indexOf(mode) === -1) mode = 'cover';
+        el.style.backgroundSize = (mode === 'cover' || mode === 'contain') ? mode : 'auto';
+        el.style.backgroundRepeat = mode === 'repeat' ? 'repeat' : 'no-repeat';
+        el.style.backgroundPosition = mode === 'repeat' ? 'top left' : 'center';
     }
 
     /** Check if wallpaper files are available on server */
@@ -228,6 +266,7 @@
         el.style.backgroundImage = DEFAULT_GRADIENT;
         el.style.backgroundColor = '#0d1117';
         el.style.backgroundSize = 'cover';
+        el.style.backgroundRepeat = 'no-repeat';
         el.style.backgroundPosition = 'center';
     }
 
@@ -251,6 +290,7 @@
             el.style.backgroundImage = 'none';
             el.style.backgroundColor = color;
             el.style.backgroundSize = '';
+            el.style.backgroundRepeat = '';
             el.style.backgroundPosition = '';
             localStorage.setItem(STORAGE_WALL, url);
             localStorage.setItem(STORAGE_WALL_FIT, fit);
@@ -266,6 +306,7 @@
             el.style.backgroundColor = '';
             el.style.backgroundImage = 'url("' + url + '")';
             el.style.backgroundSize = bgSize;
+            el.style.backgroundRepeat = 'no-repeat';
             el.style.backgroundPosition = bgPos;
             localStorage.setItem(STORAGE_WALL, url);
             localStorage.setItem(STORAGE_WALL_FIT, fit);
@@ -278,6 +319,7 @@
             newLayer.className = 'desktop-wallpaper-new';
             newLayer.style.backgroundImage = 'url("' + url + '")';
             newLayer.style.backgroundSize = bgSize;
+            newLayer.style.backgroundRepeat = 'no-repeat';
             newLayer.style.backgroundPosition = bgPos;
             el.appendChild(newLayer);
 
@@ -289,6 +331,7 @@
                 el.style.backgroundColor = '';
                 el.style.backgroundImage = 'url("' + url + '")';
                 el.style.backgroundSize = bgSize;
+                el.style.backgroundRepeat = 'no-repeat';
                 el.style.backgroundPosition = bgPos;
                 if (newLayer.parentElement) newLayer.remove();
             }, 600);
@@ -339,8 +382,13 @@
         } catch (_) { /* ignore corrupt data */ }
     }
 
+    function layoutPersistenceEnabled() {
+        return document.body.classList.contains('desktop-active') || _widgets.size > 0;
+    }
+
     var _saveTimeout = null;
     function saveLayout() {
+        if (!layoutPersistenceEnabled()) return;
         clearTimeout(_saveTimeout);
         _saveTimeout = setTimeout(function () {
             var arr = [];
@@ -352,6 +400,7 @@
     }
 
     function saveLayoutToServer(arr) {
+        if (!layoutPersistenceEnabled()) return;
         if (!window.BetterDesk || !window.BetterDesk.csrfToken) return;
         if (typeof Utils === 'undefined' || !Utils.api) return;
         Utils.api('/api/desktop/layout', {
@@ -1998,6 +2047,7 @@
     var _prevCanvasArea = null;
 
     function autoReposition() {
+        if (!layoutPersistenceEnabled()) return;
         var area = getCanvasArea();
         if (area.w < 200 || area.h < 200) return;
 
@@ -2048,6 +2098,7 @@
     // Watch for window resize and auto-reposition
     var _repositionTimeout = null;
     window.addEventListener('resize', function () {
+        if (!layoutPersistenceEnabled()) return;
         clearTimeout(_repositionTimeout);
         _repositionTimeout = setTimeout(autoReposition, 300);
     });

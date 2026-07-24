@@ -12,12 +12,16 @@ on:
       - 'betterdesk-server/**'
       - '.github/workflows/go-server-ci.yml'
 
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: betterdesk-server
 
 jobs:
   test:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,3 +36,29 @@ jobs:
 
       - name: go test
         run: go test -race -count=1 ./...
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: govulncheck
+        run: govulncheck ./...
+
+  mesh-interop:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-server/go.mod
+          cache-dependency-path: betterdesk-server/go.sum
+
+      - name: Mesh interop (simulated handshake)
+        working-directory: betterdesk-server
+        run: go test ./meshcentral/... -count=1 -timeout 5m
+
+      - name: Mesh interop (live MeshAgent binary)
+        working-directory: betterdesk-server
+        continue-on-error: true
+        run: go test -tags=meshagent_live ./meshcentral/... -run TestMeshAgentLiveConnect -count=1 -timeout 10m

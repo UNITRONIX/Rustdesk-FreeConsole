@@ -1,0 +1,6 @@
+BetterDesk MeshCentral compatibility assets (AGPL-3.0)
+
+- bettercore.js — BetterCore (consent, WebRTC, KVM/terminal/files, PowerShell)
+- betterviewer.js — BetterViewer browser MNG_KVM client (panel static)
+
+See the repository root LICENSE (AGPL-3.0).

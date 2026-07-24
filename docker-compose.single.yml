@@ -74,6 +74,10 @@ services:
       # new devices); pre-existing volumes keep their current mode. Override with
       # "open", "managed", or "locked".
       - ENROLLMENT_MODE=${ENROLLMENT_MODE:-}
+      - NTP_SERVERS=${NTP_SERVERS:-pool.ntp.org,time.google.com,time.cloudflare.com}
+      - BILLING_MAX_CLOCK_SKEW_MS=${BILLING_MAX_CLOCK_SKEW_MS:-2000}
+      - BILLING_REQUIRE_SYNCED_CLOCK=${BILLING_REQUIRE_SYNCED_CLOCK:-1}
+      - BILLING_TRUST_OS_NTP=${BILLING_TRUST_OS_NTP:-Y}
       # Panel folders/groups for RustDesk client (SQLite — same container as console).
       - AUTH_DB_PATH=/app/data/auth.db
       # Admin credentials (first run only; existing users are not overwritten):

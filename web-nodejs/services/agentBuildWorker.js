@@ -1,7 +1,8 @@
 /**
- * BetterDesk Console — Agent Build Worker (Go support-agent)
+ * BetterDesk Console — Support Agent Build Worker (Go Fyne)
  *
- * Compiles branded betterdesk-support-agent binaries per bundle.
+ * Builds branded betterdesk-support-agent binaries for product_type=support-agent.
+ * Agent-client (Tauri) builds are handled by agentClientBuildWorker.js.
  */
 
 'use strict';
@@ -31,7 +32,7 @@ try {
     console.warn('[agentBuildWorker] could not load build env file:', e.message);
 }
 
-const BUILD_USER       = process.env.BUILD_USER || 'unitronix';
+const BUILD_USER       = process.env.BUILD_USER || 'betterdesk';
 const BUILD_CACHE_DIR  = process.env.BUILD_CACHE_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'build-cache');
 const GO_MOD_CACHE_DIR = path.join(BUILD_CACHE_DIR, 'gomod');
@@ -241,17 +242,17 @@ function _upgradeGuidFromHash(brandingHash) {
 }
 
 function _resolveMsiBuilder() {
-    const candidates = ['wixl', 'msibuild', '/usr/bin/wixl', '/usr/bin/msibuild'];
+    // wixl compiles .wxs → .msi. msibuild (same msitools package) is a different
+    // tool for editing MSI databases and must not be used here.
+    const candidates = ['wixl', '/usr/bin/wixl'];
     for (const c of candidates) {
         if (fs.existsSync(c)) return c;
     }
     const { execSync } = require('child_process');
-    for (const cmd of ['wixl', 'msibuild']) {
-        try {
-            const found = execSync(`command -v ${cmd} 2>/dev/null`, { encoding: 'utf8' }).trim();
-            if (found) return found;
-        } catch (_) { /* ok */ }
-    }
+    try {
+        const found = execSync('command -v wixl 2>/dev/null', { encoding: 'utf8' }).trim();
+        if (found) return found;
+    } catch (_) { /* ok */ }
     return null;
 }
 
@@ -593,7 +594,8 @@ async function _claimNextBuild() {
     });
     for (const row of candidates) {
         const bundleRow = await _findBundleForHash(row.branding_hash);
-        if (bundleRow && (bundleRow.product_type || 'agent') === 'rdclient') continue;
+        const pt = bundleRow?.product_type || 'support-agent';
+        if (pt === 'rdclient' || pt === 'agent-client') continue;
         const profile = BUILD_PROFILES[`${row.platform}/${row.arch}/${row.format}`];
         if (!profile) continue;
         await db.upsertAgentBundleBuild({
@@ -617,7 +619,8 @@ async function _listPendingBuilds(limit) {
     const out = [];
     for (const b of bundles) {
         if (b.revoked) continue;
-        if ((b.product_type || 'agent') === 'rdclient') continue;
+        const pt = b.product_type || 'support-agent';
+        if (pt === 'rdclient' || pt === 'agent-client') continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         for (const r of builds) {
             if (r.status === 'pending') out.push(r);
@@ -824,7 +827,7 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {},
             const msiBuilder = _resolveMsiBuilder();
             if (!msiBuilder) {
                 throw new Error(
-                    'msibuild/wixl not found — install msitools (dnf install msitools / apt install msitools) for Windows MSI builds'
+                    'wixl not found — install wixl (apt install wixl / dnf install msitools wixl) for Windows MSI builds'
                 );
             }
             const msiDir = path.join(packDir, 'msi');
@@ -1101,5 +1104,6 @@ module.exports = {
     startWorker,
     stopWorker,
     getReadyArtifact,
+    getGoBin,
     _internals: { BUILD_PROFILES, BUILD_CACHE_DIR, ARTIFACT_ROOT, SOURCE_ROOT },
 };

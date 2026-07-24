@@ -3,7 +3,18 @@
     pageStyles: ['remote-dashboard'],
     pageScripts: ['remote-dashboard'],
     body: `
-<div class="rd-desk-app" id="rd-desk-app">
+<div class="rd-phone-gate" id="rd-phone-gate" hidden>
+    <div class="rd-phone-gate-card">
+        <div class="rd-phone-gate-icon"><span class="material-icons">tablet_mac</span></div>
+        <h1 class="rd-phone-gate-title">${_('remote.phone_unsupported_title')}</h1>
+        <p class="rd-phone-gate-body">${_('remote.phone_unsupported_body')}</p>
+        <div class="rd-phone-gate-actions">
+            <a href="/devices" class="rd-phone-gate-btn rd-phone-gate-btn-primary">${_('remote.phone_unsupported_back_devices')}</a>
+            <a href="/" class="rd-phone-gate-btn rd-phone-gate-btn-secondary">${_('mobile_nav.home')}</a>
+        </div>
+    </div>
+</div>
+<div class="rd-desk-app remote-dashboard-layout" id="rd-desk-app">
     <header class="rd-desk-header">
         <div class="rd-desk-brand">
             <div class="rd-desk-logo" id="rd-desk-logo"></div>
@@ -73,7 +84,7 @@
                 </button>
                 <div class="rd-desk-nav-body" id="rd-desk-nav-groups-body">
                 <ul class="rd-desk-nav-list" id="rd-desk-groups">
-                    <li class="rd-desk-nav-empty hidden" id="rd-desk-groups-empty">${_('remote_dashboard.no_groups')}</li>
+                    <li class="rd-desk-nav-empty hidden" id="rd-desk-groups-empty" data-static="1">${_('remote_dashboard.no_groups')}</li>
                 </ul>
                 </div>
             </nav>
@@ -85,7 +96,7 @@
                 </button>
                 <div class="rd-desk-nav-body" id="rd-desk-nav-tags-body">
                 <ul class="rd-desk-nav-list rd-desk-nav-tags" id="rd-desk-tags">
-                    <li class="rd-desk-nav-empty hidden" id="rd-desk-tags-empty">${_('remote_dashboard.no_tags')}</li>
+                    <li class="rd-desk-nav-empty hidden" id="rd-desk-tags-empty" data-static="1">${_('remote_dashboard.no_tags')}</li>
                 </ul>
                 </div>
             </nav>

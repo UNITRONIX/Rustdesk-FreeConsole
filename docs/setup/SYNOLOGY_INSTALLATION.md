@@ -160,7 +160,7 @@ services:
     volumes:
       - ./data:/opt/betterdesk/data
     environment:
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD before starting}
       - DB_TYPE=sqlite
       - TZ=Europe/Warsaw
 EOF

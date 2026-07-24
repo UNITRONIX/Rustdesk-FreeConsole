@@ -58,6 +58,17 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'
         <section class="portal-intro">
             <h2><%= t('download.choose_platform') %></h2>
             <p><%= t('download.choose_platform_hint') %></p>
+            <% if (typeof productType !== 'undefined') { %>
+                <p class="portal-product-type">
+                    <% if (productType === 'rdclient') { %>
+                        <%= t('download.product_rdclient') %>
+                    <% } else if (productType === 'support-agent') { %>
+                        <%= t('download.product_support_agent') %>
+                    <% } else { %>
+                        <%= t('download.product_agent_client') %>
+                    <% } %>
+                </p>
+            <% } %>
         </section>
 
         <section class="portal-grid" id="portal-grid">

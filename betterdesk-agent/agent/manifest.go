@@ -21,6 +21,7 @@ func BuildManifest(cfg *Config, sys *SystemCollector, version string) map[string
 	}
 	if cfg.Screenshot {
 		capsSet["input_control"] = true
+		capsSet["video_stream"] = true
 	}
 	if cfg.FileBrowser {
 		capsSet["file_transfer"] = true

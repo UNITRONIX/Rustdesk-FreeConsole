@@ -1,5 +1,5 @@
 <%- include('layouts/viewer', {
-    title: deviceId,
+    title: escapeHtml(deviceId),
     pageScripts: ['cdap-desktop', 'cdap-audio'],
     body: `
 <style>
@@ -46,8 +46,8 @@
     <div class="bd-remote-title">
       <span class="material-icons">desktop_windows</span>
       <div>
-        <div class="bd-remote-name">${deviceName || deviceId}</div>
-        <div class="bd-remote-id">${deviceId}</div>
+        <div class="bd-remote-name">${escapeHtml(deviceName || deviceId)}</div>
+        <div class="bd-remote-id">${escapeHtml(deviceId)}</div>
       </div>
     </div>
     <span class="bd-remote-pill">CDAP Desktop</span>

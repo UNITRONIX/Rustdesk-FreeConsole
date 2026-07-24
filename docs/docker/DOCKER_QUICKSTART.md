@@ -8,13 +8,13 @@ Versioned tags match [CHANGELOG.md](../../CHANGELOG.md) and git releases (e.g. `
 
 - Docker 20.10+
 - docker-compose v2.0+ (or `docker compose` plugin)
-- Open ports: 21114-21119, 5000
+- Open ports: 21115-21119, 21121, 5000 (official single-container layout)
 
 ## 🏃 Quick Start
 
 ### One-line installer (automated)
 
-Fully automated: installs Docker if missing, downloads compose + images, auto-detects relay IP, configures firewall, waits for health checks, prints credentials.
+Fully automated: installs Docker if missing, downloads the **official all-in-one** compose + image (`ghcr.io/unitronix/betterdesk`), auto-detects relay IP, configures firewall, waits for health checks, prints credentials.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
@@ -23,11 +23,14 @@ curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.s
 **Common variants:**
 
 ```bash
+# Legacy two-container layout (server + console images)
+curl -fsSL .../install.sh | sudo bash -s -- --split
+
 # LAN-only deployment
 curl -fsSL .../install.sh | sudo bash -s -- --relay-mode local
 
 # Pin image version + set admin password
-curl -fsSL .../install.sh | sudo bash -s -- --version 3.1.0 --admin-password 'YourSecurePass'
+curl -fsSL .../install.sh | sudo bash -s -- --version 3.3.112 --admin-password 'YourSecurePass'
 
 # Uninstall (keep data volumes)
 curl -fsSL .../install.sh | sudo bash -s -- --uninstall
@@ -38,23 +41,33 @@ curl -fsSL .../install.sh | sudo bash -s -- --uninstall --purge
 
 Files are stored under `/opt/betterdesk/docker/` (`docker-compose.yml`, `.env`).
 
-### Quick Start (3 Commands)
+### Quick Start (3 Commands) — official single container
 
 ```bash
 # 1. Download docker-compose file
-curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.single.yml -o docker-compose.yml
 
-# 2. Pull pinned images and start (default tag: 3.0.0)
+# 2. Pull pinned image and start (default tag matches VERSION in repo)
 docker compose pull
 docker compose up -d
 
 # 3. Get admin password
-docker compose exec console betterdesk-show-admin-credentials
+docker compose exec betterdesk betterdesk-show-admin-credentials
 ```
 
 **Done!** Open http://localhost:5000 and log in with `admin` / (password from step 3).
 
-If `cat /opt/rustdesk/.admin_credentials` returns **Permission denied**, use `betterdesk-show-admin-credentials` above (or `docker compose exec -u betterdesk console …`) — see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md#problem-permission-denied-reading-admin_credentials).
+If `cat /opt/rustdesk/.admin_credentials` returns **Permission denied**, use `betterdesk-show-admin-credentials` above (or `docker compose exec -u betterdesk betterdesk …`) — see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md#problem-permission-denied-reading-admin_credentials).
+
+### Legacy split layout (two images)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.yml -o docker-compose.yml
+docker compose pull && docker compose up -d
+docker compose exec console betterdesk-show-admin-credentials
+```
+
+Split layout uses API port **21114**; the official single container uses **21121**.
 
 ### Pin or change image version
 
@@ -68,19 +81,20 @@ export BETTERDESK_IMAGE_TAG=latest
 docker compose pull && docker compose up -d
 ```
 
-Browse tags: GitHub repo → **Packages** → `betterdesk-server` / `betterdesk-console`, or [releases](https://github.com/UNITRONIX/BetterDesk/releases).
+Browse tags: GitHub repo → **Packages** → `betterdesk` (official), or legacy `betterdesk-server` / `betterdesk-console`, or [releases](https://github.com/UNITRONIX/BetterDesk/releases).
 
 ---
 
-## 📦 What Gets Installed
+## 📦 What Gets Installed (single container — default)
 
-| Service | Port | Description |
-|---------|------|-------------|
-| Server | 21116 TCP/UDP | Signal server (device registration) |
-| Server | 21117 | Relay server (connections) |
-| Server | 21114 | HTTP API |
-| Console | 5000 | Web management panel |
-| Console | 21121 | RustDesk client API |
+| Port | Description |
+|------|-------------|
+| 21116 TCP/UDP | Signal server (device registration) |
+| 21117 | Relay server (connections) |
+| 21121 | HTTP API (RustDesk client + REST) |
+| 5000 | Web management panel |
+
+Legacy split layout exposes API on **21114** instead of 21121.
 
 ## 🔧 Configuration
 
@@ -97,6 +111,21 @@ RELAY_SERVERS=192.168.1.10:21117 docker compose up -d
 ```
 
 Use the Docker host address, not the container IP. Make sure TCP port `21117` is open and forwarded to the host.
+
+### Public Client Endpoints (survive container recreate)
+
+Settings → **Public client endpoints** (ID server, relay, API URL) are stored on the **`console-data` volume** at `/app/data/public-endpoints.env`. They survive `docker compose pull`, `up -d`, and `--force-recreate`.
+
+Alternatively, set them declaratively in compose (non-empty values override the panel file):
+
+```yaml
+environment:
+  - PUBLIC_SERVER_ID=gateway.example.net
+  - PUBLIC_RELAY_SERVER=gateway.example.net
+  - PUBLIC_API_URL=https://api.example.net:21121
+```
+
+Do **not** add empty `PUBLIC_*=` entries — leave the keys unset when using the panel. See [REVERSE_PROXY.md](../setup/REVERSE_PROXY.md#split-dns--multiple-hostnames).
 
 ### Custom Admin Password
 
@@ -172,36 +201,35 @@ docker compose down -v  # -v removes volumes (data)
 # All services running?
 docker compose ps
 
-# Server logs
-docker compose logs server
+# Logs (single container)
+docker compose logs betterdesk
 
-# Console logs
-docker compose logs console
-
-# Health check
-curl http://localhost:21114/api/health
+# Health check (single container)
+curl http://localhost:21121/api/health
 ```
+
+Legacy split: `docker compose logs server` / `console`, health on `:21114`.
 
 ---
 
 ## MACVLAN (dedicated LAN IP)
 
-Use this when the stack must listen on a **macvlan** address (no host port mappings). The console shares the server's network namespace so signal, relay, API, and the web panel use one IP.
+Use this when the stack must listen on a **macvlan** address (no host port mappings).
+
+**Single container (recommended):**
 
 ```bash
-# 1. Create macvlan once (adjust parent NIC and subnet)
 docker network create -d macvlan \
   --subnet=192.168.1.0/24 --gateway=192.168.1.1 \
   -o parent=eth0 LAN
 
-# 2. Download macvlan compose and set your free LAN IP
 export MACVLAN_IPV4=192.168.1.51
 export RELAY_SERVERS=${MACVLAN_IPV4}:21117
-curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.macvlan.yml -o docker-compose.yml
-
-# 3. Start
+curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.single.macvlan.yml -o docker-compose.yml
 docker compose pull && docker compose up -d
 ```
+
+**Legacy split:** `docker-compose.quick.macvlan.yml`
 
 Web console: `http://MACVLAN_IPV4:5000`
 
@@ -298,7 +326,9 @@ Configure your RustDesk clients with:
 |---------|-------|
 | ID Server | `YOUR_SERVER_IP:21116` |
 | Relay Server | `YOUR_SERVER_IP:21117` |
-| API Server | `http://YOUR_SERVER_IP:21114` |
+| API Server | `http://YOUR_SERVER_IP:21121` |
 | Key | (get from web console Settings page) |
 
 Or scan the QR code from the web console Settings page.
+
+For a public hostname that differs from the Docker service name (`betterdesk-server` / `127.0.0.1`), configure **Settings → Public client endpoints** (persisted on the `console-data` volume) or set `PUBLIC_*` in compose — see [Public Client Endpoints](#public-client-endpoints-survive-container-recreate).

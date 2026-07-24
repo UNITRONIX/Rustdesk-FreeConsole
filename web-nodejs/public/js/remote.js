@@ -29,10 +29,76 @@
     // agnostic.
     function getTransportName() {
         const caps = window.__capabilities || {};
-        return String(caps.transport || 'rd').toLowerCase() === 'cdap' ? 'cdap' : 'rd';
+        const t = String(caps.transport || 'rd').toLowerCase();
+        if (t === 'mesh') return 'mesh';
+        if (t === 'cdap') return 'cdap';
+        return 'rd';
+    }
+
+    function isGuestAccessMode() {
+        const caps = window.__capabilities || {};
+        return !!(caps.guest_access || caps.mesh_share);
+    }
+
+    function guestAllowedPeerIds() {
+        const caps = window.__capabilities || {};
+        if (Array.isArray(caps.guest_peer_ids) && caps.guest_peer_ids.length) {
+            return caps.guest_peer_ids.map(String);
+        }
+        if (caps.mesh_share && window.__initialDeviceId) {
+            return [String(window.__initialDeviceId)];
+        }
+        return [];
+    }
+
+    function isPeerAllowedForGuest(deviceId) {
+        if (!isGuestAccessMode()) return true;
+        const allowed = guestAllowedPeerIds();
+        if (!allowed.length) return false;
+        return allowed.includes(String(deviceId));
+    }
+
+    function applyGuestUiLockdown() {
+        if (!isGuestAccessMode()) return;
+        const hideIds = ['btn-add-session', 'session-picker-backdrop', 'session-picker-panel'];
+        hideIds.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.hidden = true;
+                el.style.display = 'none';
+            }
+        });
+        const back = document.getElementById('btn-back-devices');
+        if (back) {
+            back.title = t('guest_access.back_to_list', 'Back to guest devices');
+            back.onclick = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const token = new URLSearchParams(window.location.search).get('guest')
+                    || new URLSearchParams(window.location.search).get('t')
+                    || window.__guestToken
+                    || '';
+                window.location.href = token ? ('/remote/guest?t=' + encodeURIComponent(token)) : '/remote/guest';
+            };
+        }
+        if (window.__capabilities && (window.__capabilities.guest_view_only || window.__capabilities.mesh_view_only)) {
+            // View-only: leave transport adapters to enforce; hide file transfer / chat when present
+            ['btn-file-transfer', 'btn-chat'].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.disabled = true;
+                    el.classList.add('disabled');
+                    el.style.display = 'none';
+                }
+            });
+        }
     }
     function createTransportClient(canvas, opts) {
-        if (getTransportName() === 'cdap' && typeof CDAPSession === 'function') {
+        const name = getTransportName();
+        if (name === 'mesh' && typeof MeshSession === 'function') {
+            return new MeshSession(canvas, opts);
+        }
+        if (name === 'cdap' && typeof CDAPSession === 'function') {
             return new CDAPSession(canvas, opts);
         }
         return new RDClient(canvas, opts);
@@ -67,6 +133,7 @@
             codec: 'Auto',
             adaptiveQuality: true,
             backgroundFps: 1,
+            keyboardMode: 'Auto',
         }, prefs || globalViewerPrefs);
     }
 
@@ -96,6 +163,7 @@
             adaptiveQuality: prefs.adaptiveQuality !== false,
             preferCodec: prefs.codec || 'Auto',
             disableAudio: false,
+            serverRecord: session.meshServerRecord || false,
         };
     }
 
@@ -116,6 +184,9 @@
             }
             if (prefs.codec && prefs.codec !== 'Auto' && typeof client.setCodec === 'function') {
                 client.setCodec(prefs.codec);
+            }
+            if (typeof client.setKeyboardMode === 'function' && prefs.keyboardMode) {
+                client.setKeyboardMode(prefs.keyboardMode);
             }
         }
     }
@@ -145,18 +216,13 @@
             this.chatPanel = panel.querySelector('.session-chat-panel');
             this.chatMessages = panel.querySelector('.session-chat-messages');
             this.chatInput = panel.querySelector('.session-chat-input');
-            this.filePanel = panel.querySelector('.session-file-panel');
-            this.fileList = panel.querySelector('.session-file-list');
-            this.filePathText = panel.querySelector('.session-file-path-text');
-            this.fileTransfersPanel = panel.querySelector('.session-file-transfers');
-            this.fileTransfersList = panel.querySelector('.session-file-transfers-list');
-            this.fileUploadInput = panel.querySelector('.session-file-upload-input');
             this.tfaOverlay = panel.querySelector('.session-2fa-overlay');
             this.tfaInput = panel.querySelector('.session-2fa-input');
             this.tfaError = panel.querySelector('.session-2fa-error');
             this.cdapFallbackBtn = panel.querySelector('.session-btn-cdap-fallback');
             this.client = null;
             this.state = 'idle';
+            this.meshServerRecord = false;
             this.latency = 0;
             this.lastStats = null;
             this.audioMuted = false;
@@ -168,65 +234,224 @@
 
     // ---- DOM References (shared) ----
     const viewerContainer = document.getElementById('viewer-container');
+    const viewerShell = document.getElementById('rd-viewer-shell');
     const toolbar = document.getElementById('viewer-toolbar');
+    const toolbarHandle = document.getElementById('toolbar-handle');
+    const toolbarNotchSlot = document.getElementById('toolbar-notch-slot');
     const toolbarStatus = document.getElementById('toolbar-status');
-    const toolbarStats = document.getElementById('toolbar-stats');
     const toolbarDeviceId = document.getElementById('toolbar-device-id');
     const tabBar = document.getElementById('session-tabs');
 
-    // ---- Floating toolbar (collapsible RustDesk-style pill) ----
-    // The compact handle is always visible; the action pill expands only on an
-    // explicit click of the expand button. There is NO hover-to-open behaviour.
+    // ---- Notch toolbar (integrated in session tab bar) ----
+    // Compact handle pulls the action drawer open; fullscreen stays on the handle only.
     let toolbarPinned = false;
+    let drawerPullTimer = null;
+
+    function syncToolbarHandleAria(expanded) {
+        if (!toolbarHandle) return;
+        toolbarHandle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }
+
+    function setDrawerPulling(active) {
+        toolbar?.classList.toggle('drawer-pulling', active);
+        if (!active) {
+            clearTimeout(drawerPullTimer);
+            drawerPullTimer = null;
+            return;
+        }
+        clearTimeout(drawerPullTimer);
+        drawerPullTimer = setTimeout(() => toolbar?.classList.remove('drawer-pulling'), 440);
+    }
+
+    function syncExpandControlIcon(expanded) {
+        const exp = document.getElementById('btn-toolbar-expand');
+        if (!exp) return;
+        exp.classList.toggle('active', expanded);
+        const ic = exp.querySelector('.material-icons');
+        if (ic) ic.textContent = expanded ? 'expand_less' : 'expand_more';
+    }
 
     function expandToolbar() {
+        if (toolbarNotchSlot?.classList.contains('toolbar-chrome-hidden')) return;
+        toolbar.classList.remove('hover-preview');
         toolbar.classList.add('expanded');
-        const exp = document.getElementById('btn-toolbar-expand');
-        if (exp) {
-            exp.classList.add('active');
-            const ic = exp.querySelector('.material-icons');
-            if (ic) ic.textContent = 'expand_less';
-        }
+        syncToolbarHandleAria(true);
+        syncExpandControlIcon(true);
+        setDrawerPulling(true);
     }
 
     function collapseToolbar() {
         if (toolbarPinned) return;
         if (document.querySelector('.toolbar-dropdown-menu.open')) return;
+        setDrawerPulling(true);
         toolbar.classList.remove('expanded');
-        const exp = document.getElementById('btn-toolbar-expand');
-        if (exp) {
-            exp.classList.remove('active');
-            const ic = exp.querySelector('.material-icons');
-            if (ic) ic.textContent = 'expand_more';
-        }
+        toolbar.classList.remove('hover-preview');
+        syncToolbarHandleAria(false);
+        syncExpandControlIcon(false);
     }
 
     function toggleToolbar() {
-        if (toolbar.classList.contains('expanded')) {
-            // Force-collapse (ignore pin) when the user explicitly clicks.
-            toolbar.classList.remove('expanded');
-            const exp = document.getElementById('btn-toolbar-expand');
-            if (exp) {
-                exp.classList.remove('active');
-                const ic = exp.querySelector('.material-icons');
-                if (ic) ic.textContent = 'expand_more';
+        if (toolbar.classList.contains('expanded') || toolbar.classList.contains('pinned')) {
+            toolbar.classList.remove('expanded', 'hover-preview');
+            syncExpandControlIcon(false);
+            syncToolbarHandleAria(false);
+            setDrawerPulling(true);
+            if (toolbarPinned) {
+                toolbarPinned = false;
+                toolbar.classList.remove('pinned');
+                document.getElementById('btn-pin')?.classList.remove('active');
             }
         } else {
             expandToolbar();
         }
     }
 
+    if (toolbarHandle && toolbar) {
+        toolbarHandle.addEventListener('mouseenter', () => {
+            if (!toolbar.classList.contains('expanded') && !toolbarPinned) {
+                toolbar.classList.add('hover-preview');
+            }
+        });
+        toolbarHandle.addEventListener('mouseleave', () => {
+            if (!toolbar.classList.contains('expanded')) {
+                toolbar.classList.remove('hover-preview');
+            }
+        });
+        toolbarHandle.addEventListener('focusin', () => {
+            if (!toolbar.classList.contains('expanded') && !toolbarPinned) {
+                toolbar.classList.add('hover-preview');
+            }
+        });
+        toolbarHandle.addEventListener('focusout', () => {
+            if (!toolbar.classList.contains('expanded')) {
+                toolbar.classList.remove('hover-preview');
+            }
+        });
+        toolbarHandle.addEventListener('click', (e) => {
+            if (toolbarNotchSlot?.classList.contains('toolbar-chrome-hidden')) return;
+            if (e.target.closest('#btn-handle-fullscreen')) return;
+            e.preventDefault();
+            toggleToolbar();
+        });
+        toolbarHandle.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.target.closest('#btn-handle-fullscreen')) return;
+            e.preventDefault();
+            toggleToolbar();
+        });
+    }
+
     // Legacy compatibility shims — older code paths call these to surface the
     // status while overlays are visible. They now drive expand/collapse only,
     // never an auto-hide timer.
-    function showToolbar() { expandToolbar(); }
+    function showToolbar() {
+        if (toolbarNotchSlot?.classList.contains('toolbar-chrome-hidden')) return;
+        expandToolbar();
+    }
+
+    let toolbarChromeExiting = false;
+
+    function forceCollapseToolbar() {
+        toolbarPinned = false;
+        toolbar.classList.remove('expanded', 'pinned', 'hover-preview', 'drawer-pulling');
+        document.getElementById('btn-pin')?.classList.remove('active');
+        syncToolbarHandleAria(false);
+        syncExpandControlIcon(false);
+        clearTimeout(drawerPullTimer);
+        drawerPullTimer = null;
+    }
+
+    function setToolbarChromeVisible(visible) {
+        if (!toolbarNotchSlot) return;
+        const wasHidden = toolbarNotchSlot.classList.contains('toolbar-chrome-hidden');
+
+        if (!visible) {
+            if (wasHidden || toolbarChromeExiting) return;
+            const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reducedMotion) {
+                toolbarNotchSlot.classList.add('toolbar-chrome-hidden');
+                forceCollapseToolbar();
+                toolbarNotchSlot.classList.remove('toolbar-chrome-enter', 'toolbar-chrome-exit');
+                return;
+            }
+            toolbarChromeExiting = true;
+            playToolbarChromeExit(() => {
+                toolbarNotchSlot.classList.add('toolbar-chrome-hidden');
+                forceCollapseToolbar();
+                toolbarNotchSlot.classList.remove('toolbar-chrome-enter', 'toolbar-chrome-exit');
+                toolbarChromeExiting = false;
+            });
+            return;
+        }
+
+        toolbarChromeExiting = false;
+        toolbarNotchSlot.classList.remove('toolbar-chrome-hidden', 'toolbar-chrome-exit');
+        if (wasHidden) playToolbarChromeEnter();
+    }
+
+    function playToolbarChromeExit(done) {
+        if (!toolbarNotchSlot) {
+            done?.();
+            return;
+        }
+        toolbarNotchSlot.classList.remove('toolbar-chrome-enter');
+        void toolbarNotchSlot.offsetWidth;
+        toolbarNotchSlot.classList.add('toolbar-chrome-exit');
+
+        let finished = false;
+        const finish = () => {
+            if (finished) return;
+            finished = true;
+            toolbarNotchSlot.classList.remove('toolbar-chrome-exit');
+            toolbarNotchSlot.removeEventListener('animationend', onEnd);
+            clearTimeout(fallback);
+            done?.();
+        };
+
+        const onEnd = (ev) => {
+            if (ev.target !== toolbarNotchSlot) return;
+            finish();
+        };
+
+        toolbarNotchSlot.addEventListener('animationend', onEnd);
+        const fallback = setTimeout(finish, 420);
+    }
+
+    function playToolbarChromeEnter() {
+        if (!toolbarNotchSlot) return;
+        toolbarNotchSlot.classList.remove('toolbar-chrome-enter');
+        void toolbarNotchSlot.offsetWidth;
+        toolbarNotchSlot.classList.add('toolbar-chrome-enter');
+        const onEnd = (ev) => {
+            if (ev.target !== toolbarNotchSlot && !ev.target.classList.contains('toolbar-handle')) return;
+            toolbarNotchSlot.classList.remove('toolbar-chrome-enter');
+            toolbarNotchSlot.removeEventListener('animationend', onEnd);
+        };
+        toolbarNotchSlot.addEventListener('animationend', onEnd);
+        setTimeout(() => toolbarNotchSlot.classList.remove('toolbar-chrome-enter'), 500);
+    }
+
+    /** Show notch only during active streaming; hidden on login/connect overlays. */
+    function syncToolbarChrome(session) {
+        if (!session || !isActive(session) || session.state !== 'streaming') {
+            setToolbarChromeVisible(false);
+            return;
+        }
+        setToolbarChromeVisible(true);
+        if (!toolbarPinned) collapseToolbar();
+    }
+
+    // Keep toolbar chrome in sync when session ends (disconnect / error / idle).
+    function hideToolbarChromeForSession(session) {
+        if (!session || !isActive(session)) return;
+        setToolbarChromeVisible(false);
+    }
+
     function setToolbarAutoHide(enable) {
-        // enable === true  -> session is streaming, keep the pill collapsed.
-        // enable === false -> an overlay is shown, expand so status is visible.
         if (enable) {
-            collapseToolbar();
+            syncToolbarChrome(getActiveSession());
         } else {
-            expandToolbar();
+            setToolbarChromeVisible(false);
         }
     }
 
@@ -281,6 +506,7 @@
     async function syncLocalClipboardToRemote() {
         const session = getActiveSession();
         if (!session || !session.client || session.state !== 'streaming') return;
+        if (session.client.viewOnly) return;
         if (!navigator.clipboard || !navigator.clipboard.readText) return;
         try {
             const text = await navigator.clipboard.readText();
@@ -299,44 +525,91 @@
     }
 
 
-    // ---- Tab Bar ----
+    // ---- Tab Bar (slim + expandable cards) ----
 
-    function createTab(deviceId, deviceName) {
+    const sessionTabBarEl = document.getElementById('session-tab-bar');
+    let expandedTabId = null;
+
+    function collapseExpandedTabBarItems() {
+        tabBar.querySelectorAll('.session-tab-card.is-expanded').forEach((t) => t.classList.remove('is-expanded'));
+        document.getElementById('btn-back-devices')?.classList.remove('is-expanded');
+        document.getElementById('btn-add-session')?.classList.remove('is-expanded');
+        expandedTabId = null;
+    }
+
+    function tabStatusClass(state) {
+        switch (state) {
+        case 'streaming': return 'status-online';
+        case 'connecting':
+        case 'authenticating':
+        case 'waiting_password': return 'status-connecting';
+        case 'error': return 'status-error';
+        default: return 'status-offline';
+        }
+    }
+
+    function createTab(deviceId, deviceName, platform) {
         const tab = document.createElement('div');
-        tab.className = 'session-tab';
-        // Store RAW device ID in dataset — findTab() applies CSS.escape() once
-        // when building the selector. Storing the escaped value caused a
-        // double-escape for IDs that needed escaping (digits-first, symbols)
-        // and `tab.remove()` silently failed.
+        tab.className = 'session-tab session-tab-card status-offline';
         tab.dataset.sessionId = deviceId;
 
-        const dot = document.createElement('span');
-        dot.className = 'session-tab-dot';
-        tab.appendChild(dot);
+        const inner = document.createElement('div');
+        inner.className = 'session-tab-card-inner';
+
+        const osIcon = document.createElement('span');
+        osIcon.className = 'session-tab-os material-icons';
+        const iconName = (window.RemoteAddressBook && window.RemoteAddressBook.platformIcon)
+            ? window.RemoteAddressBook.platformIcon(platform || '')
+            : 'devices';
+        osIcon.textContent = iconName;
+        inner.appendChild(osIcon);
 
         const label = document.createElement('span');
         label.className = 'session-tab-label';
         label.textContent = deviceName || deviceId;
         label.title = deviceId;
-        tab.appendChild(label);
+        inner.appendChild(label);
+
+        const dot = document.createElement('span');
+        dot.className = 'session-tab-dot dot-offline';
+        inner.appendChild(dot);
 
         const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
         closeBtn.className = 'session-tab-close';
         closeBtn.innerHTML = '<span class="material-icons" style="font-size:14px">close</span>';
-        closeBtn.title = _('actions.close');
+        closeBtn.title = t('actions.close', 'Close');
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             closeSession(deviceId);
         });
-        tab.appendChild(closeBtn);
+        inner.appendChild(closeBtn);
 
-        tab.addEventListener('click', () => switchSession(deviceId));
+        tab.appendChild(inner);
+
+        const glow = document.createElement('div');
+        glow.className = 'session-tab-glow';
+        glow.setAttribute('aria-hidden', 'true');
+        tab.appendChild(glow);
+
+        tab.addEventListener('click', (e) => {
+            if (e.target.closest('.session-tab-close')) return;
+            switchSession(deviceId);
+            if (window.matchMedia('(hover: none)').matches) {
+                collapseExpandedTabBarItems();
+                tab.classList.add('is-expanded');
+                expandedTabId = deviceId;
+            }
+        });
+
         tabBar.appendChild(tab);
     }
 
     function updateTabState(deviceId, state) {
         const tab = findTab(deviceId);
         if (!tab) return;
+        tab.classList.remove('status-online', 'status-connecting', 'status-error', 'status-offline');
+        tab.classList.add(tabStatusClass(state));
         const dot = tab.querySelector('.session-tab-dot');
         if (!dot) return;
         dot.className = 'session-tab-dot';
@@ -351,7 +624,7 @@
     }
 
     function setActiveTab(deviceId) {
-        tabBar.querySelectorAll('.session-tab').forEach(t => t.classList.remove('active'));
+        tabBar.querySelectorAll('.session-tab').forEach((t) => t.classList.remove('active'));
         const tab = findTab(deviceId);
         if (tab) tab.classList.add('active');
     }
@@ -360,9 +633,34 @@
         return tabBar.querySelector('[data-session-id="' + CSS.escape(deviceId) + '"]');
     }
 
+    function bindSlimTabBar() {
+        if (!sessionTabBarEl) return;
+
+        ['btn-back-devices', 'btn-add-session'].forEach((id) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('click', () => {
+                if (window.matchMedia('(hover: none)').matches) {
+                    collapseExpandedTabBarItems();
+                    btn.classList.add('is-expanded');
+                }
+            }, { capture: true });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#session-tab-bar')) {
+                collapseExpandedTabBarItems();
+            }
+        });
+    }
+
     // ---- Session Lifecycle ----
 
-    function createSession(deviceId, deviceName) {
+    function createSession(deviceId, deviceName, platform) {
+        if (!isPeerAllowedForGuest(deviceId)) {
+            console.warn('Guest access: refused session outside allowlist', deviceId);
+            return;
+        }
         if (sessions.has(deviceId)) {
             switchSession(deviceId);
             return;
@@ -393,7 +691,7 @@
         // Create transport client from saved operator prefs (Best = 60fps).
         wireNewClient(session);
         sessions.set(deviceId, session);
-        createTab(deviceId, deviceName);
+        createTab(deviceId, deviceName, platform);
         switchSession(deviceId);
 
         session.client.renderer.resize();
@@ -410,7 +708,7 @@
         }
         wireSessionEvents(session);
         wireSessionDomEvents(session);
-        wireFileTransferEvents(session);
+        attachMobileTouch(session);
     }
 
     function switchSession(deviceId) {
@@ -427,6 +725,10 @@
         setActiveTab(deviceId);
         toolbarDeviceId.textContent = deviceId;
 
+        if (window.__fileTransferModal?.isOpen()) {
+            window.__fileTransferModal.close();
+        }
+
         // Sync toolbar state
         syncToolbarToSession(session);
         syncToolbarFromSession(session);
@@ -434,9 +736,9 @@
         if (session.state === 'streaming') {
             session.canvas.focus();
             session.client.renderer.resize();
-            setToolbarAutoHide(true);
+            syncToolbarChrome(session);
         } else {
-            setToolbarAutoHide(false);
+            syncToolbarChrome(session);
         }
 
         syncSessionMediaCapture();
@@ -444,18 +746,23 @@
         if (session.state === 'streaming' && session.client) {
             session.client.setAudioMuted(session.audioMuted);
         }
+        syncMobileTouchForActive();
     }
 
-    function closeSession(deviceId) {
+    function closeSession(deviceId, options) {
+        options = options || {};
         const session = sessions.get(deviceId);
         if (!session) {
-            // Session already cleaned up but stale tab still around — remove it.
             const tab = findTab(deviceId);
             if (tab) tab.remove();
             return;
         }
 
         try { if (session.client) session.client.disconnect(); } catch { /* ignore */ }
+        if (window.__fileTransferModal?.isOpen() &&
+            window.__fileTransferModal._session?.deviceId === deviceId) {
+            window.__fileTransferModal.close();
+        }
         if (session.mediaRecorder && session.mediaRecorder.state === 'recording') {
             try { session.mediaRecorder.stop(); } catch { /* ignore */ }
         }
@@ -465,16 +772,22 @@
         if (tab) tab.remove();
         sessions.delete(deviceId);
 
+        if (expandedTabId === deviceId) expandedTabId = null;
+
         if (activeSessionId === deviceId) {
             activeSessionId = null;
             if (sessions.size > 0) {
                 switchSession(sessions.keys().next().value);
-            } else {
+            } else if (!options.suppressReturn) {
                 returnToDevices();
             }
         } else {
             syncSessionMediaCapture();
         }
+    }
+
+    function closeAllSessions() {
+        Array.from(sessions.keys()).forEach((id) => closeSession(id, { suppressReturn: true }));
     }
 
     function reconnectSession(session) {
@@ -507,7 +820,10 @@
         c.on('state', (state) => {
             session.state = state;
             updateTabState(session.deviceId, state);
-            if (isActive(session)) syncToolbarToSession(session);
+            if (isActive(session)) {
+                if (state !== 'streaming') hideToolbarChromeForSession(session);
+                syncToolbarToSession(session);
+            }
             handleSessionState(session, state);
         });
 
@@ -521,7 +837,7 @@
             setSessionStatus(session, 'error', msg);
             showSessionActions(session);
             if (meta && meta.cdapFallback) showCdapFallback(session);
-            if (isActive(session)) setToolbarAutoHide(false);
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('cdap_fallback_available', () => {
@@ -531,7 +847,7 @@
         c.on('disconnected', (reason) => {
             setSessionStatus(session, 'info', reason || _('remote.disconnected'));
             showSessionActions(session);
-            if (isActive(session)) setToolbarAutoHide(false);
+            if (isActive(session)) setToolbarChromeVisible(false);
             if (typeof window.BillingReport !== 'undefined') {
                 window.BillingReport.promptAfterSession(session.deviceId, session.deviceName)
                     .then((submitted) => {
@@ -555,6 +871,7 @@
                 }).catch(function () { /* ignore */ });
             }
             if (isActive(session)) session.passwordInput.focus();
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('login_error', (error) => {
@@ -577,6 +894,7 @@
             session.tfaInput.value = '';
             session.tfaOverlay.style.display = 'flex';
             if (isActive(session)) session.tfaInput.focus();
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('2fa_required', () => {
@@ -586,6 +904,7 @@
             session.tfaError.style.display = 'none';
             session.tfaInput.value = '';
             if (isActive(session)) session.tfaInput.focus();
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('login_success', () => {
@@ -612,7 +931,7 @@
             syncSessionMediaCapture();
             if (isActive(session)) {
                 session.canvas.focus();
-                setToolbarAutoHide(true);
+                syncToolbarChrome(session);
                 try { refreshMonitorButton(session); } catch { /* not ready */ }
             }
             if (session.client.video) {
@@ -620,11 +939,14 @@
                     if (isActive(session)) showAutoplayOverlay(session);
                 };
             }
+            if (window.__openFilePanelOnConnect && isActive(session)) {
+                window.__openFilePanelOnConnect = false;
+                window.__fileTransferModal?.open(session);
+            }
         });
 
         c.on('stats', (stats) => {
             session.lastStats = stats;
-            if (isActive(session)) updateStats(stats, session.latency);
         });
 
         c.on('latency', (rtt) => { session.latency = rtt; });
@@ -647,6 +969,7 @@
         c.on('peer_info', () => {
             if (isActive(session)) {
                 try { refreshMonitorButton(session); } catch { /* not ready */ }
+                try { updateWindowsSessionMenu(session); } catch { /* not ready */ }
             }
         });
         c.on('display_switched', () => {
@@ -749,260 +1072,6 @@
             if (e.key === 'Enter') sendChat(session);
             e.stopPropagation();
         });
-
-        // File transfer panel listeners
-        session.panel.querySelector('.session-file-btn-close')
-            ?.addEventListener('click', () => {
-                session.filePanel.style.display = 'none';
-                document.getElementById('btn-file-transfer')?.classList.remove('active');
-            });
-
-        session.panel.querySelector('.session-file-btn-up')
-            ?.addEventListener('click', () => {
-                if (session.client) session.client.fileTransfer.browseParent();
-            });
-
-        session.panel.querySelector('.session-file-btn-home')
-            ?.addEventListener('click', () => {
-                if (session.client) session.client.fileTransfer.browseDir('');
-            });
-
-        session.panel.querySelector('.session-file-btn-hidden')
-            ?.addEventListener('click', function () {
-                if (!session.client) return;
-                const ft = session.client.fileTransfer;
-                ft._showHidden = !ft._showHidden;
-                this.classList.toggle('active', ft._showHidden);
-                ft.browseDir(ft.currentPath);
-            });
-
-        session.panel.querySelector('.session-file-btn-newdir')
-            ?.addEventListener('click', () => {
-                if (!session.client) return;
-                const name = prompt(_('remote.file_new_folder_prompt') || 'Enter folder name:');
-                if (name && name.trim()) {
-                    const ft = session.client.fileTransfer;
-                    const sep = ft.currentPath.includes('\\') ? '\\' : '/';
-                    ft.createDir(ft.currentPath + sep + name.trim());
-                    setTimeout(() => ft.browseDir(ft.currentPath), 500);
-                }
-            });
-
-        session.panel.querySelector('.session-file-btn-upload')
-            ?.addEventListener('click', () => {
-                session.fileUploadInput?.click();
-            });
-
-        session.fileUploadInput?.addEventListener('change', (e) => {
-            if (!session.client || !e.target.files.length) return;
-            const ft = session.client.fileTransfer;
-            for (const file of e.target.files) {
-                ft.uploadFile(file, ft.currentPath);
-            }
-            e.target.value = '';
-        });
-    }
-
-    /**
-     * Wire file transfer events from RDClient to UI
-     */
-    function wireFileTransferEvents(session) {
-        const client = session.client;
-        if (!client) return;
-
-        client.on('file_dir', (data) => {
-            renderFileList(session, data.path, data.entries);
-        });
-
-        client.on('file_browsing', () => {
-            // Show loading state
-            if (session.fileList) {
-                session.fileList.innerHTML = '<div class="file-empty"><span class="material-icons spinning">sync</span> ' +
-                    (_('remote.file_loading') || 'Loading...') + '</div>';
-            }
-        });
-
-        client.on('file_browse_timeout', (data) => {
-            // Peer didn't respond — show timeout message with retry button
-            if (session.fileList) {
-                session.fileList.innerHTML =
-                    '<div class="file-empty">' +
-                        '<span class="material-icons" style="color:var(--warning)">warning</span> ' +
-                        (_('remote.file_timeout') || 'Remote device did not respond. File transfer may not be supported or is disabled on the remote machine.') +
-                        '<br><button class="btn btn-sm btn-primary file-retry-btn" style="margin-top:8px">' +
-                        '<span class="material-icons" style="font-size:16px;vertical-align:middle">refresh</span> ' +
-                        (_('actions.retry') || 'Retry') + '</button>' +
-                    '</div>';
-                session.fileList.querySelector('.file-retry-btn')?.addEventListener('click', () => {
-                    client.fileTransfer.browseDir(data.path);
-                });
-            }
-        });
-
-        client.on('file_transfer_start', (data) => {
-            showTransferEntry(session, data);
-        });
-
-        client.on('file_transfer_progress', (data) => {
-            updateTransferProgress(session, data);
-        });
-
-        client.on('file_transfer_complete', (data) => {
-            completeTransferEntry(session, data);
-        });
-
-        client.on('file_transfer_error', (data) => {
-            errorTransferEntry(session, data);
-        });
-
-        client.on('file_transfer_cancelled', (data) => {
-            removeTransferEntry(session, data.id);
-        });
-    }
-
-    /**
-     * Render file list in file panel
-     */
-    function renderFileList(session, path, entries) {
-        session.filePathText.textContent = path || '/';
-        session.fileList.innerHTML = '';
-
-        if (!entries || entries.length === 0) {
-            session.fileList.innerHTML = '<div class="file-empty">' + (_('remote.file_empty') || 'No files') + '</div>';
-            return;
-        }
-
-        entries.forEach((entry) => {
-            const row = document.createElement('div');
-            row.className = 'file-entry' + (entry.isDir ? ' file-entry-dir' : '');
-            row.innerHTML =
-                '<span class="material-icons file-entry-icon">' + RDFileTransfer.getFileIcon(entry) + '</span>' +
-                '<span class="file-entry-name" title="' + escapeHtml(entry.name) + '">' + escapeHtml(entry.name) + '</span>' +
-                '<span class="file-entry-size">' + (entry.isDir ? '' : RDFileTransfer.formatSize(entry.size)) + '</span>' +
-                '<span class="file-entry-time">' + RDFileTransfer.formatTime(entry.modifiedTime) + '</span>' +
-                '<div class="file-entry-actions">' +
-                    (entry.isDir ? '' : '<button class="file-btn-icon file-btn-download" title="' + (_('remote.file_download') || 'Download') + '"><span class="material-icons">download</span></button>') +
-                    '<button class="file-btn-icon file-btn-rename" title="' + (_('remote.file_rename') || 'Rename') + '"><span class="material-icons">edit</span></button>' +
-                    '<button class="file-btn-icon file-btn-delete" title="' + (_('actions.delete') || 'Delete') + '"><span class="material-icons">delete</span></button>' +
-                '</div>';
-
-            // Double click / click on directory → navigate
-            if (entry.isDir) {
-                row.addEventListener('dblclick', () => {
-                    const ft = session.client?.fileTransfer;
-                    if (!ft) return;
-                    const sep = path.includes('\\') ? '\\' : '/';
-                    ft.browseDir(path + sep + entry.name);
-                });
-            }
-
-            // Download button
-            row.querySelector('.file-btn-download')?.addEventListener('click', (e) => {
-                e.stopPropagation();
-                session.client?.fileTransfer?.downloadFile(path, entry);
-            });
-
-            // Rename button
-            row.querySelector('.file-btn-rename')?.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const newName = prompt(_('remote.file_rename_prompt') || 'New name:', entry.name);
-                if (newName && newName.trim() && newName !== entry.name) {
-                    const ft = session.client?.fileTransfer;
-                    if (!ft) return;
-                    const sep = path.includes('\\') ? '\\' : '/';
-                    ft.rename(path + sep + entry.name, newName.trim());
-                    setTimeout(() => ft.browseDir(ft.currentPath), 500);
-                }
-            });
-
-            // Delete button
-            row.querySelector('.file-btn-delete')?.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (!confirm((_('remote.file_delete_confirm') || 'Delete') + ' "' + entry.name + '"?')) return;
-                const ft = session.client?.fileTransfer;
-                if (!ft) return;
-                const sep = path.includes('\\') ? '\\' : '/';
-                const fullPath = path + sep + entry.name;
-                if (entry.isDir) {
-                    ft.removeDir(fullPath, true);
-                } else {
-                    ft.removeFile(fullPath);
-                }
-                setTimeout(() => ft.browseDir(ft.currentPath), 500);
-            });
-
-            session.fileList.appendChild(row);
-        });
-    }
-
-    function escapeHtml(text) {
-        const el = document.createElement('span');
-        el.textContent = text;
-        return el.innerHTML;
-    }
-
-    /**
-     * Show new transfer entry in transfers panel
-     */
-    function showTransferEntry(session, data) {
-        session.fileTransfersPanel.style.display = 'block';
-        const entry = document.createElement('div');
-        entry.className = 'file-transfer-entry';
-        entry.id = 'ft-' + data.id;
-        entry.innerHTML =
-            '<span class="material-icons file-transfer-icon">' + (data.type === 'download' ? 'download' : 'upload') + '</span>' +
-            '<div class="file-transfer-info">' +
-                '<div class="file-transfer-name">' + escapeHtml(data.fileName) + '</div>' +
-                '<div class="file-transfer-bar"><div class="file-transfer-bar-fill" style="width:0%"></div></div>' +
-                '<div class="file-transfer-status">0%</div>' +
-            '</div>' +
-            '<button class="file-btn-icon file-transfer-cancel" title="Cancel"><span class="material-icons">close</span></button>';
-
-        entry.querySelector('.file-transfer-cancel')?.addEventListener('click', () => {
-            session.client?.fileTransfer?.cancelTransfer(data.id);
-        });
-        session.fileTransfersList.appendChild(entry);
-    }
-
-    function updateTransferProgress(session, data) {
-        const entry = session.fileTransfersList.querySelector('#ft-' + data.id);
-        if (!entry) return;
-        const fill = entry.querySelector('.file-transfer-bar-fill');
-        const status = entry.querySelector('.file-transfer-status');
-        if (fill) fill.style.width = data.percent + '%';
-        if (status) status.textContent = data.percent + '% — ' + RDFileTransfer.formatSize(data.transferred) + ' / ' + RDFileTransfer.formatSize(data.fileSize);
-    }
-
-    function completeTransferEntry(session, data) {
-        const entry = session.fileTransfersList.querySelector('#ft-' + data.id);
-        if (!entry) return;
-        entry.classList.add('complete');
-        const status = entry.querySelector('.file-transfer-status');
-        if (status) status.textContent = (_('remote.file_complete') || 'Complete') + ' — ' + RDFileTransfer.formatSize(data.fileSize);
-        const cancel = entry.querySelector('.file-transfer-cancel');
-        if (cancel) cancel.style.display = 'none';
-        // Auto-remove after 5s
-        setTimeout(() => {
-            entry.remove();
-            if (!session.fileTransfersList.children.length) {
-                session.fileTransfersPanel.style.display = 'none';
-            }
-        }, 5000);
-    }
-
-    function errorTransferEntry(session, data) {
-        const entry = session.fileTransfersList.querySelector('#ft-' + data.id);
-        if (!entry) return;
-        entry.classList.add('error');
-        const status = entry.querySelector('.file-transfer-status');
-        if (status) status.textContent = (_('remote.file_error') || 'Error') + ': ' + data.error;
-        const cancel = entry.querySelector('.file-transfer-cancel');
-        if (cancel) cancel.style.display = 'none';
-    }
-
-    function removeTransferEntry(id) {
-        const el = document.querySelector('#ft-' + id);
-        if (el) el.remove();
     }
 
     // ---- Session state helpers ----
@@ -1027,14 +1096,16 @@
             session.connectionOverlay.style.display = 'flex';
             session.passwordOverlay.style.display = 'none';
             setSessionStatus(session, 'loading', _('remote.connecting'));
-            if (isActive(session)) setToolbarAutoHide(false);
+            if (isActive(session)) setToolbarChromeVisible(false);
             break;
         case 'streaming':
             session.connectionOverlay.style.display = 'none';
             session.passwordOverlay.style.display = 'none';
             session.panel.classList.add('streaming');
             syncSessionMediaCapture();
-            if (isActive(session)) setToolbarAutoHide(true);
+            attachMobileTouch(session);
+            syncMobileTouchForActive();
+            if (isActive(session)) syncToolbarChrome(session);
             break;
         case 'disconnected':
         case 'error':
@@ -1043,7 +1114,7 @@
             setSessionStatus(session, state === 'error' ? 'error' : 'info',
                 state === 'error' ? _('remote.error') : _('remote.disconnected'));
             showSessionActions(session);
-            if (isActive(session)) setToolbarAutoHide(false);
+            if (isActive(session)) setToolbarChromeVisible(false);
             break;
         }
     }
@@ -1065,21 +1136,13 @@
     }
 
     function syncToolbarToSession(session) {
-        const stateLabels = {
-            'idle': _('remote.status_idle'),
-            'connecting': _('remote.connecting'),
-            'waiting_password': _('remote.waiting_password'),
-            'authenticating': _('remote.authenticating'),
-            'streaming': _('remote.streaming'),
-            'disconnected': _('remote.disconnected'),
-            'error': _('remote.error')
-        };
-        toolbarStatus.textContent = stateLabels[session.state] || session.state;
+        const isStreaming = session.state === 'streaming';
+        toolbar.classList.toggle('toolbar-streaming', isStreaming);
+        if (toolbarStatus) toolbarStatus.style.display = 'none';
+        document.querySelector('.toolbar-status-sep')?.style.setProperty('display', 'none');
 
-        if (session.lastStats) {
-            updateStats(session.lastStats, session.latency);
-        } else {
-            toolbarStats.textContent = '';
+        if (isStreaming) {
+            syncToolbarChrome(session);
         }
 
         // Audio icon
@@ -1109,26 +1172,9 @@
         document.querySelectorAll('.codec-item').forEach(function (btn) {
             btn.classList.toggle('active', btn.dataset.codec === p.codec);
         });
-    }
-
-    // ---- Stats display ----
-
-    function updateStats(stats, latency) {
-        if (!stats) return;
-        const parts = [];
-        if (stats.video) {
-            const fps = stats.video.videoFps || 0;
-            parts.push(fps + ' FPS');
-            if (stats.video.frameCount !== undefined) parts.push(stats.video.frameCount + ' frames');
-        }
-        if (stats.video && stats.video.displayWidth && stats.video.displayHeight) {
-            parts.push(stats.video.displayWidth + 'x' + stats.video.displayHeight);
-        } else if (stats.renderer && stats.renderer.remoteWidth && stats.renderer.remoteHeight) {
-            parts.push(stats.renderer.remoteWidth + 'x' + stats.renderer.remoteHeight);
-        }
-        if (latency > 0) parts.push(latency + 'ms');
-        if (stats.video && stats.video.codec) parts.push(stats.video.codec.toUpperCase());
-        toolbarStats.textContent = parts.join(' | ');
+        document.querySelectorAll('.keyboard-mode-item').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.keyboardMode === (p.keyboardMode || 'Auto'));
+        });
     }
 
     // ---- Autoplay blocked overlay ----
@@ -1189,14 +1235,36 @@
         if (session && session.client) fn(session.client, session);
     }
 
+    function toggleViewerShellFullscreen() {
+        const target = viewerShell || viewerContainer;
+        if (!target) return;
+        if (!document.fullscreenElement) {
+            target.requestFullscreen().catch(function () { /* ignore */ });
+            if (navigator.keyboard && navigator.keyboard.lock) {
+                navigator.keyboard.lock().catch(function () { /* permission / unsupported */ });
+            }
+        } else {
+            if (navigator.keyboard && navigator.keyboard.unlock) {
+                navigator.keyboard.unlock();
+            }
+            document.exitFullscreen().catch(function () { /* ignore */ });
+        }
+    }
+
+    function applyTransportCapabilities() {
+        const fileBtn = document.getElementById('btn-file-transfer');
+        if (fileBtn && getTransportName() === 'cdap') {
+            fileBtn.disabled = true;
+            fileBtn.classList.add('disabled');
+            fileBtn.title = t('remote.file_transfer_unavailable_cdap',
+                'File transfer is not available for CDAP snapshot sessions.');
+        }
+        applyGuestUiLockdown();
+    }
+
     // Disconnect
     document.getElementById('btn-disconnect')?.addEventListener('click', () => {
         withClient(c => c.disconnect());
-    });
-
-    // Fullscreen
-    document.getElementById('btn-fullscreen')?.addEventListener('click', () => {
-        withClient(c => c.toggleFullscreen(viewerContainer));
     });
 
     // Audio toggle
@@ -1235,10 +1303,28 @@
         closeAllDropdowns();
     });
 
+    // Reset keyboard (release stuck modifiers on remote)
+    document.getElementById('btn-reset-keyboard')?.addEventListener('click', () => {
+        withClient(c => {
+            if (typeof c.resetKeyboard === 'function') {
+                c.resetKeyboard();
+            } else if (c.input && typeof c.input.resetKeyboard === 'function') {
+                c.input.resetKeyboard();
+            }
+        });
+        showToast(_('remote.reset_keyboard_done') || 'Keyboard state reset on remote', 'success');
+        closeAllDropdowns();
+    });
+
     // Clipboard Paste
     document.getElementById('btn-clipboard-paste')?.addEventListener('click', async () => {
         const session = getActiveSession();
         if (!session || !session.client) return;
+        if (session.client.viewOnly) {
+            showToast(_('remote.view_only') || 'View only mode', 'warning');
+            closeAllDropdowns();
+            return;
+        }
         try {
             const text = await navigator.clipboard.readText();
             if (text) {
@@ -1266,7 +1352,20 @@
             if (session) updateSessionViewerPref(session, { quality: this.dataset.quality });
             document.querySelectorAll('.quality-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            closeAllDropdowns();
+        });
+    });
+
+    // Keyboard mode (Legacy / Map / Auto)
+    document.querySelectorAll('.keyboard-mode-item').forEach(btn => {
+        btn.addEventListener('click', function () {
+            var mode = this.dataset.keyboardMode || 'Auto';
+            var session = getActiveSession();
+            withClient(c => {
+                if (typeof c.setKeyboardMode === 'function') c.setKeyboardMode(mode);
+            });
+            if (session) updateSessionViewerPref(session, { keyboardMode: mode });
+            document.querySelectorAll('.keyboard-mode-item').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
         });
     });
 
@@ -1278,7 +1377,6 @@
             if (session) updateSessionViewerPref(session, { scale: this.dataset.scale });
             document.querySelectorAll('.scale-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            closeAllDropdowns();
         });
     });
 
@@ -1291,7 +1389,6 @@
             if (session) updateSessionViewerPref(session, { codec: this.dataset.codec });
             document.querySelectorAll('.codec-item').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            closeAllDropdowns();
         });
     });
 
@@ -1350,9 +1447,81 @@
                 ? session.client.getVirtualDisplaySupport()
                 : { supported: false };
         } catch { vd = { supported: false }; }
-        const visible = (monitors.length > 1) || (vd && vd.supported);
-        btn.style.display = visible ? '' : 'none';
-        if (visible) updateMonitorMenu();
+        const useStrip = monitors.length >= 2 && monitors.length <= 4;
+        const showDropdown = (monitors.length > 1 && !useStrip) || (vd && vd.supported);
+        btn.style.display = showDropdown ? '' : 'none';
+        updateMonitorStrip(session, monitors, useStrip);
+        if (showDropdown) updateMonitorMenu();
+    }
+
+    function updateMonitorStrip(session, monitors, useStrip) {
+        const strip = document.getElementById('toolbar-monitor-strip');
+        if (!strip) return;
+        strip.innerHTML = '';
+        if (!useStrip || !session || !session.client || monitors.length < 2) {
+            strip.hidden = true;
+            return;
+        }
+        strip.hidden = false;
+        monitors.forEach(function (m, i) {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'toolbar-monitor-btn' + (m.current ? ' active' : '');
+            item.title = m.name || ('Monitor ' + (i + 1));
+            item.textContent = String(i + 1);
+            item.addEventListener('click', function (e) {
+                e.stopPropagation();
+                session.client.switchMonitor(m.idx);
+                strip.querySelectorAll('.toolbar-monitor-btn').forEach(function (b) {
+                    b.classList.remove('active');
+                });
+                item.classList.add('active');
+                updateMonitorMenu();
+            });
+            strip.appendChild(item);
+        });
+    }
+
+    function updateWindowsSessionMenu(session) {
+        session = session || getActiveSession();
+        const menu = document.getElementById('actions-menu');
+        if (!menu || !session || !session.client) return;
+        menu.querySelectorAll('.windows-session-item, .windows-session-sep').forEach(function (el) {
+            el.remove();
+        });
+        let ws = { sessions: [], currentSid: 0 };
+        try {
+            ws = (typeof session.client.getWindowsSessions === 'function')
+                ? session.client.getWindowsSessions()
+                : { sessions: [], currentSid: 0 };
+        } catch { ws = { sessions: [], currentSid: 0 }; }
+        if (!ws.sessions || ws.sessions.length < 2) return;
+
+        const sep = document.createElement('div');
+        sep.className = 'dropdown-separator windows-session-sep';
+        menu.appendChild(sep);
+
+        const label = document.createElement('div');
+        label.className = 'dropdown-label windows-session-sep';
+        label.textContent = t('remote.windows_sessions', 'Windows sessions');
+        menu.appendChild(label);
+
+        ws.sessions.forEach(function (s) {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'dropdown-item windows-session-item' +
+                (s.sid === ws.currentSid ? ' active' : '');
+            item.innerHTML = '<span class="material-icons">desktop_windows</span> ' + escapeHtml(s.name);
+            item.addEventListener('click', function () {
+                session.client.selectWindowsSession(s.sid);
+                menu.querySelectorAll('.windows-session-item').forEach(function (b) {
+                    b.classList.remove('active');
+                });
+                item.classList.add('active');
+                closeAllDropdowns();
+            });
+            menu.appendChild(item);
+        });
     }
 
     function updateMonitorMenu() {
@@ -1373,40 +1542,47 @@
         // display support.
         if (monitors.length < 2 && !(vd && vd.supported)) return;
 
-        const btn = document.getElementById('btn-monitors');
-        if (btn) btn.style.display = '';
-
         const label = menu.querySelector('.dropdown-label');
         menu.innerHTML = '';
         if (label) menu.appendChild(label);
+
+        const listWrap = document.createElement('div');
+        listWrap.className = 'monitors-menu-list';
 
         // Physical monitors
         monitors.forEach(m => {
             const item = document.createElement('button');
             item.className = 'dropdown-item monitor-item' + (m.current ? ' active' : '');
             item.dataset.idx = m.idx;
+            const res = (m.width && m.height)
+                ? '<span class="monitor-item-meta">' + m.width + '\u00d7' + m.height + '</span>'
+                : '';
             item.innerHTML = '<span class="material-icons">' +
                 (m.primary ? 'desktop_windows' : 'monitor') +
-                '</span> ' + escapeHtml(m.name) +
-                (m.width ? ' (' + m.width + '\u00d7' + m.height + ')' : '');
+                '</span><span class="monitor-item-text">' +
+                '<span class="monitor-item-name">' + escapeHtml(m.name) + '</span>' +
+                res +
+                '</span>';
             item.addEventListener('click', () => {
                 session.client.switchMonitor(m.idx);
                 menu.querySelectorAll('.monitor-item').forEach(i => i.classList.remove('active'));
                 item.classList.add('active');
+                refreshMonitorButton(session);
             });
-            menu.appendChild(item);
+            listWrap.appendChild(item);
         });
+
+        menu.appendChild(listWrap);
 
         // Virtual displays (RustDesk IDD / Amyuni IDD)
         if (vd && vd.supported) {
-            const divider = document.createElement('div');
-            divider.className = 'dropdown-divider';
-            menu.appendChild(divider);
+            const vdWrap = document.createElement('div');
+            vdWrap.className = 'monitors-menu-vd';
 
             const vdLabel = document.createElement('div');
             vdLabel.className = 'dropdown-label';
             vdLabel.textContent = t('remote.virtual_displays', 'Virtual displays');
-            menu.appendChild(vdLabel);
+            vdWrap.appendChild(vdLabel);
 
             if (vd.impl === 'rustdesk_idd') {
                 const active = Array.isArray(vd.rustdeskDisplays) ? vd.rustdeskDisplays : [];
@@ -1421,12 +1597,12 @@
                     item.addEventListener('click', () => {
                         session.client.toggleVirtualDisplay(idx, !on);
                     });
-                    menu.appendChild(item);
+                    vdWrap.appendChild(item);
                 }
             } else if (vd.impl === 'amyuni_idd') {
                 const count = (typeof vd.amyuniCount === 'number') ? vd.amyuniCount : 0;
                 const row = document.createElement('div');
-                row.className = 'dropdown-item virtual-display-counter';
+                row.className = 'virtual-display-counter';
 
                 const minus = document.createElement('button');
                 minus.className = 'vd-count-btn';
@@ -1453,7 +1629,7 @@
                 row.appendChild(minus);
                 row.appendChild(num);
                 row.appendChild(plus);
-                menu.appendChild(row);
+                vdWrap.appendChild(row);
             }
 
             // Plug out all
@@ -1464,7 +1640,8 @@
             plugOut.addEventListener('click', () => {
                 session.client.toggleVirtualDisplay(-1, false);
             });
-            menu.appendChild(plugOut);
+            vdWrap.appendChild(plugOut);
+            menu.appendChild(vdWrap);
         }
     }
 
@@ -1478,15 +1655,17 @@
         if (!isOpen && session.chatInput) session.chatInput.focus();
     });
 
-    // File transfer toggle
+    // File transfer modal toggle
     document.getElementById('btn-file-transfer')?.addEventListener('click', function () {
         const session = getActiveSession();
-        if (!session) return;
-        const isOpen = session.filePanel.style.display !== 'none';
-        session.filePanel.style.display = isOpen ? 'none' : 'flex';
-        this.classList.toggle('active', !isOpen);
-        if (!isOpen && session.client) {
-            session.client.fileTransfer.browseDir('');
+        if (!session || !session.client?.fileTransfer) return;
+        if (getTransportName() === 'cdap') return;
+        const modal = window.__fileTransferModal;
+        if (!modal) return;
+        if (modal.isOpen()) {
+            modal.close();
+        } else {
+            modal.open(session);
         }
     });
 
@@ -1498,6 +1677,15 @@
         if (session.mediaRecorder && session.mediaRecorder.state === 'recording') {
             session.mediaRecorder.stop();
             this.classList.remove('recording');
+        } else if (window.__capabilities && window.__capabilities.transport === 'mesh') {
+            session.meshServerRecord = !session.meshServerRecord;
+            this.classList.toggle('recording', session.meshServerRecord);
+            Notifications.info(session.meshServerRecord
+                ? (_('mesh.recording_server_on') || 'Server recording enabled — reconnecting…')
+                : (_('mesh.recording_server_off') || 'Server recording disabled — reconnecting…'));
+            try { session.client.disconnect(); } catch { /* ignore */ }
+            wireNewClient(session);
+            session.client.connect().catch((err) => setSessionStatus(session, 'error', err.message));
         } else {
             try {
                 const stream = session.canvas.captureStream(30);
@@ -1534,82 +1722,28 @@
         const isViewOnly = !this.classList.contains('active');
         this.classList.toggle('active', isViewOnly);
         withClient(c => c.setViewOnly(isViewOnly));
+        syncMobileTouchForActive();
     });
 
     // Pin Toolbar toggle — keeps the expanded action pill open
     document.getElementById('btn-pin')?.addEventListener('click', function () {
+        if (toolbarNotchSlot?.classList.contains('toolbar-chrome-hidden')) return;
         toolbarPinned = !toolbarPinned;
         toolbar.classList.toggle('pinned', toolbarPinned);
         this.classList.toggle('active', toolbarPinned);
         if (toolbarPinned) expandToolbar();
     });
 
-    // ---- Compact handle: expand / collapse the action pill ----
-    document.getElementById('btn-toolbar-expand')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleToolbar();
-    });
-
-    // ---- Compact handle: fullscreen ----
+    // ---- Compact handle: fullscreen (drawer toggle is on the handle itself) ----
     document.getElementById('btn-handle-fullscreen')?.addEventListener('click', (e) => {
         e.stopPropagation();
-        withClient(c => c.toggleFullscreen(viewerContainer));
+        toggleViewerShellFullscreen();
     });
 
-    // ---- Compact handle: drag the floating toolbar horizontally ----
-    (function setupToolbarDrag() {
-        const dragBtn = document.getElementById('btn-toolbar-drag');
-        if (!dragBtn) return;
-        let dragging = false;
-        let startX = 0;
-        let startLeft = 0;
-
-        function clampLeft(px) {
-            const w = toolbar.offsetWidth || 200;
-            const min = 8 + w / 2;
-            const max = window.innerWidth - 8 - w / 2;
-            return Math.max(min, Math.min(max, px));
-        }
-
-        function onMove(ev) {
-            if (!dragging) return;
-            ev.preventDefault();
-            const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
-            const next = clampLeft(startLeft + (clientX - startX));
-            toolbar.style.left = next + 'px';
-            toolbar.style.transform = 'translateX(-50%)';
-        }
-
-        function onUp() {
-            if (!dragging) return;
-            dragging = false;
-            toolbar.classList.remove('dragging');
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            document.removeEventListener('touchmove', onMove);
-            document.removeEventListener('touchend', onUp);
-        }
-
-        function onDown(ev) {
-            ev.preventDefault();
-            dragging = true;
-            toolbar.classList.add('dragging');
-            const rect = toolbar.getBoundingClientRect();
-            startLeft = rect.left + rect.width / 2;
-            startX = ev.touches ? ev.touches[0].clientX : ev.clientX;
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-            document.addEventListener('touchmove', onMove, { passive: false });
-            document.addEventListener('touchend', onUp);
-        }
-
-        dragBtn.addEventListener('mousedown', onDown);
-        dragBtn.addEventListener('touchstart', onDown, { passive: false });
-    })();
-
-    // ---- Back to devices (independent tab — close instead of navigating) ----
+    // ---- Back to devices — close all sessions first ----
     document.getElementById('btn-back-devices')?.addEventListener('click', (e) => {
         e.preventDefault();
+        closeAllSessions();
         returnToDevices();
     });
 
@@ -1643,8 +1777,6 @@
     // Fullscreen handler
     document.addEventListener('fullscreenchange', () => {
         const fsIcon = document.fullscreenElement ? 'fullscreen_exit' : 'fullscreen';
-        const icon = document.getElementById('btn-fullscreen')?.querySelector('.material-icons');
-        if (icon) icon.textContent = fsIcon;
         const handleIcon = document.getElementById('btn-handle-fullscreen')?.querySelector('.material-icons');
         if (handleIcon) handleIcon.textContent = fsIcon;
         setTimeout(() => {
@@ -1653,8 +1785,13 @@
         }, 100);
     });
 
-    // Escape to show toolbar
+    // Escape to show toolbar; F11 toggles viewer shell fullscreen
     document.addEventListener('keydown', (e) => {
+        if (e.key === 'F11') {
+            e.preventDefault();
+            toggleViewerShellFullscreen();
+            return;
+        }
         if (e.key === 'Escape' && !document.fullscreenElement) showToolbar();
     });
 
@@ -1664,36 +1801,119 @@
         if (session && session.client && session.client.renderer) session.client.renderer.resize();
     });
 
-    // ---- Add Session Dialog ----
+    // ---- Session picker (address book) ----
 
-    const addOverlay = document.getElementById('add-session-overlay');
-    const newSessionInput = document.getElementById('new-session-id');
+    let sessionPicker = null;
+    let sessionPickerLoaded = false;
+    const sessionPickerBackdrop = document.getElementById('session-picker-backdrop');
 
-    document.getElementById('btn-add-session')?.addEventListener('click', () => {
-        addOverlay.style.display = 'flex';
-        newSessionInput.value = '';
-        newSessionInput.focus();
-    });
+    function openSessionPicker() {
+        if (!sessionPickerBackdrop) return;
+        sessionPickerBackdrop.hidden = false;
+        sessionPickerBackdrop.classList.add('open');
+        if (!sessionPickerLoaded && sessionPicker) {
+            sessionPicker.loadAll(false).then(() => { sessionPickerLoaded = true; });
+        } else if (sessionPicker) {
+            sessionPicker.renderDevices();
+        }
+        document.getElementById('session-picker-search')?.focus();
+    }
 
-    document.getElementById('btn-cancel-new')?.addEventListener('click', () => {
-        addOverlay.style.display = 'none';
-    });
+    function closeSessionPicker() {
+        if (!sessionPickerBackdrop) return;
+        sessionPickerBackdrop.classList.remove('open');
+        sessionPickerBackdrop.hidden = true;
+    }
 
-    document.getElementById('btn-connect-new')?.addEventListener('click', () => {
-        const id = newSessionInput.value.trim();
-        if (!id || !/^[A-Za-z0-9_-]{3,64}$/.test(id)) {
-            newSessionInput.classList.add('error');
-            setTimeout(() => newSessionInput.classList.remove('error'), 1500);
+    function toggleSessionPicker() {
+        if (sessionPickerBackdrop?.classList.contains('open')) closeSessionPicker();
+        else openSessionPicker();
+    }
+
+    function initSessionPicker() {
+        if (isGuestAccessMode()) {
+            applyGuestUiLockdown();
             return;
         }
-        addOverlay.style.display = 'none';
-        createSession(id, '');
-    });
+        if (!window.RemoteAddressBook || !document.getElementById('session-picker-panel')) return;
 
-    newSessionInput?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') document.getElementById('btn-connect-new')?.click();
-        if (e.key === 'Escape') addOverlay.style.display = 'none';
-    });
+        sessionPicker = window.RemoteAddressBook.create({
+            classPrefix: 'rd-picker',
+            compact: true,
+            ids: {
+                sidebar: 'session-picker-sidebar',
+                contentRoot: 'session-picker-content',
+                foldersCustom: 'session-picker-folders-custom',
+                groups: 'session-picker-groups',
+                groupsEmpty: 'session-picker-groups-empty',
+                tags: 'session-picker-tags',
+                tagsEmpty: 'session-picker-tags-empty',
+                grid: 'session-picker-grid',
+                tableWrap: 'session-picker-table-wrap',
+                tbody: 'session-picker-tbody',
+                loading: 'session-picker-loading',
+                error: 'session-picker-error',
+                errorText: 'session-picker-error-text',
+                empty: 'session-picker-empty',
+                search: 'session-picker-search',
+                sectionTitle: 'session-picker-section-title',
+                deviceCount: 'session-picker-count',
+                countAll: 'rd-picker-count-all',
+                countUnassigned: 'rd-picker-count-unassigned',
+                viewGrid: 'session-picker-view-grid',
+                viewList: 'session-picker-view-list',
+                refreshBtn: 'session-picker-refresh',
+                retry: 'session-picker-retry',
+                quickId: 'session-picker-quick-id'
+            },
+            getConnectedIds: function () {
+                return new Set(sessions.keys());
+            },
+            onConnect: function (deviceId, deviceName) {
+                closeSessionPicker();
+                createSession(deviceId, deviceName || '');
+                if (sessionPicker) sessionPicker.renderDevices();
+            }
+        });
+
+        sessionPicker.bindUi(document.getElementById('session-picker-panel'));
+
+        document.getElementById('btn-add-session')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSessionPicker();
+        });
+
+        document.getElementById('session-picker-close')?.addEventListener('click', closeSessionPicker);
+
+        document.getElementById('session-picker-quick-btn')?.addEventListener('click', () => {
+            if (sessionPicker?.quickConnect('session-picker-quick-id')) {
+                closeSessionPicker();
+            }
+        });
+
+        document.getElementById('session-picker-quick-id')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('session-picker-quick-btn')?.click();
+            }
+        });
+
+        sessionPickerBackdrop?.addEventListener('click', (e) => {
+            if (e.target === sessionPickerBackdrop) closeSessionPicker();
+        });
+
+        const sessionPickerPanel = document.getElementById('session-picker-panel');
+        sessionPickerPanel?.addEventListener('click', (e) => e.stopPropagation());
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && sessionPickerBackdrop?.classList.contains('open')) {
+                closeSessionPicker();
+            }
+        });
+    }
+
+    bindSlimTabBar();
+    initSessionPicker();
 
     // ---- HTTP Warning Banner ----
 
@@ -1725,29 +1945,157 @@
 
     // ---- Initialize ----
 
-    function populateViewerLanguageSelect() {
-        var sel = document.getElementById('viewer-language-select');
-        if (!sel || sel.options.length > 0) return;
-        var langs = (window.BetterDesk && window.BetterDesk.availableLanguages) || [];
-        langs.forEach(function (lang) {
-            var opt = document.createElement('option');
-            opt.value = lang.code;
-            opt.textContent = lang.native || lang.name || lang.code;
-            if (lang.code === (window.BetterDesk && window.BetterDesk.lang)) opt.selected = true;
-            sel.appendChild(opt);
+    // ---- Mobile / tablet rdclient ----
+    const touchHandlers = new Map();
+    let mobileTouchMode = 'direct';
+
+    function attachMobileTouch(session) {
+        if (!window.RdClientMobile || !window.RdClientMobile.isMobileRdClient()) return;
+        if (typeof RDTouch !== 'function' || !session.client) return;
+        let touch = touchHandlers.get(session.deviceId);
+        if (!touch) {
+            touch = new RDTouch(session.canvas, session.client.renderer, function(msg) {
+                if (session.client && session.client.input) {
+                    session.client.input.sendMessage(msg);
+                }
+            });
+            touchHandlers.set(session.deviceId, touch);
+        }
+        touch.setMode(mobileTouchMode);
+        if (session.deviceId === activeSessionId && session.state === 'streaming' && !(session.client && session.client.viewOnly)) {
+            touch.start();
+        } else {
+            touch.stop();
+        }
+    }
+
+    function syncMobileTouchForActive() {
+        if (!window.RdClientMobile || !window.RdClientMobile.isMobileRdClient()) return;
+        touchHandlers.forEach(function(touch, id) {
+            var session = sessions.get(id);
+            if (id === activeSessionId && session && session.state === 'streaming' && !(session.client && session.client.viewOnly)) {
+                touch.setMode(mobileTouchMode);
+                touch.start();
+            } else {
+                touch.stop();
+            }
         });
     }
 
-    function init() {
-        populateViewerLanguageSelect();
+    function resizeViewerForViewport() {
+        sessions.forEach(function(session) {
+            if (session.client && session.client.renderer) {
+                session.client.renderer.resize();
+            }
+        });
+    }
+
+    function initMobileViewerBindings() {
+        var kbBridge = document.getElementById('rd-keyboard-bridge');
+        var specialPanel = document.getElementById('rd-special-keys-panel');
+
+        document.getElementById('rd-mob-input-touch')?.addEventListener('click', function() {
+            mobileTouchMode = 'direct';
+            document.querySelectorAll('#rd-mobile-toolbar [data-mode]').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.mode === 'direct');
+            });
+            syncMobileTouchForActive();
+        });
+
+        document.getElementById('rd-mob-input-touchpad')?.addEventListener('click', function() {
+            mobileTouchMode = 'touchpad';
+            document.querySelectorAll('#rd-mobile-toolbar [data-mode]').forEach(function(b) {
+                b.classList.toggle('active', b.dataset.mode === 'touchpad');
+            });
+            syncMobileTouchForActive();
+        });
+
+        document.getElementById('rd-mob-keyboard')?.addEventListener('click', function() {
+            if (window.RdClientMobile) window.RdClientMobile.focusKeyboardBridge(kbBridge);
+        });
+
+        document.getElementById('rd-mob-special')?.addEventListener('click', function() {
+            if (specialPanel) specialPanel.classList.toggle('open');
+        });
+
+        document.getElementById('rd-mob-cad')?.addEventListener('click', function() {
+            withClient(function(c) { c.sendCtrlAltDel(); });
+        });
+
+        document.getElementById('rd-mob-fullscreen')?.addEventListener('click', function() {
+            toggleViewerShellFullscreen();
+        });
+
+        specialPanel?.querySelectorAll('.rd-special-key-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var session = getActiveSession();
+                if (!session || !session.client || !session.client.input) return;
+                var input = session.client.input;
+                var map = {
+                    Meta: 'MetaLeft',
+                    'Alt+Tab': 'Tab',
+                    PrintScreen: 'PrintScreen',
+                    Escape: 'Escape'
+                };
+                var code = map[btn.dataset.special];
+                if (!code) return;
+                var down = new KeyboardEvent('keydown', { code: code, bubbles: true, cancelable: true });
+                if (btn.dataset.special === 'Alt+Tab') {
+                    down = new KeyboardEvent('keydown', { code: 'Tab', altKey: true, bubbles: true, cancelable: true });
+                }
+                input._handleKeyDown(down);
+                var up = new KeyboardEvent('keyup', { code: code, bubbles: true, cancelable: true });
+                if (btn.dataset.special === 'Alt+Tab') {
+                    up = new KeyboardEvent('keyup', { code: 'Tab', altKey: true, bubbles: true, cancelable: true });
+                }
+                input._handleKeyUp(up);
+                specialPanel.classList.remove('open');
+            });
+        });
+
+        if (kbBridge) {
+            kbBridge.addEventListener('keydown', function(e) {
+                var session = getActiveSession();
+                if (!session || !session.client || !session.client.input) return;
+                session.client.input._handleKeyDown(e);
+            });
+            kbBridge.addEventListener('keyup', function(e) {
+                var session = getActiveSession();
+                if (!session || !session.client || !session.client.input) return;
+                session.client.input._handleKeyUp(e);
+            });
+        }
+
+        if (window.RdClientMobile) {
+            window.RdClientMobile.initVisualViewport(resizeViewerForViewport);
+        }
+    }
+
+    var viewerInitialized = false;
+    var mobileBindingsDone = false;
+
+    function startViewerInit() {
+        if (viewerInitialized) return;
+        viewerInitialized = true;
+
+        applyTransportCapabilities();
+        if (!mobileBindingsDone) {
+            initMobileViewerBindings();
+            mobileBindingsDone = true;
+        }
+
         const deviceId = window.__initialDeviceId;
         const deviceName = window.__initialDeviceName || '';
+        const panelPref = new URLSearchParams(window.location.search).get('panel');
+        if (panelPref === 'files') {
+            window.__openFilePanelOnConnect = true;
+        }
         if (deviceId) {
             createSession(deviceId, deviceName);
         }
 
         // Support opening additional sessions via URL hash: #add=DEVICE_ID
-        if (window.location.hash) {
+        if (window.location.hash && !isGuestAccessMode()) {
             const match = window.location.hash.match(/add=([A-Za-z0-9_-]+)/);
             if (match && match[1] && match[1] !== deviceId) {
                 createSession(match[1], '');
@@ -1765,6 +2113,7 @@
                 if (msg.type === 'add-session' && msg.deviceId) {
                     // Validate deviceId format (alphanumeric, hyphens, underscores)
                     if (!/^[A-Za-z0-9_-]+$/.test(msg.deviceId)) return;
+                    if (!isPeerAllowedForGuest(msg.deviceId)) return;
                     createSession(msg.deviceId, msg.deviceName || '');
                     // Acknowledge so the sender knows we handled it
                     bc.postMessage({ type: 'session-added', deviceId: msg.deviceId });
@@ -1776,6 +2125,15 @@
             };
         } catch (_) {
             // BroadcastChannel not supported — cross-tab disabled
+        }
+    }
+
+    function bootViewer() {
+        installLifecycleHandlers();
+        if (window.RdClientMobile && window.RdClientMobile.watchPhoneGate) {
+            window.RdClientMobile.watchPhoneGate(startViewerInit);
+        } else {
+            startViewerInit();
         }
     }
 
@@ -1804,6 +2162,9 @@
         window.addEventListener('beforeunload', teardown, { capture: true });
     }
 
-    init();
-    installLifecycleHandlers();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootViewer);
+    } else {
+        bootViewer();
+    }
 })();

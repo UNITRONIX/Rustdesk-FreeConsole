@@ -1,12 +1,16 @@
 package relay
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/unitronix/betterdesk-server/codec"
@@ -14,10 +18,12 @@ import (
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
 
+// MaxWSRelayMessage is the max WebSocket binary message size for relay data.
+// Matches RustDesk / support-agent MaxPeerFrameSize (16 MiB).
+const MaxWSRelayMessage = 16 * 1024 * 1024
+
 // serveWS starts the WebSocket relay listener (e.g., port 21119).
-// RustDesk web clients use this for relay traffic over WebSocket.
-// The WS connection is adapted to net.Conn so the existing relay
-// pairing logic works unmodified.
+// RustDesk WebSocket Mode clients use this for relay traffic over WSS.
 // Phase 3: Supports WSS when TLS is enabled for relay server.
 func (s *Server) serveWS() {
 	defer s.wg.Done()
@@ -61,7 +67,7 @@ func (s *Server) serveWS() {
 
 // handleWSRelayUpgrade upgrades to WebSocket and handles relay pairing.
 // After upgrade, the first binary frame must be a RequestRelay (with UUID).
-// Then we convert the WS to a net.Conn and feed it into the existing pairing logic.
+// The raw *websocket.Conn is kept for message-boundary-preserving relay (#293).
 func (s *Server) handleWSRelayUpgrade(w http.ResponseWriter, r *http.Request) {
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
 	if ip == "" {
@@ -96,8 +102,8 @@ func (s *Server) handleWSRelayUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Increase read limit for relay data
-	ws.SetReadLimit(8 * 1024 * 1024) // 8 MB
+	// Cap message size for video frames (H.265 IDR can exceed the old 8 MiB limit).
+	ws.SetReadLimit(MaxWSRelayMessage)
 
 	wsc := codec.NewWSConn(ws, s.ctx, r.RemoteAddr)
 
@@ -133,14 +139,17 @@ func (s *Server) handleWSRelayUpgrade(w http.ResponseWriter, r *http.Request) {
 	uuid := rr.Uuid
 	log.Printf("[relay] WS connection from %s for UUID %s", r.RemoteAddr, uuid)
 
-	// Convert WS to net.Conn for the standard relay pairing pipeline.
-	// websocket.NetConn wraps the WS with binary message framing as a stream.
-	netConn := codec.WSToNetConn(ws)
-
-	// Inject into the same pairing logic used by TCP.
-	// First, send the initial message as a framed packet so handleConn sees it.
-	// Actually, we can directly call the pairing logic here.
-	s.pairWSConn(netConn, uuid)
+	// Keep the raw WebSocket for message-preserving bidirectional copy.
+	// Do NOT wrap with websocket.NetConn + io.Copy: NetConn.Write creates a new
+	// WS message per Write, and io.Copy's ~32 KiB buffer splits large encrypted
+	// video frames — clients then fail with decryption error (#293).
+	s.pairIncomingConn(&pendingConn{
+		ws:        ws,
+		remote:    r.RemoteAddr,
+		transport: relayTransportWS,
+		created:   timeNow(),
+		done:      make(chan struct{}),
+	}, uuid)
 }
 
 func isLoopbackOrigin(origin string) bool {
@@ -152,9 +161,102 @@ func isLoopbackOrigin(origin string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-// pairWSConn pairs a WebSocket-derived net.Conn using the same UUID logic as TCP.
-func (s *Server) pairWSConn(conn net.Conn, uuid string) {
-	s.pairIncomingConn(conn, uuid)
+// startWSRelay runs a message-boundary-preserving bidirectional pipe between
+// two WebSocket relay peers (#293).
+func (s *Server) startWSRelay(ws1, ws2 *websocket.Conn, addr1, addr2, uuid string) {
+	if s.sessionLimiter != nil {
+		ips := make([]string, 0, 2)
+		for _, addr := range []string{addr1, addr2} {
+			ip, _, err := net.SplitHostPort(addr)
+			if err != nil {
+				ip = addr
+			}
+			if !s.sessionLimiter.Acquire(ip) {
+				log.Printf("[relay] Active session limit exceeded for %s (UUID %s)", ip, uuid)
+				_ = ws1.Close(websocket.StatusNormalClosure, "")
+				_ = ws2.Close(websocket.StatusNormalClosure, "")
+				return
+			}
+			ips = append(ips, ip)
+		}
+		defer func() {
+			for _, ip := range ips {
+				s.sessionLimiter.Release(ip)
+			}
+		}()
+	}
+
+	s.ActiveSessions.Add(1)
+	s.TotalRelayed.Add(1)
+
+	log.Printf("[relay] Pair established: %s <-> %s (UUID: %s, transport=ws)",
+		addr1, addr2, uuid)
+
+	if s.onRelayStart != nil {
+		s.onRelayStart(uuid)
+	}
+
+	// Register bandwidth sessions (same accounting as TCP WrapReader x2).
+	var pace1, pace2 io.Writer
+	if s.bwLimiter != nil {
+		_ = s.bwLimiter.WrapReader(bytes.NewReader(nil))
+		_ = s.bwLimiter.WrapReader(bytes.NewReader(nil))
+		pace1 = s.bwLimiter.WrapWriter(io.Discard)
+		pace2 = s.bwLimiter.WrapWriter(io.Discard)
+	}
+
+	idle := config.RelayIdleTimeout
+	done := make(chan struct{})
+	var once sync.Once
+
+	go func() {
+		copyWSMessages(s.ctx, ws1, ws2, pace2, idle)
+		once.Do(func() { close(done) })
+	}()
+	go func() {
+		copyWSMessages(s.ctx, ws2, ws1, pace1, idle)
+		once.Do(func() { close(done) })
+	}()
+
+	<-done
+
+	if s.onRelayEnd != nil {
+		s.onRelayEnd(uuid)
+	}
+
+	_ = ws1.Close(websocket.StatusNormalClosure, "")
+	_ = ws2.Close(websocket.StatusNormalClosure, "")
+
+	if s.bwLimiter != nil {
+		s.bwLimiter.SessionDone()
+		s.bwLimiter.SessionDone()
+	}
+
+	s.ActiveSessions.Add(-1)
+	log.Printf("[relay] Session ended: UUID %s (active: %d)", uuid, s.ActiveSessions.Load())
+}
+
+// copyWSMessages forwards complete WebSocket messages from src to dst.
+// Each Read payload is written as a single Write so large encrypted frames
+// (video) are not split across message boundaries.
+func copyWSMessages(ctx context.Context, dst, src *websocket.Conn, pace io.Writer, idle time.Duration) {
+	for {
+		readCtx, cancel := context.WithTimeout(ctx, idle)
+		typ, data, err := src.Read(readCtx)
+		cancel()
+		if err != nil {
+			return
+		}
+		if pace != nil && len(data) > 0 {
+			_, _ = pace.Write(data)
+		}
+		writeCtx, cancel := context.WithTimeout(ctx, idle)
+		err = dst.Write(writeCtx, typ, data)
+		cancel()
+		if err != nil {
+			return
+		}
+	}
 }
 
 // NOTE: confirmRelay was removed — the RustDesk client does not expect

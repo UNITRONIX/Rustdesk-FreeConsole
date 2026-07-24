@@ -28,6 +28,7 @@
             <ul class="security-tips-list">
                 <li><span class="material-icons">check_circle</span> ${_('users.tip_strong_passwords')}</li>
                 <li><span class="material-icons">check_circle</span> ${_('users.tip_unique_accounts')}</li>
+                <li><span class="material-icons">check_circle</span> ${_('users.tip_operator_role')}</li>
                 <li><span class="material-icons">check_circle</span> ${_('users.tip_viewer_role')}</li>
                 <li><span class="material-icons">check_circle</span> ${_('users.tip_audit_logs')}</li>
             </ul>
@@ -59,6 +60,7 @@
                             <th>${_('users.username')}</th>
                             <th>${_('users.email')}</th>
                             <th>${_('users.role')}</th>
+                            <th>${_('users.column_scope')}</th>
                             <th>${_('users.provider')}</th>
                             <th>${_('users.column_organizations')}</th>
                             <th>${_('users.created')}</th>
@@ -68,7 +70,7 @@
                     </thead>
                     <tbody id="users-tbody">
                         <tr class="loading-row">
-                            <td colspan="7" style="text-align: center; padding: 40px;">
+                            <td colspan="8" style="text-align: center; padding: 40px;">
                                 <span class="skeleton skeleton-text" style="width: 200px;"></span>
                             </td>
                         </tr>
@@ -126,6 +128,7 @@
                         <option value="super_admin">${_('users.role_super_admin')}</option>
                         <option value="pro">${_('users.role_pro')}</option>
                     </select>
+                    <p class="form-hint" id="user-role-desc"></p>
                     <span class="form-hint">${_('users.role_hint')}</span>
                 </div>
 
@@ -136,6 +139,31 @@
                     </div>
                     <span class="form-hint">${_('users.user_groups_hint')}</span>
                 </div>
+
+                <div class="form-group">
+                    <label>${_('users.user_folders')}</label>
+                    <div class="user-folders-list" id="user-folders-list">
+                        <div class="empty-state-inline">${_('users.loading_folders')}</div>
+                    </div>
+                    <span class="form-hint">${_('users.user_folders_hint')}</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="user-direct-devices">${_('users.user_direct_devices')}</label>
+                    <input type="text" id="user-direct-devices" name="peerIds" class="form-input"
+                        placeholder="${_('users.user_direct_devices_placeholder')}">
+                    <span class="form-hint">${_('users.user_direct_devices_hint')}</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="user-strategy">${_('users.pro_strategy_label')}</label>
+                    <select id="user-strategy" name="strategyGuid" class="form-select">
+                        <option value="">${_('users.pro_strategy_none')}</option>
+                    </select>
+                    <span class="form-hint">${_('users.pro_strategy_hint')}</span>
+                </div>
+
+                <p class="form-hint scope-hint">${_('users.scope_hint')}</p>
             </form>
         </template>
     `

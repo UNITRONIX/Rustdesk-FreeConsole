@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../services/database');
 const serverBackend = require('../services/serverBackend');
+const betterdeskApi = require('../services/betterdeskApi');
 const addressBookSync = require('../services/rustdeskAddressBookSync');
 const deviceGroupService = require('../services/deviceGroupService');
 const { requireAuth, requirePermission } = require('../middleware/auth');
@@ -28,6 +29,21 @@ router.get('/devices', requireAuth, (req, res) => {
 const ALLOWED_SORT_FIELDS = ['last_online', 'id', 'hostname', 'created_at', 'os', 'version', 'username', 'note'];
 const ALLOWED_SORT_ORDERS = ['asc', 'desc'];
 
+const GO_ID_RESERVED_DELETED_MSG =
+    'This ID belongs to a deleted device. Restore or permanently delete that device before reusing the ID.';
+
+function mapChangeIdError(req, error) {
+    if (!error) return req.t('devices.change_id_failed');
+    const text = String(error);
+    if (text === GO_ID_RESERVED_DELETED_MSG || text.includes('deleted device')) {
+        return req.t('devices.id_reserved_deleted');
+    }
+    if (text === 'Device ID already exists') {
+        return req.t('devices.id_exists');
+    }
+    return error;
+}
+
 router.get('/api/devices', requireAuth, requirePermission('device.view'), async (req, res) => {
     try {
         // Validate and sanitize sort parameters
@@ -40,6 +56,7 @@ router.get('/api/devices', requireAuth, requirePermission('device.view'), async 
             search: req.query.search || '',
             status: req.query.status || '',
             hasNotes: req.query.hasNotes === 'true',
+            includeDeleted: req.query.includeDeleted === 'true',
             sortBy,
             sortOrder
         };
@@ -162,12 +179,15 @@ router.post('/api/device-groups', requireAuth, requirePermission('device.edit'),
             if (deviceGroupService.folderIdFromGroupGuid(payload.guid) !== null) {
                 return res.status(400).json({ success: false, error: req.t('devices.folder_group_readonly') });
             }
-            group = await db.updateDeviceGroup(payload.guid, payload);
+            group = await db.updateDeviceGroup(
+                payload.guid,
+                deviceGroupService.buildDeviceGroupUpdateFields(payload)
+            );
             if (!group) {
                 return res.status(404).json({ success: false, error: req.t('devices.group_not_found') });
             }
         } else {
-            group = await db.createDeviceGroup(payload);
+            group = await db.createDeviceGroup(deviceGroupService.buildDeviceGroupCreateFields(payload));
         }
 
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'allowed_users')) {
@@ -279,7 +299,10 @@ router.put('/api/devices/:id/groups', requireAuth, requirePermission('device.edi
  */
 router.get('/api/devices/:id', requireAuth, requirePermission('device.view'), async (req, res) => {
     try {
-        const device = await serverBackend.getDeviceById(req.params.id);
+        let device = await serverBackend.getDeviceById(req.params.id);
+        if (!device) {
+            device = await serverBackend.getDeviceById(req.params.id, { includeDeleted: true });
+        }
         
         if (!device) {
             return res.status(404).json({
@@ -411,7 +434,10 @@ router.delete('/api/devices/:id', requireAuth, requirePermission('device.delete'
         const cascade = req.query.cascade === 'true';
         const hard = req.query.hard === 'true';
         
-        const device = await serverBackend.getDeviceById(id);
+        let device = await serverBackend.getDeviceById(id);
+        if (!device && hard) {
+            device = await serverBackend.getDeviceById(id, { includeDeleted: true });
+        }
         if (!device) {
             return res.status(404).json({
                 success: false,
@@ -432,6 +458,9 @@ router.delete('/api/devices/:id', requireAuth, requirePermission('device.delete'
         // Clean up local auth.db data for this peer
         try {
             await db.cleanupDeletedPeerData(id);
+            if (hard && typeof db.purgePanelPeerRecord === 'function') {
+                await db.purgePanelPeerRecord(id);
+            }
         } catch { /* non-critical: auth.db cleanup is secondary */ }
         
         // Log action
@@ -564,12 +593,19 @@ router.post('/api/devices/:id/change-id', requireAuth, requirePermission('device
             });
         }
         
-        // Check if new ID already exists
-        const existing = await serverBackend.getDeviceById(newId);
-        if (existing) {
+        // Check if new ID already exists (active or soft-deleted reservation)
+        const existingActive = await serverBackend.getDeviceById(newId);
+        if (existingActive) {
             return res.status(400).json({
                 success: false,
                 error: req.t('devices.id_exists')
+            });
+        }
+        const existingDeleted = await serverBackend.getDeviceById(newId, { includeDeleted: true });
+        if (existingDeleted?.soft_deleted) {
+            return res.status(400).json({
+                success: false,
+                error: req.t('devices.id_reserved_deleted')
             });
         }
         
@@ -579,8 +615,16 @@ router.post('/api/devices/:id/change-id', requireAuth, requirePermission('device
         if (!result || !result.success) {
             return res.status(400).json({
                 success: false,
-                error: result?.error || req.t('devices.change_id_failed')
+                error: mapChangeIdError(req, result?.error)
             });
+        }
+
+        try {
+            if (typeof db.cascadePeerIdChange === 'function') {
+                await db.cascadePeerIdChange(oldId, newId);
+            }
+        } catch (cascadeErr) {
+            console.warn('Change ID panel cascade failed:', cascadeErr.message);
         }
         
         // Log action
@@ -1010,6 +1054,275 @@ router.post('/api/devices/:id/rename', requireAuth, requirePermission('device.ed
         res.json({ success: true, data: { changes: result?.changes ?? 1, display_name: displayName } });
     } catch (err) {
         console.error('Rename device error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Panel access-control strategies (RustDesk Pro client policy rules)
+// ---------------------------------------------------------------------------
+
+const RUSTDESK_STRATEGY_PERM_KEYS = [
+    'enable-file-transfer',
+    'disable-clipboard',
+    'enable-clipboard',
+    'enable-audio',
+    'enable-tunnel',
+    'enable-camera',
+    'enable-remote-restart',
+    'enable-block-input',
+];
+
+function normalizeStrategyPermissions(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+    const out = {};
+    for (const [key, value] of Object.entries(raw)) {
+        if (value === true || value === 'Y' || value === 'y') out[key] = 'Y';
+        else if (value === false || value === 'N' || value === 'n') out[key] = 'N';
+        else if (typeof value === 'string' && value.trim()) out[key] = value.trim();
+    }
+    return out;
+}
+
+function serializeStrategy(row) {
+    if (!row) return null;
+    const perms = row.permissions && typeof row.permissions === 'object' ? row.permissions : {};
+    return {
+        guid: row.guid,
+        name: row.name || '',
+        user_group_guid: row.user_group_guid || '',
+        device_group_guid: row.device_group_guid || '',
+        enabled: row.enabled === true || row.enabled === 1,
+        permissions: perms,
+        permission_keys: RUSTDESK_STRATEGY_PERM_KEYS,
+        created_at: row.created_at || null,
+        updated_at: row.updated_at || null,
+    };
+}
+
+function normalizeStrategyPayload(body = {}) {
+    const name = String(body.name || '').trim();
+    if (!name) {
+        const err = new Error('Strategy name is required');
+        err.status = 400;
+        throw err;
+    }
+    const userGroupGuid = String(body.user_group_guid || '').trim();
+    const deviceGroupGuid = String(body.device_group_guid || '').trim();
+    if (userGroupGuid && !isValidGroupGuid(userGroupGuid)) {
+        const err = new Error('Invalid user group');
+        err.status = 400;
+        throw err;
+    }
+    if (deviceGroupGuid && !isValidGroupGuid(deviceGroupGuid)) {
+        const err = new Error('Invalid device group');
+        err.status = 400;
+        throw err;
+    }
+    return {
+        name: name.slice(0, 80),
+        user_group_guid: userGroupGuid,
+        device_group_guid: deviceGroupGuid,
+        enabled: body.enabled !== false,
+        permissions: normalizeStrategyPermissions(body.permissions),
+    };
+}
+
+/**
+ * GET /api/panel/strategies — list strategies for panel UI / RustDesk sync.
+ */
+router.get('/api/panel/strategies', requireAuth, requirePermission('device.view'), async (req, res) => {
+    try {
+        const strategies = await db.getAllStrategies();
+        res.json({
+            success: true,
+            data: {
+                strategies: (strategies || []).map(serializeStrategy),
+                total: strategies.length,
+            },
+        });
+    } catch (err) {
+        console.error('Get strategies error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/panel/strategies — create strategy.
+ */
+router.post('/api/panel/strategies', requireAuth, requirePermission('device.edit'), async (req, res) => {
+    try {
+        const payload = normalizeStrategyPayload(req.body || {});
+        const created = await db.createStrategy(payload);
+        await db.logAction(req.session.userId, 'strategy_created', `Created strategy: ${created.name}`, req.ip);
+        res.json({ success: true, data: { strategy: serializeStrategy(created) } });
+    } catch (err) {
+        console.error('Create strategy error:', err);
+        res.status(err.status || 500).json({
+            success: false,
+            error: err.status === 400 ? err.message : req.t('errors.server_error'),
+        });
+    }
+});
+
+/**
+ * PATCH /api/panel/strategies/:guid — update strategy.
+ */
+router.patch('/api/panel/strategies/:guid', requireAuth, requirePermission('device.edit'), async (req, res) => {
+    try {
+        const guid = String(req.params.guid || '').trim();
+        if (!isValidGroupGuid(guid)) {
+            return res.status(400).json({ success: false, error: 'Invalid strategy identifier' });
+        }
+        const existing = await db.getStrategyByGuid(guid);
+        if (!existing) {
+            return res.status(404).json({ success: false, error: req.t('devices.strategy_not_found') });
+        }
+        const payload = normalizeStrategyPayload({ ...existing, ...req.body });
+        const updated = await db.updateStrategy(guid, payload);
+        await db.logAction(req.session.userId, 'strategy_updated', `Updated strategy: ${updated.name}`, req.ip);
+        res.json({ success: true, data: { strategy: serializeStrategy(updated) } });
+    } catch (err) {
+        console.error('Update strategy error:', err);
+        res.status(err.status || 500).json({
+            success: false,
+            error: err.status === 400 ? err.message : req.t('errors.server_error'),
+        });
+    }
+});
+
+async function resolveStrategyAssignKeys(body = {}) {
+    const peers = [];
+    for (const ref of body.peers || []) {
+        peers.push(await db.resolvePeerAssignmentKey(ref));
+    }
+    const users = [];
+    for (const ref of body.users || []) {
+        users.push(await db.resolveUserAssignmentKey(ref));
+    }
+    const groups = [];
+    for (const ref of body.groups || []) {
+        groups.push(await db.resolveDeviceGroupAssignmentKey(ref));
+    }
+    return { peers, users, groups };
+}
+
+async function syncStrategyAssignToGo(strategyGuid, body = {}) {
+    if (!(await serverBackend.isBetterDesk())) return;
+    try {
+        await betterdeskApi.assignStrategy({
+            strategy: strategyGuid || undefined,
+            peers: body.peers || [],
+            users: body.users || [],
+            groups: body.groups || [],
+        });
+    } catch (err) {
+        console.warn('[strategies] Go assign sync failed:', err.message);
+    }
+}
+
+/**
+ * GET /api/panel/strategies/:guid — strategy details + direct assignments.
+ */
+router.get('/api/panel/strategies/:guid', requireAuth, requirePermission('device.view'), async (req, res) => {
+    try {
+        const guid = String(req.params.guid || '').trim();
+        if (!isValidGroupGuid(guid)) {
+            return res.status(400).json({ success: false, error: 'Invalid strategy identifier' });
+        }
+        let strategy = await db.getStrategyByGuid(guid);
+        if (!strategy && (await serverBackend.isBetterDesk())) {
+            const remote = await betterdeskApi.getStrategy(guid);
+            if (remote.success !== false && remote.guid) strategy = remote;
+        }
+        if (!strategy) {
+            return res.status(404).json({ success: false, error: req.t('devices.strategy_not_found') });
+        }
+        const summary = await db.getStrategyAssignmentDisplayRefs(guid);
+        res.json({
+            success: true,
+            data: {
+                strategy: {
+                    ...serializeStrategy(strategy),
+                    ...summary,
+                },
+            },
+        });
+    } catch (err) {
+        console.error('Get strategy detail error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/panel/strategies/:guid/assign — assign strategy to devices/users/groups.
+ */
+router.post('/api/panel/strategies/:guid/assign', requireAuth, requirePermission('device.edit'), async (req, res) => {
+    try {
+        const guid = String(req.params.guid || '').trim();
+        if (!isValidGroupGuid(guid)) {
+            return res.status(400).json({ success: false, error: 'Invalid strategy identifier' });
+        }
+        const existing = await db.getStrategyByGuid(guid);
+        if (!existing) {
+            return res.status(404).json({ success: false, error: req.t('devices.strategy_not_found') });
+        }
+        const body = req.body || {};
+        if (!(body.peers?.length || body.users?.length || body.groups?.length)) {
+            return res.status(400).json({ success: false, error: 'At least one target is required' });
+        }
+        const resolved = await resolveStrategyAssignKeys(body);
+        await db.assignStrategy(guid, resolved);
+        await syncStrategyAssignToGo(guid, body);
+        const summary = await db.getStrategyAssignmentSummary(guid);
+        await db.logAction(req.session.userId, 'strategy_assigned', `Assigned strategy: ${existing.name}`, req.ip);
+        res.json({ success: true, data: { summary } });
+    } catch (err) {
+        console.error('Assign strategy error:', err);
+        res.status(err.message?.includes('not found') ? 400 : 500).json({
+            success: false,
+            error: err.message?.includes('not found') ? err.message : req.t('errors.server_error'),
+        });
+    }
+});
+
+/**
+ * POST /api/panel/strategies/unassign — remove direct assignments (empty strategy).
+ */
+router.post('/api/panel/strategies/unassign', requireAuth, requirePermission('device.edit'), async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (!(body.peers?.length || body.users?.length || body.groups?.length)) {
+            return res.status(400).json({ success: false, error: 'At least one target is required' });
+        }
+        const resolved = await resolveStrategyAssignKeys(body);
+        await db.assignStrategy('', resolved);
+        await syncStrategyAssignToGo('', body);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Unassign strategy error:', err);
+        res.status(400).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * DELETE /api/panel/strategies/:guid — delete strategy.
+ */
+router.delete('/api/panel/strategies/:guid', requireAuth, requirePermission('device.edit'), async (req, res) => {
+    try {
+        const guid = String(req.params.guid || '').trim();
+        if (!isValidGroupGuid(guid)) {
+            return res.status(400).json({ success: false, error: 'Invalid strategy identifier' });
+        }
+        const existing = await db.getStrategyByGuid(guid);
+        if (!existing) {
+            return res.status(404).json({ success: false, error: req.t('devices.strategy_not_found') });
+        }
+        await db.deleteStrategy(guid);
+        await db.logAction(req.session.userId, 'strategy_deleted', `Deleted strategy: ${existing.name}`, req.ip);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Delete strategy error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });
     }
 });

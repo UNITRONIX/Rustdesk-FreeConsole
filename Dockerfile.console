@@ -18,14 +18,14 @@ RUN apk add --no-cache python3 make g++ || { sleep 2 && apk add --no-cache pytho
 COPY web-nodejs/package.json web-nodejs/package-lock.json* ./
 
 # Install production dependencies (native modules build automatically)
-RUN npm install --production
+RUN npm ci --omit=dev
 
 # ---- Production stage ----
 FROM node:20-alpine
 
 LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk Console - Web Management Panel"
-LABEL version="3.3.39"
+LABEL version="3.3.174"
 
 WORKDIR /app
 

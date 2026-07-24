@@ -42,7 +42,7 @@ func main() {
 	cfg := parseFlags()
 
 	// Configure log format (must be before any log output)
-	logCleanup := logging.Setup(cfg.LogFormat)
+	logCleanup := logging.Setup(cfg.LogFormat, cfg.LogLevel)
 	defer logCleanup()
 
 	log.Printf("========================================")
@@ -483,6 +483,7 @@ func parseFlags() *config.Config {
 	flag.StringVar(&cfg.TLSCertFile, "tls-cert", cfg.TLSCertFile, "Path to TLS certificate file")
 	flag.StringVar(&cfg.TLSKeyFile, "tls-key", cfg.TLSKeyFile, "Path to TLS key file")
 	flag.StringVar(&cfg.LogFormat, "log-format", cfg.LogFormat, "Log format: text (default) or json")
+	flag.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "Log level: error, warn, info (default), debug")
 	flag.IntVar(&cfg.AdminPort, "admin-port", cfg.AdminPort, "TCP admin interface port (0 = disabled)")
 	flag.StringVar(&cfg.JWTSecret, "jwt-secret", cfg.JWTSecret, "JWT signing secret (auto-generated if empty)")
 	flag.IntVar(&cfg.JWTExpiry, "jwt-expiry", cfg.JWTExpiry, "JWT token expiry in hours (default 24)")

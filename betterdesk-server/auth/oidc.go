@@ -30,25 +30,32 @@ import (
 // Stored in server_config table with "oidc." prefix.
 type OIDCConfig struct {
 	Enabled          bool   `json:"enabled"`
-	DisplayName      string `json:"display_name"`       // Button label, e.g. "Google", "Azure AD"
-	IssuerURL        string `json:"issuer_url"`         // e.g. "https://accounts.google.com"
-	ClientID         string `json:"client_id"`          // OAuth2 client ID
-	ClientSecret     string `json:"client_secret"`      // OAuth2 client secret
-	RedirectURL      string `json:"redirect_url"`       // e.g. "https://betterdesk.example.com/api/auth/oidc/callback"
-	Scopes           string `json:"scopes"`             // space-separated, default "openid profile email"
-	UsePKCE          bool   `json:"use_pkce"`           // enable PKCE (S256)
-	AutoDiscovery    bool   `json:"auto_discovery"`     // use .well-known/openid-configuration
-	AuthorizationURL string `json:"authorization_url"`  // manual: authorization endpoint
-	TokenURL         string `json:"token_url"`          // manual: token endpoint
-	UserinfoURL      string `json:"userinfo_url"`       // manual: userinfo endpoint
-	ClaimUsername     string `json:"claim_username"`     // claim for username (default: preferred_username)
-	ClaimEmail        string `json:"claim_email"`       // claim for email (default: email)
-	ClaimName         string `json:"claim_name"`        // claim for display name (default: name)
-	ClaimGroups       string `json:"claim_groups"`      // claim for groups (default: groups)
-	DefaultRole      string `json:"default_role"`       // role for users without group mapping (default: viewer)
-	GroupRoleMap      string `json:"group_role_map"`    // pipe-delimited: "GroupName=role|GroupName=role"
-	AllowSignup      bool   `json:"allow_signup"`       // allow auto-creation of new users
+	DisplayName      string `json:"display_name"`      // Button label, e.g. "Google", "Azure AD"
+	IssuerURL        string `json:"issuer_url"`        // e.g. "https://accounts.google.com"
+	ClientID         string `json:"client_id"`         // OAuth2 client ID
+	ClientSecret     string `json:"client_secret"`     // OAuth2 client secret
+	RedirectURL      string `json:"redirect_url"`      // e.g. "https://betterdesk.example.com/api/auth/oidc/callback"
+	PanelURL         string `json:"panel_url"`         // e.g. "https://betterdesk.example.com" (Node console origin)
+	Scopes           string `json:"scopes"`            // space-separated, default "openid profile email"
+	UsePKCE          bool   `json:"use_pkce"`          // enable PKCE (S256)
+	AutoDiscovery    bool   `json:"auto_discovery"`    // use .well-known/openid-configuration
+	AuthorizationURL string `json:"authorization_url"` // manual: authorization endpoint
+	TokenURL         string `json:"token_url"`         // manual: token endpoint
+	UserinfoURL      string `json:"userinfo_url"`      // manual: userinfo endpoint
+	ClaimUsername    string `json:"claim_username"`    // claim for username (default: preferred_username)
+	ClaimEmail       string `json:"claim_email"`       // claim for email (default: email)
+	ClaimName        string `json:"claim_name"`        // claim for display name (default: name)
+	ClaimGroups      string `json:"claim_groups"`      // claim for groups (default: groups)
+	DefaultRole      string `json:"default_role"`      // role for users without group mapping (default: viewer)
+	GroupRoleMap     string `json:"group_role_map"`    // pipe-delimited: "GroupName=role|GroupName=role"
+	AllowSignup      bool   `json:"allow_signup"`      // allow auto-creation of new users
 }
+
+// OIDC flow kinds stored in OAuth state.
+const (
+	OIDCFlowPanel  = "panel"  // web console login
+	OIDCFlowClient = "client" // stock RustDesk desktop client
+)
 
 // OIDCResult represents the outcome of an OIDC authentication.
 type OIDCResult struct {
@@ -59,6 +66,11 @@ type OIDCResult struct {
 	Role          string
 	Groups        []string
 	IDToken       string // raw ID token for audit
+	ReturnURL     string // post-login relative path from OAuth state
+	Flow          string // OIDCFlowPanel or OIDCFlowClient
+	ClientID      string
+	ClientUUID    string
+	State         string // OAuth state (= client poll code for client flow)
 }
 
 // oidcDiscovery holds discovered OIDC endpoints.
@@ -74,7 +86,27 @@ type oidcState struct {
 	Nonce        string
 	CodeVerifier string // PKCE
 	CreatedAt    time.Time
-	ReturnURL    string // where to redirect after login
+	ReturnURL    string // where to redirect after login (panel flow)
+	Flow         string // OIDCFlowPanel (default) or OIDCFlowClient
+	ClientID     string
+	ClientUUID   string
+	DeviceName   string
+	DeviceOS     string
+	DeviceType   string
+}
+
+// ClientOIDCPending tracks a RustDesk desktop OIDC login until auth-query consumes it.
+type ClientOIDCPending struct {
+	ClientID   string
+	ClientUUID string
+	DeviceName string
+	DeviceOS   string
+	DeviceType string
+	UserID     int64
+	Username   string
+	Role       string
+	Authed     bool
+	CreatedAt  time.Time
 }
 
 // oidcAuthCode is a one-time-use code that the panel exchanges (over a
@@ -91,21 +123,23 @@ type oidcAuthCode struct {
 
 // OIDCProvider manages OIDC authentication.
 type OIDCProvider struct {
-	mu        sync.RWMutex
-	config    *OIDCConfig
-	discovery *oidcDiscovery
-	states    map[string]*oidcState    // state → oidcState
-	codes     map[string]*oidcAuthCode // one-time auth codes for panel exchange
-	client    *http.Client
+	mu            sync.RWMutex
+	config        *OIDCConfig
+	discovery     *oidcDiscovery
+	states        map[string]*oidcState         // state → oidcState
+	codes         map[string]*oidcAuthCode      // one-time auth codes for panel exchange
+	clientPending map[string]*ClientOIDCPending // state/code → RustDesk client OIDC pending
+	client        *http.Client
 }
 
 // NewOIDCProvider creates a new OIDC provider with the given configuration.
 func NewOIDCProvider(cfg *OIDCConfig) *OIDCProvider {
 	p := &OIDCProvider{
-		config: cfg,
-		states: make(map[string]*oidcState),
-		codes:  make(map[string]*oidcAuthCode),
-		client: &http.Client{Timeout: 15 * time.Second},
+		config:        cfg,
+		states:        make(map[string]*oidcState),
+		codes:         make(map[string]*oidcAuthCode),
+		clientPending: make(map[string]*ClientOIDCPending),
+		client:        &http.Client{Timeout: 15 * time.Second},
 	}
 	if cfg.Enabled && cfg.AutoDiscovery && cfg.IssuerURL != "" {
 		go p.discover()
@@ -234,8 +268,49 @@ func (p *OIDCProvider) getUserinfoEndpoint() string {
 	return ""
 }
 
-// BuildAuthURL constructs the OIDC authorization URL for redirect.
+// BuildAuthURL constructs the OIDC authorization URL for panel (web console) login.
 func (p *OIDCProvider) BuildAuthURL(returnURL string) (string, string, error) {
+	return p.buildAuthURL(oidcState{
+		ReturnURL: returnURL,
+		Flow:      OIDCFlowPanel,
+	})
+}
+
+// ClientDeviceInfo is device metadata from the RustDesk desktop client.
+type ClientDeviceInfo struct {
+	Name string
+	OS   string
+	Type string
+}
+
+// BuildClientAuthURL starts OIDC for the stock RustDesk desktop client.
+// The returned code is the OAuth state value; the client polls auth-query with it.
+func (p *OIDCProvider) BuildClientAuthURL(clientID, clientUUID string, device ClientDeviceInfo) (authURL, code string, err error) {
+	authURL, code, err = p.buildAuthURL(oidcState{
+		Flow:       OIDCFlowClient,
+		ClientID:   clientID,
+		ClientUUID: clientUUID,
+		DeviceName: device.Name,
+		DeviceOS:   device.OS,
+		DeviceType: device.Type,
+	})
+	if err != nil {
+		return "", "", err
+	}
+	p.mu.Lock()
+	p.clientPending[code] = &ClientOIDCPending{
+		ClientID:   clientID,
+		ClientUUID: clientUUID,
+		DeviceName: device.Name,
+		DeviceOS:   device.OS,
+		DeviceType: device.Type,
+		CreatedAt:  time.Now(),
+	}
+	p.mu.Unlock()
+	return authURL, code, nil
+}
+
+func (p *OIDCProvider) buildAuthURL(base oidcState) (string, string, error) {
 	authEP := p.getAuthEndpoint()
 	if authEP == "" {
 		return "", "", fmt.Errorf("authorization endpoint not configured")
@@ -258,9 +333,18 @@ func (p *OIDCProvider) BuildAuthURL(returnURL string) (string, string, error) {
 	}
 
 	stateEntry := &oidcState{
-		Nonce:     nonce,
-		CreatedAt: time.Now(),
-		ReturnURL: returnURL,
+		Nonce:      nonce,
+		CreatedAt:  time.Now(),
+		ReturnURL:  base.ReturnURL,
+		Flow:       base.Flow,
+		ClientID:   base.ClientID,
+		ClientUUID: base.ClientUUID,
+		DeviceName: base.DeviceName,
+		DeviceOS:   base.DeviceOS,
+		DeviceType: base.DeviceType,
+	}
+	if stateEntry.Flow == "" {
+		stateEntry.Flow = OIDCFlowPanel
 	}
 
 	params := url.Values{
@@ -312,6 +396,15 @@ func (p *OIDCProvider) ExchangeCode(ctx context.Context, code, state string) (*O
 	if !ok {
 		return nil, fmt.Errorf("invalid or expired state parameter")
 	}
+
+	returnURL := stateEntry.ReturnURL
+	flow := stateEntry.Flow
+	if flow == "" {
+		flow = OIDCFlowPanel
+	}
+	clientID := stateEntry.ClientID
+	clientUUID := stateEntry.ClientUUID
+	oauthState := state
 
 	// Check state age (10 minute max)
 	if time.Since(stateEntry.CreatedAt) > 10*time.Minute {
@@ -444,6 +537,11 @@ func (p *OIDCProvider) ExchangeCode(ctx context.Context, code, state string) (*O
 
 	// Map groups to role
 	result.Role = p.resolveRole(result.Groups)
+	result.ReturnURL = returnURL
+	result.Flow = flow
+	result.ClientID = clientID
+	result.ClientUUID = clientUUID
+	result.State = oauthState
 
 	return result, nil
 }
@@ -541,8 +639,134 @@ func (p *OIDCProvider) cleanupStates() {
 				delete(p.codes, k)
 			}
 		}
+		// Client OIDC pending (auth + poll window ~3–10 min).
+		for k, v := range p.clientPending {
+			if now.Sub(v.CreatedAt) > 10*time.Minute {
+				delete(p.clientPending, k)
+			}
+		}
 		p.mu.Unlock()
 	}
+}
+
+// CompleteClientPending marks a RustDesk client OIDC poll code as authenticated.
+func (p *OIDCProvider) CompleteClientPending(code string, userID int64, username, role string) bool {
+	if code == "" || username == "" {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	entry, ok := p.clientPending[code]
+	if !ok {
+		return false
+	}
+	if time.Since(entry.CreatedAt) > 10*time.Minute {
+		delete(p.clientPending, code)
+		return false
+	}
+	entry.UserID = userID
+	entry.Username = username
+	entry.Role = role
+	entry.Authed = true
+	return true
+}
+
+// PeekClientPending returns a copy of the pending client OIDC entry without consuming it.
+func (p *OIDCProvider) PeekClientPending(code string) *ClientOIDCPending {
+	if code == "" {
+		return nil
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	entry, ok := p.clientPending[code]
+	if !ok {
+		return nil
+	}
+	if time.Since(entry.CreatedAt) > 10*time.Minute {
+		return nil
+	}
+	cp := *entry
+	return &cp
+}
+
+// ConsumeClientPending atomically retrieves and deletes an authenticated client pending entry.
+func (p *OIDCProvider) ConsumeClientPending(code string) *ClientOIDCPending {
+	if code == "" {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	entry, ok := p.clientPending[code]
+	if !ok {
+		return nil
+	}
+	delete(p.clientPending, code)
+	if time.Since(entry.CreatedAt) > 10*time.Minute || !entry.Authed {
+		return nil
+	}
+	cp := *entry
+	return &cp
+}
+
+// FailClientPending removes a pending client OIDC entry (e.g. after IdP error).
+func (p *OIDCProvider) FailClientPending(code string) {
+	if code == "" {
+		return
+	}
+	p.mu.Lock()
+	delete(p.clientPending, code)
+	p.mu.Unlock()
+}
+
+// ClientLoginOptionToken returns the login-options string stock RustDesk expects (oidc/<name>).
+func (p *OIDCProvider) ClientLoginOptionToken() string {
+	name := strings.TrimSpace(p.GetDisplayName())
+	if name == "" {
+		name = "oidc"
+	}
+	// Keep spaces — Flutter uses the substring after "oidc/" as the op name.
+	return "oidc/" + name
+}
+
+// NormalizePanelBaseURL trims whitespace and trailing slashes from a panel origin URL.
+func NormalizePanelBaseURL(u string) string {
+	return strings.TrimRight(strings.TrimSpace(u), "/")
+}
+
+// IsValidPanelBaseURL validates a panel origin (scheme + host only, http/https).
+func IsValidPanelBaseURL(u string) bool {
+	u = NormalizePanelBaseURL(u)
+	if u == "" {
+		return false
+	}
+	if strings.ContainsAny(u, "\r\n\x00") {
+		return false
+	}
+	parsed, err := url.Parse(u)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return false
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	return true
+}
+
+// BuildOIDCSessionURL builds the browser redirect target after IdP callback.
+// When panelBase is empty, returns a relative path (legacy split-port behavior).
+func BuildOIDCSessionURL(panelBase, authCode string) string {
+	path := "/api/auth/oidc/session?code=" + url.QueryEscape(authCode)
+	base := NormalizePanelBaseURL(panelBase)
+	if base == "" || !IsValidPanelBaseURL(base) {
+		return path
+	}
+	return base + path
 }
 
 // IsRelativeReturnURL validates that a return URL is a safe relative path.

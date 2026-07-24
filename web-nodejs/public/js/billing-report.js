@@ -82,14 +82,10 @@
     }
 
     async function submitReport(sessionId, payload) {
-        const resp = await fetch(`/api/panel/billing/sessions/${encodeURIComponent(sessionId)}/report`, {
+        await Utils.api(`/api/panel/billing/sessions/${encodeURIComponent(sessionId)}/report`, {
             method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify(payload)
+            body: payload
         });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok) throw new Error(data.error || resp.statusText);
     }
 
     function showModal(session, deviceName) {

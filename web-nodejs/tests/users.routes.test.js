@@ -79,6 +79,17 @@ describe('Users Routes', () => {
         expect(res.body.data.users[1].user_groups).toEqual(['volunteers']);
     });
 
+    it('does not forbid server_admin from the Users management page', async () => {
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'admin', role: 'server_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app).get('/users');
+
+        expect(res.status).not.toBe(403);
+        expect(res.status).not.toBe(401);
+    });
+
     it('returns user groups for panel assignment UIs', async () => {
         const app = createTestApp();
         withAuth(app, { id: 1, username: 'admin', role: 'server_admin' });
@@ -145,6 +156,25 @@ describe('Users Routes', () => {
         expect(res.status).toBe(200);
         expect(mockDb.createUser).toHaveBeenCalledWith('viewer1', 'hashed', 'viewer');
         expect(mockDb.setUserGroupMemberships).toHaveBeenCalledWith(22, ['volunteers']);
+    });
+
+    it('maps unique username constraint errors to username_exists', async () => {
+        const uniqueErr = new Error('duplicate key value violates unique constraint "users_username_key"');
+        uniqueErr.code = '23505';
+        mockDb.createUser.mockRejectedValue(uniqueErr);
+
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'admin', role: 'global_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app)
+            .post('/api/users')
+            .send({ username: 'Gerardo', password: 'StrongPass123!', role: 'viewer' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBe(false);
+        expect(String(res.body.error || '')).toMatch(/exists|username/i);
+        expect(mockUserSync.mirrorCreate).not.toHaveBeenCalled();
     });
 
     it('uses the Go user ID when assigning a local user to an organization', async () => {

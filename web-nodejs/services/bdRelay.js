@@ -26,6 +26,8 @@
 
 const WebSocket = require('ws');
 const crypto = require('crypto');
+const db = require('./database');
+const { verifyDeviceWsAuth } = require('../lib/deviceTokenAuth');
 
 // ---------------------------------------------------------------------------
 //  Constants
@@ -206,26 +208,29 @@ function initBdRelay(server) {
     const relayWss  = new WebSocket.Server({ noServer: true, maxPayload: MAX_FRAME_BYTES });
     const signalWss = new WebSocket.Server({ noServer: true, maxPayload: 64 * 1024 });
     const { enforceOrigin } = require('../middleware/wsOrigin');
+    const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
-    // Attach to server upgrade — only handle /ws/bd-relay and /ws/bd-signal,
-    // let other handlers (remoteRelay, chatRelay, cdap) handle their paths.
-    server.on('upgrade', (request, socket, head) => {
-        const url = new URL(request.url, `http://${request.headers.host}`);
-        const pathname = url.pathname;
+    // Shared upgrade router — paths /ws/bd-relay and /ws/bd-signal (#295).
+    registerUpgradeHandler(
+        server,
+        (pathname) => pathname === '/ws/bd-relay' || pathname === '/ws/bd-signal',
+        (request, socket, head) => {
+            const url = new URL(request.url, `http://${request.headers.host}`);
+            const pathname = url.pathname;
 
-        if (pathname === '/ws/bd-relay') {
-            if (!enforceOrigin(request, socket, `bd-relay ${pathname}`)) return;
-            relayWss.handleUpgrade(request, socket, head, (ws) => {
-                relayWss.emit('connection', ws, request);
-            });
-        } else if (pathname === '/ws/bd-signal') {
-            if (!enforceOrigin(request, socket, `bd-signal ${pathname}`)) return;
-            signalWss.handleUpgrade(request, socket, head, (ws) => {
-                signalWss.emit('connection', ws, request);
-            });
+            if (pathname === '/ws/bd-relay') {
+                if (!enforceOrigin(request, socket, `bd-relay ${pathname}`)) return;
+                relayWss.handleUpgrade(request, socket, head, (ws) => {
+                    relayWss.emit('connection', ws, request);
+                });
+            } else if (pathname === '/ws/bd-signal') {
+                if (!enforceOrigin(request, socket, `bd-signal ${pathname}`)) return;
+                signalWss.handleUpgrade(request, socket, head, (ws) => {
+                    signalWss.emit('connection', ws, request);
+                });
+            }
         }
-        // Other paths: do nothing — let other upgrade handlers deal with them
-    });
+    );
 
     // ---- Relay connections ----
 
@@ -236,7 +241,9 @@ function initBdRelay(server) {
     // ---- Signal connections ----
 
     signalWss.on('connection', (ws, req) => {
-        handleSignalConnection(ws, req);
+        handleSignalConnection(ws, req).catch(() => {
+            try { ws.close(4500, 'Auth error'); } catch (_) { /* closed */ }
+        });
     });
 
     // Cleanup interval
@@ -391,7 +398,7 @@ function teardownSession(sessionId, code, reason) {
 //  Signal connection handler (presence / push)
 // ---------------------------------------------------------------------------
 
-function handleSignalConnection(ws, req) {
+async function handleSignalConnection(ws, req) {
     const ip = clientIp(req);
     const url = new URL(req.url, `http://${req.headers.host}`);
     const deviceId = url.searchParams.get('device_id');
@@ -399,6 +406,17 @@ function handleSignalConnection(ws, req) {
 
     if (!deviceId || !token) {
         ws.close(4400, 'Missing device_id or token');
+        return;
+    }
+
+    if (!/^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
+        ws.close(4400, 'Invalid device_id');
+        return;
+    }
+
+    const authed = await verifyDeviceWsAuth(deviceId, token, db);
+    if (!authed) {
+        ws.close(4403, 'Invalid token');
         return;
     }
 

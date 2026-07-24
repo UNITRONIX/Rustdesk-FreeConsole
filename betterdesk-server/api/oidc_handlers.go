@@ -7,10 +7,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
+	"strings"
 
 	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/auth"
-	"github.com/unitronix/betterdesk-server/db"
 )
 
 // loadOIDCConfigFromDB reads OIDC configuration from the server_config table.
@@ -52,6 +53,9 @@ func (s *Server) loadOIDCConfigFromDB() *auth.OIDCConfig {
 	}
 	if v := getString("oidc.redirect_url"); v != "" {
 		cfg.RedirectURL = v
+	}
+	if v := getString("oidc.panel_url"); v != "" {
+		cfg.PanelURL = v
 	}
 	if v := getString("oidc.scopes"); v != "" {
 		cfg.Scopes = v
@@ -126,6 +130,9 @@ func (s *Server) saveOIDCConfigToDB(cfg *auth.OIDCConfig) error {
 	if err := set("oidc.redirect_url", cfg.RedirectURL); err != nil {
 		return err
 	}
+	if err := set("oidc.panel_url", cfg.PanelURL); err != nil {
+		return err
+	}
 	if err := set("oidc.scopes", cfg.Scopes); err != nil {
 		return err
 	}
@@ -166,6 +173,34 @@ func (s *Server) saveOIDCConfigToDB(cfg *auth.OIDCConfig) error {
 		return err
 	}
 	return nil
+}
+
+// resolvePanelBaseURL returns the Node.js console origin for OIDC session redirects.
+// Priority: oidc.panel_url (DB) → PANEL_PUBLIC_URL → PUBLIC_URL env vars.
+func resolvePanelBaseURL(cfg *auth.OIDCConfig) string {
+	if cfg != nil {
+		if base := auth.NormalizePanelBaseURL(cfg.PanelURL); base != "" && auth.IsValidPanelBaseURL(base) {
+			return base
+		}
+	}
+	for _, key := range []string{"PANEL_PUBLIC_URL", "PUBLIC_URL"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			base := auth.NormalizePanelBaseURL(v)
+			if auth.IsValidPanelBaseURL(base) {
+				return base
+			}
+		}
+	}
+	return ""
+}
+
+// oidcLoginRedirectURL builds a redirect to the panel login page with an OIDC error code.
+func oidcLoginRedirectURL(cfg *auth.OIDCConfig, errCode string) string {
+	panelBase := resolvePanelBaseURL(cfg)
+	if panelBase != "" {
+		return panelBase + "/login?error=" + url.QueryEscape(errCode)
+	}
+	return "/login?error=" + url.QueryEscape(errCode)
 }
 
 // handleGetOIDCConfig returns the current OIDC configuration.
@@ -286,111 +321,77 @@ func (s *Server) handleOIDCAuthorize(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleOIDCCallback handles the IdP callback with the authorization code.
-// GET /api/auth/oidc/callback
-// Public endpoint — exchanges code for tokens, creates/updates user, issues JWT.
+// GET /api/auth/oidc/callback and GET /api/oidc/callback
+// Public endpoint — exchanges code for tokens, creates/updates user.
+// Panel flow issues a one-time panel auth code; client flow completes pending poll.
 func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	if s.oidcProvider == nil || !s.oidcProvider.IsEnabled() {
 		http.Error(w, "OIDC is not enabled", http.StatusBadRequest)
 		return
 	}
 
+	cfg := s.loadOIDCConfigFromDB()
+	stateParam := r.URL.Query().Get("state")
+
 	// Check for error from IdP
 	if errCode := r.URL.Query().Get("error"); errCode != "" {
 		errDesc := r.URL.Query().Get("error_description")
 		log.Printf("[OIDC] IdP returned error: %s — %s", errCode, errDesc)
-		// Redirect to login with error
-		http.Redirect(w, r, "/login?error=oidc_denied", http.StatusFound)
+		if pending := s.oidcProvider.PeekClientPending(stateParam); pending != nil {
+			s.oidcProvider.FailClientPending(stateParam)
+			writeClientOIDCResultPage(w, false, clientOIDCErrorMessage("oidc_denied"))
+			return
+		}
+		http.Redirect(w, r, oidcLoginRedirectURL(cfg, "oidc_denied"), http.StatusFound)
 		return
 	}
 
 	code := r.URL.Query().Get("code")
-	state := r.URL.Query().Get("state")
+	state := stateParam
 
 	if code == "" || state == "" {
-		http.Redirect(w, r, "/login?error=oidc_invalid", http.StatusFound)
+		if pending := s.oidcProvider.PeekClientPending(state); pending != nil {
+			s.oidcProvider.FailClientPending(state)
+			writeClientOIDCResultPage(w, false, clientOIDCErrorMessage("oidc_invalid"))
+			return
+		}
+		http.Redirect(w, r, oidcLoginRedirectURL(cfg, "oidc_invalid"), http.StatusFound)
 		return
 	}
+
+	// Prefer client branch when a desktop poll session exists for this state
+	// (covers races before ExchangeCode copies Flow onto the result).
+	isClientPending := s.oidcProvider.PeekClientPending(state) != nil
 
 	// Exchange code for tokens and user info
 	result, err := s.oidcProvider.ExchangeCode(r.Context(), code, state)
 	if err != nil {
 		log.Printf("[OIDC] Code exchange failed: %v", err)
-		http.Redirect(w, r, "/login?error=oidc_failed", http.StatusFound)
+		if isClientPending {
+			s.oidcProvider.FailClientPending(state)
+			writeClientOIDCResultPage(w, false, clientOIDCErrorMessage("oidc_failed"))
+			return
+		}
+		http.Redirect(w, r, oidcLoginRedirectURL(cfg, "oidc_failed"), http.StatusFound)
 		return
 	}
 
-	// Find or create local user
-	user, err := s.db.GetUser(result.Username)
-	if err != nil {
-		log.Printf("[OIDC] DB error looking up user %s: %v", result.Username, err)
-		http.Redirect(w, r, "/login?error=oidc_error", http.StatusFound)
+	if result.Flow == auth.OIDCFlowClient || isClientPending {
+		if result.State == "" {
+			result.State = state
+		}
+		s.finishClientOIDCCallback(w, r, result, cfg)
 		return
 	}
 
-	cfg := s.oidcProvider.GetConfig()
+	loginErr := func(code string) {
+		http.Redirect(w, r, oidcLoginRedirectURL(cfg, code), http.StatusFound)
+	}
 
-	if user == nil {
-		// Auto-provision new user
-		if !cfg.AllowSignup {
-			log.Printf("[OIDC] User %s not found and auto-signup disabled", result.Username)
-			http.Redirect(w, r, "/login?error=oidc_no_account", http.StatusFound)
-			return
-		}
-
-		// Generate a random password (user will authenticate via OIDC, not local password)
-		randomPass, err := auth.GenerateRandomString(32)
-		if err != nil {
-			log.Printf("[OIDC] Failed to generate random password: %v", err)
-			http.Redirect(w, r, "/login?error=oidc_error", http.StatusFound)
-			return
-		}
-		hash, err := auth.HashPassword(randomPass)
-		if err != nil {
-			log.Printf("[OIDC] Failed to hash password: %v", err)
-			http.Redirect(w, r, "/login?error=oidc_error", http.StatusFound)
-			return
-		}
-
-		role := result.Role
-		if role == "" {
-			role = auth.RoleViewer
-		}
-
-		newUser := &db.User{
-			Username:     result.Username,
-			PasswordHash: hash,
-			Role:         role,
-			AuthProvider: db.AuthProviderOIDC,
-		}
-		if createErr := s.db.CreateUser(newUser); createErr != nil {
-			log.Printf("[OIDC] Failed to create user %s: %v", result.Username, createErr)
-			http.Redirect(w, r, "/login?error=oidc_error", http.StatusFound)
-			return
-		}
-
-		user, _ = s.db.GetUser(result.Username)
-		if user == nil {
-			http.Redirect(w, r, "/login?error=oidc_error", http.StatusFound)
-			return
-		}
-
-		log.Printf("[OIDC] Auto-provisioned user %s with role %s", result.Username, role)
-	} else {
-		// Update role from OIDC group mapping if changed, and ensure the
-		// account is bound to the OIDC provider (Issue #148).
-		changed := false
-		if result.Role != "" && result.Role != user.Role {
-			user.Role = result.Role
-			changed = true
-			log.Printf("[OIDC] Updated role for %s to %s", result.Username, result.Role)
-		}
-		if user.AuthProvider != db.AuthProviderOIDC {
-			user.AuthProvider = db.AuthProviderOIDC
-			changed = true
-		}
-		if changed {
-			_ = s.db.UpdateUser(user)
-		}
+	user, errCode := s.ensureOIDCUser(result, cfg)
+	if errCode != "" {
+		loginErr(errCode)
+		return
 	}
 
 	// Audit log
@@ -404,12 +405,12 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	token, err := s.jwtManager.Generate(user.Username, user.Role)
 	if err != nil {
 		log.Printf("[OIDC] Failed to generate JWT for %s: %v", user.Username, err)
-		http.Redirect(w, r, "/login?error=oidc_error", http.StatusFound)
+		loginErr("oidc_error")
 		return
 	}
 
-	// Get return URL from state, re-validating it is a safe relative path.
-	returnURL := s.oidcProvider.GetReturnURL(state)
+	// Return URL was captured from OAuth state inside ExchangeCode.
+	returnURL := result.ReturnURL
 	if !auth.IsRelativeReturnURL(returnURL) {
 		returnURL = "/"
 	}
@@ -421,15 +422,44 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	authCode, err := s.oidcProvider.StoreAuthCode(token, user.Username, user.Role, returnURL)
 	if err != nil {
 		log.Printf("[OIDC] Failed to store auth code for %s: %v", user.Username, err)
-		http.Redirect(w, r, "/login?error=oidc_error", http.StatusFound)
+		loginErr("oidc_error")
 		return
 	}
 
-	// Redirect to Node.js callback handler with ONLY the auth code.
-	// Node.js POSTs back to /api/auth/oidc/exchange to retrieve the JWT.
-	callbackURL := "/api/auth/oidc/session?code=" + url.QueryEscape(authCode)
+	// Redirect to Node.js session handler with ONLY the auth code.
+	// Use an absolute panel URL when configured so Docker / split-port
+	// deployments reach the console (port 5000), not the Go API port (#269).
+	panelBase := resolvePanelBaseURL(cfg)
+	callbackURL := auth.BuildOIDCSessionURL(panelBase, authCode)
+	if panelBase == "" {
+		log.Printf("[OIDC] Panel URL not configured — session redirect uses relative path (may fail on split-port setups)")
+	}
 
 	http.Redirect(w, r, callbackURL, http.StatusFound)
+}
+
+// handleOIDCSessionRedirect forwards browser session requests from the Go API
+// port to the Node.js panel. GET /api/auth/oidc/session (public).
+func (s *Server) handleOIDCSessionRedirect(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	cfg := s.loadOIDCConfigFromDB()
+	panelBase := resolvePanelBaseURL(cfg)
+
+	if code == "" {
+		http.Redirect(w, r, oidcLoginRedirectURL(cfg, "oidc_invalid"), http.StatusFound)
+		return
+	}
+
+	if panelBase == "" {
+		log.Printf("[OIDC] GET /api/auth/oidc/session on Go API but panel URL is not configured")
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error": "OIDC panel URL is not configured — set Panel URL in Settings → Authentication → OIDC",
+		})
+		return
+	}
+
+	target := auth.BuildOIDCSessionURL(panelBase, code)
+	http.Redirect(w, r, target, http.StatusFound)
 }
 
 // handleOIDCExchange exchanges a one-time auth code for the JWT + verified

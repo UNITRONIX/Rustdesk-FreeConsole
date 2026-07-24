@@ -45,7 +45,7 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++ || { sleep 2 && apk add --no-cache python3 make g++; }
 
 COPY web-nodejs/package.json web-nodejs/package-lock.json* ./
-RUN npm install --production
+RUN npm ci --omit=dev
 
 # ============= Stage 3: Production runtime =============
 # Note: supervisord requires root to manage child processes with user= directive.
@@ -55,7 +55,7 @@ FROM node:20-alpine
 
 LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk — All-in-One (Go Server + Node.js Console)"
-LABEL version="3.3.39"
+LABEL version="3.3.174"
 
 # Install runtime packages (retry for transient DNS failures)
 RUN apk add --no-cache \
@@ -64,6 +64,7 @@ RUN apk add --no-cache \
     sqlite \
     tini \
     supervisor \
+    su-exec \
     && mkdir -p /var/log/supervisor \
     || { sleep 2 && apk add --no-cache \
     ca-certificates \
@@ -71,6 +72,7 @@ RUN apk add --no-cache \
     sqlite \
     tini \
     supervisor \
+    su-exec \
     && mkdir -p /var/log/supervisor; }
 
 # Create betterdesk user and directories

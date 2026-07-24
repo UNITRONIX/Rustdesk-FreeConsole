@@ -28,6 +28,7 @@ import (
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/internal/productversion"
 	"github.com/unitronix/betterdesk-server/logging"
+	"github.com/unitronix/betterdesk-server/meshcentral"
 	"github.com/unitronix/betterdesk-server/metrics"
 	"github.com/unitronix/betterdesk-server/ratelimit"
 	"github.com/unitronix/betterdesk-server/relay"
@@ -54,7 +55,7 @@ func main() {
 	cfg := parseFlags()
 
 	// Configure log format (must be before any log output)
-	logCleanup := logging.Setup(cfg.LogFormat)
+	logCleanup := logging.Setup(cfg.LogFormat, cfg.LogLevel)
 	defer logCleanup()
 
 	log.Printf("========================================")
@@ -122,6 +123,10 @@ func main() {
 
 	if err := database.Migrate(); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
+	}
+	// Defensive: ensure client_sessions exists even if an older binary skipped #242 DDL (#284).
+	if err := database.EnsureClientSessionsSchema(); err != nil {
+		log.Fatalf("Failed to ensure client_sessions schema: %v", err)
 	}
 
 	// Load API key from .api_key file or API_KEY env var and sync to database.
@@ -239,13 +244,19 @@ func main() {
     // Initialize per-IP relay connection limiter
 	var connLimiter *ratelimit.ConnLimiter
 	if cfg.RelayMaxConnsIP > 0 {
-		limit := cfg.RelayMaxConnsIP
-		const maxInt32 = 1<<31 - 1
-		if limit > maxInt32 {
-			limit = maxInt32
-		}
-		connLimiter = ratelimit.NewConnLimiter(int32(limit))
+		connLimiter = ratelimit.NewConnLimiterFromInt(cfg.RelayMaxConnsIP)
 		log.Printf("Relay per-IP connection limit: %d", cfg.RelayMaxConnsIP)
+	}
+	var sessionLimiter *ratelimit.ConnLimiter
+	if cfg.RelayMaxConnsIP > 0 {
+		sessionLimiter = ratelimit.NewConnLimiterFromInt(cfg.RelayMaxConnsIP)
+		log.Printf("Relay active-session per-IP limit: %d", cfg.RelayMaxConnsIP)
+	}
+
+	if cfg.EnrollmentMode == config.EnrollmentModeOpen {
+		if !cfg.SignalTLSEnabled() || !cfg.RelayTLSEnabled() {
+			log.Printf("  ⛔ ERROR [SECURITY]: ENROLLMENT_MODE=open without TLS_SIGNAL and TLS_RELAY — unsafe for Internet-facing production")
+		}
 	}
 
 	// Initialize audit logger
@@ -292,9 +303,22 @@ func main() {
 		QueryTimeout: 5 * time.Second,
 		MaxSkew:      time.Duration(cfg.BillingMaxClockSkewMS) * time.Millisecond,
 		RequireSync:  cfg.BillingRequireSyncedClock,
+		TrustOSNTP:   cfg.BillingTrustOSNTP,
 	})
+	log.Printf("[timesync] NTP servers: %v (trust OS NTP when queries fail: %v)",
+		cfg.GetNTPServers(), cfg.BillingTrustOSNTP)
 	timeSyncSvc.Start(ctx)
 	defer timeSyncSvc.Stop()
+
+	reloadHandler.OnReload(func() error {
+		timeSyncSvc.ApplyConfig(timesync.Config{
+			Servers:     cfg.GetNTPServers(),
+			MaxSkew:     time.Duration(cfg.BillingMaxClockSkewMS) * time.Millisecond,
+			RequireSync: cfg.BillingRequireSyncedClock,
+			TrustOSNTP:  cfg.BillingTrustOSNTP,
+		})
+		return nil
+	})
 
 	billingSvc := billing.NewService(database, timeSyncSvc, cfg.BillingRoundingMinutes, cfg.BillingRequireWorkReport)
 	billingSvc.Start(ctx)
@@ -331,6 +355,9 @@ func main() {
 		if connLimiter != nil {
 			relaySrv.SetConnLimiter(connLimiter)
 		}
+		if sessionLimiter != nil {
+			relaySrv.SetSessionLimiter(sessionLimiter)
+		}
 		relaySrv.SetBillingCallbacks(billingSvc.ActivateRelay, billingSvc.EndRelay)
 		if err := relaySrv.Start(ctx); err != nil {
 			log.Fatalf("Failed to start relay server: %v", err)
@@ -338,7 +365,7 @@ func main() {
 		defer relaySrv.Stop()
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), relaySrv, Version)
-		defer attachPanelSync(apiSrv, database, cfg.AuthDBPath)()
+		defer attachPanelSync(apiSrv, billingSvc, database, cfg.AuthDBPath)()
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -365,6 +392,25 @@ func main() {
 			apiSrv.SetCDAPGateway(cdapGw)
 		}
 
+		// MeshCentral compatibility layer (optional)
+		var meshGw *meshcentral.Gateway
+		if cfg.MeshCentralEnabled {
+			meshGw, err = meshcentral.NewGateway(cfg, database, sig.PeerMap(), sig.EventBus(), jwtSecret)
+			if err != nil {
+				log.Fatalf("Failed to init MeshCentral gateway: %v", err)
+			}
+			meshGw.SetBlocklist(blocklist)
+			meshGw.SetAuditLogger(auditLogger)
+			meshGw.SetJWTManager(jwtManager)
+			meshGw.SetVersion(Version)
+			if cfg.TLSCertFile != "" {
+				if certDER, readErr := os.ReadFile(cfg.TLSCertFile); readErr == nil {
+					meshGw.SetWebCertHash(meshcentral.WebCertHash(certDER))
+				}
+			}
+			apiSrv.SetMeshGateway(meshGw)
+		}
+
 		if err := apiSrv.Start(ctx); err != nil {
 			log.Fatalf("Failed to start API server: %v", err)
 		}
@@ -375,6 +421,13 @@ func main() {
 				log.Fatalf("Failed to start CDAP gateway: %v", err)
 			}
 			defer cdapGw.Stop()
+		}
+
+		if meshGw != nil {
+			if err := meshGw.Start(ctx); err != nil {
+				log.Fatalf("Failed to start MeshCentral gateway: %v", err)
+			}
+			defer meshGw.Stop()
 		}
 
 		adminSrv.SetPeerMap(sig.PeerMap())
@@ -398,7 +451,7 @@ func main() {
 		defer sig.Stop()
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), nil, Version)
-		defer attachPanelSync(apiSrv, database, cfg.AuthDBPath)()
+		defer attachPanelSync(apiSrv, billingSvc, database, cfg.AuthDBPath)()
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -425,6 +478,9 @@ func main() {
 		relaySrv.SetBandwidthLimiter(bwLimiter)
 		if connLimiter != nil {
 			relaySrv.SetConnLimiter(connLimiter)
+		}
+		if sessionLimiter != nil {
+			relaySrv.SetSessionLimiter(sessionLimiter)
 		}
 		if err := relaySrv.Start(ctx); err != nil {
 			log.Fatalf("Failed to start relay server: %v", err)
@@ -640,9 +696,12 @@ func resolveAuthDBPath(explicit, dbPath string) string {
 }
 
 // attachPanelSync wires RustDesk group/folder sync to PostgreSQL or legacy auth.db.
-func attachPanelSync(apiSrv *api.Server, database db.Database, authDBPath string) func() {
+func attachPanelSync(apiSrv *api.Server, billingSvc *billing.Service, database db.Database, authDBPath string) func() {
 	if pg, ok := database.(*db.PostgresDB); ok {
 		apiSrv.SetPanelStore(pg)
+		if billingSvc != nil {
+			billingSvc.SetPanelSyncStore(pg)
+		}
 		log.Printf("RustDesk panel sync: PostgreSQL (device groups, folders, ACL)")
 		return func() {}
 	}
@@ -656,6 +715,9 @@ func attachPanelSync(apiSrv *api.Server, database db.Database, authDBPath string
 		return func() {}
 	}
 	apiSrv.SetPanelStore(consoleAuth)
+	if billingSvc != nil {
+		billingSvc.SetPanelSyncStore(consoleAuth)
+	}
 	log.Printf("RustDesk panel sync: legacy auth.db at %s", authDBPath)
 	return func() { _ = consoleAuth.Close() }
 }
@@ -678,12 +740,14 @@ func parseFlags() *config.Config {
 	flag.StringVar(&cfg.TLSCertFile, "tls-cert", cfg.TLSCertFile, "Path to TLS certificate file")
 	flag.StringVar(&cfg.TLSKeyFile, "tls-key", cfg.TLSKeyFile, "Path to TLS key file")
 	flag.StringVar(&cfg.LogFormat, "log-format", cfg.LogFormat, "Log format: text (default) or json")
+	flag.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "Log level: error, warn, info (default), debug")
 	flag.IntVar(&cfg.AdminPort, "admin-port", cfg.AdminPort, "TCP admin interface port (0 = disabled)")
 	flag.StringVar(&cfg.JWTSecret, "jwt-secret", cfg.JWTSecret, "JWT signing secret (auto-generated if empty)")
 	flag.IntVar(&cfg.JWTExpiry, "jwt-expiry", cfg.JWTExpiry, "JWT token expiry in hours (default 24)")
 	flag.StringVar(&cfg.AdminPassword, "admin-password", cfg.AdminPassword, "Password for admin TCP interface")
 	flag.BoolVar(&cfg.ForceHTTPS, "force-https", cfg.ForceHTTPS, "Reject non-TLS API requests")
-	flag.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "Trust X-Forwarded-For/X-Real-IP headers from reverse proxy")
+	flag.BoolVar(&cfg.TrustProxy, "trust-proxy", cfg.TrustProxy, "Trust X-Forwarded-For/X-Real-IP headers from reverse proxy (requires --trusted-proxies)")
+	trustedProxiesFlag := flag.String("trusted-proxies", "", "Comma-separated CIDR/IP allowlist of reverse proxies that may set X-Forwarded-* (required with --trust-proxy)")
 	flag.IntVar(&cfg.RelayMaxConnsIP, "relay-max-conns-ip", cfg.RelayMaxConnsIP, "Max relay connections per IP (0 = unlimited)")
 	flag.IntVar(&cfg.SignalRateLimitPerIP, "signal-rate-limit-per-ip", cfg.SignalRateLimitPerIP, "Max signal registrations per IP per minute (0 = unlimited; raise for large NAT deployments — issue #122)")
 	flag.BoolVar(&cfg.SameNATRelay, "same-nat-relay", cfg.SameNATRelay, "Auto-fallback to relay when both peers share the same public IP (avoids NAT hairpin failures — issue #121)")
@@ -709,6 +773,16 @@ func parseFlags() *config.Config {
 	// Override with environment variables
 	cfg.LoadEnv()
 	cfg.AuthDBPath = resolveAuthDBPath(cfg.AuthDBPath, cfg.DBPath)
+
+	// CLI --trusted-proxies overrides env when set (LoadEnv already applied TRUSTED_PROXIES).
+	if *trustedProxiesFlag != "" {
+		nets, err := config.ParseTrustedProxies(*trustedProxiesFlag)
+		if err != nil {
+			log.Fatalf("Invalid --trusted-proxies: %v", err)
+		}
+		cfg.TrustedProxies = nets
+	}
+	cfg.WarnProxyTrustMisconfig()
 
 	// Validate mode
 	cfg.Mode = strings.ToLower(cfg.Mode)

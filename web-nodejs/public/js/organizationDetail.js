@@ -608,6 +608,9 @@
     //  Shared organization address book
     // -----------------------------------------------------------------------
     let addressBookEnabled = true;
+    let addressBookPeers = [];
+    let addressBookTags = [];
+    let addressBookShowJson = false;
 
     function parseAddressBook(raw) {
         if (!raw || raw === '{}') return { peers: [], tags: [] };
@@ -620,6 +623,64 @@
         if (!Array.isArray(normalized.peers)) normalized.peers = [];
         if (!Array.isArray(normalized.tags)) normalized.tags = [];
         return JSON.stringify(normalized, null, 2);
+    }
+
+    function buildAddressBookPayload() {
+        if (addressBookShowJson) {
+            return currentAddressBookJSON();
+        }
+        const tagsRaw = document.getElementById('org-address-book-tags-input')?.value || '';
+        const tags = tagsRaw.split(',').map(tag => tag.trim()).filter(Boolean);
+        const peers = addressBookPeers.map(peer => {
+            const entry = { id: String(peer.id || '').trim() };
+            if (peer.alias) entry.alias = String(peer.alias).trim();
+            if (Array.isArray(peer.tags) && peer.tags.length) entry.tags = peer.tags;
+            return entry;
+        }).filter(peer => peer.id);
+        return { peers, tags };
+    }
+
+    function renderAddressBookPeersTable() {
+        const tbody = document.getElementById('org-address-book-peers-body');
+        if (!tbody) return;
+        if (!addressBookPeers.length) {
+            tbody.innerHTML = `<tr><td colspan="4" class="org-ab-empty">${escHtml(t('address_book_no_peers'))}</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = addressBookPeers.map((peer, index) => `
+            <tr data-index="${index}">
+                <td><input type="text" class="form-input org-ab-peer-id" value="${escHtml(peer.id || '')}" maxlength="64" placeholder="123456789"></td>
+                <td><input type="text" class="form-input org-ab-peer-alias" value="${escHtml(peer.alias || '')}" maxlength="120" placeholder="${escHtml(t('address_book_alias'))}"></td>
+                <td><input type="text" class="form-input org-ab-peer-tags" value="${escHtml((peer.tags || []).join(', '))}" maxlength="200" placeholder="${escHtml(t('address_book_peer_tags_placeholder'))}"></td>
+                <td class="org-ab-actions">
+                    <button type="button" class="action-btn danger org-ab-remove-peer" data-index="${index}" title="${escHtml(t('actions.delete'))}">
+                        <span class="material-icons">delete</span>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+
+        tbody.querySelectorAll('.org-ab-remove-peer').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.index, 10);
+                if (!Number.isNaN(idx)) {
+                    addressBookPeers.splice(idx, 1);
+                    renderAddressBookPeersTable();
+                }
+            });
+        });
+    }
+
+    function syncAddressBookPeersFromTable() {
+        const rows = document.querySelectorAll('#org-address-book-peers-body tr[data-index]');
+        addressBookPeers = Array.from(rows).map(row => {
+            const tagsRaw = row.querySelector('.org-ab-peer-tags')?.value || '';
+            return {
+                id: row.querySelector('.org-ab-peer-id')?.value.trim() || '',
+                alias: row.querySelector('.org-ab-peer-alias')?.value.trim() || '',
+                tags: tagsRaw.split(',').map(tag => tag.trim()).filter(Boolean),
+            };
+        }).filter(peer => peer.id);
     }
 
     function currentAddressBookJSON() {
@@ -641,7 +702,8 @@
     async function saveAddressBook() {
         let data;
         try {
-            data = currentAddressBookJSON();
+            syncAddressBookPeersFromTable();
+            data = buildAddressBookPayload();
         } catch (err) {
             toast(err.message || t('address_book_invalid_json'), 'error');
             return;
@@ -659,7 +721,8 @@
 
     async function importOrgDevicesIntoAddressBook() {
         try {
-            const data = currentAddressBookJSON();
+            syncAddressBookPeersFromTable();
+            const data = buildAddressBookPayload();
             const deviceResp = await api('GET', '/devices');
             const devices = deviceResp.devices || [];
             const peers = Array.isArray(data.peers) ? data.peers : [];
@@ -677,7 +740,11 @@
 
             data.peers = peers;
             data.tags = Array.isArray(data.tags) ? data.tags : [];
-            document.getElementById('org-address-book-json').value = formatAddressBook(data);
+            addressBookPeers = peers;
+            addressBookTags = data.tags;
+            renderAddressBookPeersTable();
+            const tagsInput = document.getElementById('org-address-book-tags-input');
+            if (tagsInput) tagsInput.value = data.tags.join(', ');
             toast(imported ? t('address_book_imported') : t('address_book_import_none'), imported ? 'success' : 'info');
         } catch (err) {
             toast(err.message || t('loading_failed'), 'error');
@@ -691,18 +758,96 @@
             const data = await api('GET', '/address-book');
             const parsed = parseAddressBook(data.data);
             addressBookEnabled = data.enabled !== false;
+            addressBookPeers = Array.isArray(parsed.peers) ? parsed.peers.map(peer => ({
+                id: String(peer.id || '').trim(),
+                alias: String(peer.alias || '').trim(),
+                tags: Array.isArray(peer.tags) ? peer.tags.map(String) : [],
+            })) : [];
+            addressBookTags = Array.isArray(parsed.tags) ? parsed.tags.map(String) : [];
+            addressBookShowJson = false;
             container.innerHTML = `
                 <p class="form-hint">${escHtml(t('address_book_intro'))}</p>
                 <label class="org-address-book-toggle">
                     <input type="checkbox" id="org-address-book-enabled" ${addressBookEnabled ? 'checked' : ''}>
                     <span>${escHtml(t('address_book_enabled'))}</span>
                 </label>
-                <div class="form-group">
-                    <label class="form-label" for="org-address-book-json">${escHtml(t('address_book_json'))}</label>
-                    <textarea id="org-address-book-json" class="form-input org-address-book-json" spellcheck="false">${escHtml(formatAddressBook(parsed))}</textarea>
-                    <p class="form-hint">${escHtml(t('address_book_json_hint'))}</p>
+                <div class="org-address-book-structured" id="org-address-book-structured">
+                    <div class="org-section-header org-ab-section-header">
+                        <h3>${escHtml(t('address_book_contacts'))}</h3>
+                        <button type="button" class="btn btn-secondary btn-sm" id="org-address-book-add-peer-btn">
+                            <span class="material-icons">person_add</span>
+                            ${escHtml(t('address_book_add_peer'))}
+                        </button>
+                    </div>
+                    <div class="org-table-container org-ab-table-wrap">
+                        <table class="org-table org-address-book-table">
+                            <thead>
+                                <tr>
+                                    <th>${escHtml(t('address_book_peer_id'))}</th>
+                                    <th>${escHtml(t('address_book_alias'))}</th>
+                                    <th>${escHtml(t('address_book_peer_tags'))}</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="org-address-book-peers-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="org-address-book-tags-input">${escHtml(t('address_book_tags_label'))}</label>
+                        <input type="text" id="org-address-book-tags-input" class="form-input" value="${escHtml(addressBookTags.join(', '))}" placeholder="${escHtml(t('address_book_tags_placeholder'))}">
+                        <p class="form-hint">${escHtml(t('address_book_tags_hint'))}</p>
+                    </div>
+                </div>
+                <div class="org-address-book-advanced">
+                    <button type="button" class="btn btn-secondary btn-sm" id="org-address-book-toggle-json">
+                        <span class="material-icons">code</span>
+                        ${escHtml(t('address_book_show_json'))}
+                    </button>
+                    <div class="form-group org-address-book-json-wrap hidden" id="org-address-book-json-wrap">
+                        <label class="form-label" for="org-address-book-json">${escHtml(t('address_book_json'))}</label>
+                        <textarea id="org-address-book-json" class="form-input org-address-book-json" spellcheck="false">${escHtml(formatAddressBook(parsed))}</textarea>
+                        <p class="form-hint">${escHtml(t('address_book_json_hint'))}</p>
+                    </div>
                 </div>
             `;
+
+            renderAddressBookPeersTable();
+
+            document.getElementById('org-address-book-add-peer-btn')?.addEventListener('click', () => {
+                syncAddressBookPeersFromTable();
+                addressBookPeers.push({ id: '', alias: '', tags: [] });
+                renderAddressBookPeersTable();
+            });
+
+            document.getElementById('org-address-book-toggle-json')?.addEventListener('click', () => {
+                addressBookShowJson = !addressBookShowJson;
+                const wrap = document.getElementById('org-address-book-json-wrap');
+                const btn = document.getElementById('org-address-book-toggle-json');
+                const structured = document.getElementById('org-address-book-structured');
+                if (addressBookShowJson) {
+                    syncAddressBookPeersFromTable();
+                    const payload = buildAddressBookPayload();
+                    document.getElementById('org-address-book-json').value = formatAddressBook(payload);
+                    wrap?.classList.remove('hidden');
+                    structured?.classList.add('hidden');
+                    if (btn) btn.innerHTML = `<span class="material-icons">view_list</span> ${escHtml(t('address_book_hide_json'))}`;
+                } else {
+                    try {
+                        const parsedJson = currentAddressBookJSON();
+                        addressBookPeers = Array.isArray(parsedJson.peers) ? parsedJson.peers : [];
+                        addressBookTags = Array.isArray(parsedJson.tags) ? parsedJson.tags : [];
+                        document.getElementById('org-address-book-tags-input').value = addressBookTags.join(', ');
+                        renderAddressBookPeersTable();
+                    } catch (err) {
+                        toast(err.message || t('address_book_invalid_json'), 'error');
+                        addressBookShowJson = true;
+                        return;
+                    }
+                    wrap?.classList.add('hidden');
+                    structured?.classList.remove('hidden');
+                    if (btn) btn.innerHTML = `<span class="material-icons">code</span> ${escHtml(t('address_book_show_json'))}`;
+                }
+            });
 
             const saveBtn = document.getElementById('save-address-book-btn');
             const importBtn = document.getElementById('import-org-devices-btn');

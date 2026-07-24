@@ -13,9 +13,29 @@ function loadBrowserScript(relativePath, extraGlobals) {
         globalThis: {},
         ...extraGlobals,
     };
-    sandbox.window = sandbox;
-    sandbox.globalThis = sandbox;
+    if (!extraGlobals || extraGlobals.window === undefined) {
+        sandbox.window = sandbox;
+    }
+    sandbox.globalThis = sandbox.window;
     vm.runInNewContext(fs.readFileSync(filename, 'utf8'), sandbox, { filename });
+    return sandbox;
+}
+
+function loadBrowserScripts(relativePaths, extraGlobals) {
+    const sandbox = {
+        console,
+        window: {},
+        globalThis: {},
+        ...extraGlobals,
+    };
+    if (!extraGlobals || extraGlobals.window === undefined) {
+        sandbox.window = sandbox;
+    }
+    sandbox.globalThis = sandbox.window;
+    for (const rel of relativePaths) {
+        const filename = path.join(__dirname, '..', rel);
+        vm.runInNewContext(fs.readFileSync(filename, 'utf8'), sandbox, { filename });
+    }
     return sandbox;
 }
 
@@ -116,11 +136,8 @@ describe('RDAudio session isolation', () => {
 
 describe('RDInput multi-session keyboard isolation', () => {
     let RDInput;
-    let keydownHandlers;
 
     beforeAll(() => {
-        keydownHandlers = [];
-
         const documentListeners = { keydown: [], keyup: [], pointerlockchange: [] };
         const document = {
             activeElement: null,
@@ -148,12 +165,22 @@ describe('RDInput multi-session keyboard isolation', () => {
             };
         }
 
-        const sandbox = loadBrowserScript('public/js/rdclient/input.js', {
+        const windowStub = {
+            addEventListener() {},
+            removeEventListener() {},
+        };
+
+        const sandbox = loadBrowserScripts([
+            'public/js/rdclient/keyboard-scancode.js',
+            'public/js/rdclient/keyboard-encoder.js',
+            'public/js/rdclient/input.js',
+        ], {
             document,
+            window: windowStub,
             RDProtocol: {},
             makeCanvas,
         });
-        RDInput = sandbox.RDInput;
+        RDInput = sandbox.window.RDInput;
         sandbox.makeCanvas = makeCanvas;
         sandbox.document = document;
     });
@@ -179,6 +206,7 @@ describe('RDInput multi-session keyboard isolation', () => {
         inputA.start();
         inputB.start();
         inputA.stop();
+        sendA.mockClear();
 
         const event = {
             code: 'KeyA',

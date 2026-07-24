@@ -10,15 +10,20 @@ const NON_CRITICAL_UPDATE_FAILURES = new Set([
     'server-source',
     'npm install',
     'support-agent-source-sync',
+    // Installer / Docker root files — optional beside the console; EACCES/EPERM
+    // on these must not block SHA save (Windows drive-root bug #272, Linux root-owned /opt).
     'betterdesk.sh',
     'betterdesk.ps1',
     'betterdesk-docker.sh',
     'docker-compose.yml',
     'docker-compose.single.yml',
     'docker-compose.quick.yml',
+    'docker-compose.quick.single.yml',
+    'docker-compose.quick.single.macvlan.yml',
     'Dockerfile',
     'Dockerfile.server',
     'Dockerfile.console',
+    'VERSION',
 ]);
 
 function isNonCriticalUpdateFailure(fileKey) {

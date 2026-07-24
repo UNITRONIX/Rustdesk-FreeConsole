@@ -76,6 +76,20 @@ type RolePermission struct {
 	Granted    bool   `json:"granted"`    // true = allowed, false = denied
 }
 
+// ClientSession represents a RustDesk desktop client login session (opaque bearer token).
+type ClientSession struct {
+	ID         int64  `json:"id"`
+	TokenHash  string `json:"-"`
+	UserID     int64  `json:"user_id"`
+	ClientID   string `json:"client_id"`
+	ClientUUID string `json:"client_uuid"`
+	ExpiresAt  string `json:"expires_at"`
+	LastUsed   string `json:"last_used,omitempty"`
+	CreatedAt  string `json:"created_at"`
+	Revoked    bool   `json:"revoked"`
+	IPAddress  string `json:"ip_address,omitempty"`
+}
+
 // APIKey represents a scoped API key for programmatic access.
 type APIKey struct {
 	ID        int64  `json:"id"`
@@ -467,11 +481,15 @@ type Database interface {
 	RestorePeer(id string) error
 
 	// ID change
-	ChangePeerID(oldID, newID string) error
+	ChangePeerID(oldID, newID, reason string) error
 	GetIDChangeHistory(id string) ([]*IDChangeHistory, error)
 	// IsRenamedPeerID returns true if the given ID was previously used and
 	// changed to a different one (appears as old_id in id_change_history).
 	IsRenamedPeerID(id string) (bool, error)
+	// GetLatestRenameTarget returns the most recent new_id for a renamed old_id.
+	GetLatestRenameTarget(oldID string) (string, error)
+	// ReleasePeerID clears id_change_history rows involving id so the ID can be reused.
+	ReleasePeerID(id string) error
 
 	// CDAP: linked device queries
 	GetLinkedPeers(id string) ([]*Peer, error)
@@ -644,6 +662,17 @@ type Database interface {
 	UpdateStrategy(guid string, s *Strategy) error
 	DeleteStrategy(guid string) error
 
+	// Pro-style direct strategy assignments (device / user / device group)
+	AssignStrategy(strategyGUID string, peerKeys, userKeys, groupKeys []string) error
+	GetStrategyAssignmentSummary(strategyGUID string) (*StrategyAssignmentSummary, error)
+	ResolvePeerAssignmentKey(ref string) (string, error)
+	ResolveUserAssignmentKey(ref string) (string, error)
+	ResolveDeviceGroupAssignmentKey(ref string) (string, error)
+	EnsurePeerGUID(id string) (string, error)
+	GetPeerIDByGUID(guid string) (string, error)
+	SetStrategyEnabled(guid string, enabled bool) error
+	ListProDeviceRefs(idFilter string, limit, offset int) ([]ProDeviceRef, int, error)
+
 	// Billing / commercialization
 	CreateBillingPackage(p *BillingPackage) error
 	GetBillingPackage(id string) (*BillingPackage, error)
@@ -657,6 +686,15 @@ type Database interface {
 	ListBillingOrgContracts(filter BillingContractFilter) ([]*BillingOrgContract, error)
 	UpdateBillingOrgContract(c *BillingOrgContract) error
 
+	CreateBillingContract(c *BillingContract) error
+	GetBillingContract(id string) (*BillingContract, error)
+	GetActiveBillingContract(targetType, targetKey string) (*BillingContract, error)
+	ListBillingContracts(filter BillingContractFilter) ([]*BillingContract, error)
+	UpdateBillingContract(c *BillingContract) error
+	DeleteBillingContract(id string) error
+	CountBillingContractsByPackage(packageID string) (int, error)
+	CountBillingContractsExpiringWithin(days int) (int, error)
+
 	CreateBillingSession(s *BillingSession) error
 	GetBillingSession(id string) (*BillingSession, error)
 	GetBillingSessionByRelayUUID(relayUUID string) (*BillingSession, error)
@@ -669,6 +707,16 @@ type Database interface {
 	CreateBillingWorkReport(r *BillingWorkReport) error
 	GetBillingWorkReportBySession(sessionID string) (*BillingWorkReport, error)
 	ListBillingWorkReports(orgID string, limit int) ([]*BillingWorkReport, error)
+
+	// RustDesk client sessions (Issue #242 — DB-backed opaque tokens with sliding expiry)
+	EnsureClientSessionsSchema() error
+	CreateClientSession(sess *ClientSession) error
+	GetClientSessionByTokenHash(tokenHash string) (*ClientSession, error)
+	GetActiveClientSessionByClient(clientID, clientUUID string) (*ClientSession, error)
+	TouchClientSession(id int64, expiresAt, lastUsed string) error
+	RevokeClientSessionByTokenHash(tokenHash string) error
+	RevokeClientSessionsForDevice(userID int64, clientID, clientUUID string) error
+	CleanupExpiredClientSessions() (int64, error)
 
 	ListBillingCurrencies() ([]*BillingCurrency, error)
 	UpsertBillingCurrency(c *BillingCurrency) error

@@ -3,6 +3,9 @@
 const fs = require('fs');
 
 const PRIVILEGED_PORT_MAX = 1023;
+/** Linux capability.h — CAP_NET_BIND_SERVICE */
+const CAP_NET_BIND_SERVICE = 12;
+const BIND_SERVICE_ENV = 'BETTERDESK_HAS_BIND_SERVICE';
 
 function isPrivilegedPort(port) {
     const n = Number(port);
@@ -13,16 +16,46 @@ function isRootProcess() {
     return typeof process.getuid === 'function' && process.getuid() === 0;
 }
 
+function isTruthyEnvFlag(value) {
+    const v = String(value || '').trim().toLowerCase();
+    return v === '1' || v === 'true' || v === 'yes' || v === 'y';
+}
+
+/**
+ * True when the process may bind ports <= 1023 (root, ambient CAP_NET_BIND_SERVICE, or env hint).
+ */
+function processHasBindServiceCapability() {
+    if (isTruthyEnvFlag(process.env[BIND_SERVICE_ENV])) {
+        return true;
+    }
+    if (process.platform !== 'linux' || typeof process.getuid !== 'function') {
+        return false;
+    }
+    try {
+        const status = fs.readFileSync('/proc/self/status', 'utf8');
+        const match = status.match(/^CapEff:\s*([0-9a-fA-F]+)/m);
+        if (!match) return false;
+        const capEff = BigInt(`0x${match[1].trim()}`);
+        return (capEff & (1n << BigInt(CAP_NET_BIND_SERVICE))) !== 0n;
+    } catch {
+        return false;
+    }
+}
+
+function canBindPrivilegedPorts() {
+    return isRootProcess() || processHasBindServiceCapability();
+}
+
 /**
  * Non-root processes cannot bind ports <= 1023 unless CAP_NET_BIND_SERVICE is granted.
- * Fall back to a high port so the console can start after H-7 service user migration.
+ * Fall back to a high port only when binding would fail; otherwise trust systemd + EACCES handler.
  */
 function resolvePortForCurrentUser(configuredPort, fallbackPort, label) {
     const port = Number(configuredPort);
     if (!Number.isInteger(port) || port <= 0) {
         return fallbackPort;
     }
-    if (!isRootProcess() && isPrivilegedPort(port)) {
+    if (!canBindPrivilegedPorts() && isPrivilegedPort(port)) {
         console.warn(`WARNING: ${label} port ${port} requires root or CAP_NET_BIND_SERVICE; using ${fallbackPort} instead`);
         console.warn('  → Set HTTPS_PORT=5443 (or PORT=5000) in .env, use a reverse proxy on :443, or grant CAP_NET_BIND_SERVICE in the systemd unit');
         return fallbackPort;
@@ -42,6 +75,16 @@ function parseEnvPortSettings(envContent) {
         httpsEnabled: (get('HTTPS_ENABLED', 'false') || 'false').toLowerCase() === 'true',
         httpRedirect: (get('HTTP_REDIRECT_HTTPS', 'true') || 'true').toLowerCase() === 'true',
     };
+}
+
+function resolvePanelHealthPort(settings) {
+    const s = settings || {};
+    if (s.httpsEnabled) {
+        const httpsPort = Number(s.httpsPort);
+        return Number.isInteger(httpsPort) && httpsPort > 0 ? httpsPort : 5443;
+    }
+    const port = Number(s.port);
+    return Number.isInteger(port) && port > 0 ? port : 5000;
 }
 
 function readConsoleEnvPortSettings(envPath) {
@@ -65,9 +108,14 @@ const BIND_CAPABILITY_LINES = [
     'AmbientCapabilities=CAP_NET_BIND_SERVICE',
     'CapabilityBoundingSet=CAP_NET_BIND_SERVICE',
 ];
+const BIND_SERVICE_ENV_LINE = `Environment=${BIND_SERVICE_ENV}=1`;
 
 function serviceUnitHasBindCapability(content) {
     return /^AmbientCapabilities=.*CAP_NET_BIND_SERVICE/m.test(String(content || ''));
+}
+
+function serviceUnitHasBindServiceEnv(content) {
+    return new RegExp(`^Environment=${BIND_SERVICE_ENV}=1`, 'm').test(String(content || ''));
 }
 
 /**
@@ -78,10 +126,6 @@ function ensureBindCapabilityInServiceUnit(content) {
     if (!unit.trim()) {
         return { content: unit, changed: false };
     }
-    if (serviceUnitHasBindCapability(unit)) {
-        return { content: unit, changed: false };
-    }
-
     const lines = unit.split('\n');
     let insertAt = -1;
     for (let i = 0; i < lines.length; i += 1) {
@@ -102,8 +146,28 @@ function ensureBindCapabilityInServiceUnit(content) {
         return { content: unit, changed: false };
     }
 
-    lines.splice(insertAt, 0, ...BIND_CAPABILITY_LINES);
-    return { content: lines.join('\n'), changed: true };
+    let changed = false;
+    if (!serviceUnitHasBindCapability(unit)) {
+        lines.splice(insertAt, 0, ...BIND_CAPABILITY_LINES);
+        insertAt += BIND_CAPABILITY_LINES.length;
+        changed = true;
+    }
+    if (!serviceUnitHasBindServiceEnv(lines.join('\n'))) {
+        lines.splice(insertAt, 0, BIND_SERVICE_ENV_LINE);
+        changed = true;
+    }
+    return { content: lines.join('\n'), changed };
+}
+
+/**
+ * Build Location URL for HTTP→HTTPS redirect. Omits :443 (and :80 on HTTP side is implicit).
+ */
+function formatHttpsRedirectUrl(hostname, httpsPort, urlPath) {
+    const host = String(hostname || 'localhost');
+    const path = urlPath != null && urlPath !== '' ? urlPath : '/';
+    const port = Number(httpsPort);
+    const suffix = Number.isInteger(port) && port > 0 && port !== 443 ? `:${port}` : '';
+    return `https://${host}${suffix}${path}`;
 }
 
 function attachPrivilegedPortErrorHandler(server, { port, label }) {
@@ -125,13 +189,21 @@ function attachPrivilegedPortErrorHandler(server, { port, label }) {
 
 module.exports = {
     PRIVILEGED_PORT_MAX,
+    CAP_NET_BIND_SERVICE,
+    BIND_SERVICE_ENV,
     isPrivilegedPort,
     isRootProcess,
+    isTruthyEnvFlag,
+    processHasBindServiceCapability,
+    canBindPrivilegedPorts,
     resolvePortForCurrentUser,
     parseEnvPortSettings,
+    resolvePanelHealthPort,
     readConsoleEnvPortSettings,
     consoleEnvUsesPrivilegedPorts,
     serviceUnitHasBindCapability,
+    serviceUnitHasBindServiceEnv,
     ensureBindCapabilityInServiceUnit,
+    formatHttpsRedirectUrl,
     attachPrivilegedPortErrorHandler,
 };

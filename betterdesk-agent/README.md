@@ -50,7 +50,7 @@ go build -o betterdesk-agent .
 
 ```json
 {
-  "server": "ws://192.168.0.110:21122/cdap",
+  "server": "ws://203.0.113.10:21122/cdap",
   "auth_method": "api_key",
   "api_key": "your-api-key-here",
   "device_name": "Production Server",

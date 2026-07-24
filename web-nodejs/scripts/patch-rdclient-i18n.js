@@ -185,8 +185,13 @@ const PATCHES = {
     },
 };
 
+function isUnsafeObjectKey(key) {
+    return key === '__proto__' || key === 'prototype' || key === 'constructor';
+}
+
 function deepMerge(target, patch) {
     for (const [k, v] of Object.entries(patch)) {
+        if (isUnsafeObjectKey(k)) continue;
         if (v && typeof v === 'object' && !Array.isArray(v)) {
             if (!target[k] || typeof target[k] !== 'object') target[k] = {};
             deepMerge(target[k], v);

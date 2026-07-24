@@ -3,6 +3,6 @@
     "i18n:check": "node web-nodejs/scripts/i18n-check.js --system web-nodejs"
   },
   "devDependencies": {
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.5"
   }
 }

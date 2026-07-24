@@ -1,0 +1,55 @@
+name: CodeQL
+
+# Advanced CodeQL workflow. GitHub "default setup" already scans on push
+# (runs appear as "Push on dev"). Uploading SARIF from this advanced workflow
+# fails with: "CodeQL analyses from advanced configurations cannot be processed
+# when the default setup is enabled". Keep this file for scheduled / manual
+# advanced scans after default setup is disabled in repo Settings → Code security.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - javascript-typescript
+          - go
+          - python
+          - rust
+          - actions
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        if: github.event_name != 'pull_request' || github.actor != 'dependabot[bot]'
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+          # Avoid hard-fail when default setup is still enabled on the repo.
+          upload: always
+        continue-on-error: true

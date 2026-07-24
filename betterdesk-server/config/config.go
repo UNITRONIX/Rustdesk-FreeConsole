@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -56,17 +57,25 @@ type Config struct {
 
 	// Logging
 	LogFormat string // "text" or "json"
+	LogLevel  string // error | warn | info | debug
 
 	// Admin
 	AdminPort int // TCP admin interface port (0 = disabled)
 
 	// Security — Authentication
-	JWTSecret       string // Secret key for JWT signing (auto-generated if empty)
-	JWTExpiry       int    // JWT token expiry in hours (default 24)
-	AdminPassword   string // Password for admin TCP interface (empty = no auth)
+	JWTSecret               string // Secret key for JWT signing (auto-generated if empty)
+	JWTExpiry               int    // JWT token expiry in hours (default 24)
+	ClientSessionExpiryDays int    // RustDesk client session TTL in days (default 7)
+	ClientSessionSliding    bool   // Extend client session on activity (default true)
+	ClientSessionMaxDays    int    // Max sliding session lifetime from login (default 30)
+	AdminPassword           string // Password for admin TCP interface (empty = no auth)
 	ForceHTTPS      bool   // Reject non-TLS API requests (except behind reverse proxy)
 	TrustProxy      bool   // Trust X-Forwarded-For / X-Real-IP headers from reverse proxy
-	RelayMaxConnsIP int    // Max relay connections per IP (0 = unlimited)
+	// TrustedProxies is the CIDR allowlist of reverse proxies that may set
+	// X-Forwarded-For / X-Real-IP. Required when TrustProxy is true — empty
+	// means forwarded headers are ignored (security-first, issue #276).
+	TrustedProxies []*net.IPNet
+	RelayMaxConnsIP int // Max relay connections per IP (0 = unlimited)
 	InitAdminUser   string // Initial admin username (created on first start)
 	InitAdminPass   string // Initial admin password (auto-generated if empty)
 
@@ -127,10 +136,18 @@ type Config struct {
 	CDAPTLS       bool // Enable TLS on CDAP port
 	CDAPRateLimit int  // Max requests per minute per IP (default 30)
 
+	// MeshCentral compatibility layer
+	MeshCentralEnabled bool   // MESH_ENABLED
+	MeshCoreVersion    string // MESH_CORE_VERSION pin
+	MeshAgentCertFile  string // MESH_AGENT_CERT_FILE RSA-3072 agent-server key
+	MeshAssetsDir      string // optional override for meshcore assets
+	MeshRateLimit      int    // WS upgrade rate limit per IP per minute
+
 	// Time sync / billing (commercialization module)
 	NTPServers                string // Comma-separated NTP servers
 	BillingMaxClockSkewMS     int    // Max allowed clock offset vs NTP (default 2000)
 	BillingRequireSyncedClock bool   // Block billable sessions when clock unsynced
+	BillingTrustOSNTP         bool   // Trust OS NTP (timedatectl) when direct queries fail
 	BillingRoundingMinutes    int    // Billable minute rounding (1, 10, 15)
 	BillingRequireWorkReport  bool   // Require technician report before session close
 }
@@ -145,17 +162,26 @@ func DefaultConfig() *Config {
 		DBPath:               "./db_v2.sqlite3",
 		KeyFile:              "id_ed25519",
 		JWTExpiry:            24,
+		ClientSessionExpiryDays: 7,
+		ClientSessionSliding:    true,
+		ClientSessionMaxDays:    30,
 		RelayMaxConnsIP:      20,
 		EnrollmentMode:       EnrollmentModeOpen, // Backward compatible default
 		CDAPPort:             21122,
 		CDAPEnabled:          true, // Enabled by default; set CDAP_ENABLED=N for minimal installs
 		CDAPRateLimit:        30,
+		MeshCentralEnabled:   true, // default on; set MESH_ENABLED=N to disable
+		MeshCoreVersion:      "1.2.0",
+		MeshAgentCertFile:    "mesh_agent_server.pem",
+		MeshRateLimit:        30,
 		SignalRateLimitPerIP: IPRateLimitRegistrations,
 		SameNATRelay:         true, // issue #121: auto-fallback to relay on shared public IP
 		P2PFirst:             true, // issue #157: give direct P2P a real chance before relay
 		P2PFallbackMs:             2000, // grace period for target hole punch before relay fallback
+		LogLevel:                  "info",
 		BillingMaxClockSkewMS:     2000,
 		BillingRequireSyncedClock: true,
+		BillingTrustOSNTP:         runtime.GOOS == "linux",
 		BillingRoundingMinutes:    1,
 	}
 }
@@ -180,7 +206,14 @@ func (c *Config) LoadEnv() {
 			c.RelayPort = n
 		}
 	}
-	if v := os.Getenv("API_PORT"); v != "" {
+	// GO_API_PORT takes precedence over API_PORT.
+	// Shared .env sets API_PORT=21121 for the Node Client API compat proxy; Go handlers
+	// stay on GO_API_PORT (default 21114). Without this, LoadEnv would override -api-port.
+	if v := os.Getenv("GO_API_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			c.APIPort = n
+		}
+	} else if v := os.Getenv("API_PORT"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.APIPort = n
 		}
@@ -228,6 +261,12 @@ func (c *Config) LoadEnv() {
 			c.LogFormat = lv
 		}
 	}
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "error", "fatal", "warn", "warning", "info", "debug":
+			c.LogLevel = strings.ToLower(strings.TrimSpace(v))
+		}
+	}
 	if v := os.Getenv("ADMIN_PORT"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.AdminPort = n
@@ -241,6 +280,24 @@ func (c *Config) LoadEnv() {
 			c.JWTExpiry = n
 		}
 	}
+	if v := os.Getenv("CLIENT_SESSION_EXPIRY_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.ClientSessionExpiryDays = n
+		}
+	}
+	if v := os.Getenv("CLIENT_SESSION_SLIDING"); v != "" {
+		switch strings.ToUpper(strings.TrimSpace(v)) {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.ClientSessionSliding = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.ClientSessionSliding = false
+		}
+	}
+	if v := os.Getenv("CLIENT_SESSION_MAX_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.ClientSessionMaxDays = n
+		}
+	}
 	if v := os.Getenv("ADMIN_PASSWORD"); v != "" {
 		c.AdminPassword = v
 	}
@@ -249,6 +306,14 @@ func (c *Config) LoadEnv() {
 	}
 	if strings.ToUpper(os.Getenv("TRUST_PROXY")) == "Y" {
 		c.TrustProxy = true
+	}
+	if v := os.Getenv("TRUSTED_PROXIES"); v != "" {
+		nets, err := ParseTrustedProxies(v)
+		if err != nil {
+			log.Printf("[config] TRUSTED_PROXIES parse error: %v — forwarded headers will not be honored", err)
+		} else {
+			c.TrustedProxies = nets
+		}
 	}
 	if v := os.Getenv("RELAY_MAX_CONNS_PER_IP"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -343,6 +408,25 @@ func (c *Config) LoadEnv() {
 			c.CDAPRateLimit = n
 		}
 	}
+	if v := strings.ToUpper(os.Getenv("MESH_ENABLED")); v == "N" || v == "NO" || v == "FALSE" || v == "0" {
+		c.MeshCentralEnabled = false
+	} else if v == "Y" || v == "YES" || v == "TRUE" || v == "1" {
+		c.MeshCentralEnabled = true
+	}
+	if v := os.Getenv("MESH_CORE_VERSION"); v != "" {
+		c.MeshCoreVersion = v
+	}
+	if v := os.Getenv("MESH_AGENT_CERT_FILE"); v != "" {
+		c.MeshAgentCertFile = v
+	}
+	if v := os.Getenv("MESH_ASSETS_DIR"); v != "" {
+		c.MeshAssetsDir = v
+	}
+	if v := os.Getenv("MESH_RATE_LIMIT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			c.MeshRateLimit = n
+		}
+	}
 	if v := os.Getenv("NTP_SERVERS"); v != "" {
 		c.NTPServers = v
 	}
@@ -357,6 +441,14 @@ func (c *Config) LoadEnv() {
 			c.BillingRequireSyncedClock = true
 		case "N", "NO", "0", "FALSE", "OFF":
 			c.BillingRequireSyncedClock = false
+		}
+	}
+	if v := os.Getenv("BILLING_TRUST_OS_NTP"); v != "" {
+		switch strings.ToUpper(v) {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.BillingTrustOSNTP = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.BillingTrustOSNTP = false
 		}
 	}
 	if v := os.Getenv("BILLING_ROUNDING_MINUTES"); v != "" {

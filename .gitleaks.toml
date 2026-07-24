@@ -11,4 +11,31 @@ title = "BetterDesk Gitleaks Config"
   paths = [
     '''.*Cargo\.lock$''',
     '''.*package-lock\.json$''',
+    '''docs/private/''',
+    '''scripts/check-no-sensitive-paths\.sh''',
+    '''\.cargo-cache/''',
+    '''node_modules/''',
+    '''betterdesk-agent-client/src-tauri/binaries/''',
+    '''betterdesk-agent-client/src-tauri/target/''',
+    '''rdclient-desktop/src-tauri/target/''',
+    '''betterdesk-mgmt/''',
   ]
+
+# Operator-specific infrastructure fingerprints — must not reappear in tracked files.
+[[rules]]
+id = "betterdesk-internal-lan-ip"
+description = "Known internal LAN IP used in operator docs (use 203.0.113.x instead)"
+regex = '''192\.168\.0\.110'''
+tags = ["betterdesk", "infrastructure"]
+
+[[rules]]
+id = "betterdesk-operator-home-path"
+description = "Developer home path that must not be committed"
+regex = '''/home/unitronix'''
+tags = ["betterdesk", "infrastructure"]
+
+[[rules]]
+id = "betterdesk-operator-ssh"
+description = "SSH user@internal IP pattern from operator runbooks"
+regex = '''unitronix@192\.168'''
+tags = ["betterdesk", "infrastructure"]

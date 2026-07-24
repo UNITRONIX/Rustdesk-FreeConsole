@@ -181,6 +181,15 @@ function sanitizeFontName(family) {
     return safeName;
 }
 
+function escapeCssString(value) {
+    return String(value || '').replace(/[\0-\x1F\x7F\\'"]/g, (char) => {
+        if (char === '\\') return '\\\\';
+        if (char === "'") return "\\'";
+        if (char === '"') return '\\"';
+        return `\\${char.charCodeAt(0).toString(16)} `;
+    });
+}
+
 function resolveFontDir(safeName) {
     return resolveChildPath(FONTS_DIR, safeName);
 }
@@ -261,7 +270,7 @@ async function downloadFont(family, weights = ['400', '500', '600', '700']) {
         const cssFaces = downloadedFiles.map(file => {
             const weightMatch = file.match(/-(\d+)\.woff2$/);
             const weight = (weightMatch && /^\d+$/.test(weightMatch[1])) ? weightMatch[1] : '400';
-            const cssFamily = String(family).replace(/[^a-zA-Z0-9\s-]/g, '').trim() || 'sans-serif';
+            const cssFamily = escapeCssString(String(family).trim() || 'sans-serif');
             return [
                 '@font-face {',
                 `    font-family: '${cssFamily}';`,
@@ -356,7 +365,7 @@ async function registerUploadedFont(family, filePath, fileName) {
     try { fs.unlinkSync(filePath); } catch (_) { /* temp cleanup */ }
 
     const format = ext === '.ttf' ? 'truetype' : 'woff2';
-    const cssFamily = displayFamily.replace(/'/g, "\\'");
+    const cssFamily = escapeCssString(displayFamily);
     const css = [
         '@font-face {',
         `    font-family: '${cssFamily}';`,
@@ -485,22 +494,24 @@ function generateFontCss(headingFont, bodyFont) {
     const vars = [];
 
     if (headingFont && headingFont.trim()) {
-        const local = getLocalFont(headingFont);
+        const trimmedHeadingFont = headingFont.trim();
+        const local = getLocalFont(trimmedHeadingFont);
         if (local) {
             imports.push(`@import url('${local.cssPath}');`);
         }
-        vars.push(`    --font-heading: '${headingFont}', sans-serif;`);
+        vars.push(`    --font-heading: '${escapeCssString(trimmedHeadingFont)}', sans-serif;`);
     }
 
     if (bodyFont && bodyFont.trim()) {
-        const local = getLocalFont(bodyFont);
+        const trimmedBodyFont = bodyFont.trim();
+        const local = getLocalFont(trimmedBodyFont);
         if (local) {
             // Only add import if it's a different font
-            if (bodyFont !== headingFont) {
+            if (trimmedBodyFont !== String(headingFont || '').trim()) {
                 imports.push(`@import url('${local.cssPath}');`);
             }
         }
-        vars.push(`    --font-family: '${bodyFont}', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;`);
+        vars.push(`    --font-family: '${escapeCssString(trimmedBodyFont)}', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;`);
     }
 
     let css = '';
@@ -533,5 +544,6 @@ module.exports = {
     deleteLocalFont,
     registerUploadedFont,
     generateFontCss,
-    sanitizeFontName
+    sanitizeFontName,
+    escapeCssString
 };

@@ -1,0 +1,31 @@
+{
+  "name": "betterdesk-agent-client",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BetterDesk Agent Client — lightweight endpoint agent for remote management",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "i18n:check": "node ../web-nodejs/scripts/i18n-check.js --system agent-client",
+    "test": "vitest run --environment node",
+    "test:watch": "vitest --environment node",
+    "tauri": "tauri",
+    "tauri:build": "APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=1 tauri build",
+    "tauri:build:deb": "APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=1 tauri build --bundles deb",
+    "tauri:build:appimage": "APPIMAGE_EXTRACT_AND_RUN=1 NO_STRIP=1 tauri build --bundles appimage",
+    "tauri:dev": "tauri dev"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.14.0",
+    "@tauri-apps/api": "~2.10",
+    "solid-js": "^1.9.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.4.3",
+    "vite-plugin-solid": "^2.10.0",
+    "vitest": "^3.2.5"
+  }
+}

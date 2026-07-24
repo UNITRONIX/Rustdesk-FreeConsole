@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -139,6 +140,35 @@ func (pg *PostgresDB) ListDeviceGroupMemberPeerIDs(deviceGroupID int64) ([]strin
 	return ids, rows.Err()
 }
 
+// ListDeviceGroupGUIDsForPeer returns device-group GUIDs that include the peer.
+func (pg *PostgresDB) ListDeviceGroupGUIDsForPeer(peerID string) ([]string, error) {
+	peerID = strings.TrimSpace(peerID)
+	if peerID == "" || !pg.pgHasTable("device_group_members") || !pg.pgHasTable("device_groups") {
+		return nil, nil
+	}
+	rows, err := pg.pool.Query(pg.ctx, `
+		SELECT g.guid FROM device_groups g
+		INNER JOIN device_group_members m ON m.device_group_id = g.id
+		WHERE m.peer_id = $1
+		ORDER BY g.name ASC`, peerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var guids []string
+	for rows.Next() {
+		var guid string
+		if err := rows.Scan(&guid); err != nil {
+			return nil, err
+		}
+		guid = strings.TrimSpace(guid)
+		if guid != "" {
+			guids = append(guids, guid)
+		}
+	}
+	return guids, rows.Err()
+}
+
 // ListUserGroupGUIDsForUser returns user-group GUIDs the user belongs to.
 func (pg *PostgresDB) ListUserGroupGUIDsForUser(userID int64) ([]string, error) {
 	if !pg.pgHasTable("user_group_members") || !pg.pgHasTable("user_groups") {
@@ -254,4 +284,41 @@ func (pg *PostgresDB) FolderGroupAccess(folderID int64) ([]string, []string, err
 		return nil, nil, err
 	}
 	return pg.loadDeviceGroupAccess(id)
+}
+
+// ListUserPeerGrants returns peer IDs directly granted to a panel user.
+func (pg *PostgresDB) ListUserPeerGrants(userID int64) ([]string, error) {
+	if userID <= 0 || !pg.pgHasTable("user_peer_grants") {
+		return nil, nil
+	}
+	rows, err := pg.pool.Query(pg.ctx, `
+		SELECT peer_id FROM user_peer_grants WHERE user_id = $1 ORDER BY peer_id ASC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		id = strings.TrimSpace(id)
+		if id != "" {
+			out = append(out, id)
+		}
+	}
+	return out, rows.Err()
+}
+
+// DeviceScopeDefaultRestricted reads panel settings for default-deny device visibility.
+func (pg *PostgresDB) DeviceScopeDefaultRestricted() bool {
+	if pg.pgHasTable("settings") {
+		var value string
+		err := pg.pool.QueryRow(pg.ctx, `SELECT value FROM settings WHERE key = 'device_scope_default' LIMIT 1`).Scan(&value)
+		if err == nil && strings.TrimSpace(value) != "" {
+			return strings.EqualFold(strings.TrimSpace(value), "restricted")
+		}
+	}
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("DEVICE_SCOPE_DEFAULT")), "restricted")
 }

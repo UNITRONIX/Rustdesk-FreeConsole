@@ -1,0 +1,64 @@
+# Tauri desktop clients — cargo audit on push/PR
+name: Rust Security CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'rdclient-desktop/src-tauri/**'
+      - 'betterdesk-agent-client/src-tauri/**'
+      - '.github/workflows/rust-security-ci.yml'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'rdclient-desktop/src-tauri/**'
+      - 'betterdesk-agent-client/src-tauri/**'
+      - '.github/workflows/rust-security-ci.yml'
+
+permissions:
+  contents: read
+
+# glib RUSTSEC-2024-0429: transitive via Tauri GTK3/webkit2gtk; no fix without stack migration.
+env:
+  CARGO_AUDIT_IGNORE: RUSTSEC-2024-0429
+
+jobs:
+  cargo-audit-rdclient:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rdclient-desktop/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: true
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: cargo audit (rdclient-desktop)
+        run: cargo audit --ignore ${{ env.CARGO_AUDIT_IGNORE }}
+
+  cargo-audit-agent-client:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[version-bump]')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: betterdesk-agent-client/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: true
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: cargo audit (betterdesk-agent-client)
+        run: cargo audit --ignore ${{ env.CARGO_AUDIT_IGNORE }}

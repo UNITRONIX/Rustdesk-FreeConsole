@@ -12,6 +12,8 @@ describe('updateService non-critical failures', () => {
     test('treats root-owned installer scripts as non-critical', () => {
         expect(isNonCriticalUpdateFailure('betterdesk.sh')).toBe(true);
         expect(isNonCriticalUpdateFailure('Dockerfile.server')).toBe(true);
+        expect(isNonCriticalUpdateFailure('docker-compose.quick.single.yml')).toBe(true);
+        expect(isNonCriticalUpdateFailure('docker-compose.quick.single.macvlan.yml')).toBe(true);
     });
 
     test('treats npm install and service unit cleanup as non-critical', () => {
@@ -29,6 +31,11 @@ describe('updateService non-critical failures', () => {
     });
 
     test('falls back to console-local server source when legacy root-owned source is not writable', () => {
+        if (process.platform === 'win32') {
+            // On Windows the updater always prefers the configured server root
+            // (no root-owned /opt layout). Skip the Linux-only fallback path.
+            return;
+        }
         const legacyRoot = '/opt/betterdesk-server';
         const consoleRoot = path.join('/opt', 'BetterDeskConsole', 'betterdesk-server');
 

@@ -8,12 +8,6 @@ const {
     resolveFolderNameForDevice,
 } = require('./deviceGroupService');
 
-const log = {
-    info: (...a) => console.log('[HelpRequestEmail]', ...a),
-    warn: (...a) => console.warn('[HelpRequestEmail]', ...a),
-    error: (...a) => console.error('[HelpRequestEmail]', ...a),
-};
-
 const RECONNECT_BASE = 3000;
 const RECONNECT_MAX = 60000;
 const CONFIG_KEY = 'commercialization_email_config';
@@ -46,6 +40,12 @@ async function loadCommercializationEmailConfig() {
     return parseCommercializationEmailConfig(raw);
 }
 
+function sanitizeLogMessage(value) {
+    return String(value || '')
+        .replace(/api_key=([^&\s]+)/gi, 'api_key=[REDACTED]')
+        .replace(/(X-API-Key\s*[:=]\s*)([^\s]+)/gi, '$1[REDACTED]');
+}
+
 async function handleHelpRequestEvent(eventData) {
     const config = await loadCommercializationEmailConfig();
     if (!config.help_requests_enabled) return;
@@ -71,7 +71,7 @@ async function handleHelpRequestEvent(eventData) {
     }
 
     if (!recipients.length) {
-        log.warn(`No email recipients for help request ${requestId} (device ${deviceId})`);
+        console.warn('[HelpRequestEmail] No email recipients for help request');
         return;
     }
 
@@ -89,14 +89,14 @@ async function handleHelpRequestEvent(eventData) {
         });
         if (sent) {
             await db.logEmailNotificationSent(EVENT_TYPE, requestId, recipient);
-            log.info(`Sent help request ${requestId} notification to ${recipient}`);
+            console.log('[HelpRequestEmail] Sent help request notification');
         }
     }
 }
 
 function initHelpRequestEmailService(goApiUrl, apiKey) {
     if (!goApiUrl || !apiKey) {
-        log.warn('Go API URL or API key not configured, help request email disabled');
+        console.warn('[HelpRequestEmail] Go API URL or API key not configured, help request email disabled');
         return;
     }
 
@@ -109,7 +109,7 @@ function initHelpRequestEmailService(goApiUrl, apiKey) {
             .replace(/\/api$/, '');
 
         const url = `${wsUrl}/api/ws/events?filter=help_request&api_key=${encodeURIComponent(apiKey)}`;
-        log.info('Connecting to Go event bus (help_request)...');
+        console.log('[HelpRequestEmail] Connecting to Go event bus (help_request)...');
 
         const wsOpts = { headers: { 'X-API-Key': apiKey } };
         if (wsUrl.startsWith('wss://')) {
@@ -119,7 +119,7 @@ function initHelpRequestEmailService(goApiUrl, apiKey) {
         const goWs = new WebSocket(url, wsOpts);
 
         goWs.on('open', () => {
-            log.info('Connected to Go help_request event bus');
+            console.log('[HelpRequestEmail] Connected to Go help_request event bus');
             retryDelay = RECONNECT_BASE;
         });
 
@@ -129,7 +129,7 @@ function initHelpRequestEmailService(goApiUrl, apiKey) {
                 if (event.type !== 'help_request') return;
                 const payload = event.data || {};
                 handleHelpRequestEvent(payload).catch(err => {
-                    log.error(`Failed to process help request event: ${err.message}`);
+                    console.error(`[HelpRequestEmail] Failed to process help request event: ${sanitizeLogMessage(err.message)}`);
                 });
             } catch (_) {
                 // Ignore malformed frames
@@ -137,19 +137,19 @@ function initHelpRequestEmailService(goApiUrl, apiKey) {
         });
 
         goWs.on('close', () => {
-            log.warn(`Go help_request event bus disconnected, retrying in ${retryDelay}ms`);
+            console.warn(`[HelpRequestEmail] Go help_request event bus disconnected, retrying in ${retryDelay}ms`);
             setTimeout(connectToGoEventBus, retryDelay);
             retryDelay = Math.min(retryDelay * 2, RECONNECT_MAX);
         });
 
         goWs.on('error', (err) => {
-            log.error('Go help_request event bus error:', err.message || err);
+            console.error(`[HelpRequestEmail] Go help_request event bus error: ${sanitizeLogMessage(err.message || err)}`);
             goWs.close();
         });
     }
 
     connectToGoEventBus();
-    log.info('Help request email service initialized');
+    console.log('[HelpRequestEmail] Help request email service initialized');
 }
 
 module.exports = {

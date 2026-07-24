@@ -17,6 +17,50 @@ const fs = require('fs');
 const path = require('path');
 
 describe('i18n System', () => {
+    describe('Translation manager security', () => {
+        let i18nService;
+        let previousTranslations;
+        let previousDefaultLang;
+
+        beforeEach(() => {
+            i18nService = require('../services/i18nService');
+            previousTranslations = i18nService.manager.translations;
+            previousDefaultLang = i18nService.manager.defaultLang;
+            i18nService.manager.translations = {};
+            i18nService.manager.defaultLang = 'en';
+        });
+
+        afterEach(() => {
+            i18nService.manager.translations = previousTranslations;
+            i18nService.manager.defaultLang = previousDefaultLang;
+        });
+
+        it('interpolates variable names without building dynamic regexes', () => {
+            i18nService.manager.translations.en = {
+                test: {
+                    value: 'Hello {[} {name.name}'
+                }
+            };
+
+            const translated = i18nService.manager.translate('en', 'test.value', {
+                '[': 'safe',
+                'name.name': 'Alice'
+            });
+
+            expect(translated).toBe('Hello safe Alice');
+        });
+
+        it('ignores prototype-polluting keys while merging fallback translations', () => {
+            i18nService.manager.translations.en = { safe: { fallback: true } };
+            i18nService.manager.translations.pl = JSON.parse('{"__proto__":{"polluted":true},"safe":{"value":"ok"}}');
+
+            const merged = i18nService.manager.getMergedTranslations('pl');
+
+            expect(merged.safe).toEqual({ fallback: true, value: 'ok' });
+            expect({}.polluted).toBeUndefined();
+        });
+    });
+
     describe('Language files', () => {
         const langDir = path.join(__dirname, '..', 'lang');
 

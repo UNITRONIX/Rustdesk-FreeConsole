@@ -500,11 +500,16 @@ func (m *Map) ForEach(fn func(e *Entry)) {
 	}
 }
 
-// FindByIP returns the first peer whose UDPAddr has the given IP.
-// This is used to forward messages to a peer when we only know their public IP
-// (e.g., from a decoded socket_addr in RelayResponse). If multiple peers share
-// the same IP (behind NAT), only the first match is returned.
+// FindByIP returns the first peer whose public IP matches.
+// Prefers peers with a UDPAddr; otherwise matches the host portion of entry.IP
+// (WebSocket/TCP peers store "ip:port" without UDPAddr). Used when forwarding
+// PunchHole/RelayResponse from a decoded socket_addr. If multiple peers share
+// the same IP (behind NAT), only the first match is returned — prefer
+// exact ip:port maps (tcpPunchConns / wsPunchConns) for initiator delivery (#276).
 func (m *Map) FindByIP(ip net.IP) *Entry {
+	if ip == nil {
+		return nil
+	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, e := range m.entries {
@@ -512,5 +517,89 @@ func (m *Map) FindByIP(ip net.IP) *Entry {
 			return e
 		}
 	}
+	// Second pass: WS/TCP peers keyed by IP string only.
+	for _, e := range m.entries {
+		if e.UDPAddr != nil || e.IP == "" {
+			continue
+		}
+		host, _, err := net.SplitHostPort(e.IP)
+		if err != nil {
+			host = e.IP
+		}
+		if parsed := net.ParseIP(host); parsed != nil && parsed.Equal(ip) {
+			return e
+		}
+	}
 	return nil
+}
+
+// CountByIP returns how many peers share the given public IP (UDPAddr or IP host).
+func (m *Map) CountByIP(ip net.IP) int {
+	if ip == nil {
+		return 0
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	n := 0
+	for _, e := range m.entries {
+		if peerEntryMatchesIP(e, ip) {
+			n++
+		}
+	}
+	return n
+}
+
+// FindWSByIP returns the first WebSocket peer whose public IP matches.
+func (m *Map) FindWSByIP(ip net.IP) *Entry {
+	if ip == nil {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, e := range m.entries {
+		if e.ConnType != ConnWS || e.WSConn == nil {
+			continue
+		}
+		if peerEntryMatchesIP(e, ip) {
+			return e
+		}
+	}
+	return nil
+}
+
+// CountWSByIP returns how many WebSocket peers share the given public IP.
+func (m *Map) CountWSByIP(ip net.IP) int {
+	if ip == nil {
+		return 0
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	n := 0
+	for _, e := range m.entries {
+		if e.ConnType != ConnWS || e.WSConn == nil {
+			continue
+		}
+		if peerEntryMatchesIP(e, ip) {
+			n++
+		}
+	}
+	return n
+}
+
+func peerEntryMatchesIP(e *Entry, ip net.IP) bool {
+	if e == nil || ip == nil {
+		return false
+	}
+	if e.UDPAddr != nil && e.UDPAddr.IP.Equal(ip) {
+		return true
+	}
+	if e.IP == "" {
+		return false
+	}
+	host, _, err := net.SplitHostPort(e.IP)
+	if err != nil {
+		host = e.IP
+	}
+	parsed := net.ParseIP(host)
+	return parsed != nil && parsed.Equal(ip)
 }

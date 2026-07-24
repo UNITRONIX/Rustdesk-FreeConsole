@@ -9,6 +9,7 @@
  *   node scripts/bump-version.js --minor
  *   node scripts/bump-version.js --set 3.1.0
  *   node scripts/bump-version.js --verify
+ *   node scripts/bump-version.js --sync
  *   node scripts/bump-version.js --patch --dry-run
  */
 
@@ -43,31 +44,40 @@ const FILE_RULES = [
         id: 'betterdesk-sh',
         path: 'betterdesk.sh',
         extract: (content) => content.match(/^VERSION="([^"]+)"/m)?.[1],
-        apply: (content, version, oldVersion) =>
-            replaceAllLiteral(content, [
-                [`VERSION="${oldVersion}"`, `VERSION="${version}"`],
-                [`BetterDesk Console Manager v${oldVersion}`, `BetterDesk Console Manager v${version}`],
-            ]),
+        apply: (content, version) => {
+            const fileVersion = content.match(/^VERSION="([^"]+)"/m)?.[1];
+            if (!fileVersion || fileVersion === version) return content;
+            return replaceAllLiteral(content, [
+                [`VERSION="${fileVersion}"`, `VERSION="${version}"`],
+                [`BetterDesk Console Manager v${fileVersion}`, `BetterDesk Console Manager v${version}`],
+            ]);
+        },
     },
     {
         id: 'betterdesk-ps1',
         path: 'betterdesk.ps1',
         extract: (content) => content.match(/^\$script:VERSION = "([^"]+)"/m)?.[1],
-        apply: (content, version, oldVersion) =>
-            replaceAllLiteral(content, [
-                [`$script:VERSION = "${oldVersion}"`, `$script:VERSION = "${version}"`],
-                [`BetterDesk Console Manager v${oldVersion}`, `BetterDesk Console Manager v${version}`],
-            ]),
+        apply: (content, version) => {
+            const fileVersion = content.match(/^\$script:VERSION = "([^"]+)"/m)?.[1];
+            if (!fileVersion || fileVersion === version) return content;
+            return replaceAllLiteral(content, [
+                [`$script:VERSION = "${fileVersion}"`, `$script:VERSION = "${version}"`],
+                [`BetterDesk Console Manager v${fileVersion}`, `BetterDesk Console Manager v${version}`],
+            ]);
+        },
     },
     {
         id: 'betterdesk-docker-sh',
         path: 'betterdesk-docker.sh',
         extract: (content) => content.match(/^VERSION="([^"]+)"/m)?.[1],
-        apply: (content, version, oldVersion) =>
-            replaceAllLiteral(content, [
-                [`VERSION="${oldVersion}"`, `VERSION="${version}"`],
-                [`BetterDesk Console Manager v${oldVersion}`, `BetterDesk Console Manager v${version}`],
-            ]),
+        apply: (content, version) => {
+            const fileVersion = content.match(/^VERSION="([^"]+)"/m)?.[1];
+            if (!fileVersion || fileVersion === version) return content;
+            return replaceAllLiteral(content, [
+                [`VERSION="${fileVersion}"`, `VERSION="${version}"`],
+                [`BetterDesk Console Manager v${fileVersion}`, `BetterDesk Console Manager v${version}`],
+            ]);
+        },
     },
     {
         id: 'readme-badge',
@@ -77,8 +87,11 @@ const FILE_RULES = [
             if (!m) return null;
             return m[1].replace(/--/g, '-');
         },
-        apply: (content, version, oldVersion) => {
-            const badgeOld = oldVersion.replace(/-/g, '--');
+        apply: (content, version) => {
+            const m = content.match(/img\.shields\.io\/badge\/version-([^-]+(?:--[^-]+)?)-/);
+            const fileVersion = m ? m[1].replace(/--/g, '-') : null;
+            if (!fileVersion || fileVersion === version) return content;
+            const badgeOld = fileVersion.replace(/-/g, '--');
             const badgeNew = version.replace(/-/g, '--');
             return content
                 .replace(
@@ -86,7 +99,7 @@ const FILE_RULES = [
                     `$1${badgeNew}$2`
                 )
                 .replace(
-                    new RegExp(`(img\\.shields\\.io\\/badge\\/version-)${escapeRegExp(oldVersion)}(-)`, 'g'),
+                    new RegExp(`(img\\.shields\\.io\\/badge\\/version-)${escapeRegExp(fileVersion)}(-)`, 'g'),
                     `$1${badgeNew}$2`
                 );
         },
@@ -95,26 +108,74 @@ const FILE_RULES = [
         id: 'dockerfile',
         path: 'Dockerfile',
         extract: (content) => content.match(/LABEL version="([^"]+)"/)?.[1],
-        apply: (content, version, oldVersion) =>
-            content.replace(`LABEL version="${oldVersion}"`, `LABEL version="${version}"`),
+        apply: (content, version) => {
+            const fileVersion = content.match(/LABEL version="([^"]+)"/)?.[1];
+            if (!fileVersion || fileVersion === version) return content;
+            return content.replace(`LABEL version="${fileVersion}"`, `LABEL version="${version}"`);
+        },
     },
     {
         id: 'dockerfile-server',
         path: 'Dockerfile.server',
         extract: (content) => content.match(/LABEL version="([^"]+)"/)?.[1],
-        apply: (content, version, oldVersion) =>
-            content.replace(`LABEL version="${oldVersion}"`, `LABEL version="${version}"`),
+        apply: (content, version) => {
+            const fileVersion = content.match(/LABEL version="([^"]+)"/)?.[1];
+            if (!fileVersion || fileVersion === version) return content;
+            return content.replace(`LABEL version="${fileVersion}"`, `LABEL version="${version}"`);
+        },
     },
     {
         id: 'dockerfile-console',
         path: 'Dockerfile.console',
         extract: (content) => content.match(/LABEL version="([^"]+)"/)?.[1],
-        apply: (content, version, oldVersion) =>
-            content.replace(`LABEL version="${oldVersion}"`, `LABEL version="${version}"`),
+        apply: (content, version) => {
+            const fileVersion = content.match(/LABEL version="([^"]+)"/)?.[1];
+            if (!fileVersion || fileVersion === version) return content;
+            return content.replace(`LABEL version="${fileVersion}"`, `LABEL version="${version}"`);
+        },
+    },
+    {
+        id: 'install-sh',
+        path: 'install.sh',
+        extract: (content) => {
+            const m = content.match(/BETTERDESK_VERSION="\$\{BETTERDESK_VERSION:-([^}]+)\}"/);
+            return m?.[1];
+        },
+        apply: (content, version) => {
+            let next = content.replace(
+                /BETTERDESK_VERSION="\$\{BETTERDESK_VERSION:-[^}]+\}"/,
+                `BETTERDESK_VERSION="\${BETTERDESK_VERSION:-${version}}"`
+            );
+            next = next.replace(
+                /(Docker image tag \/ release baseline \(default: )[^)]+(\))/,
+                `$1${version}$2`
+            );
+            return next;
+        },
     },
     {
         id: 'docker-compose-quick',
         path: 'docker-compose.quick.yml',
+        extract: (content) => {
+            const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
+            return m?.[1];
+        },
+        apply: (content, version) =>
+            content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
+    },
+    {
+        id: 'docker-compose-quick-single',
+        path: 'docker-compose.quick.single.yml',
+        extract: (content) => {
+            const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
+            return m?.[1];
+        },
+        apply: (content, version) =>
+            content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
+    },
+    {
+        id: 'docker-compose-quick-single-macvlan',
+        path: 'docker-compose.quick.single.macvlan.yml',
         extract: (content) => {
             const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
             return m?.[1];
@@ -136,21 +197,27 @@ const FILE_RULES = [
         id: 'docker-entrypoint',
         path: 'docker/entrypoint.sh',
         extract: (content) => content.match(/\$\{BETTERDESK_IMAGE_VERSION:-([^}]+)\}/)?.[1],
-        apply: (content, version, oldVersion) =>
-            content.replace(
-                `\${BETTERDESK_IMAGE_VERSION:-${oldVersion}}`,
+        apply: (content, version) => {
+            const fileVersion = content.match(/\$\{BETTERDESK_IMAGE_VERSION:-([^}]+)\}/)?.[1];
+            if (!fileVersion || fileVersion === version) return content;
+            return content.replace(
+                `\${BETTERDESK_IMAGE_VERSION:-${fileVersion}}`,
                 `\${BETTERDESK_IMAGE_VERSION:-${version}}`
-            ),
+            );
+        },
     },
     {
         id: 'docker-entrypoint-root',
         path: 'docker-entrypoint.sh',
         extract: (content) => content.match(/\$\{BETTERDESK_IMAGE_VERSION:-([^}]+)\}/)?.[1],
-        apply: (content, version, oldVersion) =>
-            content.replace(
-                `\${BETTERDESK_IMAGE_VERSION:-${oldVersion}}`,
+        apply: (content, version) => {
+            const fileVersion = content.match(/\$\{BETTERDESK_IMAGE_VERSION:-([^}]+)\}/)?.[1];
+            if (!fileVersion || fileVersion === version) return content;
+            return content.replace(
+                `\${BETTERDESK_IMAGE_VERSION:-${fileVersion}}`,
                 `\${BETTERDESK_IMAGE_VERSION:-${version}}`
-            ),
+            );
+        },
     },
     {
         id: 'betterdesk-server-version',
@@ -273,18 +340,12 @@ function updateChangelog(oldVersion, newVersion, dryRun) {
     return { changed: true, path: 'CHANGELOG.md' };
 }
 
-function applyVersion(newVersion, { dryRun = false } = {}) {
-    const oldVersion = readCanonicalVersion();
-    if (oldVersion === newVersion) {
-        console.log(`Version already ${newVersion}; nothing to bump.`);
-        return { oldVersion, newVersion, changed: [] };
-    }
-
+function applyVersionToFiles(newVersion, { dryRun = false } = {}) {
     const changed = [];
     for (const rule of FILE_RULES) {
         const file = readRuleFile(rule);
         if (file.missing) continue;
-        const updated = rule.apply(file.content, newVersion, oldVersion);
+        const updated = rule.apply(file.content, newVersion);
         if (updated !== file.content) {
             changed.push(rule.path);
             if (!dryRun) {
@@ -292,11 +353,28 @@ function applyVersion(newVersion, { dryRun = false } = {}) {
             }
         }
     }
+    return changed;
+}
+
+function applyVersion(newVersion, { dryRun = false } = {}) {
+    const oldVersion = readCanonicalVersion();
+    if (oldVersion === newVersion) {
+        console.log(`Version already ${newVersion}; nothing to bump.`);
+        return { oldVersion, newVersion, changed: [] };
+    }
+
+    const changed = applyVersionToFiles(newVersion, { dryRun });
 
     const changelog = updateChangelog(oldVersion, newVersion, dryRun);
     if (changelog.changed) changed.push(changelog.path);
 
     return { oldVersion, newVersion, changed, dryRun };
+}
+
+function syncDrift({ dryRun = false } = {}) {
+    const canonical = readCanonicalVersion();
+    const changed = applyVersionToFiles(canonical, { dryRun });
+    return { canonical, changed, dryRun };
 }
 
 function verifyVersions() {
@@ -336,6 +414,7 @@ function printUsage() {
   --minor       Bump minor (+0.1.0, reset patch)
   --set X.Y.Z   Set explicit version
   --verify      Exit 1 if Tier 1/2 files disagree with VERSION
+  --sync        Align drifted Tier 1/2 files to canonical VERSION (no bump)
   --list-paths  Print managed file paths (one per line) for CI git add
   --dry-run     Print planned version without writing files`);
 }
@@ -344,6 +423,7 @@ function main() {
     const args = process.argv.slice(2);
     const dryRun = args.includes('--dry-run');
     const verify = args.includes('--verify');
+    const sync = args.includes('--sync');
     const listPaths = args.includes('--list-paths');
 
     if (listPaths) {
@@ -355,6 +435,18 @@ function main() {
 
     if (verify) {
         verifyVersions();
+        return;
+    }
+
+    if (sync) {
+        const result = syncDrift({ dryRun });
+        const prefix = dryRun ? '[dry-run] ' : '';
+        if (result.changed.length) {
+            console.log(`${prefix}Synced drifted files to VERSION (${result.canonical}):`);
+            for (const file of result.changed) console.log(`  - ${file}`);
+        } else {
+            console.log(`${prefix}All Tier 1/2 files already match VERSION (${result.canonical}).`);
+        }
         return;
     }
 
@@ -401,6 +493,7 @@ module.exports = {
     bumpPatch,
     bumpMinor,
     applyVersion,
+    syncDrift,
     verifyVersions,
     SEMVER_RE,
 };

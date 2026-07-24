@@ -13,6 +13,9 @@
     }
 
     function deviceStatusInfo(d) {
+        if (d.soft_deleted) {
+            return { className: 'deleted', label: _('devices.deleted_badge'), title: '' };
+        }
         if (d.banned) {
             return { className: 'banned', label: _('status.banned'), title: '' };
         }
@@ -37,6 +40,7 @@
             case 'scada':    return 'precision_manufacturing';
             case 'iot':      return 'sensors';
             case 'os_agent': return 'terminal';
+            case 'mesh_agent': return 'hub';
             case 'mobile':   return 'phone_android';
             case 'rustdesk': return 'connected_tv';
             default:         return 'devices';
@@ -50,6 +54,8 @@
     let filteredDevices = [];
     let folders = [];
     let deviceGroups = [];
+    let accessStrategies = [];
+    let strategiesLoaded = false;
     let availableUserGroups = [];
     let userGroupsLoaded = false;
     let availableTags = [];
@@ -62,11 +68,26 @@
     let currentPage = 1;
     let perPage = 20;
     let searchQuery = '';
+    let showDeleted = false;
     let draggedDeviceId = null;
     const STORAGE_PER_PAGE = 'bd_devices_per_page';
+    const STORAGE_SHOW_DELETED = 'bd_devices_show_deleted';
     const PER_PAGE_OPTIONS = [10, 20, 50, 100];
     let contextMenuState = null;
     let hScrollSyncing = false;
+    const pendingRequests = new Map();
+    const LOAD_STAGGER_MS = 120;
+    
+    function fetchOnce(endpoint, fetcher) {
+        if (pendingRequests.has(endpoint)) return pendingRequests.get(endpoint);
+        const request = fetcher().finally(() => pendingRequests.delete(endpoint));
+        pendingRequests.set(endpoint, request);
+        return request;
+    }
+
+    function scheduleLoad(fn, index) {
+        setTimeout(fn, index * LOAD_STAGGER_MS);
+    }
     
     // Elements
     let tableBody, pagination, emptyState, bulkActions, selectedCountEl;
@@ -80,21 +101,24 @@
         bulkActions = document.getElementById('bulk-actions');
         selectedCountEl = document.getElementById('selected-count');
         
-        // Load data
-        loadFolders();
-        loadUserGroups();
-        loadDeviceGroups();
-        loadTags();
-        loadDevices();
+        // Load data (staggered to avoid rate-limit bursts on page entry)
+        scheduleLoad(loadFolders, 0);
+        scheduleLoad(loadUserGroups, 1);
+        scheduleLoad(loadDeviceGroups, 2);
+        scheduleLoad(loadStrategies, 3);
+        scheduleLoad(loadTags, 4);
+        scheduleLoad(loadDevices, 5);
         
         // Event listeners
         initSearch();
         initFilters();
+        initShowDeletedToggle();
         initTagFilter();
         initSorting();
         initSync();
         initFolders();
         initDeviceGroups();
+        initStrategies();
         initDragDrop();
         attachFolderDropEvents();  // For static folder chips
         attachGroupDropEvents();   // For static group chips
@@ -110,12 +134,17 @@
             const perPageSelect = document.getElementById('per-page-select');
             if (perPageSelect) perPageSelect.value = String(perPage);
         }
+
+        showDeleted = localStorage.getItem(STORAGE_SHOW_DELETED) === '1';
+        const showDeletedInput = document.getElementById('show-deleted-input');
+        if (showDeletedInput) showDeletedInput.checked = showDeleted;
         
         // Refresh handler
         window.addEventListener('app:refresh', () => {
             loadFolders();
             loadUserGroups();
             loadDeviceGroups();
+            loadStrategies();
             loadTags();
             loadDevices();
         });
@@ -155,6 +184,14 @@
                     const data = JSON.parse(event.data);
                     if (data.type === 'device_status') {
                         updateDeviceStatusInPlace(data.device_id, data.status);
+                        document.dispatchEvent(new CustomEvent('devices:live-status', {
+                            detail: { id: data.device_id, status: data.status }
+                        }));
+                    } else if (data.type === 'device_id_changed') {
+                        document.dispatchEvent(new CustomEvent('devices:id-changed', {
+                            detail: { old_id: data.old_id, new_id: data.new_id, source: data.source || '' }
+                        }));
+                        loadDevices();
                     }
                 } catch (_) {}
             };
@@ -254,11 +291,87 @@
     function buildDeviceMenuItemsHtml(device) {
         const eid = Utils.escapeHtml(device.id);
         const banned = !!device.banned;
+        if (device.soft_deleted) {
+            return `
+            <button type="button" class="kebab-menu-item info" data-action="details" data-id="${eid}">
+                <span class="material-icons">info</span>
+                <span>${_('actions.details')}</span>
+            </button>
+            <div class="kebab-divider"></div>
+            <button type="button" class="kebab-menu-item" data-action="restore" data-id="${eid}">
+                <span class="material-icons">restore</span>
+                <span>${_('devices.restore_action')}</span>
+            </button>
+            <button type="button" class="kebab-menu-item danger" data-action="permanent-delete" data-id="${eid}">
+                <span class="material-icons">delete_forever</span>
+                <span>${_('devices.permanent_delete_title')}</span>
+            </button>`;
+        }
+        const isMesh = String(device.device_type || '').toLowerCase() === 'mesh_agent';
+        const meshOnline = isMesh && (device.mesh_connected || device.online);
+        const meshOfflineWake = isMesh && !meshOnline ? `
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-wake" data-id="${eid}">
+                <span class="material-icons">power_settings_new</span>
+                <span>${_('mesh.power_wake') || 'Wake'}</span>
+            </button>
+            <div class="kebab-divider"></div>` : '';
+        const meshActions = meshOnline ? `
+            <button type="button" class="kebab-menu-item" data-action="mesh-terminal" data-id="${eid}">
+                <span class="material-icons">terminal</span>
+                <span>${_('mesh.terminal') || 'Terminal'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-files" data-id="${eid}">
+                <span class="material-icons">folder</span>
+                <span>${_('mesh.files') || 'File browser'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-run-command" data-id="${eid}">
+                <span class="material-icons">play_arrow</span>
+                <span>${_('mesh.run_command') || 'Run command'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-link-peer" data-id="${eid}">
+                <span class="material-icons">link</span>
+                <span>${_('mesh.link_peer') || 'Link peer'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-share" data-id="${eid}">
+                <span class="material-icons">link</span>
+                <span>${_('mesh.share_link') || 'Guest desktop link'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-port-tcp" data-id="${eid}">
+                <span class="material-icons">settings_ethernet</span>
+                <span>${_('mesh.port_tcp') || 'TCP port relay'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-port-udp" data-id="${eid}">
+                <span class="material-icons">settings_ethernet</span>
+                <span>${_('mesh.port_udp') || 'UDP port relay'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-wake" data-id="${eid}">
+                <span class="material-icons">power_settings_new</span>
+                <span>${_('mesh.power_wake') || 'Wake'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-sleep" data-id="${eid}">
+                <span class="material-icons">bedtime</span>
+                <span>${_('mesh.power_sleep') || 'Sleep'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-reset" data-id="${eid}">
+                <span class="material-icons">restart_alt</span>
+                <span>${_('mesh.power_reset') || 'Reset'}</span>
+            </button>
+            <button type="button" class="kebab-menu-item" data-action="mesh-power-off" data-id="${eid}">
+                <span class="material-icons">power_off</span>
+                <span>${_('mesh.power_off') || 'Power off'}</span>
+            </button>
+            <div class="kebab-divider"></div>` : '';
         return `
             <button type="button" class="kebab-menu-item connect-desktop" data-action="web-remote" data-id="${eid}">
                 <span class="material-icons">screen_share</span>
                 <span>${_('actions.web_remote') || 'Web Remote'}</span>
             </button>
+            <button type="button" class="kebab-menu-item" data-action="guest-access" data-id="${eid}">
+                <span class="material-icons">share</span>
+                <span>${_('guest_access.menu') || 'Guest access link'}</span>
+            </button>
+            ${meshActions}
+            ${meshOfflineWake}
             <button type="button" class="kebab-menu-item" data-action="cdap-viewer" data-id="${eid}">
                 <span class="material-icons">photo_camera</span>
                 <span>${_('actions.cdap_viewer') || 'CDAP Snapshot Viewer'}</span>
@@ -381,7 +494,9 @@
                 if (!device) return;
                 openContextMenu(e.clientX, e.clientY, buildDeviceMenuItemsHtml(device), {
                     type: 'device',
-                    id: deviceId
+                    id: deviceId,
+                    linked_peer_id: device.linked_peer_id || '',
+                    deviceName: device.display_name || device.hostname || ''
                 });
             });
         });
@@ -544,7 +659,9 @@
      */
     async function loadDevices() {
         try {
-            const response = await Utils.api('/api/devices');
+            const qs = showDeleted ? '?includeDeleted=true' : '';
+            const endpoint = '/api/devices' + qs;
+            const response = await fetchOnce(endpoint, () => Utils.api(endpoint));
             devices = response.devices || [];
             
             // Update count
@@ -592,7 +709,7 @@
 
     async function loadUserGroups() {
         try {
-            const response = await Utils.api('/api/panel/user-groups');
+            const response = await fetchOnce('/api/panel/user-groups', () => Utils.api('/api/panel/user-groups'));
             availableUserGroups = response.groups || [];
             userGroupsLoaded = true;
         } catch (error) {
@@ -670,6 +787,8 @@
      */
     function applyFilters() {
         filteredDevices = devices.filter(device => {
+            if (!showDeleted && device.soft_deleted) return false;
+
             // Folder filter
             if (currentFolder === 'unassigned' && device.folder_id) return false;
             if (currentFolder !== 'all' && currentFolder !== 'unassigned') {
@@ -694,6 +813,7 @@
             if (currentFilter === 'online' && !device.online) return false;
             if (currentFilter === 'offline' && (device.online || device.banned)) return false;
             if (currentFilter === 'banned' && !device.banned) return false;
+            if (currentFilter === 'mesh_agent' && String(device.device_type || '').toLowerCase() !== 'mesh_agent') return false;
             
             // Search filter
             if (searchQuery) {
@@ -772,11 +892,12 @@
             const statusInfo = deviceStatusInfo(device);
             const sc = statusInfo.className;
             return `
-            <tr data-id="${eid}" class="${device.banned ? 'banned-row' : ''}" draggable="true">
+            <tr data-id="${eid}" class="${device.banned ? 'banned-row' : ''}${device.soft_deleted ? ' deleted-row' : ''}" draggable="${device.soft_deleted ? 'false' : 'true'}">
                 <td data-column="id">
                     <div class="device-id">
                         <span class="device-status-dot ${sc}"></span>
                         <span class="device-id-text">${eid}</span>
+                        ${device.soft_deleted ? `<span class="device-deleted-badge">${Utils.escapeHtml(_('devices.deleted_badge'))}</span>` : ''}
                         <button class="copy-btn" title="${_('actions.copy')}" data-copy="${eid}">
                             <span class="material-icons">content_copy</span>
                         </button>
@@ -787,6 +908,7 @@
                     <div class="platform-icon">
                         <span class="material-icons">${getDeviceTypeIcon(device.device_type)}</span>
                         <span>${Utils.escapeHtml(device.device_type || '-')}</span>
+                        ${device.linked_peer_id ? `<span class="mesh-linked-badge" title="${Utils.escapeHtml(_('mesh.linked_peer') || 'Linked device')}">↔ ${Utils.escapeHtml(device.linked_peer_id)}</span>` : ''}
                     </div>
                 </td>
                 <td data-column="platform">
@@ -859,7 +981,11 @@
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 closeAllKebabMenus();
-                handleAction(btn.dataset.action, btn.dataset.id, btn.dataset);
+                const row = btn.closest('tr[data-id]');
+                const deviceId = btn.dataset.id || row && row.dataset.id;
+                const device = devices.find(d => d.id === deviceId) ||
+                    filteredDevices.find(d => d.id === deviceId);
+                handleAction(btn.dataset.action, deviceId, device || btn.dataset);
             });
         });
 
@@ -884,6 +1010,18 @@
      * Falls back to opening a new browser tab if no RDClient page is listening.
      */
     function _tryAddRemoteTab(deviceId, data) {
+        if (window.DeviceCapabilities && window.DeviceCapabilities.isPhone()) {
+            if (window.RdClientMobile && window.RdClientMobile.showPhoneUnsupportedToast) {
+                window.RdClientMobile.showPhoneUnsupportedToast();
+            } else if (typeof Modal !== 'undefined') {
+                Modal.alert({
+                    title: _('remote.phone_unsupported_title'),
+                    message: _('remote.phone_unsupported_body')
+                });
+            }
+            return;
+        }
+
         if (typeof BroadcastChannel === 'undefined') {
             window.open(`/remote/${encodeURIComponent(deviceId)}`, '_blank');
             return;
@@ -935,6 +1073,65 @@
                 connectDesktopClient(deviceId);
                 break;
 
+            case 'mesh-terminal':
+                if (typeof openMeshTerminal === 'function') {
+                    openMeshTerminal(deviceId);
+                } else {
+                    Notifications.error(_('mesh.terminal_unavailable') || 'Terminal module not loaded');
+                }
+                break;
+
+            case 'mesh-files':
+                window.open('/remote/' + encodeURIComponent(deviceId) + '?transport=mesh&panel=files', '_blank');
+                break;
+
+            case 'mesh-run-command':
+                showMeshRunCommandModal(deviceId);
+                break;
+
+            case 'mesh-link-peer':
+                showMeshLinkPeerModal(deviceId, data);
+                break;
+
+            case 'mesh-share':
+                showMeshShareModal(deviceId);
+                break;
+            case 'guest-access':
+                showGuestAccessModal([deviceId]);
+                break;
+
+            case 'mesh-port-tcp':
+                if (typeof openMeshPortForward === 'function') {
+                    openMeshPortForward(deviceId, false);
+                } else {
+                    Notifications.error(_('mesh.port_unavailable') || 'Port relay module not loaded');
+                }
+                break;
+
+            case 'mesh-port-udp':
+                if (typeof openMeshPortForward === 'function') {
+                    openMeshPortForward(deviceId, true);
+                } else {
+                    Notifications.error(_('mesh.port_unavailable') || 'Port relay module not loaded');
+                }
+                break;
+
+            case 'mesh-power-wake':
+                meshPowerAction(deviceId, 'wake');
+                break;
+
+            case 'mesh-power-sleep':
+                meshPowerAction(deviceId, 'sleep');
+                break;
+
+            case 'mesh-power-reset':
+                meshPowerAction(deviceId, 'reset');
+                break;
+
+            case 'mesh-power-off':
+                meshPowerAction(deviceId, 'off');
+                break;
+
             case 'remote-viewer':
                 // Legacy action: route through the unified web remote client.
                 _tryAddRemoteTab(deviceId, data);
@@ -966,6 +1163,14 @@
                 
             case 'delete':
                 await deleteDevice(deviceId);
+                break;
+
+            case 'restore':
+                await restoreDevice(deviceId);
+                break;
+
+            case 'permanent-delete':
+                await permanentDeleteDevice(deviceId);
                 break;
 
             case 'access-policy':
@@ -1039,6 +1244,9 @@
                             allowed_users: document.getElementById('dg-users').value,
                             allowed_groups: Array.from(document.querySelectorAll('.dg-user-group:checked')).map(input => input.value)
                         };
+                        if (group?.team_id) {
+                            payload.team_id = group.team_id;
+                        }
                         if (!payload.name) {
                             Notifications.error(_('common.name_required') || 'Name is required');
                             return;
@@ -1138,6 +1346,208 @@
         }
     }
     
+    function showMeshRunCommandModal(deviceId) {
+        Modal.show({
+            title: (_('mesh.run_command_title') || 'Run command') + ' — ' + deviceId,
+            content: `
+                <div class="form-group">
+                    <label for="mesh-cmd-input">${_('mesh.command_placeholder') || 'Command'}</label>
+                    <textarea id="mesh-cmd-input" class="form-input" rows="4" placeholder="whoami"></textarea>
+                </div>
+                <label class="toggle-row">
+                    <input type="checkbox" id="mesh-cmd-shell" checked>
+                    <span>${_('mesh.run_as_shell') || 'Run in shell'}</span>
+                </label>`,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                {
+                    label: _('actions.run') || 'Run',
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        const command = document.getElementById('mesh-cmd-input').value;
+                        if (!command.trim()) return;
+                        const shell = document.getElementById('mesh-cmd-shell').checked;
+                        try {
+                            await Utils.api('/api/mesh/devices/' + encodeURIComponent(deviceId) + '/exec', {
+                                method: 'POST',
+                                body: { command: command.trim(), shell },
+                            });
+                            Notifications.success(_('mesh.command_sent') || 'Command sent');
+                            Modal.close();
+                        } catch (err) {
+                            Notifications.error(err.message || (_('mesh.command_failed') || 'Failed'));
+                        }
+                    },
+                },
+            ],
+        });
+    }
+
+    async function showMeshLinkPeerModal(deviceId, data) {
+        const linkedId = data && data.linked_peer_id ? String(data.linked_peer_id) : '';
+        Modal.show({
+            title: (_('mesh.link_peer_title') || 'Link mesh agent') + ' — ' + deviceId,
+            content: `
+                <p class="form-hint">${_('mesh.link_peer_hint') || 'Enter RustDesk or CDAP peer ID on the same host. Leave empty to unlink.'}</p>
+                <div class="form-group">
+                    <label for="mesh-link-peer-id">${_('mesh.linked_peer') || 'Linked device'}</label>
+                    <input type="text" id="mesh-link-peer-id" class="form-input" value="${Utils.escapeHtml(linkedId)}" placeholder="PEER_ID">
+                </div>`,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                {
+                    label: _('actions.save'),
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        const peerId = document.getElementById('mesh-link-peer-id').value.trim();
+                        try {
+                            await Utils.api('/api/cdap/devices/' + encodeURIComponent(deviceId) + '/link', {
+                                method: 'POST',
+                                body: { linked_peer_id: peerId },
+                            });
+                            Notifications.success(_('mesh.link_saved') || 'Link updated');
+                            Modal.close();
+                            loadDevices();
+                        } catch (err) {
+                            Notifications.error(err.message || _('errors.server_error'));
+                        }
+                    },
+                },
+            ],
+        });
+    }
+
+    async function meshPowerAction(deviceId, action) {
+        const labels = { sleep: _('mesh.power_sleep') || 'Sleep', reset: _('mesh.power_reset') || 'Reset' };
+        const label = labels[action] || action;
+        if (!confirm((_('mesh.power_confirm') || 'Send power action') + ': ' + label + '?')) return;
+        try {
+            await Utils.api('/api/mesh/devices/' + encodeURIComponent(deviceId) + '/power', {
+                method: 'POST',
+                body: { action },
+            });
+            Notifications.success(_('mesh.power_sent') || 'Power command sent');
+        } catch (err) {
+            Notifications.error(err.message || _('errors.server_error'));
+        }
+    }
+
+    async function showGuestAccessModal(peerIds) {
+        const ids = (peerIds || []).filter(Boolean);
+        if (!ids.length) return;
+        Modal.show({
+            title: _('guest_access.create_title') || 'Create guest access link',
+            content: `
+                <p class="form-hint">${_('guest_access.create_hint') || 'Time-limited RdClient link. Recipients can connect only to the selected devices — no Console login, no full device list.'}</p>
+                <div class="form-group">
+                    <label>${_('guest_access.devices') || 'Devices'}</label>
+                    <div class="form-hint" style="margin:0;">${ids.map((id) => Utils.escapeHtml(id)).join(', ')}</div>
+                </div>
+                <div class="form-group">
+                    <label for="guest-access-ttl">${_('guest_access.ttl') || 'Valid for (minutes)'}</label>
+                    <input type="number" id="guest-access-ttl" class="form-input" min="15" max="1440" value="120">
+                </div>
+                <div class="form-group">
+                    <label for="guest-access-label">${_('guest_access.label') || 'Label (optional)'}</label>
+                    <input type="text" id="guest-access-label" class="form-input" maxlength="120" placeholder="">
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="guest-access-view-only" checked>
+                        ${_('guest_access.view_only') || 'View only'}
+                    </label>
+                </div>
+                <div class="form-group" id="guest-access-result" style="display:none;">
+                    <label>${_('guest_access.url') || 'Share URL'}</label>
+                    <input type="text" id="guest-access-url" class="form-input" readonly>
+                </div>`,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                {
+                    label: _('guest_access.create') || 'Create link',
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        const ttl = parseInt(document.getElementById('guest-access-ttl').value, 10) || 120;
+                        const label = (document.getElementById('guest-access-label') || {}).value || '';
+                        const viewOnly = !!(document.getElementById('guest-access-view-only') || {}).checked;
+                        try {
+                            const resp = await Utils.api('/api/guest/access-links', {
+                                method: 'POST',
+                                body: {
+                                    peer_ids: ids,
+                                    ttl_minutes: ttl,
+                                    view_only: viewOnly,
+                                    label: label,
+                                },
+                            });
+                            const data = resp.data || resp;
+                            const path = data.path || '';
+                            const full = window.location.origin + path;
+                            const result = document.getElementById('guest-access-result');
+                            const urlInput = document.getElementById('guest-access-url');
+                            if (result && urlInput) {
+                                urlInput.value = full;
+                                result.style.display = 'block';
+                                urlInput.select();
+                            }
+                            Notifications.success(_('guest_access.created') || 'Guest link created');
+                        } catch (err) {
+                            Notifications.error(err.message || _('errors.server_error'));
+                        }
+                    },
+                },
+            ],
+        });
+    }
+
+    async function showMeshShareModal(deviceId) {
+        Modal.show({
+            title: (_('mesh.share_link_title') || 'Guest desktop link') + ' — ' + deviceId,
+            content: `
+                <p class="form-hint">${_('mesh.share_link_hint') || 'Time-limited link for view-only remote desktop (no panel login required).'}</p>
+                <div class="form-group">
+                    <label for="mesh-share-ttl">${_('mesh.share_ttl') || 'Valid for (minutes)'}</label>
+                    <input type="number" id="mesh-share-ttl" class="form-input" min="15" max="1440" value="120">
+                </div>
+                <div class="form-group" id="mesh-share-result" style="display:none;">
+                    <label>${_('mesh.share_url') || 'Share URL'}</label>
+                    <input type="text" id="mesh-share-url" class="form-input" readonly>
+                </div>`,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                {
+                    label: _('mesh.share_create') || 'Create link',
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        const ttl = parseInt(document.getElementById('mesh-share-ttl').value, 10) || 120;
+                        try {
+                            const resp = await Utils.api('/api/mesh/devices/' + encodeURIComponent(deviceId) + '/share', {
+                                method: 'POST',
+                                body: { ttl_minutes: ttl, view_only: true },
+                            });
+                            const data = resp.data || resp;
+                            const path = data.path || '';
+                            const full = window.location.origin + path;
+                            const result = document.getElementById('mesh-share-result');
+                            const urlInput = document.getElementById('mesh-share-url');
+                            if (result && urlInput) {
+                                urlInput.value = full;
+                                result.style.display = 'block';
+                            }
+                            Notifications.success(_('mesh.share_created') || 'Link created');
+                        } catch (err) {
+                            Notifications.error(err.message || _('errors.server_error'));
+                        }
+                    },
+                },
+            ],
+        });
+    }
+
     /**
      * Show device details modal
      */
@@ -1348,6 +1758,17 @@
      * Change device ID
      */
     async function changeDeviceId(deviceId) {
+        const device = devices.find(d => d.id === deviceId);
+        if (device?.online) {
+            const proceed = await Modal.confirm({
+                title: _('devices.change_id_title'),
+                message: _('devices.change_id_online_warn'),
+                confirmLabel: _('devices.change_id'),
+                danger: false
+            });
+            if (!proceed) return;
+        }
+
         const newId = await Modal.prompt({
             title: _('devices.change_id_title'),
             label: _('devices.new_id'),
@@ -1371,7 +1792,7 @@
         try {
             await Utils.api(`/api/devices/${deviceId}/change-id`, {
                 method: 'POST',
-                body: { newId: newId.toUpperCase() }
+                body: { newId }
             });
             Notifications.success(_('devices.change_id_success'));
             loadDevices();
@@ -1384,6 +1805,12 @@
      * Delete device with delayed confirmation
      */
     async function deleteDevice(deviceId) {
+        const device = devices.find(d => d.id === deviceId);
+        if (device?.soft_deleted) {
+            await permanentDeleteDevice(deviceId);
+            return;
+        }
+
         return new Promise((resolve) => {
             const modalHtml = `
                 <div class="modal-overlay delete-confirm-modal" id="delete-modal-${deviceId}">
@@ -1480,6 +1907,42 @@
                 }
             });
         });
+    }
+
+    async function restoreDevice(deviceId) {
+        const confirmed = await Modal.confirm({
+            title: _('devices.restore_title'),
+            message: _('devices.restore_confirm', { id: deviceId }),
+            confirmLabel: _('devices.restore_action'),
+            danger: false
+        });
+        if (!confirmed) return;
+
+        try {
+            await Utils.api(`/api/devices/${encodeURIComponent(deviceId)}/restore`, { method: 'POST' });
+            Notifications.success(_('devices.restore_success'));
+            loadDevices();
+        } catch (error) {
+            Notifications.error(error.message || _('devices.restore_failed'));
+        }
+    }
+
+    async function permanentDeleteDevice(deviceId) {
+        const confirmed = await Modal.confirm({
+            title: _('devices.permanent_delete_title'),
+            message: _('devices.permanent_delete_confirm', { id: deviceId }),
+            confirmLabel: _('actions.delete'),
+            danger: true
+        });
+        if (!confirmed) return;
+
+        try {
+            await Utils.api(`/api/devices/${encodeURIComponent(deviceId)}?hard=true`, { method: 'DELETE' });
+            Notifications.success(_('devices.permanent_delete_success'));
+            loadDevices();
+        } catch (error) {
+            Notifications.error(error.message || _('errors.delete_failed'));
+        }
     }
     
     /**
@@ -1684,6 +2147,17 @@
             });
         });
     }
+
+    function initShowDeletedToggle() {
+        const input = document.getElementById('show-deleted-input');
+        if (!input) return;
+        input.addEventListener('change', () => {
+            showDeleted = !!input.checked;
+            localStorage.setItem(STORAGE_SHOW_DELETED, showDeleted ? '1' : '0');
+            currentPage = 1;
+            loadDevices();
+        });
+    }
     
     /**
      * Initialize sorting
@@ -1799,7 +2273,7 @@
 
     async function loadTags() {
         try {
-            const response = await Utils.api('/api/tags');
+            const response = await fetchOnce('/api/tags', () => Utils.api('/api/tags'));
             availableTags = response.tags || [];
             renderTagFilters();
         } catch (error) {
@@ -1854,7 +2328,7 @@
 
     async function loadDeviceGroups() {
         try {
-            const response = await Utils.api('/api/device-groups');
+            const response = await fetchOnce('/api/device-groups', () => Utils.api('/api/device-groups'));
             deviceGroups = response.groups || [];
             window._betterdesk_device_groups = deviceGroups;
             renderDeviceGroups();
@@ -1962,6 +2436,331 @@
         document.getElementById('add-device-group-btn')?.addEventListener('click', () => showDeviceGroupModal());
         document.querySelector('.group-chip[data-group="all"]')?.addEventListener('click', () => selectDeviceGroup('all'));
     }
+
+    const RUSTDESK_STRATEGY_PERM_KEYS = [
+        { key: 'enable-file-transfer', labelKey: 'devices.strategy_perm_file_transfer' },
+        { key: 'disable-clipboard', labelKey: 'devices.strategy_perm_disable_clipboard' },
+        { key: 'enable-clipboard', labelKey: 'devices.strategy_perm_enable_clipboard' },
+        { key: 'enable-audio', labelKey: 'devices.strategy_perm_audio' },
+        { key: 'enable-tunnel', labelKey: 'devices.strategy_perm_tunnel' },
+        { key: 'enable-camera', labelKey: 'devices.strategy_perm_camera' },
+        { key: 'enable-remote-restart', labelKey: 'devices.strategy_perm_restart' },
+        { key: 'enable-block-input', labelKey: 'devices.strategy_perm_block_input' },
+    ];
+
+    async function loadStrategies() {
+        try {
+            const response = await fetchOnce('/api/panel/strategies', () => Utils.api('/api/panel/strategies'));
+            accessStrategies = response.strategies || [];
+            strategiesLoaded = true;
+            renderStrategies();
+        } catch (error) {
+            console.error('Failed to load strategies:', error);
+            strategiesLoaded = true;
+            accessStrategies = [];
+            renderStrategies();
+        }
+    }
+
+    function renderStrategies() {
+        const container = document.getElementById('devices-strategies-list');
+        if (!container) return;
+        if (!strategiesLoaded) {
+            container.innerHTML = `<div class="empty-state-inline">${_('devices.loading_strategies')}</div>`;
+            return;
+        }
+        if (!accessStrategies.length) {
+            container.innerHTML = `<div class="empty-state-inline">${_('devices.no_strategies')}</div>`;
+            return;
+        }
+
+        const userGroupName = (guid) => {
+            const group = availableUserGroups.find(item => item.guid === guid);
+            return group ? group.name : (guid || _('devices.strategy_any_user_group'));
+        };
+        const deviceGroupName = (guid) => {
+            const group = deviceGroups.find(item => item.guid === guid);
+            return group ? group.name : (guid || _('devices.strategy_any_device_group'));
+        };
+
+        container.innerHTML = accessStrategies.map(strategy => {
+            const enabled = strategy.enabled !== false;
+            const permCount = Object.keys(strategy.permissions || {}).length;
+            return `<div class="strategy-manager-item ${enabled ? '' : 'strategy-disabled'}" data-guid="${Utils.escapeHtml(strategy.guid)}">
+                <div class="strategy-manager-main">
+                    <span class="material-icons">policy</span>
+                    <div class="strategy-manager-text">
+                        <strong>${Utils.escapeHtml(strategy.name)}</strong>
+                        <span>${Utils.escapeHtml(userGroupName(strategy.user_group_guid))} → ${Utils.escapeHtml(deviceGroupName(strategy.device_group_guid))}</span>
+                        <span class="strategy-perm-count">${_('devices.strategy_permissions_count', { count: permCount }) || permCount + ' settings'}</span>
+                        <span class="strategy-assign-count" data-guid="${Utils.escapeHtml(strategy.guid)}">${_('devices.strategy_assign_none')}</span>
+                    </div>
+                </div>
+                <span class="strategy-status-badge ${enabled ? 'enabled' : 'disabled'}">${enabled ? _('devices.strategy_enabled') : _('devices.strategy_disabled')}</span>
+                <div class="strategy-manager-actions">
+                    <button type="button" class="action-btn" data-action="assign-strategy" data-guid="${Utils.escapeHtml(strategy.guid)}" title="${_('devices.strategy_assign')}">
+                        <span class="material-icons">link</span>
+                    </button>
+                    <button type="button" class="action-btn" data-action="edit-strategy" data-guid="${Utils.escapeHtml(strategy.guid)}" title="${_('devices.edit_strategy')}">
+                        <span class="material-icons">edit</span>
+                    </button>
+                    <button type="button" class="action-btn danger" data-action="delete-strategy" data-guid="${Utils.escapeHtml(strategy.guid)}" title="${_('devices.delete_strategy')}">
+                        <span class="material-icons">delete</span>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+
+        container.querySelectorAll('[data-action="edit-strategy"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const strategy = accessStrategies.find(item => item.guid === btn.dataset.guid);
+                if (strategy) showStrategyModal(strategy);
+            });
+        });
+        container.querySelectorAll('[data-action="assign-strategy"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const strategy = accessStrategies.find(item => item.guid === btn.dataset.guid);
+                if (strategy) showStrategyAssignModal(strategy);
+            });
+        });
+        container.querySelectorAll('[data-action="delete-strategy"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const strategy = accessStrategies.find(item => item.guid === btn.dataset.guid);
+                if (strategy) deleteStrategy(strategy);
+            });
+        });
+        refreshStrategyAssignCounts();
+    }
+
+    async function refreshStrategyAssignCounts() {
+        const badges = document.querySelectorAll('.strategy-assign-count[data-guid]');
+        await Promise.all(Array.from(badges).map(async (el) => {
+            try {
+                const resp = await Utils.api(`/api/panel/strategies/${encodeURIComponent(el.dataset.guid)}`);
+                const st = resp?.data?.strategy || resp?.strategy || {};
+                const text = _('devices.strategy_assign_counts', {
+                    peers: st.peer_count || 0,
+                    users: st.user_count || 0,
+                    groups: st.device_group_count || 0,
+                });
+                el.textContent = (st.peer_count || st.user_count || st.device_group_count)
+                    ? text
+                    : _('devices.strategy_assign_none');
+            } catch (_) {
+                el.textContent = _('devices.strategy_assign_none');
+            }
+        }));
+    }
+
+    function renderAssignCheckboxList(items, selectedKeys, inputClass, labelFn) {
+        if (!items.length) {
+            return `<div class="empty-state-inline">${_('common.no_results') || 'No items'}</div>`;
+        }
+        return items.map(item => {
+            const key = item.key;
+            const checked = selectedKeys.includes(key) ? 'checked' : '';
+            return `<label class="strategy-assign-option">
+                <input type="checkbox" class="${inputClass}" value="${Utils.escapeHtml(key)}" ${checked}>
+                <span>${Utils.escapeHtml(labelFn(item))}</span>
+            </label>`;
+        }).join('');
+    }
+
+    async function showStrategyAssignModal(strategy) {
+        if (!deviceGroups.length) await loadDeviceGroups();
+        let panelUsers = [];
+        try {
+            const usersResp = await Utils.api('/api/users');
+            panelUsers = usersResp.users || usersResp.data?.users || usersResp.data || [];
+        } catch (_) { panelUsers = []; }
+
+        let detail = { peer_ids: [], user_names: [], group_guids: [] };
+        try {
+            const resp = await Utils.api(`/api/panel/strategies/${encodeURIComponent(strategy.guid)}`);
+            detail = resp?.data?.strategy || detail;
+        } catch (_) {}
+
+        const deviceItems = (devices || []).slice(0, 500).map(d => ({
+            key: d.id,
+            label: `${d.id}${d.hostname ? ' — ' + d.hostname : ''}`,
+        }));
+        const userItems = panelUsers.map(u => ({
+            key: u.username || u.name || String(u.id),
+            label: u.username || u.name || String(u.id),
+        }));
+        const groupItems = deviceGroups.map(g => ({ key: g.guid, label: g.name || g.guid }));
+
+        Modal.show({
+            title: (_('devices.strategy_assign_title') || 'Assign strategy').replace('{name}', strategy.name),
+            content: `
+                <form id="strategy-assign-form" class="device-group-form">
+                    <p class="form-hint">${_('devices.strategy_assign_hint')}</p>
+                    <div class="form-group">
+                        <label>${_('devices.strategy_assign_devices')}</label>
+                        <div class="strategy-assign-list">${renderAssignCheckboxList(deviceItems, detail.peer_ids || [], 'strategy-assign-peer', i => i.label)}</div>
+                    </div>
+                    <div class="form-group">
+                        <label>${_('devices.strategy_assign_users')}</label>
+                        <div class="strategy-assign-list">${renderAssignCheckboxList(userItems, detail.user_names || [], 'strategy-assign-user', i => i.label)}</div>
+                    </div>
+                    <div class="form-group">
+                        <label>${_('devices.strategy_assign_groups')}</label>
+                        <div class="strategy-assign-list">${renderAssignCheckboxList(groupItems, detail.group_guids || [], 'strategy-assign-group', i => i.label)}</div>
+                    </div>
+                </form>
+            `,
+            size: 'large',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                { label: _('actions.save'), class: 'btn-primary', onClick: () => saveStrategyAssignments(strategy) }
+            ],
+        });
+    }
+
+    async function saveStrategyAssignments(strategy) {
+        const peers = Array.from(document.querySelectorAll('.strategy-assign-peer:checked')).map(el => el.value);
+        const users = Array.from(document.querySelectorAll('.strategy-assign-user:checked')).map(el => el.value);
+        const groups = Array.from(document.querySelectorAll('.strategy-assign-group:checked')).map(el => el.value);
+        if (!peers.length && !users.length && !groups.length) {
+            Notifications.error(_('devices.strategy_assign_hint'));
+            return;
+        }
+        try {
+            await Utils.api(`/api/panel/strategies/${encodeURIComponent(strategy.guid)}/assign`, {
+                method: 'POST',
+                body: { peers, users, groups },
+            });
+            Notifications.success(_('devices.strategy_assign_saved'));
+            Modal.close();
+            await refreshStrategyAssignCounts();
+        } catch (error) {
+            Notifications.error(error.message || _('errors.server_error'));
+        }
+    }
+
+    function renderStrategyPermissionOptions(permissions = {}) {
+        return RUSTDESK_STRATEGY_PERM_KEYS.map(item => {
+            const current = permissions[item.key];
+            const checked = current === 'Y' || current === true;
+            const denied = current === 'N' || current === false;
+            return `<label class="strategy-perm-option">
+                <span>${Utils.escapeHtml(_(item.labelKey))}</span>
+                <select class="form-input strategy-perm-select" data-perm-key="${Utils.escapeHtml(item.key)}">
+                    <option value="" ${!checked && !denied ? 'selected' : ''}>${_('devices.strategy_perm_default')}</option>
+                    <option value="Y" ${checked ? 'selected' : ''}>${_('devices.strategy_perm_allow')}</option>
+                    <option value="N" ${denied ? 'selected' : ''}>${_('devices.strategy_perm_deny')}</option>
+                </select>
+            </label>`;
+        }).join('');
+    }
+
+    function readStrategyPermissionsFromForm() {
+        const permissions = {};
+        document.querySelectorAll('.strategy-perm-select').forEach(select => {
+            const key = select.dataset.permKey;
+            const value = select.value;
+            if (key && (value === 'Y' || value === 'N')) permissions[key] = value;
+        });
+        return permissions;
+    }
+
+    async function showStrategyModal(strategy = null) {
+        await ensureUserGroupsLoaded();
+        if (!deviceGroups.length) await loadDeviceGroups();
+        const editing = !!strategy;
+        const userGroupOptions = [
+            `<option value="">${Utils.escapeHtml(_('devices.strategy_any_user_group'))}</option>`,
+            ...availableUserGroups.map(group => `<option value="${Utils.escapeHtml(group.guid)}" ${strategy?.user_group_guid === group.guid ? 'selected' : ''}>${Utils.escapeHtml(group.name)}</option>`)
+        ].join('');
+        const deviceGroupOptions = [
+            `<option value="">${Utils.escapeHtml(_('devices.strategy_any_device_group'))}</option>`,
+            ...deviceGroups.map(group => `<option value="${Utils.escapeHtml(group.guid)}" ${strategy?.device_group_guid === group.guid ? 'selected' : ''}>${Utils.escapeHtml(group.name)}</option>`)
+        ].join('');
+
+        Modal.show({
+            title: editing ? _('devices.edit_strategy') : _('devices.create_strategy'),
+            content: `
+                <form id="strategy-form" class="device-group-form">
+                    <div class="form-group">
+                        <label for="strategy-name">${_('devices.strategy_name')}</label>
+                        <input type="text" id="strategy-name" class="form-input" maxlength="80" required value="${Utils.escapeHtml(strategy?.name || '')}">
+                    </div>
+                    <div class="form-group">
+                        <label for="strategy-user-group">${_('devices.strategy_user_group')}</label>
+                        <select id="strategy-user-group" class="form-input">${userGroupOptions}</select>
+                    </div>
+                    <div class="form-group">
+                        <label for="strategy-device-group">${_('devices.strategy_device_group')}</label>
+                        <select id="strategy-device-group" class="form-input">${deviceGroupOptions}</select>
+                    </div>
+                    <label class="toggle-row">
+                        <input type="checkbox" id="strategy-enabled" ${strategy?.enabled !== false ? 'checked' : ''}>
+                        <span>${_('devices.strategy_enabled_label')}</span>
+                    </label>
+                    <div class="form-group">
+                        <label>${_('devices.strategy_permissions')}</label>
+                        <div class="strategy-perm-grid">${renderStrategyPermissionOptions(strategy?.permissions || {})}</div>
+                        <p class="form-hint">${_('devices.strategy_permissions_hint')}</p>
+                    </div>
+                </form>
+            `,
+            size: 'medium',
+            buttons: [
+                { label: _('actions.cancel'), class: 'btn-secondary', onClick: () => Modal.close() },
+                { label: _('actions.save'), class: 'btn-primary', onClick: () => saveStrategy(strategy) }
+            ],
+            onOpen: () => document.getElementById('strategy-name')?.focus()
+        });
+    }
+
+    async function saveStrategy(strategy = null) {
+        const name = document.getElementById('strategy-name')?.value.trim() || '';
+        if (!name) {
+            Notifications.error(_('devices.strategy_name_required'));
+            return;
+        }
+        const payload = {
+            name,
+            user_group_guid: document.getElementById('strategy-user-group')?.value || '',
+            device_group_guid: document.getElementById('strategy-device-group')?.value || '',
+            enabled: !!document.getElementById('strategy-enabled')?.checked,
+            permissions: readStrategyPermissionsFromForm(),
+        };
+        try {
+            const url = strategy
+                ? `/api/panel/strategies/${encodeURIComponent(strategy.guid)}`
+                : '/api/panel/strategies';
+            await Utils.api(url, { method: strategy ? 'PATCH' : 'POST', body: payload });
+            Notifications.success(strategy ? _('devices.strategy_updated') : _('devices.strategy_created'));
+            Modal.close();
+            strategiesLoaded = false;
+            await loadStrategies();
+        } catch (error) {
+            Notifications.error(error.message || _('errors.server_error'));
+        }
+    }
+
+    async function deleteStrategy(strategy) {
+        const confirmed = await Modal.confirm({
+            title: _('devices.delete_strategy'),
+            message: (_('devices.delete_strategy_confirm') || 'Delete strategy {name}?').replace('{name}', strategy.name),
+            confirmLabel: _('actions.delete'),
+            danger: true
+        });
+        if (!confirmed) return;
+        try {
+            await Utils.api(`/api/panel/strategies/${encodeURIComponent(strategy.guid)}`, { method: 'DELETE' });
+            Notifications.success(_('devices.strategy_deleted'));
+            strategiesLoaded = false;
+            await loadStrategies();
+        } catch (error) {
+            Notifications.error(error.message || _('errors.server_error'));
+        }
+    }
+
+    function initStrategies() {
+        document.getElementById('add-strategy-btn')?.addEventListener('click', () => showStrategyModal());
+    }
     
     // ==================== Folder Functions ====================
     
@@ -1970,7 +2769,7 @@
      */
     async function loadFolders() {
         try {
-            const response = await Utils.api('/api/folders');
+            const response = await fetchOnce('/api/folders', () => Utils.api('/api/folders'));
             folders = response.folders || [];
             // Expose folders globally for DeviceDetail panel
             window._betterdesk_folders = folders;
@@ -2231,10 +3030,21 @@
         requestAnimationFrame(updateTableHScroll);
     }
     
+    function selectedFolderUserGroupGuids() {
+        return Array.from(document.querySelectorAll('#folder-user-groups-list input:checked')).map(input => input.value);
+    }
+
+    function renderFolderUserGroupOptions(selectedGuids) {
+        const container = document.getElementById('folder-user-groups-list');
+        if (!container) return;
+        container.innerHTML = renderUserGroupAccessOptions(selectedGuids || []);
+    }
+
     /**
      * Show add folder modal
      */
-    function showAddFolderModal() {
+    async function showAddFolderModal() {
+        await ensureUserGroupsLoaded();
         const template = document.getElementById('folder-form-template');
         if (!template) return;
         
@@ -2251,6 +3061,7 @@
             ],
             onOpen: () => {
                 initColorPicker();
+                renderFolderUserGroupOptions([]);
                 document.getElementById('folder-name')?.focus();
             }
         });
@@ -2260,6 +3071,7 @@
      * Edit folder
      */
     async function editFolder(folderId) {
+        await ensureUserGroupsLoaded();
         const folder = findFolderById(folderId);
         if (!folder) return;
         
@@ -2282,6 +3094,7 @@
                 document.getElementById('folder-name').value = folder.name;
                 document.getElementById('folder-color').value = folder.color;
                 document.getElementById('folder-allowed-users').value = (folder.allowed_users || []).join(', ');
+                renderFolderUserGroupOptions(folder.allowed_groups || []);
                 
                 // Set active color
                 document.querySelectorAll('.color-option').forEach(btn => {
@@ -2311,6 +3124,7 @@
         const name = document.getElementById('folder-name')?.value.trim();
         const color = document.getElementById('folder-color')?.value;
         const allowedUsers = document.getElementById('folder-allowed-users')?.value || '';
+        const allowedGroups = selectedFolderUserGroupGuids();
         
         if (!name) {
             Notifications.error(_('folders.name_required'));
@@ -2321,13 +3135,13 @@
             if (folderId) {
                 await Utils.api(`/api/folders/${folderId}`, {
                     method: 'PATCH',
-                    body: { name, color, allowed_users: allowedUsers }
+                    body: { name, color, allowed_users: allowedUsers, allowed_groups: allowedGroups }
                 });
                 Notifications.success(_('folders.updated'));
             } else {
                 await Utils.api('/api/folders', {
                     method: 'POST',
-                    body: { name, color, allowed_users: allowedUsers }
+                    body: { name, color, allowed_users: allowedUsers, allowed_groups: allowedGroups }
                 });
                 Notifications.success(_('folders.created'));
             }

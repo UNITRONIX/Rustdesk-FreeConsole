@@ -28,6 +28,7 @@ import (
 	"github.com/unitronix/betterdesk-server/policy"
 	"github.com/unitronix/betterdesk-server/ratelimit"
 	"github.com/unitronix/betterdesk-server/security"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -97,6 +98,11 @@ type Server struct {
 	// When a target sends a RelayResponse, we decode socket_addr to find the
 	// initiator's addr key and forward the message over their TCP connection.
 	tcpPunchConns sync.Map // map[string]*tcpPunchConn
+
+	// wsPunchConns maps normalizeAddrKey(ip:port) → *codec.WSConn for WebSocket
+	// initiators waiting for async PunchHole/RelayResponse (#276). Exact port
+	// matching avoids delivering signed PKs to the wrong peer behind shared NAT.
+	wsPunchConns sync.Map // map[string]*codec.WSConn
 
 	// pendingRelayUUIDs tracks the UUID we send to each target when forwarding
 	// RequestRelay or PunchHole (force-relay). Some RustDesk clients respond with
@@ -339,6 +345,7 @@ func (s *Server) Start(ctx context.Context) error {
 	go s.serveWS()
 	go s.heartbeatCleaner()
 	go s.cleanupTCPPunchConns()
+	s.startPeerIDChangeListener()
 
 	return nil
 }
@@ -502,6 +509,13 @@ func (s *Server) handleSecureTCPConn(sc *crypto.SecureTCPConn, addrKey string) {
 			return
 		}
 
+		if skip, closeConn := s.handleEmptyOrUnknownUnion(msg, addrKey, true); skip {
+			if closeConn {
+				return
+			}
+			continue
+		}
+
 		keepAlive := s.logAndCheckKeepAlive(msg, addrKey, true)
 
 		if keepAlive && !registered {
@@ -538,24 +552,30 @@ func (s *Server) handlePlainTCPConn(conn net.Conn, addrKey string, firstMsg *pb.
 
 	// Process the first message that was already read during handshake.
 	if firstMsg != nil {
-		keepAlive := s.logAndCheckKeepAlive(firstMsg, addrKey, false)
-
-		if keepAlive && !registered {
-			s.tcpPunchConns.Store(addrKey, pc)
-			registered = true
-			log.Printf("[signal] TCP punch conn registered: %s", addrKey)
-		}
-
-		resp := s.handleMessage(firstMsg, conn.RemoteAddr())
-		if resp != nil {
-			if err := pc.writeProto(resp); err != nil {
-				log.Printf("[signal] TCP write to %s: %v", addrKey, err)
+		if skip, closeConn := s.handleEmptyOrUnknownUnion(firstMsg, addrKey, false); skip {
+			if closeConn {
 				return
 			}
-		}
+		} else {
+			keepAlive := s.logAndCheckKeepAlive(firstMsg, addrKey, false)
 
-		if !keepAlive {
-			return
+			if keepAlive && !registered {
+				s.tcpPunchConns.Store(addrKey, pc)
+				registered = true
+				log.Printf("[signal] TCP punch conn registered: %s", addrKey)
+			}
+
+			resp := s.handleMessage(firstMsg, conn.RemoteAddr())
+			if resp != nil {
+				if err := pc.writeProto(resp); err != nil {
+					log.Printf("[signal] TCP write to %s: %v", addrKey, err)
+					return
+				}
+			}
+
+			if !keepAlive {
+				return
+			}
 		}
 	}
 
@@ -567,6 +587,13 @@ func (s *Server) handlePlainTCPConn(conn net.Conn, addrKey string, firstMsg *pb.
 				log.Printf("[signal] TCP read from %s: %v", addrKey, err)
 			}
 			return
+		}
+
+		if skip, closeConn := s.handleEmptyOrUnknownUnion(msg, addrKey, false); skip {
+			if closeConn {
+				return
+			}
+			continue
 		}
 
 		keepAlive := s.logAndCheckKeepAlive(msg, addrKey, false)
@@ -589,6 +616,30 @@ func (s *Server) handlePlainTCPConn(conn net.Conn, addrKey string, firstMsg *pb.
 			return
 		}
 	}
+}
+
+// handleEmptyOrUnknownUnion handles RendezvousMessage with Union==nil.
+// Returns (skip, closeConn):
+//   - empty message (no unknown fields): soft-ignore keepalive → skip=true, closeConn=false
+//   - unknown protobuf fields (schema drift): log field numbers → skip=true, closeConn=true
+//   - Union set: skip=false (caller should dispatch normally)
+func (s *Server) handleEmptyOrUnknownUnion(msg *pb.RendezvousMessage, addrKey string, secure bool) (skip, closeConn bool) {
+	if msg == nil || msg.Union != nil {
+		return false, false
+	}
+	tag := ""
+	if secure {
+		tag = " (secure)"
+	}
+	unknown := msg.ProtoReflect().GetUnknown()
+	if len(unknown) == 0 {
+		// Encrypted empty ping (or empty protobuf) — keep the connection (#296 / WS-style).
+		return true, false
+	}
+	nums := unknownProtobufFieldNumbers(unknown)
+	log.Printf("[signal] TCP msg from %s%s: empty Union with unknown protobuf fields %v (%d unknown bytes)",
+		addrKey, tag, nums, len(unknown))
+	return true, true
 }
 
 // logAndCheckKeepAlive logs the message type and returns true if the message
@@ -624,10 +675,37 @@ func (s *Server) logAndCheckKeepAlive(msg *pb.RendezvousMessage, addrKey string,
 		log.Printf("[signal] TCP msg from %s%s: TestNatRequest", addrKey, tag)
 	case msg.GetHc() != nil:
 		// don't log health checks
+	case msg.GetHttpProxyRequest() != nil:
+		req := msg.GetHttpProxyRequest()
+		log.Printf("[signal] TCP msg from %s%s: HttpProxyRequest (method=%s path=%s)", addrKey, tag, req.GetMethod(), req.GetPath())
 	default:
 		log.Printf("[signal] TCP msg from %s%s: unhandled type %T", addrKey, tag, msg.Union)
 	}
 	return false
+}
+
+// unknownProtobufFieldNumbers extracts distinct field numbers from raw unknown protobuf bytes.
+func unknownProtobufFieldNumbers(b []byte) []int32 {
+	var nums []int32
+	seen := map[protowire.Number]struct{}{}
+	for len(b) > 0 {
+		num, typ, n := protowire.ConsumeTag(b)
+		if n < 0 {
+			break
+		}
+		b = b[n:]
+		n = protowire.ConsumeFieldValue(num, typ, b)
+		if n < 0 {
+			break
+		}
+		b = b[n:]
+		if _, ok := seen[num]; ok {
+			continue
+		}
+		seen[num] = struct{}{}
+		nums = append(nums, int32(num))
+	}
+	return nums
 }
 
 // forwardToTCPInitiator looks up the initiator's TCP connection by address
@@ -643,12 +721,102 @@ func (s *Server) forwardToTCPInitiator(initiatorAddr string, msg *pb.RendezvousM
 	normAddr := normalizeAddrKey(initiatorAddr)
 	val, ok := s.tcpPunchConns.Load(normAddr)
 	if !ok {
-		log.Printf("[signal] TCP forwarding: no conn found for key %q (raw=%q)", normAddr, initiatorAddr)
 		return false
 	}
 	pc := val.(*tcpPunchConn)
 	if err := pc.writeProto(msg); err != nil {
 		log.Printf("[signal] TCP forward write to %s: %v", initiatorAddr, err)
+		return false
+	}
+	return true
+}
+
+// forwardToInitiator delivers an async punch/relay message to the initiator
+// over TCP (tcpPunchConns) or WebSocket (wsPunchConns / unique-IP fallback).
+// Required for WSS clients behind reverse proxies which are never registered
+// in tcpPunchConns (#276).
+func (s *Server) forwardToInitiator(initiatorAddr string, msg *pb.RendezvousMessage) bool {
+	if s.forwardToTCPInitiator(initiatorAddr, msg) {
+		return true
+	}
+	if s.forwardToWSInitiator(initiatorAddr, msg) {
+		return true
+	}
+	log.Printf("[signal] initiator forwarding: no TCP/WS conn for key %q (raw=%q)",
+		normalizeAddrKey(initiatorAddr), initiatorAddr)
+	return false
+}
+
+// registerWSPunchConn stores a WebSocket connection under its full ip:port key
+// so async PunchHole/RelayResponse can be delivered without IP-only ambiguity.
+func (s *Server) registerWSPunchConn(addr string, wsc *codec.WSConn) {
+	if wsc == nil || addr == "" {
+		return
+	}
+	key := normalizeAddrKey(addr)
+	s.wsPunchConns.Store(key, wsc)
+}
+
+// unregisterWSPunchConn removes the punch-map entry only if it still points at wsc.
+func (s *Server) unregisterWSPunchConn(addr string, wsc *codec.WSConn) {
+	if wsc == nil || addr == "" {
+		return
+	}
+	key := normalizeAddrKey(addr)
+	if val, ok := s.wsPunchConns.Load(key); ok {
+		if existing, ok := val.(*codec.WSConn); ok && existing == wsc {
+			s.wsPunchConns.Delete(key)
+		}
+	}
+}
+
+// forwardToWSInitiator delivers msg to a WebSocket initiator using the exact
+// ip:port key first. Falls back to FindWSByIP only when exactly one WS peer
+// shares that IP (legacy register-only sessions).
+func (s *Server) forwardToWSInitiator(initiatorAddr string, msg *pb.RendezvousMessage) bool {
+	normAddr := normalizeAddrKey(initiatorAddr)
+	if val, ok := s.wsPunchConns.Load(normAddr); ok {
+		wsc, ok := val.(*codec.WSConn)
+		if !ok || wsc == nil {
+			s.wsPunchConns.Delete(normAddr)
+			return false
+		}
+		if err := wsc.WriteMessage(msg); err != nil {
+			if isNormalClose(err) || strings.Contains(err.Error(), "use of closed network connection") {
+				s.wsPunchConns.Delete(normAddr)
+				return false
+			}
+			log.Printf("[signal] WS punch forward write to %s: %v", initiatorAddr, err)
+			return false
+		}
+		return true
+	}
+
+	host, _, err := net.SplitHostPort(normAddr)
+	if err != nil {
+		host = normAddr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	if s.peers.CountWSByIP(ip) != 1 {
+		return false
+	}
+	entry := s.peers.FindWSByIP(ip)
+	if entry == nil || entry.WSConn == nil {
+		return false
+	}
+	wsc, ok := entry.WSConn.(*codec.WSConn)
+	if !ok {
+		return false
+	}
+	if err := wsc.WriteMessage(msg); err != nil {
+		if isNormalClose(err) || strings.Contains(err.Error(), "use of closed network connection") {
+			entry.WSConn = nil
+			return false
+		}
+		log.Printf("[signal] WS forward write to peer %s (addr=%s): %v", entry.ID, initiatorAddr, err)
 		return false
 	}
 	return true

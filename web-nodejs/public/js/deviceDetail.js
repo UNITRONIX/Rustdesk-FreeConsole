@@ -22,8 +22,47 @@ const DeviceDetail = (function () {
         if (typeof detail.note === 'string') {
             device.note = detail.note;
         }
+        if (typeof detail.online === 'boolean' || detail.status || detail.live_status) {
+            device.online = detail.online ?? device.online;
+            device.status = detail.status || device.status;
+            device.live_status = detail.live_status || detail.status || device.live_status;
+        }
 
         _render();
+    });
+
+    document.addEventListener('devices:live-status', function (event) {
+        const detail = event.detail || {};
+        if (!device || !detail.id || device.id !== detail.id) return;
+        const normalized = String(detail.status || '').toLowerCase();
+        device.live_status = normalized;
+        device.online = normalized === 'online';
+        device.status = normalized;
+        const statusBar = overlayEl?.querySelector('.device-panel-status-bar');
+        if (statusBar) {
+            const statusInfo = _resolveDeviceStatus(device);
+            const badge = statusBar.querySelector('.device-panel-status-badge');
+            if (badge) {
+                badge.className = 'device-panel-status-badge ' + statusInfo.className;
+                if (statusInfo.title) badge.title = statusInfo.title;
+                else badge.removeAttribute('title');
+                badge.innerHTML = '<span class="status-dot"></span>' + statusInfo.label;
+            }
+        }
+    });
+
+    document.addEventListener('devices:id-changed', function (event) {
+        const detail = event.detail || {};
+        if (!device || !detail.old_id || device.id !== detail.old_id) return;
+        const newId = detail.new_id;
+        if (!newId) return;
+        device.id = newId;
+        _stopRefresh();
+        _startRefresh(newId);
+        const titleEl = overlayEl?.querySelector('.device-panel-device-id');
+        if (titleEl) titleEl.textContent = newId;
+        const copyBtn = overlayEl?.querySelector('.device-panel-copy-btn[data-copy]');
+        if (copyBtn) copyBtn.dataset.copy = newId;
     });
 
     // ──────────────────────────────────────────────────────────────────────
@@ -149,6 +188,9 @@ const DeviceDetail = (function () {
     // ── Header ──
 
     function _resolveDeviceStatus(d) {
+        if (d.soft_deleted) {
+            return { className: 'deleted', label: _('devices.deleted_badge'), title: '' };
+        }
         if (d.banned) {
             return { className: 'banned', label: _('status.banned'), title: '' };
         }
@@ -558,8 +600,41 @@ const DeviceDetail = (function () {
     function _actionsPane() {
         const d = device;
         const isBanned = d.banned;
+        const isDeleted = !!d.soft_deleted;
 
         let html = `<div class="device-panel-tab-pane" data-pane="actions">`;
+
+        if (isDeleted) {
+            html += `
+            <div class="device-panel-section">
+                <p class="form-hint">${Utils.escapeHtml(_('devices.delete_reserved_hint'))}</p>
+            </div>
+            <div class="device-panel-section">
+                <div class="device-panel-section-title"><span class="material-icons">settings_backup_restore</span> ${_('devices.restore_action')}</div>
+                <div class="device-panel-actions-grid">
+                    <div class="device-panel-action-card" data-action="restore">
+                        <div class="device-panel-action-icon green">
+                            <span class="material-icons">restore</span>
+                        </div>
+                        <div class="device-panel-action-text">
+                            <div class="device-panel-action-title">${_('devices.restore_action')}</div>
+                            <div class="device-panel-action-desc">${_('devices.restore_confirm', { id: d.id })}</div>
+                        </div>
+                    </div>
+                    <div class="device-panel-action-card" data-action="permanent-delete">
+                        <div class="device-panel-action-icon red">
+                            <span class="material-icons">delete_forever</span>
+                        </div>
+                        <div class="device-panel-action-text">
+                            <div class="device-panel-action-title">${_('devices.permanent_delete_title')}</div>
+                            <div class="device-panel-action-desc">${_('devices.permanent_delete_confirm', { id: d.id })}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+            html += `</div>`;
+            return html;
+        }
 
         // Connection actions
         html += `
@@ -646,14 +721,16 @@ const DeviceDetail = (function () {
     // ── Footer ──
 
     function _footerHTML() {
+        const isDeleted = device && device.soft_deleted;
         return `
         <div class="device-panel-footer">
+            ${isDeleted ? '' : `
             <button class="btn btn-secondary" id="dp-edit-btn">
                 <span class="material-icons">edit</span>${_('actions.edit')}
             </button>
             <button class="btn btn-primary" id="dp-connect-btn">
                 <span class="material-icons">link</span>${_('actions.connect')}
-            </button>
+            </button>`}
             <button class="btn btn-secondary" id="dp-close-btn">
                 ${_('actions.close')}
             </button>
@@ -1225,6 +1302,14 @@ const DeviceDetail = (function () {
             case 'delete':
                 await _deleteDevice();
                 break;
+
+            case 'restore':
+                await _restoreDevice();
+                break;
+
+            case 'permanent-delete':
+                await _permanentDeleteDevice();
+                break;
         }
     }
 
@@ -1232,6 +1317,16 @@ const DeviceDetail = (function () {
         // Capture device ID before async operation — panel close sets device=null
         const deviceId = device && device.id;
         if (!deviceId) return;
+
+        if (device.online) {
+            const proceed = await Modal.confirm({
+                title: _('devices.change_id_title'),
+                message: _('devices.change_id_online_warn'),
+                confirmLabel: _('devices.change_id'),
+                danger: false
+            });
+            if (!proceed) return;
+        }
 
         const newId = await Modal.prompt({
             title: _('devices.change_id_title'),
@@ -1251,7 +1346,7 @@ const DeviceDetail = (function () {
         try {
             await Utils.api('/api/devices/' + encodeURIComponent(deviceId) + '/change-id', {
                 method: 'POST',
-                body: { newId: newId.toUpperCase() }
+                body: { newId }
             });
             Notifications.success(_('devices.change_id_success'));
             close();
@@ -1287,6 +1382,51 @@ const DeviceDetail = (function () {
             _notifyChanged();
         } catch (err) {
             Notifications.error(err.message || _('errors.' + action + '_failed'));
+        }
+    }
+
+    async function _restoreDevice() {
+        const deviceId = device && device.id;
+        if (!deviceId) return;
+
+        const confirmed = await Modal.confirm({
+            title: _('devices.restore_title'),
+            message: _('devices.restore_confirm', { id: deviceId }),
+            confirmLabel: _('devices.restore_action'),
+            danger: false
+        });
+        if (!confirmed) return;
+
+        try {
+            await Utils.api('/api/devices/' + encodeURIComponent(deviceId) + '/restore', { method: 'POST' });
+            Notifications.success(_('devices.restore_success'));
+            device = await Utils.api('/api/devices/' + encodeURIComponent(deviceId));
+            _render();
+            _notifyChanged();
+        } catch (err) {
+            Notifications.error(err.message || _('devices.restore_failed'));
+        }
+    }
+
+    async function _permanentDeleteDevice() {
+        const deviceId = device && device.id;
+        if (!deviceId) return;
+
+        const confirmed = await Modal.confirm({
+            title: _('devices.permanent_delete_title'),
+            message: _('devices.permanent_delete_confirm', { id: deviceId }),
+            confirmLabel: _('actions.delete'),
+            danger: true
+        });
+        if (!confirmed) return;
+
+        try {
+            await Utils.api('/api/devices/' + encodeURIComponent(deviceId) + '?hard=true', { method: 'DELETE' });
+            Notifications.success(_('devices.permanent_delete_success'));
+            close();
+            _notifyChanged();
+        } catch (err) {
+            Notifications.error(err.message || _('errors.delete_failed'));
         }
     }
 

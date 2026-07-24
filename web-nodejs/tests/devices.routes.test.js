@@ -26,7 +26,9 @@ jest.mock('../services/database', () => ({
     removeDeviceFromGroup: jest.fn().mockResolvedValue(undefined),
     getAllFolders: jest.fn().mockResolvedValue([]),
     getAllFolderAssignments: jest.fn().mockResolvedValue({}),
-    cleanupDeletedPeerData: jest.fn().mockResolvedValue(undefined)
+    cleanupDeletedPeerData: jest.fn().mockResolvedValue(undefined),
+    cascadePeerIdChange: jest.fn().mockResolvedValue(undefined),
+    purgePanelPeerRecord: jest.fn().mockResolvedValue(undefined)
 }));
 
 jest.mock('../services/serverBackend', () => ({
@@ -122,6 +124,18 @@ describe('Devices Routes', () => {
             expect(serverBackend.getAllDevices).toHaveBeenCalledWith(
                 expect.objectContaining({
                     search: 'test'
+                })
+            );
+        });
+
+        it('should pass includeDeleted filter', async () => {
+            serverBackend.getAllDevices.mockResolvedValue([]);
+
+            await request(app).get('/api/devices?includeDeleted=true');
+
+            expect(serverBackend.getAllDevices).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    includeDeleted: true
                 })
             );
         });
@@ -237,6 +251,68 @@ describe('Devices Routes', () => {
             expect(db.setDeviceGroupUserGroupAccess).toHaveBeenCalledWith('group-1', ['volunteers']);
         });
 
+        it('should preserve team_id when switching an org group to tag mode without resending team_id', async () => {
+            db.updateDeviceGroup.mockResolvedValue({
+                guid: 'org-group-1',
+                name: 'Org Devices',
+                team_id: 'org-abc',
+                source_type: 'tag',
+                tag_filter: 'Linux'
+            });
+
+            const res = await request(app)
+                .post('/api/device-groups')
+                .send({
+                    guid: 'org-group-1',
+                    name: 'Org Devices',
+                    source_type: 'tag',
+                    tag_filter: 'Linux'
+                });
+
+            expect(res.status).toBe(200);
+            expect(db.updateDeviceGroup).toHaveBeenCalledWith('org-group-1', {
+                name: 'Org Devices',
+                source_type: 'tag',
+                tag_filter: 'Linux'
+            });
+            expect(db.updateDeviceGroup.mock.calls[0][1]).not.toHaveProperty('team_id');
+        });
+
+        it('should preserve team_id when editing allowed users/groups without resending team_id (Refs #230)', async () => {
+            db.updateDeviceGroup.mockResolvedValue({
+                guid: 'org-group-1',
+                name: 'Org Devices',
+                team_id: 'org-abc',
+                source_type: 'manual',
+                tag_filter: ''
+            });
+            db.setDeviceGroupUserAccess.mockResolvedValueOnce({
+                guid: 'org-group-1',
+                name: 'Org Devices',
+                allowed_users: ['operator1']
+            });
+
+            const res = await request(app)
+                .post('/api/device-groups')
+                .send({
+                    guid: 'org-group-1',
+                    name: 'Org Devices',
+                    source_type: 'manual',
+                    allowed_users: 'operator1',
+                    allowed_groups: ['volunteers']
+                });
+
+            expect(res.status).toBe(200);
+            expect(db.updateDeviceGroup).toHaveBeenCalledWith('org-group-1', {
+                name: 'Org Devices',
+                source_type: 'manual',
+                tag_filter: ''
+            });
+            expect(db.updateDeviceGroup.mock.calls[0][1]).not.toHaveProperty('team_id');
+            expect(db.setDeviceGroupUserAccess).toHaveBeenCalledWith('org-group-1', ['operator1']);
+            expect(db.setDeviceGroupUserGroupAccess).toHaveBeenCalledWith('org-group-1', ['volunteers']);
+        });
+
         it('should scope operator devices through user group ACLs', async () => {
             const scopedApp = createTestApp();
             scopedApp.use((req, _res, next) => {
@@ -330,6 +406,20 @@ describe('Devices Routes', () => {
     });
 
     describe('POST /api/devices/:id/change-id', () => {
+        it('should return reserved-deleted error when target ID is soft-deleted', async () => {
+            serverBackend.getDeviceById
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce({ id: 'MACPRO', soft_deleted: true });
+
+            const res = await request(app)
+                .post('/api/devices/NEWCLIENT/change-id')
+                .send({ newId: 'MACPRO' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+            expect(res.body.error).toBe('devices.id_reserved_deleted');
+        });
+
         it('should propagate soft-deleted ID conflicts from the backend', async () => {
             const message = 'This ID belongs to a deleted device. Restore or permanently delete that device before reusing the ID.';
             serverBackend.getDeviceById.mockResolvedValue(null);
@@ -341,7 +431,24 @@ describe('Devices Routes', () => {
 
             expect(res.status).toBe(400);
             expect(res.body.success).toBe(false);
-            expect(res.body.error).toBe(message);
+            expect(res.body.error).toBe('devices.id_reserved_deleted');
+        });
+
+        it('should preserve mixed-case IDs when cascading panel peer ID change', async () => {
+            serverBackend.getDeviceById.mockImplementation(async (id) => {
+                if (id === 'MacPro') return { id: 'MacPro', online: true };
+                return null;
+            });
+            serverBackend.changePeerId.mockResolvedValue({ success: true });
+
+            const res = await request(app)
+                .post('/api/devices/MacPro/change-id')
+                .send({ newId: 'MacPro1' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(serverBackend.changePeerId).toHaveBeenCalledWith('MacPro', 'MacPro1');
+            expect(db.cascadePeerIdChange).toHaveBeenCalledWith('MacPro', 'MacPro1');
         });
     });
 
@@ -355,6 +462,25 @@ describe('Devices Routes', () => {
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
             expect(res.body.hard).toBe(true);
+            expect(serverBackend.deleteDevice).toHaveBeenCalledWith('MACPRO', {
+                revoke: false,
+                cascade: false,
+                hard: true
+            });
+            expect(db.purgePanelPeerRecord).toHaveBeenCalledWith('MACPRO');
+        });
+
+        it('should hard delete a soft-deleted device when active lookup misses', async () => {
+            serverBackend.getDeviceById
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce({ id: 'MACPRO', soft_deleted: true });
+            serverBackend.deleteDevice.mockResolvedValue({ success: true });
+
+            const res = await request(app).delete('/api/devices/MACPRO?hard=true');
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(serverBackend.getDeviceById).toHaveBeenCalledWith('MACPRO', { includeDeleted: true });
             expect(serverBackend.deleteDevice).toHaveBeenCalledWith('MACPRO', {
                 revoke: false,
                 cascade: false,

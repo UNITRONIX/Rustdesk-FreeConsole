@@ -63,4 +63,37 @@
 
 ---
 
+## Audit #5 — Pre-3.4 Security Hardening (2026-07-12)
+
+**Scope:** Dependencies, Node.js logging, RustDesk client-server connections, CI vulnerability scanning  
+**Target release:** BetterDesk 3.4.0
+
+### Findings
+
+| ID | Severity | Finding | Resolution | Status |
+|----|----------|---------|------------|--------|
+| A5-H1 | High | `/ws/remote-agent` accepted any device_id without token | Single-use token via `POST /api/bd/remote-agent-token` + enrollment token fallback | ✅ Fixed |
+| A5-H2 | High | `/ws/bd-signal` accepted device_id as token fallback | Require enrollment/access token; validate against `device_tokens` DB | ✅ Fixed |
+| A5-H3 | High | Plaintext usernames in auth stdout logs | Central `lib/logger.js` with `LOG_LEVEL` + redaction | ✅ Fixed |
+| A5-M1 | Medium | No `package-lock.json` — non-reproducible npm installs | Committed lockfile; CI/Docker use `npm ci` | ✅ Fixed |
+| A5-M2 | Medium | No Go/Rust vuln scanning in CI | `govulncheck`, `cargo audit` workflows; Dependabot npm/gomod | ✅ Fixed |
+| A5-M3 | Medium | Relay per-IP limit only during pairing, not active sessions | Separate `sessionLimiter` on paired relay sessions | ✅ Fixed |
+| A5-M4 | Medium | Go `LOG_LEVEL` documented but not implemented | `-log-level` / `LOG_LEVEL` filter in `logging` package | ✅ Fixed |
+| A5-M5 | Medium | `tar` transitive moderate CVE (GHSA-vmf3-w455-68vh) | Override `tar` ^7.5.16; CI audit level moderate | ✅ Fixed |
+| A5-L1 | Low | Production startup did not warn on open enrollment + no TLS | Startup guards in Go server and Node console | ✅ Fixed |
+
+### Production checklist (3.4+)
+
+| Requirement | Setting |
+|-------------|---------|
+| TLS on signal/relay | `TLS_SIGNAL=Y`, `TLS_RELAY=Y` |
+| Enrollment | `ENROLLMENT_MODE=managed` or `locked` |
+| WebSocket origins | `WS_ALLOWED_ORIGINS=https://panel.example.com` |
+| Console log level | `LOG_LEVEL=warn` (production default) |
+| Go log level | `LOG_LEVEL=warn` or `info` |
+| Relay abuse limits | `RELAY_MAX_CONNS_PER_IP=20` (default) |
+| Dependency audit | `npm ci && npm audit --omit=dev --audit-level=moderate` |
+
+---
+
 *New audits should be appended below with incrementing audit numbers.*

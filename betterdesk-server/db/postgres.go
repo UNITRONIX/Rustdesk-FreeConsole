@@ -229,6 +229,12 @@ func (pg *PostgresDB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_help_requests_created ON help_requests(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_help_requests_org ON help_requests(org_id)`,
 
+		// RustDesk client login sessions (Issue #242 / #284)
+		clientSessionsPostgresDDL,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_client_sessions_hash ON client_sessions(token_hash)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_user ON client_sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_expires ON client_sessions(expires_at)`,
+
 		// Organizations (v3.0.0)
 		`CREATE TABLE IF NOT EXISTS organizations (
 			id         TEXT PRIMARY KEY,
@@ -378,9 +384,10 @@ func (pg *PostgresDB) Migrate() error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
-		`CREATE TABLE IF NOT EXISTS billing_org_contracts (
+		`CREATE TABLE IF NOT EXISTS billing_contracts (
 			id TEXT PRIMARY KEY,
-			org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+			target_type TEXT NOT NULL DEFAULT 'org',
+			target_key TEXT NOT NULL,
 			package_id TEXT NOT NULL REFERENCES billing_packages(id),
 			status TEXT NOT NULL DEFAULT 'active',
 			remaining_minutes INTEGER NOT NULL DEFAULT 0,
@@ -390,9 +397,11 @@ func (pg *PostgresDB) Migrate() error {
 			valid_from TIMESTAMPTZ,
 			valid_until TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(target_type, target_key)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_org ON billing_org_contracts(org_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_target ON billing_contracts(target_type, target_key)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_status ON billing_contracts(status)`,
 		`CREATE TABLE IF NOT EXISTS billing_sessions (
 			id TEXT PRIMARY KEY,
 			org_id TEXT NOT NULL,
@@ -474,6 +483,15 @@ func (pg *PostgresDB) Migrate() error {
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		`CREATE TABLE IF NOT EXISTS strategy_assignments (
+			id BIGSERIAL PRIMARY KEY,
+			target_type TEXT NOT NULL,
+			target_key TEXT NOT NULL,
+			strategy_guid TEXT NOT NULL DEFAULT '',
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(target_type, target_key)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_strategy_assignments_strategy ON strategy_assignments(strategy_guid)`,
 
 		// Panel sync (folders, group members, ACL — consolidated from auth.db)
 		`CREATE TABLE IF NOT EXISTS folders (
@@ -565,6 +583,9 @@ func (pg *PostgresDB) Migrate() error {
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT NOT NULL DEFAULT 'local'`,
 		// org_users: server_user_id for linking existing users (Issue #106)
 		`ALTER TABLE org_users ADD COLUMN IF NOT EXISTS server_user_id BIGINT NOT NULL DEFAULT 0`,
+		// peers/users: Pro strategy assignment GUIDs
+		`ALTER TABLE peers ADD COLUMN IF NOT EXISTS guid TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS guid TEXT NOT NULL DEFAULT ''`,
 	}
 
 	for _, ddl := range columnMigrations {
@@ -599,6 +620,40 @@ func (pg *PostgresDB) Migrate() error {
 		}
 	}
 
+	if err := pg.migrateBillingOrgContracts(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// migrateBillingOrgContracts copies legacy billing_org_contracts into billing_contracts.
+func (pg *PostgresDB) migrateBillingOrgContracts() error {
+	var exists bool
+	err := pg.pool.QueryRow(pg.ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables
+			WHERE table_schema = current_schema() AND table_name = 'billing_org_contracts'
+		)`).Scan(&exists)
+	if err != nil || !exists {
+		return err
+	}
+	var n int
+	if err := pg.pool.QueryRow(pg.ctx, `SELECT COUNT(*) FROM billing_contracts`).Scan(&n); err != nil {
+		return fmt.Errorf("db: billing_contracts count: %w", err)
+	}
+	if n > 0 {
+		return nil
+	}
+	_, err = pg.pool.Exec(pg.ctx, `
+		INSERT INTO billing_contracts
+			(id, target_type, target_key, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at)
+		SELECT id, 'org', org_id, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at
+		FROM billing_org_contracts
+		ON CONFLICT (target_type, target_key) DO NOTHING`)
+	if err != nil {
+		return fmt.Errorf("db: migrate billing_org_contracts: %w", err)
+	}
 	return nil
 }
 
@@ -751,10 +806,23 @@ func (pg *PostgresDB) DeletePeer(id string) error {
 	return err
 }
 
-// HardDeletePeer permanently removes a peer from the database.
+// HardDeletePeer permanently removes a peer from the database and releases
+// any id_change_history reservations for that ID (#213).
 func (pg *PostgresDB) HardDeletePeer(id string) error {
-	_, err := pg.pool.Exec(pg.ctx, `DELETE FROM peers WHERE id = $1`, id)
-	return err
+	tx, err := pg.pool.Begin(pg.ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(pg.ctx)
+
+	if _, err := tx.Exec(pg.ctx, `DELETE FROM peers WHERE id = $1`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(pg.ctx,
+		`DELETE FROM id_change_history WHERE old_id = $1 OR new_id = $1`, id); err != nil {
+		return err
+	}
+	return tx.Commit(pg.ctx)
 }
 
 // ListPeers returns all peers, optionally including soft-deleted ones.
@@ -952,9 +1020,28 @@ func (pg *PostgresDB) UpdatePeerFields(id string, fields map[string]string) erro
 
 // ── ID Change ─────────────────────────────────────────────────────────
 
+func (pg *PostgresDB) cascadePeerIDInTx(ctx context.Context, tx pgx.Tx, oldID, newID string) error {
+	stmts := []struct {
+		query string
+		args  []any
+	}{
+		{`UPDATE device_tokens SET peer_id = $1 WHERE peer_id = $2`, []any{newID, oldID}},
+		{`UPDATE org_devices SET device_id = $1 WHERE device_id = $2`, []any{newID, oldID}},
+		{`UPDATE peers SET linked_peer_id = $1 WHERE linked_peer_id = $2`, []any{newID, oldID}},
+		{`UPDATE device_folder_assignments SET device_id = $1 WHERE device_id = $2`, []any{newID, oldID}},
+		{`UPDATE device_group_members SET peer_id = $1 WHERE peer_id = $2`, []any{newID, oldID}},
+	}
+	for _, st := range stmts {
+		if _, err := tx.Exec(ctx, st.query, st.args...); err != nil {
+			return fmt.Errorf("db: cascadePeerID %s→%s: %w", oldID, newID, err)
+		}
+	}
+	return nil
+}
+
 // ChangePeerID changes a peer's ID and records it in history.
 // Uses a PostgreSQL transaction with row-level locking.
-func (pg *PostgresDB) ChangePeerID(oldID, newID string) error {
+func (pg *PostgresDB) ChangePeerID(oldID, newID, reason string) error {
 	tx, err := pg.pool.Begin(pg.ctx)
 	if err != nil {
 		return err
@@ -984,7 +1071,7 @@ func (pg *PostgresDB) ChangePeerID(oldID, newID string) error {
 		       disabled, banned, ban_reason, banned_at,
 		       soft_deleted, deleted_at, note, tags, heartbeat_seq,
 		       device_type, linked_peer_id, display_name
-		FROM peers WHERE id = $2 FOR UPDATE`, newID, oldID)
+		FROM peers WHERE id = $2 AND soft_deleted = FALSE FOR UPDATE`, newID, oldID)
 	if err != nil {
 		return fmt.Errorf("db: ChangePeerID insert: %w", err)
 	}
@@ -996,9 +1083,13 @@ func (pg *PostgresDB) ChangePeerID(oldID, newID string) error {
 		return fmt.Errorf("db: ChangePeerID delete: %w", err)
 	}
 
+	if err := pg.cascadePeerIDInTx(pg.ctx, tx, oldID, newID); err != nil {
+		return err
+	}
+
 	if _, err := tx.Exec(pg.ctx,
-		`INSERT INTO id_change_history (old_id, new_id) VALUES ($1, $2)`,
-		oldID, newID); err != nil {
+		`INSERT INTO id_change_history (old_id, new_id, reason) VALUES ($1, $2, $3)`,
+		oldID, newID, reason); err != nil {
 		return fmt.Errorf("db: ChangePeerID history: %w", err)
 	}
 
@@ -1036,6 +1127,28 @@ func (pg *PostgresDB) IsRenamedPeerID(id string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// GetLatestRenameTarget returns the most recent new_id for old_id.
+func (pg *PostgresDB) GetLatestRenameTarget(oldID string) (string, error) {
+	var newID string
+	err := pg.pool.QueryRow(pg.ctx,
+		`SELECT new_id FROM id_change_history WHERE old_id = $1 ORDER BY id DESC LIMIT 1`,
+		oldID).Scan(&newID)
+	if err == pgx.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return newID, nil
+}
+
+// ReleasePeerID clears id_change_history rows involving id.
+func (pg *PostgresDB) ReleasePeerID(id string) error {
+	_, err := pg.pool.Exec(pg.ctx,
+		`DELETE FROM id_change_history WHERE old_id = $1 OR new_id = $1`, id)
+	return err
 }
 
 // GetLinkedPeers returns all non-deleted peers that have linked_peer_id matching the given ID.
@@ -1204,11 +1317,17 @@ func scanUser(row pgx.Row) (*User, error) {
 	return u, nil
 }
 
+// userSelectColsPG is the shared SELECT list for GetUser/GetUserByID/ListUsers.
+// COALESCE(totp_secret, '') matches SQLite (Issue #292/#301): Node panel inserts
+// often leave totp_secret NULL; scanning NULL into Go string fails and breaks
+// GET /api/users, which in turn triggered mirrorCreate retry loops.
+const userSelectColsPG = `id, username, password_hash, role, COALESCE(totp_secret, ''), totp_enabled,
+		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local')`
+
 // GetUser returns a user by username, or nil if not found.
 func (pg *PostgresDB) GetUser(username string) (*User, error) {
 	row := pg.pool.QueryRow(pg.ctx,
-		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local') FROM users WHERE username = $1`, username)
+		`SELECT `+userSelectColsPG+` FROM users WHERE username = $1`, username)
 	u, err := scanUser(row)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -1219,8 +1338,7 @@ func (pg *PostgresDB) GetUser(username string) (*User, error) {
 // GetUserByID returns a user by numeric ID, or nil if not found.
 func (pg *PostgresDB) GetUserByID(id int64) (*User, error) {
 	row := pg.pool.QueryRow(pg.ctx,
-		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local') FROM users WHERE id = $1`, id)
+		`SELECT `+userSelectColsPG+` FROM users WHERE id = $1`, id)
 	u, err := scanUser(row)
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -1231,8 +1349,7 @@ func (pg *PostgresDB) GetUserByID(id int64) (*User, error) {
 // ListUsers returns all users.
 func (pg *PostgresDB) ListUsers() ([]*User, error) {
 	rows, err := pg.pool.Query(pg.ctx,
-		`SELECT id, username, password_hash, role, totp_secret, totp_enabled,
-		        created_at, last_login, COALESCE(is_server_admin, FALSE), totp_recovery_codes, COALESCE(auth_provider, 'local') FROM users ORDER BY id`)
+		`SELECT `+userSelectColsPG+` FROM users ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("db: ListUsers: %w", err)
 	}
@@ -1267,8 +1384,12 @@ func (pg *PostgresDB) UpdateUser(u *User) error {
 	return err
 }
 
-// DeleteUser removes a user by ID.
+// DeleteUser removes a user by ID and clears org membership links (Issue #292).
 func (pg *PostgresDB) DeleteUser(id int64) error {
+	if _, err := pg.pool.Exec(pg.ctx,
+		`DELETE FROM org_users WHERE server_user_id = $1 AND server_user_id > 0`, id); err != nil {
+		return fmt.Errorf("db: DeleteUser org cleanup: %w", err)
+	}
 	_, err := pg.pool.Exec(pg.ctx, `DELETE FROM users WHERE id = $1`, id)
 	return err
 }

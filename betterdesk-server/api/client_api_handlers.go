@@ -33,12 +33,13 @@ import (
 
 // tfaSession holds temporary state for a two-factor auth flow in progress.
 type tfaSession struct {
-	username  string
-	role      string
-	userID    int64
-	clientID  string
-	clientIP  string
-	createdAt time.Time
+	username   string
+	role       string
+	userID     int64
+	clientID   string
+	clientUUID string
+	clientIP   string
+	createdAt  time.Time
 }
 
 // tfaSessionStore is a concurrency-safe in-memory store for pending 2FA sessions.
@@ -165,18 +166,27 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.db.GetUser(body.Username)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+	if s.loginLimiter != nil && !s.loginLimiter.Allow("user:"+strings.ToLower(body.Username)) {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{
+			"error": "Too many login attempts. Please try again later.",
+		})
 		return
 	}
-	if user == nil || !auth.VerifyPassword(user.PasswordHash, body.Password) {
-		if s.auditLog != nil {
-			s.auditLog.Log(audit.ActionAuthLoginFailed, clientIP, body.Username, nil)
-		}
+
+	login := s.authenticatePasswordLogin(body.Username, body.Password, clientIP)
+	switch login.Status {
+	case passwordLoginInternal:
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
+		return
+	case passwordLoginOIDC:
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "This account uses single sign-on. Please log in with your identity provider."})
+		return
+	case passwordLoginInvalid:
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
 	}
+
+	user := login.User
 
 	// Check if TOTP 2FA is required
 	if user.TOTPEnabled && user.TOTPSecret != "" {
@@ -188,12 +198,13 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 		tfaSecret := hex.EncodeToString(secret)
 
 		s.clientTFASessions.put(tfaSecret, &tfaSession{
-			username:  user.Username,
-			role:      user.Role,
-			userID:    user.ID,
-			clientID:  body.ID,
-			clientIP:  clientIP,
-			createdAt: time.Now(),
+			username:   user.Username,
+			role:       user.Role,
+			userID:     user.ID,
+			clientID:   body.ID,
+			clientUUID: body.UUID,
+			clientIP:   clientIP,
+			createdAt:  time.Now(),
 		})
 
 		if s.auditLog != nil {
@@ -209,18 +220,23 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No 2FA — issue token
-	token, err := s.jwtManager.Generate(user.Username, user.Role)
+	// No 2FA — issue client session token
+	token, err := s.issueClientSession(user, body.ID, body.UUID, clientIP)
 	if err != nil {
+		log.Printf("[api] /api/login: issueClientSession failed for user=%q id=%q uuid=%q: %v",
+			user.Username, body.ID, body.UUID, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
 		return
 	}
 
 	_ = s.db.UpdateUserLogin(user.ID)
 
+	auditFields := map[string]string{"client_id": body.ID}
+	if login.AuthMethod != "" {
+		auditFields["method"] = login.AuthMethod
+	}
 	if s.auditLog != nil {
-		s.auditLog.Log(audit.ActionAuthLogin, clientIP, user.Username,
-			map[string]string{"client_id": body.ID})
+		s.auditLog.Log(audit.ActionAuthLogin, clientIP, user.Username, auditFields)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -259,8 +275,10 @@ func (s *Server) handleClientTFAVerify(w http.ResponseWriter, clientIP, totpCode
 		return
 	}
 
-	token, err := s.jwtManager.Generate(user.Username, user.Role)
+	token, err := s.issueClientSession(user, sess.clientID, sess.clientUUID, clientIP)
 	if err != nil {
+		log.Printf("[api] /api/login TFA: issueClientSession failed for user=%q id=%q uuid=%q: %v",
+			user.Username, sess.clientID, sess.clientUUID, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Token generation failed"})
 		return
 	}
@@ -281,14 +299,19 @@ func (s *Server) handleClientTFAVerify(w http.ResponseWriter, clientIP, totpCode
 
 // handleClientLoginOptions returns available authentication methods.
 // GET /api/login-options
+// Stock RustDesk expects [""] for password plus "oidc/<name>" entries when SSO is enabled.
 func (s *Server) handleClientLoginOptions(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, []string{""})
+	opts := []string{""}
+	if s.oidcProvider != nil && s.oidcProvider.IsEnabled() {
+		opts = append(opts, s.oidcProvider.ClientLoginOptionToken())
+	}
+	writeJSON(w, http.StatusOK, opts)
 }
 
 // handleClientLogout handles logout for RustDesk clients.
 // POST /api/logout
-// With stateless JWT tokens, this is essentially a no-op on the server side.
 func (s *Server) handleClientLogout(w http.ResponseWriter, r *http.Request) {
+	s.revokeClientSessionToken(bearerTokenFromRequest(r))
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -866,6 +889,9 @@ func (s *Server) handleClientHeartbeat(w http.ResponseWriter, r *http.Request) {
 	// Update peer status to ONLINE
 	_ = s.db.UpdatePeerStatus(deviceID, "ONLINE", clientIP)
 
+	// If the user logged in before the peer row existed, bind owner now.
+	db.ApplyActiveSessionOwner(s.db, deviceID, body.UUID)
+
 	// Save metrics if any values provided (values > 0)
 	if body.CPU > 0 || body.Memory > 0 || body.Disk > 0 {
 		if err := s.db.SavePeerMetric(deviceID, body.CPU, body.Memory, body.Disk); err != nil {
@@ -882,7 +908,17 @@ func (s *Server) handleClientHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"modified_at": time.Now().UTC().Format(time.RFC3339)})
+	resp := map[string]any{
+		"modified_at": time.Now().UTC().Format(time.RFC3339),
+	}
+	if policy, err := s.db.GetAccessPolicy(deviceID); err == nil && policy != nil {
+		resp["access_policy"] = map[string]any{
+			"unattended_enabled": policy.UnattendedEnabled,
+			"password_set":       policy.PasswordSet,
+			"schedule_enabled":   policy.ScheduleEnabled,
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleClientSysinfo receives hardware/software info from RustDesk clients.

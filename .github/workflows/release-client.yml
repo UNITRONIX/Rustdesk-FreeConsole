@@ -23,10 +23,10 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 env:
-  CLIENT_DIR: betterdesk-client
+  CLIENT_DIR: rdclient-desktop
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -37,17 +37,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: ${{ env.CLIENT_DIR }}/pnpm-lock.yaml
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -60,11 +53,11 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ${{ env.CLIENT_DIR }}
-        run: pnpm install --frozen-lockfile
+        run: npm install --no-audit --no-fund
 
       - name: Build Tauri app
         working-directory: ${{ env.CLIENT_DIR }}
-        run: pnpm tauri build
+        run: npm run build
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -94,17 +87,10 @@ jobs:
             libayatana-appindicator3-dev \
             protobuf-compiler
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: ${{ env.CLIENT_DIR }}/pnpm-lock.yaml
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -114,11 +100,11 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ${{ env.CLIENT_DIR }}
-        run: pnpm install --frozen-lockfile
+        run: npm install --no-audit --no-fund
 
       - name: Build Tauri app
         working-directory: ${{ env.CLIENT_DIR }}
-        run: pnpm tauri build
+        run: npm run build
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -137,17 +123,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-          cache-dependency-path: ${{ env.CLIENT_DIR }}/pnpm-lock.yaml
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -161,11 +140,11 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: ${{ env.CLIENT_DIR }}
-        run: pnpm install --frozen-lockfile
+        run: npm install --no-audit --no-fund
 
       - name: Build Tauri app
         working-directory: ${{ env.CLIENT_DIR }}
-        run: pnpm tauri build
+        run: npm run build
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -182,6 +161,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4

@@ -26,6 +26,7 @@ import (
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
 	eventsModule "github.com/unitronix/betterdesk-server/events"
+	"github.com/unitronix/betterdesk-server/meshcentral"
 	"github.com/unitronix/betterdesk-server/metrics"
 	"github.com/unitronix/betterdesk-server/peer"
 	"github.com/unitronix/betterdesk-server/ratelimit"
@@ -44,6 +45,15 @@ var peerIDRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]{6,16}$`)
 // configKeyRegexp validates config key names: 1-64 alphanumeric chars, underscores, hyphens, dots.
 // Prevents arbitrary key injection into the server_config table.
 var configKeyRegexp = regexp.MustCompile(`^[A-Za-z0-9_.\-]{1,64}$`)
+
+// ldapAuthProvider is implemented by *auth.LDAPProvider and test mocks.
+type ldapAuthProvider interface {
+	IsEnabled() bool
+	Authenticate(username, password string) (*auth.LDAPResult, error)
+	UpdateConfig(cfg *auth.LDAPConfig)
+	TestConnection() error
+	Config() auth.LDAPConfig
+}
 
 // Server is the HTTP API server.
 type Server struct {
@@ -65,7 +75,8 @@ type Server struct {
 	brandingLimiter   *ratelimit.IPLimiter
 	keyPair           *crypto.KeyPair    // Ed25519 keypair for signing
 	cdapGw            *cdap.Gateway      // CDAP gateway (nil if CDAP disabled)
-	ldapProvider      *auth.LDAPProvider // LDAP auth provider (nil if not configured)
+	meshGw            *meshcentral.Gateway // MeshCentral compat (nil if disabled)
+	ldapProvider      ldapAuthProvider // LDAP auth provider (nil if not configured)
 	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
 	panelStore        db.PanelSyncStore // device groups, folders, ACL (PostgreSQL or legacy auth.db)
@@ -203,6 +214,11 @@ func (s *Server) SetCDAPGateway(gw *cdap.Gateway) {
 	s.cdapGw = gw
 }
 
+// SetMeshGateway sets the MeshCentral compatibility gateway.
+func (s *Server) SetMeshGateway(gw *meshcentral.Gateway) {
+	s.meshGw = gw
+}
+
 // InitLDAP initializes the LDAP provider from the database configuration.
 // Should be called after the database is ready, before Start().
 func (s *Server) InitLDAP() {
@@ -327,6 +343,9 @@ func (s *Server) Start(ctx context.Context) error {
 	// fall back to signal_port - 2 (21114).
 	mux.HandleFunc("POST /api/login", s.handleClientLogin)
 	mux.HandleFunc("GET /api/login-options", s.handleClientLoginOptions)
+	mux.HandleFunc("POST /api/oidc/auth", s.handleClientOIDCAuth)
+	mux.HandleFunc("GET /api/oidc/auth-query", s.handleClientOIDCAuthQuery)
+	mux.HandleFunc("GET /api/oidc/callback", s.handleOIDCCallback) // alias; same IdP Redirect URL family
 	mux.HandleFunc("POST /api/logout", s.handleClientLogout)
 	mux.HandleFunc("GET /api/currentUser", s.handleClientCurrentUser)
 	mux.HandleFunc("POST /api/currentUser", s.handleClientCurrentUser)
@@ -345,6 +364,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/group/get", s.handleClientGroupList)
 	mux.HandleFunc("GET /api/device-group", s.handleClientGroupList)
 	mux.HandleFunc("GET /api/device-group/accessible", s.handleClientGroupList)
+	mux.HandleFunc("POST /api/device-group", s.requirePanelAdmin(s.handleDeviceGroupsPost))
 	mux.HandleFunc("GET /api/peers/list", s.handleClientGroupPeers)
 	mux.HandleFunc("POST /api/peers/list", s.handleClientGroupPeers)
 
@@ -362,6 +382,12 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/user-groups", s.requirePanelAdmin(s.handleUserGroupsPost))
 	mux.HandleFunc("GET /api/strategies", s.handleStrategiesGet)
 	mux.HandleFunc("POST /api/strategies", s.requirePanelAdmin(s.handleStrategiesPost))
+	mux.HandleFunc("POST /api/strategies/assign", s.requirePanelAdmin(s.handleStrategiesAssign))
+	mux.HandleFunc("GET /api/strategies/{guid}", s.handleStrategiesGetByGUID)
+	mux.HandleFunc("PUT /api/strategies/{guid}/status", s.requirePanelAdmin(s.handleStrategiesStatus))
+	mux.HandleFunc("DELETE /api/strategies/{guid}", s.requirePanelAdmin(s.handleStrategiesDelete))
+	mux.HandleFunc("GET /api/devices", s.requirePermission(auth.PermDeviceView, s.handleProDevicesList))
+	mux.HandleFunc("POST /api/devices/{guid}/assign", s.requirePanelAdmin(s.handleProDeviceAssign))
 	mux.HandleFunc("POST /api/audit/conn", s.handleAuditConnPost)
 	mux.HandleFunc("GET /api/audit/conn", s.requirePermission(auth.PermAuditView, s.handleAuditConnGet))
 	mux.HandleFunc("POST /api/audit/file", s.handleAuditFilePost)
@@ -439,6 +465,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/billing/contracts", s.requirePermission(auth.PermBillingView, s.handleListBillingContracts))
 	mux.HandleFunc("POST /api/billing/contracts", s.requirePermission(auth.PermBillingManage, s.handleCreateBillingContract))
 	mux.HandleFunc("PUT /api/billing/contracts/{id}", s.requirePermission(auth.PermBillingManage, s.handleUpdateBillingContract))
+	mux.HandleFunc("DELETE /api/billing/contracts/{id}", s.requirePermission(auth.PermBillingManage, s.handleDeleteBillingContract))
+	mux.HandleFunc("GET /api/billing/stats", s.requirePermission(auth.PermBillingView, s.handleBillingStats))
 	mux.HandleFunc("GET /api/billing/sessions", s.requirePermission(auth.PermBillingView, s.handleListBillingSessions))
 	mux.HandleFunc("GET /api/billing/sessions/pending", s.requirePermission(auth.PermBillingReports, s.handleGetPendingBillingSession))
 	mux.HandleFunc("GET /api/billing/sessions/export", s.requirePermission(auth.PermBillingExport, s.handleExportBillingSessions))
@@ -467,6 +495,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/auth/oidc/status", s.handleOIDCLoginStatus)
 	mux.HandleFunc("GET /api/auth/oidc/authorize", s.handleOIDCAuthorize)
 	mux.HandleFunc("GET /api/auth/oidc/callback", s.handleOIDCCallback)
+	mux.HandleFunc("GET /api/auth/oidc/session", s.handleOIDCSessionRedirect)
 	mux.HandleFunc("POST /api/auth/oidc/exchange", s.handleOIDCExchange)
 
 	// Combined SSO status — public, used by Node.js console to detect
@@ -506,6 +535,38 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// CDAP audio stream WebSocket (operator+)
 	mux.HandleFunc("GET /api/cdap/devices/{id}/audio", s.requireRole(auth.RoleOperator, s.handleCDAPAudio))
+
+	// MeshCentral compatibility REST
+	mux.HandleFunc("GET /api/mesh/server-id", s.requirePermission(auth.PermServerConfig, s.handleMeshServerID))
+	mux.HandleFunc("GET /api/mesh/status", s.requirePermission(auth.PermDeviceView, s.handleMeshStatus))
+	mux.HandleFunc("GET /api/mesh/groups", s.requirePermission(auth.PermServerConfig, s.handleMeshGroupsList))
+	mux.HandleFunc("POST /api/mesh/groups", s.requirePermission(auth.PermServerConfig, s.handleMeshGroupsSave))
+	mux.HandleFunc("GET /api/mesh/download.msh", s.requirePermission(auth.PermServerConfig, s.handleMeshDownloadMSH))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/desktop", s.requirePermission(auth.PermDeviceConnect, s.handleMeshDesktopTunnel))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/terminal", s.requirePermission(auth.PermMeshTerminal, s.handleMeshTerminalTunnel))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/files", s.requirePermission(auth.PermMeshFiles, s.handleMeshFilesTunnel))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/share", s.requireRole(auth.RoleOperator, s.handleMeshShareCreate))
+	mux.HandleFunc("GET /api/mesh/share/validate", s.handleMeshShareValidate)
+
+	// Guest Access Links (temporary RdClient allowlist links)
+	mux.HandleFunc("POST /api/guest/access-links", s.requirePermission(auth.PermDeviceConnect, s.handleGuestAccessCreate))
+	mux.HandleFunc("GET /api/guest/access-links", s.requirePermission(auth.PermDeviceConnect, s.handleGuestAccessList))
+	mux.HandleFunc("DELETE /api/guest/access-links/{id}", s.requirePermission(auth.PermDeviceConnect, s.handleGuestAccessRevoke))
+	mux.HandleFunc("GET /api/guest/access-links/validate", s.handleGuestAccessValidate)
+	mux.HandleFunc("GET /api/guest/access-links/peers", s.handleGuestAccessPeers)
+	mux.HandleFunc("POST /api/mesh/devices/{id}/tcp", s.requirePermission(auth.PermDeviceConnect, s.handleMeshTcpRelay))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/udp", s.requirePermission(auth.PermDeviceConnect, s.handleMeshUdpRelay))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/power", s.requirePermission(auth.PermMeshPower, s.handleMeshPower))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/group", s.requirePermission(auth.PermServerConfig, s.handleMeshDeviceGroup))
+	mux.HandleFunc("GET /api/mesh/recordings", s.requirePermission(auth.PermDeviceView, s.handleMeshRecordingsList))
+	mux.HandleFunc("GET /api/mesh/recordings/{id}", s.requirePermission(auth.PermDeviceConnect, s.handleMeshRecordingDownload))
+	mux.HandleFunc("GET /api/session/recordings", s.requirePermission(auth.PermDeviceView, s.handleSessionRecordingsList))
+	mux.HandleFunc("POST /api/mesh/devices/{id}/exec", s.requireRole(auth.RoleOperator, s.handleMeshExec))
+	mux.HandleFunc("POST /api/peers/{id}/exec", s.requireRole(auth.RoleOperator, s.handleUnifiedPeerExec))
+
+	if s.meshGw != nil {
+		s.meshGw.RegisterRoutes(mux)
+	}
 
 	// BetterDesk desktop client management WebSocket (no API key — device auth)
 	mux.HandleFunc("GET /ws/bd-mgmt/{device_id}", s.handleBdMgmt)
@@ -757,6 +818,8 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 		LiveStatus    peer.Status `json:"live_status"`
 		Platform      string      `json:"platform"`
 		CDAPConnected bool        `json:"cdap_connected"`
+		MeshConnected bool        `json:"mesh_connected"`
+		MeshNodeID    string      `json:"mesh_node_id,omitempty"`
 	}
 
 	result := make([]peerResponse, len(peers))
@@ -773,6 +836,15 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 			liveOnline = true
 			liveStatus = peer.StatusOnline
 		}
+		meshConnected := s.meshGw != nil && s.meshGw.IsConnected(p.ID)
+		if meshConnected && !liveOnline {
+			liveOnline = true
+			liveStatus = peer.StatusOnline
+		}
+		meshNodeID := ""
+		if s.meshGw != nil {
+			meshNodeID = s.meshGw.MeshNodeID(p.ID)
+		}
 
 		statusInt := 1
 		if p.Disabled {
@@ -787,6 +859,8 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 			LiveStatus:    liveStatus,
 			Platform:      p.OS,
 			CDAPConnected: cdapConnected,
+			MeshConnected: meshConnected,
+			MeshNodeID:    meshNodeID,
 		}
 	}
 
@@ -872,6 +946,15 @@ func (s *Server) handleGetPeer(w http.ResponseWriter, r *http.Request) {
 		liveOnline = true
 		liveStatus = peer.StatusOnline
 	}
+	meshConnected := s.meshGw != nil && s.meshGw.IsConnected(p.ID)
+	if meshConnected && !liveOnline {
+		liveOnline = true
+		liveStatus = peer.StatusOnline
+	}
+	meshNodeID := ""
+	if s.meshGw != nil {
+		meshNodeID = s.meshGw.MeshNodeID(p.ID)
+	}
 
 	type singlePeerResponse struct {
 		*db.Peer
@@ -881,6 +964,8 @@ func (s *Server) handleGetPeer(w http.ResponseWriter, r *http.Request) {
 		LiveStatus    peer.Status `json:"live_status"`
 		Platform      string      `json:"platform"`
 		CDAPConnected bool        `json:"cdap_connected"`
+		MeshConnected bool        `json:"mesh_connected"`
+		MeshNodeID    string      `json:"mesh_node_id,omitempty"`
 	}
 
 	statusInt := 1
@@ -896,6 +981,8 @@ func (s *Server) handleGetPeer(w http.ResponseWriter, r *http.Request) {
 		LiveStatus:    liveStatus,
 		Platform:      p.OS,
 		CDAPConnected: cdapConnected,
+		MeshConnected: meshConnected,
+		MeshNodeID:    meshNodeID,
 	})
 }
 
@@ -1227,7 +1314,7 @@ func (s *Server) handleChangePeerID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.ChangePeerID(oldID, body.NewID); err != nil {
+	if err := s.db.ChangePeerID(oldID, body.NewID, "panel"); err != nil {
 		if errors.Is(err, db.ErrPeerIDExists) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "Device ID already exists"})
 			return
@@ -1255,6 +1342,17 @@ func (s *Server) handleChangePeerID(w http.ResponseWriter, r *http.Request) {
 
 	if s.auditLog != nil {
 		s.auditLog.Log(audit.ActionPeerIDChanged, s.remoteIP(r), oldID, map[string]string{"new_id": body.NewID})
+	}
+
+	if s.eventBus != nil {
+		s.eventBus.Publish(eventsModule.Event{
+			Type: eventsModule.EventPeerIDChanged,
+			Data: map[string]string{
+				"old_id": oldID,
+				"new_id": body.NewID,
+				"source": "panel",
+			},
+		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
@@ -1508,19 +1606,38 @@ func writeInternalError(w http.ResponseWriter, err error, action string) {
 }
 
 // remoteIP extracts the client IP from a request.
-// When TrustProxy is enabled, respects X-Forwarded-For and X-Real-IP headers.
-// When disabled, always uses the direct connection address.
+// When TrustProxy is enabled and the direct peer is in TRUSTED_PROXIES,
+// respects X-Forwarded-For and X-Real-IP headers. Otherwise uses RemoteAddr.
 func (s *Server) remoteIP(r *http.Request) string {
-	if s.cfg.TrustProxy {
+	if s.cfg != nil && s.cfg.ShouldHonorForwardedHeaders(r.RemoteAddr) {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			// Use the first (leftmost) IP — the original client
-			if idx := strings.Index(xff, ","); idx != -1 {
-				return strings.TrimSpace(xff[:idx])
+			client := strings.TrimSpace(xff)
+			if idx := strings.Index(client, ","); idx != -1 {
+				client = strings.TrimSpace(client[:idx])
 			}
-			return strings.TrimSpace(xff)
+			// Strip optional :port and reject non-IP / port 0.
+			if host, port, err := net.SplitHostPort(client); err == nil {
+				if port != "0" {
+					if ip := net.ParseIP(host); ip != nil {
+						return ip.String()
+					}
+				}
+			} else if ip := net.ParseIP(client); ip != nil {
+				return ip.String()
+			}
 		}
 		if xri := r.Header.Get("X-Real-IP"); xri != "" {
-			return strings.TrimSpace(xri)
+			client := strings.TrimSpace(xri)
+			if host, port, err := net.SplitHostPort(client); err == nil {
+				if port != "0" {
+					if ip := net.ParseIP(host); ip != nil {
+						return ip.String()
+					}
+				}
+			} else if ip := net.ParseIP(client); ip != nil {
+				return ip.String()
+			}
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)

@@ -25,11 +25,12 @@ type Status struct {
 
 // Config controls periodic NTP checks.
 type Config struct {
-	Servers       []string
-	Interval      time.Duration
-	QueryTimeout  time.Duration
-	MaxSkew       time.Duration
-	RequireSync   bool
+	Servers      []string
+	Interval     time.Duration
+	QueryTimeout time.Duration
+	MaxSkew      time.Duration
+	RequireSync  bool
+	TrustOSNTP   bool
 }
 
 // Service periodically queries NTP and exposes clock health for billing.
@@ -103,18 +104,50 @@ func (s *Service) loop(ctx context.Context) {
 	}
 }
 
+// ApplyConfig hot-reloads NTP/billing clock settings (e.g. after SIGHUP).
+func (s *Service) ApplyConfig(cfg Config) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(cfg.Servers) > 0 {
+		s.cfg.Servers = append([]string(nil), cfg.Servers...)
+	} else {
+		s.cfg.Servers = []string{"pool.ntp.org", "time.google.com", "time.cloudflare.com"}
+	}
+	if cfg.Interval > 0 {
+		s.cfg.Interval = cfg.Interval
+	}
+	if cfg.QueryTimeout > 0 {
+		s.cfg.QueryTimeout = cfg.QueryTimeout
+	}
+	if cfg.MaxSkew > 0 {
+		s.cfg.MaxSkew = cfg.MaxSkew
+	}
+	s.cfg.RequireSync = cfg.RequireSync
+	s.cfg.TrustOSNTP = cfg.TrustOSNTP
+	s.status.MaxSkewMS = s.cfg.MaxSkew.Milliseconds()
+	s.status.RequireSync = s.cfg.RequireSync
+}
+
 // CheckNow runs an immediate NTP check against configured servers.
 func (s *Service) CheckNow() Status {
 	var (
-		bestOffset time.Duration
-		bestServer string
+		bestOffset  time.Duration
+		bestServer  string
 		bestStratum uint8
-		lastErr    error
-		found      bool
+		lastErr     error
+		found       bool
 	)
 
-	for _, server := range s.cfg.Servers {
-		offset, stratum, err := QueryNTP(server, s.cfg.QueryTimeout)
+	s.mu.RLock()
+	servers := append([]string(nil), s.cfg.Servers...)
+	queryTimeout := s.cfg.QueryTimeout
+	maxSkew := s.cfg.MaxSkew
+	requireSync := s.cfg.RequireSync
+	trustOSNTP := s.cfg.TrustOSNTP
+	s.mu.RUnlock()
+
+	for _, server := range servers {
+		offset, stratum, err := QueryNTP(server, queryTimeout)
 		if err != nil {
 			lastErr = err
 			log.Printf("[timesync] NTP query %s failed: %v", server, err)
@@ -130,14 +163,22 @@ func (s *Service) CheckNow() Status {
 
 	st := Status{
 		LastCheckAt: time.Now().UTC(),
-		MaxSkewMS:   s.cfg.MaxSkew.Milliseconds(),
-		RequireSync: s.cfg.RequireSync,
+		MaxSkewMS:   maxSkew.Milliseconds(),
+		RequireSync: requireSync,
 	}
-	if osSync := readOSClockSynced(); osSync != nil {
+	if osSync := osClockSyncedReader(); osSync != nil {
 		st.OSClockSynced = osSync
 	}
 
 	if !found {
+		if trustOSNTP && st.OSClockSynced != nil && *st.OSClockSynced {
+			st.Synced = true
+			st.NTPServer = "os:systemd-timesyncd"
+			st.LastError = ""
+			s.setStatus(st)
+			s.persistStatus(st)
+			return st
+		}
 		st.Synced = false
 		if lastErr != nil {
 			st.LastError = lastErr.Error()
@@ -153,7 +194,7 @@ func (s *Service) CheckNow() Status {
 	st.OffsetMS = offsetMS
 	st.NTPServer = bestServer
 	st.Stratum = bestStratum
-	st.Synced = absDuration(bestOffset) <= s.cfg.MaxSkew
+	st.Synced = absDuration(bestOffset) <= maxSkew
 	if !st.Synced {
 		st.LastError = "clock skew exceeds threshold"
 	}
@@ -162,7 +203,7 @@ func (s *Service) CheckNow() Status {
 	s.persistStatus(st)
 	if !st.Synced {
 		log.Printf("[timesync] WARNING: clock skew %dms (max %dms) via %s",
-			offsetMS, s.cfg.MaxSkew.Milliseconds(), bestServer)
+			offsetMS, maxSkew.Milliseconds(), bestServer)
 	}
 	return st
 }
@@ -219,3 +260,6 @@ func absDuration(d time.Duration) time.Duration {
 	}
 	return d
 }
+
+// osClockSyncedReader is overridden in tests.
+var osClockSyncedReader = readOSClockSynced

@@ -4,13 +4,14 @@
  * Connects to Go server's WebSocket event bus and pushes device status
  * changes to browser clients in real time.
  *
- * Go server endpoint: GET /api/ws/events?filter=peer_online
+ * Go server endpoint: GET /api/ws/events
  * Browser endpoint:   WS /ws/device-status
  */
 
 'use strict';
 
 const WebSocket = require('ws');
+const db = require('./database');
 
 const log = {
     info:  (...a) => console.log('[DeviceStatus]', ...a),
@@ -33,24 +34,26 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
     // Browser-facing WebSocket server
     const wss = new WebSocket.Server({ noServer: true });
     const clients = new Set();
+    const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
-    // Handle upgrade requests
-    httpServer.on('upgrade', (req, socket, head) => {
-        const url = new URL(req.url, `http://${req.headers.host}`);
-        if (url.pathname !== '/ws/device-status') return;
-
-        // Authenticate via session
-        sessionMiddleware(req, {}, () => {
-            if (!req.session || !req.session.userId) {
-                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                socket.destroy();
-                return;
-            }
-            wss.handleUpgrade(req, socket, head, (ws) => {
-                wss.emit('connection', ws, req);
+    // Handle upgrade requests via shared router (#295)
+    registerUpgradeHandler(
+        httpServer,
+        (pathname) => pathname === '/ws/device-status',
+        (req, socket, head) => {
+            // Authenticate via session
+            sessionMiddleware(req, {}, () => {
+                if (!req.session || !req.session.userId) {
+                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
+                wss.handleUpgrade(req, socket, head, (ws) => {
+                    wss.emit('connection', ws, req);
+                });
             });
-        });
-    });
+        }
+    );
 
     wss.on('connection', (ws) => {
         clients.add(ws);
@@ -91,7 +94,7 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
             .replace(/^https:/, 'wss:')
             .replace(/\/api$/, '');
 
-        const url = `${wsUrl}/api/ws/events?filter=peer_online&api_key=${encodeURIComponent(apiKey)}`;
+        const url = `${wsUrl}/api/ws/events?api_key=${encodeURIComponent(apiKey)}`;
 
         log.info('Connecting to Go event bus...');
 
@@ -111,13 +114,33 @@ function initDeviceStatusPush(httpServer, sessionMiddleware, goApiUrl, apiKey) {
         goWs.on('message', (data) => {
             try {
                 const event = JSON.parse(data.toString());
+                const payload = event.data || {};
+
+                if (event.type === 'peer_id_changed') {
+                    const oldId = payload.old_id;
+                    const newId = payload.new_id;
+                    if (oldId && newId && typeof db.cascadePeerIdChange === 'function') {
+                        Promise.resolve(db.cascadePeerIdChange(oldId, newId)).catch((err) => {
+                            log.warn('Panel ID cascade failed:', err.message || err);
+                        });
+                    }
+                    broadcast({
+                        type: 'device_id_changed',
+                        old_id: oldId,
+                        new_id: newId,
+                        source: payload.source || '',
+                        timestamp: event.timestamp || Date.now(),
+                    });
+                    return;
+                }
+
                 // Forward peer status events to browser clients
                 if (event.type === 'peer_online' || event.type === 'peer_offline' ||
                     event.type === 'peer_status_changed' || event.type === 'peer_registered') {
                     broadcast({
                         type: 'device_status',
-                        device_id: event.peer_id || event.id || event.device_id,
-                        status: event.status || (event.type === 'peer_online' ? 'online' : 'offline'),
+                        device_id: payload.peer_id || payload.id || event.peer_id || event.id || event.device_id,
+                        status: payload.status || event.status || (event.type === 'peer_online' ? 'online' : 'offline'),
                         timestamp: event.timestamp || Date.now(),
                         details: event,
                     });

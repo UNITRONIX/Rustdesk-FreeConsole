@@ -46,6 +46,15 @@ const facade = {
     softDeletePeer: (id) => adapter.softDeletePeer(id),
     deleteDevice:   (id) => adapter.softDeletePeer(id),
     getRenamedPeerId: (id) => adapter.getRenamedPeerId ? adapter.getRenamedPeerId(id) : null,
+    cascadePeerIdChange: (oldId, newId) => adapter.cascadePeerIdChange
+        ? adapter.cascadePeerIdChange(oldId, newId)
+        : Promise.resolve(),
+    purgePanelPeerRecord: (id) => adapter.purgePanelPeerRecord
+        ? adapter.purgePanelPeerRecord(id)
+        : Promise.resolve(),
+    shouldRejectRenamedPeerRegistration: (oldId, identity) => adapter.shouldRejectRenamedPeerRegistration
+        ? adapter.shouldRejectRenamedPeerRegistration(oldId, identity)
+        : Promise.resolve({ reject: false }),
     setBanStatus:  (id, banned, reason) => adapter.setBanStatus(id, banned, reason),
     getPeerStats:  () => adapter.getPeerStats(),
     getStats:      () => adapter.getPeerStats(),
@@ -241,6 +250,13 @@ const facade = {
     createStrategy:   (data) => adapter.createStrategy(data),
     updateStrategy:   (guid, data) => adapter.updateStrategy(guid, data),
     deleteStrategy:   (guid) => adapter.deleteStrategy(guid),
+    assignStrategy:   (strategyGuid, payload) => adapter.assignStrategy(strategyGuid, payload),
+    getStrategyAssignmentSummary: (guid) => adapter.getStrategyAssignmentSummary(guid),
+    getStrategyAssignmentDisplayRefs: (guid) => adapter.getStrategyAssignmentDisplayRefs(guid),
+    resolvePeerAssignmentKey: (ref) => adapter.resolvePeerAssignmentKey(ref),
+    resolveUserAssignmentKey: (ref) => adapter.resolveUserAssignmentKey(ref),
+    resolveDeviceGroupAssignmentKey: (ref) => adapter.resolveDeviceGroupAssignmentKey(ref),
+    setStrategyEnabled: (guid, enabled) => adapter.setStrategyEnabled(guid, enabled),
 
     // ---- Housekeeping ----
     runIntegrationHousekeeping: () => adapter.runIntegrationHousekeeping(),

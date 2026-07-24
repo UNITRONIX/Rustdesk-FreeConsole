@@ -82,41 +82,71 @@ func (pg *PostgresDB) DeleteBillingPackage(id string) error {
 	return err
 }
 
-func (pg *PostgresDB) CreateBillingOrgContract(c *BillingOrgContract) error {
+func (pg *PostgresDB) CreateBillingContract(c *BillingContract) error {
 	_, err := pg.pool.Exec(pg.ctx,
-		`INSERT INTO billing_org_contracts (id, org_id, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())`,
-		c.ID, c.OrgID, c.PackageID, c.Status, c.RemainingMinutes, c.OverageRate, c.HourlyRate, c.Currency,
+		`INSERT INTO billing_contracts (id, target_type, target_key, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())`,
+		c.ID, c.TargetType, c.TargetKey, c.PackageID, c.Status, c.RemainingMinutes, c.OverageRate, c.HourlyRate, c.Currency,
 		c.ValidFrom, c.ValidUntil,
 	)
 	return err
 }
 
+func (pg *PostgresDB) CreateBillingOrgContract(c *BillingOrgContract) error {
+	return pg.CreateBillingContract(c)
+}
+
+func (pg *PostgresDB) GetBillingContract(id string) (*BillingContract, error) {
+	c, err := pg.queryBillingContract(`WHERE c.id = $1`, id)
+	if err != nil && strings.Contains(err.Error(), "no rows") {
+		return nil, nil
+	}
+	return c, err
+}
+
 func (pg *PostgresDB) GetBillingOrgContract(id string) (*BillingOrgContract, error) {
-	return pg.queryBillingOrgContract(`WHERE c.id = $1`, id)
+	return pg.GetBillingContract(id)
+}
+
+func (pg *PostgresDB) GetActiveBillingContract(targetType, targetKey string) (*BillingContract, error) {
+	c, err := pg.queryBillingContract(
+		`WHERE c.target_type = $1 AND c.target_key = $2 AND c.status = 'active' ORDER BY c.updated_at DESC LIMIT 1`,
+		targetType, targetKey,
+	)
+	if err != nil && strings.Contains(err.Error(), "no rows") {
+		return nil, nil
+	}
+	return c, err
 }
 
 func (pg *PostgresDB) GetActiveBillingOrgContract(orgID string) (*BillingOrgContract, error) {
-	return pg.queryBillingOrgContract(
-		`WHERE c.org_id = $1 AND c.status = 'active' ORDER BY c.updated_at DESC LIMIT 1`, orgID,
-	)
+	return pg.GetActiveBillingContract(BillingTargetOrg, orgID)
 }
 
-func (pg *PostgresDB) queryBillingOrgContract(where string, args ...any) (*BillingOrgContract, error) {
-	query := `SELECT c.id, c.org_id, c.package_id, c.status, c.remaining_minutes, c.overage_rate,
-		c.hourly_rate, c.currency, c.valid_from, c.valid_until, c.created_at, c.updated_at,
-		COALESCE(p.name, ''), COALESCE(o.name, '')
-		FROM billing_org_contracts c
-		LEFT JOIN billing_packages p ON p.id = c.package_id
-		LEFT JOIN organizations o ON o.id = c.org_id ` + where
+const pgBillingContractTargetNameSQL = `
+	COALESCE(
+		CASE c.target_type
+			WHEN 'org' THEN (SELECT name FROM organizations WHERE id = c.target_key LIMIT 1)
+			WHEN 'device' THEN (SELECT COALESCE(NULLIF(display_name, ''), hostname, c.target_key) FROM peers WHERE id = c.target_key LIMIT 1)
+			WHEN 'device_group' THEN (SELECT name FROM device_groups WHERE guid = c.target_key LIMIT 1)
+			WHEN 'folder' THEN (SELECT name FROM folders WHERE id::text = c.target_key LIMIT 1)
+			ELSE c.target_key
+		END, c.target_key)`
 
-	var c BillingOrgContract
+func (pg *PostgresDB) queryBillingContract(where string, args ...any) (*BillingContract, error) {
+	query := `SELECT c.id, c.target_type, c.target_key, c.package_id, c.status, c.remaining_minutes, c.overage_rate,
+		c.hourly_rate, c.currency, c.valid_from, c.valid_until, c.created_at, c.updated_at,
+		COALESCE(p.name, ''), ` + pgBillingContractTargetNameSQL + `
+		FROM billing_contracts c
+		LEFT JOIN billing_packages p ON p.id = c.package_id ` + where
+
+	var c BillingContract
 	var overage *float64
 	var validFrom, validUntil *time.Time
 	err := pg.pool.QueryRow(pg.ctx, query, args...).Scan(
-		&c.ID, &c.OrgID, &c.PackageID, &c.Status, &c.RemainingMinutes, &overage,
+		&c.ID, &c.TargetType, &c.TargetKey, &c.PackageID, &c.Status, &c.RemainingMinutes, &overage,
 		&c.HourlyRate, &c.Currency, &validFrom, &validUntil, &c.CreatedAt, &c.UpdatedAt,
-		&c.PackageName, &c.OrgName,
+		&c.PackageName, &c.TargetName,
 	)
 	if err != nil {
 		return nil, err
@@ -124,18 +154,33 @@ func (pg *PostgresDB) queryBillingOrgContract(where string, args ...any) (*Billi
 	c.OverageRate = overage
 	c.ValidFrom = validFrom
 	c.ValidUntil = validUntil
+	c.FillLegacyOrgFields()
 	return &c, nil
 }
 
-func (pg *PostgresDB) ListBillingOrgContracts(filter BillingContractFilter) ([]*BillingOrgContract, error) {
+func (pg *PostgresDB) ListBillingContracts(filter BillingContractFilter) ([]*BillingContract, error) {
 	var (
 		conds []string
 		args  []any
 	)
 	idx := 1
-	if filter.OrgID != "" {
-		conds = append(conds, "c.org_id = $"+itoa(idx))
+	if filter.TargetType != "" && filter.TargetKey != "" {
+		conds = append(conds, "c.target_type = $"+itoa(idx))
+		args = append(args, filter.TargetType)
+		idx++
+		conds = append(conds, "c.target_key = $"+itoa(idx))
+		args = append(args, filter.TargetKey)
+		idx++
+	} else if filter.OrgID != "" {
+		conds = append(conds, "c.target_type = $"+itoa(idx))
+		args = append(args, BillingTargetOrg)
+		idx++
+		conds = append(conds, "c.target_key = $"+itoa(idx))
 		args = append(args, filter.OrgID)
+		idx++
+	} else if filter.TargetType != "" {
+		conds = append(conds, "c.target_type = $"+itoa(idx))
+		args = append(args, filter.TargetType)
 		idx++
 	}
 	if filter.Status != "" {
@@ -144,12 +189,11 @@ func (pg *PostgresDB) ListBillingOrgContracts(filter BillingContractFilter) ([]*
 		idx++
 	}
 
-	query := `SELECT c.id, c.org_id, c.package_id, c.status, c.remaining_minutes, c.overage_rate,
+	query := `SELECT c.id, c.target_type, c.target_key, c.package_id, c.status, c.remaining_minutes, c.overage_rate,
 		c.hourly_rate, c.currency, c.valid_from, c.valid_until, c.created_at, c.updated_at,
-		COALESCE(p.name, ''), COALESCE(o.name, '')
-		FROM billing_org_contracts c
-		LEFT JOIN billing_packages p ON p.id = c.package_id
-		LEFT JOIN organizations o ON o.id = c.org_id`
+		COALESCE(p.name, ''), ` + pgBillingContractTargetNameSQL + `
+		FROM billing_contracts c
+		LEFT JOIN billing_packages p ON p.id = c.package_id`
 	if len(conds) > 0 {
 		query += " WHERE " + strings.Join(conds, " AND ")
 	}
@@ -161,34 +205,68 @@ func (pg *PostgresDB) ListBillingOrgContracts(filter BillingContractFilter) ([]*
 	}
 	defer rows.Close()
 
-	var out []*BillingOrgContract
+	var out []*BillingContract
 	for rows.Next() {
-		var c BillingOrgContract
+		var c BillingContract
 		var overage *float64
 		var validFrom, validUntil *time.Time
 		if err := rows.Scan(
-			&c.ID, &c.OrgID, &c.PackageID, &c.Status, &c.RemainingMinutes, &overage,
+			&c.ID, &c.TargetType, &c.TargetKey, &c.PackageID, &c.Status, &c.RemainingMinutes, &overage,
 			&c.HourlyRate, &c.Currency, &validFrom, &validUntil, &c.CreatedAt, &c.UpdatedAt,
-			&c.PackageName, &c.OrgName,
+			&c.PackageName, &c.TargetName,
 		); err != nil {
 			return nil, err
 		}
 		c.OverageRate = overage
 		c.ValidFrom = validFrom
 		c.ValidUntil = validUntil
+		c.FillLegacyOrgFields()
 		out = append(out, &c)
 	}
 	return out, rows.Err()
 }
 
-func (pg *PostgresDB) UpdateBillingOrgContract(c *BillingOrgContract) error {
+func (pg *PostgresDB) ListBillingOrgContracts(filter BillingContractFilter) ([]*BillingOrgContract, error) {
+	return pg.ListBillingContracts(filter)
+}
+
+func (pg *PostgresDB) UpdateBillingContract(c *BillingContract) error {
 	_, err := pg.pool.Exec(pg.ctx,
-		`UPDATE billing_org_contracts SET status = $1, remaining_minutes = $2, overage_rate = $3, hourly_rate = $4, currency = $5,
+		`UPDATE billing_contracts SET status = $1, remaining_minutes = $2, overage_rate = $3, hourly_rate = $4, currency = $5,
 		 valid_from = $6, valid_until = $7, updated_at = NOW() WHERE id = $8`,
 		c.Status, c.RemainingMinutes, c.OverageRate, c.HourlyRate, c.Currency,
 		c.ValidFrom, c.ValidUntil, c.ID,
 	)
 	return err
+}
+
+func (pg *PostgresDB) UpdateBillingOrgContract(c *BillingOrgContract) error {
+	return pg.UpdateBillingContract(c)
+}
+
+func (pg *PostgresDB) DeleteBillingContract(id string) error {
+	_, err := pg.pool.Exec(pg.ctx, `DELETE FROM billing_contracts WHERE id = $1`, id)
+	return err
+}
+
+func (pg *PostgresDB) CountBillingContractsByPackage(packageID string) (int, error) {
+	var n int
+	err := pg.pool.QueryRow(pg.ctx, `SELECT COUNT(*) FROM billing_contracts WHERE package_id = $1`, packageID).Scan(&n)
+	return n, err
+}
+
+func (pg *PostgresDB) CountBillingContractsExpiringWithin(days int) (int, error) {
+	if days <= 0 {
+		days = 30
+	}
+	var n int
+	err := pg.pool.QueryRow(pg.ctx,
+		`SELECT COUNT(*) FROM billing_contracts
+		 WHERE status = 'active' AND valid_until IS NOT NULL
+		 AND valid_until <= NOW() + ($1 * INTERVAL '1 day')`,
+		days,
+	).Scan(&n)
+	return n, err
 }
 
 func (pg *PostgresDB) CreateBillingSession(sess *BillingSession) error {

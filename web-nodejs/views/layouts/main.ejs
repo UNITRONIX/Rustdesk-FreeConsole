@@ -2,7 +2,7 @@
 <html lang="<%= lang || 'en' %>">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="<%= appName %> - <%= appDescription %>">
     <meta name="robots" content="noindex, nofollow">
     <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %><%= appName %></title>
@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="/css/notif-center.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/accessibility.css?v=<%= cacheVersion %>">
     <% if (!embed) { %>
+    <link rel="stylesheet" href="/css/mobile-shell.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/desktop-mode.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/desktop-widgets.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/tutorial.css?v=<%= cacheVersion %>">
@@ -48,11 +49,14 @@
             <%- include('../partials/navbar') %>
             <% } %>
             
-            <!-- Main content -->
             <main class="main-content">
                 <%- body %>
             </main>
         </div>
+
+        <% if (!embed) { %>
+        <%- include('../partials/mobile-bottom-nav') %>
+        <% } %>
     </div>
     
     <% if (!embed) { %>
@@ -145,12 +149,17 @@
     </script>
     <script src="/js/utils.js?v=<%= cacheVersion %>"></script>
     <script src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>
+    <% if (!embed) { %>
+    <script src="/js/device-capabilities.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclient-mobile-shell.js?v=<%= cacheVersion %>"></script>
+    <% } %>
     <script src="/js/notifications.js?v=<%= cacheVersion %>"></script>
     <script src="/js/notif-center.js?v=<%= cacheVersion %>"></script>
     <script src="/js/modal.js?v=<%= cacheVersion %>"></script>
     <script src="/js/accessibility.js?v=<%= cacheVersion %>"></script>
     <script src="/js/app.js?v=<%= cacheVersion %>"></script>
     <% if (!embed) { %>
+    <script src="/js/mobile-nav.js?v=<%= cacheVersion %>"></script>
     <script src="/js/widget-plugins.js?v=<%= cacheVersion %>"></script>
     <script src="/js/desktop-widgets.js?v=<%= cacheVersion %>"></script>
     <script src="/js/desktop-mode.js?v=<%= cacheVersion %>"></script>

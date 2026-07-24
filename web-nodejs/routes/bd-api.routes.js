@@ -30,6 +30,7 @@ const crypto = require('crypto');
 const config = require('../config/config');
 const db = require('../services/database');
 const bdRelay = require('../services/bdRelay');
+const remoteRelay = require('../services/remoteRelay');
 const brandingService = require('../services/brandingService');
 const authService = require('../services/authService');
 const betterdeskApi = require('../services/betterdeskApi');
@@ -153,11 +154,17 @@ function buildSessionHistory(entries, limit) {
 // ---------------------------------------------------------------------------
 
 router.get('/server-info', (_req, res) => {
+    const branding = brandingService.getBranding();
     res.json({
         ok: true,
         product: 'betterdesk-panel',
         version: config.appVersion,
-        panel_name: config.appName,
+        panel_name: branding.appName || config.appName,
+        appearance_contract: {
+            version: '2.0',
+            endpoint: '/api/bd/appearance',
+            revision: brandingService.getBrandingRevision()
+        },
     });
 });
 
@@ -234,14 +241,34 @@ router.post('/register', identifyDevice, async (req, res) => {
             return res.status(400).json({ error: 'device_id is required' });
         }
 
-        // Reject registration with a stale/renamed peer ID (Issue #97)
-        const newId = db.getRenamedPeerId ? await db.getRenamedPeerId(id) : null;
-        if (newId) {
-            return res.status(409).json({
-                error: 'Device ID has been changed',
-                new_id: newId,
-                message: `This device ID was renamed to ${newId}. Please update your configuration.`,
+        let effectiveId = id;
+
+        // Reject registration with a stale/renamed peer ID unless same device (#97, #213)
+        if (typeof db.shouldRejectRenamedPeerRegistration === 'function') {
+            const renameCheck = await db.shouldRejectRenamedPeerRegistration(id, {
+                uuid: uuid || '',
+                pk: public_key || '',
+                ip,
             });
+            if (renameCheck.reject && renameCheck.new_id) {
+                return res.status(409).json({
+                    error: 'Device ID has been changed',
+                    new_id: renameCheck.new_id,
+                    message: `This device ID was renamed to ${renameCheck.new_id}. Please update your configuration.`,
+                });
+            }
+            if (renameCheck.redirect_id) {
+                effectiveId = renameCheck.redirect_id;
+            }
+        } else {
+            const newId = db.getRenamedPeerId ? await db.getRenamedPeerId(id) : null;
+            if (newId) {
+                return res.status(409).json({
+                    error: 'Device ID has been changed',
+                    new_id: newId,
+                    message: `This device ID was renamed to ${newId}. Please update your configuration.`,
+                });
+            }
         }
 
         // Build info JSON
@@ -253,16 +280,16 @@ router.post('/register', identifyDevice, async (req, res) => {
         });
 
         // Upsert peer in DB
-        await db.upsertPeer({ id, uuid: uuid || '', pk: public_key || null, info, ip });
+        await db.upsertPeer({ id: effectiveId, uuid: uuid || '', pk: public_key || null, info, ip });
 
         // Update online status
         try {
-            await db.updatePeerOnlineStatus(id);
+            await db.updatePeerOnlineStatus(effectiveId);
         } catch (_) {}
 
         res.json({
             success: true,
-            device_id: id,
+            device_id: effectiveId,
             server_time: Date.now(),
             heartbeat_interval: 15, // seconds
         });
@@ -308,6 +335,27 @@ router.post('/heartbeat', identifyDevice, async (req, res) => {
     } catch (err) {
         console.error('[BD-API] Heartbeat error:', err.message);
         res.status(500).json({ error: 'Heartbeat failed' });
+    }
+});
+
+// ---------------------------------------------------------------------------
+//  POST /api/bd/remote-agent-token — Single-use token for /ws/remote-agent
+// ---------------------------------------------------------------------------
+
+router.post('/remote-agent-token', identifyDevice, async (req, res) => {
+    try {
+        const id = req.body.device_id || req.deviceId;
+        if (!id || !/^[A-Za-z0-9_-]{3,64}$/.test(id)) {
+            return res.status(400).json({ error: 'device_id is required' });
+        }
+        if (req.deviceId && req.deviceId !== id) {
+            return res.status(403).json({ error: 'device_id mismatch' });
+        }
+        const issued = remoteRelay.issueRemoteAgentToken(id);
+        res.json({ success: true, device_id: id, ...issued });
+    } catch (err) {
+        console.error('[BD-API] remote-agent-token error:', err.message);
+        res.status(500).json({ error: 'Token issuance failed' });
     }
 });
 
@@ -455,10 +503,12 @@ router.get('/peer/:id', identifyDevice, async (req, res) => {
 router.get('/branding', (req, res) => {
     try {
         const branding = brandingService.getBranding();
+        const publicAppearance = brandingService.getPublicAppearance();
         res.json({
             company_name: branding.appName || 'BetterDesk',
             accent_color: branding.colors?.accentBlue || '#3b82f6',
             support_contact: branding.supportContact || '',
+            appearance: publicAppearance
         });
     } catch (err) {
         console.error('[BD-API] Branding error:', err.message);
@@ -467,6 +517,44 @@ router.get('/branding', (req, res) => {
             company_name: 'BetterDesk',
             accent_color: '#3b82f6',
             support_contact: '',
+        });
+    }
+});
+
+// ---------------------------------------------------------------------------
+//  GET /api/bd/appearance — Public, sanitized appearance contract for RdClient
+// ---------------------------------------------------------------------------
+
+router.get('/appearance', (_req, res) => {
+    try {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.json({ success: true, data: brandingService.getPublicAppearance() });
+    } catch (err) {
+        console.error('[BD-API] Appearance error:', err.message);
+        res.json({
+            success: true,
+            data: {
+                version: '2.0',
+                revision: 'fallback',
+                product: 'betterdesk-appearance',
+                identity: { appName: 'BetterDesk', logoType: 'icon', logoIcon: 'dns' },
+                palette: {
+                    mode: 'dark',
+                    primary: '#58a6ff',
+                    background: '#0d1117',
+                    surface: '#161b22',
+                    surfaceRaised: '#21262d',
+                    text: '#e6edf3',
+                    muted: '#8b949e',
+                    border: '#30363d',
+                    danger: '#f85149',
+                    warning: '#d29922',
+                    success: '#2ea44f'
+                },
+                surfaces: { glassEnabled: true, glassBlur: '16', glassOpacity: '55' },
+                background: { type: 'none', color: '', gradient: '', imageUrl: '', overlay: '', size: 'cover' },
+                readability: { ok: true, issues: [] }
+            }
         });
     }
 });

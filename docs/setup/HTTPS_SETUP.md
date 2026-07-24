@@ -2,6 +2,8 @@
 
 BetterDesk Console supports native HTTPS with TLS certificates, as well as reverse proxy configurations with Caddy or Nginx.
 
+> **Using Caddy/Nginx on port 443?** See the dedicated [External Reverse Proxy Guide](REVERSE_PROXY.md) — TLS should terminate at your proxy, not via the installer's Let's Encrypt when both would conflict.
+
 ## Quick Start
 
 ### Option 1: Native HTTPS (Self-Signed Certificate)
@@ -37,37 +39,72 @@ Restart the console service and access it at `https://your-server:5443`.
 
 ### Option 2: Let's Encrypt (Production)
 
-Using [Certbot](https://certbot.eff.org/):
+The recommended path on Linux is **`sudo betterdesk.sh`** → **Protocol Toggle (T)** or **SSL Configuration (C)** → **Let's Encrypt**. The installer runs certbot, **copies** certificate material into `$RUSTDESK_PATH/ssl/betterdesk.{crt,key}` (readable by the `betterdesk` console user — see #219), and configures auto-renew via a certbot deploy hook.
+
+After setup, open the panel at **`https://your-domain:5443`** (default HTTPS port). Use the domain from the certificate SAN, not the raw server IP.
+
+Manual certbot (only if you are not using the installer menus):
 
 ```bash
-# Install certbot
 sudo apt install certbot
-
-# Get certificate (standalone mode - stop BetterDesk console first)
 sudo systemctl stop betterdesk-console
 sudo certbot certonly --standalone -d console.yourdomain.com
 sudo systemctl start betterdesk-console
 ```
 
-Update `.env`:
+Then deploy the certificate for the console user (copy, do not symlink into `/etc/letsencrypt/`):
+
+```bash
+sudo betterdesk.sh   # Protocol Toggle → HTTPS → Keep existing certificate
+# Or SSL Configuration → Let's Encrypt / keep existing
+```
+
+Certificate paths in `.env` (set automatically by the installer):
 
 ```env
 HTTPS_ENABLED=true
-HTTPS_PORT=443
-SSL_CERT_PATH=/etc/letsencrypt/live/console.yourdomain.com/fullchain.pem
-SSL_KEY_PATH=/etc/letsencrypt/live/console.yourdomain.com/privkey.pem
-SSL_CA_PATH=/etc/letsencrypt/live/console.yourdomain.com/chain.pem
+HTTPS_PORT=5443
+SSL_CERT_PATH=/opt/rustdesk/ssl/betterdesk.crt
+SSL_KEY_PATH=/opt/rustdesk/ssl/betterdesk.key
 HTTP_REDIRECT_HTTPS=true
 ```
 
-Set up auto-renewal:
+Certbot renewal is handled by the BetterDesk deploy hook at `/etc/letsencrypt/renewal-hooks/deploy/betterdesk-reload.sh` when you use the installer LE flow.
 
-```bash
-# Add to crontab
-0 0 1 * * certbot renew --pre-hook "systemctl stop betterdesk-console" --post-hook "systemctl start betterdesk-console"
-```
+### Standard HTTPS port 443 (no `:5443` in the URL)
+
+By default the panel listens on **5443** so it does not conflict with nginx or certbot on ports 80/443 without extra capabilities.
+
+To serve **`https://your-domain`** without a port number:
+
+**Option A — Native HTTPS on :443**
+
+1. Enable HTTPS first (Protocol Toggle / SSL Configuration with Let's Encrypt or your own cert).
+2. When prompted, choose **Use standard HTTPS port 443**, or edit `/opt/BetterDeskConsole/.env`:
+   ```env
+   HTTPS_PORT=443
+   PORT=80
+   HTTP_REDIRECT_HTTPS=true
+   ```
+3. Run **Settings → Updates** or `sudo betterdesk.sh` → **Repair → Repair permissions** — adds `CAP_NET_BIND_SERVICE` and `BETTERDESK_HAS_BIND_SERVICE=1` to `betterdesk-console.service` so the `betterdesk` user can bind ports 80/443.
+4. Ensure nothing else listens on **443** (stop nginx on that host, or use Option B below).
+5. Open firewall ports if needed:
+   ```bash
+   sudo ufw allow 443/tcp
+   sudo ufw allow 80/tcp   # only when HTTP redirect on :80 is enabled
+   ```
+6. Restart: `sudo systemctl restart betterdesk-console`
+7. Verify: `curl -sI https://your-domain/ | head -3`
+
+RustDesk signal/relay ports (**21116/21117**) are unchanged — only the web panel URL changes.
+
+**Option B — Reverse proxy on :443**
+
+If nginx, Caddy, or Nginx Proxy Manager already uses port 443, leave the panel on `:5443` (or `:5000` with `HTTPS_ENABLED=false`) and terminate TLS at the proxy. See Options 3/4 below and [RustDesk Client WSS Through Nginx](#rustdesk-client-wss-through-nginx).
 
 ### Option 3: Reverse Proxy with Caddy (Recommended for Production)
+
+> **Full guide:** [REVERSE_PROXY.md](REVERSE_PROXY.md) — decision table, `.env`, firewall, troubleshooting, and installer wizard (`betterdesk.sh` → SSL Configuration → External reverse proxy).
 
 [Caddy](https://caddyserver.com/) automatically provisions and renews HTTPS certificates.
 
@@ -83,6 +120,14 @@ Create `/etc/caddy/Caddyfile`:
 
 ```caddy
 console.yourdomain.com {
+    # RustDesk native client WSS (when allow-websocket=Y) — before catch-all panel route
+    handle /ws/id {
+        reverse_proxy 127.0.0.1:21118
+    }
+    handle /ws/relay {
+        reverse_proxy 127.0.0.1:21119
+    }
+
     reverse_proxy localhost:5000
 
     # Optional: compress responses
@@ -95,6 +140,19 @@ console.yourdomain.com {
         Referrer-Policy strict-origin-when-cross-origin
     }
 }
+```
+
+Caddy sets `X-Forwarded-Proto`, `X-Forwarded-For`, and related headers on upstream requests automatically.
+
+BetterDesk `.env` when using an external proxy:
+
+```env
+HOST=127.0.0.1
+HTTPS_ENABLED=false
+HTTP_REDIRECT_HTTPS=false
+TRUST_PROXY=Y
+PANEL_PUBLIC_HOST=console.yourdomain.com
+WS_ALLOWED_ORIGINS=https://console.yourdomain.com
 ```
 
 ```bash
@@ -307,20 +365,29 @@ When HTTPS is **not** enabled (default), these stricter policies are disabled to
 
 ## Firewall Rules
 
-If you enable native HTTPS, make sure to open the HTTPS port:
+If you enable native HTTPS, open the listening port(s):
 
 ```bash
-# Linux (ufw)
+# Linux (ufw) — default panel HTTPS port
 sudo ufw allow 5443/tcp
+
+# Standard port 443 (when HTTPS_PORT=443)
+sudo ufw allow 443/tcp
+sudo ufw allow 80/tcp   # optional HTTP→HTTPS redirect
 
 # Linux (firewalld)
 sudo firewall-cmd --permanent --add-port=5443/tcp
+sudo firewall-cmd --permanent --add-port=443/tcp
+sudo firewall-cmd --permanent --add-port=80/tcp
 sudo firewall-cmd --reload
 ```
 
 ```powershell
-# Windows
+# Windows — default panel HTTPS port
 New-NetFirewallRule -DisplayName "BetterDesk HTTPS" -Direction Inbound -Protocol TCP -LocalPort 5443 -Action Allow
+
+# Standard port 443
+New-NetFirewallRule -DisplayName "BetterDesk HTTPS 443" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
 ```
 
 ## Troubleshooting
@@ -334,10 +401,26 @@ The server will log this warning and fall back to HTTP mode. Check:
 
 ### Certificate Permission Errors
 
-Let's Encrypt certificates are often readable only by root:
+Let's Encrypt live directories are root-only. **BetterDesk copies** renewed material into `$RUSTDESK_PATH/ssl/betterdesk.{crt,key}` with `root:betterdesk` permissions when you use Protocol Toggle or SSL config in `betterdesk.sh`.
+
+If an older build left **symlinks** into `/etc/letsencrypt/` and HTTPS fails (panel on `:5000` only, journal shows *Falling back to HTTP*), run **Settings → Updates** or `sudo betterdesk.sh` → Update/Repair permissions — both re-copy LE material automatically (#219). Manual copy if needed:
 
 ```bash
-# Allow BetterDesk to read certificates
+sudo betterdesk.sh   # Update or Repair → Repair permissions
+# Or Protocol Toggle → HTTPS → Keep existing certificate
+# Or one-time copy:
+sudo cp -L /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem /opt/rustdesk/ssl/betterdesk.crt
+sudo cp -L /etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem /opt/rustdesk/ssl/betterdesk.key
+sudo chown root:betterdesk /opt/rustdesk/ssl/betterdesk.{crt,key}
+sudo chmod 640 /opt/rustdesk/ssl/betterdesk.{crt,key}
+sudo systemctl restart betterdesk-console betterdesk-server
+```
+
+**Let's Encrypt domain names:** open the panel at `https://your-domain:5443`. Using the server IP in the browser will show a certificate name mismatch even when HTTPS is configured correctly.
+
+Legacy workaround (not recommended — prefer copy above):
+
+```bash
 sudo chmod 644 /etc/letsencrypt/live/console.yourdomain.com/fullchain.pem
 sudo chmod 640 /etc/letsencrypt/live/console.yourdomain.com/privkey.pem
 sudo chgrp root /etc/letsencrypt/live/console.yourdomain.com/privkey.pem
@@ -349,7 +432,13 @@ If you access the console via HTTPS but see mixed content warnings, ensure `HTTP
 
 ### Behind a Reverse Proxy
 
-When using a reverse proxy (Caddy/Nginx), keep `HTTPS_ENABLED=false` and let the proxy handle TLS. The proxy should set `X-Forwarded-Proto: https` so the application knows the original protocol. Express trusts proxy headers when configured—this is handled automatically.
+When using a reverse proxy (Caddy/Nginx), keep `HTTPS_ENABLED=false` and let the proxy handle TLS. Set **`TRUST_PROXY=Y`** in `.env` (Node.js panel and Go server both accept `Y`; Node also accepts `1` / `yes`). Bind the panel to **`HOST=127.0.0.1`** so it is not exposed without proxy TLS.
+
+The proxy must send **`X-Forwarded-Proto: https`** so secure cookies and redirects work. Caddy does this by default; for Nginx use `proxy_set_header X-Forwarded-Proto $scheme`.
+
+For RustDesk **WebSocket Mode** (`allow-websocket=Y` / `wss://…/ws/id`), set **`TRUST_PROXY=Y`** and **`TRUSTED_PROXIES`** (e.g. `127.0.0.1/32,::1/128` for same-host) so the Go signal server can use `X-Real-IP` / `X-Forwarded-For` for client session keys. Without `TRUSTED_PROXIES`, forwarded headers are ignored ([#276](https://github.com/UNITRONIX/BetterDesk/issues/276)). Use IP-only values in those headers (standard Nginx `$remote_addr` / `$proxy_add_x_forwarded_for`); do not put `IP:port` in `X-Real-IP` unless your proxy documents that form.
+
+See [REVERSE_PROXY.md](REVERSE_PROXY.md) for the full checklist, generated snippets from `betterdesk.sh`, and RustDesk WSS routing.
 
 ### RustDesk WSS Symptom Guide
 
@@ -360,6 +449,11 @@ When using a reverse proxy (Caddy/Nginx), keep `HTTPS_ENABLED=false` and let the
 | `Rendezvous connection is timeout` after `Client handshake done` | Keepalive / proxy timeout after successful WSS upgrade | Update BetterDesk (fix in [#144](https://github.com/UNITRONIX/BetterDesk/issues/144)); set `proxy_read_timeout` ≥ 120s on `/ws/id` |
 | `Rendezvous connection is reset by the peer` ~30s after handshake | Peer marked offline; keepalive not reaching server | Same as above; confirm `/ws/id` reaches port `21118`, not console `:5000` |
 | `HTTP/1.1 401` or `403` on WebSocket upgrade | Console session / origin check (panel paths, not RustDesk `/ws/id`) | Route `/ws/id` and `/ws/relay` to Go ports `21118` / `21119` |
+| Server log `WS read ... EOF` immediately after `101`, client retries in a loop (`allow-websocket=Y`) | Client closed before the first protobuf frame; often proxy idle timeout or desktop `RegisterPk` delay (~1s) | Update BetterDesk (fix in [#229](https://github.com/UNITRONIX/BetterDesk/issues/229)); set `WS_DEBUG_FRAMES=1` on the Go server and retest; use `ws-register-test --mode=register-pk --delay-ms=1000 ws://127.0.0.1:21118/ws/id PEERID` |
+| Server log `TCP forwarding: no conn found for key "…:0"` / `effective=…:0` / relay timeout with WebSocket Mode | Invalid port in proxied WSS session key; PunchHole/RelayResponse not delivered to WS initiator | Update BetterDesk (fix in [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)); set `TRUST_PROXY=Y` **and** `TRUSTED_PROXIES=<proxy CIDR>`; confirm Nginx sends `X-Real-IP` / `X-Forwarded-For` as IP-only |
+| Client `Unexpected protobuf msg … union: None` / server `WS read … EOF (uptime=~10ms write_frames=2 peer="")` on WebSocket Mode | Empty keepalive sent on ephemeral WSS `RequestRelay` before `RelayResponse` | Update BetterDesk (residual fix in [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)); keep `TRUST_PROXY=Y` + `TRUSTED_PROXIES`; retest WebSocket Mode through the proxy |
+| Log `TRUST_PROXY=Y but TRUSTED_PROXIES is empty` / `effective=` still shows proxy IP | Forwarded headers ignored without allowlist | Set `TRUSTED_PROXIES` to the Nginx/Caddy address (e.g. `127.0.0.1/32`) and restart `betterdesk-server` |
+| Client `Handshake failed: invalid message format` / server `payload too large` on relay between WebSocket Mode and Native Full TLS | Mixed relay transports (WSS `:21119` vs native TCP/TLS `:21117`) — framing is incompatible | Both peers must use the same mode (both WebSocket Mode **or** both native TCP/UDP). Update BetterDesk for clear `Protocol mismatch` refusal ([#290](https://github.com/UNITRONIX/BetterDesk/issues/290)). Note: Docker `ENCRYPTED_ONLY` does not control the Go server — use `TLS_SIGNAL` / `TLS_RELAY` |
 
 **Diagnostic commands** (run from the reverse-proxy host):
 
@@ -381,6 +475,13 @@ curl -i -N \
   -H "Sec-WebSocket-Version: 13" \
   -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
   https://YOUR_DOMAIN/ws/id
+
+# 4. Desktop-style RegisterPk after 1s delay (from server host)?
+ws-register-test --mode=register-pk --delay-ms=1000 ws://127.0.0.1:21118/ws/id TESTPEER1
+# Expected: ACCEPTED: RegisterPkResponse result=OK ...
+
+# 5. Verbose first-frame logging (set on Go server, then retest client):
+# WS_DEBUG_FRAMES=1 in betterdesk-server environment → journalctl shows first send/recv frame types
 ```
 
 ### Web Remote Client Not Working Through Nginx

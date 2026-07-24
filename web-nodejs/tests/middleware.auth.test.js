@@ -5,7 +5,8 @@
 const request = require('supertest');
 const { createTestApp } = require('./helpers');
 
-const { requireAuth, requireRole, guestOnly, requireRdClientAuth, rdClientGuestOnly, isSafeRdClientReturnUrl } = require('../middleware/auth');
+const { requireAuth, requireRole, guestOnly, requireRdClientAuth, rdClientGuestOnly, normalizeRdClientReturnUrl, isSafeRdClientReturnUrl } = require('../middleware/auth');
+const { apiLimiter, rdClientPageLimiter } = require('../middleware/rateLimiter');
 
 describe('Auth Middleware', () => {
     describe('requireAuth', () => {
@@ -145,7 +146,7 @@ describe('Auth Middleware', () => {
     describe('requireRdClientAuth', () => {
         it('should redirect unauthenticated HTML requests to /remote/login', async () => {
             const app = createTestApp();
-            app.get('/remote', requireRdClientAuth('device.connect'), (_req, res) => {
+            app.get('/remote', rdClientPageLimiter, requireRdClientAuth('device.connect'), (_req, res) => {
                 res.send('OK');
             });
 
@@ -157,7 +158,7 @@ describe('Auth Middleware', () => {
 
         it('should return 401 for unauthenticated API requests', async () => {
             const app = createTestApp();
-            app.get('/api/remote/sessions', requireRdClientAuth(), (_req, res) => {
+            app.get('/api/remote/sessions', apiLimiter, requireRdClientAuth(), (_req, res) => {
                 res.json({ sessions: [] });
             });
 
@@ -173,7 +174,7 @@ describe('Auth Middleware', () => {
                 req.session.user = { id: 2, username: 'operator1', role: 'operator' };
                 next();
             });
-            app.get('/remote', requireRdClientAuth('device.connect'), (_req, res) => {
+            app.get('/remote', rdClientPageLimiter, requireRdClientAuth('device.connect'), (_req, res) => {
                 res.send('OK');
             });
 
@@ -187,9 +188,18 @@ describe('Auth Middleware', () => {
         it('should accept /remote paths only', () => {
             expect(isSafeRdClientReturnUrl('/remote')).toBe(true);
             expect(isSafeRdClientReturnUrl('/remote/abc123')).toBe(true);
+            expect(isSafeRdClientReturnUrl('/remote?transport=cdap')).toBe(true);
             expect(isSafeRdClientReturnUrl('/login')).toBe(false);
+            expect(isSafeRdClientReturnUrl('/remoteevil')).toBe(false);
             expect(isSafeRdClientReturnUrl('/remote/login')).toBe(false);
             expect(isSafeRdClientReturnUrl('//evil.com/remote')).toBe(false);
+            expect(isSafeRdClientReturnUrl('/remote/%0aevil')).toBe(false);
+        });
+
+        it('should normalize safe return URLs', () => {
+            expect(normalizeRdClientReturnUrl('/remote/dev1?transport=cdap')).toBe('/remote/dev1?transport=cdap');
+            expect(normalizeRdClientReturnUrl('https://evil.example/remote')).toBeNull();
+            expect(normalizeRdClientReturnUrl('/remote/login?return=%2Fremote')).toBeNull();
         });
     });
 

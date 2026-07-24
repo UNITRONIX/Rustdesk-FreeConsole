@@ -26,6 +26,12 @@ const path = require('path');
 const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
+const {
+    readSystemdUnitPrivileged,
+    writeSystemdUnitPrivileged,
+    isAllowedSystemdUnitPath,
+    privilegedSystemdUnitHint,
+} = require('../lib/linuxSystemdUnitPrivileged');
 const { readProductVersion } = require('../lib/productVersion');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
 const { resolveChildPath, resolvePathUnderRoot, existsConfinedChild, removeConfinedChild } = require('../lib/safePath');
@@ -42,6 +48,11 @@ const {
     resolveDeployScriptPath,
 } = require('../lib/linuxServerBinaryDeploy');
 const { resolveLastUpdateResultForDisplay } = require('../lib/updateResultStore');
+const {
+    resolveProjectRoot: resolveProjectRootFromConsole,
+    ensureParentDirForFile,
+    isUpdatePermissionError,
+} = require('../lib/updateProjectRoot');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -86,14 +97,10 @@ const IS_WINDOWS         = process.platform === 'win32';
  * Repo checkout: ROOT_DIR = web-nodejs/, project root = parent directory.
  * Flat Linux install: console files live directly under ROOT_DIR (e.g.
  * /opt/BetterDeskConsole) with betterdesk-server/ beside services/.
+ * Windows default: C:\BetterDeskConsole — must NOT use drive root C:\ (#272).
  */
-function resolveProjectRoot() {
-    const parentAsRepo = path.join(ROOT_DIR, '..');
-    const flatServerMod = path.join(ROOT_DIR, 'betterdesk-server', 'go.mod');
-    if (fs.existsSync(flatServerMod)) {
-        return ROOT_DIR;
-    }
-    return parentAsRepo;
+function resolveProjectRoot(rootDir = ROOT_DIR, opts) {
+    return resolveProjectRootFromConsole(rootDir, opts);
 }
 
 const PROJECT_ROOT       = resolveProjectRoot();
@@ -120,7 +127,11 @@ function setUpdateChannel(channelId) {
 }
 
 // Optional GitHub personal-access token  (60 req/h without, 5 000 with)
-const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN || '';
+const GITHUB_TOKEN = process.env.UPDATE_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
+
+/** @type {Map<string, { expires: number, data: unknown }>} */
+const GH_GET_CACHE = new Map();
+const GH_GET_CACHE_TTL_MS = Number(process.env.UPDATE_GITHUB_CACHE_MS) || 120_000;
 
 // ---------- component definitions ----------
 const COMPONENTS = {
@@ -157,6 +168,7 @@ const COMPONENTS = {
         files: [
             'betterdesk.sh', 'betterdesk.ps1', 'betterdesk-docker.sh',
             'docker-compose.yml', 'docker-compose.single.yml', 'docker-compose.quick.yml',
+            'docker-compose.quick.single.yml', 'docker-compose.quick.single.macvlan.yml',
             'Dockerfile', 'Dockerfile.server', 'Dockerfile.console'
         ],
         label: 'Scripts & Docker',
@@ -264,10 +276,47 @@ async function ghListRepoBlobPaths(ref) {
 
 // ======================== HTTP Helpers ===================================
 
+function githubApiError(statusCode, body, headers = {}) {
+    const snippet = String(body || '').slice(0, 200);
+    const rateLimited = (statusCode === 403 || statusCode === 429)
+        && (/rate limit/i.test(body) || headers['x-ratelimit-remaining'] === '0');
+    if (rateLimited) {
+        const resetRaw = headers['x-ratelimit-reset'];
+        const resetAt = resetRaw ? new Date(Number(resetRaw) * 1000).toISOString() : null;
+        const hint = GITHUB_TOKEN
+            ? 'GitHub API rate limit exceeded for the configured token.'
+            : 'GitHub API rate limit exceeded for unauthenticated requests (60/hour). Set UPDATE_GITHUB_TOKEN in the console .env — a read-only Personal Access Token raises the limit to 5,000/hour.';
+        const err = new Error(resetAt ? `${hint} Resets at ${resetAt}.` : hint);
+        err.code = 'GITHUB_RATE_LIMIT';
+        err.statusCode = statusCode;
+        return err;
+    }
+    const err = new Error(`GitHub API ${statusCode}: ${snippet}`);
+    err.statusCode = statusCode;
+    return err;
+}
+
+function isGithubRateLimitError(err) {
+    return !!(err && (err.code === 'GITHUB_RATE_LIMIT' || /rate limit exceeded/i.test(err.message || '')));
+}
+
+function ghGetCacheKey(urlPath) {
+    const url = urlPath.startsWith('https://') ? new URL(urlPath) : new URL(urlPath, GITHUB_API);
+    return url.pathname + url.search;
+}
+
 /**
  * HTTPS GET → parsed JSON. Follows one redirect.
  */
-function ghGet(urlPath) {
+function ghGet(urlPath, { bypassCache = false } = {}) {
+    const cacheKey = ghGetCacheKey(urlPath);
+    if (!bypassCache && GH_GET_CACHE_TTL_MS > 0) {
+        const cached = GH_GET_CACHE.get(cacheKey);
+        if (cached && cached.expires > Date.now()) {
+            return Promise.resolve(cached.data);
+        }
+    }
+
     return new Promise((resolve, reject) => {
         const url = urlPath.startsWith('https://') ? new URL(urlPath) : new URL(urlPath, GITHUB_API);
         const headers = { 'User-Agent': USER_AGENT, 'Accept': 'application/vnd.github+json' };
@@ -275,17 +324,24 @@ function ghGet(urlPath) {
 
         const req = https.get({ hostname: url.hostname, path: url.pathname + url.search, headers }, (res) => {
             if (res.statusCode === 301 || res.statusCode === 302) {
-                return ghGet(res.headers.location).then(resolve, reject);
+                return ghGet(res.headers.location, { bypassCache }).then(resolve, reject);
             }
             const chunks = [];
             res.on('data', (c) => chunks.push(c));
             res.on('end', () => {
                 const body = Buffer.concat(chunks).toString();
                 if (res.statusCode >= 400) {
-                    return reject(new Error(`GitHub API ${res.statusCode}: ${body.slice(0, 200)}`));
+                    return reject(githubApiError(res.statusCode, body, res.headers));
                 }
-                try { resolve(JSON.parse(body)); }
-                catch (_e) { reject(new Error('Invalid JSON from GitHub API')); }
+                try {
+                    const data = JSON.parse(body);
+                    if (GH_GET_CACHE_TTL_MS > 0) {
+                        GH_GET_CACHE.set(cacheKey, { expires: Date.now() + GH_GET_CACHE_TTL_MS, data });
+                    }
+                    resolve(data);
+                } catch (_e) {
+                    reject(new Error('Invalid JSON from GitHub API'));
+                }
             });
         });
         req.on('error', reject);
@@ -294,9 +350,17 @@ function ghGet(urlPath) {
 }
 
 /**
- * Download raw file content from GitHub (binary-safe).
+ * Download raw file content from GitHub (binary-safe), with retry on rate limits.
  */
-function ghDownloadFile(owner, repo, ref, filePath) {
+function isRetryableDownloadStatus(statusCode) {
+    return statusCode === 429 || statusCode === 502 || statusCode === 503 || statusCode === 504;
+}
+
+function getDownloadRetryDelayMs(attempt) {
+    return Math.min(1000 * Math.pow(2, Math.max(0, attempt - 1)), 15000);
+}
+
+function ghDownloadFileOnce(owner, repo, ref, filePath) {
     const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(ref)}/${filePath}`;
     return new Promise((resolve, reject) => {
         const headers = { 'User-Agent': USER_AGENT };
@@ -319,6 +383,30 @@ function ghDownloadFile(owner, repo, ref, filePath) {
         };
         follow(url);
     });
+}
+
+async function ghDownloadFile(owner, repo, ref, filePath, opts = {}) {
+    const maxAttempts = Number(opts.maxAttempts) > 0 ? Number(opts.maxAttempts) : 4;
+    let lastErr;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await ghDownloadFileOnce(owner, repo, ref, filePath);
+        } catch (err) {
+            lastErr = err;
+            const match = /Download failed \((\d+)\)/.exec(err.message || '');
+            const statusCode = match ? Number(match[1]) : 0;
+            if (!isRetryableDownloadStatus(statusCode) || attempt >= maxAttempts) {
+                throw err;
+            }
+            const delayMs = getDownloadRetryDelayMs(attempt);
+            console.warn(
+                `[UPDATE] Download retry ${attempt}/${maxAttempts} for ${filePath}`
+                + ` after ${delayMs}ms (${err.message})`
+            );
+            await new Promise((r) => setTimeout(r, delayMs));
+        }
+    }
+    throw lastErr;
 }
 
 // ======================== Docker image deployment ========================
@@ -357,9 +445,32 @@ function getImageEmbeddedSHA() {
     return null;
 }
 
+function getDockerLayout() {
+    const layout = (process.env.BETTERDESK_DOCKER_LAYOUT || '').trim().toLowerCase();
+    if (layout === 'single' || layout === 'split') return layout;
+    return 'split';
+}
+
 function getDockerUpdateInstructions() {
     const tag = (process.env.BETTERDESK_IMAGE_TAG || 'latest').trim() || 'latest';
     const owner = (process.env.UPDATE_GITHUB_OWNER || GITHUB_OWNER).toLowerCase();
+    const layout = getDockerLayout();
+
+    if (layout === 'single') {
+        return {
+            summary: 'Pull and recreate the official all-in-one container image.',
+            commands: [
+                'docker compose pull',
+                'docker compose up -d'
+            ],
+            images: [
+                `ghcr.io/${owner}/betterdesk:${tag}`
+            ],
+            composeHint: 'docker-compose.quick.single.yml',
+            layout: 'single'
+        };
+    }
+
     return {
         summary: 'Pull and recreate the published container images.',
         commands: [
@@ -370,7 +481,8 @@ function getDockerUpdateInstructions() {
             `ghcr.io/${owner}/betterdesk-console:${tag}`,
             `ghcr.io/${owner}/betterdesk-server:${tag}`
         ],
-        composeHint: 'docker-compose.quick.yml'
+        composeHint: 'docker-compose.quick.yml',
+        layout: 'split'
     };
 }
 
@@ -646,8 +758,15 @@ function readTextFilePrivileged(filePath) {
     try {
         return fs.readFileSync(filePath, 'utf8');
     } catch (err) {
+        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM') && isAllowedSystemdUnitPath(filePath)) {
+            return readSystemdUnitPrivileged(filePath, ROOT_DIR);
+        }
         if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
-            return execSync(`sudo cat ${shellQuote(filePath)}`, { timeout: 5000, stdio: 'pipe' }).toString();
+            try {
+                return execSync(`sudo -n cat ${shellQuote(filePath)}`, { timeout: 5000, stdio: 'pipe' }).toString();
+            } catch (sudoErr) {
+                throw new Error(`${sudoErr.message || sudoErr}. ${privilegedSystemdUnitHint()}`);
+            }
         }
         throw err;
     }
@@ -657,13 +776,12 @@ function writeTextFilePrivileged(filePath, content) {
     try {
         fs.writeFileSync(filePath, content);
     } catch (err) {
-        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
-            execSync(`sudo tee ${shellQuote(filePath)} >/dev/null`, {
-                input: content,
-                timeout: 5000,
-                stdio: ['pipe', 'pipe', 'pipe']
-            });
+        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM') && isAllowedSystemdUnitPath(filePath)) {
+            writeSystemdUnitPrivileged(filePath, content, ROOT_DIR);
             return;
+        }
+        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
+            throw new Error(`${err.message || err}. ${privilegedSystemdUnitHint()}`);
         }
         throw err;
     }
@@ -679,8 +797,143 @@ function runPrivileged(command, options = {}) {
  * RustDesk clients call the consolidated Go API (21121) over HTTP for heartbeat,
  * sysinfo, login and address-book endpoints; -tls-api breaks that contract.
  */
+/**
+ * Ensure MESH_ENABLED=Y is present in Go server service environment (one-time migration).
+ */
+const BILLING_ENV_KEYS = [
+    'NTP_SERVERS',
+    'BILLING_MAX_CLOCK_SKEW_MS',
+    'BILLING_REQUIRE_SYNCED_CLOCK',
+    'BILLING_TRUST_OS_NTP',
+];
+
+function parseEnvFileKeys(content, keys) {
+    const out = {};
+    if (!content || typeof content !== 'string') return out;
+    const wanted = new Set(keys);
+    for (const line of content.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq <= 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        if (!wanted.has(key)) continue;
+        out[key] = trimmed.slice(eq + 1).trim();
+    }
+    return out;
+}
+
+function mergeBillingEnvIntoWindowsServiceExtra(existingExtra, billingVars) {
+    const lines = (existingExtra || '')
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+    const map = new Map();
+    for (const line of lines) {
+        const eq = line.indexOf('=');
+        if (eq <= 0) continue;
+        map.set(line.slice(0, eq), line.slice(eq + 1));
+    }
+    let changed = false;
+    for (const key of BILLING_ENV_KEYS) {
+        if (billingVars[key] === undefined) continue;
+        const nextVal = billingVars[key];
+        if (map.get(key) !== nextVal) {
+            map.set(key, nextVal);
+            changed = true;
+        }
+    }
+    if (!changed) return { text: existingExtra, changed: false };
+    const merged = [...map.entries()].map(([k, v]) => `${k}=${v}`).join('\n');
+    return { text: merged, changed: true };
+}
+
+function syncBillingEnvToWindowsGoServer() {
+    const envPath = path.join(ROOT_DIR, '.env');
+    if (!fs.existsSync(envPath)) return { changed: false };
+    const billingVars = parseEnvFileKeys(fs.readFileSync(envPath, 'utf8'), BILLING_ENV_KEYS);
+    if (!Object.keys(billingVars).length) return { changed: false };
+
+    const serviceName = COMPONENTS.server.service;
+    const serverEnvRaw = execSync(`nssm get "${serviceName}" AppEnvironmentExtra 2>nul`, {
+        timeout: 5000,
+        stdio: 'pipe'
+    }).toString();
+    const patch = mergeBillingEnvIntoWindowsServiceExtra(serverEnvRaw, billingVars);
+    if (!patch.changed) return { changed: false };
+    execFileSync('nssm', ['set', serviceName, 'AppEnvironmentExtra', patch.text], {
+        timeout: 5000,
+        stdio: 'pipe'
+    });
+    return { changed: true };
+}
+
+function ensureMeshEnabledInServiceEnv(envText) {
+    if (!envText || typeof envText !== 'string') return { text: envText, changed: false };
+    if (/^MESH_ENABLED=/m.test(envText)) return { text: envText, changed: false };
+    const trimmed = envText.replace(/\r\n/g, '\n').replace(/\n+$/, '');
+    const line = 'MESH_ENABLED=Y';
+    return { text: trimmed ? `${trimmed}\n${line}` : line, changed: true };
+}
+
+/**
+ * Ensure Go server systemd unit loads console .env (NTP / billing keys for timesync).
+ */
+function ensureGoServerEnvironmentFile(unitText, envFilePath) {
+    if (!unitText || typeof unitText !== 'string') return { text: unitText, changed: false };
+    if (/^EnvironmentFile=/m.test(unitText)) return { text: unitText, changed: false };
+    const envLine = `EnvironmentFile=-${envFilePath}`;
+    if (/^Environment=AUTH_DB_PATH=/m.test(unitText)) {
+        return {
+            text: unitText.replace(/^(Environment=AUTH_DB_PATH=.*)$/m, `${envLine}\n$1`),
+            changed: true
+        };
+    }
+    if (/^\[Service\]/m.test(unitText)) {
+        return {
+            text: unitText.replace(/^\[Service\]/m, `[Service]\n${envLine}`),
+            changed: true
+        };
+    }
+    return { text: `${envLine}\n${unitText}`, changed: true };
+}
+
+/**
+ * Ensure Go signal/relay/API ports are not overridden by shared console .env (#219).
+ * @param {string} unitText
+ * @returns {{ text: string, changed: boolean }}
+ */
+function ensureGoServerSignalRelayPorts(unitText) {
+    if (!unitText || typeof unitText !== 'string') {
+        return { text: unitText, changed: false };
+    }
+    let text = unitText;
+    let changed = false;
+    const ports = [
+        ['SIGNAL_PORT', '21116'],
+        ['RELAY_PORT', '21117'],
+        ['GO_API_PORT', '21114'],
+    ];
+    for (const [key, value] of ports) {
+        const line = `Environment=${key}=${value}`;
+        if (new RegExp(`^Environment=${key}=`, 'm').test(text)) {
+            continue;
+        }
+        if (/^Environment=AUTH_DB_PATH=/m.test(text)) {
+            text = text.replace(/^(Environment=AUTH_DB_PATH=.*)$/m, `$1\n${line}`);
+        } else if (/^\[Service\]/m.test(text)) {
+            text = text.replace(/^\[Service\]/m, `[Service]\n${line}`);
+        } else {
+            text = `${line}\n${text}`;
+        }
+        changed = true;
+    }
+    return { text, changed };
+}
+
 function sanitizeGoServerServiceConfig() {
-    const result = { changed: false, changes: [], error: null };
+    const result = { changed: false, changes: [], error: null, needsRestart: false };
 
     try {
         if (IS_WINDOWS) {
@@ -698,6 +951,32 @@ function sanitizeGoServerServiceConfig() {
                 result.changed = true;
                 result.changes.push('removed Go API TLS flags from NSSM service parameters');
             }
+
+            try {
+                const serverEnvRaw = execSync(`nssm get "${serviceName}" AppEnvironmentExtra 2>nul`, {
+                    timeout: 5000,
+                    stdio: 'pipe'
+                }).toString();
+                const meshPatch = ensureMeshEnabledInServiceEnv(serverEnvRaw);
+                if (meshPatch.changed) {
+                    execFileSync('nssm', ['set', serviceName, 'AppEnvironmentExtra', meshPatch.text], {
+                        timeout: 5000,
+                        stdio: 'pipe'
+                    });
+                    result.changed = true;
+                    result.needsRestart = true;
+                    result.changes.push('set MESH_ENABLED=Y on BetterDesk Go Server NSSM environment');
+                }
+            } catch (_e) { /* server service may not exist */ }
+
+            try {
+                const billingPatch = syncBillingEnvToWindowsGoServer();
+                if (billingPatch.changed) {
+                    result.changed = true;
+                    result.needsRestart = true;
+                    result.changes.push('synced billing/NTP env to BetterDesk Go Server NSSM environment');
+                }
+            } catch (_e) { /* server service may not exist */ }
 
             try {
                 const consoleService = COMPONENTS.console.service;
@@ -734,11 +1013,41 @@ function sanitizeGoServerServiceConfig() {
             .replace(/Environment=HBBS_API_URL=https:\/\/localhost/g, 'Environment=HBBS_API_URL=http://localhost')
             .replace(/Environment=BETTERDESK_API_URL=https:\/\/localhost/g, 'Environment=BETTERDESK_API_URL=http://localhost');
 
+        if (!/^Environment=MESH_ENABLED=/m.test(clean)) {
+            const meshLine = 'Environment=MESH_ENABLED=Y';
+            if (/^Environment=AUTH_DB_PATH=/m.test(clean)) {
+                clean = clean.replace(/^(Environment=AUTH_DB_PATH=.*)$/m, `$1\n${meshLine}`);
+            } else if (/^\[Service\]/m.test(clean)) {
+                clean = clean.replace(/^\[Service\]/m, `[Service]\n${meshLine}`);
+            } else {
+                clean = `${meshLine}\n${clean}`;
+            }
+            result.needsRestart = true;
+            result.changes.push('set MESH_ENABLED=Y in betterdesk-server systemd unit');
+        }
+
+        const consoleEnvPath = path.join(ROOT_DIR, '.env');
+        const envFilePatch = ensureGoServerEnvironmentFile(clean, consoleEnvPath);
+        if (envFilePatch.changed) {
+            clean = envFilePatch.text;
+            result.needsRestart = true;
+            result.changes.push('set EnvironmentFile for console .env on betterdesk-server systemd unit');
+        }
+
+        const signalPortPatch = ensureGoServerSignalRelayPorts(clean);
+        if (signalPortPatch.changed) {
+            clean = signalPortPatch.text;
+            result.needsRestart = true;
+            result.changes.push('set SIGNAL_PORT=21116 / RELAY_PORT=21117 / GO_API_PORT=21114 on betterdesk-server systemd unit (#219)');
+        }
+
         if (clean !== original) {
             writeTextFilePrivileged(fragmentPath, clean);
             runPrivileged('systemctl daemon-reload', { timeout: 10000, stdio: 'pipe' });
             result.changed = true;
-            result.changes.push('removed Go API TLS flags from systemd service');
+            if (!result.changes.some((c) => c.includes('MESH_ENABLED'))) {
+                result.changes.push('patched betterdesk-server systemd unit');
+            }
         }
     } catch (err) {
         result.error = err.message || String(err);
@@ -935,15 +1244,19 @@ function detectServerBinaryPath() {
     // 3. Well-known installation paths
     const candidates = IS_WINDOWS
         ? [
+            path.join(config.rustdeskDir || 'C:\\BetterDesk', 'betterdesk-server.exe'),
+            'C:\\BetterDesk\\betterdesk-server.exe',
             'C:\\betterdesk\\betterdesk-server.exe',
             'C:\\Program Files\\BetterDesk\\betterdesk-server.exe',
-            path.join(PROJECT_ROOT, 'betterdesk-server', 'betterdesk-server.exe')
+            path.join(PROJECT_ROOT, 'betterdesk-server', 'betterdesk-server.exe'),
+            path.join(ROOT_DIR, 'betterdesk-server', 'betterdesk-server.exe'),
         ]
         : [
             '/opt/rustdesk/betterdesk-server',
             '/opt/betterdesk/betterdesk-server',
             '/usr/local/bin/betterdesk-server',
-            path.join(PROJECT_ROOT, 'betterdesk-server', 'betterdesk-server')
+            path.join(PROJECT_ROOT, 'betterdesk-server', 'betterdesk-server'),
+            path.join(ROOT_DIR, 'betterdesk-server', 'betterdesk-server'),
         ];
 
     for (const p of candidates) {
@@ -1458,13 +1771,39 @@ async function _installGoToolchainBody(onProgress, opts = {}) {
     }
 }
 
-/** Refresh Linux sudoers/permissions before server binary deploy (issue #182). */
+/** Refresh Linux sudoers/permissions (issue #182). Runs ensure script as root when possible. */
 function syncLinuxPanelUpdatePrivileges() {
     if (IS_WINDOWS) return { skipped: true, reason: 'not-linux' };
-    try {
+
+    const ensureScript = path.join(ROOT_DIR, 'scripts/linux-ensure-console-user.js');
+
+    const runEnsureInProcess = () => {
         const modPath = require.resolve('../scripts/linux-ensure-console-user');
         delete require.cache[modPath];
         return require('../scripts/linux-ensure-console-user').ensureLinuxConsoleServiceUser();
+    };
+
+    try {
+        if (typeof process.getuid === 'function' && process.getuid() !== 0 && fs.existsSync(ensureScript)) {
+            try {
+                const out = execFileSync('sudo', ['-n', process.execPath, ensureScript], {
+                    encoding: 'utf8',
+                    timeout: 120000,
+                    stdio: ['pipe', 'pipe', 'pipe'],
+                });
+                const parsed = JSON.parse(String(out || '').trim() || '{}');
+                if (parsed.error) {
+                    console.warn(`[UPDATE] Linux privilege sync reported: ${parsed.error}`);
+                }
+                return parsed;
+            } catch (sudoErr) {
+                console.warn(
+                    `[UPDATE] Privileged ensure via sudo failed (${sudoErr.message || sudoErr});`
+                    + ' trying in-process (sudoers may need one deploy cycle or root repair)'
+                );
+            }
+        }
+        return runEnsureInProcess();
     } catch (err) {
         console.warn(`[UPDATE] Linux privilege sync warning: ${err.message}`);
         return { error: err.message || String(err) };
@@ -1940,6 +2279,21 @@ async function createPreUpdateBackup(allFiles) {
         files: allFiles.filter(f => f.component === 'console' && f.localPath).map(f => f.localPath)
     }, null, 2));
 
+    // Mesh agent-server cert (loss requires re-enrolling all MeshAgents)
+    try {
+        const rustdeskDir = config.rustdeskDir || config.keysPath;
+        if (rustdeskDir) {
+            const meshCert = path.join(rustdeskDir, 'mesh_agent_server.pem');
+            if (fs.existsSync(meshCert)) {
+                const dest = resolveChildPath(backupPath, 'mesh_agent_server.pem');
+                fs.copyFileSync(meshCert, dest);
+                backedUp++;
+            }
+        }
+    } catch (err) {
+        console.warn(`[UPDATE] Mesh agent cert backup skipped: ${err.message}`);
+    }
+
     // Auto-prune old backups based on retention setting.
     // Resolution order: DB setting `backup_retention_count` → env var
     // BACKUP_RETENTION_COUNT → 0 (keep all). Operator-controlled.
@@ -2003,8 +2357,14 @@ function patchServiceDefinitions() {
             goPatch.changed = true;
             goPatch.changes.push(...(consolePatch.changes || []));
         }
-        if (consolePatch.error) {
+        if (consolePatch.fatal && consolePatch.error) {
             goPatch.consoleUserError = consolePatch.error;
+        }
+        if (consolePatch.warnings && consolePatch.warnings.length) {
+            goPatch.consoleUserWarnings = consolePatch.warnings;
+        }
+        if (consolePatch.error && !consolePatch.fatal) {
+            goPatch.consoleUserWarnings = (goPatch.consoleUserWarnings || []).concat(consolePatch.error);
         }
         if (typeof consolePatch.permissionsOk === 'boolean') {
             goPatch.consolePermissionsOk = consolePatch.permissionsOk;
@@ -2178,7 +2538,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     continue;
                 }
                 const content = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, file.path);
-                fs.mkdirSync(path.dirname(dest), { recursive: true });
+                ensureParentDirForFile(dest);
                 fs.writeFileSync(dest, content);
                 if (!IS_WINDOWS && file.localPath.endsWith('.sh')) {
                     try { fs.chmodSync(dest, 0o755); } catch (_e) { /* ok */ }
@@ -2186,9 +2546,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 results.applied.push(file.path);
             } catch (err) {
                 const entry = { file: file.path, error: err.message };
-                if (err.code === 'EACCES' || /permission denied/i.test(err.message || '')) {
+                if (isUpdatePermissionError(err)) {
                     entry.nonCritical = true;
-                    console.warn(`[UPDATE] Skipping root-owned script (no write access): ${file.path}`);
+                    console.warn(`[UPDATE] Skipping installer script (no write access): ${file.path}`);
                 }
                 results.failed.push(entry);
             }
@@ -2307,9 +2667,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 results.applied.push(file.path);
             } catch (err) {
                 const entry = { file: file.path, error: err.message };
-                if (err.code === 'EACCES' || /permission denied/i.test(err.message || '')) {
+                if (isUpdatePermissionError(err)) {
                     entry.nonCritical = true;
-                    console.warn(`[UPDATE] Skipping root-owned server source file (no write access): ${file.path}`);
+                    console.warn(`[UPDATE] Skipping server source file (no write access): ${file.path}`);
                 }
                 results.failed.push(entry);
             }
@@ -2409,6 +2769,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                         nonCritical: true,
                     });
                 }
+                if (serviceConfig.needsRestart) {
+                    results.needsServerRestart = true;
+                }
                 results.needsServerRestart = true;
                 // Fresh binary (with updated dependencies) is in place — any
                 // previous staleness warning no longer applies.
@@ -2499,7 +2862,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         // ---- Pull remote VERSION file ----
         try {
             const versionContent = await ghDownloadFile(GITHUB_OWNER, GITHUB_REPO, remoteSHA, 'VERSION');
-            fs.writeFileSync(path.join(PROJECT_ROOT, 'VERSION'), versionContent);
+            const versionDest = path.join(PROJECT_ROOT, 'VERSION');
+            ensureParentDirForFile(versionDest);
+            fs.writeFileSync(versionDest, versionContent);
         } catch (_e) { /* non-critical */ }
 
         if (nonCriticalFailures.length > 0) {
@@ -2520,6 +2885,9 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     }
 
     if (serverSourceChanged || results.needsServerRestart || results.needsConsoleRestart) {
+        if (!IS_WINDOWS) {
+            results.linuxPrivilegeSyncFinal = syncLinuxPanelUpdatePrivileges();
+        }
         results.servicePatch = patchServiceDefinitions();
     }
 
@@ -2556,7 +2924,20 @@ function restartService(serviceName) {
         }
         return { success: true, service: serviceName };
     } catch (err) {
-        return { success: false, service: serviceName, error: err.message };
+        const message = err.message || String(err);
+        // Console service account often lacks rights to OpenService on sibling
+        // NSSM units (BetterDeskServer). Treat as non-critical so SHA save /
+        // success banner are not blocked — operator can restart via PS1 (#272).
+        const nonCritical = IS_WINDOWS && /access is denied|OpenService/i.test(message);
+        return {
+            success: false,
+            service: serviceName,
+            error: message,
+            nonCritical,
+            hint: nonCritical
+                ? 'Restart BetterDeskServer manually (Admin PowerShell: nssm restart BetterDeskServer) or run betterdesk.ps1 → Update'
+                : undefined,
+        };
     }
 }
 
@@ -2937,6 +3318,9 @@ module.exports = {
     createPreUpdateBackup,
     applyUpdate,
     runUpdatePreflight,
+    sanitizeGoServerServiceConfig,
+    syncBillingEnvToWindowsGoServer,
+    BILLING_ENV_KEYS,
     restartService,
     daemonReload,
     listBackups,
@@ -2962,11 +3346,18 @@ module.exports = {
     getImageEmbeddedSHA,
     bootstrapDockerImageDeployment,
     getDockerUpdateInstructions,
+    isGithubRateLimitError,
+    ensureMeshEnabledInServiceEnv,
+    ensureGoServerEnvironmentFile,
+    ensureGoServerSignalRelayPorts,
+    githubApiError,
     COMPONENTS,
     NON_CRITICAL_UPDATE_FAILURES,
     isNonCriticalUpdateFailure,
     GITHUB_COMPARE_FILE_LIMIT,
     isCompareLikelyTruncated,
+    isRetryableDownloadStatus,
+    getDownloadRetryDelayMs,
     resolveConsoleRequire,
     collectConsoleRequiredFiles,
     isResolvedByIndexModule,
@@ -2974,6 +3365,9 @@ module.exports = {
     splitUpdateFailures,
     repairMissingConsoleFiles,
     resolveServerSourceRootForUpdate,
+    resolveProjectRoot,
+    ensureParentDirForFile,
+    isUpdatePermissionError,
     readLastUpdateResult: () => require('../lib/updateResultStore').readLastUpdateResult(config.dataDir),
     ensureConsoleSource,
 };

@@ -18,50 +18,55 @@ const config = require('../config/config');
 function initCdapTerminalProxy(server, sessionMiddleware) {
     const wss = new WebSocket.Server({ noServer: true });
     const { enforceOrigin } = require('../middleware/wsOrigin');
+    const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
-    server.on('upgrade', (req, socket, head) => {
-        const url = new URL(req.url, `http://${req.headers.host}`);
-        const pathname = url.pathname;
+    registerUpgradeHandler(
+        server,
+        (pathname) => /^\/api\/cdap\/devices\/[A-Za-z0-9_-]{6,30}\/terminal$/.test(pathname),
+        (req, socket, head) => {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const pathname = url.pathname;
 
-        // Match /api/cdap/devices/:id/terminal
-        const match = pathname.match(/^\/api\/cdap\/devices\/([A-Za-z0-9_-]{6,30})\/terminal$/);
-        if (!match) return; // Let other upgrade handlers deal with it
+            // Match /api/cdap/devices/:id/terminal
+            const match = pathname.match(/^\/api\/cdap\/devices\/([A-Za-z0-9_-]{6,30})\/terminal$/);
+            if (!match) return;
 
-        const deviceId = match[1];
+            const deviceId = match[1];
 
-        // CSWSH protection — reject before validating session.
-        if (!enforceOrigin(req, socket, `cdap-terminal ${pathname}`)) return;
+            // CSWSH protection — reject before validating session.
+            if (!enforceOrigin(req, socket, `cdap-terminal ${pathname}`)) return;
 
-        // Require session authentication
-        sessionMiddleware(req, {}, () => {
-            if (!req.session || !req.session.userId) {
-                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-                socket.destroy();
-                return;
-            }
+            // Require session authentication
+            sessionMiddleware(req, {}, () => {
+                if (!req.session || !req.session.userId) {
+                    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
 
-            // Session may store user under req.session.user (object) or as
-            // flat fields. Accept either; treat super_admin/admin as admin.
-            const sessUser = req.session.user || {};
-            const userRole = sessUser.role || req.session.role || '';
-            const userName = sessUser.username || req.session.username || `user#${req.session.userId}`;
+                // Session may store user under req.session.user (object) or as
+                // flat fields. Accept either; treat super_admin/admin as admin.
+                const sessUser = req.session.user || {};
+                const userRole = sessUser.role || req.session.role || '';
+                const userName = sessUser.username || req.session.username || `user#${req.session.userId}`;
 
-            // RBAC: only admin / super_admin users can access terminal
-            if (userRole !== 'admin' && userRole !== 'super_admin') {
-                console.warn(`[CDAP Terminal] 403 upgrade rejected (user=${userName} role=${userRole})`);
-                socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-                socket.destroy();
-                return;
-            }
+                // RBAC: only admin / super_admin users can access terminal
+                if (userRole !== 'admin' && userRole !== 'super_admin') {
+                    console.warn(`[CDAP Terminal] 403 upgrade rejected (user=${userName} role=${userRole})`);
+                    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
 
-            req._cdapUserName = userName;
-            req._cdapUserRole = userRole;
+                req._cdapUserName = userName;
+                req._cdapUserRole = userRole;
 
-            wss.handleUpgrade(req, socket, head, (ws) => {
-                wss.emit('connection', ws, req, deviceId);
+                wss.handleUpgrade(req, socket, head, (ws) => {
+                    wss.emit('connection', ws, req, deviceId);
+                });
             });
-        });
-    });
+        }
+    );
 
     wss.on('connection', (browserWs, req, deviceId) => {
         const username = req._cdapUserName || req.session?.user?.username || 'admin';

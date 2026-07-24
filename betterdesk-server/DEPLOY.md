@@ -194,7 +194,14 @@ sudo firewall-cmd --reload
 | `TLS_CERT`             | -          | TLS certificate path                |
 | `TLS_KEY`              | -          | TLS private key path                |
 | `PEER_TIMEOUT_SECS`    | 15         | Seconds before peer marked offline  |
-| `TRUST_PROXY`          | N          | Trust X-Forwarded-For header        |
+| `TRUST_PROXY`          | N          | Trust X-Forwarded-For / X-Real-IP (requires `TRUSTED_PROXIES`) |
+| `TRUSTED_PROXIES`       | (empty)    | Comma-separated CIDR/IP allowlist of reverse proxies; empty = ignore forwarded headers |
+| `NTP_SERVERS`            | public pools | Comma-separated NTP hostnames/IPs for billing clock checks |
+| `BILLING_MAX_CLOCK_SKEW_MS` | 2000    | Max allowed clock offset vs NTP (ms) |
+| `BILLING_REQUIRE_SYNCED_CLOCK` | Y (Linux default) | Block billable sessions when clock unsynced |
+| `BILLING_TRUST_OS_NTP`   | Y on Linux, N elsewhere | Trust `timedatectl` when direct NTP queries fail |
+
+NTP/billing variables are stored in the web console `.env` on native installs. Linux `betterdesk-server.service` loads that file via `EnvironmentFile`. After changing NTP settings, restart **betterdesk-server** (not only the console). The panel path: **Commercialization → Settings → Server time (NTP)**.
 
 For NGINX `stream` or other UDP/TCP reverse proxy deployments, remember that signal traffic on `21116` is not HTTP and cannot carry `X-Forwarded-For`. `TRUST_PROXY` only applies to HTTP/API handlers. If many legitimate devices share the same proxy address, raise `SIGNAL_RATE_LIMIT_PER_IP` or set it to `0` only on trusted private networks.
 

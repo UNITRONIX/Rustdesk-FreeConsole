@@ -6,6 +6,7 @@
 const { manager } = require('../services/i18nService');
 const config = require('../config/config');
 const brandingService = require('../services/brandingService');
+const { escapeHtml } = require('../lib/escapeHtml');
 
 /**
  * Parse Accept-Language header
@@ -92,6 +93,7 @@ function i18nMiddleware(req, res, next) {
     // Translation function
     res.locals._ = (key, vars) => manager.translate(lang, key, vars);
     res.locals.t = res.locals._; // Alias
+    res.locals.escapeHtml = escapeHtml;
     
     // Store on request object too
     req.lang = lang;

@@ -4,10 +4,15 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-function loadUpdateService({ dataDir, imageSha }) {
+function loadUpdateService({ dataDir, imageSha, dockerLayout }) {
     jest.resetModules();
     if (imageSha) process.env.BETTERDESK_IMAGE_SHA = imageSha;
     process.env.BETTERDESK_UPDATE_MODE = 'image';
+    if (dockerLayout) {
+        process.env.BETTERDESK_DOCKER_LAYOUT = dockerLayout;
+    } else {
+        delete process.env.BETTERDESK_DOCKER_LAYOUT;
+    }
 
     jest.doMock('../config/config', () => ({
         isDocker: true,
@@ -33,6 +38,7 @@ describe('updateService docker image deployment', () => {
     afterEach(() => {
         jest.resetModules();
         jest.dontMock('../config/config');
+        delete process.env.BETTERDESK_DOCKER_LAYOUT;
         fs.rmSync(tmpRoot, { recursive: true, force: true });
     });
 
@@ -86,5 +92,30 @@ describe('updateService docker image deployment', () => {
         expect(result.success).toBe(false);
         expect(result.dockerMode).toBe(true);
         expect(result.error).toMatch(/not available in Docker/i);
+    });
+
+    test('getDockerUpdateInstructions returns split images by default', () => {
+        const updateService = loadUpdateService({
+            dataDir,
+            imageSha: 'abc123def4567890abcdef1234567890abcdef'
+        });
+
+        const instructions = updateService.getDockerUpdateInstructions();
+        expect(instructions.layout).toBe('split');
+        expect(instructions.images).toHaveLength(2);
+        expect(instructions.composeHint).toBe('docker-compose.quick.yml');
+    });
+
+    test('getDockerUpdateInstructions returns single all-in-one image', () => {
+        const updateService = loadUpdateService({
+            dataDir,
+            imageSha: 'abc123def4567890abcdef1234567890abcdef',
+            dockerLayout: 'single'
+        });
+
+        const instructions = updateService.getDockerUpdateInstructions();
+        expect(instructions.layout).toBe('single');
+        expect(instructions.images).toEqual(['ghcr.io/unitronix/betterdesk:latest']);
+        expect(instructions.composeHint).toBe('docker-compose.quick.single.yml');
     });
 });

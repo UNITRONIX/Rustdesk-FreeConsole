@@ -129,6 +129,17 @@ async function authenticateRequest(req) {
 }
 
 /**
+ * Panel browser requests use session cookies, not Bearer tokens.
+ * Fall through to panel routes mounted later in server.js (same as GET /api/users).
+ */
+function fallthroughUnlessBearer(req, res, next) {
+    if (!extractBearerToken(req)) {
+        return next('route');
+    }
+    next();
+}
+
+/**
  * Middleware: require Bearer auth
  */
 async function requireAuth(req, res, next) {
@@ -638,14 +649,28 @@ async function getRustDeskPeerList(user, params = {}) {
     };
 }
 
-async function sendRustDeskDeviceGroups(req, res) {
+function rustDeskAccessibleDeviceGroupPayload(group, index) {
+    const guid = String(group.guid || '').trim();
+    return {
+        name: group.name || '',
+        guid,
+        note: group.note || '',
+        sort: typeof index === 'number' ? index : 0
+    };
+}
+
+async function sendRustDeskDeviceGroups(req, res, accessibleOnly = null) {
     try {
         if (req.authUser && req.authUser.role === 'pro') {
             return res.json({ data: [], total: 0, msg: 'success' });
         }
+        const useAccessible = typeof accessibleOnly === 'boolean'
+            ? accessibleOnly
+            : String(req.path || '').includes('/device-group/accessible');
         const groups = await getRustDeskDeviceGroups(req.authUser);
+        const payloadFn = useAccessible ? rustDeskAccessibleDeviceGroupPayload : rustDeskDeviceGroupPayload;
         return res.json({
-            data: groups.map((g, i) => rustDeskDeviceGroupPayload(g, i)),
+            data: groups.map((g, i) => payloadFn(g, i)),
             total: groups.length,
             msg: 'success'
         });
@@ -659,12 +684,22 @@ async function sendRustDeskDeviceGroups(req, res) {
 
 /**
  * GET /api/login-options
- * Returns available login methods.
- * RustDesk client calls this to check for OIDC providers.
- * We only support account-password.
+ * Returns available login methods for the stock RustDesk client.
+ * When OIDC is enabled on the Go API, includes oidc/<displayName>.
+ * Legacy Node-only mode falls back to password-only.
  */
-router.get('/api/login-options', (req, res) => {
-    res.json(['']);
+router.get('/api/login-options', async (req, res) => {
+    if (config.serverBackend === 'betterdesk') {
+        try {
+            const result = await betterdeskApi.apiClient.get('/login-options', { timeout: 5000 });
+            if (result && result.data && Array.isArray(result.data)) {
+                return res.json(result.data);
+            }
+        } catch (err) {
+            console.warn('[API] login-options proxy failed:', err.message);
+        }
+    }
+    return res.json(['']);
 });
 
 /**
@@ -1169,26 +1204,30 @@ router.post('/api/device-group', requireAuth, requireAdmin, async (req, res) => 
         }
 
         if (payload.guid) {
-            // Update existing
+            const updateFields = deviceGroupService.buildDeviceGroupUpdateFields(payload);
             const updated = await db.updateDeviceGroup(payload.guid, {
-                name: sanitizeStr(payload.name, MAX_HOSTNAME_LEN),
-                note: sanitizeStr(payload.note || '', MAX_STRING_LEN),
-                team_id: sanitizeStr(payload.team_id || '', 64),
-                source_type: payload.source_type,
-                tag_filter: payload.tag_filter
+                name: sanitizeStr(updateFields.name, MAX_HOSTNAME_LEN),
+                source_type: updateFields.source_type,
+                tag_filter: updateFields.tag_filter,
+                ...(Object.prototype.hasOwnProperty.call(updateFields, 'note')
+                    ? { note: sanitizeStr(updateFields.note || '', MAX_STRING_LEN) }
+                    : {}),
+                ...(Object.prototype.hasOwnProperty.call(updateFields, 'team_id')
+                    ? { team_id: sanitizeStr(updateFields.team_id || '', 64) }
+                    : {})
             });
             if (!updated) {
                 return res.status(404).json({ error: 'Group not found' });
             }
             return res.json(updated);
         } else {
-            // Create new
+            const createFields = deviceGroupService.buildDeviceGroupCreateFields(payload);
             const created = await db.createDeviceGroup({
-                name: sanitizeStr(payload.name, MAX_HOSTNAME_LEN),
-                note: sanitizeStr(payload.note || '', MAX_STRING_LEN),
-                team_id: sanitizeStr(payload.team_id || '', 64),
-                source_type: payload.source_type,
-                tag_filter: payload.tag_filter
+                name: sanitizeStr(createFields.name, MAX_HOSTNAME_LEN),
+                note: sanitizeStr(createFields.note || '', MAX_STRING_LEN),
+                team_id: sanitizeStr(createFields.team_id || '', 64),
+                source_type: createFields.source_type,
+                tag_filter: createFields.tag_filter
             });
             return res.json(created);
         }
@@ -1870,7 +1909,7 @@ router.post('/api/user-groups', requireAuth, requireAdmin, async (req, res) => {
  * GET /api/strategies
  * List all access control strategies.
  */
-router.get('/api/strategies', requireAuth, async (req, res) => {
+router.get('/api/strategies', fallthroughUnlessBearer, requireAuth, async (req, res) => {
     try {
         const strategies = await db.getAllStrategies();
         return res.json({
@@ -1926,6 +1965,127 @@ router.post('/api/strategies', requireAuth, requireAdmin, async (req, res) => {
     } catch (err) {
         console.error('[API:STRATEGIES] Create/update error:', err.message);
         return res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * DELETE /api/strategies/:guid
+ * Remove an access control strategy (admin only).
+ */
+router.delete('/api/strategies/:guid', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const guid = sanitizeStr(req.params.guid || '', 64);
+        if (!guid) {
+            return res.status(400).json({ error: 'Strategy guid is required' });
+        }
+        const existing = await db.getStrategyByGuid(guid);
+        if (!existing) {
+            return res.status(404).json({ error: 'Strategy not found' });
+        }
+        await db.deleteStrategy(guid);
+        return res.json({ status: 'deleted', guid });
+    } catch (err) {
+        console.error('[API:STRATEGIES] Delete error:', err.message);
+        return res.status(500).json({ error: 'Server error' });
+    }
+});
+
+async function resolveRustDeskStrategyRefs(body = {}) {
+    const peers = [];
+    for (const ref of body.peers || []) {
+        peers.push(await db.resolvePeerAssignmentKey(ref));
+    }
+    const users = [];
+    for (const ref of body.users || []) {
+        users.push(await db.resolveUserAssignmentKey(ref));
+    }
+    const groups = [];
+    for (const ref of body.groups || []) {
+        groups.push(await db.resolveDeviceGroupAssignmentKey(ref));
+    }
+    return { peers, users, groups };
+}
+
+/**
+ * GET /api/strategies/:guid
+ */
+router.get('/api/strategies/:guid', fallthroughUnlessBearer, requireAuth, async (req, res) => {
+    try {
+        const guid = sanitizeStr(req.params.guid || '', 64);
+        if (!guid) return res.status(400).json({ error: 'Strategy guid is required' });
+        const strategy = await db.getStrategyByGuid(guid);
+        if (!strategy) return res.status(404).json({ error: 'Strategy not found' });
+        const summary = await db.getStrategyAssignmentSummary(guid);
+        return res.json({
+            guid: strategy.guid,
+            name: strategy.name,
+            user_group_guid: strategy.user_group_guid || '',
+            device_group_guid: strategy.device_group_guid || '',
+            enabled: strategy.enabled === 1 || strategy.enabled === true,
+            permissions: strategy.permissions || {},
+            ...summary,
+        });
+    } catch (err) {
+        console.error('[API:STRATEGIES] Get error:', err.message);
+        return res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/**
+ * POST /api/strategies/assign
+ */
+router.post('/api/strategies/assign', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const body = req.body || {};
+        if (!(body.peers?.length || body.users?.length || body.groups?.length)) {
+            return res.status(400).json({ error: 'At least one target is required' });
+        }
+        const strategyGuid = sanitizeStr(body.strategy || '', 64);
+        const resolved = await resolveRustDeskStrategyRefs(body);
+        await db.assignStrategy(strategyGuid, resolved);
+        return res.json({ status: 'ok' });
+    } catch (err) {
+        console.error('[API:STRATEGIES] Assign error:', err.message);
+        return res.status(400).json({ error: err.message || 'Assign failed' });
+    }
+});
+
+/**
+ * PUT /api/strategies/:guid/status — body is raw JSON true/false
+ */
+router.put('/api/strategies/:guid/status', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const guid = sanitizeStr(req.params.guid || '', 64);
+        if (!guid) return res.status(400).json({ error: 'Strategy guid is required' });
+        const enabled = req.body === true || req.body === 'true';
+        await db.setStrategyEnabled(guid, enabled);
+        return res.json({ status: 'ok' });
+    } catch (err) {
+        console.error('[API:STRATEGIES] Status error:', err.message);
+        const status = err.message?.includes('not found') ? 404 : 500;
+        return res.status(status).json({ error: err.message || 'Server error' });
+    }
+});
+
+/**
+ * GET /api/devices — Pro admin list (id + guid)
+ */
+router.get('/api/devices', fallthroughUnlessBearer, requireAuth, async (req, res) => {
+    try {
+        const idFilter = sanitizeStr(req.query.id || '', 64);
+        const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 50, 1), 1000);
+        const devices = await db.getAllDevices({ includeDeleted: false, limit: pageSize });
+        let rows = devices.map(d => ({ id: d.id, guid: d.guid || d.uuid || '' }));
+        if (idFilter) rows = rows.filter(d => d.id === idFilter);
+        for (const row of rows) {
+            if (!row.guid) {
+                try { row.guid = await db.resolvePeerAssignmentKey(row.id); } catch (_) {}
+            }
+        }
+        return res.json({ total: rows.length, data: rows });
+    } catch (err) {
+        console.error('[API:DEVICES] List error:', err.message);
+        return res.json({ total: 0, data: [] });
     }
 });
 

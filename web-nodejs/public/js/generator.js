@@ -46,7 +46,7 @@
         slugManual: false,
         previewTimer: null,
         buildsPollTimer: null,
-        productType: 'agent',
+        productType: 'agent-client',
     };
 
     const $ = (id) => document.getElementById(id);
@@ -383,9 +383,16 @@
             const revokedBadge = bundle.revoked
                 ? `<span class="badge-revoked">${escapeText(t('generator.revoked', 'Revoked'))}</span>`
                 : '';
+            const pt = bundle.product_type || 'agent-client';
+            const productBadge = pt === 'rdclient'
+                ? `<span class="badge-product">${escapeText(t('generator.product_rdclient', 'RdClient'))}</span>`
+                : pt === 'support-agent' || pt === 'agent'
+                    ? `<span class="badge-product">${escapeText(t('generator.product_support_agent', 'Support'))}</span>`
+                    : `<span class="badge-product">${escapeText(t('generator.product_agent_client', 'Agent Client'))}</span>`;
             item.innerHTML = `
                 <div class="bundle-item-title">
                     ${escapeText(bundle.name || bundle.bundle_id)}
+                    ${productBadge}
                     ${revokedBadge}
                 </div>
                 <div class="bundle-item-meta">
@@ -428,9 +435,13 @@
         state.currentBuilds = [];
         state.dirty = false;
         state.slugManual = false;
-        state.productType = productType || 'agent';
+        state.productType = productType || 'agent-client';
         stopBuildsPoll();
-        const titleKey = state.productType === 'rdclient' ? 'generator.rdclient_new_bundle' : 'generator.new_bundle';
+        const titleKey = state.productType === 'rdclient'
+            ? 'generator.rdclient_new_bundle'
+            : state.productType === 'support-agent'
+                ? 'generator.support_agent_new_bundle'
+                : 'generator.agent_client_new_bundle';
         els['gen-editor-title'].innerHTML = `<span class="material-icons">add_circle</span> ${escapeText(t(titleKey, 'New bundle'))}`;
         els['gen-name'].value = '';
         if (els['gen-slug']) els['gen-slug'].value = '';
@@ -456,7 +467,7 @@
     function setEditorForBundle(bundle) {
         state.currentId = bundle.bundle_id;
         state.currentBundle = bundle;
-        state.productType = bundle.product_type || 'agent';
+        state.productType = bundle.product_type || 'agent-client';
         state.dirty = false;
         state.slugManual = true;
         stopBuildsPoll();
@@ -658,7 +669,9 @@
     }
 
     function bindEvents() {
-        els['gen-new-bundle'].addEventListener('click', () => setEditorForNew('agent'));
+        els['gen-new-bundle'].addEventListener('click', () => setEditorForNew('agent-client'));
+        const supportBtn = $('gen-new-support');
+        if (supportBtn) supportBtn.addEventListener('click', () => setEditorForNew('support-agent'));
         const rdBtn = $('gen-new-rdclient');
         if (rdBtn) rdBtn.addEventListener('click', () => setEditorForNew('rdclient'));
         els['gen-save-btn'].addEventListener('click', saveBundle);

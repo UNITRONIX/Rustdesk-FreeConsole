@@ -48,6 +48,26 @@ async function setFolderAllowedUsers(folder, allowedUsers) {
     return db.setDeviceGroupUserAccess(group.guid, deviceGroupService.normalizeUsernames(allowedUsers));
 }
 
+async function getFolderAllowedGroups(folderId) {
+    try {
+        const group = await db.getDeviceGroupByGuid(folderGroupGuid(folderId));
+        return Array.isArray(group && group.allowed_groups) ? group.allowed_groups : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+async function setFolderAllowedUserGroups(folder, allowedGroups) {
+    const group = await ensureFolderDeviceGroup(folder);
+    return db.setDeviceGroupUserGroupAccess(group.guid, deviceGroupService.normalizeGroupGuids(allowedGroups));
+}
+
+async function enrichFolderAccess(folder) {
+    folder.allowed_users = await getFolderAllowedUsers(folder.id);
+    folder.allowed_groups = await getFolderAllowedGroups(folder.id);
+    return folder;
+}
+
 /**
  * GET /api/folders - Get all folders
  */
@@ -66,7 +86,7 @@ router.get('/api/folders', requireAuth, requirePermission('device.view'), async 
             }
             for (const f of folders) {
                 f.device_count = countMap[Number(f.id)] || 0;
-                f.allowed_users = await getFolderAllowedUsers(f.id);
+                await enrichFolderAccess(f);
             }
         } catch (err) {
             console.error('Failed to compute folder device counts:', err.message);
@@ -93,7 +113,7 @@ router.get('/api/folders', requireAuth, requirePermission('device.view'), async 
  */
 router.post('/api/folders', requireAuth, requirePermission('device.edit'), async (req, res) => {
     try {
-        const { name, color, icon, allowed_users } = req.body;
+        const { name, color, icon, allowed_users, allowed_groups } = req.body;
         
         if (!name || name.trim().length === 0) {
             return res.status(400).json({
@@ -119,7 +139,10 @@ router.post('/api/folders', requireAuth, requirePermission('device.edit'), async
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'allowed_users')) {
             await setFolderAllowedUsers(folder, allowed_users);
         }
-        folder.allowed_users = await getFolderAllowedUsers(folder.id);
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'allowed_groups')) {
+            await setFolderAllowedUserGroups(folder, allowed_groups);
+        }
+        await enrichFolderAccess(folder);
         
         // Log action
         await db.logAction(req.session.userId, 'folder_created', `Created folder: ${name}`, req.ip);
@@ -145,7 +168,7 @@ router.post('/api/folders', requireAuth, requirePermission('device.edit'), async
 router.patch('/api/folders/:id', requireAuth, requirePermission('device.edit'), async (req, res) => {
     try {
         const folderId = parseInt(req.params.id, 10);
-        const { name, color, icon, allowed_users } = req.body;
+        const { name, color, icon, allowed_users, allowed_groups } = req.body;
         
         const folder = await db.getFolderById(folderId);
         if (!folder) {
@@ -184,6 +207,9 @@ router.patch('/api/folders/:id', requireAuth, requirePermission('device.edit'), 
         };
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'allowed_users')) {
             await setFolderAllowedUsers(updatedFolder, allowed_users);
+        }
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'allowed_groups')) {
+            await setFolderAllowedUserGroups(updatedFolder, allowed_groups);
         } else {
             await ensureFolderDeviceGroup(updatedFolder);
         }

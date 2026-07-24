@@ -406,7 +406,7 @@ func TestChangePeerID(t *testing.T) {
 
 	db.UpsertPeer(&Peer{ID: "OLD1", Hostname: "mypc", Status: "ONLINE"})
 
-	if err := db.ChangePeerID("OLD1", "NEW1"); err != nil {
+	if err := db.ChangePeerID("OLD1", "NEW1", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -441,7 +441,7 @@ func TestChangePeerIDDuplicate(t *testing.T) {
 	db.UpsertPeer(&Peer{ID: "A1", Status: "ONLINE"})
 	db.UpsertPeer(&Peer{ID: "B1", Status: "ONLINE"})
 
-	err := db.ChangePeerID("A1", "B1")
+	err := db.ChangePeerID("A1", "B1", "")
 	if err == nil {
 		t.Error("expected error when changing to existing ID")
 	}
@@ -468,12 +468,12 @@ func TestChangePeerIDSoftDeletedTarget(t *testing.T) {
 		t.Fatalf("MACPRO state = %s, want %s", state, PeerIDSoftDeleted)
 	}
 
-	err = db.ChangePeerID("NEWCLIENT", "MACPRO")
+	err = db.ChangePeerID("NEWCLIENT", "MACPRO", "")
 	if !errors.Is(err, ErrPeerIDSoftDeleted) {
 		t.Fatalf("ChangePeerID to soft-deleted target error = %v, want ErrPeerIDSoftDeleted", err)
 	}
 
-	if err := db.ChangePeerID("NEWCLIENT", "MACPRO1"); err != nil {
+	if err := db.ChangePeerID("NEWCLIENT", "MACPRO1", ""); err != nil {
 		t.Fatalf("ChangePeerID to free target: %v", err)
 	}
 	peer, err := db.GetPeer("MACPRO1")
@@ -482,6 +482,37 @@ func TestChangePeerIDSoftDeletedTarget(t *testing.T) {
 	}
 	if peer == nil {
 		t.Fatal("MACPRO1 should exist after successful ID change")
+	}
+}
+
+func TestChangePeerIDSoftDeletedSourceDoesNotMoveReservation(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := db.UpsertPeer(&Peer{ID: "MACPRO", Status: "OFFLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DeletePeer("MACPRO"); err != nil {
+		t.Fatal(err)
+	}
+
+	err := db.ChangePeerID("MACPRO", "MACPRO1", "")
+	if !errors.Is(err, ErrPeerNotFound) {
+		t.Fatalf("ChangePeerID from soft-deleted source error = %v, want ErrPeerNotFound", err)
+	}
+
+	state, err := db.GetPeerIDState("MACPRO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != PeerIDSoftDeleted {
+		t.Fatalf("MACPRO state = %s, want %s", state, PeerIDSoftDeleted)
+	}
+	state, err = db.GetPeerIDState("MACPRO1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != PeerIDMissing {
+		t.Fatalf("MACPRO1 state = %s, want %s", state, PeerIDMissing)
 	}
 }
 
@@ -568,6 +599,63 @@ func TestHardDelete(t *testing.T) {
 		if p.ID == "HARD1" {
 			t.Error("hard-deleted peer should not appear at all")
 		}
+	}
+}
+
+func TestHardDeleteReleasesIDHistory(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := db.UpsertPeer(&Peer{ID: "OLDREL", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ChangePeerID("OLDREL", "NEWREL", "client"); err != nil {
+		t.Fatal(err)
+	}
+	renamed, err := db.IsRenamedPeerID("OLDREL")
+	if err != nil || !renamed {
+		t.Fatalf("OLDREL should be reserved before hard delete: %v %v", renamed, err)
+	}
+
+	if err := db.HardDeletePeer("NEWREL"); err != nil {
+		t.Fatal(err)
+	}
+	renamed, err = db.IsRenamedPeerID("OLDREL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if renamed {
+		t.Fatal("OLDREL should be released after permanent delete of successor")
+	}
+}
+
+func TestChangePeerIDCascadesDeviceTokens(t *testing.T) {
+	db := newTestDB(t)
+
+	if err := db.UpsertPeer(&Peer{ID: "OLDCAS", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	token := &DeviceToken{
+		Token:     "cascadetoken12345",
+		TokenHash: "hash-cascade-token",
+		Name:      "Cascade test",
+		PeerID:    "OLDCAS",
+		Status:    TokenStatusPending,
+		MaxUses:   1,
+	}
+	if err := db.CreateDeviceToken(token); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.ChangePeerID("OLDCAS", "NEWCAS", "panel"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := db.GetDeviceTokenByPeerID("NEWCAS")
+	if err != nil || got == nil {
+		t.Fatalf("device token should follow ID change: %v %+v", err, got)
+	}
+	if stale, _ := db.GetDeviceTokenByPeerID("OLDCAS"); stale != nil {
+		t.Fatalf("token should not remain on old ID: %+v", stale)
 	}
 }
 
@@ -709,5 +797,114 @@ func TestUpdatePeerSysinfo(t *testing.T) {
 	// Non-existent peer — should not error (0 rows affected)
 	if err := db.UpdatePeerSysinfo("NOSUCHPEER", "host", "os", "ver"); err != nil {
 		t.Fatalf("UpdatePeerSysinfo non-existent: %v", err)
+	}
+}
+
+// Issue #292: never-logged-in users may have NULL last_login / totp_secret.
+// Scans into string must not fail; delete must clear org_users links.
+func TestListUsersToleratesNullLastLogin(t *testing.T) {
+	db := newTestDB(t)
+
+	admin := &User{Username: "admin292", PasswordHash: "h", Role: "super_admin"}
+	viewer := &User{Username: "fresh292", PasswordHash: "h", Role: "viewer"}
+	if err := db.CreateUser(admin); err != nil {
+		t.Fatalf("CreateUser admin: %v", err)
+	}
+	if err := db.CreateUser(viewer); err != nil {
+		t.Fatalf("CreateUser viewer: %v", err)
+	}
+
+	// Simulate legacy / never-logged-in row (NULL last_login + totp_secret).
+	if _, err := db.db.Exec(`UPDATE users SET last_login = NULL, totp_secret = NULL WHERE id = ?`, viewer.ID); err != nil {
+		t.Fatalf("force NULL columns: %v", err)
+	}
+
+	users, err := db.ListUsers()
+	if err != nil {
+		t.Fatalf("ListUsers with NULL last_login: %v", err)
+	}
+	if len(users) < 2 {
+		t.Fatalf("ListUsers: got %d users, want >= 2", len(users))
+	}
+
+	got, err := db.GetUserByID(viewer.ID)
+	if err != nil || got == nil {
+		t.Fatalf("GetUserByID: user=%v err=%v", got, err)
+	}
+	if got.LastLogin != "" {
+		t.Errorf("LastLogin: got %q, want empty string after COALESCE", got.LastLogin)
+	}
+	if got.TOTPSecret != "" {
+		t.Errorf("TOTPSecret: got %q, want empty string after COALESCE", got.TOTPSecret)
+	}
+}
+
+func TestDeleteUserClearsOrgLinks(t *testing.T) {
+	db := newTestDB(t)
+
+	u := &User{Username: "orglink292", PasswordHash: "h", Role: "viewer"}
+	if err := db.CreateUser(u); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	org := &Organization{
+		ID:        "org-292",
+		Name:      "Org 292",
+		Slug:      "org-292",
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := db.CreateOrganization(org); err != nil {
+		t.Fatalf("CreateOrganization: %v", err)
+	}
+	if _, err := db.LinkUserToOrg(org.ID, u.ID, "member"); err != nil {
+		t.Fatalf("LinkUserToOrg: %v", err)
+	}
+
+	if _, err := db.db.Exec(`UPDATE users SET last_login = NULL WHERE id = ?`, u.ID); err != nil {
+		t.Fatalf("force NULL last_login: %v", err)
+	}
+
+	if err := db.DeleteUser(u.ID); err != nil {
+		t.Fatalf("DeleteUser: %v", err)
+	}
+
+	got, err := db.GetUserByID(u.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID after delete: %v", err)
+	}
+	if got != nil {
+		t.Fatal("user row should be gone")
+	}
+
+	var n int
+	if err := db.db.QueryRow(`SELECT COUNT(*) FROM org_users WHERE server_user_id = ?`, u.ID).Scan(&n); err != nil {
+		t.Fatalf("count org_users: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("org_users links remaining: %d, want 0", n)
+	}
+}
+
+func TestMigrateBackfillsNullUserTimestamps(t *testing.T) {
+	db := newTestDB(t)
+	u := &User{Username: "nullmig292", PasswordHash: "h", Role: "viewer"}
+	if err := db.CreateUser(u); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if _, err := db.db.Exec(`UPDATE users SET last_login = NULL, totp_secret = NULL WHERE id = ?`, u.ID); err != nil {
+		t.Fatalf("force NULL: %v", err)
+	}
+	if err := db.Migrate(); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	var lastLogin, totp any
+	if err := db.db.QueryRow(`SELECT last_login, totp_secret FROM users WHERE id = ?`, u.ID).Scan(&lastLogin, &totp); err != nil {
+		t.Fatalf("SELECT: %v", err)
+	}
+	if lastLogin == nil {
+		t.Error("last_login still NULL after Migrate backfill")
+	}
+	if totp == nil {
+		t.Error("totp_secret still NULL after Migrate backfill")
 	}
 }

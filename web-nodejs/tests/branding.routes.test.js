@@ -103,7 +103,43 @@ describe('Branding routes', () => {
         });
     });
 
+    describe('GET /api/settings/appearance', () => {
+        it('returns the versioned appearance model with readability status', async () => {
+            const res = await request(app).get('/api/settings/appearance');
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.type).toBe('betterdesk-appearance');
+            expect(res.body.data.version).toBe('2.0');
+            expect(res.body.data.identity.appName).toBeTruthy();
+            expect(res.body.readability).toHaveProperty('ok');
+        });
+    });
+
     describe('POST /api/settings/branding/upload-background', () => {
+        it('lists uploaded managed background images', async () => {
+            const uploadsDir = path.join(config.dataDir, 'uploads');
+            fs.mkdirSync(uploadsDir, { recursive: true });
+            const fileName = 'bg-0123456789abcdef.png';
+            const filePath = path.join(uploadsDir, fileName);
+            fs.writeFileSync(filePath, Buffer.from('managed-background'));
+
+            try {
+                const res = await request(app).get('/api/settings/branding/backgrounds');
+
+                expect(res.status).toBe(200);
+                expect(res.body.success).toBe(true);
+                expect(res.body.data).toEqual(expect.arrayContaining([
+                    expect.objectContaining({
+                        name: fileName,
+                        url: `/uploads/${fileName}`
+                    })
+                ]));
+            } finally {
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            }
+        });
+
         it('accepts a multipart background image upload', async () => {
             const res = await request(app)
                 .post('/api/settings/branding/upload-background')
@@ -157,6 +193,13 @@ describe('brandingService.generateThemeCss', () => {
         expect(css).toMatch(/--sidebar-glass-bg-flyout/);
     });
 
+    it('includes semantic appearance aliases for rebuilt UI components', () => {
+        const css = brandingService.generateThemeCss();
+        expect(css).toMatch(/--color-primary: var\(--accent-blue\)/);
+        expect(css).toMatch(/--color-surface: var\(--bg-secondary\)/);
+        expect(css).toMatch(/--focus-ring-color: var\(--accent-blue-muted\)/);
+    });
+
     it('places console wallpaper behind the whole app shell', async () => {
         database.getBrandingConfig.mockResolvedValueOnce([
             { key: 'bgType', value: 'image' },
@@ -185,5 +228,28 @@ describe('brandingService.generateThemeCss', () => {
         const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'css', 'main.css'), 'utf8');
         expect(css).toMatch(/\.sidebar-rail\s*\{[\s\S]*background: var\(--sidebar-glass-bg-rail/);
         expect(css).toMatch(/\.sidebar-flyout\s*\{[\s\S]*background: var\(--sidebar-glass-bg-flyout/);
+    });
+
+    it('exposes a safe public appearance contract for RdClient', () => {
+        const appearance = brandingService.getPublicAppearance();
+        expect(appearance.product).toBe('betterdesk-appearance');
+        expect(appearance.version).toBe('2.0');
+        expect(appearance.palette.primary).toBeTruthy();
+        expect(appearance.background).toHaveProperty('type');
+        expect(appearance).not.toHaveProperty('customCss');
+    });
+
+    it('reports readability problems for low-contrast palettes', () => {
+        const readability = brandingService.assessAppearanceReadability({
+            ...brandingService.DEFAULT_BRANDING,
+            colors: {
+                ...brandingService.DEFAULT_BRANDING.colors,
+                bgPrimary: '#000000',
+                bgSecondary: '#000000',
+                textPrimary: '#111111'
+            }
+        });
+        expect(readability.ok).toBe(false);
+        expect(readability.issues.some(issue => issue.id === 'page-text')).toBe(true);
     });
 });

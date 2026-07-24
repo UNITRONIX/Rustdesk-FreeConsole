@@ -36,14 +36,13 @@ instance/
 
 # --- Rust ---
 target/
+.cargo-cache/
 # Note: Cargo.lock is committed for application crates (reproducible builds + Dependabot)
 **/*.rs.bk
 *.pdb
 
 # --- Node.js ---
 node_modules/
-package-lock.json
-
 # --- IDEs & OS ---
 .vscode/
 .idea/
@@ -161,10 +160,11 @@ web-nodejs/_test_*.sh
 web-nodejs/_fix_*.sh
 
 # --- BetterDesk desktop clients (TEMPORARY — alpha, not in active use) ---
-# Whole trees excluded to avoid GitHub noise (Dependabot, i18n, stale CI). Remove
-# these two lines when agent-client / mgmt return to active development.
+# Whole tree excluded to avoid GitHub noise (Dependabot, i18n, stale CI).
 betterdesk-mgmt/
-betterdesk-agent-client/
+# betterdesk-agent-client/ — restored to git (production readiness plan)
+betterdesk-agent-client/src-tauri/binaries/**
+!betterdesk-agent-client/src-tauri/binaries/.gitkeep
 
 # --- BetterDesk Agent binaries & config (compiled locally) ---
 betterdesk-agent/betterdesk-agent
@@ -206,6 +206,10 @@ deploy_console.tar.gz
 
 # --- Wallpapers (128MB+ — too large for git, ship separately) ---
 web-nodejs/wallpapers/
+
+# --- Operator-only runbooks (copy from *.example.md into docs/private/) ---
+docs/private/
+docs/important/betterdesk-server-deploy-paths.md
 
 # --- Internal dev/analysis documents (not for public repo) ---
 .github/audyt_bezpieczenstwa.md

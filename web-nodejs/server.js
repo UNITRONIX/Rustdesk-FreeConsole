@@ -16,9 +16,11 @@ const http = require('http');
 const https = require('https');
 
 const config = require('./config/config');
+const { redactUrlForLog } = require('./lib/logRedact');
+const logger = require('./lib/logger');
 const securityMiddleware = require('./middleware/security');
 const { initI18n } = require('./middleware/i18n');
-const { apiLimiter, widgetLimiter } = require('./middleware/rateLimiter');
+const { apiLimiter, widgetLimiter, panelPreferenceLimiter, getPanelPollMountPaths } = require('./middleware/rateLimiter');
 const { csrfTokenProvider, doubleCsrfProtection, downgradeToHttp: csrfDowngradeToHttp } = require('./middleware/csrf');
 const { roleHasPermission, isSuperAdminRole } = require('./middleware/auth');
 const authService = require('./services/authService');
@@ -32,6 +34,7 @@ const { apiClient: goApiClient } = require('./services/betterdeskApi');
 const { initRemoteRelay } = require('./services/remoteRelay');
 const { initCdapTerminalProxy } = require('./services/cdapTerminalProxy');
 const { initCdapMediaProxies } = require('./services/cdapMediaProxy');
+const { initMeshAshxProxy } = require('./services/meshAshxProxy');
 const { startDiscoveryService } = require('./services/lanDiscovery');
 const { initDeviceStatusPush } = require('./services/deviceStatusPush');
 const { initHelpRequestEmailService } = require('./services/helpRequestEmailService');
@@ -42,6 +45,7 @@ const { getWanMiddlewareStack } = require('./middleware/wanSecurity');
 const { parseTrustProxy } = require('./lib/parseTrustProxy');
 const {
     resolvePortForCurrentUser,
+    formatHttpsRedirectUrl,
     attachPrivilegedPortErrorHandler,
 } = require('./lib/privilegedPorts');
 
@@ -103,12 +107,18 @@ app.use(cookieParser());
 // Session management — also kept as a standalone middleware ref for WebSocket upgrades
 // Use a different cookie name in HTTP mode to avoid collision with stale
 // Secure cookies left over from a previous HTTPS configuration (Issue #82).
+//
+// MemoryStore is intentional for the single-process console (GitHub #295).
+// express-session warns in production that MemoryStore is not for multi-process
+// or HA; BetterDesk runs one Node panel per host. Shared store (PostgreSQL/Redis)
+// is planned only for multi-instance HA — see docs/enterprise/IMPLEMENTATION_PLAN.md.
 const SESSION_COOKIE = config.httpsEnabled ? 'betterdesk.sid' : 'bd.sid';
 const sessionMiddleware = session({
     secret: config.sessionSecret,
     name: SESSION_COOKIE,
     resave: false,
     saveUninitialized: false,
+    store: new session.MemoryStore(),
     cookie: {
         secure: config.httpsEnabled,
         httpOnly: true,
@@ -153,10 +163,11 @@ app.use('/wallpapers', express.static(path.join(__dirname, 'wallpapers'), {
 // SECURITY (audit fix M-03, 2026-04-10): high-frequency widget refresh paths
 // have their own higher-quota limiter mounted BEFORE the general one so they
 // are still bounded but do not eat into the regular API budget.
-const widgetPaths = ['/api/stats', '/api/server/status', '/api/devices', '/api/audit/conn'];
-for (const p of widgetPaths) {
+for (const p of getPanelPollMountPaths()) {
     app.use(p, widgetLimiter);
 }
+app.use('/api/panel', widgetLimiter);
+app.use('/api/desktop/layout', panelPreferenceLimiter);
 app.use('/api/', apiLimiter);
 
 // RustDesk Client API — mounted BEFORE CSRF because desktop clients use Bearer
@@ -263,7 +274,7 @@ app.use((req, res, next) => {
 
 // 500 Server Error
 app.use((err, req, res, next) => {
-    console.error('Server error:', err);
+    logger.error('Server error:', err);
     
     res.status(err.status || 500);
     
@@ -407,10 +418,11 @@ function shouldUseRustDeskApiTls(sslOptions) {
 function createHttpRedirectServer(httpsPort) {
     const redirectApp = express();
     redirectApp.use((req, res) => {
-        const httpsUrl = `https://${req.hostname}:${httpsPort}${req.url}`;
-        res.redirect(301, httpsUrl);
+        const httpsUrl = formatHttpsRedirectUrl(req.hostname, httpsPort, req.url);
+        res.setHeader('Cache-Control', 'no-store');
+        res.redirect(307, httpsUrl);
     });
-    
+
     return http.createServer(redirectApp);
 }
 
@@ -520,6 +532,8 @@ async function startServer() {
         // Initialize CDAP Media WebSocket proxies (desktop, video, file browser)
         initCdapMediaProxies(server, sessionMiddleware);
 
+        initMeshAshxProxy(server, sessionMiddleware);
+
         // Initialize real-time device status push (Go event bus → browser)
         initDeviceStatusPush(server, sessionMiddleware, config.betterdeskApiUrl, config.betterdeskApiKey);
         initHelpRequestEmailService(config.betterdeskApiUrl, config.betterdeskApiKey);
@@ -550,6 +564,14 @@ async function startServer() {
                 rdclientBuildWorker.startWorker();
             } catch (err) {
                 console.warn('[server] rdclient build worker disabled:', err.message);
+            }
+        }
+        if (process.env.AGENT_CLIENT_BUILD_WORKER !== 'off') {
+            try {
+                const agentClientBuildWorker = require('./services/agentClientBuildWorker');
+                agentClientBuildWorker.startWorker();
+            } catch (err) {
+                console.warn('[server] agent-client build worker disabled:', err.message);
             }
         }
         
@@ -800,6 +822,18 @@ function printStartupBanner(protocol, port) {
         console.log('');
     }
 
+    if (config.isProduction && config.host === '0.0.0.0' && !config.httpsEnabled) {
+        const betterdeskApi = require('./services/betterdeskApi');
+        betterdeskApi.getEnrollmentMode().then((result) => {
+            const mode = (result && result.data && (result.data.mode || result.data)) || 'open';
+            if (String(mode).toLowerCase() === 'open') {
+                console.log('  ⛔ ERROR [SECURITY]: Production panel on 0.0.0.0 without HTTPS and enrollment=open.');
+                console.log('     Prefer managed/locked enrollment, enable HTTPS, or bind HOST=127.0.0.1 behind a reverse proxy.');
+                console.log('');
+            }
+        }).catch(() => { /* Go API may not be ready yet */ });
+    }
+
     // BD-2026-008: Warn if plaintext credentials file exists
     const credFile = path.join(config.keysPath, '.admin_credentials');
     if (fs.existsSync(credFile)) {
@@ -841,20 +875,6 @@ function printStartupBanner(protocol, port) {
             console.log('     The web panel still enforces 2FA independently.');
             console.log('');
         }
-    }
-}
-
-function redactUrlForLog(rawUrl) {
-    const value = String(rawUrl || '').trim();
-    if (!value) return '';
-
-    try {
-        const parsed = new URL(value);
-        parsed.username = '';
-        parsed.password = '';
-        return parsed.toString();
-    } catch (_) {
-        return value.replace(/\/\/[^/@]+@/, '//***@');
     }
 }
 

@@ -53,11 +53,22 @@
     font-size: 18px;
 }
 
+/* ==================== Folder / group tile bars ==================== */
+
+.devices-tile-bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md, 1rem);
+    background: var(--bg-primary);
+    padding: var(--space-sm) 0 var(--space-md);
+    margin-bottom: var(--space-md);
+    border-bottom: 1px solid var(--border-secondary);
+}
+
 /* ==================== Folder Tiles ==================== */
 
 .folders-bar {
     display: block;
-    min-height: 112px;
 }
 
 .folders-chips {
@@ -263,12 +274,6 @@
 
 .groups-bar {
     display: block;
-    min-height: 112px;
-}
-
-.groups-chips,
-#custom-device-groups {
-    display: contents;
 }
 
 .groups-chips {
@@ -277,6 +282,10 @@
     gap: 10px;
     align-items: stretch;
     padding: 2px 0;
+}
+
+#custom-device-groups {
+    display: contents;
 }
 
 .group-chip {
@@ -954,6 +963,50 @@ td.column-hidden {
     opacity: 0.7;
 }
 
+.deleted-row {
+    opacity: 0.72;
+    background: rgba(100, 116, 139, 0.08) !important;
+}
+
+.deleted-row:hover {
+    background: rgba(100, 116, 139, 0.12) !important;
+}
+
+.device-deleted-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary, #64748b);
+    background: rgba(100, 116, 139, 0.15);
+}
+
+.show-deleted-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #64748b);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.show-deleted-toggle input {
+    margin: 0;
+}
+
+.device-panel-status-badge.deleted {
+    color: var(--text-secondary, #64748b);
+    background: rgba(100, 116, 139, 0.15);
+}
+
 /* ==================== Draggable Rows ==================== */
 
 .devices-table tbody tr[draggable="true"] {
@@ -1337,6 +1390,29 @@ td.column-hidden {
 
 .bulk-actions.hidden {
     display: none;
+}
+
+/* Desktop: tile block scrolls with the list (no sticky — avoids groups sliding under folders) */
+@media (min-width: 1025px) {
+    .devices-page .devices-tile-bars {
+        position: static;
+        z-index: auto;
+    }
+
+    .devices-page .folders-chips.mobile-tabs-scroll {
+        display: grid;
+        overflow: visible;
+        padding-bottom: 0;
+    }
+}
+
+/* Mobile: keep folders + groups together when scrolling the device list */
+@media (max-width: 1024px) {
+    body.is-mobile-shell .devices-page .devices-tile-bars {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
 }
 
 /* ==================== RESPONSIVE: Tablet (<=1024px) ==================== */
@@ -1810,3 +1886,246 @@ td.column-hidden {
     background: rgba(210, 153, 34, 0.15);
     color: #d29922;
 }
+
+.mesh-terminal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.mesh-terminal-modal {
+    width: min(960px, 100%);
+    height: min(70vh, 640px);
+    background: var(--bg-secondary, #161b22);
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.mesh-terminal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color, #30363d);
+    background: var(--bg-tertiary, #0d1117);
+}
+
+.mesh-terminal-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary, #e6edf3);
+}
+
+.mesh-terminal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+}
+
+.mesh-terminal-close:hover {
+    color: var(--text-primary, #e6edf3);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.mesh-terminal-host {
+    flex: 1;
+    min-height: 0;
+    padding: 8px;
+    background: #0d1117;
+}
+
+.mesh-port-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    min-height: 0;
+}
+
+.mesh-port-connect-row,
+.mesh-port-send-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.mesh-port-host { flex: 2; min-width: 120px; }
+.mesh-port-port { flex: 1; min-width: 80px; max-width: 120px; }
+
+.mesh-port-log {
+    flex: 1;
+    min-height: 200px;
+    max-height: 360px;
+    overflow: auto;
+    background: #0d1117;
+    border: 1px solid var(--border-color, #30363d);
+    border-radius: 8px;
+    padding: 8px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.mesh-port-log-line.error { color: #ff7b72; }
+.mesh-port-modal { height: min(80vh, 560px); }
+.mesh-linked-badge {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted, #8b949e);
+    margin-top: 2px;
+}
+
+/* Access control strategies (RustDesk Pro) */
+.devices-strategies-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md) var(--space-lg);
+    margin: var(--space-md) 0;
+}
+
+.devices-strategies-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+}
+
+.devices-strategies-header h3 {
+    margin: 0 0 var(--space-xs) 0;
+    font-size: var(--font-size-lg);
+}
+
+.devices-strategies-header p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.devices-strategies-list {
+    display: grid;
+    gap: var(--space-sm);
+}
+
+.strategy-manager-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-primary);
+}
+
+.strategy-manager-item.strategy-disabled {
+    opacity: 0.72;
+}
+
+.strategy-manager-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-width: 0;
+}
+
+.strategy-manager-main > .material-icons {
+    color: var(--accent-purple, #8b5cf6);
+    font-size: 20px;
+}
+
+.strategy-manager-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.strategy-manager-text span {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.strategy-perm-count {
+    font-size: var(--font-size-xs) !important;
+}
+
+.strategy-assign-count {
+    font-size: var(--font-size-xs) !important;
+    color: var(--text-muted);
+}
+
+.strategy-assign-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: var(--space-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-secondary, var(--bg-secondary));
+}
+
+.strategy-assign-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--font-size-sm);
+}
+
+.strategy-status-badge {
+    font-size: var(--font-size-xs);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+}
+
+.strategy-status-badge.enabled {
+    color: var(--accent-green, #22c55e);
+    border-color: rgba(34, 197, 94, 0.35);
+}
+
+.strategy-status-badge.disabled {
+    color: var(--text-secondary);
+}
+
+.strategy-manager-actions {
+    display: flex;
+    gap: var(--space-xs);
+}
+
+.strategy-perm-grid {
+    display: grid;
+    gap: var(--space-sm);
+}
+
+.strategy-perm-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 160px;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.strategy-perm-select {
+    padding: 6px 8px;
+}
+.mesh-groups-list { margin-top: 8px; }
+.mesh-group-row { padding: 4px 0; }
+.mesh-recordings-table { margin-top: 8px; }

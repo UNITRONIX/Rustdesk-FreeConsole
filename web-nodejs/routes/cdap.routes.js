@@ -6,6 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { assertSafeApiId } = require('../lib/goApiPath');
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const betterdeskApi = require('../services/betterdeskApi');
 
@@ -40,12 +41,22 @@ router.get('/cdap/devices', requireAuth, (req, res) => {
  * GET /cdap/devices/:id
  */
 router.get('/cdap/devices/:id', requireAuth, (req, res) => {
-    const { id } = req.params;
-    res.render('cdap-device', {
-        title: req.t('cdap.device_detail'),
-        activePage: 'devices',
-        deviceId: id
-    });
+    try {
+        const deviceId = assertSafeApiId(req.params.id, 'deviceId');
+        res.render('cdap-device', {
+            title: req.t('cdap.device_detail'),
+            activePage: 'devices',
+            deviceId,
+        });
+    } catch (err) {
+        if (err.message && /^Invalid /.test(err.message)) {
+            return res.status(400).render('errors/404', {
+                title: 'Bad Request',
+                activePage: 'error',
+            });
+        }
+        throw err;
+    }
 });
 
 // ── API Routes ───────────────────────────────────────────────────────────

@@ -189,6 +189,31 @@ describe('wsRelay — security: session validation on WS upgrade', () => {
         expect(statusLine).not.toBe('HTTP/1.1 503 Service Unavailable');
     });
 
+    // ── Test: non-empty guest= without valid grant is rejected ───────────────
+    test('rejects upgrade when guest query is present but token is invalid', async () => {
+        jest.resetModules();
+        jest.doMock('../services/betterdeskApi', () => ({
+            apiClient: {
+                get: jest.fn().mockResolvedValue({ data: { valid: false, error: 'invalid' } }),
+            },
+        }));
+
+        const noSession = (req, _res, next) => {
+            req.session = null;
+            next();
+        };
+
+        const { initWsProxy } = require('../services/wsRelay');
+        server = http.createServer((req, res) => { res.writeHead(404); res.end(); });
+        initWsProxy(server, noSession);
+
+        await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+        address = server.address();
+
+        const result = await rawUpgrade(address, '/ws/rendezvous?guest=not-a-real-token');
+        expect(result.statusLine).toBe('HTTP/1.1 401 Unauthorized');
+    });
+
     // ── Test: non-ws-relay paths are not handled by initWsProxy ──────────────
     test('does not intercept paths outside /ws/rendezvous and /ws/relay', () => {
         const EventEmitter = require('events');

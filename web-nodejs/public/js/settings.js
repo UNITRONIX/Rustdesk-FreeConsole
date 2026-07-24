@@ -4,11 +4,16 @@
 
 (function() {
     'use strict';
+
+    let _ldapWasEnabled = false;
+    let _oidcWasEnabled = false;
+    let _smtpWasConfigured = false;
     
     document.addEventListener('DOMContentLoaded', init);
     
     function init() {
         initTabs();
+        initSettingsSearch();
         initPasswordForm();
         initTotpSection();
         initBrandingSection();
@@ -16,6 +21,7 @@
         // Only init server-config sections when the tab is visible (requires server.config permission)
         if (document.getElementById('tab-auth') && document.getElementById('tab-auth').style.display !== 'none') {
             initEnrollmentSection();
+            initClientSessionsSection();
             initLdapSection();
             initOidcSection();
         }
@@ -35,34 +41,165 @@
         initTutorialSection();
         loadAuditLog();
         loadServerInfo();
+        initMeshSettingsSection();
+        initDeviceScopeSection();
         initConnectionModeSection();
+        initPublicEndpointsSection();
+        initAuthSubnav();
         
         // Refresh handler
         window.addEventListener('app:refresh', loadAuditLog);
+    }
+
+    // ==================== Settings UI helpers ====================
+
+    const _settingsSaveTimers = {};
+
+    function tSettings(key, fallback) {
+        const val = _('settings.' + key);
+        if (!val || val === 'settings.' + key) return fallback || key;
+        return val;
+    }
+
+    async function settingsConfirmCritical(options) {
+        if (window.Modal && typeof Modal.confirm === 'function') {
+            return Modal.confirm({
+                title: options.title || _('common.confirm'),
+                message: options.message || '',
+                confirmLabel: options.confirmLabel || _('actions.confirm'),
+                cancelLabel: options.cancelLabel,
+                confirmIcon: options.icon || 'warning',
+                danger: options.danger
+            });
+        }
+        return confirm(options.message || options.title || '');
+    }
+
+    function scheduleSettingsSave(key, saveFn, debounceMs = 400) {
+        clearTimeout(_settingsSaveTimers[key]);
+        _settingsSaveTimers[key] = setTimeout(() => {
+            saveFn().catch((err) => {
+                console.error('Settings save failed:', err);
+            });
+        }, debounceMs);
+    }
+
+    async function applyWithConfirm({ previousValue, newValue, setUiValue, confirmOptions, save }) {
+        if (!(await settingsConfirmCritical(confirmOptions))) {
+            if (setUiValue) setUiValue(previousValue);
+            return false;
+        }
+        try {
+            await save(newValue);
+            return true;
+        } catch (err) {
+            if (setUiValue) setUiValue(previousValue);
+            throw err;
+        }
+    }
+
+    function initAuthSubnav() {
+        const subtabs = document.querySelectorAll('.settings-auth-subtab');
+        const panels = document.querySelectorAll('.settings-auth-panel');
+        if (!subtabs.length) return;
+
+        subtabs.forEach((tab) => {
+            tab.addEventListener('click', () => {
+                const panelId = tab.dataset.authPanel;
+                if (!panelId) return;
+
+                subtabs.forEach((t) => {
+                    t.classList.remove('active');
+                    t.setAttribute('aria-selected', 'false');
+                });
+                tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
+
+                panels.forEach((panel) => {
+                    const isActive = panel.id === 'auth-panel-' + panelId;
+                    panel.classList.toggle('active', isActive);
+                    panel.hidden = !isActive;
+                });
+
+                applySettingsSearchFilter();
+            });
+        });
     }
     
     // ==================== Tab Navigation ====================
     
     function initTabs() {
-        const tabs = document.querySelectorAll('.settings-tab');
+        const tabs = document.querySelectorAll('.settings-shell-tab, .settings-tab');
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
-                // Deactivate all
-                tabs.forEach(t => t.classList.remove('active'));
+                tabs.forEach(t => {
+                    t.classList.remove('active');
+                    t.setAttribute('aria-selected', 'false');
+                });
                 document.querySelectorAll('.settings-tab-content').forEach(c => c.classList.remove('active'));
                 
-                // Activate selected
                 tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
                 const target = document.getElementById('tab-' + tab.dataset.tab);
                 if (target) target.classList.add('active');
+                window.history.replaceState(null, '', '#' + tab.dataset.tab);
+                applySettingsSearchFilter();
             });
         });
         
-        // Check URL hash for direct tab navigation
         const hash = window.location.hash.replace('#', '');
-        if (['branding', 'server', 'backup', 'updates', 'auth', 'advanced', 'email'].includes(hash)) {
-            const tab = document.querySelector(`[data-tab="${hash}"]`);
+        if (['general', 'branding', 'server', 'backup', 'updates', 'auth', 'advanced', 'email'].includes(hash)) {
+            const tabName = hash === 'server' ? 'general' : hash;
+            const tab = document.querySelector(`[data-tab="${tabName}"]`);
             if (tab) tab.click();
+        }
+    }
+
+    function initSettingsSearch() {
+        const input = document.getElementById('settings-search-input');
+        const clear = document.getElementById('settings-search-clear');
+        if (!input) return;
+        input.addEventListener('input', applySettingsSearchFilter);
+        clear?.addEventListener('click', () => {
+            input.value = '';
+            applySettingsSearchFilter();
+            input.focus();
+        });
+    }
+
+    function applySettingsSearchFilter() {
+        const input = document.getElementById('settings-search-input');
+        const clear = document.getElementById('settings-search-clear');
+        const status = document.getElementById('settings-search-status');
+        const query = (input?.value || '').trim().toLowerCase();
+        if (clear) clear.hidden = !query;
+
+        const activeTab = document.querySelector('.settings-tab-content.active');
+        if (!activeTab) return;
+
+        const panels = activeTab.querySelectorAll('.settings-panel, .settings-auth-panel.active .settings-panel');
+        let visible = 0;
+        panels.forEach(panel => {
+            if (!query) {
+                panel.hidden = false;
+                visible++;
+                return;
+            }
+            const haystack = panel.textContent.toLowerCase();
+            const match = haystack.includes(query);
+            panel.hidden = !match;
+            if (match) visible++;
+        });
+
+        if (status) {
+            if (query) {
+                const tpl = tSettings('ui.search_results', '{count} matching sections');
+                status.textContent = tpl.replace('{count}', String(visible));
+                status.hidden = false;
+            } else {
+                status.textContent = '';
+                status.hidden = true;
+            }
         }
     }
     
@@ -231,6 +368,183 @@
         return parts.join(' ');
     }
 
+    // ==================== Device scope default ====================
+
+    function initDeviceScopeSection() {
+        const form = document.getElementById('device-scope-form');
+        if (!form) return;
+
+        const warningEl = document.getElementById('device-scope-warning');
+
+        function updateWarning() {
+            const restricted = document.getElementById('device-scope-restricted')?.checked;
+            if (warningEl) warningEl.hidden = !restricted;
+        }
+
+        async function loadDeviceScopeSetting() {
+            try {
+                const data = await Utils.api('/api/settings/device-scope');
+                const mode = data.mode === 'restricted' ? 'restricted' : 'open';
+                const openEl = document.getElementById('device-scope-open');
+                const restrictedEl = document.getElementById('device-scope-restricted');
+                if (openEl) openEl.checked = mode === 'open';
+                if (restrictedEl) restrictedEl.checked = mode === 'restricted';
+                updateWarning();
+            } catch (err) {
+                console.error('Failed to load device scope setting:', err);
+            }
+        }
+
+        form.querySelectorAll('input[name="device_scope_mode"]').forEach(input => {
+            input.addEventListener('change', updateWarning);
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const selected = form.querySelector('input[name="device_scope_mode"]:checked');
+            const mode = selected ? selected.value : 'open';
+            try {
+                await Utils.api('/api/settings/device-scope', {
+                    method: 'POST',
+                    body: { mode }
+                });
+                Notifications.success(_('settings.device_scope_saved'));
+                updateWarning();
+            } catch (err) {
+                Notifications.error(err.message || _('errors.server_error'));
+            }
+        });
+
+        loadDeviceScopeSetting();
+    }
+
+    // ==================== MeshCentral compatibility ====================
+
+    function initMeshSettingsSection() {
+        const panel = document.getElementById('mesh-settings-panel');
+        if (!panel) return;
+
+        const enabledEl = document.getElementById('mesh-status-enabled');
+        const agentsEl = document.getElementById('mesh-agents-online');
+        const serverIdEl = document.getElementById('mesh-server-id');
+        const downloadBtn = document.getElementById('mesh-download-msh');
+        const copyBtn = document.getElementById('mesh-copy-server-id');
+        const nameInput = document.getElementById('mesh-msh-name');
+        const certBanner = document.getElementById('mesh-cert-banner');
+        const groupsList = document.getElementById('mesh-groups-list');
+        const recordingsTable = document.getElementById('mesh-recordings-table');
+        let meshGroups = [];
+
+        async function loadMeshStatus() {
+            try {
+                const resp = await Utils.api('/api/mesh/status');
+                const data = resp.data || resp;
+                if (enabledEl) {
+                    enabledEl.textContent = data.enabled
+                        ? (tSettings('mesh.enabled_label', 'Enabled'))
+                        : (tSettings('mesh.disabled_label', 'Disabled'));
+                }
+                if (agentsEl) agentsEl.textContent = String(data.agents_online != null ? data.agents_online : 0);
+                if (serverIdEl && data.server_id) serverIdEl.textContent = data.server_id;
+                if (certBanner) {
+                    if (data.enabled && !data.cert_present) {
+                        certBanner.textContent = tSettings('mesh.cert_missing', 'Agent-server certificate not found — backup after first agent connects.');
+                        certBanner.classList.remove('hidden');
+                    } else if (data.cert_present) {
+                        certBanner.textContent = (tSettings('mesh.cert_ok', 'Certificate present')) + (data.cert_modified ? ' — ' + data.cert_modified : '');
+                        certBanner.classList.remove('hidden', 'alert-warning');
+                        certBanner.classList.add('alert-info');
+                    } else {
+                        certBanner.classList.add('hidden');
+                    }
+                }
+            } catch {
+                if (enabledEl) enabledEl.textContent = tSettings('mesh.disabled_label', 'Disabled');
+            }
+        }
+
+        async function loadMeshGroups() {
+            if (!groupsList) return;
+            try {
+                const resp = await Utils.api('/api/mesh/groups');
+                const data = resp.data || resp;
+                meshGroups = Array.isArray(data.groups) ? data.groups : [];
+                groupsList.innerHTML = meshGroups.map((g, idx) =>
+                    `<div class="mesh-group-row" data-idx="${idx}"><code>${Utils.escapeHtml(g.id || '')}</code> — ${Utils.escapeHtml(g.name || '')}</div>`
+                ).join('') || '<p class="text-muted">' + tSettings('mesh.groups_empty', 'No mesh groups yet.') + '</p>';
+            } catch {
+                groupsList.innerHTML = '<p class="text-muted">' + tSettings('mesh.groups_load_error', 'Could not load groups.') + '</p>';
+            }
+        }
+
+        async function loadMeshRecordings() {
+            if (!recordingsTable) return;
+            try {
+                const resp = await Utils.api('/api/session/recordings');
+                const data = resp.data || resp;
+                const rows = Array.isArray(data.recordings) ? data.recordings : [];
+                if (!rows.length) {
+                    recordingsTable.innerHTML = '<p class="text-muted">' + tSettings('mesh.recordings_empty', 'No server recordings yet.') + '</p>';
+                    return;
+                }
+                recordingsTable.innerHTML = '<table class="data-table"><thead><tr><th>Transport</th><th>Peer</th><th>Type</th><th>Size</th><th></th></tr></thead><tbody>' +
+                    rows.map((r) => {
+                        const dl = r.transport === 'mesh' && r.id
+                            ? `<a class="btn btn-sm btn-secondary" href="/api/mesh/recordings/${encodeURIComponent(r.id)}">${tSettings('mesh.recording_download', 'Download')}</a>`
+                            : '';
+                        return `<tr><td>${Utils.escapeHtml(r.transport || '')}</td><td>${Utils.escapeHtml(r.peer_id || '')}</td><td>${Utils.escapeHtml(r.session_type || '')}</td><td>${r.size || 0}</td><td>${dl}</td></tr>`;
+                    }).join('') + '</tbody></table>';
+            } catch {
+                recordingsTable.innerHTML = '<p class="text-muted">' + tSettings('mesh.recordings_load_error', 'Could not load recordings.') + '</p>';
+            }
+        }
+
+        document.getElementById('mesh-group-add')?.addEventListener('click', () => {
+            const id = document.getElementById('mesh-group-id')?.value.trim();
+            const name = document.getElementById('mesh-group-name')?.value.trim();
+            if (!id || !name) return;
+            meshGroups.push({ id, name });
+            const idInput = document.getElementById('mesh-group-id');
+            const nameInputG = document.getElementById('mesh-group-name');
+            if (idInput) idInput.value = '';
+            if (nameInputG) nameInputG.value = '';
+            if (groupsList) {
+                groupsList.innerHTML = meshGroups.map((g) =>
+                    `<div class="mesh-group-row"><code>${Utils.escapeHtml(g.id)}</code> — ${Utils.escapeHtml(g.name)}</div>`
+                ).join('');
+            }
+        });
+
+        document.getElementById('mesh-groups-save')?.addEventListener('click', async () => {
+            try {
+                await Utils.api('/api/mesh/groups', { method: 'POST', body: { groups: meshGroups } });
+                Notifications.success(tSettings('mesh.groups_saved', 'Mesh groups saved'));
+                loadMeshGroups();
+            } catch (err) {
+                Notifications.error(err.message || tSettings('mesh.groups_save_error', 'Save failed'));
+            }
+        });
+
+        if (downloadBtn && nameInput) {
+            downloadBtn.addEventListener('click', (e) => {
+                const name = encodeURIComponent(nameInput.value.trim() || 'BetterDesk Mesh');
+                downloadBtn.href = `/api/mesh/download.msh?name=${name}`;
+            });
+        }
+
+        copyBtn?.addEventListener('click', () => {
+            const text = serverIdEl?.textContent || '';
+            if (!text || text === '-') return;
+            navigator.clipboard?.writeText(text).then(() => {
+                Notifications.success(tSettings('mesh.copy_server_id_ok', 'Server ID copied'));
+            }).catch(() => {});
+        });
+
+        loadMeshStatus();
+        loadMeshGroups();
+        loadMeshRecordings();
+    }
+
     // ==================== Connection Mode (P2P / Relay) ====================
 
     function initConnectionModeSection() {
@@ -304,6 +618,22 @@
     }
 
     async function saveConnectionMode(restart) {
+        const confirmKey = restart
+            ? 'confirm.connection_restart'
+            : 'confirm.connection_mode';
+        const confirmed = await settingsConfirmCritical({
+            title: tSettings(confirmKey + '_title', restart ? 'Restart server?' : 'Save connection strategy?'),
+            message: tSettings(confirmKey, restart
+                ? 'Save connection settings and restart the BetterDesk server? Active sessions may disconnect briefly.'
+                : 'Apply the new connection strategy for RustDesk clients?'),
+            confirmLabel: restart
+                ? _('settings.connection_mode_save_restart')
+                : _('settings.connection_mode_save'),
+            icon: restart ? 'restart_alt' : 'swap_horiz',
+            danger: restart
+        });
+        if (!confirmed) return;
+
         const saveBtn = document.getElementById('connection-mode-save');
         const saveRestartBtn = document.getElementById('connection-mode-save-restart');
         [saveBtn, saveRestartBtn].forEach((b) => { if (b) b.disabled = true; });
@@ -335,6 +665,74 @@
             }
         } finally {
             [saveBtn, saveRestartBtn].forEach((b) => { if (b) b.disabled = false; });
+        }
+    }
+
+    // ==================== Public RustDesk client endpoints ====================
+
+    function initPublicEndpointsSection() {
+        const section = document.getElementById('public-endpoints-section');
+        if (!section) return;
+
+        document.getElementById('public-endpoints-save')?.addEventListener('click', savePublicEndpoints);
+        loadPublicEndpoints();
+    }
+
+    async function loadPublicEndpoints() {
+        try {
+            const resp = await Utils.api('/api/settings/public-endpoints');
+            const data = resp.data || resp;
+            const serverIdEl = document.getElementById('public-server-id');
+            const relayEl = document.getElementById('public-relay-server');
+            const apiEl = document.getElementById('public-api-url');
+            if (serverIdEl) serverIdEl.value = data.public_server_id || '';
+            if (relayEl) relayEl.value = data.public_relay_server || '';
+            if (apiEl) apiEl.value = data.public_api_url || '';
+        } catch (err) {
+            console.error('Failed to load public endpoints:', err);
+        }
+    }
+
+    function getPublicEndpointsPayload() {
+        return {
+            public_server_id: document.getElementById('public-server-id')?.value?.trim() || '',
+            public_relay_server: document.getElementById('public-relay-server')?.value?.trim() || '',
+            public_api_url: document.getElementById('public-api-url')?.value?.trim() || '',
+        };
+    }
+
+    async function savePublicEndpoints() {
+        const confirmed = await settingsConfirmCritical({
+            title: tSettings('public_endpoints_save_title', 'Save public client endpoints?'),
+            message: tSettings('public_endpoints_save_confirm', 'Update RustDesk client configuration values used on the Dashboard (ID server, relay, API URL)?'),
+            confirmLabel: _('settings.public_endpoints_save'),
+            icon: 'public',
+            danger: false
+        });
+        if (!confirmed) return;
+
+        const saveBtn = document.getElementById('public-endpoints-save');
+        if (saveBtn) saveBtn.disabled = true;
+
+        try {
+            const payload = getPublicEndpointsPayload();
+            const resp = await Utils.api('/api/settings/public-endpoints', {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+
+            if (typeof Notifications !== 'undefined') {
+                Notifications.success(resp.message || _('settings.public_endpoints_saved'));
+            }
+
+            await loadPublicEndpoints();
+        } catch (err) {
+            console.error('Save public endpoints failed:', err);
+            if (typeof Notifications !== 'undefined') {
+                Notifications.error(err.message || _('errors.server_error'));
+            }
+        } finally {
+            if (saveBtn) saveBtn.disabled = false;
         }
     }
     
@@ -626,6 +1024,7 @@
             brandingData = response.data || response;
             
             populateBrandingForm(brandingData);
+            updateBrandingReadability(response.readability);
             _brandingSnapshot = JSON.stringify(collectBrandingData());
             initBrandingModules();
             initLogoTypeSelector();
@@ -699,9 +1098,10 @@
     }
 
     function scheduleBrandingAutosave() {
-        if (!_canBrandingEdit) return;
+        // Appearance changes can touch many fields at once and the server rate
+        // limiter is intentionally strict. Keep live preview instant, but require
+        // an explicit save for stable, predictable updates.
         clearTimeout(_autosaveDebounce);
-        _autosaveDebounce = setTimeout(() => saveBrandingNow({ silent: true }), 1500);
     }
 
     async function saveBrandingNow(options = {}) {
@@ -715,6 +1115,7 @@
                 body: data
             });
             brandingData = resp.data || data;
+            updateBrandingReadability(resp.readability);
             _brandingSnapshot = JSON.stringify(collectBrandingData());
             _brandingDirty = false;
             setBrandingStatus('saved', options.silent ? _('branding.autosaved') : _('branding.saved'));
@@ -732,6 +1133,22 @@
             if (!options.silent) Notifications.error(error.message || _('errors.server_error'));
             return false;
         }
+    }
+
+    function updateBrandingReadability(readability) {
+        const box = document.getElementById('branding-readability-alert');
+        const text = document.getElementById('branding-readability-text');
+        if (!box || !text) return;
+        const issues = Array.isArray(readability?.issues) ? readability.issues : [];
+        if (!issues.length) {
+            box.hidden = true;
+            text.textContent = '';
+            return;
+        }
+        const errors = issues.filter(issue => issue.severity === 'error');
+        box.hidden = false;
+        box.classList.toggle('has-errors', errors.length > 0);
+        text.textContent = issues.slice(0, 3).map(issue => issue.message).join(' ');
     }
 
     async function waitForBackgroundUploads() {
@@ -774,9 +1191,34 @@
             if (e.target.closest('#tab-branding')) onBrandingFieldChange();
         });
         tab.addEventListener('change', (e) => {
+            if (e.target?.classList?.contains('branding-bg-file')) return;
             if (e.target.closest('#tab-branding')) onBrandingFieldChange();
         });
         scheduleBrandingPreview();
+    }
+
+    async function brandingPrompt(message, options = {}) {
+        if (window.Modal && typeof Modal.prompt === 'function') {
+            return Modal.prompt({
+                title: options.title || _('settings.tab_branding'),
+                label: message,
+                placeholder: options.placeholder || '',
+                confirmLabel: options.confirmLabel || _('actions.save')
+            });
+        }
+        return prompt(message);
+    }
+
+    async function brandingConfirm(message, options = {}) {
+        if (window.Modal && typeof Modal.confirm === 'function') {
+            return Modal.confirm({
+                title: options.title || _('settings.tab_branding'),
+                message,
+                danger: !!options.danger,
+                confirmLabel: options.confirmLabel || _('actions.confirm')
+            });
+        }
+        return confirm(message);
     }
 
     async function initBrandingProfiles() {
@@ -805,7 +1247,7 @@
         });
 
         document.getElementById('branding-profile-new-btn')?.addEventListener('click', async () => {
-            const name = prompt(_('branding.profile_name_prompt'));
+            const name = await brandingPrompt(_('branding.profile_name_prompt'));
             if (!name || !name.trim()) return;
             try {
                 await Utils.api('/api/settings/branding/profiles', {
@@ -851,7 +1293,7 @@
         document.getElementById('branding-profile-delete-btn')?.addEventListener('click', async () => {
             const id = parseInt(select.value, 10);
             if (!id) return;
-            if (!confirm(_('branding.profile_delete_confirm'))) return;
+            if (!(await brandingConfirm(_('branding.profile_delete_confirm'), { danger: true }))) return;
             try {
                 await Utils.api(`/api/settings/branding/profiles/${id}`, { method: 'DELETE' });
                 await refreshBrandingProfiles(select);
@@ -899,7 +1341,7 @@
                 card.innerHTML = `<div class="branding-theme-swatches">${swatches}</div><span class="branding-theme-name">${Utils.escapeHtml(theme.name || theme.id)}</span>`;
                 card.addEventListener('click', async () => {
                     if (!_canBrandingEdit) return;
-                    if (!confirm(_('branding.theme_apply_confirm'))) return;
+                    if (!(await brandingConfirm(_('branding.theme_apply_confirm')))) return;
                     try {
                         await Utils.api(`/api/settings/themes/${encodeURIComponent(theme.id)}/apply`, { method: 'POST' });
                         const fresh = await Utils.api('/api/settings/branding');
@@ -1108,7 +1550,22 @@
             document.getElementById('agent-bg-color-picker').value = data.agentBgColor;
         }
         showBackgroundPanel('agent-bg', data.agentBgType || 'none');
+
+        // RdClient / remote dashboard
+        checkRadio('rdclient-bg-type', data.rdclientBgType || 'inherit');
+        setVal('rdclient-bg-color', data.rdclientBgColor || '');
+        setVal('rdclient-bg-gradient', data.rdclientBgGradient || '');
+        setVal('rdclient-bg-image-url', data.rdclientBgImageUrl || '');
+        setVal('rdclient-bg-overlay', data.rdclientBgOverlay || '0');
+        setVal('rdclient-bg-size', data.rdclientBgSize || 'cover');
+        if (data.rdclientBgColor && document.getElementById('rdclient-bg-color-picker') && /^#[0-9a-fA-F]{6}$/.test(data.rdclientBgColor)) {
+            document.getElementById('rdclient-bg-color-picker').value = data.rdclientBgColor;
+        }
+        const rdclientOverlayVal = document.getElementById('rdclient-bg-overlay-value');
+        if (rdclientOverlayVal) rdclientOverlayVal.textContent = data.rdclientBgOverlay || '0';
+        showBackgroundPanel('rdclient-bg', data.rdclientBgType || 'inherit');
         syncExistingBackgroundUploadStatuses(data);
+        markSelectedBackgroundImage(data.bgImageUrl || '');
         
         // Footer & custom CSS
         setVal('footer-text', data.footerText || '');
@@ -1138,14 +1595,14 @@
      */
     function initBackgroundSelectors() {
         // Radio toggles for the three background groups
-        [['bg-type', 'bg'], ['login-bg-type', 'login-bg'], ['agent-bg-type', 'agent-bg']].forEach(([name, prefix]) => {
+        [['bg-type', 'bg'], ['login-bg-type', 'login-bg'], ['agent-bg-type', 'agent-bg'], ['rdclient-bg-type', 'rdclient-bg']].forEach(([name, prefix]) => {
             document.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
                 radio.addEventListener('change', () => showBackgroundPanel(prefix, radio.value));
             });
         });
         
         // Color picker <-> hex text sync for the standalone background pickers
-        [['bg-color-picker', 'bg-color'], ['login-bg-color-picker', 'login-bg-color'], ['agent-bg-color-picker', 'agent-bg-color'], ['glass-color-picker', 'glass-color']].forEach(([pickerId, textId]) => {
+        [['bg-color-picker', 'bg-color'], ['login-bg-color-picker', 'login-bg-color'], ['agent-bg-color-picker', 'agent-bg-color'], ['rdclient-bg-color-picker', 'rdclient-bg-color'], ['glass-color-picker', 'glass-color']].forEach(([pickerId, textId]) => {
             const picker = document.getElementById(pickerId);
             const text = document.getElementById(textId);
             if (picker && text) {
@@ -1157,7 +1614,7 @@
         });
         
         // Range value labels
-        [['bg-blur', 'bg-blur-value'], ['bg-overlay', 'bg-overlay-value'], ['login-bg-overlay', 'login-bg-overlay-value'], ['glass-blur', 'glass-blur-value'], ['glass-opacity', 'glass-opacity-value']].forEach(([rangeId, labelId]) => {
+        [['bg-blur', 'bg-blur-value'], ['bg-overlay', 'bg-overlay-value'], ['login-bg-overlay', 'login-bg-overlay-value'], ['rdclient-bg-overlay', 'rdclient-bg-overlay-value'], ['glass-blur', 'glass-blur-value'], ['glass-opacity', 'glass-opacity-value']].forEach(([rangeId, labelId]) => {
             const range = document.getElementById(rangeId);
             const label = document.getElementById(labelId);
             if (range && label) {
@@ -1174,6 +1631,69 @@
                 input.click();
             });
         });
+        initBackgroundLibrary();
+    }
+
+    async function initBackgroundLibrary() {
+        const library = document.getElementById('bg-image-library');
+        if (!library) return;
+        library.addEventListener('click', (event) => {
+            const item = event.target.closest('.background-library-item');
+            if (!item) return;
+            selectBackgroundLibraryImage(item.dataset.url || '');
+        });
+        await loadBackgroundLibrary(document.getElementById('bg-image-url')?.value || '');
+    }
+
+    async function loadBackgroundLibrary(selectedUrl = '') {
+        const library = document.getElementById('bg-image-library');
+        if (!library) return;
+        library.innerHTML = `<div class="background-library-empty">${_('common.loading')}</div>`;
+        try {
+            const resp = await Utils.api('/api/settings/branding/backgrounds');
+            const items = Array.isArray(resp.data) ? resp.data : [];
+            renderBackgroundLibrary(items, selectedUrl || document.getElementById('bg-image-url')?.value || '');
+        } catch (err) {
+            library.innerHTML = `<div class="background-library-empty">${Utils.escapeHtml(err.message || _('errors.server_error'))}</div>`;
+        }
+    }
+
+    function renderBackgroundLibrary(items, selectedUrl = '') {
+        const library = document.getElementById('bg-image-library');
+        if (!library) return;
+        if (!items.length) {
+            library.innerHTML = `<div class="background-library-empty">${_('desktop.wp_unavailable')}</div>`;
+            return;
+        }
+        library.innerHTML = items.map(item => {
+            const url = String(item.url || '');
+            const name = String(item.name || url.split('/').pop() || '');
+            const isActive = url === selectedUrl;
+            return `
+                <button type="button" class="background-library-item${isActive ? ' active' : ''}" data-url="${Utils.escapeHtml(url)}" title="${Utils.escapeHtml(name)}">
+                    <span class="background-library-thumb" style="background-image:url('${Utils.escapeHtml(url).replace(/'/g, '%27')}')"></span>
+                    <span class="background-library-name">${Utils.escapeHtml(name)}</span>
+                </button>
+            `;
+        }).join('');
+    }
+
+    function selectBackgroundLibraryImage(url) {
+        if (!url) return;
+        const input = document.getElementById('bg-image-url');
+        if (input) input.value = url;
+        selectBackgroundImageType('bg-image-url');
+        setBackgroundUploadStatus(document.getElementById('bg-file-name'), url.split('/').pop() || url, url);
+        markSelectedBackgroundImage(url);
+        onBrandingFieldChange();
+    }
+
+    function markSelectedBackgroundImage(url) {
+        const library = document.getElementById('bg-image-library');
+        if (!library) return;
+        library.querySelectorAll('.background-library-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.url === url);
+        });
     }
     
     /**
@@ -1186,13 +1706,13 @@
         
         const maxSize = 8 * 1024 * 1024; // 8 MB
         if (file.size > maxSize) {
-            Utils.showNotification(_('branding.bg_image_too_large'), 'error');
+            Notifications.error(_('branding.bg_image_too_large'));
             e.target.value = '';
             return;
         }
         const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
         if (!validTypes.includes(file.type)) {
-            Utils.showNotification(_('branding.bg_image_invalid_type'), 'error');
+            Notifications.error(_('branding.bg_image_invalid_type'));
             e.target.value = '';
             return;
         }
@@ -1261,7 +1781,7 @@
                 message: err.message || _('errors.server_error'),
                 percent: 100
             });
-            Utils.showNotification(err.message || _('errors.server_error'), 'error');
+            Notifications.error(err.message || _('errors.server_error'));
         } finally {
             if (_backgroundUploads.get(uploadKey) === uploadPromise) {
                 _backgroundUploads.delete(uploadKey);
@@ -1271,6 +1791,8 @@
 
         if (uploadedUrl) {
             clearTimeout(_autosaveDebounce);
+            await loadBackgroundLibrary(uploadedUrl);
+            markSelectedBackgroundImage(uploadedUrl);
             updateBackgroundUploadPanel(statusEl, {
                 state: 'success',
                 icon: 'check_circle',
@@ -1285,7 +1807,8 @@
         const map = {
             'bg-image-file': 'bg-file-name',
             'login-bg-image-file': 'login-bg-file-name',
-            'agent-bg-image-file': 'agent-bg-file-name'
+            'agent-bg-image-file': 'agent-bg-file-name',
+            'rdclient-bg-image-file': 'rdclient-bg-file-name'
         };
         return document.getElementById(map[input.id])
             || document.getElementById(input.id.replace('-file', '-file-name'));
@@ -1301,7 +1824,8 @@
         [
             { targetId: 'bg-image-url', type: data.bgType, url: data.bgImageUrl, labelId: 'bg-file-name' },
             { targetId: 'login-bg-image-url', type: data.loginBgType, url: data.loginBgImageUrl, labelId: 'login-bg-file-name' },
-            { targetId: 'agent-bg-image-url', type: data.agentBgType, url: data.agentBgImageUrl, labelId: 'agent-bg-file-name' }
+            { targetId: 'agent-bg-image-url', type: data.agentBgType, url: data.agentBgImageUrl, labelId: 'agent-bg-file-name' },
+            { targetId: 'rdclient-bg-image-url', type: data.rdclientBgType, url: data.rdclientBgImageUrl, labelId: 'rdclient-bg-file-name' }
         ].forEach(item => {
             const statusEl = getBackgroundUploadStatusElementByTarget(item.targetId);
             const labelEl = document.getElementById(item.labelId);
@@ -1329,7 +1853,8 @@
         const map = {
             'bg-image-url': 'bg-upload-status',
             'login-bg-image-url': 'login-bg-upload-status',
-            'agent-bg-image-url': 'agent-bg-upload-status'
+            'agent-bg-image-url': 'agent-bg-upload-status',
+            'rdclient-bg-image-url': 'rdclient-bg-upload-status'
         };
         return document.getElementById(map[targetId]);
     }
@@ -1393,7 +1918,8 @@
         const map = {
             'bg-image-url': ['bg-type', 'bg'],
             'login-bg-image-url': ['login-bg-type', 'login-bg'],
-            'agent-bg-image-url': ['agent-bg-type', 'agent-bg']
+            'agent-bg-image-url': ['agent-bg-type', 'agent-bg'],
+            'rdclient-bg-image-url': ['rdclient-bg-type', 'rdclient-bg']
         };
         const cfg = map[targetId];
         if (!cfg) return;
@@ -1409,7 +1935,8 @@
         const map = {
             'bg-image-url': 'bgImageUrl',
             'login-bg-image-url': 'loginBgImageUrl',
-            'agent-bg-image-url': 'agentBgImageUrl'
+            'agent-bg-image-url': 'agentBgImageUrl',
+            'rdclient-bg-image-url': 'rdclientBgImageUrl'
         };
         return map[targetId] || '';
     }
@@ -1564,14 +2091,14 @@
         
         const maxSize = 2 * 1024 * 1024; // 2 MB
         if (file.size > maxSize) {
-            Utils.showNotification(_('branding.logo_image_too_large'), 'error');
+            Notifications.error(_('branding.logo_image_too_large'));
             e.target.value = '';
             return;
         }
         
         const validTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'];
         if (!validTypes.includes(file.type)) {
-            Utils.showNotification(_('branding.logo_image_invalid_type'), 'error');
+            Notifications.error(_('branding.logo_image_invalid_type'));
             e.target.value = '';
             return;
         }
@@ -1599,7 +2126,7 @@
             Notifications.success(_('branding.logo_upload_success'));
             updateLogoPreview();
         } catch (err) {
-            Utils.showNotification(err.message || _('errors.server_error'), 'error');
+            Notifications.error(err.message || _('errors.server_error'));
         }
     }
     
@@ -1685,6 +2212,14 @@
         data.agentBgGradient = document.getElementById('agent-bg-gradient')?.value.trim() || '';
         data.agentBgImageUrl = document.getElementById('agent-bg-image-url')?.value.trim() || '';
         data.agentShowPoweredBy = document.getElementById('agent-show-powered')?.checked ? 'true' : 'false';
+
+        // RdClient / remote dashboard
+        data.rdclientBgType = document.querySelector('input[name="rdclient-bg-type"]:checked')?.value || 'inherit';
+        data.rdclientBgColor = document.getElementById('rdclient-bg-color')?.value.trim() || '';
+        data.rdclientBgGradient = document.getElementById('rdclient-bg-gradient')?.value.trim() || '';
+        data.rdclientBgImageUrl = document.getElementById('rdclient-bg-image-url')?.value.trim() || '';
+        data.rdclientBgOverlay = document.getElementById('rdclient-bg-overlay')?.value || '';
+        data.rdclientBgSize = document.getElementById('rdclient-bg-size')?.value || 'cover';
         
         // Footer & custom CSS
         data.footerText = document.getElementById('footer-text')?.value.trim() || '';
@@ -1942,7 +2477,7 @@
         
         // Reset
         document.getElementById('branding-reset-btn')?.addEventListener('click', async () => {
-            if (!confirm(_('branding.reset_confirm'))) return;
+            if (!(await brandingConfirm(_('branding.reset_confirm'), { danger: true }))) return;
             
             try {
                 await Utils.api('/api/settings/branding/reset', { method: 'POST' });
@@ -2024,7 +2559,13 @@
                 return;
             }
             
-            if (!confirm(_('backup.restore_confirm'))) {
+            if (!await settingsConfirmCritical({
+                title: tSettings('confirm.backup_restore_title', 'Restore backup?'),
+                message: tSettings('confirm.backup_restore', _('backup.restore_confirm')),
+                confirmLabel: _('backup.upload'),
+                icon: 'restore',
+                danger: true
+            })) {
                 e.target.value = '';
                 return;
             }
@@ -2162,7 +2703,15 @@
         });
 
         if (resetBtn) {
-            resetBtn.addEventListener('click', function() {
+            resetBtn.addEventListener('click', async function() {
+                const confirmed = await settingsConfirmCritical({
+                    title: tSettings('confirm.tutorials_reset_title', 'Reset tutorials?'),
+                    message: tSettings('confirm.tutorials_reset', 'Reset all tutorial progress? Guided tips will show again on each page.'),
+                    confirmLabel: _('tutorial.reset_all'),
+                    icon: 'refresh'
+                });
+                if (!confirmed) return;
+
                 if (typeof Tutorial !== 'undefined') {
                     Tutorial.resetTutorial();
                 } else {
@@ -2188,9 +2737,34 @@
         const desc = document.getElementById('update-status-desc');
         if (!icon || !headline) return;
 
-        icon.dataset.state = state;
-        const showBadge = state === 'warning' || state === 'error';
-        if (badge) badge.hidden = !showBadge;
+        const iconStateByStatus = {
+            idle: 'idle',
+            checking: 'checking',
+            uptodate: 'success',
+            available: 'warning',
+            baseline: 'success',
+            error: 'error'
+        };
+        icon.dataset.state = iconStateByStatus[state] || 'idle';
+
+        const badgeByStatus = {
+            uptodate: { variant: 'success', icon: 'check' },
+            available: { variant: 'warning', icon: 'priority_high' },
+            baseline: { variant: 'success', icon: 'check' },
+            error: { variant: 'error', icon: 'error_outline' }
+        };
+        const badgeCfg = badgeByStatus[state];
+        if (badge) {
+            if (badgeCfg) {
+                badge.hidden = false;
+                badge.className = 'win11-updates-hero-badge win11-updates-hero-badge--' + badgeCfg.variant;
+                const badgeIcon = badge.querySelector('.material-icons');
+                if (badgeIcon) badgeIcon.textContent = badgeCfg.icon;
+            } else {
+                badge.hidden = true;
+                badge.className = 'win11-updates-hero-badge';
+            }
+        }
 
         const messages = {
             idle:      { h: _('updates.title'), d: _('updates.desc') },
@@ -2372,10 +2946,6 @@
                         : _('updates.server_stale_desc');
                 }
                 warning.style.display = '';
-                const badge = document.getElementById('update-hero-badge');
-                if (badge) badge.hidden = false;
-                const icon = document.getElementById('update-hero-icon');
-                if (icon && icon.dataset.state === 'idle') icon.dataset.state = 'warning';
             } else {
                 warning.style.display = 'none';
             }
@@ -2662,9 +3232,72 @@
         { id: 'done',     icon: 'check_circle',      key: 'updates.phase_done' }
     ];
 
+    let _updateReloadTimers = { countdown: null, auto: null };
+
+    function getActiveUpdateModalEl() {
+        return document.querySelector('#modal-container .modal-overlay.open .modal');
+    }
+
+    function updateModalTitle(title) {
+        const titleEl = document.querySelector('#modal-container .modal-overlay.open .modal-title');
+        if (titleEl) titleEl.textContent = title;
+    }
+
+    function setModalClosable(closable) {
+        const overlay = document.querySelector('#modal-container .modal-overlay.open');
+        if (!overlay) return;
+        const header = overlay.querySelector('.modal-header');
+        if (!header) return;
+        let closeBtn = header.querySelector('.modal-close');
+        if (closable && !closeBtn) {
+            closeBtn = document.createElement('button');
+            closeBtn.className = 'modal-close';
+            closeBtn.setAttribute('aria-label', _('actions.close'));
+            closeBtn.innerHTML = '<span class="material-icons">close</span>';
+            closeBtn.addEventListener('click', () => window.Modal.close());
+            header.appendChild(closeBtn);
+        } else if (!closable && closeBtn) {
+            closeBtn.remove();
+        }
+    }
+
+    function updateModalFooter(buttons) {
+        const modal = getActiveUpdateModalEl();
+        if (!modal) return;
+        let footer = modal.querySelector('.modal-footer');
+        if (!footer && buttons.length) {
+            footer = document.createElement('div');
+            footer.className = 'modal-footer update-wizard-footer-enter';
+            modal.appendChild(footer);
+        } else if (footer && !buttons.length) {
+            footer.remove();
+            return;
+        }
+        if (!footer) return;
+        footer.classList.add('update-wizard-footer-enter');
+        footer.innerHTML = buttons.map((btn, idx) => `
+            <button type="button" class="btn ${btn.class || 'btn-secondary'}" data-btn-index="${idx}">
+                ${btn.icon ? `<span class="material-icons">${btn.icon}</span>` : ''}
+                ${Utils.escapeHtml(btn.label)}
+            </button>
+        `).join('');
+        buttons.forEach((btn, idx) => {
+            footer.querySelector(`[data-btn-index="${idx}"]`)?.addEventListener('click', () => btn.onClick?.());
+        });
+    }
+
+    function clearUpdateReloadTimers() {
+        if (_updateReloadTimers.countdown) clearInterval(_updateReloadTimers.countdown);
+        if (_updateReloadTimers.auto) clearTimeout(_updateReloadTimers.auto);
+        _updateReloadTimers = { countdown: null, auto: null };
+    }
+
     function buildUpdateModalContent() {
+        const stepLabel = _('updates.progress_step')
+            .replace('{current}', '1')
+            .replace('{total}', String(UPDATE_PHASES.length));
         const items = UPDATE_PHASES.map(p => `
-            <div class="update-phase" data-phase="${p.id}">
+            <div class="update-phase is-pending" data-phase="${p.id}">
                 <span class="update-phase-icon material-icons">${p.icon}</span>
                 <span class="update-phase-label">${_(p.key)}</span>
                 <span class="update-phase-state" data-phase-state="${p.id}">
@@ -2673,17 +3306,99 @@
             </div>
         `).join('');
         return `
-            <div class="update-progress-modal">
-                <div class="update-progress-bar"><div class="update-progress-bar-fill" id="update-modal-bar" style="width:0%"></div></div>
-                <div class="update-phases">${items}</div>
-                <div class="update-progress-detail" id="update-modal-detail">${_('updates.preparing')}</div>
-                <pre class="update-progress-log" id="update-modal-log" aria-live="polite"></pre>
+            <div class="update-wizard" data-state="running">
+                <div class="update-wizard-header">
+                    <div class="update-wizard-bar">
+                        <div class="update-wizard-bar-fill" id="update-modal-bar" style="width:0%"></div>
+                    </div>
+                    <div class="update-wizard-meta">
+                        <span class="update-wizard-step" id="update-modal-step">${Utils.escapeHtml(stepLabel)}</span>
+                        <span class="update-wizard-detail" id="update-modal-detail">${Utils.escapeHtml(_('updates.preparing'))}</span>
+                    </div>
+                </div>
+                <div class="update-wizard-phases update-phases">${items}</div>
+                <div class="update-wizard-log-panel" id="update-wizard-log-panel">
+                    <div class="update-wizard-log-toolbar">
+                        <span class="update-wizard-log-title">${Utils.escapeHtml(_('updates.log_title'))}</span>
+                        <div class="update-wizard-log-actions">
+                            <button type="button" class="btn btn-ghost btn-sm" id="update-log-expand">${Utils.escapeHtml(_('updates.log_expand'))}</button>
+                            <button type="button" class="btn btn-ghost btn-sm" id="update-log-copy">
+                                <span class="material-icons">content_copy</span>
+                                ${Utils.escapeHtml(_('updates.log_copy'))}
+                            </button>
+                        </div>
+                    </div>
+                    <pre class="update-progress-log" id="update-modal-log" aria-live="polite"></pre>
+                </div>
+                <div class="update-wizard-banner" id="update-wizard-banner" hidden>
+                    <div class="update-wizard-banner-body">
+                        <div id="update-wizard-banner-text"></div>
+                        <div id="update-wizard-banner-details" class="update-wizard-banner-details"></div>
+                        <div class="update-wizard-countdown" id="update-reload-countdown-wrap" hidden>
+                            <span id="update-reload-countdown"></span>
+                            <div class="update-wizard-countdown-bar">
+                                <div class="update-wizard-countdown-bar-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
     }
 
+    function bindUpdateLogControls() {
+        document.getElementById('update-log-expand')?.addEventListener('click', () => toggleUpdateLogExpanded());
+        document.getElementById('update-log-copy')?.addEventListener('click', () => copyUpdateLog());
+    }
+
+    function getUpdateLogText() {
+        return document.getElementById('update-modal-log')?.textContent || '';
+    }
+
+    function copyUpdateLog() {
+        const text = getUpdateLogText();
+        if (!text) return;
+        navigator.clipboard?.writeText(text).then(() => {
+            Notifications.success(_('common.copied'));
+        }).catch(() => {});
+    }
+
+    function toggleUpdateLogExpanded(forceExpand) {
+        const panel = document.getElementById('update-wizard-log-panel');
+        const btn = document.getElementById('update-log-expand');
+        if (!panel) return;
+        const expanded = forceExpand === true ? true
+            : forceExpand === false ? false
+            : !panel.classList.contains('expanded');
+        panel.classList.toggle('expanded', expanded);
+        if (btn) btn.textContent = _(expanded ? 'updates.log_collapse' : 'updates.log_expand');
+    }
+
+    function updateUpdateStepCounter(phaseId, state) {
+        const stepEl = document.getElementById('update-modal-step');
+        if (!stepEl) return;
+        const idx = UPDATE_PHASES.findIndex(p => p.id === phaseId);
+        if (idx < 0) return;
+        let current = idx + 1;
+        if (state === 'pending') current = Math.max(1, idx);
+        stepEl.textContent = _('updates.progress_step')
+            .replace('{current}', String(current))
+            .replace('{total}', String(UPDATE_PHASES.length));
+    }
+
     function setUpdatePhase(phaseId, state, detail) {
         // state: 'pending' | 'active' | 'done' | 'warning' | 'error' | 'skipped'
+        const row = document.querySelector(`.update-phase[data-phase="${phaseId}"]`);
+        if (row) {
+            row.classList.remove('is-pending', 'is-active', 'is-done', 'is-warning', 'is-error', 'is-skipped');
+            const rowState = state === 'pending' ? 'pending'
+                : state === 'active' ? 'active'
+                : state === 'done' ? 'done'
+                : state === 'warning' ? 'warning'
+                : state === 'error' ? 'error'
+                : state === 'skipped' ? 'skipped' : 'pending';
+            row.classList.add(`is-${rowState}`);
+        }
         const stateEl = document.querySelector(`[data-phase-state="${phaseId}"]`);
         if (stateEl) {
             const icons = {
@@ -2697,19 +3412,24 @@
             const cls = {
                 pending: '',
                 active:  'spinning',
-                done:    '',
+                done:    state === 'done' ? 'just-done' : '',
                 warning: '',
                 error:   '',
                 skipped: ''
             };
             stateEl.innerHTML = `<span class="material-icons ${cls[state] || ''}">${icons[state] || 'help'}</span>`;
             stateEl.dataset.state = state;
+            if (state === 'done') {
+                setTimeout(() => {
+                    stateEl.querySelector('.just-done')?.classList.remove('just-done');
+                }, 400);
+            }
         }
         if (detail) {
             const det = document.getElementById('update-modal-detail');
             if (det) det.textContent = detail;
         }
-        // Advance progress bar based on phase index
+        updateUpdateStepCounter(phaseId, state);
         const idx = UPDATE_PHASES.findIndex(p => p.id === phaseId);
         if (idx >= 0) {
             const pct = state === 'done' ? Math.round(((idx + 1) / UPDATE_PHASES.length) * 100)
@@ -2724,17 +3444,206 @@
         const log = document.getElementById('update-modal-log');
         if (!log) return;
         const ts = new Date().toLocaleTimeString();
+        const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 24;
         log.textContent += `[${ts}] ${line}\n`;
-        log.scrollTop = log.scrollHeight;
+        if (atBottom) log.scrollTop = log.scrollHeight;
     }
 
     function reloadConsole() {
+        clearUpdateReloadTimers();
         const url = new URL(window.location.href);
         url.searchParams.set('_bd_reload', Date.now().toString());
         window.location.replace(url.toString());
     }
 
-    async function installUpdate() {
+    function hasUpdateFailures(result) {
+        if (!result) return false;
+        const deployFailed = !!(result.serverDeploy && result.serverDeploy.success === false);
+        return (result.failed?.length || 0) > 0
+            || (result.servicesFailed?.length || 0) > 0
+            || !!result.consoleRestartBlocked
+            || !!result.restartTimeout
+            || deployFailed;
+    }
+
+    function buildUpdateSummaryHtml(result, options = {}) {
+        const { includeSummary = true } = options;
+        const lines = [];
+        const deployFailed = !!(result?.serverDeploy && result.serverDeploy.success === false);
+        const hasFailures = hasUpdateFailures(result);
+        if (includeSummary) {
+            const summaryKey = hasFailures ? 'updates.complete_with_errors' : 'updates.complete_summary';
+            lines.push(`<p>${Utils.escapeHtml(_(summaryKey))}</p>`);
+        }
+        const stats = [
+            { label: _('updates.applied'), value: result?.applied?.length || 0 },
+            { label: _('updates.failed'),  value: result?.failed?.length  || 0 },
+            { label: _('updates.removed'), value: result?.removed?.length || 0 }
+        ];
+        lines.push(`<ul>${stats.map(s => `<li>${Utils.escapeHtml(s.label)}: <strong>${s.value}</strong></li>`).join('')}</ul>`);
+        if (result?.failed?.length) {
+            lines.push(`<ul class="update-wizard-error-list">${result.failed.map(f =>
+                `<li><strong>${Utils.escapeHtml(f.file || 'unknown')}</strong>${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
+            ).join('')}</ul>`);
+        }
+        if (result?.servicesFailed?.length) {
+            lines.push(`<ul class="update-wizard-error-list">${result.servicesFailed.map(s =>
+                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}</li>`
+            ).join('')}</ul>`);
+        }
+        if (result?.consoleRestartBlocked) {
+            lines.push(`<p class="update-wizard-error-list">${Utils.escapeHtml(result.consoleRestartBlocked)}</p>`);
+        }
+        if (result?.restartTimeout) {
+            lines.push(`<p>${Utils.escapeHtml(_('updates.restart_timeout'))}</p>`);
+            lines.push(`<p>${Utils.escapeHtml(_('updates.refresh_recommended'))}</p>`);
+        }
+        if (result?.errorMessage) {
+            lines.push(`<p class="update-wizard-error-list">${Utils.escapeHtml(result.errorMessage)}</p>`);
+        }
+        if (deployFailed) {
+            const errMsg = result.serverDeploy.error || '';
+            lines.push(`<p class="update-wizard-error-list"><strong>${Utils.escapeHtml(_('updates.server_deploy_failed'))}</strong></p>`);
+            if (errMsg) lines.push(`<pre style="font-size:11px;white-space:pre-wrap;margin:4px 0 0;">${Utils.escapeHtml(errMsg)}</pre>`);
+        } else if (result?.serverBuild?.success) {
+            const note = result.serverBuild.method === 'download' ? _('updates.server_downloaded') : _('updates.server_built');
+            lines.push(`<p>${Utils.escapeHtml(note)}</p>`);
+        }
+        const needsReload = (result?.applied || []).some(p => /\.(js|css|html|ejs)$/i.test(p));
+        if (needsReload && !result?.restartTimeout) {
+            lines.push(`<p>${Utils.escapeHtml(_('updates.refresh_recommended'))}</p>`);
+        }
+        return lines.join('');
+    }
+
+    function startReloadCountdown(seconds = 8) {
+        clearUpdateReloadTimers();
+        const wrap = document.getElementById('update-reload-countdown-wrap');
+        const countdownEl = document.getElementById('update-reload-countdown');
+        const barFill = document.querySelector('.update-wizard-countdown-bar-fill');
+        if (wrap) wrap.hidden = false;
+        if (barFill) {
+            barFill.style.animation = 'none';
+            void barFill.offsetWidth;
+            barFill.style.animation = `updateCountdownShrink ${seconds}s linear forwards`;
+        }
+        let remaining = seconds;
+        const tick = () => {
+            if (countdownEl) {
+                countdownEl.textContent = _('updates.reload_countdown').replace('{seconds}', String(remaining));
+            }
+        };
+        tick();
+        _updateReloadTimers.countdown = setInterval(() => {
+            remaining -= 1;
+            if (remaining >= 0) tick();
+        }, 1000);
+        _updateReloadTimers.auto = setTimeout(reloadConsole, seconds * 1000);
+    }
+
+    function transitionUpdateModal(state, result) {
+        const wizard = document.querySelector('.update-wizard');
+        if (!wizard) return;
+        wizard.dataset.state = state;
+
+        const banner = document.getElementById('update-wizard-banner');
+        const bannerText = document.getElementById('update-wizard-banner-text');
+        const bannerDetails = document.getElementById('update-wizard-banner-details');
+        const countdownWrap = document.getElementById('update-reload-countdown-wrap');
+
+        clearUpdateReloadTimers();
+        if (countdownWrap) countdownWrap.hidden = true;
+
+        banner.hidden = false;
+        banner.classList.remove('is-success', 'is-error', 'is-warning');
+
+        const hasFailures = hasUpdateFailures(result);
+        const closeFooterBtn = {
+            label: _('updates.modal_close'),
+            class: 'btn-secondary',
+            onClick: () => {
+                window.Modal.close();
+                enableUpdateInstallBtn();
+            }
+        };
+
+        if (state === 'success_reload') {
+            setModalClosable(true);
+            updateModalTitle(_('updates.modal_done_title'));
+            banner.classList.add('is-success');
+            if (bannerText) bannerText.innerHTML = `<p>${Utils.escapeHtml(_('updates.restart_complete_msg'))}</p>`;
+            if (bannerDetails) bannerDetails.innerHTML = '';
+            updateModalFooter([
+                closeFooterBtn,
+                { label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole }
+            ]);
+            startReloadCountdown(8);
+        } else if (state === 'success_no_reload') {
+            setModalClosable(true);
+            updateModalTitle(_('updates.modal_done_title'));
+            banner.classList.add('is-success');
+            if (bannerText) bannerText.innerHTML = `<p>${Utils.escapeHtml(_('updates.complete_summary'))}</p>`;
+            if (bannerDetails) bannerDetails.innerHTML = buildUpdateSummaryHtml(result, { includeSummary: false });
+            const footer = [closeFooterBtn];
+            const needsReload = (result?.applied || []).some(p => /\.(js|css|html|ejs)$/i.test(p));
+            if (needsReload) {
+                footer.push({ label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole });
+            }
+            updateModalFooter(footer);
+        } else if (state === 'partial_error' || state === 'error') {
+            toggleUpdateLogExpanded(true);
+            setModalClosable(true);
+            updateModalTitle(_('updates.modal_done_with_errors_title'));
+            banner.classList.add(result?.restartTimeout ? 'is-warning' : 'is-error');
+            if (bannerText) bannerText.innerHTML = '';
+            if (bannerDetails) bannerDetails.innerHTML = buildUpdateSummaryHtml(result);
+            const errorFooter = [
+                closeFooterBtn,
+                { label: _('updates.log_copy'), class: 'btn-secondary', icon: 'content_copy', onClick: copyUpdateLog },
+                { label: _('updates.retry_update'), class: 'btn-primary', icon: 'replay', onClick: retryUpdateInstall }
+            ];
+            if (result?.restartTimeout) {
+                errorFooter.splice(1, 0, {
+                    label: _('updates.modal_reload_now'),
+                    class: 'btn-secondary',
+                    icon: 'refresh',
+                    onClick: reloadConsole
+                });
+            }
+            updateModalFooter(errorFooter);
+            enableUpdateInstallBtn();
+        }
+
+        loadLastUpdateResult();
+    }
+
+    function enableUpdateInstallBtn() {
+        const installBtn = document.getElementById('update-install-btn');
+        if (installBtn) installBtn.disabled = false;
+    }
+
+    async function retryUpdateInstall() {
+        const proceed = await window.Modal.confirm({
+            title: _('updates.retry_update'),
+            message: _('updates.retry_confirm'),
+            confirmLabel: _('updates.retry_update'),
+            confirmIcon: 'replay'
+        });
+        if (!proceed) return;
+        window.Modal.close();
+        installUpdate({ skipConfirm: true });
+    }
+
+    function showUpdateCompletionModal(result) {
+        if (hasUpdateFailures(result)) {
+            transitionUpdateModal('partial_error', result);
+        } else {
+            transitionUpdateModal('success_no_reload', result);
+        }
+    }
+
+    async function installUpdate(options = {}) {
+        const { skipConfirm = false } = options;
         const installBtn = document.getElementById('update-install-btn');
 
         if (!_updateState.remoteSHA) {
@@ -2745,58 +3654,60 @@
         const hasServerUpdate = (_updateState.changedData?.grouped?.server || []).length > 0;
         const createBackup = document.getElementById('update-backup-toggle')?.checked ?? true;
 
-        // Preflight checks (issue #158)
-        let preflightWarnings = [];
-        try {
-            const pfUrl = hasServerUpdate
-                ? '/api/settings/updates/preflight?serverUpdate=1'
-                : '/api/settings/updates/preflight';
-            const pf = await Utils.api(pfUrl);
-            if (pf && pf.ready === false && Array.isArray(pf.issues) && pf.issues.length) {
-                Notifications.error(pf.issues.join('; '));
-                return;
-            }
-            if (pf && Array.isArray(pf.warnings)) preflightWarnings = pf.warnings;
-        } catch (_e) { /* non-blocking if preflight endpoint unavailable */ }
+        if (!skipConfirm) {
+            // Preflight checks (issue #158)
+            let preflightWarnings = [];
+            try {
+                const pfUrl = hasServerUpdate
+                    ? '/api/settings/updates/preflight?serverUpdate=1'
+                    : '/api/settings/updates/preflight';
+                const pf = await Utils.api(pfUrl);
+                if (pf && pf.ready === false && Array.isArray(pf.issues) && pf.issues.length) {
+                    Notifications.error(pf.issues.join('; '));
+                    return;
+                }
+                if (pf && Array.isArray(pf.warnings)) preflightWarnings = pf.warnings;
+            } catch (_e) { /* non-blocking if preflight endpoint unavailable */ }
 
-        // Pre-flight confirmation modal
-        const scopeItems = getUpdateScopeLabels();
-        const strategyNote = hasServerUpdate ? _('updates.auto_strategy_hint') : '';
-        const warnHtml = preflightWarnings.length
-            ? `<p class="text-muted" style="font-size:12px;margin-top:8px;">${preflightWarnings.map(w => Utils.escapeHtml(w)).join('<br>')}</p>`
-            : '';
-        const confirmHtml = `
-            <p>${Utils.escapeHtml(_('updates.install_confirm'))}</p>
-            <ul style="margin:8px 0 0 0;padding-left:20px;font-size:13px;color:var(--text-secondary);">
-                <li>${Utils.escapeHtml(createBackup ? _('updates.confirm_with_backup') : _('updates.confirm_no_backup'))}</li>
-                ${scopeItems.map(item => `<li>${Utils.escapeHtml(item)}</li>`).join('')}
-                ${hasServerUpdate ? `<li>${Utils.escapeHtml(strategyNote || '')}</li>` : ''}
-            </ul>
-            ${warnHtml}
-        `;
-        const proceed = await new Promise((resolve) => {
-            window.Modal.show({
-                title: _('updates.confirm_title'),
-                content: confirmHtml,
-                buttons: [
-                    { label: _('actions.cancel'),  class: 'btn-secondary', onClick: () => { window.Modal.close(); resolve(false); } },
-                    { label: _('updates.install'), class: 'btn-primary', icon: 'system_update', onClick: () => { window.Modal.close(); resolve(true); } }
-                ],
-                closable: true,
-                onClose: () => resolve(false)
+            const scopeItems = getUpdateScopeLabels();
+            const strategyNote = hasServerUpdate ? _('updates.auto_strategy_hint') : '';
+            const warnHtml = preflightWarnings.length
+                ? `<p class="text-muted" style="font-size:12px;margin-top:8px;">${preflightWarnings.map(w => Utils.escapeHtml(w)).join('<br>')}</p>`
+                : '';
+            const confirmHtml = `
+                <p>${Utils.escapeHtml(_('updates.install_confirm'))}</p>
+                <ul style="margin:8px 0 0 0;padding-left:20px;font-size:13px;color:var(--text-secondary);">
+                    <li>${Utils.escapeHtml(createBackup ? _('updates.confirm_with_backup') : _('updates.confirm_no_backup'))}</li>
+                    ${scopeItems.map(item => `<li>${Utils.escapeHtml(item)}</li>`).join('')}
+                    ${hasServerUpdate ? `<li>${Utils.escapeHtml(strategyNote || '')}</li>` : ''}
+                </ul>
+                ${warnHtml}
+            `;
+            const proceed = await new Promise((resolve) => {
+                window.Modal.show({
+                    title: _('updates.confirm_title'),
+                    content: confirmHtml,
+                    buttons: [
+                        { label: _('actions.cancel'),  class: 'btn-secondary', onClick: () => { window.Modal.close(); resolve(false); } },
+                        { label: _('updates.install'), class: 'btn-primary', icon: 'system_update', onClick: () => { window.Modal.close(); resolve(true); } }
+                    ],
+                    closable: true,
+                    onClose: () => resolve(false)
+                });
             });
-        });
-        if (!proceed) return;
+            if (!proceed) return;
+        }
 
         if (installBtn) installBtn.disabled = true;
+        clearUpdateReloadTimers();
 
-        // Open progress modal (non-closable while running)
         window.Modal.show({
             title: _('updates.modal_title'),
             content: buildUpdateModalContent(),
             buttons: [],
             closable: false,
-            size: 'large'
+            size: 'large',
+            onOpen: () => bindUpdateLogControls()
         });
 
         UPDATE_PHASES.forEach(p => setUpdatePhase(p.id, 'pending'));
@@ -2806,8 +3717,6 @@
         logUpdate(`Starting update to ${_updateState.remoteSHA.slice(0, 7)}…`);
 
         try {
-            // Console download phase indicator (we cannot stream backend
-            // progress today, so we just mark it active until response arrives)
             setTimeout(() => {
                 setUpdatePhase('backup', 'done');
                 setUpdatePhase('console', 'active', _('updates.downloading'));
@@ -2825,13 +3734,11 @@
                 body: { remoteSHA: _updateState.remoteSHA, createBackup }
             });
 
-            // Mark earlier phases done if not already
             ['backup', 'console'].forEach(p => {
                 const st = document.querySelector(`[data-phase-state="${p}"]`)?.dataset?.state;
                 if (st !== 'done' && st !== 'skipped') setUpdatePhase(p, 'done');
             });
 
-            // Server result
             if (hasServerUpdate) {
                 if (result.toolchainInstall) {
                     if (result.toolchainInstall.success) {
@@ -2852,7 +3759,6 @@
                         setUpdatePhase('server', 'done', detail);
                         logUpdate(detail);
                     } else if (result.serverBuild.success && deployFailed) {
-                        // Build OK but deploy to service path failed — surface as error
                         const detail = _('updates.server_deploy_failed');
                         setUpdatePhase('server', 'error', detail);
                         logUpdate(`${detail}: ${result.serverDeploy.error || ''}`);
@@ -2895,19 +3801,18 @@
             if (result.needsConsoleRestart && !result.consoleRestartBlocked) {
                 setUpdatePhase('restart', 'active', _('updates.restarting'));
                 logUpdate(_('updates.console_will_restart'));
-                setTimeout(() => pollConsoleRestart(), 2500);
+                setTimeout(() => pollConsoleRestart(result), 2500);
             } else if (result.consoleRestartBlocked) {
                 setUpdatePhase('restart', 'error', result.consoleRestartBlocked);
                 logUpdate(result.consoleRestartBlocked);
                 setUpdatePhase('done', 'done', _('updates.complete_with_errors'));
                 showUpdateCompletionModal(result);
-                if (installBtn) installBtn.disabled = false;
                 loadServerBinaryStatus();
             } else {
                 setUpdatePhase('restart', 'skipped', _('updates.no_restart_needed'));
                 setUpdatePhase('done', 'done', _('updates.complete'));
                 showUpdateCompletionModal(result);
-                if (installBtn) installBtn.disabled = false;
+                enableUpdateInstallBtn();
                 loadServerBinaryStatus();
             }
         } catch (error) {
@@ -2917,74 +3822,13 @@
             });
             if (activePhase) setUpdatePhase(activePhase.id, 'error', error.message || _('updates.install_failed'));
             logUpdate(`ERROR: ${error.message || error}`);
-
-            // Replace empty footer with a Close button so the user can dismiss
-            window.Modal.close();
-            await window.Modal.alert({
-                title: _('updates.install_failed'),
-                message: error.message || _('errors.server_error')
-            });
+            transitionUpdateModal('error', { errorMessage: error.message || _('errors.server_error') });
             Notifications.error(error.message || _('updates.install_failed'));
-            if (installBtn) installBtn.disabled = false;
+            enableUpdateInstallBtn();
         }
     }
 
-    function showUpdateCompletionModal(result) {
-        const lines = [];
-        const deployFailed = !!(result.serverDeploy && result.serverDeploy.success === false);
-        const hasFailures = (result.failed?.length || 0) > 0
-            || (result.servicesFailed?.length || 0) > 0
-            || !!result.consoleRestartBlocked
-            || deployFailed;
-        const summaryKey = hasFailures ? 'updates.complete_with_errors' : 'updates.complete_summary';
-        lines.push(`<p>${Utils.escapeHtml(_(summaryKey))}</p>`);
-        const stats = [
-            { label: _('updates.applied'), value: result.applied?.length || 0 },
-            { label: _('updates.failed'),  value: result.failed?.length  || 0 },
-            { label: _('updates.removed'), value: result.removed?.length || 0 }
-        ];
-        lines.push(`<ul style="margin:8px 0;padding-left:20px;font-size:13px;">${stats.map(s => `<li>${Utils.escapeHtml(s.label)}: <strong>${s.value}</strong></li>`).join('')}</ul>`);
-        if (result.failed?.length) {
-            lines.push(`<ul style="margin:8px 0;padding-left:20px;font-size:12px;color:var(--danger,#e34935);">${result.failed.map(f =>
-                `<li><strong>${Utils.escapeHtml(f.file || 'unknown')}</strong>${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
-            ).join('')}</ul>`);
-        }
-        if (result.servicesFailed?.length) {
-            lines.push(`<ul style="margin:8px 0;padding-left:20px;font-size:12px;color:var(--danger,#e34935);">${result.servicesFailed.map(s =>
-                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}</li>`
-            ).join('')}</ul>`);
-        }
-        if (result.consoleRestartBlocked) {
-            lines.push(`<p style="font-size:12px;color:var(--danger,#e34935);">${Utils.escapeHtml(result.consoleRestartBlocked)}</p>`);
-        }
-        if (deployFailed) {
-            const errMsg = result.serverDeploy.error || '';
-            lines.push(`<p style="font-size:13px;color:var(--danger,#e34935);"><strong>${Utils.escapeHtml(_('updates.server_deploy_failed'))}</strong></p>`);
-            if (errMsg) lines.push(`<pre style="font-size:12px;background:var(--bg-secondary,#1a1a1a);padding:8px;border-radius:4px;overflow:auto;max-height:120px;white-space:pre-wrap;">${Utils.escapeHtml(errMsg)}</pre>`);
-        } else if (result.serverBuild?.success) {
-            const note = result.serverBuild.method === 'download' ? _('updates.server_downloaded') : _('updates.server_built');
-            lines.push(`<p style="font-size:13px;color:var(--text-secondary);">${Utils.escapeHtml(note)}</p>`);
-        }
-        // Some updates require manual reload (e.g., static asset changes)
-        const needsReload = (result.applied || []).some(p => /\.(js|css|html|ejs)$/i.test(p));
-        if (needsReload) {
-            lines.push(`<p style="font-size:13px;margin-top:8px;">${Utils.escapeHtml(_('updates.refresh_recommended'))}</p>`);
-        }
-
-        window.Modal.close();
-        window.Modal.show({
-            title: _(hasFailures ? 'updates.modal_done_with_errors_title' : 'updates.modal_done_title'),
-            content: lines.join(''),
-            buttons: [
-                { label: _('updates.modal_close'),     class: 'btn-secondary', onClick: () => { window.Modal.close(); } },
-                { label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole }
-            ],
-            closable: !hasFailures
-        });
-        loadLastUpdateResult();
-    }
-
-    function pollConsoleRestart() {
+    function pollConsoleRestart(installResult) {
         let attempts = 0;
         const maxAttempts = 90;
         const previousCacheVersion = window.BetterDesk?.cacheVersion || '';
@@ -3009,21 +3853,12 @@
                     setUpdatePhase('done', 'done', _('updates.complete'));
                     logUpdate(_('updates.restart_complete'));
 
-                    // Final modal: tell operator to refresh
-                    window.Modal.close();
-                    window.Modal.show({
-                        title: _('updates.modal_done_title'),
-                        content: `<p>${Utils.escapeHtml(_('updates.restart_complete_msg'))}</p>`,
-                        buttons: [
-                            { label: _('updates.modal_close'),     class: 'btn-secondary', onClick: () => { window.Modal.close(); } },
-                            { label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole }
-                        ],
-                        closable: true
-                    });
-
-                    // Auto-reload after a short grace period so operators do
-                    // not have to click — gives them time to read the modal.
-                    setTimeout(reloadConsole, 8000);
+                    const merged = { ...(installResult || {}), restartTimeout: false };
+                    if (hasUpdateFailures(merged)) {
+                        transitionUpdateModal('partial_error', merged);
+                    } else {
+                        transitionUpdateModal('success_reload', merged);
+                    }
                     return;
                 }
             } catch (_e) {
@@ -3035,19 +3870,14 @@
                 setUpdatePhase('done', 'done', _('updates.complete'));
                 logUpdate(_('updates.restart_timeout'));
 
-                const installBtn = document.getElementById('update-install-btn');
-                if (installBtn) installBtn.disabled = false;
-
-                window.Modal.close();
-                window.Modal.show({
-                    title: _('updates.modal_done_title'),
-                    content: `<p>${Utils.escapeHtml(_('updates.restart_timeout'))}</p><p>${Utils.escapeHtml(_('updates.refresh_recommended'))}</p>`,
-                    buttons: [
-                        { label: _('updates.modal_close'),     class: 'btn-secondary', onClick: () => { window.Modal.close(); } },
-                        { label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole }
-                    ],
-                    closable: true
-                });
+                const merged = {
+                    ...(installResult || {}),
+                    restartTimeout: true,
+                    failed: installResult?.failed || [],
+                    applied: installResult?.applied || [],
+                    removed: installResult?.removed || []
+                };
+                transitionUpdateModal('partial_error', merged);
             }
         }, 2000);
     }
@@ -3230,11 +4060,14 @@
 
         let saveTimer = null;
 
+        let enrollmentMode = 'open';
+
         async function loadEnrollmentSettings() {
             try {
                 const res = await Utils.api('/api/settings/enrollment');
                 const data = res.data || res;
                 const mode = data.mode || 'open';
+                enrollmentMode = mode;
                 modeRadios.forEach(r => { r.checked = r.value === mode; });
                 if (requireCb) requireCb.checked = mode === 'managed';
                 if (richCb) richCb.checked = data.rich_approve !== false;
@@ -3269,10 +4102,40 @@
         }
 
         modeRadios.forEach(radio => {
-            radio.addEventListener('change', () => {
+            radio.addEventListener('change', async () => {
                 if (!radio.checked) return;
-                if (requireCb) requireCb.checked = radio.value === 'managed';
-                scheduleSave({ mode: radio.value });
+                const previous = enrollmentMode;
+                const next = radio.value;
+                if (next === previous) return;
+
+                const modeLabel = (window.BetterDesk?.translations?.tokens?.['mode_' + next]
+                    || next);
+                const ok = await applyWithConfirm({
+                    previousValue: previous,
+                    newValue: next,
+                    setUiValue: (val) => {
+                        modeRadios.forEach(r => { r.checked = r.value === val; });
+                        if (requireCb) requireCb.checked = val === 'managed';
+                    },
+                    confirmOptions: {
+                        title: tSettings('confirm.enrollment_mode_title', 'Change enrollment mode?'),
+                        message: tSettings('confirm.enrollment_mode', 'Switch enrollment to “{mode}”? This affects how new RustDesk clients can register.')
+                            .replace('{mode}', modeLabel),
+                        confirmLabel: _('actions.save'),
+                        icon: 'how_to_reg'
+                    },
+                    save: async (mode) => {
+                        if (requireCb) requireCb.checked = mode === 'managed';
+                        await Utils.api('/api/settings/enrollment', {
+                            method: 'PUT',
+                            body: { mode },
+                        });
+                        enrollmentMode = mode;
+                        Notifications?.success?.(window.BetterDesk?.translations?.common?.saved || 'Saved');
+                        await loadEnrollmentSettings();
+                    }
+                });
+                if (!ok && requireCb) requireCb.checked = previous === 'managed';
             });
         });
 
@@ -3295,15 +4158,71 @@
         await loadEnrollmentSettings();
     }
 
+    async function initClientSessionsSection() {
+        const form = document.getElementById('client-sessions-form');
+        if (!form) return;
+
+        const expiryInput = document.getElementById('client-sessions-expiry-days');
+        const slidingCb = document.getElementById('client-sessions-sliding');
+        const maxDaysInput = document.getElementById('client-sessions-max-days');
+
+        async function loadClientSessionsSettings() {
+            try {
+                const res = await Utils.api('/api/settings/client-sessions');
+                const data = res.data || res;
+                if (expiryInput) expiryInput.value = String(data.expiry_days ?? 7);
+                if (slidingCb) slidingCb.checked = data.sliding !== false;
+                if (maxDaysInput) maxDaysInput.value = String(data.max_days ?? 30);
+            } catch (err) {
+                console.error('Load client session settings:', err);
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const expiryDays = parseInt(expiryInput?.value, 10) || 7;
+            const maxDays = parseInt(maxDaysInput?.value, 10) || 30;
+            try {
+                await Utils.api('/api/settings/client-sessions', {
+                    method: 'PUT',
+                    body: {
+                        expiry_days: expiryDays,
+                        sliding: !!slidingCb?.checked,
+                        max_days: maxDays,
+                    },
+                });
+                Notifications?.success?.(window.BetterDesk?.translations?.common?.saved || 'Saved');
+                await loadClientSessionsSettings();
+            } catch (err) {
+                Notifications?.error?.(err.message || 'Save failed');
+            }
+        });
+
+        await loadClientSessionsSettings();
+    }
+
     async function initLdapSection() {
         const form = document.getElementById('ldap-form');
         if (!form) return;
 
-        // Toggle config fields visibility based on enabled checkbox
         const enabledCb = document.getElementById('ldap-enabled');
         const configFields = document.getElementById('ldap-config-fields');
+
         if (enabledCb && configFields) {
-            enabledCb.addEventListener('change', () => {
+            enabledCb.addEventListener('change', async () => {
+                if (enabledCb.checked && !_ldapWasEnabled) {
+                    const ok = await settingsConfirmCritical({
+                        title: tSettings('confirm.ldap_enable_title', 'Enable LDAP?'),
+                        message: tSettings('confirm.ldap_enable', 'Enable LDAP / Active Directory sign-in? Console users may authenticate against your directory.'),
+                        confirmLabel: _('settings.ldap_enabled'),
+                        icon: 'domain'
+                    });
+                    if (!ok) {
+                        enabledCb.checked = false;
+                        configFields.style.display = 'none';
+                        return;
+                    }
+                }
                 configFields.style.display = enabledCb.checked ? '' : 'none';
             });
         }
@@ -3342,6 +4261,16 @@
         // Form submission
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const data = collectLdapData();
+            if (data.enabled) {
+                const confirmed = await settingsConfirmCritical({
+                    title: tSettings('confirm.ldap_save_title', 'Save LDAP settings?'),
+                    message: tSettings('confirm.ldap_save', 'Save LDAP configuration? Incorrect settings can block directory sign-in.'),
+                    confirmLabel: _('settings.ldap_save'),
+                    icon: 'save'
+                });
+                if (!confirmed) return;
+            }
             await saveLdapConfig();
         });
     }
@@ -3374,6 +4303,7 @@
         };
 
         setChecked('ldap-enabled', data.enabled);
+        _ldapWasEnabled = !!data.enabled;
         setVal('ldap-host', data.host);
         setVal('ldap-port', data.port || 389);
         setChecked('ldap-use-tls', data.use_tls);
@@ -3454,6 +4384,7 @@
                 body: data
             });
             Notifications.success(_('settings.ldap_saved'));
+            _ldapWasEnabled = data.enabled;
         } catch (error) {
             Notifications.error(error.message || _('errors.server_error'));
         }
@@ -3511,7 +4442,20 @@
         const enabledCb = document.getElementById('oidc-enabled');
         const configFields = document.getElementById('oidc-config-fields');
         if (enabledCb && configFields) {
-            enabledCb.addEventListener('change', () => {
+            enabledCb.addEventListener('change', async () => {
+                if (enabledCb.checked && !_oidcWasEnabled) {
+                    const ok = await settingsConfirmCritical({
+                        title: tSettings('confirm.oidc_enable_title', 'Enable SSO?'),
+                        message: tSettings('confirm.oidc_enable', 'Enable OIDC / SSO sign-in? Users may authenticate through your identity provider.'),
+                        confirmLabel: _('settings.oidc_enabled'),
+                        icon: 'login'
+                    });
+                    if (!ok) {
+                        enabledCb.checked = false;
+                        configFields.style.display = 'none';
+                        return;
+                    }
+                }
                 configFields.style.display = enabledCb.checked ? '' : 'none';
             });
         }
@@ -3534,6 +4478,16 @@
         // Form submission
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const data = collectOidcData();
+            if (data.enabled) {
+                const confirmed = await settingsConfirmCritical({
+                    title: tSettings('confirm.oidc_save_title', 'Save SSO settings?'),
+                    message: tSettings('confirm.oidc_save', 'Save OIDC / SSO configuration? Incorrect settings can block SSO sign-in.'),
+                    confirmLabel: _('settings.oidc_save'),
+                    icon: 'save'
+                });
+                if (!confirmed) return;
+            }
             await saveOidcConfig();
         });
     }
@@ -3560,11 +4514,13 @@
         };
 
         setChecked('oidc-enabled', data.enabled);
+        _oidcWasEnabled = !!data.enabled;
         setVal('oidc-display-name', data.display_name);
         setVal('oidc-issuer-url', data.issuer_url);
         setVal('oidc-client-id', data.client_id);
         setVal('oidc-client-secret', data.client_secret);
         setVal('oidc-redirect-url', data.redirect_url);
+        setVal('oidc-panel-url', data.panel_url || window.location.origin);
         setVal('oidc-scopes', data.scopes || 'openid profile email');
         setChecked('oidc-use-pkce', data.use_pkce);
         setChecked('oidc-auto-discovery', data.auto_discovery !== false);
@@ -3603,6 +4559,7 @@
             client_id: getVal('oidc-client-id'),
             client_secret: getVal('oidc-client-secret'),
             redirect_url: getVal('oidc-redirect-url'),
+            panel_url: getVal('oidc-panel-url') || window.location.origin,
             scopes: getVal('oidc-scopes'),
             use_pkce: getChecked('oidc-use-pkce'),
             auto_discovery: getChecked('oidc-auto-discovery'),
@@ -3627,6 +4584,7 @@
                 body: data
             });
             Notifications.success(_('settings.oidc_saved'));
+            _oidcWasEnabled = data.enabled;
         } catch (error) {
             Notifications.error(error.message || _('errors.server_error'));
         }
@@ -3750,10 +4708,16 @@
             }).join('');
 
             listEl.querySelectorAll('.advanced-config-file-btn').forEach((btn) => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     const id = btn.getAttribute('data-id');
                     if (!id) return;
-                    if (advancedState.dirty && !confirm(_('settings.advanced_unsaved_confirm'))) return;
+                    if (advancedState.dirty && !await settingsConfirmCritical({
+                        title: tSettings('confirm.advanced_discard_title', 'Discard changes?'),
+                        message: _('settings.advanced_unsaved_confirm'),
+                        confirmLabel: _('actions.confirm'),
+                        icon: 'undo',
+                        danger: true
+                    })) return;
                     loadAdvancedFile(id);
                 });
             });
@@ -3782,7 +4746,13 @@
     }
 
     async function loadAdvancedFile(id, force) {
-        if (!force && advancedState.dirty && !confirm(_('settings.advanced_unsaved_confirm'))) return;
+        if (!force && advancedState.dirty && !await settingsConfirmCritical({
+            title: tSettings('confirm.advanced_discard_title', 'Discard changes?'),
+            message: _('settings.advanced_unsaved_confirm'),
+            confirmLabel: _('actions.confirm'),
+            icon: 'undo',
+            danger: true
+        })) return;
 
         const placeholder = document.getElementById('advanced-config-placeholder');
         const toolbar = document.getElementById('advanced-config-toolbar');
@@ -3864,7 +4834,12 @@
             return;
         }
 
-        if (!confirm(_('settings.advanced_save_confirm'))) return;
+        if (!await settingsConfirmCritical({
+            title: tSettings('confirm.advanced_save_title', 'Save configuration file?'),
+            message: _('settings.advanced_save_confirm'),
+            confirmLabel: _('settings.advanced_save'),
+            icon: 'save'
+        })) return;
 
         const saveBtn = document.getElementById('advanced-config-save');
         if (saveBtn) saveBtn.disabled = true;
@@ -3884,7 +4859,12 @@
             await loadAdvancedFileList();
             loadAdvancedFile(id, true);
 
-            if (confirm(_('settings.advanced_restart_after_save'))) {
+            if (await settingsConfirmCritical({
+                title: tSettings('confirm.advanced_restart_after_title', 'Restart service?'),
+                message: _('settings.advanced_restart_after_save'),
+                confirmLabel: _('settings.advanced_apply_restart'),
+                icon: 'restart_alt'
+            })) {
                 await restartAdvancedServices(true);
             }
         } catch (err) {
@@ -3897,7 +4877,13 @@
         const id = advancedState.activeId;
         if (!id) return;
 
-        if (advancedState.dirty && !confirm(_('settings.advanced_unsaved_confirm'))) return;
+        if (advancedState.dirty && !await settingsConfirmCritical({
+            title: tSettings('confirm.advanced_discard_title', 'Discard changes?'),
+            message: _('settings.advanced_unsaved_confirm'),
+            confirmLabel: _('actions.confirm'),
+            icon: 'undo',
+            danger: true
+        })) return;
 
         const catalog = advancedState.files.find((f) => f.id === id);
         const isConsole = catalog && (catalog.requiresRestart === 'console' || id === 'systemd-console'
@@ -3905,7 +4891,13 @@
         const confirmKey = isConsole
             ? 'settings.advanced_restart_console_confirm'
             : 'settings.advanced_restart_confirm';
-        if (!skipConfirm && !confirm(_(confirmKey))) return;
+        if (!skipConfirm && !await settingsConfirmCritical({
+            title: tSettings('confirm.advanced_restart_title', 'Restart service?'),
+            message: _(confirmKey),
+            confirmLabel: _('settings.advanced_apply_restart'),
+            icon: 'restart_alt',
+            danger: true
+        })) return;
 
         const restartBtn = document.getElementById('advanced-config-restart');
         if (restartBtn) restartBtn.disabled = true;
@@ -3979,14 +4971,17 @@
                 from: document.getElementById('email-smtp-from')?.value.trim() || '',
                 alert_email: document.getElementById('email-smtp-alert')?.value.trim() || '',
             };
-            try {
-                const res = await fetch('/api/settings/email/smtp', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.BetterDesk?.csrfToken || '' },
-                    body: JSON.stringify(body),
+            if (!_smtpWasConfigured || body.host) {
+                const confirmed = await settingsConfirmCritical({
+                    title: tSettings('confirm.smtp_save_title', 'Save SMTP settings?'),
+                    message: tSettings('confirm.smtp_save', 'Save SMTP configuration? Alert emails and notifications will use this mail server.'),
+                    confirmLabel: _('settings.email.smtp_save') || _('actions.save'),
+                    icon: 'email'
                 });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Save failed');
+                if (!confirmed) return;
+            }
+            try {
+                await Utils.api('/api/settings/email/smtp', { method: 'PUT', body });
                 Notifications.success(_('settings.email.smtp_saved'));
                 document.getElementById('email-smtp-pass').value = '';
                 await loadEmailSmtpConfig();
@@ -3997,11 +4992,7 @@
 
         testBtn.addEventListener('click', async () => {
             try {
-                const res = await fetch('/api/settings/email/smtp/test', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-Token': window.BetterDesk?.csrfToken || '' },
-                });
-                const data = await res.json();
+                const data = await Utils.api('/api/settings/email/smtp/test', { method: 'POST', body: {} });
                 if (data.success) {
                     Notifications.success(_('settings.email.smtp_test_success'));
                 } else {
@@ -4015,9 +5006,12 @@
 
     async function loadEmailSmtpConfig() {
         try {
-            const res = await fetch('/api/settings/email/smtp');
-            const config = await res.json();
-            if (!config.configured) return;
+            const config = await Utils.api('/api/settings/email/smtp');
+            if (!config.configured) {
+                _smtpWasConfigured = false;
+                return;
+            }
+            _smtpWasConfigured = true;
             document.getElementById('email-smtp-host').value = config.host || '';
             document.getElementById('email-smtp-port').value = config.port || 587;
             document.getElementById('email-smtp-secure').checked = !!config.secure;

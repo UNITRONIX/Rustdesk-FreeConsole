@@ -25,9 +25,12 @@ const {
 const { splitUpdateFailures } = require('../lib/updateFailurePolicy');
 const advancedConfig = require('../services/advancedConfigService');
 const serverConnectionConfig = require('../services/serverConnectionConfigService');
+const rustDeskPublicEndpoints = require('../services/rustDeskPublicEndpointsService');
+const clientConfigHost = require('../services/clientConfigHost');
 const { getSmtpSettings, putSmtpSettings, testSmtpSettings } = require('../lib/smtpSettingsHandlers');
 const { apiClient } = require('../services/betterdeskApi');
 const { requireAuth, requirePermission, roleHasPermission } = require('../middleware/auth');
+const deviceGroupService = require('../services/deviceGroupService');
 const os = require('os');
 const multer = require('multer');
 
@@ -112,17 +115,18 @@ router.get('/api/settings/info', requireAuth, async (req, res) => {
  */
 router.get('/api/settings/server-info', requireAuth, (req, res) => {
     try {
+        const endpoints = clientConfigHost.resolveRustDeskEndpoints(req, '');
         const apiKey = keyService.getApiKey(true);
-        
-        let serverIp = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '-';
-        serverIp = serverIp.split(':')[0];
-        
+
         res.json({
             success: true,
             data: {
-                server_id: serverIp,
-                relay_server: serverIp,
-                api_key_masked: apiKey || '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'
+                server_id: endpoints.host,
+                relay_server: endpoints.relay,
+                api_url: endpoints.api,
+                api_key_masked: apiKey || '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+                endpoint_sources: endpoints.sources,
+                env_override_active: endpoints.env_override_active,
             }
         });
     } catch (err) {
@@ -131,6 +135,39 @@ router.get('/api/settings/server-info', requireAuth, (req, res) => {
             success: false,
             error: req.t('errors.server_error')
         });
+    }
+});
+
+/**
+ * GET /api/settings/device-scope - Default device visibility mode for non-admin users.
+ */
+router.get('/api/settings/device-scope', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const stored = await db.getSetting('device_scope_default');
+        const mode = stored && String(stored).toLowerCase() === 'restricted' ? 'restricted' : 'open';
+        res.json({ success: true, data: { mode } });
+    } catch (err) {
+        console.error('Get device scope setting error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/settings/device-scope - Set default device visibility mode.
+ */
+router.post('/api/settings/device-scope', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const mode = String((req.body && req.body.mode) || 'open').toLowerCase();
+        if (mode !== 'open' && mode !== 'restricted') {
+            return res.status(400).json({ success: false, error: req.t('settings.device_scope_invalid') });
+        }
+        await db.setSetting('device_scope_default', mode);
+        deviceGroupService.invalidateDeviceScopeDefaultCache();
+        await db.logAction(req.session.userId, 'device_scope_default_updated', `Device scope default: ${mode}`, req.ip);
+        res.json({ success: true, data: { mode } });
+    } catch (err) {
+        console.error('Set device scope setting error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
     }
 });
 
@@ -163,9 +200,34 @@ router.get('/api/settings/audit', requireAuth, async (req, res) => {
 router.get('/api/settings/branding', requireAuth, (req, res) => {
     try {
         const branding = brandingService.getBranding();
-        res.json({ success: true, data: branding });
+        res.json({
+            success: true,
+            data: branding,
+            appearance: brandingService.getAppearanceModel(branding),
+            readability: brandingService.assessAppearanceReadability(branding),
+            revision: brandingService.getBrandingRevision()
+        });
     } catch (err) {
         console.error('Get branding error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * GET /api/settings/appearance - Versioned appearance model for the settings UI
+ */
+router.get('/api/settings/appearance', requireAuth, (req, res) => {
+    try {
+        const branding = brandingService.getBranding();
+        res.json({
+            success: true,
+            data: brandingService.getAppearanceModel(branding),
+            flat: branding,
+            readability: brandingService.assessAppearanceReadability(branding),
+            revision: brandingService.getBrandingRevision()
+        });
+    } catch (err) {
+        console.error('Get appearance error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });
     }
 });
@@ -181,12 +243,16 @@ router.post('/api/settings/branding', requireAuth, requirePermission('branding.e
         }
         
         await brandingService.saveBranding(updates);
+        const savedBranding = brandingService.getBranding();
+        const readability = brandingService.assessAppearanceReadability(savedBranding);
         
         await db.logAction(req.session?.userId, 'branding_update', 'Updated branding configuration', req.ip);
         
         res.json({
             success: true,
-            data: brandingService.getBranding(),
+            data: savedBranding,
+            appearance: brandingService.getAppearanceModel(savedBranding),
+            readability,
             revision: brandingService.getBrandingRevision()
         });
     } catch (err) {
@@ -285,6 +351,37 @@ const bgUpload = multer({
 });
 
 /**
+ * GET /api/settings/branding/backgrounds - List uploaded background images.
+ */
+router.get('/api/settings/branding/backgrounds', requireAuth, (req, res) => {
+    try {
+        const uploadsRoot = path.resolve(UPLOADS_DIR);
+        const managedPattern = /^bg-[0-9a-f]{16}\.(png|jpg|jpeg|gif|webp)$/i;
+        const files = fs.readdirSync(uploadsRoot)
+            .filter((name) => managedPattern.test(name))
+            .map((name) => {
+                const fullPath = path.resolve(uploadsRoot, name);
+                if (!fullPath.startsWith(uploadsRoot + path.sep)) return null;
+                const stat = fs.lstatSync(fullPath);
+                if (!stat.isFile() || stat.isSymbolicLink()) return null;
+                return {
+                    name,
+                    url: `/uploads/${name}`,
+                    size: stat.size,
+                    updatedAt: stat.mtime.toISOString()
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+        res.json({ success: true, data: files });
+    } catch (err) {
+        console.error('List branding backgrounds error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
  * POST /api/settings/branding/upload-background - Upload a background image.
  * Used by the console / login / agent-portal wallpaper pickers. Returns the
  * served URL; the caller decides which branding field to assign it to. Old
@@ -304,7 +401,8 @@ router.post('/api/settings/branding/upload-background', requireAuth, requirePerm
         const targetMap = {
             bgImageUrl: 'bgType',
             loginBgImageUrl: 'loginBgType',
-            agentBgImageUrl: 'agentBgType'
+            agentBgImageUrl: 'agentBgType',
+            rdclientBgImageUrl: 'rdclientBgType'
         };
         const target = String(req.body?.target || '').trim();
         let branding = null;
@@ -980,7 +1078,12 @@ router.get('/api/settings/updates/check', requireAuth, requirePermission('server
         res.json({ success: true, data: result });
     } catch (err) {
         console.error('Update check error:', err);
-        res.status(500).json({ success: false, error: 'Failed to check for updates: ' + err.message });
+        const rateLimited = updateService.isGithubRateLimitError(err);
+        res.status(rateLimited ? 503 : 500).json({
+            success: false,
+            error: 'Failed to check for updates: ' + err.message,
+            code: rateLimited ? 'GITHUB_RATE_LIMIT' : undefined,
+        });
     }
 });
 
@@ -1019,7 +1122,12 @@ router.get('/api/settings/updates/changes', requireAuth, requirePermission('serv
         res.json({ success: true, data: result });
     } catch (err) {
         console.error('Get changes error:', err);
-        res.status(500).json({ success: false, error: 'Failed to get changed files: ' + err.message });
+        const rateLimited = updateService.isGithubRateLimitError(err);
+        res.status(rateLimited ? 503 : 500).json({
+            success: false,
+            error: 'Failed to get changed files: ' + err.message,
+            code: rateLimited ? 'GITHUB_RATE_LIMIT' : undefined,
+        });
     }
 });
 
@@ -1095,7 +1203,12 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
                 svc = updateService.restartService(serviceName);
             }
             if (svc.success) result.servicesRestarted.push('server');
-            else result.servicesFailed.push({ service: 'server', error: svc.error });
+            else {
+                const fail = { service: 'server', error: svc.error };
+                if (svc.nonCritical) fail.nonCritical = true;
+                if (svc.hint) fail.hint = svc.hint;
+                result.servicesFailed.push(fail);
+            }
         }
 
         // Restart console after response is sent (systemd/NSSM restarts automatically)
@@ -1119,7 +1232,8 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
         try {
             const rootDir = path.join(__dirname, '..');
             const { critical: criticalFailures } = splitUpdateFailures(result.failed || [], rootDir);
-            const servicesFailed = result.servicesFailed || [];
+            // Access-denied NSSM restarts are non-critical on Windows (#272).
+            const servicesFailed = (result.servicesFailed || []).filter(s => !s.nonCritical);
             const consoleRestartBlocked = result.consoleRestartBlocked || null;
             if (criticalFailures.length === 0 && servicesFailed.length === 0 && !consoleRestartBlocked) {
                 clearLastUpdateResult(config.dataDir);
@@ -1489,6 +1603,96 @@ router.post('/api/settings/ldap/test', requireAuth, requirePermission('server.co
     }
 });
 
+// ==================== RustDesk client sessions (Issue #242) ==================
+
+const { upsertEnvKey } = require('../lib/envMerge');
+const CLIENT_SESSIONS_ENV_PATH = path.join(__dirname, '..', '.env');
+
+function clampClientSessionDays(value, fallback) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n) || n < 1) return fallback;
+    return Math.min(n, 365);
+}
+
+function parseClientSessionBool(value, fallback) {
+    if (value === undefined || value === null || value === '') return fallback;
+    const v = String(value).toLowerCase();
+    if (v === '1' || v === 'true' || v === 'yes' || v === 'on') return true;
+    if (v === '0' || v === 'false' || v === 'no' || v === 'off') return false;
+    return fallback;
+}
+
+/**
+ * GET /api/settings/client-sessions
+ */
+router.get('/api/settings/client-sessions', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const [expiryR, slidingR, maxR] = await Promise.all([
+            betterdeskApi.getConfig('client_session_expiry_days'),
+            betterdeskApi.getConfig('client_session_sliding'),
+            betterdeskApi.getConfig('client_session_max_days'),
+        ]);
+
+        const expiryRaw = expiryR.success ? expiryR.data?.value : '';
+        const slidingRaw = slidingR.success ? slidingR.data?.value : '';
+        const maxRaw = maxR.success ? maxR.data?.value : '';
+
+        res.json({
+            success: true,
+            data: {
+                expiry_days: clampClientSessionDays(expiryRaw, 7),
+                sliding: parseClientSessionBool(slidingRaw, true),
+                max_days: clampClientSessionDays(maxRaw, 30),
+            },
+        });
+    } catch (err) {
+        console.error('Get client session settings error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * PUT /api/settings/client-sessions
+ * Body: { expiry_days?, sliding?, max_days? }
+ */
+router.put('/api/settings/client-sessions', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const body = req.body || {};
+        const expiryDays = clampClientSessionDays(body.expiry_days, 7);
+        const maxDays = clampClientSessionDays(body.max_days, 30);
+        const sliding = body.sliding !== false;
+
+        const results = await Promise.all([
+            betterdeskApi.setConfig('client_session_expiry_days', String(expiryDays)),
+            betterdeskApi.setConfig('client_session_sliding', sliding ? 'true' : 'false'),
+            betterdeskApi.setConfig('client_session_max_days', String(maxDays)),
+        ]);
+        const failed = results.find(r => !r.success);
+        if (failed) {
+            return res.status(500).json({ success: false, error: failed.error || 'Failed to save client session settings' });
+        }
+
+        if (fs.existsSync(CLIENT_SESSIONS_ENV_PATH)) {
+            let content = fs.readFileSync(CLIENT_SESSIONS_ENV_PATH, 'utf8');
+            content = upsertEnvKey(content, 'API_TOKEN_EXPIRY_DAYS', String(expiryDays));
+            fs.writeFileSync(CLIENT_SESSIONS_ENV_PATH, content, { mode: 0o600 });
+        }
+        process.env.API_TOKEN_EXPIRY_DAYS = String(expiryDays);
+
+        await db.logAction(
+            req.session?.userId,
+            'client_session_settings_changed',
+            `RustDesk client sessions: ${expiryDays}d sliding=${sliding} max=${maxDays}d`,
+            req.ip
+        );
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Save client session settings error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
 // ==================== OIDC Configuration API (proxy to Go server) ===========
 
 /**
@@ -1783,6 +1987,70 @@ router.post('/api/settings/connection-mode/restart', requireAuth, requirePermiss
             });
         }
         console.error('Connection mode restart error:', err);
+        res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
+    }
+});
+
+/**
+ * GET /api/settings/public-endpoints — RustDesk public client endpoints (durable dataDir + .env)
+ */
+router.get('/api/settings/public-endpoints', requireAuth, requirePermission('server.config'), (req, res) => {
+    try {
+        const settings = rustDeskPublicEndpoints.getPublicEndpointSettings();
+        res.json({
+            success: true,
+            data: {
+                ...settings,
+                env_override_active: rustDeskPublicEndpoints.isEnvOverrideActive(settings),
+            },
+        });
+    } catch (err) {
+        console.error('Get public endpoints error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * PUT /api/settings/public-endpoints — persist RustDesk public client endpoints (dataDir + .env)
+ */
+router.put('/api/settings/public-endpoints', requireAuth, requirePermission('server.config'), async (req, res) => {
+    try {
+        const body = req.body || {};
+        const result = await rustDeskPublicEndpoints.savePublicEndpointSettings({
+            public_server_id: body.public_server_id,
+            public_relay_server: body.public_relay_server,
+            public_api_url: body.public_api_url,
+        });
+
+        await db.logAction(
+            req.session?.userId,
+            'public_endpoints_changed',
+            `RustDesk public endpoints updated (ID=${result.settings.public_server_id || '-'}, relay=${result.settings.public_relay_server || '-'}, api=${result.settings.public_api_url || '-'})`,
+            req.ip
+        );
+
+        res.json({
+            success: true,
+            data: {
+                ...result.settings,
+                env_override_active: rustDeskPublicEndpoints.isEnvOverrideActive(result.settings),
+            },
+            message: req.t('settings.public_endpoints_saved'),
+        });
+    } catch (err) {
+        if (err.message === 'invalid_public_host') {
+            return res.status(400).json({
+                success: false,
+                error: req.t('settings.public_endpoints_invalid_host'),
+            });
+        }
+        if (err.message === 'invalid_public_api_url') {
+            return res.status(400).json({
+                success: false,
+                error: req.t('settings.public_endpoints_invalid_api_url'),
+            });
+        }
+        console.error('Save public endpoints error:', err);
         res.status(500).json({ success: false, error: err.message || req.t('errors.server_error') });
     }
 });

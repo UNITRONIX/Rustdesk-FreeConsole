@@ -256,6 +256,204 @@ func TestProcessIDChangeSoftDeletedTargetReturnsIDExists(t *testing.T) {
 	}
 }
 
+func TestProcessIDChangeRejectsInvalidNewID(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{ID: "OLD213", Status: "ONLINE"}); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := newRegisterPk("bad/id")
+	msg.OldId = "OLD213"
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	if peer, err := database.GetPeer("OLD213"); err != nil {
+		t.Fatal(err)
+	} else if peer == nil {
+		t.Fatal("OLD213 should remain active after rejected invalid target ID")
+	}
+	if entry := srv.peers.Get("bad/id"); entry != nil {
+		t.Fatalf("invalid target ID must not enter memory map: %+v", entry)
+	}
+}
+
+func TestProcessIDChangeRejectsSoftDeletedSource(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{ID: "MACPRO", Status: "OFFLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.DeletePeer("MACPRO"); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := newRegisterPk("MACPRO1")
+	msg.OldId = "MACPRO"
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	state, err := database.GetPeerIDState("MACPRO")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != db.PeerIDSoftDeleted {
+		t.Fatalf("MACPRO state = %s, want %s", state, db.PeerIDSoftDeleted)
+	}
+	state, err = database.GetPeerIDState("MACPRO1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != db.PeerIDMissing {
+		t.Fatalf("MACPRO1 state = %s, want %s", state, db.PeerIDMissing)
+	}
+}
+
+func TestProcessIDChangeRejectsPKMismatch(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "OLD213",
+		Status: "ONLINE",
+		PK:     bytes.Repeat([]byte{0x99}, 32),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := newRegisterPk("NEW213")
+	msg.OldId = "OLD213"
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	if peer, err := database.GetPeer("OLD213"); err != nil {
+		t.Fatal(err)
+	} else if peer == nil {
+		t.Fatal("OLD213 should remain active after rejected ID change")
+	}
+}
+
+func TestProcessIDChangeSuccessEmptyPK(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	storedPK := bytes.Repeat([]byte{0x42}, 32)
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "MACPRO1",
+		Status: "ONLINE",
+		PK:     storedPK,
+		UUID:   "aabbccddeeff00112233445566778899",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := &pb.RegisterPk{
+		Id:    "MACPRO",
+		OldId: "MACPRO1",
+		Uuid:  []byte("machine-uid-bytes"),
+	}
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_OK)
+	}
+
+	peer, err := database.GetPeer("MACPRO")
+	if err != nil || peer == nil {
+		t.Fatalf("GetPeer MACPRO: %v %+v", err, peer)
+	}
+	if len(peer.PK) != 32 || !bytes.Equal(peer.PK, storedPK) {
+		t.Fatalf("PK not preserved: len=%d", len(peer.PK))
+	}
+	if old, _ := database.GetPeer("MACPRO1"); old != nil {
+		t.Fatalf("MACPRO1 should be removed after ID change: %+v", old)
+	}
+}
+
+func TestProcessIDChangeRejectsWrongPKWhenPKSent(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "OLD213",
+		Status: "ONLINE",
+		PK:     bytes.Repeat([]byte{0x99}, 32),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := newRegisterPk("NEW213")
+	msg.OldId = "OLD213"
+	msg.Pk = bytes.Repeat([]byte{0x42}, 32)
+	resp := srv.processIDChange(msg)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_NOT_SUPPORT {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+}
+
+func TestResolveRegistrationPeerIDRedirectsSameDevice(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "MACPRO1",
+		Status: "ONLINE",
+		IP:     "203.0.113.50",
+		PK:     bytes.Repeat([]byte{0x42}, 32),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.ChangePeerID("MACPRO1", "MACPRO2", "panel"); err != nil {
+		t.Fatal(err)
+	}
+
+	effective, ok := srv.resolveRegistrationPeerID("MACPRO1", "203.0.113.50", nil, nil)
+	if !ok || effective != "MACPRO2" {
+		t.Fatalf("resolveRegistrationPeerID same IP = (%q, %v), want (MACPRO2, true)", effective, ok)
+	}
+	effective, ok = srv.resolveRegistrationPeerID("MACPRO1", "198.51.100.99", nil, nil)
+	if ok {
+		t.Fatalf("resolveRegistrationPeerID different IP = (%q, %v), want reject", effective, ok)
+	}
+}
+
+func TestTCPIDChangeEmptyPKRustDesk147(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+
+	storedPK := bytes.Repeat([]byte{0x42}, 32)
+	if err := database.UpsertPeer(&db.Peer{
+		ID:     "MACPRO1",
+		Status: "ONLINE",
+		PK:     storedPK,
+		IP:     "203.0.113.10",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeAddr, err := net.ResolveTCPAddr("tcp", "203.0.113.10:50123")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := srv.handleRegisterPkTCP(&pb.RegisterPk{
+		OldId: "MACPRO1",
+		Id:    "MACPRO",
+		Uuid:  []byte("machine-uid-bytes"),
+	}, fakeAddr)
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("TCP ID change result = %v, want OK", got)
+	}
+
+	peer, err := database.GetPeer("MACPRO")
+	if err != nil || peer == nil {
+		t.Fatalf("GetPeer MACPRO: %v %+v", err, peer)
+	}
+	if !bytes.Equal(peer.PK, storedPK) {
+		t.Fatal("stored PK should be preserved when client omits pk")
+	}
+}
+
 func TestProcessRegisterPkManagedAllowsTokenBoundPeer(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
 
@@ -363,19 +561,120 @@ func TestHandleRequestRelayTCPSamePublicIPIgnoresPrivateRelayHint(t *testing.T) 
 		LastReg:    time.Now(),
 		StatusTier: peer.StatusOnline,
 	})
+	// Same public IP as target — FindByIP resolves the registered peer (#302 gate).
+	srv.peers.Put(&peer.Entry{
+		ID:         "INIT121",
+		UDPAddr:    udpAddr("203.0.113.44", 51000),
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
 
 	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
 		Id:          "TARGET121",
 		Uuid:        "issue-121-relay-uuid",
 		RelayServer: "10.0.0.20:21117",
-	}, udpAddr("203.0.113.44", 51000))
+	}, udpAddr("203.0.113.44", 51000), peer.ConnTCP)
 
 	rr := resp.GetRelayResponse()
 	if rr == nil {
 		t.Fatalf("expected RelayResponse, got %+v", resp)
 	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("unexpected RefuseReason %q", rr.RefuseReason)
+	}
 	if rr.RelayServer != "198.51.100.20:21117" {
 		t.Fatalf("relay = %q, want public relay", rr.RelayServer)
+	}
+}
+
+func TestHandleRequestRelayTCPProtocolMismatch(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.localIP.Store("198.51.100.20")
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "NATIVETGT",
+		UDPAddr:    udpAddr("203.0.113.50", 52000),
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+	srv.peers.Put(&peer.Entry{
+		ID:         "WSINIT01",
+		UDPAddr:    udpAddr("198.51.100.30", 51000),
+		ConnType:   peer.ConnWS,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "NATIVETGT",
+		Uuid: "issue-290-mismatch-uuid",
+	}, udpAddr("198.51.100.30", 51000), peer.ConnWS)
+
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != refuseRelayProtocolMismatch {
+		t.Fatalf("RefuseReason = %q, want %q", rr.RefuseReason, refuseRelayProtocolMismatch)
+	}
+}
+
+func TestHandleRequestRelayTCPMatchingWSAllowed(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.localIP.Store("198.51.100.20")
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "WSTARGET",
+		UDPAddr:    udpAddr("203.0.113.60", 52000),
+		ConnType:   peer.ConnWS,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+	srv.peers.Put(&peer.Entry{
+		ID:         "WSINIT02",
+		UDPAddr:    udpAddr("198.51.100.40", 51000),
+		ConnType:   peer.ConnWS,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "WSTARGET",
+		Uuid: "issue-290-match-uuid",
+	}, udpAddr("198.51.100.40", 51000), peer.ConnWS)
+
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("unexpected RefuseReason %q", rr.RefuseReason)
+	}
+	if rr.Uuid != "issue-290-match-uuid" {
+		t.Fatalf("uuid = %q", rr.Uuid)
+	}
+}
+
+func TestRelayTransportMismatchHelper(t *testing.T) {
+	cases := []struct {
+		a, b peer.ConnType
+		want bool
+	}{
+		{peer.ConnWS, peer.ConnTCP, true},
+		{peer.ConnWS, peer.ConnUDP, true},
+		{peer.ConnTCP, peer.ConnWS, true},
+		{peer.ConnUDP, peer.ConnWS, true},
+		{peer.ConnWS, peer.ConnWS, false},
+		{peer.ConnTCP, peer.ConnUDP, false},
+		{peer.ConnTCP, peer.ConnTCP, false},
+		{peer.ConnUDP, peer.ConnUDP, false},
+	}
+	for _, tc := range cases {
+		if got := relayTransportMismatch(tc.a, tc.b); got != tc.want {
+			t.Errorf("relayTransportMismatch(%s, %s) = %v, want %v", tc.a, tc.b, got, tc.want)
+		}
 	}
 }
 
@@ -449,5 +748,147 @@ func TestPublishPeerOnlineEmitsEvent(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for peer_online event")
+	}
+}
+
+func putOnlinePeer(srv *Server, id, ip string, port int, connType peer.ConnType) {
+	srv.peers.Put(&peer.Entry{
+		ID:         id,
+		UDPAddr:    udpAddr(ip, port),
+		IP:         udpAddr(ip, port).String(),
+		ConnType:   connType,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+}
+
+func TestAnonymousInitiatorPunchHoleRejected(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	putOnlinePeer(srv, "TGTANON1", "203.0.113.50", 52000, peer.ConnUDP)
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTANON1"}, udpAddr("198.51.100.99", 51000))
+	phr := resp.GetPunchHoleResponse()
+	if phr == nil {
+		t.Fatalf("expected PunchHoleResponse, got %+v", resp)
+	}
+	if phr.Failure != pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatalf("Failure = %v, want ID_NOT_EXIST", phr.Failure)
+	}
+}
+
+func TestAnonymousInitiatorRequestRelayRejected(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	putOnlinePeer(srv, "TGTANON2", "203.0.113.51", 52000, peer.ConnTCP)
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "TGTANON2",
+		Uuid: "anon-relay-uuid",
+	}, udpAddr("198.51.100.98", 51000), peer.ConnTCP)
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != refuseInitiatorNotAuthorized {
+		t.Fatalf("RefuseReason = %q, want %q", rr.RefuseReason, refuseInitiatorNotAuthorized)
+	}
+}
+
+func TestManagedPendingInitiatorCannotPunchHole(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTPEND1", "203.0.113.60", 52000, peer.ConnUDP)
+	// Simulate memory-only / pending peer (no approved DB row) — the #302 bypass case.
+	putOnlinePeer(srv, "PENDINIT1", "198.51.100.70", 51000, peer.ConnUDP)
+	if err := database.SetConfig("pending_device_PENDINIT1", `{"device_id":"PENDINIT1"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTPEND1"}, udpAddr("198.51.100.70", 51000))
+	phr := resp.GetPunchHoleResponse()
+	if phr == nil {
+		t.Fatalf("expected PunchHoleResponse, got %+v", resp)
+	}
+	if phr.Failure != pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatalf("Failure = %v, want ID_NOT_EXIST (pending must not initiate)", phr.Failure)
+	}
+}
+
+func TestManagedPendingInitiatorCannotRequestRelay(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTPEND2", "203.0.113.61", 52000, peer.ConnTCP)
+	putOnlinePeer(srv, "PENDINIT2", "198.51.100.71", 51000, peer.ConnTCP)
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "TGTPEND2",
+		Uuid: "pending-relay-uuid",
+	}, udpAddr("198.51.100.71", 51000), peer.ConnTCP)
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != refuseInitiatorNotAuthorized {
+		t.Fatalf("RefuseReason = %q, want %q", rr.RefuseReason, refuseInitiatorNotAuthorized)
+	}
+}
+
+func TestManagedApprovedInitiatorCanRequestRelay(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	if err := database.UpsertPeer(&db.Peer{ID: "APPRINIT1", Status: "ONLINE", IP: "198.51.100.72"}); err != nil {
+		t.Fatalf("UpsertPeer initiator: %v", err)
+	}
+	putOnlinePeer(srv, "TGTAPPR1", "203.0.113.62", 52000, peer.ConnTCP)
+	putOnlinePeer(srv, "APPRINIT1", "198.51.100.72", 51000, peer.ConnTCP)
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "TGTAPPR1",
+		Uuid: "approved-relay-uuid",
+	}, udpAddr("198.51.100.72", 51000), peer.ConnTCP)
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("approved initiator should not be refused, got %q", rr.RefuseReason)
+	}
+	if rr.Uuid != "approved-relay-uuid" {
+		t.Fatalf("uuid = %q", rr.Uuid)
+	}
+}
+
+func TestLockedInitiatorWithoutDBPeerRejected(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeLocked)
+	putOnlinePeer(srv, "TGTLOCK1", "203.0.113.70", 52000, peer.ConnTCP)
+	putOnlinePeer(srv, "LOCKINIT1", "198.51.100.80", 51000, peer.ConnTCP)
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "TGTLOCK1",
+		Uuid: "locked-relay-uuid",
+	}, udpAddr("198.51.100.80", 51000), peer.ConnTCP)
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != refuseInitiatorNotAuthorized {
+		t.Fatalf("RefuseReason = %q, want %q", rr.RefuseReason, refuseInitiatorNotAuthorized)
+	}
+}
+
+func TestOpenRegisteredInitiatorCanRequestRelay(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	putOnlinePeer(srv, "TGTOPEN1", "203.0.113.80", 52000, peer.ConnTCP)
+	putOnlinePeer(srv, "OPENINIT1", "198.51.100.90", 51000, peer.ConnTCP)
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "TGTOPEN1",
+		Uuid: "open-relay-uuid",
+	}, udpAddr("198.51.100.90", 51000), peer.ConnTCP)
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("unexpected RefuseReason %q", rr.RefuseReason)
+	}
+	if rr.Uuid != "open-relay-uuid" {
+		t.Fatalf("uuid = %q", rr.Uuid)
 	}
 }

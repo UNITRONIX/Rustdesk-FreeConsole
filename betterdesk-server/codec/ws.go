@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
 	pb "github.com/unitronix/betterdesk-server/proto"
@@ -22,11 +23,16 @@ type WSConn struct {
 	Addr             string // remote address string (for logging)
 	writeMu          sync.Mutex
 	keepAliveHandler func()
+	connectedAt      time.Time
+	framesRead       int
+	framesWrite      int
+	gotRead          bool
+	gotWrite         bool
 }
 
 // NewWSConn creates a WSConn from an accepted WebSocket connection.
 func NewWSConn(ws *websocket.Conn, ctx context.Context, remoteAddr string) *WSConn {
-	return &WSConn{WS: ws, Ctx: ctx, Addr: remoteAddr}
+	return &WSConn{WS: ws, Ctx: ctx, Addr: remoteAddr, connectedAt: time.Now()}
 }
 
 // SetKeepAliveHandler registers a callback for empty binary keepalive frames.
@@ -44,6 +50,8 @@ func (c *WSConn) ReadMessage() (*pb.RendezvousMessage, error) {
 		if typ != websocket.MessageBinary {
 			return nil, fmt.Errorf("ws: expected binary frame, got %v", typ)
 		}
+		c.framesRead++
+		c.logFirstReadFrame(typ, data)
 		if len(data) == 0 {
 			if c.keepAliveHandler != nil {
 				c.keepAliveHandler()
@@ -72,6 +80,8 @@ func (c *WSConn) WriteMessage(msg *pb.RendezvousMessage) error {
 func (c *WSConn) WriteRaw(data []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	c.framesWrite++
+	c.logFirstWriteFrame(data)
 	return c.WS.Write(c.Ctx, websocket.MessageBinary, data)
 }
 
@@ -96,6 +106,13 @@ func (c *WSConn) ReadRaw() ([]byte, error) {
 // RemoteAddr returns the remote address string.
 func (c *WSConn) RemoteAddr() string {
 	return c.Addr
+}
+
+// FramesRead returns how many binary frames have been read on this connection.
+// Used by signal keepalive to avoid sending empty frames on ephemeral
+// RequestRelay sessions that already exchanged real protobuf (issue #276).
+func (c *WSConn) FramesRead() int {
+	return c.framesRead
 }
 
 // Close closes the WebSocket connection with a normal closure status.

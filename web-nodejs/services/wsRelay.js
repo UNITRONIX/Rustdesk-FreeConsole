@@ -16,6 +16,7 @@ const net = require('net');
 const os = require('os');
 const config = require('../config/config');
 const { enforceOrigin } = require('../middleware/wsOrigin');
+const { registerUpgradeHandler } = require('./wsUpgradeRouter');
 
 // Maximum concurrent relay connections per IP
 const MAX_CONNECTIONS_PER_IP = 5;
@@ -65,58 +66,104 @@ function initWsProxy(server, sessionMiddleware) {
     // Relay proxy (hbbr)
     const relayWss = new WebSocket.Server({ noServer: true });
 
-    // Handle upgrade requests — verify session cookie before allowing WebSocket
-    // Only handles /ws/rendezvous and /ws/relay; other paths are left for
-    // downstream handlers (chatRelay, remoteRelay, cdapProxy, etc.)
-    server.on('upgrade', (request, socket, head) => {
-        const url = new URL(request.url, `http://${request.headers.host}`);
-        const pathname = url.pathname;
+    // Handle upgrade requests — verify session cookie before allowing WebSocket.
+    // Paths owned: /ws/rendezvous, /ws/relay (shared upgrade router — #295).
+    registerUpgradeHandler(
+        server,
+        (pathname) => pathname === '/ws/rendezvous' || pathname === '/ws/relay',
+        (request, socket, head) => {
+            const url = new URL(request.url, `http://${request.headers.host}`);
+            const pathname = url.pathname;
 
-        // Only handle paths this proxy owns
-        if (pathname !== '/ws/rendezvous' && pathname !== '/ws/relay') {
-            return; // let other upgrade handlers deal with it
-        }
+            // CSWSH protection: reject cross-origin upgrades before touching session
+            if (!enforceOrigin(request, socket, `ws-proxy ${pathname}`)) return;
 
-        // CSWSH protection: reject cross-origin upgrades before touching session
-        if (!enforceOrigin(request, socket, `ws-proxy ${pathname}`)) return;
-
-        // Validate the session against the real Express session store.
-        // Using sessionMiddleware (from server.js) populates req.session, which
-        // we then check for an authenticated userId. This replaces the old
-        // cookie-name-only check that could be bypassed with a fake cookie.
-        if (typeof sessionMiddleware !== 'function') {
-            console.warn('WS proxy: sessionMiddleware not provided — rejecting upgrade');
-            socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
-            socket.destroy();
-            return;
-        }
-
-        // Attach a minimal fake response so session middleware can call next()
-        const fakeRes = Object.create(null);
-        fakeRes.getHeader = () => undefined;
-        fakeRes.setHeader = () => {};
-        fakeRes.end = () => {};
-        fakeRes.on = () => {};
-
-        sessionMiddleware(request, fakeRes, () => {
-            if (!request.session || !request.session.userId) {
-                console.warn(`WS proxy: Rejected upgrade to ${pathname} — no authenticated session (ip: ${request.socket?.remoteAddress})`);
-                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+            // Validate the session against the real Express session store.
+            // Using sessionMiddleware (from server.js) populates req.session, which
+            // we then check for an authenticated userId. This replaces the old
+            // cookie-name-only check that could be bypassed with a fake cookie.
+            if (typeof sessionMiddleware !== 'function') {
+                console.warn('WS proxy: sessionMiddleware not provided — rejecting upgrade');
+                socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');
                 socket.destroy();
                 return;
             }
 
-            if (pathname === '/ws/rendezvous') {
-                rendezvousWss.handleUpgrade(request, socket, head, (ws) => {
-                    rendezvousWss.emit('connection', ws, request);
-                });
-            } else {
-                relayWss.handleUpgrade(request, socket, head, (ws) => {
-                    relayWss.emit('connection', ws, request);
-                });
-            }
-        });
-    }); // server.on('upgrade')
+            // Attach a minimal fake response so session middleware can call next()
+            const fakeRes = Object.create(null);
+            fakeRes.getHeader = () => undefined;
+            fakeRes.setHeader = () => {};
+            fakeRes.end = () => {};
+            fakeRes.on = () => {};
+
+            sessionMiddleware(request, fakeRes, () => {
+                void (async () => {
+                    const hasUser = request.session && request.session.userId;
+                    let hasGuest = false;
+                    if (!hasUser) {
+                        let guestToken = '';
+                        try {
+                            // Prefer ?guest= on WS URL (session pages always append it for guests)
+                            guestToken = String(
+                                url.searchParams.get('guest') || url.searchParams.get('t') || ''
+                            ).trim();
+                            if (!guestToken) {
+                                const { GUEST_COOKIE } = require('../middleware/guestAccess');
+                                const raw = request.headers.cookie || '';
+                                const names = [GUEST_COOKIE, 'bd.guest', 'betterdesk.guest'];
+                                for (const cookieName of names) {
+                                    const match = raw.split(';').map((p) => p.trim()).find((p) => p.startsWith(cookieName + '='));
+                                    if (match) {
+                                        guestToken = decodeURIComponent(match.slice(cookieName.length + 1) || '').trim();
+                                        if (guestToken) break;
+                                    }
+                                }
+                            }
+                        } catch {
+                            guestToken = '';
+                        }
+
+                        if (guestToken) {
+                            try {
+                                // Must validate against Go store — non-empty guest= alone is not auth.
+                                const betterdeskApi = require('./betterdeskApi');
+                                const result = await betterdeskApi.apiClient.get('/guest/access-links/validate', {
+                                    params: { token: guestToken },
+                                    timeout: 5000,
+                                });
+                                const data = result.data || {};
+                                if (data.valid) {
+                                    hasGuest = true;
+                                    request.guestToken = guestToken;
+                                    request.guestGrant = data;
+                                }
+                            } catch (err) {
+                                console.warn(
+                                    `WS proxy: guest token validation failed for ${pathname}: ${err.message || err}`
+                                );
+                            }
+                        }
+                    }
+                    if (!hasUser && !hasGuest) {
+                        console.warn(`WS proxy: Rejected upgrade to ${pathname} — no authenticated session (ip: ${request.socket?.remoteAddress})`);
+                        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                        socket.destroy();
+                        return;
+                    }
+
+                    if (pathname === '/ws/rendezvous') {
+                        rendezvousWss.handleUpgrade(request, socket, head, (ws) => {
+                            rendezvousWss.emit('connection', ws, request);
+                        });
+                    } else {
+                        relayWss.handleUpgrade(request, socket, head, (ws) => {
+                            relayWss.emit('connection', ws, request);
+                        });
+                    }
+                })();
+            });
+        }
+    );
 
     // Parse target host/port from config
     const hbbsHost = config.wsProxy?.hbbsHost || 'localhost';

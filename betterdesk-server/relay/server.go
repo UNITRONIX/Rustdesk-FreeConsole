@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/unitronix/betterdesk-server/codec"
 	"github.com/unitronix/betterdesk-server/config"
 	pb "github.com/unitronix/betterdesk-server/proto"
@@ -27,6 +28,7 @@ type Server struct {
 	cfg         *config.Config
 	bwLimiter   *ratelimit.BandwidthLimiter
 	connLimiter *ratelimit.ConnLimiter
+	sessionLimiter *ratelimit.ConnLimiter // active paired sessions per IP (post-pair)
 	tcpLn       net.Listener
 	wsHTTP      *http.Server // WebSocket relay listener
 	ctx         context.Context
@@ -50,11 +52,45 @@ var (
 	timeAfter = func(d time.Duration) <-chan time.Time { return time.After(d) }
 )
 
+// relayTransport identifies how a peer reached the relay (framing differs).
+// TCP uses RustDesk BytesCodec; WebSocket uses one raw protobuf per binary frame.
+// Mixing them after UUID pairing corrupts the E2E handshake (#290).
+type relayTransport string
+
+const (
+	relayTransportTCP relayTransport = "tcp"
+	relayTransportWS  relayTransport = "ws"
+)
+
 // pendingConn holds a connection waiting for its pair.
+// Exactly one of conn (TCP) or ws (WebSocket) is set.
 type pendingConn struct {
-	conn    net.Conn
-	created time.Time
-	done    chan struct{} // closed when paired or timed out
+	conn      net.Conn
+	ws        *websocket.Conn // WebSocket peers — keep raw conn for message-preserving copy (#293)
+	remote    string          // RemoteAddr string (WS upgrade remote)
+	transport relayTransport
+	created   time.Time
+	done      chan struct{} // closed when paired or timed out
+}
+
+func (pc *pendingConn) close() {
+	if pc.ws != nil {
+		_ = pc.ws.Close(websocket.StatusNormalClosure, "")
+		return
+	}
+	if pc.conn != nil {
+		pc.conn.Close()
+	}
+}
+
+func (pc *pendingConn) remoteAddr() string {
+	if pc.remote != "" {
+		return pc.remote
+	}
+	if pc.conn != nil {
+		return pc.conn.RemoteAddr().String()
+	}
+	return "unknown"
 }
 
 // New creates a new relay server instance.
@@ -70,6 +106,11 @@ func (s *Server) SetBandwidthLimiter(bl *ratelimit.BandwidthLimiter) {
 // SetConnLimiter sets the per-IP connection limiter for relay abuse prevention.
 func (s *Server) SetConnLimiter(cl *ratelimit.ConnLimiter) {
 	s.connLimiter = cl
+}
+
+// SetSessionLimiter limits active (paired) relay sessions per IP.
+func (s *Server) SetSessionLimiter(cl *ratelimit.ConnLimiter) {
+	s.sessionLimiter = cl
 }
 
 // SetBillingCallbacks registers hooks when relay sessions start/end (commercialization).
@@ -197,24 +238,36 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 
 	log.Printf("[relay] Connection from %s for UUID %s", conn.RemoteAddr(), uuid)
-	s.pairIncomingConn(conn, uuid)
+	s.pairIncomingConn(&pendingConn{
+		conn:      conn,
+		remote:    conn.RemoteAddr().String(),
+		transport: relayTransportTCP,
+		created:   timeNow(),
+		done:      make(chan struct{}),
+	}, uuid)
 }
 
 // pairIncomingConn pairs two relay connections sharing the same session UUID.
 // LoadOrStore avoids a race where simultaneous connections both miss LoadAndDelete
 // and overwrite each other in pending without ever pairing.
-func (s *Server) pairIncomingConn(conn net.Conn, uuid string) {
-	pc := &pendingConn{
-		conn:    conn,
-		created: timeNow(),
-		done:    make(chan struct{}),
-	}
-
+// Peers must use the same transport (TCP or WS); mixed framing is rejected (#290).
+func (s *Server) pairIncomingConn(pc *pendingConn, uuid string) {
 	if val, loaded := s.pending.LoadOrStore(uuid, pc); loaded {
 		existing := val.(*pendingConn)
 		s.pending.Delete(uuid)
 		close(existing.done)
-		s.startRelay(existing.conn, conn, uuid)
+		if existing.transport != pc.transport {
+			log.Printf("[relay] Protocol mismatch for UUID %s: %s <-> %s (rejecting mixed WebSocket/native relay)",
+				uuid, existing.transport, pc.transport)
+			existing.close()
+			pc.close()
+			return
+		}
+		if pc.transport == relayTransportWS {
+			s.startWSRelay(existing.ws, pc.ws, existing.remoteAddr(), pc.remoteAddr(), uuid)
+			return
+		}
+		s.startRelay(existing.conn, pc.conn, uuid)
 		return
 	}
 
@@ -224,19 +277,41 @@ func (s *Server) pairIncomingConn(conn net.Conn, uuid string) {
 	case <-timeAfter(config.RelayPairTimeout):
 		if val, ok := s.pending.Load(uuid); ok && val.(*pendingConn) == pc {
 			s.pending.Delete(uuid)
-			conn.Close()
+			pc.close()
 			log.Printf("[relay] Pair timeout for UUID %s", uuid)
 		}
 	case <-s.ctx.Done():
 		if val, ok := s.pending.Load(uuid); ok && val.(*pendingConn) == pc {
 			s.pending.Delete(uuid)
-			conn.Close()
+			pc.close()
 		}
 	}
 }
 
 // startRelay runs the bidirectional byte copy between two paired connections.
 func (s *Server) startRelay(conn1, conn2 net.Conn, uuid string) {
+	if s.sessionLimiter != nil {
+		ips := make([]string, 0, 2)
+		for _, c := range []net.Conn{conn1, conn2} {
+			ip, _, err := net.SplitHostPort(c.RemoteAddr().String())
+			if err != nil {
+				ip = c.RemoteAddr().String()
+			}
+			if !s.sessionLimiter.Acquire(ip) {
+				log.Printf("[relay] Active session limit exceeded for %s (UUID %s)", ip, uuid)
+				conn1.Close()
+				conn2.Close()
+				return
+			}
+			ips = append(ips, ip)
+		}
+		defer func() {
+			for _, ip := range ips {
+				s.sessionLimiter.Release(ip)
+			}
+		}()
+	}
+
 	s.ActiveSessions.Add(1)
 	s.TotalRelayed.Add(1)
 
@@ -355,7 +430,7 @@ func (s *Server) cleanupPending() {
 				pc := value.(*pendingConn)
 				if time.Since(pc.created) > config.RelayPairTimeout {
 					if _, loaded := s.pending.LoadAndDelete(key); loaded {
-						pc.conn.Close()
+						pc.close()
 						close(pc.done)
 					}
 				}

@@ -2,16 +2,20 @@
 # =============================================================================
 # BetterDesk — one-line installer (Linux)
 #
-# Docker (default — pre-built GHCR images, fully automated):
+# Docker (default — official all-in-one GHCR image, fully automated):
 #   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
+#
+# Docker legacy (two-container split images):
+#   curl -fsSL .../install.sh | sudo bash -s -- --split
 #
 # Native (git clone + betterdesk.sh --auto):
 #   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash -s -- --native
 #
 # Options (pass after "bash -s --"):
 #   --docker | --native          Installation mode (default: docker)
+#   --split                      Legacy two-container layout (server + console images)
 #   --install-dir PATH             Install directory (default: /opt/betterdesk)
-#   --version TAG                  Docker image tag / release baseline (default: 3.1.0)
+#   --version TAG                  Docker image tag / release baseline (default: 3.3.174)
 #   --branch BRANCH                Git branch for native install (default: main)
 #   --relay-mode auto|local|public Relay auto-detection strategy
 #   --relay-servers IP[:port]      Fixed relay address (overrides --relay-mode)
@@ -35,10 +39,11 @@ set -euo pipefail
 VERSION="1.0.0"
 BETTERDESK_REPO="${BETTERDESK_REPO:-UNITRONIX/BetterDesk}"
 BETTERDESK_BRANCH="${BETTERDESK_BRANCH:-main}"
-BETTERDESK_VERSION="${BETTERDESK_VERSION:-3.1.0}"
+BETTERDESK_VERSION="${BETTERDESK_VERSION:-3.3.174}"
 BETTERDESK_RAW_BASE="${BETTERDESK_RAW_BASE:-https://raw.githubusercontent.com/${BETTERDESK_REPO}/${BETTERDESK_BRANCH}}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/betterdesk}"
 INSTALL_MODE="docker"
+DOCKER_LAYOUT="single"
 RELAY_MODE="${RELAY_MODE:-auto}"
 RELAY_SERVERS="${RELAY_SERVERS:-}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
@@ -49,8 +54,9 @@ DO_PURGE=false
 DO_RESCUE=false
 RESCUE_ACTION="rescue"
 
-# Docker quick-start ports (docker-compose.quick.yml)
-DOCKER_PORTS="21114 21115 21116 21117 21118 21119 5000"
+# Docker quick-start ports (single: 21121 API; split adds 21114)
+DOCKER_PORTS_SINGLE="21115 21116 21117 21118 21119 21121 5000"
+DOCKER_PORTS_SPLIT="21114 21115 21116 21117 21118 21119 5000"
 
 # ── Output helpers ────────────────────────────────────────────────────────────
 
@@ -82,6 +88,7 @@ usage() {
 while [ $# -gt 0 ]; do
     case "$1" in
         --docker) INSTALL_MODE="docker"; shift ;;
+        --split) DOCKER_LAYOUT="split"; shift ;;
         --native) INSTALL_MODE="native"; shift ;;
         --install-dir) INSTALL_DIR="$2"; shift 2 ;;
         --version) BETTERDESK_VERSION="$2"; shift 2 ;;
@@ -192,9 +199,15 @@ fetch_url_to_file() {
 
 validate_compose_quick() {
     local file="$1"
+    local layout="${2:-single}"
     grep -q 'services:' "$file" || die "Invalid compose file (missing services:)"
-    grep -q 'ghcr.io/unitronix/betterdesk-server' "$file" || die "Invalid compose file (unexpected content)"
-    grep -q 'ghcr.io/unitronix/betterdesk-console' "$file" || die "Invalid compose file (unexpected content)"
+    if [ "$layout" = "split" ]; then
+        grep -q 'ghcr.io/unitronix/betterdesk-server' "$file" || die "Invalid compose file (unexpected content)"
+        grep -q 'ghcr.io/unitronix/betterdesk-console' "$file" || die "Invalid compose file (unexpected content)"
+    else
+        grep -q 'ghcr.io/unitronix/betterdesk:' "$file" || die "Invalid compose file (unexpected content)"
+        grep -q 'BETTERDESK_DOCKER_LAYOUT=single' "$file" || die "Invalid compose file (missing single layout marker)"
+    fi
 }
 
 # ── Docker helpers ────────────────────────────────────────────────────────────
@@ -261,10 +274,15 @@ configure_firewall() {
     [ "$SKIP_FIREWALL" = true ] && { log "Skipping firewall configuration"; return 0; }
 
     local port created=0
+    local docker_ports="$DOCKER_PORTS_SINGLE"
+    if [ "$DOCKER_LAYOUT" = "split" ]; then
+        docker_ports="$DOCKER_PORTS_SPLIT"
+    fi
+
     log "Configuring firewall (if active)..."
 
     if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -qi "active"; then
-        for port in $DOCKER_PORTS; do
+        for port in $docker_ports; do
             if [ "$port" = "21116" ]; then
                 ufw allow 21116/tcp comment "BetterDesk signal TCP" >/dev/null 2>&1 && created=$((created + 1)) || true
                 ufw allow 21116/udp comment "BetterDesk signal UDP" >/dev/null 2>&1 && created=$((created + 1)) || true
@@ -274,7 +292,7 @@ configure_firewall() {
         done
         ufw reload >/dev/null 2>&1 || true
     elif command -v firewall-cmd >/dev/null 2>&1 && systemctl is-active --quiet firewalld 2>/dev/null; then
-        for port in $DOCKER_PORTS; do
+        for port in $docker_ports; do
             if [ "$port" = "21116" ]; then
                 firewall-cmd --permanent --add-port=21116/tcp >/dev/null 2>&1 && created=$((created + 1)) || true
                 firewall-cmd --permanent --add-port=21116/udp >/dev/null 2>&1 && created=$((created + 1)) || true
@@ -312,24 +330,56 @@ wait_for_http() {
     return 1
 }
 
+fetch_admin_credentials() {
+    # Prefer helper (#195); fall back to cat as betterdesk when image lacks the binary (#299).
+    local service="$1"
+    local compose_file="$INSTALL_DIR/docker/docker-compose.yml"
+    local out=""
+
+    out=$("${COMPOSE_CMD[@]}" -f "$compose_file" exec -T "$service" \
+        betterdesk-show-admin-credentials 2>/dev/null || true)
+    if [ -n "$out" ]; then
+        printf '%s\n' "$out"
+        return 0
+    fi
+
+    out=$("${COMPOSE_CMD[@]}" -f "$compose_file" exec -T -u betterdesk "$service" \
+        sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials 2>/dev/null' \
+        2>/dev/null || true)
+    if [ -n "$out" ]; then
+        printf '%s\n' "$out"
+        return 0
+    fi
+    return 1
+}
+
 print_docker_summary() {
     local relay="$1"
     local host_ip="${relay%%:*}"
     local creds=""
     local pubkey=""
+    local api_port="21121"
+    local exec_service="betterdesk"
 
-    creds=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T console \
-        betterdesk-show-admin-credentials 2>/dev/null || true)
-
-    pubkey=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T server \
-        sh -c 'cat /opt/rustdesk/id_ed25519.pub 2>/dev/null' 2>/dev/null || true)
+    if [ "$DOCKER_LAYOUT" = "split" ]; then
+        api_port="21114"
+        exec_service="console"
+        creds=$(fetch_admin_credentials console || true)
+        pubkey=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T server \
+            sh -c 'cat /opt/rustdesk/id_ed25519.pub 2>/dev/null' 2>/dev/null || true)
+    else
+        creds=$(fetch_admin_credentials betterdesk || true)
+        pubkey=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T betterdesk \
+            sh -c 'cat /opt/rustdesk/id_ed25519.pub 2>/dev/null' 2>/dev/null || true)
+    fi
 
     echo ""
     echo -e "${C_CYAN}╔══════════════════════════════════════════════════════════════╗${C_RESET}"
     echo -e "${C_CYAN}║${C_RESET}  ${C_BOLD}BetterDesk Docker installation complete${C_RESET}                     ${C_CYAN}║${C_RESET}"
     echo -e "${C_CYAN}╠══════════════════════════════════════════════════════════════╣${C_RESET}"
+    echo -e "${C_CYAN}║${C_RESET}  Layout:       ${C_WHITE}${DOCKER_LAYOUT} container(s)${C_RESET}"
     echo -e "${C_CYAN}║${C_RESET}  Web panel:    ${C_WHITE}http://${host_ip}:5000${C_RESET}"
-    echo -e "${C_CYAN}║${C_RESET}  API health:   ${C_WHITE}http://${host_ip}:21114/api/health${C_RESET}"
+    echo -e "${C_CYAN}║${C_RESET}  API health:   ${C_WHITE}http://${host_ip}:${api_port}/api/health${C_RESET}"
     echo -e "${C_CYAN}║${C_RESET}  Relay:        ${C_WHITE}${relay}${C_RESET}"
     echo -e "${C_CYAN}║${C_RESET}  Install dir:  ${C_WHITE}${INSTALL_DIR}/docker${C_RESET}"
     echo -e "${C_CYAN}║${C_RESET}  Image tag:    ${C_WHITE}${BETTERDESK_VERSION}${C_RESET}"
@@ -340,7 +390,7 @@ print_docker_summary() {
     echo -e "${C_CYAN}║${C_RESET}  ${C_YELLOW}RustDesk client settings:${C_RESET}"
     echo -e "${C_CYAN}║${C_RESET}    ID server:    ${C_WHITE}${host_ip}:21116${C_RESET}"
     echo -e "${C_CYAN}║${C_RESET}    Relay server: ${C_WHITE}${relay}${C_RESET}"
-    echo -e "${C_CYAN}║${C_RESET}    API server:   ${C_WHITE}http://${host_ip}:21114${C_RESET}"
+    echo -e "${C_CYAN}║${C_RESET}    API server:   ${C_WHITE}http://${host_ip}:${api_port}${C_RESET}"
     echo -e "${C_CYAN}╠══════════════════════════════════════════════════════════════╣${C_RESET}"
     if [ -n "$creds" ]; then
         echo -e "${C_CYAN}║${C_RESET}  ${C_BOLD}Admin credentials:${C_RESET}"
@@ -348,7 +398,7 @@ print_docker_summary() {
             [ -n "$line" ] && echo -e "${C_CYAN}║${C_RESET}    ${C_WHITE}${line}${C_RESET}"
         done <<< "$creds"
     else
-        echo -e "${C_CYAN}║${C_RESET}  Admin creds:   ${C_DIM}docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml exec console betterdesk-show-admin-credentials${C_RESET}"
+        echo -e "${C_CYAN}║${C_RESET}  Admin creds:   ${C_DIM}docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml exec ${exec_service} betterdesk-show-admin-credentials${C_RESET}"
     fi
     echo -e "${C_CYAN}╚══════════════════════════════════════════════════════════════╝${C_RESET}"
     echo ""
@@ -359,9 +409,19 @@ install_docker_mode() {
     local compose_dir="${INSTALL_DIR}/docker"
     local compose_file="${compose_dir}/docker-compose.yml"
     local env_file="${compose_dir}/.env"
-    local relay tmp_compose
+    local relay tmp_compose compose_src layout_label api_health_url
 
-    log "BetterDesk Docker installer v${VERSION} (images: ${BETTERDESK_VERSION})"
+    if [ "$DOCKER_LAYOUT" = "split" ]; then
+        compose_src="docker-compose.quick.yml"
+        layout_label="split (legacy)"
+        api_health_url="http://127.0.0.1:21114/api/health"
+    else
+        compose_src="docker-compose.quick.single.yml"
+        layout_label="single (official)"
+        api_health_url="http://127.0.0.1:21121/api/health"
+    fi
+
+    log "BetterDesk Docker installer v${VERSION} (${layout_label}, images: ${BETTERDESK_VERSION})"
 
     if ! check_docker; then
         if [ "$SKIP_DOCKER_INSTALL" = true ]; then
@@ -375,17 +435,18 @@ install_docker_mode() {
     mkdir -p "$compose_dir"
     relay=$(resolve_relay_address)
 
-    log "Downloading docker-compose.quick.yml..."
+    log "Downloading ${compose_src}..."
     tmp_compose=$(mktemp)
     trap 'rm -f "$tmp_compose"' RETURN
-    fetch_url_to_file "${BETTERDESK_RAW_BASE}/docker-compose.quick.yml" "$tmp_compose" 1024 131072
-    validate_compose_quick "$tmp_compose"
+    fetch_url_to_file "${BETTERDESK_RAW_BASE}/${compose_src}" "$tmp_compose" 1024 131072
+    validate_compose_quick "$tmp_compose" "$DOCKER_LAYOUT"
     install -m 0644 "$tmp_compose" "$compose_file"
 
     log "Writing ${env_file}..."
     cat > "$env_file" <<EOF
 # Generated by BetterDesk install.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ)
 BETTERDESK_IMAGE_TAG=${BETTERDESK_VERSION}
+BETTERDESK_DOCKER_LAYOUT=${DOCKER_LAYOUT}
 RELAY_SERVERS=${relay}
 EOF
     if [ -n "$ADMIN_PASSWORD" ]; then
@@ -402,7 +463,7 @@ EOF
     configure_firewall
 
     log "Waiting for services..."
-    wait_for_http "http://127.0.0.1:21114/api/health" "BetterDesk API" 90 || true
+    wait_for_http "$api_health_url" "BetterDesk API" 90 || true
     wait_for_http "http://127.0.0.1:5000/login" "Web console" 60 || true
 
     print_docker_summary "$relay"

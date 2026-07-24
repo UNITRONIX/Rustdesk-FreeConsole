@@ -201,7 +201,8 @@
             // transport yet (see Phase 2.5 / 2.6 in the unification plan).
             this.input = {
                 start: () => { /* keyboard/mouse are bound on connect */ },
-                stop:  () => { /* released in disconnect */ },
+                stop:  () => { this._releaseAllKeys(false); },
+                resetKeyboard: () => { this._releaseAllKeys(true); },
                 blockInput: () => false,
                 setBlockInput: () => false,
             };
@@ -219,6 +220,8 @@
             this._ws = null;
             this._connected = false;
             this._inputBound = false;
+            /** @type {Set<string>} */
+            this._pressedKeys = new Set();
             this._presenceTimer = null;
             this._statsTimer = null;
             this._readyTimer = null;
@@ -259,6 +262,12 @@
             this._onKeyUp     = this._handleKeyUp.bind(this);
             this._onContextMenu = (e) => e.preventDefault();
             this._onPaste = this._handlePaste.bind(this);
+            this._onWindowBlur = this._handleWindowBlur.bind(this);
+            this._onVisibilityChange = this._handleVisibilityChange.bind(this);
+        }
+
+        resetKeyboard() {
+            this._releaseAllKeys(true);
         }
 
         get state() { return this._state; }
@@ -953,6 +962,8 @@
             c.addEventListener('paste',       this._onPaste);
             document.addEventListener('keydown', this._onKeyDown);
             document.addEventListener('keyup',   this._onKeyUp);
+            window.addEventListener('blur', this._onWindowBlur);
+            document.addEventListener('visibilitychange', this._onVisibilityChange);
             c.tabIndex = 0;
             c.focus();
             this._inputBound = true;
@@ -960,6 +971,7 @@
 
         _unbindInput() {
             if (!this._inputBound) return;
+            this._releaseAllKeys(false);
             const c = this.canvas;
             c.removeEventListener('mousedown',   this._onMouseDown);
             c.removeEventListener('mouseup',     this._onMouseUp);
@@ -969,7 +981,54 @@
             c.removeEventListener('paste',       this._onPaste);
             document.removeEventListener('keydown', this._onKeyDown);
             document.removeEventListener('keyup',   this._onKeyUp);
+            window.removeEventListener('blur', this._onWindowBlur);
+            document.removeEventListener('visibilitychange', this._onVisibilityChange);
             this._inputBound = false;
+        }
+
+        _handleWindowBlur() {
+            if (this._inputBound && this._connected) {
+                this._releaseAllKeys(false);
+            }
+        }
+
+        _handleVisibilityChange() {
+            if (this._inputBound && this._connected &&
+                typeof document !== 'undefined' &&
+                document.visibilityState === 'hidden') {
+                this._releaseAllKeys(false);
+            }
+        }
+
+        _releaseAllKeys(forceAllModifiers) {
+            if (!this._connected) {
+                this._pressedKeys.clear();
+                return;
+            }
+            for (const code of [...this._pressedKeys]) {
+                this._send({
+                    type: 'input',
+                    input_type: 'keyboard',
+                    key: '',
+                    code,
+                    modifiers: { ctrl: false, alt: false, shift: false, meta: false },
+                    down: false,
+                });
+            }
+            this._pressedKeys.clear();
+            if (forceAllModifiers) {
+                for (const code of ['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
+                    'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight']) {
+                    this._send({
+                        type: 'input',
+                        input_type: 'keyboard',
+                        key: '',
+                        code,
+                        modifiers: { ctrl: false, alt: false, shift: false, meta: false },
+                        down: false,
+                    });
+                }
+            }
         }
 
         _isInputFocused() {
@@ -1038,6 +1097,7 @@
             // Phase 3.1: drop OS-level auto-repeat — the agent synthesises
             // repeats on the remote side.
             if (e.repeat) { e.preventDefault(); return; }
+            this._pressedKeys.add(e.code);
             // Phase 3.1: Unicode → text fallback (modifierless single
             // printable non-alphanumeric char gets routed via input_type:
             // text so the agent's OS-side layout handles it).
@@ -1063,6 +1123,7 @@
         _handleKeyUp(e) {
             if (!this._connected) return;
             if (this._isInputFocused()) return;
+            this._pressedKeys.delete(e.code);
             this._sendKeyEvent(e, false);
             e.preventDefault();
         }

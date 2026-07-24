@@ -108,6 +108,7 @@ router.use('/', generatorRoutes);
 router.use('/', usersRoutes);
 router.use('/', foldersRoutes);
 router.use('/', remoteRoutes);
+router.use('/', require('./guest.routes'));
 router.use('/api/i18n', i18nRoutes);
 // bdApiRoutes now mounted in server.js (before CSRF) for desktop client access
 router.use('/api/bd', inventoryRoutes);     // device-facing: /api/bd/inventory, /api/bd/telemetry
@@ -129,6 +130,7 @@ router.use('/', registrationRoutes);               // admin-facing: /registratio
 router.use('/api/bd', registrationRoutes);          // device-facing: /api/bd/register-request, /api/bd/register-status
 router.use('/', pagesRoutes);                          // page routes: /inventory, /tickets, /automation, etc.
 router.use('/', cdapRoutes);                            // admin-facing: /cdap/devices/:id, /api/cdap/*
+router.use('/', lazyRoute('./meshcentral.routes'));     // MeshCentral compat API + settings
 router.use('/', chatRoutes);                             // admin-facing: /chat, /api/chat/*
 router.use('/', tokensRoutes);                          // admin-facing: /tokens, /api/panel/tokens/*
 router.use('/api/desktop', desktopRoutes);               // admin-facing: /api/desktop/layout, /api/desktop/wallpapers

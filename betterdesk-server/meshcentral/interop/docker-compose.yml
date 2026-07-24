@@ -1,0 +1,16 @@
+# BetterDesk Mesh interop — simulated handshake + optional live MeshAgent.
+# Usage:
+#   docker compose -f interop/docker-compose.yml up --abort-on-container-exit
+services:
+  mesh-interop:
+    image: golang:1.26-bookworm
+    working_dir: /src/betterdesk-server
+    volumes:
+      - ../../:/src
+    command: >
+      bash -c "set -euo pipefail
+      && go test ./meshcentral/... -count=1 -timeout 5m
+      && go test -tags=meshagent_live ./meshcentral/... -run TestMeshAgentLiveConnect -count=1 -timeout 10m
+      && echo 'Mesh interop OK'"
+    environment:
+      MESH_ENABLED: "Y"

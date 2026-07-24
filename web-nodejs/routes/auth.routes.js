@@ -20,6 +20,7 @@ try {
     };
 }
 const { guestOnly, requireAuth } = require('../middleware/auth');
+const { clearGuestCookie } = require('../middleware/guestAccess');
 const { loginLimiter, passwordChangeLimiter } = require('../middleware/rateLimiter');
 
 /**
@@ -184,6 +185,9 @@ router.post('/api/auth/login', loginLimiter, async (req, res) => {
             if (user.emergencyMode) {
                 req.session.emergencyMode = true;
             }
+
+            // Drop stale guest cookie so Web Remote is not guest-hijacked after login
+            clearGuestCookie(res);
             
             // Log successful login
             await db.logAction(user.id, 'login', `User logged in`, req.ip);
@@ -324,19 +328,24 @@ router.get('/api/auth/oidc/status', async (req, res) => {
 });
 
 /**
- * GET /api/auth/oidc/authorize - Redirect to OIDC IdP
- * Proxies to Go server which handles state/nonce/PKCE generation.
- * return_url is validated as a relative path before forwarding.
+ * GET /api/auth/oidc/authorize - Redirect browser to OIDC IdP
+ *
+ * Go builds state/nonce/PKCE and returns 302 Location to the IdP.
+ * We resolve that URL server-to-server so the browser is never sent to the
+ * internal BETTERDESK_API_URL (often http://localhost:21114) — issue #298.
  */
-router.get('/api/auth/oidc/authorize', (req, res) => {
-    // BETTERDESK_API_URL may or may not include a trailing /api segment
-    // (it does in config.js for axios baseURL use). Strip it before building
-    // the absolute redirect to avoid a doubled /api/api/... path.
-    const rawApiUrl = process.env.BETTERDESK_API_URL || 'http://localhost:21121';
-    const goApiUrl = rawApiUrl.replace(/\/+$/, '').replace(/\/api$/, '');
+router.get('/api/auth/oidc/authorize', async (req, res) => {
     const requested = typeof req.query.return_url === 'string' ? req.query.return_url : '/';
     const returnUrl = isSafeReturnUrl(requested) ? requested : '/';
-    res.redirect(`${goApiUrl}/api/auth/oidc/authorize?return_url=${encodeURIComponent(returnUrl)}`);
+    try {
+        const result = await betterdeskApi.startOIDCAuthorize(returnUrl);
+        if (!result.success || !result.data?.auth_url) {
+            return res.redirect('/login?error=oidc_error');
+        }
+        return res.redirect(result.data.auth_url);
+    } catch (err) {
+        return res.redirect('/login?error=oidc_error');
+    }
 });
 
 /**
@@ -426,6 +435,7 @@ router.get('/api/auth/oidc/session', async (req, res) => {
             };
             req.session.goToken = token;
             req.session.authMethod = 'oidc';
+            clearGuestCookie(res);
 
             req.session.save((saveErr) => {
                 if (saveErr) {
@@ -542,6 +552,7 @@ function finalizeLoginSession(req, res, pendingUser, method) {
                 username: pendingUser.username,
                 role: pendingUser.role
             };
+            clearGuestCookie(res);
 
             try {
                 await db.updateLastLogin(pendingUser.id);

@@ -73,7 +73,7 @@ The layer is **not a fork** of MeshCentral. It reimplements the **wire protocol 
 
 ### Accepted constraint
 
-MeshAgent **cannot** provide remote desktop without **MeshCore** — JavaScript pushed by the server after the binary handshake. BetterDesk must host a compatible `meshcore.js` (initially vendored verbatim from upstream MeshCentral, pinned to a specific version).
+MeshAgent **cannot** provide remote desktop without **MeshCore** — JavaScript pushed by the server after the binary handshake. BetterDesk ships **BetterCore** (`bettercore.js`, embedded in `betterdesk-server`) and **BetterViewer** (`betterviewer.js`, panel static JS). No upstream MeshCentral JavaScript is vendored in the repository.
 
 ---
 
@@ -144,15 +144,15 @@ else                                      →  transport=rd (RustDesk)
 
 ### AD-6: Pinned upstream version
 
-**Decision**: Pin MeshCentral assets (`meshcore.js`, `agent-desktop-0.0.2.js`) to a specific release (e.g. **1.2.0**). Interop tests run against real MeshAgent from that release line.
+**Decision**: Mesh interoperability uses real MeshAgent binaries against BetterDesk **BetterCore** and **BetterViewer** (AGPL). Interop tests run against MeshAgent 1.2.x agents.
 
 **Rationale**: MC protocol is largely undocumented; behavior is reverse-engineered from source. Pinning limits breakage from upstream changes.
 
-### AD-7: Optional module, off by default on minimal installs
+### AD-7: Enabled by default (disable with `MESH_ENABLED=N`)
 
-**Decision**: `MESH_ENABLED=N` by default on `--minimal` installs; `Y` configurable on full installs.
+**Decision**: `MESH_ENABLED=Y` by default on full and minimal installs; operators set `MESH_ENABLED=N` to disable the module.
 
-**Rationale**: Reduces attack surface and maintenance for headless relay-only nodes.
+**Rationale**: MeshAgent/BetterCore is part of the BetterDesk product surface; installers and panel updates inject the env var automatically.
 
 ---
 
@@ -186,7 +186,7 @@ MeshCentral uses **WebSocket-centric JSON + binary** protocols, not REST. The co
 |--------|------|---------|
 | 11 | `CoreModuleHash` | Agent reports MeshCore SHA-384 |
 | 16 | `CoreOk` | Server approves core |
-| 10 / 20 | `CoreModule` / `CompressedCoreModule` | Server pushes `meshcore.js` |
+| 10 / 20 | `CoreModule` / `CompressedCoreModule` | Server pushes `bettercore.js` |
 
 Remote desktop, terminal, and file access execute inside **MeshCore** (Duktape JS runtime inside MeshAgent), not in the C binary alone.
 
@@ -223,12 +223,12 @@ BetterDesk panel generates `.msh` with correct `ServerID` from `GET /api/mesh/se
 
 ### KVM binary protocol (`p=2`)
 
-Documented in MeshCentral `agent-desktop-0.0.2.js`. Key command families:
+Documented MNG_KVM command families (BetterDesk `betterviewer.js`):
 
-- **Agent → Browser**: `MNG_KVM_PICTURE` (JPEG tiles), `MNG_KVM_SCREEN`, `MNG_KVM_GET_DISPLAYS`, display info, cursor.
-- **Browser → Agent**: `MNG_KVM_KEY`, `MNG_KVM_MOUSE`, compression/scaling, display selection.
+- **Agent → Browser**: JPEG tiles, screen size, display list, cursor, input lock, keyboard LED state.
+- **Browser → Agent**: key/mouse/touch input, compression/scaling, display selection, Ctrl+Alt+Del.
 
-Initial implementation: **opaque binary forward** through relay (no transcoding). Viewer may embed upstream `agent-desktop` JS until unified BetterDesk viewer supports MNG_KVM natively.
+Initial implementation: **opaque binary forward** through relay (no transcoding). Browser uses the native BetterDesk MNG_KVM viewer.
 
 ---
 
@@ -283,7 +283,7 @@ flowchart TB
 | `relay_ws.go` | `/meshrelay.ashx` — session matching, `c`/`cr`, binary pipe |
 | `control_ws.go` | `/control.ashx` — operator channel, `nodes`, tunnel orchestration |
 | `auth.go` | Agent-server RSA cert, SHA-384 pinning, relay cookie crypto |
-| `meshcore.go` | Serve pinned `meshcore.js` assets |
+| `meshcore.go` | Embed and serve BetterCore |
 | `kvm.go` | MNG_KVM `p=2` relay / viewer bridge |
 | `registry.go` | `nodeid` → `peers.id`, `device_type=mesh_agent` |
 | `groups.go` | Mesh groups → BetterDesk folders / device groups |
@@ -358,7 +358,7 @@ MeshCentral device groups ("meshes") map to existing folder / org structures:
 **Deliverables:**
 
 - This document (finalized after review).
-- Vendored assets: `meshcore.js`, `agent-desktop-0.0.2.js` with LICENSE/NOTICE.
+- AGPL assets: **BetterCore** / **BetterViewer** (`bettercore.js`, `betterviewer.js`; see `meshcentral/assets/NOTICE`).
 - Docker-based interop test: real MeshAgent → test BetterDesk server.
 - `go test` scaffolding for handshake and relay token matching.
 
@@ -402,7 +402,7 @@ MeshCentral device groups ("meshes") map to existing folder / org structures:
 **Web panel:**
 
 - `transport=mesh` in `remote.routes.js`.
-- `mesh-adapter.js` + viewer (embed `agent-desktop` initially).
+- `mesh-adapter.js` + **BetterViewer** native MNG_KVM client.
 - `.ashx` proxy on panel HTTPS port.
 
 **Gold-standard acceptance:**
@@ -434,26 +434,26 @@ See [Feature Gap Analysis](#feature-gap-analysis). Includes terminal (`p=1`), fi
 
 MeshCentral features that BetterDesk lacks or implements differently — opportunities to improve the whole product:
 
-| MeshCentral feature | BetterDesk today | Planned action |
-|---------------------|------------------|----------------|
-| Remote terminal (`p=1`) | CDAP terminal only | Relay `p=1` + unified remote side panel |
-| Remote files (`p=5`) | CDAP file browser | Relay `p=5` + panel integration |
-| Run commands (agent channel) | No unified API | `POST /api/peers/{id}/exec` for mesh + CDAP |
-| Session recording (`.mcrec`) | Partial CDAP recording | Cross-transport session recorder |
-| Desktop multiplexing | Not implemented | Multi-viewer on one mesh session |
-| TCP/UDP port map (MeshRouter) | RustDesk `PORT_FORWARD` proto, weak UI | Port-forward panel for RD + mesh |
-| Device sharing / guest links | Limited | Time-limited session tokens |
-| MeshCore hot-push (update agent logic without reinstall) | Not implemented | Apply pattern to betterdesk-agent manifest OTA |
-| Intel AMT / CIRA (`:4433`) | Not implemented | Optional module (high effort, Phase 5+) |
-| In-browser RDP/SSH/VNC | Not implemented | `apprelays` pattern (low priority) |
-| MeshScanner (LAN discovery) | Not implemented | Optional discovery helper |
-| Plugin hooks (server + agent) | Widget plugins in panel | Document MC-compat extension model |
-| Granular mesh rights (bitfield) | RBAC roles | Extend `access-policy` with MC-like rights |
-| meshctrl automation (60+ commands) | REST API (different model) | Subset compatibility for migration scripts |
+| MeshCentral feature | BetterDesk today | Status |
+|---------------------|------------------|--------|
+| Remote terminal (`p=1`) | Mesh relay + panel modal | **Done** |
+| Remote files (`p=5`) | Mesh relay + panel / remote files panel | **Done** |
+| Run commands (agent channel) | `POST /api/peers/{id}/exec` mesh + CDAP | **Done** |
+| Session recording (`.mcrec`) | Server capture + Settings list; BD raw format | **Partial** (not MC-native player) |
+| Desktop multiplexing | KVM hub relay (`relay_hub.go`) | **Done** |
+| TCP/UDP port map (MeshRouter) | REST + panel TCP/UDP modals | **Partial** (basic UX) |
+| Device sharing / guest links | `mesh_share` tokens + view-only remote | **Done** |
+| MeshCore hot-push | Not implemented | Backlog |
+| Intel AMT / CIRA (`:4433`) | Not implemented | Backlog |
+| In-browser RDP/SSH/VNC | Not implemented | Backlog |
+| MeshScanner (LAN discovery) | Not implemented | Backlog |
+| Plugin hooks (server + agent) | Panel widgets | **Partial** |
+| Granular mesh rights (bitfield) | `mesh.terminal` / `mesh.files` / `mesh.power` permissions | **Partial** |
+| meshctrl automation | REST — see [MESH_REST_AUTOMATION.md](../features/MESH_REST_AUTOMATION.md) | **Done** (BD-native) |
 
 ### What BetterDesk already has (no MC borrow needed)
 
-- Wake-on-LAN (`POST /api/peers/{id}/wol`) — wire MC `devicepower` to this.
+- Wake-on-LAN (`POST /api/peers/{id}/wol`) — mesh wake falls back to WoL via `linked_peer_id` / telemetry MAC.
 - JWT + TOTP 2FA — map to MC `x-meshauth` with token third field.
 - API keys — automation alternative to meshctrl login keys.
 - Chat relay — comparable to MC Messenger (different protocol).
@@ -476,7 +476,7 @@ MeshCentral features that BetterDesk lacks or implements differently — opportu
 | `betterdesk-server/meshcentral/kvm.go` | KVM relay |
 | `betterdesk-server/meshcentral/registry.go` | Peer mapping |
 | `betterdesk-server/meshcentral/groups.go` | Mesh groups |
-| `betterdesk-server/meshcentral/assets/` | Pinned meshcore + viewer JS |
+| `betterdesk-server/meshcentral/assets/` | BetterCore + BetterViewer JS |
 | `betterdesk-server/meshcentral/*_test.go` | Unit + interop tests |
 | `betterdesk-server/api/mesh_handlers.go` | REST helpers (`/api/mesh/*`) |
 

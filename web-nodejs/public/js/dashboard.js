@@ -18,8 +18,15 @@
     let tipDismissHandler = null;
     let copyAllConfigButton = null;
     let copyAllConfigHandler = null;
+    let copyDeployStringButton = null;
+    let copyDeployStringHandler = null;
+    let showIntuneScriptButton = null;
+    let showIntuneScriptHandler = null;
     let showClientQrButton = null;
     let showClientQrHandler = null;
+    let clientConfigHostInput = null;
+    let applyClientHostButton = null;
+    let applyClientHostHandler = null;
     let clientConfigCopyButtons = [];
     const clientConfigCopyHandlers = new Map();
     let clientConfig = null;
@@ -86,9 +93,28 @@
         copyAllConfigHandler = copyFullClientConfig;
         copyAllConfigButton?.addEventListener('click', copyAllConfigHandler);
 
+        copyDeployStringButton = findById('copy-deploy-string-btn');
+        copyDeployStringHandler = copyDeployConfigString;
+        copyDeployStringButton?.addEventListener('click', copyDeployStringHandler);
+
+        showIntuneScriptButton = findById('show-intune-script-btn');
+        showIntuneScriptHandler = showIntuneScriptModal;
+        showIntuneScriptButton?.addEventListener('click', showIntuneScriptHandler);
+
         showClientQrButton = findById('show-client-qr-btn');
         showClientQrHandler = showClientConfigQr;
         showClientQrButton?.addEventListener('click', showClientQrHandler);
+
+        clientConfigHostInput = findById('client-config-host-input');
+        applyClientHostButton = findById('apply-client-host-btn');
+        applyClientHostHandler = () => loadClientConfig({ persistHost: true });
+        applyClientHostButton?.addEventListener('click', applyClientHostHandler);
+        clientConfigHostInput?.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                loadClientConfig({ persistHost: true });
+            }
+        });
 
         clientConfigCopyButtons = Array.from(rootEl.querySelectorAll?.('.client-config-copy') || []);
         clientConfigCopyButtons.forEach(button => {
@@ -108,7 +134,10 @@
         if (statusButton && statusButtonHandler) statusButton.removeEventListener('click', statusButtonHandler);
         if (tipDismissButton && tipDismissHandler) tipDismissButton.removeEventListener('click', tipDismissHandler);
         if (copyAllConfigButton && copyAllConfigHandler) copyAllConfigButton.removeEventListener('click', copyAllConfigHandler);
+        if (copyDeployStringButton && copyDeployStringHandler) copyDeployStringButton.removeEventListener('click', copyDeployStringHandler);
+        if (showIntuneScriptButton && showIntuneScriptHandler) showIntuneScriptButton.removeEventListener('click', showIntuneScriptHandler);
         if (showClientQrButton && showClientQrHandler) showClientQrButton.removeEventListener('click', showClientQrHandler);
+        if (applyClientHostButton && applyClientHostHandler) applyClientHostButton.removeEventListener('click', applyClientHostHandler);
         clientConfigCopyButtons.forEach(button => {
             const handler = clientConfigCopyHandlers.get(button);
             if (handler) button.removeEventListener('click', handler);
@@ -124,8 +153,15 @@
         tipDismissHandler = null;
         copyAllConfigButton = null;
         copyAllConfigHandler = null;
+        copyDeployStringButton = null;
+        copyDeployStringHandler = null;
+        showIntuneScriptButton = null;
+        showIntuneScriptHandler = null;
         showClientQrButton = null;
         showClientQrHandler = null;
+        clientConfigHostInput = null;
+        applyClientHostButton = null;
+        applyClientHostHandler = null;
         clientConfigCopyButtons = [];
         clientConfig = null;
         initialized = false;
@@ -332,15 +368,59 @@
         }
     }
 
-    async function loadClientConfig() {
+    const CLIENT_HOST_STORAGE_KEY = 'bd_client_config_host';
+
+    function getStoredClientHost() {
         try {
-            const data = await fetchApi('/api/dashboard/client-config');
+            return sessionStorage.getItem(CLIENT_HOST_STORAGE_KEY) || '';
+        } catch {
+            return '';
+        }
+    }
+
+    function setStoredClientHost(host) {
+        try {
+            if (host) {
+                sessionStorage.setItem(CLIENT_HOST_STORAGE_KEY, host);
+            } else {
+                sessionStorage.removeItem(CLIENT_HOST_STORAGE_KEY);
+            }
+        } catch {
+            /* ignore */
+        }
+    }
+
+    function resolveClientHostOverride() {
+        const fromInput = clientConfigHostInput?.value?.trim();
+        if (fromInput) {
+            return fromInput;
+        }
+        return getStoredClientHost();
+    }
+
+    async function loadClientConfig(options = {}) {
+        const hostOverride = resolveClientHostOverride();
+        const query = hostOverride ? `?host=${encodeURIComponent(hostOverride)}` : '';
+
+        try {
+            const data = await fetchApi(`/api/dashboard/client-config${query}`);
             clientConfig = data || {};
+
+            if (clientConfigHostInput && !hostOverride && clientConfig.client_server_host) {
+                clientConfigHostInput.value = clientConfig.client_server_host;
+            } else if (clientConfigHostInput && hostOverride) {
+                clientConfigHostInput.value = hostOverride;
+            }
+
+            if (options.persistHost && hostOverride) {
+                setStoredClientHost(hostOverride);
+            }
 
             setText('client-config-server-id', clientConfig.server_id || '-');
             setText('client-config-relay-server', clientConfig.relay_server || '-');
             setText('client-config-api-url', clientConfig.api_url || '-');
             setText('client-config-public-key', clientConfig.public_key || _('keys.no_key'));
+            updateClientHostControls(clientConfig);
         } catch (err) {
             console.error('Client config load error:', err);
             clientConfig = null;
@@ -348,6 +428,23 @@
             setText('client-config-relay-server', window.location.hostname || '-');
             setText('client-config-api-url', '-');
             setText('client-config-public-key', _('errors.load_key_failed'));
+        }
+    }
+
+    function updateClientHostControls(config) {
+        const hintEl = findById('client-config-host-hint');
+        const envOverride = Boolean(config?.env_override_active);
+
+        if (clientConfigHostInput) {
+            clientConfigHostInput.disabled = envOverride;
+        }
+        if (applyClientHostButton) {
+            applyClientHostButton.disabled = envOverride;
+        }
+        if (hintEl) {
+            hintEl.textContent = envOverride
+                ? _('dashboard.client_server_host_env_hint')
+                : _('dashboard.client_server_host_hint');
         }
     }
 
@@ -380,6 +477,73 @@
         await Utils.copyToClipboard(lines.join('\n'));
         markCopied(copyAllConfigButton);
         Notifications.success(_('common.copied'));
+    }
+
+    async function copyDeployConfigString() {
+        const value = clientConfig?.deploy_config_string?.trim();
+        if (!value) {
+            Notifications.warning(_('dashboard.deploy_string_not_ready'));
+            return;
+        }
+
+        await Utils.copyToClipboard(value);
+        markCopied(copyDeployStringButton);
+        Notifications.success(_('common.copied'));
+    }
+
+    function buildIntuneScriptSnippet() {
+        const host = clientConfig?.server_id || clientConfig?.client_server_host || 'YOUR_SERVER_HOST';
+        const apiUrl = clientConfig?.api_url || `http://${host}:21114`;
+        const publicKey = clientConfig?.public_key || 'YOUR_PUBLIC_KEY';
+
+        return `# Run elevated after RustDesk MSI (PSADT post-install / Intune Win32)
+$RustDesk = Join-Path $env:ProgramFiles 'RustDesk\\rustdesk.exe'
+$ServerHost = '${host.replace(/'/g, "''")}'
+$PublicKey = '${publicKey.replace(/'/g, "''")}'
+$ApiUrl = '${apiUrl.replace(/'/g, "''")}'
+
+$json = @{
+    host = $ServerHost
+    relay = $ServerHost
+    api = $ApiUrl
+    key = $PublicKey
+} | ConvertTo-Json -Compress
+$b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json)).TrimEnd('=')
+$CfgString = -join ($b64[-1..-($b64.Length)] -join '')
+
+Start-Process -FilePath $RustDesk -ArgumentList @('--config', $CfgString) -Wait -NoNewWindow
+# Optional unattended password:
+# Start-Process -FilePath $RustDesk -ArgumentList @('--password', 'YourPermanentPassword') -Wait -NoNewWindow`;
+    }
+
+    function showIntuneScriptModal() {
+        if (!clientConfig?.deploy_config_string) {
+            Notifications.warning(_('dashboard.deploy_string_not_ready'));
+            return;
+        }
+
+        const script = buildIntuneScriptSnippet();
+        Modal.show({
+            title: _('dashboard.intune_script_title'),
+            content: `
+                <div class="client-config-script-modal">
+                    <p>${escapeHtml(_('dashboard.intune_script_hint'))}</p>
+                    <pre class="client-config-script-block"><code>${escapeHtml(script)}</code></pre>
+                </div>
+            `,
+            buttons: [
+                {
+                    label: _('actions.copy'),
+                    class: 'btn-primary',
+                    onClick: async () => {
+                        await Utils.copyToClipboard(script);
+                        Notifications.success(_('common.copied'));
+                    }
+                },
+                { label: _('actions.close'), class: 'btn-secondary', onClick: () => Modal.close() }
+            ],
+            size: 'large'
+        });
     }
 
     function showClientConfigQr() {

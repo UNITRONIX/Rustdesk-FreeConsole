@@ -44,7 +44,7 @@ pub fn apply_window_builder<'a, R: Runtime, M: tauri::Manager<R>>(
 ) -> WebviewWindowBuilder<'a, R, M> {
     #[cfg(windows)]
     {
-        builder.additional_browser_args(webview2_browser_args())
+        builder.additional_browser_args(&webview2_browser_args())
     }
 
     #[cfg(not(windows))]

@@ -26,6 +26,11 @@ html.rd-desk-desktop {
     line-height: var(--line-height, 1.5);
 }
 
+.rd-desk-body::before,
+.rd-desk-body::after {
+    pointer-events: none;
+}
+
 .rd-desk-desktop.rd-desk-body {
     position: fixed;
     inset: 0;
@@ -142,7 +147,7 @@ html.rd-desk-desktop {
     flex-shrink: 0;
     padding: 16px 20px;
     border-bottom: 1px solid var(--border-primary, #30363d);
-    background: var(--bg-primary, #0d1117);
+    background: rgba(13, 17, 23, 0.18);
 }
 
 .rd-desk-quick-connect-inner {
@@ -523,12 +528,27 @@ html.rd-desk-desktop {
 
 /* ── Main area ── */
 .rd-desk-main {
+    background: rgba(13, 17, 23, 0.12);
     flex: 1;
     min-height: 0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     position: relative;
+}
+
+.rd-desk-content,
+.rd-desk-devices-panel {
+    min-height: 0;
+}
+
+.rd-desk-table-wrap,
+.rd-desk-empty,
+.rd-desk-error,
+.rd-desk-loading {
+    background: var(--surface-glass-bg-secondary, var(--bg-secondary, #161b22));
+    backdrop-filter: blur(var(--surface-glass-blur, 16px)) saturate(var(--surface-glass-saturate, 1.2));
+    -webkit-backdrop-filter: blur(var(--surface-glass-blur, 16px)) saturate(var(--surface-glass-saturate, 1.2));
 }
 
 .rd-desk-devices-panel {
@@ -721,6 +741,25 @@ html.rd-desk-desktop {
 
 .rd-desk-card-connect .material-icons {
     font-size: 18px;
+}
+
+.rd-desk-connected-badge {
+    display: flex;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.rd-desk-connected-badge .material-icons {
+    font-size: 18px !important;
+}
+
+.rd-desk-connected-label {
+    font-size: 11px;
+    color: var(--text-secondary, #8b949e);
+}
+
+.rd-desk-card-connected {
+    opacity: 0.72;
 }
 
 /* ── List view ── */
@@ -940,5 +979,37 @@ html.rd-desk-desktop {
     .rd-desk-table th:nth-child(5),
     .rd-desk-table td:nth-child(5) {
         display: none;
+    }
+}
+
+/* Mobile / tablet: allow full-page scroll with safe areas */
+@media (max-width: 1024px) {
+    html.rd-desk-desktop {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .rd-desk-body {
+        height: auto;
+        min-height: var(--app-height, 100dvh);
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .rd-desk-desktop.rd-desk-body {
+        position: relative;
+        inset: auto;
+        height: auto !important;
+        max-height: none;
+    }
+
+    .rd-desk-workspace {
+        min-height: 0;
+    }
+
+    .rd-desk-sidebar-scroll {
+        max-height: none;
     }
 }

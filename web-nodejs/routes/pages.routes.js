@@ -10,7 +10,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth, requirePermission, requireRole } = require('../middleware/auth');
 
 // ── Inventory ──
 
@@ -68,7 +68,7 @@ router.get('/reports', requireAuth, (req, res) => {
 
 // ── DataGuard (DLP) — admin only ──
 
-router.get('/dataguard', requireAuth, requireRole('admin'), (req, res) => {
+router.get('/dataguard', requireAuth, requirePermission('server.config'), (req, res) => {
     res.render('dataguard', {
         title: req.t('dataguard.title'),
         activePage: 'dataguard',

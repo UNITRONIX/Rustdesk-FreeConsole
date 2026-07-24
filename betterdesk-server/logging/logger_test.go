@@ -81,14 +81,33 @@ func TestStripTimestamp(t *testing.T) {
 }
 
 func TestSetupText(t *testing.T) {
-	cleanup := Setup("text")
+	cleanup := Setup("text", "info")
 	defer cleanup()
 	// Should not panic
 }
 
 func TestSetupJSON(t *testing.T) {
-	cleanup := Setup("json")
+	cleanup := Setup("json", "info")
 	defer cleanup()
 	// Restore default for other tests
-	defer Setup("text")
+	defer Setup("text", "info")
+}
+
+func TestLevelFilterSuppressesInfoWhenWarn(t *testing.T) {
+	var buf bytes.Buffer
+	filter := &levelFilter{minLevel: "warn", inner: &buf}
+	_, err := filter.Write([]byte("2026/02/22 10:30:45.123456 [api] Starting server\n"))
+	if err != nil {
+		t.Fatalf("Write error: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("expected info line to be suppressed, got %q", buf.String())
+	}
+	_, err = filter.Write([]byte("2026/02/22 10:30:45.123456 [api] WARN: disk low\n"))
+	if err != nil {
+		t.Fatalf("Write error: %v", err)
+	}
+	if buf.Len() == 0 {
+		t.Fatal("expected warn line to pass through")
+	}
 }

@@ -13,7 +13,7 @@
  *   client.disconnect();
  */
 
-/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput */
+/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput, RDFileConnection, RDClipboard */
 
 // eslint-disable-next-line no-unused-vars
 class RDClient {
@@ -40,10 +40,14 @@ class RDClient {
         this.audio = new RDAudio();
         this.renderer = new RDRenderer(canvas);
         this.input = new RDInput(canvas, this.renderer, (msg) => this._sendPeerMessage(msg));
+        this._fileConnection = null;
+        this._sessionPassword = '';
         this.fileTransfer = new RDFileTransfer({
             proto: this.proto,
-            sendMessage: (msg) => this._sendPeerMessage(msg),
-            emit: (event, ...args) => this._emit(event, ...args)
+            sendMessage: (msg) => this._sendFileTransferMessage(msg),
+            emit: (event, ...args) => this._emit(event, ...args),
+            ensureConnected: () => this.ensureFileConnection(),
+            isConnected: () => this.isFileConnectionReady()
         });
 
         // State
@@ -60,6 +64,8 @@ class RDClient {
 
         // Codec / quality control
         this._codecAbilities = null;          // probed VideoDecoder support map
+        this._peerEncoding = null;            // peer SupportedEncoding from handshake
+        this._windowsSessions = { sessions: [], currentSid: 0 };
         this._preferCodec = opts.preferCodec || 'Auto';
         this._adaptivePaused = false;         // true once the user picks codec/quality manually
         this._codecFallbackDone = false;      // one automatic downgrade per session
@@ -103,6 +109,15 @@ class RDClient {
     _emit(event, ...args) {
         const arr = this._listeners[event];
         if (arr) arr.forEach(fn => { try { fn(...args); } catch(e) { console.error(e); } });
+    }
+
+    /** @returns {boolean} Verbose relay/auth logging (window.BetterDesk.debugRelay = true) */
+    static isRelayDebug() {
+        return typeof window !== 'undefined' && window.BetterDesk && window.BetterDesk.debugRelay === true;
+    }
+
+    _debugRelay(...args) {
+        if (RDClient.isRelayDebug()) console.log(...args);
     }
 
     // ---- Main Connection Flow ----
@@ -207,7 +222,7 @@ class RDClient {
                 if (relayConfirm.pk) {
                     this._peerSignedPk = relayConfirm.pk;
                 }
-                console.log(`[RDClient] RelayResponse confirmed: uuid=${relayUUID.substring(0, 8)}... relay=${relayServer}`);
+                this._debugRelay(`[RDClient] RelayResponse confirmed: uuid=${relayUUID.substring(0, 8)}... relay=${relayServer}`);
             }
 
             // Step 10: Close rendezvous, connect to relay
@@ -248,6 +263,66 @@ class RDClient {
     }
 
     /**
+     * Open dedicated FILE_TRANSFER relay (lazy). Reuses desktop session password.
+     * @returns {Promise<void>}
+     */
+    isFileConnectionReady() {
+        return !!(this._fileConnection && this._fileConnection.state === 'ready');
+    }
+
+    async ensureFileConnection() {
+        if (typeof RDFileConnection !== 'function') {
+            throw new Error('File transfer module not loaded');
+        }
+        if (!this.proto.loaded) await this.proto.load();
+        if (!this._fileConnection) {
+            this._fileConnection = new RDFileConnection({
+                deviceId: this.deviceId,
+                serverPubKey: this.opts.serverPubKey || '',
+                myName: this.opts.myName || 'BetterDesk Web',
+                proto: this.proto
+            });
+            this._fileConnection.on('file_response', (resp) => {
+                this.fileTransfer.handleFileResponse(resp);
+            });
+            this._fileConnection.on('file_action', (action) => {
+                if (action.sendConfirm) {
+                    this.fileTransfer.handleSendConfirm(action.sendConfirm);
+                }
+            });
+            this._fileConnection.on('2fa_required', () => this._emit('2fa_required'));
+            this._fileConnection.on('2fa_error', (err) => this._emit('2fa_error', err));
+            this._fileConnection.on('login_error', (err) => this._emit('login_error', err));
+            this._fileConnection.on('disconnected', () => {
+                if (this._fileConnection && this._fileConnection.state !== 'ready') {
+                    this._fileConnection = null;
+                }
+            });
+        }
+        if (this._fileConnection.state === 'ready') return;
+        try {
+            await this._fileConnection.connect(this._sessionPassword || '');
+        } catch (err) {
+            this.disconnectFileConnection();
+            throw err;
+        }
+    }
+
+    _sendFileTransferMessage(msgObj) {
+        if (!this._fileConnection || this._fileConnection.state !== 'ready') {
+            throw new Error('File transfer session is not connected');
+        }
+        this._fileConnection.sendMessage(msgObj);
+    }
+
+    disconnectFileConnection() {
+        if (this._fileConnection) {
+            this._fileConnection.disconnect();
+            this._fileConnection = null;
+        }
+    }
+
+    /**
      * Authenticate with password
      * @param {string} password
      */
@@ -255,15 +330,16 @@ class RDClient {
         try {
             this._setState('authenticating');
             this._emit('log', 'Authenticating...');
+            this._sessionPassword = password != null ? String(password) : '';
 
             // Hash the password
             const challenge = this._loginChallenge || '';
             const salt = this._loginSalt || '';
-            console.log('[RDClient] Auth: challenge=' + JSON.stringify(challenge).substring(0, 80)
+            this._debugRelay('[RDClient] Auth: challenge=' + JSON.stringify(challenge).substring(0, 80)
                 + ' salt=' + JSON.stringify(salt) + ' passLen=' + password.length);
 
             const hash = await this.crypto.hashPassword(password, salt, challenge);
-            console.log('[RDClient] Auth: hash=' + Array.from(hash.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('')
+            this._debugRelay('[RDClient] Auth: hash=' + Array.from(hash.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join('')
                 + '... (' + hash.length + ' bytes)');
 
             // Probe which codecs this browser's VideoDecoder can actually decode so we
@@ -286,10 +362,10 @@ class RDClient {
                 preferCodec: this._preferCodec
             });
 
-            console.log('[RDClient] Auth: sending LoginRequest, crypto.enabled=' + this.crypto.enabled
+            this._debugRelay('[RDClient] Auth: sending LoginRequest, crypto.enabled=' + this.crypto.enabled
                 + ' sendSeq=' + this.crypto._sendSeq + ' relayWsState=' + (this.conn.relayWs?.readyState));
             this._sendPeerMessage(loginReq);
-            console.log('[RDClient] Auth: LoginRequest sent, sendSeq now=' + this.crypto._sendSeq);
+            this._debugRelay('[RDClient] Auth: LoginRequest sent, sendSeq now=' + this.crypto._sendSeq);
 
             // The response will be handled in _handleRelayMessage
 
@@ -309,7 +385,7 @@ class RDClient {
 
             // Field must be auth_2fa — auth2Fa encodes as an empty Message (protobuf.js quirk).
             this._sendPeerMessage(this.proto.buildAuth2FA(code.trim()));
-            console.log('[RDClient] Auth2FA sent');
+            this._debugRelay('[RDClient] Auth2FA sent');
         } catch (err) {
             this._handleError(err);
         }
@@ -359,7 +435,7 @@ class RDClient {
                         // secure TCP negotiation — the WS proxy bridges raw TCP
                         // bytes so we see the server's greeting before our response.
                         if (msg.keyExchange) {
-                            console.log('[RDClient] Skipping server KeyExchange (secure TCP greeting)');
+                            this._debugRelay('[RDClient] Skipping server KeyExchange (secure TCP greeting)');
                             continue;
                         }
 
@@ -372,7 +448,7 @@ class RDClient {
                             clearTimeout(timeout);
                             this.conn.off('rendezvous:message', handler);
                             const resp = msg.punchHoleResponse;
-                            console.log('[RDClient] PunchHoleResponse:', JSON.stringify({
+                            this._debugRelay('[RDClient] PunchHoleResponse:', JSON.stringify({
                                 failure: resp.failure,
                                 relayServer: resp.relayServer,
                                 otherFailure: resp.otherFailure,
@@ -412,7 +488,7 @@ class RDClient {
                             clearTimeout(timeout);
                             this.conn.off('rendezvous:message', handler);
                             const rr = msg.relayResponse;
-                            console.log('[RDClient] RelayResponse from hbbs:', JSON.stringify({
+                            this._debugRelay('[RDClient] RelayResponse from hbbs:', JSON.stringify({
                                 relayServer: rr.relayServer || '',
                                 uuid: (rr.uuid || '').substring(0, 8) + '...',
                                 id: rr.id || '',
@@ -434,7 +510,7 @@ class RDClient {
 
                         // Unknown message type — log and skip, keep waiting
                         const fieldNames = Object.keys(msg).filter(k => msg[k] != null && k !== 'union');
-                        console.log('[RDClient] Skipping rendezvous message:', fieldNames.join(', ') || 'empty');
+                        this._debugRelay('[RDClient] Skipping rendezvous message:', fieldNames.join(', ') || 'empty');
                     } catch (err) {
                         // Protobuf decode error — skip this frame and continue
                         console.warn('[RDClient] Failed to decode rendezvous frame, skipping:', err.message);
@@ -478,7 +554,7 @@ class RDClient {
                             clearTimeout(timeout);
                             this.conn.off('rendezvous:message', handler);
                             const rr = msg.relayResponse;
-                            console.log('[RDClient] Signal RelayResponse:', JSON.stringify({
+                            this._debugRelay('[RDClient] Signal RelayResponse:', JSON.stringify({
                                 relayServer: rr.relayServer || '',
                                 uuid: (rr.uuid || '').substring(0, 8) + '...',
                                 hasPk: !!(rr.pk && rr.pk.length),
@@ -499,12 +575,12 @@ class RDClient {
                         // PunchHoleSent may arrive from target — it's just an update,
                         // not what we are waiting for. Log and continue.
                         if (msg.punchHoleResponse || msg.punchHoleSent) {
-                            console.log('[RDClient] Skipping late PunchHoleResponse/Sent while waiting for RelayResponse');
+                            this._debugRelay('[RDClient] Skipping late PunchHoleResponse/Sent while waiting for RelayResponse');
                             continue;
                         }
 
                         const fieldNames = Object.keys(msg).filter(k => msg[k] != null && k !== 'union');
-                        console.log('[RDClient] Skipping signal message while waiting for RelayResponse:', fieldNames.join(', '));
+                        this._debugRelay('[RDClient] Skipping signal message while waiting for RelayResponse:', fieldNames.join(', '));
                     } catch (err) {
                         console.warn('[RDClient] Failed to decode signal frame:', err.message);
                     }
@@ -561,9 +637,11 @@ class RDClient {
         try {
             this._relayFrameIdx++;
             const idx = this._relayFrameIdx;
-            const hex20 = Array.from(frameData.slice(0, 20))
-                .map(b => b.toString(16).padStart(2, '0')).join(' ');
-            console.log(`[RDClient] Relay frame #${idx}: ${frameData.length} bytes [${hex20}]`);
+            if (RDClient.isRelayDebug()) {
+                const hex20 = Array.from(frameData.slice(0, 20))
+                    .map(b => b.toString(16).padStart(2, '0')).join(' ');
+                this._debugRelay(`[RDClient] Relay frame #${idx}: ${frameData.length} bytes [${hex20}]`);
+            }
 
             // The relay server (hbbr) sends a RendezvousMessage.RelayResponse
             // as the first frame after pairing both peers.  Skip it.
@@ -573,11 +651,11 @@ class RDClient {
                     const rdvMsg = this.proto.decodeRendezvous(frameData);
                     if (rdvMsg.relayResponse) {
                         const uuid = (rdvMsg.relayResponse.uuid || '').substring(0, 8);
-                        console.log(`[RDClient] Relay confirmation received (UUID: ${uuid}...), skipping`);
+                        this._debugRelay(`[RDClient] Relay confirmation received (UUID: ${uuid}...), skipping`);
                         return;
                     }
                 } catch (_e) {
-                    console.log('[RDClient] First relay frame is not a relay confirmation');
+                    this._debugRelay('[RDClient] First relay frame is not a relay confirmation');
                 }
             }
 
@@ -615,7 +693,7 @@ class RDClient {
                     // encrypting (unlikely since we haven't sent PublicKey, but
                     // handle defensively).  Complete the key exchange now, then
                     // try to decrypt.
-                    console.log(`[RDClient] Frame #${idx}: not plaintext → completing key exchange`);
+                    this._debugRelay(`[RDClient] Frame #${idx}: not plaintext → completing key exchange`);
                     this._completeKeyExchange();
                     // Try to decrypt below
                 }
@@ -631,7 +709,7 @@ class RDClient {
 
                     if (!this._peerEncryptionConfirmed) {
                         this._peerEncryptionConfirmed = true;
-                        console.log(`[RDClient] Peer encryption confirmed at frame #${idx} (seq=${spec.seq})`);
+                        this._debugRelay(`[RDClient] Peer encryption confirmed at frame #${idx} (seq=${spec.seq})`);
                     }
                 } else if (this._peerEncryptionConfirmed) {
                     const failHex = Array.from(frameData.slice(0, 48))
@@ -642,14 +720,14 @@ class RDClient {
                     return;
                 } else {
                     // Key exchange done but peer hasn't encrypted yet — plaintext
-                    console.log(`[RDClient] Frame #${idx}: plaintext (peer crypto not yet active)`);
+                    this._debugRelay(`[RDClient] Frame #${idx}: plaintext (peer crypto not yet active)`);
                 }
             }
 
             const msg = this.proto.decodeMessage(data);
             const fields = Object.keys(msg).filter(k => msg[k] != null && k !== 'union');
             if (idx <= 10 || fields.length === 0) {
-                console.log(`[RDClient] Frame #${idx} → ${fields.join(', ') || '(empty Message)'}`);
+                this._debugRelay(`[RDClient] Frame #${idx} → ${fields.join(', ') || '(empty Message)'}`);
             }
             this._dispatchMessage(msg);
 
@@ -711,9 +789,15 @@ class RDClient {
             return;
         }
 
-        // Clipboard
+        // Clipboard (legacy single entry)
         if (msg.clipboard) {
             this._handleClipboard(msg.clipboard);
+            return;
+        }
+
+        // Multi-format clipboard (RustDesk >= 1.3.0)
+        if (msg.multiClipboards) {
+            this._handleMultiClipboards(msg.multiClipboards);
             return;
         }
 
@@ -769,7 +853,7 @@ class RDClient {
         // This handler is for the case where the peer sends PublicKey
         // (non-standard flow). In standard RustDesk flow, the target
         // sends SignedId first, and WE send PublicKey back.
-        console.log('[RDClient] Received unexpected PublicKey from peer');
+        this._debugRelay('[RDClient] Received unexpected PublicKey from peer');
     }
 
     /**
@@ -807,7 +891,7 @@ class RDClient {
         this._emit('log', `Peer identified: ${parsed.peerId}`);
         const peerPkHex = Array.from(parsed.peerPk.slice(0, 8))
             .map(b => b.toString(16).padStart(2, '0')).join('');
-        console.log(`[RDClient] Peer ephemeral pk: ${parsed.peerPk.length} bytes [${peerPkHex}...]`);
+        this._debugRelay(`[RDClient] Peer ephemeral pk: ${parsed.peerPk.length} bytes [${peerPkHex}...]`);
 
         // Verify Ed25519 signature against server public key (MITM protection)
         const serverPubKey = this.opts.serverPubKey || '';
@@ -815,7 +899,7 @@ class RDClient {
             const verified = RDCrypto.verifySignedId(parsed.signature, parsed.payload, serverPubKey);
             parsed.signatureVerified = verified;
             if (verified) {
-                console.log('[RDClient] Ed25519 signature VERIFIED — peer identity authenticated');
+                this._debugRelay('[RDClient] Ed25519 signature VERIFIED — peer identity authenticated');
                 this._emit('log', 'Peer identity verified (Ed25519)');
             } else {
                 console.warn('[RDClient] Ed25519 signature FAILED — possible MITM attack!');
@@ -823,7 +907,7 @@ class RDClient {
                 this._emit('log', 'WARNING: Peer signature verification failed');
             }
         } else {
-            console.log('[RDClient] No server public key available — signature not verified');
+            this._debugRelay('[RDClient] No server public key available — signature not verified');
         }
 
         // Prepare key material but DO NOT send PublicKey yet.
@@ -836,7 +920,7 @@ class RDClient {
             .map(b => b.toString(16).padStart(2, '0')).join('');
         const symKeyHex = Array.from(this.crypto.secretKey.slice(0, 8))
             .map(b => b.toString(16).padStart(2, '0')).join('');
-        console.log(`[RDClient] Keys prepared (deferred): ourPk=[${ourPkHex}...] symKey=[${symKeyHex}...]`);
+        this._debugRelay(`[RDClient] Keys prepared (deferred): ourPk=[${ourPkHex}...] symKey=[${symKeyHex}...]`);
 
         this._keyExchangePending = true;
         this._keyExchangeDone = false;
@@ -855,7 +939,7 @@ class RDClient {
         }
 
         const keyMsg = this.crypto.createSymmetricKeyMsg(this.crypto.peerPk);
-        console.log(`[RDClient] Completing key exchange: sealed=${keyMsg.symmetricValue.length} bytes`);
+        this._debugRelay(`[RDClient] Completing key exchange: sealed=${keyMsg.symmetricValue.length} bytes`);
 
         const pkMsg = this.proto.buildPublicKey(
             keyMsg.asymmetricValue,
@@ -870,7 +954,7 @@ class RDClient {
 
         this._keyExchangePending = false;
         this._keyExchangeDone = true;
-        console.log('[RDClient] Key exchange completed: encryption enabled');
+        this._debugRelay('[RDClient] Key exchange completed: encryption enabled');
     }
 
     _is2faWrongError(error) {
@@ -887,24 +971,24 @@ class RDClient {
     }
 
     _handleLoginResponse(resp) {
-        console.log('[RDClient] LoginResponse:', JSON.stringify(resp, (k, v) => {
+        this._debugRelay('[RDClient] LoginResponse:', JSON.stringify(resp, (k, v) => {
             if (v && v.type === 'Buffer') return '<Buffer>';
             if (v instanceof Uint8Array) return '<bytes:' + v.length + '>';
             return v;
         }).substring(0, 500));
 
         if (resp.error && resp.error.length > 0) {
-            console.log('[RDClient] Login error: ' + resp.error);
+            this._debugRelay('[RDClient] Login error: ' + resp.error);
 
             // RustDesk peer errors: REQUIRE_2FA = "2FA Required", LOGIN_MSG_2FA_WRONG = "Wrong 2FA Code"
             if (this._is2faWrongError(resp.error)) {
-                console.log('[RDClient] 2FA code rejected: ' + resp.error);
+                this._debugRelay('[RDClient] 2FA code rejected: ' + resp.error);
                 this._setState('waiting_2fa');
                 this._emit('2fa_error', resp.error);
                 return;
             }
             if (this._is2faRequiredError(resp.error)) {
-                console.log('[RDClient] 2FA required by peer');
+                this._debugRelay('[RDClient] 2FA required by peer');
                 this._setState('waiting_2fa');
                 this._emit('2fa_required');
                 return;
@@ -917,7 +1001,7 @@ class RDClient {
 
         // Login successful
         this._peerInfo = resp.peerInfo || null;
-        console.log('[RDClient] Login successful, peerInfo:', this._peerInfo ? 'present' : 'null');
+        this._debugRelay('[RDClient] Login successful, peerInfo:', this._peerInfo ? 'present' : 'null');
         this._processPeerInfo(this._peerInfo);
         this._emit('log', 'Login successful');
         this._emit('login_success', resp);
@@ -948,7 +1032,7 @@ class RDClient {
         this._peerFrameCount = (this._peerFrameCount || 0) + 1;
         this._lastVideoFrameTime = Date.now();
         if (this._peerFrameCount <= 3 || this._peerFrameCount % 300 === 0) {
-            console.log('[RDClient] VideoFrame #' + this._peerFrameCount + ' from peer');
+            this._debugRelay('[RDClient] VideoFrame #' + this._peerFrameCount + ' from peer');
         }
 
         const codec = this.proto.detectVideoCodec(videoFrame);
@@ -981,19 +1065,31 @@ class RDClient {
         }
     }
 
-    _handleClipboard(clipboard) {
-        if (clipboard.content) {
-            const decoder = new TextDecoder();
-            const text = decoder.decode(clipboard.content);
-            this._emit('clipboard', text);
+    async _applyRemoteClipboard(clipboards) {
+        if (this._viewOnly) return;
+        const list = clipboards || [];
+        if (!list.length) return;
 
-            // Copy to local clipboard only for the active viewer tab
-            if (this._clipboardToLocalEnabled && navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).catch(() => {
-                    // Clipboard write permission denied - ignore
-                });
-            }
+        const decoded = await RDClipboard.decodeEntries(list);
+        const text = RDClipboard.pickBestText(decoded);
+        if (text) {
+            this._emit('clipboard', text);
         }
+
+        await RDClipboard.applyToLocal(decoded, {
+            enabled: this._clipboardToLocalEnabled
+        });
+    }
+
+    _handleClipboard(clipboard) {
+        void this._applyRemoteClipboard([clipboard]);
+    }
+
+    _handleMultiClipboards(multiClipboards) {
+        const list = multiClipboards && multiClipboards.clipboards
+            ? multiClipboards.clipboards
+            : [];
+        void this._applyRemoteClipboard(list);
     }
 
     _handleTestDelay(testDelay) {
@@ -1044,6 +1140,11 @@ class RDClient {
             this._emit('switch_display', misc.switchDisplay);
             return;
         }
+        if (misc.supportedEncoding || misc.supported_encoding) {
+            this._peerEncoding = misc.supportedEncoding || misc.supported_encoding;
+            this._emit('peer_encoding', this._peerEncoding);
+            return;
+        }
     }
 
     // ---- Session Management ----
@@ -1058,6 +1159,9 @@ class RDClient {
 
         // Enable file transfer
         this.fileTransfer.enable();
+        this.ensureFileConnection().catch(function (err) {
+            console.warn('[RDClient] File transfer preconnect:', err.message || err);
+        });
 
         // Initialize video decoder callbacks
         this.video.onFrame = (frame) => this.renderer.pushFrame(frame);
@@ -1111,6 +1215,8 @@ class RDClient {
         // Proactively request an initial keyframe so the decoder can start
         // immediately even if we joined an already-running stream on a delta.
         this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
+
+        this._advertiseSupportedEncoding();
 
         // Start ping interval
         this._pingInterval = setInterval(() => {
@@ -1329,8 +1435,16 @@ class RDClient {
         this.video.close();
         this.audio.close();
         this.fileTransfer.disable();
+        this.disconnectFileConnection();
+        this._sessionPassword = '';
         this.conn.close();
         this._codecFallbackDone = false;
+        if (this._relayDecoder) {
+            this._relayDecoder.reset();
+        }
+        if (this._rendezvousDecoder) {
+            this._rendezvousDecoder.reset();
+        }
     }
 
     // ---- Public Utility Methods ----
@@ -1341,7 +1455,12 @@ class RDClient {
      */
     sendClipboard(text) {
         if (this._state !== 'streaming') return;
-        const msg = this.proto.buildClipboard(text);
+        if (this._viewOnly) return;
+        void this._sendClipboard(text);
+    }
+
+    async _sendClipboard(text) {
+        const msg = await this.proto.buildClipboard(text);
         this._sendPeerMessage(msg);
     }
 
@@ -1555,6 +1674,76 @@ class RDClient {
             this._currentDisplay = 0;
         }
         this._virtualDisplay = this._parseVirtualDisplaySupport(info);
+        if (info.encoding) {
+            this._peerEncoding = info.encoding;
+        }
+        this._windowsSessions = this._parseWindowsSessions(info);
+        if (this.input && info.platform) {
+            this.input.setPeerPlatform(info.platform);
+        }
+    }
+
+    /**
+     * @param {Object} info
+     * @returns {{sessions: Array<{sid:number,name:string}>, currentSid: number}}
+     */
+    _parseWindowsSessions(info) {
+        const raw = info.windowsSessions || info.windows_sessions;
+        if (!raw) return { sessions: [], currentSid: 0 };
+        const list = Array.isArray(raw.sessions) ? raw.sessions : [];
+        const sessions = list.map(function (s) {
+            return {
+                sid: s.sid,
+                name: s.name || ('Session ' + s.sid)
+            };
+        });
+        const currentSid = raw.currentSid != null ? raw.currentSid : (raw.current_sid || 0);
+        return { sessions: sessions, currentSid: currentSid };
+    }
+
+    /**
+     * Windows session list reported by the peer (multi-session hosts).
+     * @returns {{sessions: Array<{sid:number,name:string}>, currentSid: number}}
+     */
+    getWindowsSessions() {
+        return this._windowsSessions || { sessions: [], currentSid: 0 };
+    }
+
+    /**
+     * Switch the controlled Windows session (RustDesk selected_sid).
+     * @param {number} sid
+     */
+    selectWindowsSession(sid) {
+        if (this._state !== 'streaming') return;
+        const n = Number(sid);
+        if (!Number.isFinite(n) || n < 0) return;
+        this._sendPeerMessage(this.proto.buildMisc('selectedSid', n));
+        if (this._windowsSessions) this._windowsSessions.currentSid = n;
+        this._emit('windows_session_selected', n);
+    }
+
+    /**
+     * Advertise operator decode capabilities to the peer (Misc.supported_encoding).
+     * @private
+     */
+    _advertiseSupportedEncoding() {
+        if (!this.proto || typeof this.proto.buildSupportedEncoding !== 'function') return;
+        const enc = this.proto.buildSupportedEncoding(this._codecAbilities);
+        this._sendPeerMessage(this.proto.buildMisc('supportedEncoding', enc));
+    }
+
+    /**
+     * Release stuck remote modifiers / keys (toolbar recovery).
+     */
+    resetKeyboard() {
+        if (this.input) this.input.resetKeyboard();
+    }
+
+    /**
+     * @param {'Legacy'|'Map'|'Auto'} mode
+     */
+    setKeyboardMode(mode) {
+        if (this.input) this.input.setKeyboardMode(mode);
     }
 
     /**

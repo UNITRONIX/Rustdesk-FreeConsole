@@ -1,0 +1,85 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/rdclient-desktop/src-tauri"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      rdclient-cargo:
+        patterns:
+          - "*"
+    ignore:
+      # GitHub Dependabot alert #34: glib::VariantStrIter unsoundness.
+      #
+      # glib is not a direct dependency of RdClient. It is pulled by
+      # tauri 2.11.x -> gtk 0.18.x / webkit2gtk 2.x on Linux. The patched
+      # glib line starts at 0.20.0, but gtk 0.18 requires glib ^0.18 and
+      # cargo cannot legally resolve glib 0.20 without a Tauri/GTK stack
+      # migration. Keep Dependabot active for other Cargo dependencies while
+      # avoiding repeated impossible PRs for this transitive GTK3 dependency.
+      - dependency-name: "glib"
+
+  - package-ecosystem: "cargo"
+    directory: "/betterdesk-agent-client/src-tauri"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      agent-client-cargo:
+        patterns:
+          - "*"
+    ignore:
+      # GitHub Dependabot alert #11: glib::VariantStrIter unsoundness (RUSTSEC-2024-0429).
+      # Same Tauri gtk3 / webkit2gtk transitive chain as rdclient-desktop; see comment above.
+      - dependency-name: "glib"
+
+  - package-ecosystem: "npm"
+    directory: "/web-nodejs"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      web-nodejs-npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    groups:
+      root-npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/betterdesk-agent-client"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    groups:
+      agent-client-npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gomod"
+    directory: "/betterdesk-server"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      betterdesk-server-gomod:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gomod"
+    directory: "/betterdesk-agent"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    groups:
+      betterdesk-agent-gomod:
+        patterns:
+          - "*"

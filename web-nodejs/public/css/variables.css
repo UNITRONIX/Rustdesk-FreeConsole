@@ -62,6 +62,31 @@
     --accent-purple: #a371f7;
     --accent-purple-hover: #bc8cff;
     --accent-purple-muted: rgba(163, 113, 247, 0.15);
+
+    /* Semantic color aliases used by the rebuilt appearance system */
+    --color-primary: var(--accent-blue);
+    --color-primary-hover: var(--accent-blue-hover);
+    --color-primary-muted: var(--accent-blue-muted);
+    --color-success: var(--accent-green);
+    --color-success-hover: var(--accent-green-hover);
+    --color-success-muted: var(--accent-green-muted);
+    --color-danger: var(--accent-red);
+    --color-danger-hover: var(--accent-red-hover);
+    --color-danger-muted: var(--accent-red-muted);
+    --color-warning: var(--accent-yellow);
+    --color-warning-hover: var(--accent-yellow-hover);
+    --color-warning-muted: var(--accent-yellow-muted);
+    --color-info: var(--accent-purple);
+    --color-info-hover: var(--accent-purple-hover);
+    --color-info-muted: var(--accent-purple-muted);
+    --color-surface: var(--bg-secondary);
+    --color-surface-alt: var(--bg-primary);
+    --color-surface-hover: var(--bg-tertiary);
+    --color-surface-raised: var(--bg-elevated);
+    --color-text: var(--text-primary);
+    --color-text-muted: var(--text-secondary);
+    --color-border: var(--border-primary);
+    --focus-ring-color: var(--accent-blue-muted);
     
     /* Status colors */
     --status-online: #2ea44f;
@@ -111,6 +136,22 @@
     --sidebar-width-collapsed: 64px;
     --navbar-height: 60px;
     --content-max-width: 1400px;
+
+    /* Mobile / responsive breakpoints (match device-capabilities.js) */
+    --bp-phone-max: 767px;
+    --bp-tablet-max: 1024px;
+    --bp-fold-inner-max: 720px;
+    --bp-desktop-min: 1025px;
+
+    /* Mobile shell chrome */
+    --mobile-nav-height: 56px;
+    --app-height: 100vh;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --mobile-chrome-bottom: calc(var(--mobile-nav-height) + var(--safe-bottom));
+    --rdclient-mobile-toolbar-height: 52px;
 
     /* Sidebar navigation — readability & category accents */
     --sidebar-rail-bg: #1c2128;

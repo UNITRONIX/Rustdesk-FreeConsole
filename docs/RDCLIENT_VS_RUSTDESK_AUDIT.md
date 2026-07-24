@@ -86,3 +86,54 @@ This does **not** replace the RustDesk relay-based pipeline — it provides a *f
 - `betterdesk-agent-client/src-tauri/src/bd_signal.rs` — agent signal/control channel
 - `betterdesk-agent-client/src-tauri/src/cdap_client.rs` — CDAP gateway client
 - Upstream RustDesk: <https://github.com/rustdesk/rustdesk>
+
+## RustDesk 1.4.8 alignment (2026-07-06)
+
+Audit against upstream tag **1.4.8** (June 2026). No breaking wire-format changes vs our `message.proto` / `rendezvous.proto` baseline — proto fields `supported_encoding`, `selected_sid`, `windows_sessions`, and `PeerInfo.encoding` were already present locally.
+
+| RustDesk 1.4.8 item | RdClient status | Files | Notes |
+|---|---|---|---|
+| Client version string | **Fixed** — `BetterDesk-Web/1.4.8` | `protocol.js` | Peers see current baseline |
+| `Misc.supported_encoding` handshake | **Fixed** — advertise on session start; parse inbound | `protocol.js`, `client.js` | H265 ability now probed when WebCodecs available |
+| `windows_sessions` / `selected_sid` | **Fixed** — parse + Actions menu UI | `client.js`, `remote.js`, `lang/*.json` | Session picker when peer reports ≥2 sessions |
+| Monitor quick-switch toolbar (#15342) | **Fixed** — `.toolbar-monitor-strip` for 2–4 displays | `remote.ejs`, `remote.css`, `remote.js` | Dropdown kept for virtual displays / >4 monitors |
+| View-only clipboard disabled (#15224) | **Fixed** — guards on send + inbound apply + sync | `client.js`, `remote.js` | Matches upstream behaviour |
+| Pause key Windows (#15351) | **Fixed** — `Pause` → `0xE046`; Linux `Delete`≠`Pause` | `keyboard-scancode.js`, tests | |
+| Privacy mode multi-monitor (#15321) | **Partial** — toggle via `togglePrivacyMode` | `client.js` | Peer-side 1.4.8 refactor; no display param in web client |
+| Clipboard DIB alpha (#15296) | **Partial** — RGBA path via `ImageData` | `clipboard.js` | PNG inbound preferred; alpha preserved on canvas path |
+| Windows ARM64 host | n/a | — | Native peer feature, not rdclient |
+| Hole-punch / mDNS | n/a | — | Browser limitation |
+| Microphone → peer | **Missing** | `audio.js` | Phase 67 |
+| File transfer resume | **Missing** | `filetransfer.js` | Phase 67 |
+| Terminal PTY | **Missing** | — | bd-signal one-shot only |
+
+### Verify with RustDesk 1.4.8 peer
+
+1. Panel update → open `/remote/:id` — notch toolbar attached to tab bar; hover shows fullscreen + expand.
+2. Password overlay — remember checkbox aligned under password field.
+3. Multi-monitor peer — numbered strip in expanded notch; dropdown for virtual displays.
+4. Windows multi-session host — Actions → Windows sessions.
+5. View-only — clipboard paste and auto-sync blocked.
+6. HTTPS + WebCodecs — H265 negotiates when peer supports it.
+
+## RustDesk 1.4.9 server compatibility (2026-07-20)
+
+Audit of upstream tag **1.4.9** ([release](https://github.com/rustdesk/rustdesk/releases/tag/1.4.9)) against BetterDesk Go API + rendezvous proto. **No HTTP login/AB breaking changes** vs 1.4.8 — safe for production peers once server sessions work (#284).
+
+| Area | Status | Notes |
+|---|---|---|
+| Account login / AB / groups / peers / heartbeat / sysinfo | **OK** | Same endpoints as 1.4.7+; TOTP `email_check` + `tfa_type: tfa_check` |
+| PunchHole / Relay / RegisterPk | **OK** | New optional proto fields ignored when absent |
+| Session scope permission (#15469) | **OK** | Client-only enforcement |
+| Clipboard / MSI / FUSE / reconnect monitor | n/a | Client-only |
+| Audit JSON `primary_auth` / `two_factor` (#15456) | **Accepted, not stored** | Extra fields ignored by `POST /api/audit/conn` |
+| Controller user (#15407 `ControlledContext`) | **Not implemented** | BetterDesk does not emit `conn_audit_ref` — attribution unavailable until follow-up |
+| `ControlPermissions.privacy_mode = 12` | **Ignored bit** | Bitmap remains forward-compatible |
+| `RegisterPkResponse.NOT_DEPLOYED` / HttpProxy rendezvous | **Recognized / rejected** | Proto fields 27–28 synced; `HttpProxyRequest` returns `HttpProxyResponse{error:"not supported"}` (no open SSRF proxy). Fixes secure-TCP `unhandled type <nil>` (#296). |
+
+### Smoke with RustDesk 1.4.9 peer
+
+1. Login (local / LDAP / TOTP) → address book sync.
+2. Remote + file transfer + terminal sessions.
+3. Connection audit row appears in panel (without controller-user column — expected).
+4. Upgrade peer 1.4.8 → 1.4.9 without server change.

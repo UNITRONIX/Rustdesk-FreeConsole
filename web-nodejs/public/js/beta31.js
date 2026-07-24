@@ -250,16 +250,9 @@
         navigateTo: navigateTo,
         isActive: () => shell && shell.classList.contains('active'),
         init: function () {
-            // Wire up the toggle button in the navbar
-            const btn = document.getElementById('beta31-toggle-btn');
-            if (btn) btn.addEventListener('click', () => {
-                if (window.Beta31.isActive()) deactivate(); else activate();
-            });
-
-            // Auto-restore if was active
-            if (localStorage.getItem(STORAGE_KEY) === '1') {
-                activate();
-            }
+            // Beta 3.1 console retired — clear persisted state, do not auto-restore
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(STORAGE_PANEL);
         }
     };
 

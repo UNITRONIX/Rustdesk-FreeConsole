@@ -6,7 +6,11 @@
 set -e
 
 if [ "$(id -u)" = "0" ]; then
-    exec su-exec betterdesk "$0" "$@"
+    if command -v su-exec >/dev/null 2>&1; then
+        exec su-exec betterdesk "$0" "$@"
+    fi
+    # All-in-one image historically lacked su-exec; busybox su works with SETUID.
+    exec su -s /bin/sh betterdesk -c 'exec "$0" "$@"' -- "$0" "$@"
 fi
 
 for creds_file in /opt/rustdesk/.admin_credentials /app/data/.admin_credentials; do

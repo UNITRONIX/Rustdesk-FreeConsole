@@ -46,6 +46,11 @@ const (
 	PermCDAPTerminal = "cdap.terminal"
 	PermCDAPFiles    = "cdap.files"
 
+	// MeshCentral compatibility (BetterCore / MeshAgent)
+	PermMeshTerminal = "mesh.terminal"
+	PermMeshFiles    = "mesh.files"
+	PermMeshPower    = "mesh.power"
+
 	// Enrollment
 	PermEnrollmentManage  = "enrollment.manage"
 	PermEnrollmentApprove = "enrollment.approve"
@@ -72,6 +77,7 @@ var AllPermissions = []string{
 	PermOrgCreate, PermOrgEdit, PermOrgDelete, PermOrgManageUsers, PermOrgManageDevices,
 	PermAuditView, PermMetricsView, PermBlocklistEdit,
 	PermCDAPView, PermCDAPCommand, PermCDAPTerminal, PermCDAPFiles,
+	PermMeshTerminal, PermMeshFiles, PermMeshPower,
 	PermEnrollmentManage, PermEnrollmentApprove,
 	PermChatAccess,
 	PermBrandingEdit,
@@ -112,7 +118,8 @@ var DefaultRolePermissions = map[string]map[string]bool{
 		PermDeviceView, PermDeviceConnect, PermDeviceEdit, PermDeviceDelete,
 		PermDeviceBan, PermDeviceChangeID,
 		PermAuditView, PermMetricsView,
-		PermCDAPView, PermCDAPCommand,
+		PermCDAPView, PermCDAPCommand, PermCDAPTerminal, PermCDAPFiles,
+		PermMeshTerminal, PermMeshFiles, PermMeshPower,
 		PermChatAccess,
 		PermEnrollmentManage, PermEnrollmentApprove,
 		PermBrandingEdit,
@@ -124,7 +131,7 @@ var DefaultRolePermissions = map[string]map[string]bool{
 		PermUserView,
 		PermAuditView, PermMetricsView,
 		PermCDAPView, PermCDAPCommand,
-		PermEnrollmentApprove,
+		PermMeshPower,
 		PermChatAccess,
 		PermOrgManageDevices,
 		PermBillingView, PermBillingReports,

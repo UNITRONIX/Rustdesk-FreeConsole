@@ -1,0 +1,112 @@
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+    Apply BetterDesk server settings to an installed RustDesk client (Windows).
+
+.DESCRIPTION
+    Example post-install script for PSADT 4.x, Intune Win32, or Robopack.
+    Copy to rustdesk-apply-config.ps1 and set -ServerHost / -PublicKey,
+    or pass -CfgString from the BetterDesk dashboard "Copy deploy string".
+
+    Run elevated after the RustDesk MSI completes.
+
+.PARAMETER ServerHost
+    Public IP or DNS name clients use to reach the BetterDesk server.
+
+.PARAMETER PublicKey
+    Contents of id_ed25519.pub from the server.
+
+.PARAMETER ApiUrl
+    RustDesk API URL (default: http://<ServerHost>:21114).
+
+.PARAMETER CfgString
+    Pre-built deploy string from the dashboard. When set, ServerHost/PublicKey/ApiUrl are ignored.
+
+.PARAMETER PermanentPassword
+    Optional unattended access password (requires admin; applied via rustdesk --password).
+
+.EXAMPLE
+    .\rustdesk-apply-config.ps1 -ServerHost '203.0.113.10' -PublicKey 'AbCd...='
+
+.EXAMPLE
+    .\rustdesk-apply-config.ps1 -CfgString 'JIDEZOD79ZED...' -PermanentPassword 'ChangeMe123!'
+#>
+[CmdletBinding()]
+param(
+    [Parameter(ParameterSetName = 'Build')]
+    [string] $ServerHost,
+
+    [Parameter(ParameterSetName = 'Build')]
+    [string] $PublicKey,
+
+    [Parameter(ParameterSetName = 'Build')]
+    [string] $ApiUrl = '',
+
+    [Parameter(ParameterSetName = 'Prebuilt', Mandatory)]
+    [string] $CfgString,
+
+    [string] $PermanentPassword = ''
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+function Get-RustDeskExePath {
+    $candidate = Join-Path $env:ProgramFiles 'RustDesk\rustdesk.exe'
+    if (-not (Test-Path -LiteralPath $candidate)) {
+        throw "RustDesk not found at $candidate — install the MSI first."
+    }
+    return $candidate
+}
+
+function New-RustDeskDeployString {
+    param(
+        [string] $HostName,
+        [string] $Key,
+        [string] $Api
+    )
+
+    if ([string]::IsNullOrWhiteSpace($HostName)) {
+        throw 'ServerHost is required when CfgString is not provided.'
+    }
+    if ([string]::IsNullOrWhiteSpace($Key)) {
+        throw 'PublicKey is required when CfgString is not provided.'
+    }
+    if ([string]::IsNullOrWhiteSpace($Api)) {
+        $Api = "http://${HostName}:21114"
+    }
+
+    $payload = @{
+        host  = $HostName
+        relay = $HostName
+        api   = $Api
+        key   = $Key.Trim()
+    }
+    $json = ($payload | ConvertTo-Json -Compress)
+    $bytes = [Text.Encoding]::UTF8.GetBytes($json)
+    $b64 = [Convert]::ToBase64String($bytes).TrimEnd('=')
+    return -join ($b64[-1..-($b64.Length)] -join '')
+}
+
+$rustdesk = Get-RustDeskExePath
+
+if ($PSCmdlet.ParameterSetName -eq 'Build') {
+    $CfgString = New-RustDeskDeployString -HostName $ServerHost -Key $PublicKey -Api $ApiUrl
+}
+
+if ([string]::IsNullOrWhiteSpace($CfgString)) {
+    throw 'Provide -CfgString or -ServerHost with -PublicKey.'
+}
+
+Write-Verbose "Applying RustDesk server config..."
+Start-Process -FilePath $rustdesk -ArgumentList @('--config', $CfgString) -Wait -NoNewWindow
+
+if (-not [string]::IsNullOrWhiteSpace($PermanentPassword)) {
+    Write-Verbose 'Setting permanent password...'
+    Start-Process -FilePath $rustdesk -ArgumentList @('--password', $PermanentPassword) -Wait -NoNewWindow
+}
+
+Write-Output 'RustDesk configuration applied.'
+
+# PSADT 4.x: call from Deploy-Application.ps1 after MSI success, e.g.:
+#   & "$dirFiles\Scripts\rustdesk-apply-config.ps1" -ServerHost '203.0.113.10' -PublicKey '...'

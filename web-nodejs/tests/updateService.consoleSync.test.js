@@ -4,6 +4,9 @@ const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
 const {
     GITHUB_COMPARE_FILE_LIMIT,
     isCompareLikelyTruncated,
+    isRetryableDownloadStatus,
+    getDownloadRetryDelayMs,
+    ensureGoServerSignalRelayPorts,
 } = require('../services/updateService');
 
 describe('updateService console sync helpers', () => {
@@ -49,5 +52,31 @@ describe('updateService console sync helpers', () => {
         ]);
         expect(required.has('routes/auth.routes.js')).toBe(true);
         expect(required.has('services/serverAttestation.js')).toBe(true);
+    });
+
+    test('retries GitHub raw downloads on rate limit status codes', () => {
+        expect(isRetryableDownloadStatus(429)).toBe(true);
+        expect(isRetryableDownloadStatus(503)).toBe(true);
+        expect(isRetryableDownloadStatus(404)).toBe(false);
+        expect(getDownloadRetryDelayMs(1)).toBe(1000);
+        expect(getDownloadRetryDelayMs(2)).toBe(2000);
+        expect(getDownloadRetryDelayMs(6)).toBe(15000);
+    });
+
+    test('ensureGoServerSignalRelayPorts adds SIGNAL_PORT, RELAY_PORT, and GO_API_PORT (#219)', () => {
+        const unit = [
+            '[Service]',
+            'User=root',
+            'Environment=AUTH_DB_PATH=/opt/console/data/auth.db',
+            'ExecStart=/opt/betterdesk/betterdesk-server -mode all',
+        ].join('\n');
+        const patched = ensureGoServerSignalRelayPorts(unit);
+        expect(patched.changed).toBe(true);
+        expect(patched.text).toMatch(/^Environment=SIGNAL_PORT=21116$/m);
+        expect(patched.text).toMatch(/^Environment=RELAY_PORT=21117$/m);
+        expect(patched.text).toMatch(/^Environment=GO_API_PORT=21114$/m);
+
+        const again = ensureGoServerSignalRelayPorts(patched.text);
+        expect(again.changed).toBe(false);
     });
 });

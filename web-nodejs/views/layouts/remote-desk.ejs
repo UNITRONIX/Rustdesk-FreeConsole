@@ -2,7 +2,7 @@
 <html lang="<%= lang || 'en' %>">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
     <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %><%= appName %></title>
 
@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/css/variables.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/theme.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/branding.css?v=<%= typeof brandingRevision !== 'undefined' ? brandingRevision : cacheVersion %>">
+    <link rel="stylesheet" href="/css/mobile-shell.css?v=<%= cacheVersion %>">
     <% if (typeof pageStyles !== 'undefined' && pageStyles) { %>
         <% (Array.isArray(pageStyles) ? pageStyles : [pageStyles]).forEach(function(style) { %>
     <link rel="stylesheet" href="/css/<%= style %>.css?v=<%= cacheVersion %>">
@@ -32,7 +33,10 @@
         };
     </script>
     <script src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/device-capabilities.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclient-mobile-shell.js?v=<%= cacheVersion %>"></script>
     <script src="/js/utils.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/remote-address-book.js?v=<%= cacheVersion %>"></script>
     <% if (typeof pageScripts !== 'undefined' && pageScripts) { %>
         <% (Array.isArray(pageScripts) ? pageScripts : [pageScripts]).forEach(function(script) { %>
     <script src="/js/<%= script %>.js?v=<%= cacheVersion %>"></script>

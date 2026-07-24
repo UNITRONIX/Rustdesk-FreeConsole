@@ -197,6 +197,12 @@ func (s *SQLiteDB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_help_requests_created ON help_requests(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_help_requests_org ON help_requests(org_id)`,
 
+		// RustDesk client login sessions (Issue #242 / #284)
+		clientSessionsSQLiteDDL,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_client_sessions_hash ON client_sessions(token_hash)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_user ON client_sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_client_sessions_expires ON client_sessions(expires_at)`,
+
 		// Organizations (v3.0.0)
 		`CREATE TABLE IF NOT EXISTS organizations (
 			id TEXT PRIMARY KEY,
@@ -348,9 +354,10 @@ func (s *SQLiteDB) Migrate() error {
 			created_at TEXT DEFAULT (datetime('now')),
 			updated_at TEXT DEFAULT (datetime('now'))
 		)`,
-		`CREATE TABLE IF NOT EXISTS billing_org_contracts (
+		`CREATE TABLE IF NOT EXISTS billing_contracts (
 			id TEXT PRIMARY KEY,
-			org_id TEXT NOT NULL,
+			target_type TEXT NOT NULL DEFAULT 'org',
+			target_key TEXT NOT NULL,
 			package_id TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'active',
 			remaining_minutes INTEGER NOT NULL DEFAULT 0,
@@ -361,10 +368,11 @@ func (s *SQLiteDB) Migrate() error {
 			valid_until TEXT,
 			created_at TEXT DEFAULT (datetime('now')),
 			updated_at TEXT DEFAULT (datetime('now')),
-			FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE,
+			UNIQUE(target_type, target_key),
 			FOREIGN KEY (package_id) REFERENCES billing_packages(id)
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_org ON billing_org_contracts(org_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_target ON billing_contracts(target_type, target_key)`,
+		`CREATE INDEX IF NOT EXISTS idx_billing_contracts_status ON billing_contracts(status)`,
 		`CREATE TABLE IF NOT EXISTS billing_sessions (
 			id TEXT PRIMARY KEY,
 			org_id TEXT NOT NULL,
@@ -446,6 +454,15 @@ func (s *SQLiteDB) Migrate() error {
 			created_at TEXT DEFAULT (datetime('now')),
 			updated_at TEXT DEFAULT (datetime('now'))
 		)`,
+		`CREATE TABLE IF NOT EXISTS strategy_assignments (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			target_type TEXT NOT NULL,
+			target_key TEXT NOT NULL,
+			strategy_guid TEXT NOT NULL DEFAULT '',
+			updated_at TEXT DEFAULT (datetime('now')),
+			UNIQUE(target_type, target_key)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_strategy_assignments_strategy ON strategy_assignments(strategy_guid)`,
 	}
 
 	for _, stmt := range statements {
@@ -483,6 +500,9 @@ func (s *SQLiteDB) Migrate() error {
 		{"users", "auth_provider", `ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local'`},
 		// org_users: server_user_id for linking existing users (Issue #106)
 		{"org_users", "server_user_id", `ALTER TABLE org_users ADD COLUMN server_user_id INTEGER DEFAULT 0`},
+		// peers/users: Pro strategy assignment GUIDs
+		{"peers", "guid", `ALTER TABLE peers ADD COLUMN guid TEXT DEFAULT ''`},
+		{"users", "guid", `ALTER TABLE users ADD COLUMN guid TEXT DEFAULT ''`},
 	}
 
 	for _, m := range columnMigrations {
@@ -523,6 +543,53 @@ func (s *SQLiteDB) Migrate() error {
 		}
 	}
 
+	// Users: never-logged-in / legacy rows may store NULL in text columns that
+	// Scan into string (Issue #292). Normalize so ListUsers/GetUser do not 500.
+	userNullBackfills := []string{
+		`UPDATE users SET last_login = '' WHERE last_login IS NULL`,
+		`UPDATE users SET totp_secret = '' WHERE totp_secret IS NULL`,
+		`UPDATE users SET created_at = datetime('now') WHERE created_at IS NULL`,
+	}
+	for _, stmt := range userNullBackfills {
+		if _, err := s.db.Exec(stmt); err != nil {
+			// Table may not exist yet on very early migrate failures — ignore.
+			if !strings.Contains(err.Error(), "no such table") {
+				return fmt.Errorf("db: user null backfill failed: %w\nStatement: %s", err, stmt)
+			}
+		}
+	}
+
+	if err := s.migrateBillingOrgContracts(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// migrateBillingOrgContracts copies legacy billing_org_contracts rows into billing_contracts.
+func (s *SQLiteDB) migrateBillingOrgContracts() error {
+	var name string
+	err := s.db.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='table' AND name='billing_org_contracts'`,
+	).Scan(&name)
+	if err != nil {
+		return nil // table does not exist
+	}
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM billing_contracts`).Scan(&n); err != nil {
+		return fmt.Errorf("db: billing_contracts count: %w", err)
+	}
+	if n > 0 {
+		return nil
+	}
+	_, err = s.db.Exec(`
+		INSERT OR IGNORE INTO billing_contracts
+			(id, target_type, target_key, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at)
+		SELECT id, 'org', org_id, package_id, status, remaining_minutes, overage_rate, hourly_rate, currency, valid_from, valid_until, created_at, updated_at
+		FROM billing_org_contracts`)
+	if err != nil {
+		return fmt.Errorf("db: migrate billing_org_contracts: %w", err)
+	}
 	return nil
 }
 
@@ -701,8 +768,9 @@ func (s *SQLiteDB) UpsertPeer(p *Peer) error {
 
 	_, err := s.db.Exec(`
 		INSERT INTO peers (id, uuid, pk, ip, user, hostname, os, version, 
-		                    status, nat_type, last_online, disabled, note, tags, heartbeat_seq)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                    status, nat_type, last_online, disabled, note, tags, heartbeat_seq,
+		                    device_type, linked_peer_id, display_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			uuid = COALESCE(NULLIF(excluded.uuid, ''), peers.uuid),
 			pk = COALESCE(excluded.pk, peers.pk),
@@ -717,14 +785,17 @@ func (s *SQLiteDB) UpsertPeer(p *Peer) error {
 			disabled = excluded.disabled,
 			note = COALESCE(NULLIF(excluded.note, ''), peers.note),
 			tags = COALESCE(NULLIF(excluded.tags, ''), peers.tags),
-			heartbeat_seq = excluded.heartbeat_seq`,
+			heartbeat_seq = excluded.heartbeat_seq,
+			device_type = COALESCE(NULLIF(excluded.device_type, ''), peers.device_type),
+			linked_peer_id = COALESCE(NULLIF(excluded.linked_peer_id, ''), peers.linked_peer_id),
+			display_name = COALESCE(NULLIF(excluded.display_name, ''), peers.display_name)`,
 		/* SECURITY (GHSA-3v82-3gf8-fxx8): UpsertPeer MUST NOT silently clear
-		   soft_deleted/deleted_at on conflict. Doing so allows any successful
-		   registration to undo an administrator's deletion. Restoration is now
-		   an explicit operation — see RestorePeer. */
+		   soft_deleted/deleted_at on conflict. Restoration is now an explicit
+		   operation — see RestorePeer. */
 		p.ID, p.UUID, p.PK, p.IP, p.User, p.Hostname, p.OS, p.Version,
 		p.Status, p.NATType, formatTime(p.LastOnline),
 		p.Disabled, p.Note, p.Tags, p.HeartbeatSeq,
+		p.DeviceType, p.LinkedPeerID, p.DisplayName,
 	)
 	if err != nil {
 		return fmt.Errorf("db: UpsertPeer(%q): %w", p.ID, err)
@@ -742,13 +813,26 @@ func (s *SQLiteDB) DeletePeer(id string) error {
 	return err
 }
 
-// HardDeletePeer permanently removes a peer from the database.
+// HardDeletePeer permanently removes a peer from the database and releases
+// any id_change_history reservations for that ID (#213).
 func (s *SQLiteDB) HardDeletePeer(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, err := s.db.Exec(`DELETE FROM peers WHERE id = ?`, id)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM peers WHERE id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(
+		`DELETE FROM id_change_history WHERE old_id = ? OR new_id = ?`, id, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // ListPeers returns all peers, optionally including soft-deleted ones.
@@ -1020,8 +1104,25 @@ func (s *SQLiteDB) UpdatePeerFields(id string, fields map[string]string) error {
 	return err
 }
 
+func (s *SQLiteDB) cascadePeerIDInTx(tx *sql.Tx, oldID, newID string) error {
+	stmts := []struct {
+		query string
+		args  []any
+	}{
+		{`UPDATE device_tokens SET peer_id = ? WHERE peer_id = ?`, []any{newID, oldID}},
+		{`UPDATE org_devices SET device_id = ? WHERE device_id = ?`, []any{newID, oldID}},
+		{`UPDATE peers SET linked_peer_id = ? WHERE linked_peer_id = ?`, []any{newID, oldID}},
+	}
+	for _, st := range stmts {
+		if _, err := tx.Exec(st.query, st.args...); err != nil {
+			return fmt.Errorf("db: cascadePeerID %s→%s: %w", oldID, newID, err)
+		}
+	}
+	return nil
+}
+
 // ChangePeerID changes a peer's ID and records it in history.
-func (s *SQLiteDB) ChangePeerID(oldID, newID string) error {
+func (s *SQLiteDB) ChangePeerID(oldID, newID, reason string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1053,7 +1154,7 @@ func (s *SQLiteDB) ChangePeerID(oldID, newID string) error {
 		       disabled, banned, ban_reason, banned_at,
 		       soft_deleted, deleted_at, note, tags, heartbeat_seq,
 		       device_type, linked_peer_id, display_name
-		FROM peers WHERE id = ?`, newID, oldID)
+		FROM peers WHERE id = ? AND (soft_deleted IS NULL OR soft_deleted = 0)`, newID, oldID)
 	if err != nil {
 		return fmt.Errorf("db: ChangePeerID insert: %w", err)
 	}
@@ -1070,10 +1171,14 @@ func (s *SQLiteDB) ChangePeerID(oldID, newID string) error {
 		return fmt.Errorf("db: ChangePeerID delete: %w", err)
 	}
 
+	if err := s.cascadePeerIDInTx(tx, oldID, newID); err != nil {
+		return err
+	}
+
 	// Record in history
 	if _, err := tx.Exec(
-		`INSERT INTO id_change_history (old_id, new_id) VALUES (?, ?)`,
-		oldID, newID); err != nil {
+		`INSERT INTO id_change_history (old_id, new_id, reason) VALUES (?, ?, ?)`,
+		oldID, newID, reason); err != nil {
 		return fmt.Errorf("db: ChangePeerID history: %w", err)
 	}
 
@@ -1120,6 +1225,34 @@ func (s *SQLiteDB) IsRenamedPeerID(id string) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// GetLatestRenameTarget returns the most recent new_id for old_id.
+func (s *SQLiteDB) GetLatestRenameTarget(oldID string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var newID string
+	err := s.db.QueryRow(
+		`SELECT new_id FROM id_change_history WHERE old_id = ? ORDER BY rowid DESC LIMIT 1`,
+		oldID).Scan(&newID)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return newID, nil
+}
+
+// ReleasePeerID clears id_change_history rows involving id.
+func (s *SQLiteDB) ReleasePeerID(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.Exec(
+		`DELETE FROM id_change_history WHERE old_id = ? OR new_id = ?`, id, id)
+	return err
 }
 
 // GetLinkedPeers returns all non-deleted peers that have linked_peer_id matching the given ID.
@@ -1307,6 +1440,12 @@ func formatTime(t time.Time) string {
 
 // --- User Operations ---
 
+// userSelectCols is the shared SELECT list for GetUser/GetUserByID/ListUsers.
+// COALESCE guards against NULL text columns that Scan into string (Issue #292).
+const userSelectCols = `id, username, password_hash, role, COALESCE(is_server_admin, 0),
+		COALESCE(auth_provider, 'local'), COALESCE(totp_secret, ''), totp_enabled, COALESCE(totp_recovery_codes, ''),
+		COALESCE(created_at, datetime('now')), COALESCE(last_login, '')`
+
 // CreateUser inserts a new user.
 func (s *SQLiteDB) CreateUser(u *User) error {
 	s.mu.Lock()
@@ -1314,9 +1453,9 @@ func (s *SQLiteDB) CreateUser(u *User) error {
 	if u.AuthProvider == "" {
 		u.AuthProvider = AuthProviderLocal
 	}
-	res, err := s.db.Exec(`INSERT INTO users (username, password_hash, role, auth_provider, totp_secret, totp_enabled)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		u.Username, u.PasswordHash, u.Role, u.AuthProvider, u.TOTPSecret, u.TOTPEnabled)
+	res, err := s.db.Exec(`INSERT INTO users (username, password_hash, role, auth_provider, totp_secret, totp_enabled, last_login)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		u.Username, u.PasswordHash, u.Role, u.AuthProvider, u.TOTPSecret, u.TOTPEnabled, "")
 	if err != nil {
 		return fmt.Errorf("db: CreateUser: %w", err)
 	}
@@ -1329,8 +1468,7 @@ func (s *SQLiteDB) GetUser(username string) (*User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	u := &User{}
-	err := s.db.QueryRow(`SELECT id, username, password_hash, role, COALESCE(is_server_admin, 0),
-		COALESCE(auth_provider, 'local'), totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users WHERE username = ?`, username).Scan(
+	err := s.db.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE username = ?`, username).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsServerAdmin,
 		&u.AuthProvider, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin)
 	if err == sql.ErrNoRows {
@@ -1344,8 +1482,7 @@ func (s *SQLiteDB) GetUserByID(id int64) (*User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	u := &User{}
-	err := s.db.QueryRow(`SELECT id, username, password_hash, role, COALESCE(is_server_admin, 0),
-		COALESCE(auth_provider, 'local'), totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users WHERE id = ?`, id).Scan(
+	err := s.db.QueryRow(`SELECT `+userSelectCols+` FROM users WHERE id = ?`, id).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.IsServerAdmin,
 		&u.AuthProvider, &u.TOTPSecret, &u.TOTPEnabled, &u.TOTPRecoveryCodes, &u.CreatedAt, &u.LastLogin)
 	if err == sql.ErrNoRows {
@@ -1358,8 +1495,7 @@ func (s *SQLiteDB) GetUserByID(id int64) (*User, error) {
 func (s *SQLiteDB) ListUsers() ([]*User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	rows, err := s.db.Query(`SELECT id, username, password_hash, role, COALESCE(is_server_admin, 0),
-		COALESCE(auth_provider, 'local'), totp_secret, totp_enabled, COALESCE(totp_recovery_codes, ''), created_at, last_login FROM users ORDER BY id`)
+	rows, err := s.db.Query(`SELECT ` + userSelectCols + ` FROM users ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("db: ListUsers: %w", err)
 	}
@@ -1389,10 +1525,16 @@ func (s *SQLiteDB) UpdateUser(u *User) error {
 	return err
 }
 
-// DeleteUser removes a user by ID.
+// DeleteUser removes a user by ID and clears org membership links (Issue #292).
 func (s *SQLiteDB) DeleteUser(id int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, err := s.db.Exec(`DELETE FROM org_users WHERE server_user_id = ? AND server_user_id > 0`, id); err != nil {
+		// org_users may be absent on very old DBs before org migrations.
+		if !strings.Contains(err.Error(), "no such table") {
+			return fmt.Errorf("db: DeleteUser org cleanup: %w", err)
+		}
+	}
 	_, err := s.db.Exec(`DELETE FROM users WHERE id=?`, id)
 	return err
 }
@@ -1402,6 +1544,15 @@ func (s *SQLiteDB) UpdateUserLogin(id int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, err := s.db.Exec(`UPDATE users SET last_login=datetime('now') WHERE id=?`, id)
+	return err
+}
+
+// NullifyUserLoginFieldsForTest sets last_login/totp_secret to SQL NULL for
+// Issue #292 regression tests (never-logged-in / legacy rows).
+func (s *SQLiteDB) NullifyUserLoginFieldsForTest(id int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.db.Exec(`UPDATE users SET last_login = NULL, totp_secret = NULL WHERE id = ?`, id)
 	return err
 }
 

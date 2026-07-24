@@ -25,8 +25,9 @@ const asiaRtl = require(path.join(DATA_DIR, 'asia-rtl.js'));
 const gapFill = require(path.join(DATA_DIR, 'gap-fill.js'));
 const enFallbackFixes = require(path.join(DATA_DIR, 'en-fallback-fixes.js'));
 const orgDeviceGroups = require(path.join(DATA_DIR, 'org-device-groups.js'));
+const settingsUi = require(path.join(DATA_DIR, 'settings-ui.js'));
 
-const ALL_PATCHES = { ...westEu, ...southCentralEu, ...nordicEastern, ...asiaRtl, ...gapFill };
+const ALL_PATCHES = { ...westEu, ...southCentralEu, ...nordicEastern, ...asiaRtl, ...gapFill, ...settingsUi };
 const FORCE_PATCHES = { ...enFallbackFixes, ...orgDeviceGroups };
 
 function readJson(filePath) {

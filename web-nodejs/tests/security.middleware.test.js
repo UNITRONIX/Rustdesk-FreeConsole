@@ -44,4 +44,29 @@ describe('Security Middleware', () => {
         expect(scriptSrc).toContain("'unsafe-eval'");
         expect(scriptSrc).not.toContain("'unsafe-inline'");
     });
+
+    it('omits HSTS when HTTPS with self-signed certs (ALLOW_SELF_SIGNED_CERTS=true)', async () => {
+        const originalHttps = process.env.HTTPS_ENABLED;
+        const originalAllow = process.env.ALLOW_SELF_SIGNED_CERTS;
+        const originalHsts = process.env.HSTS_ENABLED;
+        process.env.HTTPS_ENABLED = 'true';
+        process.env.ALLOW_SELF_SIGNED_CERTS = 'true';
+        delete process.env.HSTS_ENABLED;
+
+        jest.resetModules();
+        const securityMw = require('../middleware/security');
+        const app = createTestApp();
+        app.use(securityMw);
+        app.get('/hsts-check', (_req, res) => res.send('ok'));
+
+        const res = await request(app).get('/hsts-check');
+        expect(res.status).toBe(200);
+        expect(res.headers['strict-transport-security']).toBeUndefined();
+
+        process.env.HTTPS_ENABLED = originalHttps;
+        process.env.ALLOW_SELF_SIGNED_CERTS = originalAllow;
+        if (originalHsts !== undefined) process.env.HSTS_ENABLED = originalHsts;
+        else delete process.env.HSTS_ENABLED;
+        jest.resetModules();
+    });
 });

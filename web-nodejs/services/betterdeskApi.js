@@ -116,10 +116,16 @@ async function getServerStats() {
 /**
  * GET /api/peers  — full device list
  * Returns array of peer objects already normalised.
+ * @param {object} [options]
+ * @param {boolean} [options.includeDeleted=false]
  */
-async function getAllPeers() {
+async function getAllPeers(options = {}) {
     try {
-        const { data } = await apiClient.get('/peers');
+        const params = new URLSearchParams();
+        if (options.includeDeleted) params.set('include_deleted', 'true');
+        const qs = params.toString();
+        const url = `/peers${qs ? '?' + qs : ''}`;
+        const { data } = await apiClient.get(url);
         // Go server returns flat array or { peers: [...] }
         const peers = Array.isArray(data) ? data : (data.peers || []);
         return peers.map(normalisePeer);
@@ -127,6 +133,16 @@ async function getAllPeers() {
         console.warn('BetterDesk API getAllPeers error:', err.message);
         return [];
     }
+}
+
+/**
+ * Resolve a peer by ID, including soft-deleted rows when active lookup misses.
+ */
+async function getPeerIncludingDeleted(id) {
+    const active = await getPeer(id);
+    if (active) return active;
+    const peers = await getAllPeers({ includeDeleted: true });
+    return peers.find((p) => p.id === id) || null;
 }
 
 /**
@@ -510,7 +526,11 @@ function normalisePeer(peer) {
         note: peer.note || '',
         online: liveOnline,
         banned,
-        no_signal: !liveOnline && !banned && isRecentLastOnline(lastOnline),
+        // os_agent / CDAP endpoints use HTTP heartbeat + CDAP WS, not RustDesk UDP
+        // :21116 — don't show "No signal" when CDAP is connected.
+        no_signal: !liveOnline && !banned && isRecentLastOnline(lastOnline)
+            && !(peer.device_type === 'os_agent' && peer.cdap_connected)
+            && !(peer.device_type === 'mesh_agent' && peer.mesh_connected),
         created_at: peer.created_at || '',
         last_online: lastOnline,
         ban_reason: peer.ban_reason || '',
@@ -521,9 +541,23 @@ function normalisePeer(peer) {
         uuid: peer.uuid || '',
         nat_type: peer.nat_type || 0,
         disabled: !!(peer.disabled || peer.soft_deleted),
+        soft_deleted: !!(peer.soft_deleted),
+        deleted_at: peer.deleted_at || null,
         device_type: peer.device_type || '',
-        cdap_connected: !!peer.cdap_connected
+        cdap_connected: !!peer.cdap_connected,
+        mesh_connected: !!peer.mesh_connected,
+        mesh_node_id: peer.mesh_node_id || '',
+        linked_peer_id: peer.linked_peer_id || ''
     };
+}
+
+async function getMeshStatus() {
+    try {
+        const { data } = await apiClient.get('/mesh/status');
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message, data: { enabled: false } };
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1058,6 +1092,117 @@ async function getOIDCStatus() {
     }
 }
 
+/**
+ * POST /api/auth/oidc/exchange — Exchange one-time OIDC auth code for JWT + user identity
+ */
+async function exchangeOIDCCode(code) {
+    try {
+        const { data } = await apiClient.post('/auth/oidc/exchange', { code });
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * Absolute http(s) URL check for IdP authorize redirects (issue #298).
+ * Go returns 302 Location to the identity provider — never follow it from Node.
+ */
+function isAbsoluteHttpUrl(value) {
+    if (typeof value !== 'string' || !value) return false;
+    try {
+        const u = new URL(value);
+        return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * GET /api/auth/oidc/authorize — Server-to-server: capture Go's 302 Location (IdP URL).
+ * The browser must never be redirected to BETTERDESK_API_URL (often localhost).
+ */
+async function startOIDCAuthorize(returnUrl) {
+    const qs = new URLSearchParams();
+    if (returnUrl) qs.set('return_url', String(returnUrl));
+    const suffix = qs.toString();
+    const path = `/auth/oidc/authorize${suffix ? `?${suffix}` : ''}`;
+
+    const extractLocation = (headers) => {
+        if (!headers) return '';
+        return headers.location || headers.Location || '';
+    };
+
+    try {
+        const response = await apiClient.get(path, {
+            maxRedirects: 0,
+            validateStatus: (status) => status >= 200 && status < 400,
+        });
+        const location = extractLocation(response.headers);
+        if (!isAbsoluteHttpUrl(location)) {
+            return { success: false, error: 'OIDC authorize did not return an IdP redirect URL' };
+        }
+        return { success: true, data: { auth_url: location } };
+    } catch (e) {
+        const location = extractLocation(e.response?.headers);
+        if (isAbsoluteHttpUrl(location)) {
+            return { success: true, data: { auth_url: location } };
+        }
+        const bodyErr = e.response?.data?.error;
+        return { success: false, error: typeof bodyErr === 'string' ? bodyErr : e.message };
+    }
+}
+
+/** POST /api/strategies/assign */
+async function assignStrategy(payload) {
+    try {
+        const { data } = await apiClient.post('/strategies/assign', payload);
+        return wrap(data);
+    } catch (e) {
+        if (e.response?.data) return wrap(e.response.data);
+        return { success: false, error: e.message };
+    }
+}
+
+/** GET /api/strategies/:guid */
+async function getStrategy(guid) {
+    try {
+        const { data } = await apiClient.get(`/strategies/${encodeURIComponent(guid)}`);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/** PUT /api/strategies/:guid/status — body is raw true/false JSON */
+async function setStrategyStatus(guid, enabled) {
+    try {
+        const { data } = await apiClient.put(
+            `/strategies/${encodeURIComponent(guid)}/status`,
+            enabled,
+            { headers: { 'Content-Type': 'application/json' } }
+        );
+        return wrap(data);
+    } catch (e) {
+        if (e.response?.data) return wrap(e.response.data);
+        return { success: false, error: e.message };
+    }
+}
+
+/** GET /api/devices — Pro admin device list (id + guid) */
+async function listProDevices(params = {}) {
+    try {
+        const qs = new URLSearchParams();
+        if (params.id) qs.set('id', params.id);
+        if (params.pageSize) qs.set('pageSize', String(params.pageSize));
+        const suffix = qs.toString();
+        const { data } = await apiClient.get(`/devices${suffix ? '?' + suffix : ''}`);
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message, data: { total: 0, data: [] } };
+    }
+}
+
 module.exports = {
     // Health / Stats
     getHealth,
@@ -1066,6 +1211,7 @@ module.exports = {
     // Peers
     getAllPeers,
     getPeer,
+    getPeerIncludingDeleted,
     deletePeer,
     banPeer,
     unbanPeer,
@@ -1102,6 +1248,7 @@ module.exports = {
     getCDAPDeviceState,
     sendCDAPCommand,
     getCDAPAlerts,
+    getMeshStatus,
     getLinkedPeers,
     linkDevice,
     // Device Tokens
@@ -1140,6 +1287,12 @@ module.exports = {
     saveOIDCConfig,
     testOIDCDiscovery,
     getOIDCStatus,
+    exchangeOIDCCode,
+    startOIDCAuthorize,
+    assignStrategy,
+    getStrategy,
+    setStrategyStatus,
+    listProDevices,
     // Help Requests
     listHelpRequests,
     acknowledgeHelpRequest,

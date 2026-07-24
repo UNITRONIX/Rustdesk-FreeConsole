@@ -1,7 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    BetterDesk Console Manager v3.3.39 - All-in-One Interactive Tool for Windows
+    BetterDesk Console Manager v3.3.174 - All-in-One Interactive Tool for Windows
 
 .DESCRIPTION
     Features:
@@ -102,7 +102,7 @@ param(
 # Configuration
 #===============================================================================
 
-$script:VERSION = "3.3.39"
+$script:VERSION = "3.3.174"
 $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Auto mode flags
@@ -145,6 +145,7 @@ $script:RELAY_SERVERS = if ($RelayServers) { $RelayServers } elseif ($env:RELAY_
 # Go server configuration
 $script:GO_SERVER_SOURCE = Join-Path $script:ScriptDir "betterdesk-server"
 $script:GO_MIN_VERSION = "1.25"
+$script:GO_DOWNLOAD_VERSION = "1.26.4"
 # Legacy Rust checksums (deprecated, kept for migration purposes)
 $script:HBBS_WINDOWS_X86_64_SHA256 = "B790FA44CAC7482A057ED322412F6D178FB33F3B05327BFA753416E9879BD62F"
 $script:HBBR_WINDOWS_X86_64_SHA256 = "368C71E8D3AEF4C5C65177FBBBB99EA045661697A89CB7C2A703759C575E8E9F"
@@ -909,6 +910,19 @@ function Print-Status {
 # Go Installation and Compilation Functions
 #===============================================================================
 
+function Get-GoVersionPart {
+    param(
+        [string]$Version,
+        [int]$Index = 0
+    )
+    $normalized = ($Version -replace '[^0-9.]', '')
+    $parts = $normalized -split '\.'
+    if ($Index -lt $parts.Count -and $parts[$Index] -match '^\d+$') {
+        return [int]$parts[$Index]
+    }
+    return 0
+}
+
 function Test-GoInstalled {
     $goCmd = Get-Command go -ErrorAction SilentlyContinue
     if (-not $goCmd) {
@@ -931,8 +945,8 @@ function Test-GoInstalled {
         Print-Warning "Detected vulnerable Go version $goVersion (known stdlib CVEs)."
         return $false
     }
-    $minMajor = [int]($script:GO_MIN_VERSION.Split('.')[0])
-    $minMinor = [int]($script:GO_MIN_VERSION.Split('.')[1])
+    $minMajor = Get-GoVersionPart -Version $script:GO_MIN_VERSION -Index 0
+    $minMinor = Get-GoVersionPart -Version $script:GO_MIN_VERSION -Index 1
     
     if ($currentMajor -gt $minMajor -or ($currentMajor -eq $minMajor -and $currentMinor -ge $minMinor)) {
         return $true
@@ -945,7 +959,7 @@ function Test-GoInstalled {
 function Install-Golang {
     Print-Step "Installing Go toolchain..."
     
-    $goVersion = "1.26.1"
+    $goVersion = $script:GO_DOWNLOAD_VERSION
     $goUrl = "https://go.dev/dl/go$goVersion.windows-amd64.zip"
     $goZip = Join-Path $env:TEMP "go$goVersion.zip"
     $goRoot = "C:\Go"
@@ -2049,6 +2063,7 @@ function Setup-Services {
     # New installs default to "managed" enrollment so stock RustDesk clients are
     # queued for operator approval. Existing installs are left untouched.
     if ($script:FRESH_INSTALL) { $serverEnvExtra += "ENROLLMENT_MODE=managed" }
+    $serverEnvExtra += "MESH_ENABLED=Y"
     & $nssm set $script:SERVER_SERVICE AppEnvironmentExtra $serverEnvExtra
     
     # Privilege separation: drop the Go server to its low-privilege virtual account.
@@ -2118,6 +2133,31 @@ function Setup-Services {
     
     Print-Success "Windows services configured"
     Print-Info "Services: $script:SERVER_SERVICE, $script:CONSOLE_SERVICE"
+}
+
+function Get-GoBillingEnvLauncherLines {
+    param([string]$EnvFilePath)
+    $lines = @()
+    $keys = @(
+        'NTP_SERVERS',
+        'BILLING_MAX_CLOCK_SKEW_MS',
+        'BILLING_REQUIRE_SYNCED_CLOCK',
+        'BILLING_TRUST_OS_NTP'
+    )
+    if (-not $EnvFilePath -or -not (Test-Path $EnvFilePath)) {
+        return $lines
+    }
+    foreach ($rawLine in Get-Content $EnvFilePath) {
+        $line = $rawLine.Trim()
+        if (-not $line -or $line.StartsWith('#')) { continue }
+        $parts = $line -split '=', 2
+        if ($parts.Count -lt 2) { continue }
+        $key = $parts[0].Trim()
+        if ($keys -notcontains $key) { continue }
+        $value = $parts[1].Trim()
+        $lines += "set `"$key=$value`""
+    }
+    return $lines
 }
 
 function Setup-ScheduledTasks {
@@ -2200,6 +2240,10 @@ function Setup-ScheduledTasks {
     if ($adminPass) { $launcherLines += "set `"INIT_ADMIN_PASS=$adminPass`"" }
     # New installs default to "managed" enrollment; existing installs untouched.
     if ($script:FRESH_INSTALL) { $launcherLines += "set `"ENROLLMENT_MODE=managed`"" }
+    $billingEnvFile = Join-Path $script:CONSOLE_PATH ".env"
+    foreach ($billingLine in (Get-GoBillingEnvLauncherLines -EnvFilePath $billingEnvFile)) {
+        $launcherLines += $billingLine
+    }
     $launcherLines += "`"$serverExe`" $serverArgs"
     Set-Content -Path $serverLauncher -Value $launcherLines -Encoding ASCII
     & icacls $serverLauncher /inheritance:r /grant:r "*S-1-5-32-544:F" "*S-1-5-18:F" 2>$null | Out-Null
@@ -3256,6 +3300,7 @@ function Update-FromGitHub {
     $scriptFiles = @(
         "betterdesk.sh", "betterdesk.ps1", "betterdesk-docker.sh",
         "docker-compose.yml", "docker-compose.single.yml", "docker-compose.quick.yml",
+        "docker-compose.quick.single.yml", "docker-compose.quick.single.macvlan.yml",
         "Dockerfile", "Dockerfile.server", "Dockerfile.console", "VERSION"
     )
     $scriptsUpdated = 0
