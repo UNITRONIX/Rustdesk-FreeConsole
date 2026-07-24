@@ -135,6 +135,25 @@ const FILE_RULES = [
         },
     },
     {
+        id: 'install-sh',
+        path: 'install.sh',
+        extract: (content) => {
+            const m = content.match(/BETTERDESK_VERSION="\$\{BETTERDESK_VERSION:-([^}]+)\}"/);
+            return m?.[1];
+        },
+        apply: (content, version) => {
+            let next = content.replace(
+                /BETTERDESK_VERSION="\$\{BETTERDESK_VERSION:-[^}]+\}"/,
+                `BETTERDESK_VERSION="\${BETTERDESK_VERSION:-${version}}"`
+            );
+            next = next.replace(
+                /(Docker image tag \/ release baseline \(default: )[^)]+(\))/,
+                `$1${version}$2`
+            );
+            return next;
+        },
+    },
+    {
         id: 'docker-compose-quick',
         path: 'docker-compose.quick.yml',
         extract: (content) => {

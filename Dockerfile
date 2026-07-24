@@ -64,6 +64,7 @@ RUN apk add --no-cache \
     sqlite \
     tini \
     supervisor \
+    su-exec \
     && mkdir -p /var/log/supervisor \
     || { sleep 2 && apk add --no-cache \
     ca-certificates \
@@ -71,6 +72,7 @@ RUN apk add --no-cache \
     sqlite \
     tini \
     supervisor \
+    su-exec \
     && mkdir -p /var/log/supervisor; }
 
 # Create betterdesk user and directories

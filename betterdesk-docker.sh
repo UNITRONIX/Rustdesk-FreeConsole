@@ -1224,6 +1224,15 @@ stop_containers() {
     print_success "Containers stopped"
 }
 
+# Resolve the container that runs the Node.js panel (single AIO vs split console).
+resolve_panel_container() {
+    if [ "$DOCKER_LAYOUT" = "single" ] || docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${AIO_CONTAINER}$"; then
+        echo "$AIO_CONTAINER"
+        return 0
+    fi
+    echo "$CONSOLE_CONTAINER"
+}
+
 create_admin_user() {
     print_step "Creating admin user..."
     
@@ -1240,12 +1249,10 @@ create_admin_user() {
     # Node.js console auto-creates admin user on startup if no users exist
     # We use the reset-password script to set a secure password
     # Arguments: <password> [username] — password first, then optional username
-    local target_container="$CONSOLE_CONTAINER"
-    if [ "$DOCKER_LAYOUT" = "single" ] || docker ps --format '{{.Names}}' | grep -q "^${AIO_CONTAINER}$"; then
-        target_container="$AIO_CONTAINER"
-    fi
+    local target_container
+    target_container=$(resolve_panel_container)
 
-    docker exec "$target_container" node /app/scripts/reset-password.js "$admin_password" admin 2>/dev/null || {
+    docker exec -u betterdesk "$target_container" node /app/scripts/reset-password.js "$admin_password" admin 2>/dev/null || {
         # If script fails, try via environment variable approach
         print_info "Setting admin password via API..."
         
@@ -1255,7 +1262,7 @@ create_admin_user() {
         
         # Use curl to change password (requires internal API)
         # If this fails, admin will use default password which must be changed
-        docker exec "$target_container" sh -c "
+        docker exec -u betterdesk "$target_container" sh -c "
             if [ -f /app/scripts/reset-password.js ]; then
                 node /app/scripts/reset-password.js '$admin_password' admin 2>/dev/null
             fi
@@ -2183,11 +2190,14 @@ do_reset_password() {
     esac
     
     # Update password using reset-password.js (supports both SQLite and PostgreSQL)
-    # Update password using reset-password.js (supports both SQLite and PostgreSQL)
     # Arguments: <password> [username] — password first, then optional username
-    docker exec "$CONSOLE_CONTAINER" node /app/scripts/reset-password.js "$new_password" admin 2>/dev/null || {
+    # Single-container layout uses "betterdesk", not "betterdesk-console" (#299).
+    local panel_container
+    panel_container=$(resolve_panel_container)
+    # Run as betterdesk: auth.db is mode 0600 / UID 10001; root lacks CAP_DAC_OVERRIDE (#299).
+    docker exec -u betterdesk "$panel_container" node /app/scripts/reset-password.js "$new_password" admin 2>/dev/null || {
         print_warning "reset-password.js failed, trying inline fallback..."
-        docker exec -e RESET_ADMIN_PASSWORD="$new_password" "$CONSOLE_CONTAINER" node -e "
+        docker exec -u betterdesk -e RESET_ADMIN_PASSWORD="$new_password" "$panel_container" node -e "
 const bcrypt = require('bcrypt');
 const Database = require('better-sqlite3');
 const path = require('path');

@@ -429,6 +429,68 @@ docker compose exec -u betterdesk console sh -c 'cat /opt/rustdesk/.admin_creden
 
 If no file is found yet, wait for first boot to finish and check `docker compose logs server` for the bootstrap message.
 
+### Problem: `betterdesk-show-admin-credentials: executable file not found`
+
+**Symptom:** After `install.sh` or `docker compose exec … betterdesk-show-admin-credentials`:
+
+```text
+OCI runtime exec failed: exec failed: … executable file not found in $PATH
+```
+
+**Cause:** The running image is older than the helper (#195 / 3.2.17+). `install.sh` used to pin a stale default tag while compose defaults moved ahead (#299).
+
+**Fix:**
+
+```bash
+# Pull the current tag (match VERSION / compose default), then recreate:
+cd /opt/betterdesk/docker   # or your compose directory
+# Ensure .env has BETTERDESK_IMAGE_TAG=<current VERSION>, e.g. 3.3.169
+docker compose pull && docker compose up -d
+
+# Official single-container service name:
+docker compose exec betterdesk betterdesk-show-admin-credentials
+
+# Until you can pull a newer image:
+docker compose exec -u betterdesk betterdesk \
+  sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials'
+```
+
+For the legacy two-container layout, replace `betterdesk` with `console`.
+
+### Problem: Password reset says `No such container: betterdesk-console`
+
+**Symptom:** `betterdesk-docker.sh` → reset admin password fails with:
+
+```text
+Error response from daemon: No such container: betterdesk-console
+```
+
+**Cause:** Official install uses the all-in-one container named `betterdesk`. Older script paths always exec'd `betterdesk-console` (#299).
+
+**Fix:** Update to a build that includes `resolve_panel_container`, or reset manually:
+
+```bash
+docker exec betterdesk node /app/scripts/reset-password.js 'YourNewPassword' admin
+```
+
+### Problem: Split layout console exits with `SQLITE_READONLY` / `readonly database`
+
+**Symptom:** `betterdesk-console` logs:
+
+```text
+Failed to start server: SqliteError: attempt to write a readonly database
+```
+
+**Cause:** Legacy `docker-compose.quick.yml` briefly pointed `DB_PATH` at `/app/data/db_v2.sqlite3` on the console volume while the Go server mounts that volume read-only for `auth.db` sync — wrong path for the shared peer DB (#299).
+
+**Fix:** Use current `docker-compose.quick.yml` (`DB_PATH=/opt/rustdesk/db_v2.sqlite3`), then:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Fresh volumes are simplest. If you already wrote peers only into an orphan `/app/data/db_v2.sqlite3`, copy it into the shared Go data volume at `/opt/rustdesk/db_v2.sqlite3` before recreating, or re-enroll devices.
+
 ### Problem: "Database not found"
 ```bash
 # Check volumes

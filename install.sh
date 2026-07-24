@@ -15,7 +15,7 @@
 #   --docker | --native          Installation mode (default: docker)
 #   --split                      Legacy two-container layout (server + console images)
 #   --install-dir PATH             Install directory (default: /opt/betterdesk)
-#   --version TAG                  Docker image tag / release baseline (default: 3.3.112)
+#   --version TAG                  Docker image tag / release baseline (default: 3.3.169)
 #   --branch BRANCH                Git branch for native install (default: main)
 #   --relay-mode auto|local|public Relay auto-detection strategy
 #   --relay-servers IP[:port]      Fixed relay address (overrides --relay-mode)
@@ -39,7 +39,7 @@ set -euo pipefail
 VERSION="1.0.0"
 BETTERDESK_REPO="${BETTERDESK_REPO:-UNITRONIX/BetterDesk}"
 BETTERDESK_BRANCH="${BETTERDESK_BRANCH:-main}"
-BETTERDESK_VERSION="${BETTERDESK_VERSION:-3.3.112}"
+BETTERDESK_VERSION="${BETTERDESK_VERSION:-3.3.169}"
 BETTERDESK_RAW_BASE="${BETTERDESK_RAW_BASE:-https://raw.githubusercontent.com/${BETTERDESK_REPO}/${BETTERDESK_BRANCH}}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/betterdesk}"
 INSTALL_MODE="docker"
@@ -330,6 +330,29 @@ wait_for_http() {
     return 1
 }
 
+fetch_admin_credentials() {
+    # Prefer helper (#195); fall back to cat as betterdesk when image lacks the binary (#299).
+    local service="$1"
+    local compose_file="$INSTALL_DIR/docker/docker-compose.yml"
+    local out=""
+
+    out=$("${COMPOSE_CMD[@]}" -f "$compose_file" exec -T "$service" \
+        betterdesk-show-admin-credentials 2>/dev/null || true)
+    if [ -n "$out" ]; then
+        printf '%s\n' "$out"
+        return 0
+    fi
+
+    out=$("${COMPOSE_CMD[@]}" -f "$compose_file" exec -T -u betterdesk "$service" \
+        sh -c 'cat /opt/rustdesk/.admin_credentials 2>/dev/null || cat /app/data/.admin_credentials 2>/dev/null' \
+        2>/dev/null || true)
+    if [ -n "$out" ]; then
+        printf '%s\n' "$out"
+        return 0
+    fi
+    return 1
+}
+
 print_docker_summary() {
     local relay="$1"
     local host_ip="${relay%%:*}"
@@ -340,13 +363,12 @@ print_docker_summary() {
 
     if [ "$DOCKER_LAYOUT" = "split" ]; then
         api_port="21114"
-        creds=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T console \
-            betterdesk-show-admin-credentials 2>/dev/null || true)
+        exec_service="console"
+        creds=$(fetch_admin_credentials console || true)
         pubkey=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T server \
             sh -c 'cat /opt/rustdesk/id_ed25519.pub 2>/dev/null' 2>/dev/null || true)
     else
-        creds=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T betterdesk \
-            betterdesk-show-admin-credentials 2>/dev/null || true)
+        creds=$(fetch_admin_credentials betterdesk || true)
         pubkey=$("${COMPOSE_CMD[@]}" -f "$INSTALL_DIR/docker/docker-compose.yml" exec -T betterdesk \
             sh -c 'cat /opt/rustdesk/id_ed25519.pub 2>/dev/null' 2>/dev/null || true)
     fi

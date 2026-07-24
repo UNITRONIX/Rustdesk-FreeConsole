@@ -1,34 +1,38 @@
 # =============================================================================
-# BetterDesk Console - Quick Start (Pre-built Images)
+# BetterDesk Console - Quick Start (Pre-built Images) — legacy split layout
 # =============================================================================
 # NO BUILD REQUIRED - uses pre-built images from GitHub Container Registry (ghcr.io).
+# Prefer the official all-in-one image: docker-compose.quick.single.yml (or install.sh).
 #
-# Image tag (aligned with CHANGELOG / git tag v3.2.14):
-#   Default: 3.2.14  |  Rolling: BETTERDESK_IMAGE_TAG=latest
+# Image tag (aligned with VERSION / CHANGELOG):
+#   Default: 3.3.169  |  Rolling: BETTERDESK_IMAGE_TAG=latest
 #
 # Usage (automated — recommended):
 #   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/install.sh | sudo bash
+#   # legacy split:  … | sudo bash -s -- --split
 #
 # Usage (manual):
 #   curl -fsSL https://raw.githubusercontent.com/UNITRONIX/BetterDesk/main/docker-compose.quick.yml -o docker-compose.yml
 #   docker compose pull && docker compose up -d
 #
 # Pin a specific release:
-#   BETTERDESK_IMAGE_TAG=3.2.14 docker compose up -d
+#   BETTERDESK_IMAGE_TAG=3.3.169 docker compose up -d
 #
 # Web Console: http://localhost:5000
 # RustDesk client API: http://localhost:21114 (Go server — not the console port)
-# SQLite: server mounts console auth.db read-only for folder/group sync (issue #138).
+# SQLite: console DB_PATH shares Go peer DB at /opt/rustdesk/db_v2.sqlite3;
+# server mounts console auth.db read-only for folder/group sync (issue #138).
 # Default credentials are written to the shared credentials file:
 #   docker compose exec console betterdesk-show-admin-credentials
 #
 # MACVLAN / dedicated LAN IP: use docker-compose.quick.macvlan.yml instead
-# (console shares the server network namespace). See docs/docker/DOCKER_QUICKSTART.md
+# (console shares the server network namespace; that file may use DB_PATH under
+# /app/data). See docs/docker/DOCKER_QUICKSTART.md
 #
 # TROUBLESHOOTING: If you get "denied" or "pull access denied" error,
 # images may not be published yet. Build from source instead:
-#   git clone https://github.com/UNITRONIX/Rustdesk-FreeConsole.git
-#   cd Rustdesk-FreeConsole && docker compose -f docker-compose.yml up -d --build
+#   git clone https://github.com/UNITRONIX/BetterDesk.git
+#   cd BetterDesk && docker compose -f docker-compose.yml up -d --build
 # =============================================================================
 
 services:
@@ -107,7 +111,7 @@ services:
       - BETTERDESK_API_URL=http://betterdesk-server:21114/api
       - RUSTDESK_PATH=/opt/rustdesk
       - DATA_DIR=/app/data
-      - DB_PATH=/app/data/db_v2.sqlite3
+      - DB_PATH=/opt/rustdesk/db_v2.sqlite3
       # Optional public client endpoints (IaC). Non-empty values override the panel
       # file at /app/data/public-endpoints.env. Leave unset to use Settings UI.
       # Do not set empty PUBLIC_*= keys — empty env must not wipe durable values.
