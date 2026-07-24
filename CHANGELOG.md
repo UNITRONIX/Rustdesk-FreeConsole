@@ -1,7 +1,32 @@
 ## [Unreleased]
 
+### Added
+- **OIDC login for stock RustDesk desktop clients (#304):** when panel OIDC is enabled, RustDesk Login shows an SSO option (`/api/login-options` + `/api/oidc/auth` / `auth-query`, same IdP config as panel SSO). Ships via panel update (Go API restart). Verify: enable OIDC → client SSO button → IdP login → access token.
+- **Guest Access Links for Web Remote / RdClient (#274):** time-limited opaque links with a device allowlist; guests open `/remote/guest?t=…` without a Console session. Mesh single-device share tunnel auth works with a valid `mesh_share` token.
+- **RustDesk client LDAP/AD login (#218, #260):** desktop/mobile clients use the same directory auth as the web console. Operator guide: `docs/wiki/LDAP-AD.md`.
+- **RustDesk client sessions (#242):** DB-backed tokens (default 7 days, sliding renewal, max 30 days) under Settings → Authentication → RustDesk clients.
+- **MeshCentral compatibility layer:** optional `MESH_ENABLED=Y` — native Go `/agent.ashx` / `/meshrelay.ashx` / `/control.ashx`, inventory, guest share, port relay, recording. See `docs/features/MESHAGENT_ONBOARDING.md`.
+- **BetterDesk Agent Client (alpha):** new Tauri enrollment / remote-agent client tree (`betterdesk-agent-client/`).
+- **Update channel:** Stable (`main`) vs Development (`dev`) in Settings → Updates (and installer scripts).
+
+### Fixed
+- **WebSocket Mode behind Nginx / reverse proxy (#276):** signal WSS no longer builds session keys as `IP:0` from proxied headers; PunchHole/RelayResponse reaches WebSocket initiators. **Manual:** set `TRUST_PROXY=Y` and `TRUSTED_PROXIES=<proxy CIDR>`, restart Go, use IP-only `X-Real-IP`, confirm logs show `effective=<client-ip>:<non-zero-port>`.
+- **WSS relay decryption / mixed protocol (#293, #290):** complete WS message forwarding (no 32 KiB split); reject mixed WSS + native TCP/TLS relay pairs.
+- **Fresh Docker / GHCR install (#299):** image tag sync, credentials helpers, `DB_PATH` for split compose, `su-exec` / UID `betterdesk` for auth.db under `cap_drop: ALL`.
+- **PostgreSQL client login and user sync (#300, #301, #292):** session `created_at` scan, duplicate-user loop, NULL `totp_secret` / `last_login` handling.
+- **OIDC panel SSO authorize redirect (#298):** browser goes to the IdP, not the internal Go API URL.
+- **Linux HTTP/HTTPS protocol toggle (#219):** LE cert copy (not symlink), bind-service / port sync, installer re-exec after update, Go `GO_API_PORT` / signal port isolation.
+- **Web Remote file transfer (#217)** and related RdClient / Web Remote UX (toolbar, monitors, keyboard modes, session picker).
+- **Default admin bootstrap:** remove illegal reassignment of `const password` after create (would TypeError on first-run admin creation).
+
+### Security
+- **Trusted proxy allowlist (#276):** honor `X-Real-IP` / `X-Forwarded-For` only when `TRUST_PROXY=Y` and the direct peer is in `TRUSTED_PROXIES` (empty allowlist ignores forwarded headers).
+- **Enrollment outbound gate (#302):** PunchHole/RequestRelay require a live registered initiator; in managed/locked modes the peer must be approved (pending enrollment alone is refused). Anonymous rendezvous without registration is blocked.
+- **HttpProxyRequest (#296):** schema support with `error: "not supported"` (no open HTTP egress proxy).
+- Dependency / CI hardening: npm audit overrides, govulncheck, Go toolchain bump, WebSocket auth for bd-signal / remote-agent.
+
 ### Changed
-- _(none yet)_
+- Stable channel jump from **3.3.39** (previous `main`) through development patches **3.3.40–3.3.172**. Full per-patch history remains below; this section is the operator-facing **3.4.0** release summary (CI renames `[Unreleased]` on merge to `main`).
 
 ---
 

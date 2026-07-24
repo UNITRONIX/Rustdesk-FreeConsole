@@ -934,7 +934,6 @@ async function ensureDefaultAdmin() {
     } else {
         authLog.error('[AUTH] CRITICAL: createUser succeeded but getUserByUsername returned null for default admin');
     }
-    password = '';
 
     switch (verifyStatus) {
         case 'verified':
