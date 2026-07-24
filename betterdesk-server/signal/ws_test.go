@@ -643,6 +643,14 @@ func TestWSRequestRelayFirstFrameIsRelayResponse(t *testing.T) {
 		ConnType: peer.ConnWS, // same transport family as WS initiator (#290)
 		LastReg:  time.Now(),
 	})
+	// Pre-authorize initiator by IP so RequestRelay can be the first WS frame
+	// (preserves #276 first-frame assertion) while satisfying #302.
+	srv.PeerMap().Put(&peer.Entry{
+		ID:       "RELAYINIT",
+		IP:       "127.0.0.1:0",
+		ConnType: peer.ConnWS,
+		LastReg:  time.Now(),
+	})
 
 	ws, _, err := websocket.Dial(ctx, "ws://127.0.0.1:29192/ws/id", nil)
 	if err != nil {

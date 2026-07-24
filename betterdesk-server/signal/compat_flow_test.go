@@ -42,6 +42,13 @@ func TestSignalRelayWireFlow(t *testing.T) {
 		LastReg:    time.Now(),
 		StatusTier: peer.StatusOnline,
 	})
+	srv.peers.Put(&peer.Entry{
+		ID:         "COMPATINIT",
+		UDPAddr:    udpAddr("127.0.0.1", 52002),
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
 
 	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
 		Id:   "COMPATGT",

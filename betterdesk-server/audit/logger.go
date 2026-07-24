@@ -34,6 +34,9 @@ const (
 	// attempted identity replays (GHSA-3v82-3gf8-fxx8). The "reason" field
 	// in details carries the specific cause.
 	ActionPeerRegistrationRejected Action = "peer_registration_rejected"
+	// ActionConnectionDenied is logged when PunchHole/RequestRelay is refused
+	// because the initiator is not an authorized/enrolled peer (#302).
+	ActionConnectionDenied Action = "connection_denied"
 	ActionBlocklistAdd     Action = "blocklist_add"
 	ActionBlocklistRemove  Action = "blocklist_remove"
 	ActionConfigChanged    Action = "config_changed"

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Unapproved Managed/Enrollment clients could start outbound sessions (#302):** signal `PunchHoleRequest` / `RequestRelay` now require a live registered initiator. In `managed` / `locked` modes the initiator must also have an approved peer row in the DB (pending enrollment alone is refused). Anonymous rendezvous without registration is blocked in all modes. Ships via panel update (Go signal restart). Stock RustDesk may still show Ready while pending; outbound connect fails until operator approval.
+
 ### Changed
 - _(none yet)_
 

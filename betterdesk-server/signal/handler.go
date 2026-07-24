@@ -25,6 +25,10 @@ import (
 // and the other uses native TCP/UDP — their relay framings are incompatible (#290).
 const refuseRelayProtocolMismatch = "Protocol mismatch: WebSocket and native TCP/UDP cannot share a relay session"
 
+// refuseInitiatorNotAuthorized is returned when PunchHole/RequestRelay comes from
+// a peer that is not registered (or not enrollment-approved in managed/locked).
+const refuseInitiatorNotAuthorized = "Not authorized"
+
 // relayTransportMismatch reports whether initiator and target use incompatible
 // relay transports (WebSocket Mode vs native TCP/UDP). Signaling may still be
 // mixed; this gate only covers the typical case where ConnType reflects the
@@ -595,6 +599,11 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 
 	log.Printf("[signal] PunchHoleRequest from %s for target %s", raddr, targetID)
 
+	if _, ok := s.requireAuthorizedInitiator(raddr, targetID); !ok {
+		s.sendUDP(s.punchHoleUnauthorizedResponse(), raddr)
+		return
+	}
+
 	target := s.peers.Get(targetID)
 
 	// Target not found or offline
@@ -776,6 +785,10 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 	}
 
 	log.Printf("[signal] PunchHoleRequest (TCP) from %s for target %s", raddr, targetID)
+
+	if _, ok := s.requireAuthorizedInitiator(raddr, targetID); !ok {
+		return s.punchHoleUnauthorizedResponse()
+	}
 
 	target := s.peers.Get(targetID)
 	if target == nil || target.IsExpired(config.RegTimeout) {
@@ -1086,12 +1099,18 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 	}
 
 	log.Printf("[signal] RequestRelay from %s for target %s (uuid=%s, secure=%v, connType=%v)", raddr, targetID, relayUUID, msg.Secure, msg.ConnType)
-	target := s.peers.Get(targetID)
 
 	relayServer := s.getRelayServer()
 	if msg.RelayServer != "" {
 		relayServer = msg.RelayServer
 	}
+
+	if _, ok := s.requireAuthorizedInitiator(raddr, targetID); !ok {
+		s.sendUDP(s.relayUnauthorizedResponse(relayServer), raddr)
+		return
+	}
+
+	target := s.peers.Get(targetID)
 
 	if target == nil || target.IsExpired(config.RegTimeout) {
 		// Target offline — send relay response with failure
@@ -1254,12 +1273,17 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 	}
 
 	log.Printf("[signal] RequestRelay (TCP) from %s for target %s (uuid=%s, secure=%v, connType=%v)", raddr, targetID, relayUUID, msg.Secure, msg.ConnType)
-	target := s.peers.Get(targetID)
 
 	relayServer := s.getRelayServer()
 	if msg.RelayServer != "" {
 		relayServer = msg.RelayServer
 	}
+
+	if _, ok := s.requireAuthorizedInitiator(raddr, targetID); !ok {
+		return s.relayUnauthorizedResponse(relayServer)
+	}
+
+	target := s.peers.Get(targetID)
 
 	if target == nil || target.IsExpired(config.RegTimeout) {
 		log.Printf("[signal] RequestRelay (TCP): target %s offline", targetID)
@@ -1659,6 +1683,101 @@ func (s *Server) peerIDForAddr(raddr *net.UDPAddr) string {
 		return p.ID
 	}
 	return ""
+}
+
+// punchHoleUnauthorizedResponse refuses outbound PunchHole when the initiator
+// is not an authorized peer (#302).
+func (s *Server) punchHoleUnauthorizedResponse() *pb.RendezvousMessage {
+	return &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_PunchHoleResponse{
+			PunchHoleResponse: &pb.PunchHoleResponse{
+				Failure: pb.PunchHoleResponse_ID_NOT_EXIST,
+			},
+		},
+	}
+}
+
+// relayUnauthorizedResponse refuses outbound RequestRelay when the initiator
+// is not an authorized peer (#302).
+func (s *Server) relayUnauthorizedResponse(relayServer string) *pb.RendezvousMessage {
+	return &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RelayResponse{
+			RelayResponse: &pb.RelayResponse{
+				RefuseReason: refuseInitiatorNotAuthorized,
+				RelayServer:  relayServer,
+			},
+		},
+	}
+}
+
+// requireAuthorizedInitiator enforces that PunchHole/RequestRelay may only be
+// started by a live registered peer (#302).
+//
+// All enrollment modes require the initiator to be present in the in-memory
+// peer map (closes anonymous rendezvous). Managed and locked modes additionally
+// require an approved DB peer row (pending enrollment alone is not enough).
+func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID string) (string, bool) {
+	if raddr == nil {
+		return "", false
+	}
+
+	initiator := s.peers.FindByIP(raddr.IP)
+	if initiator == nil || initiator.IsExpired(config.RegTimeout) {
+		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
+		return "", false
+	}
+	if initiator.Banned {
+		s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_banned")
+		return "", false
+	}
+	if s.db != nil {
+		if softDeleted, _ := s.db.IsPeerSoftDeleted(initiator.ID); softDeleted {
+			s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_soft_deleted")
+			return "", false
+		}
+	}
+
+	mode := s.cfg.EnrollmentMode
+	if mode == "" {
+		mode = config.EnrollmentModeOpen
+	}
+	if mode == config.EnrollmentModeManaged || mode == config.EnrollmentModeLocked {
+		if s.db == nil {
+			s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_not_enrolled")
+			return "", false
+		}
+		dbPeer, err := s.db.GetPeer(initiator.ID)
+		if err != nil || dbPeer == nil {
+			s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_not_enrolled")
+			return "", false
+		}
+		if dbPeer.Banned {
+			s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_banned")
+			return "", false
+		}
+	}
+
+	return initiator.ID, true
+}
+
+func (s *Server) logUnauthorizedInitiator(raddr *net.UDPAddr, initiatorID, targetID, reason string) {
+	clientHost := ""
+	if raddr != nil {
+		clientHost = raddr.IP.String()
+	}
+	log.Printf("[signal] Rejected outbound from %s (initiator=%q target=%q reason=%s)",
+		clientHost, initiatorID, targetID, reason)
+	if s.auditLog == nil {
+		return
+	}
+	details := map[string]string{"reason": reason}
+	if initiatorID != "" {
+		details["initiator_id"] = initiatorID
+	}
+	if targetID != "" {
+		details["target_id"] = targetID
+	}
+	s.auditLog.Log(audit.ActionConnectionDenied, clientHost, targetID, details)
 }
 
 func (s *Server) shouldForceRelayForPeers(peerIDs ...string) bool {
