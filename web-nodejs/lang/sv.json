@@ -567,7 +567,7 @@
         "oidc_client_id": "Klient-ID",
         "oidc_client_secret": "Klienthemlighet",
         "oidc_redirect_url": "Omdirigera URL (återuppringning)",
-        "oidc_redirect_url_hint": "Måste matcha exakt vad som är konfigurerat i din IdP. Vanligtvis: http(s)://din-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Måste matcha IdP exakt. Sökväg: /api/auth/oidc/callback (eller /api/oidc/callback). Föredra panelens publika URL — konsolen proxar callback till Go-API. API-portar (:21114 / :21121) fungerar också.",
         "oidc_panel_url": "Panel-URL",
         "oidc_panel_url_hint": "URL som operatörer använder för att öppna webbkonsolen (port 5000 eller reverse-proxy-värdnamn). Krävs för SSO-inloggning när OIDC-callback körs på Go API-porten.",
         "oidc_scopes": "Omfattningar",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "Maximal sessionslivslängd (dagar)",
         "client_sessions_max_days_hint": "Övre gräns för glidande förnyelse sedan första inloggning (standard 30 dagar).",
         "client_sessions_save": "Spara sessionsinställningar",
-        "enrollment_ldap_hint": "LDAP/AD- och OIDC-inställningar finns under flikarna LDAP / AD och OIDC / SSO ovan."
+        "enrollment_ldap_hint": "LDAP/AD- och OIDC-inställningar finns under flikarna LDAP / AD och OIDC / SSO ovan.",
+        "oidc_redirect_url_invalid": "Omdirigerings-URL måste använda http(s) och sluta med /api/auth/oidc/callback (eller /api/oidc/callback).",
+        "oidc_redirect_url_example": "Exempel: {url}"
     },
     "audit": {
         "time": "Time",

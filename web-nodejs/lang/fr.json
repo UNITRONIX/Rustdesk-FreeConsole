@@ -561,7 +561,7 @@
         "oidc_client_id": "Client-ID",
         "oidc_client_secret": "Client-Secret",
         "oidc_redirect_url": "Weiterleitungs-URL (Callback)",
-        "oidc_redirect_url_hint": "Muss exakt mit der Konfiguration in Ihrem IdP übereinstimmen. Üblicherweise: http(s)://ihr-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Doit correspondre exactement à l'IdP. Chemin : /api/auth/oidc/callback (ou /api/oidc/callback). Préférez l'URL publique du panneau — la console proxifie le callback vers l'API Go. Les ports API (:21114 / :21121) fonctionnent aussi.",
         "oidc_panel_url": "URL du panneau",
         "oidc_panel_url_hint": "URL utilisée par les opérateurs pour ouvrir la console web (port 5000 ou nom d'hôte du reverse proxy). Requise pour la connexion SSO lorsque le callback OIDC s'exécute sur le port API Go.",
         "oidc_scopes": "Scopes",
@@ -759,7 +759,9 @@
         "client_sessions_max_days": "Durée maximale de session (jours)",
         "client_sessions_max_days_hint": "Limite supérieure du renouvellement depuis la première connexion (30 jours par défaut).",
         "client_sessions_save": "Enregistrer les paramètres de session",
-        "enrollment_ldap_hint": "Les paramètres LDAP/AD et OIDC se trouvent dans les onglets LDAP / AD et OIDC / SSO ci-dessus."
+        "enrollment_ldap_hint": "Les paramètres LDAP/AD et OIDC se trouvent dans les onglets LDAP / AD et OIDC / SSO ci-dessus.",
+        "oidc_redirect_url_invalid": "L'URL de redirection doit utiliser http(s) et se terminer par /api/auth/oidc/callback (ou /api/oidc/callback).",
+        "oidc_redirect_url_example": "Exemple : {url}"
     },
     "audit": {
         "time": "Heure",

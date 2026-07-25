@@ -567,7 +567,7 @@
         "oidc_client_id": "Ügyfél-azonosító",
         "oidc_client_secret": "Ügyfél titka",
         "oidc_redirect_url": "URL átirányítása (visszahívás)",
-        "oidc_redirect_url_hint": "Pontosan meg kell egyeznie az IdP-ben konfiguráltal. Általában: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Pontosan meg kell egyeznie az IdP-vel. Útvonal: /api/auth/oidc/callback (vagy /api/oidc/callback). A panel nyilvános URL-jét részesítse előnyben — a konzol továbbítja a callbacket a Go API-hoz. Az API portok (:21114 / :21121) is működnek.",
         "oidc_panel_url": "Panel URL",
         "oidc_panel_url_hint": "URL, amelyen az operátorok megnyitják a webes konzolt (5000-es port vagy reverse proxy gazdagép). Szükséges az SSO bejelentkezéshez, ha az OIDC visszahívás a Go API porton fut.",
         "oidc_scopes": "Hatókör",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "Maximális munkamenet-idő (nap)",
         "client_sessions_max_days_hint": "A csúszó meghosszabbítás felső határa az első bejelentkezéstől (alapértelmezett 30 nap).",
         "client_sessions_save": "Munkamenet-beállítások mentése",
-        "enrollment_ldap_hint": "Az LDAP/AD és OIDC beállítások a fenti LDAP / AD és OIDC / SSO lapokon találhatók."
+        "enrollment_ldap_hint": "Az LDAP/AD és OIDC beállítások a fenti LDAP / AD és OIDC / SSO lapokon találhatók.",
+        "oidc_redirect_url_invalid": "A Redirect URL-nek http(s)-t kell használnia, és /api/auth/oidc/callback (vagy /api/oidc/callback) végződéssel kell rendelkeznie.",
+        "oidc_redirect_url_example": "Példa: {url}"
     },
     "audit": {
         "time": "Time",

@@ -567,7 +567,7 @@
         "oidc_client_id": "ID Klien",
         "oidc_client_secret": "Rahasia Klien",
         "oidc_redirect_url": "Pengalihan URL (Panggilan Balik)",
-        "oidc_redirect_url_hint": "Harus sama persis dengan apa yang dikonfigurasi di IdP Anda. Biasanya: http://server-Anda:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Harus sama persis dengan IdP. Path: /api/auth/oidc/callback (atau /api/oidc/callback). Lebih baik URL publik panel — konsol mem-proxy callback ke API Go. Port API (:21114 / :21121) juga berfungsi.",
         "oidc_panel_url": "URL Panel",
         "oidc_panel_url_hint": "URL yang digunakan operator untuk membuka konsol web (port 5000 atau hostname reverse proxy). Diperlukan untuk login SSO saat callback OIDC berjalan di port Go API.",
         "oidc_scopes": "Lingkup",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "Masa hidup sesi maksimum (hari)",
         "client_sessions_max_days_hint": "Batas atas perpanjangan geser sejak login pertama (default 30 hari).",
         "client_sessions_save": "Simpan pengaturan sesi",
-        "enrollment_ldap_hint": "Pengaturan LDAP/AD dan OIDC ada di tab LDAP / AD dan OIDC / SSO di atas."
+        "enrollment_ldap_hint": "Pengaturan LDAP/AD dan OIDC ada di tab LDAP / AD dan OIDC / SSO di atas.",
+        "oidc_redirect_url_invalid": "URL redirect harus memakai http(s) dan berakhir dengan /api/auth/oidc/callback (atau /api/oidc/callback).",
+        "oidc_redirect_url_example": "Contoh: {url}"
     },
     "audit": {
         "time": "Time",

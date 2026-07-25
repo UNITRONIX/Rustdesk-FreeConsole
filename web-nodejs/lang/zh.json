@@ -480,7 +480,7 @@
         "oidc_client_id": "客户端 ID",
         "oidc_client_secret": "客户端密钥",
         "oidc_redirect_url": "重定向 URL (回调)",
-        "oidc_redirect_url_hint": "必须与身份提供商中的配置完全匹配。通常为: http(s)://your-server:21121/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "必须与 IdP 配置完全一致。路径：/api/auth/oidc/callback（或 /api/oidc/callback）。推荐使用面板公网 URL——控制台会将回调代理到 Go API。也可使用 API 端口（:21114 / :21121）。",
         "oidc_panel_url": "面板 URL",
         "oidc_panel_url_hint": "操作员用于打开 Web 控制台的 URL（端口 5000 或反向代理主机名）。当 OIDC 回调在 Go API 端口上运行时，SSO 登录需要此设置。",
         "oidc_scopes": "作用域",
@@ -755,7 +755,9 @@
         "client_sessions_max_days": "最长会话时间（天）",
         "client_sessions_max_days_hint": "自首次登录起滑动续期的上限（默认 30 天）。",
         "client_sessions_save": "保存会话设置",
-        "enrollment_ldap_hint": "LDAP/AD 与 OIDC 设置位于上方的 LDAP / AD 和 OIDC / SSO 选项卡。"
+        "enrollment_ldap_hint": "LDAP/AD 与 OIDC 设置位于上方的 LDAP / AD 和 OIDC / SSO 选项卡。",
+        "oidc_redirect_url_invalid": "重定向 URL 必须使用 http(s)，并以 /api/auth/oidc/callback（或 /api/oidc/callback）结尾。",
+        "oidc_redirect_url_example": "示例：{url}"
     },
     "audit": {
         "time": "时间",

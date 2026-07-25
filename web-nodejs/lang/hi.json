@@ -567,7 +567,7 @@
         "oidc_client_id": "ग्राहक आईडी",
         "oidc_client_secret": "ग्राहक रहस्य",
         "oidc_redirect_url": "URL को पुनर्निर्देशित करें (कॉलबैक)",
-        "oidc_redirect_url_hint": "आपके आईडीपी में जो कॉन्फ़िगर किया गया है उससे बिल्कुल मेल खाना चाहिए। आमतौर पर: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "IdP से बिल्कुल मेल खाना चाहिए। पथ: /api/auth/oidc/callback (या /api/oidc/callback)। पैनल का सार्वजनिक URL बेहतर है — कंसोल कॉलबैक को Go API तक पहुँचाता है। API पोर्ट (:21114 / :21121) भी काम करते हैं।",
         "oidc_panel_url": "पैनल URL",
         "oidc_panel_url_hint": "URL जिसका उपयोग ऑपरेटर वेब कंसोल खोलने के लिए करते हैं (पोर्ट 5000 या reverse-proxy होस्टनाम)। SSO लॉगिन के लिए आवश्यक जब OIDC callback Go API पोर्ट पर चलता है।",
         "oidc_scopes": "कार्यक्षेत्र",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "अधिकतम सत्र अवधि (दिन)",
         "client_sessions_max_days_hint": "पहले लॉगिन से स्लाइडिंग नवीनीकरण की सीमा (डिफ़ॉल्ट 30 दिन)।",
         "client_sessions_save": "सत्र सेटिंग्स सहेजें",
-        "enrollment_ldap_hint": "LDAP/AD और OIDC सेटिंग्स ऊपर LDAP / AD और OIDC / SSO टैब में हैं।"
+        "enrollment_ldap_hint": "LDAP/AD और OIDC सेटिंग्स ऊपर LDAP / AD और OIDC / SSO टैब में हैं।",
+        "oidc_redirect_url_invalid": "Redirect URL में http(s) होना चाहिए और अंत /api/auth/oidc/callback (या /api/oidc/callback) होना चाहिए।",
+        "oidc_redirect_url_example": "उदाहरण: {url}"
     },
     "audit": {
         "time": "Time",

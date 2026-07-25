@@ -1716,7 +1716,23 @@ router.get('/api/settings/oidc', requireAuth, requirePermission('server.config')
  */
 router.put('/api/settings/oidc', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
-        const result = await betterdeskApi.saveOIDCConfig(req.body);
+        const body = req.body || {};
+        const enabled = !!body.enabled;
+        const redirectUrl = typeof body.redirect_url === 'string' ? body.redirect_url.trim() : '';
+
+        // When SSO is on, Redirect URL must be a real callback path (panel or API origin).
+        // Wrong path → IdP returns here, panel 404'd before #304 proxy, client stuck on Waiting.
+        if (enabled) {
+            const { isValidOidcRedirectUrl } = require('../lib/oidcRedirectUrl');
+            if (!isValidOidcRedirectUrl(redirectUrl)) {
+                return res.status(400).json({
+                    success: false,
+                    error: req.t('settings.oidc_redirect_url_invalid'),
+                });
+            }
+        }
+
+        const result = await betterdeskApi.saveOIDCConfig(body);
         if (!result.success) {
             return res.status(400).json({ success: false, error: result.error || 'Failed to save OIDC config' });
         }

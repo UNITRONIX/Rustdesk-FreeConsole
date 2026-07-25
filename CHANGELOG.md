@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **OIDC client login stuck on “Waiting…” (#304):** panel now proxies `GET /api/auth/oidc/callback` (and `/api/oidc/callback`) to the Go API, so Redirect URLs that use the console origin (`:5000` / `:5443`) complete RustDesk SSO instead of returning 404. Settings also validate the callback path and clarify the hint. Ships via panel update. Verify: IdP Redirect URL = `https://<panel>/api/auth/oidc/callback` → SSO in RustDesk finishes with access token (browser shows success page).
+
 ### Changed
 - _(none yet)_
 

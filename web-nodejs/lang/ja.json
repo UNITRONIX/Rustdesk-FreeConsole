@@ -561,7 +561,7 @@
         "oidc_client_id": "クライアントID",
         "oidc_client_secret": "クライアントシークレット",
         "oidc_redirect_url": "URL リダイレクト (コールバック)",
-        "oidc_redirect_url_hint": "IdP で構成されている内容と正確に一致する必要があります。通常: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "IdP の設定と完全一致が必要です。パスは /api/auth/oidc/callback（または /api/oidc/callback）。パネルの公開 URL を推奨 — コンソールがコールバックを Go API に転送します。API ポート（:21114 / :21121）も利用できます。",
         "oidc_panel_url": "パネル URL",
         "oidc_panel_url_hint": "オペレーターが Web コンソールを開く URL（ポート 5000 またはリバースプロキシのホスト名）。OIDC コールバックが Go API ポートで動作する場合の SSO ログインに必要です。",
         "oidc_scopes": "スコープ",
@@ -755,7 +755,9 @@
         "client_sessions_max_days": "セッション最大期間（日）",
         "client_sessions_max_days_hint": "初回ログインからのスライディング更新の上限（既定 30 日）。",
         "client_sessions_save": "セッション設定を保存",
-        "enrollment_ldap_hint": "LDAP/AD および OIDC の設定は、上の LDAP / AD と OIDC / SSO タブにあります。"
+        "enrollment_ldap_hint": "LDAP/AD および OIDC の設定は、上の LDAP / AD と OIDC / SSO タブにあります。",
+        "oidc_redirect_url_invalid": "リダイレクト URL は http(s) で、末尾が /api/auth/oidc/callback（または /api/oidc/callback）である必要があります。",
+        "oidc_redirect_url_example": "例: {url}"
     },
     "audit": {
         "time": "Time",

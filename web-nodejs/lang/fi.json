@@ -567,7 +567,7 @@
         "oidc_client_id": "Asiakastunnus",
         "oidc_client_secret": "Asiakkaan salaisuus",
         "oidc_redirect_url": "Uudelleenohjaus URL (takaisinsoitto)",
-        "oidc_redirect_url_hint": "Sen on vastattava täsmälleen sitä, mitä IDP:ssäsi on määritetty. Yleensä: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "On vastattava IdP:tä täsmälleen. Polku: /api/auth/oidc/callback (tai /api/oidc/callback). Suosi paneelin julkista URL:ia — konsoli välittää callbackin Go-API:lle. Myös API-portit (:21114 / :21121) toimivat.",
         "oidc_panel_url": "Paneelin URL",
         "oidc_panel_url_hint": "URL-osoite, jolla operaattorit avaavat web-konsolin (portti 5000 tai käänteisen välityspalvelimen isäntänimi). Pakollinen SSO-kirjautumiselle, kun OIDC-callback toimii Go API -portissa.",
         "oidc_scopes": "Soveltamisalat",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "Istunnon enimmäiskesto (päivää)",
         "client_sessions_max_days_hint": "Liukuvan uusinnan yläraja ensimmäisestä kirjautumisesta (oletus 30 päivää).",
         "client_sessions_save": "Tallenna istuntoasetukset",
-        "enrollment_ldap_hint": "LDAP/AD- ja OIDC-asetukset ovat välilehdillä LDAP / AD ja OIDC / SSO yllä."
+        "enrollment_ldap_hint": "LDAP/AD- ja OIDC-asetukset ovat välilehdillä LDAP / AD ja OIDC / SSO yllä.",
+        "oidc_redirect_url_invalid": "Uudelleenohjaus-URL:n on käytettävä http(s):ää ja päätyttävä polkuun /api/auth/oidc/callback (tai /api/oidc/callback).",
+        "oidc_redirect_url_example": "Esimerkki: {url}"
     },
     "audit": {
         "time": "Time",

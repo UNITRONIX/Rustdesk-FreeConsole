@@ -25,7 +25,7 @@ Configure **OpenID Connect (OIDC) / OAuth2** single sign-on so operators log in 
 | **Issuer URL** | OIDC issuer (`.well-known/openid-configuration` fetched automatically) |
 | **Client ID** | OAuth2 client ID from your IdP |
 | **Client secret** | OAuth2 client secret |
-| **Redirect URL** | Must match IdP exactly — usually `http(s)://your-server:21114/api/auth/oidc/callback` (Docker all-in-one: port **21121**) |
+| **Redirect URL** | Must match IdP exactly — path `/api/auth/oidc/callback` (or `/api/oidc/callback`). **Preferred:** your panel public URL (e.g. `https://your-server:5443/api/auth/oidc/callback`) — the console proxies the callback to Go. Direct Go/Client API (`:21114` / `:21121`) also works. |
 | **Panel URL** | URL operators use to open the web console — e.g. `http(s)://your-server:5000` or your reverse-proxy hostname. **Required** when callback runs on the Go API port (Docker, split-port installs). Auto-filled from the browser when you save settings. |
 | **Scopes** | Default `openid profile email` |
 | **Use PKCE** | Recommended for public clients |
@@ -42,16 +42,11 @@ You can also set **`PANEL_PUBLIC_URL`** in the console `.env` as a fallback pane
 
 | Port | Typical use |
 |------|-------------|
-| **21114** | Default Go API (native install / split Docker). OIDC callback often `http(s)://host:21114/api/auth/oidc/callback`. |
-| **21121** | All-in-one Docker Go API / RustDesk Client API. OIDC callback often `http(s)://host:21121/api/auth/oidc/callback`. |
-| **5000** | Web console (login UI, session cookies). Set **Panel URL** to this origin (or your reverse-proxy hostname). |
+| **21114** | Default Go API (native install / split Docker). OIDC callback may use `http(s)://host:21114/api/auth/oidc/callback`. |
+| **21121** | All-in-one Docker Go API / RustDesk Client API (or Node → Go proxy). OIDC callback may use `http(s)://host:21121/api/auth/oidc/callback`. |
+| **5000** / **5443** | Web console. **Also valid** as Redirect URL host after #304 — panel proxies `/api/auth/oidc/callback` to Go. Set **Panel URL** to this origin. |
 
-The all-in-one Docker image exposes:
-
-- **:5000** — web console (login UI, session cookies)
-- **:21121** — Go API (OIDC callback)
-
-After Keycloak redirects to the Go callback, BetterDesk sends the browser to **Panel URL** `/api/auth/oidc/session` to finish login. Set **Panel URL** to how operators reach the console (e.g. `http://192.168.1.10:5000`).
+When TLS terminates on Caddy/Nginx with a **single hostname**, prefer Redirect URL `https://your-host/api/auth/oidc/callback` on the panel (or route that path to Go). The panel proxy keeps pending RustDesk client OIDC state on the Go process.
 
 ---
 
@@ -61,7 +56,7 @@ When TLS terminates on Caddy/Nginx, use one public hostname and route:
 
 | Path | Upstream |
 |------|----------|
-| `/api/auth/oidc/callback` | Go API (`127.0.0.1:21114` or `:21121`) |
+| `/api/auth/oidc/callback` | Node panel (`127.0.0.1:5000`) **or** Go API — panel proxies to Go |
 | `/api/auth/oidc/session` | Node panel (`127.0.0.1:5000`) |
 | `/` (everything else) | Node panel (`127.0.0.1:5000`) |
 
@@ -98,15 +93,18 @@ Official RustDesk clients already support OIDC when the API server advertises it
 
 1. Client calls `GET /api/login-options` → receives `["", "oidc/<Display name>"]` when OIDC is enabled
 2. Client calls `POST /api/oidc/auth` → opens the returned IdP URL in the system browser
-3. After IdP login, the browser hits the same **Redirect URL** as panel SSO (`…/api/auth/oidc/callback` or `…/api/oidc/callback`)
+3. After IdP login, the browser hits the **Redirect URL** (`…/api/auth/oidc/callback`). Panel origins are proxied to Go; API ports hit Go directly
 4. Client polls `GET /api/oidc/auth-query` until it receives an `access_token`
 
 ### Operator checklist
 
 1. Configure OIDC under **Settings → Authentication → OIDC** (same as panel)
-2. Ensure the IdP **Redirect URL** points at the Go API origin (port **21114** / **21121**, or reverse-proxy path)
-3. Point the RustDesk client **API server** at that same BetterDesk API origin
+2. Set IdP **Redirect URL** to a valid callback path — easiest: `https://<panel-host>/api/auth/oidc/callback` (must match Settings exactly)
+3. Point the RustDesk client **API server** at the BetterDesk Client API (often `:21121` or your reverse-proxy API URL)
 4. Open Login in RustDesk — an SSO button appears next to username/password
+5. After IdP sign-in, the browser should show **Sign-in successful** (not a panel 404). Then the client leaves “Waiting…”
+
+If the client stays on **Waiting…** after IdP login, the callback almost certainly never reached Go (wrong Redirect URL / 404). Check the browser page and `curl` the Redirect URL path on the host you registered in the IdP.
 
 Accounts bound to OIDC still cannot use a local password in the desktop client (use the SSO button). LDAP/AD password login remains available for directory accounts.
 
@@ -116,6 +114,7 @@ Accounts bound to OIDC still cannot use a local password in the desktop client (
 
 | Error | Cause | Fix |
 |-------|-------|-----|
+| Client stuck on **Waiting…** after IdP | Callback never reached Go (e.g. panel 404 before proxy fix) | Update panel; use Redirect URL ending in `/api/auth/oidc/callback`; confirm browser shows “Sign-in successful” |
 | SSO button opens `http://localhost:21114/api/auth/oidc/authorize` | Older panel versions redirected the browser to the internal Go API URL | Update the panel; authorize is resolved server-to-server and the browser goes straight to the IdP |
 | `Invalid or missing credentials` (JSON) | Browser hit Go API for `/api/auth/oidc/session` instead of the panel | Set **Panel URL** in OIDC settings (or `PANEL_PUBLIC_URL`); use reverse-proxy path rules |
 | `oidc_invalid` | State/nonce mismatch or bad auth code | Retry; check clock sync |

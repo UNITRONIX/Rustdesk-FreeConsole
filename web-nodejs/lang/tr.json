@@ -567,7 +567,7 @@
         "oidc_client_id": "Müşteri Kimliği",
         "oidc_client_secret": "Müşteri Sırrı",
         "oidc_redirect_url": "URL'yi yönlendir (Geri arama)",
-        "oidc_redirect_url_hint": "IdP'nizde yapılandırılanlarla tam olarak eşleşmelidir. Genellikle: http(s):://sunucunuz:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "IdP ile tam eşleşmelidir. Yol: /api/auth/oidc/callback (veya /api/oidc/callback). Panel genel URL'sini tercih edin — konsol callback'i Go API'ye iletir. API portları (:21114 / :21121) de çalışır.",
         "oidc_panel_url": "Panel URL",
         "oidc_panel_url_hint": "Operatörlerin web konsolunu açmak için kullandığı URL (5000 portu veya reverse proxy ana bilgisayar adı). OIDC geri araması Go API portunda çalıştığında SSO girişi için gereklidir.",
         "oidc_scopes": "Kapsamlar",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "Maksimum oturum süresi (gün)",
         "client_sessions_max_days_hint": "İlk girişten itibaren kaydırmalı yenileme üst sınırı (varsayılan 30 gün).",
         "client_sessions_save": "Oturum ayarlarını kaydet",
-        "enrollment_ldap_hint": "LDAP/AD ve OIDC ayarları yukarıdaki LDAP / AD ve OIDC / SSO sekmelerindedir."
+        "enrollment_ldap_hint": "LDAP/AD ve OIDC ayarları yukarıdaki LDAP / AD ve OIDC / SSO sekmelerindedir.",
+        "oidc_redirect_url_invalid": "Yönlendirme URL'si http(s) kullanmalı ve /api/auth/oidc/callback (veya /api/oidc/callback) ile bitmelidir.",
+        "oidc_redirect_url_example": "Örnek: {url}"
     },
     "audit": {
         "time": "Time",

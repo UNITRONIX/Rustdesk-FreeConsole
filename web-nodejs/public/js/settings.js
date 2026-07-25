@@ -4434,6 +4434,47 @@
 
     // ==================== OIDC / OAuth2 Section ====================
 
+    const OIDC_CALLBACK_PATHS = ['/api/auth/oidc/callback', '/api/oidc/callback'];
+
+    function suggestedOidcRedirectUrl() {
+        return window.location.origin.replace(/\/+$/, '') + '/api/auth/oidc/callback';
+    }
+
+    function isValidOidcRedirectUrlClient(raw) {
+        if (!raw || typeof raw !== 'string') return false;
+        try {
+            const u = new URL(raw.trim());
+            if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+            const path = (u.pathname || '/').replace(/\/+$/, '') || '/';
+            return OIDC_CALLBACK_PATHS.includes(path);
+        } catch {
+            return false;
+        }
+    }
+
+    function updateOidcRedirectWarning() {
+        const warn = document.getElementById('oidc-redirect-url-warning');
+        const input = document.getElementById('oidc-redirect-url');
+        const enabled = document.getElementById('oidc-enabled')?.checked;
+        if (!warn || !input) return;
+
+        const value = (input.value || '').trim();
+        if (!enabled || !value) {
+            warn.style.display = 'none';
+            warn.textContent = '';
+            return;
+        }
+        if (isValidOidcRedirectUrlClient(value)) {
+            warn.style.display = 'none';
+            warn.textContent = '';
+            return;
+        }
+        const suggest = suggestedOidcRedirectUrl();
+        warn.style.display = '';
+        warn.textContent = _('settings.oidc_redirect_url_invalid') + ' ' +
+            _('settings.oidc_redirect_url_example').replace('{url}', suggest);
+    }
+
     async function initOidcSection() {
         const form = document.getElementById('oidc-form');
         if (!form) return;
@@ -4453,10 +4494,23 @@
                     if (!ok) {
                         enabledCb.checked = false;
                         configFields.style.display = 'none';
+                        updateOidcRedirectWarning();
                         return;
                     }
                 }
                 configFields.style.display = enabledCb.checked ? '' : 'none';
+                // Prefill Redirect URL with panel callback when enabling and field is empty
+                if (enabledCb.checked) {
+                    const redirectInput = document.getElementById('oidc-redirect-url');
+                    if (redirectInput && !redirectInput.value.trim()) {
+                        redirectInput.value = suggestedOidcRedirectUrl();
+                    }
+                    const panelInput = document.getElementById('oidc-panel-url');
+                    if (panelInput && !panelInput.value.trim()) {
+                        panelInput.value = window.location.origin;
+                    }
+                }
+                updateOidcRedirectWarning();
             });
         }
 
@@ -4469,6 +4523,9 @@
             });
         }
 
+        document.getElementById('oidc-redirect-url')?.addEventListener('input', updateOidcRedirectWarning);
+        document.getElementById('oidc-redirect-url')?.addEventListener('change', updateOidcRedirectWarning);
+
         // Load existing config
         await loadOidcConfig();
 
@@ -4480,6 +4537,12 @@
             e.preventDefault();
             const data = collectOidcData();
             if (data.enabled) {
+                if (!isValidOidcRedirectUrlClient(data.redirect_url)) {
+                    updateOidcRedirectWarning();
+                    Notifications.error(_('settings.oidc_redirect_url_invalid'));
+                    document.getElementById('oidc-redirect-url')?.focus();
+                    return;
+                }
                 const confirmed = await settingsConfirmCritical({
                     title: tSettings('confirm.oidc_save_title', 'Save SSO settings?'),
                     message: tSettings('confirm.oidc_save', 'Save OIDC / SSO configuration? Incorrect settings can block SSO sign-in.'),
@@ -4519,7 +4582,7 @@
         setVal('oidc-issuer-url', data.issuer_url);
         setVal('oidc-client-id', data.client_id);
         setVal('oidc-client-secret', data.client_secret);
-        setVal('oidc-redirect-url', data.redirect_url);
+        setVal('oidc-redirect-url', data.redirect_url || '');
         setVal('oidc-panel-url', data.panel_url || window.location.origin);
         setVal('oidc-scopes', data.scopes || 'openid profile email');
         setChecked('oidc-use-pkce', data.use_pkce);
@@ -4540,6 +4603,7 @@
         if (configFields) configFields.style.display = data.enabled ? '' : 'none';
         const manualEndpoints = document.getElementById('oidc-manual-endpoints');
         if (manualEndpoints) manualEndpoints.style.display = (data.auto_discovery !== false) ? 'none' : '';
+        updateOidcRedirectWarning();
     }
 
     function collectOidcData() {

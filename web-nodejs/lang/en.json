@@ -590,7 +590,7 @@
         "oidc_client_id": "Client ID",
         "oidc_client_secret": "Client Secret",
         "oidc_redirect_url": "Redirect URL (Callback)",
-        "oidc_redirect_url_hint": "Must match exactly what is configured in your IdP. Usually: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Must match your IdP exactly. Path must be /api/auth/oidc/callback (or /api/oidc/callback). Prefer your panel public URL (this page origin) — the console proxies the callback to the Go API. Direct Go/Client API ports (:21114 / :21121) also work.",
         "oidc_panel_url": "Panel URL",
         "oidc_panel_url_hint": "URL operators use to open the web console (port 5000 or reverse-proxy hostname). Required for SSO login when the OIDC callback runs on the Go API port.",
         "oidc_scopes": "Scopes",
@@ -763,7 +763,9 @@
             "smtp_test_success": "Connection successful",
             "smtp_test_failed": "Connection failed"
         },
-        "enrollment_ldap_hint": "LDAP/AD and OIDC settings are under the LDAP / AD and OIDC / SSO tabs above."
+        "enrollment_ldap_hint": "LDAP/AD and OIDC settings are under the LDAP / AD and OIDC / SSO tabs above.",
+        "oidc_redirect_url_invalid": "Redirect URL must use http(s) and end with /api/auth/oidc/callback (or /api/oidc/callback).",
+        "oidc_redirect_url_example": "Example: {url}"
     },
     "audit": {
         "time": "Time",

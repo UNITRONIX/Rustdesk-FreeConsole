@@ -567,7 +567,7 @@
         "oidc_client_id": "Klient-id",
         "oidc_client_secret": "Klientens hemmelighed",
         "oidc_redirect_url": "Omdiriger URL (tilbagekald)",
-        "oidc_redirect_url_hint": "Skal matche nøjagtigt det, der er konfigureret i din IdP. Normalt: http(s)://din-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Skal matche IdP nøjagtigt. Sti: /api/auth/oidc/callback (eller /api/oidc/callback). Foretræk panelets offentlige URL — konsollen proxyer callback til Go-API. API-porte (:21114 / :21121) virker også.",
         "oidc_panel_url": "Panel-URL",
         "oidc_panel_url_hint": "URL operatører bruger til at åbne webkonsollen (port 5000 eller reverse-proxy-værtsnavn). Påkrævet til SSO-login, når OIDC-callback kører på Go API-porten.",
         "oidc_scopes": "Omfang",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "Maksimal sessionslevetid (dage)",
         "client_sessions_max_days_hint": "Øvre grænse for fornyelse siden første login (standard 30 dage).",
         "client_sessions_save": "Gem sessionsindstillinger",
-        "enrollment_ldap_hint": "LDAP/AD- og OIDC-indstillinger findes under fanerne LDAP / AD og OIDC / SSO ovenfor."
+        "enrollment_ldap_hint": "LDAP/AD- og OIDC-indstillinger findes under fanerne LDAP / AD og OIDC / SSO ovenfor.",
+        "oidc_redirect_url_invalid": "Redirect-URL skal bruge http(s) og ende med /api/auth/oidc/callback (eller /api/oidc/callback).",
+        "oidc_redirect_url_example": "Eksempel: {url}"
     },
     "audit": {
         "time": "Time",
