@@ -8,7 +8,7 @@ set -e
 
 echo "========================================"
 echo "  BetterDesk Console - Container Startup"
-echo "  Version: ${BETTERDESK_IMAGE_VERSION:-3.4.0} (Node.js)"
+echo "  Version: ${BETTERDESK_IMAGE_VERSION:-3.4.1} (Node.js)"
 echo "========================================"
 
 # Public Docker examples use ADMIN_*; the Node.js console seeds from DEFAULT_ADMIN_*.
