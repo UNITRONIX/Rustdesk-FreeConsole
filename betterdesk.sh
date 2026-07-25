@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.4.0
+#   BetterDesk Console Manager v3.4.1
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -36,9 +36,9 @@
 set -e
 
 # Version
-VERSION="3.4.0"
+VERSION="3.4.1"
 # Bump when installer control-flow changes must apply mid-session after Update (#219).
-BETTERDESK_SH_REVISION="20260718-reexec"
+BETTERDESK_SH_REVISION="20260725-console-start-306"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Preserve argv before shift — used to re-exec after installer self-update (#219).
 BETTERDESK_ORIG_ARGV=("$@")
@@ -1845,8 +1845,8 @@ prepare_console_after_update() {
         return 0
     fi
     systemctl reset-failed betterdesk-console 2>/dev/null || true
-    repair_console_service_user_line "betterdesk"
-    repair_https_stuck_state yes
+    repair_console_service_user_line "betterdesk" || true
+    repair_https_stuck_state yes || true
     if [ -f "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" ] && command -v node &>/dev/null; then
         if [ "$(id -u)" -eq 0 ]; then
             node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission sync reported issues"
@@ -1856,8 +1856,9 @@ prepare_console_after_update() {
             print_warning "Console permission sync skipped (run as root: sudo node $CONSOLE_PATH/scripts/linux-ensure-console-user.js)"
         fi
     fi
-    repair_console_service_user_line "betterdesk"
+    repair_console_service_user_line "betterdesk" || true
     ensure_console_tls_material_readable 2>/dev/null || true
+    return 0
 }
 
 maybe_create_admin_user_on_update() {
@@ -1868,11 +1869,42 @@ maybe_create_admin_user_on_update() {
     create_admin_user
 }
 
+# Start / restart betterdesk-console and verify panel health (#306).
+# Always attempts start even when earlier helper steps failed (set -e safe).
+start_betterdesk_console_verified() {
+    local panel_port console_state
+    panel_port=$(resolve_panel_health_port)
+
+    print_info "Starting betterdesk-console (Node.js)..."
+    systemctl reset-failed betterdesk-console 2>/dev/null || true
+    if systemctl is-active --quiet betterdesk-console 2>/dev/null; then
+        systemctl restart betterdesk-console || true
+    else
+        # Prefer start when inactive (post graceful_stop); fall back to restart.
+        systemctl start betterdesk-console 2>/dev/null || systemctl restart betterdesk-console || true
+    fi
+    sleep 2
+
+    if ! verify_service_health "betterdesk-console" "$panel_port" 10; then
+        print_warning "Web console may not be running correctly"
+        console_state=$(systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null || echo "unknown")
+        print_error "betterdesk-console ActiveState=${console_state} (expected: active)"
+        print_info "  Possible causes: npm modules, TLS key permissions, port ${panel_port} conflict"
+        print_info "Run: journalctl -u betterdesk-console -n 50 --no-pager"
+        print_info "Then: sudo systemctl start betterdesk-console"
+        return 1
+    fi
+
+    print_success "betterdesk-console started and healthy (port ${panel_port})"
+    return 0
+}
+
 # Start services with health verification
 start_services_with_verification() {
     print_step "Starting services with health verification..."
     
     local has_errors=false
+    local console_ok=true
     
     # Check ports before starting
     if ! check_port_available "21116" "signal"; then
@@ -1903,22 +1935,29 @@ start_services_with_verification() {
         print_error "Failed to start betterdesk-server"
         print_info "Service state: $(systemctl show betterdesk-server --property=ActiveState --value 2>/dev/null)"
         print_info "Run: journalctl -u betterdesk-server -n 50 --no-pager"
+        # Still try to bring console up — operator may recover Go separately (#306)
+        prepare_console_after_update || true
+        start_betterdesk_console_verified || true
         return 1
     fi
     print_success "betterdesk-server started and healthy"
     
-    # Inject shared API key into Go server database for Node.js ↔ Go communication
+    # Inject shared API key into Go server database for Node.js ↔ Go communication.
+    # Must not abort under set -e (sqlite3 busy/locked after Go start was leaving Console down — #306).
     local api_key_file="$RUSTDESK_PATH/.api_key"
     if [ -f "$api_key_file" ]; then
         local api_key
-        api_key=$(cat "$api_key_file")
-        local api_key_sql
-        api_key_sql=$(sql_escape_literal "$api_key")
+        api_key=$(cat "$api_key_file" 2>/dev/null || true)
+        local api_key_sql=""
+        if [ -n "$api_key" ]; then
+            api_key_sql=$(sql_escape_literal "$api_key")
+        fi
         local go_db="$RUSTDESK_PATH/db_v2.sqlite3"
-        if [ -f "$go_db" ] && command -v sqlite3 &>/dev/null; then
-            sqlite3 "$go_db" "INSERT OR REPLACE INTO server_config (key, value) VALUES ('api_key', '$api_key_sql');" 2>/dev/null
-            if [ $? -eq 0 ]; then
+        if [ -n "$api_key_sql" ] && [ -f "$go_db" ] && command -v sqlite3 &>/dev/null; then
+            if sqlite3 "$go_db" "INSERT OR REPLACE INTO server_config (key, value) VALUES ('api_key', '$api_key_sql');" 2>/dev/null; then
                 print_info "API key synced to Go server database"
+            else
+                print_warning "API key sync to Go DB skipped (sqlite3 failed — Console start continues)"
             fi
         fi
     fi
@@ -1929,39 +1968,22 @@ start_services_with_verification() {
     fi
 
     # Re-sync permissions after Go server may have created root-owned DB/WAL files (#206)
-    prepare_console_after_update
-    
-    # Start Node.js console
-    local panel_port console_ok=true
-    panel_port=$(resolve_panel_health_port)
+    # Never abort start path under set -e (#306)
+    prepare_console_after_update || print_warning "Console prep after update reported issues (continuing)"
 
-    print_info "Starting betterdesk-console (Node.js)..."
-    systemctl restart betterdesk-console
-    sleep 2
-
-    if ! verify_service_health "betterdesk-console" "$panel_port" 10; then
+    if ! start_betterdesk_console_verified; then
         console_ok=false
-        print_warning "Web console may not be running correctly"
-        local console_state
-        console_state=$(systemctl show betterdesk-console --property=ActiveState --value 2>/dev/null)
-        if [ "$console_state" = "failed" ]; then
-            print_error "Console service FAILED. Possible causes:"
-            print_info "  - Missing npm modules (npm install failed)"
-            print_info "  - TLS certificate issue (self-signed cert rejected)"
-            print_info "  - Port ${panel_port} conflict"
-            print_info "Run: journalctl -u betterdesk-console -n 50 --no-pager"
-        fi
-    else
-        print_success "betterdesk-console started and healthy (port ${panel_port})"
     fi
 
     if [ "$console_ok" = true ]; then
         print_success "All services started and verified"
-    else
-        print_warning "Server is running but web console needs attention"
-        print_info "Run: journalctl -u betterdesk-console -n 50 --no-pager"
+        return 0
     fi
-    return 0
+
+    print_error "Server is running but web console failed to start"
+    print_info "Run: journalctl -u betterdesk-console -n 50 --no-pager"
+    print_info "Then: sudo systemctl start betterdesk-console"
+    return 1
 }
 
 #===============================================================================
@@ -4823,7 +4845,11 @@ do_update() {
                 maybe_update_services
                 prepare_console_after_update
                 maybe_create_admin_user_on_update
-                start_services_with_verification
+                if ! start_services_with_verification; then
+                    print_error "Local update applied but services did not start correctly"
+                    press_enter
+                    return 1
+                fi
                 print_success "Local update completed!"
                 reexec_installer_after_update
                 return
@@ -4844,9 +4870,11 @@ do_update() {
     if ! update_from_github; then
         print_error "GitHub update failed"
         print_info "Attempting to restart services with existing files..."
-        start_services_with_verification
+        if ! start_services_with_verification; then
+            print_error "Could not restart services after failed update"
+        fi
         press_enter
-        return
+        return 1
     fi
 
     # Run database migrations (adds missing columns etc.)
@@ -4864,11 +4892,17 @@ do_update() {
     # Patch existing units or create missing; optional full recreate (issue #158)
     maybe_update_services "$svc_mode"
 
-    prepare_console_after_update
+    prepare_console_after_update || print_warning "Console prep after update reported issues"
     maybe_create_admin_user_on_update
 
-    # Start services with verification
-    start_services_with_verification
+    # Start services with verification (#306 — do not claim success if Console is down)
+    if ! start_services_with_verification; then
+        print_error "Update files applied but services did not start correctly"
+        print_info "Fix Console with: sudo systemctl start betterdesk-console"
+        print_info "Logs: journalctl -u betterdesk-console -n 50 --no-pager"
+        press_enter
+        return 1
+    fi
     
     print_success "Update completed!"
     if [ -n "${remote_version:-}" ]; then

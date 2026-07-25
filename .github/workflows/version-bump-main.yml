@@ -35,10 +35,24 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Bump minor version
+      - name: Bump version (minor release or hotfix patch)
         id: bump
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          node scripts/bump-version.js --minor
+          # Stable feature releases: +0.1.0. Hotfix PRs (label "hotfix" or title
+          # containing "hotfix", e.g. 3.4.0 → 3.4.1): +0.0.1.
+          BUMP_ARGS=(--minor)
+          LABELS_LC=$(echo "$PR_LABELS" | tr '[:upper:]' '[:lower:]')
+          TITLE_LC=$(echo "$PR_TITLE" | tr '[:upper:]' '[:lower:]')
+          if echo "$LABELS_LC" | grep -qw 'hotfix' || echo "$TITLE_LC" | grep -q 'hotfix'; then
+            BUMP_ARGS=(--patch)
+            echo "Hotfix detected — using patch bump (+0.0.1)"
+          else
+            echo "Stable release — using minor bump (+0.1.0)"
+          fi
+          node scripts/bump-version.js "${BUMP_ARGS[@]}"
           NEW_VERSION=$(cat VERSION | tr -d '\n')
           echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
 
