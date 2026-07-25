@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **`betterdesk.sh` Online GitHub update leaves Console inactive (#306):** `start_services_with_verification` no longer aborts under `set -e` when `sqlite3` API-key sync fails after Go start; Console always gets `systemctl start`/`restart`, and update no longer prints success when `betterdesk-console` is not Active. Ships via installer script / next stable hotfix (not panel-only). Verify: Update → Online update from GitHub → `systemctl is-active betterdesk-console` is `active` without a manual start.
+
 ### Changed
 - _(none yet)_
 
