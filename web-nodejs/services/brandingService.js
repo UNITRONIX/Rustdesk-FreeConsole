@@ -409,6 +409,84 @@ const DEFAULT_BRANDING = {
     rdclientBgSize: 'cover'
 };
 
+/** Built-in palettes for themeMode light/dark (custom uses branding.colors). */
+const BUILTIN_THEME_PALETTES = {
+    dark: {
+        bgPrimary: '#0d1117',
+        bgSecondary: '#161b22',
+        bgTertiary: '#21262d',
+        bgElevated: '#30363d',
+        textPrimary: '#e6edf3',
+        textSecondary: '#8b949e',
+        accentBlue: '#58a6ff',
+        accentBlueHover: '#79c0ff',
+        accentBlueMuted: '#58a6ff',
+        accentGreen: '#2ea44f',
+        accentGreenHover: '#3fb950',
+        accentGreenMuted: '#2ea44f',
+        accentRed: '#f85149',
+        accentRedHover: '#ff6b6b',
+        accentRedMuted: '#f85149',
+        accentYellow: '#d29922',
+        accentYellowHover: '#e3b341',
+        accentYellowMuted: '#d29922',
+        accentPurple: '#a371f7',
+        accentPurpleHover: '#bc8cff',
+        accentPurpleMuted: '#a371f7',
+        borderPrimary: '#30363d',
+        borderSecondary: '#21262d'
+    },
+    light: {
+        bgPrimary: '#f0f2f5',
+        bgSecondary: '#ffffff',
+        bgTertiary: '#eaeef2',
+        bgElevated: '#ffffff',
+        textPrimary: '#1f2328',
+        textSecondary: '#656d76',
+        accentBlue: '#0969da',
+        accentBlueHover: '#0550ae',
+        accentBlueMuted: '#0969da',
+        accentGreen: '#1a7f37',
+        accentGreenHover: '#116329',
+        accentGreenMuted: '#1a7f37',
+        accentRed: '#cf222e',
+        accentRedHover: '#a40e26',
+        accentRedMuted: '#cf222e',
+        accentYellow: '#9a6700',
+        accentYellowHover: '#7d4e00',
+        accentYellowMuted: '#9a6700',
+        accentPurple: '#8250df',
+        accentPurpleHover: '#6639ba',
+        accentPurpleMuted: '#8250df',
+        borderPrimary: '#d0d7de',
+        borderSecondary: '#eaeef2'
+    }
+};
+
+function normalizeThemeMode(mode) {
+    let m = String(mode || 'dark');
+    if (m === 'auto') m = 'dark';
+    if (!['dark', 'light', 'custom'].includes(m)) m = 'dark';
+    return m;
+}
+
+/**
+ * Resolve effective color map for CSS generation.
+ * light/dark ignore stale DB custom colors so themeMode always matches the UI.
+ */
+function resolveThemeColors(branding) {
+    const mode = normalizeThemeMode(branding && branding.themeMode);
+    if (mode === 'light' || mode === 'dark') {
+        return { ...BUILTIN_THEME_PALETTES[mode] };
+    }
+    const stored = (branding && branding.colors) || {};
+    const merged = { ...BUILTIN_THEME_PALETTES.dark };
+    for (const [key, value] of Object.entries(stored)) {
+        if (value && String(value).trim()) merged[key] = String(value).trim();
+    }
+    return merged;
+}
+
 // CSS variable name mapping
 const COLOR_TO_CSS_VAR = {
     bgPrimary: '--bg-primary',
@@ -580,10 +658,7 @@ async function saveBranding(updates) {
             } else if (key === 'bgSize' || key === 'rdclientBgSize') {
                 entries.push({ key, value: normalizeBackgroundSize(value) });
             } else if (key === 'themeMode') {
-                let mode = String(value);
-                if (mode === 'auto') mode = 'dark';
-                if (!['dark', 'light', 'custom'].includes(mode)) mode = 'dark';
-                entries.push({ key, value: mode });
+                entries.push({ key, value: normalizeThemeMode(value) });
             } else if (key === 'customCss') {
                 // Security: Neutralize CSS-based XSS / external resource loading.
                 entries.push({ key, value: sanitizeCustomCss(value) });
@@ -735,17 +810,30 @@ function generateSemanticAliasCss(branding) {
         '    --color-text-muted: var(--text-secondary);',
         '    --color-border: var(--border-primary);',
         '    --focus-ring-color: var(--accent-blue-muted);',
-        `    color-scheme: ${(branding.themeMode || 'dark') === 'light' ? 'light' : 'dark'};`,
+        `    color-scheme: ${normalizeThemeMode(branding.themeMode) === 'light' ? 'light' : 'dark'};`,
         '    /* UX 3.5 chrome aliases (branding-aware) */',
         '    --ux35-bg: var(--bg-primary);',
+        '    --ux35-sidebar-bg: var(--surface-glass-bg-secondary, var(--bg-secondary));',
         '    --ux35-card-bg: var(--card-bg, var(--surface-glass-bg-secondary, var(--bg-secondary)));',
         '    --ux35-border: var(--surface-glass-border, var(--border-primary));',
+        '    --ux35-border-light: var(--border-secondary);',
         '    --ux35-text: var(--text-primary);',
         '    --ux35-muted: var(--text-secondary);',
+        '    --ux35-hover: var(--bg-hover);',
         '    --ux35-primary: var(--accent-blue);',
         '    --ux35-active-bg: var(--accent-blue-muted);',
         '    --ux35-glass-blur: var(--surface-glass-blur, 16px);'
     ];
+    const mode = normalizeThemeMode(branding.themeMode);
+    if (mode === 'light') {
+        lines.push('    --ux35-topbar-bg: var(--accent-blue);');
+        lines.push('    --ux35-topbar-fg: #ffffff;');
+        lines.push('    --ux35-topbar-fg-muted: rgba(255, 255, 255, 0.78);');
+    } else {
+        lines.push('    --ux35-topbar-bg: var(--surface-glass-bg-elevated, var(--bg-secondary));');
+        lines.push('    --ux35-topbar-fg: var(--text-primary);');
+        lines.push('    --ux35-topbar-fg-muted: var(--text-secondary);');
+    }
     return `:root {\n${lines.join('\n')}\n}\n`;
 }
 
@@ -755,14 +843,16 @@ function generateSemanticAliasCss(branding) {
  */
 function generateThemeCss() {
     const branding = getBranding();
+    const themeMode = normalizeThemeMode(branding.themeMode);
+    const colors = resolveThemeColors(branding);
     const overrides = [];
-    
+
     for (const [key, cssVar] of Object.entries(COLOR_TO_CSS_VAR)) {
-        const value = branding.colors[key];
-        if (value && value.trim()) {
+        const value = colors[key];
+        if (value && String(value).trim()) {
             // For muted colors, auto-generate rgba if a hex color is provided
-            if (key.endsWith('Muted') && value.startsWith('#')) {
-                const hex = value.replace('#', '');
+            if (key.endsWith('Muted') && String(value).startsWith('#')) {
+                const hex = String(value).replace('#', '');
                 const r = parseInt(hex.substring(0, 2), 16);
                 const g = parseInt(hex.substring(2, 4), 16);
                 const b = parseInt(hex.substring(4, 6), 16);
@@ -772,26 +862,29 @@ function generateThemeCss() {
             }
         }
     }
-    
+
     let css = '';
-    
+
     // Font CSS (imports + heading/body font variables)
     const fontCss = fontService.generateFontCss(branding.fontHeading, branding.fontBody);
     if (fontCss) {
         css += fontCss + '\n';
     }
-    
-    // Color overrides
+
+    // Color overrides — always emit effective palette for the active themeMode
     if (overrides.length > 0) {
         css += `:root {\n${overrides.join('\n')}\n}\n`;
     }
 
+    // Keep data-theme attribute in sync for component selectors (ui-polish / theme.css)
+    css += `html { color-scheme: ${themeMode === 'light' ? 'light' : 'dark'}; }\n`;
+
     // Semantic aliases consumed by newer UI and legacy components that use
     // --color-* names instead of the original BetterDesk token names.
-    css += generateSemanticAliasCss(branding);
+    css += generateSemanticAliasCss({ ...branding, themeMode, colors });
 
-    // Glass surface tokens
-    css += generateGlassCss(branding);
+    // Glass surface tokens (light mode uses light glass base when unset)
+    css += generateGlassCss({ ...branding, themeMode, colors });
 
     // Background wallpaper (console + login) and custom CSS
     css += generateBackgroundCss(branding);
@@ -846,9 +939,14 @@ function generateGlassCss(branding) {
     const blur = clampNumber(branding.glassBlur, 0, 40) ?? 16;
     const opacity = (clampNumber(branding.glassOpacity, 0, 100) ?? 55) / 100;
     let color = (branding.glassColor || '').trim();
+    const mode = normalizeThemeMode(branding.themeMode);
     if (!color || !/^#[0-9a-fA-F]{6}$/.test(color)) {
-        const fallback = (branding.colors && branding.colors.bgSecondary) || '';
-        color = /^#[0-9a-fA-F]{6}$/.test(fallback) ? fallback : '#161b22';
+        const fromColors = branding.colors && branding.colors.bgSecondary;
+        if (/^#[0-9a-fA-F]{6}$/.test(fromColors || '')) {
+            color = fromColors;
+        } else {
+            color = mode === 'light' ? '#ffffff' : '#161b22';
+        }
     }
     const rgb = hexToRgb(color);
     if (!rgb) return '';
@@ -1188,6 +1286,9 @@ function invalidateCache() {
 module.exports = {
     DEFAULT_BRANDING,
     COLOR_TO_CSS_VAR,
+    BUILTIN_THEME_PALETTES,
+    normalizeThemeMode,
+    resolveThemeColors,
     loadBranding,
     getBranding,
     saveBranding,

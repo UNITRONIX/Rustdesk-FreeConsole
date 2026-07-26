@@ -6,8 +6,8 @@
 /* ── App shell ── */
 body.app-page.ux35-page {
     margin: 0;
-    background: var(--ux35-bg);
-    color: var(--ux35-text);
+    background: var(--ux35-bg, var(--bg-primary));
+    color: var(--ux35-text, var(--text-primary));
     font-family: var(--font-family);
 }
 
@@ -17,6 +17,8 @@ body.app-page.ux35-page {
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
+    background: var(--ux35-bg, var(--bg-primary));
+    color: var(--ux35-text, var(--text-primary));
 }
 
 .ux35-shell.embed-mode {
@@ -66,7 +68,7 @@ body.app-page.ux35-page {
     border-radius: var(--ux35-radius-sm);
     cursor: pointer;
 }
-.ux35-topbar-menu-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.ux35-topbar-menu-btn:hover { background: rgba(255, 255, 255, 0.12); color: var(--ux35-topbar-fg); }
 .ux35-topbar-menu-btn .material-icons { font-size: 22px; }
 
 .ux35-topbar-breadcrumb {
@@ -82,8 +84,8 @@ body.app-page.ux35-page {
     color: var(--ux35-topbar-fg-muted);
     text-decoration: none;
 }
-.ux35-topbar-breadcrumb a:hover { color: #fff; }
-.ux35-topbar-breadcrumb .current { color: #fff; font-weight: 600; }
+.ux35-topbar-breadcrumb a:hover { color: var(--ux35-topbar-fg); }
+.ux35-topbar-breadcrumb .current { color: var(--ux35-topbar-fg); font-weight: 600; }
 .ux35-topbar-breadcrumb .separator { opacity: 0.5; }
 
 .ux35-topbar-spacer { flex: 1; }
@@ -106,8 +108,14 @@ body.app-page.ux35-page {
     position: relative;
     transition: background var(--ux35-motion-fast), color var(--ux35-motion-fast);
 }
-.ux35-topbar-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.ux35-topbar-btn:hover { background: rgba(127, 127, 127, 0.18); color: var(--ux35-topbar-fg); }
 .ux35-topbar-btn .material-icons { font-size: 20px; }
+
+[data-theme="light"] .ux35-topbar-btn:hover,
+[data-theme="light"] .ux35-topbar-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+}
 
 .ux35-topbar .notif-badge {
     position: absolute;
@@ -320,7 +328,8 @@ body.app-page.ux35-page {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: var(--ux35-bg);
+    background: var(--ux35-bg, var(--bg-primary));
+    color: var(--ux35-text, var(--text-primary));
 }
 
 .ux35-content.main-content {
@@ -440,8 +449,34 @@ body.embed-mode .ux35-content { padding: var(--ux35-content-padding); }
     }
 }
 
-/* Hide legacy rail layout leftovers if any */
-.app-page.ux35-page .app-layout > .sidebar,
-.app-page.ux35-page .main-wrapper > .navbar {
-    display: none;
+/* Topbar dropdowns inherit shell text; force readable panels in both themes */
+.ux35-topbar .lang-dropdown,
+.ux35-topbar .notif-dropdown {
+    background: var(--bg-elevated, var(--bg-secondary));
+    color: var(--text-primary);
+    border: 1px solid var(--border-primary);
+}
+.ux35-topbar .lang-option {
+    color: var(--text-primary);
+}
+.ux35-topbar .lang-option:hover {
+    background: var(--bg-hover);
+}
+
+/* Page body text follows theme tokens */
+.ux35-content,
+.ux35-content h1,
+.ux35-content h2,
+.ux35-content h3,
+.ux35-content p,
+.ux35-content .page-title,
+.ux35-content .dashboard-header,
+.ux35-content .devices-title h1 {
+    color: var(--text-primary);
+}
+.ux35-content .text-muted,
+.ux35-content .page-subtitle,
+.ux35-content .dashboard-header p,
+.ux35-sidebar-heading {
+    color: var(--text-secondary);
 }

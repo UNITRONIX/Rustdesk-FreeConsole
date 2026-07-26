@@ -3,6 +3,9 @@
 ### Added
 - **UX 3.5 default console shell:** native full-list sidebar + topbar (promoted from retired Beta 3.1), glass branding, Dark/Light/Custom themes in Settings → Branding, resizable sidebar, tablet/phone drawer. Login / RdClient / remote viewer unchanged. Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
 
+### Fixed
+- **UX 3.5 light theme only recolored the blue topbar:** `branding.css` kept emitting saved dark palette colors, and `ui-polish.css` was not loaded on the console layout — so body/sidebar text stayed light-on-dark. Light/Dark now resolve built-in palettes in `generateThemeCss()`, glass defaults follow the mode, and the topbar theme toggle persists the matching palette.
+
 ### Changed
 - **Console chrome:** TeamViewer-style rail/flyout and Desktop Mode are no longer loaded as the management UI; UX 3.5 is the single console interface on `dev`.
 

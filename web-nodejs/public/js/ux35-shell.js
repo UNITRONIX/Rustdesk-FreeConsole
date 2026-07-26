@@ -64,11 +64,75 @@
         }
     }
 
+    var THEME_PALETTES = {
+        dark: {
+            bgPrimary: '#0d1117', bgSecondary: '#161b22', bgTertiary: '#21262d', bgElevated: '#30363d',
+            textPrimary: '#e6edf3', textSecondary: '#8b949e',
+            accentBlue: '#58a6ff', accentBlueHover: '#79c0ff', accentBlueMuted: '#58a6ff',
+            accentGreen: '#2ea44f', accentGreenHover: '#3fb950', accentGreenMuted: '#2ea44f',
+            accentRed: '#f85149', accentRedHover: '#ff6b6b', accentRedMuted: '#f85149',
+            accentYellow: '#d29922', accentYellowHover: '#e3b341', accentYellowMuted: '#d29922',
+            accentPurple: '#a371f7', accentPurpleHover: '#bc8cff', accentPurpleMuted: '#a371f7',
+            borderPrimary: '#30363d', borderSecondary: '#21262d'
+        },
+        light: {
+            bgPrimary: '#f0f2f5', bgSecondary: '#ffffff', bgTertiary: '#eaeef2', bgElevated: '#ffffff',
+            textPrimary: '#1f2328', textSecondary: '#656d76',
+            accentBlue: '#0969da', accentBlueHover: '#0550ae', accentBlueMuted: '#0969da',
+            accentGreen: '#1a7f37', accentGreenHover: '#116329', accentGreenMuted: '#1a7f37',
+            accentRed: '#cf222e', accentRedHover: '#a40e26', accentRedMuted: '#cf222e',
+            accentYellow: '#9a6700', accentYellowHover: '#7d4e00', accentYellowMuted: '#9a6700',
+            accentPurple: '#8250df', accentPurpleHover: '#6639ba', accentPurpleMuted: '#8250df',
+            borderPrimary: '#d0d7de', borderSecondary: '#eaeef2'
+        }
+    };
+
+    function applyThemeLocally(next) {
+        document.documentElement.setAttribute('data-theme', next);
+        document.documentElement.setAttribute('data-theme-mode', next);
+        var palette = THEME_PALETTES[next] || THEME_PALETTES.dark;
+        var root = document.documentElement.style;
+        var map = {
+            bgPrimary: '--bg-primary', bgSecondary: '--bg-secondary', bgTertiary: '--bg-tertiary',
+            bgElevated: '--bg-elevated', textPrimary: '--text-primary', textSecondary: '--text-secondary',
+            accentBlue: '--accent-blue', accentBlueHover: '--accent-blue-hover', accentBlueMuted: '--accent-blue-muted',
+            accentGreen: '--accent-green', accentGreenHover: '--accent-green-hover', accentGreenMuted: '--accent-green-muted',
+            accentRed: '--accent-red', accentRedHover: '--accent-red-hover', accentRedMuted: '--accent-red-muted',
+            accentYellow: '--accent-yellow', accentYellowHover: '--accent-yellow-hover', accentYellowMuted: '--accent-yellow-muted',
+            accentPurple: '--accent-purple', accentPurpleHover: '--accent-purple-hover', accentPurpleMuted: '--accent-purple-muted',
+            borderPrimary: '--border-primary', borderSecondary: '--border-secondary'
+        };
+        Object.keys(palette).forEach(function (key) {
+            if (map[key]) root.setProperty(map[key], palette[key]);
+        });
+        // Soft glass for light/dark until branding.css reloads
+        if (next === 'light') {
+            root.setProperty('--surface-glass-bg-secondary', 'rgba(255,255,255,0.82)');
+            root.setProperty('--surface-glass-bg-elevated', 'rgba(255,255,255,0.9)');
+            root.setProperty('--surface-glass-border', 'rgba(208,215,222,0.9)');
+            root.setProperty('--card-bg', 'rgba(255,255,255,0.92)');
+            root.setProperty('--ux35-topbar-bg', palette.accentBlue);
+            root.setProperty('--ux35-topbar-fg', '#ffffff');
+            root.setProperty('--ux35-topbar-fg-muted', 'rgba(255,255,255,0.78)');
+        } else {
+            root.setProperty('--surface-glass-bg-secondary', 'rgba(22,27,34,0.55)');
+            root.setProperty('--surface-glass-bg-elevated', 'rgba(48,54,61,0.7)');
+            root.setProperty('--surface-glass-border', 'rgba(48,54,61,0.5)');
+            root.setProperty('--card-bg', 'rgba(22,27,34,0.55)');
+            root.removeProperty('--ux35-topbar-bg');
+            root.removeProperty('--ux35-topbar-fg');
+            root.removeProperty('--ux35-topbar-fg-muted');
+        }
+        root.setProperty('--ux35-bg', palette.bgPrimary);
+        root.setProperty('--ux35-text', palette.textPrimary);
+        root.setProperty('--ux35-muted', palette.textSecondary);
+        root.setProperty('--ux35-primary', palette.accentBlue);
+        syncThemeIcon();
+    }
+
     /**
-     * Cycle visual preview: dark ↔ light.
-     * Server-side themeMode (Settings → Branding) is the source of truth;
-     * this only toggles local data-theme for immediate feedback when mode is dark/light.
-     * Custom mode opens Settings branding.
+     * Cycle visual theme: dark ↔ light.
+     * Persists themeMode + built-in palette so branding.css matches data-theme.
      */
     function cycleThemePreview() {
         var mode = document.documentElement.getAttribute('data-theme-mode') || 'dark';
@@ -77,9 +141,8 @@
             return;
         }
         var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-        document.documentElement.setAttribute('data-theme', next);
-        syncThemeIcon();
-        // Persist via branding API when operator has permission (best-effort)
+        applyThemeLocally(next);
+
         if (window.BetterDesk && window.BetterDesk.csrfToken) {
             fetch('/api/settings/branding', {
                 method: 'POST',
@@ -88,15 +151,21 @@
                     'X-CSRF-Token': window.BetterDesk.csrfToken
                 },
                 credentials: 'same-origin',
-                body: JSON.stringify({ themeMode: next })
+                body: JSON.stringify({
+                    themeMode: next,
+                    colors: THEME_PALETTES[next],
+                    glassColor: next === 'light' ? '#ffffff' : '#161b22'
+                })
             }).then(function (res) {
                 if (res.ok) {
-                    document.documentElement.setAttribute('data-theme-mode', next);
                     var link = document.querySelector('link[href*="branding.css"]');
                     if (link) {
                         var url = new URL(link.href, window.location.origin);
                         url.searchParams.set('v', String(Date.now()));
                         link.href = url.pathname + url.search;
+                    }
+                    if (window.BetterDesk.branding) {
+                        window.BetterDesk.branding.themeMode = next;
                     }
                 }
             }).catch(function () { /* ignore */ });

@@ -2169,12 +2169,16 @@
                 if (!radio.checked) return;
                 if (radio.value === 'light') {
                     applyBuiltInPalette({
-                        bgPrimary: '#ffffff', bgSecondary: '#f6f8fa', bgTertiary: '#eaeef2', bgElevated: '#ffffff',
+                        bgPrimary: '#f0f2f5', bgSecondary: '#ffffff', bgTertiary: '#eaeef2', bgElevated: '#ffffff',
                         textPrimary: '#1f2328', textSecondary: '#656d76',
                         accentBlue: '#0969da', accentBlueHover: '#0550ae',
                         accentGreen: '#1a7f37', accentRed: '#cf222e', accentYellow: '#9a6700', accentPurple: '#8250df',
                         borderPrimary: '#d0d7de', borderSecondary: '#eaeef2'
                     });
+                    const glassColor = document.getElementById('glass-color');
+                    const glassPicker = document.getElementById('glass-color-picker');
+                    if (glassColor) glassColor.value = '#ffffff';
+                    if (glassPicker) glassPicker.value = '#ffffff';
                 } else if (radio.value === 'dark') {
                     applyBuiltInPalette({
                         bgPrimary: '#0d1117', bgSecondary: '#161b22', bgTertiary: '#21262d', bgElevated: '#30363d',
@@ -2183,6 +2187,10 @@
                         accentGreen: '#2ea44f', accentRed: '#f85149', accentYellow: '#d29922', accentPurple: '#a371f7',
                         borderPrimary: '#30363d', borderSecondary: '#21262d'
                     });
+                    const glassColor = document.getElementById('glass-color');
+                    const glassPicker = document.getElementById('glass-color-picker');
+                    if (glassColor) glassColor.value = '#161b22';
+                    if (glassPicker) glassPicker.value = '#161b22';
                 }
                 onBrandingFieldChange();
             });
