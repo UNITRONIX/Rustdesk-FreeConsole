@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.4.4] — 2026-07-26
+
 ### Added
 - **UX 3.5 default console shell:** native full-list sidebar + topbar (promoted from retired Beta 3.1), glass branding, Dark/Light/Custom themes in Settings → Branding, resizable sidebar, tablet/phone drawer. Login / RdClient / remote viewer unchanged. Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
 
@@ -2336,3 +2343,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.0...v3.4.1
 [3.4.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.1...v3.4.2
 [3.4.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.2...v3.4.3
+[3.4.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.3...v3.4.4
