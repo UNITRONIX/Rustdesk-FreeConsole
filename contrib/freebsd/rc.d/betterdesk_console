@@ -1,0 +1,86 @@
+#!/bin/sh
+
+# PROVIDE: betterdesk_console
+# REQUIRE: LOGIN NETWORKING betterdesk_server
+# KEYWORD: shutdown
+#
+# Add the following lines to /etc/rc.conf to enable:
+#   betterdesk_console_enable="YES"
+# Optional:
+#   betterdesk_console_dir="/usr/local/BetterDeskConsole"
+#   betterdesk_console_node="/usr/local/bin/node"
+#   betterdesk_console_user="www"
+#   betterdesk_console_env_file="/usr/local/BetterDeskConsole/.env"
+#
+# Loads KEY=value lines from betterdesk_console_env_file (no export/shell syntax).
+# Example community rc.d unit for FreeBSD (Tier 3). See contrib/freebsd/README.md.
+# Refs: https://github.com/UNITRONIX/BetterDesk/issues/310
+
+. /etc/rc.subr
+
+name="betterdesk_console"
+desc="BetterDesk Web Console (Node.js)"
+rcvar="${name}_enable"
+
+load_rc_config $name
+
+: ${betterdesk_console_enable:="NO"}
+: ${betterdesk_console_dir:="/usr/local/BetterDeskConsole"}
+: ${betterdesk_console_node:="/usr/local/bin/node"}
+: ${betterdesk_console_user:="www"}
+: ${betterdesk_console_env_file:="${betterdesk_console_dir}/.env"}
+: ${betterdesk_console_server_dir:="/usr/local/betterdesk"}
+
+pidfile="/var/run/${name}.pid"
+procname="${betterdesk_console_node}"
+
+betterdesk_console_prestart()
+{
+	if [ ! -x "${betterdesk_console_node}" ]; then
+		err 1 "node not found at ${betterdesk_console_node}"
+	fi
+	if [ ! -f "${betterdesk_console_dir}/server.js" ]; then
+		err 1 "panel not found at ${betterdesk_console_dir}/server.js"
+	fi
+}
+
+# Export a minimal production environment; then overlay .env if present.
+betterdesk_console_start_cmd()
+{
+	export NODE_ENV="${NODE_ENV:-production}"
+	export RUSTDESK_DIR="${RUSTDESK_DIR:-${betterdesk_console_server_dir}}"
+	export KEYS_PATH="${KEYS_PATH:-${betterdesk_console_server_dir}}"
+	export DATA_DIR="${DATA_DIR:-${betterdesk_console_dir}/data}"
+	export SERVER_BACKEND="${SERVER_BACKEND:-betterdesk}"
+	export API_ENABLED="${API_ENABLED:-true}"
+	export HOST="${HOST:-0.0.0.0}"
+	export PORT="${PORT:-5000}"
+	export GO_API_PORT="${GO_API_PORT:-21114}"
+	export HBBS_API_URL="${HBBS_API_URL:-http://localhost:${GO_API_PORT}/api}"
+	export BETTERDESK_API_URL="${BETTERDESK_API_URL:-http://localhost:${GO_API_PORT}/api}"
+
+	if [ -f "${betterdesk_console_env_file}" ]; then
+		while IFS= read -r line || [ -n "$line" ]; do
+			case "$line" in
+			''|\#*) continue ;;
+			esac
+			key="${line%%=*}"
+			val="${line#*=}"
+			# Strip optional surrounding quotes
+			val=$(printf '%s' "$val" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+			case "$key" in
+			*[!A-Za-z0-9_]*|'') continue ;;
+			esac
+			export "$key=$val"
+		done < "${betterdesk_console_env_file}"
+	fi
+
+	/usr/sbin/daemon -f -c "${betterdesk_console_dir}" -p "${pidfile}" \
+		-u "${betterdesk_console_user}" \
+		"${betterdesk_console_node}" server.js
+}
+
+start_precmd="betterdesk_console_prestart"
+start_cmd="betterdesk_console_start_cmd"
+
+run_rc_command "$1"

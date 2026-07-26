@@ -1,7 +1,7 @@
 ## [Unreleased]
 
-### Changed
-- _(none yet)_
+### Added
+- **FreeBSD (Tier 3 / community):** example `rc.d` scripts and install notes under `contrib/freebsd/`; documented in README platform table and wiki Installation. Refs #310. Manual build only — no CI FreeBSD binaries or panel updater support yet.
 
 ---
 

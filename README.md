@@ -486,6 +486,7 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 | **PostgreSQL** backend | Tier 2 | ✅ Supported | Enterprise deployments |
 | **Windows** x86_64 | Tier 3 | ⚠️ Experimental | Community-tested, limited support |
 | **Synology DSM** (Docker) | Tier 3 | ⚠️ Experimental | Community-tested |
+| **FreeBSD** x86_64 | Tier 3 | ⚠️ Experimental | Community build + example `rc.d` in `contrib/freebsd/` — no official installer or CI binaries |
 
 > **Tier 1** = Fully tested by maintainers, highest priority for bug fixes.
 > **Tier 2** = Supported and tested, fixes provided.

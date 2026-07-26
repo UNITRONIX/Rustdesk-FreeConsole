@@ -1,0 +1,49 @@
+#!/bin/sh
+
+# PROVIDE: betterdesk_server
+# REQUIRE: LOGIN NETWORKING
+# KEYWORD: shutdown
+#
+# Add the following lines to /etc/rc.conf to enable:
+#   betterdesk_server_enable="YES"
+#   betterdesk_server_relay="YOUR.PUBLIC.IP"   # required for clients
+# Optional:
+#   betterdesk_server_dir="/usr/local/betterdesk"
+#   betterdesk_server_bin="/usr/local/betterdesk/betterdesk-server"
+#   betterdesk_server_key_file="/usr/local/betterdesk/id_ed25519"
+#   betterdesk_server_api_port="21114"
+#   betterdesk_server_flags=""                 # extra CLI flags (e.g. -db ...)
+#   betterdesk_server_user="root"
+#
+# Example community rc.d unit for FreeBSD (Tier 3). See contrib/freebsd/README.md.
+# Refs: https://github.com/UNITRONIX/BetterDesk/issues/310
+
+. /etc/rc.subr
+
+name="betterdesk_server"
+desc="BetterDesk Go Server (Signal + Relay + API)"
+rcvar="${name}_enable"
+
+load_rc_config $name
+
+: ${betterdesk_server_enable:="NO"}
+: ${betterdesk_server_dir:="/usr/local/betterdesk"}
+: ${betterdesk_server_bin:="${betterdesk_server_dir}/betterdesk-server"}
+: ${betterdesk_server_key_file:="${betterdesk_server_dir}/id_ed25519"}
+: ${betterdesk_server_api_port:="21114"}
+: ${betterdesk_server_relay:="127.0.0.1"}
+: ${betterdesk_server_flags:=""}
+: ${betterdesk_server_user:="root"}
+
+pidfile="/var/run/${name}.pid"
+procname="${betterdesk_server_bin}"
+
+command="/usr/sbin/daemon"
+command_args="-f -c ${betterdesk_server_dir} -p ${pidfile} -u ${betterdesk_server_user} \
+	${betterdesk_server_bin} -mode all \
+	-relay-servers ${betterdesk_server_relay} \
+	-key-file ${betterdesk_server_key_file} \
+	-api-port ${betterdesk_server_api_port} \
+	${betterdesk_server_flags}"
+
+run_rc_command "$1"
