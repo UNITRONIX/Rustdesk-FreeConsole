@@ -2,11 +2,17 @@
 
 ### Changed
 - **UX 3.5 solid shell (performance):** glass/blur disabled in UX 3.5 chrome and content; opaque surfaces only. Classic shell glass branding unchanged. Ships via panel update.
-- **UX 3.5 shell performance:** smoother sidebar resize (pointer capture + rAF, defer localStorage), cleaner tablet/phone drawer overlay fade.
 
 ### Fixed
 - **UX 3.5 sidebar fonts jumping on Settings/Updates:** branding live preview no longer writes `--font-family` to `:root`; preview runs only on the Branding tab; chrome uses isolated `--ux35-font-chrome`.
 - **UX 3.5 theme toggle lag:** topbar dark/light now applies a full solid token set immediately and reconciles `branding.css` on load (no longer waits for a second click).
+
+---
+
+## [3.4.11] — 2026-07-26
+
+### Changed
+- **UX 3.5 shell performance:** smoother sidebar resize (pointer capture + rAF, defer localStorage, disable glass blur while dragging), lighter page cards (no `backdrop-filter`), and cleaner tablet/phone drawer overlay fade. Ships via panel update.
 
 ---
 
@@ -2406,3 +2412,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.7...v3.4.8
 [3.4.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.8...v3.4.9
 [3.4.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.9...v3.4.10
+[3.4.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.10...v3.4.11
