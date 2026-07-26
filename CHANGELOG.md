@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.4.9] — 2026-07-26
+
 ### Added
 - **FreeBSD (Tier 3 / community):** example `rc.d` scripts and install notes under `contrib/freebsd/`; documented in README platform table and wiki Installation. Refs #310. Manual build only — no CI FreeBSD binaries or panel updater support yet.
 
@@ -2385,3 +2392,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.6]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.5...v3.4.6
 [3.4.7]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.6...v3.4.7
 [3.4.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.7...v3.4.8
+[3.4.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.8...v3.4.9
