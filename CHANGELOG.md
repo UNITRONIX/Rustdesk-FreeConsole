@@ -12,6 +12,7 @@
 
 ### Fixed
 - **UX 3.5 light theme only recolored the blue topbar:** `branding.css` kept emitting saved dark palette colors, and `ui-polish.css` was not loaded on the console layout — so body/sidebar text stayed light-on-dark. Light/Dark now resolve built-in palettes in `generateThemeCss()`, glass defaults follow the mode, and the topbar theme toggle persists the matching palette.
+- **UX 3.5 settings / main content invisible under branding wallpaper:** console wallpaper uses `body.app-page::before` at `z-index:0` while the old shell raised `.app-layout` to `z-index:1`. UX 3.5’s `.ux35-shell` had no stacking context, so the black wallpaper covered page text (sidebar/topbar still showed via their own z-index). `.ux35-shell` is now `position:relative; z-index:1` and branding background CSS includes `.ux35-shell` / `.ux35-content`.
 
 ### Changed
 - **Console chrome:** TeamViewer-style rail/flyout and Desktop Mode are no longer loaded as the management UI; UX 3.5 is the single console interface on `dev`.

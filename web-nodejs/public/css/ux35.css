@@ -19,6 +19,9 @@ body.app-page.ux35-page {
     overflow: hidden;
     background: var(--ux35-bg, var(--bg-primary));
     color: var(--ux35-text, var(--text-primary));
+    /* Above branding wallpaper (body.app-page::before, z-index:0) — old .app-layout had z-index:1 */
+    position: relative;
+    z-index: 1;
 }
 
 .ux35-shell.embed-mode {
@@ -367,19 +370,32 @@ body.app-page.ux35-page {
     gap: var(--ux35-space-2);
 }
 
-/* Settings page density under UX 3.5 */
-.ux35-page .settings-layout {
-    gap: var(--ux35-space-4);
+/* Settings shell: readable over branding wallpaper */
+.ux35-page .settings-shell-nav,
+.ux35-page .settings-search,
+.ux35-page .settings-panel,
+.ux35-page .settings-section,
+.ux35-page .win11-updates-options,
+.ux35-page .win11-updates-available,
+.ux35-page .win11-updates-option {
+    position: relative;
+    z-index: 0;
 }
-.ux35-page .settings-panel {
-    border-radius: var(--ux35-radius);
-    background: var(--ux35-card-bg);
-    border: 1px solid var(--ux35-border);
-    backdrop-filter: blur(var(--ux35-glass-blur));
+.ux35-page .settings-shell-main {
+    min-width: 0;
+    color: var(--text-primary);
 }
-.ux35-page .settings-panel-header {
-    padding: var(--ux35-space-4);
-    border-bottom: 1px solid var(--ux35-border);
+.ux35-page .win11-updates-title,
+.ux35-page .win11-updates-hero-headline,
+.ux35-page .win11-updates-section-title,
+.ux35-page .settings-panel-title,
+.ux35-page .page-title {
+    color: var(--text-primary) !important;
+}
+.ux35-page .win11-updates-hero-desc,
+.ux35-page .page-subtitle,
+.ux35-page .settings-panel-desc {
+    color: var(--text-secondary) !important;
 }
 .ux35-page .dashboard-stats .stat-card,
 .ux35-page .card {

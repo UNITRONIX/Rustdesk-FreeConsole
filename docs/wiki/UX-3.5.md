@@ -43,6 +43,16 @@ Branding `themeMode` (Settings → Branding → Colors):
 
 Glass: when `glassColor` is empty, light mode defaults to `#ffffff` and dark to `#161b22`.
 
+## Stacking / branding wallpaper
+
+Console wallpaper is `body.app-page::before { position: fixed; z-index: 0 }`. The shell **must** sit above it:
+
+```css
+.ux35-shell { position: relative; z-index: 1; }
+```
+
+`generateBackgroundCss()` also lists `.ux35-shell` next to legacy `.app-layout`. Without this, Settings and other pages look like an empty black panel (sidebar/topbar still visible because they set their own z-index).
+
 ## Breakpoints
 
 | Width | Behavior |

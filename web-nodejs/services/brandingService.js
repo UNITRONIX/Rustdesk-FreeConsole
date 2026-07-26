@@ -1009,9 +1009,9 @@ function generateBackgroundCss(branding) {
         }
         // Let the wallpaper show behind floating cards in the content area.
         out += `body.app-page { background-color: transparent; position: relative; isolation: isolate; }\n`;
-        out += `body.app-page .app-layout,\nbody.app-page #desktop-shell,\nbody.app-page #modal-container,\nbody.app-page #toast-container { position: relative; z-index: 1; }\n`;
-        out += `body.app-page .main-wrapper,\nbody.app-page .app-layout { background: transparent; }\n`;
-        out += `body.app-page .main-content { background: transparent; }\n`;
+        out += `body.app-page .app-layout,\nbody.app-page .ux35-shell,\nbody.app-page #desktop-shell,\nbody.app-page #modal-container,\nbody.app-page #toast-container { position: relative; z-index: 1; }\n`;
+        out += `body.app-page .main-wrapper,\nbody.app-page .app-layout,\nbody.app-page .ux35-shell { background: transparent; }\n`;
+        out += `body.app-page .main-content,\nbody.app-page .ux35-content { background: transparent; }\n`;
     }
 
     // ---- Login wallpaper ----
