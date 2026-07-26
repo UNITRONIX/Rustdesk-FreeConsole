@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.4.12] — 2026-07-26
+
+### Changed
 - **UX 3.5 solid shell (performance):** glass/blur disabled in UX 3.5 chrome and content; opaque surfaces only. Classic shell glass branding unchanged. Ships via panel update.
 
 ### Fixed
@@ -2413,3 +2420,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.8...v3.4.9
 [3.4.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.9...v3.4.10
 [3.4.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.10...v3.4.11
+[3.4.12]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.11...v3.4.12
