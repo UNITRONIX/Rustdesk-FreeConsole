@@ -2784,7 +2784,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Egyéni"
     },
     "days": {
         "mon": "Mon",
@@ -4333,5 +4334,10 @@
         "empty": "Nincs eszköz ezen a vendéglinken.",
         "expires": "Lejár",
         "back_to_list": "Vissza a vendéglistához"
+    },
+    "ux35": {
+        "resize_sidebar": "Oldalsáv átméretezése",
+        "open_menu": "Menü megnyitása",
+        "theme_mode_hint": "A Világos és a Sötét beépített. Az Egyéni a színek szerkesztésekor aktiválódik."
     }
 }

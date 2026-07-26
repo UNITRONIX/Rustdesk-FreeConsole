@@ -2784,7 +2784,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "कस्टम"
     },
     "days": {
         "mon": "Mon",
@@ -4333,5 +4334,10 @@
         "empty": "इस गेस्ट लिंक पर कोई डिवाइस नहीं।",
         "expires": "समाप्ति",
         "back_to_list": "गेस्ट सूची पर वापस"
+    },
+    "ux35": {
+        "resize_sidebar": "साइडबार की चौड़ाई बदलें",
+        "open_menu": "मेनू खोलें",
+        "theme_mode_hint": "लाइट और डार्क बिल्ट-इन हैं। नीचे रंग बदलने पर कस्टम सक्रिय होता है।"
     }
 }

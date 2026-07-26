@@ -2784,7 +2784,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Tùy chỉnh"
     },
     "days": {
         "mon": "Mon",
@@ -4333,5 +4334,10 @@
         "empty": "Không có thiết bị trên liên kết này.",
         "expires": "Hết hạn",
         "back_to_list": "Quay lại danh sách khách"
+    },
+    "ux35": {
+        "resize_sidebar": "Đổi độ rộng thanh bên",
+        "open_menu": "Mở menu",
+        "theme_mode_hint": "Sáng và Tối là mặc định. Tùy chỉnh bật khi bạn chỉnh màu bên dưới."
     }
 }

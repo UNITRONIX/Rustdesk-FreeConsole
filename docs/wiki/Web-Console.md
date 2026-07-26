@@ -2,6 +2,8 @@
 
 The BetterDesk Web Console is a Node.js (Express.js) management panel accessible at **http://your-server:5000**.
 
+The default chrome is **UX 3.5** (full-list sidebar + topbar, glass branding). See [[UX 3.5|UX-3.5]] for tokens, breakpoints, and theming (Dark / Light / Custom).
+
 ---
 
 ## Dashboard
@@ -13,18 +15,7 @@ The dashboard provides an overview of your BetterDesk deployment:
 - **Server Uptime** — Go server uptime
 - **System Info** — Hostname, OS, Node.js/Go versions
 
-### Desktop Widget Dashboard
-
-The dashboard supports an **OS-style desktop mode** with:
-- 20+ draggable, resizable widgets
-- Windows 11-style snap layouts (6 predefined zone layouts)
-- Aero Shake, edge-snap, maximize hover picker
-- Dark/light/auto themes with glassmorphism
-- Widget groups (tabbed containers)
-- 4 built-in presets (Monitoring, Helpdesk, Minimal, Developer)
-- Full-screen login screen with TOTP 2FA support
-
-See [[Desktop Dashboard|Desktop-Dashboard]] for the complete widget reference.
+> **Note:** OS-style Desktop Mode is no longer part of the default console shell (removed in favor of UX 3.5). Historical widget docs may remain under [[Desktop Dashboard|Desktop-Dashboard]].
 
 ---
 

@@ -2784,7 +2784,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Kustom"
     },
     "days": {
         "mon": "Mon",
@@ -4333,5 +4334,10 @@
         "empty": "Tidak ada perangkat pada tautan ini.",
         "expires": "Kedaluwarsa",
         "back_to_list": "Kembali ke daftar tamu"
+    },
+    "ux35": {
+        "resize_sidebar": "Ubah lebar bilah samping",
+        "open_menu": "Buka menu",
+        "theme_mode_hint": "Terang dan Gelap bawaan. Kustom aktif saat Anda mengubah warna di bawah."
     }
 }

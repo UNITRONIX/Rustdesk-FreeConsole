@@ -2849,7 +2849,8 @@
         "dark": "深色",
         "light": "浅色",
         "auto": "跟随系统",
-        "title": "主题"
+        "title": "主题",
+        "custom": "自定义"
     },
     "days": {
         "mon": "周一",
@@ -4327,5 +4328,10 @@
         "empty": "此访客链接上没有设备。",
         "expires": "过期时间",
         "back_to_list": "返回访客列表"
+    },
+    "ux35": {
+        "resize_sidebar": "调整侧边栏宽度",
+        "open_menu": "打开菜单",
+        "theme_mode_hint": "浅色和深色为内置。编辑下方颜色时将启用自定义。"
     }
 }

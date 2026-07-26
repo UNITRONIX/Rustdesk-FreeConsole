@@ -2784,7 +2784,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Personalizat"
     },
     "days": {
         "mon": "Mon",
@@ -4333,5 +4334,10 @@
         "empty": "Niciun dispozitiv pe acest link.",
         "expires": "Expiră",
         "back_to_list": "Înapoi la lista oaspete"
+    },
+    "ux35": {
+        "resize_sidebar": "Redimensionați bara laterală",
+        "open_menu": "Deschide meniul",
+        "theme_mode_hint": "Deschis și Întunecat sunt integrate. Personalizat se activează când editați culorile de mai jos."
     }
 }

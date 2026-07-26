@@ -1,0 +1,68 @@
+/**
+ * BetterDesk Console — UX 3.5 Design Tokens
+ * Spacing scale, chrome dimensions, glass surfaces for the default shell.
+ */
+
+:root {
+    /* Spacing scale (4 / 8 / 12 / 16 / 24 / 32) */
+    --ux35-space-1: 4px;
+    --ux35-space-2: 8px;
+    --ux35-space-3: 12px;
+    --ux35-space-4: 16px;
+    --ux35-space-5: 24px;
+    --ux35-space-6: 32px;
+
+    /* Content padding — pages must use these, not ad-hoc values */
+    --ux35-content-padding: var(--ux35-space-4);
+    --ux35-content-padding-lg: var(--ux35-space-5);
+    --ux35-card-gap: var(--ux35-space-4);
+    --ux35-section-gap: var(--ux35-space-5);
+
+    /* Chrome */
+    --ux35-topbar-height: 48px;
+    --ux35-sidebar-width: 220px;
+    --ux35-sidebar-width-min: 200px;
+    --ux35-sidebar-width-max: 320px;
+    --ux35-radius: 8px;
+    --ux35-radius-sm: 6px;
+    --ux35-motion: 150ms;
+    --ux35-motion-fast: 120ms;
+
+    /* Semantic aliases → existing branding / glass tokens */
+    --ux35-bg: var(--bg-primary);
+    --ux35-topbar-bg: var(--surface-glass-bg-elevated, var(--bg-secondary));
+    --ux35-sidebar-bg: var(--surface-glass-bg-secondary, var(--bg-secondary));
+    --ux35-card-bg: var(--card-bg, var(--surface-glass-bg-secondary, var(--bg-secondary)));
+    --ux35-border: var(--surface-glass-border, var(--border-primary));
+    --ux35-border-light: var(--border-secondary);
+    --ux35-text: var(--text-primary);
+    --ux35-muted: var(--text-secondary);
+    --ux35-hover: var(--bg-hover);
+    --ux35-active-bg: var(--accent-blue-muted);
+    --ux35-primary: var(--accent-blue);
+    --ux35-topbar-fg: #fff;
+    --ux35-topbar-fg-muted: rgba(255, 255, 255, 0.75);
+    --ux35-glass-blur: var(--surface-glass-blur, 16px);
+    --ux35-glass-saturate: var(--surface-glass-saturate, 1.2);
+}
+
+[data-theme="light"] {
+    --ux35-topbar-bg: var(--accent-blue, #2b579a);
+    --ux35-sidebar-bg: var(--surface-glass-bg-secondary, rgba(255, 255, 255, 0.82));
+    --ux35-card-bg: var(--card-bg, rgba(255, 255, 255, 0.9));
+    --ux35-bg: var(--bg-primary, #f0f2f5);
+    --ux35-border: var(--border-primary, #dde1e6);
+    --ux35-border-light: var(--border-secondary, #eef0f3);
+    --ux35-text: var(--text-primary, #1f2328);
+    --ux35-muted: var(--text-secondary, #656d76);
+    --ux35-hover: rgba(0, 0, 0, 0.04);
+    --ux35-active-bg: var(--accent-blue-muted, #e8eef7);
+    --ux35-primary: var(--accent-blue, #0969da);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --ux35-motion: 0ms;
+        --ux35-motion-fast: 0ms;
+    }
+}

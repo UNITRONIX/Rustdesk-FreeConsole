@@ -2784,7 +2784,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Mukautettu"
     },
     "days": {
         "mon": "Mon",
@@ -4333,5 +4334,10 @@
         "empty": "Tällä vieraslinkillä ei ole laitteita.",
         "expires": "Vanhenee",
         "back_to_list": "Takaisin vieraslistaan"
+    },
+    "ux35": {
+        "resize_sidebar": "Muuta sivupalkin leveyttä",
+        "open_menu": "Avaa valikko",
+        "theme_mode_hint": "Vaalea ja Tumma ovat sisäänrakennettuja. Mukautettu otetaan käyttöön, kun muokkaat värejä alla."
     }
 }

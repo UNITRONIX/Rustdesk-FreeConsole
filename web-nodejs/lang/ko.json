@@ -2778,7 +2778,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "사용자 지정"
     },
     "days": {
         "mon": "Mon",
@@ -4327,5 +4328,10 @@
         "empty": "이 게스트 링크에 장치가 없습니다.",
         "expires": "만료",
         "back_to_list": "게스트 목록으로"
+    },
+    "ux35": {
+        "resize_sidebar": "사이드바 너비 조절",
+        "open_menu": "메뉴 열기",
+        "theme_mode_hint": "밝게와 어둡게는 기본입니다. 아래에서 색상을 편집하면 사용자 지정이 활성화됩니다."
     }
 }

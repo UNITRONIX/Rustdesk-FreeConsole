@@ -2778,7 +2778,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Dashboard"
+        "title": "Dashboard",
+        "custom": "Benutzerdefiniert"
     },
     "days": {
         "mon": "Mon",
@@ -4327,5 +4328,10 @@
         "empty": "Keine Geräte auf diesem Gastlink.",
         "expires": "Läuft ab",
         "back_to_list": "Zurück zur Gästeliste"
+    },
+    "ux35": {
+        "resize_sidebar": "Seitenleiste skalieren",
+        "open_menu": "Menü öffnen",
+        "theme_mode_hint": "Hell und Dunkel sind integriert. Benutzerdefiniert wird aktiviert, wenn Sie unten Farben ändern."
     }
 }

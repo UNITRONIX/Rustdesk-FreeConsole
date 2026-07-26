@@ -2778,7 +2778,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Personalizzato"
     },
     "days": {
         "mon": "Mon",
@@ -4327,5 +4328,10 @@
         "empty": "Nessun dispositivo su questo link.",
         "expires": "Scade",
         "back_to_list": "Torna all'elenco ospite"
+    },
+    "ux35": {
+        "resize_sidebar": "Ridimensiona barra laterale",
+        "open_menu": "Apri menu",
+        "theme_mode_hint": "Chiaro e Scuro sono integrati. Personalizzato si attiva modificando i colori sotto."
     }
 }

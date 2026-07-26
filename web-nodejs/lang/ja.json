@@ -2778,7 +2778,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "カスタム"
     },
     "days": {
         "mon": "Mon",
@@ -4327,5 +4328,10 @@
         "empty": "このゲストリンクに端末がありません。",
         "expires": "期限",
         "back_to_list": "ゲスト一覧に戻る"
+    },
+    "ux35": {
+        "resize_sidebar": "サイドバーの幅を変更",
+        "open_menu": "メニューを開く",
+        "theme_mode_hint": "ライトとダークは標準です。下で色を編集するとカスタムになります。"
     }
 }

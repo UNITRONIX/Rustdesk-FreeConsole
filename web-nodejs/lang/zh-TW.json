@@ -2866,7 +2866,8 @@
         "dark": "深色",
         "light": "淺色",
         "auto": "跟隨系統",
-        "title": "主題"
+        "title": "主題",
+        "custom": "自訂"
     },
     "days": {
         "mon": "週一",
@@ -4331,5 +4332,10 @@
         "empty": "此訪客連結上沒有裝置。",
         "expires": "到期",
         "back_to_list": "返回訪客清單"
+    },
+    "ux35": {
+        "resize_sidebar": "調整側邊欄寬度",
+        "open_menu": "開啟選單",
+        "theme_mode_hint": "淺色與深色為內建。編輯下方顏色時會啟用自訂。"
     }
 }

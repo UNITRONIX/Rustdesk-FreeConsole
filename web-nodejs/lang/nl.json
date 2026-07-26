@@ -2778,7 +2778,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Aangepast"
     },
     "days": {
         "mon": "Mon",
@@ -4327,5 +4328,10 @@
         "empty": "Geen apparaten op deze gastlink.",
         "expires": "Verloopt",
         "back_to_list": "Terug naar gastenlijst"
+    },
+    "ux35": {
+        "resize_sidebar": "Zijbalkbreedte aanpassen",
+        "open_menu": "Menu openen",
+        "theme_mode_hint": "Licht en Donker zijn ingebouwd. Aangepast wordt actief wanneer u hieronder kleuren bewerkt."
     }
 }

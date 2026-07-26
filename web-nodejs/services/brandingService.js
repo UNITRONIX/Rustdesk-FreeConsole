@@ -370,7 +370,7 @@ const DEFAULT_BRANDING = {
 
     // Appearance model metadata (v2 keeps flat keys for backward compatibility)
     appearanceSchemaVersion: '2',
-    themeMode: 'dark',       // 'dark' | 'light' | 'auto' (CSS coverage remains token-driven)
+    themeMode: 'dark',       // 'dark' | 'light' | 'custom' (auto kept for backward compat → dark)
 
     // Color scheme overrides (empty = use defaults from variables.css)
     colors: {
@@ -580,7 +580,9 @@ async function saveBranding(updates) {
             } else if (key === 'bgSize' || key === 'rdclientBgSize') {
                 entries.push({ key, value: normalizeBackgroundSize(value) });
             } else if (key === 'themeMode') {
-                const mode = ['dark', 'light', 'auto'].includes(String(value)) ? String(value) : 'dark';
+                let mode = String(value);
+                if (mode === 'auto') mode = 'dark';
+                if (!['dark', 'light', 'custom'].includes(mode)) mode = 'dark';
                 entries.push({ key, value: mode });
             } else if (key === 'customCss') {
                 // Security: Neutralize CSS-based XSS / external resource loading.
@@ -733,7 +735,16 @@ function generateSemanticAliasCss(branding) {
         '    --color-text-muted: var(--text-secondary);',
         '    --color-border: var(--border-primary);',
         '    --focus-ring-color: var(--accent-blue-muted);',
-        `    color-scheme: ${(branding.themeMode || 'dark') === 'light' ? 'light' : 'dark'};`
+        `    color-scheme: ${(branding.themeMode || 'dark') === 'light' ? 'light' : 'dark'};`,
+        '    /* UX 3.5 chrome aliases (branding-aware) */',
+        '    --ux35-bg: var(--bg-primary);',
+        '    --ux35-card-bg: var(--card-bg, var(--surface-glass-bg-secondary, var(--bg-secondary)));',
+        '    --ux35-border: var(--surface-glass-border, var(--border-primary));',
+        '    --ux35-text: var(--text-primary);',
+        '    --ux35-muted: var(--text-secondary);',
+        '    --ux35-primary: var(--accent-blue);',
+        '    --ux35-active-bg: var(--accent-blue-muted);',
+        '    --ux35-glass-blur: var(--surface-glass-blur, 16px);'
     ];
     return `:root {\n${lines.join('\n')}\n}\n`;
 }

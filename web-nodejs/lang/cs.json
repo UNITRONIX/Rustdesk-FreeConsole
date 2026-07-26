@@ -2778,7 +2778,8 @@
         "dark": "Tmavý",
         "light": "Světlý",
         "auto": "Systémový",
-        "title": "Motiv"
+        "title": "Motiv",
+        "custom": "Vlastní"
     },
     "days": {
         "mon": "Po",
@@ -4327,5 +4328,10 @@
         "empty": "Na tomto odkazu nejsou žádná zařízení.",
         "expires": "Vyprší",
         "back_to_list": "Zpět na seznam hosta"
+    },
+    "ux35": {
+        "resize_sidebar": "Změnit šířku postranního panelu",
+        "open_menu": "Otevřít nabídku",
+        "theme_mode_hint": "Světlý a tmavý jsou vestavěné. Vlastní se aktivuje při úpravě barev níže."
     }
 }

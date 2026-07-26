@@ -2784,7 +2784,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Özel"
     },
     "days": {
         "mon": "Mon",
@@ -4333,5 +4334,10 @@
         "empty": "Bu misafir bağlantısında cihaz yok.",
         "expires": "Bitiş",
         "back_to_list": "Misafir listesine dön"
+    },
+    "ux35": {
+        "resize_sidebar": "Kenar çubuğu genişliğini ayarla",
+        "open_menu": "Menüyü aç",
+        "theme_mode_hint": "Açık ve Koyu yerleşiktir. Aşağıdaki renkleri düzenlediğinizde Özel etkinleşir."
     }
 }

@@ -2866,7 +2866,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Tableau de bord"
+        "title": "Tableau de bord",
+        "custom": "Personnalisé"
     },
     "days": {
         "mon": "Mon",
@@ -4331,5 +4332,10 @@
         "empty": "Aucun appareil sur ce lien invité.",
         "expires": "Expire",
         "back_to_list": "Retour à la liste invitée"
+    },
+    "ux35": {
+        "resize_sidebar": "Redimensionner la barre latérale",
+        "open_menu": "Ouvrir le menu",
+        "theme_mode_hint": "Clair et Sombre sont intégrés. Personnalisé s’active lorsque vous modifiez les couleurs ci-dessous."
     }
 }

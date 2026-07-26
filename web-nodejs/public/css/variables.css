@@ -123,6 +123,7 @@
     
     --space-xs: 0.25rem;    /* 4px */
     --space-sm: 0.5rem;     /* 8px */
+    --space-3: 0.75rem;     /* 12px — UX 3.5 scale */
     --space-md: 1rem;       /* 16px */
     --space-lg: 1.5rem;     /* 24px */
     --space-xl: 2rem;       /* 32px */

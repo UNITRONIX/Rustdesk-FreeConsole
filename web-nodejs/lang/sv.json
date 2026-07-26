@@ -2784,7 +2784,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Anpassad"
     },
     "days": {
         "mon": "Mon",
@@ -4333,5 +4334,10 @@
         "empty": "Inga enheter på denna gästlänk.",
         "expires": "Går ut",
         "back_to_list": "Tillbaka till gästlistan"
+    },
+    "ux35": {
+        "resize_sidebar": "Ändra sidopanelens bredd",
+        "open_menu": "Öppna meny",
+        "theme_mode_hint": "Ljust och Mörkt är inbyggda. Anpassad aktiveras när du redigerar färgerna nedan."
     }
 }

@@ -2862,7 +2862,8 @@
         "dark": "Ciemny",
         "light": "Jasny",
         "auto": "Systemowy",
-        "title": "Motyw"
+        "title": "Motyw",
+        "custom": "Niestandardowy"
     },
     "days": {
         "mon": "Pon",
@@ -4327,5 +4328,10 @@
         "empty": "Brak urządzeń na tym linku.",
         "expires": "Wygasa",
         "back_to_list": "Wróć do listy gościa"
+    },
+    "ux35": {
+        "resize_sidebar": "Zmień szerokość paska bocznego",
+        "open_menu": "Otwórz menu",
+        "theme_mode_hint": "Jasny i Ciemny są wbudowane. Niestandardowy włącza się po edycji kolorów poniżej."
     }
 }

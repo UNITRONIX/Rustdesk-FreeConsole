@@ -1,5 +1,10 @@
 /**
- * BetterDesk Console — Beta 3.1 Panel
+ * @deprecated Retired Beta 3.1 overlay styles — replaced by ux35.css / ux35-tokens.css.
+ * Not loaded by layouts/main.ejs.
+ */
+
+/**
+ * BetterDesk Console — Beta 3.1 Panel (legacy reference)
  * ISPmanager-inspired layout with persistent sidebar + content area
  */
 

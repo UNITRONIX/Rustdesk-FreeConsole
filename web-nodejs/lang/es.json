@@ -2778,7 +2778,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Panel"
+        "title": "Panel",
+        "custom": "Personalizado"
     },
     "days": {
         "mon": "Mon",
@@ -4327,5 +4328,10 @@
         "empty": "No hay dispositivos en este enlace.",
         "expires": "Caduca",
         "back_to_list": "Volver a la lista de invitado"
+    },
+    "ux35": {
+        "resize_sidebar": "Cambiar ancho de la barra lateral",
+        "open_menu": "Abrir menú",
+        "theme_mode_hint": "Claro y Oscuro son predefinidos. Personalizado se activa al editar los colores abajo."
     }
 }

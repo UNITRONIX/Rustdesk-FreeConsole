@@ -1488,6 +1488,12 @@
                 if (hex) hex.value = value;
             }
         }
+
+        // Theme mode (dark / light / custom)
+        const themeMode = data.themeMode === 'auto' ? 'dark' : (data.themeMode || 'dark');
+        const themeRadio = document.querySelector(`input[name="theme-mode"][value="${themeMode}"]`)
+            || document.querySelector('input[name="theme-mode"][value="dark"]');
+        if (themeRadio) themeRadio.checked = true;
         
         // Background & appearance (console)
         const setVal = (id, val) => { const el = document.getElementById(id); if (el != null && el) el.value = val; };
@@ -2139,6 +2145,8 @@
                 const key = picker.dataset.color;
                 const hex = document.querySelector(`.color-hex[data-color="${key}"]`);
                 if (hex) hex.value = picker.value;
+                const customRadio = document.querySelector('input[name="theme-mode"][value="custom"]');
+                if (customRadio) customRadio.checked = true;
                 onBrandingFieldChange();
             });
         });
@@ -2150,8 +2158,43 @@
                 if (picker && /^#[0-9a-fA-F]{6}$/.test(hex.value)) {
                     picker.value = hex.value;
                 }
+                const customRadio = document.querySelector('input[name="theme-mode"][value="custom"]');
+                if (customRadio) customRadio.checked = true;
                 onBrandingFieldChange();
             });
+        });
+
+        document.querySelectorAll('input[name="theme-mode"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (!radio.checked) return;
+                if (radio.value === 'light') {
+                    applyBuiltInPalette({
+                        bgPrimary: '#ffffff', bgSecondary: '#f6f8fa', bgTertiary: '#eaeef2', bgElevated: '#ffffff',
+                        textPrimary: '#1f2328', textSecondary: '#656d76',
+                        accentBlue: '#0969da', accentBlueHover: '#0550ae',
+                        accentGreen: '#1a7f37', accentRed: '#cf222e', accentYellow: '#9a6700', accentPurple: '#8250df',
+                        borderPrimary: '#d0d7de', borderSecondary: '#eaeef2'
+                    });
+                } else if (radio.value === 'dark') {
+                    applyBuiltInPalette({
+                        bgPrimary: '#0d1117', bgSecondary: '#161b22', bgTertiary: '#21262d', bgElevated: '#30363d',
+                        textPrimary: '#e6edf3', textSecondary: '#8b949e',
+                        accentBlue: '#58a6ff', accentBlueHover: '#79c0ff',
+                        accentGreen: '#2ea44f', accentRed: '#f85149', accentYellow: '#d29922', accentPurple: '#a371f7',
+                        borderPrimary: '#30363d', borderSecondary: '#21262d'
+                    });
+                }
+                onBrandingFieldChange();
+            });
+        });
+    }
+
+    function applyBuiltInPalette(colors) {
+        Object.entries(colors).forEach(([key, value]) => {
+            const picker = document.querySelector(`.color-picker[data-color="${key}"]`);
+            const hex = document.querySelector(`.color-hex[data-color="${key}"]`);
+            if (picker) picker.value = value;
+            if (hex) hex.value = value;
         });
     }
     
@@ -2181,6 +2224,8 @@
                 data.colors[key] = value;
             }
         });
+
+        data.themeMode = document.querySelector('input[name="theme-mode"]:checked')?.value || 'dark';
         
         // Background & appearance (console)
         data.bgType = document.querySelector('input[name="bg-type"]:checked')?.value || 'none';

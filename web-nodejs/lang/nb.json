@@ -2784,7 +2784,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Tilpasset"
     },
     "days": {
         "mon": "Mon",
@@ -4333,5 +4334,10 @@
         "empty": "Ingen enheter på denne gjestelenken.",
         "expires": "Utløper",
         "back_to_list": "Tilbake til gjestelisten"
+    },
+    "ux35": {
+        "resize_sidebar": "Endre sidepanelbredde",
+        "open_menu": "Åpne meny",
+        "theme_mode_hint": "Lys og Mørk er innebygd. Tilpasset aktiveres når du redigerer fargene nedenfor."
     }
 }

@@ -2785,7 +2785,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "مخصص"
     },
     "days": {
         "mon": "Mon",
@@ -4334,5 +4335,10 @@
         "empty": "لا توجد أجهزة على رابط الضيف هذا.",
         "expires": "ينتهي",
         "back_to_list": "العودة إلى قائمة الضيف"
+    },
+    "ux35": {
+        "resize_sidebar": "تغيير عرض الشريط الجانبي",
+        "open_menu": "فتح القائمة",
+        "theme_mode_hint": "الفاتح والداكن مدمجان. يُفعَّل المخصص عند تعديل الألوان أدناه."
     }
 }
