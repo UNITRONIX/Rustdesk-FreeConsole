@@ -205,6 +205,13 @@ else
 fi
 export RELAY_SERVERS="${RELAY_SERVERS:-}"
 
+# Always export so supervisord's %(ENV_*)s interpolation resolves (#299).
+# Compose usually sets these; Portainer / bare docker run may omit them.
+export NTP_SERVERS="${NTP_SERVERS:-pool.ntp.org,time.google.com,time.cloudflare.com}"
+export BILLING_MAX_CLOCK_SKEW_MS="${BILLING_MAX_CLOCK_SKEW_MS:-2000}"
+export BILLING_REQUIRE_SYNCED_CLOCK="${BILLING_REQUIRE_SYNCED_CLOCK:-1}"
+export BILLING_TRUST_OS_NTP="${BILLING_TRUST_OS_NTP:-Y}"
+
 echo ""
 echo "Starting services via supervisord..."
 if [ "${HTTPS_ENABLED:-false}" = "true" ]; then

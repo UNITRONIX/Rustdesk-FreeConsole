@@ -892,3 +892,72 @@ func TestOpenRegisteredInitiatorCanRequestRelay(t *testing.T) {
 		t.Fatalf("uuid = %q", rr.Uuid)
 	}
 }
+
+func TestPanelProxyLoopbackCanPunchHoleWithoutPeer(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTWEB1", "203.0.113.90", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("127.0.0.1", 51000), "TGTWEB1")
+	if !ok || id != panelWebRemoteInitiatorID {
+		t.Fatalf("loopback panel proxy = (%q, %v), want (%q, true)", id, ok, panelWebRemoteInitiatorID)
+	}
+
+	// Web Remote: panel bridges from loopback; no RegisterPeer for the browser.
+	// P2P-first may return nil while forwarding to the target; unauthorized always
+	// returns PunchHoleResponse{Failure: ID_NOT_EXIST}.
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTWEB1"}, udpAddr("127.0.0.1", 51000))
+	if phr := resp.GetPunchHoleResponse(); phr != nil && phr.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatal("panel loopback PunchHole must not be refused as unauthorized")
+	}
+}
+
+func TestPanelProxyLoopbackCanRequestRelayWithoutPeer(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTWEB2", "203.0.113.91", 52000, peer.ConnTCP)
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "TGTWEB2",
+		Uuid: "web-remote-relay-uuid",
+	}, udpAddr("127.0.0.1", 51000), peer.ConnTCP)
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("panel loopback relay refused: %q", rr.RefuseReason)
+	}
+	if rr.Uuid != "web-remote-relay-uuid" {
+		t.Fatalf("uuid = %q", rr.Uuid)
+	}
+}
+
+func TestPublicAnonymousInitiatorStillRejectedWithPanelAllowlist(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	putOnlinePeer(srv, "TGTPUB1", "203.0.113.92", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.99", 51000), "TGTPUB1")
+	if ok || id != "" {
+		t.Fatalf("public anonymous = (%q, %v), want reject", id, ok)
+	}
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTPUB1"}, udpAddr("198.51.100.99", 51000))
+	phr := resp.GetPunchHoleResponse()
+	if phr == nil || phr.Failure != pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatalf("public anonymous PunchHole should be unauthorized, got %+v", resp)
+	}
+}
+
+func TestManagedPendingStillRejectedDespitePanelAllowlist(t *testing.T) {
+	// Pending peer on a non-loopback IP must still be blocked (#302).
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTPEND3", "203.0.113.93", 52000, peer.ConnUDP)
+	putOnlinePeer(srv, "PENDINIT3", "198.51.100.73", 51000, peer.ConnUDP)
+	if err := database.SetConfig("pending_device_PENDINIT3", `{"device_id":"PENDINIT3"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.73", 51000), "TGTPEND3")
+	if ok {
+		t.Fatalf("pending initiator must be rejected, got id=%q", id)
+	}
+}

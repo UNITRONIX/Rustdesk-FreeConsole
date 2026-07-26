@@ -3,6 +3,10 @@
 ### Added
 - **FreeBSD (Tier 3 / community):** example `rc.d` scripts and install notes under `contrib/freebsd/`; documented in README platform table and wiki Installation. Refs #310. Manual build only — no CI FreeBSD binaries or panel updater support yet.
 
+### Fixed
+- **Docker AIO supervisord crash on missing NTP/billing env (#299):** entrypoint and Dockerfile now default `NTP_SERVERS` and billing clock vars so Portainer / bare `docker run` / incomplete stacks no longer fail with `ENV_NTP_SERVERS` cannot be expanded. Also fixed corrupted `ENV ENCRYPTED_ONLY=1\nENV RELAY_SERVERS=` (was `ENCRYPTED_ONLY=1nENV` in the image).
+- **Web Remote broken after enrollment outbound gate (#302):** PunchHole/RequestRelay from the panel `/ws/rendezvous` proxy (default loopback CIDRs via `PANEL_SIGNAL_PROXY_CIDRS`) are accepted again without requiring a registered RustDesk peer. Unapproved clients and anonymous public initiators remain blocked. Ships via panel update (Go signal restart).
+
 ---
 
 ## [3.4.8] — 2026-07-26
