@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.4.11] — 2026-07-26
+
+### Changed
 - **UX 3.5 shell performance:** smoother sidebar resize (pointer capture + rAF, defer localStorage, disable glass blur while dragging), lighter page cards (no `backdrop-filter`), and cleaner tablet/phone drawer overlay fade. Ships via panel update.
 
 ---
@@ -2401,3 +2408,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.7...v3.4.8
 [3.4.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.8...v3.4.9
 [3.4.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.9...v3.4.10
+[3.4.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.10...v3.4.11
