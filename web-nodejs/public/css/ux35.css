@@ -170,6 +170,7 @@ body.app-page.ux35-page {
     backdrop-filter: blur(var(--ux35-glass-blur)) saturate(var(--ux35-glass-saturate));
     -webkit-backdrop-filter: blur(var(--ux35-glass-blur)) saturate(var(--ux35-glass-saturate));
     z-index: 30;
+    contain: layout style;
     transition: transform var(--ux35-motion) ease, box-shadow var(--ux35-motion) ease;
 }
 
@@ -301,6 +302,7 @@ body.app-page.ux35-page {
     height: 100%;
     cursor: col-resize;
     z-index: 5;
+    touch-action: none;
 }
 .ux35-sidebar-resize:hover,
 .ux35-sidebar-resize.active {
@@ -309,19 +311,25 @@ body.app-page.ux35-page {
 }
 .ux35-sidebar { position: relative; }
 
-/* Overlay for mobile drawer */
+/* Overlay for mobile drawer — keep in layout; fade via opacity/visibility */
 .ux35-sidebar-overlay {
-    display: none;
+    display: block;
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
     z-index: 25;
     opacity: 0;
-    transition: opacity var(--ux35-motion) ease;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity var(--ux35-motion) ease, visibility var(--ux35-motion) ease;
+}
+.ux35-sidebar-overlay[hidden] {
+    display: none !important;
 }
 .ux35-sidebar-overlay.visible {
-    display: block;
     opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
 }
 
 /* ── Main content ── */
@@ -402,7 +410,6 @@ body.app-page.ux35-page {
     border-radius: var(--ux35-radius);
     background: var(--ux35-card-bg);
     border: 1px solid var(--ux35-border);
-    backdrop-filter: blur(var(--ux35-glass-blur));
 }
 .ux35-page .devices-page {
     gap: var(--ux35-space-3);
@@ -446,11 +453,35 @@ body.embed-mode .ux35-content { padding: var(--ux35-content-padding); }
         transform: translateX(-105%);
         box-shadow: none;
     }
+    .ux35-shell.ux35-drawer-animating .ux35-sidebar {
+        will-change: transform;
+    }
     .ux35-shell.ux35-drawer-open .ux35-sidebar {
         transform: translateX(0);
         box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
     }
     .ux35-sidebar-resize { display: none; }
+}
+
+/* Drag-resize: drop expensive paints for the duration of the gesture */
+.ux35-shell.ux35-is-resizing .ux35-sidebar,
+.ux35-shell.ux35-is-resizing .ux35-topbar,
+.ux35-shell.ux35-is-resizing .ux35-content .card,
+.ux35-shell.ux35-is-resizing .ux35-content .stat-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+.ux35-shell.ux35-is-resizing .ux35-sidebar {
+    will-change: width;
+    transition: none;
+}
+.ux35-shell.ux35-is-resizing .ux35-main {
+    pointer-events: none;
+}
+body.ux35-is-resizing {
+    cursor: col-resize;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 @media (max-width: 767px) {

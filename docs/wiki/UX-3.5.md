@@ -37,6 +37,8 @@ Out of scope for UX 3.5 (unchanged): login page, RdClient, remote viewer, CDAP S
 - **Sidebar:** default **220px** (resizable 200–320px, stored in `localStorage` key `bd_ux35_sidebar_width`)
 - **Content:** padding via `--ux35-content-padding` / `--ux35-content-padding-lg` (16–24px)
 
+Glass (`backdrop-filter`) applies to **topbar and sidebar** only. Page cards use `--ux35-card-bg` without blur so scroll and sidebar resize stay smooth. During drag-resize the shell adds `ux35-is-resizing` and temporarily disables chrome blur; width updates are coalesced with `requestAnimationFrame` and persisted to `localStorage` on pointer-up (Escape cancels the drag).
+
 ## Spacing scale
 
 Use only: **4 / 8 / 12 / 16 / 24 / 32** px (`--ux35-space-1` … `--ux35-space-6`, or `--space-xs` / `sm` / `3` / `md` / `lg` / `xl`).
@@ -90,8 +92,9 @@ Keys under `ux35.*` (including `switch_to_ux35` / `switch_to_classic`) and `them
 - [ ] Navbar switch → UX 3.5; cookie persists across reloads
 - [ ] UX 3.5 topbar switch → classic
 - [ ] Desktop 1280 UX 3.5: sidebar + topbar + dashboard
-- [ ] Tablet 1024 / 768: drawer opens/closes
+- [ ] Desktop: sidebar drag-resize feels smooth; width persists after reload; Escape cancels mid-drag
+- [ ] Tablet 1024 / 768: drawer opens/closes; Escape closes drawer; overlay fades
 - [ ] Phone 390: drawer + bottom nav
-- [ ] Settings → Branding: Dark / Light / Custom + glass
+- [ ] Settings → Branding: Dark / Light / Custom + glass (chrome blurred; cards still readable)
 - [ ] Permission-gated nav items match former sidebar
 - [ ] `prefers-reduced-motion` disables content enter animation
