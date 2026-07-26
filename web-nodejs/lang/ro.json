@@ -4338,6 +4338,8 @@
     "ux35": {
         "resize_sidebar": "Redimensionați bara laterală",
         "open_menu": "Deschide meniul",
-        "theme_mode_hint": "Deschis și Întunecat sunt integrate. Personalizat se activează când editați culorile de mai jos."
+        "theme_mode_hint": "Deschis și Întunecat sunt integrate. Personalizat se activează când editați culorile de mai jos.",
+        "switch_to_ux35": "Comutați la UX 3.5",
+        "switch_to_classic": "Comutați la interfața clasică"
     }
 }

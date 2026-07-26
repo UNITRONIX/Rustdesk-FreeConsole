@@ -4332,6 +4332,8 @@
     "ux35": {
         "resize_sidebar": "调整侧边栏宽度",
         "open_menu": "打开菜单",
-        "theme_mode_hint": "浅色和深色为内置。编辑下方颜色时将启用自定义。"
+        "theme_mode_hint": "浅色和深色为内置。编辑下方颜色时将启用自定义。",
+        "switch_to_ux35": "切换到 UX 3.5",
+        "switch_to_classic": "切换到经典界面"
     }
 }

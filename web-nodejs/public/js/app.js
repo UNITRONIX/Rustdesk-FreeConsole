@@ -9,11 +9,52 @@
     document.addEventListener('DOMContentLoaded', init);
     
     function init() {
+        initSidebar();
         initNavbar();
         initLanguageSelector();
         initUserMenu();
         initRefreshButton();
         initRegistrationBadge();
+    }
+
+    /**
+     * Classic rail sidebar — mobile overlay support
+     */
+    function initSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (!sidebar) return;
+
+        overlay?.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+        });
+
+        sidebar.querySelectorAll('.sidebar-link, .sidebar-rail-btn[href]').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 1024) {
+                    sidebar.classList.remove('open');
+                }
+            });
+        });
+
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', () => {
+                if (window.MobileNav && window.DeviceCapabilities?.isMobileShell()) {
+                    window.MobileNav.openDrawer();
+                    return;
+                }
+                sidebar.classList.toggle('open');
+            });
+
+            function checkMobile() {
+                const useLegacy = window.innerWidth <= 1024
+                    && !(window.DeviceCapabilities && window.DeviceCapabilities.isMobileShell());
+                mobileMenuBtn.style.display = useLegacy ? 'flex' : 'none';
+            }
+            checkMobile();
+            window.addEventListener('resize', Utils.debounce(checkMobile, 200));
+        }
     }
     
     /**

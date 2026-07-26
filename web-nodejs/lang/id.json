@@ -4338,6 +4338,8 @@
     "ux35": {
         "resize_sidebar": "Ubah lebar bilah samping",
         "open_menu": "Buka menu",
-        "theme_mode_hint": "Terang dan Gelap bawaan. Kustom aktif saat Anda mengubah warna di bawah."
+        "theme_mode_hint": "Terang dan Gelap bawaan. Kustom aktif saat Anda mengubah warna di bawah.",
+        "switch_to_ux35": "Beralih ke UX 3.5",
+        "switch_to_classic": "Beralih ke UI klasik"
     }
 }

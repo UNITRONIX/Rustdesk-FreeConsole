@@ -1,5 +1,6 @@
+<% const shell = (typeof uiShell !== 'undefined' && uiShell === 'ux35') ? 'ux35' : 'classic'; %>
 <!DOCTYPE html>
-<html lang="<%= lang || 'en' %>" data-theme="<%= (branding && branding.themeMode === 'light') ? 'light' : 'dark' %>" data-theme-mode="<%= (branding && branding.themeMode) || 'dark' %>">
+<html lang="<%= lang || 'en' %>" data-theme="<%= (branding && branding.themeMode === 'light') ? 'light' : 'dark' %>" data-theme-mode="<%= (branding && branding.themeMode) || 'dark' %>" data-ui-shell="<%= shell %>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -13,11 +14,13 @@
     <link rel="stylesheet" href="/css/theme.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/ui-polish.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/branding.css?v=<%= typeof brandingRevision !== 'undefined' ? brandingRevision : cacheVersion %>">
-    <link rel="stylesheet" href="/css/ux35-tokens.css?v=<%= cacheVersion %>">
-    <link rel="stylesheet" href="/css/ux35.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/transitions.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/notif-center.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/accessibility.css?v=<%= cacheVersion %>">
+    <% if (shell === 'ux35') { %>
+    <link rel="stylesheet" href="/css/ux35-tokens.css?v=<%= cacheVersion %>">
+    <link rel="stylesheet" href="/css/ux35.css?v=<%= cacheVersion %>">
+    <% } %>
     <% if (!embed) { %>
     <link rel="stylesheet" href="/css/mobile-shell.css?v=<%= cacheVersion %>">
     <link rel="stylesheet" href="/css/tutorial.css?v=<%= cacheVersion %>">
@@ -28,28 +31,45 @@
         <% }); %>
     <% } %>
 </head>
-<body class="app-page ux35-page<%= embed ? ' embed-mode' : '' %>">
+<body class="app-page<%= shell === 'ux35' ? ' ux35-page' : '' %><%= embed ? ' embed-mode' : '' %>">
+    <% if (shell === 'ux35') { %>
     <div class="ux35-shell<%= embed ? ' embed-mode' : '' %>" id="app">
         <% if (!embed) { %>
         <%- include('../partials/ux35-topbar') %>
         <% } %>
-
         <div class="ux35-body">
             <% if (!embed) { %>
             <%- include('../partials/ux35-sidebar') %>
             <% } %>
-
             <div class="ux35-main">
                 <main class="ux35-content main-content" id="ux35-content">
                     <%- body %>
                 </main>
             </div>
         </div>
-
         <% if (!embed) { %>
         <%- include('../partials/mobile-bottom-nav') %>
         <% } %>
     </div>
+    <% } else { %>
+    <div class="app-layout" id="app">
+        <% if (!embed) { %>
+        <%- include('../partials/sidebar') %>
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+        <% } %>
+        <div class="main-wrapper">
+            <% if (!embed) { %>
+            <%- include('../partials/navbar') %>
+            <% } %>
+            <main class="main-content">
+                <%- body %>
+            </main>
+        </div>
+        <% if (!embed) { %>
+        <%- include('../partials/mobile-bottom-nav') %>
+        <% } %>
+    </div>
+    <% } %>
 
     <div id="modal-container"></div>
     <div id="toast-container" class="toast-container"></div>
@@ -64,7 +84,7 @@
             user: <%- JSON.stringify(user || null) %>,
             branding: <%- JSON.stringify(branding || {}) %>,
             embed: <%= embed ? 'true' : 'false' %>,
-            uiShell: 'ux35'
+            uiShell: '<%= shell %>'
         };
     </script>
     <script src="/js/utils.js?v=<%= cacheVersion %>"></script>
@@ -78,8 +98,11 @@
     <script src="/js/modal.js?v=<%= cacheVersion %>"></script>
     <script src="/js/accessibility.js?v=<%= cacheVersion %>"></script>
     <script src="/js/app.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/ui-shell.js?v=<%= cacheVersion %>"></script>
     <% if (!embed) { %>
+    <% if (shell === 'ux35') { %>
     <script src="/js/ux35-shell.js?v=<%= cacheVersion %>"></script>
+    <% } %>
     <script src="/js/mobile-nav.js?v=<%= cacheVersion %>"></script>
     <script src="/js/tutorial.js?v=<%= cacheVersion %>"></script>
     <script nonce="<%= cspNonce %>">if (typeof Tutorial !== 'undefined') Tutorial.autoStart('console');</script>

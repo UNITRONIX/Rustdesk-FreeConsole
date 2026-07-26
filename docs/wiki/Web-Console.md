@@ -2,7 +2,7 @@
 
 The BetterDesk Web Console is a Node.js (Express.js) management panel accessible at **http://your-server:5000**.
 
-The default chrome is **UX 3.5** (full-list sidebar + topbar, glass branding). See [[UX 3.5|UX-3.5]] for tokens, breakpoints, and theming (Dark / Light / Custom).
+The default chrome is the **classic** icon rail + flyout sidebar. Operators can switch to optional **UX 3.5** (full-list sidebar + topbar, glass branding) from the navbar; the choice is remembered in a cookie. See [[UX 3.5|UX-3.5]] for tokens, breakpoints, theming, and how to switch.
 
 ---
 
@@ -15,7 +15,7 @@ The dashboard provides an overview of your BetterDesk deployment:
 - **Server Uptime** — Go server uptime
 - **System Info** — Hostname, OS, Node.js/Go versions
 
-> **Note:** OS-style Desktop Mode is no longer part of the default console shell (removed in favor of UX 3.5). Historical widget docs may remain under [[Desktop Dashboard|Desktop-Dashboard]].
+> **Note:** OS-style Desktop Mode is not loaded by the console layout. Use classic rail/flyout (default) or optional [[UX 3.5|UX-3.5]]. Historical widget docs may remain under [[Desktop Dashboard|Desktop-Dashboard]].
 
 ---
 

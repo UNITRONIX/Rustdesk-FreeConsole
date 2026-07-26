@@ -50,7 +50,7 @@ Open **http://your-server:5000** for the web console. Default install paths: Go 
 | **Installation** | [[Installation]] — Linux, Windows, Docker |
 | **Configuration** | [[Configuration]] — CLI flags, `.env`, systemd/NSSM |
 | **Client setup** | [[Client Setup\|Client-Setup]] — RustDesk desktop/mobile |
-| **Web console** | [[Web Console\|Web-Console]] — Dashboard, devices, settings ([[UX 3.5\|UX-3.5]] shell) |
+| **Web console** | [[Web Console\|Web-Console]] — Dashboard, devices, settings (classic rail or optional [[UX 3.5\|UX-3.5]]) |
 | **Users & RBAC** | [[User Management\|User-Management]], [[Organizations and RBAC\|Organizations-and-RBAC]] |
 | **OIDC / SSO** | [[OIDC SSO\|OIDC-SSO]] |
 | **Client generator** | [[Client Generator\|Client-Generator]] |

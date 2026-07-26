@@ -1,7 +1,11 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- **Console chrome dual mode:** default UI is again the classic icon rail + flyout. **UX 3.5** is available via a navbar/topbar switch (cookie `bd_ui_shell`, or `?ui=classic|ux35`). Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
+
+### Fixed
+- **UX 3.5 light theme only recolored the blue topbar:** built-in light/dark palettes in `generateThemeCss()`, `ui-polish.css` on console layout, theme toggle persists palette + glass.
+- **UX 3.5 settings / main content invisible under branding wallpaper:** `.ux35-shell { position:relative; z-index:1 }` and branding background CSS includes `.ux35-shell` / `.ux35-content`.
 
 ---
 

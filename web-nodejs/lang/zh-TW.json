@@ -4336,6 +4336,8 @@
     "ux35": {
         "resize_sidebar": "調整側邊欄寬度",
         "open_menu": "開啟選單",
-        "theme_mode_hint": "淺色與深色為內建。編輯下方顏色時會啟用自訂。"
+        "theme_mode_hint": "淺色與深色為內建。編輯下方顏色時會啟用自訂。",
+        "switch_to_ux35": "切換至 UX 3.5",
+        "switch_to_classic": "切換至經典介面"
     }
 }

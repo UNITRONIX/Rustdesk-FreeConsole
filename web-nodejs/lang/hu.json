@@ -4338,6 +4338,8 @@
     "ux35": {
         "resize_sidebar": "Oldalsáv átméretezése",
         "open_menu": "Menü megnyitása",
-        "theme_mode_hint": "A Világos és a Sötét beépített. Az Egyéni a színek szerkesztésekor aktiválódik."
+        "theme_mode_hint": "A Világos és a Sötét beépített. Az Egyéni a színek szerkesztésekor aktiválódik.",
+        "switch_to_ux35": "Váltás UX 3.5-re",
+        "switch_to_classic": "Váltás klasszikus felületre"
     }
 }

@@ -31,6 +31,13 @@
     </div>
     
     <div class="navbar-right">
+        <!-- UI shell: switch to UX 3.5 -->
+        <button type="button" class="navbar-btn" id="ui-shell-switch-btn" data-ui-shell-switch="ux35"
+                title="<%= _('ux35.switch_to_ux35') || 'Switch to UX 3.5' %>"
+                aria-label="<%= _('ux35.switch_to_ux35') || 'Switch to UX 3.5' %>">
+            <span class="material-icons">view_sidebar</span>
+        </button>
+
         <!-- Refresh button -->
         <button class="navbar-btn" id="refresh-btn" title="<%= _('actions.refresh') %>">
             <span class="material-icons">refresh</span>

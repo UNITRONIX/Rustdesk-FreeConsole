@@ -4332,6 +4332,8 @@
     "ux35": {
         "resize_sidebar": "Cambiar ancho de la barra lateral",
         "open_menu": "Abrir menú",
-        "theme_mode_hint": "Claro y Oscuro son predefinidos. Personalizado se activa al editar los colores abajo."
+        "theme_mode_hint": "Claro y Oscuro son predefinidos. Personalizado se activa al editar los colores abajo.",
+        "switch_to_ux35": "Cambiar a UX 3.5",
+        "switch_to_classic": "Cambiar a la interfaz clásica"
     }
 }

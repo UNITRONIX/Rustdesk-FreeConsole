@@ -4332,6 +4332,8 @@
     "ux35": {
         "resize_sidebar": "Zijbalkbreedte aanpassen",
         "open_menu": "Menu openen",
-        "theme_mode_hint": "Licht en Donker zijn ingebouwd. Aangepast wordt actief wanneer u hieronder kleuren bewerkt."
+        "theme_mode_hint": "Licht en Donker zijn ingebouwd. Aangepast wordt actief wanneer u hieronder kleuren bewerkt.",
+        "switch_to_ux35": "Overschakelen naar UX 3.5",
+        "switch_to_classic": "Overschakelen naar klassieke UI"
     }
 }

@@ -4338,6 +4338,8 @@
     "ux35": {
         "resize_sidebar": "Muuta sivupalkin leveyttä",
         "open_menu": "Avaa valikko",
-        "theme_mode_hint": "Vaalea ja Tumma ovat sisäänrakennettuja. Mukautettu otetaan käyttöön, kun muokkaat värejä alla."
+        "theme_mode_hint": "Vaalea ja Tumma ovat sisäänrakennettuja. Mukautettu otetaan käyttöön, kun muokkaat värejä alla.",
+        "switch_to_ux35": "Vaihda UX 3.5 -tilaan",
+        "switch_to_classic": "Vaihda klassiseen käyttöliittymään"
     }
 }

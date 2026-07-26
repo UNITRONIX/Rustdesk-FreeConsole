@@ -2914,7 +2914,9 @@
     "ux35": {
         "resize_sidebar": "Resize sidebar",
         "open_menu": "Open menu",
-        "theme_mode_hint": "Light and Dark are built-in. Custom activates when you edit colors below."
+        "theme_mode_hint": "Light and Dark are built-in. Custom activates when you edit colors below.",
+        "switch_to_ux35": "Switch to UX 3.5",
+        "switch_to_classic": "Switch to classic UI"
     },
     "days": {
         "mon": "Mon",

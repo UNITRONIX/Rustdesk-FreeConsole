@@ -4332,6 +4332,8 @@
     "ux35": {
         "resize_sidebar": "Zmień szerokość paska bocznego",
         "open_menu": "Otwórz menu",
-        "theme_mode_hint": "Jasny i Ciemny są wbudowane. Niestandardowy włącza się po edycji kolorów poniżej."
+        "theme_mode_hint": "Jasny i Ciemny są wbudowane. Niestandardowy włącza się po edycji kolorów poniżej.",
+        "switch_to_ux35": "Przełącz na UX 3.5",
+        "switch_to_classic": "Przełącz na klasyczny interfejs"
     }
 }

@@ -4332,6 +4332,8 @@
     "ux35": {
         "resize_sidebar": "Ridimensiona barra laterale",
         "open_menu": "Apri menu",
-        "theme_mode_hint": "Chiaro e Scuro sono integrati. Personalizzato si attiva modificando i colori sotto."
+        "theme_mode_hint": "Chiaro e Scuro sono integrati. Personalizzato si attiva modificando i colori sotto.",
+        "switch_to_ux35": "Passa a UX 3.5",
+        "switch_to_classic": "Passa all’interfaccia classica"
     }
 }

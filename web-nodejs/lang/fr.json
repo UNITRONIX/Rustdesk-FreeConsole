@@ -4336,6 +4336,8 @@
     "ux35": {
         "resize_sidebar": "Redimensionner la barre latérale",
         "open_menu": "Ouvrir le menu",
-        "theme_mode_hint": "Clair et Sombre sont intégrés. Personnalisé s’active lorsque vous modifiez les couleurs ci-dessous."
+        "theme_mode_hint": "Clair et Sombre sont intégrés. Personnalisé s’active lorsque vous modifiez les couleurs ci-dessous.",
+        "switch_to_ux35": "Passer à UX 3.5",
+        "switch_to_classic": "Passer à l’interface classique"
     }
 }
