@@ -44,10 +44,30 @@ const PANEL_POLL_PREFIXES = [
     '/api/panel/'
 ];
 
+/**
+ * Resolve the full API pathname for rate-limit classification.
+ *
+ * When middleware is mounted at `/api/` (see server.js), Express strips that
+ * prefix from `req.path` (`/bd/notifications` instead of `/api/bd/notifications`).
+ * PANEL_POLL_PATHS / preference checks use the full `/api/...` form, so we must
+ * rejoin `baseUrl` + `path` (or fall back to `originalUrl`).
+ */
+function resolveApiPath(req) {
+    const base = String(req.baseUrl || '');
+    const path = String(req.path || '');
+    if (base === '/api' || base.startsWith('/api/')) {
+        return '/api' + (path.startsWith('/') ? path : `/${path}`);
+    }
+    if (path.startsWith('/api/') || path === '/api') return path;
+    const orig = String(req.originalUrl || '').split('?')[0];
+    if (orig.startsWith('/api/') || orig === '/api') return orig;
+    return path;
+}
+
 function isPanelPollRequest(req) {
     const method = String(req.method || 'GET').toUpperCase();
     if (method !== 'GET' && method !== 'HEAD') return false;
-    const path = req.path || '';
+    const path = resolveApiPath(req);
     if (PANEL_POLL_PATHS.has(path)) return true;
     return PANEL_POLL_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
@@ -56,7 +76,7 @@ function isPanelPollRequest(req) {
 function isPanelPreferenceWrite(req) {
     const method = String(req.method || 'GET').toUpperCase();
     if (method !== 'POST') return false;
-    return (req.path || '') === '/api/desktop/layout';
+    return resolveApiPath(req) === '/api/desktop/layout';
 }
 
 /** Paths that receive widgetLimiter in server.js (exact paths only). */
@@ -209,6 +229,7 @@ module.exports = {
     fileAccessLimiter,
     isPanelPollRequest,
     isPanelPreferenceWrite,
+    resolveApiPath,
     getPanelPollMountPaths,
     PANEL_POLL_PATHS
 };
