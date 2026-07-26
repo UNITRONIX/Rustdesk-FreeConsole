@@ -3,11 +3,18 @@
 ### Added
 - **UX 3.5 default console shell:** native full-list sidebar + topbar (promoted from retired Beta 3.1), glass branding, Dark/Light/Custom themes in Settings → Branding, resizable sidebar, tablet/phone drawer. Login / RdClient / remote viewer unchanged. Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
 
+### Changed
+- **Console chrome:** TeamViewer-style rail/flyout and Desktop Mode are no longer loaded as the management UI; UX 3.5 is the single console interface on `dev`.
+
+---
+
+## [3.4.3] — 2026-07-25
+
 ### Fixed
 - **OIDC client login stuck on “Waiting…” (#304):** panel now proxies `GET /api/auth/oidc/callback` (and `/api/oidc/callback`) to the Go API, so Redirect URLs that use the console origin (`:5000` / `:5443`) complete RustDesk SSO instead of returning 404. Settings also validate the callback path and clarify the hint. Ships via panel update. Verify: IdP Redirect URL = `https://<panel>/api/auth/oidc/callback` → SSO in RustDesk finishes with access token (browser shows success page).
 
 ### Changed
-- **Console chrome:** TeamViewer-style rail/flyout and Desktop Mode are no longer loaded as the management UI; UX 3.5 is the single console interface on `dev`.
+- _(none yet)_
 
 ---
 
@@ -2325,3 +2332,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.174...v3.4.0
 [3.4.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.0...v3.4.1
 [3.4.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.1...v3.4.2
+[3.4.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.2...v3.4.3
