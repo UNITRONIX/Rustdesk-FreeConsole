@@ -124,6 +124,33 @@
         }
     };
 
+    var THEME_INLINE_KEYS = [
+        '--bg-primary', '--bg-secondary', '--bg-tertiary', '--bg-elevated',
+        '--bg-hover',
+        '--text-primary', '--text-secondary',
+        '--accent-blue', '--accent-blue-hover', '--accent-blue-muted',
+        '--accent-green', '--accent-green-hover', '--accent-green-muted',
+        '--accent-red', '--accent-red-hover', '--accent-red-muted',
+        '--accent-yellow', '--accent-yellow-hover', '--accent-yellow-muted',
+        '--accent-purple', '--accent-purple-hover', '--accent-purple-muted',
+        '--border-primary', '--border-secondary',
+        '--surface-glass-blur', '--surface-glass-saturate',
+        '--surface-glass-bg-secondary', '--surface-glass-bg-tertiary',
+        '--surface-glass-bg-elevated', '--surface-glass-border',
+        '--card-bg',
+        '--ux35-bg', '--ux35-sidebar-bg', '--ux35-card-bg', '--ux35-border',
+        '--ux35-border-light', '--ux35-text', '--ux35-muted', '--ux35-hover',
+        '--ux35-primary', '--ux35-active-bg', '--ux35-glass-blur', '--ux35-glass-saturate',
+        '--ux35-topbar-bg', '--ux35-topbar-fg', '--ux35-topbar-fg-muted'
+    ];
+
+    function clearThemeInlineOverrides() {
+        var root = document.documentElement.style;
+        THEME_INLINE_KEYS.forEach(function (key) {
+            root.removeProperty(key);
+        });
+    }
+
     function applyThemeLocally(next) {
         document.documentElement.setAttribute('data-theme', next);
         document.documentElement.setAttribute('data-theme-mode', next);
@@ -142,34 +169,72 @@
         Object.keys(palette).forEach(function (key) {
             if (map[key]) root.setProperty(map[key], palette[key]);
         });
-        // Soft glass for light/dark until branding.css reloads
+
+        // Solid surfaces — opaque tokens so UX 3.5 repaints immediately (no glass compositor lag)
+        root.setProperty('--bg-hover', next === 'light' ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)');
+        root.setProperty('--surface-glass-blur', '0px');
+        root.setProperty('--surface-glass-saturate', '1');
+        root.setProperty('--surface-glass-bg-secondary', palette.bgSecondary);
+        root.setProperty('--surface-glass-bg-tertiary', palette.bgTertiary);
+        root.setProperty('--surface-glass-bg-elevated', palette.bgElevated);
+        root.setProperty('--surface-glass-border', palette.borderPrimary);
+        root.setProperty('--card-bg', palette.bgSecondary);
+
+        root.setProperty('--ux35-bg', palette.bgPrimary);
+        root.setProperty('--ux35-sidebar-bg', palette.bgSecondary);
+        root.setProperty('--ux35-card-bg', palette.bgSecondary);
+        root.setProperty('--ux35-border', palette.borderPrimary);
+        root.setProperty('--ux35-border-light', palette.borderSecondary);
+        root.setProperty('--ux35-text', palette.textPrimary);
+        root.setProperty('--ux35-muted', palette.textSecondary);
+        root.setProperty('--ux35-hover', next === 'light' ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)');
+        root.setProperty('--ux35-primary', palette.accentBlue);
+        root.setProperty('--ux35-active-bg', palette.accentBlueMuted);
+        root.setProperty('--ux35-glass-blur', '0px');
+        root.setProperty('--ux35-glass-saturate', '1');
+
         if (next === 'light') {
-            root.setProperty('--surface-glass-bg-secondary', 'rgba(255,255,255,0.82)');
-            root.setProperty('--surface-glass-bg-elevated', 'rgba(255,255,255,0.9)');
-            root.setProperty('--surface-glass-border', 'rgba(208,215,222,0.9)');
-            root.setProperty('--card-bg', 'rgba(255,255,255,0.92)');
             root.setProperty('--ux35-topbar-bg', palette.accentBlue);
             root.setProperty('--ux35-topbar-fg', '#ffffff');
             root.setProperty('--ux35-topbar-fg-muted', 'rgba(255,255,255,0.78)');
         } else {
-            root.setProperty('--surface-glass-bg-secondary', 'rgba(22,27,34,0.55)');
-            root.setProperty('--surface-glass-bg-elevated', 'rgba(48,54,61,0.7)');
-            root.setProperty('--surface-glass-border', 'rgba(48,54,61,0.5)');
-            root.setProperty('--card-bg', 'rgba(22,27,34,0.55)');
-            root.removeProperty('--ux35-topbar-bg');
-            root.removeProperty('--ux35-topbar-fg');
-            root.removeProperty('--ux35-topbar-fg-muted');
+            root.setProperty('--ux35-topbar-bg', palette.bgElevated);
+            root.setProperty('--ux35-topbar-fg', palette.textPrimary);
+            root.setProperty('--ux35-topbar-fg-muted', palette.textSecondary);
         }
-        root.setProperty('--ux35-bg', palette.bgPrimary);
-        root.setProperty('--ux35-text', palette.textPrimary);
-        root.setProperty('--ux35-muted', palette.textSecondary);
-        root.setProperty('--ux35-primary', palette.accentBlue);
+
+        // Force a synchronous style flush so paint does not wait for the next click
+        void document.documentElement.offsetHeight;
         syncThemeIcon();
+    }
+
+    function reloadBrandingStylesheet(onReady) {
+        var link = document.querySelector('link[href*="branding.css"]');
+        if (!link) {
+            if (onReady) onReady();
+            return;
+        }
+        var url = new URL(link.href, window.location.origin);
+        url.searchParams.set('v', String(Date.now()));
+        var done = false;
+        function finish() {
+            if (done) return;
+            done = true;
+            clearThemeInlineOverrides();
+            void document.documentElement.offsetHeight;
+            syncThemeIcon();
+            if (onReady) onReady();
+        }
+        link.addEventListener('load', finish, { once: true });
+        link.addEventListener('error', finish, { once: true });
+        link.href = url.pathname + url.search;
+        // Fallback if load already cached / does not fire
+        setTimeout(finish, 400);
     }
 
     /**
      * Cycle visual theme: dark ↔ light.
-     * Persists themeMode + built-in palette so branding.css matches data-theme.
+     * Applies full solid token set immediately, then persists + reconciles branding.css.
      */
     function cycleThemePreview() {
         var mode = document.documentElement.getAttribute('data-theme-mode') || 'dark';
@@ -195,17 +260,12 @@
                 })
             }).then(function (res) {
                 if (res.ok) {
-                    var link = document.querySelector('link[href*="branding.css"]');
-                    if (link) {
-                        var url = new URL(link.href, window.location.origin);
-                        url.searchParams.set('v', String(Date.now()));
-                        link.href = url.pathname + url.search;
-                    }
                     if (window.BetterDesk.branding) {
                         window.BetterDesk.branding.themeMode = next;
                     }
+                    reloadBrandingStylesheet();
                 }
-            }).catch(function () { /* ignore */ });
+            }).catch(function () { /* keep local theme */ });
         }
     }
 

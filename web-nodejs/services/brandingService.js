@@ -811,18 +811,19 @@ function generateSemanticAliasCss(branding) {
         '    --color-border: var(--border-primary);',
         '    --focus-ring-color: var(--accent-blue-muted);',
         `    color-scheme: ${normalizeThemeMode(branding.themeMode) === 'light' ? 'light' : 'dark'};`,
-        '    /* UX 3.5 chrome aliases (branding-aware) */',
+        '    /* UX 3.5 chrome aliases — solid surfaces (no glass/blur in this shell) */',
         '    --ux35-bg: var(--bg-primary);',
-        '    --ux35-sidebar-bg: var(--surface-glass-bg-secondary, var(--bg-secondary));',
-        '    --ux35-card-bg: var(--card-bg, var(--surface-glass-bg-secondary, var(--bg-secondary)));',
-        '    --ux35-border: var(--surface-glass-border, var(--border-primary));',
+        '    --ux35-sidebar-bg: var(--bg-secondary);',
+        '    --ux35-card-bg: var(--bg-secondary);',
+        '    --ux35-border: var(--border-primary);',
         '    --ux35-border-light: var(--border-secondary);',
         '    --ux35-text: var(--text-primary);',
         '    --ux35-muted: var(--text-secondary);',
         '    --ux35-hover: var(--bg-hover);',
         '    --ux35-primary: var(--accent-blue);',
         '    --ux35-active-bg: var(--accent-blue-muted);',
-        '    --ux35-glass-blur: var(--surface-glass-blur, 16px);'
+        '    --ux35-glass-blur: 0px;',
+        '    --ux35-glass-saturate: 1;'
     ];
     const mode = normalizeThemeMode(branding.themeMode);
     if (mode === 'light') {
@@ -830,7 +831,7 @@ function generateSemanticAliasCss(branding) {
         lines.push('    --ux35-topbar-fg: #ffffff;');
         lines.push('    --ux35-topbar-fg-muted: rgba(255, 255, 255, 0.78);');
     } else {
-        lines.push('    --ux35-topbar-bg: var(--surface-glass-bg-elevated, var(--bg-secondary));');
+        lines.push('    --ux35-topbar-bg: var(--bg-elevated, var(--bg-secondary));');
         lines.push('    --ux35-topbar-fg: var(--text-primary);');
         lines.push('    --ux35-topbar-fg-muted: var(--text-secondary);');
     }

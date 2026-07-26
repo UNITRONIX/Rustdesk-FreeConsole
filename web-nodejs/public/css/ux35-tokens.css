@@ -1,6 +1,6 @@
 /**
  * BetterDesk Console — UX 3.5 Design Tokens
- * Spacing scale, chrome dimensions, glass surfaces for the default shell.
+ * Spacing scale, chrome dimensions, solid surfaces (no glass/blur in this shell).
  * Theme colors come from branding.css (resolveThemeColors); tokens here are fallbacks.
  */
 
@@ -27,11 +27,15 @@
     --ux35-motion: 150ms;
     --ux35-motion-fast: 120ms;
 
+    /* Chrome typography — isolated from branding body/heading fonts */
+    --ux35-font-chrome: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+
+    /* Solid surfaces (performance: no glass aliases) */
     --ux35-bg: var(--bg-primary);
-    --ux35-topbar-bg: var(--surface-glass-bg-elevated, var(--bg-secondary));
-    --ux35-sidebar-bg: var(--surface-glass-bg-secondary, var(--bg-secondary));
-    --ux35-card-bg: var(--card-bg, var(--surface-glass-bg-secondary, var(--bg-secondary)));
-    --ux35-border: var(--surface-glass-border, var(--border-primary));
+    --ux35-topbar-bg: var(--bg-elevated, var(--bg-secondary));
+    --ux35-sidebar-bg: var(--bg-secondary);
+    --ux35-card-bg: var(--bg-secondary);
+    --ux35-border: var(--border-primary);
     --ux35-border-light: var(--border-secondary);
     --ux35-text: var(--text-primary);
     --ux35-muted: var(--text-secondary);
@@ -40,8 +44,8 @@
     --ux35-primary: var(--accent-blue);
     --ux35-topbar-fg: var(--text-primary);
     --ux35-topbar-fg-muted: var(--text-secondary);
-    --ux35-glass-blur: var(--surface-glass-blur, 16px);
-    --ux35-glass-saturate: var(--surface-glass-saturate, 1.2);
+    --ux35-glass-blur: 0px;
+    --ux35-glass-saturate: 1;
 }
 
 /* Light: ISP-style blue topbar + light shell; body/sidebar text from branding palette */
@@ -49,8 +53,8 @@
     --ux35-topbar-bg: var(--accent-blue, #0969da);
     --ux35-topbar-fg: #ffffff;
     --ux35-topbar-fg-muted: rgba(255, 255, 255, 0.78);
-    --ux35-sidebar-bg: var(--surface-glass-bg-secondary, var(--bg-secondary, #ffffff));
-    --ux35-card-bg: var(--card-bg, var(--bg-secondary, #ffffff));
+    --ux35-sidebar-bg: var(--bg-secondary, #ffffff);
+    --ux35-card-bg: var(--bg-secondary, #ffffff);
     --ux35-bg: var(--bg-primary, #f0f2f5);
     --ux35-border: var(--border-primary, #d0d7de);
     --ux35-border-light: var(--border-secondary, #eaeef2);
@@ -62,7 +66,7 @@
 }
 
 [data-theme="dark"] {
-    --ux35-topbar-bg: var(--surface-glass-bg-elevated, var(--bg-secondary, #161b22));
+    --ux35-topbar-bg: var(--bg-elevated, var(--bg-secondary, #161b22));
     --ux35-topbar-fg: var(--text-primary, #e6edf3);
     --ux35-topbar-fg-muted: var(--text-secondary, #8b949e);
 }

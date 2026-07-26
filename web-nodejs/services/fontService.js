@@ -522,12 +522,15 @@ function generateFontCss(headingFont, bodyFont) {
         css += `:root {\n${vars.join('\n')}\n}\n`;
     }
 
-    // Apply heading font to heading elements
+    // Apply heading font to heading elements (never UX 3.5 chrome nav)
     if (headingFont && headingFont.trim()) {
         css += `\nh1, h2, h3, h4, h5, h6,
 .page-title, .settings-section-title, .login-title,
 .sidebar-logo-text, .brand-text-logo,
-.desktop-login-brand { font-family: var(--font-heading, var(--font-family)); }\n`;
+.desktop-login-brand { font-family: var(--font-heading, var(--font-family)); }
+.ux35-shell .ux35-sidebar,
+.ux35-shell .ux35-sidebar :is(h1, h2, h3, h4, h5, h6),
+.ux35-shell .ux35-topbar { font-family: var(--ux35-font-chrome, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif); }\n`;
     }
 
     return css;

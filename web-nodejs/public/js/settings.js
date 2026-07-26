@@ -144,6 +144,7 @@
                 if (target) target.classList.add('active');
                 window.history.replaceState(null, '', '#' + tab.dataset.tab);
                 applySettingsSearchFilter();
+                onSettingsTabChanged(tab.dataset.tab);
             });
         });
         
@@ -152,6 +153,23 @@
             const tabName = hash === 'server' ? 'general' : hash;
             const tab = document.querySelector(`[data-tab="${tabName}"]`);
             if (tab) tab.click();
+        }
+    }
+
+    function isBrandingTabActive() {
+        const brandingTab = document.getElementById('tab-branding');
+        return !!(brandingTab && brandingTab.classList.contains('active'));
+    }
+
+    function onSettingsTabChanged(tabName) {
+        if (tabName === 'branding') {
+            scheduleBrandingPreview();
+            return;
+        }
+        if (typeof BrandingPreview !== 'undefined' && BrandingPreview.clearAllPreview) {
+            BrandingPreview.clearAllPreview();
+        } else if (typeof BrandingPreview !== 'undefined') {
+            BrandingPreview.clearPagePreview();
         }
     }
 
@@ -1089,6 +1107,7 @@
     function scheduleBrandingPreview() {
         clearTimeout(_previewDebounce);
         _previewDebounce = setTimeout(() => {
+            if (!isBrandingTabActive()) return;
             if (typeof BrandingPreview !== 'undefined') {
                 const applyPage = document.getElementById('branding-preview-page-toggle')?.checked;
                 BrandingPreview.apply(collectBrandingData(), { applyToPage: !!applyPage });
@@ -1194,7 +1213,8 @@
             if (e.target?.classList?.contains('branding-bg-file')) return;
             if (e.target.closest('#tab-branding')) onBrandingFieldChange();
         });
-        scheduleBrandingPreview();
+        // Only seed preview when Branding is the active tab (not Updates/etc.)
+        if (isBrandingTabActive()) scheduleBrandingPreview();
     }
 
     async function brandingPrompt(message, options = {}) {

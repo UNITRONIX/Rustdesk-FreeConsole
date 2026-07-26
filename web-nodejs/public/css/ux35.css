@@ -1,6 +1,6 @@
 /**
  * BetterDesk Console — UX 3.5 Shell
- * Native topbar + full-list sidebar (promoted from Beta 3.1), with glass surfaces.
+ * Native topbar + full-list sidebar. Solid surfaces (no glass/blur) for fluidity.
  */
 
 /* ── App shell ── */
@@ -40,9 +40,8 @@ body.app-page.ux35-page {
     padding: 0 var(--ux35-space-4);
     gap: var(--ux35-space-3);
     z-index: 40;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-    backdrop-filter: blur(var(--ux35-glass-blur)) saturate(var(--ux35-glass-saturate));
-    -webkit-backdrop-filter: blur(var(--ux35-glass-blur)) saturate(var(--ux35-glass-saturate));
+    border-bottom: 1px solid var(--ux35-border);
+    font-family: var(--ux35-font-chrome);
     flex-shrink: 0;
 }
 
@@ -167,11 +166,20 @@ body.app-page.ux35-page {
     flex-direction: column;
     overflow: hidden;
     flex-shrink: 0;
-    backdrop-filter: blur(var(--ux35-glass-blur)) saturate(var(--ux35-glass-saturate));
-    -webkit-backdrop-filter: blur(var(--ux35-glass-blur)) saturate(var(--ux35-glass-saturate));
     z-index: 30;
     contain: layout style;
-    transition: transform var(--ux35-motion) ease, box-shadow var(--ux35-motion) ease;
+    font-family: var(--ux35-font-chrome);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: normal;
+    transition: transform var(--ux35-motion) ease;
+}
+.ux35-sidebar-item,
+.ux35-sidebar-heading,
+.ux35-sidebar-user-name,
+.ux35-sidebar-user-role,
+.ux35-sidebar-attribution {
+    font-family: var(--ux35-font-chrome);
 }
 
 .ux35-sidebar-nav {
@@ -351,7 +359,6 @@ body.app-page.ux35-page {
     margin-top: 0;
     height: auto;
     width: 100%;
-    animation: ux35PageEnter var(--ux35-motion) ease-out;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
     -webkit-overflow-scrolling: touch;
@@ -415,13 +422,19 @@ body.app-page.ux35-page {
     gap: var(--ux35-space-3);
 }
 
-@keyframes ux35PageEnter {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+/* Solid content surfaces — defeat main.css glass on cards/forms inside UX 3.5 */
+.ux35-page .ux35-content :is(
+    .card, .stat-card, .modal, .toast, .settings-section, .settings-tab,
+    .settings-panel, .settings-search, .dropdown-menu, .table,
+    .form-input, .form-select, .form-textarea, .bd-glass-surface,
+    .audit-log-container, .public-key-display, .server-info-item
+) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: var(--bg-secondary);
 }
-
-@media (prefers-reduced-motion: reduce) {
-    .ux35-content { animation: none; }
+.ux35-page .ux35-content :is(.form-input, .form-select, .form-textarea) {
+    background: var(--bg-tertiary);
 }
 
 /* Embed: no chrome */
@@ -458,19 +471,13 @@ body.embed-mode .ux35-content { padding: var(--ux35-content-padding); }
     }
     .ux35-shell.ux35-drawer-open .ux35-sidebar {
         transform: translateX(0);
-        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+        border-right: 1px solid var(--ux35-border);
+        box-shadow: 2px 0 8px rgba(0, 0, 0, 0.12);
     }
     .ux35-sidebar-resize { display: none; }
 }
 
-/* Drag-resize: drop expensive paints for the duration of the gesture */
-.ux35-shell.ux35-is-resizing .ux35-sidebar,
-.ux35-shell.ux35-is-resizing .ux35-topbar,
-.ux35-shell.ux35-is-resizing .ux35-content .card,
-.ux35-shell.ux35-is-resizing .ux35-content .stat-card {
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-}
+/* Drag-resize: isolate layout cost during the gesture */
 .ux35-shell.ux35-is-resizing .ux35-sidebar {
     will-change: width;
     transition: none;
