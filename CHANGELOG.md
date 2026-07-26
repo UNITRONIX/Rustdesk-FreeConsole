@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.4.7] — 2026-07-26
+
+### Changed
 - **Console chrome dual mode:** default UI is again the classic icon rail + flyout. **UX 3.5** is available via a navbar/topbar switch (cookie `bd_ui_shell`, or `?ui=classic|ux35`). Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
 
 ### Fixed
@@ -2365,3 +2372,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.3...v3.4.4
 [3.4.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.4...v3.4.5
 [3.4.6]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.5...v3.4.6
+[3.4.7]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.6...v3.4.7
