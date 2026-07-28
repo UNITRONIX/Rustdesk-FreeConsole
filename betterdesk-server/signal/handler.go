@@ -29,6 +29,10 @@ const refuseRelayProtocolMismatch = "Protocol mismatch: WebSocket and native TCP
 // a peer that is not registered (or not enrollment-approved in managed/locked).
 const refuseInitiatorNotAuthorized = "Not authorized"
 
+// panelWebRemoteInitiatorID is the synthetic initiator id logged when PunchHole/
+// RequestRelay arrives from the Node panel WebSocket→TCP proxy (#302 Web Remote).
+const panelWebRemoteInitiatorID = "panel-web-remote"
+
 // relayTransportMismatch reports whether initiator and target use incompatible
 // relay transports (WebSocket Mode vs native TCP/UDP). Signaling may still be
 // mixed; this gate only covers the typical case where ConnType reflects the
@@ -1711,11 +1715,14 @@ func (s *Server) relayUnauthorizedResponse(relayServer string) *pb.RendezvousMes
 }
 
 // requireAuthorizedInitiator enforces that PunchHole/RequestRelay may only be
-// started by a live registered peer (#302).
+// started by a live registered peer (#302), or by the Node panel Web Remote
+// proxy (trusted PANEL_SIGNAL_PROXY_CIDRS — typically loopback).
 //
 // All enrollment modes require the initiator to be present in the in-memory
 // peer map (closes anonymous rendezvous). Managed and locked modes additionally
 // require an approved DB peer row (pending enrollment alone is not enough).
+// Panel proxy initiators skip the peer-map / DB checks: operator auth is
+// enforced at the panel WS upgrade before TCP is bridged to hbbs.
 func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID string) (string, bool) {
 	if raddr == nil {
 		return "", false
@@ -1723,6 +1730,9 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID string)
 
 	initiator := s.peers.FindByIP(raddr.IP)
 	if initiator == nil || initiator.IsExpired(config.RegTimeout) {
+		if s.cfg != nil && s.cfg.IPIsPanelSignalProxy(raddr.IP) {
+			return panelWebRemoteInitiatorID, true
+		}
 		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
 		return "", false
 	}

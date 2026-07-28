@@ -54,6 +54,37 @@ func TestShouldHonorForwardedHeaders(t *testing.T) {
 	}
 }
 
+func TestIPIsPanelSignalProxy(t *testing.T) {
+	t.Parallel()
+	cfg := DefaultConfig()
+	if !cfg.IPIsPanelSignalProxy(net.ParseIP("127.0.0.1")) {
+		t.Fatal("127.0.0.1 should match default loopback allowlist")
+	}
+	if !cfg.IPIsPanelSignalProxy(net.ParseIP("::1")) {
+		t.Fatal("::1 should match default loopback allowlist")
+	}
+	if cfg.IPIsPanelSignalProxy(net.ParseIP("198.51.100.1")) {
+		t.Fatal("public IP must not match default panel proxy allowlist")
+	}
+
+	cfg.PanelSignalProxyCIDRs = nil
+	if cfg.IPIsPanelSignalProxy(net.ParseIP("127.0.0.1")) {
+		t.Fatal("empty allowlist must reject")
+	}
+
+	nets, err := ParseTrustedProxies("10.0.0.0/8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.PanelSignalProxyCIDRs = nets
+	if !cfg.IPIsPanelSignalProxy(net.ParseIP("10.1.2.3")) {
+		t.Fatal("10.1.2.3 should match 10.0.0.0/8")
+	}
+	if cfg.IPIsPanelSignalProxy(net.ParseIP("127.0.0.1")) {
+		t.Fatal("loopback should not match custom 10.0.0.0/8-only allowlist")
+	}
+}
+
 func mustParseCIDR(t *testing.T, cidr string) *net.IPNet {
 	t.Helper()
 	_, n, err := net.ParseCIDR(cidr)
