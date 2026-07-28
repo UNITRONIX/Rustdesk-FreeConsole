@@ -3,6 +3,9 @@
 ### Changed
 - _(none yet)_
 
+### Fixed
+- **npm audit (`brace-expansion`):** override bumped to `^5.0.8` (GHSA-mh99-v99m-4gvg) so Web Console CI `npm audit --omit=dev` passes (synced from stable 3.4.2).
+
 ---
 
 ## [3.4.12] — 2026-07-26
@@ -97,7 +100,11 @@
 
 ---
 
-## [3.4.2] — 2026-07-25
+## [3.4.2] — 2026-07-28
+
+### Fixed
+- **Web Remote broken after enrollment outbound gate (#313, #302):** PunchHole/RequestRelay from the panel `/ws/rendezvous` proxy (default loopback CIDRs via `PANEL_SIGNAL_PROXY_CIDRS`) are accepted again without requiring a registered RustDesk peer. Unapproved clients and anonymous public initiators remain blocked. Ships via panel update (Go signal restart). Native/all-in-one needs no env change; Docker split console↔server must set `PANEL_SIGNAL_PROXY_CIDRS` to the console CIDR if still denied.
+- **npm audit (`brace-expansion`):** override bumped to `^5.0.8` (GHSA-mh99-v99m-4gvg) so Web Console CI `npm audit --omit=dev` passes on stable.
 
 ### Changed
 - _(none yet)_
