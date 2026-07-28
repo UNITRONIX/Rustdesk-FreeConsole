@@ -3,6 +3,13 @@
 ### Changed
 - _(none yet)_
 
+---
+
+## [3.4.13] — 2026-07-28
+
+### Changed
+- _(none yet)_
+
 ### Fixed
 - **npm audit (`brace-expansion`):** override bumped to `^5.0.8` (GHSA-mh99-v99m-4gvg) so Web Console CI `npm audit --omit=dev` passes (synced from stable 3.4.2).
 
@@ -2428,3 +2435,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.9...v3.4.10
 [3.4.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.10...v3.4.11
 [3.4.12]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.11...v3.4.12
+[3.4.13]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.12...v3.4.13
