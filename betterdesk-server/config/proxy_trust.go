@@ -64,6 +64,20 @@ func (c *Config) RemoteAddrIsTrustedProxy(remoteAddr string) bool {
 	return false
 }
 
+// IPIsPanelSignalProxy reports whether ip is in PanelSignalProxyCIDRs
+// (Node panel → hbbs TCP proxy for Web Remote). Empty allowlist → false.
+func (c *Config) IPIsPanelSignalProxy(ip net.IP) bool {
+	if c == nil || ip == nil || len(c.PanelSignalProxyCIDRs) == 0 {
+		return false
+	}
+	for _, n := range c.PanelSignalProxyCIDRs {
+		if n != nil && n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 // ShouldHonorForwardedHeaders is true only when TrustProxy is set and the
 // direct connection comes from a configured trusted proxy CIDR.
 func (c *Config) ShouldHonorForwardedHeaders(remoteAddr string) bool {

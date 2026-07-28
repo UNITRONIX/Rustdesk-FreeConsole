@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Web Remote broken after enrollment outbound gate (#313, #302):** PunchHole/RequestRelay from the panel `/ws/rendezvous` proxy (default loopback CIDRs via `PANEL_SIGNAL_PROXY_CIDRS`) are accepted again without requiring a registered RustDesk peer. Unapproved clients and anonymous public initiators remain blocked. Ships via panel update (Go signal restart). Native/all-in-one needs no env change; Docker split console↔server must set `PANEL_SIGNAL_PROXY_CIDRS` to the console CIDR if still denied.
+
 ### Changed
 - _(none yet)_
 

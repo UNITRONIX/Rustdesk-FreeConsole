@@ -75,6 +75,11 @@ type Config struct {
 	// X-Forwarded-For / X-Real-IP. Required when TrustProxy is true — empty
 	// means forwarded headers are ignored (security-first, issue #276).
 	TrustedProxies []*net.IPNet
+	// PanelSignalProxyCIDRs is the allowlist of source IPs for the Node panel
+	// WebSocket→TCP proxy (/ws/rendezvous → hbbs). Web Remote never registers
+	// as a RustDesk peer; PunchHole/RequestRelay from these CIDRs are treated
+	// as panel-authorized initiators (#302 regression fix). Default: loopback.
+	PanelSignalProxyCIDRs []*net.IPNet
 	RelayMaxConnsIP int // Max relay connections per IP (0 = unlimited)
 	InitAdminUser   string // Initial admin username (created on first start)
 	InitAdminPass   string // Initial admin password (auto-generated if empty)
@@ -152,8 +157,13 @@ type Config struct {
 	BillingRequireWorkReport  bool   // Require technician report before session close
 }
 
+// DefaultPanelSignalProxyCIDRs is the loopback allowlist for the panel→hbbs
+// TCP proxy used by Web Remote (all-in-one and same-host native installs).
+const DefaultPanelSignalProxyCIDRs = "127.0.0.0/8,::1/128"
+
 // DefaultConfig returns a Config with sensible defaults.
 func DefaultConfig() *Config {
+	panelCIDRs, _ := ParseTrustedProxies(DefaultPanelSignalProxyCIDRs)
 	return &Config{
 		SignalPort:           21116,
 		RelayPort:            21117,
@@ -167,6 +177,7 @@ func DefaultConfig() *Config {
 		ClientSessionMaxDays:    30,
 		RelayMaxConnsIP:      20,
 		EnrollmentMode:       EnrollmentModeOpen, // Backward compatible default
+		PanelSignalProxyCIDRs: panelCIDRs,
 		CDAPPort:             21122,
 		CDAPEnabled:          true, // Enabled by default; set CDAP_ENABLED=N for minimal installs
 		CDAPRateLimit:        30,
@@ -313,6 +324,17 @@ func (c *Config) LoadEnv() {
 			log.Printf("[config] TRUSTED_PROXIES parse error: %v — forwarded headers will not be honored", err)
 		} else {
 			c.TrustedProxies = nets
+		}
+	}
+	// Panel Web Remote proxy CIDRs (#302 regression). Unset keeps DefaultConfig
+	// loopback allowlist; set to override (e.g. Docker bridge when panel and Go
+	// run in separate containers).
+	if v := os.Getenv("PANEL_SIGNAL_PROXY_CIDRS"); v != "" {
+		nets, err := ParseTrustedProxies(v)
+		if err != nil {
+			log.Printf("[config] PANEL_SIGNAL_PROXY_CIDRS parse error: %v — keeping previous allowlist", err)
+		} else {
+			c.PanelSignalProxyCIDRs = nets
 		}
 	}
 	if v := os.Getenv("RELAY_MAX_CONNS_PER_IP"); v != "" {
