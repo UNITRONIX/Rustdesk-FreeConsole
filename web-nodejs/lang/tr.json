@@ -960,7 +960,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Yeniden dene"
+        "retry": "Yeniden dene",
+        "show_value": "Göster",
+        "hide_value": "Gizle"
     },
     "time": {
         "just_now": "Just now",

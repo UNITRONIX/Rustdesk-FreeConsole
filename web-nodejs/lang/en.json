@@ -975,7 +975,9 @@
         "view_all": "View All",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Retry"
+        "retry": "Retry",
+        "show_value": "Show",
+        "hide_value": "Hide"
     },
     "time": {
         "just_now": "Just now",

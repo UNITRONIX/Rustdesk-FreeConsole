@@ -954,7 +954,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "다시 시도"
+        "retry": "다시 시도",
+        "show_value": "표시",
+        "hide_value": "숨기기"
     },
     "time": {
         "just_now": "Just now",

@@ -960,7 +960,9 @@
         "cdap_viewer": "CDAP Snapshot-visning",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Försök igen"
+        "retry": "Försök igen",
+        "show_value": "Visa",
+        "hide_value": "Dölj"
     },
     "time": {
         "just_now": "Just now",

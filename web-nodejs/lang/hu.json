@@ -960,7 +960,9 @@
         "cdap_viewer": "CDAP Snapshot nézető",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Újra"
+        "retry": "Újra",
+        "show_value": "Megjelenítés",
+        "hide_value": "Elrejtés"
     },
     "time": {
         "just_now": "Just now",

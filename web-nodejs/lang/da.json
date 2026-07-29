@@ -960,7 +960,9 @@
         "cdap_viewer": "CDAP Snapshot-visning",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Prøv igen"
+        "retry": "Prøv igen",
+        "show_value": "Vis",
+        "hide_value": "Skjul"
     },
     "time": {
         "just_now": "Just now",

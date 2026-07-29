@@ -954,7 +954,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Toevoegen",
         "remove": "Verwijderen",
-        "retry": "Opnieuw"
+        "retry": "Opnieuw",
+        "show_value": "Tonen",
+        "hide_value": "Verbergen"
     },
     "time": {
         "just_now": "Zojuist",

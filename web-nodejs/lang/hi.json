@@ -960,7 +960,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "पुनः प्रयास"
+        "retry": "पुनः प्रयास",
+        "show_value": "दिखाएँ",
+        "hide_value": "छिपाएँ"
     },
     "time": {
         "just_now": "Just now",

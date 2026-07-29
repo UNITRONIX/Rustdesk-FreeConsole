@@ -960,7 +960,9 @@
         "cdap_viewer": "Vizualizator Snapshot CDAP",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Reîncearcă"
+        "retry": "Reîncearcă",
+        "show_value": "Afișează",
+        "hide_value": "Ascunde"
     },
     "time": {
         "just_now": "Just now",

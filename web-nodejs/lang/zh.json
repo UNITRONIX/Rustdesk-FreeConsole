@@ -954,7 +954,9 @@
         "add": "添加",
         "remove": "移除",
         "cdap_viewer": "CDAP Snapshot Viewer",
-        "retry": "重试"
+        "retry": "重试",
+        "show_value": "显示",
+        "hide_value": "隐藏"
     },
     "time": {
         "just_now": "刚刚",

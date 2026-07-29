@@ -19,10 +19,13 @@
                 </div>
                 <div class="key-card-body">
                     <div class="public-key-display">
-                        <code class="public-key-text" id="public-key-text">
+                        <code class="public-key-text is-masked" id="public-key-text">
                             <span class="skeleton skeleton-text" style="width: 100%;"></span>
                         </code>
-                        <button class="public-key-copy" id="copy-key-btn" title="${_('actions.copy')}">
+                        <button type="button" class="public-key-reveal" id="reveal-key-btn" title="${_('actions.show_value')}" aria-label="${_('actions.show_value')} ${_('keys.public_key')}" aria-pressed="false">
+                            <span class="material-icons">visibility</span>
+                        </button>
+                        <button type="button" class="public-key-copy" id="copy-key-btn" title="${_('actions.copy')}" aria-label="${_('actions.copy')} ${_('keys.public_key')}">
                             <span class="material-icons">content_copy</span>
                         </button>
                     </div>

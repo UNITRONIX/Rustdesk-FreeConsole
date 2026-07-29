@@ -960,7 +960,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Thử lại"
+        "retry": "Thử lại",
+        "show_value": "Hiện",
+        "hide_value": "Ẩn"
     },
     "time": {
         "just_now": "Just now",

@@ -971,7 +971,9 @@
         "view_all": "查看全部",
         "add": "添加",
         "remove": "移除",
-        "retry": "重試"
+        "retry": "重試",
+        "show_value": "顯示",
+        "hide_value": "隱藏"
     },
     "time": {
         "just_now": "剛剛",

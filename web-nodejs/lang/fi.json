@@ -960,7 +960,9 @@
         "cdap_viewer": "CDAP Snapshot -katseluohjelma",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Yritä uudelleen"
+        "retry": "Yritä uudelleen",
+        "show_value": "Näytä",
+        "hide_value": "Piilota"
     },
     "time": {
         "just_now": "Just now",

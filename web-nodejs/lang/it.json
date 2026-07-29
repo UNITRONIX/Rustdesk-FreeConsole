@@ -954,7 +954,9 @@
         "cdap_viewer": "Visualizzatore snapshot CDAP",
         "add": "Aggiungi",
         "remove": "Rimuovi",
-        "retry": "Riprova"
+        "retry": "Riprova",
+        "show_value": "Mostra",
+        "hide_value": "Nascondi"
     },
     "time": {
         "just_now": "Proprio ora",

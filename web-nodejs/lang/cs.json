@@ -954,7 +954,9 @@
         "cdap_viewer": "Prohlížeč snímků CDAP",
         "add": "Přidat",
         "remove": "Odebrat",
-        "retry": "Zkusit znovu"
+        "retry": "Zkusit znovu",
+        "show_value": "Zobrazit",
+        "hide_value": "Skrýt"
     },
     "time": {
         "just_now": "Právě teď",

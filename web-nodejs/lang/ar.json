@@ -961,7 +961,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "إعادة المحاولة"
+        "retry": "إعادة المحاولة",
+        "show_value": "إظهار",
+        "hide_value": "إخفاء"
     },
     "time": {
         "just_now": "Just now",

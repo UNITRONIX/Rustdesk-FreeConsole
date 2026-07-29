@@ -960,7 +960,9 @@
         "cdap_viewer": "Переглядач знімків CDAP",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Повторити"
+        "retry": "Повторити",
+        "show_value": "Показати",
+        "hide_value": "Сховати"
     },
     "time": {
         "just_now": "Just now",

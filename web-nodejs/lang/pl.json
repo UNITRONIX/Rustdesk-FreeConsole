@@ -967,7 +967,9 @@
         "view_all": "Zobacz wszystkie",
         "add": "Dodaj",
         "remove": "Usuń",
-        "retry": "Ponów"
+        "retry": "Ponów",
+        "show_value": "Pokaż",
+        "hide_value": "Ukryj"
     },
     "time": {
         "just_now": "Przed chwilą",

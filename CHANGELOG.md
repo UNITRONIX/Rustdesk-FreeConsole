@@ -1,12 +1,13 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- **Client Configuration public key masked by default (#319):** Dashboard and Keys page show the KEY as bullets until revealed via an eye toggle; Copy still pastes the raw key. Ships via panel update.
 
 ### Fixed
 - **Enrollment Requests UI (#320):** search icon no longer overlaps the placeholder; row dividers stay continuous under Platform/Actions (`display:flex` moved off `<td>`); Platform/Version/Status/Requested/Actions columns centered. Ships via panel update.
 - **MeshAgent `bad web cert hash` behind reverse proxy (#321):** PEM-aware `WebCertHash` (first `CERTIFICATE` SPKI SHA-384) and optional `MESH_WEB_CERT_FILE` for the public TLS cert agents see (e.g. NPM Let's Encrypt), independent of Go `TLS_CERT`. Ships via panel update (Go restart). Verify: mount LE fullchain → set `MESH_WEB_CERT_FILE` → agent registers without web-hash mismatch.
 - **Devices kebab Unban called Ban (#323):** kebab menu passed boolean `device.banned` while the handler only treated the string `'true'` as banned, so Unban opened the Ban modal and POSTed `/ban`. Both boolean and dataset string are accepted now. Ships via panel update.
+- **Client Configuration light theme contrast (#319):** replaced hardcoded dark `rgba(13,17,23,…)` panels with theme tokens (`--bg-tertiary` / `--bg-secondary`) so labels and endpoints stay readable in Light Theme. Ships via panel update.
 
 ---
 

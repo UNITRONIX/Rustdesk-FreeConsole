@@ -954,7 +954,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "再試行"
+        "retry": "再試行",
+        "show_value": "表示",
+        "hide_value": "非表示"
     },
     "time": {
         "just_now": "Just now",

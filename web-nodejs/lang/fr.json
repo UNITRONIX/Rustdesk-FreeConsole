@@ -971,7 +971,9 @@
         "view_all": "Tout afficher",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Réessayer"
+        "retry": "Réessayer",
+        "show_value": "Afficher",
+        "hide_value": "Masquer"
     },
     "time": {
         "just_now": "à l'instant",
