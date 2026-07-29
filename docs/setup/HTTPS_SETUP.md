@@ -302,8 +302,15 @@ Notes:
 
 - Build or configure RustDesk clients with `allow-websocket=Y` when you want the
     native client to use WSS instead of TCP/UDP signaling.
-- Do not point `/ws/id` or `/ws/relay` at the console port (`5000`). These paths
-    must reach the Go server ports `21118` and `21119`.
+- Do not point `/ws/id` or `/ws/relay` at the console port (`5000`) **on the
+    RustDesk ID/relay hostname**. Those paths must reach Go `:21118` / `:21119`.
+- **Console / Web Remote hostname:** keep `/ws/rendezvous` and `/ws/relay` on
+    `:5000`. Putting `location = /ws/relay` → `:21119` on the **same** host as
+    the panel steals Web Remote’s relay path ([#314](https://github.com/UNITRONIX/BetterDesk/issues/314)).
+    Prefer a separate `desk.example.com` for native WSS (see [REVERSE_PROXY.md](REVERSE_PROXY.md)).
+- Perimeter nginx: use `http://LAN_IP:…` upstreams (not `https://`) unless
+    Enterprise TLS is enabled on Go; set `TRUST_PROXY=Y` and
+    `TRUSTED_PROXIES=<proxy-LAN-IP>/32`.
 - Keep these as exact `location = ...` entries when your server block also has a
     generic console `location ~ ^/ws/` rule.
 - Keep `proxy_read_timeout` above 60 seconds. RustDesk expects long-lived signal

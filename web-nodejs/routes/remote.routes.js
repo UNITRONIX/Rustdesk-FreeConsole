@@ -192,6 +192,8 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async 
     let isMeshAgent = false;
     let meshConnected = false;
     let goPeer = null;
+    /** @type {string} Live RustDesk signal ConnType: ws|tcp|udp|'' (#314) */
+    let rdConnType = '';
     try {
         const api = require('../services/betterdeskApi');
         goPeer = await api.getPeer(deviceId);
@@ -201,6 +203,13 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async 
             isMeshAgent = String(goPeer.device_type || '').toLowerCase() === 'mesh_agent';
             meshConnected = !!goPeer.mesh_connected;
         }
+        try {
+            const status = await api.getPeerStatus(deviceId);
+            const snap = status && status.success && status.data && status.data.snapshot;
+            if (snap && snap.conn_type) {
+                rdConnType = String(snap.conn_type).toLowerCase();
+            }
+        } catch { /* non-fatal: default native TCP Web Remote path */ }
     } catch { /* non-fatal: degrade to standard viewer */ }
 
     const forced = String(req.query.transport || '').toLowerCase();
@@ -221,6 +230,7 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async 
         cdap_connected: isCdapConnected,
         mesh_connected: meshConnected,
         device_type: goPeer && goPeer.device_type ? String(goPeer.device_type) : '',
+        rd_conn_type: rdConnType,
         mesh_share: req.meshShareGrant ? true : false,
         mesh_view_only: req.meshShareGrant && req.meshShareGrant.view_only ? true : false,
         guest_access: !!req.guestGrant,

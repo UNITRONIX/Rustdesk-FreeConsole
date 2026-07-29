@@ -24,6 +24,7 @@ class RDClient {
      * @param {boolean} [opts.disableAudio=false]
      * @param {number} [opts.fps=30]
      * @param {string} [opts.scaleMode='fit']
+     * @param {'native'|'ws'} [opts.rdTransport='native'] - Match target peer ConnType (#314)
      */
     constructor(canvas, opts = {}) {
         if (!canvas) throw new Error('Canvas element required');
@@ -31,10 +32,13 @@ class RDClient {
 
         this.deviceId = opts.deviceId;
         this.opts = opts;
+        /** @type {'native'|'ws'} */
+        this.rdTransport = opts.rdTransport === 'ws' ? 'ws' : 'native';
 
         // Sub-modules
-        this.conn = new RDConnection();
+        this.conn = new RDConnection({ rdTransport: this.rdTransport });
         this.proto = new RDProtocol();
+        this.proto.setTransportMode(this.rdTransport);
         this.crypto = new RDCrypto();
         this.video = new RDVideo();
         this.audio = new RDAudio();
@@ -148,9 +152,12 @@ class RDClient {
                 this._emit('log', 'WebCodecs unavailable, using software fallback');
             }
 
-            // Step 3: Create stream decoders for TCP frame reassembly
+            // Step 3: Stream decoders for TCP BytesCodec reassembly (unused in WS Mode)
             this._rendezvousDecoder = this.proto.createStreamDecoder();
             this._relayDecoder = this.proto.createStreamDecoder();
+            if (this.rdTransport === 'ws') {
+                this._emit('log', 'Using WebSocket Mode path (target ConnWS)…');
+            }
 
             // Step 4: Connect to rendezvous server via WS proxy
             this._emit('log', 'Connecting to rendezvous server...');
@@ -280,7 +287,8 @@ class RDClient {
                 deviceId: this.deviceId,
                 serverPubKey: this.opts.serverPubKey || '',
                 myName: this.opts.myName || 'BetterDesk Web',
-                proto: this.proto
+                proto: this.proto,
+                rdTransport: this.rdTransport
             });
             this._fileConnection.on('file_response', (resp) => {
                 this.fileTransfer.handleFileResponse(resp);
@@ -420,8 +428,8 @@ class RDClient {
             }, 30000);
 
             const handler = (rawData) => {
-                // Decode frames from raw TCP data via stream decoder
-                const frames = this._rendezvousDecoder.feed(rawData);
+                // Native: BytesCodec stream. WS Mode: one WS message = one protobuf.
+                const frames = this.proto.framesFromWsPayload(rawData, this._rendezvousDecoder);
                 if (frames.length === 0) return; // Incomplete frame, wait for more data
 
                 // Process ALL decoded frames — the first may be a KeyExchange
@@ -540,7 +548,7 @@ class RDClient {
             }, 15000);
 
             const handler = (rawData) => {
-                const frames = this._rendezvousDecoder.feed(rawData);
+                const frames = this.proto.framesFromWsPayload(rawData, this._rendezvousDecoder);
                 if (frames.length === 0) return;
 
                 for (const frame of frames) {
@@ -592,11 +600,12 @@ class RDClient {
     }
 
     /**
-     * Handle raw incoming relay data (TCP chunks via WebSocket)
-     * Uses stream decoder for frame reassembly, then dispatches each complete message.
+     * Handle raw incoming relay data.
+     * Native TCP: BytesCodec stream reassembly.
+     * WS Mode: one WebSocket binary message = one application frame (#314).
      *
-     * After hbbr pairs both peers (by UUID), the relay operates in raw mode — just
-     * bridging TCP bytes. However, the FIRST framed message from hbbr is a
+     * After hbbr pairs both peers (by UUID), the relay operates in raw mode —
+     * bridging bytes/frames. The FIRST message from hbbr is often a
      * RendezvousMessage.RelayResponse confirmation (not a peer Message).
      * We detect and skip it, then process all subsequent frames as peer Messages.
      *
@@ -604,7 +613,7 @@ class RDClient {
      */
     _handleRelayData(rawData) {
         try {
-            const frames = this._relayDecoder.feed(rawData);
+            const frames = this.proto.framesFromWsPayload(rawData, this._relayDecoder);
             for (const frame of frames) {
                 this._handleRelayMessage(frame);
             }
@@ -1359,7 +1368,7 @@ class RDClient {
 
     /**
      * Send a peer-to-peer message through the relay
-     * Order: serialize protobuf → encrypt (if enabled) → frame → send
+     * Order: serialize protobuf → encrypt (if enabled) → frame (native only) → send
      * @param {Object} msgObj - Message object (will be encoded as Message protobuf)
      */
     _sendPeerMessage(msgObj) {
@@ -1373,7 +1382,7 @@ class RDClient {
             data = this.crypto.processOutgoing(data);
         }
 
-        // Step 3: Add frame header to the (possibly encrypted) bytes
+        // Step 3: BytesCodec header in native mode; raw bytes in WS Mode
         const framed = this.proto.frameBytes(data);
 
         // Step 4: Send over relay WebSocket

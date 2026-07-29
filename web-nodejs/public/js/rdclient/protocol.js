@@ -14,6 +14,24 @@ class RDProtocol {
         this.types = {};
         /** @type {boolean} */
         this.loaded = false;
+        /**
+         * 'native' = BytesCodec length-prefix (TCP hbbs/hbbr via panel tunnel).
+         * 'ws' = one raw protobuf per WebSocket binary frame (Go :21118/:21119).
+         * @type {'native'|'ws'}
+         */
+        this.transportMode = 'native';
+    }
+
+    /**
+     * @param {'native'|'ws'} mode
+     */
+    setTransportMode(mode) {
+        this.transportMode = mode === 'ws' ? 'ws' : 'native';
+    }
+
+    /** @returns {boolean} */
+    isWsMode() {
+        return this.transportMode === 'ws';
     }
 
     /**
@@ -95,12 +113,14 @@ class RDProtocol {
     // ---- Encoding helpers ----
 
     /**
-     * Encode a RendezvousMessage with RustDesk variable-length frame header
-     * (used for direct rendezvous communication, no encryption)
+     * Encode a RendezvousMessage.
+     * Native TCP mode: BytesCodec length-prefix.
+     * WS Mode: raw protobuf bytes (one WS binary frame = one message).
      */
     encodeRendezvous(msgObj) {
         const msg = this.types.RendezvousMessage.create(msgObj);
         const buf = this.types.RendezvousMessage.encode(msg).finish();
+        if (this.isWsMode()) return buf;
         return this._encodeFrame(buf);
     }
 
@@ -121,20 +141,40 @@ class RDProtocol {
     }
 
     /**
-     * Encode a Message (peer-to-peer) with RustDesk variable-length frame header
-     * (used when no encryption is active)
+     * Encode a Message (peer-to-peer).
+     * Native: BytesCodec header; WS Mode: raw protobuf.
      */
     encodeMessage(msgObj) {
-        return this._encodeFrame(this.serializeMessage(msgObj));
+        const raw = this.serializeMessage(msgObj);
+        if (this.isWsMode()) return raw;
+        return this._encodeFrame(raw);
     }
 
     /**
-     * Add frame header to raw bytes (e.g. after encryption)
+     * Add frame header to raw bytes (e.g. after encryption).
+     * In WS Mode returns bytes unchanged (message boundary = WS frame).
      * @param {Uint8Array} rawBytes
      * @returns {Uint8Array}
      */
     frameBytes(rawBytes) {
+        if (this.isWsMode()) return rawBytes;
         return this._encodeFrame(rawBytes);
+    }
+
+    /**
+     * Normalize a WebSocket binary payload to Uint8Array frames.
+     * Native: feed BytesCodec stream decoder. WS: one message = one frame.
+     * @param {ArrayBuffer|Uint8Array} rawData
+     * @param {{ feed: (data: ArrayBuffer|Uint8Array) => Uint8Array[] }|null} streamDecoder
+     * @returns {Uint8Array[]}
+     */
+    framesFromWsPayload(rawData, streamDecoder) {
+        if (this.isWsMode()) {
+            const u8 = rawData instanceof Uint8Array ? rawData : new Uint8Array(rawData);
+            return u8.length ? [u8] : [];
+        }
+        if (!streamDecoder) return [];
+        return streamDecoder.feed(rawData);
     }
 
     /**

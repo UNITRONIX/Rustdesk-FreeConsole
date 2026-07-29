@@ -4,6 +4,7 @@
 - _(none yet)_
 
 ### Fixed
+- **Web Remote ↔ WebSocket Mode agents (#314):** when a live peer has `conn_type=ws`, Web Remote uses panel WS→WS bridging to Go `:21118`/`:21119` with raw-protobuf framing (no BytesCodec), avoiding `protocol mismatch (tcp vs ws)`. Docs clarify perimeter nginx (`http://` upstreams, split console vs desk hostnames, `TRUSTED_PROXIES`). Ships via panel update.
 - **npm audit (`brace-expansion`):** override bumped to `^5.0.8` (GHSA-mh99-v99m-4gvg) so Web Console CI `npm audit --omit=dev` passes (synced from stable 3.4.2).
 
 ---

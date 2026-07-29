@@ -150,6 +150,9 @@
         const activeFps = typeof Prefs.getActiveFpsForQuality === 'function'
             ? Prefs.getActiveFpsForQuality(prefs.quality)
             : 60;
+        // Match Web Remote framing to live peer ConnType (ws vs native TCP) — #314
+        const caps = window.__capabilities || {};
+        const rdTransport = String(caps.rd_conn_type || '').toLowerCase() === 'ws' ? 'ws' : 'native';
         return {
             deviceId: session.deviceId,
             serverPubKey: window.BetterDesk.serverPubKey || '',
@@ -164,6 +167,7 @@
             preferCodec: prefs.codec || 'Auto',
             disableAudio: false,
             serverRecord: session.meshServerRecord || false,
+            rdTransport,
         };
     }
 

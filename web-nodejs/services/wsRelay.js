@@ -1,14 +1,18 @@
 /**
  * BetterDesk Console - WebSocket Relay Proxy
- * Bridges browser WebSocket connections to TCP connections for hbbs/hbbr
- * 
+ * Bridges browser WebSocket connections to hbbs/hbbr.
+ *
  * Provides two WebSocket endpoints:
- *   /ws/rendezvous - proxies to hbbs TCP (port 21116)
- *   /ws/relay      - proxies to hbbr TCP (port 21117)
- * 
+ *   /ws/rendezvous - proxies to hbbs TCP (port 21116) or Go WSS (21118) when rdTransport=ws
+ *   /ws/relay      - proxies to hbbr TCP (port 21117) or Go WSS (21119) when rdTransport=ws
+ *
  * IMPORTANT: hbbr treats loopback TCP connections as admin command interface
- * (relay_server.rs: `if !ws && ip.is_loopback()`). The relay proxy must
+ * (relay_server.rs: `if !ws && ip.is_loopback()`). The TCP relay proxy must
  * connect via a non-loopback IP so hbbr handles it as a relay request.
+ *
+ * WebSocket Mode agents (allow-websocket=Y) use ConnWS on :21118/:21119 with
+ * raw protobuf per WS frame (no BytesCodec). Web Remote must bridge WS→WS for
+ * those targets (#314); mixing TCP and WS relay is rejected (#290).
  */
 
 const WebSocket = require('ws');
@@ -53,6 +57,19 @@ function getNonLoopbackIp() {
         }
     }
     return null;
+}
+
+/**
+ * @param {http.IncomingMessage} req
+ * @returns {boolean}
+ */
+function wantsWsTransport(req) {
+    try {
+        const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+        return String(url.searchParams.get('rdTransport') || '').toLowerCase() === 'ws';
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -170,10 +187,13 @@ function initWsProxy(server, sessionMiddleware) {
     const hbbsPort = config.wsProxy?.hbbsPort || 21116;
     let hbbrHost = config.wsProxy?.hbbrHost || 'localhost';
     const hbbrPort = config.wsProxy?.hbbrPort || 21117;
+    const wsUpstreamTls = /^(1|true|yes|y)$/i.test(String(process.env.WS_UPSTREAM_TLS || ''));
+    const wsScheme = wsUpstreamTls ? 'wss' : 'ws';
 
     // CRITICAL: hbbr treats loopback TCP connections as admin command interface
     // and will NOT process relay requests from 127.0.0.0/8.
     // If hbbrHost is loopback, replace with the machine's non-loopback IP.
+    // (WS Mode upstream to :21119 does not use this TCP admin path.)
     if (isLoopbackHost(hbbrHost)) {
         const nonLoopback = getNonLoopbackIp();
         if (nonLoopback) {
@@ -186,36 +206,181 @@ function initWsProxy(server, sessionMiddleware) {
 
     // Rendezvous connections
     rendezvousWss.on('connection', (ws, req) => {
+        if (wantsWsTransport(req)) {
+            const url = `${wsScheme}://${hbbsHost}:${hbbsPort + 2}/ws/id`;
+            handleWsBridge(ws, req, url, 'rendezvous-ws');
+            return;
+        }
         handleProxyConnection(ws, req, hbbsHost, hbbsPort, 'rendezvous');
     });
 
     // Relay connections
     relayWss.on('connection', (ws, req) => {
+        if (wantsWsTransport(req)) {
+            // Prefer configured hbbr host; for WS Mode loopback is fine (no TCP admin gate).
+            const wsRelayHost = config.wsProxy?.hbbrHost || 'localhost';
+            const url = `${wsScheme}://${wsRelayHost}:${hbbrPort + 2}/ws/relay`;
+            handleWsBridge(ws, req, url, 'relay-ws');
+            return;
+        }
         handleProxyConnection(ws, req, hbbrHost, hbbrPort, 'relay');
     });
 
-    console.log(`  WebSocket proxy: /ws/rendezvous -> ${hbbsHost}:${hbbsPort}`);
-    console.log(`  WebSocket proxy: /ws/relay -> ${hbbrHost}:${hbbrPort}`);
+    console.log(`  WebSocket proxy: /ws/rendezvous -> ${hbbsHost}:${hbbsPort} (TCP) / :${hbbsPort + 2} (WS)`);
+    console.log(`  WebSocket proxy: /ws/relay -> ${hbbrHost}:${hbbrPort} (TCP) / :${hbbrPort + 2} (WS)`);
 
     return { rendezvousWss, relayWss };
 }
 
 /**
- * Handle a single proxied WebSocket connection
+ * Acquire a connection slot for rate limiting. Returns client IP or null if rejected.
+ * @param {http.IncomingMessage} req
+ * @param {WebSocket} ws
+ * @param {string} label
+ * @returns {string|null}
  */
-function handleProxyConnection(ws, req, targetHost, targetPort, label) {
+function acquireConnectionSlot(req, ws, label) {
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
         || req.socket.remoteAddress
         || 'unknown';
 
-    // Rate limit connections per IP
     const currentCount = connectionsPerIp.get(clientIp) || 0;
     if (currentCount >= MAX_CONNECTIONS_PER_IP) {
         console.warn(`WS proxy [${label}]: Connection limit reached for ${clientIp}`);
         ws.close(1008, 'Too many connections');
-        return;
+        return null;
     }
     connectionsPerIp.set(clientIp, currentCount + 1);
+    return clientIp;
+}
+
+/**
+ * Release a connection slot.
+ * @param {string} clientIp
+ */
+function releaseConnectionSlot(clientIp) {
+    const count = connectionsPerIp.get(clientIp) || 1;
+    if (count <= 1) {
+        connectionsPerIp.delete(clientIp);
+    } else {
+        connectionsPerIp.set(clientIp, count - 1);
+    }
+}
+
+/**
+ * Bridge browser WebSocket ↔ Go WebSocket (one binary frame in = one out).
+ * Used when the target peer is ConnWS (#314).
+ *
+ * @param {WebSocket} ws - browser side
+ * @param {http.IncomingMessage} req
+ * @param {string} upstreamUrl - e.g. ws://127.0.0.1:21118/ws/id
+ * @param {string} label
+ */
+function handleWsBridge(ws, req, upstreamUrl, label) {
+    const clientIp = acquireConnectionSlot(req, ws, label);
+    if (!clientIp) return;
+
+    let idleTimer = null;
+    const resetIdleTimer = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+            console.log(`WS proxy [${label}]: Idle timeout for ${clientIp}`);
+            cleanup();
+        }, IDLE_TIMEOUT_MS);
+    };
+
+    const upstreamOpts = {};
+    if (upstreamUrl.startsWith('wss://') && config.allowSelfSignedCerts) {
+        upstreamOpts.rejectUnauthorized = false;
+    }
+
+    const upstream = new WebSocket(upstreamUrl, upstreamOpts);
+    upstream.binaryType = 'nodebuffer';
+
+    /** @type {Array<{data: any, binary: boolean}>} */
+    const pendingToUpstream = [];
+    let upstreamOpen = false;
+
+    let cleaned = false;
+    function cleanup() {
+        if (cleaned) return;
+        cleaned = true;
+        if (idleTimer) clearTimeout(idleTimer);
+        pendingToUpstream.length = 0;
+        try {
+            if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
+                upstream.close();
+            }
+        } catch (_e) { /* ignore */ }
+        try {
+            if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+                ws.close();
+            }
+        } catch (_e) { /* ignore */ }
+        releaseConnectionSlot(clientIp);
+    }
+
+    function sendToUpstream(data, isBinary) {
+        const binary = !!(isBinary || Buffer.isBuffer(data) || data instanceof ArrayBuffer);
+        if (!upstreamOpen || upstream.readyState !== WebSocket.OPEN) {
+            pendingToUpstream.push({ data, binary });
+            return;
+        }
+        upstream.send(data, { binary });
+    }
+
+    upstream.on('open', () => {
+        upstreamOpen = true;
+        resetIdleTimer();
+        while (pendingToUpstream.length > 0) {
+            const item = pendingToUpstream.shift();
+            if (upstream.readyState === WebSocket.OPEN) {
+                upstream.send(item.data, { binary: item.binary });
+            }
+        }
+    });
+
+    upstream.on('message', (data, isBinary) => {
+        resetIdleTimer();
+        if (ws.readyState !== WebSocket.OPEN) return;
+        // Preserve binary message boundaries (critical for WS Mode / #293).
+        if (isBinary || Buffer.isBuffer(data) || data instanceof ArrayBuffer) {
+            ws.send(data, { binary: true });
+        } else {
+            ws.send(data);
+        }
+    });
+
+    upstream.on('error', (err) => {
+        console.error(`WS proxy [${label}]: upstream error (${upstreamUrl}):`, err.message);
+        cleanup();
+    });
+
+    upstream.on('close', () => {
+        cleanup();
+    });
+
+    ws.on('message', (data, isBinary) => {
+        resetIdleTimer();
+        sendToUpstream(data, isBinary);
+    });
+
+    ws.on('close', () => {
+        cleanup();
+    });
+
+    ws.on('error', (err) => {
+        console.error(`WS proxy [${label}]: WebSocket error:`, err.message);
+        cleanup();
+    });
+}
+
+/**
+ * Handle a single proxied WebSocket → TCP connection (native TCP/UDP agents).
+ */
+function handleProxyConnection(ws, req, targetHost, targetPort, label) {
+    const clientIp = acquireConnectionSlot(req, ws, label);
+    if (!clientIp) return;
 
     // Idle timeout
     let idleTimer = null;
@@ -282,14 +447,8 @@ function handleProxyConnection(ws, req, targetHost, targetPort, label) {
             ws.close();
         }
 
-        // Decrement connection counter
-        const count = connectionsPerIp.get(clientIp) || 1;
-        if (count <= 1) {
-            connectionsPerIp.delete(clientIp);
-        } else {
-            connectionsPerIp.set(clientIp, count - 1);
-        }
+        releaseConnectionSlot(clientIp);
     }
 }
 
-module.exports = { initWsProxy };
+module.exports = { initWsProxy, wantsWsTransport, handleWsBridge };

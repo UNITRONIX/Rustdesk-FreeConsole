@@ -2,6 +2,9 @@
  * BetterDesk Web Remote Client - Connection Manager
  * Handles WebSocket connections to hbbs (rendezvous) and hbbr (relay)
  * via the Node.js WS proxy endpoints.
+ *
+ * When opts.rdTransport === 'ws', appends ?rdTransport=ws so the panel
+ * bridges to Go WSS (:21118/:21119) for WebSocket Mode agents (#314).
  */
 
 // eslint-disable-next-line no-unused-vars
@@ -9,11 +12,14 @@ class RDConnection {
     /**
      * @param {Object} opts
      * @param {string} opts.baseUrl  - Base URL of the BetterDesk server (auto-detected)
+     * @param {'native'|'ws'} [opts.rdTransport='native'] - Panel bridge mode
      */
     constructor(opts = {}) {
         const loc = window.location;
         const wsProtocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
         this.wsBase = opts.baseUrl || `${wsProtocol}//${loc.host}`;
+        /** @type {'native'|'ws'} */
+        this.rdTransport = opts.rdTransport === 'ws' ? 'ws' : 'native';
 
         /** @type {WebSocket|null} */
         this.rendezvousWs = null;
@@ -27,16 +33,29 @@ class RDConnection {
     get state() { return this._state; }
 
     /**
-     * Guest Access Link token for WS auth (?guest=) — do not rely only on cookie.
-     * @returns {string}
+     * Query string for WS auth (?guest=) and optional rdTransport=ws.
+     * @returns {string} empty or "?…"
      */
-    _guestQuerySuffix() {
+    _wsQuerySuffix() {
+        const params = new URLSearchParams();
         try {
             const q = new URLSearchParams(window.location.search);
             const token = q.get('guest') || q.get('t') || window.__guestToken || '';
-            if (token) return `?guest=${encodeURIComponent(token)}`;
+            if (token) params.set('guest', token);
         } catch (_) { /* ignore */ }
-        return '';
+        if (this.rdTransport === 'ws') {
+            params.set('rdTransport', 'ws');
+        }
+        const s = params.toString();
+        return s ? `?${s}` : '';
+    }
+
+    /**
+     * @deprecated use _wsQuerySuffix
+     * @returns {string}
+     */
+    _guestQuerySuffix() {
+        return this._wsQuerySuffix();
     }
 
     // ---- Event emitter ----
@@ -67,7 +86,7 @@ class RDConnection {
     connectRendezvous() {
         return new Promise((resolve, reject) => {
             this._setState('rendezvous');
-            const url = `${this.wsBase}/ws/rendezvous${this._guestQuerySuffix()}`;
+            const url = `${this.wsBase}/ws/rendezvous${this._wsQuerySuffix()}`;
 
             const ws = new WebSocket(url);
             ws.binaryType = 'arraybuffer';
@@ -123,7 +142,7 @@ class RDConnection {
     connectRelay() {
         return new Promise((resolve, reject) => {
             this._setState('relay');
-            const url = `${this.wsBase}/ws/relay${this._guestQuerySuffix()}`;
+            const url = `${this.wsBase}/ws/relay${this._wsQuerySuffix()}`;
 
             const ws = new WebSocket(url);
             ws.binaryType = 'arraybuffer';

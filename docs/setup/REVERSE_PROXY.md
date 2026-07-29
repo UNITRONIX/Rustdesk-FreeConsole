@@ -189,6 +189,31 @@ Critical rules:
 1. **`location = /ws/id` and `location = /ws/relay`** must appear **before** generic `location ~ ^/ws/` (panel routes).
 2. Set `proxy_set_header X-Forwarded-Proto $scheme` and `X-Forwarded-For`.
 3. Use `proxy_buffering off` and long `proxy_read_timeout` for `/ws/` paths (86400s for web remote).
+4. Upstream scheme is **`http://`** to BetterDesk (TLS terminates at nginx). Do **not** use `https://` to `:21118`/`:21119` unless Enterprise TLS is enabled on Go.
+
+### Perimeter / remote nginx (proxy not on the BetterDesk host)
+
+Use the BetterDesk **LAN IP** in `proxy_pass` and set:
+
+```env
+HOST=0.0.0.0
+TRUST_PROXY=Y
+TRUSTED_PROXIES=<perimeter-nginx-LAN-IP>/32
+```
+
+### Path collision: panel hostname vs RustDesk WSS hostname
+
+Web Remote (browser) uses panel paths `/ws/rendezvous` and `/ws/relay` on **`:5000`**.  
+RustDesk native WebSocket Mode uses `/ws/id` → `:21118` and `/ws/relay` → `:21119`.
+
+**Do not** put `location /ws/relay` → Go `:21119` on the **same** hostname as the console panel. That steals Web Remote’s relay tunnel. Prefer:
+
+| Hostname | Routes |
+|----------|--------|
+| `console.example.com` | `/` and all `/ws/*` (including `/ws/rendezvous`, `/ws/relay`) → `:5000` |
+| `desk.example.com` (optional) | `= /ws/id` → `http://LAN:21118`, `= /ws/relay` → `http://LAN:21119` |
+
+After panel update, Web Remote auto-selects a WS Mode path when the live peer `conn_type` is `ws` ([#314](https://github.com/UNITRONIX/BetterDesk/issues/314)); the console host must still keep `/ws/relay` on `:5000`.
 
 ---
 
@@ -261,9 +286,10 @@ BetterDesk LE files under `/opt/rustdesk/ssl/` are unused in external-proxy mode
 | Login redirect loop | `TRUST_PROXY` off or wrong | Set `TRUST_PROXY=Y`; ensure proxy sends `X-Forwarded-Proto: https` |
 | Session cookie not set | Same as above | Caddy/Nginx must forward `X-Forwarded-Proto` |
 | Web Remote stuck on "requesting connection" | WebSocket not upgraded | Enable WebSockets in proxy; `proxy_buffering off` on `/ws/` |
+| Web Remote `protocol mismatch (tcp vs ws)` | Agents use `allow-websocket=Y` while panel routed to TCP only (pre-fix) or nginx stole `/ws/relay` | Update panel (#314 WS Mode path); on console host keep `/ws/relay` → `:5000`; optional: disable WebSocket Mode on agents |
 | WSS `401` / `403` on `/ws/id` | Routed to panel `:5000` instead of Go | Use exact `/ws/id` → `:21118` before catch-all |
 | `AlertReceived(UnrecognisedName)` | TLS cert hostname mismatch | Fix cert on proxy for client hostname |
-| Double TLS / protocol error | Proxy uses `https://` upstream | Upstream must be `http://127.0.0.1:…` unless Enterprise TLS on Go |
+| Double TLS / protocol error | Proxy uses `https://` upstream | Upstream must be `http://127.0.0.1:…` (or LAN IP) unless Enterprise TLS on Go |
 | Panel works but clients timeout | Firewall | Open 21116 UDP/TCP, 21117 TCP |
 
 ### Diagnostic commands

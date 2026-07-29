@@ -13,13 +13,19 @@ class RDFileConnection {
      * @param {string} [opts.serverPubKey]
      * @param {string} [opts.myName]
      * @param {RDProtocol} [opts.proto] - shared loaded protocol instance
+     * @param {'native'|'ws'} [opts.rdTransport='native']
      */
     constructor(opts = {}) {
         if (!opts.deviceId) throw new Error('deviceId required');
         this.deviceId = opts.deviceId;
         this.opts = opts;
-        this.conn = new RDConnection();
+        /** @type {'native'|'ws'} */
+        this.rdTransport = opts.rdTransport === 'ws' ? 'ws' : 'native';
+        this.conn = new RDConnection({ rdTransport: this.rdTransport });
         this.proto = opts.proto || new RDProtocol();
+        if (!opts.proto) {
+            this.proto.setTransportMode(this.rdTransport);
+        }
         this.crypto = new RDCrypto();
         this._state = 'idle'; // idle | connecting | authenticating | ready | error | disconnected
         this._listeners = {};
@@ -102,12 +108,13 @@ class RDFileConnection {
             if (this.conn) {
                 try { this.conn.close(); } catch (_e) { /* ignore */ }
             }
-            this.conn = new RDConnection();
+            this.conn = new RDConnection({ rdTransport: this.rdTransport });
             this.crypto = new RDCrypto();
             this._setState('connecting');
             this._emit('log', 'Opening file transfer session…');
 
             if (!this.proto.loaded) await this.proto.load();
+            this.proto.setTransportMode(this.rdTransport);
 
             this._rendezvousDecoder = this.proto.createStreamDecoder();
             this._relayDecoder = this.proto.createStreamDecoder();
@@ -251,7 +258,7 @@ class RDFileConnection {
             }, 30000);
 
             const handler = (rawData) => {
-                const frames = this._rendezvousDecoder.feed(rawData);
+                const frames = this.proto.framesFromWsPayload(rawData, this._rendezvousDecoder);
                 for (const frame of frames) {
                     try {
                         const msg = this.proto.decodeRendezvous(frame);
@@ -315,7 +322,7 @@ class RDFileConnection {
             }, 15000);
 
             const handler = (rawData) => {
-                const frames = this._rendezvousDecoder.feed(rawData);
+                const frames = this.proto.framesFromWsPayload(rawData, this._rendezvousDecoder);
                 for (const frame of frames) {
                     try {
                         const msg = this.proto.decodeRendezvous(frame);
@@ -346,7 +353,7 @@ class RDFileConnection {
 
     _handleRelayData(rawData) {
         try {
-            const frames = this._relayDecoder.feed(rawData);
+            const frames = this.proto.framesFromWsPayload(rawData, this._relayDecoder);
             for (const frame of frames) {
                 this._handleRelayMessage(frame);
             }
