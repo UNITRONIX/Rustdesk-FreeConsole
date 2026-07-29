@@ -127,36 +127,111 @@ class RDCrypto {
     }
 
     /**
-     * Verify Ed25519 signature on SignedId payload against the server's public key.
-     * Prevents MITM attacks: the signal server signs (IdPk) with its Ed25519 key.
-     * Without verification, an attacker could substitute their own ephemeral key.
+     * Decode a 32-byte Ed25519 public key from RustDesk formats.
+     * Prefer base64 (id_ed25519.pub / Key field); also accept hex (API key_hex).
+     *
+     * @param {string} encoded
+     * @returns {Uint8Array|null} 32-byte public key, or null if invalid
+     */
+    static decodeServerPublicKey(encoded) {
+        if (!encoded || typeof encoded !== 'string') return null;
+        const trimmed = encoded.trim();
+        if (!trimmed) return null;
+
+        // Hex: 64 hex chars = 32 bytes (optional 0x prefix)
+        const hexBody = trimmed.replace(/^0x/i, '');
+        if (/^[0-9a-fA-F]{64}$/.test(hexBody)) {
+            try {
+                const bytes = RDCrypto._hexToBytes(hexBody);
+                return bytes.length === 32 ? bytes : null;
+            } catch {
+                return null;
+            }
+        }
+
+        // Base64 (standard RustDesk Key / id_ed25519.pub)
+        try {
+            let b64 = trimmed.replace(/-/g, '+').replace(/_/g, '/');
+            while (b64.length % 4) b64 += '=';
+            const bin = (typeof atob === 'function')
+                ? atob(b64)
+                : Buffer.from(b64, 'base64').toString('binary');
+            if (bin.length !== 32) return null;
+            const out = new Uint8Array(32);
+            for (let i = 0; i < 32; i++) out[i] = bin.charCodeAt(i);
+            return out;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * True when encoded looks like a usable server/peer Ed25519 public key.
+     * @param {string} encoded
+     * @returns {boolean}
+     */
+    static hasDecodablePublicKey(encoded) {
+        return RDCrypto.decodeServerPublicKey(encoded) != null;
+    }
+
+    /**
+     * Verify Ed25519 detached signature over payload with a base64 or hex public key.
+     *
+     * RustDesk chain for Web Remote:
+     *   1. RelayResponse.pk is IdPk signed by the **server** key (identity of target)
+     *   2. Message.SignedId is IdPk signed by the **peer identity** key (ephemeral box pk)
      *
      * @param {Uint8Array} signature - 64-byte Ed25519 signature
      * @param {Uint8Array} payload - Signed protobuf payload (IdPk bytes after the 64-byte sig)
-     * @param {string} serverPubKeyHex - Server Ed25519 public key as hex string (64 hex chars = 32 bytes)
+     * @param {string|Uint8Array} publicKey - Ed25519 public key (base64/hex string or raw 32 bytes)
      * @returns {boolean} True if signature is valid, false otherwise
      */
-    static verifySignedId(signature, payload, serverPubKeyHex) {
-        if (!serverPubKeyHex || serverPubKeyHex.length < 64) {
-            console.warn('[RDCrypto] No server public key for Ed25519 verification');
-            return false;
-        }
+    static verifySignedId(signature, payload, publicKey) {
         if (!signature || signature.length !== 64) {
             console.warn('[RDCrypto] Invalid Ed25519 signature length:', signature?.length);
             return false;
         }
+        if (!payload || !payload.length) {
+            console.warn('[RDCrypto] Empty signed payload');
+            return false;
+        }
+
+        let keyBytes = null;
+        if (publicKey instanceof Uint8Array) {
+            keyBytes = publicKey.length === 32 ? publicKey : null;
+        } else {
+            keyBytes = RDCrypto.decodeServerPublicKey(publicKey || '');
+        }
+        if (!keyBytes) {
+            console.warn('[RDCrypto] No usable public key for Ed25519 verification');
+            return false;
+        }
 
         try {
-            const serverPubKey = RDCrypto._hexToBytes(serverPubKeyHex);
-            if (serverPubKey.length !== 32) {
-                console.warn('[RDCrypto] Server public key must be 32 bytes, got:', serverPubKey.length);
-                return false;
-            }
-            return nacl.sign.detached.verify(payload, signature, serverPubKey);
+            return nacl.sign.detached.verify(payload, signature, keyBytes);
         } catch (err) {
             console.warn('[RDCrypto] Ed25519 verification error:', err.message);
             return false;
         }
+    }
+
+    /**
+     * Verify a NaCl combined signed blob [64-byte sig][payload] and decode IdPk.
+     * @param {Uint8Array} signedBytes
+     * @param {string|Uint8Array} publicKey
+     * @param {Object} idPkType - protobufjs IdPk type
+     * @returns {{ peerId: string, peerPk: Uint8Array, signatureVerified: boolean }|null}
+     */
+    static verifyAndDecodeIdPk(signedBytes, publicKey, idPkType) {
+        const parsed = new RDCrypto().parseSignedId(signedBytes, idPkType);
+        if (!parsed) return null;
+        const ok = RDCrypto.verifySignedId(parsed.signature, parsed.payload, publicKey);
+        if (!ok) return null;
+        return {
+            peerId: parsed.peerId,
+            peerPk: parsed.peerPk,
+            signatureVerified: true,
+        };
     }
 
     /**

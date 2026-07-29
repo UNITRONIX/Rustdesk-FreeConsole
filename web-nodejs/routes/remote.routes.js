@@ -5,13 +5,12 @@
 
 const express = require('express');
 const router = express.Router();
-const fs = require('fs');
 const db = require('../services/database');
-const config = require('../config/config');
 const logger = require('../lib/logger').child('REMOTE');
 const { requireRdClientAuth, rdClientGuestOnly, normalizeRdClientReturnUrl, roleHasPermission } = require('../middleware/auth');
 const { rdClientPageLimiter } = require('../middleware/rateLimiter');
 const betterdeskApi = require('../services/betterdeskApi');
+const keyService = require('../services/keyService');
 const {
     getGuestToken,
     getGuestTokenFromQuery,
@@ -79,14 +78,15 @@ function getRemoteRelay() {
     try { return require('../services/remoteRelay'); } catch { return null; }
 }
 
-// Read server public key once at startup
-let serverPubKey = '';
-try {
-    if (fs.existsSync(config.pubKeyPath)) {
-        serverPubKey = fs.readFileSync(config.pubKeyPath, 'utf8').trim();
+// Read server public key on each viewer render (Go may write id_ed25519.pub after
+// console start; avoid caching empty/stale key across the process lifetime).
+function getServerPubKey() {
+    try {
+        return keyService.getPublicKey() || '';
+    } catch (err) {
+        console.warn('Warning: Could not read server public key:', err.message);
+        return '';
     }
-} catch (err) {
-    console.warn('Warning: Could not read server public key:', err.message);
 }
 
 /**
@@ -233,7 +233,7 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async 
         activePage: 'remote',
         deviceId: deviceId,
         device: device || { id: deviceId, hostname: '', platform: '', note: '' },
-        serverPubKey: serverPubKey,
+        serverPubKey: getServerPubKey(),
         capabilities,
         guestToken: req.guestToken || getGuestTokenFromQuery(req) || '',
         layout: 'viewer'

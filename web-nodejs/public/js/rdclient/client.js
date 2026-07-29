@@ -893,19 +893,40 @@ class RDClient {
             .map(b => b.toString(16).padStart(2, '0')).join('');
         this._debugRelay(`[RDClient] Peer ephemeral pk: ${parsed.peerPk.length} bytes [${peerPkHex}...]`);
 
-        // Verify Ed25519 signature against server public key (MITM protection)
+        // MITM chain (matches RustDesk decode_id_pk):
+        // RelayResponse.pk = IdPk{id, identityPk} signed by server → verify with server Key
+        // SignedId         = IdPk{id, ephemeralBoxPk} signed by peer identity → verify with identityPk
         const serverPubKey = this.opts.serverPubKey || '';
-        if (serverPubKey && serverPubKey.length >= 64) {
-            const verified = RDCrypto.verifySignedId(parsed.signature, parsed.payload, serverPubKey);
-            parsed.signatureVerified = verified;
-            if (verified) {
-                this._debugRelay('[RDClient] Ed25519 signature VERIFIED — peer identity authenticated');
-                this._emit('log', 'Peer identity verified (Ed25519)');
+        if (RDCrypto.hasDecodablePublicKey(serverPubKey) && this._peerSignedPk && this._peerSignedPk.length) {
+            const peerIdentity = RDCrypto.verifyAndDecodeIdPk(
+                this._peerSignedPk instanceof Uint8Array
+                    ? this._peerSignedPk
+                    : new Uint8Array(this._peerSignedPk),
+                serverPubKey,
+                this.proto.types.IdPk
+            );
+            if (!peerIdentity) {
+                console.warn('[RDClient] RelayResponse.pk failed server-key verification');
+                this._emit('signature_warning', 'Server-signed peer identity could not be verified.');
+                this._emit('log', 'WARNING: Peer identity (RelayResponse.pk) verification failed');
             } else {
-                console.warn('[RDClient] Ed25519 signature FAILED — possible MITM attack!');
-                this._emit('signature_warning', 'Ed25519 signature verification failed. Connection may be intercepted.');
-                this._emit('log', 'WARNING: Peer signature verification failed');
+                const verified = RDCrypto.verifySignedId(
+                    parsed.signature,
+                    parsed.payload,
+                    peerIdentity.peerPk
+                );
+                parsed.signatureVerified = verified;
+                if (verified) {
+                    this._debugRelay('[RDClient] Ed25519 signature VERIFIED — peer identity authenticated');
+                    this._emit('log', 'Peer identity verified (Ed25519)');
+                } else {
+                    console.warn('[RDClient] Ed25519 signature FAILED — possible MITM attack!');
+                    this._emit('signature_warning', 'Ed25519 signature verification failed. Connection may be intercepted.');
+                    this._emit('log', 'WARNING: Peer signature verification failed');
+                }
             }
+        } else if (RDCrypto.hasDecodablePublicKey(serverPubKey)) {
+            this._debugRelay('[RDClient] No RelayResponse.pk — SignedId not verified against peer identity');
         } else {
             this._debugRelay('[RDClient] No server public key available — signature not verified');
         }
