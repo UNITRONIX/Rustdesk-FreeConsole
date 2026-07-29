@@ -1020,6 +1020,8 @@
         "cannot_demote_self": "Nem csökkentheted le magad",
         "cannot_delete_self": "Nem törölheti saját fiókját",
         "last_admin": "Az utolsó rendszergazda nem törölhető",
+        "last_admin_go": "Nem törölhető: ez az egyetlen Super Admin a BetterDesk szerveren. Először hozzon létre vagy szinkronizáljon másik Super Admint (nem Global Admin).",
+        "delete_mirror_failed": "A felhasználót nem sikerült eltávolítani a szerverről. Próbálja újra, amikor a BetterDesk szerver elérhető.",
         "admin_only": "Ez a funkció csak a rendszergazdák számára érhető el",
         "password_required": "Jelszó szükséges",
         "not_found": "Felhasználó nem található",

@@ -1020,6 +1020,8 @@
         "cannot_demote_self": "Du kan inte degradera dig själv",
         "cannot_delete_self": "Du kan inte radera ditt eget konto",
         "last_admin": "Det går inte att ta bort den senaste administratören",
+        "last_admin_go": "Kan inte ta bort: detta är den enda Super Admin på BetterDesk-servern. Skapa eller synka först en annan Super Admin (inte Global Admin).",
+        "delete_mirror_failed": "Kunde inte ta bort användaren från servern. Försök igen när BetterDesk-servern är nåbar.",
         "admin_only": "Den här funktionen är endast tillgänglig för administratörer",
         "password_required": "Lösenord krävs",
         "not_found": "Användaren hittades inte",

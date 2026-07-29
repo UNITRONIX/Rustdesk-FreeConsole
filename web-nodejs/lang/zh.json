@@ -1018,6 +1018,8 @@
         "cannot_demote_self": "您无法降低自己的权限",
         "cannot_delete_self": "您无法删除自己的账户",
         "last_admin": "无法删除最后一个管理员",
+        "last_admin_go": "无法删除：这是 BetterDesk 服务器上唯一的 Super Admin。请先创建或同步另一个 Super Admin（不是 Global Admin）。",
+        "delete_mirror_failed": "无法从服务器移除该用户。请在 BetterDesk 服务器可用时重试。",
         "admin_only": "此功能仅对管理员可用",
         "password_required": "密码为必填项",
         "not_found": "未找到用户",

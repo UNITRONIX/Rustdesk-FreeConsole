@@ -1020,6 +1020,8 @@
         "cannot_demote_self": "Nu te poți retrograda",
         "cannot_delete_self": "Nu vă puteți șterge propriul cont",
         "last_admin": "Nu se poate șterge ultimul administrator",
+        "last_admin_go": "Nu se poate șterge: acesta este singurul Super Admin pe serverul BetterDesk. Creați sau sincronizați mai întâi un alt Super Admin (nu Global Admin).",
+        "delete_mirror_failed": "Nu s-a putut elimina utilizatorul de pe server. Încercați din nou când serverul BetterDesk este accesibil.",
         "admin_only": "Această funcție este disponibilă numai pentru administratori",
         "password_required": "Este necesară parola",
         "not_found": "Utilizatorul nu a fost găsit",

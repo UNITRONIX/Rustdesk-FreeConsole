@@ -1053,6 +1053,8 @@
         "cannot_demote_self": "Vous ne pouvez pas vous rétrograder",
         "cannot_delete_self": "Vous ne pouvez pas supprimer votre propre compte",
         "last_admin": "Impossible de supprimer le dernier administrateur",
+        "last_admin_go": "Suppression impossible : c'est le seul Super Admin sur le serveur BetterDesk. Créez ou synchronisez d'abord un autre Super Admin (pas Global Admin).",
+        "delete_mirror_failed": "Impossible de supprimer l'utilisateur sur le serveur. Réessayez lorsque le serveur BetterDesk est accessible.",
         "admin_only": "Cette fonctionnalité est réservée aux administrateurs",
         "password_required": "Le mot de passe est requis",
         "not_found": "Introuvable",

@@ -1014,6 +1014,8 @@
         "cannot_demote_self": "U kunt uzelf niet degraderen",
         "cannot_delete_self": "U kunt uw eigen account niet verwijderen",
         "last_admin": "Kan de laatste beheerder niet verwijderen",
+        "last_admin_go": "Kan niet verwijderen: dit is de enige Super Admin op de BetterDesk-server. Maak of synchroniseer eerst een andere Super Admin (geen Global Admin).",
+        "delete_mirror_failed": "Kon de gebruiker niet van de server verwijderen. Probeer opnieuw wanneer de BetterDesk-server bereikbaar is.",
         "admin_only": "Deze functie is alleen beschikbaar voor beheerders",
         "password_required": "Wachtwoord is vereist",
         "not_found": "Gebruiker niet gevonden",

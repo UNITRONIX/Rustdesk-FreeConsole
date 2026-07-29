@@ -1020,6 +1020,8 @@
         "cannot_demote_self": "Anda tidak dapat menurunkan diri Anda sendiri",
         "cannot_delete_self": "Anda tidak dapat menghapus akun Anda sendiri",
         "last_admin": "Tidak dapat menghapus administrator terakhir",
+        "last_admin_go": "Tidak dapat menghapus: ini satu-satunya Super Admin di server BetterDesk. Buat atau sinkronkan Super Admin lain terlebih dahulu (bukan Global Admin).",
+        "delete_mirror_failed": "Tidak dapat menghapus pengguna dari server. Coba lagi saat server BetterDesk dapat dijangkau.",
         "admin_only": "Fitur ini hanya tersedia untuk administrator",
         "password_required": "Kata sandi diperlukan",
         "not_found": "Pengguna tidak ditemukan",

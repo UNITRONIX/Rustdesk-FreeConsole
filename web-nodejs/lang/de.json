@@ -1015,6 +1015,8 @@
         "cannot_demote_self": "Sie können sich nicht selbst herabstufen",
         "cannot_delete_self": "Sie können Ihr eigenes Konto nicht löschen",
         "last_admin": "Der letzte Administrator kann nicht gelöscht werden",
+        "last_admin_go": "Löschen nicht möglich: Dies ist der einzige Super Admin auf dem BetterDesk-Server. Legen Sie zuerst einen weiteren Super Admin an oder synchronisieren Sie ihn (kein Global Admin).",
+        "delete_mirror_failed": "Der Benutzer konnte nicht vom Server entfernt werden. Versuchen Sie es erneut, wenn der BetterDesk-Server erreichbar ist.",
         "admin_only": "Diese Funktion ist nur für Administratoren verfügbar",
         "password_required": "Passwort ist erforderlich",
         "not_found": "Device not found",

@@ -1077,6 +1077,8 @@
         "cannot_demote_self": "You cannot demote yourself",
         "cannot_delete_self": "You cannot delete your own account",
         "last_admin": "Cannot delete the last administrator",
+        "last_admin_go": "Cannot delete: this is the only Super Admin on the BetterDesk server. Create or sync another Super Admin (not Global Admin) first.",
+        "delete_mirror_failed": "Could not remove the user from the server. Try again when the BetterDesk server is reachable.",
         "admin_only": "This feature is only available to administrators",
         "password_required": "Password is required",
         "not_found": "User not found",

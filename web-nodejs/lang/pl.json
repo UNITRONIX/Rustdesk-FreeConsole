@@ -1049,6 +1049,8 @@
         "cannot_demote_self": "Nie możesz zdegradować samego siebie",
         "cannot_delete_self": "Nie możesz usunąć własnego konta",
         "last_admin": "Nie można usunąć ostatniego administratora",
+        "last_admin_go": "Nie można usunąć: to jedyny Super Admin na serwerze BetterDesk. Najpierw utwórz lub zsynchronizuj innego Super Admina (nie Global Admin).",
+        "delete_mirror_failed": "Nie udało się usunąć użytkownika z serwera. Spróbuj ponownie, gdy serwer BetterDesk będzie dostępny.",
         "admin_only": "Ta funkcja jest dostępna tylko dla administratorów",
         "password_required": "Hasło jest wymagane",
         "not_found": "Nie znaleziono użytkownika",

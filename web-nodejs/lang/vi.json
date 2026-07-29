@@ -1020,6 +1020,8 @@
         "cannot_demote_self": "Bạn không thể hạ bệ chính mình",
         "cannot_delete_self": "Bạn không thể xóa tài khoản của chính mình",
         "last_admin": "Không thể xóa quản trị viên cuối cùng",
+        "last_admin_go": "Không thể xóa: đây là Super Admin duy nhất trên máy chủ BetterDesk. Hãy tạo hoặc đồng bộ Super Admin khác trước (không phải Global Admin).",
+        "delete_mirror_failed": "Không thể xóa người dùng khỏi máy chủ. Thử lại khi máy chủ BetterDesk khả dụng.",
         "admin_only": "Tính năng này chỉ có sẵn cho quản trị viên",
         "password_required": "Cần có mật khẩu",
         "not_found": "Không tìm thấy người dùng",

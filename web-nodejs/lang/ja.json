@@ -1014,6 +1014,8 @@
         "cannot_demote_self": "自分自身を降格させることはできません",
         "cannot_delete_self": "自分のアカウントを削除することはできません",
         "last_admin": "最後の管理者を削除できません",
+        "last_admin_go": "削除できません。これは BetterDesk サーバー上の唯一の Super Admin です。先に別の Super Admin を作成または同期してください（Global Admin ではありません）。",
+        "delete_mirror_failed": "サーバーからユーザーを削除できませんでした。BetterDesk サーバーに接続できるときに再試行してください。",
         "admin_only": "この機能は管理者のみが利用できます",
         "password_required": "パスワードが必要です",
         "not_found": "ユーザーが見つかりません",

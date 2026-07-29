@@ -1014,6 +1014,8 @@
         "cannot_demote_self": "자신을 강등시킬 수 없습니다.",
         "cannot_delete_self": "자신의 계정을 삭제할 수 없습니다.",
         "last_admin": "마지막 관리자는 삭제할 수 없습니다.",
+        "last_admin_go": "삭제할 수 없습니다. BetterDesk 서버의 유일한 Super Admin입니다. 먼저 다른 Super Admin을 만들거나 동기화하세요(Global Admin 아님).",
+        "delete_mirror_failed": "서버에서 사용자를 제거할 수 없습니다. BetterDesk 서버에 연결할 수 있을 때 다시 시도하세요.",
         "admin_only": "이 기능은 관리자만 사용할 수 있습니다.",
         "password_required": "비밀번호가 필요합니다",
         "not_found": "사용자를 찾을 수 없습니다",

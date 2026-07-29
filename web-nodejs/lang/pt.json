@@ -1014,6 +1014,8 @@
         "cannot_demote_self": "Não pode despromover-se a si mesmo",
         "cannot_delete_self": "Não pode excluir a sua própria conta",
         "last_admin": "Não é possível excluir o último administrador",
+        "last_admin_go": "Não é possível excluir: este é o único Super Admin no servidor BetterDesk. Crie ou sincronize outro Super Admin primeiro (não Global Admin).",
+        "delete_mirror_failed": "Não foi possível remover o usuário do servidor. Tente novamente quando o servidor BetterDesk estiver acessível.",
         "admin_only": "Esta funcionalidade está disponível apenas para administradores",
         "password_required": "A palavra-passe é obrigatória",
         "not_found": "Utilizador não encontrado",

@@ -1020,6 +1020,8 @@
         "cannot_demote_self": "Kendinizi düşüremezsiniz",
         "cannot_delete_self": "Kendi hesabınızı silemezsiniz",
         "last_admin": "Son yönetici silinemiyor",
+        "last_admin_go": "Silinemiyor: bu, BetterDesk sunucusundaki tek Super Admin. Önce başka bir Super Admin oluşturun veya senkronize edin (Global Admin değil).",
+        "delete_mirror_failed": "Kullanıcı sunucudan kaldırılamadı. BetterDesk sunucusuna erişilebildiğinde yeniden deneyin.",
         "admin_only": "Bu özellik yalnızca yöneticilere açıktır",
         "password_required": "Şifre gerekli",
         "not_found": "Kullanıcı bulunamadı",

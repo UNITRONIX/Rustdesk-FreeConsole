@@ -1014,6 +1014,8 @@
         "cannot_demote_self": "Nemůžete sami sebe degradovat",
         "cannot_delete_self": "Nemůžete smazat vlastní účet",
         "last_admin": "Nelze smazat posledního administrátora",
+        "last_admin_go": "Nelze smazat: toto je jediný Super Admin na serveru BetterDesk. Nejprve vytvořte nebo synchronizujte jiného Super Admina (ne Global Admin).",
+        "delete_mirror_failed": "Uživatele se nepodařilo odebrat ze serveru. Zkuste to znovu, až bude server BetterDesk dostupný.",
         "admin_only": "Tato funkce je dostupná pouze administrátorům",
         "password_required": "Heslo je povinné",
         "not_found": "Uživatel nebyl nalezen",
