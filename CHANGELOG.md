@@ -3,6 +3,9 @@
 ### Changed
 - _(none yet)_
 
+### Fixed
+- **Devices kebab Unban called Ban (#323):** kebab menu passed boolean `device.banned` while the handler only treated the string `'true'` as banned, so Unban opened the Ban modal and POSTed `/ban`. Both boolean and dataset string are accepted now. Ships via panel update.
+
 ---
 
 ## [3.4.2] — 2026-07-28
