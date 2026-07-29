@@ -111,20 +111,33 @@ func saveAgentKey(path string, key *rsa.PrivateKey) error {
 	return os.WriteFile(path, pemBytes, 0600)
 }
 
-// WebCertHash returns SHA-384 hash (48 bytes) of a TLS certificate DER, or nil.
-func WebCertHash(certDER []byte) []byte {
-	if len(certDER) == 0 {
+// WebCertHash returns SHA-384 (48 bytes) of a TLS certificate's SPKI public key.
+// Accepts PEM (first CERTIFICATE block, e.g. fullchain.pem) or raw DER.
+// Returns nil if the input is empty or cannot be parsed as an X.509 certificate.
+func WebCertHash(certBytes []byte) []byte {
+	if len(certBytes) == 0 {
 		return nil
 	}
-	cert, err := x509.ParseCertificate(certDER)
+	der := certBytes
+	rest := certBytes
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type == "CERTIFICATE" && len(block.Bytes) > 0 {
+			der = block.Bytes
+			break
+		}
+	}
+	cert, err := x509.ParseCertificate(der)
 	if err != nil {
-		h := sha512.Sum384(certDER)
-		return h[:]
+		return nil
 	}
 	pubDER, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
 	if err != nil {
-		h := sha512.Sum384(certDER)
-		return h[:]
+		return nil
 	}
 	h := sha512.Sum384(pubDER)
 	return h[:]

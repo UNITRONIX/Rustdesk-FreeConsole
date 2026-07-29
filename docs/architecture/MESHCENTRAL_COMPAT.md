@@ -563,7 +563,8 @@ CI should include at least one **real MeshAgent binary** test job (not mocks onl
 |----------|---------|-------------|
 | `MESH_ENABLED` | `N` (minimal), `Y` (full, TBD) | Enable MC compat layer |
 | `MESH_CORE_VERSION` | `1.2.0` | Pinned upstream assets |
-| `MESH_AGENT_CERT_FILE` | auto-generated path | Agent-server RSA cert |
+| `MESH_AGENT_CERT_FILE` | auto-generated path | Agent-server RSA cert (`.msh` `ServerID`) |
+| `MESH_WEB_CERT_FILE` | (empty) | Public TLS cert agents see on `MeshServer` (proxy LE); overrides `TLS_CERT` for web-hash only |
 
 ### Port exposure
 

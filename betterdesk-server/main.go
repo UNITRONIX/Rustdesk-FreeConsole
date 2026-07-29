@@ -403,9 +403,22 @@ func main() {
 			meshGw.SetAuditLogger(auditLogger)
 			meshGw.SetJWTManager(jwtManager)
 			meshGw.SetVersion(Version)
-			if cfg.TLSCertFile != "" {
-				if certDER, readErr := os.ReadFile(cfg.TLSCertFile); readErr == nil {
-					meshGw.SetWebCertHash(meshcentral.WebCertHash(certDER))
+			// Web cert hash: MESH_WEB_CERT_FILE (public TLS agents see, e.g. proxy LE)
+			// takes priority over TLS_CERT (may be internal/signal-only).
+			webCertPath := cfg.MeshWebCertFile
+			if webCertPath == "" {
+				webCertPath = cfg.TLSCertFile
+			}
+			if webCertPath != "" {
+				if certBytes, readErr := os.ReadFile(webCertPath); readErr == nil {
+					if h := meshcentral.WebCertHash(certBytes); len(h) > 0 {
+						meshGw.SetWebCertHash(h)
+						log.Printf("[mesh] web cert hash loaded from %s", webCertPath)
+					} else {
+						log.Printf("[mesh] warning: could not parse web cert at %s — web hash validation skipped", webCertPath)
+					}
+				} else {
+					log.Printf("[mesh] warning: cannot read web cert %s: %v — web hash validation skipped", webCertPath, readErr)
 				}
 			}
 			apiSrv.SetMeshGateway(meshGw)
