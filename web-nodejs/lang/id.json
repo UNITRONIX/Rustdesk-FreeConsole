@@ -3705,6 +3705,8 @@
         "channel_save": "Ganti saluran",
         "channel_saved": "Saluran diganti. Klik Periksa pembaruan.",
         "channel_save_failed": "Gagal menyimpan saluran pembaruan",
+        "channel_docker_blocked": "Instalasi image Docker tidak dapat mengganti saluran pembaruan dari panel. Atur BETTERDESK_IMAGE_TAG=latest (stable) atau BETTERDESK_IMAGE_TAG=dev (development), lalu jalankan: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Saluran pembaruan di panel hanya untuk instalasi native. Untuk image GHCR, ubah BETTERDESK_IMAGE_TAG dan buat ulang kontainer.",
         "channel_switch_warning": "Mengganti saluran mengubah cabang GitHub. SHA commit yang dilacak tetap — pemeriksaan berikutnya bisa menunjukkan perbedaan besar. Lanjutkan?",
         "channel_pick_label": "Beralih ke",
         "channel_apply_hint": "Disimpan setelah konfirmasi. Lalu klik Periksa pembaruan.",

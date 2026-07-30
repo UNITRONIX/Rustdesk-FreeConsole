@@ -3699,6 +3699,8 @@
         "channel_save": "チャンネル切替",
         "channel_saved": "チャンネルを切り替えました。「更新を確認」をクリックしてください。",
         "channel_save_failed": "更新チャンネルの保存に失敗しました",
+        "channel_docker_blocked": "Dockerイメージ導入ではパネルから更新チャネルを切り替えられません。BETTERDESK_IMAGE_TAG=latest（stable）または BETTERDESK_IMAGE_TAG=dev（development）を設定し、docker compose pull && docker compose up -d を実行してください。",
+        "channel_docker_note": "パネルの更新チャネルはネイティブ導入のみ対象です。GHCRイメージでは BETTERDESK_IMAGE_TAG を変更してコンテナを再作成してください。",
         "channel_switch_warning": "チャンネル変更は GitHub ブランチを変えます。追跡中の commit SHA は保持されます — 次回チェックで大きな差分が出る場合があります。続行しますか？",
         "channel_pick_label": "切り替え",
         "channel_apply_hint": "確認後すぐに保存されます。その後「更新を確認」をクリック。",

@@ -3699,6 +3699,8 @@
         "channel_save": "Přepnout kanál",
         "channel_saved": "Kanál přepnut. Klikněte na Zkontrolovat aktualizace.",
         "channel_save_failed": "Nepodařilo se uložit kanál aktualizací",
+        "channel_docker_blocked": "Nasazení Docker image nemůže přepínat kanál aktualizací z panelu. Nastavte BETTERDESK_IMAGE_TAG=latest (stable) nebo BETTERDESK_IMAGE_TAG=dev (development) a spusťte: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Kanál aktualizací v panelu platí jen pro nativní instalace. U GHCR imagí změňte BETTERDESK_IMAGE_TAG a znovu vytvořte kontejnery.",
         "channel_switch_warning": "Změna kanálu mění větev GitHub pro kontroly a instalace. Sledované SHA commitu zůstává — další kontrola může ukázat velký rozdíl. Pokračovat?",
         "channel_pick_label": "Přepnout na",
         "channel_apply_hint": "Po potvrzení se změna uloží. Poté klikněte na Zkontrolovat aktualizace.",

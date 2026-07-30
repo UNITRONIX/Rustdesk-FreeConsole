@@ -3699,6 +3699,8 @@
         "channel_save": "Cambia canale",
         "channel_saved": "Canale cambiato. Clicca Controlla aggiornamenti.",
         "channel_save_failed": "Impossibile salvare il canale aggiornamenti",
+        "channel_docker_blocked": "Le installazioni con immagine Docker non possono cambiare canale dal pannello. Imposta BETTERDESK_IMAGE_TAG=latest (stable) o BETTERDESK_IMAGE_TAG=dev (development), poi esegui: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Il canale aggiornamenti del pannello vale solo per installazioni native. Per immagini GHCR modifica BETTERDESK_IMAGE_TAG e ricrea i container.",
         "channel_switch_warning": "Cambiare canale modifica il branch GitHub usato. Lo SHA tracciato resta — il prossimo controllo può mostrare una grande differenza. Continuare?",
         "channel_pick_label": "Passa a",
         "channel_apply_hint": "Salvato subito dopo la conferma. Poi clicca Controlla aggiornamenti.",

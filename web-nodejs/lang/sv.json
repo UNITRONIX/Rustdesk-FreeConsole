@@ -3705,6 +3705,8 @@
         "channel_save": "Byt kanal",
         "channel_saved": "Kanal bytt. Klicka Sök uppdateringar.",
         "channel_save_failed": "Kunde inte spara uppdateringskanal",
+        "channel_docker_blocked": "Docker-image-installationer kan inte byta uppdateringskanal från panelen. Sätt BETTERDESK_IMAGE_TAG=latest (stable) eller BETTERDESK_IMAGE_TAG=dev (development) och kör sedan: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Uppdateringskanalen i panelen gäller bara native-installationer. För GHCR-images ändrar du BETTERDESK_IMAGE_TAG och återskapar containrar.",
         "channel_switch_warning": "Kanalbyte ändrar GitHub-gren. Spårat commit-SHA behålls — nästa kontroll kan visa stor skillnad. Fortsätta?",
         "channel_pick_label": "Byt till",
         "channel_apply_hint": "Sparas direkt efter bekräftelse. Klicka sedan Sök uppdateringar.",

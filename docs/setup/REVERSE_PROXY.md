@@ -171,6 +171,26 @@ desk.example.com {
 
 Upstream to BetterDesk is always **`http://`** unless you enabled Enterprise TLS on Go ports (unusual behind an external proxy).
 
+#### Client settings (critical — avoids Caddy `308` and `initiator_not_registered`)
+
+| Field | Value |
+|-------|--------|
+| ID / Relay server | `desk.example.com` (no `ws://` prefix) |
+| API server | `https://desk.example.com:21121` **or** the public API URL you expose (HTTPS if Caddy terminates TLS) |
+| Use WebSocket | On |
+
+**Do not** configure the client with plain `ws://desk.example.com/ws/id`. Caddy’s automatic HTTPS redirects `ws://` → `https://` with **HTTP 308**, and the RustDesk client reports `WebSocket connection failed (HTTP error: 308)`. Always use **WSS** (the client builds `wss://` when the ID host is HTTPS / WebSocket mode behind TLS).
+
+Also set on the BetterDesk host:
+
+```env
+TRUST_PROXY=Y
+TRUSTED_PROXIES=<caddy-LAN-IP>/32
+HOST=0.0.0.0
+```
+
+Without `TRUST_PROXY`, Go may key WebSocket sessions by the proxy’s LAN IP instead of the client’s public IP, so PunchHole sees `initiator_not_registered` even after a successful `/ws/id` upgrade ([#294](https://github.com/UNITRONIX/BetterDesk/issues/294), [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)).
+
 Reload Caddy after editing:
 
 ```bash
@@ -264,6 +284,8 @@ BetterDesk LE files under `/opt/rustdesk/ssl/` are unused in external-proxy mode
 | Session cookie not set | Same as above | Caddy/Nginx must forward `X-Forwarded-Proto` |
 | Web Remote stuck on "requesting connection" | WebSocket not upgraded | Enable WebSockets in proxy; `proxy_buffering off` on `/ws/` |
 | WSS `401` / `403` on `/ws/id` | Routed to panel `:5000` instead of Go | Use exact `/ws/id` → `:21118` before catch-all |
+| Client log `HTTP error: 308` on `ws://…/ws/id` | Plain WS hit Caddy HTTPS redirect | Use WebSocket Mode with HTTPS/WSS host; never `ws://` when Caddy forces HTTPS ([#294](https://github.com/UNITRONIX/BetterDesk/issues/294)) |
+| WSS upgrade OK but PunchHole `initiator_not_registered` | Proxy IP used as peer key / no RegisterPeer | `TRUST_PROXY=Y` + `TRUSTED_PROXIES`; ensure client completes registration (service on, or logged-in token / TCP RegisterPk) |
 | `AlertReceived(UnrecognisedName)` | TLS cert hostname mismatch | Fix cert on proxy for client hostname |
 | Double TLS / protocol error | Proxy uses `https://` upstream | Upstream must be `http://127.0.0.1:…` unless Enterprise TLS on Go |
 | Panel works but clients timeout | Firewall | Open 21116 UDP/TCP, 21117 TCP |

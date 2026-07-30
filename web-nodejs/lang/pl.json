@@ -3789,6 +3789,8 @@
         "channel_save": "Przełącz kanał",
         "channel_saved": "Kanał zmieniony. Kliknij Sprawdź aktualizacje.",
         "channel_save_failed": "Nie udało się zapisać kanału aktualizacji",
+        "channel_docker_blocked": "Instalacje na obrazie Docker nie mogą przełączać kanału aktualizacji z panelu. Ustaw BETTERDESK_IMAGE_TAG=latest (stable) lub BETTERDESK_IMAGE_TAG=dev (development), potem uruchom: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Kanał aktualizacji w panelu dotyczy tylko instalacji natywnych. Dla obrazów GHCR zmień BETTERDESK_IMAGE_TAG i odtwórz kontenery.",
         "channel_switch_warning": "Zmiana kanału zmienia gałąź GitHub. Śledzone SHA commita zostaje — następne sprawdzenie może pokazać dużą różnicę. Kontynuować?",
         "channel_pick_label": "Przełącz na",
         "channel_apply_hint": "Po potwierdzeniu zmiana zapisuje się od razu. Następnie kliknij Sprawdź aktualizacje.",

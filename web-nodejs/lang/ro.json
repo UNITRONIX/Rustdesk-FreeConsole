@@ -3705,6 +3705,8 @@
         "channel_save": "Comută canalul",
         "channel_saved": "Canal comutat. Apăsați Verifică actualizări.",
         "channel_save_failed": "Salvarea canalului de actualizare a eșuat",
+        "channel_docker_blocked": "Implementările pe imagine Docker nu pot schimba canalul de actualizare din panou. Setați BETTERDESK_IMAGE_TAG=latest (stable) sau BETTERDESK_IMAGE_TAG=dev (development), apoi rulați: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Canalul de actualizare din panou se aplică doar instalărilor native. Pentru imagini GHCR schimbați BETTERDESK_IMAGE_TAG și recreați containerele.",
         "channel_switch_warning": "Schimbarea canalului modifică ramura GitHub. SHA-ul urmărit rămâne — următoarea verificare poate arăta diferență mare. Continuați?",
         "channel_pick_label": "Comută la",
         "channel_apply_hint": "Se salvează după confirmare. Apoi apăsați Verifică actualizări.",

@@ -3837,6 +3837,8 @@
         "channel_save": "Switch channel",
         "channel_saved": "Update channel switched. Click Check for updates to refresh.",
         "channel_save_failed": "Failed to save update channel",
+        "channel_docker_blocked": "Docker image installs switch channel by image tag, not this setting. Set BETTERDESK_IMAGE_TAG=latest (stable) or BETTERDESK_IMAGE_TAG=dev (development), then run docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Update channel in the panel only applies to native installs. For GHCR images, change BETTERDESK_IMAGE_TAG and recreate containers.",
         "channel_switch_warning": "Switching the update channel changes which GitHub branch is used for version checks and installs. Your tracked commit SHA is kept — the next check may show a large diff. Continue?",
         "channel_confirm_switch": "Switch update source from {from} to {to}? Your installed commit baseline stays the same until you run Check for updates.",
         "more_options": "More options",

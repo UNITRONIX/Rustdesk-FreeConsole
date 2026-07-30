@@ -3705,6 +3705,8 @@
         "channel_save": "चैनल बदलें",
         "channel_saved": "अपडेट चैनल बदला। रीफ़्रेश के लिए «अपडेट जाँचें» पर क्लिक करें।",
         "channel_save_failed": "अपडेट चैनल सहेजना विफल",
+        "channel_docker_blocked": "Docker इमेज इंस्टॉल पैनल से अपडेट चैनल नहीं बदल सकते। BETTERDESK_IMAGE_TAG=latest (stable) या BETTERDESK_IMAGE_TAG=dev (development) सेट करें, फिर चलाएँ: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "पैनल का अपडेट चैनल केवल नेटिव इंस्टॉल पर लागू होता है। GHCR इमेज के लिए BETTERDESK_IMAGE_TAG बदलें और कंटेनर फिर बनाएँ.",
         "channel_switch_warning": "चैनल बदलने से GitHub शाखा बदलेगी। ट्रैक किया SHA रहेगा — अगली जांच में बड़ा अंतर दिख सकता है। जारी रखें?",
         "channel_pick_label": "इस पर स्विच करें",
         "channel_apply_hint": "पुष्टि के तुरंत बाद परिवर्तन सहेजा जाता है। फिर «अपडेट जाँचें» पर क्लिक करें।",

@@ -1065,7 +1065,12 @@ router.post('/api/settings/updates/channel', requireAuth, requirePermission('ser
         res.json({ success: true, data: result });
     } catch (err) {
         console.error('Update channel error:', err);
-        res.status(500).json({ success: false, error: err.message });
+        const code = err.code === 'DOCKER_IMAGE_CHANNEL' ? 'DOCKER_IMAGE_CHANNEL' : undefined;
+        res.status(code ? 400 : 500).json({
+            success: false,
+            error: err.message,
+            code,
+        });
     }
 });
 

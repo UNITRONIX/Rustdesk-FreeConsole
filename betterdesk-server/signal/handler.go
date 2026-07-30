@@ -2,6 +2,8 @@ package signal
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -473,6 +476,15 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 	entry.UUID = msg.Uuid
 	entry.PK = msg.Pk
 	entry.LastReg = time.Now()
+	// Bind address so FindByIP works for TCP/WS-only RegisterPk (viewer-only
+	// outbound when the background service is not sending UDP heartbeats, #327).
+	if addrStr != "" {
+		entry.IP = addrStr
+		if entry.UDPAddr == nil && entry.ConnType != peer.ConnWS {
+			entry.ConnType = peer.ConnTCP
+		}
+	}
+	s.bindTCPSessionPeer(addrStr, id)
 
 	// Persist to database
 	dbPeer := &db.Peer{
@@ -603,7 +615,7 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 
 	log.Printf("[signal] PunchHoleRequest from %s for target %s", raddr, targetID)
 
-	if _, ok := s.requireAuthorizedInitiator(raddr, targetID); !ok {
+	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
 		s.sendUDP(s.punchHoleUnauthorizedResponse(), raddr)
 		return
 	}
@@ -790,7 +802,7 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 
 	log.Printf("[signal] PunchHoleRequest (TCP) from %s for target %s", raddr, targetID)
 
-	if _, ok := s.requireAuthorizedInitiator(raddr, targetID); !ok {
+	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
 		return s.punchHoleUnauthorizedResponse()
 	}
 
@@ -1109,7 +1121,7 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		relayServer = msg.RelayServer
 	}
 
-	if _, ok := s.requireAuthorizedInitiator(raddr, targetID); !ok {
+	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
 		s.sendUDP(s.relayUnauthorizedResponse(relayServer), raddr)
 		return
 	}
@@ -1283,7 +1295,7 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 		relayServer = msg.RelayServer
 	}
 
-	if _, ok := s.requireAuthorizedInitiator(raddr, targetID); !ok {
+	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
 		return s.relayUnauthorizedResponse(relayServer)
 	}
 
@@ -1715,34 +1727,123 @@ func (s *Server) relayUnauthorizedResponse(relayServer string) *pb.RendezvousMes
 }
 
 // requireAuthorizedInitiator enforces that PunchHole/RequestRelay may only be
-// started by a live registered peer (#302), or by the Node panel Web Remote
-// proxy (trusted PANEL_SIGNAL_PROXY_CIDRS — typically loopback).
+// started by an authorized initiator (#302 / #327), or by the Node panel Web
+// Remote proxy (trusted PANEL_SIGNAL_PROXY_CIDRS — typically loopback).
 //
-// All enrollment modes require the initiator to be present in the in-memory
-// peer map (closes anonymous rendezvous). Managed and locked modes additionally
-// require an approved DB peer row (pending enrollment alone is not enough).
-// Panel proxy initiators skip the peer-map / DB checks: operator auth is
-// enforced at the panel WS upgrade before TCP is bridged to hbbs.
-func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID string) (string, bool) {
+// Authorization sources (first match wins):
+//  1. Live peer in the in-memory map (UDP/WS heartbeat or TCP RegisterPk IP bind)
+//  2. Same Secure TCP session that already completed RegisterPk (#327)
+//  3. Panel signal-proxy CIDR (Web Remote)
+//  4. Valid BetterDesk client login token on the punch/relay message (#327)
+//
+// Managed and locked modes additionally require an approved DB peer row (pending
+// enrollment alone is not enough). Panel proxy initiators skip peer-map / DB
+// checks: operator auth is enforced at the panel WS upgrade before TCP is
+// bridged to hbbs.
+func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token string) (string, bool) {
 	if raddr == nil {
 		return "", false
 	}
 
 	initiator := s.peers.FindByIP(raddr.IP)
 	if initiator == nil || initiator.IsExpired(config.RegTimeout) {
+		if id := s.tcpSessionPeerID(raddr); id != "" {
+			if e := s.peers.Get(id); e != nil && !e.IsExpired(config.RegTimeout) {
+				initiator = e
+			}
+		}
+	}
+
+	if initiator == nil || initiator.IsExpired(config.RegTimeout) {
 		if s.cfg != nil && s.cfg.IPIsPanelSignalProxy(raddr.IP) {
 			return panelWebRemoteInitiatorID, true
+		}
+		if id, ok := s.authorizeViaClientToken(token, raddr, targetID); ok {
+			return id, true
 		}
 		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
 		return "", false
 	}
-	if initiator.Banned {
-		s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_banned")
+
+	return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned)
+}
+
+// bindTCPSessionPeer records the peer ID on an open tcpPunchConn so a later
+// PunchHole on the same Secure TCP session can authorize without UDP heartbeats.
+func (s *Server) bindTCPSessionPeer(addrStr, peerID string) {
+	if addrStr == "" || peerID == "" {
+		return
+	}
+	key := normalizeAddrKey(addrStr)
+	if val, ok := s.tcpPunchConns.Load(key); ok {
+		pc := val.(*tcpPunchConn)
+		pc.peerID = peerID
+	}
+}
+
+// tcpSessionPeerID returns the peer ID bound to the TCP punch connection for raddr.
+func (s *Server) tcpSessionPeerID(raddr *net.UDPAddr) string {
+	if raddr == nil {
+		return ""
+	}
+	key := normalizeAddrKey(raddr.String())
+	val, ok := s.tcpPunchConns.Load(key)
+	if !ok {
+		return ""
+	}
+	pc := val.(*tcpPunchConn)
+	return pc.peerID
+}
+
+var opaqueClientTokenRegexp = regexp.MustCompile(`(?i)^[a-f0-9]{64}$`)
+
+func hashOpaqueClientToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+// authorizeViaClientToken accepts PunchHole/RequestRelay when the stock RustDesk
+// client sends a BetterDesk opaque login token (service may be stopped, #327).
+func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targetID string) (string, bool) {
+	token = strings.TrimSpace(token)
+	if token == "" || s.db == nil || !opaqueClientTokenRegexp.MatchString(token) {
+		return "", false
+	}
+	sess, err := s.db.GetClientSessionByTokenHash(hashOpaqueClientToken(token))
+	if err != nil || sess == nil {
+		return "", false
+	}
+	initiatorID := strings.TrimSpace(sess.ClientID)
+	if initiatorID == "" {
+		// Logged-in but device id unknown — open mode only (no enrollment claim).
+		mode := s.cfg.EnrollmentMode
+		if mode == "" {
+			mode = config.EnrollmentModeOpen
+		}
+		if mode == config.EnrollmentModeManaged || mode == config.EnrollmentModeLocked {
+			s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_session_no_device")
+			return "", false
+		}
+		return fmt.Sprintf("session-user-%d", sess.UserID), true
+	}
+	return s.finalizeAuthorizedInitiator(initiatorID, raddr, targetID, false)
+}
+
+// finalizeAuthorizedInitiator applies ban / soft-delete / enrollment checks shared
+// by live-peer and token-based authorization paths.
+func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPAddr, targetID string, memoryBanned bool) (string, bool) {
+	if memoryBanned {
+		s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
 		return "", false
 	}
 	if s.db != nil {
-		if softDeleted, _ := s.db.IsPeerSoftDeleted(initiator.ID); softDeleted {
-			s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_soft_deleted")
+		if softDeleted, _ := s.db.IsPeerSoftDeleted(initiatorID); softDeleted {
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_soft_deleted")
+			return "", false
+		}
+		// Defense in depth: still queued for approval must not initiate (#302 residual).
+		if pending, _ := s.db.GetConfig("pending_device_" + initiatorID); pending != "" {
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_pending_enrollment")
 			return "", false
 		}
 	}
@@ -1753,21 +1854,21 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID string)
 	}
 	if mode == config.EnrollmentModeManaged || mode == config.EnrollmentModeLocked {
 		if s.db == nil {
-			s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_not_enrolled")
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_not_enrolled")
 			return "", false
 		}
-		dbPeer, err := s.db.GetPeer(initiator.ID)
+		dbPeer, err := s.db.GetPeer(initiatorID)
 		if err != nil || dbPeer == nil {
-			s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_not_enrolled")
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_not_enrolled")
 			return "", false
 		}
 		if dbPeer.Banned {
-			s.logUnauthorizedInitiator(raddr, initiator.ID, targetID, "initiator_banned")
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
 			return "", false
 		}
 	}
 
-	return initiator.ID, true
+	return initiatorID, true
 }
 
 func (s *Server) logUnauthorizedInitiator(raddr *net.UDPAddr, initiatorID, targetID, reason string) {

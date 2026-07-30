@@ -3705,6 +3705,8 @@
         "channel_save": "Vaihda kanavaa",
         "channel_saved": "Kanava vaihdettu. Klikkaa Tarkista päivitykset.",
         "channel_save_failed": "Päivityskanavan tallennus epäonnistui",
+        "channel_docker_blocked": "Docker-image-asennukset eivät voi vaihtaa päivityskanavaa paneelista. Aseta BETTERDESK_IMAGE_TAG=latest (stable) tai BETTERDESK_IMAGE_TAG=dev (development) ja suorita: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Paneelin päivityskanava koskee vain natiiveja asennuksia. GHCR-imageille vaihda BETTERDESK_IMAGE_TAG ja luo kontit uudelleen.",
         "channel_switch_warning": "Kanavan vaihto muuttaa GitHub-haaraa. Seurattu commit-SHA säilyy — seuraava tarkistus voi näyttää suuren eron. Jatketaanko?",
         "channel_pick_label": "Vaihda",
         "channel_apply_hint": "Tallennetaan heti vahvistuksen jälkeen. Sitten Tarkista päivitykset.",

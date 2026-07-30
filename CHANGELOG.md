@@ -2,8 +2,12 @@
 
 ### Changed
 - **Client Configuration public key masked by default (#319):** Dashboard and Keys page show the KEY as bullets until revealed via an eye toggle; Copy still pastes the raw key. Ships via panel update.
+- **Docker update channel (#299):** Settings → Updates cannot switch stable/dev for GHCR image installs; use `BETTERDESK_IMAGE_TAG=latest` or `dev`, then `docker compose pull && up -d`. Panel shows a clear note; API returns `DOCKER_IMAGE_CHANNEL`.
 
 ### Fixed
+- **OIDC client stuck on “Waiting account auth” (#326, #304):** `rustdeskUserPayload` now includes `user.info` (required by RustDesk 1.4.x serde). Callback could succeed while auth-query JSON was ignored. Ships via panel update (Go API restart).
+- **Viewer-only outbound “ID not found” with service stopped (#327):** TCP `RegisterPk` binds peer IP for `FindByIP`; punch/relay also accepts a valid BetterDesk client login token. Anonymous initiators stay blocked (#302). Ships via panel update (Go signal restart).
+- **Enrollment outbound gate hardening (#302):** reject initiators that still have `pending_device_<id>` even if a peers row exists. Ships via panel update (Go signal restart).
 - **Web Remote SignedId MITM check + stale server key (#313):** viewer reads `id_ed25519.pub` on each page render (no empty cache if Go starts later); RdClient accepts base64 Key (and hex) and verifies `RelayResponse.pk` with the server key then `SignedId` with the peer identity key (RustDesk chain). Does not change the 3.4.2 panel-proxy allowlist. Ships via panel update. Note: desktop client `Failed to secure tcp: Signature mismatch in key exchange` when the Key field is empty/wrong is expected client config — set Key from Keys page / `id_ed25519.pub`.
 - **Cannot delete seed `admin` with false UI success (#315):** panel delete now checks Go Super Admin parity on dual-SQLite, mirrors delete before local removal, and returns 409/502 instead of success when Go refuses last-admin (no silent backfill restore). Last–Super Admin guard and installer `reset-password.js` / menu reset (username `admin`) are unchanged. Ships via panel update.
 - **Native install TLS self-signed deploy (#325):** `_safe_cp_tls_file` no longer deletes `betterdesk.crt` when source and dest are the same real file (self-signed generated in place). Symlink→copy for Let's Encrypt (#219) is unchanged. Ships via installer / `betterdesk.sh` (not panel-only). Verify: `install.sh --native` completes past “Generating self-signed TLS certificates” with both `/opt/betterdesk/ssl/betterdesk.crt` and `.key` present.
@@ -11,6 +15,10 @@
 - **MeshAgent `bad web cert hash` behind reverse proxy (#321):** PEM-aware `WebCertHash` (first `CERTIFICATE` SPKI SHA-384) and optional `MESH_WEB_CERT_FILE` for the public TLS cert agents see (e.g. NPM Let's Encrypt), independent of Go `TLS_CERT`. Ships via panel update (Go restart). Verify: mount LE fullchain → set `MESH_WEB_CERT_FILE` → agent registers without web-hash mismatch.
 - **Devices kebab Unban called Ban (#323):** kebab menu passed boolean `device.banned` while the handler only treated the string `'true'` as banned, so Unban opened the Ban modal and POSTed `/ban`. Both boolean and dataset string are accepted now. Ships via panel update.
 - **Client Configuration light theme contrast (#319):** replaced hardcoded dark `rgba(13,17,23,…)` panels with theme tokens (`--bg-tertiary` / `--bg-secondary`) so labels and endpoints stay readable in Light Theme. Ships via panel update.
+
+### Docs
+- **Caddy WebSocket Mode (#294):** client must use WSS (not `ws://` → HTTP 308); `TRUST_PROXY` / `TRUSTED_PROXIES` for correct peer IP after `/ws/id` upgrade. See `docs/setup/REVERSE_PROXY.md`.
+- **Docker channel vs image tag (#299):** documented in `docs/docker/DOCKER_QUICKSTART.md`.
 
 ---
 

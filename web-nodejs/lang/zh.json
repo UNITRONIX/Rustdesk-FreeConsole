@@ -3770,6 +3770,8 @@
         "channel_save": "切换通道",
         "channel_saved": "通道已切换。请点击检查更新。",
         "channel_save_failed": "保存更新通道失败",
+        "channel_docker_blocked": "Docker 镜像部署无法在面板中切换更新通道。请设置 BETTERDESK_IMAGE_TAG=latest（稳定）或 BETTERDESK_IMAGE_TAG=dev（开发），然后运行：docker compose pull && docker compose up -d。",
+        "channel_docker_note": "面板中的更新通道仅适用于本地安装。对于 GHCR 镜像，请更改 BETTERDESK_IMAGE_TAG 并重新创建容器。",
         "channel_switch_warning": "更改通道会改变 GitHub 分支。已跟踪的 commit SHA 会保留 — 下次检查可能显示较大差异。继续？",
         "channel_pick_label": "切换到",
         "channel_apply_hint": "确认后立即保存。然后点击检查更新。",

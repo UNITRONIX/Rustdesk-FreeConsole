@@ -2983,6 +2983,8 @@
         const installNote = document.getElementById('update-docker-install-note');
         const installBtn = document.getElementById('update-install-btn');
         const staleWarning = document.getElementById('update-stale-warning');
+        const channelSelect = document.getElementById('update-channel-select');
+        const channelHint = document.getElementById('update-channel-docker-hint');
         const dockerMode = data.deploymentMode === 'docker-image' || data.dockerImageMode;
 
         if (!panel) return dockerMode;
@@ -2992,11 +2994,22 @@
             if (staleWarning) staleWarning.style.display = 'none';
             if (installBtn) installBtn.style.display = 'none';
             if (installNote) installNote.style.display = '';
+            if (channelSelect) {
+                channelSelect.disabled = true;
+                channelSelect.title = _('updates.channel_docker_blocked');
+            }
+            if (channelHint) {
+                channelHint.style.display = '';
+                channelHint.textContent = _('updates.channel_docker_note');
+            }
 
             const dockerUpdate = data.dockerUpdate || {};
             const commands = dockerUpdate.commands || ['docker compose pull', 'docker compose up -d'];
             if (commandsEl) {
-                commandsEl.textContent = commands.join('\n');
+                const tagNote = dockerUpdate.channelNote
+                    ? `${dockerUpdate.channelNote}\n\n${commands.join('\n')}`
+                    : commands.join('\n');
+                commandsEl.textContent = tagNote;
             }
             if (imagesEl && Array.isArray(dockerUpdate.images) && dockerUpdate.images.length) {
                 imagesEl.textContent = `${_('updates.docker_images')}: ${dockerUpdate.images.join(', ')}`;
@@ -3005,6 +3018,14 @@
             panel.style.display = 'none';
             if (installBtn) installBtn.style.display = '';
             if (installNote) installNote.style.display = 'none';
+            if (channelSelect) {
+                channelSelect.disabled = false;
+                channelSelect.removeAttribute('title');
+            }
+            if (channelHint) {
+                channelHint.style.display = 'none';
+                channelHint.textContent = '';
+            }
         }
 
         return dockerMode;

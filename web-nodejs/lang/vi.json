@@ -3705,6 +3705,8 @@
         "channel_save": "Đổi kênh",
         "channel_saved": "Đã đổi kênh. Bấm Kiểm tra cập nhật.",
         "channel_save_failed": "Không thể lưu kênh cập nhật",
+        "channel_docker_blocked": "Cài đặt bằng image Docker không thể đổi kênh cập nhật từ bảng điều khiển. Đặt BETTERDESK_IMAGE_TAG=latest (stable) hoặc BETTERDESK_IMAGE_TAG=dev (development), rồi chạy: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Kênh cập nhật trên bảng điều khiển chỉ áp dụng cho cài đặt native. Với image GHCR hãy đổi BETTERDESK_IMAGE_TAG và tạo lại container.",
         "channel_switch_warning": "Đổi kênh sẽ đổi nhánh GitHub. SHA commit theo dõi được giữ — lần kiểm tra sau có thể hiện chênh lệch lớn. Tiếp tục?",
         "channel_pick_label": "Chuyển sang",
         "channel_apply_hint": "Lưu ngay sau khi xác nhận. Sau đó bấm Kiểm tra cập nhật.",

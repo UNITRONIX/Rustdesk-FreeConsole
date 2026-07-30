@@ -3699,6 +3699,8 @@
         "channel_save": "Kanaal wisselen",
         "channel_saved": "Kanaal gewijzigd. Klik op Controleren op updates.",
         "channel_save_failed": "Updatekanaal opslaan mislukt",
+        "channel_docker_blocked": "Docker-image-installaties kunnen het updatekanaal niet vanuit het panel wisselen. Stel BETTERDESK_IMAGE_TAG=latest (stable) of BETTERDESK_IMAGE_TAG=dev (development) in en voer uit: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Het updatekanaal in het panel geldt alleen voor native installs. Voor GHCR-images wijzigt u BETTERDESK_IMAGE_TAG en maakt u containers opnieuw aan.",
         "channel_switch_warning": "Kanaalwijziging verandert de GitHub-branch. Bijgehouden commit-SHA blijft — volgende check kan groot verschil tonen. Doorgaan?",
         "channel_pick_label": "Overschakelen naar",
         "channel_apply_hint": "Wordt direct opgeslagen na bevestiging. Klik daarna op Controleren op updates.",

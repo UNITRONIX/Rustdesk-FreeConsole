@@ -3705,6 +3705,8 @@
         "channel_save": "สลับช่องทาง",
         "channel_saved": "สลับช่องทางอัปเดตแล้ว คลิกตรวจสอบอัปเดตเพื่อรีเฟรช",
         "channel_save_failed": "บันทึกช่องทางอัปเดตไม่สำเร็จ",
+        "channel_docker_blocked": "การติดตั้งแบบ Docker image ไม่สามารถสลับช่องอัปเดตจากแผงควบคุมได้ ตั้ง BETTERDESK_IMAGE_TAG=latest (stable) หรือ BETTERDESK_IMAGE_TAG=dev (development) แล้วรัน: docker compose pull && docker compose up -d",
+        "channel_docker_note": "ช่องอัปเดตในแผงควบคุมใช้ได้เฉพาะการติดตั้งแบบ native สำหรับอิมเมจ GHCR ให้เปลี่ยน BETTERDESK_IMAGE_TAG แล้วสร้างคอนเทนเนอร์ใหม่",
         "channel_switch_warning": "การเปลี่ยนช่องจะเปลี่ยนสาขา GitHub SHA ที่ติดตามยังอยู่ — การตรวจครั้งถัดไปอาจแสดงความต่างมาก ดำเนินการต่อ?",
         "channel_pick_label": "สลับเป็น",
         "channel_apply_hint": "การเปลี่ยนแปลงจะบันทึกทันทีหลังยืนยัน จากนั้นคลิกตรวจสอบอัปเดต",
