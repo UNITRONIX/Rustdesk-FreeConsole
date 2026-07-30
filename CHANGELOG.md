@@ -1,6 +1,17 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+### Fixed
+- _(none yet)_
+
+---
+
+## [3.4.3] — 2026-07-30
+
+
+### Changed
 - **Client Configuration public key masked by default (#319):** Dashboard and Keys page show the KEY as bullets until revealed via an eye toggle; Copy still pastes the raw key. Ships via panel update.
 - **Docker update channel (#299):** Settings → Updates cannot switch stable/dev for GHCR image installs; use `BETTERDESK_IMAGE_TAG=latest` or `dev`, then `docker compose pull && up -d`. Panel shows a clear note; API returns `DOCKER_IMAGE_CHANNEL`.
 
