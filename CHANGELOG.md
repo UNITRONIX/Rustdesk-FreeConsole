@@ -1,7 +1,23 @@
 ## [Unreleased]
 
+### Added
+- **UX 3.5 console shell (stable):** native full-list sidebar + topbar, Dark/Light/Custom themes in Settings → Branding, resizable sidebar, tablet/phone drawer. Login / RdClient / remote viewer unchanged. Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
+- **FreeBSD (Tier 3 / community):** example `rc.d` scripts and install notes under `contrib/freebsd/`; documented in README and wiki Installation. Refs #310. Manual build only — no CI FreeBSD binaries or panel updater support yet.
+
 ### Changed
-- _(none yet)_
+- **UX 3.5 solid shell performance:** opaque chrome/content (no glass blur on UX 3.5 surfaces), smoother sidebar resize, lighter page cards, cleaner drawer overlay. Ships via panel update.
+- **Console chrome:** UX 3.5 is the management UI on this release line (classic TeamViewer-style rail/flyout and Desktop Mode are no longer the default shell).
+- **Roll-up of stable 3.4.1–3.4.3 hotfixes** for operators jumping from older stables in one semver step (enrollment outbound gate #302, Web Remote panel-proxy #313, OIDC `user.info`, mesh cert hash, Unban kebab, and related panel/installer fixes already published on `main`).
+
+### Fixed
+- **OIDC client login stuck on "Waiting…" (#304):** panel proxies `GET /api/auth/oidc/callback` (and `/api/oidc/callback`) to the Go API so Redirect URLs on the console origin (`:5000` / `:5443`) complete RustDesk SSO. Ships via panel update. Verify: IdP Redirect URL = `https://<panel>/api/auth/oidc/callback` → SSO finishes with access token.
+- **UX 3.5 light theme / wallpaper stacking:** light/dark palettes resolve correctly; content no longer hidden under branding wallpaper; theme toggle applies tokens immediately. Ships via panel update.
+- **Docker AIO supervisord crash on missing NTP/billing env (#299):** entrypoint/Dockerfile default `NTP_SERVERS` and billing clock vars; fixed corrupted `ENCRYPTED_ONLY`/`RELAY_SERVERS` ENV join. Ships via image rebuild / `docker compose pull`.
+- **Rate limiter API path resolution:** more accurate path matching for console API rate limits. Ships via panel update.
+
+### Docs
+- **UX 3.5:** `docs/wiki/UX-3.5.md`
+- **FreeBSD:** `contrib/freebsd/` + README platform table
 
 ---
 
