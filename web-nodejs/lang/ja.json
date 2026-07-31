@@ -956,7 +956,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "再試行"
+        "retry": "再試行",
+        "show_value": "表示",
+        "hide_value": "非表示"
     },
     "time": {
         "just_now": "Just now",
@@ -1014,6 +1016,8 @@
         "cannot_demote_self": "自分自身を降格させることはできません",
         "cannot_delete_self": "自分のアカウントを削除することはできません",
         "last_admin": "最後の管理者を削除できません",
+        "last_admin_go": "削除できません。これは BetterDesk サーバー上の唯一の Super Admin です。先に別の Super Admin を作成または同期してください（Global Admin ではありません）。",
+        "delete_mirror_failed": "サーバーからユーザーを削除できませんでした。BetterDesk サーバーに接続できるときに再試行してください。",
         "admin_only": "この機能は管理者のみが利用できます",
         "password_required": "パスワードが必要です",
         "not_found": "ユーザーが見つかりません",
@@ -3698,6 +3702,8 @@
         "channel_save": "チャンネル切替",
         "channel_saved": "チャンネルを切り替えました。「更新を確認」をクリックしてください。",
         "channel_save_failed": "更新チャンネルの保存に失敗しました",
+        "channel_docker_blocked": "Dockerイメージ導入ではパネルから更新チャネルを切り替えられません。BETTERDESK_IMAGE_TAG=latest（stable）または BETTERDESK_IMAGE_TAG=dev（development）を設定し、docker compose pull && docker compose up -d を実行してください。",
+        "channel_docker_note": "パネルの更新チャネルはネイティブ導入のみ対象です。GHCRイメージでは BETTERDESK_IMAGE_TAG を変更してコンテナを再作成してください。",
         "channel_switch_warning": "チャンネル変更は GitHub ブランチを変えます。追跡中の commit SHA は保持されます — 次回チェックで大きな差分が出る場合があります。続行しますか？",
         "channel_pick_label": "切り替え",
         "channel_apply_hint": "確認後すぐに保存されます。その後「更新を確認」をクリック。",

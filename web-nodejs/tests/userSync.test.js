@@ -302,4 +302,69 @@ describe('userSync', () => {
         expect(mockApiClient.post).not.toHaveBeenCalled();
         expect(mockApiClient.put).not.toHaveBeenCalled();
     });
+
+    it('assertGoAllowsSuperAdminDelete refuses last Go Super Admin (Issue #315)', async () => {
+        mockApiClient.get.mockResolvedValue({
+            data: [
+                { id: 1, username: 'admin', role: 'admin' },
+                { id: 2, username: 'ops', role: 'global_admin' },
+            ],
+        });
+
+        const result = await userSync.assertGoAllowsSuperAdminDelete('admin');
+
+        expect(result).toEqual({
+            ok: false,
+            status: 409,
+            reason: 'last_admin_go',
+            goAdminCount: 1,
+        });
+    });
+
+    it('assertGoAllowsSuperAdminDelete allows when another Go Super Admin exists', async () => {
+        mockApiClient.get.mockResolvedValue({
+            data: [
+                { id: 1, username: 'admin', role: 'admin' },
+                { id: 2, username: 'boss', role: 'super_admin' },
+            ],
+        });
+
+        const result = await userSync.assertGoAllowsSuperAdminDelete('admin');
+
+        expect(result.ok).toBe(true);
+        expect(result.goAdminCount).toBe(2);
+    });
+
+    it('assertGoAllowsSuperAdminDelete skips on shared PostgreSQL', async () => {
+        mockDb.type = 'postgres';
+
+        const result = await userSync.assertGoAllowsSuperAdminDelete('admin');
+
+        expect(result).toEqual({ ok: true, reason: 'shared-db' });
+        expect(mockApiClient.get).not.toHaveBeenCalled();
+    });
+
+    it('mirrorDelete returns conflict on Go 409 without throwing', async () => {
+        mockApiClient.get.mockResolvedValue({
+            data: [{ id: 1, username: 'admin', role: 'admin' }],
+        });
+        mockApiClient.delete.mockRejectedValue({
+            response: { status: 409 },
+            message: 'Request failed with status code 409',
+        });
+
+        const result = await userSync.mirrorDelete('admin');
+
+        expect(result).toEqual({ ok: false, status: 409, conflict: true });
+        expect(mockApiClient.delete).toHaveBeenCalledWith('/users/1');
+    });
+
+    it('mirrorDelete is a no-op on shared PostgreSQL', async () => {
+        mockDb.type = 'postgres';
+
+        const result = await userSync.mirrorDelete('admin');
+
+        expect(result).toEqual({ ok: true, skipped: 'shared-db' });
+        expect(mockApiClient.delete).not.toHaveBeenCalled();
+    });
 });

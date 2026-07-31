@@ -147,7 +147,10 @@
                             </div>
                             <div class="client-config-field client-config-field-wide">
                                 <span class="client-config-label">${_('dashboard.config_key')}</span>
-                                <code class="client-config-value" id="client-config-public-key"><span class="skeleton skeleton-text"></span></code>
+                                <code class="client-config-value is-masked" id="client-config-public-key"><span class="skeleton skeleton-text"></span></code>
+                                <button type="button" class="client-config-reveal" id="client-config-key-reveal" title="${_('actions.show_value')}" aria-label="${_('actions.show_value')} ${_('dashboard.config_key')}" aria-pressed="false">
+                                    <span class="material-icons">visibility</span>
+                                </button>
                                 <button type="button" class="client-config-copy" data-copy-target="client-config-public-key" title="${_('actions.copy')}" aria-label="${_('actions.copy')} ${_('dashboard.config_key')}">
                                     <span class="material-icons">content_copy</span>
                                 </button>

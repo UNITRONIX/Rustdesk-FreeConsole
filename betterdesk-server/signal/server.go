@@ -41,6 +41,7 @@ type tcpPunchConn struct {
 	secure    *crypto.SecureTCPConn // set when connection uses NaCl encryption
 	writeMu   sync.Mutex
 	createdAt time.Time // M2: track creation time for TTL eviction
+	peerID    string    // set after RegisterPk on this TCP session (#327)
 }
 
 // pendingUUID tracks a relay UUID that was sent to a target device.

@@ -189,6 +189,15 @@ export BETTERDESK_IMAGE_TAG=<new-version>   # e.g. 3.0.0-beta or 3.0.0
 docker compose pull && docker compose up -d
 ```
 
+**Stable vs development channel:** Settings → Updates → Update channel does **not** switch GHCR images. Change the image tag instead:
+
+| Channel | Typical `BETTERDESK_IMAGE_TAG` |
+|---------|--------------------------------|
+| Stable (`main`) | `latest` or a release version (e.g. `3.4.3`) |
+| Development (`dev`) | `dev` |
+
+Then: `docker compose pull && docker compose up -d`. In-app “Install update” stays disabled for official image deployments.
+
 ## 🗑️ Uninstall
 
 ```bash

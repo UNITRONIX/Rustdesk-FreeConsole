@@ -956,7 +956,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Toevoegen",
         "remove": "Verwijderen",
-        "retry": "Opnieuw"
+        "retry": "Opnieuw",
+        "show_value": "Tonen",
+        "hide_value": "Verbergen"
     },
     "time": {
         "just_now": "Zojuist",
@@ -1014,6 +1016,8 @@
         "cannot_demote_self": "U kunt uzelf niet degraderen",
         "cannot_delete_self": "U kunt uw eigen account niet verwijderen",
         "last_admin": "Kan de laatste beheerder niet verwijderen",
+        "last_admin_go": "Kan niet verwijderen: dit is de enige Super Admin op de BetterDesk-server. Maak of synchroniseer eerst een andere Super Admin (geen Global Admin).",
+        "delete_mirror_failed": "Kon de gebruiker niet van de server verwijderen. Probeer opnieuw wanneer de BetterDesk-server bereikbaar is.",
         "admin_only": "Deze functie is alleen beschikbaar voor beheerders",
         "password_required": "Wachtwoord is vereist",
         "not_found": "Gebruiker niet gevonden",
@@ -3698,6 +3702,8 @@
         "channel_save": "Kanaal wisselen",
         "channel_saved": "Kanaal gewijzigd. Klik op Controleren op updates.",
         "channel_save_failed": "Updatekanaal opslaan mislukt",
+        "channel_docker_blocked": "Docker-image-installaties kunnen het updatekanaal niet vanuit het panel wisselen. Stel BETTERDESK_IMAGE_TAG=latest (stable) of BETTERDESK_IMAGE_TAG=dev (development) in en voer uit: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Het updatekanaal in het panel geldt alleen voor native installs. Voor GHCR-images wijzigt u BETTERDESK_IMAGE_TAG en maakt u containers opnieuw aan.",
         "channel_switch_warning": "Kanaalwijziging verandert de GitHub-branch. Bijgehouden commit-SHA blijft — volgende check kan groot verschil tonen. Doorgaan?",
         "channel_pick_label": "Overschakelen naar",
         "channel_apply_hint": "Wordt direct opgeslagen na bevestiging. Klik daarna op Controleren op updates.",

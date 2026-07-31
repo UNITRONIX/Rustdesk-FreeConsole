@@ -53,9 +53,15 @@
     word-break: break-all;
     line-height: 1.6;
     color: var(--text-primary);
-    padding-right: var(--space-xl);
+    padding-right: calc(var(--space-xl) + 36px);
 }
 
+.public-key-text.is-masked {
+    letter-spacing: 0.2em;
+    color: var(--text-secondary);
+}
+
+.public-key-reveal,
 .public-key-copy {
     position: absolute;
     top: var(--space-sm);
@@ -67,6 +73,17 @@
     color: var(--text-secondary);
     cursor: pointer;
     transition: all var(--transition-fast);
+}
+
+.public-key-reveal {
+    right: calc(var(--space-sm) + 36px);
+}
+
+.public-key-reveal:hover,
+.public-key-reveal:focus-visible {
+    background: var(--accent-blue-muted);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
 }
 
 .public-key-copy:hover {

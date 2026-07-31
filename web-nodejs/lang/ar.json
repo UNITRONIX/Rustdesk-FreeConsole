@@ -963,7 +963,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "إعادة المحاولة"
+        "retry": "إعادة المحاولة",
+        "show_value": "إظهار",
+        "hide_value": "إخفاء"
     },
     "time": {
         "just_now": "Just now",
@@ -1021,6 +1023,8 @@
         "cannot_demote_self": "لا يمكنك خفض رتبة نفسك",
         "cannot_delete_self": "لا يمكنك حذف حسابك الخاص",
         "last_admin": "لا يمكن حذف المسؤول الأخير",
+        "last_admin_go": "تعذر الحذف: هذا هو Super Admin الوحيد على خادم BetterDesk. أنشئ أو زامن Super Admin آخر أولاً (وليس Global Admin).",
+        "delete_mirror_failed": "تعذر إزالة المستخدم من الخادم. أعد المحاولة عندما يكون خادم BetterDesk متاحاً.",
         "admin_only": "هذه الميزة متاحة فقط للمسؤولين",
         "password_required": "كلمة المرور مطلوبة",
         "not_found": "لم يتم العثور على المستخدم",
@@ -3705,6 +3709,8 @@
         "channel_save": "تبديل القناة",
         "channel_saved": "تم تبديل القناة. انقر للتحقق من التحديثات.",
         "channel_save_failed": "فشل حفظ قناة التحديث",
+        "channel_docker_blocked": "لا يمكن لتثبيتات صور Docker تبديل قناة التحديث من اللوحة. عيّن BETTERDESK_IMAGE_TAG=latest (مستقر) أو BETTERDESK_IMAGE_TAG=dev (تطوير)، ثم نفّذ: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "قناة التحديث في اللوحة تنطبق فقط على التثبيت الأصلي. لصور GHCR غيّر BETTERDESK_IMAGE_TAG وأعد إنشاء الحاويات.",
         "channel_switch_warning": "تغيير قناة التحديث يغيّر فرع GitHub المستخدم للفحص والتثبيت. يُحتفظ بـ SHA للالتزام المتتبع — قد يظهر الفحص التالي فرقًا كبيرًا. المتابعة؟",
         "channel_pick_label": "التبديل إلى",
         "channel_apply_hint": "يُحفظ التغيير فور التأكيد. ثم انقر «التحقق من التحديثات».",

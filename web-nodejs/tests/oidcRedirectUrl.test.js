@@ -23,8 +23,8 @@ describe('oidcRedirectUrl', () => {
     });
 
     it('suggests panel callback URL', () => {
-        expect(suggestOidcRedirectUrl('https://192.168.0.110:5443')).toBe(
-            'https://192.168.0.110:5443/api/auth/oidc/callback'
+        expect(suggestOidcRedirectUrl('https://203.0.113.10:5443')).toBe(
+            'https://203.0.113.10:5443/api/auth/oidc/callback'
         );
         expect(suggestOidcRedirectUrl('https://example.com/')).toBe(
             'https://example.com/api/auth/oidc/callback'

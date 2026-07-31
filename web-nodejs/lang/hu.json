@@ -962,7 +962,9 @@
         "cdap_viewer": "CDAP Snapshot nézető",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Újra"
+        "retry": "Újra",
+        "show_value": "Megjelenítés",
+        "hide_value": "Elrejtés"
     },
     "time": {
         "just_now": "Just now",
@@ -1020,6 +1022,8 @@
         "cannot_demote_self": "Nem csökkentheted le magad",
         "cannot_delete_self": "Nem törölheti saját fiókját",
         "last_admin": "Az utolsó rendszergazda nem törölhető",
+        "last_admin_go": "Nem törölhető: ez az egyetlen Super Admin a BetterDesk szerveren. Először hozzon létre vagy szinkronizáljon másik Super Admint (nem Global Admin).",
+        "delete_mirror_failed": "A felhasználót nem sikerült eltávolítani a szerverről. Próbálja újra, amikor a BetterDesk szerver elérhető.",
         "admin_only": "Ez a funkció csak a rendszergazdák számára érhető el",
         "password_required": "Jelszó szükséges",
         "not_found": "Felhasználó nem található",
@@ -3704,6 +3708,8 @@
         "channel_save": "Csatorna váltása",
         "channel_saved": "Csatorna váltva. Kattintson a Frissítések ellenőrzése gombra.",
         "channel_save_failed": "A frissítési csatorna mentése sikertelen",
+        "channel_docker_blocked": "A Docker image telepítések nem válthatnak frissítési csatornát a panelről. Állítsa be: BETTERDESK_IMAGE_TAG=latest (stable) vagy BETTERDESK_IMAGE_TAG=dev (development), majd futtassa: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "A panel frissítési csatornája csak natív telepítésekre vonatkozik. GHCR image-ekhez módosítsa a BETTERDESK_IMAGE_TAG-et és hozza létre újra a konténereket.",
         "channel_switch_warning": "A csatornaváltás megváltoztatja a GitHub-ágat. A követett commit SHA megmarad — a következő ellenőrzés nagy különbséget mutathat. Folytatja?",
         "channel_pick_label": "Váltás",
         "channel_apply_hint": "Megerősítés után azonnal mentés. Ezután kattintson a Frissítések ellenőrzése gombra.",

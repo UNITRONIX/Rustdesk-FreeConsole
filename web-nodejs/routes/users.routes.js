@@ -582,6 +582,11 @@ router.get('/api/users/:id/effective-scope', requireAuth, requirePermission('use
 
 /**
  * DELETE /api/users/:id - Delete user (admin only)
+ *
+ * Issue #315: on dual-SQLite, mirror delete to Go first (or refuse when Go
+ * still sees this as the last Super Admin). Never report success then let
+ * backfill resurrect the user. Username `admin` is not specially protected —
+ * installer reset-password.js can recreate it.
  */
 router.delete('/api/users/:id', requireAuth, requirePermission('user.delete'), async (req, res) => {
     try {
@@ -606,7 +611,7 @@ router.delete('/api/users/:id', requireAuth, requirePermission('user.delete'), a
             });
         }
         
-        // Ensure at least one admin remains
+        // Ensure at least one admin remains (local auth DB)
         const adminCount = await db.countAdmins();
         if (isSuperAdminRole(user.role) && adminCount <= 1) {
             return res.status(400).json({
@@ -614,11 +619,39 @@ router.delete('/api/users/:id', requireAuth, requirePermission('user.delete'), a
                 error: req.t('users.last_admin')
             });
         }
-        
-        await db.deleteUser(userId);
 
-        // Mirror delete to Go server so org links are cleaned up (Issue #125)
-        runBestEffortUserSync(() => userSync.mirrorDelete(user.username));
+        // Dual-SQLite: refuse before any mutation when Go would 409 (desync).
+        if (isSuperAdminRole(user.role)) {
+            const goGate = await userSync.assertGoAllowsSuperAdminDelete(user.username);
+            if (!goGate.ok) {
+                const status = goGate.status === 409 ? 409 : 502;
+                const errorKey = goGate.reason === 'last_admin_go'
+                    ? 'users.last_admin_go'
+                    : 'users.delete_mirror_failed';
+                return res.status(status).json({
+                    success: false,
+                    error: req.t(errorKey),
+                    code: goGate.reason || 'go_delete_blocked',
+                });
+            }
+        }
+
+        // Mirror to Go before local delete so a 409 cannot leave a false success.
+        // Shared PostgreSQL skips HTTP mirror (local delete removes the shared row).
+        const mirrorResult = await userSync.mirrorDelete(user.username);
+        if (!mirrorResult.ok) {
+            const status = mirrorResult.conflict ? 409 : (mirrorResult.status || 502);
+            const errorKey = mirrorResult.conflict
+                ? 'users.last_admin_go'
+                : 'users.delete_mirror_failed';
+            return res.status(status).json({
+                success: false,
+                error: req.t(errorKey),
+                code: mirrorResult.conflict ? 'last_admin_go' : 'delete_mirror_failed',
+            });
+        }
+
+        await db.deleteUser(userId);
 
         // Log action
         await db.logAction(req.session.userId, 'user_deleted', `Deleted user: ${user.username}`, req.ip);

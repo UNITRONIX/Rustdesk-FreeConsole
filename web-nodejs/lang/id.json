@@ -962,7 +962,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Coba lagi"
+        "retry": "Coba lagi",
+        "show_value": "Tampilkan",
+        "hide_value": "Sembunyikan"
     },
     "time": {
         "just_now": "Just now",
@@ -1020,6 +1022,8 @@
         "cannot_demote_self": "Anda tidak dapat menurunkan diri Anda sendiri",
         "cannot_delete_self": "Anda tidak dapat menghapus akun Anda sendiri",
         "last_admin": "Tidak dapat menghapus administrator terakhir",
+        "last_admin_go": "Tidak dapat menghapus: ini satu-satunya Super Admin di server BetterDesk. Buat atau sinkronkan Super Admin lain terlebih dahulu (bukan Global Admin).",
+        "delete_mirror_failed": "Tidak dapat menghapus pengguna dari server. Coba lagi saat server BetterDesk dapat dijangkau.",
         "admin_only": "Fitur ini hanya tersedia untuk administrator",
         "password_required": "Kata sandi diperlukan",
         "not_found": "Pengguna tidak ditemukan",
@@ -3704,6 +3708,8 @@
         "channel_save": "Ganti saluran",
         "channel_saved": "Saluran diganti. Klik Periksa pembaruan.",
         "channel_save_failed": "Gagal menyimpan saluran pembaruan",
+        "channel_docker_blocked": "Instalasi image Docker tidak dapat mengganti saluran pembaruan dari panel. Atur BETTERDESK_IMAGE_TAG=latest (stable) atau BETTERDESK_IMAGE_TAG=dev (development), lalu jalankan: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Saluran pembaruan di panel hanya untuk instalasi native. Untuk image GHCR, ubah BETTERDESK_IMAGE_TAG dan buat ulang kontainer.",
         "channel_switch_warning": "Mengganti saluran mengubah cabang GitHub. SHA commit yang dilacak tetap — pemeriksaan berikutnya bisa menunjukkan perbedaan besar. Lanjutkan?",
         "channel_pick_label": "Beralih ke",
         "channel_apply_hint": "Disimpan setelah konfirmasi. Lalu klik Periksa pembaruan.",

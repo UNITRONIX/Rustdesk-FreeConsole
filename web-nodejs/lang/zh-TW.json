@@ -973,7 +973,9 @@
         "view_all": "查看全部",
         "add": "添加",
         "remove": "移除",
-        "retry": "重試"
+        "retry": "重試",
+        "show_value": "顯示",
+        "hide_value": "隱藏"
     },
     "time": {
         "just_now": "剛剛",
@@ -1053,6 +1055,8 @@
         "cannot_demote_self": "您無法降低自己的權限",
         "cannot_delete_self": "您無法刪除自己的賬戶",
         "last_admin": "無法刪除最後一個管理員",
+        "last_admin_go": "無法刪除：這是 BetterDesk 伺服器上唯一的 Super Admin。請先建立或同步另一個 Super Admin（不是 Global Admin）。",
+        "delete_mirror_failed": "無法從伺服器移除該使用者。請在 BetterDesk 伺服器可用時重試。",
         "admin_only": "此功能僅對管理員可用",
         "password_required": "密碼爲必填項",
         "not_found": "未找到用戶",
@@ -3794,6 +3798,8 @@
         "channel_save": "切換通道",
         "channel_saved": "通道已切換。請點擊檢查更新。",
         "channel_save_failed": "保存更新通道失敗",
+        "channel_docker_blocked": "Docker 映像部署無法在面板中切換更新通道。請設定 BETTERDESK_IMAGE_TAG=latest（穩定）或 BETTERDESK_IMAGE_TAG=dev（開發），然後執行：docker compose pull && docker compose up -d。",
+        "channel_docker_note": "面板中的更新通道僅適用於原生安裝。對於 GHCR 映像，請變更 BETTERDESK_IMAGE_TAG 並重新建立容器。",
         "channel_switch_warning": "更改通道會改變 GitHub 分支。已跟蹤的 commit SHA 會保留 — 下次檢查可能顯示較大差異。繼續？",
         "channel_confirm_switch": "將更新源從 {from} 切換到 {to}？在點擊檢查更新之前，已安裝的 commit 基準不變。",
         "more_options": "更多選項",

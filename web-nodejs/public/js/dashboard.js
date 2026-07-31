@@ -29,8 +29,12 @@
     let applyClientHostHandler = null;
     let clientConfigCopyButtons = [];
     const clientConfigCopyHandlers = new Map();
+    let clientConfigKeyRevealButton = null;
+    let clientConfigKeyRevealHandler = null;
+    let publicKeyVisible = false;
     let clientConfig = null;
     const pendingRequests = new Map();
+    const PUBLIC_KEY_MASK = '••••••••••••••••••••••••';
     
     // Tips pool — rotated daily
     const TIPS = [
@@ -122,6 +126,10 @@
             clientConfigCopyHandlers.set(button, handler);
             button.addEventListener('click', handler);
         });
+
+        clientConfigKeyRevealButton = findById('client-config-key-reveal');
+        clientConfigKeyRevealHandler = togglePublicKeyVisibility;
+        clientConfigKeyRevealButton?.addEventListener('click', clientConfigKeyRevealHandler);
         
         // Cleanup on page leave
         window.addEventListener('beforeunload', destroy, { once: true });
@@ -143,6 +151,9 @@
             if (handler) button.removeEventListener('click', handler);
         });
         clientConfigCopyHandlers.clear();
+        if (clientConfigKeyRevealButton && clientConfigKeyRevealHandler) {
+            clientConfigKeyRevealButton.removeEventListener('click', clientConfigKeyRevealHandler);
+        }
 
         refreshInterval = null;
         activityInterval = null;
@@ -163,6 +174,9 @@
         applyClientHostButton = null;
         applyClientHostHandler = null;
         clientConfigCopyButtons = [];
+        clientConfigKeyRevealButton = null;
+        clientConfigKeyRevealHandler = null;
+        publicKeyVisible = false;
         clientConfig = null;
         initialized = false;
     }
@@ -419,7 +433,7 @@
             setText('client-config-server-id', clientConfig.server_id || '-');
             setText('client-config-relay-server', clientConfig.relay_server || '-');
             setText('client-config-api-url', clientConfig.api_url || '-');
-            setText('client-config-public-key', clientConfig.public_key || _('keys.no_key'));
+            renderPublicKeyField(clientConfig.public_key || '', false);
             updateClientHostControls(clientConfig);
         } catch (err) {
             console.error('Client config load error:', err);
@@ -427,8 +441,67 @@
             setText('client-config-server-id', window.location.hostname || '-');
             setText('client-config-relay-server', window.location.hostname || '-');
             setText('client-config-api-url', '-');
-            setText('client-config-public-key', _('errors.load_key_failed'));
+            renderPublicKeyField('', false, _('errors.load_key_failed'));
         }
+    }
+
+    function getPublicKeyRaw() {
+        return (clientConfig?.public_key || '').trim();
+    }
+
+    function renderPublicKeyField(rawKey, visible, errorText) {
+        const el = findById('client-config-public-key');
+        const revealBtn = clientConfigKeyRevealButton || findById('client-config-key-reveal');
+        if (!el) return;
+
+        const key = (rawKey || '').trim();
+        publicKeyVisible = Boolean(visible && key);
+
+        if (errorText) {
+            el.textContent = errorText;
+            el.classList.remove('is-masked');
+            el.removeAttribute('data-raw');
+            if (revealBtn) revealBtn.disabled = true;
+            syncPublicKeyRevealButton();
+            return;
+        }
+
+        if (!key) {
+            el.textContent = _('keys.no_key');
+            el.classList.remove('is-masked');
+            el.removeAttribute('data-raw');
+            if (revealBtn) revealBtn.disabled = true;
+            syncPublicKeyRevealButton();
+            return;
+        }
+
+        el.dataset.raw = key;
+        if (publicKeyVisible) {
+            el.textContent = key;
+            el.classList.remove('is-masked');
+        } else {
+            el.textContent = PUBLIC_KEY_MASK;
+            el.classList.add('is-masked');
+        }
+        if (revealBtn) revealBtn.disabled = false;
+        syncPublicKeyRevealButton();
+    }
+
+    function syncPublicKeyRevealButton() {
+        const revealBtn = clientConfigKeyRevealButton || findById('client-config-key-reveal');
+        if (!revealBtn) return;
+        const icon = revealBtn.querySelector('.material-icons');
+        const label = publicKeyVisible ? _('actions.hide_value') : _('actions.show_value');
+        revealBtn.title = label;
+        revealBtn.setAttribute('aria-label', `${label} ${_('dashboard.config_key')}`);
+        revealBtn.setAttribute('aria-pressed', publicKeyVisible ? 'true' : 'false');
+        if (icon) icon.textContent = publicKeyVisible ? 'visibility_off' : 'visibility';
+    }
+
+    function togglePublicKeyVisibility() {
+        const raw = getPublicKeyRaw();
+        if (!raw) return;
+        renderPublicKeyField(raw, !publicKeyVisible);
     }
 
     function updateClientHostControls(config) {
@@ -450,8 +523,15 @@
 
     async function copyClientConfigField(elementId, button) {
         const el = elementId ? findById(elementId) : null;
-        const value = el?.textContent?.trim();
-        if (!value || value === '-' || value === _('keys.no_key') || value === _('errors.load_key_failed')) {
+        let value = el?.textContent?.trim();
+
+        if (elementId === 'client-config-public-key') {
+            value = getPublicKeyRaw() || el?.dataset?.raw?.trim() || '';
+            if (!value || value === _('keys.no_key') || value === _('errors.load_key_failed')) {
+                Notifications.warning(_('dashboard.config_not_ready'));
+                return;
+            }
+        } else if (!value || value === '-' || value === _('keys.no_key') || value === _('errors.load_key_failed')) {
             Notifications.warning(_('dashboard.config_not_ready'));
             return;
         }

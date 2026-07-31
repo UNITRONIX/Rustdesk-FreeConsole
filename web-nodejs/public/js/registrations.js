@@ -182,15 +182,19 @@
                 <tr data-id="${escapeAttr(rowId)}" data-source="${escapeAttr(source)}">
                     <td class="device-id-cell">${escapeHtml(reg.device_id)}</td>
                     <td>${escapeHtml(reg.hostname || '—')}</td>
-                    <td class="platform-cell">
-                        <span class="material-icons">${platformIcon}</span>
-                        ${escapeHtml(reg.platform || '—')}
+                    <td class="col-platform">
+                        <div class="platform-cell">
+                            <span class="material-icons">${platformIcon}</span>
+                            ${escapeHtml(reg.platform || '—')}
+                        </div>
                     </td>
                     <td>${escapeHtml(reg.ip_address || '—')}</td>
-                    <td>${escapeHtml(reg.version || '—')}</td>
-                    <td><span class="status-badge ${escapeAttr(statusClass)}">${escapeHtml(statusLabel)}</span></td>
-                    <td class="time-cell" title="${escapeAttr(reg.created_at || '')}">${timeAgo}</td>
-                    <td class="action-btn-group">${actions}</td>
+                    <td class="col-version">${escapeHtml(reg.version || '—')}</td>
+                    <td class="col-status"><span class="status-badge ${escapeAttr(statusClass)}">${escapeHtml(statusLabel)}</span></td>
+                    <td class="col-requested time-cell" title="${escapeAttr(reg.created_at || '')}">${timeAgo}</td>
+                    <td class="col-actions">
+                        <div class="action-btn-group">${actions}</div>
+                    </td>
                 </tr>
             `;
         }).join('');

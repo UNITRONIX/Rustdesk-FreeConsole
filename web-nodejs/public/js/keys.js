@@ -4,53 +4,109 @@
 
 (function() {
     'use strict';
-    
+
+    const _ = window._ || (k => k);
+    const PUBLIC_KEY_MASK = '••••••••••••••••••••••••';
+
+    let rawPublicKey = '';
+    let publicKeyVisible = false;
+
     document.addEventListener('DOMContentLoaded', init);
-    
+
     function init() {
         loadPublicKey();
         loadQRCode();
         loadServerInfo();
-        
-        // Copy key button
+
         document.getElementById('copy-key-btn')?.addEventListener('click', copyPublicKey);
-        
-        // Download key button
+        document.getElementById('reveal-key-btn')?.addEventListener('click', togglePublicKeyVisibility);
         document.getElementById('download-key-btn')?.addEventListener('click', downloadKey);
-        
-        // Show QR modal
         document.getElementById('show-qr-btn')?.addEventListener('click', showQRModal);
-        
-        // Refresh handler
+
         window.addEventListener('app:refresh', () => {
             loadPublicKey();
             loadQRCode();
             loadServerInfo();
         });
     }
-    
+
     /**
-     * Load public key
+     * Load public key (masked by default)
      */
     async function loadPublicKey() {
         const keyText = document.getElementById('public-key-text');
         if (!keyText) return;
-        
+
         try {
             const data = await Utils.api('/api/keys/public');
-            keyText.textContent = data.key || _('keys.no_key');
+            rawPublicKey = (data.key || '').trim();
+            renderPublicKeyField(false, rawPublicKey ? null : _('keys.no_key'));
         } catch (error) {
-            keyText.textContent = _('errors.load_key_failed');
+            rawPublicKey = '';
+            renderPublicKeyField(false, _('errors.load_key_failed'));
         }
     }
-    
+
+    function renderPublicKeyField(visible, errorText) {
+        const keyText = document.getElementById('public-key-text');
+        const revealBtn = document.getElementById('reveal-key-btn');
+        if (!keyText) return;
+
+        publicKeyVisible = Boolean(visible && rawPublicKey);
+
+        if (errorText) {
+            keyText.textContent = errorText;
+            keyText.classList.remove('is-masked');
+            keyText.removeAttribute('data-raw');
+            if (revealBtn) revealBtn.disabled = true;
+            syncPublicKeyRevealButton();
+            return;
+        }
+
+        if (!rawPublicKey) {
+            keyText.textContent = _('keys.no_key');
+            keyText.classList.remove('is-masked');
+            keyText.removeAttribute('data-raw');
+            if (revealBtn) revealBtn.disabled = true;
+            syncPublicKeyRevealButton();
+            return;
+        }
+
+        keyText.dataset.raw = rawPublicKey;
+        if (publicKeyVisible) {
+            keyText.textContent = rawPublicKey;
+            keyText.classList.remove('is-masked');
+        } else {
+            keyText.textContent = PUBLIC_KEY_MASK;
+            keyText.classList.add('is-masked');
+        }
+        if (revealBtn) revealBtn.disabled = false;
+        syncPublicKeyRevealButton();
+    }
+
+    function syncPublicKeyRevealButton() {
+        const revealBtn = document.getElementById('reveal-key-btn');
+        if (!revealBtn) return;
+        const icon = revealBtn.querySelector('.material-icons');
+        const label = publicKeyVisible ? _('actions.hide_value') : _('actions.show_value');
+        revealBtn.title = label;
+        revealBtn.setAttribute('aria-label', `${label} ${_('keys.public_key')}`);
+        revealBtn.setAttribute('aria-pressed', publicKeyVisible ? 'true' : 'false');
+        if (icon) icon.textContent = publicKeyVisible ? 'visibility_off' : 'visibility';
+    }
+
+    function togglePublicKeyVisibility() {
+        if (!rawPublicKey) return;
+        renderPublicKeyField(!publicKeyVisible);
+    }
+
     /**
      * Load QR code
      */
     async function loadQRCode() {
         const qrWrapper = document.getElementById('qr-wrapper');
         if (!qrWrapper) return;
-        
+
         try {
             const data = await Utils.api('/api/keys/public/qr');
             if (data && data.qr) {
@@ -63,25 +119,24 @@
             qrWrapper.innerHTML = `<div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;background:var(--bg-tertiary);color:var(--text-secondary);border-radius:8px;">${_('errors.load_qr_failed')}</div>`;
         }
     }
-    
+
     /**
      * Load server info
      */
     async function loadServerInfo() {
         try {
             const data = await Utils.api('/api/keys/server-info');
-            
+
             const serverIpEl = document.getElementById('server-ip');
             const relayIpEl = document.getElementById('relay-ip');
             const apiKeyEl = document.getElementById('api-key');
-            
+
             if (serverIpEl) serverIpEl.textContent = data.server_id || window.location.hostname || '-';
             if (relayIpEl) relayIpEl.textContent = data.relay_server || window.location.hostname || '-';
             if (apiKeyEl) apiKeyEl.textContent = data.api_key_masked || '-';
-            
+
         } catch (error) {
             console.error('Failed to load server info:', error);
-            // Use hostname as fallback
             const hostname = window.location.hostname;
             const serverIpEl = document.getElementById('server-ip');
             const relayIpEl = document.getElementById('relay-ip');
@@ -89,28 +144,24 @@
             if (relayIpEl) relayIpEl.textContent = hostname || '-';
         }
     }
-    
+
     /**
-     * Copy public key to clipboard
+     * Copy public key to clipboard (raw value even when masked)
      */
     async function copyPublicKey() {
-        const keyText = document.getElementById('public-key-text');
         const copyBtn = document.getElementById('copy-key-btn');
-        
-        if (!keyText) return;
-        
-        const key = keyText.textContent.trim();
-        if (!key || key === _('keys.no_key')) {
+        const key = rawPublicKey.trim();
+        if (!key) {
             Notifications.warning(_('keys.no_key_to_copy'));
             return;
         }
-        
+
         await Utils.copyToClipboard(key);
-        copyBtn.classList.add('copied');
-        setTimeout(() => copyBtn.classList.remove('copied'), 2000);
+        copyBtn?.classList.add('copied');
+        setTimeout(() => copyBtn?.classList.remove('copied'), 2000);
         Notifications.success(_('common.copied'));
     }
-    
+
     /**
      * Download key file
      */
@@ -118,7 +169,7 @@
         try {
             const response = await fetch('/api/keys/download');
             const blob = await response.blob();
-            
+
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -127,25 +178,25 @@
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-            
+
             Notifications.success(_('keys.download_success'));
         } catch (error) {
             Notifications.error(_('errors.download_failed'));
         }
     }
-    
+
     /**
      * Show QR code in modal
      */
     function showQRModal() {
         const qrWrapper = document.getElementById('qr-wrapper');
         const qrImg = qrWrapper?.querySelector('img');
-        
+
         if (!qrImg) {
             Notifications.warning(_('keys.no_qr'));
             return;
         }
-        
+
         Modal.show({
             title: _('keys.qr_code'),
             content: `
@@ -162,5 +213,5 @@
             size: 'medium'
         });
     }
-    
+
 })();

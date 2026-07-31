@@ -118,4 +118,23 @@ describe('updateService docker image deployment', () => {
         expect(instructions.images).toEqual(['ghcr.io/unitronix/betterdesk:latest']);
         expect(instructions.composeHint).toBe('docker-compose.quick.single.yml');
     });
+
+    test('setUpdateChannel is rejected in Docker image mode (#299)', () => {
+        const updateService = loadUpdateService({
+            dataDir,
+            imageSha: 'abc123def4567890abcdef1234567890abcdef',
+            dockerLayout: 'single'
+        });
+
+        expect(() => updateService.setUpdateChannel('development')).toThrow(/BETTERDESK_IMAGE_TAG/);
+        try {
+            updateService.setUpdateChannel('development');
+        } catch (err) {
+            expect(err.code).toBe('DOCKER_IMAGE_CHANNEL');
+        }
+
+        const instructions = updateService.getDockerUpdateInstructions();
+        expect(instructions.suggestedTags).toEqual({ stable: 'latest', development: 'dev' });
+        expect(instructions.channelNote).toMatch(/BETTERDESK_IMAGE_TAG/);
+    });
 });

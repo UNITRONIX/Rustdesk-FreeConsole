@@ -193,6 +193,7 @@ sudo firewall-cmd --reload
 | `SIGNAL_RATE_LIMIT_PER_IP` | 20   | Max signal registrations per proxy/client bucket per minute (`0` disables) |
 | `TLS_CERT`             | -          | TLS certificate path                |
 | `TLS_KEY`              | -          | TLS private key path                |
+| `MESH_WEB_CERT_FILE`   | -          | Public TLS cert for MeshAgent web-hash (overrides `TLS_CERT` for mesh only) |
 | `PEER_TIMEOUT_SECS`    | 15         | Seconds before peer marked offline  |
 | `TRUST_PROXY`          | N          | Trust X-Forwarded-For / X-Real-IP (requires `TRUSTED_PROXIES`) |
 | `TRUSTED_PROXIES`       | (empty)    | Comma-separated CIDR/IP allowlist of reverse proxies; empty = ignore forwarded headers |

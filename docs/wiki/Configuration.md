@@ -52,6 +52,9 @@ betterdesk-server [flags]
 | `TLS_API` | `N` | Enable TLS on API |
 | `TLS_CERT` | (empty) | TLS certificate file path |
 | `TLS_KEY` | (empty) | TLS private key file path |
+| `MESH_ENABLED` | `Y` | MeshCentral compatibility layer |
+| `MESH_AGENT_CERT_FILE` | `mesh_agent_server.pem` | Agent-server RSA cert (`.msh` `ServerID`) |
+| `MESH_WEB_CERT_FILE` | (empty) | Public TLS cert for MeshAgent web-hash (e.g. proxy LE fullchain) |
 | `WS_ALLOWED_ORIGINS` | `*` | WebSocket signal/relay origin allowlist |
 | `API_WS_ALLOWED_ORIGINS` | `*` | API WebSocket origin allowlist |
 | `CDAP_ENABLED` | `N` | Enable CDAP gateway |

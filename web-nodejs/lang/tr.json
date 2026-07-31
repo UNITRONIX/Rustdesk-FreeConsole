@@ -962,7 +962,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Yeniden dene"
+        "retry": "Yeniden dene",
+        "show_value": "Göster",
+        "hide_value": "Gizle"
     },
     "time": {
         "just_now": "Just now",
@@ -1020,6 +1022,8 @@
         "cannot_demote_self": "Kendinizi düşüremezsiniz",
         "cannot_delete_self": "Kendi hesabınızı silemezsiniz",
         "last_admin": "Son yönetici silinemiyor",
+        "last_admin_go": "Silinemiyor: bu, BetterDesk sunucusundaki tek Super Admin. Önce başka bir Super Admin oluşturun veya senkronize edin (Global Admin değil).",
+        "delete_mirror_failed": "Kullanıcı sunucudan kaldırılamadı. BetterDesk sunucusuna erişilebildiğinde yeniden deneyin.",
         "admin_only": "Bu özellik yalnızca yöneticilere açıktır",
         "password_required": "Şifre gerekli",
         "not_found": "Kullanıcı bulunamadı",
@@ -3704,6 +3708,8 @@
         "channel_save": "Kanalı değiştir",
         "channel_saved": "Kanal değiştirildi. Güncellemeleri kontrol et.",
         "channel_save_failed": "Güncelleme kanalı kaydedilemedi",
+        "channel_docker_blocked": "Docker imaj kurulumları panelden güncelleme kanalını değiştiremez. BETTERDESK_IMAGE_TAG=latest (stable) veya BETTERDESK_IMAGE_TAG=dev (development) ayarlayıp şunu çalıştırın: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Paneldeki güncelleme kanalı yalnızca yerel kurulumlar içindir. GHCR imajları için BETTERDESK_IMAGE_TAG değerini değiştirip kapsayıcıları yeniden oluşturun.",
         "channel_switch_warning": "Kanal değişikliği GitHub dalını değiştirir. İzlenen commit SHA korunur — sonraki kontrol büyük fark gösterebilir. Devam?",
         "channel_pick_label": "Geç",
         "channel_apply_hint": "Onaydan sonra kaydedilir. Ardından Güncellemeleri kontrol et.",

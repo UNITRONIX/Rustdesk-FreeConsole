@@ -43,7 +43,23 @@ The MeshCentral compatibility layer is **enabled by default** on full and minima
 
 1. In the panel (or via API `GET /api/mesh/download.msh`), download the generated `.msh` file.
 2. Install **unmodified** MeshAgent on Windows/Linux/macOS using that file.
-3. `MeshServer` in the file points to `wss://your-host/agent.ashx`; `ServerID` pins the agent-server RSA certificate.
+3. `MeshServer` in the file points to `wss://your-host/agent.ashx`; `ServerID` pins the **agent-server RSA** certificate (`MESH_AGENT_CERT_FILE`) — not the public HTTPS/Let's Encrypt cert.
+
+## Behind an external reverse proxy (Nginx / NPM / Caddy)
+
+TLS usually terminates at the proxy. MeshAgent hashes the **public TLS cert** it sees on `MeshServer` and BetterDesk compares that to a configured web cert hash.
+
+| Variable | Role |
+|----------|------|
+| `MESH_WEB_CERT_FILE` | Preferred: path to the public cert agents see (e.g. LE `fullchain.pem`). Used for mesh web-hash only. |
+| `TLS_CERT` | Fallback source for web-hash when `MESH_WEB_CERT_FILE` is unset (also used for Go signal/relay TLS). |
+| *(neither set)* | Web-hash validation is **skipped** (typical native “external reverse proxy” install). |
+
+**Do not** put `mesh_agent_server.pem` in `MESH_WEB_CERT_FILE` — that is `ServerID`, not the web TLS pin.
+
+Preferred proxy path: `wss://host/agent.ashx` → panel `:5000` (`.ashx` WebSocket proxy to Go). Direct proxy to `:21114` works if Upgrade headers are set, but still requires a matching web cert hash when validation is enabled.
+
+If logs show `bad web cert hash` / `agent web cert hash mismatch`: mount the proxy’s leaf/fullchain into the Go container and set `MESH_WEB_CERT_FILE`, or unset both `MESH_WEB_CERT_FILE` and `TLS_CERT` to skip the check.
 
 ## Verify
 

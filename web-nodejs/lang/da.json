@@ -962,7 +962,9 @@
         "cdap_viewer": "CDAP Snapshot-visning",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Prøv igen"
+        "retry": "Prøv igen",
+        "show_value": "Vis",
+        "hide_value": "Skjul"
     },
     "time": {
         "just_now": "Just now",
@@ -1020,6 +1022,8 @@
         "cannot_demote_self": "Du kan ikke degradere dig selv",
         "cannot_delete_self": "Du kan ikke slette din egen konto",
         "last_admin": "Kan ikke slette den sidste administrator",
+        "last_admin_go": "Kan ikke slette: dette er den eneste Super Admin på BetterDesk-serveren. Opret eller synkroniser først en anden Super Admin (ikke Global Admin).",
+        "delete_mirror_failed": "Kunne ikke fjerne brugeren fra serveren. Prøv igen, når BetterDesk-serveren er tilgængelig.",
         "admin_only": "Denne funktion er kun tilgængelig for administratorer",
         "password_required": "Adgangskode er påkrævet",
         "not_found": "Bruger ikke fundet",
@@ -3704,6 +3708,8 @@
         "channel_save": "Skift kanal",
         "channel_saved": "Kanal skiftet. Klik Tjek for opdateringer.",
         "channel_save_failed": "Kunne ikke gemme opdateringskanal",
+        "channel_docker_blocked": "Docker-image-installationer kan ikke skifte opdateringskanal fra panelet. Sæt BETTERDESK_IMAGE_TAG=latest (stable) eller BETTERDESK_IMAGE_TAG=dev (development), og kør derefter: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Opdateringskanalen i panelet gælder kun native installationer. For GHCR-images skal du ændre BETTERDESK_IMAGE_TAG og genskabe containere.",
         "channel_switch_warning": "Skift af opdateringskanal ændrer hvilken GitHub-gren der bruges. Sporet commit-SHA beholdes — næste tjek kan vise stor forskel. Fortsæt?",
         "channel_pick_label": "Skift til",
         "channel_apply_hint": "Gemmes straks efter bekræftelse. Klik derefter Tjek for opdateringer.",

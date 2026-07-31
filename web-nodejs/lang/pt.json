@@ -956,7 +956,9 @@
         "cdap_viewer": "Visualizador de snapshot CDAP",
         "add": "Adicionar",
         "remove": "Remover",
-        "retry": "Tentar novamente"
+        "retry": "Tentar novamente",
+        "show_value": "Mostrar",
+        "hide_value": "Ocultar"
     },
     "time": {
         "just_now": "Agora mesmo",
@@ -1014,6 +1016,8 @@
         "cannot_demote_self": "Não pode despromover-se a si mesmo",
         "cannot_delete_self": "Não pode excluir a sua própria conta",
         "last_admin": "Não é possível excluir o último administrador",
+        "last_admin_go": "Não é possível excluir: este é o único Super Admin no servidor BetterDesk. Crie ou sincronize outro Super Admin primeiro (não Global Admin).",
+        "delete_mirror_failed": "Não foi possível remover o usuário do servidor. Tente novamente quando o servidor BetterDesk estiver acessível.",
         "admin_only": "Esta funcionalidade está disponível apenas para administradores",
         "password_required": "A palavra-passe é obrigatória",
         "not_found": "Utilizador não encontrado",
@@ -3698,6 +3702,8 @@
         "channel_save": "Mudar canal",
         "channel_saved": "Canal alterado. Clique em Verificar atualizações.",
         "channel_save_failed": "Falha ao guardar canal de atualização",
+        "channel_docker_blocked": "Instalações com imagem Docker não podem alterar o canal de atualizações no painel. Defina BETTERDESK_IMAGE_TAG=latest (stable) ou BETTERDESK_IMAGE_TAG=dev (development) e execute: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "O canal de atualizações do painel só se aplica a instalações nativas. Para imagens GHCR altere BETTERDESK_IMAGE_TAG e recrie os contentores.",
         "channel_switch_warning": "Alterar o canal muda o branch GitHub. O SHA rastreado mantém-se — a próxima verificação pode mostrar grande diferença. Continuar?",
         "channel_pick_label": "Mudar para",
         "channel_apply_hint": "Gravado após confirmar. Depois clique em Verificar atualizações.",

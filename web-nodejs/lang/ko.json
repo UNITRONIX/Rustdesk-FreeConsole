@@ -956,7 +956,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "다시 시도"
+        "retry": "다시 시도",
+        "show_value": "표시",
+        "hide_value": "숨기기"
     },
     "time": {
         "just_now": "Just now",
@@ -1014,6 +1016,8 @@
         "cannot_demote_self": "자신을 강등시킬 수 없습니다.",
         "cannot_delete_self": "자신의 계정을 삭제할 수 없습니다.",
         "last_admin": "마지막 관리자는 삭제할 수 없습니다.",
+        "last_admin_go": "삭제할 수 없습니다. BetterDesk 서버의 유일한 Super Admin입니다. 먼저 다른 Super Admin을 만들거나 동기화하세요(Global Admin 아님).",
+        "delete_mirror_failed": "서버에서 사용자를 제거할 수 없습니다. BetterDesk 서버에 연결할 수 있을 때 다시 시도하세요.",
         "admin_only": "이 기능은 관리자만 사용할 수 있습니다.",
         "password_required": "비밀번호가 필요합니다",
         "not_found": "사용자를 찾을 수 없습니다",
@@ -3698,6 +3702,8 @@
         "channel_save": "채널 전환",
         "channel_saved": "채널이 전환되었습니다. 업데이트 확인을 클릭하세요.",
         "channel_save_failed": "업데이트 채널 저장 실패",
+        "channel_docker_blocked": "Docker 이미지 배포에서는 패널에서 업데이트 채널을 전환할 수 없습니다. BETTERDESK_IMAGE_TAG=latest(stable) 또는 BETTERDESK_IMAGE_TAG=dev(development)를 설정한 뒤 docker compose pull && docker compose up -d를 실행하세요.",
+        "channel_docker_note": "패널의 업데이트 채널은 네이티브 설치에만 적용됩니다. GHCR 이미지는 BETTERDESK_IMAGE_TAG를 변경하고 컨테이너를 다시 만드세요.",
         "channel_switch_warning": "채널 변경 시 GitHub 브랜치가 바뀝니다. 추적 중인 commit SHA는 유지됩니다 — 다음 확인에서 큰 차이가 보일 수 있습니다. 계속할까요?",
         "channel_pick_label": "전환",
         "channel_apply_hint": "확인 후 즉시 저장됩니다. 그다음 업데이트 확인을 클릭하세요.",

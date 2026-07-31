@@ -973,7 +973,9 @@
         "view_all": "Tout afficher",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Réessayer"
+        "retry": "Réessayer",
+        "show_value": "Afficher",
+        "hide_value": "Masquer"
     },
     "time": {
         "just_now": "à l'instant",
@@ -1053,6 +1055,8 @@
         "cannot_demote_self": "Vous ne pouvez pas vous rétrograder",
         "cannot_delete_self": "Vous ne pouvez pas supprimer votre propre compte",
         "last_admin": "Impossible de supprimer le dernier administrateur",
+        "last_admin_go": "Suppression impossible : c'est le seul Super Admin sur le serveur BetterDesk. Créez ou synchronisez d'abord un autre Super Admin (pas Global Admin).",
+        "delete_mirror_failed": "Impossible de supprimer l'utilisateur sur le serveur. Réessayez lorsque le serveur BetterDesk est accessible.",
         "admin_only": "Cette fonctionnalité est réservée aux administrateurs",
         "password_required": "Le mot de passe est requis",
         "not_found": "Introuvable",
@@ -3794,6 +3798,8 @@
         "channel_save": "Kanal wechseln",
         "channel_saved": "Kanal gewechselt. Klicken Sie auf Auf Updates prüfen.",
         "channel_save_failed": "Update-Kanal konnte nicht gespeichert werden",
+        "channel_docker_blocked": "Les déploiements image Docker ne peuvent pas changer de canal depuis le panneau. Définissez BETTERDESK_IMAGE_TAG=latest (stable) ou BETTERDESK_IMAGE_TAG=dev (development), puis exécutez : docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Le canal de mise à jour du panneau ne s’applique qu’aux installations natives. Pour les images GHCR, changez BETTERDESK_IMAGE_TAG et recréez les conteneurs.",
         "channel_switch_warning": "Ein Kanalwechsel ändert den GitHub-Branch für Prüfung und Installation. Die verfolgte Commit-SHA bleibt — der nächste Check kann eine große Differenz zeigen. Fortfahren?",
         "channel_confirm_switch": "Update-Quelle von {from} auf {to} wechseln? Installierter Commit bleibt bis „Auf Updates prüfen“.",
         "more_options": "Plus d'options",
