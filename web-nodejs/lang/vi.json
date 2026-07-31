@@ -4345,7 +4345,9 @@
         "resize_sidebar": "Đổi độ rộng thanh bên",
         "open_menu": "Mở menu",
         "theme_mode_hint": "Sáng và Tối là mặc định. Tùy chỉnh bật khi bạn chỉnh màu bên dưới.",
-        "switch_to_ux35": "Chuyển sang UX 3.5",
-        "switch_to_classic": "Chuyển sang giao diện cổ điển"
+        "switch_to_ux35": "Chuyển sang UX 3.5 (Beta)",
+        "switch_to_classic": "Chuyển sang giao diện cổ điển",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Bố cục console Beta — tùy chọn; giao diện cổ điển vẫn là mặc định."
     }
 }

@@ -4339,7 +4339,9 @@
         "resize_sidebar": "Ridimensiona barra laterale",
         "open_menu": "Apri menu",
         "theme_mode_hint": "Chiaro e Scuro sono integrati. Personalizzato si attiva modificando i colori sotto.",
-        "switch_to_ux35": "Passa a UX 3.5",
-        "switch_to_classic": "Passa all’interfaccia classica"
+        "switch_to_ux35": "Passa a UX 3.5 (Beta)",
+        "switch_to_classic": "Passa all’interfaccia classica",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Layout console in beta — opzionale; l’interfaccia classica resta predefinita."
     }
 }

@@ -4339,7 +4339,9 @@
         "resize_sidebar": "Redimensionar barra lateral",
         "open_menu": "Abrir menu",
         "theme_mode_hint": "Claro e Escuro são predefinidos. Personalizado ativa-se ao editar as cores abaixo.",
-        "switch_to_ux35": "Mudar para UX 3.5",
-        "switch_to_classic": "Mudar para a interface clássica"
+        "switch_to_ux35": "Mudar para UX 3.5 (Beta)",
+        "switch_to_classic": "Mudar para a interface clássica",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Layout da consola em beta — opcional; a UI clássica continua a ser a predefinida."
     }
 }

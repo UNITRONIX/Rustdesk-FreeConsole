@@ -4345,7 +4345,9 @@
         "resize_sidebar": "Muuta sivupalkin leveyttä",
         "open_menu": "Avaa valikko",
         "theme_mode_hint": "Vaalea ja Tumma ovat sisäänrakennettuja. Mukautettu otetaan käyttöön, kun muokkaat värejä alla.",
-        "switch_to_ux35": "Vaihda UX 3.5 -tilaan",
-        "switch_to_classic": "Vaihda klassiseen käyttöliittymään"
+        "switch_to_ux35": "Vaihda UX 3.5 -tilaan (Beta)",
+        "switch_to_classic": "Vaihda klassiseen käyttöliittymään",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Beta-konsolin asettelu — valinnainen; klassinen käyttöliittymä pysyy oletuksena."
     }
 }

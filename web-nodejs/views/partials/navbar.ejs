@@ -31,11 +31,12 @@
     </div>
     
     <div class="navbar-right">
-        <!-- UI shell: switch to UX 3.5 -->
-        <button type="button" class="navbar-btn" id="ui-shell-switch-btn" data-ui-shell-switch="ux35"
-                title="<%= _('ux35.switch_to_ux35') || 'Switch to UX 3.5' %>"
-                aria-label="<%= _('ux35.switch_to_ux35') || 'Switch to UX 3.5' %>">
+        <!-- UI shell: optional UX 3.5 (Beta) — classic remains default -->
+        <button type="button" class="navbar-btn navbar-btn--shell-beta" id="ui-shell-switch-btn" data-ui-shell-switch="ux35"
+                title="<%= _('ux35.switch_to_ux35') || 'Switch to UX 3.5 (Beta)' %>"
+                aria-label="<%= _('ux35.switch_to_ux35') || 'Switch to UX 3.5 (Beta)' %>">
             <span class="material-icons">view_sidebar</span>
+            <span class="ui-shell-beta-badge" title="<%= _('ux35.beta_tooltip') || 'Beta console layout — optional; classic UI remains the default.' %>"><%= _('ux35.beta_badge') || 'BETA' %></span>
         </button>
 
         <!-- Refresh button -->
