@@ -1,16 +1,16 @@
-# UX 3.5 — Console shell (optional)
+# UX 3.5 — Console shell (optional Beta)
 
-UX 3.5 is an **optional management console chrome** in BetterDesk `web-nodejs`. The **default** shell is the classic TeamViewer-style **icon rail + flyout**. Operators can switch to UX 3.5 (full-list sidebar + topbar) from the navbar; the choice is stored in cookie `bd_ui_shell`.
+UX 3.5 is an **optional Beta** management console chrome in BetterDesk `web-nodejs`. The **default** shell is the classic TeamViewer-style **icon rail + flyout**. Operators can opt in to UX 3.5 (full-list sidebar + topbar) from the navbar; the choice is stored in cookie `bd_ui_shell`. Classic remains the supported production default until UX 3.5 leaves Beta.
 
 ## Switching shells
 
 | Action | How |
 |--------|-----|
-| Classic → UX 3.5 | Navbar button (view_sidebar icon) or `?ui=ux35` |
+| Classic → UX 3.5 (Beta) | Navbar button (view_sidebar icon + **BETA** badge) or `?ui=ux35` |
 | UX 3.5 → Classic | Topbar button (dashboard_customize icon) or `?ui=classic` |
 | Persist | Cookie `bd_ui_shell=classic\|ux35` (1 year, SameSite=Lax) |
 
-Default when no cookie: **classic**.
+Default when no cookie: **classic**. While UX 3.5 is active, a small **BETA** chip appears in the topbar next to the brand.
 
 Client helper: `web-nodejs/public/js/ui-shell.js`. SSR selects partials in `main.ejs` via `res.locals.uiShell` (middleware in `server.js`).
 

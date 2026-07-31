@@ -1,6 +1,9 @@
 ## [Unreleased]
 
 ### Changed
+- **UX 3.5 labeled Beta (opt-in):** classic console remains the default shell. The navbar switch to UX 3.5 shows a **BETA** badge/tooltip; while UX 3.5 is active a small BETA chip appears in the topbar. Escape hatch back to classic is unchanged. Ships via panel update.
+
+### Fixed
 - _(none yet)_
 
 ---

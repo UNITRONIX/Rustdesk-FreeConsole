@@ -4339,7 +4339,9 @@
         "resize_sidebar": "Seitenleiste skalieren",
         "open_menu": "Menü öffnen",
         "theme_mode_hint": "Hell und Dunkel sind integriert. Benutzerdefiniert wird aktiviert, wenn Sie unten Farben ändern.",
-        "switch_to_ux35": "Zu UX 3.5 wechseln",
-        "switch_to_classic": "Zur klassischen Oberfläche wechseln"
+        "switch_to_ux35": "Zu UX 3.5 wechseln (Beta)",
+        "switch_to_classic": "Zur klassischen Oberfläche wechseln",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Beta-Konsolenlayout — optional; die klassische Oberfläche bleibt Standard."
     }
 }

@@ -4339,7 +4339,9 @@
         "resize_sidebar": "사이드바 너비 조절",
         "open_menu": "메뉴 열기",
         "theme_mode_hint": "밝게와 어둡게는 기본입니다. 아래에서 색상을 편집하면 사용자 지정이 활성화됩니다.",
-        "switch_to_ux35": "UX 3.5로 전환",
-        "switch_to_classic": "클래식 UI로 전환"
+        "switch_to_ux35": "UX 3.5로 전환 (베타)",
+        "switch_to_classic": "클래식 UI로 전환",
+        "beta_badge": "베타",
+        "beta_tooltip": "베타 콘솔 레이아웃 — 선택 사항이며 기본값은 클래식 UI입니다."
     }
 }

@@ -4345,7 +4345,9 @@
         "resize_sidebar": "Endre sidepanelbredde",
         "open_menu": "Åpne meny",
         "theme_mode_hint": "Lys og Mørk er innebygd. Tilpasset aktiveres når du redigerer fargene nedenfor.",
-        "switch_to_ux35": "Bytt til UX 3.5",
-        "switch_to_classic": "Bytt til klassisk UI"
+        "switch_to_ux35": "Bytt til UX 3.5 (Beta)",
+        "switch_to_classic": "Bytt til klassisk UI",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Beta-konsollayout — valgfritt; klassisk UI forblir standard."
     }
 }

@@ -4345,7 +4345,9 @@
         "resize_sidebar": "Oldalsáv átméretezése",
         "open_menu": "Menü megnyitása",
         "theme_mode_hint": "A Világos és a Sötét beépített. Az Egyéni a színek szerkesztésekor aktiválódik.",
-        "switch_to_ux35": "Váltás UX 3.5-re",
-        "switch_to_classic": "Váltás klasszikus felületre"
+        "switch_to_ux35": "Váltás UX 3.5-re (Béta)",
+        "switch_to_classic": "Váltás klasszikus felületre",
+        "beta_badge": "BÉTA",
+        "beta_tooltip": "Béta konzol elrendezés — opcionális; az alapértelmezett a klasszikus felület marad."
     }
 }

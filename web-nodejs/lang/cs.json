@@ -4339,7 +4339,9 @@
         "resize_sidebar": "Změnit šířku postranního panelu",
         "open_menu": "Otevřít nabídku",
         "theme_mode_hint": "Světlý a tmavý jsou vestavěné. Vlastní se aktivuje při úpravě barev níže.",
-        "switch_to_ux35": "Přepnout na UX 3.5",
-        "switch_to_classic": "Přepnout na klasické rozhraní"
+        "switch_to_ux35": "Přepnout na UX 3.5 (Beta)",
+        "switch_to_classic": "Přepnout na klasické rozhraní",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Beta rozložení konzole — volitelné; výchozí zůstává klasické UI."
     }
 }

@@ -45,6 +45,21 @@ body.app-page.ux35-page {
     flex-shrink: 0;
 }
 
+.ux35-beta-chip {
+    flex-shrink: 0;
+    align-self: center;
+    margin-inline-start: 6px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--accent-color, #f0883e);
+    color: #fff;
+    line-height: 1.2;
+    user-select: none;
+}
+
 .ux35-topbar-logo {
     display: flex;
     align-items: center;

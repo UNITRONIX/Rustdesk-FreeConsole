@@ -4345,7 +4345,9 @@
         "resize_sidebar": "Ändra sidopanelens bredd",
         "open_menu": "Öppna meny",
         "theme_mode_hint": "Ljust och Mörkt är inbyggda. Anpassad aktiveras när du redigerar färgerna nedan.",
-        "switch_to_ux35": "Växla till UX 3.5",
-        "switch_to_classic": "Växla till klassiskt gränssnitt"
+        "switch_to_ux35": "Växla till UX 3.5 (Beta)",
+        "switch_to_classic": "Växla till klassiskt gränssnitt",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Beta-konsollayout — valfritt; klassiskt UI förblir standard."
     }
 }
