@@ -1,7 +1,21 @@
 ## [Unreleased]
 
+### Added
+- **Optional UX 3.5 console shell (Beta):** full-list sidebar + topbar chrome available via navbar switch (BETA badge) or `?ui=ux35`. **Classic icon rail remains the default and supported production UI.** Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
+- **FreeBSD (Tier 3 / community):** example `rc.d` scripts and install notes under `contrib/freebsd/`. Refs #310. Manual build only — no CI FreeBSD binaries or panel updater support.
+
 ### Changed
-- _(none yet)_
+- Dual-mode console chrome: operators who never switch stay on classic; UX 3.5 is explicitly labeled Beta while active (topbar chip). Escape hatch to classic unchanged.
+- Includes prior stable 3.4.1–3.4.3 hotfixes for operators updating from older stables in one step (#302 enrollment outbound hardening, #313 Web Remote panel-proxy, OIDC `user.info`, mesh cert hash, Unban kebab, and related fixes already on `main`).
+
+### Fixed
+- **OIDC client login stuck on "Waiting…" (#304):** panel proxies `GET /api/auth/oidc/callback` (and `/api/oidc/callback`) to the Go API so Redirect URLs on the console origin complete RustDesk SSO. Ships via panel update.
+- **Docker AIO supervisord crash on missing NTP/billing env (#299):** entrypoint/Dockerfile default `NTP_SERVERS` and billing clock vars. Ships via image rebuild / `docker compose pull`.
+- **Rate limiter API path resolution:** more accurate path matching for console API rate limits. Ships via panel update.
+
+### Docs
+- UX 3.5 Beta dual-mode: `docs/wiki/UX-3.5.md`
+- FreeBSD community notes: `contrib/freebsd/`
 
 ---
 
