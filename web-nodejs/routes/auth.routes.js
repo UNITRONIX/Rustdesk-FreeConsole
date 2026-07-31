@@ -349,6 +349,27 @@ router.get('/api/auth/oidc/authorize', async (req, res) => {
 });
 
 /**
+ * GET /api/auth/oidc/callback and GET /api/oidc/callback
+ *
+ * IdP redirect target. Proxies to Go so operators can register the *panel*
+ * public URL as Redirect URL (common on :5000/:5443) while pending OIDC state
+ * and RustDesk client completion still live on the Go API (#304).
+ */
+async function handlePanelOIDCCallback(req, res) {
+    try {
+        await betterdeskApi.proxyOIDCCallback(req, res);
+    } catch (err) {
+        console.error('[OIDC] panel callback proxy error:', err.message);
+        if (!res.headersSent) {
+            res.status(502).type('text/plain').send('OIDC callback proxy failed');
+        }
+    }
+}
+
+router.get('/api/auth/oidc/callback', handlePanelOIDCCallback);
+router.get('/api/oidc/callback', handlePanelOIDCCallback);
+
+/**
  * GET /api/auth/oidc/session - Session creation after OIDC callback.
  *
  * Security model: Go server NEVER passes the JWT or user identity through

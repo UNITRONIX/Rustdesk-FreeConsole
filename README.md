@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)
-![Version](https://img.shields.io/badge/version-3.4.3-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-3.4.15-brightgreen.svg)
 ![Security](https://img.shields.io/badge/Security-TLS%20%2B%20NaCl%20%2B%20TOTP%20%2B%20E2EE-green.svg)
 ![Database](https://img.shields.io/badge/DB-SQLite%20%2B%20PostgreSQL-blue.svg)
 ![CDAP](https://img.shields.io/badge/CDAP-v1.0-orange.svg)
@@ -486,6 +486,7 @@ The web console (`web-nodejs/`) is an Express.js application providing a full-fe
 | **PostgreSQL** backend | Tier 2 | ✅ Supported | Enterprise deployments |
 | **Windows** x86_64 | Tier 3 | ⚠️ Experimental | Community-tested, limited support |
 | **Synology DSM** (Docker) | Tier 3 | ⚠️ Experimental | Community-tested |
+| **FreeBSD** x86_64 | Tier 3 | ⚠️ Experimental | Community build + example `rc.d` in `contrib/freebsd/` — no official installer or CI binaries |
 
 > **Tier 1** = Fully tested by maintainers, highest priority for bug fixes.
 > **Tier 2** = Supported and tested, fixes provided.

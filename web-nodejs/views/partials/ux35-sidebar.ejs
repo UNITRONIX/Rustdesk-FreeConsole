@@ -1,0 +1,291 @@
+<% const ux35ServerTab = typeof currentTab !== 'undefined' && currentTab ? currentTab : 'overview'; %>
+<% const ux35CommercialTab = typeof currentTab !== 'undefined' && currentTab ? currentTab : 'overview'; %>
+<aside class="ux35-sidebar" id="ux35-sidebar" aria-label="<%= _('nav.main') %>">
+    <div class="ux35-sidebar-resize" id="ux35-sidebar-resize" title="<%= _('ux35.resize_sidebar') || 'Resize sidebar' %>"></div>
+    <nav class="ux35-sidebar-nav" id="ux35-sidebar-nav">
+        <!-- Main -->
+        <div class="ux35-sidebar-section" data-panel="main">
+            <div class="ux35-sidebar-heading"><%= _('nav.main') %></div>
+            <a href="/" class="ux35-sidebar-item <%= currentPage === 'dashboard' ? 'active' : '' %>">
+                <span class="material-icons">dashboard</span>
+                <span><%= _('nav.dashboard') %></span>
+            </a>
+            <% if (hasPermission('device.view')) { %>
+            <a href="/devices" class="ux35-sidebar-item <%= currentPage === 'devices' ? 'active' : '' %>">
+                <span class="material-icons">devices</span>
+                <span><%= _('nav.devices') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('enrollment.approve')) { %>
+            <a href="/registrations" class="ux35-sidebar-item <%= currentPage === 'registrations' ? 'active' : '' %>">
+                <span class="material-icons">how_to_reg</span>
+                <span><%= _('nav.registrations') %></span>
+                <span class="ux35-sidebar-item-badge" id="reg-sidebar-badge" style="display: none;">0</span>
+            </a>
+            <% } %>
+        </div>
+
+        <!-- Management -->
+        <div class="ux35-sidebar-section" data-panel="management">
+            <div class="ux35-sidebar-heading"><%= _('nav.management') || 'Management' %></div>
+            <% if (hasPermission('device.view')) { %>
+            <a href="/inventory" class="ux35-sidebar-item <%= currentPage === 'inventory' ? 'active' : '' %>">
+                <span class="material-icons">inventory_2</span>
+                <span><%= _('nav.inventory') %></span>
+            </a>
+            <a href="/tickets" class="ux35-sidebar-item <%= currentPage === 'tickets' ? 'active' : '' %>">
+                <span class="material-icons">confirmation_number</span>
+                <span><%= _('nav.tickets') %></span>
+            </a>
+            <a href="/help-requests" class="ux35-sidebar-item <%= currentPage === 'help-requests' ? 'active' : '' %>">
+                <span class="material-icons">support_agent</span>
+                <span><%= _('nav.help_requests') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('server.config')) { %>
+            <a href="/automation" class="ux35-sidebar-item <%= currentPage === 'automation' ? 'active' : '' %>">
+                <span class="material-icons">smart_toy</span>
+                <span><%= _('nav.automation') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('device.view')) { %>
+            <a href="/network" class="ux35-sidebar-item <%= currentPage === 'network' ? 'active' : '' %>">
+                <span class="material-icons">lan</span>
+                <span><%= _('nav.network') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('audit.view')) { %>
+            <a href="/activity" class="ux35-sidebar-item <%= currentPage === 'activity' ? 'active' : '' %>">
+                <span class="material-icons">timeline</span>
+                <span><%= _('nav.activity') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('cdap.view')) { %>
+            <a href="/cdap" class="ux35-sidebar-item <%= currentPage === 'cdap' ? 'active' : '' %>">
+                <span class="material-icons">developer_board</span>
+                <span><%= _('nav.cdap') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('org.manage_devices')) { %>
+            <a href="/fleet" class="ux35-sidebar-item <%= currentPage === 'fleet' ? 'active' : '' %>">
+                <span class="material-icons">hub</span>
+                <span><%= _('nav.fleet') || 'Fleet' %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('server.config')) { %>
+            <a href="/scaling" class="ux35-sidebar-item <%= currentPage === 'scaling' ? 'active' : '' %>">
+                <span class="material-icons">cell_tower</span>
+                <span><%= _('nav.scaling') || 'Scaling' %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('device.view')) { %>
+            <a href="/cross-platform" class="ux35-sidebar-item <%= currentPage === 'cross-platform' ? 'active' : '' %>">
+                <span class="material-icons">devices</span>
+                <span><%= _('nav.cross_platform') || 'Cross-Platform' %></span>
+            </a>
+            <% } %>
+            <a href="/chat" class="ux35-sidebar-item <%= currentPage === 'chat' ? 'active' : '' %>">
+                <span class="material-icons">chat</span>
+                <span><%= _('nav.chat') %></span>
+            </a>
+        </div>
+
+        <!-- Tools -->
+        <div class="ux35-sidebar-section" data-panel="tools">
+            <div class="ux35-sidebar-heading"><%= _('nav.tools') %></div>
+            <% if (hasPermission('audit.view')) { %>
+            <a href="/reports" class="ux35-sidebar-item <%= currentPage === 'reports' ? 'active' : '' %>">
+                <span class="material-icons">assessment</span>
+                <span><%= _('nav.reports') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('server.config')) { %>
+            <a href="/keys" class="ux35-sidebar-item <%= currentPage === 'keys' ? 'active' : '' %>">
+                <span class="material-icons">vpn_key</span>
+                <span><%= _('nav.keys') %></span>
+            </a>
+            <a href="/generator" class="ux35-sidebar-item <%= currentPage === 'generator' ? 'active' : '' %>" title="<%= _('generator.alpha_tooltip') || _('nav.generator') %>">
+                <span class="material-icons">build</span>
+                <span><%= _('nav.generator') %></span>
+                <span class="badge-sidebar badge-sidebar--alpha"><%= _('generator.alpha_badge') || 'ALPHA' %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('device.connect')) { %>
+            <a href="/remote" class="ux35-sidebar-item <%= currentPage === 'remote' ? 'active' : '' %>" target="_blank" rel="noopener noreferrer" title="<%= _('nav.remote_open_tab') || _('nav.remote') %>">
+                <span class="material-icons">connected_tv</span>
+                <span><%= _('nav.remote') || 'Remote Desktop' %></span>
+                <span class="material-icons sidebar-link-external" aria-hidden="true">open_in_new</span>
+            </a>
+            <a href="/toolkit" class="ux35-sidebar-item <%= currentPage === 'toolkit' ? 'active' : '' %>">
+                <span class="material-icons">handyman</span>
+                <span><%= _('nav.toolkit') || 'Toolkit' %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('cdap.view')) { %>
+            <a href="/cdap-studio" class="ux35-sidebar-item <%= currentPage === 'cdap-studio' ? 'active' : '' %>">
+                <span class="material-icons">account_tree</span>
+                <span><%= _('nav.sdk_studio') || 'SDK Studio' %></span>
+            </a>
+            <% } %>
+        </div>
+
+        <!-- System -->
+        <% if (isSuperAdmin || hasPermission('server.config') || hasPermission('user.view') || hasPermission('enrollment.manage') || hasPermission('enrollment.approve') || hasPermission('audit.view') || hasPermission('org.create') || hasPermission('org.edit') || hasPermission('org.manage_users')) { %>
+        <div class="ux35-sidebar-section" data-panel="system">
+            <div class="ux35-sidebar-heading"><%= _('nav.system') %></div>
+            <% if (hasPermission('enrollment.manage')) { %>
+            <a href="/tokens" class="ux35-sidebar-item <%= currentPage === 'tokens' ? 'active' : '' %>">
+                <span class="material-icons">token</span>
+                <span><%= _('nav.tokens') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('org.create') || hasPermission('org.edit') || hasPermission('org.manage_users')) { %>
+            <a href="/organizations" class="ux35-sidebar-item <%= currentPage === 'organizations' ? 'active' : '' %>">
+                <span class="material-icons">corporate_fare</span>
+                <span><%= _('nav.organizations') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('server.config')) { %>
+            <a href="/policies" class="ux35-sidebar-item <%= currentPage === 'policies' ? 'active' : '' %>">
+                <span class="material-icons">policy</span>
+                <span><%= _('nav.policies') || 'Policies' %></span>
+            </a>
+            <a href="/attestation" class="ux35-sidebar-item <%= currentPage === 'attestation' ? 'active' : '' %>">
+                <span class="material-icons">fingerprint</span>
+                <span><%= _('nav.attestation') || 'Attestation' %></span>
+            </a>
+            <a href="/dataguard" class="ux35-sidebar-item <%= currentPage === 'dataguard' ? 'active' : '' %>">
+                <span class="material-icons">shield</span>
+                <span><%= _('nav.dataguard') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('user.view')) { %>
+            <a href="/users" class="ux35-sidebar-item <%= currentPage === 'users' ? 'active' : '' %>">
+                <span class="material-icons">group</span>
+                <span><%= _('nav.users') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('audit.view')) { %>
+            <a href="/security-audit" class="ux35-sidebar-item <%= currentPage === 'security-audit' ? 'active' : '' %>">
+                <span class="material-icons">security</span>
+                <span><%= _('nav.security_audit') %></span>
+            </a>
+            <% } %>
+            <% if (isSuperAdmin) { %>
+            <a href="/permissions" class="ux35-sidebar-item <%= currentPage === 'permissions' ? 'active' : '' %>">
+                <span class="material-icons">admin_panel_settings</span>
+                <span><%= _('nav.permissions') %></span>
+            </a>
+            <% } %>
+            <% if (hasPermission('server.config')) { %>
+            <a href="/languages" class="ux35-sidebar-item <%= currentPage === 'languages' ? 'active' : '' %>">
+                <span class="material-icons">translate</span>
+                <span><%= _('nav.languages') %></span>
+            </a>
+            <a href="/resource-control" class="ux35-sidebar-item <%= currentPage === 'resource-control' ? 'active' : '' %>">
+                <span class="material-icons">tune</span>
+                <span><%= _('nav.resource_control') %></span>
+            </a>
+            <% } %>
+        </div>
+        <% } %>
+
+        <!-- Server Management -->
+        <% if (hasPermission('server.config')) { %>
+        <div class="ux35-sidebar-section" data-panel="server-mgmt">
+            <div class="ux35-sidebar-heading"><%= _('nav.server_management') || 'Server Management' %></div>
+            <a href="/server-management?tab=overview" class="ux35-sidebar-item <%= currentPage === 'server-management' && ux35ServerTab === 'overview' ? 'active' : '' %>">
+                <span class="material-icons">monitoring</span>
+                <span><%= _('server_mgmt.tab_overview') || 'Overview' %></span>
+            </a>
+            <a href="/server-management?tab=terminal" class="ux35-sidebar-item <%= currentPage === 'server-management' && ux35ServerTab === 'terminal' ? 'active' : '' %>">
+                <span class="material-icons">terminal</span>
+                <span><%= _('server_mgmt.tab_terminal') || 'Terminal' %></span>
+            </a>
+            <a href="/server-management?tab=files" class="ux35-sidebar-item <%= currentPage === 'server-management' && ux35ServerTab === 'files' ? 'active' : '' %>">
+                <span class="material-icons">folder_open</span>
+                <span><%= _('server_mgmt.tab_files') || 'Files' %></span>
+            </a>
+            <a href="/server-management?tab=services" class="ux35-sidebar-item <%= currentPage === 'server-management' && ux35ServerTab === 'services' ? 'active' : '' %>">
+                <span class="material-icons">miscellaneous_services</span>
+                <span><%= _('server_mgmt.tab_services') || 'Services' %></span>
+                <span class="badge-sidebar" style="background:linear-gradient(135deg,#ff7b72,#d29922);color:#fff;">BETA</span>
+            </a>
+        </div>
+        <% } %>
+
+        <!-- Commercialization -->
+        <% if (hasPermission('billing.view')) { %>
+        <div class="ux35-sidebar-section" data-panel="commercialization">
+            <div class="ux35-sidebar-heading"><%= _('nav.commercialization') || 'Commercialization' %></div>
+            <a href="/commercialization?tab=overview" class="ux35-sidebar-item <%= currentPage === 'commercialization' && ux35CommercialTab === 'overview' ? 'active' : '' %>">
+                <span class="material-icons">dashboard</span>
+                <span><%= _('commercialization.tabs.overview') %></span>
+            </a>
+            <a href="/commercialization?tab=packages" class="ux35-sidebar-item <%= currentPage === 'commercialization' && ux35CommercialTab === 'packages' ? 'active' : '' %>">
+                <span class="material-icons">inventory_2</span>
+                <span><%= _('commercialization.tabs.packages') %></span>
+            </a>
+            <a href="/commercialization?tab=sessions" class="ux35-sidebar-item <%= currentPage === 'commercialization' && ux35CommercialTab === 'sessions' ? 'active' : '' %>">
+                <span class="material-icons">schedule</span>
+                <span><%= _('commercialization.tabs.sessions') %></span>
+            </a>
+            <a href="/commercialization?tab=reports" class="ux35-sidebar-item <%= currentPage === 'commercialization' && ux35CommercialTab === 'reports' ? 'active' : '' %>">
+                <span class="material-icons">description</span>
+                <span><%= _('commercialization.tabs.reports') %></span>
+            </a>
+            <a href="/commercialization?tab=settings" class="ux35-sidebar-item <%= currentPage === 'commercialization' && ux35CommercialTab === 'settings' ? 'active' : '' %>">
+                <span class="material-icons">tune</span>
+                <span><%= _('commercialization.tabs.settings') %></span>
+            </a>
+        </div>
+        <% } %>
+
+        <!-- Settings & attestation -->
+        <div class="ux35-sidebar-section" data-panel="settings">
+            <div class="ux35-sidebar-heading"><%= _('nav.settings') %></div>
+            <% if (hasPermission('server.attestation')) { %>
+            <a href="/server-attestation" class="ux35-sidebar-item <%= currentPage === 'server-attestation' ? 'active' : '' %>">
+                <span class="material-icons">verified</span>
+                <span><%= _('nav.server_attestation') || 'Server Attestation' %></span>
+            </a>
+            <% } %>
+            <a href="/settings" class="ux35-sidebar-item <%= currentPage === 'settings' ? 'active' : '' %>">
+                <span class="material-icons">settings</span>
+                <span><%= _('nav.settings') %></span>
+            </a>
+            <button type="button" class="ux35-sidebar-item" id="ux35-help-btn" title="<%= _('nav.help') || 'Help' %>">
+                <span class="material-icons">help_outline</span>
+                <span><%= _('nav.help') || 'Help' %></span>
+            </button>
+        </div>
+    </nav>
+
+    <div class="ux35-sidebar-footer">
+        <div class="ux35-sidebar-user" id="user-menu-trigger">
+            <div class="ux35-sidebar-user-avatar">
+                <%= user && user.username ? user.username.charAt(0).toUpperCase() : 'A' %>
+            </div>
+            <div class="ux35-sidebar-user-info">
+                <div class="ux35-sidebar-user-name"><%= user ? user.username : 'Admin' %></div>
+                <%
+                    var _roleKey = user && user.role ? ('users.role_' + user.role) : 'users.role_admin';
+                    var _roleLabel = _(_roleKey);
+                    if (!_roleLabel || _roleLabel === _roleKey) {
+                        _roleLabel = user && user.role
+                            ? user.role.replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); })
+                            : 'Administrator';
+                    }
+                %>
+                <div class="ux35-sidebar-user-role"><%= _roleLabel %></div>
+            </div>
+        </div>
+        <% if ((branding && branding.footerText) || (branding && branding.showPoweredBy !== 'false')) { %>
+        <div class="ux35-sidebar-attribution">
+            <% if (branding.footerText) { %><span><%= branding.footerText %></span><% } %>
+            <% if (branding.showPoweredBy !== 'false') { %><span><%= _('branding.powered_by') %> BetterDesk</span><% } %>
+        </div>
+        <% } %>
+    </div>
+</aside>
+<div class="ux35-sidebar-overlay" id="ux35-sidebar-overlay" hidden></div>

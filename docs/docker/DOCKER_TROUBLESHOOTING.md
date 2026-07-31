@@ -491,6 +491,37 @@ docker compose pull && docker compose up -d
 
 Fresh volumes are simplest. If you already wrote peers only into an orphan `/app/data/db_v2.sqlite3`, copy it into the shared Go data volume at `/opt/rustdesk/db_v2.sqlite3` before recreating, or re-enroll devices.
 
+### Problem: All-in-one exits with `ENV_NTP_SERVERS` / supervisord format string error
+
+**Symptom:** Fresh AIO container logs end with:
+
+```text
+Error: Format string '…NTP_SERVERS="%(ENV_NTP_SERVERS)s"…' for 'environment'
+contains names ('ENV_NTP_SERVERS') which cannot be expanded.
+```
+
+**Cause:** `supervisord.conf` interpolates billing/NTP env vars for the Go server. Older images / Portainer stacks / bare `docker run` that omit `NTP_SERVERS`, `BILLING_MAX_CLOCK_SKEW_MS`, `BILLING_REQUIRE_SYNCED_CLOCK`, and `BILLING_TRUST_OS_NTP` crash at supervisord parse time (#299).
+
+**Fix (current images):** entrypoint and Dockerfile supply defaults — pull/rebuild the AIO image and recreate the container.
+
+**Workaround (until you can update the image):** add the vars to your compose/stack (official `docker-compose.quick.single.yml` already includes them), then:
+
+```bash
+cd /opt/betterdesk/docker   # or your compose directory
+docker compose up -d --force-recreate
+```
+
+Or for a one-off:
+
+```bash
+docker run ... \
+  -e NTP_SERVERS=pool.ntp.org,time.google.com,time.cloudflare.com \
+  -e BILLING_MAX_CLOCK_SKEW_MS=2000 \
+  -e BILLING_REQUIRE_SYNCED_CLOCK=1 \
+  -e BILLING_TRUST_OS_NTP=Y \
+  ghcr.io/unitronix/betterdesk:<tag>
+```
+
 ### Problem: "Database not found"
 ```bash
 # Check volumes

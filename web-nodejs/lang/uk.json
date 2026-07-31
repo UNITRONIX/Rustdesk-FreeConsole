@@ -567,7 +567,7 @@
         "oidc_client_id": "ID клієнта",
         "oidc_client_secret": "Секрет клієнта",
         "oidc_redirect_url": "Перенаправлення URL (Зворотний дзвінок)",
-        "oidc_redirect_url_hint": "Має точно збігатися з тим, що налаштовано у вашому IdP. Зазвичай: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Має точно збігатися з IdP. Шлях: /api/auth/oidc/callback (або /api/oidc/callback). Краще публічний URL панелі — консоль проксує callback до Go API. Порти API (:21114 / :21121) також працюють.",
         "oidc_panel_url": "URL панелі",
         "oidc_panel_url_hint": "URL, який оператори використовують для відкриття веб-консолі (порт 5000 або ім'я хоста reverse proxy). Потрібен для SSO-входу, коли OIDC callback працює на порту Go API.",
         "oidc_scopes": "Області застосування",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "Максимальна тривалість сесії (дні)",
         "client_sessions_max_days_hint": "Верхня межа ковзного подовження від першого входу (за замовчуванням 30 днів).",
         "client_sessions_save": "Зберегти налаштування сесії",
-        "enrollment_ldap_hint": "Налаштування LDAP/AD та OIDC — на вкладках LDAP / AD і OIDC / SSO вище."
+        "enrollment_ldap_hint": "Налаштування LDAP/AD та OIDC — на вкладках LDAP / AD і OIDC / SSO вище.",
+        "oidc_redirect_url_invalid": "Redirect URL має використовувати http(s) і закінчуватися на /api/auth/oidc/callback (або /api/oidc/callback).",
+        "oidc_redirect_url_example": "Приклад: {url}"
     },
     "audit": {
         "time": "Time",
@@ -2786,7 +2788,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Власний"
     },
     "days": {
         "mon": "Mon",
@@ -4337,5 +4340,14 @@
         "empty": "На цьому посиланні немає пристроїв.",
         "expires": "Закінчується",
         "back_to_list": "Назад до списку гостя"
+    },
+    "ux35": {
+        "resize_sidebar": "Змінити ширину бічної панелі",
+        "open_menu": "Відкрити меню",
+        "theme_mode_hint": "Світла і Темна вбудовані. Власний активується під час редагування кольорів нижче.",
+        "switch_to_ux35": "Перемкнути на UX 3.5 (Бета)",
+        "switch_to_classic": "Перемкнути на класичний інтерфейс",
+        "beta_badge": "БЕТА",
+        "beta_tooltip": "Бета-макет консолі — необов’язково; класичний UI лишається типовим."
     }
 }

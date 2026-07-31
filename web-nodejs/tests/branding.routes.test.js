@@ -216,7 +216,8 @@ describe('brandingService.generateThemeCss', () => {
             expect(css).toMatch(/background: url\("\/uploads\/bg-test\.jpg"\)/);
             expect(css).toMatch(/z-index: 0/);
             expect(css).toMatch(/body\.app-page \.app-layout/);
-            expect(css).toMatch(/body\.app-page \.main-content \{ background: transparent; \}/);
+            expect(css).toMatch(/body\.app-page \.ux35-shell/);
+            expect(css).toMatch(/body\.app-page \.main-content,\s*\nbody\.app-page \.ux35-content \{ background: transparent; \}/);
         } finally {
             database.getBrandingConfig.mockResolvedValue([]);
             brandingService.invalidateCache();

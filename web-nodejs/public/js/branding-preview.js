@@ -147,7 +147,7 @@
         return lines;
     }
 
-    function generatePreviewCss(data) {
+    function generatePreviewCss(data, options = {}) {
         const overrides = colorOverrides(data.colors);
         overrides.push(...glassOverrides(data));
         let css = '';
@@ -162,8 +162,13 @@
             overrides.push(`--font-family: '${data.fontBody}', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;`);
         }
 
+        // Never write to :root — that leaks fonts/colors into UX 3.5 chrome (sidebar).
+        const scope = options.applyToPage
+            ? '.branding-preview-mockup, .ux35-content, .main-content'
+            : '.branding-preview-mockup';
+
         if (overrides.length) {
-            css += `:root, .branding-preview-mockup {\n  ${overrides.join('\n  ')}\n}\n`;
+            css += `${scope} {\n  ${overrides.join('\n  ')}\n}\n`;
         }
 
         const consoleBg = buildBackgroundValue(data.bgType, data.bgColor, data.bgGradient, data.bgImageUrl);
@@ -193,11 +198,13 @@
     }
 
     function apply(data, options = {}) {
-        const css = generatePreviewCss(data || {});
+        const css = generatePreviewCss(data || {}, { applyToPage: false });
         injectStyle(STYLE_ID, css);
 
         if (options.applyToPage) {
-            injectStyle(PAGE_STYLE_ID, css);
+            injectStyle(PAGE_STYLE_ID, generatePreviewCss(data || {}, { applyToPage: true }));
+        } else {
+            clearPagePreview();
         }
 
         updateMockup(data);
@@ -258,11 +265,18 @@
         if (el) el.textContent = '';
     }
 
+    function clearAllPreview() {
+        clearPagePreview();
+        const el = document.getElementById(STYLE_ID);
+        if (el) el.textContent = '';
+    }
+
     global.BrandingPreview = {
         COLOR_TO_CSS_VAR,
         apply,
         refreshBrandingStylesheet,
         clearPagePreview,
+        clearAllPreview,
         loadFontPreview
     };
 })(window);

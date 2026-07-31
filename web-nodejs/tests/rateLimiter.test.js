@@ -2,7 +2,12 @@
  * Panel poll rate-limit classification tests
  */
 
-const { isPanelPollRequest, isPanelPreferenceWrite, PANEL_POLL_PATHS } = require('../middleware/rateLimiter');
+const {
+    isPanelPollRequest,
+    isPanelPreferenceWrite,
+    resolveApiPath,
+    PANEL_POLL_PATHS
+} = require('../middleware/rateLimiter');
 
 describe('rateLimiter panel poll paths', () => {
     it('classifies dashboard client-config GET as panel poll', () => {
@@ -39,5 +44,35 @@ describe('rateLimiter panel poll paths', () => {
         expect(isPanelPreferenceWrite({ method: 'POST', path: '/api/desktop/layout' })).toBe(true);
         expect(isPanelPreferenceWrite({ method: 'GET', path: '/api/desktop/layout' })).toBe(false);
         expect(isPanelPreferenceWrite({ method: 'POST', path: '/api/devices' })).toBe(false);
+    });
+
+    it('rejoins /api mount prefix when Express strips it from req.path', () => {
+        // app.use('/api/', apiLimiter) → path=/bd/notifications, baseUrl=/api
+        expect(resolveApiPath({
+            path: '/bd/notifications',
+            baseUrl: '/api',
+            originalUrl: '/api/bd/notifications?limit=10'
+        })).toBe('/api/bd/notifications');
+
+        expect(isPanelPollRequest({
+            method: 'GET',
+            path: '/bd/notifications',
+            baseUrl: '/api',
+            originalUrl: '/api/bd/notifications?limit=10'
+        })).toBe(true);
+
+        expect(isPanelPollRequest({
+            method: 'GET',
+            path: '/registrations/count',
+            baseUrl: '/api',
+            originalUrl: '/api/registrations/count'
+        })).toBe(true);
+
+        expect(isPanelPreferenceWrite({
+            method: 'POST',
+            path: '/desktop/layout',
+            baseUrl: '/api',
+            originalUrl: '/api/desktop/layout'
+        })).toBe(true);
     });
 });

@@ -144,6 +144,7 @@
                 if (target) target.classList.add('active');
                 window.history.replaceState(null, '', '#' + tab.dataset.tab);
                 applySettingsSearchFilter();
+                onSettingsTabChanged(tab.dataset.tab);
             });
         });
         
@@ -152,6 +153,23 @@
             const tabName = hash === 'server' ? 'general' : hash;
             const tab = document.querySelector(`[data-tab="${tabName}"]`);
             if (tab) tab.click();
+        }
+    }
+
+    function isBrandingTabActive() {
+        const brandingTab = document.getElementById('tab-branding');
+        return !!(brandingTab && brandingTab.classList.contains('active'));
+    }
+
+    function onSettingsTabChanged(tabName) {
+        if (tabName === 'branding') {
+            scheduleBrandingPreview();
+            return;
+        }
+        if (typeof BrandingPreview !== 'undefined' && BrandingPreview.clearAllPreview) {
+            BrandingPreview.clearAllPreview();
+        } else if (typeof BrandingPreview !== 'undefined') {
+            BrandingPreview.clearPagePreview();
         }
     }
 
@@ -1089,6 +1107,7 @@
     function scheduleBrandingPreview() {
         clearTimeout(_previewDebounce);
         _previewDebounce = setTimeout(() => {
+            if (!isBrandingTabActive()) return;
             if (typeof BrandingPreview !== 'undefined') {
                 const applyPage = document.getElementById('branding-preview-page-toggle')?.checked;
                 BrandingPreview.apply(collectBrandingData(), { applyToPage: !!applyPage });
@@ -1194,7 +1213,8 @@
             if (e.target?.classList?.contains('branding-bg-file')) return;
             if (e.target.closest('#tab-branding')) onBrandingFieldChange();
         });
-        scheduleBrandingPreview();
+        // Only seed preview when Branding is the active tab (not Updates/etc.)
+        if (isBrandingTabActive()) scheduleBrandingPreview();
     }
 
     async function brandingPrompt(message, options = {}) {
@@ -1488,6 +1508,12 @@
                 if (hex) hex.value = value;
             }
         }
+
+        // Theme mode (dark / light / custom)
+        const themeMode = data.themeMode === 'auto' ? 'dark' : (data.themeMode || 'dark');
+        const themeRadio = document.querySelector(`input[name="theme-mode"][value="${themeMode}"]`)
+            || document.querySelector('input[name="theme-mode"][value="dark"]');
+        if (themeRadio) themeRadio.checked = true;
         
         // Background & appearance (console)
         const setVal = (id, val) => { const el = document.getElementById(id); if (el != null && el) el.value = val; };
@@ -2139,6 +2165,8 @@
                 const key = picker.dataset.color;
                 const hex = document.querySelector(`.color-hex[data-color="${key}"]`);
                 if (hex) hex.value = picker.value;
+                const customRadio = document.querySelector('input[name="theme-mode"][value="custom"]');
+                if (customRadio) customRadio.checked = true;
                 onBrandingFieldChange();
             });
         });
@@ -2150,8 +2178,51 @@
                 if (picker && /^#[0-9a-fA-F]{6}$/.test(hex.value)) {
                     picker.value = hex.value;
                 }
+                const customRadio = document.querySelector('input[name="theme-mode"][value="custom"]');
+                if (customRadio) customRadio.checked = true;
                 onBrandingFieldChange();
             });
+        });
+
+        document.querySelectorAll('input[name="theme-mode"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (!radio.checked) return;
+                if (radio.value === 'light') {
+                    applyBuiltInPalette({
+                        bgPrimary: '#f0f2f5', bgSecondary: '#ffffff', bgTertiary: '#eaeef2', bgElevated: '#ffffff',
+                        textPrimary: '#1f2328', textSecondary: '#656d76',
+                        accentBlue: '#0969da', accentBlueHover: '#0550ae',
+                        accentGreen: '#1a7f37', accentRed: '#cf222e', accentYellow: '#9a6700', accentPurple: '#8250df',
+                        borderPrimary: '#d0d7de', borderSecondary: '#eaeef2'
+                    });
+                    const glassColor = document.getElementById('glass-color');
+                    const glassPicker = document.getElementById('glass-color-picker');
+                    if (glassColor) glassColor.value = '#ffffff';
+                    if (glassPicker) glassPicker.value = '#ffffff';
+                } else if (radio.value === 'dark') {
+                    applyBuiltInPalette({
+                        bgPrimary: '#0d1117', bgSecondary: '#161b22', bgTertiary: '#21262d', bgElevated: '#30363d',
+                        textPrimary: '#e6edf3', textSecondary: '#8b949e',
+                        accentBlue: '#58a6ff', accentBlueHover: '#79c0ff',
+                        accentGreen: '#2ea44f', accentRed: '#f85149', accentYellow: '#d29922', accentPurple: '#a371f7',
+                        borderPrimary: '#30363d', borderSecondary: '#21262d'
+                    });
+                    const glassColor = document.getElementById('glass-color');
+                    const glassPicker = document.getElementById('glass-color-picker');
+                    if (glassColor) glassColor.value = '#161b22';
+                    if (glassPicker) glassPicker.value = '#161b22';
+                }
+                onBrandingFieldChange();
+            });
+        });
+    }
+
+    function applyBuiltInPalette(colors) {
+        Object.entries(colors).forEach(([key, value]) => {
+            const picker = document.querySelector(`.color-picker[data-color="${key}"]`);
+            const hex = document.querySelector(`.color-hex[data-color="${key}"]`);
+            if (picker) picker.value = value;
+            if (hex) hex.value = value;
         });
     }
     
@@ -2181,6 +2252,8 @@
                 data.colors[key] = value;
             }
         });
+
+        data.themeMode = document.querySelector('input[name="theme-mode"]:checked')?.value || 'dark';
         
         // Background & appearance (console)
         data.bgType = document.querySelector('input[name="bg-type"]:checked')?.value || 'none';
@@ -4455,6 +4528,47 @@
 
     // ==================== OIDC / OAuth2 Section ====================
 
+    const OIDC_CALLBACK_PATHS = ['/api/auth/oidc/callback', '/api/oidc/callback'];
+
+    function suggestedOidcRedirectUrl() {
+        return window.location.origin.replace(/\/+$/, '') + '/api/auth/oidc/callback';
+    }
+
+    function isValidOidcRedirectUrlClient(raw) {
+        if (!raw || typeof raw !== 'string') return false;
+        try {
+            const u = new URL(raw.trim());
+            if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+            const path = (u.pathname || '/').replace(/\/+$/, '') || '/';
+            return OIDC_CALLBACK_PATHS.includes(path);
+        } catch {
+            return false;
+        }
+    }
+
+    function updateOidcRedirectWarning() {
+        const warn = document.getElementById('oidc-redirect-url-warning');
+        const input = document.getElementById('oidc-redirect-url');
+        const enabled = document.getElementById('oidc-enabled')?.checked;
+        if (!warn || !input) return;
+
+        const value = (input.value || '').trim();
+        if (!enabled || !value) {
+            warn.style.display = 'none';
+            warn.textContent = '';
+            return;
+        }
+        if (isValidOidcRedirectUrlClient(value)) {
+            warn.style.display = 'none';
+            warn.textContent = '';
+            return;
+        }
+        const suggest = suggestedOidcRedirectUrl();
+        warn.style.display = '';
+        warn.textContent = _('settings.oidc_redirect_url_invalid') + ' ' +
+            _('settings.oidc_redirect_url_example').replace('{url}', suggest);
+    }
+
     async function initOidcSection() {
         const form = document.getElementById('oidc-form');
         if (!form) return;
@@ -4474,10 +4588,23 @@
                     if (!ok) {
                         enabledCb.checked = false;
                         configFields.style.display = 'none';
+                        updateOidcRedirectWarning();
                         return;
                     }
                 }
                 configFields.style.display = enabledCb.checked ? '' : 'none';
+                // Prefill Redirect URL with panel callback when enabling and field is empty
+                if (enabledCb.checked) {
+                    const redirectInput = document.getElementById('oidc-redirect-url');
+                    if (redirectInput && !redirectInput.value.trim()) {
+                        redirectInput.value = suggestedOidcRedirectUrl();
+                    }
+                    const panelInput = document.getElementById('oidc-panel-url');
+                    if (panelInput && !panelInput.value.trim()) {
+                        panelInput.value = window.location.origin;
+                    }
+                }
+                updateOidcRedirectWarning();
             });
         }
 
@@ -4490,6 +4617,9 @@
             });
         }
 
+        document.getElementById('oidc-redirect-url')?.addEventListener('input', updateOidcRedirectWarning);
+        document.getElementById('oidc-redirect-url')?.addEventListener('change', updateOidcRedirectWarning);
+
         // Load existing config
         await loadOidcConfig();
 
@@ -4501,6 +4631,12 @@
             e.preventDefault();
             const data = collectOidcData();
             if (data.enabled) {
+                if (!isValidOidcRedirectUrlClient(data.redirect_url)) {
+                    updateOidcRedirectWarning();
+                    Notifications.error(_('settings.oidc_redirect_url_invalid'));
+                    document.getElementById('oidc-redirect-url')?.focus();
+                    return;
+                }
                 const confirmed = await settingsConfirmCritical({
                     title: tSettings('confirm.oidc_save_title', 'Save SSO settings?'),
                     message: tSettings('confirm.oidc_save', 'Save OIDC / SSO configuration? Incorrect settings can block SSO sign-in.'),
@@ -4540,7 +4676,7 @@
         setVal('oidc-issuer-url', data.issuer_url);
         setVal('oidc-client-id', data.client_id);
         setVal('oidc-client-secret', data.client_secret);
-        setVal('oidc-redirect-url', data.redirect_url);
+        setVal('oidc-redirect-url', data.redirect_url || '');
         setVal('oidc-panel-url', data.panel_url || window.location.origin);
         setVal('oidc-scopes', data.scopes || 'openid profile email');
         setChecked('oidc-use-pkce', data.use_pkce);
@@ -4561,6 +4697,7 @@
         if (configFields) configFields.style.display = data.enabled ? '' : 'none';
         const manualEndpoints = document.getElementById('oidc-manual-endpoints');
         if (manualEndpoints) manualEndpoints.style.display = (data.auto_discovery !== false) ? 'none' : '';
+        updateOidcRedirectWarning();
     }
 
     function collectOidcData() {

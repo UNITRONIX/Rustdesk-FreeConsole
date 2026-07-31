@@ -47,6 +47,7 @@ jest.mock('../services/betterdeskApi', () => ({
     exchangeOIDCCode: jest.fn(),
     getOIDCStatus: jest.fn().mockResolvedValue({ success: true, data: { enabled: false } }),
     startOIDCAuthorize: jest.fn(),
+    proxyOIDCCallback: jest.fn(),
 }));
 
 const authService = require('../services/authService');
@@ -293,6 +294,34 @@ describe('Auth Routes', () => {
 
             expect(res.status).toBe(302);
             expect(res.headers.location).toBe('/login?error=oidc_error');
+        });
+    });
+
+    describe('GET /api/auth/oidc/callback (panel → Go proxy, #304)', () => {
+        it('proxies IdP callback query to Go', async () => {
+            betterdeskApi.proxyOIDCCallback.mockImplementation(async (req, res) => {
+                res.status(200).type('html').send('<html>Sign-in successful</html>');
+            });
+
+            const res = await request(app).get('/api/auth/oidc/callback?code=abc&state=xyz');
+
+            expect(res.status).toBe(200);
+            expect(res.text).toContain('Sign-in successful');
+            expect(betterdeskApi.proxyOIDCCallback).toHaveBeenCalledTimes(1);
+            const proxiedReq = betterdeskApi.proxyOIDCCallback.mock.calls[0][0];
+            expect(proxiedReq.query).toEqual({ code: 'abc', state: 'xyz' });
+        });
+
+        it('also exposes /api/oidc/callback alias', async () => {
+            betterdeskApi.proxyOIDCCallback.mockImplementation(async (_req, res) => {
+                res.status(302).set('Location', '/api/auth/oidc/session?code=one-time').end();
+            });
+
+            const res = await request(app).get('/api/oidc/callback?code=c&state=s');
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('/api/auth/oidc/session?code=one-time');
+            expect(betterdeskApi.proxyOIDCCallback).toHaveBeenCalled();
         });
     });
 

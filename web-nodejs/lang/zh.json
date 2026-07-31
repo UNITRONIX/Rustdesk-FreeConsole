@@ -480,7 +480,7 @@
         "oidc_client_id": "客户端 ID",
         "oidc_client_secret": "客户端密钥",
         "oidc_redirect_url": "重定向 URL (回调)",
-        "oidc_redirect_url_hint": "必须与身份提供商中的配置完全匹配。通常为: http(s)://your-server:21121/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "必须与 IdP 配置完全一致。路径：/api/auth/oidc/callback（或 /api/oidc/callback）。推荐使用面板公网 URL——控制台会将回调代理到 Go API。也可使用 API 端口（:21114 / :21121）。",
         "oidc_panel_url": "面板 URL",
         "oidc_panel_url_hint": "操作员用于打开 Web 控制台的 URL（端口 5000 或反向代理主机名）。当 OIDC 回调在 Go API 端口上运行时，SSO 登录需要此设置。",
         "oidc_scopes": "作用域",
@@ -755,7 +755,9 @@
         "client_sessions_max_days": "最长会话时间（天）",
         "client_sessions_max_days_hint": "自首次登录起滑动续期的上限（默认 30 天）。",
         "client_sessions_save": "保存会话设置",
-        "enrollment_ldap_hint": "LDAP/AD 与 OIDC 设置位于上方的 LDAP / AD 和 OIDC / SSO 选项卡。"
+        "enrollment_ldap_hint": "LDAP/AD 与 OIDC 设置位于上方的 LDAP / AD 和 OIDC / SSO 选项卡。",
+        "oidc_redirect_url_invalid": "重定向 URL 必须使用 http(s)，并以 /api/auth/oidc/callback（或 /api/oidc/callback）结尾。",
+        "oidc_redirect_url_example": "示例：{url}"
     },
     "audit": {
         "time": "时间",
@@ -2851,7 +2853,8 @@
         "dark": "深色",
         "light": "浅色",
         "auto": "跟随系统",
-        "title": "主题"
+        "title": "主题",
+        "custom": "自定义"
     },
     "days": {
         "mon": "周一",
@@ -4331,5 +4334,14 @@
         "empty": "此访客链接上没有设备。",
         "expires": "过期时间",
         "back_to_list": "返回访客列表"
+    },
+    "ux35": {
+        "resize_sidebar": "调整侧边栏宽度",
+        "open_menu": "打开菜单",
+        "theme_mode_hint": "浅色和深色为内置。编辑下方颜色时将启用自定义。",
+        "switch_to_ux35": "切换到 UX 3.5（测试版）",
+        "switch_to_classic": "切换到经典界面",
+        "beta_badge": "测试版",
+        "beta_tooltip": "测试版控制台布局 — 可选；经典界面仍为默认。"
     }
 }

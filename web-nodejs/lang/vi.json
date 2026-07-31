@@ -567,7 +567,7 @@
         "oidc_client_id": "ID khách hàng",
         "oidc_client_secret": "Bí mật khách hàng",
         "oidc_redirect_url": "Chuyển hướng URL (Gọi lại)",
-        "oidc_redirect_url_hint": "Phải khớp chính xác với những gì được định cấu hình trong IdP của bạn. Thông thường: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Phải khớp chính xác với IdP. Đường dẫn: /api/auth/oidc/callback (hoặc /api/oidc/callback). Nên dùng URL công khai của panel — console proxy callback tới Go API. Cổng API (:21114 / :21121) cũng được.",
         "oidc_panel_url": "URL bảng điều khiển",
         "oidc_panel_url_hint": "URL mà người vận hành dùng để mở bảng điều khiển web (cổng 5000 hoặc tên máy chủ reverse proxy). Bắt buộc cho đăng nhập SSO khi callback OIDC chạy trên cổng Go API.",
         "oidc_scopes": "Phạm vi",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "Thời gian phiên tối đa (ngày)",
         "client_sessions_max_days_hint": "Giới hạn gia hạn trượt từ lần đăng nhập đầu (mặc định 30 ngày).",
         "client_sessions_save": "Lưu cài đặt phiên",
-        "enrollment_ldap_hint": "Cài đặt LDAP/AD và OIDC nằm trong các tab LDAP / AD và OIDC / SSO phía trên."
+        "enrollment_ldap_hint": "Cài đặt LDAP/AD và OIDC nằm trong các tab LDAP / AD và OIDC / SSO phía trên.",
+        "oidc_redirect_url_invalid": "URL chuyển hướng phải dùng http(s) và kết thúc bằng /api/auth/oidc/callback (hoặc /api/oidc/callback).",
+        "oidc_redirect_url_example": "Ví dụ: {url}"
     },
     "audit": {
         "time": "Time",
@@ -2786,7 +2788,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Tùy chỉnh"
     },
     "days": {
         "mon": "Mon",
@@ -4337,5 +4340,14 @@
         "empty": "Không có thiết bị trên liên kết này.",
         "expires": "Hết hạn",
         "back_to_list": "Quay lại danh sách khách"
+    },
+    "ux35": {
+        "resize_sidebar": "Đổi độ rộng thanh bên",
+        "open_menu": "Mở menu",
+        "theme_mode_hint": "Sáng và Tối là mặc định. Tùy chỉnh bật khi bạn chỉnh màu bên dưới.",
+        "switch_to_ux35": "Chuyển sang UX 3.5 (Beta)",
+        "switch_to_classic": "Chuyển sang giao diện cổ điển",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Bố cục console Beta — tùy chọn; giao diện cổ điển vẫn là mặc định."
     }
 }

@@ -676,6 +676,33 @@
                     <p class="settings-panel-desc">${_('branding.colors_desc')}</p>
                 </div>
                 <div class="settings-panel-body">
+                    <div class="form-group" style="max-width: 520px; margin-bottom: 1.25rem;">
+                        <label class="form-label" for="theme-mode-select">${_('theme.title') || 'Theme'}</label>
+                        <p class="settings-row-hint">${_('ux35.theme_mode_hint') || 'Light and Dark are built-in. Custom activates when you edit colors below.'}</p>
+                        <div class="logo-type-selector" id="theme-mode-selector" role="radiogroup" aria-label="${_('theme.title') || 'Theme'}">
+                            <label class="logo-type-option">
+                                <input type="radio" name="theme-mode" value="dark" checked>
+                                <span class="logo-type-card">
+                                    <span class="material-icons">dark_mode</span>
+                                    <span>${_('theme.dark') || 'Dark'}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="theme-mode" value="light">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">light_mode</span>
+                                    <span>${_('theme.light') || 'Light'}</span>
+                                </span>
+                            </label>
+                            <label class="logo-type-option">
+                                <input type="radio" name="theme-mode" value="custom">
+                                <span class="logo-type-card">
+                                    <span class="material-icons">palette</span>
+                                    <span>${_('theme.custom') || 'Custom'}</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
                     <div class="color-grid">
                         <div class="color-group">
                             <h3 class="color-group-title">${_('branding.colors_backgrounds')}</h3>
@@ -1832,8 +1859,9 @@
 
                             <div class="form-group">
                                 <label class="form-label" for="oidc-redirect-url">${_('settings.oidc_redirect_url')}</label>
-                                <input type="url" id="oidc-redirect-url" class="form-input" placeholder="http://your-server:21114/api/auth/oidc/callback">
+                                <input type="url" id="oidc-redirect-url" class="form-input" placeholder="https://your-server:5443/api/auth/oidc/callback">
                                 <small class="form-hint">${_('settings.oidc_redirect_url_hint')}</small>
+                                <div id="oidc-redirect-url-warning" class="alert alert-warning" style="display:none;margin-top:8px;" role="status"></div>
                             </div>
 
                             <div class="form-group">

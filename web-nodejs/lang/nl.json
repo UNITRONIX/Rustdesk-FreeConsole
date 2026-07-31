@@ -561,7 +561,7 @@
         "oidc_client_id": "Client-ID",
         "oidc_client_secret": "Clientgeheim",
         "oidc_redirect_url": "Omleidings-URL (callback)",
-        "oidc_redirect_url_hint": "Moet exact overeenkomen met de configuratie in uw IdP. Meestal: http(s)://uw-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Moet exact overeenkomen met de IdP. Pad: /api/auth/oidc/callback (of /api/oidc/callback). Gebruik bij voorkeur de openbare panel-URL — de console proxyt de callback naar de Go-API. API-poorten (:21114 / :21121) werken ook.",
         "oidc_panel_url": "Panel-URL",
         "oidc_panel_url_hint": "URL die operators gebruiken om de webconsole te openen (poort 5000 of reverse-proxy-hostname). Vereist voor SSO-aanmelding wanneer de OIDC-callback op de Go API-poort draait.",
         "oidc_scopes": "Scopes",
@@ -755,7 +755,9 @@
         "client_sessions_max_days": "Maximale sessieduur (dagen)",
         "client_sessions_max_days_hint": "Bovengrens voor glijdende verlenging sinds eerste login (standaard 30 dagen).",
         "client_sessions_save": "Sessie-instellingen opslaan",
-        "enrollment_ldap_hint": "LDAP/AD- en OIDC-instellingen staan onder de tabbladen LDAP / AD en OIDC / SSO hierboven."
+        "enrollment_ldap_hint": "LDAP/AD- en OIDC-instellingen staan onder de tabbladen LDAP / AD en OIDC / SSO hierboven.",
+        "oidc_redirect_url_invalid": "Redirect-URL moet http(s) gebruiken en eindigen op /api/auth/oidc/callback (of /api/oidc/callback).",
+        "oidc_redirect_url_example": "Voorbeeld: {url}"
     },
     "audit": {
         "time": "Tijd",
@@ -2780,7 +2782,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Aangepast"
     },
     "days": {
         "mon": "Mon",
@@ -4331,5 +4334,14 @@
         "empty": "Geen apparaten op deze gastlink.",
         "expires": "Verloopt",
         "back_to_list": "Terug naar gastenlijst"
+    },
+    "ux35": {
+        "resize_sidebar": "Zijbalkbreedte aanpassen",
+        "open_menu": "Menu openen",
+        "theme_mode_hint": "Licht en Donker zijn ingebouwd. Aangepast wordt actief wanneer u hieronder kleuren bewerkt.",
+        "switch_to_ux35": "Overschakelen naar UX 3.5 (Beta)",
+        "switch_to_classic": "Overschakelen naar klassieke UI",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Beta-consolelay-out — optioneel; de klassieke UI blijft de standaard."
     }
 }

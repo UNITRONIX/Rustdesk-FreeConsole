@@ -186,6 +186,24 @@ app.use(initI18n());
 // Used by Desktop Mode to load pages inside floating windows (iframes)
 app.use((req, res, next) => {
     res.locals.embed = req.query.embed === '1';
+    // UI shell: classic (rail+flyout, default) | ux35 (full-list sidebar)
+    // Cookie remembers last choice; ?ui=classic|ux35 overrides and persists.
+    const UI_SHELL_COOKIE = 'bd_ui_shell';
+    let uiShell = 'classic';
+    const q = String(req.query.ui || '').toLowerCase();
+    if (q === 'ux35' || q === 'classic') {
+        uiShell = q;
+        res.cookie(UI_SHELL_COOKIE, uiShell, {
+            maxAge: 365 * 24 * 60 * 60 * 1000,
+            sameSite: 'lax',
+            httpOnly: false,
+            path: '/'
+        });
+    } else {
+        const raw = String(req.cookies?.[UI_SHELL_COOKIE] || '').toLowerCase();
+        if (raw === 'ux35' || raw === 'classic') uiShell = raw;
+    }
+    res.locals.uiShell = uiShell;
     // Inject permission helper for EJS templates (sidebar/button visibility)
     const role = req.session?.user?.role;
     res.locals.hasPermission = (perm) => role ? roleHasPermission(role, perm) : false;

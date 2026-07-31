@@ -567,7 +567,7 @@
         "oidc_client_id": "รหัสลูกค้า",
         "oidc_client_secret": "ความลับของลูกค้า",
         "oidc_redirect_url": "เปลี่ยนเส้นทาง URL (โทรกลับ)",
-        "oidc_redirect_url_hint": "ต้องตรงกันทุกประการกับสิ่งที่กำหนดค่าไว้ใน IdP ของคุณ โดยปกติ: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "ต้องตรงกับ IdP ทุกประการ เส้นทาง: /api/auth/oidc/callback (หรือ /api/oidc/callback) แนะนำ URL สาธารณะของแผง — คอนโซลจะพร็อกซี callback ไปยัง Go API พอร์ต API (:21114 / :21121) ก็ใช้ได้",
         "oidc_panel_url": "URL แผงควบคุม",
         "oidc_panel_url_hint": "URL ที่ผู้ดำเนินการใช้เปิดคอนโซลเว็บ (พอร์ต 5000 หรือชื่อโฮสต์ reverse proxy) จำเป็นสำหรับการเข้าสู่ระบบ SSO เมื่อ OIDC callback ทำงานบนพอร์ต Go API",
         "oidc_scopes": "ขอบเขต",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "อายุเซสชันสูงสุด (วัน)",
         "client_sessions_max_days_hint": "ขีดจำกัดการต่ออายุแบบเลื่อนตั้งแต่เข้าสู่ระบบครั้งแรก (ค่าเริ่มต้น 30 วัน)",
         "client_sessions_save": "บันทึกการตั้งค่าเซสชัน",
-        "enrollment_ldap_hint": "การตั้งค่า LDAP/AD และ OIDC อยู่ที่แท็บ LDAP / AD และ OIDC / SSO ด้านบน"
+        "enrollment_ldap_hint": "การตั้งค่า LDAP/AD และ OIDC อยู่ที่แท็บ LDAP / AD และ OIDC / SSO ด้านบน",
+        "oidc_redirect_url_invalid": "Redirect URL ต้องใช้ http(s) และลงท้ายด้วย /api/auth/oidc/callback (หรือ /api/oidc/callback)",
+        "oidc_redirect_url_example": "ตัวอย่าง: {url}"
     },
     "audit": {
         "time": "Time",
@@ -2786,7 +2788,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "กำหนดเอง"
     },
     "days": {
         "mon": "Mon",
@@ -4337,5 +4340,14 @@
         "empty": "ไม่มีอุปกรณ์ในลิงก์นี้",
         "expires": "หมดอายุ",
         "back_to_list": "กลับไปรายการผู้เยี่ยมชม"
+    },
+    "ux35": {
+        "resize_sidebar": "ปรับความกว้างแถบด้านข้าง",
+        "open_menu": "เปิดเมนู",
+        "theme_mode_hint": "สว่างและมืดมีให้ในตัว กำหนดเองจะเปิดเมื่อคุณแก้ไขสีด้านล่าง",
+        "switch_to_ux35": "สลับไป UX 3.5 (เบต้า)",
+        "switch_to_classic": "สลับไป UI คลาสสิก",
+        "beta_badge": "เบต้า",
+        "beta_tooltip": "เลย์เอาต์คอนโซลเบต้า — ไม่บังคับ UI คลาสสิกยังเป็นค่าเริ่มต้น"
     }
 }

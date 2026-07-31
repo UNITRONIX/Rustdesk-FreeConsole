@@ -568,7 +568,7 @@
         "oidc_client_id": "معرف العميل",
         "oidc_client_secret": "سر العميل",
         "oidc_redirect_url": "إعادة توجيه URL (رد الاتصال)",
-        "oidc_redirect_url_hint": "يجب أن يتطابق تمامًا مع ما تم تكوينه في IdP الخاص بك. عادةً: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "يجب أن يطابق IdP تمامًا. المسار: /api/auth/oidc/callback (أو /api/oidc/callback). يُفضَّل عنوان اللوحة العام — تمرّر الواجهة الاستدعاء إلى واجهة Go. تعمل أيضًا منافذ API (:21114 / :21121).",
         "oidc_panel_url": "رابط لوحة التحكم",
         "oidc_panel_url_hint": "عنوان URL الذي يستخدمه المشغّلون لفتح وحدة التحكم (المنفذ 5000 أو اسم مضيف وكيل عكسي). مطلوب لتسجيل الدخول عبر SSO عندما يعمل رد الاتصال OIDC على منفذ Go API.",
         "oidc_scopes": "النطاقات",
@@ -762,7 +762,9 @@
         "client_sessions_max_days": "الحد الأقصى لمدة الجلسة (أيام)",
         "client_sessions_max_days_hint": "الحد الأقصى للتجديد التلقائي منذ أول تسجيل دخول (افتراضي 30 يومًا).",
         "client_sessions_save": "حفظ إعدادات الجلسة",
-        "enrollment_ldap_hint": "إعدادات LDAP/AD وOIDC موجودة في علامتي التبويب LDAP / AD وOIDC / SSO أعلاه."
+        "enrollment_ldap_hint": "إعدادات LDAP/AD وOIDC موجودة في علامتي التبويب LDAP / AD وOIDC / SSO أعلاه.",
+        "oidc_redirect_url_invalid": "يجب أن يستخدم عنوان إعادة التوجيه http(s) وينتهي بـ /api/auth/oidc/callback (أو /api/oidc/callback).",
+        "oidc_redirect_url_example": "مثال: {url}"
     },
     "audit": {
         "time": "Time",
@@ -2787,7 +2789,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "مخصص"
     },
     "days": {
         "mon": "Mon",
@@ -4338,5 +4341,14 @@
         "empty": "لا توجد أجهزة على رابط الضيف هذا.",
         "expires": "ينتهي",
         "back_to_list": "العودة إلى قائمة الضيف"
+    },
+    "ux35": {
+        "resize_sidebar": "تغيير عرض الشريط الجانبي",
+        "open_menu": "فتح القائمة",
+        "theme_mode_hint": "الفاتح والداكن مدمجان. يُفعَّل المخصص عند تعديل الألوان أدناه.",
+        "switch_to_ux35": "التبديل إلى UX 3.5 (تجريبي)",
+        "switch_to_classic": "التبديل إلى الواجهة الكلاسيكية",
+        "beta_badge": "تجريبي",
+        "beta_tooltip": "تخطيط لوحة تجريبي — اختياري؛ تبقى الواجهة الكلاسيكية الافتراضية."
     }
 }

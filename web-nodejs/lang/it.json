@@ -561,7 +561,7 @@
         "oidc_client_id": "ID client",
         "oidc_client_secret": "Segreto client",
         "oidc_redirect_url": "URL di reindirizzamento (callback)",
-        "oidc_redirect_url_hint": "Deve corrispondere esattamente alla configurazione nel provider IdP. Di solito: http(s)://tuo-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Deve corrispondere esattamente all'IdP. Percorso: /api/auth/oidc/callback (o /api/oidc/callback). Preferisci l'URL pubblico del pannello — la console inoltra il callback all'API Go. Funzionano anche le porte API (:21114 / :21121).",
         "oidc_panel_url": "URL del pannello",
         "oidc_panel_url_hint": "URL usato dagli operatori per aprire la console web (porta 5000 o hostname del reverse proxy). Obbligatorio per l'accesso SSO quando il callback OIDC è sul porto API Go.",
         "oidc_scopes": "Ambiti",
@@ -755,7 +755,9 @@
         "client_sessions_max_days": "Durata massima sessione (giorni)",
         "client_sessions_max_days_hint": "Limite superiore del rinnovo dalla prima accesso (predefinito 30 giorni).",
         "client_sessions_save": "Salva impostazioni sessione",
-        "enrollment_ldap_hint": "Le impostazioni LDAP/AD e OIDC si trovano nelle schede LDAP / AD e OIDC / SSO sopra."
+        "enrollment_ldap_hint": "Le impostazioni LDAP/AD e OIDC si trovano nelle schede LDAP / AD e OIDC / SSO sopra.",
+        "oidc_redirect_url_invalid": "L'URL di redirect deve usare http(s) e terminare con /api/auth/oidc/callback (o /api/oidc/callback).",
+        "oidc_redirect_url_example": "Esempio: {url}"
     },
     "audit": {
         "time": "Ora",
@@ -2780,7 +2782,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Personalizzato"
     },
     "days": {
         "mon": "Mon",
@@ -4331,5 +4334,14 @@
         "empty": "Nessun dispositivo su questo link.",
         "expires": "Scade",
         "back_to_list": "Torna all'elenco ospite"
+    },
+    "ux35": {
+        "resize_sidebar": "Ridimensiona barra laterale",
+        "open_menu": "Apri menu",
+        "theme_mode_hint": "Chiaro e Scuro sono integrati. Personalizzato si attiva modificando i colori sotto.",
+        "switch_to_ux35": "Passa a UX 3.5 (Beta)",
+        "switch_to_classic": "Passa all’interfaccia classica",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Layout console in beta — opzionale; l’interfaccia classica resta predefinita."
     }
 }

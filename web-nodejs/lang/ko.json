@@ -561,7 +561,7 @@
         "oidc_client_id": "클라이언트 ID",
         "oidc_client_secret": "클라이언트 비밀번호",
         "oidc_redirect_url": "URL 리디��션(콜백)",
-        "oidc_redirect_url_hint": "IdP에 구성된 것과 정확히 일치해야 합니다. 일반적으로: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "IdP 설정과 정확히 일치해야 합니다. 경로: /api/auth/oidc/callback (또는 /api/oidc/callback). 패널 공개 URL을 권장합니다 — 콘솔이 콜백을 Go API로 프록시합니다. API 포트(:21114 / :21121)도 가능합니다.",
         "oidc_panel_url": "패널 URL",
         "oidc_panel_url_hint": "운영자가 웹 콘솔을 여는 URL(포트 5000 또는 리버스 프록시 호스트명). OIDC 콜백이 Go API 포트에서 실행될 때 SSO 로그인에 필요합니다.",
         "oidc_scopes": "범위",
@@ -755,7 +755,9 @@
         "client_sessions_max_days": "최대 세션 수명(일)",
         "client_sessions_max_days_hint": "첫 로그인 이후 슬라이딩 갱신 상한(기본 30일).",
         "client_sessions_save": "세션 설정 저장",
-        "enrollment_ldap_hint": "LDAP/AD 및 OIDC 설정은 위의 LDAP / AD 및 OIDC / SSO 탭에 있습니다."
+        "enrollment_ldap_hint": "LDAP/AD 및 OIDC 설정은 위의 LDAP / AD 및 OIDC / SSO 탭에 있습니다.",
+        "oidc_redirect_url_invalid": "리디렉션 URL은 http(s)를 사용하고 /api/auth/oidc/callback(또는 /api/oidc/callback)로 끝나야 합니다.",
+        "oidc_redirect_url_example": "예: {url}"
     },
     "audit": {
         "time": "Time",
@@ -2780,7 +2782,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "사용자 지정"
     },
     "days": {
         "mon": "Mon",
@@ -4331,5 +4334,14 @@
         "empty": "이 게스트 링크에 장치가 없습니다.",
         "expires": "만료",
         "back_to_list": "게스트 목록으로"
+    },
+    "ux35": {
+        "resize_sidebar": "사이드바 너비 조절",
+        "open_menu": "메뉴 열기",
+        "theme_mode_hint": "밝게와 어둡게는 기본입니다. 아래에서 색상을 편집하면 사용자 지정이 활성화됩니다.",
+        "switch_to_ux35": "UX 3.5로 전환 (베타)",
+        "switch_to_classic": "클래식 UI로 전환",
+        "beta_badge": "베타",
+        "beta_tooltip": "베타 콘솔 레이아웃 — 선택 사항이며 기본값은 클래식 UI입니다."
     }
 }

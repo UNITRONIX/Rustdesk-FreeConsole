@@ -561,7 +561,7 @@
         "oidc_client_id": "ID de cliente",
         "oidc_client_secret": "Secreto de cliente",
         "oidc_redirect_url": "URL de redirección (callback)",
-        "oidc_redirect_url_hint": "Debe coincidir exactamente con la configuración de tu IdP. Normalmente: http(s)://tu-servidor:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Debe coincidir exactamente con el IdP. Ruta: /api/auth/oidc/callback (o /api/oidc/callback). Prefiera la URL pública del panel — la consola reenvía el callback a la API Go. También funcionan los puertos API (:21114 / :21121).",
         "oidc_panel_url": "URL del panel",
         "oidc_panel_url_hint": "URL que usan los operadores para abrir la consola web (puerto 5000 o nombre de host del proxy inverso). Requerida para el inicio de sesión SSO cuando la devolución de llamada OIDC se ejecuta en el puerto de la API Go.",
         "oidc_scopes": "Ámbitos",
@@ -755,7 +755,9 @@
         "client_sessions_max_days": "Duración máxima de sesión (días)",
         "client_sessions_max_days_hint": "Límite superior de renovación desde el primer inicio de sesión (predeterminado 30 días).",
         "client_sessions_save": "Guardar ajustes de sesión",
-        "enrollment_ldap_hint": "La configuración LDAP/AD y OIDC está en las pestañas LDAP / AD y OIDC / SSO de arriba."
+        "enrollment_ldap_hint": "La configuración LDAP/AD y OIDC está en las pestañas LDAP / AD y OIDC / SSO de arriba.",
+        "oidc_redirect_url_invalid": "La URL de redirección debe usar http(s) y terminar en /api/auth/oidc/callback (o /api/oidc/callback).",
+        "oidc_redirect_url_example": "Ejemplo: {url}"
     },
     "audit": {
         "time": "Hora",
@@ -2780,7 +2782,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Panel"
+        "title": "Panel",
+        "custom": "Personalizado"
     },
     "days": {
         "mon": "Mon",
@@ -4331,5 +4334,14 @@
         "empty": "No hay dispositivos en este enlace.",
         "expires": "Caduca",
         "back_to_list": "Volver a la lista de invitado"
+    },
+    "ux35": {
+        "resize_sidebar": "Cambiar ancho de la barra lateral",
+        "open_menu": "Abrir menú",
+        "theme_mode_hint": "Claro y Oscuro son predefinidos. Personalizado se activa al editar los colores abajo.",
+        "switch_to_ux35": "Cambiar a UX 3.5 (Beta)",
+        "switch_to_classic": "Cambiar a la interfaz clásica",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Diseño de consola en beta — opcional; la interfaz clásica sigue siendo la predeterminada."
     }
 }

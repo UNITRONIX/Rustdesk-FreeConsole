@@ -567,7 +567,7 @@
         "oidc_client_id": "ID client",
         "oidc_client_secret": "Secretul clientului",
         "oidc_redirect_url": "Redirecționare URL (apel invers)",
-        "oidc_redirect_url_hint": "Trebuie să se potrivească exact cu ceea ce este configurat în IdP. De obicei: http(s)://your-server:21114/api/auth/oidc/callback",
+        "oidc_redirect_url_hint": "Trebuie să corespundă exact cu IdP. Cale: /api/auth/oidc/callback (sau /api/oidc/callback). Preferă URL-ul public al panoului — consola proxiază callback-ul către API Go. Porturile API (:21114 / :21121) funcționează și ele.",
         "oidc_panel_url": "URL panou",
         "oidc_panel_url_hint": "URL folosit de operatori pentru a deschide consola web (port 5000 sau nume gazdă reverse proxy). Necesar pentru autentificarea SSO când callback-ul OIDC rulează pe portul API Go.",
         "oidc_scopes": "Domenii de aplicare",
@@ -761,7 +761,9 @@
         "client_sessions_max_days": "Durata maximă a sesiunii (zile)",
         "client_sessions_max_days_hint": "Limita superioară a reînnoirii de la prima autentificare (implicit 30 zile).",
         "client_sessions_save": "Salvează setările sesiunii",
-        "enrollment_ldap_hint": "Setările LDAP/AD și OIDC sunt în filele LDAP / AD și OIDC / SSO de mai sus."
+        "enrollment_ldap_hint": "Setările LDAP/AD și OIDC sunt în filele LDAP / AD și OIDC / SSO de mai sus.",
+        "oidc_redirect_url_invalid": "URL-ul de redirect trebuie să folosească http(s) și să se termine cu /api/auth/oidc/callback (sau /api/oidc/callback).",
+        "oidc_redirect_url_example": "Exemplu: {url}"
     },
     "audit": {
         "time": "Time",
@@ -2786,7 +2788,8 @@
         "dark": "Dark",
         "light": "Light",
         "auto": "System",
-        "title": "Theme"
+        "title": "Theme",
+        "custom": "Personalizat"
     },
     "days": {
         "mon": "Mon",
@@ -4337,5 +4340,14 @@
         "empty": "Niciun dispozitiv pe acest link.",
         "expires": "Expiră",
         "back_to_list": "Înapoi la lista oaspete"
+    },
+    "ux35": {
+        "resize_sidebar": "Redimensionați bara laterală",
+        "open_menu": "Deschide meniul",
+        "theme_mode_hint": "Deschis și Întunecat sunt integrate. Personalizat se activează când editați culorile de mai jos.",
+        "switch_to_ux35": "Comutați la UX 3.5 (Beta)",
+        "switch_to_classic": "Comutați la interfața clasică",
+        "beta_badge": "BETA",
+        "beta_tooltip": "Aspect consolă beta — opțional; UI-ul clasic rămâne implicit."
     }
 }

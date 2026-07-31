@@ -1,6 +1,6 @@
 # Installation
 
-BetterDesk supports three installation methods: **Linux (bare-metal)**, **Windows (PowerShell)**, and **Docker**. Default paths are `/opt/betterdesk` (Go server) and `/opt/BetterDeskConsole` (web panel); the installer still detects legacy `/opt/rustdesk` installs.
+BetterDesk supports **Linux (bare-metal)**, **Windows (PowerShell)**, and **Docker** as primary install paths. **FreeBSD** is Tier 3 / community (manual build + example `rc.d`; no `betterdesk.sh`). Default Linux paths are `/opt/betterdesk` (Go server) and `/opt/BetterDeskConsole` (web panel); the installer still detects legacy `/opt/rustdesk` installs.
 
 ---
 
@@ -22,6 +22,12 @@ BetterDesk supports three installation methods: **Linux (bare-metal)**, **Window
 ### Docker
 - Docker Engine 20.10+ with Docker Compose v2
 - 512 MB RAM minimum
+
+### FreeBSD (experimental / community)
+- FreeBSD 13+ (amd64); root or doas/sudo
+- `pkg` packages: `git`, `go`, `node`, `npm`, `python3`, `ca_root_nss`
+- Open ports (e.g. via `pf`): TCP 21114-21119, 21121, 5000; UDP 21116
+- No official installer or release binaries — see [FreeBSD (experimental)](#freebsd-experimental) below and `contrib/freebsd/`
 
 ---
 
@@ -160,6 +166,43 @@ docker compose up -d --build
 ```
 
 See [[Docker]] for detailed Docker documentation.
+
+---
+
+## FreeBSD (experimental)
+
+FreeBSD is **Tier 3 (community)**. There is no `betterdesk.sh` path (that installer assumes Linux + systemd). Build the Go server and Node panel from source, then optionally install the example `rc.d` scripts from the repository.
+
+### Quick outline
+
+```sh
+pkg install -y git go node npm python3 ca_root_nss
+
+git clone https://github.com/UNITRONIX/BetterDesk.git
+cd BetterDesk/betterdesk-server
+CGO_ENABLED=0 go build -o betterdesk-server .
+install -d /usr/local/betterdesk
+install -m 755 betterdesk-server /usr/local/betterdesk/
+# Place id_ed25519 / id_ed25519.pub under /usr/local/betterdesk
+
+# Panel: copy web-nodejs → /usr/local/BetterDeskConsole, then:
+cd /usr/local/BetterDeskConsole
+npm ci --omit=dev
+# Configure .env (RUSTDESK_DIR=/usr/local/betterdesk, etc.)
+
+install -m 755 /path/to/BetterDesk/contrib/freebsd/rc.d/betterdesk_server \
+  /usr/local/etc/rc.d/betterdesk_server
+install -m 755 /path/to/BetterDesk/contrib/freebsd/rc.d/betterdesk_console \
+  /usr/local/etc/rc.d/betterdesk_console
+
+sysrc betterdesk_server_enable=YES
+sysrc betterdesk_server_relay=YOUR.PUBLIC.IP
+sysrc betterdesk_console_enable=YES
+service betterdesk_server start
+service betterdesk_console start
+```
+
+Full notes, path defaults, and limits (no panel updater FreeBSD binaries): see [`contrib/freebsd/README.md`](../../contrib/freebsd/README.md) in the repo. Pull requests improving FreeBSD packaging are welcome ([#310](https://github.com/UNITRONIX/BetterDesk/issues/310)).
 
 ---
 

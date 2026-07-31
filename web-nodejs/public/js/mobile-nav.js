@@ -11,7 +11,91 @@
         return window.DeviceCapabilities && window.DeviceCapabilities.isMobileShell();
     }
 
+    function buildDrawerFromSidebar() {
+        var body = document.getElementById('mobile-more-drawer-body');
+        if (!body || body.dataset.built === '1') return;
+
+        /* UX 3.5: full-list sidebar sections */
+        var sections = document.querySelectorAll('.ux35-sidebar-section');
+        if (sections.length) {
+            sections.forEach(function(panel) {
+                var links = panel.querySelectorAll('a.ux35-sidebar-item');
+                if (!links.length) return;
+
+                var section = document.createElement('div');
+                section.className = 'mobile-drawer-section';
+
+                var heading = panel.querySelector('.ux35-sidebar-heading');
+                var title = document.createElement('div');
+                title.className = 'mobile-drawer-section-title';
+                title.textContent = heading ? heading.textContent.trim() : (panel.getAttribute('data-panel') || '');
+                section.appendChild(title);
+
+                links.forEach(function(link) {
+                    var a = document.createElement('a');
+                    a.href = link.getAttribute('href') || '#';
+                    a.className = 'mobile-drawer-link';
+                    if (link.classList.contains('active')) a.classList.add('active');
+                    if (link.getAttribute('target')) a.target = link.getAttribute('target');
+
+                    var icon = link.querySelector('.material-icons');
+                    if (icon) {
+                        var ic = document.createElement('span');
+                        ic.className = 'material-icons';
+                        ic.textContent = icon.textContent;
+                        a.appendChild(ic);
+                    }
+
+                    var labels = link.querySelectorAll('span:not(.material-icons):not(.badge-sidebar):not(.ux35-sidebar-item-badge)');
+                    var span = document.createElement('span');
+                    span.textContent = labels.length ? labels[0].textContent.trim() : link.textContent.trim();
+                    a.appendChild(span);
+
+                    a.addEventListener('click', closeDrawer);
+                    section.appendChild(a);
+                });
+
+                body.appendChild(section);
+            });
+            body.dataset.built = '1';
+            return;
+        }
+
+        /* Legacy flyout fallback (should not run on UX 3.5) */
+        var panels = document.querySelectorAll('.sidebar-flyout-panel');
+        if (!panels.length) return;
+
+        panels.forEach(function(panel) {
+            var links = panel.querySelectorAll('.sidebar-link');
+            if (!links.length) return;
+            var section = document.createElement('div');
+            section.className = 'mobile-drawer-section';
+            var title = document.createElement('div');
+            title.className = 'mobile-drawer-section-title';
+            title.textContent = panel.getAttribute('data-panel') || '';
+            section.appendChild(title);
+            links.forEach(function(link) {
+                var a = document.createElement('a');
+                a.href = link.getAttribute('href') || '#';
+                a.className = 'mobile-drawer-link';
+                if (link.classList.contains('active')) a.classList.add('active');
+                a.textContent = link.textContent.trim();
+                a.addEventListener('click', closeDrawer);
+                section.appendChild(a);
+            });
+            body.appendChild(section);
+        });
+
+        body.dataset.built = '1';
+    }
+
     function openDrawer() {
+        /* Prefer UX 3.5 sidebar drawer on narrow viewports */
+        if (window.Ux35Shell && typeof window.Ux35Shell.openDrawer === 'function'
+            && window.matchMedia('(max-width: 1099px)').matches) {
+            window.Ux35Shell.openDrawer();
+            return;
+        }
         var drawer = document.getElementById('mobile-more-drawer');
         var btn = document.getElementById('mobile-more-btn');
         if (!drawer) return;
@@ -23,6 +107,9 @@
     }
 
     function closeDrawer() {
+        if (window.Ux35Shell && typeof window.Ux35Shell.closeDrawer === 'function') {
+            window.Ux35Shell.closeDrawer();
+        }
         var drawer = document.getElementById('mobile-more-drawer');
         var btn = document.getElementById('mobile-more-btn');
         if (!drawer) return;
@@ -33,97 +120,6 @@
         if (isMobileShell()) {
             document.body.style.overflow = '';
         }
-    }
-
-    function buildDrawerFromSidebar() {
-        var body = document.getElementById('mobile-more-drawer-body');
-        if (!body || body.dataset.built === '1') return;
-
-        var panels = document.querySelectorAll('.sidebar-flyout-panel');
-        if (!panels.length) return;
-
-        var categoryTitles = {
-            main: _('nav.main') || 'Main',
-            management: _('nav.management') || 'Management',
-            tools: _('nav.tools') || 'Tools',
-            system: _('nav.system') || 'System',
-            'server-mgmt': _('nav.server_management') || 'Server',
-            commercialization: _('nav.commercialization') || 'Commercialization'
-        };
-
-        panels.forEach(function(panel) {
-            var key = panel.getAttribute('data-panel');
-            var links = panel.querySelectorAll('.sidebar-link');
-            if (!links.length) return;
-
-            var section = document.createElement('div');
-            section.className = 'mobile-drawer-section';
-
-            var title = document.createElement('div');
-            title.className = 'mobile-drawer-section-title';
-            title.textContent = categoryTitles[key] || key;
-            section.appendChild(title);
-
-            links.forEach(function(link) {
-                var a = document.createElement('a');
-                a.href = link.getAttribute('href') || '#';
-                a.className = 'mobile-drawer-link';
-                if (link.classList.contains('active')) a.classList.add('active');
-
-                var icon = link.querySelector('.material-icons');
-                if (icon) {
-                    var ic = document.createElement('span');
-                    ic.className = 'material-icons';
-                    ic.textContent = icon.textContent;
-                    a.appendChild(ic);
-                }
-
-                var text = link.querySelector('.sidebar-link-text');
-                var span = document.createElement('span');
-                span.textContent = text ? text.textContent.trim() : link.textContent.trim();
-                a.appendChild(span);
-
-                a.addEventListener('click', function() {
-                    closeDrawer();
-                });
-                section.appendChild(a);
-            });
-
-            body.appendChild(section);
-        });
-
-        /* Settings + attestation from rail */
-        var railLinks = document.querySelectorAll('.sidebar-rail-nav a.sidebar-rail-btn[href]');
-        if (railLinks.length) {
-            var railSection = document.createElement('div');
-            railSection.className = 'mobile-drawer-section';
-            var railTitle = document.createElement('div');
-            railTitle.className = 'mobile-drawer-section-title';
-            railTitle.textContent = _('nav.settings') || 'Settings';
-            railSection.appendChild(railTitle);
-
-            railLinks.forEach(function(link) {
-                var a = document.createElement('a');
-                a.href = link.getAttribute('href');
-                a.className = 'mobile-drawer-link';
-                if (link.classList.contains('active')) a.classList.add('active');
-                var icon = link.querySelector('.material-icons');
-                if (icon) {
-                    var ic = document.createElement('span');
-                    ic.className = 'material-icons';
-                    ic.textContent = icon.textContent;
-                    a.appendChild(ic);
-                }
-                var span = document.createElement('span');
-                span.textContent = link.getAttribute('title') || link.textContent.trim();
-                a.appendChild(span);
-                a.addEventListener('click', closeDrawer);
-                railSection.appendChild(a);
-            });
-            body.appendChild(railSection);
-        }
-
-        body.dataset.built = '1';
     }
 
     function initSwipeGestures() {

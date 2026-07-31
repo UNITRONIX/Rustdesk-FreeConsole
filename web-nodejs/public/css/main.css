@@ -892,6 +892,26 @@ table {
     color: var(--text-primary);
 }
 
+/* Compact Beta marker on classic → UX 3.5 shell switch (opt-in) */
+.navbar-btn--shell-beta {
+    position: relative;
+}
+
+.ui-shell-beta-badge {
+    position: absolute;
+    top: -4px;
+    right: -8px;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: var(--accent-color, #f0883e);
+    color: #fff;
+    line-height: 1.2;
+    pointer-events: none;
+}
+
 /* Language selector */
 .lang-selector {
     position: relative;

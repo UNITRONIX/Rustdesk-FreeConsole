@@ -1,5 +1,36 @@
 ## [Unreleased]
 
+### Added
+- **Optional UX 3.5 console shell (Beta):** full-list sidebar + topbar chrome available via navbar switch (BETA badge) or `?ui=ux35`. **Classic icon rail remains the default and supported production UI.** Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
+- **FreeBSD (Tier 3 / community):** example `rc.d` scripts and install notes under `contrib/freebsd/`. Refs #310. Manual build only — no CI FreeBSD binaries or panel updater support.
+
+### Changed
+- Dual-mode console chrome: operators who never switch stay on classic; UX 3.5 is explicitly labeled Beta while active (topbar chip). Escape hatch to classic unchanged.
+- Includes prior stable 3.4.1–3.4.3 hotfixes for operators updating from older stables in one step (#302 enrollment outbound hardening, #313 Web Remote panel-proxy, OIDC `user.info`, mesh cert hash, Unban kebab, and related fixes already on `main`).
+
+### Fixed
+- **OIDC client login stuck on "Waiting…" (#304):** panel proxies `GET /api/auth/oidc/callback` (and `/api/oidc/callback`) to the Go API so Redirect URLs on the console origin complete RustDesk SSO. Ships via panel update.
+- **Docker AIO supervisord crash on missing NTP/billing env (#299):** entrypoint/Dockerfile default `NTP_SERVERS` and billing clock vars. Ships via image rebuild / `docker compose pull`.
+- **Rate limiter API path resolution:** more accurate path matching for console API rate limits. Ships via panel update.
+
+### Docs
+- UX 3.5 Beta dual-mode: `docs/wiki/UX-3.5.md`
+- FreeBSD community notes: `contrib/freebsd/`
+
+---
+
+## [3.4.15] — 2026-07-31
+
+### Changed
+- **UX 3.5 labeled Beta (opt-in):** classic console remains the default shell. The navbar switch to UX 3.5 shows a **BETA** badge/tooltip; while UX 3.5 is active a small BETA chip appears in the topbar. Escape hatch back to classic is unchanged. Ships via panel update.
+
+### Fixed
+- _(none yet)_
+
+---
+
+## [3.4.14] — 2026-07-31
+
 ### Changed
 - _(none yet)_
 
@@ -30,6 +61,108 @@
 ### Docs
 - **Caddy WebSocket Mode (#294):** client must use WSS (not `ws://` → HTTP 308); `TRUST_PROXY` / `TRUSTED_PROXIES` for correct peer IP after `/ws/id` upgrade. See `docs/setup/REVERSE_PROXY.md`.
 - **Docker channel vs image tag (#299):** documented in `docs/docker/DOCKER_QUICKSTART.md`.
+
+---
+
+## [3.4.13] — 2026-07-28
+
+### Changed
+- _(none yet)_
+
+### Fixed
+- **npm audit (`brace-expansion`):** override bumped to `^5.0.8` (GHSA-mh99-v99m-4gvg) so Web Console CI `npm audit --omit=dev` passes (synced from stable 3.4.2).
+
+---
+
+## [3.4.12] — 2026-07-26
+
+### Changed
+- **UX 3.5 solid shell (performance):** glass/blur disabled in UX 3.5 chrome and content; opaque surfaces only. Classic shell glass branding unchanged. Ships via panel update.
+
+### Fixed
+- **UX 3.5 sidebar fonts jumping on Settings/Updates:** branding live preview no longer writes `--font-family` to `:root`; preview runs only on the Branding tab; chrome uses isolated `--ux35-font-chrome`.
+- **UX 3.5 theme toggle lag:** topbar dark/light now applies a full solid token set immediately and reconciles `branding.css` on load (no longer waits for a second click).
+
+---
+
+## [3.4.11] — 2026-07-26
+
+### Changed
+- **UX 3.5 shell performance:** smoother sidebar resize (pointer capture + rAF, defer localStorage, disable glass blur while dragging), lighter page cards (no `backdrop-filter`), and cleaner tablet/phone drawer overlay fade. Ships via panel update.
+
+---
+
+## [3.4.10] — 2026-07-26
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.4.9] — 2026-07-26
+
+### Added
+- **FreeBSD (Tier 3 / community):** example `rc.d` scripts and install notes under `contrib/freebsd/`; documented in README platform table and wiki Installation. Refs #310. Manual build only — no CI FreeBSD binaries or panel updater support yet.
+
+### Fixed
+- **Docker AIO supervisord crash on missing NTP/billing env (#299):** entrypoint and Dockerfile now default `NTP_SERVERS` and billing clock vars so Portainer / bare `docker run` / incomplete stacks no longer fail with `ENV_NTP_SERVERS` cannot be expanded. Also fixed corrupted `ENV ENCRYPTED_ONLY=1\nENV RELAY_SERVERS=` (was `ENCRYPTED_ONLY=1nENV` in the image).
+- **Web Remote broken after enrollment outbound gate (#302):** PunchHole/RequestRelay from the panel `/ws/rendezvous` proxy (default loopback CIDRs via `PANEL_SIGNAL_PROXY_CIDRS`) are accepted again without requiring a registered RustDesk peer. Unapproved clients and anonymous public initiators remain blocked. Ships via panel update (Go signal restart).
+
+---
+
+## [3.4.8] — 2026-07-26
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.4.7] — 2026-07-26
+
+### Changed
+- **Console chrome dual mode:** default UI is again the classic icon rail + flyout. **UX 3.5** is available via a navbar/topbar switch (cookie `bd_ui_shell`, or `?ui=classic|ux35`). Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
+
+### Fixed
+- **UX 3.5 light theme only recolored the blue topbar:** built-in light/dark palettes in `generateThemeCss()`, `ui-polish.css` on console layout, theme toggle persists palette + glass.
+- **UX 3.5 settings / main content invisible under branding wallpaper:** `.ux35-shell { position:relative; z-index:1 }` and branding background CSS includes `.ux35-shell` / `.ux35-content`.
+
+---
+
+## [3.4.6] — 2026-07-26
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.4.5] — 2026-07-26
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.4.4] — 2026-07-26
+
+### Added
+- **UX 3.5 default console shell:** native full-list sidebar + topbar (promoted from retired Beta 3.1), glass branding, Dark/Light/Custom themes in Settings → Branding, resizable sidebar, tablet/phone drawer. Login / RdClient / remote viewer unchanged. Docs: `docs/wiki/UX-3.5.md`. Ships via panel update.
+
+### Fixed
+- **UX 3.5 light theme only recolored the blue topbar:** `branding.css` kept emitting saved dark palette colors, and `ui-polish.css` was not loaded on the console layout — so body/sidebar text stayed light-on-dark. Light/Dark now resolve built-in palettes in `generateThemeCss()`, glass defaults follow the mode, and the topbar theme toggle persists the matching palette.
+- **UX 3.5 settings / main content invisible under branding wallpaper:** console wallpaper uses `body.app-page::before` at `z-index:0` while the old shell raised `.app-layout` to `z-index:1`. UX 3.5’s `.ux35-shell` had no stacking context, so the black wallpaper covered page text (sidebar/topbar still showed via their own z-index). `.ux35-shell` is now `position:relative; z-index:1` and branding background CSS includes `.ux35-shell` / `.ux35-content`.
+
+### Changed
+- **Console chrome:** TeamViewer-style rail/flyout and Desktop Mode are no longer loaded as the management UI; UX 3.5 is the single console interface on `dev`.
+
+---
+
+## [3.4.3] — 2026-07-25
+
+### Fixed
+- **OIDC client login stuck on “Waiting…” (#304):** panel now proxies `GET /api/auth/oidc/callback` (and `/api/oidc/callback`) to the Go API, so Redirect URLs that use the console origin (`:5000` / `:5443`) complete RustDesk SSO instead of returning 404. Settings also validate the callback path and clarify the hint. Ships via panel update. Verify: IdP Redirect URL = `https://<panel>/api/auth/oidc/callback` → SSO in RustDesk finishes with access token (browser shows success page).
+
+### Changed
+- _(none yet)_
 
 ---
 
@@ -2351,3 +2484,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.3.174...v3.4.0
 [3.4.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.0...v3.4.1
 [3.4.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.1...v3.4.2
+[3.4.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.2...v3.4.3
+[3.4.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.3...v3.4.4
+[3.4.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.4...v3.4.5
+[3.4.6]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.5...v3.4.6
+[3.4.7]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.6...v3.4.7
+[3.4.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.7...v3.4.8
+[3.4.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.8...v3.4.9
+[3.4.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.9...v3.4.10
+[3.4.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.10...v3.4.11
+[3.4.12]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.11...v3.4.12
+[3.4.13]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.12...v3.4.13
+[3.4.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.13...v3.4.14
+[3.4.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.14...v3.4.15
