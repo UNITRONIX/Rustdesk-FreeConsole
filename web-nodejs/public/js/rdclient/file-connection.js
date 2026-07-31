@@ -34,6 +34,7 @@ class RDFileConnection {
         this._connectPromise = null;
         this._loginResolve = null;
         this._loginReject = null;
+        this._peerSignedPk = null;
     }
 
     get state() { return this._state; }
@@ -131,6 +132,7 @@ class RDFileConnection {
             if (rendezvousResponse.error) {
                 throw new Error(rendezvousResponse.error);
             }
+            this._peerSignedPk = rendezvousResponse.pk || null;
 
             let relayUUID = rendezvousResponse.uuid || '';
             let relayServer = rendezvousResponse.relayServer || '';
@@ -147,6 +149,9 @@ class RDFileConnection {
                 if (relayConfirm.error) throw new Error(relayConfirm.error);
                 relayUUID = relayConfirm.uuid || relayUUID;
                 relayServer = relayConfirm.relayServer || relayServer;
+                if (relayConfirm.pk) {
+                    this._peerSignedPk = relayConfirm.pk;
+                }
             }
 
             this.conn.closeRendezvous();
@@ -443,8 +448,17 @@ class RDFileConnection {
         if (!parsed) return;
 
         const serverPubKey = this.opts.serverPubKey || '';
-        if (serverPubKey && serverPubKey.length >= 64) {
-            RDCrypto.verifySignedId(parsed.signature, parsed.payload, serverPubKey);
+        if (RDCrypto.hasDecodablePublicKey(serverPubKey) && this._peerSignedPk && this._peerSignedPk.length) {
+            const peerIdentity = RDCrypto.verifyAndDecodeIdPk(
+                this._peerSignedPk instanceof Uint8Array
+                    ? this._peerSignedPk
+                    : new Uint8Array(this._peerSignedPk),
+                serverPubKey,
+                this.proto.types.IdPk
+            );
+            if (peerIdentity) {
+                RDCrypto.verifySignedId(parsed.signature, parsed.payload, peerIdentity.peerPk);
+            }
         }
 
         this.crypto.generateKeyPair();

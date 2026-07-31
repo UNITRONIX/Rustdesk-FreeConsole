@@ -145,6 +145,7 @@ type Config struct {
 	MeshCentralEnabled bool   // MESH_ENABLED
 	MeshCoreVersion    string // MESH_CORE_VERSION pin
 	MeshAgentCertFile  string // MESH_AGENT_CERT_FILE RSA-3072 agent-server key
+	MeshWebCertFile    string // MESH_WEB_CERT_FILE public TLS cert agents see (proxy LE); overrides TLS_CERT for webHash
 	MeshAssetsDir      string // optional override for meshcore assets
 	MeshRateLimit      int    // WS upgrade rate limit per IP per minute
 
@@ -440,6 +441,9 @@ func (c *Config) LoadEnv() {
 	}
 	if v := os.Getenv("MESH_AGENT_CERT_FILE"); v != "" {
 		c.MeshAgentCertFile = v
+	}
+	if v := os.Getenv("MESH_WEB_CERT_FILE"); v != "" {
+		c.MeshWebCertFile = v
 	}
 	if v := os.Getenv("MESH_ASSETS_DIR"); v != "" {
 		c.MeshAssetsDir = v

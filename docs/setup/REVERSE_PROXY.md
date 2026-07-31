@@ -27,13 +27,16 @@ Internet
    │
    ▼
 [Caddy/Nginx :443 TLS]
-   ├── /              ──► http://127.0.0.1:5000   (Node.js panel)
-   ├── /ws/id         ──► http://127.0.0.1:21118  (RustDesk signal WSS, optional)
-   └── /ws/relay      ──► http://127.0.0.1:21119  (RustDesk relay WSS, optional)
+   ├── /                 ──► http://127.0.0.1:5000   (Node.js panel)
+   ├── /ws/rendezvous    ──► http://127.0.0.1:5000   (Web Remote → hbbs TCP :21116)
+   ├── /ws/relay         ──► http://127.0.0.1:5000   (Web Remote → hbbr TCP :21117)
+   ├── /ws/id            ──► http://127.0.0.1:21118  (native RustDesk signal WSS, optional)
+   └── /ws/relay (native)──► http://127.0.0.1:21119  (native RustDesk relay WSS — same path; see collision note)
 
 Clients (RustDesk native) ──► TCP/UDP :21116, TCP :21117  (direct to host — not HTTP-proxied)
 ```
 
+> **Web Remote vs native WSS:** Never route `/ws/rendezvous` to Go `:21118`. The browser client sends **TCP-framed** protobufs and the panel bridges them to hbbs TCP. Go WSS expects **raw** protobuf — a wrong upstream closes the socket immediately with code **1000** (see [#329](https://github.com/UNITRONIX/BetterDesk/issues/329)). `/ws/relay` is owned by **both** Web Remote (panel `:5000`) and optional native WebSocket Mode (Go `:21119`); on one hostname prefer the panel catch-all for Web Remote, or put native WSS on a separate host/port.
 ---
 
 ## BetterDesk configuration
@@ -146,19 +149,19 @@ console.example.com {
 }
 ```
 
-### Panel + RustDesk WSS (same hostname)
+### Panel + Web Remote (same hostname)
 
-When RustDesk clients use `allow-websocket=Y` and connect to `wss://desk.example.com/ws/id` and `/ws/relay`, route those paths **before** the catch-all panel proxy:
+Web Remote needs `/ws/rendezvous` and `/ws/relay` on the **panel**. Do not add `/ws/rendezvous` to any Go `:21118` matcher.
 
 ```caddy
 desk.example.com {
+    # Optional: native RustDesk WebSocket Mode (signal only)
     handle /ws/id {
-        reverse_proxy 127.0.0.1:21118
+        reverse_proxy http://127.0.0.1:21118
     }
-    handle /ws/relay {
-        reverse_proxy 127.0.0.1:21119
-    }
-    reverse_proxy 127.0.0.1:5000
+
+    # Catch-all: panel UI + Web Remote (/ws/rendezvous, /ws/relay)
+    reverse_proxy http://127.0.0.1:5000
 
     encode gzip zstd
     header {
@@ -169,7 +172,52 @@ desk.example.com {
 }
 ```
 
+### Panel + native RustDesk WSS (same hostname, no Web Remote relay)
+
+When desktop clients use `allow-websocket=Y` and you do **not** need browser Web Remote on this vhost, you may also route native relay WSS:
+
+```caddy
+desk.example.com {
+    handle /ws/id {
+        reverse_proxy http://127.0.0.1:21118
+    }
+    handle /ws/relay {
+        reverse_proxy http://127.0.0.1:21119
+    }
+    reverse_proxy http://127.0.0.1:5000
+
+    encode gzip zstd
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+}
+```
+
+> **Collision:** `handle /ws/relay` → `:21119` steals Web Remote’s relay path. Use the Web Remote snippet above (no `/ws/relay` → Go), or separate hostnames for native WSS vs the console.
+
 Upstream to BetterDesk is always **`http://`** unless you enabled Enterprise TLS on Go ports (unusual behind an external proxy).
+
+#### Client settings (critical — avoids Caddy `308` and `initiator_not_registered`)
+
+| Field | Value |
+|-------|--------|
+| ID / Relay server | `desk.example.com` (no `ws://` prefix) |
+| API server | `https://desk.example.com:21121` **or** the public API URL you expose (HTTPS if Caddy terminates TLS) |
+| Use WebSocket | On |
+
+**Do not** configure the client with plain `ws://desk.example.com/ws/id`. Caddy’s automatic HTTPS redirects `ws://` → `https://` with **HTTP 308**, and the RustDesk client reports `WebSocket connection failed (HTTP error: 308)`. Always use **WSS** (the client builds `wss://` when the ID host is HTTPS / WebSocket mode behind TLS).
+
+Also set on the BetterDesk host:
+
+```env
+TRUST_PROXY=Y
+TRUSTED_PROXIES=<caddy-LAN-IP>/32
+HOST=0.0.0.0
+```
+
+Without `TRUST_PROXY`, Go may key WebSocket sessions by the proxy’s LAN IP instead of the client’s public IP, so PunchHole sees `initiator_not_registered` even after a successful `/ws/id` upgrade ([#294](https://github.com/UNITRONIX/BetterDesk/issues/294), [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)).
 
 Reload Caddy after editing:
 
@@ -186,10 +234,10 @@ Full examples with WebSocket timeouts and RustDesk WSS paths are in [HTTPS_SETUP
 
 Critical rules:
 
-1. **`location = /ws/id` and `location = /ws/relay`** must appear **before** generic `location ~ ^/ws/` (panel routes).
-2. Set `proxy_set_header X-Forwarded-Proto $scheme` and `X-Forwarded-For`.
-3. Use `proxy_buffering off` and long `proxy_read_timeout` for `/ws/` paths (86400s for web remote).
-
+1. **Never** route `/ws/rendezvous` to Go `:21118` — that path belongs to the panel Web Remote bridge (`:5000` → hbbs TCP).
+2. **`location = /ws/id`** (and optional native **`location = /ws/relay`**) must appear **before** generic `location ~ ^/ws/` (panel routes). Native `/ws/relay` → `:21119` conflicts with Web Remote on the same hostname.
+3. Set `proxy_set_header X-Forwarded-Proto $scheme` and `X-Forwarded-For`.
+4. Use `proxy_buffering off` and long `proxy_read_timeout` for `/ws/` paths (86400s for web remote).
 ---
 
 ## Split DNS / multiple hostnames
@@ -215,8 +263,9 @@ See [RustDesk Client Deployment](RUSTDESK_CLIENT_DEPLOYMENT.md).
 
 ### Through the reverse proxy (HTTPS on `:443`)
 
-- Panel HTTP, Web Remote, operator chat, MeshAgent `.ashx` paths → proxy to `:5000`
-- RustDesk WSS (optional) → proxy `/ws/id` → `:21118`, `/ws/relay` → `:21119`
+- Panel HTTP, Web Remote (`/ws/rendezvous`, `/ws/relay`), operator chat, MeshAgent `.ashx` paths → proxy to `:5000`
+- RustDesk WSS (optional) → proxy `/ws/id` → `:21118`; native `/ws/relay` → `:21119` only when Web Remote is not needed on that hostname (path collision)
+MeshAgent web-cert pin: when Go still has `TLS_CERT` (or you keep signal TLS), set **`MESH_WEB_CERT_FILE`** to the public certificate the agent sees on `:443` (e.g. Let's Encrypt fullchain). See [MeshAgent onboarding](../features/MESHAGENT_ONBOARDING.md#behind-an-external-reverse-proxy-nginx--npm--caddy). Do not confuse this with `MESH_AGENT_CERT_FILE` (`.msh` `ServerID`).
 
 ### Must reach the host directly (not HTTP reverse proxy)
 
@@ -261,11 +310,14 @@ BetterDesk LE files under `/opt/rustdesk/ssl/` are unused in external-proxy mode
 | Login redirect loop | `TRUST_PROXY` off or wrong | Set `TRUST_PROXY=Y`; ensure proxy sends `X-Forwarded-Proto: https` |
 | Session cookie not set | Same as above | Caddy/Nginx must forward `X-Forwarded-Proto` |
 | Web Remote stuck on "requesting connection" | WebSocket not upgraded | Enable WebSockets in proxy; `proxy_buffering off` on `/ws/` |
+| Web Remote WS closes with **1000** right after first binary frame (payload starts with `65 01`) | `/ws/rendezvous` (or `/ws/relay`) proxied to Go WSS `:21118`/`:21119` | Route those paths to panel `:5000`; never put `/ws/rendezvous` on the Go signal matcher ([#329](https://github.com/UNITRONIX/BetterDesk/issues/329)) |
 | WSS `401` / `403` on `/ws/id` | Routed to panel `:5000` instead of Go | Use exact `/ws/id` → `:21118` before catch-all |
+| Client log `HTTP error: 308` on `ws://…/ws/id` | Plain WS hit Caddy HTTPS redirect | Use WebSocket Mode with HTTPS/WSS host; never `ws://` when Caddy forces HTTPS ([#294](https://github.com/UNITRONIX/BetterDesk/issues/294)) |
+| WSS upgrade OK but PunchHole `initiator_not_registered` | Proxy IP used as peer key / no RegisterPeer | `TRUST_PROXY=Y` + `TRUSTED_PROXIES`; ensure client completes registration (service on, or logged-in token / TCP RegisterPk) |
 | `AlertReceived(UnrecognisedName)` | TLS cert hostname mismatch | Fix cert on proxy for client hostname |
 | Double TLS / protocol error | Proxy uses `https://` upstream | Upstream must be `http://127.0.0.1:…` unless Enterprise TLS on Go |
 | Panel works but clients timeout | Firewall | Open 21116 UDP/TCP, 21117 TCP |
-
+| MeshAgent `bad web cert hash` | Agent sees proxy LE cert; Go hashes different `TLS_CERT` | Set `MESH_WEB_CERT_FILE` to the public fullchain, or unset `TLS_CERT` / `MESH_WEB_CERT_FILE` to skip validation |
 ### Diagnostic commands
 
 ```bash

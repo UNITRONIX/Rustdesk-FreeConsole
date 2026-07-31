@@ -956,7 +956,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Reintentar"
+        "retry": "Reintentar",
+        "show_value": "Mostrar",
+        "hide_value": "Ocultar"
     },
     "time": {
         "just_now": "ahora mismo",
@@ -1015,6 +1017,8 @@
         "cannot_demote_self": "No puede degradarse a sí mismo",
         "cannot_delete_self": "No puede eliminar su propia cuenta",
         "last_admin": "No se puede eliminar el último administrador",
+        "last_admin_go": "No se puede eliminar: este es el único Super Admin en el servidor BetterDesk. Cree o sincronice primero otro Super Admin (no Global Admin).",
+        "delete_mirror_failed": "No se pudo eliminar el usuario del servidor. Inténtelo de nuevo cuando el servidor BetterDesk esté disponible.",
         "admin_only": "Esta función solo está disponible para administradores",
         "password_required": "La contraseña es obligatoria",
         "not_found": "No encontrado",
@@ -3698,6 +3702,8 @@
         "channel_save": "Cambiar canal",
         "channel_saved": "Canal cambiado. Pulse Comprobar actualizaciones.",
         "channel_save_failed": "No se pudo guardar el canal de actualización",
+        "channel_docker_blocked": "Las instalaciones con imagen Docker no pueden cambiar el canal de actualizaciones desde el panel. Configure BETTERDESK_IMAGE_TAG=latest (stable) o BETTERDESK_IMAGE_TAG=dev (development) y ejecute: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "El canal de actualizaciones del panel solo aplica a instalaciones nativas. Para imágenes GHCR cambie BETTERDESK_IMAGE_TAG y recree los contenedores.",
         "channel_switch_warning": "Cambiar el canal modifica la rama GitHub usada. Se conserva el SHA rastreado — la próxima comprobación puede mostrar una gran diferencia. ¿Continuar?",
         "channel_pick_label": "Cambiar a",
         "channel_apply_hint": "Tras confirmar se guarda al instante. Luego pulse Comprobar actualizaciones.",

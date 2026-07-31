@@ -110,6 +110,16 @@ function setUpdateChannel(channelId) {
     if (!channel) {
         throw new Error(`Invalid update channel: ${channelId}`);
     }
+    if (isImageBasedDockerDeployment()) {
+        const tagHint = channelId === 'development' ? 'dev' : 'latest';
+        const err = new Error(
+            'Docker image deployments cannot switch update channel from the panel. '
+            + `Set BETTERDESK_IMAGE_TAG=${tagHint} (or a release version) in compose/.env, then run: `
+            + 'docker compose pull && docker compose up -d'
+        );
+        err.code = 'DOCKER_IMAGE_CHANNEL';
+        throw err;
+    }
     const envPath = path.join(ROOT_DIR, '.env');
     const previousBranch = getGithubBranch();
     const existing = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
@@ -455,9 +465,23 @@ function getDockerUpdateInstructions() {
     const tag = (process.env.BETTERDESK_IMAGE_TAG || 'latest').trim() || 'latest';
     const owner = (process.env.UPDATE_GITHUB_OWNER || GITHUB_OWNER).toLowerCase();
     const layout = getDockerLayout();
+    const channelInfo = getUpdateChannelInfo();
+
+    const base = {
+        channelNote:
+            'Panel “Update channel” does not change GHCR images. '
+            + 'Use BETTERDESK_IMAGE_TAG=latest (stable) or BETTERDESK_IMAGE_TAG=dev (development), then pull/recreate.',
+        suggestedTags: {
+            stable: 'latest',
+            development: 'dev',
+        },
+        currentTag: tag,
+        updateChannel: channelInfo.channel,
+    };
 
     if (layout === 'single') {
         return {
+            ...base,
             summary: 'Pull and recreate the official all-in-one container image.',
             commands: [
                 'docker compose pull',
@@ -472,6 +496,7 @@ function getDockerUpdateInstructions() {
     }
 
     return {
+        ...base,
         summary: 'Pull and recreate the published container images.',
         commands: [
             'docker compose pull',

@@ -956,7 +956,9 @@
         "add": "添加",
         "remove": "移除",
         "cdap_viewer": "CDAP Snapshot Viewer",
-        "retry": "重试"
+        "retry": "重试",
+        "show_value": "显示",
+        "hide_value": "隐藏"
     },
     "time": {
         "just_now": "刚刚",
@@ -1018,6 +1020,8 @@
         "cannot_demote_self": "您无法降低自己的权限",
         "cannot_delete_self": "您无法删除自己的账户",
         "last_admin": "无法删除最后一个管理员",
+        "last_admin_go": "无法删除：这是 BetterDesk 服务器上唯一的 Super Admin。请先创建或同步另一个 Super Admin（不是 Global Admin）。",
+        "delete_mirror_failed": "无法从服务器移除该用户。请在 BetterDesk 服务器可用时重试。",
         "admin_only": "此功能仅对管理员可用",
         "password_required": "密码为必填项",
         "not_found": "未找到用户",
@@ -3769,6 +3773,8 @@
         "channel_save": "切换通道",
         "channel_saved": "通道已切换。请点击检查更新。",
         "channel_save_failed": "保存更新通道失败",
+        "channel_docker_blocked": "Docker 镜像部署无法在面板中切换更新通道。请设置 BETTERDESK_IMAGE_TAG=latest（稳定）或 BETTERDESK_IMAGE_TAG=dev（开发），然后运行：docker compose pull && docker compose up -d。",
+        "channel_docker_note": "面板中的更新通道仅适用于本地安装。对于 GHCR 镜像，请更改 BETTERDESK_IMAGE_TAG 并重新创建容器。",
         "channel_switch_warning": "更改通道会改变 GitHub 分支。已跟踪的 commit SHA 会保留 — 下次检查可能显示较大差异。继续？",
         "channel_pick_label": "切换到",
         "channel_apply_hint": "确认后立即保存。然后点击检查更新。",

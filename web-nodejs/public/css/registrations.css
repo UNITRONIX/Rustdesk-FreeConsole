@@ -95,6 +95,9 @@
 }
 
 .registrations-filters .search-wrapper .material-icons {
+    position: static;
+    transform: none;
+    flex-shrink: 0;
     color: var(--text-secondary);
     font-size: 20px;
 }
@@ -166,6 +169,14 @@
     letter-spacing: 0.05em;
 }
 
+.registrations-table .col-platform,
+.registrations-table .col-version,
+.registrations-table .col-status,
+.registrations-table .col-requested,
+.registrations-table .col-actions {
+    text-align: center;
+}
+
 .registrations-table tbody tr:hover {
     background: var(--bg-hover, rgba(99, 102, 241, 0.04));
 }
@@ -200,9 +211,11 @@
     color: var(--danger, #ef4444);
 }
 
-/* Action buttons */
+/* Action buttons (inner wrapper — keep flex off <td> for border-collapse) */
 .action-btn-group {
-    display: flex;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     gap: 6px;
 }
 
@@ -331,10 +344,11 @@
     border-top: 1px solid var(--border-color);
 }
 
-/* Platform icons */
+/* Platform icons (inner wrapper — keep flex off <td> for border-collapse) */
 .platform-cell {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
 }
 

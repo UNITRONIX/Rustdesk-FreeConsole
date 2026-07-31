@@ -956,7 +956,9 @@
         "cdap_viewer": "Visualizzatore snapshot CDAP",
         "add": "Aggiungi",
         "remove": "Rimuovi",
-        "retry": "Riprova"
+        "retry": "Riprova",
+        "show_value": "Mostra",
+        "hide_value": "Nascondi"
     },
     "time": {
         "just_now": "Proprio ora",
@@ -1014,6 +1016,8 @@
         "cannot_demote_self": "Non puoi declassare te stesso",
         "cannot_delete_self": "Non puoi eliminare il tuo account",
         "last_admin": "Non è possibile eliminare l'ultimo amministratore",
+        "last_admin_go": "Impossibile eliminare: questo è l'unico Super Admin sul server BetterDesk. Crea o sincronizza prima un altro Super Admin (non Global Admin).",
+        "delete_mirror_failed": "Impossibile rimuovere l'utente dal server. Riprova quando il server BetterDesk è raggiungibile.",
         "admin_only": "Questa funzione è disponibile solo per gli amministratori",
         "password_required": "La password è obbligatoria",
         "not_found": "Utente non trovato",
@@ -3698,6 +3702,8 @@
         "channel_save": "Cambia canale",
         "channel_saved": "Canale cambiato. Clicca Controlla aggiornamenti.",
         "channel_save_failed": "Impossibile salvare il canale aggiornamenti",
+        "channel_docker_blocked": "Le installazioni con immagine Docker non possono cambiare canale dal pannello. Imposta BETTERDESK_IMAGE_TAG=latest (stable) o BETTERDESK_IMAGE_TAG=dev (development), poi esegui: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Il canale aggiornamenti del pannello vale solo per installazioni native. Per immagini GHCR modifica BETTERDESK_IMAGE_TAG e ricrea i container.",
         "channel_switch_warning": "Cambiare canale modifica il branch GitHub usato. Lo SHA tracciato resta — il prossimo controllo può mostrare una grande differenza. Continuare?",
         "channel_pick_label": "Passa a",
         "channel_apply_hint": "Salvato subito dopo la conferma. Poi clicca Controlla aggiornamenti.",

@@ -18,6 +18,8 @@ const mockDb = {
     setUserGroupMemberships: jest.fn(),
     updateUserProfile: jest.fn().mockResolvedValue(undefined),
     createUser: jest.fn(),
+    deleteUser: jest.fn().mockResolvedValue(undefined),
+    countAdmins: jest.fn().mockResolvedValue(2),
     logAction: jest.fn().mockResolvedValue(undefined),
 };
 
@@ -26,7 +28,8 @@ const mockUserSync = {
     resolveGoUserId: jest.fn(),
     mirrorCreate: jest.fn(),
     mirrorUpdate: jest.fn(),
-    mirrorDelete: jest.fn(),
+    mirrorDelete: jest.fn().mockResolvedValue({ ok: true }),
+    assertGoAllowsSuperAdminDelete: jest.fn().mockResolvedValue({ ok: true }),
 };
 
 const mockApiClient = jest.fn();
@@ -239,5 +242,99 @@ describe('Users Routes', () => {
 
         expect(res.status).toBe(400);
         expect(mockDb.updateUserProfile).not.toHaveBeenCalled();
+    });
+
+    it('deletes a user after successful Go mirror (Issue #315)', async () => {
+        mockDb.getUserById.mockResolvedValue({
+            id: 2,
+            username: 'admin',
+            role: 'admin',
+            password_hash: 'hash',
+        });
+        mockDb.countAdmins.mockResolvedValue(2);
+        mockUserSync.assertGoAllowsSuperAdminDelete.mockResolvedValue({ ok: true, goAdminCount: 2 });
+        mockUserSync.mirrorDelete.mockResolvedValue({ ok: true });
+
+        const app = createTestApp();
+        withAuth(app, { id: 99, username: 'otheradmin', role: 'super_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app).delete('/api/users/2');
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(mockUserSync.assertGoAllowsSuperAdminDelete).toHaveBeenCalledWith('admin');
+        expect(mockUserSync.mirrorDelete).toHaveBeenCalledWith('admin');
+        expect(mockDb.deleteUser).toHaveBeenCalledWith(2);
+    });
+
+    it('refuses delete when Go still has only one Super Admin (Issue #315)', async () => {
+        mockDb.getUserById.mockResolvedValue({
+            id: 2,
+            username: 'admin',
+            role: 'admin',
+            password_hash: 'hash',
+        });
+        mockDb.countAdmins.mockResolvedValue(2);
+        mockUserSync.assertGoAllowsSuperAdminDelete.mockResolvedValue({
+            ok: false,
+            status: 409,
+            reason: 'last_admin_go',
+            goAdminCount: 1,
+        });
+
+        const app = createTestApp();
+        withAuth(app, { id: 99, username: 'otheradmin', role: 'super_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app).delete('/api/users/2');
+
+        expect(res.status).toBe(409);
+        expect(res.body.success).toBe(false);
+        expect(res.body.error).toBe('users.last_admin_go');
+        expect(mockDb.deleteUser).not.toHaveBeenCalled();
+        expect(mockUserSync.mirrorDelete).not.toHaveBeenCalled();
+    });
+
+    it('refuses delete and skips local delete when mirrorDelete returns 409', async () => {
+        mockDb.getUserById.mockResolvedValue({
+            id: 2,
+            username: 'admin',
+            role: 'admin',
+            password_hash: 'hash',
+        });
+        mockDb.countAdmins.mockResolvedValue(2);
+        mockUserSync.assertGoAllowsSuperAdminDelete.mockResolvedValue({ ok: true, goAdminCount: 2 });
+        mockUserSync.mirrorDelete.mockResolvedValue({ ok: false, status: 409, conflict: true });
+
+        const app = createTestApp();
+        withAuth(app, { id: 99, username: 'otheradmin', role: 'super_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app).delete('/api/users/2');
+
+        expect(res.status).toBe(409);
+        expect(res.body.error).toBe('users.last_admin_go');
+        expect(mockDb.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it('blocks deleting the last local Super Admin', async () => {
+        mockDb.getUserById.mockResolvedValue({
+            id: 1,
+            username: 'admin',
+            role: 'super_admin',
+        });
+        mockDb.countAdmins.mockResolvedValue(1);
+
+        const app = createTestApp();
+        withAuth(app, { id: 99, username: 'operator', role: 'global_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app).delete('/api/users/1');
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('users.last_admin');
+        expect(mockUserSync.assertGoAllowsSuperAdminDelete).not.toHaveBeenCalled();
+        expect(mockDb.deleteUser).not.toHaveBeenCalled();
     });
 });

@@ -254,20 +254,24 @@ With Nginx reverse proxy, leave `HTTPS_ENABLED=false` in `.env`.
 
 ### RustDesk Client WSS Through Nginx
 
-RustDesk's native client and web client use the Go server WebSocket ports, not
-the Node.js console WebSocket routes:
+RustDesk **native** clients with `allow-websocket=Y` use the Go server WebSocket ports.
+BetterDesk **Web Remote** (browser console) uses different panel paths — do not mix them up:
 
 | Public path | Upstream | Purpose |
 |-------------|----------|---------|
-| `/ws/id` | `21118` | Rendezvous / ID server over WebSocket |
-| `/ws/relay` | `21119` | Relay server over WebSocket |
+| `/ws/rendezvous` | panel `:5000` | Web Remote → hbbs TCP `:21116` (TCP-framed protobuf) |
+| `/ws/relay` | panel `:5000` | Web Remote → hbbr TCP `:21117` (when Web Remote is used) |
+| `/ws/id` | Go `:21118` | Native RustDesk signal WSS (raw protobuf) |
+| `/ws/relay` | Go `:21119` | Native RustDesk relay WSS — **collides** with Web Remote on the same hostname |
+
+**Never** proxy `/ws/rendezvous` to `:21118`. Doing so closes the browser socket with code **1000** after the first frame (TCP length header `65 01…` cannot unmarshal as raw protobuf) — [#329](https://github.com/UNITRONIX/BetterDesk/issues/329).
 
 If Nginx runs on the Docker host, proxy to the published localhost ports. If
 Nginx runs in the same Docker network, replace `127.0.0.1` with the BetterDesk
 server container name, for example `betterdesk-server` or `betterdesk`.
 
 ```nginx
-# RustDesk / BetterDesk signal WebSocket (hbbs-compatible)
+# RustDesk / BetterDesk signal WebSocket (hbbs-compatible) — native clients only
 location = /ws/id {
     proxy_pass http://127.0.0.1:21118;
     proxy_http_version 1.1;
@@ -282,7 +286,7 @@ location = /ws/id {
     proxy_send_timeout 120s;
 }
 
-# RustDesk / BetterDesk relay WebSocket (hbbr-compatible)
+# Native relay WSS only when Web Remote is NOT used on this vhost
 location = /ws/relay {
     proxy_pass http://127.0.0.1:21119;
     proxy_http_version 1.1;
@@ -302,10 +306,11 @@ Notes:
 
 - Build or configure RustDesk clients with `allow-websocket=Y` when you want the
     native client to use WSS instead of TCP/UDP signaling.
-- Do not point `/ws/id` or `/ws/relay` at the console port (`5000`). These paths
-    must reach the Go server ports `21118` and `21119`.
+- Do not point `/ws/id` at the console port (`5000`). That path must reach Go `:21118`.
+- Do not point `/ws/rendezvous` at Go `:21118` / `:21119` — keep it on panel `:5000`.
 - Keep these as exact `location = ...` entries when your server block also has a
-    generic console `location ~ ^/ws/` rule.
+    generic console `location ~ ^/ws/` rule. Omit `location = /ws/relay` → `:21119`
+    when operators use Web Remote on the same hostname (let `location ~ ^/ws/` hit `:5000`).
 - Keep `proxy_read_timeout` above 60 seconds. RustDesk expects long-lived signal
     WebSockets and uses empty binary frames as keepalive traffic.
 - When using only WSS on port 443, remove hard-coded relay values such as
@@ -323,8 +328,10 @@ paths to the **published host ports**, not the console container port.
 | Domain | Your public hostname (must match RustDesk client ID server) |
 | Forward Hostname / Port | `HOST_IP:5000` (console panel) |
 | Websockets Support | **ON** |
-| Custom Location `/ws/id` | `http://HOST_IP:21118` — Websockets **ON** |
-| Custom Location `/ws/relay` | `http://HOST_IP:21119` — Websockets **ON** |
+| Custom Location `/ws/id` | `http://HOST_IP:21118` — Websockets **ON** (native WSS only) |
+| Custom Location `/ws/relay` | `http://HOST_IP:21119` — Websockets **ON** only if you do **not** use Web Remote on this host; otherwise omit so `/ws/relay` stays on the panel |
+
+Do **not** add a Custom Location for `/ws/rendezvous` pointing at `:21118` — leave it on the panel forward ([#329](https://github.com/UNITRONIX/BetterDesk/issues/329)).
 
 Replace `HOST_IP` with `127.0.0.1` or the Docker host LAN address. Do **not**
 use the Docker container name (for example `betterdesk-server:21118`) when NPM
@@ -448,7 +455,8 @@ See [REVERSE_PROXY.md](REVERSE_PROXY.md) for the full checklist, generated snipp
 | `An unexpected message has been received...` (native-tls) | Protocol mismatch at TLS layer (plain HTTP backend, wrong port, or double TLS) | Ensure NPM proxies to `http://HOST:21118`, not `https://`, unless Enterprise TLS is enabled on Go |
 | `Rendezvous connection is timeout` after `Client handshake done` | Keepalive / proxy timeout after successful WSS upgrade | Update BetterDesk (fix in [#144](https://github.com/UNITRONIX/BetterDesk/issues/144)); set `proxy_read_timeout` ≥ 120s on `/ws/id` |
 | `Rendezvous connection is reset by the peer` ~30s after handshake | Peer marked offline; keepalive not reaching server | Same as above; confirm `/ws/id` reaches port `21118`, not console `:5000` |
-| `HTTP/1.1 401` or `403` on WebSocket upgrade | Console session / origin check (panel paths, not RustDesk `/ws/id`) | Route `/ws/id` and `/ws/relay` to Go ports `21118` / `21119` |
+| `HTTP/1.1 401` or `403` on WebSocket upgrade | Console session / origin check (panel paths, not RustDesk `/ws/id`) | Route `/ws/id` to Go `:21118`; Web Remote `/ws/rendezvous` stays on panel `:5000` |
+| Web Remote closes WS with **1000** immediately after first binary frame (`65 01…`) | `/ws/rendezvous` routed to Go `:21118` (TCP frame vs raw WSS protobuf) | Proxy `/ws/rendezvous` (and Web Remote `/ws/relay`) to panel `:5000` only ([#329](https://github.com/UNITRONIX/BetterDesk/issues/329)) |
 | Server log `WS read ... EOF` immediately after `101`, client retries in a loop (`allow-websocket=Y`) | Client closed before the first protobuf frame; often proxy idle timeout or desktop `RegisterPk` delay (~1s) | Update BetterDesk (fix in [#229](https://github.com/UNITRONIX/BetterDesk/issues/229)); set `WS_DEBUG_FRAMES=1` on the Go server and retest; use `ws-register-test --mode=register-pk --delay-ms=1000 ws://127.0.0.1:21118/ws/id PEERID` |
 | Server log `TCP forwarding: no conn found for key "…:0"` / `effective=…:0` / relay timeout with WebSocket Mode | Invalid port in proxied WSS session key; PunchHole/RelayResponse not delivered to WS initiator | Update BetterDesk (fix in [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)); set `TRUST_PROXY=Y` **and** `TRUSTED_PROXIES=<proxy CIDR>`; confirm Nginx sends `X-Real-IP` / `X-Forwarded-For` as IP-only |
 | Client `Unexpected protobuf msg … union: None` / server `WS read … EOF (uptime=~10ms write_frames=2 peer="")` on WebSocket Mode | Empty keepalive sent on ephemeral WSS `RequestRelay` before `RelayResponse` | Update BetterDesk (residual fix in [#276](https://github.com/UNITRONIX/BetterDesk/issues/276)); keep `TRUST_PROXY=Y` + `TRUSTED_PROXIES`; retest WebSocket Mode through the proxy |
@@ -486,31 +494,32 @@ ws-register-test --mode=register-pk --delay-ms=1000 ws://127.0.0.1:21118/ws/id T
 
 ### Web Remote Client Not Working Through Nginx
 
-If the web remote desktop client connects but shows "requesting connection" indefinitely:
+If the web remote desktop client connects but shows "requesting connection" indefinitely, or the rendezvous WebSocket closes with code **1000** right after the first binary frame:
 
-1. **Verify WebSocket upgrade is working:**
+1. **Confirm path routing:** `/ws/rendezvous` and `/ws/relay` must hit panel `:5000`, **not** Go `:21118` / `:21119`. A matcher like `path /ws/id /ws/rendezvous` → `:21118` is wrong ([#329](https://github.com/UNITRONIX/BetterDesk/issues/329)).
+
+2. **Verify WebSocket upgrade is working:**
    ```bash
-   # Test WebSocket endpoint
+   # Test panel Web Remote rendezvous path (expects 401 without session — proves panel owns the path)
    curl -i -N \
      -H "Connection: Upgrade" \
      -H "Upgrade: websocket" \
      -H "Sec-WebSocket-Version: 13" \
      -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" \
-     https://console.yourdomain.com/ws/bd-signal
-   # Should return "HTTP/1.1 101 Switching Protocols"
+     https://console.yourdomain.com/ws/rendezvous
+   # Panel: typically 401 without login. Go :21118 would return 101 then close on TCP-framed data.
    ```
 
-2. **Check nginx `proxy_buffering` is disabled** for `/ws/` paths (see config above)
+3. **Check nginx `proxy_buffering` is disabled** for `/ws/` paths (see config above)
 
-3. **Verify timeouts are long enough** — `proxy_read_timeout 86400s`
+4. **Verify timeouts are long enough** — `proxy_read_timeout 86400s`
 
-4. **Check nginx error logs:**
+5. **Check nginx error logs:**
    ```bash
    sudo tail -f /var/log/nginx/error.log
    ```
 
-5. **Ensure the desktop agent (BetterDesk Client) can reach the server.** The agent must connect to `/ws/remote-agent/<device_id>` before the browser viewer can stream.
-
+6. **Ensure the desktop peer is online** on UDP/TCP signal (`:21116`) so PunchHole can reach it.
 ### BetterDesk Server (Go) WebSocket Ports
 
 The BetterDesk Go server also exposes WebSocket endpoints for RustDesk protocol:

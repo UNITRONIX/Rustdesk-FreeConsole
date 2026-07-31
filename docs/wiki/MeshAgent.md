@@ -52,7 +52,9 @@ sudo systemctl edit betterdesk-server
 sudo systemctl restart betterdesk-server
 ```
 
-Panel HTTPS (`:5443` or reverse proxy) should proxy MeshCentral-style paths to Go API port **21114**.
+Panel HTTPS (`:5443` or reverse proxy) should proxy MeshCentral-style paths to the **panel** (`:5000`), which forwards `.ashx` WebSockets to Go API port **21114**.
+
+Behind an external TLS-terminating proxy, set `MESH_WEB_CERT_FILE` to the public certificate MeshAgent sees (e.g. Let's Encrypt fullchain), or leave both `MESH_WEB_CERT_FILE` and `TLS_CERT` unset to skip web-hash validation. See [MeshAgent onboarding](https://github.com/UNITRONIX/BetterDesk/blob/main/docs/features/MESHAGENT_ONBOARDING.md).
 
 ---
 

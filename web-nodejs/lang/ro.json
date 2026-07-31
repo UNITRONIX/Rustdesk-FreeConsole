@@ -962,7 +962,9 @@
         "cdap_viewer": "Vizualizator Snapshot CDAP",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Reîncearcă"
+        "retry": "Reîncearcă",
+        "show_value": "Afișează",
+        "hide_value": "Ascunde"
     },
     "time": {
         "just_now": "Just now",
@@ -1020,6 +1022,8 @@
         "cannot_demote_self": "Nu te poți retrograda",
         "cannot_delete_self": "Nu vă puteți șterge propriul cont",
         "last_admin": "Nu se poate șterge ultimul administrator",
+        "last_admin_go": "Nu se poate șterge: acesta este singurul Super Admin pe serverul BetterDesk. Creați sau sincronizați mai întâi un alt Super Admin (nu Global Admin).",
+        "delete_mirror_failed": "Nu s-a putut elimina utilizatorul de pe server. Încercați din nou când serverul BetterDesk este accesibil.",
         "admin_only": "Această funcție este disponibilă numai pentru administratori",
         "password_required": "Este necesară parola",
         "not_found": "Utilizatorul nu a fost găsit",
@@ -3704,6 +3708,8 @@
         "channel_save": "Comută canalul",
         "channel_saved": "Canal comutat. Apăsați Verifică actualizări.",
         "channel_save_failed": "Salvarea canalului de actualizare a eșuat",
+        "channel_docker_blocked": "Implementările pe imagine Docker nu pot schimba canalul de actualizare din panou. Setați BETTERDESK_IMAGE_TAG=latest (stable) sau BETTERDESK_IMAGE_TAG=dev (development), apoi rulați: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Canalul de actualizare din panou se aplică doar instalărilor native. Pentru imagini GHCR schimbați BETTERDESK_IMAGE_TAG și recreați containerele.",
         "channel_switch_warning": "Schimbarea canalului modifică ramura GitHub. SHA-ul urmărit rămâne — următoarea verificare poate arăta diferență mare. Continuați?",
         "channel_pick_label": "Comută la",
         "channel_apply_hint": "Se salvează după confirmare. Apoi apăsați Verifică actualizări.",

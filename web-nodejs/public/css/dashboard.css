@@ -812,7 +812,7 @@
     padding: var(--space-md);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-lg);
-    background: rgba(13, 17, 23, 0.35);
+    background: var(--bg-secondary);
 }
 
 .client-config-host-label {
@@ -851,7 +851,7 @@
     overflow: auto;
     padding: var(--space-md);
     border-radius: var(--radius-md);
-    background: rgba(13, 17, 23, 0.65);
+    background: var(--bg-tertiary);
     border: 1px solid var(--border-primary);
     font-size: 12px;
     line-height: 1.45;
@@ -870,13 +870,14 @@
     position: relative;
     min-width: 0;
     padding: var(--space-md) calc(var(--space-lg) + 28px) var(--space-md) var(--space-md);
-    background: rgba(13, 17, 23, 0.45);
+    background: var(--bg-tertiary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-lg);
 }
 
 .client-config-field-wide {
     grid-column: 1 / -1;
+    padding-right: calc(var(--space-lg) + 68px);
 }
 
 .client-config-label {
@@ -899,6 +900,12 @@
     overflow-wrap: anywhere;
 }
 
+.client-config-value.is-masked {
+    letter-spacing: 0.2em;
+    color: var(--text-secondary);
+}
+
+.client-config-reveal,
 .client-config-copy {
     position: absolute;
     top: var(--space-md);
@@ -910,14 +917,26 @@
     height: 34px;
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-md);
-    background: var(--bg-tertiary);
+    background: var(--bg-elevated, var(--bg-secondary));
     color: var(--text-secondary);
     cursor: pointer;
     transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
 }
 
+.client-config-reveal {
+    right: calc(var(--space-md) + 40px);
+}
+
+.client-config-reveal .material-icons,
 .client-config-copy .material-icons {
     font-size: 18px;
+}
+
+.client-config-reveal:hover,
+.client-config-reveal:focus-visible {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    background: var(--accent-blue-muted);
 }
 
 .client-config-copy:hover,
@@ -966,6 +985,7 @@
 
 .quick-action-card:focus-visible,
 .btn:focus-visible,
+.client-config-reveal:focus-visible,
 .client-config-copy:focus-visible {
     outline: 3px solid var(--sidebar-focus-ring, rgba(121, 192, 255, 0.55));
     outline-offset: 2px;
@@ -1103,8 +1123,19 @@
         padding-right: var(--space-md);
     }
 
+    .client-config-field-wide {
+        padding-right: var(--space-md);
+    }
+
+    .client-config-reveal,
     .client-config-copy {
         position: static;
         margin-top: var(--space-sm);
+    }
+
+    .client-config-field-wide .client-config-reveal,
+    .client-config-field-wide .client-config-copy {
+        display: inline-flex;
+        margin-right: var(--space-xs);
     }
 }

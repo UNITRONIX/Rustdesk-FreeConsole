@@ -962,7 +962,9 @@
         "cdap_viewer": "CDAP Snapshot Viewer",
         "add": "Add",
         "remove": "Remove",
-        "retry": "पुनः प्रयास"
+        "retry": "पुनः प्रयास",
+        "show_value": "दिखाएँ",
+        "hide_value": "छिपाएँ"
     },
     "time": {
         "just_now": "Just now",
@@ -1020,6 +1022,8 @@
         "cannot_demote_self": "आप स्वयं को पदावनत नहीं कर सकते",
         "cannot_delete_self": "आप अपना स्वयं का खाता नहीं हटा सकते",
         "last_admin": "अंतिम व्यवस्थापक को हटाया नहीं जा सकता",
+        "last_admin_go": "हटाया नहीं जा सकता: यह BetterDesk सर्वर पर एकमात्र Super Admin है। पहले दूसरा Super Admin बनाएँ या सिंक करें (Global Admin नहीं)।",
+        "delete_mirror_failed": "सर्वर से उपयोगकर्ता नहीं हटाया जा सका। BetterDesk सर्वर उपलब्ध होने पर फिर कोशिश करें।",
         "admin_only": "यह सुविधा केवल व्यवस्थापकों के लिए उपलब्ध है",
         "password_required": "पासवर्ड आवश्यक है",
         "not_found": "उपयोगकर्ता नहीं मिला",
@@ -3704,6 +3708,8 @@
         "channel_save": "चैनल बदलें",
         "channel_saved": "अपडेट चैनल बदला। रीफ़्रेश के लिए «अपडेट जाँचें» पर क्लिक करें।",
         "channel_save_failed": "अपडेट चैनल सहेजना विफल",
+        "channel_docker_blocked": "Docker इमेज इंस्टॉल पैनल से अपडेट चैनल नहीं बदल सकते। BETTERDESK_IMAGE_TAG=latest (stable) या BETTERDESK_IMAGE_TAG=dev (development) सेट करें, फिर चलाएँ: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "पैनल का अपडेट चैनल केवल नेटिव इंस्टॉल पर लागू होता है। GHCR इमेज के लिए BETTERDESK_IMAGE_TAG बदलें और कंटेनर फिर बनाएँ.",
         "channel_switch_warning": "चैनल बदलने से GitHub शाखा बदलेगी। ट्रैक किया SHA रहेगा — अगली जांच में बड़ा अंतर दिख सकता है। जारी रखें?",
         "channel_pick_label": "इस पर स्विच करें",
         "channel_apply_hint": "पुष्टि के तुरंत बाद परिवर्तन सहेजा जाता है। फिर «अपडेट जाँचें» पर क्लिक करें।",

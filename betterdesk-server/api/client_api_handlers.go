@@ -86,14 +86,18 @@ func (s *tfaSessionStore) take(secret string) *tfaSession {
 }
 
 // rustdeskUserPayload builds a user object in the format the RustDesk client expects.
+// RustDesk 1.4.x requires `info` (UserInfo) with no serde default — omitting it makes
+// auth-query success JSON fail to deserialize, so the client stays on "Waiting account auth" (#326).
 func rustdeskUserPayload(username, role string) map[string]any {
 	return map[string]any{
-		"name":     username,
-		"email":    "",
-		"note":     "",
-		"status":   1, // kNormal
-		"grp":      "",
-		"is_admin": role == auth.RoleAdmin,
+		"name":         username,
+		"email":        "",
+		"note":         "",
+		"status":       1, // kNormal
+		"grp":          "",
+		"is_admin":     role == auth.RoleAdmin,
+		"display_name": username,
+		"info":         map[string]any{},
 	}
 }
 

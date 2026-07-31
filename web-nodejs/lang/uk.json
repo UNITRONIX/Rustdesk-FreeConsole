@@ -962,7 +962,9 @@
         "cdap_viewer": "Переглядач знімків CDAP",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Повторити"
+        "retry": "Повторити",
+        "show_value": "Показати",
+        "hide_value": "Сховати"
     },
     "time": {
         "just_now": "Just now",
@@ -1020,6 +1022,8 @@
         "cannot_demote_self": "Ти не можеш понизити себе",
         "cannot_delete_self": "Ви не можете видалити свій обліковий запис",
         "last_admin": "Неможливо видалити останнього адміністратора",
+        "last_admin_go": "Неможливо видалити: це єдиний Super Admin на сервері BetterDesk. Спочатку створіть або синхронізуйте іншого Super Admin (не Global Admin).",
+        "delete_mirror_failed": "Не вдалося видалити користувача із сервера. Спробуйте знову, коли сервер BetterDesk буде доступний.",
         "admin_only": "Ця функція доступна лише для адміністраторів",
         "password_required": "Необхідно ввести пароль",
         "not_found": "Користувача не знайдено",
@@ -3704,6 +3708,8 @@
         "channel_save": "Перемкнути канал",
         "channel_saved": "Канал змінено. Натисніть Перевірити оновлення.",
         "channel_save_failed": "Не вдалося зберегти канал оновлень",
+        "channel_docker_blocked": "Встановлення з образу Docker не можуть змінити канал оновлень з панелі. Встановіть BETTERDESK_IMAGE_TAG=latest (stable) або BETTERDESK_IMAGE_TAG=dev (development), потім виконайте: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Канал оновлень у панелі стосується лише нативних встановлень. Для образів GHCR змініть BETTERDESK_IMAGE_TAG і перестворіть контейнери.",
         "channel_switch_warning": "Зміна каналу змінює гілку GitHub. Відстежуваний SHA commit залишається — наступна перевірка може показати велику різницю. Продовжити?",
         "channel_pick_label": "Перемкнути на",
         "channel_apply_hint": "Зберігається одразу після підтвердження. Потім натисніть Перевірити оновлення.",

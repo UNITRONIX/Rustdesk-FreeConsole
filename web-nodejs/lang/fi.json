@@ -962,7 +962,9 @@
         "cdap_viewer": "CDAP Snapshot -katseluohjelma",
         "add": "Add",
         "remove": "Remove",
-        "retry": "Yritä uudelleen"
+        "retry": "Yritä uudelleen",
+        "show_value": "Näytä",
+        "hide_value": "Piilota"
     },
     "time": {
         "just_now": "Just now",
@@ -1020,6 +1022,8 @@
         "cannot_demote_self": "Et voi alentaa itseäsi",
         "cannot_delete_self": "Et voi poistaa omaa tiliäsi",
         "last_admin": "Viimeistä järjestelmänvalvojaa ei voi poistaa",
+        "last_admin_go": "Ei voi poistaa: tämä on ainoa Super Admin BetterDesk-palvelimella. Luo tai synkronoi ensin toinen Super Admin (ei Global Admin).",
+        "delete_mirror_failed": "Käyttäjää ei voitu poistaa palvelimelta. Yritä uudelleen, kun BetterDesk-palvelin on tavoitettavissa.",
         "admin_only": "Tämä ominaisuus on vain järjestelmänvalvojien käytettävissä",
         "password_required": "Salasana vaaditaan",
         "not_found": "Käyttäjää ei löydy",
@@ -3704,6 +3708,8 @@
         "channel_save": "Vaihda kanavaa",
         "channel_saved": "Kanava vaihdettu. Klikkaa Tarkista päivitykset.",
         "channel_save_failed": "Päivityskanavan tallennus epäonnistui",
+        "channel_docker_blocked": "Docker-image-asennukset eivät voi vaihtaa päivityskanavaa paneelista. Aseta BETTERDESK_IMAGE_TAG=latest (stable) tai BETTERDESK_IMAGE_TAG=dev (development) ja suorita: docker compose pull && docker compose up -d.",
+        "channel_docker_note": "Paneelin päivityskanava koskee vain natiiveja asennuksia. GHCR-imageille vaihda BETTERDESK_IMAGE_TAG ja luo kontit uudelleen.",
         "channel_switch_warning": "Kanavan vaihto muuttaa GitHub-haaraa. Seurattu commit-SHA säilyy — seuraava tarkistus voi näyttää suuren eron. Jatketaanko?",
         "channel_pick_label": "Vaihda",
         "channel_apply_hint": "Tallennetaan heti vahvistuksen jälkeen. Sitten Tarkista päivitykset.",

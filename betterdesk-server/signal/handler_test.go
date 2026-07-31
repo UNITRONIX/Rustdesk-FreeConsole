@@ -2,8 +2,11 @@ package signal
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"net"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -897,7 +900,7 @@ func TestPanelProxyLoopbackCanPunchHoleWithoutPeer(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeManaged)
 	putOnlinePeer(srv, "TGTWEB1", "203.0.113.90", 52000, peer.ConnTCP)
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("127.0.0.1", 51000), "TGTWEB1")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("127.0.0.1", 51000), "TGTWEB1", "")
 	if !ok || id != panelWebRemoteInitiatorID {
 		t.Fatalf("loopback panel proxy = (%q, %v), want (%q, true)", id, ok, panelWebRemoteInitiatorID)
 	}
@@ -935,7 +938,7 @@ func TestPublicAnonymousInitiatorStillRejectedWithPanelAllowlist(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	putOnlinePeer(srv, "TGTPUB1", "203.0.113.92", 52000, peer.ConnTCP)
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.99", 51000), "TGTPUB1")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.99", 51000), "TGTPUB1", "")
 	if ok || id != "" {
 		t.Fatalf("public anonymous = (%q, %v), want reject", id, ok)
 	}
@@ -956,8 +959,86 @@ func TestManagedPendingStillRejectedDespitePanelAllowlist(t *testing.T) {
 		t.Fatalf("SetConfig: %v", err)
 	}
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.73", 51000), "TGTPEND3")
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.73", 51000), "TGTPEND3", "")
 	if ok {
 		t.Fatalf("pending initiator must be rejected, got id=%q", id)
+	}
+}
+
+func TestTCPRegisterPkBindsIPForViewerOnlyPunch(t *testing.T) {
+	// #327: approved peer, no UDP heartbeat; TCP RegisterPk then PunchHole on same IP.
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "VIEWINIT1", Status: "OFFLINE", IP: "198.51.100.40"}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+	putOnlinePeer(srv, "TGTVIEW1", "203.0.113.40", 52000, peer.ConnTCP)
+
+	resp := srv.processRegisterPk(&pb.RegisterPk{
+		Id:   "VIEWINIT1",
+		Uuid: []byte("view-uuid-1"),
+		Pk:   []byte("view-pk-bytes-32!!!!!!!!!!!!!!!"),
+	}, "198.51.100.40:51000")
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("RegisterPk = %v, want OK", got)
+	}
+	entry := srv.peers.Get("VIEWINIT1")
+	if entry == nil || entry.IP == "" {
+		t.Fatalf("expected IP-bound peer entry, got %#v", entry)
+	}
+
+	phr := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTVIEW1"}, udpAddr("198.51.100.40", 51000))
+	if phr != nil {
+		if failure := phr.GetPunchHoleResponse(); failure != nil && failure.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
+			t.Fatal("viewer-only TCP RegisterPk initiator must not be refused as unauthorized")
+		}
+	}
+}
+
+func TestManagedPendingWithDBRowStillRejected(t *testing.T) {
+	// #302 residual: peer somehow in DB while still pending_device_* must not punch.
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTPEND4", "203.0.113.94", 52000, peer.ConnUDP)
+	putOnlinePeer(srv, "PENDINIT4", "198.51.100.74", 51000, peer.ConnUDP)
+	if err := database.UpsertPeer(&db.Peer{ID: "PENDINIT4", Status: "ONLINE", IP: "198.51.100.74"}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+	if err := database.SetConfig("pending_device_PENDINIT4", `{"device_id":"PENDINIT4"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.74", 51000), "TGTPEND4", "")
+	if ok {
+		t.Fatalf("pending+DB initiator must be rejected, got id=%q", id)
+	}
+}
+
+func TestClientTokenAuthorizesViewerOnlyPunch(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	putOnlinePeer(srv, "TGTOK1", "203.0.113.95", 52000, peer.ConnTCP)
+
+	token := strings.Repeat("ab", 32) // 64 hex chars
+	sum := sha256.Sum256([]byte(token))
+	hash := hex.EncodeToString(sum[:])
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hash,
+		UserID:     1,
+		ClientID:   "TOKINIT1",
+		ClientUUID: "tok-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
+	if !ok || id != "TOKINIT1" {
+		t.Fatalf("token auth = (%q, %v), want TOKINIT1", id, ok)
+	}
+
+	// Managed: token alone without approved DB peer must fail.
+	srv.cfg.EnrollmentMode = config.EnrollmentModeManaged
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
+	if ok {
+		t.Fatalf("managed token without DB peer must fail, got %q", id)
 	}
 }

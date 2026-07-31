@@ -1154,7 +1154,8 @@
                 break;
                 
             case 'toggle-ban':
-                await toggleBan(deviceId, data.banned === 'true');
+                // Kebab passes device object (boolean); context menu passes dataset (string)
+                await toggleBan(deviceId, data.banned === true || data.banned === 'true');
                 break;
                 
             case 'change-id':
