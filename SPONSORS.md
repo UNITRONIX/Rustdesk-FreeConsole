@@ -50,6 +50,14 @@ for other operators ([#329](https://github.com/UNITRONIX/BetterDesk/issues/329))
 
 Thank you, MyNameisStitch! 🙏
 
+### Redspin (@playerumpknow)
+
+**Redspin** backed BetterDesk with a generous donation via
+[Buy Me a Coffee](https://buymeacoffee.com/unitronix). We are grateful for the
+support and for believing in open, self-hostable remote-management software.
+
+Thank you, Redspin! 🙏
+
 ---
 
 ## 💖 How to Sponsor

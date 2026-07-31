@@ -1,0 +1,24 @@
+---
+description: Update SPONSORS.md immediately when a new supporter donates; push to main
+alwaysApply: true
+---
+
+# Sponsors — update the project immediately
+
+When the operator reports a new BetterDesk supporter (Buy Me a Coffee, GitHub Sponsors, honorary, or similar):
+
+1. **Update [`SPONSORS.md`](SPONSORS.md) in the same session** — do not defer or wait for a release.
+2. Place the entry in the correct section:
+   - **Individual Backers** — one-time BMC / small personal donations (same pattern as existing entries).
+   - **Honorary Supporters** — significant non-monetary or special recognition (also update README badge when applicable).
+   - GitHub Sponsors **Bronze+** — follow tier perks in `SPONSORS.md` (logo/README as required).
+3. Use the supporter’s preferred public name; link GitHub when known. Mention relevant issues only if they contributed a useful report.
+4. Bump `*Last updated:*` at the bottom of `SPONSORS.md`.
+5. **Commit and push to `main`** (or the branch the operator names) so the list is public promptly — sponsors are not “dev-only” docs.
+6. Do **not** imply Commercial Grant for Buy Me a Coffee or $5/$15 GitHub tiers (see [`docs/COMMERCIAL-GRANT.md`](docs/COMMERCIAL-GRANT.md)).
+
+## Checklist
+
+- [ ] Entry added under the right heading in `SPONSORS.md`
+- [ ] `Last updated` date refreshed
+- [ ] Committed and pushed to the public default/`main` path the operator requested
