@@ -487,9 +487,13 @@
                 const resp = await Utils.api('/api/mesh/groups');
                 const data = resp.data || resp;
                 meshGroups = Array.isArray(data.groups) ? data.groups : [];
-                groupsList.innerHTML = meshGroups.map((g, idx) =>
-                    `<div class="mesh-group-row" data-idx="${idx}"><code>${Utils.escapeHtml(g.id || '')}</code> — ${Utils.escapeHtml(g.name || '')}</div>`
-                ).join('') || '<p class="text-muted">' + tSettings('mesh.groups_empty', 'No mesh groups yet.') + '</p>';
+                groupsList.innerHTML = meshGroups.map((g, idx) => {
+                    const meshId = g.mesh_id || '';
+                    const meshIdLine = meshId
+                        ? `<br><small>MeshID=<code>${Utils.escapeHtml(meshId)}</code></small>`
+                        : '';
+                    return `<div class="mesh-group-row" data-idx="${idx}"><code>${Utils.escapeHtml(g.id || '')}</code> — ${Utils.escapeHtml(g.name || '')}${meshIdLine}</div>`;
+                }).join('') || '<p class="text-muted">' + tSettings('mesh.groups_empty', 'No mesh groups yet.') + '</p>';
             } catch {
                 groupsList.innerHTML = '<p class="text-muted">' + tSettings('mesh.groups_load_error', 'Could not load groups.') + '</p>';
             }
@@ -527,9 +531,13 @@
             if (idInput) idInput.value = '';
             if (nameInputG) nameInputG.value = '';
             if (groupsList) {
-                groupsList.innerHTML = meshGroups.map((g) =>
-                    `<div class="mesh-group-row"><code>${Utils.escapeHtml(g.id)}</code> — ${Utils.escapeHtml(g.name)}</div>`
-                ).join('');
+                groupsList.innerHTML = meshGroups.map((g) => {
+                    const meshId = g.mesh_id || '';
+                    const meshIdLine = meshId
+                        ? `<br><small>MeshID=<code>${Utils.escapeHtml(meshId)}</code></small>`
+                        : '';
+                    return `<div class="mesh-group-row"><code>${Utils.escapeHtml(g.id)}</code> — ${Utils.escapeHtml(g.name)}${meshIdLine}</div>`;
+                }).join('');
             }
         });
 
@@ -544,9 +552,15 @@
         });
 
         if (downloadBtn && nameInput) {
-            downloadBtn.addEventListener('click', (e) => {
+            downloadBtn.addEventListener('click', () => {
                 const name = encodeURIComponent(nameInput.value.trim() || 'BetterDesk Mesh');
-                downloadBtn.href = `/api/mesh/download.msh?name=${name}`;
+                const group = meshGroups.find((g) => g.id === 'default') || meshGroups[0];
+                const meshId = (group && group.mesh_id) ? String(group.mesh_id).trim() : '';
+                let href = `/api/mesh/download.msh?name=${name}`;
+                if (meshId) {
+                    href += `&mesh_id=${encodeURIComponent(meshId)}`;
+                }
+                downloadBtn.href = href;
             });
         }
 

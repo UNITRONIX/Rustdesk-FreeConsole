@@ -30,13 +30,13 @@ func (s *Server) handleMeshStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	certPath, certPresent, certModified := s.meshGw.AgentCertInfo()
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"enabled":        true,
-		"core_version":   s.cfg.MeshCoreVersion,
-		"agents_online":  s.meshGw.ActiveAgentCount(),
-		"server_id":      s.meshGw.ServerID(),
-		"cert_file":      certPath,
-		"cert_present":   certPresent,
-		"cert_modified":  certModified,
+		"enabled":       true,
+		"core_version":  s.cfg.MeshCoreVersion,
+		"agents_online": s.meshGw.ActiveAgentCount(),
+		"server_id":     s.meshGw.ServerID(),
+		"cert_file":     certPath,
+		"cert_present":  certPresent,
+		"cert_modified": certModified,
 	})
 }
 
@@ -78,9 +78,11 @@ func (s *Server) handleMeshDownloadMSH(w http.ResponseWriter, r *http.Request) {
 	if meshName == "" {
 		meshName = "BetterDesk Mesh"
 	}
-	meshID := r.URL.Query().Get("mesh_id")
+	// Prefer explicit mesh_id (64 or 96 hex); otherwise use stable per-group SHA-384.
+	meshID := s.meshGw.ResolveMeshIDHex(r.URL.Query().Get("mesh_id"))
 	if meshID == "" {
-		meshID = "EDBE1BE377EFC5B6D11DE0D50FED96017ADFAD0"
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "mesh id unavailable"})
+		return
 	}
 	serverURL := r.URL.Query().Get("mesh_server")
 	if serverURL == "" {
@@ -172,9 +174,9 @@ func (s *Server) handleMeshShareCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	path := "/remote/" + peerID + "?transport=mesh&mesh_share=" + token
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"token":      token,
-		"path":       path,
-		"view_only":  body.ViewOnly,
+		"token":       token,
+		"path":        path,
+		"view_only":   body.ViewOnly,
 		"ttl_minutes": body.TTLMinutes,
 	})
 }

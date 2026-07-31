@@ -102,23 +102,74 @@ func (g *Gateway) AutoLinkHybrid(peerID, hostname string) {
 }
 
 func (g *Gateway) ListGroups() []MeshGroup {
-	raw, _ := g.db.GetConfig("mesh_groups")
-	if raw == "" {
-		return []MeshGroup{{ID: "default", Name: "Default Mesh"}}
+	groups := g.loadGroupsRaw()
+	groups, changed, err := ensureGroupMeshIDs(groups)
+	if err != nil {
+		log.Printf("[mesh] ensure group mesh ids: %v", err)
+		return groups
 	}
-	var groups []MeshGroup
-	if err := json.Unmarshal([]byte(raw), &groups); err != nil {
-		return []MeshGroup{{ID: "default", Name: "Default Mesh"}}
+	if changed {
+		if err := g.persistGroups(groups); err != nil {
+			log.Printf("[mesh] persist group mesh ids: %v", err)
+		}
 	}
 	return groups
 }
 
-func (g *Gateway) SaveGroups(groups []MeshGroup) error {
+func (g *Gateway) loadGroupsRaw() []MeshGroup {
+	raw, _ := g.db.GetConfig("mesh_groups")
+	if raw == "" {
+		return nil
+	}
+	var groups []MeshGroup
+	if err := json.Unmarshal([]byte(raw), &groups); err != nil {
+		return nil
+	}
+	return groups
+}
+
+func (g *Gateway) persistGroups(groups []MeshGroup) error {
 	b, err := json.Marshal(groups)
 	if err != nil {
 		return err
 	}
 	return g.db.SetConfig("mesh_groups", string(b))
+}
+
+func (g *Gateway) SaveGroups(groups []MeshGroup) error {
+	groups, _, err := ensureGroupMeshIDs(groups)
+	if err != nil {
+		return err
+	}
+	return g.persistGroups(groups)
+}
+
+// DefaultMeshIDHex returns the persisted 96-hex MeshID for the default group
+// (or the first group). Generates and stores one if missing.
+func (g *Gateway) DefaultMeshIDHex() string {
+	groups := g.ListGroups()
+	for _, gr := range groups {
+		if gr.ID == "default" && IsValidMeshIDHex(gr.MeshID) {
+			return NormalizeMeshIDHex(gr.MeshID)
+		}
+	}
+	if len(groups) > 0 && IsValidMeshIDHex(groups[0].MeshID) {
+		return NormalizeMeshIDHex(groups[0].MeshID)
+	}
+	id, err := NewMeshIDHex()
+	if err != nil {
+		return ""
+	}
+	return id
+}
+
+// ResolveMeshIDHex picks a MeshAgent-valid MeshID: prefer explicit query value,
+// otherwise the default/first group. Never returns the legacy 40-char placeholder.
+func (g *Gateway) ResolveMeshIDHex(explicit string) string {
+	if IsValidMeshIDHex(explicit) {
+		return NormalizeMeshIDHex(explicit)
+	}
+	return g.DefaultMeshIDHex()
 }
 
 // AssignDeviceGroup stores mesh group membership for a mesh_agent peer.
@@ -136,7 +187,10 @@ func (g *Gateway) AssignDeviceGroup(peerID, groupID string) error {
 }
 
 func (g *Gateway) BuildMSH(meshName, meshIDHex, meshServerURL string) string {
-	meshID := meshIDHex
+	meshID := NormalizeMeshIDHex(meshIDHex)
+	if !IsValidMeshIDHex(meshID) {
+		meshID = g.ResolveMeshIDHex("")
+	}
 	if !strings.HasPrefix(meshID, "0x") {
 		meshID = "0x" + meshID
 	}

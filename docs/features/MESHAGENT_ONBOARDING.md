@@ -42,8 +42,9 @@ The MeshCentral compatibility layer is **enabled by default** on full and minima
 ## Install endpoints
 
 1. In the panel (or via API `GET /api/mesh/download.msh`), download the generated `.msh` file.
-2. Install **unmodified** MeshAgent on Windows/Linux/macOS using that file.
-3. `MeshServer` in the file points to `wss://your-host/agent.ashx`; `ServerID` pins the **agent-server RSA** certificate (`MESH_AGENT_CERT_FILE`) — not the public HTTPS/Let's Encrypt cert.
+2. Confirm `MeshID=` is `0x` + **96 hex characters** (or 64). Shorter values cause MeshAgent `bad size` and will not connect.
+3. Install **unmodified** MeshAgent on Windows/Linux/macOS using that file.
+4. `MeshServer` in the file points to `wss://your-host/agent.ashx`; `ServerID` pins the **agent-server RSA** certificate (`MESH_AGENT_CERT_FILE`) — not the public HTTPS/Let's Encrypt cert.
 
 ## Behind an external reverse proxy (Nginx / NPM / Caddy)
 
