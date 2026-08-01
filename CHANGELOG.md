@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.3] — 2026-08-01
+
 ### Fixed
 - **Dashboard Copy deploy string with invalid/placeholder public key (#340):** client config / deploy string / QR now require a valid Ed25519 key (base64 → 32 bytes), reject placeholders, and fall back to the live Go `GET /api/server-key` when `id_ed25519.pub` is missing or bad. Windows installer also sets `PUB_KEY_PATH` in the console NSSM environment. Ships via panel update (re-run `betterdesk.ps1` service setup to refresh NSSM env on Windows).
 
@@ -2524,3 +2531,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.15...v3.5.0
 [3.5.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.0...v3.5.1
 [3.5.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.1...v3.5.2
+[3.5.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.2...v3.5.3
