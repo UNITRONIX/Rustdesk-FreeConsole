@@ -1,8 +1,5 @@
 ## [Unreleased]
 
-### Fixed
-- **MeshAgent `.msh` `bad size` (#336):** `GET /api/mesh/download.msh` no longer embeds the static 40-hex MeshID placeholder. Panel/API now emit a stable per-group 96-hex (SHA-384) `MeshID` (optional `mesh_id` query still accepted when 64/96 hex). Ships via panel update (Go restart). Verify: download `.msh` → `MeshID=` is `0x` + 96 hex chars; MeshAgent no longer exits with `bad size`.
-
 ### Changed
 - _(none yet)_
 
@@ -13,6 +10,7 @@
 ### Fixed
 - **Address Book ACL bypass (restricted users) (#342):** `GET /api/ab` (and personal AB / tags) now filters peers and fleet tags through the same device-group / folder ACL as `/api/peers/list`, so org shared address-book merge and stale entries no longer expose out-of-scope machines. Unscoped `GET /api/peers` (without `accessible`/`pageSize`) applies the same ACL for non-admin roles. Ships via panel update (Go server + console).
 - **Legacy SQLite role CHECK blocking Phase 52 sync (#342):** upgraded `users` tables that still had `CHECK (role IN ('admin','operator','viewer'))` are rebuilt on Go `Migrate()` so `super_admin` / `global_admin` / `server_admin` / `pro` sync correctly. Installer/docs creators no longer add the old CHECK. Ships via panel update (Go server restart/migrate).
+- **MeshAgent `.msh` `bad size` (#336):** `GET /api/mesh/download.msh` no longer embeds the static 40-hex MeshID placeholder. Panel/API now emit a stable per-group 96-hex (SHA-384) `MeshID` (optional `mesh_id` query still accepted when 64/96 hex). Ships via panel update (Go restart). Verify: download `.msh` → `MeshID=` is `0x` + 96 hex chars; MeshAgent no longer exits with `bad size`.
 
 ---
 
