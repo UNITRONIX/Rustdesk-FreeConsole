@@ -195,12 +195,12 @@ Remote desktop, terminal, and file access execute inside **MeshCore** (Duktape J
 ```
 MeshName=Lab Computers
 MeshType=2
-MeshID=0xEDBE1BE377...
+MeshID=0xA1B2C3D4...                # 96 hex chars (SHA-384 group id); MeshAgent also accepts 64 hex
 ServerID=D99362D5ED8BA...          # SHA-384 of agent-server cert pubkey
 MeshServer=wss://betterdesk.example.com/agent.ashx
 ```
 
-BetterDesk panel generates `.msh` with correct `ServerID` from `GET /api/mesh/server-id`.
+BetterDesk panel generates `.msh` with a stable per-group `MeshID` (96 hex) and correct `ServerID` from `GET /api/mesh/server-id`. MeshAgent rejects shorter placeholders (`bad size`).
 
 ### Relay session flow
 

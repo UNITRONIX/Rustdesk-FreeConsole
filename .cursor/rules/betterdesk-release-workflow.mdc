@@ -1,13 +1,44 @@
 ---
-description: dev→main release workflow — issues, labels, release notes, and post-merge sync
+description: Branch targeting (dev default) plus dev→main release workflow — issues, labels, release notes, and post-merge sync
 alwaysApply: true
 ---
 
-# BetterDesk release workflow (dev → main)
+# BetterDesk branch targeting and release workflow
+
+Source of truth for product branching: [docs/important/branching-and-versioning.md](../docs/important/branching-and-versioning.md).
+
+## Branch targeting (mandatory)
+
+| Branch | Role |
+|--------|------|
+| **`dev`** | Default working branch for **all** day-to-day work: bugs, security follow-ups, UI, features, docs, small updates. Patch bump (+0.0.1) and GHCR `:dev`. |
+| **`main`** | Stable production only. Use **only** for a curated **`dev` → `main`** release (+0.1.0) or a **stable hotfix** the operator **explicitly** requested. |
+
+### Default: always work on `dev`
+
+1. Before coding, committing, or opening a PR: run `git branch --show-current` (and check remote tracking).
+2. If the current branch is not based on **`dev`**, and the operator did **not** explicitly ask for a release / stable hotfix: switch to `dev` (or a feature branch off `dev`) and ask if unsure.
+3. Commits, pushes, and PRs for normal fixes land on **`dev`** — including “critical” / security issues. Severity does **not** justify targeting `main` by default.
+4. Do **not** open routine hotfix PRs straight to `main` just because an issue is marked security or labeled urgent.
+
+### When `main` is allowed
+
+Use `main` **only** when the operator clearly asks for one of:
+
+- a production release (`dev` → `main`, “release”, “ship stable”, checklist)
+- an explicit stable hotfix (“hotfix on main/stable”, “patch production now”)
+
+If unclear, assume **`dev`** and ask once.
+
+### Why this matters
+
+Landing incremental fixes on `main` while Development channel / GHCR `:dev` lag behind breaks testers on `dev` (e.g. #302 sync requests). Prefer: fix on `dev` → later release `dev` → `main` → sync `main` → `dev`.
+
+## Release workflow (`dev` → `main`)
 
 When preparing or completing a **`dev` → `main`** merge / production release, do not leave gaps that operators must guess.
 
-## Before merge
+### Before merge
 
 1. Follow [docs/PRE_RELEASE_CHECKLIST.md](../docs/PRE_RELEASE_CHECKLIST.md) and [branching-and-versioning.md](../docs/important/branching-and-versioning.md).
 2. **`CHANGELOG.md`:** `[Unreleased]` must list every user-visible change in this release (fixes, manual steps, breaking notes).
@@ -17,7 +48,7 @@ When preparing or completing a **`dev` → `main`** merge / production release, 
    - **terminal steps** when the panel alone is not enough (one-time root commands, paths, service names)
 4. **Commit messages:** reference issues (`Fixes #NNN`) so release scope is traceable.
 
-## Release notes must be self-contained
+### Release notes must be self-contained
 
 GitHub Release / issue text should answer without follow-up questions:
 
@@ -30,15 +61,17 @@ GitHub Release / issue text should answer without follow-up questions:
 
 Avoid vague lines like “update the server” — specify **which component**, **which path**, and **expected outcome**.
 
-## After merge to main
+### After merge to main
 
 1. Confirm CI created tag `vX.Y.Z` and GitHub Release.
-2. **Sync `main` → `dev`** (resolve version conflicts in favour of the new `main` minor baseline).
+2. **Sync `main` → `dev`** (resolve version conflicts in favour of the new `main` minor baseline). Required after every `main` merge so `:dev` / Development channel are not missing stable commits.
 3. Close superseded open PRs (`dev` → `main`) with a short comment pointing to the merged release/hotfix.
 4. Reply on linked GitHub issues in **English** — short, human, with verify steps.
 
-## Direction reminder
+### Direction reminder
 
+- **Day-to-day work:** → **`dev`**
 - **Release:** `dev` → `main` (production)
 - **Post-release sync:** `main` → `dev` (development baseline)
 - Do not assume fixes live on `dev` — check branch tips before merging.
+- Never treat “hotfix” as a standing excuse to skip `dev` unless the operator ordered a stable-only patch.

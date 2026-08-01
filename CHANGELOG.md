@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **MeshAgent `.msh` `bad size` (#336):** `GET /api/mesh/download.msh` no longer embeds the static 40-hex MeshID placeholder. Panel/API now emit a stable per-group 96-hex (SHA-384) `MeshID` (optional `mesh_id` query still accepted when 64/96 hex). Ships via panel update (Go restart). Verify: download `.msh` → `MeshID=` is `0x` + 96 hex chars; MeshAgent no longer exits with `bad size`.
+
 ### Changed
 - _(none yet)_
 

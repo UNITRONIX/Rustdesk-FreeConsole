@@ -21,7 +21,7 @@ BetterDesk operators and scripts should use the **native REST API** instead of m
 | Mesh status | `GET /api/mesh/status` |
 | Server ID | `GET /api/mesh/server-id` |
 | Mesh groups | `GET/POST /api/mesh/groups` |
-| Download `.msh` | `GET /api/mesh/download.msh?name=BetterDesk%20Mesh` |
+| Download `.msh` | `GET /api/mesh/download.msh?name=BetterDesk%20Mesh` (optional `&mesh_id=` 64/96 hex; default = stable group MeshID) |
 | Session recordings | `GET /api/session/recordings` |
 | Download mesh recording | `GET /api/mesh/recordings/{filename}` |
 
