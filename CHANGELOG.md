@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.7] — 2026-08-01
+
 ### Fixed
 - **Native install TLS self-signed deploy regression (#325, discussion #322):** re-applied `_safe_cp_tls_file` no-op when source and dest are the same real file. The v3.4.3 fix was lost on the 3.5.0 merge; fresh `install.sh --native` again failed with `cp: cannot stat '.../betterdesk.crt'`. Symlink→copy for Let's Encrypt (#219) is unchanged. Ships via installer / `betterdesk.sh` (not panel-only). Verify: install completes past “Generating self-signed TLS certificates” with both `/opt/betterdesk/ssl/betterdesk.crt` and `.key` present.
 
@@ -2567,3 +2574,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.3...v3.5.4
 [3.5.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.4...v3.5.5
 [3.5.6]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.5...v3.5.6
+[3.5.7]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.6...v3.5.7
