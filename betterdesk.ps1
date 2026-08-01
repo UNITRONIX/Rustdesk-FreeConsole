@@ -1,7 +1,7 @@
 ﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    BetterDesk Console Manager v3.5.0 - All-in-One Interactive Tool for Windows
+    BetterDesk Console Manager v3.5.4 - All-in-One Interactive Tool for Windows
 
 .DESCRIPTION
     Features:
@@ -102,7 +102,7 @@ param(
 # Configuration
 #===============================================================================
 
-$script:VERSION = "3.5.0"
+$script:VERSION = "3.5.4"
 $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Auto mode flags
@@ -1191,15 +1191,15 @@ function Install-NodeJs {
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     if ($nodeCmd) {
         $nodeVersion = (node --version) -replace 'v', '' -split '\.' | Select-Object -First 1
-        if ([int]$nodeVersion -ge 18) {
+        if ([int]$nodeVersion -ge 22) {
             Print-Success "Node.js v$(node --version) already installed"
             return $true
         } else {
-            Print-Warning "Node.js version $nodeVersion is too old (need 18+). Upgrading..."
+            Print-Warning "Node.js version $nodeVersion is too old (need 22+). Upgrading..."
         }
     }
     
-    Print-Step "Installing Node.js 20 LTS..."
+    Print-Step "Installing Node.js 24 LTS..."
     
     # Try winget first (Windows 10/11)
     $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
@@ -1233,7 +1233,7 @@ function Install-NodeJs {
     
     # Manual download as last resort
     Print-Warning "Automatic installation not available."
-    Print-Info "Please install Node.js 20 LTS manually from: https://nodejs.org/"
+    Print-Info "Please install Node.js 24 LTS manually from: https://nodejs.org/"
     Print-Info "After installation, restart the script."
     return $false
 }
@@ -2089,6 +2089,7 @@ function Setup-Services {
             "KEYS_PATH=$script:RUSTDESK_PATH",
             "DATA_DIR=$script:CONSOLE_PATH\data",
             "DB_PATH=$script:RUSTDESK_PATH\db_v2.sqlite3",
+            "PUB_KEY_PATH=$script:RUSTDESK_PATH\id_ed25519.pub",
             "API_KEY_PATH=$script:RUSTDESK_PATH\.api_key",
             "HBBS_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",
             "BETTERDESK_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",
@@ -2331,8 +2332,7 @@ cursor.execute('''
         role VARCHAR(20) NOT NULL DEFAULT 'viewer',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         last_login DATETIME,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        CHECK (role IN ('admin', 'operator', 'viewer'))
+        is_active INTEGER NOT NULL DEFAULT 1
     )
 ''')
 

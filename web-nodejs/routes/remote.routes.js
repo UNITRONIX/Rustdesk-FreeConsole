@@ -78,13 +78,13 @@ function getRemoteRelay() {
     try { return require('../services/remoteRelay'); } catch { return null; }
 }
 
-// Read server public key on each viewer render (Go may write id_ed25519.pub after
-// console start; avoid caching empty/stale key across the process lifetime).
-function getServerPubKey() {
+// Resolve server public key on each viewer render (file may be stale/wrong;
+// fall back to live Go /api/server-key — issue #340).
+async function resolveServerPubKey() {
     try {
-        return keyService.getPublicKey() || '';
+        return (await keyService.resolvePublicKey()) || '';
     } catch (err) {
-        console.warn('Warning: Could not read server public key:', err.message);
+        console.warn('Warning: Could not resolve server public key:', err.message);
         return '';
     }
 }
@@ -233,7 +233,7 @@ router.get('/remote/:deviceId', rdClientPageLimiter, requireRemoteAccess, async 
         activePage: 'remote',
         deviceId: deviceId,
         device: device || { id: deviceId, hostname: '', platform: '', note: '' },
-        serverPubKey: getServerPubKey(),
+        serverPubKey: await resolveServerPubKey(),
         capabilities,
         guestToken: req.guestToken || getGuestTokenFromQuery(req) || '',
         layout: 'viewer'

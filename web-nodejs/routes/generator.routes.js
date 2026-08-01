@@ -112,8 +112,13 @@ function finalizeBundleBrandingSync(input) {
  * installation registers on its own and receives a unique device_token
  * after operator approval (managed enrollment).
  */
-function finalizeBundleBranding(input) {
+async function finalizeBundleBranding(input) {
     const branding = finalizeBundleBrandingSync(input);
+    const pubKey = (await keyService.resolvePublicKey()) || '';
+    if (branding.server) {
+        branding.server.public_key = pubKey;
+    }
+    branding.server_key = pubKey;
     // Strip legacy shared tokens from older bundles on save/rebuild.
     delete branding.enrollment_token;
     delete branding.has_enrollment_token;
@@ -189,14 +194,14 @@ router.get('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
     }
 });
 
-router.get('/api/generator/defaults', requireAuth, requireAdmin, (req, res) => {
+router.get('/api/generator/defaults', requireAuth, requireAdmin, async (req, res) => {
     res.json({
         success: true,
         data: {
             server_host: conn.defaultServerHost(),
             use_https: conn.defaultUseHttps(),
             api_port: conn.defaultApiPort(),
-            public_key: keyService.getPublicKey() || '',
+            public_key: (await keyService.resolvePublicKey()) || '',
         },
     });
 });
@@ -231,7 +236,7 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
         }
         const normalized = productType === 'rdclient'
             ? { ...base, bundle_id: bundleId, server_url: base.panel_url }
-            : finalizeBundleBranding(base);
+            : await finalizeBundleBranding(base);
         if (productType !== 'rdclient') {
             normalized.bundle_id = bundleId;
             normalized.product_name = productType === 'agent-client'
@@ -271,7 +276,7 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
         if (!valid) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.validation_failed'), errors, details: errors });
         }
-        const normalized = finalizeBundleBranding(base);
+        const normalized = await finalizeBundleBranding(base);
         normalized.bundle_id = req.params.bundleId;
         normalized.product_name = normalizeProductType(existing.product_type) === 'agent-client'
             ? (normalized.company_name ? `${normalized.company_name} Agent` : 'BetterDesk Agent')
@@ -511,9 +516,9 @@ router.get('/api/d/:publicId/download/:platform/:arch/:format', async (req, res)
 //  Legacy TOML config generator (deprecated, kept for compatibility)
 // =========================================================================
 
-router.get('/api/generator/config', requireAuth, (req, res) => {
+router.get('/api/generator/config', requireAuth, async (req, res) => {
     try {
-        const publicKey = keyService.getPublicKey();
+        const publicKey = await keyService.resolvePublicKey();
         res.json({
             success: true,
             data: {
@@ -528,13 +533,13 @@ router.get('/api/generator/config', requireAuth, (req, res) => {
     }
 });
 
-router.post('/api/generator/generate-config', requireAuth, (req, res) => {
+router.post('/api/generator/generate-config', requireAuth, async (req, res) => {
     try {
         const { serverHost, serverPort, relayHost, relayPort, clientName } = req.body;
         if (!serverHost) {
             return res.status(400).json({ success: false, error: 'Server host is required' });
         }
-        const publicKey = keyService.getPublicKey();
+        const publicKey = await keyService.resolvePublicKey();
         const lines = [];
         lines.push(`rendezvous_server = ${serverHost}:${serverPort || 21116}`);
         if (relayHost) lines.push(`relay_server = ${relayHost}:${relayPort || 21117}`);

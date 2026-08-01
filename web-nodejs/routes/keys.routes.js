@@ -39,17 +39,17 @@ router.get('/keys', requireAuth, (req, res) => {
 /**
  * GET /api/keys/public - Get public key
  */
-router.get('/api/keys/public', requireAuth, (req, res) => {
+router.get('/api/keys/public', requireAuth, async (req, res) => {
     try {
-        const publicKey = keyService.getPublicKey();
-        
+        const publicKey = await keyService.resolvePublicKey();
+
         if (!publicKey) {
             return res.status(404).json({
                 success: false,
                 error: req.t('keys.not_found')
             });
         }
-        
+
         res.json({
             success: true,
             data: {
@@ -100,17 +100,17 @@ router.get('/api/keys/public/qr', requireAuth, async (req, res) => {
 /**
  * GET /api/keys/public/download - Download public key file
  */
-router.get('/api/keys/public/download', requireAuth, (req, res) => {
+router.get('/api/keys/public/download', requireAuth, async (req, res) => {
     try {
-        const publicKey = keyService.getPublicKey();
-        
+        const publicKey = await keyService.resolvePublicKey();
+
         if (!publicKey) {
             return res.status(404).json({
                 success: false,
                 error: req.t('keys.not_found')
             });
         }
-        
+
         res.setHeader('Content-Type', 'text/plain');
         res.setHeader('Content-Disposition', 'attachment; filename="id_ed25519.pub"');
         res.send(publicKey);

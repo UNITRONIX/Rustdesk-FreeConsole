@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -559,10 +560,101 @@ func (s *SQLiteDB) Migrate() error {
 		}
 	}
 
+	if err := s.migrateUsersDropLegacyRoleCheck(); err != nil {
+		return err
+	}
+
 	if err := s.migrateBillingOrgContracts(); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+// usersHasLegacyRoleCheck detects upgraded SQLite installs that still enforce
+// CHECK (role IN ('admin', 'operator', 'viewer')) from the pre-Phase-52 schema.
+func (s *SQLiteDB) usersHasLegacyRoleCheck() bool {
+	var sqlText string
+	err := s.db.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).Scan(&sqlText)
+	if err != nil || strings.TrimSpace(sqlText) == "" {
+		return false
+	}
+	low := strings.ToLower(sqlText)
+	return strings.Contains(low, "check") &&
+		strings.Contains(low, "role") &&
+		strings.Contains(low, "'admin'") &&
+		strings.Contains(low, "'viewer'")
+}
+
+// migrateUsersDropLegacyRoleCheck rebuilds the users table without the legacy
+// three-role CHECK so Phase 52 roles (super_admin, global_admin, …) can sync.
+func (s *SQLiteDB) migrateUsersDropLegacyRoleCheck() error {
+	if !s.usersHasLegacyRoleCheck() {
+		return nil
+	}
+	log.Printf("[db] migrating users table: dropping legacy role CHECK constraint")
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("db: begin users role-check migration: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(`PRAGMA foreign_keys=OFF`); err != nil {
+		return fmt.Errorf("db: disable foreign_keys for users rebuild: %w", err)
+	}
+
+	const createUsersNew = `CREATE TABLE users_new (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT UNIQUE NOT NULL,
+		password_hash TEXT NOT NULL,
+		role TEXT NOT NULL DEFAULT 'viewer',
+		auth_provider TEXT NOT NULL DEFAULT 'local',
+		totp_secret TEXT DEFAULT '',
+		totp_enabled INTEGER DEFAULT 0,
+		totp_recovery_codes TEXT DEFAULT NULL,
+		is_server_admin INTEGER DEFAULT 0,
+		guid TEXT DEFAULT '',
+		created_at TEXT DEFAULT (datetime('now')),
+		last_login TEXT DEFAULT ''
+	)`
+	if _, err := tx.Exec(createUsersNew); err != nil {
+		return fmt.Errorf("db: create users_new: %w", err)
+	}
+
+	copySQL := `INSERT INTO users_new (
+		id, username, password_hash, role, auth_provider, totp_secret, totp_enabled,
+		totp_recovery_codes, is_server_admin, guid, created_at, last_login
+	)
+	SELECT
+		id, username, password_hash, role,
+		COALESCE(auth_provider, 'local'),
+		COALESCE(totp_secret, ''),
+		COALESCE(totp_enabled, 0),
+		totp_recovery_codes,
+		COALESCE(is_server_admin, 0),
+		COALESCE(guid, ''),
+		COALESCE(created_at, datetime('now')),
+		COALESCE(last_login, '')
+	FROM users`
+	if _, err := tx.Exec(copySQL); err != nil {
+		return fmt.Errorf("db: copy users → users_new: %w", err)
+	}
+	if _, err := tx.Exec(`DROP TABLE users`); err != nil {
+		return fmt.Errorf("db: drop legacy users: %w", err)
+	}
+	if _, err := tx.Exec(`ALTER TABLE users_new RENAME TO users`); err != nil {
+		return fmt.Errorf("db: rename users_new: %w", err)
+	}
+	if _, err := tx.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)`); err != nil {
+		return fmt.Errorf("db: recreate users username index: %w", err)
+	}
+	if _, err := tx.Exec(`PRAGMA foreign_keys=ON`); err != nil {
+		return fmt.Errorf("db: re-enable foreign_keys: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("db: commit users role-check migration: %w", err)
+	}
 	return nil
 }
 

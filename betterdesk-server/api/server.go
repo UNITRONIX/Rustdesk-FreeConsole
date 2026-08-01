@@ -787,10 +787,23 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 
 	// Data scoping: org-scoped users only see their org's devices
 	orgID := getOrgIDFromCtx(r)
+	username := getUsernameFromCtx(r)
+	role := getRoleFromCtx(r)
+	needsDeviceACL := username != "" && role != "" &&
+		!auth.IsSuperAdminRole(role) && role != auth.RoleGlobalAdmin && role != auth.RoleServerAdmin
+
 	var peers []*db.Peer
 	var total int
 	var err error
-	if paginated {
+	// When device-group ACL applies, load the full candidate set first so
+	// pagination cannot leak peers on later pages from an unscoped DB query.
+	if needsDeviceACL {
+		if orgID != "" {
+			peers, err = s.db.ListPeersForOrg(orgID, includeDeleted)
+		} else {
+			peers, err = s.db.ListPeers(includeDeleted)
+		}
+	} else if paginated {
 		if orgID != "" {
 			peers, total, err = s.db.ListPeersForOrgPaginated(orgID, includeDeleted, limit, offset)
 		} else {
@@ -804,6 +817,41 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeInternalError(w, err, "ListPeers")
 		return
+	}
+
+	if needsDeviceACL {
+		peerByID := make(map[string]*db.Peer, len(peers))
+		for _, p := range peers {
+			if p != nil {
+				peerByID[p.ID] = p
+			}
+		}
+		user := s.rustDeskUserForGroups(r, username, role)
+		if visible := s.rustDeskVisiblePeerSet(user, role, peerByID); visible != nil {
+			filtered := make([]*db.Peer, 0, len(peers))
+			for _, p := range peers {
+				if p != nil && visible[p.ID] {
+					filtered = append(filtered, p)
+				}
+			}
+			peers = filtered
+		}
+		total = len(peers)
+		if paginated {
+			start := offset
+			if start < 0 {
+				start = 0
+			}
+			if start > len(peers) {
+				peers = nil
+			} else {
+				end := start + limit
+				if end > len(peers) {
+					end = len(peers)
+				}
+				peers = peers[start:end]
+			}
+		}
 	}
 
 	// Enrich with live online status and status tier from memory map.

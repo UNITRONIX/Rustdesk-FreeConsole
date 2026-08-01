@@ -545,17 +545,21 @@ func (s *Server) collectRustDeskTags(r *http.Request, username string, role stri
 		seen[strings.ToLower(strings.TrimSpace(tag))] = true
 	}
 
-	if peers, err := s.db.ListPeers(false); err == nil {
-		for _, p := range peers {
-			if p == nil || p.Banned || p.SoftDeleted {
-				continue
-			}
-			for _, tag := range splitPeerTags(p.Tags) {
-				low := strings.ToLower(tag)
-				if !seen[low] {
-					ab.Tags = append(ab.Tags, tag)
-					seen[low] = true
-				}
+	peerByID, _ := s.loadRustDeskPeerByID(username, role)
+	user := s.rustDeskUserForGroups(r, username, role)
+	visible := s.rustDeskVisiblePeerSet(user, role, peerByID)
+	for id, p := range peerByID {
+		if p == nil || p.Banned || p.SoftDeleted {
+			continue
+		}
+		if visible != nil && !visible[id] {
+			continue
+		}
+		for _, tag := range splitPeerTags(p.Tags) {
+			low := strings.ToLower(tag)
+			if !seen[low] {
+				ab.Tags = append(ab.Tags, tag)
+				seen[low] = true
 			}
 		}
 	}

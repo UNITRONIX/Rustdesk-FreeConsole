@@ -1016,12 +1016,17 @@ func TestClientTokenAuthorizesViewerOnlyPunch(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
 	putOnlinePeer(srv, "TGTOK1", "203.0.113.95", 52000, peer.ConnTCP)
 
+	user := &db.User{Username: "tokuser", PasswordHash: "hash", Role: "admin"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
 	token := strings.Repeat("ab", 32) // 64 hex chars
 	sum := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(sum[:])
 	if err := database.CreateClientSession(&db.ClientSession{
 		TokenHash:  hash,
-		UserID:     1,
+		UserID:     user.ID,
 		ClientID:   "TOKINIT1",
 		ClientUUID: "tok-uuid",
 		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),

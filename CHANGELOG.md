@@ -1,7 +1,40 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.4] — 2026-08-01
+
 ### Fixed
+- **Address Book ACL bypass (restricted users) (#342):** `GET /api/ab` (and personal AB / tags) now filters peers and fleet tags through the same device-group / folder ACL as `/api/peers/list`, so org shared address-book merge and stale entries no longer expose out-of-scope machines. Unscoped `GET /api/peers` (without `accessible`/`pageSize`) applies the same ACL for non-admin roles. Ships via panel update (Go server + console).
+- **Legacy SQLite role CHECK blocking Phase 52 sync (#342):** upgraded `users` tables that still had `CHECK (role IN ('admin','operator','viewer'))` are rebuilt on Go `Migrate()` so `super_admin` / `global_admin` / `server_admin` / `pro` sync correctly. Installer/docs creators no longer add the old CHECK. Ships via panel update (Go server restart/migrate).
 - **MeshAgent `.msh` `bad size` (#336):** `GET /api/mesh/download.msh` no longer embeds the static 40-hex MeshID placeholder. Panel/API now emit a stable per-group 96-hex (SHA-384) `MeshID` (optional `mesh_id` query still accepted when 64/96 hex). Ships via panel update (Go restart). Verify: download `.msh` → `MeshID=` is `0x` + 96 hex chars; MeshAgent no longer exits with `bad size`.
+
+---
+
+## [3.5.3] — 2026-08-01
+
+### Fixed
+- **Dashboard Copy deploy string with invalid/placeholder public key (#340):** client config / deploy string / QR now require a valid Ed25519 key (base64 → 32 bytes), reject placeholders, and fall back to the live Go `GET /api/server-key` when `id_ed25519.pub` is missing or bad. Windows installer also sets `PUB_KEY_PATH` in the console NSSM environment. Ships via panel update (re-run `betterdesk.ps1` service setup to refresh NSSM env on Windows).
+
+### Changed
+- **Runtime EOL refresh:** Docker/CI/installers use **Node.js 24 LTS** (`engines` ≥22); Go build images **golang:1.26-alpine**; server runtime **alpine:3.22**. Patch bumps for console (`axios`, `nodemailer`, `ws`, `pg`) and Go modules (incl. `modernc.org/sqlite`). SNMP bridge depends on **`pysnmp` ≥7.1** (replaces `pysnmplib`). See `docs/development/DEPENDENCY_UPGRADE_BACKLOG.md` for deferred Express 5 / native majors.
+
+### Docs
+- Refreshed `docs/architecture/PROJECT_STRUCTURE.md` for the current Go + Node layout; dependency upgrade backlog added.
+
+---
+
+## [3.5.2] — 2026-07-31
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.1] — 2026-07-31
 
 ### Changed
 - _(none yet)_
@@ -2508,3 +2541,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.4.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.13...v3.4.14
 [3.4.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.14...v3.4.15
 [3.5.0]: https://github.com/UNITRONIX/BetterDesk/compare/v3.4.15...v3.5.0
+[3.5.1]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.0...v3.5.1
+[3.5.2]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.1...v3.5.2
+[3.5.3]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.2...v3.5.3
+[3.5.4]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.3...v3.5.4
+[3.5.5]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.4...v3.5.5

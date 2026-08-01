@@ -5,7 +5,7 @@ Periodically polls SNMP OIDs and pushes values to BetterDesk via CDAP.
 Supports counter-rate computation, timetick formatting, and byte formatting.
 
 Usage:
-    pip install betterdesk-cdap pysnmplib
+    pip install betterdesk-cdap pysnmp
     python bridge_snmp.py --config config.json
 """
 

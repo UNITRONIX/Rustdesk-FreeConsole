@@ -9,7 +9,7 @@
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
 ![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)
-![Version](https://img.shields.io/badge/version-3.5.0-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-3.5.4-brightgreen.svg)
 ![Security](https://img.shields.io/badge/Security-TLS%20%2B%20NaCl%20%2B%20TOTP%20%2B%20E2EE-green.svg)
 ![Database](https://img.shields.io/badge/DB-SQLite%20%2B%20PostgreSQL-blue.svg)
 ![CDAP](https://img.shields.io/badge/CDAP-v1.0-orange.svg)
@@ -1469,7 +1469,7 @@ The Go server sends a UDP broadcast magic packet (6× `0xFF` + 16× MAC address)
 
 | Component | Technology |
 |-----------|-----------|
-| **Runtime** | Node.js 18+ |
+| **Runtime** | Node.js 22+ |
 | **Framework** | Express.js |
 | **Templates** | EJS |
 | **Database** | better-sqlite3 |
@@ -1580,7 +1580,7 @@ CDAP Device (Agent/Bridge)  ──WebSocket──►  Go Server (:21122/cdap)
 | SDK | Language | Status |
 |-----|----------|--------|
 | [Python SDK](sdks/python/) | Python 3.9+ | ✅ Stable |
-| [Node.js SDK](sdks/nodejs/) | Node.js 18+ | ✅ Stable |
+| [Node.js SDK](sdks/nodejs/) | Node.js 22+ | ✅ Stable |
 
 | Bridge | Protocol | Status |
 |--------|----------|--------|

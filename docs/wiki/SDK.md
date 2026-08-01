@@ -54,7 +54,7 @@ Source: [sdks/python/](https://github.com/UNITRONIX/BetterDesk/tree/main/sdks/py
 
 ## Node.js SDK
 
-**Package:** `betterdesk-cdap` · **Requires:** Node.js 18+
+**Package:** `betterdesk-cdap` · **Requires:** Node.js 22+
 
 ```bash
 npm install betterdesk-cdap

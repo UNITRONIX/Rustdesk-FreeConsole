@@ -60,7 +60,7 @@ cd src-tauri
 cargo tauri build
 ```
 
-**Requirements:** Rust 1.70+, Node.js 18+, WebView2 (Windows), webkit2gtk (Linux)
+**Requirements:** Rust 1.70+, Node.js 22+, WebView2 (Windows), webkit2gtk (Linux)
 
 ### Configuration
 

@@ -69,12 +69,16 @@ class SNMPBridge(CDAPBridge):
                                          group=oid_cfg.get("group", "SNMP")))
 
     async def collect_metrics(self):
-        from pysnmplib.hlapi.asyncio import get_cmd, SnmpEngine, CommunityData, UdpTransportTarget, ObjectType, ObjectIdentity
+        from pysnmp.hlapi.v3arch.asyncio import (
+            get_cmd, SnmpEngine, CommunityData, UdpTransportTarget,
+            ContextData, ObjectType, ObjectIdentity,
+        )
         values = {}
         for oid_cfg in self.oids:
+            target = await UdpTransportTarget.create((self.target_ip, 161))
             err_ind, err_status, _, var_binds = await get_cmd(
                 SnmpEngine(), CommunityData(self.community),
-                UdpTransportTarget((self.target_ip, 161)),
+                target, ContextData(),
                 ObjectType(ObjectIdentity(oid_cfg["oid"]))
             )
             if not err_ind and not err_status:

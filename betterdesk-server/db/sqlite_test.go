@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -906,5 +907,60 @@ func TestMigrateBackfillsNullUserTimestamps(t *testing.T) {
 	}
 	if totp == nil {
 		t.Error("totp_secret still NULL after Migrate backfill")
+	}
+}
+
+func TestMigrateUsersDropLegacyRoleCheck(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "legacy-role-check.db")
+	raw, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open raw: %v", err)
+	}
+	_, err = raw.Exec(`
+		CREATE TABLE users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			username TEXT UNIQUE NOT NULL,
+			password_hash TEXT NOT NULL,
+			role TEXT NOT NULL DEFAULT 'viewer',
+			created_at TEXT DEFAULT (datetime('now')),
+			last_login TEXT DEFAULT '',
+			CHECK (role IN ('admin', 'operator', 'viewer'))
+		);
+		INSERT INTO users (username, password_hash, role) VALUES ('op', 'hash', 'operator');
+	`)
+	if err != nil {
+		raw.Close()
+		t.Fatalf("seed legacy users: %v", err)
+	}
+	raw.Close()
+
+	db, err := OpenSQLite(path)
+	if err != nil {
+		t.Fatalf("OpenSQLite: %v", err)
+	}
+	defer db.Close()
+	if err := db.Migrate(); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	if db.usersHasLegacyRoleCheck() {
+		t.Fatal("legacy role CHECK still present after Migrate")
+	}
+
+	// Phase 52 roles must insert successfully after migration.
+	if err := db.CreateUser(&User{Username: "ga", PasswordHash: "hash", Role: "global_admin"}); err != nil {
+		t.Fatalf("CreateUser global_admin after migration: %v", err)
+	}
+	got, err := db.GetUser("ga")
+	if err != nil || got == nil {
+		t.Fatalf("GetUser global_admin: user=%v err=%v", got, err)
+	}
+	if got.Role != "global_admin" {
+		t.Fatalf("role = %q, want global_admin", got.Role)
+	}
+
+	// Idempotent second migrate
+	if err := db.Migrate(); err != nil {
+		t.Fatalf("Migrate second: %v", err)
 	}
 }

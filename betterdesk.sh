@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.5.0
+#   BetterDesk Console Manager v3.5.4
 #   All-in-One Interactive Tool for Linux
 #
 #   Features:
@@ -36,7 +36,7 @@
 set -e
 
 # Version
-VERSION="3.5.0"
+VERSION="3.5.4"
 # Bump when installer control-flow changes must apply mid-session after Update (#219).
 BETTERDESK_SH_REVISION="20260725-console-start-306"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -2985,15 +2985,15 @@ install_nodejs() {
     # Check if Node.js is already installed and version is sufficient
     if command -v node &> /dev/null; then
         local node_version=$(node --version | sed 's/v//' | cut -d'.' -f1)
-        if [ "$node_version" -ge 18 ]; then
+        if [ "$node_version" -ge 22 ]; then
             print_success "Node.js v$(node --version) already installed"
             return 0
         else
-            print_warning "Node.js version $node_version is too old (need 18+). Upgrading..."
+            print_warning "Node.js version $node_version is too old (need 22+). Upgrading..."
         fi
     fi
     
-    print_step "Installing Node.js 20 LTS..."
+    print_step "Installing Node.js 24 LTS..."
 
     # Detect OS and install Node.js. The NodeSource setup script is downloaded
     # to a temp file and validated before execution (H5 audit fix): we do NOT
@@ -3051,15 +3051,15 @@ install_nodejs() {
     # Detect OS and install Node.js
     if command -v apt-get &> /dev/null; then
         # Debian/Ubuntu - use NodeSource
-        _fetch_and_run_nodesource "https://deb.nodesource.com/setup_20.x" || return 1
+        _fetch_and_run_nodesource "https://deb.nodesource.com/setup_24.x" || return 1
         apt-get install -y -qq nodejs
     elif command -v dnf &> /dev/null; then
         # Fedora/RHEL 8+
-        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_20.x" || return 1
+        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_24.x" || return 1
         dnf install -y -q nodejs
     elif command -v yum &> /dev/null; then
         # RHEL/CentOS 7
-        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_20.x" || return 1
+        _fetch_and_run_nodesource "https://rpm.nodesource.com/setup_24.x" || return 1
         yum install -y -q nodejs
     elif command -v pacman &> /dev/null; then
         # Arch Linux
@@ -3068,7 +3068,7 @@ install_nodejs() {
         # Alpine Linux
         apk add --no-cache nodejs npm
     else
-        print_error "Cannot install Node.js automatically. Please install Node.js 18+ manually."
+        print_error "Cannot install Node.js automatically. Please install Node.js 22+ manually."
         return 1
     fi
     

@@ -589,7 +589,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		body.Role = auth.RoleViewer
 	}
 	if !auth.ValidRole(body.Role) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid role (admin, operator, viewer)"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid role"})
 		return
 	}
 

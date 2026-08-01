@@ -79,6 +79,8 @@ web-nodejs/data/
 # --- Temporary files & caches ---
 *.tmp
 *.temp
+.tmp-*
+.tmp-dep-test/
 /tmp/
 .cache/
 

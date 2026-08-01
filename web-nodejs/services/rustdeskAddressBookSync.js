@@ -190,11 +190,38 @@ function collectPeerTagUpdates(data, options = {}) {
     return updates;
 }
 
+/**
+ * Strip known server peers outside the caller's device-group ACL.
+ * Peers not in knownDeviceIds (user-typed remote IDs) are kept.
+ * When visibleIds is null/undefined, no filtering is applied.
+ */
+function filterAddressBookPeersByScope(data, options = {}) {
+    const ab = parseAddressBookData(data);
+    const visibleIds = options.visibleIds;
+    if (!visibleIds) {
+        return JSON.stringify(ab);
+    }
+    const known = new Set(
+        (Array.isArray(options.knownDeviceIds) ? options.knownDeviceIds : [])
+            .map(id => String(id || '').trim())
+            .filter(Boolean)
+    );
+    ab.peers = ab.peers.filter(peer => {
+        if (!peer || typeof peer !== 'object') return false;
+        const id = String(peer.id || '').trim();
+        if (!id) return false;
+        if (known.has(id) && !visibleIds.has(id)) return false;
+        return true;
+    });
+    return JSON.stringify(ab);
+}
+
 module.exports = {
     normalizeTags,
     parseAddressBookData,
     filterFolderTags,
     mergeAddressBookData,
+    filterAddressBookPeersByScope,
     collectVisibleTags,
     collectPeerTagUpdates
 };

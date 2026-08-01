@@ -1,7 +1,7 @@
 #!/bin/bash
 #===============================================================================
 #
-#   BetterDesk Console Manager v3.5.0
+#   BetterDesk Console Manager v3.5.4
 #   All-in-One Interactive Tool for Docker
 #
 #   Features:
@@ -28,7 +28,7 @@
 set -e
 
 # Version
-VERSION="3.5.0"
+VERSION="3.5.4"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Default paths (can be overridden by environment variables)
@@ -1784,13 +1784,13 @@ repair_named_volume_permissions() {
     fi
 
     print_info "Repairing Docker volume permissions: $volume"
-    docker run --rm -v "$volume:/target" alpine:3.20 sh -c '
+    docker run --rm -v "$volume:/target" alpine:3.22 sh -c '
         set -e
         mkdir -p /target
         chown -R 10001:10001 /target
         chmod -R u+rwX,g+rwX /target
     ' >/dev/null 2>&1 || {
-        print_warning "Could not repair volume $volume (Docker may need to pull alpine:3.20)"
+        print_warning "Could not repair volume $volume (Docker may need to pull alpine:3.22)"
         return 1
     }
 }
