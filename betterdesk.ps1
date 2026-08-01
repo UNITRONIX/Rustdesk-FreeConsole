@@ -2332,8 +2332,7 @@ cursor.execute('''
         role VARCHAR(20) NOT NULL DEFAULT 'viewer',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         last_login DATETIME,
-        is_active INTEGER NOT NULL DEFAULT 1,
-        CHECK (role IN ('admin', 'operator', 'viewer'))
+        is_active INTEGER NOT NULL DEFAULT 1
     )
 ''')
 

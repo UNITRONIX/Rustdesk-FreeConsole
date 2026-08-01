@@ -3,6 +3,8 @@ package api
 import (
 	"errors"
 	"testing"
+
+	"github.com/unitronix/betterdesk-server/db"
 )
 
 func TestMergeAddressBookJSON(t *testing.T) {
@@ -65,5 +67,34 @@ func TestOrgSharedAddressBookEnabledFromValue(t *testing.T) {
 				t.Fatalf("orgSharedAddressBookEnabledFromValue(%q, err=%v) = %v, want %v", tc.value, tc.err, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestFilterAddressBookPeersByVisibleSet(t *testing.T) {
+	t.Parallel()
+
+	data := `{"peers":[{"id":"A","alias":"Allowed"},{"id":"B","alias":"Denied"},{"id":"REMOTE","alias":"Typed"}],"tags":["X"]}`
+	known := map[string]*db.Peer{
+		"A": {ID: "A"},
+		"B": {ID: "B"},
+	}
+	visible := map[string]bool{"A": true}
+
+	got := filterAddressBookPeersByVisibleSet(data, visible, known)
+	ab := parseAddressBookMap(got)
+	peers := toPeerSlice(ab["peers"])
+	if len(peers) != 2 {
+		t.Fatalf("peer count = %d, want 2 (A + REMOTE); data=%s", len(peers), got)
+	}
+	ids := map[string]bool{}
+	for _, p := range peers {
+		ids[p["id"].(string)] = true
+	}
+	if !ids["A"] || !ids["REMOTE"] || ids["B"] {
+		t.Fatalf("unexpected peers after filter: %v", ids)
+	}
+
+	if unchanged := filterAddressBookPeersByVisibleSet(data, nil, known); unchanged != data {
+		t.Fatalf("nil visible should leave data unchanged")
 	}
 }

@@ -304,8 +304,7 @@ cursor.execute('''
         role VARCHAR(20) NOT NULL DEFAULT 'viewer',
         created_at DATETIME NOT NULL,
         last_login DATETIME,
-        is_active BOOLEAN NOT NULL DEFAULT 1,
-        CHECK (role IN ('admin', 'operator', 'viewer'))
+        is_active BOOLEAN NOT NULL DEFAULT 1
     )
 ''')
 

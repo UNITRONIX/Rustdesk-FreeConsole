@@ -381,9 +381,8 @@ async function getConsoleDeviceContext(user) {
 
     try {
         context.devices = await serverBackend.getAllDevices({});
-        if (!canBrowseDeviceInventory(user)) {
-            context.devices = await filterDevicesForRustDeskUser(user, context.devices);
-        }
+        // Always apply device-group / folder ACL (including operators with device.view).
+        context.devices = await filterDevicesForRustDeskUser(user, context.devices);
     } catch (err) {
         console.warn('[API:AB] Failed to read panel devices:', err.message);
     }
@@ -403,10 +402,26 @@ async function buildSyncedAddressBook(user, abType) {
     // Previously this was true for admin/operator users, causing "ghost" entries
     // that reappear after deletion. The "Available Devices" tab shows all server
     // devices via /api/peers/list — the AB should only contain user-added entries.
-    return addressBookSync.mergeAddressBookData(abData, {
+    let merged = addressBookSync.mergeAddressBookData(abData, {
         ...context,
         includeDevices: false
     });
+
+    // Strip org/stale peers outside device-group ACL (same scope as peer list).
+    try {
+        const allDevices = await serverBackend.getAllDevices({});
+        const scope = await deviceGroupService.getDeviceScopeForUser(db, user, allDevices);
+        if (scope) {
+            merged = addressBookSync.filterAddressBookPeersByScope(merged, {
+                visibleIds: scope,
+                knownDeviceIds: (allDevices || []).map(d => d && d.id)
+            });
+        }
+    } catch (err) {
+        console.warn(`[API:AB] Failed to apply device scope to address book for ${user && user.username}:`, err.message);
+    }
+
+    return merged;
 }
 
 async function getSyncedAddressBookTags(user) {

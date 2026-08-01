@@ -89,4 +89,27 @@ describe('rustdeskAddressBookSync', () => {
             { id: '123456789', tags: ['Client', 'Windows', 'Servers'] }
         ]);
     });
+
+    it('filters known out-of-scope peers while keeping typed remote IDs', () => {
+        const result = JSON.parse(sync.filterAddressBookPeersByScope(JSON.stringify({
+            peers: [
+                { id: 'ALLOW1', alias: 'Ok' },
+                { id: 'DENY1', alias: 'Hidden' },
+                { id: 'REMOTE', alias: 'Typed' }
+            ],
+            tags: ['X']
+        }), {
+            visibleIds: new Set(['ALLOW1']),
+            knownDeviceIds: ['ALLOW1', 'DENY1']
+        }));
+
+        expect(result.peers.map(p => p.id)).toEqual(['ALLOW1', 'REMOTE']);
+    });
+
+    it('leaves address book unchanged when visibleIds is null', () => {
+        const raw = JSON.stringify({ peers: [{ id: 'A' }], tags: [] });
+        expect(sync.filterAddressBookPeersByScope(raw, { visibleIds: null })).toBe(
+            JSON.stringify({ peers: [{ id: 'A' }], tags: [] })
+        );
+    });
 });

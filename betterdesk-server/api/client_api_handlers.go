@@ -400,6 +400,8 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 			// RustDesk legacy AB reads tags from GET /api/ab (not /api/ab/tags).
 			data = s.syncServerTagsIntoAddressBook(data, r, username, role)
 		}
+		// Enforce device-group / folder ACL on Address Book peers (org merge + stale entries).
+		data = s.applyDeviceScopeToAddressBook(r, username, role, data)
 		writeJSON(w, http.StatusOK, map[string]any{"data": data, "licensed_devices": 0})
 
 	case http.MethodPost:
@@ -453,6 +455,7 @@ func (s *Server) handleClientAddressBookPersonal(w http.ResponseWriter, r *http.
 		if !auth.IsProRole(role) {
 			data = s.mergeAdminTagsIntoAB(data)
 		}
+		data = s.applyDeviceScopeToAddressBook(r, username, role, data)
 		writeJSON(w, http.StatusOK, map[string]any{"data": data})
 
 	case http.MethodPost:

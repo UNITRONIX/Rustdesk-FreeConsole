@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/unitronix/betterdesk-server/auth"
 	"github.com/unitronix/betterdesk-server/db"
 )
 
@@ -255,4 +256,51 @@ func (s *Server) mergeOrgAddressBooksIntoAB(r *http.Request, data string) string
 		return data
 	}
 	return mergeAddressBookJSON(data, overlays...)
+}
+
+// filterAddressBookPeersByVisibleSet strips known server peers outside the caller's
+// device-group ACL. Peers not present in knownPeers (user-typed remote IDs) are kept.
+// When visible is nil, no filtering is applied (unrestricted / admin).
+func filterAddressBookPeersByVisibleSet(data string, visible map[string]bool, knownPeers map[string]*db.Peer) string {
+	if visible == nil {
+		return data
+	}
+	ab := parseAddressBookMap(data)
+	peers := toPeerSlice(ab["peers"])
+	filtered := make([]map[string]any, 0, len(peers))
+	for _, p := range peers {
+		id, _ := p["id"].(string)
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, known := knownPeers[id]; known && !visible[id] {
+			continue
+		}
+		filtered = append(filtered, p)
+	}
+	ab["peers"] = peersToAny(filtered)
+	out, err := json.Marshal(ab)
+	if err != nil {
+		return data
+	}
+	return string(out)
+}
+
+// applyDeviceScopeToAddressBook filters Address Book peers with the same ACL as
+// /api/peers/list (device groups, folders, peer grants, Restricted default).
+func (s *Server) applyDeviceScopeToAddressBook(r *http.Request, username, role, data string) string {
+	if auth.IsProRole(role) {
+		return data
+	}
+	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
+		return data
+	}
+	user := s.rustDeskUserForGroups(r, username, role)
+	if user == nil {
+		return data
+	}
+	peerByID, _ := s.loadRustDeskPeerByID(username, role)
+	visible := s.rustDeskVisiblePeerSet(user, role, peerByID)
+	return filterAddressBookPeersByVisibleSet(data, visible, peerByID)
 }

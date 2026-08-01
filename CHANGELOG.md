@@ -7,8 +7,9 @@
 
 ## [3.5.4] — 2026-08-01
 
-### Changed
-- _(none yet)_
+### Fixed
+- **Address Book ACL bypass (restricted users) (#342):** `GET /api/ab` (and personal AB / tags) now filters peers and fleet tags through the same device-group / folder ACL as `/api/peers/list`, so org shared address-book merge and stale entries no longer expose out-of-scope machines. Unscoped `GET /api/peers` (without `accessible`/`pageSize`) applies the same ACL for non-admin roles. Ships via panel update (Go server + console).
+- **Legacy SQLite role CHECK blocking Phase 52 sync (#342):** upgraded `users` tables that still had `CHECK (role IN ('admin','operator','viewer'))` are rebuilt on Go `Migrate()` so `super_admin` / `global_admin` / `server_admin` / `pro` sync correctly. Installer/docs creators no longer add the old CHECK. Ships via panel update (Go server restart/migrate).
 
 ---
 
