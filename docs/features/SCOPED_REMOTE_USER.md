@@ -32,8 +32,10 @@ RustDesk Pro **client features** are controlled separately via **strategy assign
 
 - **Password**: Remote Operator / Viewer → Settings → Change password (local accounts).
 - **Web Client**: requires **Remote Operator** (`device.connect` permission).
+- **Peer password**: device-group / folder ACL only limits **which machines appear** in the address book. Connecting still requires the target’s RustDesk permanent/temporary password (or on-screen approve). BetterDesk login does not bypass that peer handshake — see [Discussion #285](https://github.com/UNITRONIX/BetterDesk/discussions/285).
 
 ## Related
 
 - [RBAC Phase 52](RBAC_PHASE52.md)
 - GitHub discussion #227
+- [GitHub discussion #285](https://github.com/UNITRONIX/BetterDesk/discussions/285) — login/groups vs peer password

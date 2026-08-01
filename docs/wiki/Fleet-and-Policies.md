@@ -21,14 +21,14 @@ Fleet tools complement per-device actions on the **Devices** page. Use folders f
 
 ## Access policies
 
-Access policies control **who can connect**, **when**, and **with which credentials**:
+Access policies store **inventory and scheduling metadata** for a device (panel / Go API). They do **not** replace the RustDesk peer password handshake and are **not enforced at connect time** on punch/relay today.
 
 | Policy element | Description |
 |----------------|-------------|
-| **Schedule** | Time windows for unattended access |
-| **Operator restrictions** | Limit which operators may connect |
-| **Device password** | Bcrypt-hashed unattended password |
-| **Approval** | Require user consent vs unattended |
+| **Schedule** | Recorded time windows for unattended access (metadata) |
+| **Operator restrictions** | Stored allowlist of operators (not enforced on peer connect yet) |
+| **Device password** | Bcrypt hash of the unattended password (inventory / reference) |
+| **Approval** | Notes attended vs unattended intent — target client config still applies |
 
 Configure under **Policies** in the web panel or via Go API:
 
@@ -43,9 +43,12 @@ See [[API Reference|API-Reference]] for CRUD endpoints.
 
 ## Unattended access
 
-1. Set device password in policy or device detail
-2. Define schedule (optional)
-3. Operators connect without end-user prompt when policy allows
+Two separate steps — both are required for hands-off remote access:
+
+1. **On the target:** configure RustDesk for unattended access (permanent password via `--password`, client Security settings, or BetterDesk Agent Client unattended mode). Without this, the peer still prompts for a temporary password or on-screen approval.
+2. **In BetterDesk (optional):** record the same password / schedule under Access Policy for inventory and operator reference. This does **not** push credentials to stock RustDesk or skip the peer login prompt.
+
+Operators still enter the **target peer password** when connecting (desktop RustDesk, Web Remote, or RdClient). BetterDesk account login and device-group membership only control **visibility** (address book / ACL) and audit attribution — not passwordless peer connect.
 
 Wake-on-LAN for offline devices: device kebab menu → **Wake on LAN** (requires known MAC).
 

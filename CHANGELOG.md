@@ -6,6 +6,9 @@
 ### Changed
 - _(none yet)_
 
+### Docs
+- **Peer password vs BetterDesk login (discussion #285):** clarified that Access Policy / device groups do not bypass the RustDesk peer password — [`Fleet-and-Policies.md`](docs/wiki/Fleet-and-Policies.md), [`SCOPED_REMOTE_USER.md`](docs/features/SCOPED_REMOTE_USER.md), [`RUSTDESK_CLIENT_DEPLOYMENT.md`](docs/setup/RUSTDESK_CLIENT_DEPLOYMENT.md).
+
 ---
 
 ## [3.5.6] — 2026-08-01
