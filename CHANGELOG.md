@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Dashboard Copy deploy string with invalid/placeholder public key (#340):** client config / deploy string / QR now require a valid Ed25519 key (base64 → 32 bytes), reject placeholders, and fall back to the live Go `GET /api/server-key` when `id_ed25519.pub` is missing or bad. Windows installer also sets `PUB_KEY_PATH` in the console NSSM environment. Ships via panel update (re-run `betterdesk.ps1` service setup to refresh NSSM env on Windows).
+
 ### Changed
 - _(none yet)_
 

@@ -1596,19 +1596,11 @@ function cleanupTfaSessions(sessions) {
  * This key is used by clients to verify peer identity (signed_id_pk).
  * Public key is inherently safe to expose — no auth required.
  */
-router.get('/api/server-key', (req, res) => {
+router.get('/api/server-key', async (req, res) => {
     try {
-        if (!fs.existsSync(config.pubKeyPath)) {
-            return res.json({ key: '' });
-        }
-        const key = fs.readFileSync(config.pubKeyPath, 'utf8').trim();
-        // Validate: should decode to 32 bytes (Ed25519 public key)
-        const decoded = Buffer.from(key, 'base64');
-        if (decoded.length !== 32) {
-            console.warn('[API:SERVER-KEY] Invalid RS public key length:', decoded.length);
-            return res.json({ key: '' });
-        }
-        return res.json({ key });
+        const keyService = require('../services/keyService');
+        const key = await keyService.resolvePublicKey();
+        return res.json({ key: key || '' });
     } catch (err) {
         console.warn('[API:SERVER-KEY] Error reading public key:', err.message);
         return res.json({ key: '' });
@@ -1619,12 +1611,13 @@ router.get('/api/server-key', (req, res) => {
  * GET /api/server-key/fingerprint
  * Returns SHA-256 fingerprint of RS public key for out-of-band verification.
  */
-router.get('/api/server-key/fingerprint', (req, res) => {
+router.get('/api/server-key/fingerprint', async (req, res) => {
     try {
-        if (!fs.existsSync(config.pubKeyPath)) {
+        const keyService = require('../services/keyService');
+        const key = await keyService.resolvePublicKey();
+        if (!key) {
             return res.json({ fingerprint: '', algorithm: 'SHA-256' });
         }
-        const key = fs.readFileSync(config.pubKeyPath, 'utf8').trim();
         const hash = crypto.createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex');
         return res.json({
             fingerprint: hash.match(/.{2}/g).join(':').toUpperCase(),

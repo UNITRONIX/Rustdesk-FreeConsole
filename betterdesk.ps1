@@ -2089,6 +2089,7 @@ function Setup-Services {
             "KEYS_PATH=$script:RUSTDESK_PATH",
             "DATA_DIR=$script:CONSOLE_PATH\data",
             "DB_PATH=$script:RUSTDESK_PATH\db_v2.sqlite3",
+            "PUB_KEY_PATH=$script:RUSTDESK_PATH\id_ed25519.pub",
             "API_KEY_PATH=$script:RUSTDESK_PATH\.api_key",
             "HBBS_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",
             "BETTERDESK_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",

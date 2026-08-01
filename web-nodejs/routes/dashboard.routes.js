@@ -32,9 +32,9 @@ router.get('/api/stats', requireAuth, async (req, res) => {
         // Get server health
         const hbbsHealth = await serverBackend.getHealth();
         
-        // Get public key info
-        const publicKey = keyService.getPublicKey();
-        
+        // Get public key info (file or live Go key)
+        const publicKey = await keyService.resolvePublicKey();
+
         res.json({
             success: true,
             data: {
@@ -148,7 +148,7 @@ router.get('/api/dashboard/client-config', requireAuth, async (req, res) => {
     try {
         const queryHost = typeof req.query.host === 'string' ? req.query.host : '';
         const endpoints = clientConfigHost.resolveRustDeskEndpoints(req, queryHost);
-        const clientConfig = keyService.getClientConfig(endpoints);
+        const clientConfig = await keyService.getClientConfig(endpoints);
         const qr = await keyService.getServerConfigQR(endpoints);
 
         res.json({

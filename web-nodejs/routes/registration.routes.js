@@ -24,7 +24,6 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const fs = require('fs');
 const db = require('../services/database');
 const config = require('../config/config');
 const { requirePermission } = require('../middleware/auth');
@@ -57,13 +56,12 @@ function getClientIp(req) {
 }
 
 /**
- * Read the server public key from disk (base64).
+ * Read the server public key (validated file, then live Go key).
  */
-function getServerPublicKey() {
+async function getServerPublicKey() {
     try {
-        if (fs.existsSync(config.pubKeyPath)) {
-            return fs.readFileSync(config.pubKeyPath, 'utf8').trim();
-        }
+        const keyService = require('../services/keyService');
+        return (await keyService.resolvePublicKey()) || '';
     } catch (_) { /* ignore */ }
     return '';
 }
@@ -78,14 +76,14 @@ function generateDeviceAccessToken() {
 /**
  * Build the server config payload returned to devices upon approval.
  */
-function buildServerConfig() {
+async function buildServerConfig() {
     const protocol = config.httpsEnabled ? 'https' : 'http';
     const consoleUrl = `${protocol}://0.0.0.0:${config.port}`;
 
     return {
         console_url: consoleUrl,
         server_address: `0.0.0.0:21116`,
-        server_key: getServerPublicKey(),
+        server_key: await getServerPublicKey(),
         access_token: generateDeviceAccessToken(),
     };
 }
@@ -283,7 +281,7 @@ router.put('/api/registrations/:id/approve', requirePermission('enrollment.appro
         }
 
         // Build server config — use actual server address from the request
-        const serverConfig = buildServerConfig();
+        const serverConfig = await buildServerConfig();
 
         // Replace 0.0.0.0 with the actual hostname / IP the admin is accessing
         const actualHost = req.headers.host?.split(':')[0] || req.hostname || 'localhost';
