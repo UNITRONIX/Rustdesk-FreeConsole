@@ -2076,14 +2076,9 @@
             toggleTopbarEditMode();
         });
 
-        var helpBtn = document.getElementById('topbar-help-btn');
-        if (helpBtn) helpBtn.addEventListener('click', function() {
-            if (window.BetterDeskTutorial && typeof window.BetterDeskTutorial.toggleHelpMenu === 'function') {
-                window.BetterDeskTutorial.toggleHelpMenu();
-            } else if (window.Tutorial && typeof window.Tutorial.toggleHelpMenu === 'function') {
-                window.Tutorial.toggleHelpMenu();
-            }
-        });
+        if (window.HelpPanel && typeof window.HelpPanel.wireTriggers === 'function') {
+            window.HelpPanel.wireTriggers();
+        }
 
         renderTopbarShortcuts();
         initTopbarDropZone();

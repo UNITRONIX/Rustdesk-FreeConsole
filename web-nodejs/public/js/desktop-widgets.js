@@ -1369,11 +1369,10 @@
             editBtn.classList.toggle('active');
             document.body.classList.toggle('widget-edit-mode');
         });
-        // Help button — start desktop tutorial
-        var helpBtn = nav.querySelector('#topnav-help');
-        if (helpBtn) helpBtn.addEventListener('click', function () {
-            if (window.BetterDeskTutorial) window.BetterDeskTutorial.start('desktop');
-        });
+        // Help button wired by help-panel.js after topnav is injected
+        if (window.HelpPanel && typeof window.HelpPanel.wireTriggers === 'function') {
+            window.HelpPanel.wireTriggers();
+        }
         // Exit desktop mode
         var exitBtn = nav.querySelector('#topnav-exit');
         if (exitBtn) exitBtn.addEventListener('click', function () {

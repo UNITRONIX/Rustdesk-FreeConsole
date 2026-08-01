@@ -1,7 +1,7 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- **Help panel replaces guided tours:** the console Help control (UX 3.5, classic rail, Desktop Mode) opens a right-side panel with project supporters and GitHub / sponsorship links instead of spotlight tutorials. Tutorial JS/CSS, Settings → Tutorials, and the floating help FAB are removed. Supporters data lives in `web-nodejs/config/supporters.json` (keep in sync with `SPONSORS.md`). Ships via panel update.
 
 ---
 

@@ -415,15 +415,6 @@
         else if (MQ_DRAWER.addListener) MQ_DRAWER.addListener(onMqChange);
     }
 
-    function initHelp() {
-        var helpBtn = document.getElementById('ux35-help-btn');
-        if (helpBtn) {
-            helpBtn.addEventListener('click', function () {
-                if (typeof Tutorial !== 'undefined') Tutorial.start('console');
-            });
-        }
-    }
-
     function initThemeBtn() {
         var btn = document.getElementById('ux35-theme-btn');
         if (btn) btn.addEventListener('click', cycleThemePreview);
@@ -456,7 +447,6 @@
         restoreSidebarWidth();
         initDrawer();
         initResize();
-        initHelp();
         initThemeBtn();
         initScrollPreserve();
     }

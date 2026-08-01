@@ -229,29 +229,6 @@
     color: #656d76;
 }
 
-/* Tutorial help button light theme */
-.desktop-theme-light .tutorial-help-btn,
-[data-theme="light"] .tutorial-help-btn {
-    box-shadow: 0 4px 16px rgba(46, 160, 67, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08);
-}
-
-.desktop-theme-light .tutorial-help-menu,
-[data-theme="light"] .tutorial-help-menu {
-    background: rgba(255, 255, 255, 0.98);
-    border-color: rgba(0, 0, 0, 0.1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-}
-
-.desktop-theme-light .tutorial-help-menu-item,
-[data-theme="light"] .tutorial-help-menu-item {
-    color: #1f2328;
-}
-
-.desktop-theme-light .tutorial-help-menu-item:hover,
-[data-theme="light"] .tutorial-help-menu-item:hover {
-    background: rgba(0, 0, 0, 0.04);
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
    AUTO THEME (OS preference)
    ═══════════════════════════════════════════════════════════════════════ */

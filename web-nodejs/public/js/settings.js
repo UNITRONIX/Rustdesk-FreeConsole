@@ -38,7 +38,6 @@
             initEmailSection();
         }
 
-        initTutorialSection();
         loadAuditLog();
         loadServerInfo();
         initMeshSettingsSection();
@@ -2752,65 +2751,6 @@
         el.innerHTML = html;
     }
     
-    // ==================== Tutorials ====================
-
-    function initTutorialSection() {
-        const toggle = document.getElementById('tutorials-enabled');
-        const resetBtn = document.getElementById('tutorials-reset-btn');
-        if (!toggle) return;
-
-        // Read current state from Tutorial system (localStorage)
-        const tutorialDisabled = typeof Tutorial !== 'undefined' ? Tutorial.isDisabled() : 
-            localStorage.getItem('betterdesk_tutorial_disabled') === 'true';
-        toggle.checked = !tutorialDisabled;
-
-        toggle.addEventListener('change', function() {
-            const disabled = !toggle.checked;
-            if (typeof Tutorial !== 'undefined') {
-                Tutorial.setDisabled(disabled);
-            } else {
-                localStorage.setItem('betterdesk_tutorial_disabled', disabled ? 'true' : 'false');
-            }
-            // Notify tutorial.js to show/hide help button
-            window.dispatchEvent(new CustomEvent('tutorial:stateChanged', { detail: { disabled: disabled } }));
-
-            if (typeof Toast !== 'undefined') {
-                Toast.success(
-                    disabled ? _('settings.tutorials_disabled_toast') : _('settings.tutorials_enabled_toast'),
-                    '', 3000
-                );
-            }
-        });
-
-        // Listen for changes from help menu toggle
-        window.addEventListener('tutorial:stateChanged', function(e) {
-            if (e.detail && typeof e.detail.disabled === 'boolean') {
-                toggle.checked = !e.detail.disabled;
-            }
-        });
-
-        if (resetBtn) {
-            resetBtn.addEventListener('click', async function() {
-                const confirmed = await settingsConfirmCritical({
-                    title: tSettings('confirm.tutorials_reset_title', 'Reset tutorials?'),
-                    message: tSettings('confirm.tutorials_reset', 'Reset all tutorial progress? Guided tips will show again on each page.'),
-                    confirmLabel: _('tutorial.reset_all'),
-                    icon: 'refresh'
-                });
-                if (!confirmed) return;
-
-                if (typeof Tutorial !== 'undefined') {
-                    Tutorial.resetTutorial();
-                } else {
-                    localStorage.removeItem('betterdesk_tutorial_seen');
-                }
-                if (typeof Toast !== 'undefined') {
-                    Toast.success(_('settings.tutorials_reset_toast'), '', 3000);
-                }
-            });
-        }
-    }
-
     // ==================== Self-Update ====================
     
     let _updateState = { remoteSHA: null, changedData: null };

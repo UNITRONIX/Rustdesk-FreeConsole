@@ -23,7 +23,7 @@
     <% } %>
     <% if (!embed) { %>
     <link rel="stylesheet" href="/css/mobile-shell.css?v=<%= cacheVersion %>">
-    <link rel="stylesheet" href="/css/tutorial.css?v=<%= cacheVersion %>">
+    <link rel="stylesheet" href="/css/help-panel.css?v=<%= cacheVersion %>">
     <% } %>
     <% if (typeof pageStyles !== 'undefined' && pageStyles.length) { %>
         <% pageStyles.forEach(style => { %>
@@ -46,6 +46,9 @@
                     <%- body %>
                 </main>
             </div>
+            <% if (!embed) { %>
+            <%- include('../partials/help-panel') %>
+            <% } %>
         </div>
         <% if (!embed) { %>
         <%- include('../partials/mobile-bottom-nav') %>
@@ -69,6 +72,9 @@
         <%- include('../partials/mobile-bottom-nav') %>
         <% } %>
     </div>
+    <% if (!embed) { %>
+    <%- include('../partials/help-panel') %>
+    <% } %>
     <% } %>
 
     <div id="modal-container"></div>
@@ -104,8 +110,7 @@
     <script src="/js/ux35-shell.js?v=<%= cacheVersion %>"></script>
     <% } %>
     <script src="/js/mobile-nav.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/tutorial.js?v=<%= cacheVersion %>"></script>
-    <script nonce="<%= cspNonce %>">if (typeof Tutorial !== 'undefined') Tutorial.autoStart('console');</script>
+    <script src="/js/help-panel.js?v=<%= cacheVersion %>"></script>
     <% } %>
     <% if (typeof pageScripts !== 'undefined' && pageScripts.length) { %>
         <% pageScripts.forEach(script => { %>

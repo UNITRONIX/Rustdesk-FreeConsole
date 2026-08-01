@@ -26,6 +26,8 @@ Client helper: `web-nodejs/public/js/ui-shell.js`. SSR selects partials in `main
 | Shell CSS | `web-nodejs/public/css/ux35.css` |
 | Shell JS (drawer, resize, theme icon) | `web-nodejs/public/js/ux35-shell.js` |
 | Shell switcher | `web-nodejs/public/js/ui-shell.js` |
+| Help panel (supporters + links) | `web-nodejs/views/partials/help-panel.ejs`, `public/css/help-panel.css`, `public/js/help-panel.js` |
+| Supporters data | `web-nodejs/config/supporters.json` (mirrors `SPONSORS.md`) |
 
 Navigation uses ordinary `<a href>` links (full page load). There is **no** iframe shell.
 
@@ -35,6 +37,7 @@ Out of scope for UX 3.5 (unchanged): login page, RdClient, remote viewer, CDAP S
 
 - **Topbar:** 48px — brand, breadcrumb (desktop), shell switch, refresh, notifications, theme, accessibility, language, user menu
 - **Sidebar:** default **220px** (resizable 200–320px, stored in `localStorage` key `bd_ux35_sidebar_width`)
+- **Help:** sidebar **Help** opens a right-side panel (supporters list + GitHub / sponsorship links). On ≥1100px the panel docks beside main content; on narrower viewports it is a slide-over with overlay. Classic shell and Desktop Mode use the same panel as a slide-over. Guided tours / spotlight tutorials are retired.
 - **Content:** padding via `--ux35-content-padding` / `--ux35-content-padding-lg` (16–24px)
 
 **Solid surfaces (no glass/blur):** UX 3.5 chrome and in-content cards/forms use opaque `bg-*` tokens. `backdrop-filter` is disabled under `.ux35-page`. Classic rail/flyout may still use branding glass. Chrome typography uses `--ux35-font-chrome` (system stack) so Settings branding preview cannot restyle the sidebar.
@@ -90,7 +93,7 @@ Beta 3.1 (`beta31.js` / `beta31.css`) was an optional overlay that loaded pages 
 
 ## i18n
 
-Keys under `ux35.*` (including `switch_to_ux35` / `switch_to_classic`) and `theme.custom` exist in all 26 `web-nodejs/lang/*.json` locales. Helpers: `web-nodejs/scripts/patch-ux35-i18n.js`, `patch-ux35-shell-switch-i18n.js`.
+Keys under `ux35.*` (including `switch_to_ux35` / `switch_to_classic`), `help.panel.*`, and `theme.custom` exist in all 26 `web-nodejs/lang/*.json` locales. Helpers: `web-nodejs/scripts/patch-ux35-i18n.js`, `patch-ux35-shell-switch-i18n.js`, `patch-help-panel-i18n.js`.
 
 ## Acceptance checklist
 
@@ -102,6 +105,8 @@ Keys under `ux35.*` (including `switch_to_ux35` / `switch_to_classic`) and `them
 - [ ] Topbar theme dark↔light updates shell immediately (no extra click)
 - [ ] Settings → Updates: sidebar fonts unchanged
 - [ ] Settings → Branding: live preview only while Branding tab is active; does not restyle sidebar
+- [ ] Help (UX 3.5 ≥1100): docks right; shows supporters + GitHub links; Escape / Close dismisses
+- [ ] Help (narrow / classic): slide-over + overlay; no tutorial spotlight / FAB
 - [ ] Tablet 1024 / 768: drawer opens/closes; Escape closes drawer; overlay fades
 - [ ] Phone 390: drawer + bottom nav
 - [ ] Classic shell: branding glass still works when enabled

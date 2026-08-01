@@ -38,6 +38,7 @@ const { initMeshAshxProxy } = require('./services/meshAshxProxy');
 const { startDiscoveryService } = require('./services/lanDiscovery');
 const { initDeviceStatusPush } = require('./services/deviceStatusPush');
 const { initHelpRequestEmailService } = require('./services/helpRequestEmailService');
+const { loadSupporters } = require('./services/supportersService');
 const routes = require('./routes');
 const rustdeskApiRoutes = require('./routes/rustdesk-api.routes');
 const bdApiRoutes = require('./routes/bd-api.routes');
@@ -204,6 +205,7 @@ app.use((req, res, next) => {
         if (raw === 'ux35' || raw === 'classic') uiShell = raw;
     }
     res.locals.uiShell = uiShell;
+    res.locals.supporters = loadSupporters();
     // Inject permission helper for EJS templates (sidebar/button visibility)
     const role = req.session?.user?.role;
     res.locals.hasPermission = (perm) => role ? roleHasPermission(role, perm) : false;
