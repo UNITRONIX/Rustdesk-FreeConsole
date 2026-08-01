@@ -823,18 +823,13 @@ function generateSemanticAliasCss(branding) {
         '    --ux35-primary: var(--accent-blue);',
         '    --ux35-active-bg: var(--accent-blue-muted);',
         '    --ux35-glass-blur: 0px;',
-        '    --ux35-glass-saturate: 1;'
+        '    --ux35-glass-saturate: 1;',
+        '    /* UX 3.5 topbar chrome — theme-invariant (always dark) */',
+        '    --ux35-topbar-bg: #161b22;',
+        '    --ux35-topbar-fg: #e6edf3;',
+        '    --ux35-topbar-fg-muted: #8b949e;',
+        '    --ux35-topbar-border: #30363d;'
     ];
-    const mode = normalizeThemeMode(branding.themeMode);
-    if (mode === 'light') {
-        lines.push('    --ux35-topbar-bg: var(--accent-blue);');
-        lines.push('    --ux35-topbar-fg: #ffffff;');
-        lines.push('    --ux35-topbar-fg-muted: rgba(255, 255, 255, 0.78);');
-    } else {
-        lines.push('    --ux35-topbar-bg: var(--bg-elevated, var(--bg-secondary));');
-        lines.push('    --ux35-topbar-fg: var(--text-primary);');
-        lines.push('    --ux35-topbar-fg-muted: var(--text-secondary);');
-    }
     return `:root {\n${lines.join('\n')}\n}\n`;
 }
 

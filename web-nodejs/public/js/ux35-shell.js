@@ -141,7 +141,7 @@
         '--ux35-bg', '--ux35-sidebar-bg', '--ux35-card-bg', '--ux35-border',
         '--ux35-border-light', '--ux35-text', '--ux35-muted', '--ux35-hover',
         '--ux35-primary', '--ux35-active-bg', '--ux35-glass-blur', '--ux35-glass-saturate',
-        '--ux35-topbar-bg', '--ux35-topbar-fg', '--ux35-topbar-fg-muted'
+        '--ux35-topbar-bg', '--ux35-topbar-fg', '--ux35-topbar-fg-muted', '--ux35-topbar-border'
     ];
 
     function clearThemeInlineOverrides() {
@@ -193,15 +193,11 @@
         root.setProperty('--ux35-glass-blur', '0px');
         root.setProperty('--ux35-glass-saturate', '1');
 
-        if (next === 'light') {
-            root.setProperty('--ux35-topbar-bg', palette.accentBlue);
-            root.setProperty('--ux35-topbar-fg', '#ffffff');
-            root.setProperty('--ux35-topbar-fg-muted', 'rgba(255,255,255,0.78)');
-        } else {
-            root.setProperty('--ux35-topbar-bg', palette.bgElevated);
-            root.setProperty('--ux35-topbar-fg', palette.textPrimary);
-            root.setProperty('--ux35-topbar-fg-muted', palette.textSecondary);
-        }
+        // Topbar chrome is theme-invariant (always dark)
+        root.setProperty('--ux35-topbar-bg', '#161b22');
+        root.setProperty('--ux35-topbar-fg', '#e6edf3');
+        root.setProperty('--ux35-topbar-fg-muted', '#8b949e');
+        root.setProperty('--ux35-topbar-border', '#30363d');
 
         // Force a synchronous style flush so paint does not wait for the next click
         void document.documentElement.offsetHeight;

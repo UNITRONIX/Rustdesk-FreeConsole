@@ -40,7 +40,7 @@ body.app-page.ux35-page {
     padding: 0 var(--ux35-space-4);
     gap: var(--ux35-space-3);
     z-index: 40;
-    border-bottom: 1px solid var(--ux35-border);
+    border-bottom: 1px solid var(--ux35-topbar-border, #30363d);
     font-family: var(--ux35-font-chrome);
     flex-shrink: 0;
 }
@@ -125,14 +125,8 @@ body.app-page.ux35-page {
     position: relative;
     transition: background var(--ux35-motion-fast), color var(--ux35-motion-fast);
 }
-.ux35-topbar-btn:hover { background: rgba(127, 127, 127, 0.18); color: var(--ux35-topbar-fg); }
+.ux35-topbar-btn:hover { background: rgba(255, 255, 255, 0.12); color: var(--ux35-topbar-fg); }
 .ux35-topbar-btn .material-icons { font-size: 20px; }
-
-[data-theme="light"] .ux35-topbar-btn:hover,
-[data-theme="light"] .ux35-topbar-menu-btn:hover {
-    background: rgba(255, 255, 255, 0.16);
-    color: #fff;
-}
 
 .ux35-topbar .notif-badge {
     position: absolute;

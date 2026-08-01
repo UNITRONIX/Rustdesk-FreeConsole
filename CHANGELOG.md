@@ -2,6 +2,7 @@
 
 ### Fixed
 - **Native install TLS self-signed deploy regression (#325, discussion #322):** re-applied `_safe_cp_tls_file` no-op when source and dest are the same real file. The v3.4.3 fix was lost on the 3.5.0 merge; fresh `install.sh --native` again failed with `cp: cannot stat '.../betterdesk.crt'`. Symlink→copy for Let's Encrypt (#219) is unchanged. Ships via installer / `betterdesk.sh` (not panel-only). Verify: install completes past “Generating self-signed TLS certificates” with both `/opt/betterdesk/ssl/betterdesk.crt` and `.key` present.
+- **UX 3.5 topbar turned blue / unreadable in light theme:** topbar chrome is now theme-invariant (always dark `#161b22` with light ink). Light/dark still flips sidebar and content. Ships via panel update.
 
 ### Changed
 - _(none yet)_
