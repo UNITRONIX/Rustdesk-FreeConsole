@@ -1469,7 +1469,7 @@ The Go server sends a UDP broadcast magic packet (6× `0xFF` + 16× MAC address)
 
 | Component | Technology |
 |-----------|-----------|
-| **Runtime** | Node.js 18+ |
+| **Runtime** | Node.js 22+ |
 | **Framework** | Express.js |
 | **Templates** | EJS |
 | **Database** | better-sqlite3 |
@@ -1580,7 +1580,7 @@ CDAP Device (Agent/Bridge)  ──WebSocket──►  Go Server (:21122/cdap)
 | SDK | Language | Status |
 |-----|----------|--------|
 | [Python SDK](sdks/python/) | Python 3.9+ | ✅ Stable |
-| [Node.js SDK](sdks/nodejs/) | Node.js 18+ | ✅ Stable |
+| [Node.js SDK](sdks/nodejs/) | Node.js 22+ | ✅ Stable |
 
 | Bridge | Protocol | Status |
 |--------|----------|--------|

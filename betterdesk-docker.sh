@@ -1784,13 +1784,13 @@ repair_named_volume_permissions() {
     fi
 
     print_info "Repairing Docker volume permissions: $volume"
-    docker run --rm -v "$volume:/target" alpine:3.20 sh -c '
+    docker run --rm -v "$volume:/target" alpine:3.22 sh -c '
         set -e
         mkdir -p /target
         chown -R 10001:10001 /target
         chmod -R u+rwX,g+rwX /target
     ' >/dev/null 2>&1 || {
-        print_warning "Could not repair volume $volume (Docker may need to pull alpine:3.20)"
+        print_warning "Could not repair volume $volume (Docker may need to pull alpine:3.22)"
         return 1
     }
 }

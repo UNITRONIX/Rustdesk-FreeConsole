@@ -1191,15 +1191,15 @@ function Install-NodeJs {
     $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
     if ($nodeCmd) {
         $nodeVersion = (node --version) -replace 'v', '' -split '\.' | Select-Object -First 1
-        if ([int]$nodeVersion -ge 18) {
+        if ([int]$nodeVersion -ge 22) {
             Print-Success "Node.js v$(node --version) already installed"
             return $true
         } else {
-            Print-Warning "Node.js version $nodeVersion is too old (need 18+). Upgrading..."
+            Print-Warning "Node.js version $nodeVersion is too old (need 22+). Upgrading..."
         }
     }
     
-    Print-Step "Installing Node.js 20 LTS..."
+    Print-Step "Installing Node.js 24 LTS..."
     
     # Try winget first (Windows 10/11)
     $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
@@ -1233,7 +1233,7 @@ function Install-NodeJs {
     
     # Manual download as last resort
     Print-Warning "Automatic installation not available."
-    Print-Info "Please install Node.js 20 LTS manually from: https://nodejs.org/"
+    Print-Info "Please install Node.js 24 LTS manually from: https://nodejs.org/"
     Print-Info "After installation, restart the script."
     return $false
 }

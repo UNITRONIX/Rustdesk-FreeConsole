@@ -26,7 +26,7 @@
   "author": "UNITRONIX",
   "license": "AGPL-3.0",
   "dependencies": {
-    "axios": "^1.9.0",
+    "axios": "^1.19.0",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^11.3.0",
     "cookie-parser": "^1.4.7",
@@ -37,17 +37,17 @@
     "express-session": "^1.18.1",
     "helmet": "^7.2.0",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^9.0.3",
     "otplib": "^12.0.1",
     "protobufjs": "^7.6.5",
     "qrcode": "^1.5.4",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
-    "ws": "^8.21.0"
+    "ws": "^8.21.1"
   },
   "optionalDependencies": {
     "node-pty": "^1.0.0",
-    "pg": "^8.13.0"
+    "pg": "^8.22.0"
   },
   "overrides": {
     "@babel/core": "^7.29.6",
@@ -64,6 +64,6 @@
     "supertest": "^7.2.2"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   }
 }

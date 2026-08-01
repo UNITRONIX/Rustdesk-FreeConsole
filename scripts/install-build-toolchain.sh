@@ -97,7 +97,7 @@ install_apt() {
     # package conflicts with it). Install only if neither node nor npm exist.
     if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
         log "Installing Node.js LTS via NodeSource"
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
         apt-get install -y nodejs
     fi
 }

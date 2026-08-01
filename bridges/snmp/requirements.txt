@@ -1,1 +1,1 @@
-pysnmplib>=5.0.0
+pysnmp>=7.1.0

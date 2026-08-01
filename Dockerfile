@@ -17,7 +17,7 @@
 #   5000  - Web Console (Node.js admin panel)
 
 # ============= Stage 1: Build Go server =============
-FROM golang:1.25-alpine AS go-builder
+FROM golang:1.26-alpine AS go-builder
 
 # Retry apk in case of transient DNS failures (common on AlmaLinux/CentOS Docker)
 RUN apk add --no-cache git || { sleep 2 && apk add --no-cache git; }
@@ -36,7 +36,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /betterdesk-server .
 
 # ============= Stage 2: Build Node.js console =============
-FROM node:20-alpine AS node-builder
+FROM node:24-alpine AS node-builder
 
 WORKDIR /app
 
@@ -51,7 +51,7 @@ RUN npm ci --omit=dev
 # Note: supervisord requires root to manage child processes with user= directive.
 # Both betterdesk-server and betterdesk-console run as non-root 'betterdesk' user
 # via supervisord configuration (user=betterdesk).
-FROM node:20-alpine
+FROM node:24-alpine
 
 LABEL maintainer="UNITRONIX"
 LABEL description="BetterDesk — All-in-One (Go Server + Node.js Console)"
