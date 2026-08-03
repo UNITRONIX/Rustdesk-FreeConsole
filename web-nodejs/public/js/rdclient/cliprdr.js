@@ -123,6 +123,12 @@
             client._cliprdrSuppressOutboundUntil = 0;
             client._cliprdrPeerFdId = RDCliprdr.FILEDESCRIPTOR_FORMAT_ID;
             client._cliprdrPeerFcId = RDCliprdr.FILECONTENTS_FORMAT_ID;
+            client._cliprdrDragOutConverting = false;
+            client._cliprdrOleDragIntent = false;
+            if (client._cliprdrDragOutTimer) {
+                clearTimeout(client._cliprdrDragOutTimer);
+                client._cliprdrDragOutTimer = null;
+            }
             try {
                 client._cliprdrFormatNames = await desktopInvoke('desktop_clipboard_format_names');
             } catch (_) {
@@ -130,6 +136,76 @@
             }
             client._sendPeerMessage(client.proto.buildCliprdrMonitorReady());
             RDCliprdr.startPolling(client);
+
+            // Remote Explorer drag never updates Cliprdr by itself — when the
+            // operator drags toward the window edge we Ctrl+C on the remote so
+            // FormatList arrives and we can start a local OLE drag-out.
+            if (client.input) {
+                client.input.onPotentialFileDragOut = function () {
+                    RDCliprdr._beginDragOutConversion(client);
+                };
+            }
+        }
+
+        /**
+         * Convert a stuck remote Explorer file-drag into Cliprdr + local OLE drag.
+         * RustDesk only advertises files via clipboard FormatList (Copy), not OLE.
+         */
+        static _beginDragOutConversion(client) {
+            if (!RDCliprdr.isSupported() || !client) return;
+            if (client._state !== 'streaming' || client.viewOnly) return;
+            if (client._cliprdrDragOutConverting || client._cliprdrReceiving) return;
+            if (client._cliprdrOleDragStarting) return;
+
+            client._cliprdrDragOutConverting = true;
+            client._cliprdrOleDragIntent = true;
+            client._cliprdrOleDragWhenReady = true;
+
+            if (client.input && typeof client.input.setMouseSuppressed === 'function') {
+                client.input.setMouseSuppressed(true);
+            }
+            try {
+                void desktopInvoke('desktop_clipboard_prepare_ole_drag');
+            } catch (_) { /* ignore */ }
+
+            console.info('[RDCliprdr] remote Explorer drag → Ctrl+C for local drop; keep mouse button held');
+
+            if (client._cliprdrDragOutTimer) {
+                clearTimeout(client._cliprdrDragOutTimer);
+            }
+            // Let remote finish cancelling its OLE drag before Copy.
+            setTimeout(function () {
+                if (!client._cliprdrDragOutConverting) return;
+                if (client.input && typeof client.input.sendCtrlC === 'function') {
+                    client.input.sendCtrlC();
+                }
+            }, 60);
+
+            client._cliprdrDragOutTimer = setTimeout(function () {
+                client._cliprdrDragOutTimer = null;
+                if (!client._cliprdrDragOutConverting) return;
+                if (client._cliprdrReceiving || client._cliprdrOleDragStarting) return;
+                client._cliprdrDragOutConverting = false;
+                client._cliprdrOleDragIntent = false;
+                client._cliprdrOleDragWhenReady = false;
+                RDCliprdr._disarmOleDrag(client);
+                if (client.input && typeof client.input.setMouseSuppressed === 'function') {
+                    client.input.setMouseSuppressed(false);
+                }
+                console.warn('[RDCliprdr] no file clipboard after drag-out conversion — use Copy/Paste or File transfer');
+            }, 4000);
+        }
+
+        static _clearDragOutConversion(client, restoreMouse) {
+            if (!client) return;
+            client._cliprdrDragOutConverting = false;
+            if (client._cliprdrDragOutTimer) {
+                clearTimeout(client._cliprdrDragOutTimer);
+                client._cliprdrDragOutTimer = null;
+            }
+            if (restoreMouse && client.input && typeof client.input.setMouseSuppressed === 'function') {
+                client.input.setMouseSuppressed(false);
+            }
         }
 
         static stopPolling(client) {
@@ -371,6 +447,11 @@
             }
             if (fdId == null || fcId == null) {
                 debugLog('inbound FormatList has no file formats');
+                if (client._cliprdrDragOutConverting) {
+                    RDCliprdr._clearDragOutConversion(client, true);
+                    client._cliprdrOleDragIntent = false;
+                    client._cliprdrOleDragWhenReady = false;
+                }
                 return;
             }
 
@@ -378,14 +459,17 @@
             client._cliprdrPeerFcId = fcId;
             client._sendPeerMessage(client.proto.buildCliprdrFormatListResponse(CB_RESPONSE_OK));
 
-            // Drag-out intent: FormatList while local LBUTTON is held (remote file drag).
-            // Plain Copy (Ctrl+C) leaves LBUTTON up → clipboard only.
-            var dragIntent = false;
-            try {
-                dragIntent = !!(await desktopInvoke('desktop_clipboard_lbutton_down'));
-            } catch (_) {
-                dragIntent = false;
+            // Drag-out: either we just converted Explorer-drag→Ctrl+C, or FormatList
+            // arrived while local LBUTTON is still down.
+            var dragIntent = !!client._cliprdrDragOutConverting;
+            if (!dragIntent) {
+                try {
+                    dragIntent = !!(await desktopInvoke('desktop_clipboard_lbutton_down'));
+                } catch (_) {
+                    dragIntent = false;
+                }
             }
+            RDCliprdr._clearDragOutConversion(client, false);
             client._cliprdrOleDragIntent = dragIntent;
             client._cliprdrOleDragWhenReady = false;
             RDCliprdr._disarmOleDrag(client);
@@ -394,8 +478,6 @@
                 client._cliprdrReceiving = true;
                 suppressOutbound(client, OUTBOUND_SUPPRESS_MS);
                 if (dragIntent) {
-                    // Take over immediately: remote cursor overlay + forwarded mouse
-                    // make the icon look stuck at the video edge while files download.
                     if (client.input && typeof client.input.setMouseSuppressed === 'function') {
                         client.input.setMouseSuppressed(true);
                     }

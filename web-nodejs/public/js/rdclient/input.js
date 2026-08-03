@@ -26,6 +26,12 @@ class RDInput {
         this.pointerLocked = false;
         /** When true, mouse events are not forwarded (OLE drag-out in progress). */
         this._suppressMouse = false;
+        /** @type {null|function(): void} Fired when a local drag approaches the window edge. */
+        this.onPotentialFileDragOut = null;
+        this._lbuttonDown = false;
+        this._dragOrigin = null;
+        this._dragGesture = false;
+        this._dragOutNotified = false;
         /** @type {Map<string, { key: string }>} Currently pressed keys (code → metadata) */
         this.pressedKeys = new Map();
 
@@ -87,6 +93,21 @@ class RDInput {
         this._sendKeyForCode('KeyV', 'v', true, false, null);
         this.pressedKeys.delete('KeyV');
         this._sendKeyForCode('KeyV', 'v', false, false, null);
+        this.pressedKeys.delete('ControlLeft');
+        this._sendKeyForCode('ControlLeft', 'Control', false, false, null);
+    }
+
+    /**
+     * Synthesize Ctrl+C on the remote (used to convert an Explorer file drag into
+     * a Cliprdr FormatList so we can start a local OLE drag-out).
+     */
+    sendCtrlC() {
+        this.pressedKeys.set('ControlLeft', { key: 'Control' });
+        this._sendKeyForCode('ControlLeft', 'Control', true, false, null);
+        this.pressedKeys.set('KeyC', { key: 'c' });
+        this._sendKeyForCode('KeyC', 'c', true, false, null);
+        this.pressedKeys.delete('KeyC');
+        this._sendKeyForCode('KeyC', 'c', false, false, null);
         this.pressedKeys.delete('ControlLeft');
         this._sendKeyForCode('ControlLeft', 'Control', false, false, null);
     }
@@ -251,6 +272,20 @@ class RDInput {
     }
 
     _handleMouseMove(e) {
+        if (this._lbuttonDown && this._dragOrigin && !this._dragOutNotified && !this._suppressMouse) {
+            const dx = e.clientX - this._dragOrigin.x;
+            const dy = e.clientY - this._dragOrigin.y;
+            if ((dx * dx) + (dy * dy) >= 100) {
+                this._dragGesture = true;
+            }
+            if (this._dragGesture && this._isFileDragOutZone(e)) {
+                this._dragOutNotified = true;
+                if (typeof this.onPotentialFileDragOut === 'function') {
+                    try { this.onPotentialFileDragOut(); } catch (_) { /* ignore */ }
+                }
+            }
+        }
+
         if (!this.enabled || this._suppressMouse) return;
 
         const now = performance.now();
@@ -270,11 +305,51 @@ class RDInput {
         });
     }
 
+    /**
+     * True when the pointer is leaving the session surface (canvas border / window).
+     * Used to convert a remote Explorer drag into Cliprdr + local OLE drag-out.
+     */
+    _isFileDragOutZone(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const border = 14;
+        if (e.clientX < rect.left || e.clientX > rect.right
+            || e.clientY < rect.top || e.clientY > rect.bottom) {
+            return true;
+        }
+        if (e.clientX <= rect.left + border || e.clientX >= rect.right - border
+            || e.clientY <= rect.top + border || e.clientY >= rect.bottom - border) {
+            return true;
+        }
+        const winMargin = 6;
+        return e.clientX <= winMargin || e.clientY <= winMargin
+            || e.clientX >= window.innerWidth - winMargin
+            || e.clientY >= window.innerHeight - winMargin;
+    }
+
+    _resetDragTracking() {
+        this._lbuttonDown = false;
+        this._dragOrigin = null;
+        this._dragGesture = false;
+        this._dragOutNotified = false;
+    }
+
     _handleMouseDown(e) {
         if (!this.enabled || this._suppressMouse) return;
         e.preventDefault();
         this.canvas.focus();
         if (e.pointerId != null) this._lastPointerId = e.pointerId;
+
+        if (e.button === 0) {
+            this._lbuttonDown = true;
+            this._dragOrigin = { x: e.clientX, y: e.clientY };
+            this._dragGesture = false;
+            this._dragOutNotified = false;
+            try {
+                if (e.pointerId != null && this.canvas.setPointerCapture) {
+                    this.canvas.setPointerCapture(e.pointerId);
+                }
+            } catch (_) { /* ignore */ }
+        }
 
         const pos = this._getRemotePosition(e);
         if (!pos) return;
@@ -300,6 +375,17 @@ class RDInput {
     }
 
     _handleMouseUp(e) {
+        if (e.button === 0) {
+            this._resetDragTracking();
+            try {
+                if (e.pointerId != null && this.canvas.releasePointerCapture
+                    && this.canvas.hasPointerCapture
+                    && this.canvas.hasPointerCapture(e.pointerId)) {
+                    this.canvas.releasePointerCapture(e.pointerId);
+                }
+            } catch (_) { /* ignore */ }
+        }
+
         if (!this.enabled || this._suppressMouse) return;
         e.preventDefault();
 
