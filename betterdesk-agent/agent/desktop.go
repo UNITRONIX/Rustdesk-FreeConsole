@@ -172,6 +172,7 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	ctx, cancel := context.WithCancel(a.ctx)
 	streamer := newDesktopStreamer(p.SessionID, cancel)
 	a.desktopStreams.Store(p.SessionID, streamer)
+	a.startClipboardWatch(p.SessionID)
 
 	// Notify embedded UI or Tauri wrapper about active session.
 	modeLabel := sessionModeLabel(a.cfg.RequireConsent)
@@ -271,6 +272,7 @@ func (a *Agent) handleDesktopStop(msg *Message) {
 
 	if sess, loaded := a.desktopStreams.LoadAndDelete(p.SessionID); loaded {
 		sess.(*DesktopStreamer).Stop()
+		a.stopClipboardWatch(p.SessionID)
 		log.Printf("[desktop] Stopped session %s", p.SessionID)
 	}
 }

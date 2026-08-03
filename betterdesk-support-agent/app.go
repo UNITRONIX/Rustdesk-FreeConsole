@@ -125,7 +125,9 @@ func (u *ui) bootstrapConnection() {
 			if err := u.engine.Start(u.state); err != nil {
 				log.Printf("[support-agent] engine start: %v", err)
 			}
+			_ = PullAccessPolicy(u.brand, u.state)
 			_ = SyncAccessPassword(u.brand, u.state)
+			go startAccessPolicyPullLoop(u.brand, u.state)
 			u.startSignalHost()
 		} else if res.Status == EnrollmentPending {
 			StartEnrollmentPoll(u.brand, u.state, version, 5*time.Second, u.onEnrollmentUpdate)
@@ -148,7 +150,9 @@ func (u *ui) onEnrollmentUpdate(res EnrollmentStatus) {
 		}
 		if !u.engine.Running() {
 			_ = u.engine.Start(u.state)
+			_ = PullAccessPolicy(u.brand, u.state)
 			_ = SyncAccessPassword(u.brand, u.state)
+			go startAccessPolicyPullLoop(u.brand, u.state)
 			u.startSignalHost()
 		}
 	case EnrollmentPending:

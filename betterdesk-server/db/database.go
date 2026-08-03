@@ -287,6 +287,7 @@ type AccessPolicy struct {
 	PeerID            string `json:"peer_id"`
 	UnattendedEnabled bool   `json:"unattended_enabled"`            // Whether unattended access is allowed
 	PasswordHash      string `json:"-"`                             // bcrypt hash of unattended password
+	PasswordEnc       string `json:"-"`                             // AES-GCM ciphertext for connect auto-auth
 	PasswordSet       bool   `json:"password_set"`                  // Whether a password is configured (computed, not stored)
 	ScheduleEnabled   bool   `json:"schedule_enabled"`              // Whether access schedule is active
 	ScheduleDays      string `json:"schedule_days,omitempty"`       // Comma-separated days: "mon,tue,wed,thu,fri"

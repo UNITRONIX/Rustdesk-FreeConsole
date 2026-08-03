@@ -47,13 +47,17 @@ func headlessBootstrap(brand Branding, st *AppState, engine *Engine) {
 			log.Printf("[support-agent] engine start: %v", err)
 			return
 		}
+		_ = PullAccessPolicy(brand, st)
 		_ = SyncAccessPassword(brand, st)
+		go startAccessPolicyPullLoop(brand, st)
 	case EnrollmentPending:
 		log.Printf("[support-agent] enrollment pending: %s", res.Message)
 		StartEnrollmentPoll(brand, st, version, 5*time.Second, func(u EnrollmentStatus) {
 			if u.Status == EnrollmentApproved && !engine.Running() {
 				_ = engine.Start(st)
+				_ = PullAccessPolicy(brand, st)
 				_ = SyncAccessPassword(brand, st)
+				go startAccessPolicyPullLoop(brand, st)
 			}
 		})
 	case EnrollmentRejected:

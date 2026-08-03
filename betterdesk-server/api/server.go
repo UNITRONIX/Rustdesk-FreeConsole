@@ -74,6 +74,7 @@ type Server struct {
 	enrollmentLimiter *ratelimit.IPLimiter
 	brandingLimiter   *ratelimit.IPLimiter
 	keyPair           *crypto.KeyPair    // Ed25519 keypair for signing
+	accessSecret      *crypto.AccessSecretCodec // reversible access-policy passwords
 	cdapGw            *cdap.Gateway      // CDAP gateway (nil if CDAP disabled)
 	meshGw            *meshcentral.Gateway // MeshCentral compat (nil if disabled)
 	ldapProvider      ldapAuthProvider // LDAP auth provider (nil if not configured)
@@ -99,7 +100,7 @@ func (s *Server) SetConsoleAuth(c *db.ConsoleAuthDB) {
 
 // New creates a new API server.
 func New(cfg *config.Config, database db.Database, peerMap *peer.Map, relaySrv *relay.Server, version string) *Server {
-	return &Server{
+	s := &Server{
 		cfg:               cfg,
 		db:                database,
 		peers:             peerMap,
@@ -111,6 +112,14 @@ func New(cfg *config.Config, database db.Database, peerMap *peer.Map, relaySrv *
 		brandingLimiter:   ratelimit.NewIPLimiter(60, 1*time.Minute, 5*time.Minute),  // M-07: 60/min per IP
 		clientTFASessions: newTFASessionStore(),
 	}
+	if cfg != nil && cfg.JWTSecret != "" {
+		if codec, err := crypto.NewAccessSecretCodec(cfg.JWTSecret); err == nil {
+			s.accessSecret = codec
+		} else {
+			log.Printf("[api] access secret codec unavailable: %v", err)
+		}
+	}
+	return s
 }
 
 // rateLimitPublic wraps a public (no-auth) handler with the supplied IP limiter.
@@ -268,6 +277,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/peers/{id}/access-policy", s.requireRole(auth.RoleOperator, s.handleGetAccessPolicy))
 	mux.HandleFunc("PUT /api/peers/{id}/access-policy", s.requireRole(auth.RoleAdmin, s.handleSaveAccessPolicy))
 	mux.HandleFunc("DELETE /api/peers/{id}/access-policy", s.requireRole(auth.RoleAdmin, s.handleDeleteAccessPolicy))
+	mux.HandleFunc("GET /api/peers/{id}/connect-secret", s.requireRole(auth.RoleOperator, s.handleGetConnectSecret))
 	mux.HandleFunc("GET /api/peers/{id}/policy", s.handleGetPeerPolicy)
 
 	// Blocklist management
@@ -444,6 +454,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/devices/register", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceRegister))
 	mux.HandleFunc("GET /api/devices/register/status", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceRegisterStatus))
 	mux.HandleFunc("POST /api/devices/self/access-policy", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfAccessPolicy))
+	mux.HandleFunc("GET /api/devices/self/access-policy", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfGetAccessPolicy))
 	mux.HandleFunc("POST /api/devices/self/help-request", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfHelpRequest))
 	mux.HandleFunc("GET /api/devices/self/totp", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfTOTP))
 	mux.HandleFunc("POST /api/devices/self/totp", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfTOTP))
@@ -2077,10 +2088,11 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 		ScheduleEndTime:   body.ScheduleEndTime,
 		ScheduleTimezone:  body.ScheduleTimezone,
 		AllowedOperators:  body.AllowedOperators,
+		UpdatedAt:         time.Now().UTC().Format(time.RFC3339),
 		UpdatedBy:         s.remoteIP(r),
 	}
 
-	// Hash password if provided
+	// Hash password if provided; also store reversible ciphertext for connect auto-auth.
 	if body.Password != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 		if err != nil {
@@ -2088,8 +2100,17 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		policy.PasswordHash = string(hash)
+		if s.accessSecret != nil {
+			enc, err := s.accessSecret.Encrypt(body.Password)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to seal password"})
+				return
+			}
+			policy.PasswordEnc = enc
+		}
 	} else if body.ClearPassword {
 		policy.PasswordHash = "CLEAR"
+		policy.PasswordEnc = ""
 	}
 	// If PasswordHash is empty string, SaveAccessPolicy preserves existing hash
 
@@ -2107,6 +2128,66 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// handleGetConnectSecret returns the plaintext unattended password for an authorized
+// operator when unattended access is enabled and a sealed secret exists.
+func (s *Server) handleGetConnectSecret(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "peer ID required"})
+		return
+	}
+	if s.accessSecret == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "connect secret unavailable"})
+		return
+	}
+
+	policy, err := s.db.GetAccessPolicy(id)
+	if err != nil || policy == nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "no access policy"})
+		return
+	}
+	if !policy.UnattendedEnabled || policy.PasswordEnc == "" {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "no connect secret"})
+		return
+	}
+
+	username := getUsernameFromCtx(r)
+	// Panel proxies via X-API-Key; device ACL was already enforced in Node.
+	// Only enforce AllowedOperators when the caller is a real user JWT.
+	if policy.AllowedOperators != "" && !strings.HasPrefix(username, "apikey:") {
+		allowed := false
+		for _, op := range strings.Split(policy.AllowedOperators, ",") {
+			if strings.EqualFold(strings.TrimSpace(op), username) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "operator not allowed"})
+			return
+		}
+	}
+
+	plain, err := s.accessSecret.Decrypt(policy.PasswordEnc)
+	if err != nil || plain == "" {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to unlock secret"})
+		return
+	}
+
+	if s.auditLog != nil {
+		s.auditLog.Log(audit.ActionPeerUpdated, s.remoteIP(r), id, map[string]string{
+			"action":   "connect_secret_fetched",
+			"operator": username,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"password":            plain,
+		"unattended_enabled":  true,
+		"peer_id":             id,
+	})
 }
 
 func (s *Server) handleDeleteAccessPolicy(w http.ResponseWriter, r *http.Request) {

@@ -513,8 +513,18 @@
         sendRestart()             { this.sendRestartRemoteDevice(); }
         sendRestartRemoteDevice() { this._send({ type: 'restart_device' }); }
         sendClipboard(text) {
-            if (!text) return false;
-            return this.sendText(text);
+            if (!text || this._clipboardDisabled) return false;
+            const data = String(text);
+            if (!data) return false;
+            // Prefer OS clipboard on the agent (clipboard_set). Keystroke
+            // injection via sendText() is only a fallback for paste-as-typing.
+            this._send({
+                type: 'clipboard_set',
+                format: 'text',
+                data,
+                session_id: this._sessionId || undefined,
+            });
+            return true;
         }
         toggleAudio() {
             this.setAudioMuted(!this._audioMuted);
@@ -1279,7 +1289,7 @@
             try {
                 const text = await navigator.clipboard.readText();
                 if (!text) return false;
-                return this.sendText(text);
+                return this.sendClipboard(text);
             } catch {
                 return false;
             }

@@ -901,19 +901,48 @@
 
         c.on('password_required', () => {
             session.connectionOverlay.style.display = 'none';
-            session.passwordOverlay.style.display = 'flex';
             session.loginError.style.display = 'none';
             session.passwordInput.value = '';
-            if (window.RdClientSecureStore && session.deviceId) {
-                window.RdClientSecureStore.loadPeerPassword(session.deviceId).then(function (saved) {
-                    if (saved) {
-                        session.passwordInput.value = saved;
-                        if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;
-                    }
-                }).catch(function () { /* ignore */ });
-            }
-            if (isActive(session)) session.passwordInput.focus();
-            if (isActive(session)) setToolbarChromeVisible(false);
+
+            const tryAuth = (pw, remember) => {
+                if (!pw || !session.client) return false;
+                session.passwordOverlay.style.display = 'none';
+                session.passwordInput.value = pw;
+                if (remember && session.rememberPeerCheckbox) {
+                    session.rememberPeerCheckbox.checked = true;
+                }
+                session.client.authenticate(pw);
+                return true;
+            };
+
+            const showPasswordPrompt = () => {
+                session.passwordOverlay.style.display = 'flex';
+                if (isActive(session)) session.passwordInput.focus();
+                if (isActive(session)) setToolbarChromeVisible(false);
+            };
+
+            // 1) Console unattended connect-secret (Access Policy)
+            // 2) Local remembered peer password (auto-submit)
+            // 3) Manual prompt
+            const fetchSecret = fetch('/api/devices/' + encodeURIComponent(session.deviceId) + '/connect-secret', {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+
+            const fetchVault = (window.RdClientSecureStore && session.deviceId)
+                ? window.RdClientSecureStore.loadPeerPassword(session.deviceId).catch(() => null)
+                : Promise.resolve(null);
+
+            Promise.all([fetchSecret, fetchVault]).then(([secretResp, saved]) => {
+                const secretPw = secretResp && (secretResp.password || (secretResp.data && secretResp.data.password));
+                if (secretPw && tryAuth(secretPw, true)) return;
+                if (saved && tryAuth(saved, true)) return;
+                if (saved) {
+                    session.passwordInput.value = saved;
+                    if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;
+                }
+                showPasswordPrompt();
+            }).catch(() => showPasswordPrompt());
         });
 
         c.on('login_error', (error) => {
@@ -1296,10 +1325,10 @@
     function applyTransportCapabilities() {
         const fileBtn = document.getElementById('btn-file-transfer');
         if (fileBtn && getTransportName() === 'cdap') {
-            fileBtn.disabled = true;
-            fileBtn.classList.add('disabled');
-            fileBtn.title = t('remote.file_transfer_unavailable_cdap',
-                'File transfer is not available for CDAP snapshot sessions.');
+            // CDAP uses CDAPFileTransfer over /api/cdap/devices/:id/files
+            fileBtn.disabled = false;
+            fileBtn.classList.remove('disabled');
+            fileBtn.removeAttribute('title');
         }
         applyGuestUiLockdown();
     }
@@ -1697,11 +1726,10 @@
         if (!isOpen && session.chatInput) session.chatInput.focus();
     });
 
-    // File transfer modal toggle
+    // File transfer modal toggle (RustDesk RDFileTransfer or CDAPFileTransfer)
     document.getElementById('btn-file-transfer')?.addEventListener('click', function () {
         const session = getActiveSession();
         if (!session || !session.client?.fileTransfer) return;
-        if (getTransportName() === 'cdap') return;
         const modal = window.__fileTransferModal;
         if (!modal) return;
         if (modal.isOpen()) {

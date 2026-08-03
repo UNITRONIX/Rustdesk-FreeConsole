@@ -63,6 +63,10 @@ type Agent struct {
 	sysCollector *SystemCollector
 	clipboard    *ClipboardHandler
 
+	// Clipboard push during desktop sessions (remote → operator)
+	clipboardWatch sync.Map // session_id → context.CancelFunc
+	lastClipSet    sync.Map // session_id → string (last text set or pushed)
+
 	// Widget values collected per heartbeat cycle
 	widgetValues sync.Map // widget_id → any
 
@@ -733,7 +737,8 @@ func (a *Agent) handleClipboardSet(msg *Message) {
 	if a.sessionFlags(p.SessionID).isClipboardDisabled() {
 		return
 	}
-	if p.Format == "text" {
+	if p.Format == "text" || p.Format == "" {
+		a.lastClipSet.Store(p.SessionID, p.Data)
 		a.clipboard.Set(p.Data)
 	}
 }
@@ -781,6 +786,13 @@ func (a *Agent) cleanupSessions() {
 	a.desktopStreams.Range(func(key, value any) bool {
 		value.(*DesktopStreamer).Stop()
 		a.desktopStreams.Delete(key)
+		return true
+	})
+	a.clipboardWatch.Range(func(key, value any) bool {
+		if cancel, ok := value.(context.CancelFunc); ok {
+			cancel()
+		}
+		a.clipboardWatch.Delete(key)
 		return true
 	})
 }

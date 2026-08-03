@@ -802,6 +802,26 @@ router.delete('/api/devices/:id/access-policy', requireAuth, requirePermission('
     }
 });
 
+/**
+ * GET /api/devices/:id/connect-secret - Unattended connect password for auto-auth
+ */
+router.get('/api/devices/:id/connect-secret', requireAuth, requirePermission('device.view'), async (req, res) => {
+    try {
+        const device = await serverBackend.getDeviceById(req.params.id);
+        if (!device) return res.status(404).json({ success: false, error: req.t('devices.not_found') });
+        if (await rejectIfDeviceOutOfScope(req, res, device)) return;
+        const goApi = require('../services/betterdeskApi');
+        const result = await goApi.getConnectSecret(req.params.id);
+        if (!result.success) {
+            return res.status(404).json(result);
+        }
+        res.json(result);
+    } catch (err) {
+        console.error('Get connect secret error:', err);
+        res.status(500).json({ success: false, error: 'Failed to get connect secret' });
+    }
+});
+
 // ===========================================================================
 //  Phase 2 — Live agent introspection (services, processes, events, files,
 //  terminal, screenshot, activity). All endpoints proxy a command request to

@@ -586,6 +586,7 @@ func (pg *PostgresDB) Migrate() error {
 		// peers/users: Pro strategy assignment GUIDs
 		`ALTER TABLE peers ADD COLUMN IF NOT EXISTS guid TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS guid TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE access_policies ADD COLUMN IF NOT EXISTS password_enc TEXT NOT NULL DEFAULT ''`,
 	}
 
 	for _, ddl := range columnMigrations {
@@ -2008,14 +2009,14 @@ func (pg *PostgresDB) Pool() *pgxpool.Pool {
 // GetAccessPolicy retrieves the access policy for a peer device.
 func (pg *PostgresDB) GetAccessPolicy(peerID string) (*AccessPolicy, error) {
 	row := pg.pool.QueryRow(pg.ctx,
-		`SELECT peer_id, unattended_enabled, password_hash, schedule_enabled,
+		`SELECT peer_id, unattended_enabled, password_hash, COALESCE(password_enc, ''), schedule_enabled,
 				schedule_days, schedule_start_time, schedule_end_time, schedule_timezone,
 				allowed_operators, COALESCE(updated_at, NOW()), updated_by
 		 FROM access_policies WHERE peer_id = $1`, peerID)
 
 	var p AccessPolicy
 	var updatedAt time.Time
-	err := row.Scan(&p.PeerID, &p.UnattendedEnabled, &p.PasswordHash, &p.ScheduleEnabled,
+	err := row.Scan(&p.PeerID, &p.UnattendedEnabled, &p.PasswordHash, &p.PasswordEnc, &p.ScheduleEnabled,
 		&p.ScheduleDays, &p.ScheduleStartTime, &p.ScheduleEndTime, &p.ScheduleTimezone,
 		&p.AllowedOperators, &updatedAt, &p.UpdatedBy)
 	if err != nil {
@@ -2029,13 +2030,14 @@ func (pg *PostgresDB) GetAccessPolicy(peerID string) (*AccessPolicy, error) {
 // SaveAccessPolicy creates or updates the access policy for a peer device.
 func (pg *PostgresDB) SaveAccessPolicy(p *AccessPolicy) error {
 	_, err := pg.pool.Exec(pg.ctx,
-		`INSERT INTO access_policies (peer_id, unattended_enabled, password_hash,
+		`INSERT INTO access_policies (peer_id, unattended_enabled, password_hash, password_enc,
 			schedule_enabled, schedule_days, schedule_start_time, schedule_end_time,
 			schedule_timezone, allowed_operators, updated_at, updated_by)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11)
 		 ON CONFLICT(peer_id) DO UPDATE SET
 			unattended_enabled = EXCLUDED.unattended_enabled,
 			password_hash = CASE WHEN EXCLUDED.password_hash = '' THEN access_policies.password_hash WHEN EXCLUDED.password_hash = 'CLEAR' THEN '' ELSE EXCLUDED.password_hash END,
+			password_enc = CASE WHEN EXCLUDED.password_hash = '' THEN access_policies.password_enc WHEN EXCLUDED.password_hash = 'CLEAR' THEN '' ELSE EXCLUDED.password_enc END,
 			schedule_enabled = EXCLUDED.schedule_enabled,
 			schedule_days = EXCLUDED.schedule_days,
 			schedule_start_time = EXCLUDED.schedule_start_time,
@@ -2044,7 +2046,7 @@ func (pg *PostgresDB) SaveAccessPolicy(p *AccessPolicy) error {
 			allowed_operators = EXCLUDED.allowed_operators,
 			updated_at = NOW(),
 			updated_by = EXCLUDED.updated_by`,
-		p.PeerID, p.UnattendedEnabled, p.PasswordHash,
+		p.PeerID, p.UnattendedEnabled, p.PasswordHash, p.PasswordEnc,
 		p.ScheduleEnabled, p.ScheduleDays, p.ScheduleStartTime, p.ScheduleEndTime,
 		p.ScheduleTimezone, p.AllowedOperators, p.UpdatedBy)
 	return err

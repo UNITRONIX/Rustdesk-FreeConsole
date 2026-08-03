@@ -884,6 +884,23 @@ async function deleteAccessPolicy(id) {
     }
 }
 
+/**
+ * Fetch plaintext connect secret for unattended auto-auth (operator session).
+ */
+async function getConnectSecret(id) {
+    try {
+        const safeId = assertSafeApiId(id, 'peerId');
+        const { data } = await apiClient.get(`/peers/${encodeURIComponent(safeId)}/connect-secret`);
+        return wrap(data);
+    } catch (e) {
+        const status = e.response && e.response.status;
+        if (status === 404 || status === 403) {
+            return { success: false, error: (e.response && e.response.data && e.response.data.error) || e.message };
+        }
+        return { success: false, error: e.message };
+    }
+}
+
 // ── RBAC: Roles & Permissions (Phase 52) ─────────────────────
 
 /**
@@ -1341,6 +1358,7 @@ module.exports = {
     getAccessPolicy,
     saveAccessPolicy,
     deleteAccessPolicy,
+    getConnectSecret,
     // RBAC: Roles & Permissions (Phase 52)
     listRoles,
     getRolePermissions,

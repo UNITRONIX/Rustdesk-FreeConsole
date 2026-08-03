@@ -793,6 +793,7 @@ func (s *Server) handleDeviceSelfAccessPolicy(w http.ResponseWriter, r *http.Req
 	policy := &db.AccessPolicy{
 		PeerID:            body.DeviceID,
 		UnattendedEnabled: body.UnattendedEnabled,
+		UpdatedAt:         time.Now().UTC().Format(time.RFC3339),
 		UpdatedBy:         "device:" + body.DeviceID,
 	}
 	if body.Password != "" {
@@ -802,12 +803,65 @@ func (s *Server) handleDeviceSelfAccessPolicy(w http.ResponseWriter, r *http.Req
 			return
 		}
 		policy.PasswordHash = string(hash)
+		if s.accessSecret != nil {
+			if enc, err := s.accessSecret.Encrypt(body.Password); err == nil {
+				policy.PasswordEnc = enc
+			}
+		}
 	}
 	if err := s.db.SaveAccessPolicy(policy); err != nil {
 		http.Error(w, "failed to save policy", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleDeviceSelfGetAccessPolicy lets an enrolled device pull the console-desired
+// unattended password (sealed at rest) so the local permanent password matches.
+// GET /api/devices/self/access-policy?device_id=&device_token=
+func (s *Server) handleDeviceSelfGetAccessPolicy(w http.ResponseWriter, r *http.Request) {
+	deviceID := strings.TrimSpace(r.URL.Query().Get("device_id"))
+	deviceToken := strings.TrimSpace(r.URL.Query().Get("device_token"))
+	if deviceID == "" || deviceToken == "" {
+		http.Error(w, "device_id and device_token required", http.StatusBadRequest)
+		return
+	}
+
+	tokenHash := hashToken(deviceToken)
+	dt, err := s.db.ValidateToken(tokenHash)
+	if err != nil || dt == nil {
+		http.Error(w, "invalid device token", http.StatusForbidden)
+		return
+	}
+	if dt.PeerID != "" && dt.PeerID != deviceID {
+		http.Error(w, "token bound to another device", http.StatusForbidden)
+		return
+	}
+
+	policy, err := s.db.GetAccessPolicy(deviceID)
+	if err != nil || policy == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"unattended_enabled": false,
+			"password":           "",
+			"password_set":       false,
+		})
+		return
+	}
+
+	plain := ""
+	if s.accessSecret != nil && policy.PasswordEnc != "" {
+		if p, err := s.accessSecret.Decrypt(policy.PasswordEnc); err == nil {
+			plain = p
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"unattended_enabled": policy.UnattendedEnabled,
+		"password":           plain,
+		"password_set":       policy.PasswordSet,
+		"updated_at":         policy.UpdatedAt,
+		"updated_by":         policy.UpdatedBy,
+	})
 }
 
 // suggestAlternateDeviceID returns a collision-safe variant of a peer ID.
