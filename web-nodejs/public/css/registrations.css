@@ -134,9 +134,9 @@
 }
 
 .filter-btn.active {
-    background: var(--primary);
-    color: #fff;
-    border-color: var(--primary);
+    background: var(--accent-blue-muted);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
 }
 
 /* Table */

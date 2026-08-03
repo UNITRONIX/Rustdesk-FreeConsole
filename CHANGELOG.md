@@ -1,7 +1,7 @@
 ## [Unreleased]
 
-### Changed
-- _(none yet)_
+### Fixed
+- **Enrollment Requests filter contrast (#320):** active status filter buttons used undefined `--primary` with white text, so labels were unreadable in light theme. Active state now uses `--accent-blue` / `--accent-blue-muted` (same pattern as Devices/Tickets). Ships via panel update.
 
 ---
 
