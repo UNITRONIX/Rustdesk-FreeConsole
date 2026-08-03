@@ -518,11 +518,28 @@
             _clipDebug('skip: view-only session');
             return;
         }
+        let hasFiles = false;
         if (window.__BETTERDESK_RDCLIENT_DESKTOP__ && typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
             _clipDebug('desktop bridge detected → syncCliprdrFiles()');
-            session.client.syncCliprdrFiles();
+            try {
+                const sync = await session.client.syncCliprdrFiles();
+                hasFiles = !!(sync && sync.hasFiles);
+                if (sync && sync.busy) {
+                    _clipDebug('Cliprdr sync busy (clipboard locked) — skipping text push');
+                    return;
+                }
+            } catch (err) {
+                _clipDebug('syncCliprdrFiles failed:', err && err.message ? err.message : err);
+            }
         } else if (window.__BETTERDESK_RDCLIENT_DESKTOP__) {
             _clipDebug('desktop flag set but RDCliprdr.isSupported() is false — check window.__TAURI__.core.invoke');
+        }
+        // Explorer file copies often also expose a path as CF_UNICODETEXT. Sending
+        // that text Clipboard message after Cliprdr FormatList clears file formats
+        // on the peer — skip text when local CF_HDROP is present.
+        if (hasFiles) {
+            _clipDebug('skip text clipboard: local file clipboard (CF_HDROP) present');
+            return;
         }
         if (!navigator.clipboard || !navigator.clipboard.readText) {
             _clipDebug('skip: navigator.clipboard.readText unavailable in this webview');

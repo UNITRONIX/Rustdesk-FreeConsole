@@ -323,3 +323,59 @@ describe('RDClient SupportedEncoding protobuf encoding', () => {
         expect(decoded.misc.selectedSid).toBe(2);
     });
 });
+
+describe('RDClient Cliprdr protobuf encoding', () => {
+    let Message;
+
+    beforeAll(async () => {
+        const root = await protobuf.load([
+            path.join(__dirname, '../protos/message.proto')
+        ]);
+        Message = root.lookupType('hbb.Message');
+    });
+
+    it('encodes FormatDataRequest', () => {
+        const buf = Message.encode(Message.fromObject({
+            cliprdr: { formatDataRequest: { requestedFormatId: 49334 } }
+        })).finish();
+        expect(buf.length).toBeGreaterThan(0);
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.cliprdr.formatDataRequest.requestedFormatId).toBe(49334);
+    });
+
+    it('encodes FileContentsRequest range', () => {
+        const buf = Message.encode(Message.fromObject({
+            cliprdr: {
+                fileContentsRequest: {
+                    streamId: 7,
+                    listIndex: 1,
+                    dwFlags: 2,
+                    nPositionLow: 100,
+                    nPositionHigh: 0,
+                    cbRequested: 65536
+                }
+            }
+        })).finish();
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.cliprdr.fileContentsRequest.streamId).toBe(7);
+        expect(decoded.cliprdr.fileContentsRequest.listIndex).toBe(1);
+        expect(decoded.cliprdr.fileContentsRequest.dwFlags).toBe(2);
+        expect(decoded.cliprdr.fileContentsRequest.cbRequested).toBe(65536);
+    });
+
+    it('encodes FormatList with file formats', () => {
+        const buf = Message.encode(Message.fromObject({
+            cliprdr: {
+                formatList: {
+                    formats: [
+                        { id: 49334, format: 'FileGroupDescriptorW' },
+                        { id: 49267, format: 'FileContents' }
+                    ]
+                }
+            }
+        })).finish();
+        const decoded = Message.decode(buf).toJSON();
+        expect(decoded.cliprdr.formatList.formats).toHaveLength(2);
+        expect(decoded.cliprdr.formatList.formats[0].format).toBe('FileGroupDescriptorW');
+    });
+});

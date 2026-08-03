@@ -14,7 +14,9 @@ use config::{
 };
 use desktop_clipboard::{
     desktop_clipboard_clear, desktop_clipboard_file_contents, desktop_clipboard_format_data,
-    desktop_clipboard_format_names, desktop_clipboard_sync, desktop_clipboard_sync_paths,
+    desktop_clipboard_format_names, desktop_clipboard_receive_abort,
+    desktop_clipboard_receive_begin, desktop_clipboard_receive_commit,
+    desktop_clipboard_receive_write, desktop_clipboard_sync, desktop_clipboard_sync_paths,
 };
 use desktop_files::{
     desktop_list_directory, desktop_open_file, desktop_open_paths, desktop_pick_files,
@@ -152,6 +154,10 @@ const PANEL_INVOKE_PERMISSIONS: &[&str] = &[
     "allow-desktop-clipboard-clear",
     "allow-desktop-clipboard-format-names",
     "allow-desktop-clipboard-sync-paths",
+    "allow-desktop-clipboard-receive-begin",
+    "allow-desktop-clipboard-receive-write",
+    "allow-desktop-clipboard-receive-commit",
+    "allow-desktop-clipboard-receive-abort",
     "allow-desktop-open-paths",
 ];
 
@@ -603,6 +609,10 @@ pub fn run() {
             desktop_clipboard_clear,
             desktop_clipboard_format_names,
             desktop_clipboard_sync_paths,
+            desktop_clipboard_receive_begin,
+            desktop_clipboard_receive_write,
+            desktop_clipboard_receive_commit,
+            desktop_clipboard_receive_abort,
             desktop_open_paths,
         ])
         .setup(|app| {

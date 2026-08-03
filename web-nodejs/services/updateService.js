@@ -53,6 +53,7 @@ const {
     ensureParentDirForFile,
     isUpdatePermissionError,
 } = require('../lib/updateProjectRoot');
+const { restartWindowsNssmService } = require('../lib/windowsNssmRestart');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -2947,15 +2948,19 @@ async function syncAgentSourceAtSha(remoteSHA) {
 
 /**
  * Restart a system service.
- * Returns { success, service, error? }.
+ * Returns { success, service, error?, nonCritical?, hint?, method? }.
+ *
+ * Windows: uses stop→start with SERVICE_PAUSED recovery. NSSM enters PAUSED
+ * while restart-throttling after a binary swap; bare `nssm restart` then fails
+ * with "Unexpected status SERVICE_PAUSED in response to START control".
  */
 function restartService(serviceName) {
     try {
         if (IS_WINDOWS) {
-            execSync(`nssm restart "${serviceName}"`, { timeout: 30000, stdio: 'pipe' });
-        } else {
-            runPrivileged(`systemctl restart ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
+            const win = restartWindowsNssmService(serviceName);
+            return { success: true, service: serviceName, method: win.method || 'stop-start' };
         }
+        runPrivileged(`systemctl restart ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
         return { success: true, service: serviceName };
     } catch (err) {
         const message = err.message || String(err);
@@ -2970,7 +2975,9 @@ function restartService(serviceName) {
             nonCritical,
             hint: nonCritical
                 ? 'Restart BetterDeskServer manually (Admin PowerShell: nssm restart BetterDeskServer) or run betterdesk.ps1 → Update'
-                : undefined,
+                : (/SERVICE_PAUSED/i.test(message)
+                    ? 'NSSM left BetterDeskServer paused (restart throttle). In Admin PowerShell: nssm continue BetterDeskServer; if still paused: nssm stop BetterDeskServer && nssm start BetterDeskServer'
+                    : undefined),
         };
     }
 }

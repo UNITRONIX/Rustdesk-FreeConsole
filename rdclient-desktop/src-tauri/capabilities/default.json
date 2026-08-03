@@ -63,6 +63,10 @@
     "allow-desktop-clipboard-clear",
     "allow-desktop-clipboard-format-names",
     "allow-desktop-clipboard-sync-paths",
+    "allow-desktop-clipboard-receive-begin",
+    "allow-desktop-clipboard-receive-write",
+    "allow-desktop-clipboard-receive-commit",
+    "allow-desktop-clipboard-receive-abort",
     "allow-desktop-open-paths"
   ]
 }

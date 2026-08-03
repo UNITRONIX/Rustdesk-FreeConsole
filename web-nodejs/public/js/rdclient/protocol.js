@@ -443,6 +443,49 @@ class RDProtocol {
     }
 
     /**
+     * @param {number} requestedFormatId
+     * @returns {Object}
+     */
+    buildCliprdrFormatDataRequest(requestedFormatId) {
+        return {
+            cliprdr: {
+                formatDataRequest: {
+                    requestedFormatId: requestedFormatId
+                }
+            }
+        };
+    }
+
+    /**
+     * @param {Object} opts
+     * @param {number} opts.streamId
+     * @param {number} opts.listIndex
+     * @param {number} opts.dwFlags
+     * @param {number} [opts.nPositionLow]
+     * @param {number} [opts.nPositionHigh]
+     * @param {number} [opts.cbRequested]
+     * @param {boolean} [opts.haveClipDataId]
+     * @param {number} [opts.clipDataId]
+     * @returns {Object}
+     */
+    buildCliprdrFileContentsRequest(opts = {}) {
+        return {
+            cliprdr: {
+                fileContentsRequest: {
+                    streamId: opts.streamId || 0,
+                    listIndex: opts.listIndex || 0,
+                    dwFlags: opts.dwFlags || 0,
+                    nPositionLow: opts.nPositionLow || 0,
+                    nPositionHigh: opts.nPositionHigh || 0,
+                    cbRequested: opts.cbRequested || 0,
+                    haveClipDataId: !!opts.haveClipDataId,
+                    clipDataId: opts.clipDataId || 0
+                }
+            }
+        };
+    }
+
+    /**
      * @param {number} msgFlags
      * @param {Uint8Array|ArrayBuffer|number[]} formatData
      * @returns {Object}

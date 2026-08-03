@@ -3536,7 +3536,7 @@
         }
         if (result?.servicesFailed?.length) {
             lines.push(`<ul class="update-wizard-error-list">${result.servicesFailed.map(s =>
-                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}</li>`
+                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}${s.hint ? `<br><span class="text-muted">${Utils.escapeHtml(s.hint)}</span>` : ''}</li>`
             ).join('')}</ul>`);
         }
         if (result?.consoleRestartBlocked) {
@@ -3855,7 +3855,7 @@
                 }
             }
             for (const item of (result.servicesFailed || [])) {
-                logUpdate(`${item.service}: ${item.error || ''}`);
+                logUpdate(`${item.service}: ${item.error || ''}${item.hint ? ` — ${item.hint}` : ''}`);
             }
 
             if (result.needsConsoleRestart && !result.consoleRestartBlocked) {

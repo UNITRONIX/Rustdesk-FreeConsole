@@ -130,17 +130,18 @@ Rebuild the desktop binary after pulling `rdclient-desktop` changes. Deploy or u
 
 ### Cliprdr file paste (desktop, Windows)
 
-Explorer **Copy** → focus the remote session → **Ctrl+V** on the remote uses RustDesk **Cliprdr** (same path as the native RustDesk client), separate from the file-transfer modal. Dragging files onto the session window also registers them for remote paste (native Tauri drop paths).
+Explorer **Copy** / **Ctrl+C** on either side → focus the other → **Ctrl+V** uses RustDesk **Cliprdr** (same path as the native RustDesk client), separate from the file-transfer modal. Dragging files onto the session window also registers them for remote paste (native Tauri drop paths).
 
-| Step | Behaviour |
-|------|-----------|
-| **Local copy** | Windows CF_HDROP paths read natively; file tree expanded into FILEGROUPDESCRIPTORW PDUs |
+| Direction | Behaviour |
+|-----------|-----------|
+| **Local → remote** | Windows CF_HDROP paths read natively; file tree expanded into FILEGROUPDESCRIPTORW PDUs; peer Ctrl+V pulls chunks |
+| **Remote → local** | Peer FormatList → RdClient requests descriptor + file bytes into a temp dir → CF_HDROP on the local clipboard for Explorer paste |
 | **Drag-drop** | Native `tauri://drag-drop` paths (do **not** use `disable_drag_drop_handler` — HTML5 drops lack paths in WebView2) |
 | **Sync trigger** | Window focus / click in the viewer, ~1.5s poll while streaming, or native file drop |
-| **Remote paste** | Peer requests format data + file chunks; desktop serves bytes from disk |
+| **Text race guard** | When CF_HDROP is present, focus sync skips text clipboard push so path-as-text cannot wipe file formats on the peer |
 | **File transfer modal** | Open modal → drop files on the remote pane or drop zone → uploads via `desktop_open_paths` |
 
-Requires a rebuilt desktop binary **and** panel JS (`cliprdr.js`, updated `client.js` / `protocol.js` / `remote.js`). Linux/macOS Cliprdr outbound is not implemented yet.
+Requires a rebuilt desktop binary **and** panel JS (`cliprdr.js`, updated `client.js` / `protocol.js` / `remote.js`). Linux/macOS Cliprdr is not implemented yet.
 
 ### Environment & embedded URL
 

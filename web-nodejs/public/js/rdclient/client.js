@@ -1509,10 +1509,13 @@ class RDClient {
 
     /**
      * Sync local file clipboard to remote (desktop Cliprdr).
+     * @returns {Promise<{hasFiles?: boolean, signature?: string, busy?: boolean}|void>}
      */
     syncCliprdrFiles() {
-        if (typeof RDCliprdr === 'undefined' || !RDCliprdr.isSupported()) return;
-        void RDCliprdr.syncLocalFiles(this);
+        if (typeof RDCliprdr === 'undefined' || !RDCliprdr.isSupported()) {
+            return Promise.resolve({ hasFiles: false, signature: '', busy: false });
+        }
+        return RDCliprdr.syncLocalFiles(this);
     }
 
     syncCliprdrPaths(paths) {
