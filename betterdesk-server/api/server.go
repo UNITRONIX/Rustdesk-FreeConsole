@@ -2034,6 +2034,7 @@ func (s *Server) handleGetAccessPolicy(w http.ResponseWriter, r *http.Request) {
 			"unattended_enabled":   false,
 			"password_set":         false,
 			"connect_secret_ready": false,
+			"connect_secret_codec": s.accessSecret != nil,
 			"schedule_enabled":     false,
 			"schedule_days":        "",
 			"schedule_start_time":  "",
@@ -2050,7 +2051,9 @@ func (s *Server) handleGetAccessPolicy(w http.ResponseWriter, r *http.Request) {
 		"peer_id":              policy.PeerID,
 		"unattended_enabled":   policy.UnattendedEnabled,
 		"password_set":         policy.PasswordSet,
-		"connect_secret_ready": policy.PasswordEnc != "" && s.accessSecret != nil,
+		// Sealed in DB (password_enc). Auto-auth also needs the codec at runtime.
+		"connect_secret_ready": policy.PasswordEnc != "",
+		"connect_secret_codec": s.accessSecret != nil,
 		"schedule_enabled":     policy.ScheduleEnabled,
 		"schedule_days":        policy.ScheduleDays,
 		"schedule_start_time":  policy.ScheduleStartTime,

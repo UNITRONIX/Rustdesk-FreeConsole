@@ -406,7 +406,8 @@
         "password_needs_reseal": "Parola ayarlandı ancak mühürlenmedi — aşağıya yeniden girin ve kaydedin",
         "password_auto_auth_hint": "Gözetimsiz otomatik bağlantı için cihaz parolasını yazıp kaydedin (bu güncellemeden sonra bir kez gerekir).",
         "password_required_for_unattended": "Gözetimsiz otomatik bağlantıyı etkinleştirmek için erişim parolasını girin",
-        "access_policy_saved_reseal": "Erişim ilkesi kaydedildi. Support Agent kullanıyorsanız ~2 dk bekleyin veya parolayı alması için agentı yeniden başlatın."
+        "access_policy_saved_reseal": "Erişim ilkesi kaydedildi. Support Agent kullanıyorsanız ~2 dk bekleyin veya parolayı alması için agentı yeniden başlatın.",
+        "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"
     },
     "keys": {
         "title": "Sunucu Anahtarları",

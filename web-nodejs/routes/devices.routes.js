@@ -761,6 +761,9 @@ router.get('/api/devices/:id/access-policy', requireAuth, requirePermission('dev
         if (await rejectIfDeviceOutOfScope(req, res, device)) return;
         const goApi = require('../services/betterdeskApi');
         const result = await goApi.getAccessPolicy(req.params.id);
+        if (result && result.success === false) {
+            return res.status(502).json(result);
+        }
         res.json(result);
     } catch (err) {
         console.error('Get access policy error:', err);
@@ -778,6 +781,13 @@ router.put('/api/devices/:id/access-policy', requireAuth, requirePermission('dev
         if (await rejectIfDeviceOutOfScope(req, res, device)) return;
         const goApi = require('../services/betterdeskApi');
         const result = await goApi.saveAccessPolicy(req.params.id, req.body);
+        if (!result || result.success === false) {
+            const status = result && result.status ? result.status : 502;
+            return res.status(status).json({
+                success: false,
+                error: (result && result.error) || 'Failed to save access policy',
+            });
+        }
         res.json(result);
     } catch (err) {
         console.error('Save access policy error:', err);

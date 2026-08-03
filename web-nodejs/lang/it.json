@@ -400,7 +400,8 @@
         "password_needs_reseal": "Password impostata ma non sigillata — inseriscila di nuovo sotto e salva",
         "password_auto_auth_hint": "Per l’auto-connessione non supervisionata, digita la password del dispositivo e salva (una volta dopo questo aggiornamento).",
         "password_required_for_unattended": "Inserisci la password di accesso per abilitare l’auto-connessione non supervisionata",
-        "access_policy_saved_reseal": "Criterio di accesso salvato. Con Support Agent attendi ~2 min o riavvia l’agente affinché recuperi la password."
+        "access_policy_saved_reseal": "Criterio di accesso salvato. Con Support Agent attendi ~2 min o riavvia l’agente affinché recuperi la password.",
+        "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"
     },
     "keys": {
         "title": "Chiavi del server",

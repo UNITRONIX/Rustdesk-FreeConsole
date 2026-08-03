@@ -400,7 +400,8 @@
         "password_needs_reseal": "비밀번호가 설정되었지만 봉인되지 않음 — 아래에 다시 입력하고 저장",
         "password_auto_auth_hint": "무인 자동 연결을 위해 장치 비밀번호를 입력하고 저장하세요(이 업데이트 후 한 번 필요).",
         "password_required_for_unattended": "무인 자동 연결을 사용하려면 액세스 비밀번호를 입력하세요",
-        "access_policy_saved_reseal": "액세스 정책이 저장되었습니다. Support Agent를 사용 중이면 약 2분 기다리거나 에이전트를 재시작해 비밀번호를 가져오세요."
+        "access_policy_saved_reseal": "액세스 정책이 저장되었습니다. Support Agent를 사용 중이면 약 2분 기다리거나 에이전트를 재시작해 비밀번호를 가져오세요.",
+        "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"
     },
     "keys": {
         "title": "서버 키",

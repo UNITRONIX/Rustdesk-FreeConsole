@@ -867,7 +867,13 @@ async function saveAccessPolicy(id, policy) {
         const { data } = await apiClient.put(`/peers/${encodeURIComponent(safeId)}/access-policy`, policy);
         return wrap(data);
     } catch (e) {
-        return { success: false, error: e.message };
+        const status = e.response && e.response.status;
+        const apiErr = e.response && e.response.data && e.response.data.error;
+        return {
+            success: false,
+            error: apiErr || e.message,
+            status: status || 502,
+        };
     }
 }
 

@@ -406,7 +406,8 @@
         "password_needs_reseal": "Lösenord angivet men inte förseglat — ange det igen nedan och spara",
         "password_auto_auth_hint": "För obevakad auto-anslutning: skriv enhetens lösenord och spara (krävs en gång efter denna uppdatering).",
         "password_required_for_unattended": "Ange åtkomstlösenordet för att aktivera obevakad auto-anslutning",
-        "access_policy_saved_reseal": "Åtkomstpolicy sparad. Med Support Agent vänta ~2 min eller starta om agenten så att den hämtar lösenordet."
+        "access_policy_saved_reseal": "Åtkomstpolicy sparad. Med Support Agent vänta ~2 min eller starta om agenten så att den hämtar lösenordet.",
+        "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"
     },
     "keys": {
         "title": "Servernycklar",

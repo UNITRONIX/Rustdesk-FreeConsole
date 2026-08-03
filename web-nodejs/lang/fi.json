@@ -406,7 +406,8 @@
         "password_needs_reseal": "Salasana asetettu mutta ei sinetöity — kirjoita se uudelleen alle ja tallenna",
         "password_auto_auth_hint": "Valvomattomaan automaattiyhteyteen: kirjoita laitteen salasana ja tallenna (vaaditaan kerran tämän päivityksen jälkeen).",
         "password_required_for_unattended": "Anna käyttösalasana ottaaksesi valvomattoman automaattiyhteyden käyttöön",
-        "access_policy_saved_reseal": "Käyttöoikeuskäytäntö tallennettu. Support Agentilla odota ~2 min tai käynnistä agentti uudelleen, jotta se hakee salasanan."
+        "access_policy_saved_reseal": "Käyttöoikeuskäytäntö tallennettu. Support Agentilla odota ~2 min tai käynnistä agentti uudelleen, jotta se hakee salasanan.",
+        "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"
     },
     "keys": {
         "title": "Palvelimen avaimet",

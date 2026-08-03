@@ -400,7 +400,8 @@
         "password_needs_reseal": "Palavra-passe definida mas não selada — introduza-a novamente abaixo e guarde",
         "password_auto_auth_hint": "Para auto-ligação não assistida, escreva a palavra-passe do dispositivo e guarde (uma vez após esta atualização).",
         "password_required_for_unattended": "Introduza a palavra-passe de acesso para ativar a auto-ligação não assistida",
-        "access_policy_saved_reseal": "Política de acesso guardada. Com Support Agent, aguarde ~2 min ou reinicie o agente para obter a palavra-passe."
+        "access_policy_saved_reseal": "Política de acesso guardada. Com Support Agent, aguarde ~2 min ou reinicie o agente para obter a palavra-passe.",
+        "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"
     },
     "keys": {
         "title": "Chaves do servidor",

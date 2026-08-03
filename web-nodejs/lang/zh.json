@@ -400,7 +400,8 @@
         "password_needs_reseal": "密码已设置但未密封 — 请在下方再次输入并保存",
         "password_auto_auth_hint": "若要无人值守自动连接，请输入设备密码并保存（本次更新后需操作一次）。",
         "password_required_for_unattended": "请输入访问密码以启用无人值守自动连接",
-        "access_policy_saved_reseal": "访问策略已保存。若使用 Support Agent，请等待约 2 分钟或重启代理以获取密码。"
+        "access_policy_saved_reseal": "访问策略已保存。若使用 Support Agent，请等待约 2 分钟或重启代理以获取密码。",
+        "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"
     },
     "keys": {
         "title": "服务器密钥",

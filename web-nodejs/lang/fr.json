@@ -404,7 +404,8 @@
         "password_needs_reseal": "Mot de passe défini mais non scellé — saisissez-le à nouveau ci-dessous et enregistrez",
         "password_auto_auth_hint": "Pour la connexion auto sans surveillance, saisissez le mot de passe de l’appareil et enregistrez (une fois après cette mise à jour).",
         "password_required_for_unattended": "Saisissez le mot de passe d’accès pour activer la connexion auto sans surveillance",
-        "access_policy_saved_reseal": "Politique d’accès enregistrée. Avec Support Agent, attendez ~2 min ou redémarrez l’agent pour qu’il récupère le mot de passe."
+        "access_policy_saved_reseal": "Politique d’accès enregistrée. Avec Support Agent, attendez ~2 min ou redémarrez l’agent pour qu’il récupère le mot de passe.",
+        "password_codec_unavailable": "Le serveur ne peut pas encore sceller les mots de passe — mettez à jour/redémarrez betterdesk-server (journal : \"connect-secret codec ready\")"
     },
     "keys": {
         "title": "Tableau de bord",

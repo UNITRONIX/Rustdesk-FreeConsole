@@ -1656,11 +1656,13 @@
                     </div>
                     <div class="form-section">
                         <h4><span class="material-icons">lock</span> ${_('devices.access_password') || 'Access Password'}</h4>
-                        <p class="form-hint">${policy.password_set
-                            ? (policy.connect_secret_ready
-                                ? '<span class="badge badge-success">✓ ' + dt('devices.password_auto_auth_ready', 'Password set — auto-connect ready') + '</span>'
-                                : '<span class="badge badge-warning">' + dt('devices.password_needs_reseal', 'Password set but not sealed — enter it again below and Save') + '</span>')
-                            : '<span class="badge badge-warning">' + dt('devices.no_password', 'No password') + '</span>'}</p>
+                        <p class="form-hint">${!policy.connect_secret_codec
+                            ? '<span class="badge badge-warning">' + dt('devices.password_codec_unavailable', 'Server cannot seal passwords yet — update/restart betterdesk-server (look for “connect-secret codec ready” in logs)') + '</span>'
+                            : (policy.password_set
+                                ? (policy.connect_secret_ready
+                                    ? '<span class="badge badge-success">✓ ' + dt('devices.password_auto_auth_ready', 'Password set — auto-connect ready') + '</span>'
+                                    : '<span class="badge badge-warning">' + dt('devices.password_needs_reseal', 'Password set but not sealed — enter it again below and Save') + '</span>')
+                                : '<span class="badge badge-warning">' + dt('devices.no_password', 'No password') + '</span>')}</p>
                         <p class="form-hint">${dt('devices.password_auto_auth_hint', 'For unattended auto-connect, type the device password and Save (required once after this update).')}</p>
                         <div class="form-row">
                             <input type="password" id="ap-password" class="form-input" placeholder="${_('devices.new_password') || 'New password (leave empty to keep current)'}" autocomplete="new-password">
@@ -1740,11 +1742,15 @@
                             };
 
                             try {
-                                await Utils.api(`/api/devices/${deviceId}/access-policy`, {
+                                const saved = await Utils.api(`/api/devices/${deviceId}/access-policy`, {
                                     method: 'PUT',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify(payload)
                                 });
+                                // Defense: some proxies return HTTP 200 with {success:false}.
+                                if (saved && saved.success === false) {
+                                    throw new Error(saved.error || 'Failed to save access policy');
+                                }
                                 Notifications.success(dt('devices.access_policy_saved_reseal',
                                     'Access policy saved. If using Support Agent, wait ~2 min or restart the agent so it picks up the password.'));
                                 Modal.close();

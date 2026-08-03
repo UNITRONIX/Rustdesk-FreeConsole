@@ -406,7 +406,8 @@
         "password_needs_reseal": "ตั้งรหัสผ่านแล้วแต่ยังไม่ปิดผนึก — กรอกอีกครั้งด้านล่างแล้วบันทึก",
         "password_auto_auth_hint": "สำหรับการเชื่อมต่ออัตโนมัติแบบไม่ต้องเฝ้า พิมพ์รหัสผ่านอุปกรณ์แล้วบันทึก (ต้องทำครั้งเดียวหลังอัปเดตนี้)",
         "password_required_for_unattended": "กรอกรหัสผ่านการเข้าถึงเพื่อเปิดการเชื่อมต่ออัตโนมัติแบบไม่ต้องเฝ้า",
-        "access_policy_saved_reseal": "บันทึกนโยบายการเข้าถึงแล้ว หากใช้ Support Agent รอประมาณ 2 นาทีหรือรีสตาร์ทเอเจนต์เพื่อรับรหัสผ่าน"
+        "access_policy_saved_reseal": "บันทึกนโยบายการเข้าถึงแล้ว หากใช้ Support Agent รอประมาณ 2 นาทีหรือรีสตาร์ทเอเจนต์เพื่อรับรหัสผ่าน",
+        "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"
     },
     "keys": {
         "title": "คีย์เซิร์ฟเวอร์",

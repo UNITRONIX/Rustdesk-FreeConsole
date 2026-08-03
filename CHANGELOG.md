@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **Access Policy “needs reseal” after Save:** console treated Go seal failures as success (HTTP 200 + `{success:false}`), so the badge never cleared. Failed saves now return the real status/error; UI shows when the connect-secret codec is unavailable. Requires panel + betterdesk-server restart/update.
 - **Windows panel update — NSSM `SERVICE_PAUSED` restart:** after deploying a new Go server binary, `nssm restart BetterDeskServer` could fail with `Unexpected status SERVICE_PAUSED in response to START control` (NSSM restart throttle). Restart now clears pause via `nssm continue`, uses stop→start, and verifies `SERVICE_RUNNING`. Ships via panel update.
 
 ### Changed

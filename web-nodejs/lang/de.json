@@ -400,7 +400,8 @@
         "password_needs_reseal": "Passwort gesetzt, aber nicht versiegelt — unten erneut eingeben und speichern",
         "password_auto_auth_hint": "Für unbeaufsichtigtes Auto-Connect: Gerätepasswort eingeben und speichern (einmal nach diesem Update erforderlich).",
         "password_required_for_unattended": "Zugangspasswort eingeben, um unbeaufsichtigtes Auto-Connect zu aktivieren",
-        "access_policy_saved_reseal": "Zugriffsrichtlinie gespeichert. Bei Support Agent ca. 2 Min. warten oder Agent neu starten, damit das Passwort übernommen wird."
+        "access_policy_saved_reseal": "Zugriffsrichtlinie gespeichert. Bei Support Agent ca. 2 Min. warten oder Agent neu starten, damit das Passwort übernommen wird.",
+        "password_codec_unavailable": "Server kann Passwörter noch nicht versiegeln — betterdesk-server aktualisieren/neu starten (Log: \"connect-secret codec ready\")"
     },
     "keys": {
         "title": "Dashboard",

@@ -400,7 +400,8 @@
         "password_needs_reseal": "Hasło ustawione, ale nie zabezpieczone — wpisz je ponownie poniżej i zapisz",
         "password_auto_auth_hint": "Dla bezobsługowego auto-połączenia wpisz hasło urządzenia i zapisz (wymagane raz po tej aktualizacji).",
         "password_required_for_unattended": "Wpisz hasło dostępu, aby włączyć bezobsługowe auto-połączenie",
-        "access_policy_saved_reseal": "Polityka dostępu zapisana. Przy Support Agent poczekaj ~2 min lub zrestartuj agenta, aby pobrał hasło."
+        "access_policy_saved_reseal": "Polityka dostępu zapisana. Przy Support Agent poczekaj ~2 min lub zrestartuj agenta, aby pobrał hasło.",
+        "password_codec_unavailable": "Serwer nie może jeszcze zabezpieczyć haseł — zaktualizuj/zrestartuj betterdesk-server (log: \"connect-secret codec ready\")"
     },
     "keys": {
         "title": "Klucze serwera",
