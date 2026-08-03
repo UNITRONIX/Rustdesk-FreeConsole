@@ -69,7 +69,21 @@
 
         if (!grid) return;
         grid.hidden = false;
-        grid.innerHTML = meta.devices.map(function (d) {
+        var devices = meta.devices.slice().sort(function (a, b) {
+            var onlineA = a.online ? 0 : 1;
+            var onlineB = b.online ? 0 : 1;
+            if (onlineA !== onlineB) return onlineA - onlineB;
+            var nameA = String(a.display_name || a.hostname || a.note || a.id || '').toLowerCase();
+            var nameB = String(b.display_name || b.hostname || b.note || b.id || '').toLowerCase();
+            if (nameA < nameB) return -1;
+            if (nameA > nameB) return 1;
+            var idA = String(a.id || '');
+            var idB = String(b.id || '');
+            if (idA < idB) return -1;
+            if (idA > idB) return 1;
+            return 0;
+        });
+        grid.innerHTML = devices.map(function (d) {
             const name = d.display_name || d.hostname || d.id;
             const online = !!d.online;
             const statusClass = online ? 'online' : 'offline';
