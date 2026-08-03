@@ -545,6 +545,30 @@
     window.addEventListener('focus', syncLocalClipboardToRemote);
     if (viewerContainer) {
         viewerContainer.addEventListener('mousedown', syncLocalClipboardToRemote);
+
+        // Browser HTML5 drag-and-drop onto the session surface → file transfer upload
+        viewerContainer.addEventListener('dragover', (e) => {
+            if (!e.dataTransfer || !e.dataTransfer.types) return;
+            const hasFiles = Array.from(e.dataTransfer.types).includes('Files');
+            if (!hasFiles) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        });
+        viewerContainer.addEventListener('drop', (e) => {
+            const files = e.dataTransfer && e.dataTransfer.files;
+            if (!files || !files.length) return;
+            e.preventDefault();
+            const session = getActiveSession();
+            if (!session || !session.client || !session.client.fileTransfer) return;
+            if (session.client.viewOnly) return;
+            if (!window.__fileTransferModal) return;
+            if (!window.__fileTransferModal.isOpen()) {
+                window.__fileTransferModal.open(session);
+            }
+            if (typeof window.__fileTransferModal._uploadFiles === 'function') {
+                window.__fileTransferModal._uploadFiles(files);
+            }
+        });
     }
 
     if (window.__BETTERDESK_RDCLIENT_DESKTOP__
@@ -559,9 +583,13 @@
                 session.client.syncCliprdrPaths(paths);
             },
             onUploadPaths(paths) {
-                if (window.__fileTransferModal && window.__fileTransferModal.isOpen()) {
-                    window.__fileTransferModal.uploadNativePaths(paths);
+                if (!window.__fileTransferModal) return;
+                const session = getActiveSession();
+                if (!session) return;
+                if (!window.__fileTransferModal.isOpen()) {
+                    window.__fileTransferModal.open(session);
                 }
+                window.__fileTransferModal.uploadNativePaths(paths);
             }
         });
     }
@@ -953,10 +981,13 @@
                 if (isActive(session)) session.tfaInput.focus();
                 return;
             }
+            // Auto-auth may have hidden the overlay — show it again on failure
+            session.passwordOverlay.style.display = 'flex';
             session.loginError.textContent = error;
             session.loginError.style.display = 'block';
             session.passwordInput.value = '';
             if (isActive(session)) session.passwordInput.focus();
+            if (isActive(session)) setToolbarChromeVisible(false);
         });
 
         c.on('2fa_error', (error) => {

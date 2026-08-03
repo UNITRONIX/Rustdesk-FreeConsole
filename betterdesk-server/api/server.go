@@ -208,9 +208,25 @@ func (s *Server) SetMetrics(m *metrics.Collector) {
 	s.metrics = m
 }
 
-// SetJWTManager sets the JWT manager for auth.
+// SetJWTManager sets the JWT manager for auth and ensures the access-policy
+// secret codec uses the same resolved secret (cfg.JWTSecret may be empty when
+// the secret is loaded from DB / generated in main).
 func (s *Server) SetJWTManager(jm *auth.JWTManager) {
 	s.jwtManager = jm
+	if jm == nil {
+		return
+	}
+	secret := jm.Secret()
+	if len(secret) < 16 {
+		return
+	}
+	codec, err := crypto.NewAccessSecretCodec(secret)
+	if err != nil {
+		log.Printf("[api] access secret codec unavailable: %v", err)
+		return
+	}
+	s.accessSecret = codec
+	log.Printf("[api] access-policy connect-secret codec ready")
 }
 
 // SetKeyPair sets the Ed25519 keypair for the server (used for signing IdPk).
@@ -2148,7 +2164,18 @@ func (s *Server) handleGetConnectSecret(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "no access policy"})
 		return
 	}
-	if !policy.UnattendedEnabled || policy.PasswordEnc == "" {
+	if !policy.UnattendedEnabled {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "unattended access disabled"})
+		return
+	}
+	if policy.PasswordEnc == "" {
+		// Legacy rows may only have bcrypt — operator must re-save password once.
+		if policy.PasswordSet {
+			writeJSON(w, http.StatusNotFound, map[string]any{
+				"error": "connect secret not sealed — re-save the Access Policy password in the console",
+			})
+			return
+		}
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "no connect secret"})
 		return
 	}

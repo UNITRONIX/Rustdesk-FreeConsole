@@ -1002,6 +1002,21 @@
         });
     }
     
+    function _remoteViewerUrl(deviceId) {
+        let url = `/remote/${encodeURIComponent(deviceId)}`;
+        try {
+            const device = (typeof devices !== 'undefined' && devices)
+                ? devices.find((d) => String(d.id) === String(deviceId) || String(d.device_id) === String(deviceId))
+                : null;
+            const dtype = String((device && (device.device_type || device.type)) || '').toLowerCase();
+            // Support Agent / CDAP peers must use CDAP for clipboard + file transfer.
+            if (dtype === 'os_agent' || dtype === 'cdap' || (device && device.cdap_connected)) {
+                url += '?transport=cdap';
+            }
+        } catch (_) { /* ignore */ }
+        return url;
+    }
+
     /**
      * Handle device actions
      */
@@ -1023,7 +1038,7 @@
         }
 
         if (typeof BroadcastChannel === 'undefined') {
-            window.open(`/remote/${encodeURIComponent(deviceId)}`, '_blank');
+            window.open(_remoteViewerUrl(deviceId), '_blank');
             return;
         }
 
@@ -1054,7 +1069,7 @@
         setTimeout(() => {
             if (!handled) {
                 bc.close();
-                window.open(`/remote/${encodeURIComponent(deviceId)}`, '_blank');
+                window.open(_remoteViewerUrl(deviceId), '_blank');
             }
         }, 300);
     }

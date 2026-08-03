@@ -199,6 +199,8 @@ func main() {
 		jwtExpiry = 24
 	}
 	jwtManager := auth.NewJWTManager(jwtSecret, time.Duration(jwtExpiry)*time.Hour)
+	// Keep cfg in sync so api.New / other consumers see the resolved secret.
+	cfg.JWTSecret = jwtSecret
 
 	// Create initial admin user if no users exist
 	userCount, _ := database.UserCount()
