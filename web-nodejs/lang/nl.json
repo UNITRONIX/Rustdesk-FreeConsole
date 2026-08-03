@@ -395,7 +395,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Wachtwoord ingesteld — auto-verbinding klaar",
+        "password_needs_reseal": "Wachtwoord ingesteld maar niet verzegeld — voer het hieronder opnieuw in en opslaan",
+        "password_auto_auth_hint": "Voor onbeheerde auto-verbinding: typ het apparaattwachtwoord en sla op (eenmalig na deze update).",
+        "password_required_for_unattended": "Voer het toegangswachtwoord in om onbeheerde auto-verbinding in te schakelen",
+        "access_policy_saved_reseal": "Toegangsbeleid opgeslagen. Bij Support Agent ~2 min wachten of de agent herstarten zodat het wachtwoord wordt opgehaald."
     },
     "keys": {
         "title": "Serversleutels",

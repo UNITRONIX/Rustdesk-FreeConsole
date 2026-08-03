@@ -401,7 +401,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Пароль встановлено — готово до автопідключення",
+        "password_needs_reseal": "Пароль встановлено, але не запечатано — введіть його знову нижче та збережіть",
+        "password_auto_auth_hint": "Для безнаглядного автопідключення введіть пароль пристрою та збережіть (один раз після цього оновлення).",
+        "password_required_for_unattended": "Введіть пароль доступу, щоб увімкнути безнаглядне автопідключення",
+        "access_policy_saved_reseal": "Політику доступу збережено. Для Support Agent зачекайте ~2 хв або перезапустіть агент, щоб він отримав пароль."
     },
     "keys": {
         "title": "Ключі сервера",

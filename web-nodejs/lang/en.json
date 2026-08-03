@@ -403,7 +403,12 @@
             "no_data": "No hardware data available",
             "title": "Hardware Information",
             "gpu": "Graphics Card"
-        }
+        },
+        "password_auto_auth_ready": "Password set — auto-connect ready",
+        "password_needs_reseal": "Password set but not sealed — enter it again below and Save",
+        "password_auto_auth_hint": "For unattended auto-connect, type the device password and Save (required once after this update).",
+        "password_required_for_unattended": "Enter the access password to enable unattended auto-connect",
+        "access_policy_saved_reseal": "Access policy saved. If using Support Agent, wait ~2 min or restart the agent so it picks up the password."
     },
     "keys": {
         "title": "Server Keys",

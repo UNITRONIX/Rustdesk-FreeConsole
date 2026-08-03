@@ -395,7 +395,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "密码已设置 — 可自动连接",
+        "password_needs_reseal": "密码已设置但未密封 — 请在下方再次输入并保存",
+        "password_auto_auth_hint": "若要无人值守自动连接，请输入设备密码并保存（本次更新后需操作一次）。",
+        "password_required_for_unattended": "请输入访问密码以启用无人值守自动连接",
+        "access_policy_saved_reseal": "访问策略已保存。若使用 Support Agent，请等待约 2 分钟或重启代理以获取密码。"
     },
     "keys": {
         "title": "服务器密钥",

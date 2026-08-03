@@ -401,7 +401,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Đã đặt mật khẩu — sẵn sàng tự kết nối",
+        "password_needs_reseal": "Đã đặt mật khẩu nhưng chưa niêm phong — nhập lại bên dưới và Lưu",
+        "password_auto_auth_hint": "Để tự kết nối không giám sát, nhập mật khẩu thiết bị và Lưu (cần một lần sau bản cập nhật này).",
+        "password_required_for_unattended": "Nhập mật khẩu truy cập để bật tự kết nối không giám sát",
+        "access_policy_saved_reseal": "Đã lưu chính sách truy cập. Nếu dùng Support Agent, đợi ~2 phút hoặc khởi động lại agent để lấy mật khẩu."
     },
     "keys": {
         "title": "Khóa máy chủ",

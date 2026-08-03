@@ -395,7 +395,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Passwort gesetzt — Auto-Connect bereit",
+        "password_needs_reseal": "Passwort gesetzt, aber nicht versiegelt — unten erneut eingeben und speichern",
+        "password_auto_auth_hint": "Für unbeaufsichtigtes Auto-Connect: Gerätepasswort eingeben und speichern (einmal nach diesem Update erforderlich).",
+        "password_required_for_unattended": "Zugangspasswort eingeben, um unbeaufsichtigtes Auto-Connect zu aktivieren",
+        "access_policy_saved_reseal": "Zugriffsrichtlinie gespeichert. Bei Support Agent ca. 2 Min. warten oder Agent neu starten, damit das Passwort übernommen wird."
     },
     "keys": {
         "title": "Dashboard",

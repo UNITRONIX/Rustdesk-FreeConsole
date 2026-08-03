@@ -395,7 +395,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Palavra-passe definida — auto-ligação pronta",
+        "password_needs_reseal": "Palavra-passe definida mas não selada — introduza-a novamente abaixo e guarde",
+        "password_auto_auth_hint": "Para auto-ligação não assistida, escreva a palavra-passe do dispositivo e guarde (uma vez após esta atualização).",
+        "password_required_for_unattended": "Introduza a palavra-passe de acesso para ativar a auto-ligação não assistida",
+        "access_policy_saved_reseal": "Política de acesso guardada. Com Support Agent, aguarde ~2 min ou reinicie o agente para obter a palavra-passe."
     },
     "keys": {
         "title": "Chaves do servidor",

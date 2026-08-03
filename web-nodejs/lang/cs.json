@@ -395,7 +395,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Heslo nastaveno — připraveno k auto-připojení",
+        "password_needs_reseal": "Heslo nastaveno, ale není zapečetěno — zadejte jej znovu níže a uložte",
+        "password_auto_auth_hint": "Pro bezobslužné auto-připojení zadejte heslo zařízení a uložte (jednou po této aktualizaci).",
+        "password_required_for_unattended": "Zadejte přístupové heslo pro zapnutí bezobslužného auto-připojení",
+        "access_policy_saved_reseal": "Přístupová politika uložena. U Support Agent počkejte ~2 min nebo restartujte agenta, aby heslo stáhl."
     },
     "keys": {
         "title": "Klíče serveru",

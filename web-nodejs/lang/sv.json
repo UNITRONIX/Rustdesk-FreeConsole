@@ -401,7 +401,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Lösenord angivet — redo för auto-anslutning",
+        "password_needs_reseal": "Lösenord angivet men inte förseglat — ange det igen nedan och spara",
+        "password_auto_auth_hint": "För obevakad auto-anslutning: skriv enhetens lösenord och spara (krävs en gång efter denna uppdatering).",
+        "password_required_for_unattended": "Ange åtkomstlösenordet för att aktivera obevakad auto-anslutning",
+        "access_policy_saved_reseal": "Åtkomstpolicy sparad. Med Support Agent vänta ~2 min eller starta om agenten så att den hämtar lösenordet."
     },
     "keys": {
         "title": "Servernycklar",

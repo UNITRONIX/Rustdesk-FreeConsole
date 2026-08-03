@@ -401,7 +401,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Parola ayarlandı — otomatik bağlantı hazır",
+        "password_needs_reseal": "Parola ayarlandı ancak mühürlenmedi — aşağıya yeniden girin ve kaydedin",
+        "password_auto_auth_hint": "Gözetimsiz otomatik bağlantı için cihaz parolasını yazıp kaydedin (bu güncellemeden sonra bir kez gerekir).",
+        "password_required_for_unattended": "Gözetimsiz otomatik bağlantıyı etkinleştirmek için erişim parolasını girin",
+        "access_policy_saved_reseal": "Erişim ilkesi kaydedildi. Support Agent kullanıyorsanız ~2 dk bekleyin veya parolayı alması için agentı yeniden başlatın."
     },
     "keys": {
         "title": "Sunucu Anahtarları",

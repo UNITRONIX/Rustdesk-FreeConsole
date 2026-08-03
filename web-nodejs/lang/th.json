@@ -401,7 +401,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "ตั้งรหัสผ่านแล้ว — พร้อมเชื่อมต่ออัตโนมัติ",
+        "password_needs_reseal": "ตั้งรหัสผ่านแล้วแต่ยังไม่ปิดผนึก — กรอกอีกครั้งด้านล่างแล้วบันทึก",
+        "password_auto_auth_hint": "สำหรับการเชื่อมต่ออัตโนมัติแบบไม่ต้องเฝ้า พิมพ์รหัสผ่านอุปกรณ์แล้วบันทึก (ต้องทำครั้งเดียวหลังอัปเดตนี้)",
+        "password_required_for_unattended": "กรอกรหัสผ่านการเข้าถึงเพื่อเปิดการเชื่อมต่ออัตโนมัติแบบไม่ต้องเฝ้า",
+        "access_policy_saved_reseal": "บันทึกนโยบายการเข้าถึงแล้ว หากใช้ Support Agent รอประมาณ 2 นาทีหรือรีสตาร์ทเอเจนต์เพื่อรับรหัสผ่าน"
     },
     "keys": {
         "title": "คีย์เซิร์ฟเวอร์",

@@ -395,7 +395,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "パスワード設定済み — 自動接続の準備完了",
+        "password_needs_reseal": "パスワードは設定済みですが封印されていません — 下に再入力して保存してください",
+        "password_auto_auth_hint": "無人自動接続にはデバイスのパスワードを入力して保存してください（この更新後に一度必要です）。",
+        "password_required_for_unattended": "無人自動接続を有効にするにはアクセスパスワードを入力してください",
+        "access_policy_saved_reseal": "アクセスポリシーを保存しました。Support Agent の場合は約2分待つかエージェントを再起動してパスワードを取得してください。"
     },
     "keys": {
         "title": "サーバーキー",

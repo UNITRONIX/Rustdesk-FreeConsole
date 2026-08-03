@@ -401,7 +401,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Salasana asetettu — valmis automaattiyhteyteen",
+        "password_needs_reseal": "Salasana asetettu mutta ei sinetöity — kirjoita se uudelleen alle ja tallenna",
+        "password_auto_auth_hint": "Valvomattomaan automaattiyhteyteen: kirjoita laitteen salasana ja tallenna (vaaditaan kerran tämän päivityksen jälkeen).",
+        "password_required_for_unattended": "Anna käyttösalasana ottaaksesi valvomattoman automaattiyhteyden käyttöön",
+        "access_policy_saved_reseal": "Käyttöoikeuskäytäntö tallennettu. Support Agentilla odota ~2 min tai käynnistä agentti uudelleen, jotta se hakee salasanan."
     },
     "keys": {
         "title": "Palvelimen avaimet",

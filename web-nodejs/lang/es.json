@@ -395,7 +395,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Contraseña establecida — listo para auto-conexión",
+        "password_needs_reseal": "Contraseña establecida pero no sellada — introdúzcala de nuevo abajo y guarde",
+        "password_auto_auth_hint": "Para auto-conexión desatendida, escriba la contraseña del dispositivo y guarde (una vez tras esta actualización).",
+        "password_required_for_unattended": "Introduzca la contraseña de acceso para activar la auto-conexión desatendida",
+        "access_policy_saved_reseal": "Política de acceso guardada. Con Support Agent, espere ~2 min o reinicie el agente para que tome la contraseña."
     },
     "keys": {
         "title": "Panel",

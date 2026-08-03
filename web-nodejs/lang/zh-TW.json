@@ -399,7 +399,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "密碼已設定 — 可自動連線",
+        "password_needs_reseal": "密碼已設定但尚未密封 — 請在下方再次輸入並儲存",
+        "password_auto_auth_hint": "若要無人值守自動連線，請輸入裝置密碼並儲存（此更新後需操作一次）。",
+        "password_required_for_unattended": "請輸入存取密碼以啟用無人值守自動連線",
+        "access_policy_saved_reseal": "存取原則已儲存。若使用 Support Agent，請等待約 2 分鐘或重新啟動代理以取得密碼。"
     },
     "keys": {
         "title": "服務器密鑰",

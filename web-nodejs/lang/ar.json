@@ -402,7 +402,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "تم تعيين كلمة المرور — جاهز للاتصال التلقائي",
+        "password_needs_reseal": "تم تعيين كلمة المرور لكنها غير مختومة — أدخلها مرة أخرى أدناه واحفظ",
+        "password_auto_auth_hint": "للاتصال التلقائي دون مراقبة، اكتب كلمة مرور الجهاز واحفظ (مرة واحدة بعد هذا التحديث).",
+        "password_required_for_unattended": "أدخل كلمة مرور الوصول لتمكين الاتصال التلقائي دون مراقبة",
+        "access_policy_saved_reseal": "تم حفظ سياسة الوصول. مع Support Agent انتظر نحو دقيقتين أو أعد تشغيل الوكيل ليلتقط كلمة المرور."
     },
     "keys": {
         "title": "مفاتيح الخادم",

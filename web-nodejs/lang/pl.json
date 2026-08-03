@@ -395,7 +395,12 @@
             "gpu": "Karta graficzna"
         },
         "no_signal_tooltip": "Klient niedawno kontaktował API, ale nie jest zarejestrowany na serwerze sygnałowym (UDP :21116). Uruchom ponownie klienta po migracji serwera.",
-        "per_page": "Na stronę"
+        "per_page": "Na stronę",
+        "password_auto_auth_ready": "Hasło ustawione — gotowe do auto-połączenia",
+        "password_needs_reseal": "Hasło ustawione, ale nie zabezpieczone — wpisz je ponownie poniżej i zapisz",
+        "password_auto_auth_hint": "Dla bezobsługowego auto-połączenia wpisz hasło urządzenia i zapisz (wymagane raz po tej aktualizacji).",
+        "password_required_for_unattended": "Wpisz hasło dostępu, aby włączyć bezobsługowe auto-połączenie",
+        "access_policy_saved_reseal": "Polityka dostępu zapisana. Przy Support Agent poczekaj ~2 min lub zrestartuj agenta, aby pobrał hasło."
     },
     "keys": {
         "title": "Klucze serwera",

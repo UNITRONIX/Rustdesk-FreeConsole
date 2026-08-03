@@ -401,7 +401,12 @@
         "strategy_assign_hint": "Select devices, users, or device groups that should use this strategy directly (RustDesk Pro priority: device > user > group).",
         "strategy_assign_saved": "Strategy assignments saved",
         "strategy_assign_counts": "{peers} devices, {users} users, {groups} groups",
-        "strategy_assign_none": "No direct assignments"
+        "strategy_assign_none": "No direct assignments",
+        "password_auto_auth_ready": "Jelszó beállítva — auto-kapcsolat kész",
+        "password_needs_reseal": "Jelszó beállítva, de nincs lepecsételve — írja be újra lent, majd mentse",
+        "password_auto_auth_hint": "Felügyelet nélküli auto-kapcsolathoz írja be az eszköz jelszavát és mentse (egyszer szükséges e frissítés után).",
+        "password_required_for_unattended": "Adja meg a hozzáférési jelszót a felügyelet nélküli auto-kapcsolat engedélyezéséhez",
+        "access_policy_saved_reseal": "Hozzáférési szabályzat mentve. Support Agent esetén várjon ~2 percet vagy indítsa újra az agentet a jelszó átvételéhez."
     },
     "keys": {
         "title": "Szerverkulcsok",
