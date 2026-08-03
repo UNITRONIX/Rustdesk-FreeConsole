@@ -214,10 +214,10 @@
         if (!this._el) return;
         var dz = this._el.querySelector('.ft-local-dropzone');
         if (!dz) return;
-        dz.querySelector('.ft-dropzone-title').textContent = t('remote.file_dropzone_title', 'Drop files here');
+        dz.querySelector('.ft-dropzone-title').textContent = t('remote.file_dropzone_title', 'Drop files or folders here');
         dz.querySelector('.ft-dropzone-subtitle').textContent = t('remote.file_dropzone_subtitle', 'or click to choose files');
-        dz.querySelector('.ft-dropzone-multiple').textContent = t('remote.file_dropzone_multiple', 'Multiple files supported');
-        dz.setAttribute('aria-label', t('remote.file_dropzone_title', 'Drop files here'));
+        dz.querySelector('.ft-dropzone-multiple').textContent = t('remote.file_dropzone_multiple', 'Files and folders supported');
+        dz.setAttribute('aria-label', t('remote.file_dropzone_title', 'Drop files or folders here'));
     };
 
     FileTransferModal.prototype._initOverwriteDialogLabels = function () {
@@ -498,7 +498,12 @@
                 }
             });
             row.addEventListener('dblclick', function () {
-                if (!entry.isDir) self._uploadLocalEntry(entry);
+                if (entry.isDir) self._uploadLocalFolder(entry);
+                else self._uploadLocalEntry(entry);
+            });
+            row.addEventListener('contextmenu', function (e) {
+                e.preventDefault();
+                self._showLocalContextMenu(e, entry);
             });
             list.appendChild(row);
         });
@@ -558,7 +563,8 @@
                 }
             });
             row.addEventListener('dblclick', function () {
-                if (!entry.isDir) self._downloadRemoteEntry(entry);
+                if (entry.isDir) self._downloadRemoteFolder(entry);
+                else self._downloadRemoteEntry(entry);
             });
             row.addEventListener('contextmenu', function (e) {
                 e.preventDefault();
@@ -629,6 +635,9 @@
                 var next = base ? (base.replace(/[\\/]+$/, '') + sep + entry.name) : entry.name;
                 ft.browseDir(next);
             });
+            addItem(t('remote.file_download_folder', 'Download folder'), 'folder_zip', function () {
+                self._downloadRemoteFolder(entry);
+            });
         } else {
             addItem(t('remote.file_download', 'Download'), 'download', function () {
                 self._downloadRemoteEntry(entry);
@@ -691,8 +700,54 @@
         if (dlg) dlg.hidden = true;
     };
 
+    FileTransferModal.prototype._showLocalContextMenu = function (e, entry) {
+        var self = this;
+        this._hideContextMenu();
+        var menu = document.createElement('div');
+        menu.className = 'ft-context-menu';
+        menu.style.left = e.clientX + 'px';
+        menu.style.top = e.clientY + 'px';
+
+        function addItem(label, icon, action) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ft-context-item';
+            btn.innerHTML = '<span class="material-icons">' + icon + '</span><span>' + escapeHtml(label) + '</span>';
+            btn.addEventListener('click', function () {
+                self._hideContextMenu();
+                action();
+            });
+            menu.appendChild(btn);
+        }
+
+        if (entry.isDir) {
+            addItem(t('remote.file_open', 'Open'), 'folder_open', function () {
+                self._local.enterDir(entry).then(function () {
+                    self._el.querySelector('.ft-local-path').textContent = self._local.currentPath;
+                    return self._local.listCurrent();
+                }).then(function (entries) {
+                    self._localEntries = entries;
+                    self._selectedLocal = null;
+                    self._renderLocalList();
+                });
+            });
+            addItem(t('remote.file_upload_folder', 'Upload folder'), 'drive_folder_upload', function () {
+                self._uploadLocalFolder(entry);
+            });
+        } else {
+            addItem(t('remote.file_upload', 'Upload'), 'upload', function () {
+                self._uploadLocalEntry(entry);
+            });
+        }
+
+        document.body.appendChild(menu);
+        this._contextMenu = menu;
+    };
+
     FileTransferModal.prototype._sendSelectedLocal = function () {
-        if (this._selectedLocal && !this._selectedLocal.isDir) this._uploadLocalEntry(this._selectedLocal);
+        if (!this._selectedLocal) return;
+        if (this._selectedLocal.isDir) this._uploadLocalFolder(this._selectedLocal);
+        else this._uploadLocalEntry(this._selectedLocal);
     };
 
     FileTransferModal.prototype._uploadLocalEntry = async function (entry) {
@@ -700,6 +755,22 @@
         if (!ft) return;
         var file = await this._local.readFile(entry);
         if (file) ft.uploadFile(file, ft.currentPath || '');
+    };
+
+    FileTransferModal.prototype._uploadLocalFolder = async function (entry) {
+        var ft = this._session.client?.fileTransfer;
+        if (!ft || !entry || !entry.isDir || !this._remoteReady) return;
+        try {
+            var walk = await this._local.walkFolder(entry);
+            if (!walk || (!walk.files.length && !walk.dirs.length)) {
+                // Empty folder — still create remote root
+                walk = walk || { rootName: entry.name, dirs: [], files: [] };
+                walk.rootName = walk.rootName || entry.name;
+            }
+            ft.uploadFolder(walk, ft.currentPath || '');
+        } catch (e) {
+            console.warn('[FileModal] folder upload failed:', e);
+        }
     };
 
     FileTransferModal.prototype._uploadFiles = function (fileList) {
@@ -723,33 +794,82 @@
             this._pendingNativePaths = (this._pendingNativePaths || []).concat(paths);
             return;
         }
-        if (typeof RDDesktopDnd !== 'undefined' && RDDesktopDnd.openPaths) {
-            RDDesktopDnd.openPaths(paths).then(function (files) {
-                self._uploadNativeFiles(files);
-            }).catch(function (e) {
-                console.warn('[FileModal] native drop upload failed:', e);
-            });
+        if (typeof LocalFiles === 'undefined' || !LocalFiles.isDesktopBridge || !LocalFiles.isDesktopBridge()) {
+            if (typeof RDDesktopDnd !== 'undefined' && RDDesktopDnd.openPaths) {
+                RDDesktopDnd.openPaths(paths).then(function (files) {
+                    self._uploadNativeFiles(files);
+                }).catch(function (e) {
+                    console.warn('[FileModal] native drop upload failed:', e);
+                });
+            }
             return;
         }
-        if (typeof LocalFiles !== 'undefined' && LocalFiles.isDesktopBridge && LocalFiles.isDesktopBridge()) {
-            var invoke = window.__TAURI__.core.invoke;
-            invoke('desktop_open_paths', { paths: paths }).then(function (infos) {
-                var files = (infos || []).map(LocalFiles.createNativeUploadFile).filter(Boolean);
-                self._uploadNativeFiles(files);
-            }).catch(function (e) {
-                console.warn('[FileModal] native drop upload failed:', e);
+
+        var ft = this._session.client && this._session.client.fileTransfer;
+        if (!ft) return;
+
+        // Classify each path: files upload directly; directories become folder jobs.
+        var chain = Promise.resolve();
+        paths.forEach(function (path) {
+            chain = chain.then(function () {
+                return LocalFiles.walkDesktopPath(path).then(function (walk) {
+                    if (walk.isFile && walk.files.length === 1) {
+                        return window.__TAURI__.core.invoke('desktop_open_file', {
+                            path: walk.files[0].path
+                        }).then(function (info) {
+                            var file = LocalFiles.createNativeUploadFile(info);
+                            if (file) ft.uploadFile(file, ft.currentPath || '');
+                        });
+                    }
+                    walk.rootName = walk.rootName || (path.split(/[\\/]/).pop() || 'folder');
+                    ft.uploadFolder(walk, ft.currentPath || '');
+                });
             });
-        }
+        });
+        chain.catch(function (e) {
+            console.warn('[FileModal] native drop upload failed:', e);
+        });
     };
 
     FileTransferModal.prototype._downloadSelectedRemote = function () {
-        if (this._selectedRemote && !this._selectedRemote.isDir) this._downloadRemoteEntry(this._selectedRemote);
+        if (!this._selectedRemote) return;
+        if (this._selectedRemote.isDir) this._downloadRemoteFolder(this._selectedRemote);
+        else this._downloadRemoteEntry(this._selectedRemote);
     };
 
     FileTransferModal.prototype._downloadRemoteEntry = function (entry) {
         var ft = this._session.client?.fileTransfer;
         if (!ft) return;
         ft.downloadFile(ft.currentPath || '', entry);
+    };
+
+    FileTransferModal.prototype._downloadRemoteFolder = async function (entry) {
+        var ft = this._session.client?.fileTransfer;
+        if (!ft || !entry || !entry.isDir) return;
+        try {
+            var localRoot = null;
+            if (typeof LocalFiles !== 'undefined' && LocalFiles.isDesktopBridge && LocalFiles.isDesktopBridge()) {
+                if (this._local.hasRoot && this._local.currentPath) {
+                    localRoot = this._local.currentPath;
+                } else {
+                    var picked = await LocalFiles.pickFolder();
+                    if (!picked || !picked.path) return;
+                    localRoot = picked.path;
+                }
+            } else if (this._local.hasRoot && this._local._mode === 'fsa') {
+                // Browser FSA folder download streams via per-file save hooks; not supported as tree yet.
+                window.alert(t('remote.file_folder_download_desktop_only',
+                    'Folder download requires RdClient desktop. Download files individually, or use RdClient desktop.'));
+                return;
+            } else {
+                window.alert(t('remote.file_folder_download_desktop_only',
+                    'Folder download requires RdClient desktop. Download files individually, or use RdClient desktop.'));
+                return;
+            }
+            ft.downloadFolder(ft.currentPath || '', entry, localRoot);
+        } catch (e) {
+            if (e && e.message !== 'AbortError') console.warn('[FileModal] folder download failed:', e);
+        }
     };
 
     FileTransferModal.prototype._ensureTransferMeta = function (data) {
@@ -764,7 +884,9 @@
                 transferred: 0,
                 total: data.fileSize || 0,
                 error: null,
-                resumable: false
+                resumable: false,
+                isFolder: !!data.isFolder,
+                currentFile: data.currentFile || null
             });
         }
         return this._transferMeta.get(id);
@@ -775,14 +897,26 @@
         if (meta.phase === 'pending') return t('remote.file_status_waiting', 'Waiting…');
         if (meta.phase === 'saving') return t('remote.file_status_saving', 'Saving…');
         if (meta.phase === 'done') {
+            if (meta.isFolder) {
+                return meta.type === 'upload'
+                    ? t('remote.file_status_folder_uploaded', 'Folder uploaded')
+                    : t('remote.file_status_folder_downloaded', 'Folder downloaded');
+            }
             return meta.type === 'upload'
                 ? t('remote.file_status_uploaded', 'Uploaded')
                 : t('remote.file_status_downloaded', 'Downloaded');
         }
+        var progress = '';
         if (meta.total > 0) {
-            return (meta.percent || 0) + '% · ' + formatSize(meta.transferred) + ' / ' + formatSize(meta.total);
+            progress = (meta.percent || 0) + '% · ' + formatSize(meta.transferred) + ' / ' + formatSize(meta.total);
+        } else {
+            progress = t('remote.file_status_transferring', 'Transferring…');
         }
-        return t('remote.file_status_transferring', 'Transferring…');
+        if (meta.isFolder && meta.currentFile) {
+            var cur = t('remote.file_status_current_file', 'Current: {name}').replace('{name}', meta.currentFile);
+            return progress + ' · ' + cur;
+        }
+        return progress;
     };
 
     FileTransferModal.prototype._renderTransferRowHtml = function (meta) {
@@ -790,22 +924,29 @@
         if (meta.phase === 'done') rowClass.push('done');
         if (meta.error) rowClass.push('error');
         if (meta.phase === 'pending') rowClass.push('pending');
+        if (meta.isFolder) rowClass.push('folder');
 
         var icon = meta.type === 'upload' ? 'upload' : 'download';
+        if (meta.isFolder) icon = meta.type === 'upload' ? 'drive_folder_upload' : 'folder_zip';
         if (meta.phase === 'pending') icon = 'hourglass_empty';
         if (meta.error && meta.resumable) icon = 'replay';
 
-        var indeterminate = meta.phase === 'pending';
+        var indeterminate = meta.phase === 'pending' || (meta.isFolder && !meta.total && meta.phase !== 'done' && !meta.error);
         var fillWidth = meta.error ? 0 : Math.min(100, meta.percent || 0);
         var fillClass = 'ft-transfer-fill' + (indeterminate ? ' indeterminate' : '');
         var fillStyle = indeterminate ? '' : ' style="width:' + fillWidth + '%"';
         var canCancel = !meta.error && meta.phase !== 'done' && meta.phase !== 'saving';
-        var canResume = meta.error && meta.resumable;
+        var canResume = meta.error && meta.resumable && !meta.isFolder;
+        var titleName = meta.isFolder && meta.currentFile
+            ? (meta.fileName + ' / ' + meta.currentFile)
+            : meta.fileName;
 
         return '<div class="' + rowClass.join(' ') + '" data-id="' + meta.id + '">' +
             '<span class="material-icons ft-transfer-icon">' + icon + '</span>' +
             '<div class="ft-transfer-info">' +
-            '<div class="ft-transfer-name" title="' + escapeHtml(meta.fileName) + '">' + escapeHtml(meta.fileName) + '</div>' +
+            '<div class="ft-transfer-name" title="' + escapeHtml(titleName) + '">' + escapeHtml(meta.fileName) +
+            (meta.isFolder ? ' <span class="ft-transfer-folder-tag">' + escapeHtml(t('remote.file_folder_tag', 'folder')) + '</span>' : '') +
+            '</div>' +
             '<div class="ft-transfer-bar"><div class="' + fillClass + '"' + fillStyle + '></div></div>' +
             '<div class="ft-transfer-status">' + escapeHtml(this._transferStatusText(meta)) + '</div>' +
             '</div>' +
@@ -856,6 +997,8 @@
     };
 
     FileTransferModal.prototype._addTransfer = function (data) {
+        // Child transfers inside a folder job do not get their own queue row.
+        if (data.folderJobId && !data.isFolder) return;
         var meta = this._ensureTransferMeta(data);
         meta.fileName = data.fileName || meta.fileName;
         meta.type = data.type || meta.type;
@@ -864,10 +1007,13 @@
         meta.percent = 0;
         meta.error = null;
         meta.resumable = false;
+        meta.isFolder = !!data.isFolder || meta.isFolder;
+        meta.currentFile = data.currentFile || null;
         this._paintTransferQueue();
     };
 
     FileTransferModal.prototype._updateTransfer = function (data) {
+        if (data.folderJobId && !data.isFolder) return;
         var meta = this._ensureTransferMeta(data);
         if (data.phase === 'saving') {
             meta.phase = 'saving';
@@ -876,22 +1022,28 @@
             meta.phase = 'transferring';
             meta.percent = data.percent || 0;
             meta.transferred = data.transferred || 0;
-            meta.total = data.fileSize || meta.total;
+            meta.total = data.fileSize != null ? data.fileSize : meta.total;
         }
+        if (data.isFolder) meta.isFolder = true;
+        if (data.currentFile != null) meta.currentFile = data.currentFile;
         this._paintTransferQueue();
     };
 
     FileTransferModal.prototype._completeTransfer = function (data) {
+        if (data.folderJobId && !data.isFolder) return;
         var meta = this._ensureTransferMeta(data);
         meta.phase = 'done';
         meta.percent = 100;
         meta.transferred = meta.total || meta.transferred;
         meta.error = null;
         meta.resumable = false;
+        meta.currentFile = null;
+        if (data.isFolder) meta.isFolder = true;
         this._paintTransferQueue();
     };
 
     FileTransferModal.prototype._errorTransfer = function (data) {
+        if (data.folderJobId && !data.isFolder) return;
         var meta = this._ensureTransferMeta(data);
         var errMsg = data.error || t('remote.file_error', 'Failed');
         if (errMsg === 'Remote did not start transfer') {
@@ -900,6 +1052,8 @@
         meta.error = errMsg;
         meta.phase = 'error';
         meta.resumable = !!data.resumable;
+        if (data.isFolder) meta.isFolder = true;
+        if (data.currentFile != null) meta.currentFile = data.currentFile;
         this._paintTransferQueue();
     };
 

@@ -3,10 +3,13 @@
 //! The panel's JS file-transfer module uses browser File objects and the File System
 //! Access API. WebView2 does not expose directory pickers reliably, so these commands
 //! back LocalFiles + RDFileTransfer with OS dialogs and path-based reads.
+//!
+//! Downloads can stream to disk via begin/write/finish so multi‑GB transfers do not
+//! buffer the whole file in the WebView.
 
 use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::{Read, Seek, SeekFrom};
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
@@ -19,6 +22,23 @@ pub struct DesktopFileStore {
 }
 
 impl Default for DesktopFileStore {
+    fn default() -> Self {
+        Self {
+            inner: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+struct DownloadSession {
+    path: PathBuf,
+    file: File,
+}
+
+pub struct DesktopDownloadStore {
+    inner: Mutex<HashMap<String, DownloadSession>>,
+}
+
+impl Default for DesktopDownloadStore {
     fn default() -> Self {
         Self {
             inner: Mutex::new(HashMap::new()),
@@ -60,8 +80,138 @@ pub struct DesktopSaveResult {
     pub path: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopDownloadBeginResult {
+    pub started: bool,
+    pub handle: Option<String>,
+    pub path: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopWalkEntry {
+    pub path: String,
+    pub relative_path: String,
+    pub name: String,
+    pub is_dir: bool,
+    pub size: u64,
+    pub modified_time: u64,
+}
+
 fn store_error(err: impl std::fmt::Display) -> String {
     err.to_string()
+}
+
+fn b64_decode(data: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD
+        .decode(data.trim())
+        .map_err(|e| format!("base64 decode: {e}"))
+}
+
+/// Reject empty / NUL / parent-dir hops without requiring the path to exist.
+fn sanitize_path_str(path: &str) -> Result<PathBuf, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Path is required".into());
+    }
+    if trimmed.contains('\0') {
+        return Err("Invalid path".into());
+    }
+    if path_has_parent_hop(trimmed) {
+        return Err("Invalid path".into());
+    }
+    Ok(PathBuf::from(trimmed))
+}
+
+fn safe_file_name(name: &str) -> String {
+    Path::new(name.trim())
+        .file_name()
+        .and_then(|n| n.to_str())
+        .filter(|n| !n.is_empty() && !n.contains('\0'))
+        .unwrap_or("download.bin")
+        .to_string()
+}
+
+fn open_download_file(path: &Path, append_offset: u64) -> Result<File, String> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent).map_err(store_error)?;
+        }
+    }
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(append_offset == 0)
+        .open(path)
+        .map_err(store_error)?;
+    if append_offset > 0 {
+        file.set_len(append_offset).map_err(store_error)?;
+        file.seek(SeekFrom::Start(append_offset))
+            .map_err(store_error)?;
+    }
+    Ok(file)
+}
+
+fn register_download(
+    store: &DesktopDownloadStore,
+    path: PathBuf,
+    append_offset: u64,
+) -> Result<DesktopDownloadBeginResult, String> {
+    let file = open_download_file(&path, append_offset)?;
+    let handle = new_handle();
+    let path_str = path.to_string_lossy().into_owned();
+    store
+        .inner
+        .lock()
+        .map_err(|_| "Download store lock poisoned".to_string())?
+        .insert(
+            handle.clone(),
+            DownloadSession {
+                path,
+                file,
+            },
+        );
+    Ok(DesktopDownloadBeginResult {
+        started: true,
+        handle: Some(handle),
+        path: Some(path_str),
+    })
+}
+
+fn walk_collect(root: &Path, dir: &Path, out: &mut Vec<DesktopWalkEntry>) -> Result<(), String> {
+    let mut entries: Vec<_> = fs::read_dir(dir)
+        .map_err(store_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(store_error)?;
+    entries.sort_by_key(|e| e.file_name());
+
+    for entry in entries {
+        let p = entry.path();
+        let name = file_name(&p);
+        if name.is_empty() || name.starts_with('.') {
+            continue;
+        }
+        let meta = entry.metadata().map_err(store_error)?;
+        let rel = p
+            .strip_prefix(root)
+            .map(|r| r.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|_| name.clone());
+        let is_dir = meta.is_dir();
+        out.push(DesktopWalkEntry {
+            name,
+            path: p.to_string_lossy().into_owned(),
+            relative_path: rel,
+            is_dir,
+            size: if meta.is_file() { meta.len() } else { 0 },
+            modified_time: modified_time(&p),
+        });
+        if is_dir {
+            walk_collect(root, &p, out)?;
+        }
+    }
+    Ok(())
 }
 
 fn new_handle() -> String {
@@ -264,12 +414,7 @@ pub async fn desktop_save_download(
     file_name: String,
     data: Vec<u8>,
 ) -> Result<DesktopSaveResult, String> {
-    let safe_name = Path::new(file_name.trim())
-        .file_name()
-        .and_then(|n| n.to_str())
-        .filter(|n| !n.is_empty() && !n.contains('\0'))
-        .unwrap_or("download.bin")
-        .to_string();
+    let safe_name = safe_file_name(&file_name);
 
     let dialog_name = safe_name.clone();
     let picked = tauri::async_runtime::spawn_blocking(move || {
@@ -306,8 +451,163 @@ pub async fn desktop_save_download(
     })
 }
 
+/// Start a streaming download to disk.
+///
+/// - `absolute_path`: reopen/create an exact path (folder jobs / resume)
+/// - else `default_dir` + `suggested_name`: write into that directory (no dialog)
+/// - else show a native Save dialog for `suggested_name`
+#[tauri::command]
+pub async fn desktop_download_begin(
+    store: State<'_, DesktopDownloadStore>,
+    suggested_name: Option<String>,
+    default_dir: Option<String>,
+    absolute_path: Option<String>,
+    append_offset: Option<u64>,
+) -> Result<DesktopDownloadBeginResult, String> {
+    let offset = append_offset.unwrap_or(0);
+
+    if let Some(abs) = absolute_path {
+        let path = sanitize_path_str(&abs)?;
+        return register_download(&store, path, offset);
+    }
+
+    let safe_name = safe_file_name(suggested_name.as_deref().unwrap_or("download.bin"));
+
+    if let Some(dir) = default_dir {
+        let dir_path = sanitize_path_str(&dir)?;
+        if dir_path.exists() && !dir_path.is_dir() {
+            return Err("default_dir is not a directory".into());
+        }
+        let target = dir_path.join(&safe_name);
+        return register_download(&store, target, offset);
+    }
+
+    let dialog_name = safe_name.clone();
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        rfd::FileDialog::new()
+            .set_file_name(&dialog_name)
+            .save_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let Some(mut target) = picked else {
+        return Ok(DesktopDownloadBeginResult {
+            started: false,
+            handle: None,
+            path: None,
+        });
+    };
+
+    if target.extension().is_none() {
+        if let Some(ext) = Path::new(&safe_name).extension() {
+            target.set_extension(ext);
+        }
+    }
+
+    register_download(&store, target, offset)
+}
+
+/// Append a base64-encoded chunk to an open streaming download.
+#[tauri::command]
+pub fn desktop_download_write(
+    store: State<'_, DesktopDownloadStore>,
+    handle: String,
+    data_base64: String,
+) -> Result<(), String> {
+    let data = b64_decode(&data_base64)?;
+    let mut guard = store
+        .inner
+        .lock()
+        .map_err(|_| "Download store lock poisoned".to_string())?;
+    let session = guard
+        .get_mut(&handle)
+        .ok_or_else(|| "Unknown download handle".to_string())?;
+    if !data.is_empty() {
+        session.file.write_all(&data).map_err(store_error)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn desktop_download_finish(
+    store: State<'_, DesktopDownloadStore>,
+    handle: String,
+) -> Result<DesktopSaveResult, String> {
+    let mut guard = store
+        .inner
+        .lock()
+        .map_err(|_| "Download store lock poisoned".to_string())?;
+    let Some(mut session) = guard.remove(&handle) else {
+        return Err("Unknown download handle".into());
+    };
+    session.file.flush().map_err(store_error)?;
+    Ok(DesktopSaveResult {
+        saved: true,
+        path: Some(session.path.to_string_lossy().into_owned()),
+    })
+}
+
+#[tauri::command]
+pub fn desktop_download_abort(
+    store: State<'_, DesktopDownloadStore>,
+    handle: String,
+    delete_file: Option<bool>,
+) -> Result<(), String> {
+    let mut guard = store
+        .inner
+        .lock()
+        .map_err(|_| "Download store lock poisoned".to_string())?;
+    let Some(session) = guard.remove(&handle) else {
+        return Ok(());
+    };
+    drop(session.file);
+    if delete_file.unwrap_or(true) {
+        let _ = fs::remove_file(&session.path);
+    }
+    Ok(())
+}
+
+/// Create a directory and parents (folder download / upload staging).
+#[tauri::command]
+pub fn desktop_mkdir_p(path: String) -> Result<(), String> {
+    let dir = sanitize_path_str(&path)?;
+    fs::create_dir_all(&dir).map_err(store_error)
+}
+
+/// Recursively list a local file or folder tree (relative paths use `/`).
+#[tauri::command]
+pub fn desktop_walk_paths(path: String) -> Result<Vec<DesktopWalkEntry>, String> {
+    let root = validate_path(&path)?;
+    let mut out = Vec::new();
+    if root.is_file() {
+        out.push(DesktopWalkEntry {
+            name: file_name(&root),
+            path: root.to_string_lossy().into_owned(),
+            relative_path: file_name(&root),
+            is_dir: false,
+            size: fs::metadata(&root).map(|m| m.len()).unwrap_or(0),
+            modified_time: modified_time(&root),
+        });
+        return Ok(out);
+    }
+    if !root.is_dir() {
+        return Err("Not a file or directory".into());
+    }
+    // Include the root folder itself as relative "" so callers can mkdir remote root.
+    out.push(DesktopWalkEntry {
+        name: file_name(&root),
+        path: root.to_string_lossy().into_owned(),
+        relative_path: String::new(),
+        is_dir: true,
+        size: 0,
+        modified_time: modified_time(&root),
+    });
+    walk_collect(&root, &root, &mut out)?;
+    Ok(out)
+}
+
 /// Reject paths with parent-dir components before canonicalize (symlink-safe listing).
-#[allow(dead_code)]
 fn path_has_parent_hop(path: &str) -> bool {
     Path::new(path)
         .components()

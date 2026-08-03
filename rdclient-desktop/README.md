@@ -118,15 +118,18 @@ Production bundle instead of dev:
 
 ### File transfer (desktop)
 
-Remote sessions use the panel’s RustDesk **FILE_TRANSFER** channel (toolbar **File transfer** button). The desktop shell adds native OS integration:
+Remote sessions use the panel’s RustDesk **FILE_TRANSFER** channel (toolbar **File transfer** button). Prefer this channel for **large files and folder trees** — it uses a dedicated relay so the desktop video session stays interactive. Cliprdr copy/paste remains convenient for small Explorer transfers, not multi‑GB bulk moves.
 
 | Action | Desktop behaviour |
 |--------|-------------------|
-| **Upload** | Drag files onto the modal or remote pane; click the drop zone for a native multi-file picker; optional **Choose folder** to browse local directories |
-| **Download** | Native **Save as** dialog (instead of browser-only download) |
+| **Upload files** | Drag files onto the modal or remote pane; click the drop zone for a native multi-file picker; optional **Choose folder** to browse local directories |
+| **Upload folders** | Double-click / context menu **Upload folder**, or drop a folder path onto the modal — expands the tree, creates remote dirs, uploads files sequentially under one queue job |
+| **Download files** | Streaming **Save as** — blocks are appended to disk (no full-file buffer in the WebView) |
+| **Download folders** | Context menu / double-click **Download folder** — pick (or use) a local destination, walk remote `read_dir`, `mkdir`, stream each file |
+| **Queue** | Folder jobs show overall % + current file name; **Cancel** stops the active child and remaining items. One folder job runs at a time (others queue) |
 | **Protocol** | Same `RDFileTransfer` / dedicated file relay as the web RdClient — browse, upload, download, overwrite prompts |
 
-Rebuild the desktop binary after pulling `rdclient-desktop` changes. Deploy or update the panel so `/js/rdclient/local-files.js` and `filetransfer.js` are current on your server.
+Rebuild the desktop binary after pulling `rdclient-desktop` changes. Deploy or update the panel so `/js/rdclient/local-files.js`, `filetransfer.js`, and `file-modal.js` are current on your server.
 
 ### Cliprdr file paste (desktop, Windows)
 
@@ -138,7 +141,7 @@ Explorer **Copy** / **Ctrl+C** on either side → focus the other → **Ctrl+V**
 | **Local → remote (drag-drop)** | OS drop onto the session window → Cliprdr FormatList → click under the cursor → synthetic Ctrl+V (not shell DnD into a folder HWND). Open the **File transfer** modal first to upload into a chosen remote folder instead |
 | **Remote → local (drag-out)** | Drag a file on the remote toward the **edge of the RdClient window** (keep the button down). RdClient cancels the remote Explorer drag, sends Ctrl+C, downloads via Cliprdr, then starts a local OLE drag so you can drop on Desktop/Explorer. Plain **Copy → Paste** also works |
 | **Remote → local (copy/paste)** | Peer FormatList → RdClient requests descriptor + file bytes into a temp dir → CF_HDROP on the local clipboard for Explorer paste |
-| **Cliprdr performance** | File bytes move in chunks over the shared session relay (same as RustDesk). RdClient uses base64 IPC + UI yields so video/heartbeat keep running during large folder copy/paste. Prefer the toolbar **File transfer** channel for multi‑GB trees — dedicated FILE_TRANSFER connection, will not starve the desktop stream |
+| **Cliprdr performance** | File bytes move in chunks over the shared session relay (same as RustDesk). RdClient uses base64 IPC + UI yields so video/heartbeat keep running during large folder copy/paste. For multi‑GB trees use toolbar **File transfer** (folder upload/download + streamed saves) — dedicated FILE_TRANSFER connection, will not starve the desktop stream |
 | **Drag-drop plumbing** | Native `tauri://drag-drop` paths (do **not** use `disable_drag_drop_handler` — HTML5 drops lack paths in WebView2) |
 | **Sync trigger** | Window focus / click in the viewer, ~1.5s poll while streaming, or native file drop |
 | **Text race guard** | When CF_HDROP is present, focus sync skips text clipboard push so path-as-text cannot wipe file formats on the peer |

@@ -2336,6 +2336,22 @@
     font-weight: 500;
 }
 
+.ft-transfer-folder-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.75;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 3px;
+    vertical-align: middle;
+}
+
+.ft-transfer-row.folder .ft-transfer-icon {
+    opacity: 0.95;
+}
+
 .ft-transfer-bar {
     height: 5px;
     background: rgba(255, 255, 255, 0.08);

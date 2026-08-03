@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **RdClient desktop — RustDesk-like folder file transfer:** File transfer modal can upload/download whole folder trees (recursive mkdir + sequential files) with aggregate queue progress/cancel; downloads stream to disk via Tauri `desktop_download_begin/write/finish` (no full-file WebView buffer). Prefer File transfer for large trees; Cliprdr remains Explorer convenience. Requires rebuilt `rdclient-desktop` **and** panel update (`filetransfer.js` / `file-modal.js` / `local-files.js` + locales).
+
 ### Fixed
 - **Windows panel update — agent-source sync EPERM:** Support Agent sync no longer defaults to Linux `/opt/BetterDeskConsole/...` (resolved as `C:\opt\...` on Windows). Sources stage under `<console>/agent-source/` and overwrite recovers from read-only/EPERM. Ships via panel update. NSSM `Access is denied` restarting BetterDeskServer remains non-critical — restart the Go service manually or via `betterdesk.ps1` → Update if the binary compiled but the service did not reload.
 - **Access Policy password change → RdClient “Wrong Password”:** with Passwordless server access, RdClient no longer falls back to or saves a stale local vault copy; device pushes cannot overwrite a just-saved console Access Password until the agent confirms the new secret; Support Agent pulls every 30s (was 2 min). Ships via panel update + betterdesk-server; rebuild Support Agent for the faster pull.

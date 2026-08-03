@@ -23,6 +23,23 @@
     }
 
     /**
+     * Encode bytes as standard base64 (chunked to avoid call stack limits).
+     * @param {Uint8Array|Array|ArrayBuffer} data
+     * @returns {string}
+     */
+    function bytesToBase64(data) {
+        var bytes = data instanceof Uint8Array
+            ? data
+            : new Uint8Array(data || []);
+        var binary = '';
+        var chunk = 0x8000;
+        for (var i = 0; i < bytes.length; i += chunk) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        }
+        return btoa(binary);
+    }
+
+    /**
      * Build a duck-typed File-like object backed by a native read handle.
      * @param {Object} info - { handle, name, size, modifiedTime|modified_time }
      * @returns {Object}
@@ -37,6 +54,7 @@
             size: Number(info.size || 0),
             lastModified: modified,
             __rdNativeHandle: info.handle,
+            __rdNativePath: info.path || null,
             slice: function (start, end) {
                 var handle = info.handle;
                 var offset = Math.max(0, Number(start || 0));
@@ -73,6 +91,7 @@
 
     LocalFiles.isDesktopBridge = isDesktopBridge;
     LocalFiles.createNativeUploadFile = createNativeUploadFile;
+    LocalFiles.bytesToBase64 = bytesToBase64;
 
     Object.defineProperty(LocalFiles.prototype, 'currentPath', {
         get: function () { return this._currentPath; }
@@ -201,6 +220,137 @@
         return entry.handle.getFile();
     };
 
+    /**
+     * Recursively expand a local directory (desktop path or FSA handle).
+     * @param {Object} entry - { path?, name, isDir, handle? }
+     * @returns {Promise<{rootName:string, dirs:Array, files:Array}>}
+     */
+    LocalFiles.prototype.walkFolder = async function (entry) {
+        if (!entry || !entry.isDir) {
+            return { rootName: '', dirs: [], files: [] };
+        }
+        if (this._mode === 'desktop' || (isDesktopBridge() && entry.path)) {
+            var walked = await desktopInvoke('desktop_walk_paths', { path: entry.path });
+            var dirs = [];
+            var files = [];
+            var rootName = entry.name || '';
+            (walked || []).forEach(function (e) {
+                var rel = e.relativePath != null ? e.relativePath : (e.relative_path || '');
+                var isDir = !!(e.isDir || e.is_dir);
+                if (rel === '') {
+                    rootName = e.name || rootName;
+                    return;
+                }
+                if (isDir) {
+                    dirs.push({
+                        name: e.name,
+                        path: e.path,
+                        relativePath: rel,
+                        isDir: true
+                    });
+                } else {
+                    files.push({
+                        name: e.name,
+                        path: e.path,
+                        relativePath: rel,
+                        size: Number(e.size || 0),
+                        modifiedTime: Number(e.modifiedTime != null ? e.modifiedTime : (e.modified_time || 0)),
+                        isDir: false
+                    });
+                }
+            });
+            dirs.sort(function (a, b) {
+                return a.relativePath.length - b.relativePath.length
+                    || a.relativePath.localeCompare(b.relativePath);
+            });
+            return { rootName: rootName, dirs: dirs, files: files };
+        }
+
+        // File System Access API walk
+        var rootNameFsa = entry.name || 'folder';
+        var dirsFsa = [];
+        var filesFsa = [];
+        async function walkHandle(dirHandle, relPrefix) {
+            for await (const child of dirHandle.values()) {
+                var rel = relPrefix ? (relPrefix + '/' + child.name) : child.name;
+                if (child.kind === 'directory') {
+                    dirsFsa.push({ name: child.name, relativePath: rel, isDir: true, handle: child });
+                    await walkHandle(child, rel);
+                } else {
+                    var file = await child.getFile();
+                    filesFsa.push({
+                        name: child.name,
+                        relativePath: rel,
+                        size: file.size,
+                        modifiedTime: file.lastModified ? Math.floor(file.lastModified / 1000) : 0,
+                        isDir: false,
+                        file: file,
+                        handle: child
+                    });
+                }
+            }
+        }
+        await walkHandle(entry.handle, '');
+        dirsFsa.sort(function (a, b) {
+            return a.relativePath.length - b.relativePath.length
+                || a.relativePath.localeCompare(b.relativePath);
+        });
+        return { rootName: rootNameFsa, dirs: dirsFsa, files: filesFsa };
+    };
+
+    /** Walk an absolute desktop path (folder drop / pick). */
+    LocalFiles.walkDesktopPath = async function (path) {
+        if (!isDesktopBridge() || !path) {
+            return { rootName: '', dirs: [], files: [], isFile: false };
+        }
+        var walked = await desktopInvoke('desktop_walk_paths', { path: path });
+        var dirs = [];
+        var files = [];
+        var rootName = '';
+        var isFile = false;
+        (walked || []).forEach(function (e) {
+            var rel = e.relativePath != null ? e.relativePath : (e.relative_path || '');
+            var isDir = !!(e.isDir || e.is_dir);
+            if (rel === '' && isDir) {
+                rootName = e.name || rootName;
+                return;
+            }
+            if (!isDir && (walked.length === 1 || (rel && rel.indexOf('/') === -1 && files.length === 0 && dirs.length === 0 && walked.length === 1))) {
+                // single file walk
+            }
+            if (isDir) {
+                dirs.push({
+                    name: e.name,
+                    path: e.path,
+                    relativePath: rel,
+                    isDir: true
+                });
+            } else {
+                if (walked.length === 1) {
+                    isFile = true;
+                    rootName = e.name || rootName;
+                }
+                files.push({
+                    name: e.name,
+                    path: e.path,
+                    relativePath: rel || e.name,
+                    size: Number(e.size || 0),
+                    modifiedTime: Number(e.modifiedTime != null ? e.modifiedTime : (e.modified_time || 0)),
+                    isDir: false
+                });
+            }
+        });
+        if (!rootName && files.length === 1 && dirs.length === 0) {
+            isFile = true;
+            rootName = files[0].name;
+        }
+        dirs.sort(function (a, b) {
+            return a.relativePath.length - b.relativePath.length
+                || a.relativePath.localeCompare(b.relativePath);
+        });
+        return { rootName: rootName, dirs: dirs, files: files, isFile: isFile };
+    };
+
     LocalFiles.prototype.saveDownload = async function (fileName, blob) {
         if (isDesktopBridge()) {
             var buf = await blob.arrayBuffer();
@@ -222,6 +372,61 @@
             console.warn('[LocalFiles] save to folder failed:', e);
             return false;
         }
+    };
+
+    LocalFiles.prototype.mkdirp = async function (path) {
+        if (isDesktopBridge()) {
+            await desktopInvoke('desktop_mkdir_p', { path: path });
+            return true;
+        }
+        return false;
+    };
+
+    /**
+     * Streaming download helpers (desktop only).
+     */
+    LocalFiles.beginDownload = async function (opts) {
+        if (!isDesktopBridge()) return null;
+        var args = {
+            suggestedName: opts && opts.suggestedName != null ? opts.suggestedName : null,
+            defaultDir: opts && opts.defaultDir != null ? opts.defaultDir : null,
+            absolutePath: opts && opts.absolutePath != null ? opts.absolutePath : null,
+            appendOffset: opts && opts.appendOffset != null ? Number(opts.appendOffset) : 0
+        };
+        // Tauri rename_all: camelCase in JS maps to snake in some versions; pass both styles via camelCase (serde rename).
+        return desktopInvoke('desktop_download_begin', {
+            suggestedName: args.suggestedName,
+            defaultDir: args.defaultDir,
+            absolutePath: args.absolutePath,
+            appendOffset: args.appendOffset
+        });
+    };
+
+    LocalFiles.writeDownload = async function (handle, data) {
+        if (!isDesktopBridge() || !handle) return;
+        var bytes = data instanceof Uint8Array ? data : new Uint8Array(data || []);
+        await desktopInvoke('desktop_download_write', {
+            handle: handle,
+            dataBase64: bytesToBase64(bytes)
+        });
+    };
+
+    LocalFiles.finishDownload = async function (handle) {
+        if (!isDesktopBridge() || !handle) return { saved: false };
+        return desktopInvoke('desktop_download_finish', { handle: handle });
+    };
+
+    LocalFiles.abortDownload = async function (handle, deleteFile) {
+        if (!isDesktopBridge() || !handle) return;
+        await desktopInvoke('desktop_download_abort', {
+            handle: handle,
+            deleteFile: deleteFile !== false
+        });
+    };
+
+    LocalFiles.pickFolder = async function () {
+        if (!isDesktopBridge()) return null;
+        return desktopInvoke('desktop_pick_folder');
     };
 
     /** Pick one or more local files via native dialog (desktop only). */
