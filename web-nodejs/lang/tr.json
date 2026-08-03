@@ -282,6 +282,8 @@
         "access_policy": "Erişim Politikası",
         "unattended_access": "Katılımsız Erişim",
         "enable_unattended": "Katılımsız erişimi etkinleştir",
+        "passwordless_server_access": "Parolasız sunucu erişimi",
+        "passwordless_server_access_hint": "Etkinleştirildiğinde RdClient, bu cihazda hatırlanan herhangi bir paroladan önce sunucudaki erişim parolasını kullanır. Devre dışı bırakıldığında önce yerel hatırlanan parola denenir.",
         "access_password": "Erişim Şifresi",
         "password_configured": "Şifre seti",
         "no_password": "Şifre yok",

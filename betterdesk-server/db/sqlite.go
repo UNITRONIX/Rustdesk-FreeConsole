@@ -279,6 +279,7 @@ func (s *SQLiteDB) Migrate() error {
 			peer_id TEXT PRIMARY KEY,
 			unattended_enabled INTEGER DEFAULT 0,
 			password_hash TEXT DEFAULT '',
+			passwordless_server_access INTEGER DEFAULT 1,
 			schedule_enabled INTEGER DEFAULT 0,
 			schedule_days TEXT DEFAULT '',
 			schedule_start_time TEXT DEFAULT '',
@@ -506,6 +507,8 @@ func (s *SQLiteDB) Migrate() error {
 		{"users", "guid", `ALTER TABLE users ADD COLUMN guid TEXT DEFAULT ''`},
 		// access_policies: reversible connect secret for unattended auto-auth
 		{"access_policies", "password_enc", `ALTER TABLE access_policies ADD COLUMN password_enc TEXT DEFAULT ''`},
+		// access_policies: prefer server sealed password over RdClient local vault
+		{"access_policies", "passwordless_server_access", `ALTER TABLE access_policies ADD COLUMN passwordless_server_access INTEGER DEFAULT 1`},
 	}
 
 	for _, m := range columnMigrations {
@@ -2296,13 +2299,15 @@ func (s *SQLiteDB) GetAccessPolicy(peerID string) (*AccessPolicy, error) {
 	defer s.mu.RUnlock()
 
 	row := s.db.QueryRow(
-		`SELECT peer_id, unattended_enabled, password_hash, COALESCE(password_enc, ''), schedule_enabled,
+		`SELECT peer_id, unattended_enabled, password_hash, COALESCE(password_enc, ''),
+				COALESCE(passwordless_server_access, 1), schedule_enabled,
 				schedule_days, schedule_start_time, schedule_end_time, schedule_timezone,
 				allowed_operators, updated_at, updated_by
 		 FROM access_policies WHERE peer_id = ?`, peerID)
 
 	var p AccessPolicy
-	err := row.Scan(&p.PeerID, &p.UnattendedEnabled, &p.PasswordHash, &p.PasswordEnc, &p.ScheduleEnabled,
+	err := row.Scan(&p.PeerID, &p.UnattendedEnabled, &p.PasswordHash, &p.PasswordEnc,
+		&p.PasswordlessServerAccess, &p.ScheduleEnabled,
 		&p.ScheduleDays, &p.ScheduleStartTime, &p.ScheduleEndTime, &p.ScheduleTimezone,
 		&p.AllowedOperators, &p.UpdatedAt, &p.UpdatedBy)
 	if err != nil {
@@ -2319,13 +2324,15 @@ func (s *SQLiteDB) SaveAccessPolicy(p *AccessPolicy) error {
 
 	_, err := s.db.Exec(
 		`INSERT INTO access_policies (peer_id, unattended_enabled, password_hash, password_enc,
+			passwordless_server_access,
 			schedule_enabled, schedule_days, schedule_start_time, schedule_end_time,
 			schedule_timezone, allowed_operators, updated_at, updated_by)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(peer_id) DO UPDATE SET
 			unattended_enabled = excluded.unattended_enabled,
 			password_hash = CASE WHEN excluded.password_hash = '' THEN access_policies.password_hash WHEN excluded.password_hash = 'CLEAR' THEN '' ELSE excluded.password_hash END,
 			password_enc = CASE WHEN excluded.password_hash = '' THEN access_policies.password_enc WHEN excluded.password_hash = 'CLEAR' THEN '' ELSE excluded.password_enc END,
+			passwordless_server_access = excluded.passwordless_server_access,
 			schedule_enabled = excluded.schedule_enabled,
 			schedule_days = excluded.schedule_days,
 			schedule_start_time = excluded.schedule_start_time,
@@ -2335,6 +2342,7 @@ func (s *SQLiteDB) SaveAccessPolicy(p *AccessPolicy) error {
 			updated_at = excluded.updated_at,
 			updated_by = excluded.updated_by`,
 		p.PeerID, p.UnattendedEnabled, p.PasswordHash, p.PasswordEnc,
+		p.PasswordlessServerAccess,
 		p.ScheduleEnabled, p.ScheduleDays, p.ScheduleStartTime, p.ScheduleEndTime,
 		p.ScheduleTimezone, p.AllowedOperators, p.UpdatedAt, p.UpdatedBy)
 	return err

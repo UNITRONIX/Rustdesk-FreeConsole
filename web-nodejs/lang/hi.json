@@ -282,6 +282,8 @@
         "access_policy": "एक्सेस नीति",
         "unattended_access": "अप्राप्य पहुंच",
         "enable_unattended": "अप्राप्य पहुंच सक्षम करें",
+        "passwordless_server_access": "पासवर्ड रहित सर्वर एक्सेस",
+        "passwordless_server_access_hint": "सक्षम होने पर RdClient इस डिवाइस पर याद किए गए किसी भी पासवर्ड से पहले सर्वर से एक्सेस पासवर्ड उपयोग करता है। अक्षम होने पर स्थानीय रूप से याद किया गया पासवर्ड पहले आज़माया जाता है।",
         "access_password": "एक्सेस पासवर्ड",
         "password_configured": "पासवर्ड सेट",
         "no_password": "कोई पासवर्ड नहीं",

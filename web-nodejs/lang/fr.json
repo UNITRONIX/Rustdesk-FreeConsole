@@ -350,6 +350,8 @@
         "dynamic_memberships": "Dynamische Mitgliedschaften",
         "unattended_access": "Unattended Access",
         "enable_unattended": "Enable unattended access",
+        "passwordless_server_access": "Accès serveur sans mot de passe",
+        "passwordless_server_access_hint": "Si activé, RdClient utilise le mot de passe d’accès du serveur avant tout mot de passe mémorisé sur cet appareil. Si désactivé, le mot de passe local est essayé en premier.",
         "access_password": "Access Password",
         "password_configured": "Password set",
         "no_password": "No password",

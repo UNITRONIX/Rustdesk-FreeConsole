@@ -2028,40 +2028,42 @@ func (s *Server) handleGetAccessPolicy(w http.ResponseWriter, r *http.Request) {
 
 	policy, err := s.db.GetAccessPolicy(id)
 	if err != nil {
-		// No policy = defaults (all disabled)
+		// No policy = defaults (all disabled; prefer server password when enabled later)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"peer_id":              id,
-			"unattended_enabled":   false,
-			"password_set":         false,
-			"connect_secret_ready": false,
-			"connect_secret_codec": s.accessSecret != nil,
-			"schedule_enabled":     false,
-			"schedule_days":        "",
-			"schedule_start_time":  "",
-			"schedule_end_time":    "",
-			"schedule_timezone":    "",
-			"allowed_operators":    "",
-			"updated_at":           "",
-			"updated_by":           "",
+			"peer_id":                     id,
+			"unattended_enabled":          false,
+			"password_set":                false,
+			"connect_secret_ready":        false,
+			"connect_secret_codec":        s.accessSecret != nil,
+			"passwordless_server_access":  true,
+			"schedule_enabled":            false,
+			"schedule_days":               "",
+			"schedule_start_time":         "",
+			"schedule_end_time":           "",
+			"schedule_timezone":           "",
+			"allowed_operators":           "",
+			"updated_at":                  "",
+			"updated_by":                  "",
 		})
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"peer_id":              policy.PeerID,
-		"unattended_enabled":   policy.UnattendedEnabled,
-		"password_set":         policy.PasswordSet,
+		"peer_id":                     policy.PeerID,
+		"unattended_enabled":          policy.UnattendedEnabled,
+		"password_set":                policy.PasswordSet,
 		// Sealed in DB (password_enc). Auto-auth also needs the codec at runtime.
-		"connect_secret_ready": policy.PasswordEnc != "",
-		"connect_secret_codec": s.accessSecret != nil,
-		"schedule_enabled":     policy.ScheduleEnabled,
-		"schedule_days":        policy.ScheduleDays,
-		"schedule_start_time":  policy.ScheduleStartTime,
-		"schedule_end_time":    policy.ScheduleEndTime,
-		"schedule_timezone":    policy.ScheduleTimezone,
-		"allowed_operators":    policy.AllowedOperators,
-		"updated_at":           policy.UpdatedAt,
-		"updated_by":           policy.UpdatedBy,
+		"connect_secret_ready":        policy.PasswordEnc != "",
+		"connect_secret_codec":        s.accessSecret != nil,
+		"passwordless_server_access":  policy.PasswordlessServerAccess,
+		"schedule_enabled":            policy.ScheduleEnabled,
+		"schedule_days":               policy.ScheduleDays,
+		"schedule_start_time":         policy.ScheduleStartTime,
+		"schedule_end_time":           policy.ScheduleEndTime,
+		"schedule_timezone":           policy.ScheduleTimezone,
+		"allowed_operators":           policy.AllowedOperators,
+		"updated_at":                  policy.UpdatedAt,
+		"updated_by":                  policy.UpdatedBy,
 	})
 }
 
@@ -2073,15 +2075,16 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var body struct {
-		UnattendedEnabled bool   `json:"unattended_enabled"`
-		Password          string `json:"password,omitempty"`       // Plain text — will be hashed
-		ClearPassword     bool   `json:"clear_password,omitempty"` // If true, remove password
-		ScheduleEnabled   bool   `json:"schedule_enabled"`
-		ScheduleDays      string `json:"schedule_days"`
-		ScheduleStartTime string `json:"schedule_start_time"`
-		ScheduleEndTime   string `json:"schedule_end_time"`
-		ScheduleTimezone  string `json:"schedule_timezone"`
-		AllowedOperators  string `json:"allowed_operators"`
+		UnattendedEnabled        bool   `json:"unattended_enabled"`
+		Password                 string `json:"password,omitempty"`       // Plain text — will be hashed
+		ClearPassword            bool   `json:"clear_password,omitempty"` // If true, remove password
+		PasswordlessServerAccess *bool  `json:"passwordless_server_access,omitempty"`
+		ScheduleEnabled          bool   `json:"schedule_enabled"`
+		ScheduleDays             string `json:"schedule_days"`
+		ScheduleStartTime        string `json:"schedule_start_time"`
+		ScheduleEndTime          string `json:"schedule_end_time"`
+		ScheduleTimezone         string `json:"schedule_timezone"`
+		AllowedOperators         string `json:"allowed_operators"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request body"})
@@ -2112,20 +2115,28 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	policy := &db.AccessPolicy{
-		PeerID:            id,
-		UnattendedEnabled: body.UnattendedEnabled,
-		ScheduleEnabled:   body.ScheduleEnabled,
-		ScheduleDays:      body.ScheduleDays,
-		ScheduleStartTime: body.ScheduleStartTime,
-		ScheduleEndTime:   body.ScheduleEndTime,
-		ScheduleTimezone:  body.ScheduleTimezone,
-		AllowedOperators:  body.AllowedOperators,
-		UpdatedAt:         time.Now().UTC().Format(time.RFC3339),
-		UpdatedBy:         s.remoteIP(r),
+	existing, _ := s.db.GetAccessPolicy(id)
+	preferServer := true
+	if body.PasswordlessServerAccess != nil {
+		preferServer = *body.PasswordlessServerAccess
+	} else if existing != nil {
+		preferServer = existing.PasswordlessServerAccess
 	}
 
-	existing, _ := s.db.GetAccessPolicy(id)
+	policy := &db.AccessPolicy{
+		PeerID:                   id,
+		UnattendedEnabled:        body.UnattendedEnabled,
+		PasswordlessServerAccess: preferServer,
+		ScheduleEnabled:          body.ScheduleEnabled,
+		ScheduleDays:             body.ScheduleDays,
+		ScheduleStartTime:        body.ScheduleStartTime,
+		ScheduleEndTime:          body.ScheduleEndTime,
+		ScheduleTimezone:         body.ScheduleTimezone,
+		AllowedOperators:         body.AllowedOperators,
+		UpdatedAt:                time.Now().UTC().Format(time.RFC3339),
+		UpdatedBy:                s.remoteIP(r),
+	}
+
 	existingSealed := existing != nil && existing.PasswordEnc != ""
 
 	// Unattended auto-auth needs a sealed password. Bcrypt-only legacy rows cannot be recovered.
@@ -2249,9 +2260,10 @@ func (s *Server) handleGetConnectSecret(w http.ResponseWriter, r *http.Request) 
 
 	log.Printf("[api] connect-secret peer=%s: ok (auto-auth)", id)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"password":           plain,
-		"unattended_enabled": true,
-		"peer_id":            id,
+		"password":                    plain,
+		"unattended_enabled":          true,
+		"passwordless_server_access":  policy.PasswordlessServerAccess,
+		"peer_id":                     id,
 	})
 }
 

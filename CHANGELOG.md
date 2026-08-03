@@ -13,6 +13,7 @@
 
 ### Changed
 - **Devices / RdClient sort:** Online first, then alphabetically by display name / hostname (stable by device id) on Console Devices, RdClient `/remote` address book (desktop + web), and guest device lists. Column header clicks on Console Devices remain a secondary sort within that grouping. Ships via panel update.
+- **Access Policy — Passwordless server access:** new per-device checkbox under Unattended Access. When enabled (default), RdClient prefers the sealed Access Password from the server over any password remembered on the operator device; when disabled, the local vault is tried first. Ships via panel update (console + betterdesk-server).
 
 ---
 

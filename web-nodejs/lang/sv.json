@@ -282,6 +282,8 @@
         "access_policy": "Åtkomstpolicy",
         "unattended_access": "Oövervakad åtkomst",
         "enable_unattended": "Aktivera obevakad åtkomst",
+        "passwordless_server_access": "Lösenordsfri serveråtkomst",
+        "passwordless_server_access_hint": "När aktiverat använder RdClient åtkomstlösenordet från servern före ett lösenord som sparats på den här enheten. När inaktiverat provas det lokalt sparade lösenordet först.",
         "access_password": "Åtkomstlösenord",
         "password_configured": "Lösenord inställt",
         "no_password": "Inget lösenord",

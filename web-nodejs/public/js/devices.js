@@ -1675,6 +1675,11 @@
                             <input type="checkbox" id="ap-unattended" ${policy.unattended_enabled ? 'checked' : ''}>
                             <span>${_('devices.enable_unattended') || 'Enable unattended access'}</span>
                         </label>
+                        <label class="toggle-row">
+                            <input type="checkbox" id="ap-passwordless-server" ${policy.passwordless_server_access !== false ? 'checked' : ''}>
+                            <span>${_('devices.passwordless_server_access') || 'Passwordless server access'}</span>
+                        </label>
+                        <p class="form-hint">${dt('devices.passwordless_server_access_hint', 'When enabled, RdClient uses the Access Password from the server before any password remembered on this device. When disabled, the locally remembered password is tried first.')}</p>
                     </div>
                     <div class="form-section">
                         <h4><span class="material-icons">lock</span> ${_('devices.access_password') || 'Access Password'}</h4>
@@ -1755,6 +1760,9 @@
                                 unattended_enabled: unattended,
                                 password: password,
                                 clear_password: clearPw,
+                                passwordless_server_access: document.getElementById('ap-passwordless-server')
+                                    ? document.getElementById('ap-passwordless-server').checked
+                                    : true,
                                 schedule_enabled: scheduleCheckbox ? scheduleCheckbox.checked : false,
                                 schedule_days: selectedDays.join(','),
                                 schedule_start_time: document.getElementById('ap-start-time') ? document.getElementById('ap-start-time').value : '',

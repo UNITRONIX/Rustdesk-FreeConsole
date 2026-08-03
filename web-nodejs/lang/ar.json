@@ -283,6 +283,8 @@
         "access_policy": "سياسة الوصول",
         "unattended_access": "الوصول غير المراقب",
         "enable_unattended": "تمكين الوصول غير المراقب",
+        "passwordless_server_access": "وصول الخادم بدون كلمة مرور",
+        "passwordless_server_access_hint": "عند التمكين، يستخدم RdClient كلمة مرور الوصول من الخادم قبل أي كلمة مرور محفوظة على هذا الجهاز. عند التعطيل، تُجرَّب كلمة المرور المحلية أولاً.",
         "access_password": "كلمة مرور الوصول",
         "password_configured": "تم تعيين كلمة المرور",
         "no_password": "لا كلمة المرور",

@@ -276,6 +276,8 @@
         "access_policy": "访问策略",
         "unattended_access": "无人值守访问",
         "enable_unattended": "启用无人值守访问",
+        "passwordless_server_access": "无密码服务器访问",
+        "passwordless_server_access_hint": "启用后，RdClient 会优先使用服务器上的访问密码，而不是本设备记住的密码。禁用后，会先尝试本地记住的密码。",
         "access_password": "访问密码",
         "password_configured": "密码已设置",
         "no_password": "未设置密码",

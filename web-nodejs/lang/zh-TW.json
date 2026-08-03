@@ -350,6 +350,8 @@
         "dynamic_memberships": "動態成員關係",
         "unattended_access": "無人值守訪問",
         "enable_unattended": "啓用無人值守訪問",
+        "passwordless_server_access": "無密碼伺服器存取",
+        "passwordless_server_access_hint": "啟用後，RdClient 會優先使用伺服器上的存取密碼，而不是本裝置記住的密碼。停用後，會先嘗試本機記住的密碼。",
         "access_password": "訪問密碼",
         "password_configured": "密碼已設置",
         "no_password": "未設置密碼",

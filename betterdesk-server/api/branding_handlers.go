@@ -790,11 +790,17 @@ func (s *Server) handleDeviceSelfAccessPolicy(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	preferServer := true
+	if existing, err := s.db.GetAccessPolicy(body.DeviceID); err == nil && existing != nil {
+		preferServer = existing.PasswordlessServerAccess
+	}
+
 	policy := &db.AccessPolicy{
-		PeerID:            body.DeviceID,
-		UnattendedEnabled: body.UnattendedEnabled,
-		UpdatedAt:         time.Now().UTC().Format(time.RFC3339),
-		UpdatedBy:         "device:" + body.DeviceID,
+		PeerID:                   body.DeviceID,
+		UnattendedEnabled:        body.UnattendedEnabled,
+		PasswordlessServerAccess: preferServer,
+		UpdatedAt:                time.Now().UTC().Format(time.RFC3339),
+		UpdatedBy:                "device:" + body.DeviceID,
 	}
 	if body.Password != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)

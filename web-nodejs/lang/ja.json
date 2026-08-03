@@ -276,6 +276,8 @@
         "access_policy": "アクセスポリシー",
         "unattended_access": "無人アクセス",
         "enable_unattended": "無人アクセス���有効にする",
+        "passwordless_server_access": "サーバーパスワードレスアクセス",
+        "passwordless_server_access_hint": "有効にすると、RdClient はこのデバイスに記憶されたパスワードより先にサーバーのアクセスパスワードを使用します。無効にすると、ローカルに記憶されたパスワードが先に試されます。",
         "access_password": "アクセスパスワード",
         "password_configured": "パスワード設定",
         "no_password": "パスワードがありません",

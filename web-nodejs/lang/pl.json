@@ -353,6 +353,8 @@
         "dynamic_memberships": "Członkostwa dynamiczne",
         "unattended_access": "Dostęp nienadzorowany",
         "enable_unattended": "Włącz dostęp nienadzorowany",
+        "passwordless_server_access": "Dostęp do serwera bez hasła",
+        "passwordless_server_access_hint": "Gdy włączone, RdClient używa hasła dostępu z serwera przed hasłem zapamiętanym na tym urządzeniu. Gdy wyłączone, najpierw próbowane jest lokalnie zapamiętane hasło.",
         "access_password": "Hasło dostępu",
         "password_configured": "Hasło ustawione",
         "no_password": "Brak hasła",

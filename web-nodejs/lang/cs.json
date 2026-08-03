@@ -276,6 +276,8 @@
         "access_policy": "Pravidlo přístupu",
         "unattended_access": "Nedosledovaný přístup",
         "enable_unattended": "Povolit nedosledovaný přístup",
+        "passwordless_server_access": "Bezheslový přístup ze serveru",
+        "passwordless_server_access_hint": "Je-li zapnuto, RdClient použije přístupové heslo ze serveru před heslem uloženým na tomto zařízení. Je-li vypnuto, nejdřív se zkusí lokálně zapamatované heslo.",
         "access_password": "Heslo přístupu",
         "password_configured": "Heslo nastaveno",
         "no_password": "Žádné heslo",

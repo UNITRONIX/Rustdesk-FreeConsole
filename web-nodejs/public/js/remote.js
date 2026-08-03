@@ -978,6 +978,8 @@
             // 1) Console unattended connect-secret (Access Policy)
             // 2) Local remembered peer password (auto-submit)
             // 3) Manual prompt (with reason when secret fetch fails)
+            // Priority between (1) and (2) is controlled by Access Policy
+            // "Passwordless server access" (default: prefer server).
             const fetchSecret = fetch('/api/devices/' + encodeURIComponent(session.deviceId) + '/connect-secret', {
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
@@ -988,11 +990,17 @@
                     return {
                         ok: false,
                         error: (body && (body.error || (body.data && body.data.error))) || ('HTTP ' + r.status),
+                        preferServer: body && (typeof body.passwordless_server_access === 'boolean'
+                            ? body.passwordless_server_access
+                            : (body.data && body.data.passwordless_server_access)),
                     };
                 }
                 return {
                     ok: true,
                     password: (body && (body.password || (body.data && body.data.password))) || '',
+                    preferServer: body && (typeof body.passwordless_server_access === 'boolean'
+                        ? body.passwordless_server_access
+                        : (body.data && body.data.passwordless_server_access)),
                 };
             }).catch((e) => ({ ok: false, error: e.message || 'connect-secret failed' }));
 
@@ -1000,10 +1008,36 @@
                 ? window.RdClientSecureStore.loadPeerPassword(session.deviceId).catch(() => null)
                 : Promise.resolve(null);
 
-            Promise.all([fetchSecret, fetchVault]).then(([secretResp, saved]) => {
+            const fetchPolicy = fetch('/api/devices/' + encodeURIComponent(session.deviceId) + '/access-policy', {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            }).then(async (r) => {
+                if (!r.ok) return null;
+                try { return await r.json(); } catch (_) { return null; }
+            }).catch(() => null);
+
+            Promise.all([fetchSecret, fetchVault, fetchPolicy]).then(([secretResp, saved, policyResp]) => {
+                const policy = (policyResp && (policyResp.data || policyResp)) || {};
+                // Default true = current behaviour (server sealed password first).
+                let preferServer = true;
+                if (typeof secretResp.preferServer === 'boolean') {
+                    preferServer = secretResp.preferServer;
+                } else if (typeof policy.passwordless_server_access === 'boolean') {
+                    preferServer = policy.passwordless_server_access;
+                }
+
                 const secretPw = secretResp && secretResp.ok && secretResp.password;
-                if (secretPw && tryAuth(secretPw, true)) return;
-                if (saved && tryAuth(saved, true)) return;
+                const tryServer = () => !!(secretPw && tryAuth(secretPw, preferServer));
+                const tryClient = () => !!(saved && tryAuth(saved, true));
+
+                if (preferServer) {
+                    if (tryServer()) return;
+                    if (tryClient()) return;
+                } else {
+                    if (tryClient()) return;
+                    if (tryServer()) return;
+                }
+
                 if (saved) {
                     session.passwordInput.value = saved;
                     if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;

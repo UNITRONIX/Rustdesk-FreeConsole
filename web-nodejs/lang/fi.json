@@ -282,6 +282,8 @@
         "access_policy": "Käyttöoikeuskäytäntö",
         "unattended_access": "Valvomaton pääsy",
         "enable_unattended": "Salli valvomaton pääsy",
+        "passwordless_server_access": "Salasanaton palvelinpääsy",
+        "passwordless_server_access_hint": "Kun käytössä, RdClient käyttää palvelimen käyttösalasanaa ennen tälle laitteelle muistettua salasanaa. Kun pois käytöstä, paikallisesti muistettua salasanaa kokeillaan ensin.",
         "access_password": "Pääsyn salasana",
         "password_configured": "Salasana asetettu",
         "no_password": "Ei salasanaa",

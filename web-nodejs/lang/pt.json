@@ -276,6 +276,8 @@
         "access_policy": "Política de acesso",
         "unattended_access": "Acesso não supervisionado",
         "enable_unattended": "Ativar acesso não supervisionado",
+        "passwordless_server_access": "Acesso ao servidor sem palavra-passe",
+        "passwordless_server_access_hint": "Quando ativado, o RdClient usa a palavra-passe de acesso do servidor antes de qualquer palavra-passe memorizada neste dispositivo. Quando desativado, a palavra-passe local é tentada primeiro.",
         "access_password": "Senha de acesso",
         "password_configured": "Senha configurada",
         "no_password": "Nenhuma senha configurada",

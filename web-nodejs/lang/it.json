@@ -276,6 +276,8 @@
         "access_policy": "Criterio di accesso",
         "unattended_access": "Accesso non presidiato",
         "enable_unattended": "Abilita accesso non presidiato",
+        "passwordless_server_access": "Accesso server senza password",
+        "passwordless_server_access_hint": "Se abilitato, RdClient usa la password di accesso dal server prima di qualsiasi password memorizzata su questo dispositivo. Se disabilitato, viene provata prima la password locale.",
         "access_password": "Password di accesso",
         "password_configured": "Password configurata",
         "no_password": "Nessuna password impostata",

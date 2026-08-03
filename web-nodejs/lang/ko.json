@@ -276,6 +276,8 @@
         "access_policy": "접근 정책",
         "unattended_access": "무인 액세스",
         "enable_unattended": "무인 액세스 활성화",
+        "passwordless_server_access": "비밀번호 없는 서버 액세스",
+        "passwordless_server_access_hint": "사용하면 RdClient가 이 기기에 기억된 비밀번호보다 서버의 액세스 비밀번호를 먼저 사용합니다. 끄면 로컬에 기억된 비밀번호를 먼저 시도합니다.",
         "access_password": "접속 비밀번호",
         "password_configured": "비밀번호 설정",
         "no_password": "비밀번호 없음",

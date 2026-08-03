@@ -282,6 +282,8 @@
         "access_policy": "Hozzáférési szabályzat",
         "unattended_access": "Felügyelet nélküli hozzáférés",
         "enable_unattended": "Engedélyezze a felügyelet nélküli hozzáférést",
+        "passwordless_server_access": "Jelszó nélküli szerverhozzáférés",
+        "passwordless_server_access_hint": "Ha be van kapcsolva, az RdClient a szerveren tárolt hozzáférési jelszót használja az ezen az eszközön megjegyzett jelszó előtt. Ha ki van kapcsolva, először a helyi jelszó kerül kipróbálásra.",
         "access_password": "Hozzáférési jelszó",
         "password_configured": "Jelszó beállítva",
         "no_password": "Nincs jelszó",

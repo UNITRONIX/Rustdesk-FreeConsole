@@ -363,6 +363,8 @@
         "dynamic_memberships": "Dynamic memberships",
         "unattended_access": "Unattended Access",
         "enable_unattended": "Enable unattended access",
+        "passwordless_server_access": "Passwordless server access",
+        "passwordless_server_access_hint": "When enabled, RdClient uses the Access Password from the server before any password remembered on this device. When disabled, the locally remembered password is tried first.",
         "access_password": "Access Password",
         "password_configured": "Password set",
         "no_password": "No password",

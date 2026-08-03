@@ -276,6 +276,8 @@
         "access_policy": "Zugriffsrichtlinie",
         "unattended_access": "Unbeaufsichtigter Zugriff",
         "enable_unattended": "Unbeaufsichtigten Zugriff aktivieren",
+        "passwordless_server_access": "Passwortloser Serverzugriff",
+        "passwordless_server_access_hint": "Wenn aktiviert, verwendet RdClient das Zugriffspasswort vom Server vor einem auf diesem Gerät gespeicherten Passwort. Wenn deaktiviert, wird zuerst das lokal gespeicherte Passwort versucht.",
         "access_password": "Zugriffspasswort",
         "password_configured": "Passwort konfiguriert",
         "no_password": "Kein Passwort festgelegt",

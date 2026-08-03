@@ -282,6 +282,8 @@
         "access_policy": "Kebijakan Akses",
         "unattended_access": "Akses Tanpa Pengawasan",
         "enable_unattended": "Aktifkan akses tanpa pengawasan",
+        "passwordless_server_access": "Akses server tanpa kata sandi",
+        "passwordless_server_access_hint": "Jika diaktifkan, RdClient menggunakan kata sandi akses dari server sebelum kata sandi yang diingat di perangkat ini. Jika dinonaktifkan, kata sandi lokal dicoba terlebih dahulu.",
         "access_password": "Akses Kata Sandi",
         "password_configured": "Kumpulan kata sandi",
         "no_password": "Tidak ada kata sandi",

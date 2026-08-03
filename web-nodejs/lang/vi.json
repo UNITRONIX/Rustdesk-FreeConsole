@@ -282,6 +282,8 @@
         "access_policy": "Chính sách truy cập",
         "unattended_access": "Truy cập không cần giám sát",
         "enable_unattended": "Cho phép truy cập không giám sát",
+        "passwordless_server_access": "Truy cập máy chủ không mật khẩu",
+        "passwordless_server_access_hint": "Khi bật, RdClient dùng mật khẩu truy cập từ máy chủ trước mọi mật khẩu đã nhớ trên thiết bị này. Khi tắt, mật khẩu lưu cục bộ được thử trước.",
         "access_password": "Mật khẩu truy cập",
         "password_configured": "Đã đặt mật khẩu",
         "no_password": "Không có mật khẩu",

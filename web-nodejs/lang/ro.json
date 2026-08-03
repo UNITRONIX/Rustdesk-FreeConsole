@@ -282,6 +282,8 @@
         "access_policy": "Politica de acces",
         "unattended_access": "Acces nesupravegheat",
         "enable_unattended": "Activați accesul nesupravegheat",
+        "passwordless_server_access": "Acces server fără parolă",
+        "passwordless_server_access_hint": "Când este activat, RdClient folosește parola de acces de pe server înaintea oricărei parole memorate pe acest dispozitiv. Când este dezactivat, parola locală este încercată mai întâi.",
         "access_password": "Parola de acces",
         "password_configured": "Parola setată",
         "no_password": "Fără parolă",

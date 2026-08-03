@@ -832,6 +832,7 @@ router.get('/api/devices/:id/connect-secret', requireAuth, requirePermission('de
         res.json({
             success: true,
             password,
+            passwordless_server_access: result.data && result.data.passwordless_server_access,
             data: result.data,
         });
     } catch (err) {

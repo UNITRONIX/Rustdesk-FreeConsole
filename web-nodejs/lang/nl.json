@@ -276,6 +276,8 @@
         "access_policy": "Toegangsbeleid",
         "unattended_access": "Onbeheerde toegang",
         "enable_unattended": "Onbeheerde toegang inschakelen",
+        "passwordless_server_access": "Wachtwoordloze servertoegang",
+        "passwordless_server_access_hint": "Indien ingeschakeld gebruikt RdClient het toegangswachtwoord van de server vóór een wachtwoord dat op dit apparaat is onthouden. Indien uitgeschakeld wordt eerst het lokaal onthouden wachtwoord geprobeerd.",
         "access_password": "Toegangswachtwoord",
         "password_configured": "Wachtwoord geconfigureerd",
         "no_password": "Geen wachtwoord ingesteld",
