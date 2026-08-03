@@ -67,6 +67,8 @@
     "allow-desktop-clipboard-receive-write",
     "allow-desktop-clipboard-receive-commit",
     "allow-desktop-clipboard-receive-abort",
+    "allow-desktop-clipboard-lbutton-down",
+    "allow-desktop-clipboard-start-drag",
     "allow-desktop-open-paths"
   ]
 }

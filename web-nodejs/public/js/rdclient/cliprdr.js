@@ -378,16 +378,80 @@
             client._cliprdrPeerFcId = fcId;
             client._sendPeerMessage(client.proto.buildCliprdrFormatListResponse(CB_RESPONSE_OK));
 
+            // Drag-out intent: FormatList while local LBUTTON is held (remote file drag).
+            // Plain Copy (Ctrl+C) leaves LBUTTON up → clipboard only.
+            var dragIntent = false;
+            try {
+                dragIntent = !!(await desktopInvoke('desktop_clipboard_lbutton_down'));
+            } catch (_) {
+                dragIntent = false;
+            }
+            client._cliprdrOleDragIntent = dragIntent;
+            client._cliprdrOleDragWhenReady = false;
+            RDCliprdr._disarmOleDrag(client);
+
             try {
                 client._cliprdrReceiving = true;
                 suppressOutbound(client, OUTBOUND_SUPPRESS_MS);
+                if (dragIntent) {
+                    RDCliprdr._armOleDragOnLeave(client);
+                }
                 await RDCliprdr._pullRemoteFiles(client, fdId);
             } catch (err) {
                 console.warn('[RDCliprdr] inbound file pull failed:', err);
                 try { await desktopInvoke('desktop_clipboard_receive_abort'); } catch (_) { /* ignore */ }
+                RDCliprdr._disarmOleDrag(client);
+                client._cliprdrOleDragIntent = false;
             } finally {
                 client._cliprdrReceiving = false;
                 suppressOutbound(client, OUTBOUND_SUPPRESS_MS);
+            }
+        }
+
+        static _disarmOleDrag(client) {
+            if (!client) return;
+            if (client._cliprdrOleDragLeaveHandler) {
+                document.removeEventListener('mouseleave', client._cliprdrOleDragLeaveHandler, true);
+                document.documentElement.removeEventListener('pointerleave', client._cliprdrOleDragLeaveHandler, true);
+                window.removeEventListener('blur', client._cliprdrOleDragLeaveHandler);
+                client._cliprdrOleDragLeaveHandler = null;
+            }
+        }
+
+        static _armOleDragOnLeave(client) {
+            RDCliprdr._disarmOleDrag(client);
+            var handler = function () {
+                if (!client._cliprdrOleDragIntent) return;
+                if (client._cliprdrOleDragPaths && client._cliprdrOleDragPaths.length) {
+                    RDCliprdr._startOleDrag(client, client._cliprdrOleDragPaths);
+                } else {
+                    // Files still downloading — start drag as soon as commit finishes.
+                    client._cliprdrOleDragWhenReady = true;
+                }
+            };
+            client._cliprdrOleDragLeaveHandler = handler;
+            document.addEventListener('mouseleave', handler, true);
+            document.documentElement.addEventListener('pointerleave', handler, true);
+            window.addEventListener('blur', handler);
+        }
+
+        static async _startOleDrag(client, paths) {
+            if (!paths || !paths.length) return;
+            if (!client._cliprdrOleDragIntent && !client._cliprdrOleDragWhenReady) return;
+            client._cliprdrOleDragIntent = false;
+            client._cliprdrOleDragWhenReady = false;
+            RDCliprdr._disarmOleDrag(client);
+            try {
+                var stillDown = await desktopInvoke('desktop_clipboard_lbutton_down');
+                if (!stillDown) {
+                    debugLog('OLE drag skipped: LBUTTON up');
+                    return;
+                }
+                console.info('[RDCliprdr] starting OLE drag-out with', paths.length, 'path(s)');
+                var result = await desktopInvoke('desktop_clipboard_start_drag', { paths: paths });
+                debugLog('OLE drag result:', result);
+            } catch (err) {
+                console.warn('[RDCliprdr] OLE drag-out failed:', err);
             }
         }
 
@@ -444,7 +508,18 @@
             if (commit && commit.signature) {
                 client._cliprdrLocalSignature = commit.signature;
             }
-            debugLog('inbound receive committed; local CF_HDROP ready');
+            var paths = (commit && commit.paths) || [];
+            client._cliprdrOleDragPaths = paths;
+            debugLog('inbound receive committed; local CF_HDROP ready', paths.length, 'top path(s)');
+
+            if (paths.length && (client._cliprdrOleDragWhenReady || client._cliprdrOleDragIntent)) {
+                // If the cursor already left (or still held in-window after download),
+                // try OLE drag — start_drag no-ops if LBUTTON is up (plain Copy).
+                var outside = client._cliprdrOleDragWhenReady;
+                if (outside) {
+                    await RDCliprdr._startOleDrag(client, paths);
+                }
+            }
         }
 
         static async _requestFileSize(client, listIndex) {

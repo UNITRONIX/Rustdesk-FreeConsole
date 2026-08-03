@@ -1,6 +1,7 @@
 mod config;
 mod discovery;
 mod desktop_clipboard;
+mod desktop_drag;
 mod desktop_files;
 mod server_probe;
 
@@ -18,6 +19,7 @@ use desktop_clipboard::{
     desktop_clipboard_receive_begin, desktop_clipboard_receive_commit,
     desktop_clipboard_receive_write, desktop_clipboard_sync, desktop_clipboard_sync_paths,
 };
+use desktop_drag::{desktop_clipboard_lbutton_down, desktop_clipboard_start_drag};
 use desktop_files::{
     desktop_list_directory, desktop_open_file, desktop_open_paths, desktop_pick_files,
     desktop_pick_folder, desktop_read_file_chunk, desktop_release_file_handles,
@@ -163,6 +165,8 @@ const PANEL_INVOKE_PERMISSIONS: &[&str] = &[
     "allow-desktop-clipboard-receive-write",
     "allow-desktop-clipboard-receive-commit",
     "allow-desktop-clipboard-receive-abort",
+    "allow-desktop-clipboard-lbutton-down",
+    "allow-desktop-clipboard-start-drag",
     "allow-desktop-open-paths",
 ];
 
@@ -618,6 +622,8 @@ pub fn run() {
             desktop_clipboard_receive_write,
             desktop_clipboard_receive_commit,
             desktop_clipboard_receive_abort,
+            desktop_clipboard_lbutton_down,
+            desktop_clipboard_start_drag,
             desktop_open_paths,
         ])
         .setup(|app| {

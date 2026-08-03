@@ -136,8 +136,8 @@ Explorer **Copy** / **Ctrl+C** on either side → focus the other → **Ctrl+V**
 |-----------|-----------|
 | **Local → remote (copy/paste)** | Windows CF_HDROP paths read natively; file tree expanded into FILEGROUPDESCRIPTORW PDUs; peer Ctrl+V pulls chunks |
 | **Local → remote (drag-drop)** | OS drop onto the session window → Cliprdr FormatList → click under the cursor → synthetic Ctrl+V (not shell DnD into a folder HWND). Open the **File transfer** modal first to upload into a chosen remote folder instead |
+| **Remote → local (drag-out)** | Drag files on the remote while holding the mouse button, then move the cursor **outside** the RdClient window onto the local Desktop/Explorer and release. FormatList while LBUTTON is down downloads into a temp dir, then native `SHDoDragDrop` starts. Plain **Copy → Paste** still works without leaving the window |
 | **Remote → local (copy/paste)** | Peer FormatList → RdClient requests descriptor + file bytes into a temp dir → CF_HDROP on the local clipboard for Explorer paste |
-| **Remote → local (drag-out)** | Not supported from the video surface (WebView2 cannot OLE-drag remote pixels onto local Explorer). Use **Copy → Paste** or the File transfer modal download |
 | **Drag-drop plumbing** | Native `tauri://drag-drop` paths (do **not** use `disable_drag_drop_handler` — HTML5 drops lack paths in WebView2) |
 | **Sync trigger** | Window focus / click in the viewer, ~1.5s poll while streaming, or native file drop |
 | **Text race guard** | When CF_HDROP is present, focus sync skips text clipboard push so path-as-text cannot wipe file formats on the peer |

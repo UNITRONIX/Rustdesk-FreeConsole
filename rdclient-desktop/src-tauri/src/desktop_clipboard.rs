@@ -98,6 +98,7 @@ impl ClipFileCache {
             has_files: !self.files_pdu.is_empty(),
             signature: self.signature.clone(),
             busy: false,
+            paths: Vec::new(),
         }
     }
 }
@@ -133,6 +134,9 @@ pub struct DesktopClipboardSyncResult {
     pub signature: String,
     /// True when OpenClipboard failed (busy). Callers must not clear file state.
     pub busy: bool,
+    /// Top-level paths when this result comes from an inbound receive commit.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paths: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -637,6 +641,7 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
             has_files: false,
             signature: String::new(),
             busy: false,
+            paths: Vec::new(),
         });
     }
 
@@ -672,6 +677,7 @@ fn sync_from_clipboard() -> Result<DesktopClipboardSyncResult, String> {
                 has_files: !cache.files_pdu.is_empty(),
                 signature: cache.signature.clone(),
                 busy: true,
+                paths: Vec::new(),
             })
         }
         ClipboardPathsRead::Empty => sync_from_paths(Vec::new(), CacheSource::Clipboard),
@@ -898,7 +904,9 @@ pub fn desktop_clipboard_receive_commit() -> Result<DesktopClipboardSyncResult, 
         .iter()
         .map(|p| p.to_string_lossy().into_owned())
         .collect();
-    sync_from_paths(paths, CacheSource::Received)
+    let mut result = sync_from_paths(paths.clone(), CacheSource::Received)?;
+    result.paths = paths;
+    Ok(result)
 }
 
 #[tauri::command]
