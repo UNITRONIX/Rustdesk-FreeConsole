@@ -46,7 +46,9 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 function _resolveSourceRoot() {
     if (process.env.AGENT_CLIENT_SOURCE_DIR) return process.env.AGENT_CLIENT_SOURCE_DIR;
+    const consoleRoot = path.resolve(__dirname, '..');
     const candidates = [
+        path.join(consoleRoot, 'agent-source', 'betterdesk-agent-client'),
         path.join(REPO_ROOT, 'betterdesk-agent-client'),
         '/opt/BetterDeskConsole/agent-source/betterdesk-agent-client',
     ];
@@ -58,7 +60,9 @@ function _resolveSourceRoot() {
 
 function _resolveAgentLibRoot() {
     if (process.env.AGENT_LIB_DIR) return process.env.AGENT_LIB_DIR;
+    const consoleRoot = path.resolve(__dirname, '..');
     const candidates = [
+        path.join(consoleRoot, 'agent-source', 'betterdesk-agent'),
         path.join(REPO_ROOT, 'betterdesk-agent'),
         '/opt/BetterDeskConsole/agent-source/betterdesk-agent',
     ];

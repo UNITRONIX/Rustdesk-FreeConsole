@@ -16,6 +16,11 @@ const { spawn } = require('child_process');
 const db = require('./database');
 const bundleService = require('./agentBundleService');
 const config = require('../config/config');
+const {
+    resolveSupportAgentSourceRoot,
+    agentSourceSiblingDirs,
+    writeAgentSourceFileAtomic,
+} = require('../lib/agentSourcePaths');
 
 try {
     const envFile = process.env.BETTERDESK_BUILD_ENV_FILE || '/etc/betterdesk/build.env';
@@ -161,43 +166,35 @@ function _buildEnv(extra = {}) {
 }
 
 function _resolveSourceRoot() {
-    if (process.env.AGENT_SOURCE_DIR) return process.env.AGENT_SOURCE_DIR;
-    const candidates = [
-        '/opt/BetterDeskConsole/agent-source/betterdesk-support-agent',
-        path.resolve(__dirname, '..', '..', 'betterdesk-support-agent'),
-        path.resolve(process.cwd(), 'betterdesk-support-agent'),
-    ];
-    for (const c of candidates) {
-        if (fs.existsSync(path.join(c, 'build.sh'))) return c;
-    }
-    return candidates[0];
+    return resolveSupportAgentSourceRoot({ consoleRoot: path.join(__dirname, '..') });
 }
 
 function _resolveAgentLibRoot() {
+    const siblings = agentSourceSiblingDirs(SOURCE_ROOT);
     const candidates = [
-        path.join(path.dirname(SOURCE_ROOT), 'betterdesk-agent'),
+        siblings.agentLib,
         path.resolve(__dirname, '..', '..', 'betterdesk-agent'),
     ];
     for (const c of candidates) {
         if (fs.existsSync(path.join(c, 'go.mod'))) return c;
     }
-    return candidates[1];
+    return candidates[0];
 }
 
 function _resolveServerLibRoot() {
-    const agentSourceBase = path.dirname(SOURCE_ROOT);
-    const consoleRoot = agentSourceBase.endsWith('agent-source')
-        ? path.dirname(agentSourceBase)
-        : agentSourceBase;
+    const siblings = agentSourceSiblingDirs(SOURCE_ROOT);
+    const consoleRoot = siblings.base.endsWith('agent-source')
+        ? path.dirname(siblings.base)
+        : siblings.base;
     const candidates = [
-        path.join(path.dirname(SOURCE_ROOT), 'betterdesk-server'),
+        siblings.serverLib,
         path.join(consoleRoot, 'betterdesk-server'),
         path.resolve(__dirname, '..', '..', 'betterdesk-server'),
     ];
     for (const c of candidates) {
         if (fs.existsSync(path.join(c, 'go.mod'))) return c;
     }
-    return candidates[2];
+    return candidates[candidates.length - 1];
 }
 
 const SOURCE_ROOT = _resolveSourceRoot();
@@ -265,14 +262,7 @@ const AGENT_SOURCE_PREFIXES = [
 ];
 
 function _agentSourceDirs() {
-    const supportAgent = SOURCE_ROOT;
-    const base = path.dirname(supportAgent);
-    return {
-        base,
-        supportAgent,
-        agentLib: path.join(base, 'betterdesk-agent'),
-        serverLib: path.join(base, 'betterdesk-server'),
-    };
+    return agentSourceSiblingDirs(SOURCE_ROOT);
 }
 
 async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
@@ -538,8 +528,7 @@ async function _writeAgentSourceFile(owner, repo, remoteSHA, fp, download) {
 
     const dest = path.join(destRoot, rel);
     const content = await download(owner, repo, remoteSHA, fp);
-    await fsp.mkdir(path.dirname(dest), { recursive: true });
-    await fsp.writeFile(dest, content);
+    await writeAgentSourceFileAtomic(dest, content);
     if (!IS_WINDOWS && (rel.endsWith('.sh') || rel === 'build.sh')) {
         try { await fsp.chmod(dest, 0o755); } catch (_) { /* ok */ }
     }
