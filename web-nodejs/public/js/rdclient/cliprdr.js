@@ -438,6 +438,8 @@
         static async _startOleDrag(client, paths) {
             if (!paths || !paths.length) return;
             if (!client._cliprdrOleDragIntent && !client._cliprdrOleDragWhenReady) return;
+            if (client._cliprdrOleDragStarting) return;
+            client._cliprdrOleDragStarting = true;
             client._cliprdrOleDragIntent = false;
             client._cliprdrOleDragWhenReady = false;
             RDCliprdr._disarmOleDrag(client);
@@ -447,11 +449,20 @@
                     debugLog('OLE drag skipped: LBUTTON up');
                     return;
                 }
+                // Stop forwarding mouse to remote so the cursor can leave the window.
+                if (client.input && typeof client.input.setMouseSuppressed === 'function') {
+                    client.input.setMouseSuppressed(true);
+                }
                 console.info('[RDCliprdr] starting OLE drag-out with', paths.length, 'path(s)');
                 var result = await desktopInvoke('desktop_clipboard_start_drag', { paths: paths });
                 debugLog('OLE drag result:', result);
             } catch (err) {
                 console.warn('[RDCliprdr] OLE drag-out failed:', err);
+            } finally {
+                client._cliprdrOleDragStarting = false;
+                if (client.input && typeof client.input.setMouseSuppressed === 'function') {
+                    client.input.setMouseSuppressed(false);
+                }
             }
         }
 
@@ -512,13 +523,11 @@
             client._cliprdrOleDragPaths = paths;
             debugLog('inbound receive committed; local CF_HDROP ready', paths.length, 'top path(s)');
 
-            if (paths.length && (client._cliprdrOleDragWhenReady || client._cliprdrOleDragIntent)) {
-                // If the cursor already left (or still held in-window after download),
-                // try OLE drag — start_drag no-ops if LBUTTON is up (plain Copy).
-                var outside = client._cliprdrOleDragWhenReady;
-                if (outside) {
-                    await RDCliprdr._startOleDrag(client, paths);
-                }
+            // Start OLE drag immediately while LBUTTON is still down — do not wait
+            // for mouseleave. The remote/WebView often traps the cursor at the
+            // window edge, so leave never fires and drag-out used to hang.
+            if (paths.length && (client._cliprdrOleDragIntent || client._cliprdrOleDragWhenReady)) {
+                await RDCliprdr._startOleDrag(client, paths);
             }
         }
 

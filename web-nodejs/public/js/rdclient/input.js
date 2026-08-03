@@ -24,6 +24,8 @@ class RDInput {
         this.enabled = false;
         /** @type {boolean} Pointer lock active */
         this.pointerLocked = false;
+        /** When true, mouse events are not forwarded (OLE drag-out in progress). */
+        this._suppressMouse = false;
         /** @type {Map<string, { key: string }>} Currently pressed keys (code → metadata) */
         this.pressedKeys = new Map();
 
@@ -193,8 +195,24 @@ class RDInput {
         return null;
     }
 
+    /**
+     * Temporarily stop forwarding mouse to the remote (used during local OLE drag-out).
+     * @param {boolean} suppressed
+     */
+    setMouseSuppressed(suppressed) {
+        this._suppressMouse = !!suppressed;
+        if (this._suppressMouse && this.canvas && typeof this.canvas.releasePointerCapture === 'function') {
+            try {
+                // Best-effort; capture id may not exist.
+                if (this.canvas.hasPointerCapture && this._lastPointerId != null) {
+                    this.canvas.releasePointerCapture(this._lastPointerId);
+                }
+            } catch (_) { /* ignore */ }
+        }
+    }
+
     _handleMouseMove(e) {
-        if (!this.enabled) return;
+        if (!this.enabled || this._suppressMouse) return;
 
         const now = performance.now();
         if (now - this._lastMouseSendTime < this._mouseThrottleMs) return;
@@ -214,9 +232,10 @@ class RDInput {
     }
 
     _handleMouseDown(e) {
-        if (!this.enabled) return;
+        if (!this.enabled || this._suppressMouse) return;
         e.preventDefault();
         this.canvas.focus();
+        if (e.pointerId != null) this._lastPointerId = e.pointerId;
 
         const pos = this._getRemotePosition(e);
         if (!pos) return;
@@ -242,7 +261,7 @@ class RDInput {
     }
 
     _handleMouseUp(e) {
-        if (!this.enabled) return;
+        if (!this.enabled || this._suppressMouse) return;
         e.preventDefault();
 
         const pos = this._getRemotePosition(e);

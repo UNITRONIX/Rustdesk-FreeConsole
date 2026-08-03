@@ -1,18 +1,21 @@
 //! Native OLE file drag-out (remote → local Explorer drop).
 //!
 //! After Cliprdr has materialised remote files into a temp directory, start a
-//! real Windows drag via shell `IDataObject` + `SHDoDragDrop` so the operator can
-//! release over the local Desktop / Explorer while still holding LBUTTON.
+//! real Windows drag via shell `IDataObject` + `SHDoDragDrop` on the UI thread
+//! (ReleaseCapture first) so the cursor can leave the WebView window.
 
 use std::path::PathBuf;
+use std::sync::mpsc;
 
 #[cfg(windows)]
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use tauri::{Runtime, WebviewWindow};
+
 #[cfg(windows)]
 use windows::core::{Interface, HRESULT, HSTRING};
 #[cfg(windows)]
-use windows::Win32::Foundation::{DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, S_FALSE};
+use windows::Win32::Foundation::{DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, HWND, S_FALSE};
 #[cfg(windows)]
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoUninitialize, IDataObject, CLSCTX_INPROC_SERVER,
@@ -21,7 +24,9 @@ use windows::Win32::System::Com::{
 #[cfg(windows)]
 use windows::Win32::System::Ole::DROPEFFECT_COPY;
 #[cfg(windows)]
-use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    GetAsyncKeyState, ReleaseCapture, VK_LBUTTON,
+};
 #[cfg(windows)]
 use windows::Win32::UI::Shell::Common::IObjectCollection;
 #[cfg(windows)]
@@ -73,9 +78,9 @@ fn create_shell_data_object(paths: &[PathBuf]) -> Result<IDataObject, String> {
     }
 }
 
-/// Blocking OLE drag. Call from a worker thread with COM apartment init.
+/// Run on the UI thread that owns WebView mouse capture.
 #[cfg(windows)]
-pub fn start_drag_blocking(paths: Vec<String>) -> Result<&'static str, String> {
+fn start_drag_on_ui_thread(hwnd_raw: isize, paths: Vec<String>) -> Result<&'static str, String> {
     let paths: Vec<PathBuf> = paths
         .into_iter()
         .map(|p| p.trim().to_string())
@@ -99,15 +104,20 @@ pub fn start_drag_blocking(paths: Vec<String>) -> Result<&'static str, String> {
     let result = (|| -> Result<&'static str, String> {
         unsafe {
             let init = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
-            // S_FALSE means COM already initialised on this thread — still OK.
             if init.is_err() && init != HRESULT(S_FALSE.0) {
                 return Err(format!("CoInitializeEx: {init:?}"));
             }
+            // Free WebView2 mouse capture so the OLE drag can leave the window.
+            let _ = ReleaseCapture();
         }
 
         let data_obj = create_shell_data_object(&paths)?;
-        // NULL drop source → shell default (tracks LBUTTON / Escape).
-        let effect = unsafe { SHDoDragDrop(None, &data_obj, None, DROPEFFECT_COPY) };
+        let hwnd = if hwnd_raw != 0 {
+            HWND(hwnd_raw as *mut std::ffi::c_void)
+        } else {
+            HWND::default()
+        };
+        let effect = unsafe { SHDoDragDrop(hwnd, &data_obj, None, DROPEFFECT_COPY) };
 
         unsafe {
             CoUninitialize();
@@ -126,7 +136,7 @@ pub fn start_drag_blocking(paths: Vec<String>) -> Result<&'static str, String> {
 }
 
 #[cfg(not(windows))]
-pub fn start_drag_blocking(_paths: Vec<String>) -> Result<&'static str, String> {
+fn start_drag_on_ui_thread(_hwnd_raw: isize, _paths: Vec<String>) -> Result<&'static str, String> {
     Err("OLE file drag-out is only supported on Windows".into())
 }
 
@@ -135,9 +145,31 @@ pub fn desktop_clipboard_lbutton_down() -> bool {
     lbutton_down()
 }
 
+/// Start an OLE file drag on the UI thread (required so ReleaseCapture + mouse
+/// tracking work; a worker-thread drag left the cursor trapped in the WebView).
 #[tauri::command]
-pub async fn desktop_clipboard_start_drag(paths: Vec<String>) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || start_drag_blocking(paths).map(|s| s.to_string()))
-        .await
-        .map_err(|e| format!("drag task join: {e}"))?
+pub async fn desktop_clipboard_start_drag<R: Runtime>(
+    window: WebviewWindow<R>,
+    paths: Vec<String>,
+) -> Result<String, String> {
+    let (tx, rx) = mpsc::channel();
+
+    #[cfg(windows)]
+    let hwnd_raw: isize = window
+        .hwnd()
+        .map(|h| h.0 as isize)
+        .unwrap_or(0);
+    #[cfg(not(windows))]
+    let hwnd_raw: isize = 0;
+
+    window
+        .run_on_main_thread(move || {
+            let result = start_drag_on_ui_thread(hwnd_raw, paths).map(|s| s.to_string());
+            let _ = tx.send(result);
+        })
+        .map_err(|e| format!("run_on_main_thread: {e}"))?;
+
+    // SHDoDragDrop pumps messages on the UI thread until drop/cancel.
+    rx.recv()
+        .map_err(|e| format!("drag result channel: {e}"))?
 }
