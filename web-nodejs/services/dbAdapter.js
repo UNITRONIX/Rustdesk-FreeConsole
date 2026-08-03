@@ -244,7 +244,13 @@ function createSqliteAdapter(config) {
                 folder_id INTEGER DEFAULT NULL
             )
         `);
+        // Columns that may be missing on DBs created before they were added to CREATE TABLE.
+        // CREATE TABLE IF NOT EXISTS does not alter existing tables — migrate explicitly.
         const cols = [
+            { name: 'uuid', sql: "TEXT DEFAULT ''" },
+            { name: 'note', sql: "TEXT DEFAULT ''" },
+            { name: 'info', sql: "TEXT DEFAULT ''" },
+            { name: 'ip', sql: "TEXT DEFAULT ''" },
             { name: 'status_online', sql: 'INTEGER DEFAULT 0' },
             { name: 'last_online', sql: 'TEXT' },
             { name: 'is_deleted', sql: 'INTEGER DEFAULT 0' },

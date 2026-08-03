@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **SQLite `peer` missing `ip` column:** older panel DBs created before `ip`/`uuid`/`note`/`info` were in `CREATE TABLE peer` never got those columns via migration, so `syncGoPeersSqlite` logged `table peer has no column named ip` (often seen after UI refresh, e.g. deleting a user). Migrate adds the missing columns on startup. Ships via panel update.
 - **Windows panel update — console stays stopped after restart:** in-app update exits Node so NSSM can reload it; interactive `npm` windows (and `AppExit=Exit`) never came back, so the browser timed out waiting for restart. Panel now sets `AppExit Default=Restart` and schedules a detached `nssm start BetterDeskConsole` before exit. Ships via panel update (`betterdesk.ps1` also sets AppExit on install/recreate).
 - **Modal closes while selecting text:** highlighting text in a modal field (e.g. Add User username) and releasing the mouse over the dimmed backdrop no longer dismisses the dialog. Ships via panel update.
 - **Add User fields autofilled by the browser:** username/password/email on Add User (and org Create User) now opt out of login autofill so they stay empty for new accounts. Ships via panel update.
