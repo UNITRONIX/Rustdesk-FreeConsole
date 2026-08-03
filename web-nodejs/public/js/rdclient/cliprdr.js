@@ -7,7 +7,7 @@
 (function () {
     'use strict';
 
-    var CLIP_POLL_MS = 1500;
+    var CLIP_POLL_MS = 3000;
     var INBOUND_CHUNK = 65536;
     var OUTBOUND_SUPPRESS_MS = 4000;
     var CB_RESPONSE_OK = 0x1;
@@ -161,8 +161,12 @@
             client._cliprdrOleDragIntent = true;
             client._cliprdrOleDragWhenReady = true;
 
-            if (client.input && typeof client.input.setMouseSuppressed === 'function') {
-                client.input.setMouseSuppressed(true);
+            // End remote Explorer drag only — do not freeze local input for seconds.
+            // Full mouse suppress happens once file FormatList arrives.
+            if (client.input && typeof client.input._sendSyntheticMouseUp === 'function') {
+                client.input._sendSyntheticMouseUp(
+                    typeof RDInput !== 'undefined' ? RDInput.MOUSE_BUTTON_LEFT : 1
+                );
             }
             try {
                 void desktopInvoke('desktop_clipboard_prepare_ole_drag');
@@ -173,7 +177,6 @@
             if (client._cliprdrDragOutTimer) {
                 clearTimeout(client._cliprdrDragOutTimer);
             }
-            // Let remote finish cancelling its OLE drag before Copy.
             setTimeout(function () {
                 if (!client._cliprdrDragOutConverting) return;
                 if (client.input && typeof client.input.sendCtrlC === 'function') {
@@ -193,7 +196,7 @@
                     client.input.setMouseSuppressed(false);
                 }
                 console.warn('[RDCliprdr] no file clipboard after drag-out conversion — use Copy/Paste or File transfer');
-            }, 4000);
+            }, 2000);
         }
 
         static _clearDragOutConversion(client, restoreMouse) {
@@ -219,7 +222,11 @@
             RDCliprdr.stopPolling(client);
             client._cliprdrPollTimer = setInterval(function () {
                 if (client._state !== 'streaming' || client.viewOnly) return;
-                void RDCliprdr.syncLocalFiles(client);
+                if (client._cliprdrSyncInFlight || client._cliprdrReceiving) return;
+                client._cliprdrSyncInFlight = true;
+                Promise.resolve(RDCliprdr.syncLocalFiles(client)).finally(function () {
+                    client._cliprdrSyncInFlight = false;
+                });
             }, CLIP_POLL_MS);
         }
 

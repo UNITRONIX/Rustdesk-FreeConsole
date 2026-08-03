@@ -275,7 +275,7 @@ class RDInput {
         if (this._lbuttonDown && this._dragOrigin && !this._dragOutNotified && !this._suppressMouse) {
             const dx = e.clientX - this._dragOrigin.x;
             const dy = e.clientY - this._dragOrigin.y;
-            if ((dx * dx) + (dy * dy) >= 100) {
+            if ((dx * dx) + (dy * dy) >= 1600) {
                 this._dragGesture = true;
             }
             if (this._dragGesture && this._isFileDragOutZone(e)) {
@@ -306,21 +306,17 @@ class RDInput {
     }
 
     /**
-     * True when the pointer is leaving the session surface (canvas border / window).
-     * Used to convert a remote Explorer drag into Cliprdr + local OLE drag-out.
+     * True when the pointer has left the session canvas (or the OS window).
+     * Do NOT treat "near inner border" as leave — that fired during normal remote
+     * work near the screen edge and froze input via Ctrl+C conversion.
      */
     _isFileDragOutZone(e) {
-        const rect = this.canvas.getBoundingClientRect();
-        const border = 14;
+        const rect = this._dragCanvasRect || this.canvas.getBoundingClientRect();
         if (e.clientX < rect.left || e.clientX > rect.right
             || e.clientY < rect.top || e.clientY > rect.bottom) {
             return true;
         }
-        if (e.clientX <= rect.left + border || e.clientX >= rect.right - border
-            || e.clientY <= rect.top + border || e.clientY >= rect.bottom - border) {
-            return true;
-        }
-        const winMargin = 6;
+        const winMargin = 2;
         return e.clientX <= winMargin || e.clientY <= winMargin
             || e.clientX >= window.innerWidth - winMargin
             || e.clientY >= window.innerHeight - winMargin;
@@ -329,6 +325,7 @@ class RDInput {
     _resetDragTracking() {
         this._lbuttonDown = false;
         this._dragOrigin = null;
+        this._dragCanvasRect = null;
         this._dragGesture = false;
         this._dragOutNotified = false;
     }
@@ -342,6 +339,7 @@ class RDInput {
         if (e.button === 0) {
             this._lbuttonDown = true;
             this._dragOrigin = { x: e.clientX, y: e.clientY };
+            this._dragCanvasRect = this.canvas.getBoundingClientRect();
             this._dragGesture = false;
             this._dragOutNotified = false;
             try {

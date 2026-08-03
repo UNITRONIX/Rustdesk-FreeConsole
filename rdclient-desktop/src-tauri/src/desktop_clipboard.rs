@@ -95,7 +95,9 @@ impl ClipFileCache {
 
     fn result(&self) -> DesktopClipboardSyncResult {
         DesktopClipboardSyncResult {
-            has_files: !self.files_pdu.is_empty(),
+            // Top-level paths alone mean we have files; the FILEGROUPDESCRIPTOR PDU
+            // may still be built lazily on FormatDataRequest.
+            has_files: !self.top_paths.is_empty() || !self.files_pdu.is_empty(),
             signature: self.signature.clone(),
             busy: false,
             paths: Vec::new(),
@@ -350,6 +352,22 @@ fn construct_file_list(paths: &[PathBuf]) -> Result<Vec<LocalFileEntry>, String>
         walk(&relative_root, path, &mut out, &mut visited)?;
     }
     Ok(out)
+}
+
+/// Build FILEGROUPDESCRIPTOR + file_list on demand (Paste / FormatData), not on
+/// every clipboard poll. Copying a large local folder must stay cheap until the
+/// peer actually requests descriptors or file bytes.
+fn ensure_files_materialized(cache: &mut ClipFileCache) -> Result<(), String> {
+    if !cache.files_pdu.is_empty() && !cache.file_list.is_empty() {
+        return Ok(());
+    }
+    if cache.top_paths.is_empty() {
+        return Err("no clipboard files cached".into());
+    }
+    let path_bufs: Vec<PathBuf> = cache.top_paths.iter().map(PathBuf::from).collect();
+    cache.file_list = construct_file_list(&path_bufs)?;
+    cache.files_pdu = build_files_pdu(&cache.file_list);
+    Ok(())
 }
 
 fn build_files_pdu(file_list: &[LocalFileEntry]) -> Vec<u8> {
@@ -648,17 +666,15 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
     let sigs = fingerprint(&paths);
     let signature = make_signature(&paths, &sigs);
 
-    if cache.source == source
-        && cache.top_paths == paths
-        && cache.sigs == sigs
-        && !sigs.iter().any(|s| s.is_dir)
-    {
+    if cache.source == source && cache.top_paths == paths && cache.sigs == sigs {
+        // Same top-level clipboard selection — do not re-walk directories every poll.
         return Ok(cache.result());
     }
 
-    let path_bufs: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
-    cache.file_list = construct_file_list(&path_bufs)?;
-    cache.files_pdu = build_files_pdu(&cache.file_list);
+    // Record paths only. Directory trees are walked lazily in
+    // ensure_files_materialized() when FormatData/FileContents is requested.
+    cache.file_list.clear();
+    cache.files_pdu.clear();
     cache.source = source;
     cache.top_paths = paths;
     cache.sigs = sigs;
@@ -674,7 +690,7 @@ fn sync_from_clipboard() -> Result<DesktopClipboardSyncResult, String> {
                 .lock()
                 .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
             Ok(DesktopClipboardSyncResult {
-                has_files: !cache.files_pdu.is_empty(),
+                has_files: !cache.top_paths.is_empty() || !cache.files_pdu.is_empty(),
                 signature: cache.signature.clone(),
                 busy: true,
                 paths: Vec::new(),
@@ -699,9 +715,10 @@ pub fn desktop_clipboard_sync_paths(
 
 #[tauri::command]
 pub fn desktop_clipboard_format_data() -> Result<Vec<u8>, String> {
-    let cache = CLIP_CACHE
+    let mut cache = CLIP_CACHE
         .lock()
         .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
+    ensure_files_materialized(&mut cache)?;
     Ok(cache.files_pdu.clone())
 }
 
@@ -713,9 +730,10 @@ pub fn desktop_clipboard_file_contents(
     n_position_high: i32,
     cb_requested: i32,
 ) -> Result<Vec<u8>, String> {
-    let cache = CLIP_CACHE
+    let mut cache = CLIP_CACHE
         .lock()
         .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
+    ensure_files_materialized(&mut cache)?;
     let idx = list_index as usize;
     let Some(entry) = cache.file_list.get(idx) else {
         return Err(format!("invalid file index {list_index}"));
