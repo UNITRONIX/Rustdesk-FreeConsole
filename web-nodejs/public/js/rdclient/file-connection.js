@@ -24,7 +24,6 @@ class RDFileConnection {
         this._state = 'idle'; // idle | connecting | authenticating | ready | error | disconnected
         this._listeners = {};
         this._rendezvousDecoder = null;
-        this._relayDecoder = null;
         this._relayConfirmReceived = false;
         this._keyExchangePending = false;
         this._keyExchangeDone = false;
@@ -111,7 +110,6 @@ class RDFileConnection {
             if (!this.proto.loaded) await this.proto.load();
 
             this._rendezvousDecoder = this.proto.createStreamDecoder();
-            this._relayDecoder = this.proto.createStreamDecoder();
             this._relayConfirmReceived = false;
             this._keyExchangePending = false;
             this._keyExchangeDone = false;
@@ -165,7 +163,7 @@ class RDFileConnection {
                 }
             });
 
-            const relayData = this.proto.encodeRendezvous(
+            const relayData = this.proto.serializeRendezvous(
                 this.proto.buildRequestRelay(
                     this.deviceId, relayUUID, relayServer, this.opts.serverPubKey, ct
                 )
@@ -236,7 +234,7 @@ class RDFileConnection {
         if (this.crypto.enabled) {
             data = this.crypto.processOutgoing(data);
         }
-        this.conn.sendRelay(this.proto.frameBytes(data));
+        this.conn.sendRelay(data);
     }
 
     disconnect() {
@@ -351,10 +349,8 @@ class RDFileConnection {
 
     _handleRelayData(rawData) {
         try {
-            const frames = this._relayDecoder.feed(rawData);
-            for (const frame of frames) {
-                this._handleRelayMessage(frame);
-            }
+            const payload = rawData instanceof ArrayBuffer ? new Uint8Array(rawData) : new Uint8Array(rawData);
+            if (payload.length > 0) this._handleRelayMessage(payload);
         } catch (err) {
             console.warn('[RDFileConnection] relay decode:', err.message);
         }
@@ -490,7 +486,7 @@ class RDFileConnection {
     _sendPeerMessageRaw(msgObj) {
         let data = this.proto.serializeMessage(msgObj);
         if (this.crypto.enabled) data = this.crypto.processOutgoing(data);
-        this.conn.sendRelay(this.proto.frameBytes(data));
+        this.conn.sendRelay(data);
     }
 
     _handleLoginResponse(resp) {

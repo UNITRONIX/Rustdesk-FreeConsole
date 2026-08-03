@@ -94,3 +94,7 @@ class RDCompress {
         return { content: raw, compress: false };
     }
 }
+
+if (typeof window !== 'undefined') {
+    window.RDCompress = RDCompress;
+}

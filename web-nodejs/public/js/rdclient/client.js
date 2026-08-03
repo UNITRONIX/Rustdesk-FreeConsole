@@ -41,6 +41,7 @@ class RDClient {
         this.renderer = new RDRenderer(canvas);
         this.input = new RDInput(canvas, this.renderer, (msg) => this._sendPeerMessage(msg));
         this._fileConnection = null;
+        this._fileTransferRuntimePromise = null;
         this._sessionPassword = '';
         this.fileTransfer = new RDFileTransfer({
             proto: this.proto,
@@ -58,9 +59,9 @@ class RDClient {
         this._pingInterval = null;
         this._statsInterval = null;
 
-        // Stream decoders for RustDesk variable-length frame codec (TCP reassembly)
+        // Rendezvous is bridged to TCP and needs BytesCodec reassembly. Relay
+        // uses native WebSocket message framing (one raw payload per message).
         this._rendezvousDecoder = null;
-        this._relayDecoder = null;
 
         // Codec / quality control
         this._codecAbilities = null;          // probed VideoDecoder support map
@@ -72,7 +73,7 @@ class RDClient {
 
         // Relay state tracking
         this._relayFrameIdx = 0;         // Counter for relay frames (debugging)
-        this._relayConfirmReceived = false; // Whether hbbr's RelayResponse confirmation was consumed
+        this._relayConfirmReceived = false; // First relay frame checked for legacy injected confirmation
         this._peerEncryptionConfirmed = false; // Whether peer has started encrypting
         this._keyExchangePending = false;  // True when we have keys ready but haven't sent PublicKey yet
         this._keyExchangeDone = false;     // True after PublicKey was sent and crypto enabled
@@ -150,7 +151,6 @@ class RDClient {
 
             // Step 3: Create stream decoders for TCP frame reassembly
             this._rendezvousDecoder = this.proto.createStreamDecoder();
-            this._relayDecoder = this.proto.createStreamDecoder();
 
             // Step 4: Connect to rendezvous server via WS proxy
             this._emit('log', 'Connecting to rendezvous server...');
@@ -248,7 +248,7 @@ class RDClient {
                 relayServer,
                 this.opts.serverPubKey
             );
-            const relayData = this.proto.encodeRendezvous(requestRelay);
+            const relayData = this.proto.serializeRendezvous(requestRelay);
             this.conn.sendRelay(relayData);
 
             // Step 13: Wait for target's SignedId (first message from relay)
@@ -270,13 +270,61 @@ class RDClient {
         return !!(this._fileConnection && this._fileConnection.state === 'ready');
     }
 
-    async ensureFileConnection() {
-        if (typeof RDFileConnection !== 'function') {
-            throw new Error('File transfer module not loaded');
+    _loadRuntimeScript(path, ready) {
+        if (ready()) return Promise.resolve();
+        if (typeof document === 'undefined' || !document.head) {
+            return Promise.reject(new Error('File transfer runtime is unavailable'));
         }
+
+        return new Promise((resolve, reject) => {
+            const existing = document.querySelector('script[data-rd-runtime="' + path + '"]');
+            const script = existing || document.createElement('script');
+            const finish = () => ready()
+                ? resolve()
+                : reject(new Error('Could not load ' + path));
+
+            script.addEventListener('load', finish, { once: true });
+            script.addEventListener('error', () => reject(new Error('Could not load ' + path)), { once: true });
+            if (existing) return;
+
+            const clientScript = Array.from(document.scripts || []).find((node) =>
+                node.src && node.src.includes('/js/rdclient/client.js')
+            );
+            let versionQuery = '';
+            if (clientScript && clientScript.src) {
+                try { versionQuery = new URL(clientScript.src, window.location.href).search; }
+                catch (_e) { versionQuery = ''; }
+            }
+            script.src = path + versionQuery;
+            script.async = false;
+            script.dataset.rdRuntime = path;
+            document.head.appendChild(script);
+        });
+    }
+
+    _loadFileTransferRuntime() {
+        const hasConnection = () => typeof window !== 'undefined'
+            && typeof window.RDFileConnection === 'function';
+        const hasCompression = () => typeof window !== 'undefined'
+            && typeof window.RDCompress === 'function';
+        if (hasConnection() && hasCompression()) return Promise.resolve();
+        if (this._fileTransferRuntimePromise) return this._fileTransferRuntimePromise;
+
+        this._fileTransferRuntimePromise = Promise.resolve()
+            .then(() => this._loadRuntimeScript('/js/rdclient/compress.js', hasCompression))
+            .then(() => this._loadRuntimeScript('/js/rdclient/file-connection.js', hasConnection))
+            .catch((err) => {
+                this._fileTransferRuntimePromise = null;
+                throw err;
+            });
+        return this._fileTransferRuntimePromise;
+    }
+
+    async ensureFileConnection() {
+        await this._loadFileTransferRuntime();
         if (!this.proto.loaded) await this.proto.load();
         if (!this._fileConnection) {
-            this._fileConnection = new RDFileConnection({
+            this._fileConnection = new window.RDFileConnection({
                 deviceId: this.deviceId,
                 serverPubKey: this.opts.serverPubKey || '',
                 myName: this.opts.myName || 'BetterDesk Web',
@@ -592,22 +640,18 @@ class RDClient {
     }
 
     /**
-     * Handle raw incoming relay data (TCP chunks via WebSocket)
-     * Uses stream decoder for frame reassembly, then dispatches each complete message.
+     * Handle one raw RustDesk payload from the native relay WebSocket.
      *
-     * After hbbr pairs both peers (by UUID), the relay operates in raw mode — just
-     * bridging TCP bytes. However, the FIRST framed message from hbbr is a
-     * RendezvousMessage.RelayResponse confirmation (not a peer Message).
-     * We detect and skip it, then process all subsequent frames as peer Messages.
+     * WebSocket message boundaries replace TCP BytesCodec framing. Mixed
+     * WebSocket/TCP relay sessions are translated by hbbr, so the browser must
+     * neither add nor attempt to decode a TCP length header.
      *
      * @param {ArrayBuffer} rawData
      */
     _handleRelayData(rawData) {
         try {
-            const frames = this._relayDecoder.feed(rawData);
-            for (const frame of frames) {
-                this._handleRelayMessage(frame);
-            }
+            const payload = rawData instanceof ArrayBuffer ? new Uint8Array(rawData) : new Uint8Array(rawData);
+            if (payload.length > 0) this._handleRelayMessage(payload);
         } catch (err) {
             console.warn('[RDClient] Error decoding relay data:', err.message);
         }
@@ -617,9 +661,9 @@ class RDClient {
      * Handle a single decoded relay frame (protobuf bytes).
      *
      * Frame sequence on a relay connection:
-     *   #1: hbbr RelayResponse confirmation (RendezvousMessage — skip this)
-     *   #2: Target's SignedId (Message, unencrypted)
-     *   #3+: Target's Hash, TestDelay etc. — may be plaintext OR encrypted
+     *   #1: Target's SignedId (Message, unencrypted). A legacy hbbr may inject
+     *       a RelayResponse first; tolerate and skip it if present.
+     *   #2+: Target's Hash, TestDelay etc. — may be plaintext OR encrypted
      *        depending on whether the target has processed our PublicKey yet
      *   #N:  Once peer encryption is confirmed, all subsequent frames are encrypted
      *
@@ -631,7 +675,7 @@ class RDClient {
      *     happen since we haven’t sent it yet in this flow) or peer uses some
      *     other encryption setup — handled via speculative decrypt.
      *
-     * @param {Uint8Array} frameData - Raw protobuf bytes (frame header already stripped)
+     * @param {Uint8Array} frameData - Raw protobuf bytes from one WS message
      */
     _handleRelayMessage(frameData) {
         try {
@@ -643,8 +687,8 @@ class RDClient {
                 this._debugRelay(`[RDClient] Relay frame #${idx}: ${frameData.length} bytes [${hex20}]`);
             }
 
-            // The relay server (hbbr) sends a RendezvousMessage.RelayResponse
-            // as the first frame after pairing both peers.  Skip it.
+            // Official hbbr sends the target's SignedId first. Tolerate older
+            // servers that injected a RendezvousMessage.RelayResponse.
             if (!this._relayConfirmReceived) {
                 this._relayConfirmReceived = true;
                 try {
@@ -1380,7 +1424,7 @@ class RDClient {
 
     /**
      * Send a peer-to-peer message through the relay
-     * Order: serialize protobuf → encrypt (if enabled) → frame → send
+     * Order: serialize protobuf → encrypt (if enabled) → send as one WS message
      * @param {Object} msgObj - Message object (will be encoded as Message protobuf)
      */
     _sendPeerMessage(msgObj) {
@@ -1394,11 +1438,8 @@ class RDClient {
             data = this.crypto.processOutgoing(data);
         }
 
-        // Step 3: Add frame header to the (possibly encrypted) bytes
-        const framed = this.proto.frameBytes(data);
-
-        // Step 4: Send over relay WebSocket
-        this.conn.sendRelay(framed);
+        // Native relay WebSocket framing carries one raw payload per message.
+        this.conn.sendRelay(data);
     }
 
     // ---- State & Cleanup ----
@@ -1460,9 +1501,6 @@ class RDClient {
         this._sessionPassword = '';
         this.conn.close();
         this._codecFallbackDone = false;
-        if (this._relayDecoder) {
-            this._relayDecoder.reset();
-        }
         if (this._rendezvousDecoder) {
             this._rendezvousDecoder.reset();
         }
@@ -1699,7 +1737,10 @@ class RDClient {
             this._peerEncoding = info.encoding;
         }
         this._windowsSessions = this._parseWindowsSessions(info);
-        if (this.input && info.platform) {
+        // Older 3.3.2 console images ship the legacy RDInput implementation.
+        // Peer platform is an input enhancement, not a reason to abort a
+        // successful login when the optional setter is unavailable.
+        if (this.input && info.platform && typeof this.input.setPeerPlatform === 'function') {
             this.input.setPeerPlatform(info.platform);
         }
     }
@@ -1757,14 +1798,18 @@ class RDClient {
      * Release stuck remote modifiers / keys (toolbar recovery).
      */
     resetKeyboard() {
-        if (this.input) this.input.resetKeyboard();
+        if (this.input && typeof this.input.resetKeyboard === 'function') {
+            this.input.resetKeyboard();
+        }
     }
 
     /**
      * @param {'Legacy'|'Map'|'Auto'} mode
      */
     setKeyboardMode(mode) {
-        if (this.input) this.input.setKeyboardMode(mode);
+        if (this.input && typeof this.input.setKeyboardMode === 'function') {
+            this.input.setKeyboardMode(mode);
+        }
     }
 
     /**
