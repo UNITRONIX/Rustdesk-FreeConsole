@@ -34,6 +34,7 @@ fn main() {
                 "desktop_clipboard_receive_commit",
                 "desktop_clipboard_receive_abort",
                 "desktop_clipboard_lbutton_down",
+                "desktop_clipboard_prepare_ole_drag",
                 "desktop_clipboard_start_drag",
                 "desktop_open_paths",
             ]),

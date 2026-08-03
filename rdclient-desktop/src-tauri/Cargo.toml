@@ -34,6 +34,7 @@ windows = { version = "0.58", features = [
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_Shell",
   "Win32_UI_Shell_Common",
+  "Win32_UI_WindowsAndMessaging",
 ] }
 
 # brotli 8.0.3 on crates.io pulls conflicting alloc-no-stdlib 2.x/3.x; git brotli + unified allocator crate.

@@ -884,6 +884,9 @@ pub fn desktop_clipboard_receive_write(
 }
 
 /// Place received top-level paths on the local CF_HDROP clipboard.
+///
+/// Clipboard write is best-effort: if OpenClipboard fails (busy / OLE), we still
+/// return the temp paths so remote→local OLE drag-out can proceed.
 #[tauri::command]
 pub fn desktop_clipboard_receive_commit() -> Result<DesktopClipboardSyncResult, String> {
     let mut slot = RECEIVE_SESSION
@@ -893,20 +896,52 @@ pub fn desktop_clipboard_receive_commit() -> Result<DesktopClipboardSyncResult, 
         .take()
         .ok_or_else(|| "no active clipboard receive session".to_string())?;
 
-    // Keep temp files — CF_HDROP points at them until the user pastes / OS clears.
-    write_clipboard_paths(&session.top_paths).map_err(|e| {
-        let _ = fs::remove_dir_all(&session.root);
-        e
-    })?;
+    // Keep temp files — CF_HDROP / OLE drag point at them until paste/drop clears.
+    let clipboard_err = match write_clipboard_paths_retry(&session.top_paths, 5) {
+        Ok(()) => None,
+        Err(e) => {
+            eprintln!("[desktop_clipboard] receive_commit OpenClipboard/write failed: {e}");
+            Some(e)
+        }
+    };
 
     let paths: Vec<String> = session
         .top_paths
         .iter()
         .map(|p| p.to_string_lossy().into_owned())
         .collect();
-    let mut result = sync_from_paths(paths.clone(), CacheSource::Received)?;
+    let mut result = sync_from_paths(paths.clone(), CacheSource::Received).map_err(|e| {
+        let _ = fs::remove_dir_all(&session.root);
+        e
+    })?;
     result.paths = paths;
+    if clipboard_err.is_some() && !result.has_files {
+        let _ = fs::remove_dir_all(&session.root);
+        return Err(clipboard_err.unwrap_or_else(|| "clipboard write failed".into()));
+    }
     Ok(result)
+}
+
+#[cfg(windows)]
+fn write_clipboard_paths_retry(paths: &[PathBuf], attempts: u32) -> Result<(), String> {
+    let mut last = String::new();
+    for i in 0..attempts {
+        match write_clipboard_paths(paths) {
+            Ok(()) => return Ok(()),
+            Err(e) => {
+                last = e;
+                if i + 1 < attempts {
+                    std::thread::sleep(std::time::Duration::from_millis(30 + 20 * i as u64));
+                }
+            }
+        }
+    }
+    Err(last)
+}
+
+#[cfg(not(windows))]
+fn write_clipboard_paths_retry(paths: &[PathBuf], _attempts: u32) -> Result<(), String> {
+    write_clipboard_paths(paths)
 }
 
 #[tauri::command]

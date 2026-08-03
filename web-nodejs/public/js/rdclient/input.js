@@ -197,18 +197,57 @@ class RDInput {
 
     /**
      * Temporarily stop forwarding mouse to the remote (used during local OLE drag-out).
+     * Also restores a visible local cursor — remote overlay uses cursor:none so the
+     * file icon appears stuck at the video edge even when the OS pointer can leave.
      * @param {boolean} suppressed
      */
     setMouseSuppressed(suppressed) {
-        this._suppressMouse = !!suppressed;
-        if (this._suppressMouse && this.canvas && typeof this.canvas.releasePointerCapture === 'function') {
-            try {
-                // Best-effort; capture id may not exist.
-                if (this.canvas.hasPointerCapture && this._lastPointerId != null) {
-                    this.canvas.releasePointerCapture(this._lastPointerId);
-                }
-            } catch (_) { /* ignore */ }
+        const next = !!suppressed;
+        if (next === this._suppressMouse) return;
+        this._suppressMouse = next;
+
+        const panel = this.canvas && this.canvas.closest
+            ? this.canvas.closest('.session-panel')
+            : null;
+        if (panel) {
+            panel.classList.toggle('ole-drag-out', next);
         }
+
+        if (next) {
+            // End the remote's in-progress drag so its cursor stops at the edge.
+            this._sendSyntheticMouseUp(RDInput.MOUSE_BUTTON_LEFT);
+            if (this.canvas && typeof this.canvas.releasePointerCapture === 'function') {
+                try {
+                    if (this.canvas.hasPointerCapture && this._lastPointerId != null) {
+                        this.canvas.releasePointerCapture(this._lastPointerId);
+                    }
+                } catch (_) { /* ignore */ }
+            }
+            if (this.pointerLocked) {
+                this.exitPointerLock();
+            }
+        }
+    }
+
+    /**
+     * @param {number} button - RDInput.MOUSE_BUTTON_*
+     */
+    _sendSyntheticMouseUp(button) {
+        if (!this.enabled || !this.sendMessage || !button) return;
+        const x = Math.max(0, Math.floor((this.renderer && this.renderer.cursorPos
+            ? this.renderer.cursorPos.x
+            : 0) || 0));
+        const y = Math.max(0, Math.floor((this.renderer && this.renderer.cursorPos
+            ? this.renderer.cursorPos.y
+            : 0) || 0));
+        this.sendMessage({
+            mouseEvent: {
+                mask: RDInput.MOUSE_TYPE_UP | (button << 3),
+                x: x,
+                y: y,
+                modifiers: []
+            }
+        });
     }
 
     _handleMouseMove(e) {

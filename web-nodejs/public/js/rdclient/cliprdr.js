@@ -394,6 +394,17 @@
                 client._cliprdrReceiving = true;
                 suppressOutbound(client, OUTBOUND_SUPPRESS_MS);
                 if (dragIntent) {
+                    // Take over immediately: remote cursor overlay + forwarded mouse
+                    // make the icon look stuck at the video edge while files download.
+                    if (client.input && typeof client.input.setMouseSuppressed === 'function') {
+                        client.input.setMouseSuppressed(true);
+                    }
+                    try {
+                        await desktopInvoke('desktop_clipboard_prepare_ole_drag');
+                    } catch (prepErr) {
+                        debugLog('prepare OLE drag:', prepErr);
+                    }
+                    console.info('[RDCliprdr] remote→local drag: downloading; keep mouse button held');
                     RDCliprdr._armOleDragOnLeave(client);
                 }
                 await RDCliprdr._pullRemoteFiles(client, fdId);
@@ -402,6 +413,9 @@
                 try { await desktopInvoke('desktop_clipboard_receive_abort'); } catch (_) { /* ignore */ }
                 RDCliprdr._disarmOleDrag(client);
                 client._cliprdrOleDragIntent = false;
+                if (client.input && typeof client.input.setMouseSuppressed === 'function') {
+                    client.input.setMouseSuppressed(false);
+                }
             } finally {
                 client._cliprdrReceiving = false;
                 suppressOutbound(client, OUTBOUND_SUPPRESS_MS);
@@ -528,6 +542,13 @@
             // window edge, so leave never fires and drag-out used to hang.
             if (paths.length && (client._cliprdrOleDragIntent || client._cliprdrOleDragWhenReady)) {
                 await RDCliprdr._startOleDrag(client, paths);
+            } else if (client._cliprdrOleDragIntent) {
+                // Download finished but nothing to drag — restore local mouse.
+                client._cliprdrOleDragIntent = false;
+                RDCliprdr._disarmOleDrag(client);
+                if (client.input && typeof client.input.setMouseSuppressed === 'function') {
+                    client.input.setMouseSuppressed(false);
+                }
             }
         }
 

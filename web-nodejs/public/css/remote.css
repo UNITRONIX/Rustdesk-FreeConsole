@@ -73,6 +73,12 @@
     cursor: none;
 }
 
+/* Remote→local OLE drag-out: show a real local cursor so the pointer can leave the window */
+.session-panel.streaming.ole-drag-out .session-canvas,
+.session-panel.streaming.has-remote-cursor.ole-drag-out .session-canvas {
+    cursor: copy !important;
+}
+
 /* ---- Connection Overlay ---- */
 .viewer-overlay {
     position: absolute;
