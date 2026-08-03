@@ -3496,7 +3496,7 @@
         "install_failed": "การติดตั้งการอัปเดตล้มเหลว",
         "restarting": "กำลังรอคอนโซลรีสตาร์ท...",
         "restart_complete": "คอนโซลรีสตาร์ทสำเร็จ",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "อัปเดตแล้ว แต่โปรเซสคอนโซลไม่กลับมาออนไลน์ บน Windows ให้เริ่ม BetterDeskConsole (Admin: nssm start BetterDeskConsole) แล้วโหลดหน้าใหม่",
         "no_version": "ไม่ได้เลือกเวอร์ชันอัปเดต ตรวจสอบการอัปเดตก่อน",
         "backups_title": "อัปเดตข้อมูลสำ���อง",
         "backups_desc": "การสำรองข้อมูลล่วงหน้าที่สร้างขึ้นโดยอัตโนมัติก่อนการอัปเดตแต่ละครั้ง",

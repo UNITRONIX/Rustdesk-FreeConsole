@@ -3490,7 +3490,7 @@
         "install_failed": "Instalace aktualizace selhala",
         "restarting": "Čekání na restart konzole…",
         "restart_complete": "Konzole byla úspěšně restartována",
-        "restart_timeout": "Konzole se neresetovala včas. Zkontrolujte ji prosím ručně.",
+        "restart_timeout": "Aktualizace byla použita, ale proces konzole se nevrátil. Ve Windows spusťte BetterDeskConsole (Admin: nssm start BetterDeskConsole) a stránku znovu načtěte.",
         "no_version": "Nebyla vybrána žádná verze. Nejprve zkontrolujte aktualizace.",
         "backups_title": "Zálohy aktualizací",
         "backups_desc": "Automatické zálohy vytvořené před každou aktualizací",

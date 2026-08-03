@@ -3496,7 +3496,7 @@
         "install_failed": "Güncelleme yüklemesi başarısız oldu",
         "restarting": "Konsolun yeniden başlatılması bekleniyor…",
         "restart_complete": "Konsol başarıyla yeniden başlatıldı",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "Güncelleme uygulandı, ancak konsol süreci yeniden çevrimiçi olmadı. Windows'ta BetterDeskConsole'u başlatın (Admin: nssm start BetterDeskConsole), ardından sayfayı yenileyin.",
         "no_version": "Güncelleme sürümü seçilmedi. Önce güncellemeleri kontrol edin.",
         "backups_title": "Yedeklemeleri Güncelle",
         "backups_desc": "Her güncellemeden önce otomatik olarak oluşturulan güncelleme öncesi yedeklemeler",

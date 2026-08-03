@@ -3496,7 +3496,7 @@
         "install_failed": "Instalarea actualizării a eșuat",
         "restarting": "Se așteaptă repornirea consolei...",
         "restart_complete": "Consola a repornit cu succes",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "Actualizarea a fost aplicată, dar procesul consolei nu a revenit. Pe Windows, porniți BetterDeskConsole (Admin: nssm start BetterDeskConsole), apoi reîncărcați pagina.",
         "no_version": "Nicio versiune de actualizare selectată. Verificați mai întâi actualizările.",
         "backups_title": "Actualizați copii de rezervă",
         "backups_desc": "Backup-uri de pre-actualizare create automat înainte de fiecare actualizare",

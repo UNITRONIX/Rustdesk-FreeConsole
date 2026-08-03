@@ -3496,7 +3496,7 @@
         "install_failed": "Installation af opdatering mislykkedes",
         "restarting": "Venter på, at konsollen genstarter...",
         "restart_complete": "Konsolen blev genstartet",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "Opdateringen blev anvendt, men konsolprocessen kom ikke online igen. På Windows: start BetterDeskConsole (Admin: nssm start BetterDeskConsole), og genindlæs siden.",
         "no_version": "Der er ikke valgt nogen opdateringsversion. Tjek først for opdateringer.",
         "backups_title": "Opdater sikkerhedskopier",
         "backups_desc": "Forudgående opdatering af sikkerhedskopier oprettet automatisk før hver opdatering",

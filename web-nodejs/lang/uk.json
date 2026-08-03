@@ -3496,7 +3496,7 @@
         "install_failed": "Помилка встановлення оновлення",
         "restarting": "Очікування перезапуску консолі…",
         "restart_complete": "Консоль успішно перезавантажено",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "Оновлення застосовано, але процес консолі не повернувся. У Windows запустіть BetterDeskConsole (Admin: nssm start BetterDeskConsole), потім перезавантажте сторінку.",
         "no_version": "Версію оновлення не вибрано. Спочатку перевірте наявність оновлень.",
         "backups_title": "Оновити резервні копії",
         "backups_desc": "Резервні копії перед оновленням створюються автоматично перед кожним оновленням",

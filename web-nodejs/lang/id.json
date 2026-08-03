@@ -3496,7 +3496,7 @@
         "install_failed": "Penginstalan pembaruan gagal",
         "restarting": "Menunggu konsol dimulai ulang…",
         "restart_complete": "Konsol berhasil dimulai ulang",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "Pembaruan diterapkan, tetapi proses konsol tidak kembali online. Di Windows, mulai BetterDeskConsole (Admin: nssm start BetterDeskConsole), lalu muat ulang halaman.",
         "no_version": "Tidak ada versi pembaruan yang dipilih. Periksa pembaruan terlebih dahulu.",
         "backups_title": "Perbarui Cadangan",
         "backups_desc": "Cadangan pra-pembaruan dibuat secara otomatis sebelum setiap pembaruan",

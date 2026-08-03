@@ -3496,7 +3496,7 @@
         "install_failed": "Päivityksen asennus epäonnistui",
         "restarting": "Odotetaan konsolin uudelleenkäynnistystä…",
         "restart_complete": "Konsoli käynnistyi uudelleen onnistuneesti",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "Päivitys sovellettiin, mutta konsoliprosessi ei palannut verkkoon. Windowsissa: käynnistä BetterDeskConsole (Admin: nssm start BetterDeskConsole) ja lataa sivu uudelleen.",
         "no_version": "Päivitysversiota ei ole valittu. Tarkista ensin päivitykset.",
         "backups_title": "Päivitä varmuuskopiot",
         "backups_desc": "Päivitystä edeltävät varmuuskopiot luodaan automaattisesti ennen jokaista päivitystä",

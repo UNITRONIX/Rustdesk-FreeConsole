@@ -3496,7 +3496,7 @@
         "install_failed": "Oppdateringsinstallasjonen mislyktes",
         "restarting": "Venter på at konsollen skal starte på nytt …",
         "restart_complete": "Konsollen ble startet på nytt",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "Oppdateringen ble brukt, men konsollprosessen kom ikke tilbake. På Windows: start BetterDeskConsole (Admin: nssm start BetterDeskConsole), last deretter siden på nytt.",
         "no_version": "Ingen oppdateringsversjon er valgt. Se etter oppdateringer først.",
         "backups_title": "Oppdater sikkerhetskopier",
         "backups_desc": "Forhåndsoppdatering sikkerhetskopier opprettet automatisk før hver oppdatering",

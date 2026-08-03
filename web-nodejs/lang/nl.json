@@ -3490,7 +3490,7 @@
         "install_failed": "Installatie van update mislukt",
         "restarting": "Services herstarten...",
         "restart_complete": "Herstart voltooid",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "De update is toegepast, maar het consoleproces kwam niet terug online. Op Windows: start BetterDeskConsole (Admin: nssm start BetterDeskConsole) en herlaad de pagina.",
         "no_version": "Versie-informatie niet beschikbaar",
         "backups_title": "Back-ups",
         "backups_desc": "Herstel of beheer eerder gemaakte updateback-ups.",

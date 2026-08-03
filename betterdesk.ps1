@@ -2082,6 +2082,9 @@ function Setup-Services {
         & $nssm set $script:CONSOLE_SERVICE DisplayName "BetterDesk Web Console (Node.js)"
         & $nssm set $script:CONSOLE_SERVICE Description "BetterDesk Web Management Console - Node.js"
         & $nssm set $script:CONSOLE_SERVICE Start SERVICE_AUTO_START
+        # Panel updates exit the Node process; NSSM must restart it (default is Restart,
+        # but make it explicit so interactive/legacy installs recover after process.exit).
+        & $nssm set $script:CONSOLE_SERVICE AppExit Default Restart
         $envExtra = @(
             "NODE_ENV=production",
             "RUSTDESK_DIR=$script:RUSTDESK_PATH",

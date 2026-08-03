@@ -3490,7 +3490,7 @@
         "install_failed": "La instalación de la actualización falló",
         "restarting": "Esperando el reinicio de la consola...",
         "restart_complete": "Consola reiniciada correctamente",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "La actualización se aplicó, pero el proceso de la consola no volvió a estar en línea. En Windows, inicie BetterDeskConsole (Admin: nssm start BetterDeskConsole) y recargue la página.",
         "no_version": "No se seleccionó versión de actualización. Busca actualizaciones primero.",
         "backups_title": "Copias de seguridad de actualización",
         "backups_desc": "Copias previas creadas automáticamente antes de cada actualización",

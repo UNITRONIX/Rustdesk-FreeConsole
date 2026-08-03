@@ -31,8 +31,34 @@ const { getSmtpSettings, putSmtpSettings, testSmtpSettings } = require('../lib/s
 const { apiClient } = require('../services/betterdeskApi');
 const { requireAuth, requirePermission, roleHasPermission } = require('../middleware/auth');
 const deviceGroupService = require('../services/deviceGroupService');
+const {
+    scheduleWindowsConsoleServiceStart,
+    ensureWindowsConsoleAppExitRestart,
+} = require('../lib/windowsConsoleSelfRestart');
 const os = require('os');
 const multer = require('multer');
+
+/** Exit so systemd/NSSM (or a scheduled Windows start) can bring the console back. */
+function exitConsoleForServiceRestart(reason) {
+    if (process.platform === 'win32') {
+        try {
+            const appExit = ensureWindowsConsoleAppExitRestart();
+            if (appExit.changed) {
+                console.log(`[UPDATE] Set ${appExit.changes.join(', ')}`);
+            }
+        } catch (_e) { /* non-fatal */ }
+        const scheduled = scheduleWindowsConsoleServiceStart();
+        if (scheduled.scheduled) {
+            console.log(
+                `[UPDATE] Scheduled NSSM start of ${scheduled.service} in ${scheduled.delaySec}s after exit`
+                + (reason ? ` (${reason})` : '')
+            );
+        } else if (scheduled.error) {
+            console.warn(`[UPDATE] Could not schedule Windows console restart: ${scheduled.error}`);
+        }
+    }
+    process.exit(0);
+}
 
 /**
  * GET /settings - Settings page
@@ -1265,7 +1291,7 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
         if (scheduleConsoleRestart) {
             setTimeout(() => {
                 console.log(`[UPDATE] Restarting console after update to ${remoteSHA.slice(0, 7)}...`);
-                process.exit(0);
+                exitConsoleForServiceRestart(`update ${remoteSHA.slice(0, 7)}`);
             }, 2000);
         }
     } catch (err) {
@@ -1356,7 +1382,7 @@ router.post('/api/settings/updates/restore', requireAuth, requirePermission('ser
         // Restart after restore
         setTimeout(() => {
             console.log(`[UPDATE] Restarting after restore from ${backupName}...`);
-            process.exit(0);
+            exitConsoleForServiceRestart(`restore ${backupName}`);
         }, 2000);
     } catch (err) {
         console.error('Restore error:', err);

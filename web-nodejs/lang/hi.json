@@ -3496,7 +3496,7 @@
         "install_failed": "अद्यतन स्थापना विफल रही",
         "restarting": "कंसोल के पुनरारंभ होने की प्रतीक्षा की जा रही है...",
         "restart_complete": "कंसोल सफलतापूर्वक पुनः प्रारंभ हुआ",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "अपडेट लागू हो गया, लेकिन कंसोल प्रक्रिया वापस ऑनलाइन नहीं आई। Windows पर BetterDeskConsole शुरू करें (Admin: nssm start BetterDeskConsole), फिर पेज रीलोड करें।",
         "no_version": "कोई अद्यतन संस्करण चयनित नहीं. पहले अपडेट की जांच करें.",
         "backups_title": "बैकअप अद्यतन करें",
         "backups_desc": "प्रत्येक अपडेट से पहले प्री-अपडेट बैकअप स्वचालित रूप से बनाया जाता है",

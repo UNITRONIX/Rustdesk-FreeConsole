@@ -3490,7 +3490,7 @@
         "install_failed": "アップデートのインストールに失敗しました",
         "restarting": "コンソールが再起動するのを待っています…",
         "restart_complete": "コンソールが正常に再起動されました",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "更新は適用されましたが、コンソールプロセスが復帰しませんでした。Windowsでは BetterDeskConsole を起動し（Admin: nssm start BetterDeskConsole）、ページを再読み込みしてください。",
         "no_version": "更新バージョンが選択されていません。まず更新を確認してください。",
         "backups_title": "バックアップの更新",
         "backups_desc": "各アップデートの前に自動的に作成されるアップデート前のバックアップ",

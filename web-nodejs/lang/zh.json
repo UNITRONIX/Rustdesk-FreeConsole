@@ -3561,7 +3561,7 @@
         "install_failed": "更新安装失败",
         "restarting": "正在等待控制台重启…",
         "restart_complete": "控制台已成功重启",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "更新已应用，但控制台进程未重新上线。在 Windows 上请启动 BetterDeskConsole（管理员：nssm start BetterDeskConsole），然后重新加载页面。",
         "no_version": "未选择更新版本。请先检查更新。",
         "backups_title": "更新备份",
         "backups_desc": "每次更新前自动创建的更新前备份",

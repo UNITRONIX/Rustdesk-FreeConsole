@@ -10,6 +10,7 @@
 - After server updates, `patchServiceDefinitions()` sanitizes systemd/NSSM units in place.
 - **Windows path root (#272):** `resolveProjectRoot()` must never resolve to a drive root (`C:\`). Default layout `C:\BetterDeskConsole` + `C:\BetterDesk` writes Scripts & Docker files under the console directory. `ensureParentDirForFile()` skips `mkdir` on filesystem roots (Node throws `EPERM` on `mkdir('C:\\')`). NSSM OpenService Access Denied when restarting `BetterDeskServer` is non-critical — restart the Go service manually or via `betterdesk.ps1` if needed.
 - **Windows NSSM SERVICE_PAUSED:** After replacing `betterdesk-server.exe`, NSSM may enter restart-throttle `SERVICE_PAUSED`. Panel restart uses `continue` + stop→start (not bare `nssm restart`) and verifies `SERVICE_RUNNING`.
+- **Windows console self-restart:** Panel updates exit the Node process so the supervisor can reload it. Before `process.exit(0)` the panel schedules a detached `nssm start BetterDeskConsole` (and sets `AppExit Default=Restart`). Interactive `npm`/`node` windows do not come back on their own — run the console as the NSSM service for in-app updates.
 
 ## Issue #158 — server build / config preservation
 

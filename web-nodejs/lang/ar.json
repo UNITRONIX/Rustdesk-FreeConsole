@@ -3497,7 +3497,7 @@
         "install_failed": "فشل تثبيت التحديث",
         "restarting": "في انتظار إعادة تشغيل وحدة التحكم...",
         "restart_complete": "تمت إعادة تشغيل وحدة التحكم بنجاح",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "تم تطبيق التحديث، لكن عملية وحدة التحكم لم تعد للعمل. على Windows شغّل BetterDeskConsole (Admin: nssm start BetterDeskConsole) ثم أعد تحميل الصفحة.",
         "no_version": "لم يتم تحديد إصدار التحديث. تحقق من وجود تحديثات أولاً.",
         "backups_title": "تحديث النسخ الاحتياطية",
         "backups_desc": "يتم إنشاء النسخ الاحتياطية قبل التحديث تلقائيًا قبل كل تحديث",

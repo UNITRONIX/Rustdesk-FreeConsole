@@ -3496,7 +3496,7 @@
         "install_failed": "A frissítés telepítése sikertelen",
         "restarting": "Várakozás a konzol újraindítására…",
         "restart_complete": "A konzol sikeresen újraindult",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "A frissítés alkalmazva lett, de a konzol folyamat nem jött vissza. Windowson indítsa a BetterDeskConsole szolgáltatást (Admin: nssm start BetterDeskConsole), majd töltse újra az oldalt.",
         "no_version": "Nincs kiválasztva frissítési verzió. Először ellenőrizze a frissítéseket.",
         "backups_title": "Biztonsági másolatok frissítése",
         "backups_desc": "Frissítés előtti biztonsági mentések, amelyek minden frissítés előtt automatikusan jönnek létre",

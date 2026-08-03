@@ -3496,7 +3496,7 @@
         "install_failed": "Cài đặt cập nhật không thành công",
         "restarting": "Đang chờ bảng điều khiển khởi động lại…",
         "restart_complete": "Bảng điều khiển đã khởi động lại thành công",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "Bản cập nhật đã được áp dụng, nhưng tiến trình console không trở lại. Trên Windows, hãy khởi động BetterDeskConsole (Admin: nssm start BetterDeskConsole), rồi tải lại trang.",
         "no_version": "Không có phiên bản cập nhật nào được chọn. Kiểm tra cập nhật đầu tiên.",
         "backups_title": "Cập nhật bản sao lưu",
         "backups_desc": "Bản sao lưu trước khi cập nhật được tạo tự động trước mỗi lần cập nhật",

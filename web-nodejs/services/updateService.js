@@ -54,6 +54,7 @@ const {
     isUpdatePermissionError,
 } = require('../lib/updateProjectRoot');
 const { restartWindowsNssmService } = require('../lib/windowsNssmRestart');
+const { ensureWindowsConsoleAppExitRestart } = require('../lib/windowsConsoleSelfRestart');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -2371,6 +2372,17 @@ function mergeConsoleEnvAfterUpdate() {
 /** In-place service definition patch (TLS API flags, HTTP URLs, console user). */
 function patchServiceDefinitions() {
     const goPatch = sanitizeGoServerServiceConfig();
+    if (IS_WINDOWS) {
+        const appExit = ensureWindowsConsoleAppExitRestart();
+        if (appExit.changed) {
+            goPatch.changed = true;
+            goPatch.changes = (goPatch.changes || []).concat(appExit.changes || []);
+        }
+        if (appExit.error) {
+            goPatch.consoleAppExitError = appExit.error;
+        }
+        return goPatch;
+    }
     if (process.platform !== 'linux') {
         return goPatch;
     }

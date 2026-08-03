@@ -3490,7 +3490,7 @@
         "install_failed": "Update-Installation fehlgeschlagen",
         "restarting": "Warten auf Neustart der Konsole...",
         "restart_complete": "Konsole erfolgreich neu gestartet",
-        "restart_timeout": "Console did not restart in time. Please check manually.",
+        "restart_timeout": "Das Update wurde angewendet, aber der Konsolenprozess ist nicht wieder online. Unter Windows: BetterDeskConsole starten (Admin: nssm start BetterDeskConsole), dann die Seite neu laden.",
         "no_version": "Keine Update-Version ausgewählt. Suchen Sie zuerst nach Updates.",
         "backups_title": "Update-Sicherungen",
         "backups_desc": "Vorab-Sicherungen, die automatisch vor jedem Update erstellt werden",

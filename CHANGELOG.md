@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **Windows panel update — console stays stopped after restart:** in-app update exits Node so NSSM can reload it; interactive `npm` windows (and `AppExit=Exit`) never came back, so the browser timed out waiting for restart. Panel now sets `AppExit Default=Restart` and schedules a detached `nssm start BetterDeskConsole` before exit. Ships via panel update (`betterdesk.ps1` also sets AppExit on install/recreate).
 - **Modal closes while selecting text:** highlighting text in a modal field (e.g. Add User username) and releasing the mouse over the dimmed backdrop no longer dismisses the dialog. Ships via panel update.
 - **Add User fields autofilled by the browser:** username/password/email on Add User (and org Create User) now opt out of login autofill so they stay empty for new accounts. Ships via panel update.
 - **RdClient desktop — local-to-remote file drag-drop:** fixed vendor WebView2 drop-target registration (drops never reached JS after `SetAllowExternalDrop(false)`), split session Cliprdr paste vs modal upload, click-under-cursor + FormatList ack before Ctrl+V, and queue modal uploads until the file session is ready. Remote-to-local OS drag-out from the video surface remains unsupported (use Copy/Paste or File transfer). Requires rebuilt `rdclient-desktop` **and** panel update.
