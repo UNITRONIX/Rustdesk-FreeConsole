@@ -406,7 +406,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Пароль встановлено — готово до автопідключення",
         "password_needs_reseal": "Пароль встановлено, але не запечатано — введіть його знову нижче та збережіть",
-        "password_auto_auth_hint": "Для безнаглядного автопідключення введіть пароль пристрою та збережіть (один раз після цього оновлення).",
+        "password_auto_auth_hint": "Для безнаглядного автопідключення введіть пароль пристрою та збережіть (потрібно один раз після цього оновлення). Після зміни тут зачекайте до ~30 секунд (або перезапустіть Support Agent), щоб пристрій застосував новий пароль перед підключенням.",
         "password_required_for_unattended": "Введіть пароль доступу, щоб увімкнути безнаглядне автопідключення",
         "access_policy_saved_reseal": "Політику доступу збережено. Для Support Agent зачекайте ~2 хв або перезапустіть агент, щоб він отримав пароль.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

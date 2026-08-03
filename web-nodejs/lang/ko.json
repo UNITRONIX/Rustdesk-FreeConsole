@@ -400,7 +400,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "비밀번호 설정됨 — 자동 연결 준비됨",
         "password_needs_reseal": "비밀번호가 설정되었지만 봉인되지 않음 — 아래에 다시 입력하고 저장",
-        "password_auto_auth_hint": "무인 자동 연결을 위해 장치 비밀번호를 입력하고 저장하세요(이 업데이트 후 한 번 필요).",
+        "password_auto_auth_hint": "무인 자동 연결을 위해 장치 비밀번호를 입력하고 저장하세요(이 업데이트 후 한 번 필요). 여기서 변경한 뒤 연결하기 전에 장치가 새 비밀번호를 적용하도록 최대 약 30초 기다리거나 Support Agent를 다시 시작하세요.",
         "password_required_for_unattended": "무인 자동 연결을 사용하려면 액세스 비밀번호를 입력하세요",
         "access_policy_saved_reseal": "액세스 정책이 저장되었습니다. Support Agent를 사용 중이면 약 2분 기다리거나 에이전트를 재시작해 비밀번호를 가져오세요.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

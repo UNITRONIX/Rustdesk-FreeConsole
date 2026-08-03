@@ -1690,7 +1690,7 @@
                                     ? '<span class="badge badge-success">✓ ' + dt('devices.password_auto_auth_ready', 'Password set — auto-connect ready') + '</span>'
                                     : '<span class="badge badge-warning">' + dt('devices.password_needs_reseal', 'Password set but not sealed — enter it again below and Save') + '</span>')
                                 : '<span class="badge badge-warning">' + dt('devices.no_password', 'No password') + '</span>')}</p>
-                        <p class="form-hint">${dt('devices.password_auto_auth_hint', 'For unattended auto-connect, type the device password and Save (required once after this update).')}</p>
+                        <p class="form-hint">${dt('devices.password_auto_auth_hint', 'For unattended auto-connect, type the device password and Save (required once after this update). After changing it here, wait up to ~30 seconds (or restart Support Agent) so the device applies the new password before connecting.')}</p>
                         <div class="form-row">
                             <input type="password" id="ap-password" class="form-input" placeholder="${_('devices.new_password') || 'New password (leave empty to keep current)'}" autocomplete="new-password">
                         </div>

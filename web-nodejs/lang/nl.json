@@ -400,7 +400,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Wachtwoord ingesteld — auto-verbinding klaar",
         "password_needs_reseal": "Wachtwoord ingesteld maar niet verzegeld — voer het hieronder opnieuw in en opslaan",
-        "password_auto_auth_hint": "Voor onbeheerde auto-verbinding: typ het apparaattwachtwoord en sla op (eenmalig na deze update).",
+        "password_auto_auth_hint": "Voor onbeheerde auto-verbinding typt u het apparaatwachtwoord en slaat u op (eenmaal vereist na deze update). Na wijziging hier tot ~30 seconden wachten (of Support Agent herstarten) zodat het apparaat het nieuwe wachtwoord toepast vóór verbinden.",
         "password_required_for_unattended": "Voer het toegangswachtwoord in om onbeheerde auto-verbinding in te schakelen",
         "access_policy_saved_reseal": "Toegangsbeleid opgeslagen. Bij Support Agent ~2 min wachten of de agent herstarten zodat het wachtwoord wordt opgehaald.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

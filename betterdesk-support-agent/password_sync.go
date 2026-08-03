@@ -98,9 +98,12 @@ func PullAccessPolicy(b Branding, st *AppState) error {
 }
 
 func startAccessPolicyPullLoop(b Branding, st *AppState) {
-	ticker := time.NewTicker(2 * time.Minute)
+	// Pull promptly after console Access Policy changes so RdClient auto-auth
+	// does not race a stale local permanent password ("Wrong Password").
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
 		_ = PullAccessPolicy(b, st)
+		_ = SyncAccessPassword(b, st)
 	}
 }

@@ -406,7 +406,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "पासवर्ड सेट — ऑटो-कनेक्ट तैयार",
         "password_needs_reseal": "पासवर्ड सेट है लेकिन सील नहीं — नीचे फिर लिखें और सहेजें",
-        "password_auto_auth_hint": "अनअटेंडेड ऑटो-कनेक्ट के लिए डिवाइस पासवर्ड लिखकर सहेजें (इस अपडेट के बाद एक बार आवश्यक)।",
+        "password_auto_auth_hint": "बिना निगरानी स्वतः कनेक्ट के लिए डिवाइस पासवर्ड लिखें और सहेजें (इस अपडेट के बाद एक बार आवश्यक)। यहाँ बदलने के बाद कनेक्ट करने से पहले डिवाइस नए पासवर्ड को लागू करे, इसके लिए ~30 सेकंड तक प्रतीक्षा करें (या Support Agent रीस्टार्ट करें)।",
         "password_required_for_unattended": "अनअटेंडेड ऑटो-कनेक्ट चालू करने के लिए एक्सेस पासवर्ड दर्ज करें",
         "access_policy_saved_reseal": "एक्सेस नीति सहेजी गई। Support Agent हो तो ~2 मिनट प्रतीक्षा करें या एजेंट रीस्टार्ट करें ताकि पासवर्ड मिले।",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

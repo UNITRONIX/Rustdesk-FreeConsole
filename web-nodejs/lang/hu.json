@@ -406,7 +406,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Jelszó beállítva — auto-kapcsolat kész",
         "password_needs_reseal": "Jelszó beállítva, de nincs lepecsételve — írja be újra lent, majd mentse",
-        "password_auto_auth_hint": "Felügyelet nélküli auto-kapcsolathoz írja be az eszköz jelszavát és mentse (egyszer szükséges e frissítés után).",
+        "password_auto_auth_hint": "A felügyelet nélküli automatikus kapcsolódáshoz írja be az eszköz jelszavát, majd mentse (egyszer szükséges e frissítés után). Itt történő módosítás után várjon legfeljebb ~30 másodpercet (vagy indítsa újra a Support Agentet), hogy az eszköz alkalmazza az új jelszót kapcsolódás előtt.",
         "password_required_for_unattended": "Adja meg a hozzáférési jelszót a felügyelet nélküli auto-kapcsolat engedélyezéséhez",
         "access_policy_saved_reseal": "Hozzáférési szabályzat mentve. Support Agent esetén várjon ~2 percet vagy indítsa újra az agentet a jelszó átvételéhez.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

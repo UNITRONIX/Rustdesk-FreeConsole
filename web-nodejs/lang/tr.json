@@ -406,7 +406,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Parola ayarlandı — otomatik bağlantı hazır",
         "password_needs_reseal": "Parola ayarlandı ancak mühürlenmedi — aşağıya yeniden girin ve kaydedin",
-        "password_auto_auth_hint": "Gözetimsiz otomatik bağlantı için cihaz parolasını yazıp kaydedin (bu güncellemeden sonra bir kez gerekir).",
+        "password_auto_auth_hint": "Gözetimsiz otomatik bağlantı için cihaz parolasını yazıp kaydedin (bu güncellemeden sonra bir kez gerekir). Burada değiştirdikten sonra, bağlanmadan önce cihazın yeni parolayı uygulaması için ~30 saniye bekleyin (veya Support Agent’ı yeniden başlatın).",
         "password_required_for_unattended": "Gözetimsiz otomatik bağlantıyı etkinleştirmek için erişim parolasını girin",
         "access_policy_saved_reseal": "Erişim ilkesi kaydedildi. Support Agent kullanıyorsanız ~2 dk bekleyin veya parolayı alması için agentı yeniden başlatın.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

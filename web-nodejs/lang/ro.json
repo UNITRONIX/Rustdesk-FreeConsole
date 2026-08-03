@@ -406,7 +406,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Parolă setată — gata pentru auto-conectare",
         "password_needs_reseal": "Parolă setată, dar nesigilată — introduceți-o din nou mai jos și salvați",
-        "password_auto_auth_hint": "Pentru auto-conectare nesupravegheată, introduceți parola dispozitivului și salvați (o dată după această actualizare).",
+        "password_auto_auth_hint": "Pentru auto-conectare nesupravegheată, introduceți parola dispozitivului și salvați (necesar o dată după această actualizare). După modificare aici, așteptați până la ~30 de secunde (sau reporniți Support Agent) pentru ca dispozitivul să aplice noua parolă înainte de conectare.",
         "password_required_for_unattended": "Introduceți parola de acces pentru a activa auto-conectarea nesupravegheată",
         "access_policy_saved_reseal": "Politica de acces salvată. Cu Support Agent așteptați ~2 min sau reporniți agentul ca să preia parola.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

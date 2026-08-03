@@ -406,7 +406,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Passord satt — klar for auto-tilkobling",
         "password_needs_reseal": "Passord satt, men ikke forseglet — skriv det inn under og lagre",
-        "password_auto_auth_hint": "For uovervåket auto-tilkobling: skriv inn enhetspassordet og lagre (kreves én gang etter denne oppdateringen).",
+        "password_auto_auth_hint": "For uovervåket auto-tilkobling, skriv inn enhetspassordet og lagre (kreves én gang etter denne oppdateringen). Etter endring her: vent opptil ~30 sekunder (eller restart Support Agent) slik at enheten tar i bruk det nye passordet før du kobler til.",
         "password_required_for_unattended": "Skriv inn tilgangspassordet for å aktivere uovervåket auto-tilkobling",
         "access_policy_saved_reseal": "Tilgangspolicy lagret. Hvis du bruker Support Agent, vent ca. 2 min eller start agenten på nytt slik at den henter passordet.",
         "password_codec_unavailable": "Serveren kan ikke forsegle passord ennå — oppdater/restart betterdesk-server (se etter \"connect-secret codec ready\" i loggen)"

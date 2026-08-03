@@ -790,9 +790,28 @@ func (s *Server) handleDeviceSelfAccessPolicy(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	existing, _ := s.db.GetAccessPolicy(body.DeviceID)
 	preferServer := true
-	if existing, err := s.db.GetAccessPolicy(body.DeviceID); err == nil && existing != nil {
+	preserveConsolePassword := false
+	if existing != nil {
 		preferServer = existing.PasswordlessServerAccess
+		// Console Access Policy password wins until the device has pulled it.
+		// Otherwise a stale agent push can overwrite a just-saved console password
+		// and RdClient auto-auth gets "Wrong Password".
+		if existing.PasswordEnc != "" && !strings.HasPrefix(strings.TrimSpace(existing.UpdatedBy), "device:") {
+			preserveConsolePassword = true
+			// Once the device confirms it has the console password, allow ownership flip.
+			if body.Password != "" && s.accessSecret != nil {
+				if plain, err := s.accessSecret.Decrypt(existing.PasswordEnc); err == nil && plain == body.Password {
+					preserveConsolePassword = false
+				}
+			}
+		}
+	}
+
+	updatedBy := "device:" + body.DeviceID
+	if preserveConsolePassword && existing != nil {
+		updatedBy = existing.UpdatedBy
 	}
 
 	policy := &db.AccessPolicy{
@@ -800,9 +819,19 @@ func (s *Server) handleDeviceSelfAccessPolicy(w http.ResponseWriter, r *http.Req
 		UnattendedEnabled:        body.UnattendedEnabled,
 		PasswordlessServerAccess: preferServer,
 		UpdatedAt:                time.Now().UTC().Format(time.RFC3339),
-		UpdatedBy:                "device:" + body.DeviceID,
+		UpdatedBy:                updatedBy,
 	}
-	if body.Password != "" {
+	if existing != nil {
+		// Device push only owns unattended + password — keep schedule/operators intact.
+		policy.ScheduleEnabled = existing.ScheduleEnabled
+		policy.ScheduleDays = existing.ScheduleDays
+		policy.ScheduleStartTime = existing.ScheduleStartTime
+		policy.ScheduleEndTime = existing.ScheduleEndTime
+		policy.ScheduleTimezone = existing.ScheduleTimezone
+		policy.AllowedOperators = existing.AllowedOperators
+	}
+
+	if body.Password != "" && !preserveConsolePassword {
 		hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 		if err != nil {
 			http.Error(w, "failed to hash password", http.StatusInternalServerError)
@@ -815,6 +844,7 @@ func (s *Server) handleDeviceSelfAccessPolicy(w http.ResponseWriter, r *http.Req
 			}
 		}
 	}
+	// If PasswordHash is empty, SaveAccessPolicy preserves the existing sealed secret.
 	if err := s.db.SaveAccessPolicy(policy); err != nil {
 		http.Error(w, "failed to save policy", http.StatusInternalServerError)
 		return

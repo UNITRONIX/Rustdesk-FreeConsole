@@ -404,7 +404,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Mot de passe défini — connexion auto prête",
         "password_needs_reseal": "Mot de passe défini mais non scellé — saisissez-le à nouveau ci-dessous et enregistrez",
-        "password_auto_auth_hint": "Pour la connexion auto sans surveillance, saisissez le mot de passe de l’appareil et enregistrez (une fois après cette mise à jour).",
+        "password_auto_auth_hint": "Pour la connexion automatique non assistée, saisissez le mot de passe de l’appareil et enregistrez (requis une fois après cette mise à jour). Après modification ici, attendez jusqu’à ~30 secondes (ou redémarrez Support Agent) pour que l’appareil applique le nouveau mot de passe avant de vous connecter.",
         "password_required_for_unattended": "Saisissez le mot de passe d’accès pour activer la connexion auto sans surveillance",
         "access_policy_saved_reseal": "Politique d’accès enregistrée. Avec Support Agent, attendez ~2 min ou redémarrez l’agent pour qu’il récupère le mot de passe.",
         "password_codec_unavailable": "Le serveur ne peut pas encore sceller les mots de passe — mettez à jour/redémarrez betterdesk-server (journal : \"connect-secret codec ready\")"

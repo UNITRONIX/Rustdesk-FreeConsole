@@ -406,7 +406,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Adgangskode sat — klar til auto-forbindelse",
         "password_needs_reseal": "Adgangskode sat, men ikke forseglet — indtast den igen nedenfor og gem",
-        "password_auto_auth_hint": "Til uovervåget auto-forbindelse: indtast enhedens adgangskode og gem (kræves én gang efter denne opdatering).",
+        "password_auto_auth_hint": "Til uovervåget auto-forbindelse skal du indtaste enhedsadgangskoden og gemme (kræves én gang efter denne opdatering). Efter ændring her skal du vente op til ~30 sekunder (eller genstarte Support Agent), så enheden anvender den nye adgangskode før du opretter forbindelse.",
         "password_required_for_unattended": "Indtast adgangskoden for at aktivere uovervåget auto-forbindelse",
         "access_policy_saved_reseal": "Adgangspolitik gemt. Med Support Agent vent ~2 min eller genstart agenten, så den henter adgangskoden.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

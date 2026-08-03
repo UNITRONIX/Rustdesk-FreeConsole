@@ -953,13 +953,17 @@
             session.connectionOverlay.style.display = 'none';
             session.loginError.style.display = 'none';
             session.passwordInput.value = '';
+            session._authPreferServer = true;
+            session._authFromServer = false;
 
-            const tryAuth = (pw, remember) => {
+            const tryAuth = (pw, remember, fromServer) => {
                 if (!pw || !session.client) return false;
                 session.passwordOverlay.style.display = 'none';
                 session.passwordInput.value = pw;
-                if (remember && session.rememberPeerCheckbox) {
-                    session.rememberPeerCheckbox.checked = true;
+                session._authFromServer = !!fromServer;
+                if (session.rememberPeerCheckbox) {
+                    // Passwordless mode: never persist/reuse local vault copies.
+                    session.rememberPeerCheckbox.checked = !!(remember && !fromServer);
                 }
                 session.client.authenticate(pw);
                 return true;
@@ -975,11 +979,16 @@
                 if (isActive(session)) setToolbarChromeVisible(false);
             };
 
+            const clearLocalVault = () => {
+                if (window.RdClientSecureStore && session.deviceId) {
+                    window.RdClientSecureStore.clearPeerPassword(session.deviceId).catch(function () { /* ignore */ });
+                }
+            };
+
             // 1) Console unattended connect-secret (Access Policy)
-            // 2) Local remembered peer password (auto-submit)
+            // 2) Local remembered peer password (auto-submit) — skipped when passwordless
             // 3) Manual prompt (with reason when secret fetch fails)
-            // Priority between (1) and (2) is controlled by Access Policy
-            // "Passwordless server access" (default: prefer server).
+            // Priority is controlled by Access Policy "Passwordless server access".
             const fetchSecret = fetch('/api/devices/' + encodeURIComponent(session.deviceId) + '/connect-secret', {
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
@@ -1018,30 +1027,39 @@
 
             Promise.all([fetchSecret, fetchVault, fetchPolicy]).then(([secretResp, saved, policyResp]) => {
                 const policy = (policyResp && (policyResp.data || policyResp)) || {};
-                // Default true = current behaviour (server sealed password first).
+                // Default true = prefer sealed server password.
                 let preferServer = true;
                 if (typeof secretResp.preferServer === 'boolean') {
                     preferServer = secretResp.preferServer;
                 } else if (typeof policy.passwordless_server_access === 'boolean') {
                     preferServer = policy.passwordless_server_access;
                 }
+                session._authPreferServer = preferServer;
+
+                if (session.rememberPeerCheckbox) {
+                    const row = session.rememberPeerCheckbox.closest('.session-remember-peer');
+                    if (row) row.style.display = preferServer ? 'none' : '';
+                    if (preferServer) session.rememberPeerCheckbox.checked = false;
+                }
 
                 const secretPw = secretResp && secretResp.ok && secretResp.password;
-                const tryServer = () => !!(secretPw && tryAuth(secretPw, preferServer));
-                const tryClient = () => !!(saved && tryAuth(saved, true));
+                const tryServer = () => !!(secretPw && tryAuth(secretPw, false, true));
+                const tryClient = () => !!(saved && tryAuth(saved, true, false));
 
                 if (preferServer) {
+                    // Drop stale local copies so they cannot override a console password change.
+                    clearLocalVault();
                     if (tryServer()) return;
-                    if (tryClient()) return;
+                    // Do not fall back to vault — prompt so the operator can type the live device password.
                 } else {
                     if (tryClient()) return;
                     if (tryServer()) return;
+                    if (saved) {
+                        session.passwordInput.value = saved;
+                        if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;
+                    }
                 }
 
-                if (saved) {
-                    session.passwordInput.value = saved;
-                    if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;
-                }
                 let hint = '';
                 if (secretResp && !secretResp.ok && secretResp.error) {
                     hint = secretResp.error;
@@ -1059,6 +1077,14 @@
                 if (isActive(session)) session.tfaInput.focus();
                 return;
             }
+            // Stale vault / failed auto-auth — never keep a rejected password around in passwordless mode.
+            if (session._authPreferServer || session._authFromServer) {
+                if (window.RdClientSecureStore && session.deviceId) {
+                    window.RdClientSecureStore.clearPeerPassword(session.deviceId).catch(function () { /* ignore */ });
+                }
+                if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = false;
+            }
+            session._authFromServer = false;
             // Auto-auth may have hidden the overlay — show it again on failure
             session.passwordOverlay.style.display = 'flex';
             session.loginError.textContent = error;
@@ -1091,14 +1117,19 @@
             session.passwordOverlay.style.display = 'none';
             session.tfaOverlay.style.display = 'none';
             session.passwordInput.blur();
-            if (window.RdClientSecureStore && session.rememberPeerCheckbox) {
+            if (window.RdClientSecureStore && session.deviceId) {
+                var preferServer = !!session._authPreferServer || !!session._authFromServer;
                 var pw = session.passwordInput.value;
-                if (session.rememberPeerCheckbox.checked && pw) {
+                if (preferServer) {
+                    // Passwordless: never keep a local copy that can go stale after console changes.
+                    window.RdClientSecureStore.clearPeerPassword(session.deviceId).catch(function () { /* ignore */ });
+                } else if (session.rememberPeerCheckbox && session.rememberPeerCheckbox.checked && pw) {
                     window.RdClientSecureStore.savePeerPassword(session.deviceId, pw).catch(function () { /* ignore */ });
-                } else if (!session.rememberPeerCheckbox.checked) {
+                } else if (session.rememberPeerCheckbox && !session.rememberPeerCheckbox.checked) {
                     window.RdClientSecureStore.clearPeerPassword(session.deviceId).catch(function () { /* ignore */ });
                 }
             }
+            session._authFromServer = false;
         });
 
         c.on('session_start', () => {

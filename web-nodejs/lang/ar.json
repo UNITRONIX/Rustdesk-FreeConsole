@@ -407,7 +407,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "تم تعيين كلمة المرور — جاهز للاتصال التلقائي",
         "password_needs_reseal": "تم تعيين كلمة المرور لكنها غير مختومة — أدخلها مرة أخرى أدناه واحفظ",
-        "password_auto_auth_hint": "للاتصال التلقائي دون مراقبة، اكتب كلمة مرور الجهاز واحفظ (مرة واحدة بعد هذا التحديث).",
+        "password_auto_auth_hint": "للاتصال التلقائي دون مراقبة، اكتب كلمة مرور الجهاز واحفظ (مطلوب مرة واحدة بعد هذا التحديث). بعد تغييرها هنا، انتظر حتى ~30 ثانية (أو أعد تشغيل Support Agent) حتى يطبق الجهاز كلمة المرور الجديدة قبل الاتصال.",
         "password_required_for_unattended": "أدخل كلمة مرور الوصول لتمكين الاتصال التلقائي دون مراقبة",
         "access_policy_saved_reseal": "تم حفظ سياسة الوصول. مع Support Agent انتظر نحو دقيقتين أو أعد تشغيل الوكيل ليلتقط كلمة المرور.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

@@ -400,7 +400,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Heslo nastaveno — připraveno k auto-připojení",
         "password_needs_reseal": "Heslo nastaveno, ale není zapečetěno — zadejte jej znovu níže a uložte",
-        "password_auto_auth_hint": "Pro bezobslužné auto-připojení zadejte heslo zařízení a uložte (jednou po této aktualizaci).",
+        "password_auto_auth_hint": "Pro bezobslužné auto-připojení zadejte heslo zařízení a uložte (vyžadováno jednou po této aktualizaci). Po změně zde počkejte až ~30 sekund (nebo restartujte Support Agent), aby zařízení použilo nové heslo před připojením.",
         "password_required_for_unattended": "Zadejte přístupové heslo pro zapnutí bezobslužného auto-připojení",
         "access_policy_saved_reseal": "Přístupová politika uložena. U Support Agent počkejte ~2 min nebo restartujte agenta, aby heslo stáhl.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"

@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **Access Policy password change → RdClient “Wrong Password”:** with Passwordless server access, RdClient no longer falls back to or saves a stale local vault copy; device pushes cannot overwrite a just-saved console Access Password until the agent confirms the new secret; Support Agent pulls every 30s (was 2 min). Ships via panel update + betterdesk-server; rebuild Support Agent for the faster pull.
 - **SQLite `peer` missing `ip` column:** older panel DBs created before `ip`/`uuid`/`note`/`info` were in `CREATE TABLE peer` never got those columns via migration, so `syncGoPeersSqlite` logged `table peer has no column named ip` (often seen after UI refresh, e.g. deleting a user). Migrate adds the missing columns on startup. Ships via panel update.
 - **Windows panel update — console stays stopped after restart:** in-app update exits Node so NSSM can reload it; interactive `npm` windows (and `AppExit=Exit`) never came back, so the browser timed out waiting for restart. Panel now sets `AppExit Default=Restart` and schedules a detached `nssm start BetterDeskConsole` before exit. Ships via panel update (`betterdesk.ps1` also sets AppExit on install/recreate).
 - **Modal closes while selecting text:** highlighting text in a modal field (e.g. Add User username) and releasing the mouse over the dimmed backdrop no longer dismisses the dialog. Ships via panel update.

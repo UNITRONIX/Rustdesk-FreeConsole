@@ -406,7 +406,7 @@
         "strategy_assign_none": "No direct assignments",
         "password_auto_auth_ready": "Kata sandi diatur — siap auto-connect",
         "password_needs_reseal": "Kata sandi diatur tetapi belum disegel — masukkan lagi di bawah dan Simpan",
-        "password_auto_auth_hint": "Untuk auto-connect tanpa pengawasan, ketik kata sandi perangkat dan Simpan (sekali setelah pembaruan ini).",
+        "password_auto_auth_hint": "Untuk koneksi otomatis tanpa pengawasan, ketik kata sandi perangkat lalu Simpan (diperlukan sekali setelah pembaruan ini). Setelah mengubah di sini, tunggu hingga ~30 detik (atau mulai ulang Support Agent) agar perangkat menerapkan kata sandi baru sebelum menghubungkan.",
         "password_required_for_unattended": "Masukkan kata sandi akses untuk mengaktifkan auto-connect tanpa pengawasan",
         "access_policy_saved_reseal": "Kebijakan akses disimpan. Dengan Support Agent, tunggu ~2 mnt atau mulai ulang agen agar mengambil kata sandi.",
         "password_codec_unavailable": "Server cannot seal passwords yet — update/restart betterdesk-server (look for \"connect-secret codec ready\" in logs)"
