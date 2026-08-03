@@ -18,6 +18,7 @@ tauri-plugin-shell = "2"
 tauri-utils = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+base64 = "0.22"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sys-locale = "0.3"

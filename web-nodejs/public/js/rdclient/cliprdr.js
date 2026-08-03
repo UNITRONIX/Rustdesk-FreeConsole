@@ -8,7 +8,8 @@
     'use strict';
 
     var CLIP_POLL_MS = 3000;
-    var INBOUND_CHUNK = 65536;
+    // Larger chunks = fewer IPC round-trips. Still leave room for other relay traffic.
+    var INBOUND_CHUNK = 256 * 1024;
     var OUTBOUND_SUPPRESS_MS = 4000;
     var CB_RESPONSE_OK = 0x1;
     var CB_RESPONSE_FAIL = 0x2;
@@ -31,7 +32,38 @@
         if (data instanceof Uint8Array) return data;
         if (data instanceof ArrayBuffer) return new Uint8Array(data);
         if (Array.isArray(data)) return new Uint8Array(data);
+        if (typeof data === 'string') return base64ToBytes(data);
         return new Uint8Array(0);
+    }
+
+    /** Avoid Array.from(u8) → JSON number[] which freezes WebView on large transfers. */
+    function bytesToBase64(u8) {
+        var bytes = toUint8Array(u8);
+        if (!bytes.length) return '';
+        var CHUNK = 0x8000;
+        var binary = '';
+        for (var i = 0; i < bytes.length; i += CHUNK) {
+            binary += String.fromCharCode.apply(
+                null,
+                bytes.subarray(i, Math.min(i + CHUNK, bytes.length))
+            );
+        }
+        return btoa(binary);
+    }
+
+    function base64ToBytes(b64) {
+        if (!b64 || typeof b64 !== 'string') return new Uint8Array(0);
+        var binary = atob(b64);
+        var out = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+        return out;
+    }
+
+    /** Let video / ping / input run between Cliprdr chunks (RustDesk keeps this off the UI thread). */
+    function yieldToUi() {
+        return new Promise(function (resolve) {
+            setTimeout(resolve, 0);
+        });
     }
 
     function clipField(cliprdr, camel, snake) {
@@ -580,7 +612,7 @@
             }
 
             var begin = await desktopInvoke('desktop_clipboard_receive_begin', {
-                formatData: Array.from(pdu)
+                formatDataBase64: bytesToBase64(pdu)
             });
             var files = (begin && begin.files) || [];
             debugLog('inbound receive begin:', files.length, 'entries');
@@ -602,6 +634,7 @@
                 }
 
                 var offset = 0;
+                var chunkCount = 0;
                 while (offset < size) {
                     var chunkLen = Math.min(INBOUND_CHUNK, size - offset);
                     var chunk = await RDCliprdr._requestFileRange(client, listIndex, offset, chunkLen);
@@ -611,11 +644,15 @@
                     await desktopInvoke('desktop_clipboard_receive_write', {
                         listIndex: listIndex,
                         offset: offset,
-                        data: Array.from(chunk)
+                        dataBase64: bytesToBase64(chunk)
                     });
                     offset += chunk.length;
+                    chunkCount++;
+                    // Keep the shared relay + WebView responsive (video/heartbeat).
+                    if ((chunkCount & 1) === 0) await yieldToUi();
                     if (chunk.length < chunkLen) break;
                 }
+                await yieldToUi();
             }
 
             var commit = await desktopInvoke('desktop_clipboard_receive_commit');
@@ -701,6 +738,7 @@
                 }
                 debugLog('FormatDataResponse', bytes.length, 'bytes');
                 client._sendPeerMessage(client.proto.buildCliprdrFormatDataResponse(CB_RESPONSE_OK, bytes));
+                await yieldToUi();
             } catch (err) {
                 console.warn('[RDCliprdr] format data failed:', err);
                 client._sendPeerMessage(client.proto.buildCliprdrFormatDataResponse(CB_RESPONSE_FAIL, new Uint8Array(0)));
@@ -725,6 +763,7 @@
                 });
                 var bytes = toUint8Array(data);
                 client._sendPeerMessage(client.proto.buildCliprdrFileContentsResponse(CB_RESPONSE_OK, streamId, bytes));
+                await yieldToUi();
             } catch (err) {
                 console.warn('[RDCliprdr] file contents failed:', err);
                 client._sendPeerMessage(client.proto.buildCliprdrFileContentsResponse(CB_RESPONSE_FAIL, streamId, new Uint8Array(0)));

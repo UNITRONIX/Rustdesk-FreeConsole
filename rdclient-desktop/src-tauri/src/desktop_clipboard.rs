@@ -169,6 +169,18 @@ fn store_error(err: impl std::fmt::Display) -> String {
     err.to_string()
 }
 
+fn b64_encode(data: &[u8]) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(data)
+}
+
+fn b64_decode(data: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD
+        .decode(data.trim())
+        .map_err(|e| format!("base64 decode: {e}"))
+}
+
 fn fingerprint(paths: &[String]) -> Vec<FileSig> {
     paths
         .iter()
@@ -714,12 +726,12 @@ pub fn desktop_clipboard_sync_paths(
 }
 
 #[tauri::command]
-pub fn desktop_clipboard_format_data() -> Result<Vec<u8>, String> {
+pub fn desktop_clipboard_format_data() -> Result<String, String> {
     let mut cache = CLIP_CACHE
         .lock()
         .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
     ensure_files_materialized(&mut cache)?;
-    Ok(cache.files_pdu.clone())
+    Ok(b64_encode(&cache.files_pdu))
 }
 
 #[tauri::command]
@@ -729,7 +741,7 @@ pub fn desktop_clipboard_file_contents(
     n_position_low: i32,
     n_position_high: i32,
     cb_requested: i32,
-) -> Result<Vec<u8>, String> {
+) -> Result<String, String> {
     let mut cache = CLIP_CACHE
         .lock()
         .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
@@ -743,7 +755,7 @@ pub fn desktop_clipboard_file_contents(
     }
 
     if dw_flags == 0x1 {
-        return Ok(entry.size.to_le_bytes().to_vec());
+        return Ok(b64_encode(&entry.size.to_le_bytes()));
     }
     if dw_flags != 0x2 {
         return Err(format!("unsupported dw_flags {dw_flags}"));
@@ -764,7 +776,7 @@ pub fn desktop_clipboard_file_contents(
     file.seek(SeekFrom::Start(offset)).map_err(store_error)?;
     let mut buf = vec![0u8; read_size];
     file.read_exact(&mut buf).map_err(store_error)?;
-    Ok(buf)
+    Ok(b64_encode(&buf))
 }
 
 #[tauri::command]
@@ -787,8 +799,9 @@ pub fn desktop_clipboard_format_names() -> DesktopClipboardFormatNames {
 /// Begin an inbound Cliprdr receive: parse FILEGROUPDESCRIPTORW and prepare temp files.
 #[tauri::command]
 pub fn desktop_clipboard_receive_begin(
-    format_data: Vec<u8>,
+    format_data_base64: String,
 ) -> Result<DesktopClipboardReceiveBeginResult, String> {
+    let format_data = b64_decode(&format_data_base64)?;
     let parsed = parse_files_pdu(&format_data)?;
     if parsed.is_empty() {
         return Err("no files in descriptor PDU".into());
@@ -872,12 +885,14 @@ pub fn desktop_clipboard_receive_begin(
 }
 
 /// Append/write a chunk into a file started by `desktop_clipboard_receive_begin`.
+/// Payload is base64 to avoid JSON number-array IPC (which freezes WebView on GB transfers).
 #[tauri::command]
 pub fn desktop_clipboard_receive_write(
     list_index: i32,
     offset: u64,
-    data: Vec<u8>,
+    data_base64: String,
 ) -> Result<(), String> {
+    let data = b64_decode(&data_base64)?;
     let slot = RECEIVE_SESSION
         .lock()
         .map_err(|_| "Receive session lock poisoned".to_string())?;
