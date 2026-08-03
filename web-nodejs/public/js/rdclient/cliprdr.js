@@ -148,10 +148,15 @@
         }
 
         static async syncLocalFiles(client) {
-            return RDCliprdr.syncPaths(client, null);
+            return RDCliprdr.syncPaths(client, null, null);
         }
 
-        static async syncPaths(client, paths) {
+        /**
+         * @param {Object} client
+         * @param {string[]|null} paths
+         * @param {{x?: number, y?: number}|null} [position] - physical drop position (webview)
+         */
+        static async syncPaths(client, paths, position) {
             if (!RDCliprdr.isSupported() || !client) {
                 debugLog('syncPaths skipped: isSupported=', RDCliprdr.isSupported(), 'client=', !!client);
                 return { hasFiles: false, signature: '', busy: false };
@@ -189,7 +194,10 @@
             }
 
             var signature = sync.signature || '';
-            if (signature && signature === client._cliprdrLocalSignature) {
+            // DnD paths must always re-advertise + auto-paste even if signature matches
+            // a prior clipboard copy of the same files.
+            var forceAdvertise = !!(paths && paths.length);
+            if (!forceAdvertise && signature && signature === client._cliprdrLocalSignature) {
                 return sync;
             }
             client._cliprdrLocalSignature = signature;
@@ -197,21 +205,84 @@
             if (client._cliprdrFormatNames == null) {
                 client._cliprdrFormatNames = await desktopInvoke('desktop_clipboard_format_names').catch(function () { return null; });
             }
+
+            var formatListAck = null;
+            if (forceAdvertise) {
+                formatListAck = RDCliprdr._waitFormatListAck(client, 2500);
+            }
             client._sendPeerMessage(client.proto.buildCliprdrFormatList(
                 client._cliprdrFormatNames || undefined
             ));
 
-            // Explicit paths means this came from a real OS drag-drop onto the
-            // viewer (not the periodic clipboard poll) — auto-complete the paste
-            // on the remote so the operator doesn't have to press Ctrl+V manually.
-            if (paths && paths.length && client.input && typeof client.input.sendCtrlV === 'function') {
-                setTimeout(function () {
-                    if (client._state !== 'streaming' || client.viewOnly) return;
-                    debugLog('auto-paste: sending synthetic Ctrl+V after drop');
-                    client.input.sendCtrlV();
-                }, 400);
+            // Explicit paths = OS drag-drop onto the viewer — focus the drop
+            // point on the remote, wait briefly for FormatList ack, then Ctrl+V.
+            if (forceAdvertise && client.input) {
+                RDCliprdr._autoPasteAfterDrop(client, position, formatListAck);
             }
             return sync;
+        }
+
+        static _waitFormatListAck(client, timeoutMs) {
+            return new Promise(function (resolve) {
+                var settled = false;
+                var timer = setTimeout(function () {
+                    if (settled) return;
+                    settled = true;
+                    if (client._cliprdrFormatListAckResolve === resolve) {
+                        client._cliprdrFormatListAckResolve = null;
+                    }
+                    resolve(false);
+                }, timeoutMs || 2500);
+                client._cliprdrFormatListAckResolve = function () {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    client._cliprdrFormatListAckResolve = null;
+                    resolve(true);
+                };
+            });
+        }
+
+        static _autoPasteAfterDrop(client, position, formatListAck) {
+            void (async function () {
+                try {
+                    if (formatListAck) await formatListAck;
+                    else await new Promise(function (r) { setTimeout(r, 400); });
+                    if (client._state !== 'streaming' || client.viewOnly) return;
+
+                    if (position && typeof client.input.clickAtCanvas === 'function') {
+                        var mapped = RDCliprdr._mapDropPositionToCanvas(client, position);
+                        if (mapped) {
+                            debugLog('auto-paste: click at canvas', mapped.x, mapped.y);
+                            client.input.clickAtCanvas(mapped.x, mapped.y);
+                            await new Promise(function (r) { setTimeout(r, 80); });
+                        }
+                    }
+                    if (typeof client.input.sendCtrlV === 'function') {
+                        debugLog('auto-paste: sending synthetic Ctrl+V after drop');
+                        client.input.sendCtrlV();
+                    }
+                } catch (err) {
+                    console.warn('[RDCliprdr] auto-paste after drop failed:', err);
+                }
+            })();
+        }
+
+        static _mapDropPositionToCanvas(client, position) {
+            if (!position || !client || !client.input || !client.input.canvas) return null;
+            var canvas = client.input.canvas;
+            var dpr = window.devicePixelRatio || 1;
+            var x = Number(position.x);
+            var y = Number(position.y);
+            if (!isFinite(x) || !isFinite(y)) return null;
+            // Tauri/wry positions are physical pixels relative to the webview client area.
+            var cssX = x / dpr;
+            var cssY = y / dpr;
+            var rect = canvas.getBoundingClientRect();
+            return {
+                x: cssX - rect.left,
+                y: cssY - rect.top
+            };
         }
 
         static async handleMessage(client, cliprdr) {
@@ -225,6 +296,9 @@
             }
 
             if (clipField(cliprdr, 'formatListResponse', 'format_list_response')) {
+                if (typeof client._cliprdrFormatListAckResolve === 'function') {
+                    client._cliprdrFormatListAckResolve();
+                }
                 return;
             }
 

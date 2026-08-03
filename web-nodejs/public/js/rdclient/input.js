@@ -89,6 +89,28 @@ class RDInput {
         this._sendKeyForCode('ControlLeft', 'Control', false, false, null);
     }
 
+    /**
+     * Click at canvas CSS coordinates (used before Ctrl+V after a native file drop
+     * so paste targets the folder/desktop under the cursor).
+     * @param {number} canvasX
+     * @param {number} canvasY
+     */
+    clickAtCanvas(canvasX, canvasY) {
+        if (!this.enabled || !this.renderer) return false;
+        const pos = this.renderer.canvasToRemote(canvasX, canvasY);
+        if (!pos || pos.x < 0 || pos.y < 0 ||
+            pos.x > this.renderer.remoteWidth ||
+            pos.y > this.renderer.remoteHeight) {
+            return false;
+        }
+        const downMask = RDInput.MOUSE_TYPE_DOWN | (RDInput.MOUSE_BUTTON_LEFT << 3);
+        const upMask = RDInput.MOUSE_TYPE_UP | (RDInput.MOUSE_BUTTON_LEFT << 3);
+        this.sendMessage({ mouseEvent: { mask: 0, x: pos.x, y: pos.y, modifiers: [] } });
+        this.sendMessage({ mouseEvent: { mask: downMask, x: pos.x, y: pos.y, modifiers: [] } });
+        this.sendMessage({ mouseEvent: { mask: upMask, x: pos.x, y: pos.y, modifiers: [] } });
+        return true;
+    }
+
     start() {
         if (this.enabled) return;
 

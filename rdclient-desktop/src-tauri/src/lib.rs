@@ -105,6 +105,11 @@ document.addEventListener('click',function(e){
     window.__rdDeskNativeDropBound=true;
     function emitDrop(paths,position){
       if(!paths||!paths.length)return;
+      var key=paths.join('\0');
+      var now=Date.now();
+      if(window.__rdDeskNativeDropLastKey===key&&window.__rdDeskNativeDropLastAt&&(now-window.__rdDeskNativeDropLastAt)<400)return;
+      window.__rdDeskNativeDropLastKey=key;
+      window.__rdDeskNativeDropLastAt=now;
       window.dispatchEvent(new CustomEvent('rd-desk-native-drop',{detail:{paths:paths,position:position||null}}));
     }
     ev.listen('tauri://drag-drop',function(e){

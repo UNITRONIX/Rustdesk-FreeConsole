@@ -5,6 +5,8 @@
 (function () {
     'use strict';
 
+    var DROP_DEBOUNCE_MS = 400;
+
     function isDesktopBridge() {
         return window.__BETTERDESK_RDCLIENT_DESKTOP__ === true
             && window.__TAURI__
@@ -32,11 +34,35 @@
         }
     }
 
+    function normalizePosition(position) {
+        if (!position) return null;
+        var x = position.x != null ? position.x : position.X;
+        var y = position.y != null ? position.y : position.Y;
+        if (x == null || y == null) return null;
+        return { x: Number(x), y: Number(y) };
+    }
+
+    function shouldEmitDrop(paths) {
+        var key = paths.join('\0');
+        var now = Date.now();
+        if (window.__rdDeskNativeDropLastKey === key
+            && window.__rdDeskNativeDropLastAt
+            && (now - window.__rdDeskNativeDropLastAt) < DROP_DEBOUNCE_MS) {
+            debugLog('debounced duplicate drop', paths.length, 'path(s)');
+            return false;
+        }
+        window.__rdDeskNativeDropLastKey = key;
+        window.__rdDeskNativeDropLastAt = now;
+        return true;
+    }
+
     function emitNativeDrop(paths, position) {
         debugLog('tauri://drag-drop payload paths=', paths);
         if (!paths.length) return;
+        if (!shouldEmitDrop(paths)) return;
+        console.info('[RDDesktopDnd] native file drop:', paths.length, 'path(s)');
         window.dispatchEvent(new CustomEvent('rd-desk-native-drop', {
-            detail: { paths: paths, position: position || null }
+            detail: { paths: paths, position: normalizePosition(position) }
         }));
     }
 
@@ -57,7 +83,8 @@
         window.__rdDeskNativeDropTauriBound = true;
         ev.listen('tauri://drag-drop', function (e) {
             debugLog('tauri://drag-drop event received', e);
-            emitNativeDrop(payloadPaths(e && e.payload), e && e.payload && e.payload.position);
+            var payload = e && e.payload ? e.payload : e;
+            emitNativeDrop(payloadPaths(payload), payload && payload.position);
         }).then(function () {
             debugLog('tauri://drag-drop listener registered');
         }).catch(function (err) {
@@ -108,9 +135,9 @@
         },
 
         /**
-         * Wire native drop events into cliprdr + optional upload callback.
+         * Wire native drop events into cliprdr and/or file-transfer upload.
          * @param {Object} opts
-         * @param {Function} [opts.onCliprdrSync] - (paths) => void
+         * @param {Function} [opts.onCliprdrSync] - (paths, position) => void
          * @param {Function} [opts.onUploadPaths] - (paths) => void
          */
         bind: function (opts) {
@@ -123,10 +150,11 @@
             window.__rdDeskNativeDropListener = true;
             window.addEventListener('rd-desk-native-drop', function (e) {
                 var paths = normalizePaths(e && e.detail && e.detail.paths);
-                debugLog('rd-desk-native-drop received, paths=', paths);
+                var position = e && e.detail ? e.detail.position : null;
+                debugLog('rd-desk-native-drop received, paths=', paths, 'position=', position);
                 if (!paths.length) return;
                 if (opts && typeof opts.onCliprdrSync === 'function') {
-                    opts.onCliprdrSync(paths);
+                    opts.onCliprdrSync(paths, position);
                 }
                 if (opts && typeof opts.onUploadPaths === 'function') {
                     opts.onUploadPaths(paths);

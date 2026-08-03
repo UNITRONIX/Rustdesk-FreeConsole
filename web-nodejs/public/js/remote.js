@@ -593,19 +593,24 @@
         && RDDesktopDnd.isSupported()) {
         RDDesktopDnd.ensureNativeDropListener();
         RDDesktopDnd.bind({
-            onCliprdrSync(paths) {
+            // Session surface: Cliprdr paste into whatever is under the drop point.
+            // Do NOT auto-open the file-transfer modal — that race wiped the paste UX.
+            onCliprdrSync(paths, position) {
+                if (window.__fileTransferModal && window.__fileTransferModal.isOpen()) {
+                    return;
+                }
                 const session = getActiveSession();
                 if (!session || !session.client || session.state !== 'streaming') return;
                 if (session.client.viewOnly) return;
-                session.client.syncCliprdrPaths(paths);
+                session.client.syncCliprdrPaths(paths, position || null);
             },
+            // File-transfer modal only: upload into the current remote folder.
             onUploadPaths(paths) {
-                if (!window.__fileTransferModal) return;
+                if (!window.__fileTransferModal || !window.__fileTransferModal.isOpen()) {
+                    return;
+                }
                 const session = getActiveSession();
                 if (!session) return;
-                if (!window.__fileTransferModal.isOpen()) {
-                    window.__fileTransferModal.open(session);
-                }
                 window.__fileTransferModal.uploadNativePaths(paths);
             }
         });

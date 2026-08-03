@@ -1518,9 +1518,13 @@ class RDClient {
         return RDCliprdr.syncLocalFiles(this);
     }
 
-    syncCliprdrPaths(paths) {
+    /**
+     * @param {string[]} paths
+     * @param {{x?: number, y?: number}|null} [position]
+     */
+    syncCliprdrPaths(paths, position) {
         if (typeof RDCliprdr === 'undefined' || !RDCliprdr.isSupported()) return;
-        void RDCliprdr.syncPaths(this, paths);
+        void RDCliprdr.syncPaths(this, paths, position || null);
     }
 
     _handleCliprdr(cliprdr) {

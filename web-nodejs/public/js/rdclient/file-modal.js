@@ -37,6 +37,7 @@
         this._transferMeta = new Map();
         this._wiredSessionId = null;
         this._remoteReady = false;
+        this._pendingNativePaths = null;
         this._contextMenu = null;
     }
 
@@ -242,13 +243,19 @@
         if (!this._el) return;
         this._remoteReady = !!enabled;
         var dz = this._el.querySelector('.ft-local-dropzone');
-        if (!dz) return;
-        dz.classList.toggle('ft-dropzone-disabled', !enabled);
-        if (!enabled) {
-            var wait = t('remote.file_dropzone_waiting', 'Waiting for remote connection…');
-            dz.querySelector('.ft-dropzone-target').textContent = wait;
-        } else {
-            this._updateDropzoneTarget();
+        if (dz) {
+            dz.classList.toggle('ft-dropzone-disabled', !enabled);
+            if (!enabled) {
+                var wait = t('remote.file_dropzone_waiting', 'Waiting for remote connection…');
+                dz.querySelector('.ft-dropzone-target').textContent = wait;
+            } else {
+                this._updateDropzoneTarget();
+            }
+        }
+        if (enabled && this._pendingNativePaths && this._pendingNativePaths.length) {
+            var pending = this._pendingNativePaths;
+            this._pendingNativePaths = null;
+            this.uploadNativePaths(pending);
         }
     };
 
@@ -367,6 +374,7 @@
         this._hideDragOverlay();
         this._hideContextMenu();
         this._hideOverwriteDialog();
+        this._pendingNativePaths = null;
         document.getElementById('btn-file-transfer')?.classList.remove('active');
         if (this._session && this._session.client && this._session.client.fileTransfer) {
             this._session.client.fileTransfer._saveDownload = null;
@@ -711,6 +719,10 @@
     FileTransferModal.prototype.uploadNativePaths = function (paths) {
         var self = this;
         if (!paths || !paths.length) return;
+        if (!this._remoteReady) {
+            this._pendingNativePaths = (this._pendingNativePaths || []).concat(paths);
+            return;
+        }
         if (typeof RDDesktopDnd !== 'undefined' && RDDesktopDnd.openPaths) {
             RDDesktopDnd.openPaths(paths).then(function (files) {
                 self._uploadNativeFiles(files);
