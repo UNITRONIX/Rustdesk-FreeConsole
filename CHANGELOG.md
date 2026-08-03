@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.11] — 2026-08-03
+
 ### Added
 - **Support Agent completion (CDAP path):** Web Remote file transfer, in-session chat, remote audio, lock/restart control relay; Generator toolchain diagnostics + per-platform retry; immediate bundle rebuild after panel updates; last-good CDAP/API endpoint failover; branding seal + optional garble/UPX for release builds; capability flags in bundle branding. Ships via panel update (rebuild Support Agent bundles after update).
 
@@ -2604,3 +2611,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.7...v3.5.8
 [3.5.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.8...v3.5.9
 [3.5.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.9...v3.5.10
+[3.5.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.10...v3.5.11
