@@ -1647,9 +1647,14 @@
                     </div>
                     <div class="form-section">
                         <h4><span class="material-icons">lock</span> ${_('devices.access_password') || 'Access Password'}</h4>
-                        <p class="form-hint">${policy.password_set ? '<span class="badge badge-success">✓ ' + (_('devices.password_configured') || 'Password set') + '</span>' : '<span class="badge badge-warning">' + (_('devices.no_password') || 'No password') + '</span>'}</p>
+                        <p class="form-hint">${policy.password_set
+                            ? (policy.connect_secret_ready
+                                ? '<span class="badge badge-success">✓ ' + (_('devices.password_auto_auth_ready') || 'Password set — auto-connect ready') + '</span>'
+                                : '<span class="badge badge-warning">' + (_('devices.password_needs_reseal') || 'Password set but not sealed — enter it again below and Save') + '</span>')
+                            : '<span class="badge badge-warning">' + (_('devices.no_password') || 'No password') + '</span>'}</p>
+                        <p class="form-hint">${_('devices.password_auto_auth_hint') || 'For unattended auto-connect, type the device password and Save (required once after this update).'}</p>
                         <div class="form-row">
-                            <input type="password" id="ap-password" class="form-input" placeholder="${_('devices.new_password') || 'New password (leave empty to keep current)'}">
+                            <input type="password" id="ap-password" class="form-input" placeholder="${_('devices.new_password') || 'New password (leave empty to keep current)'}" autocomplete="new-password">
                         </div>
                         <label class="toggle-row">
                             <input type="checkbox" id="ap-clear-password">
@@ -1703,11 +1708,20 @@
                     {
                         label: _('actions.save'), class: 'btn-primary', onClick: async () => {
                             const scheduleCheckbox = document.getElementById('ap-schedule');
+                            const unattended = document.getElementById('ap-unattended').checked;
+                            const password = document.getElementById('ap-password').value;
+                            const clearPw = document.getElementById('ap-clear-password').checked;
+                            if (unattended && !clearPw && !password && !policy.connect_secret_ready) {
+                                Notifications.error(_('devices.password_required_for_unattended')
+                                    || 'Enter the access password to enable unattended auto-connect');
+                                document.getElementById('ap-password').focus();
+                                return;
+                            }
                             const selectedDays = Array.from(document.querySelectorAll('input[name="schedule_day"]:checked')).map(cb => cb.value);
                             const payload = {
-                                unattended_enabled: document.getElementById('ap-unattended').checked,
-                                password: document.getElementById('ap-password').value,
-                                clear_password: document.getElementById('ap-clear-password').checked,
+                                unattended_enabled: unattended,
+                                password: password,
+                                clear_password: clearPw,
                                 schedule_enabled: scheduleCheckbox ? scheduleCheckbox.checked : false,
                                 schedule_days: selectedDays.join(','),
                                 schedule_start_time: document.getElementById('ap-start-time') ? document.getElementById('ap-start-time').value : '',
@@ -1722,7 +1736,8 @@
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify(payload)
                                 });
-                                Notifications.success(_('devices.access_policy_saved') || 'Access policy saved');
+                                Notifications.success(_('devices.access_policy_saved')
+                                    || 'Access policy saved. If using Support Agent, wait ~2 min or restart the agent so it picks up the password.');
                                 Modal.close();
                             } catch (err) {
                                 Notifications.error(err.message || 'Failed to save access policy');

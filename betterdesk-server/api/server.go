@@ -2030,22 +2030,36 @@ func (s *Server) handleGetAccessPolicy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// No policy = defaults (all disabled)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"peer_id":             id,
-			"unattended_enabled":  false,
-			"password_set":        false,
-			"schedule_enabled":    false,
-			"schedule_days":       "",
-			"schedule_start_time": "",
-			"schedule_end_time":   "",
-			"schedule_timezone":   "",
-			"allowed_operators":   "",
-			"updated_at":          "",
-			"updated_by":          "",
+			"peer_id":              id,
+			"unattended_enabled":   false,
+			"password_set":         false,
+			"connect_secret_ready": false,
+			"schedule_enabled":     false,
+			"schedule_days":        "",
+			"schedule_start_time":  "",
+			"schedule_end_time":    "",
+			"schedule_timezone":    "",
+			"allowed_operators":    "",
+			"updated_at":           "",
+			"updated_by":           "",
 		})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, policy)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"peer_id":              policy.PeerID,
+		"unattended_enabled":   policy.UnattendedEnabled,
+		"password_set":         policy.PasswordSet,
+		"connect_secret_ready": policy.PasswordEnc != "" && s.accessSecret != nil,
+		"schedule_enabled":     policy.ScheduleEnabled,
+		"schedule_days":        policy.ScheduleDays,
+		"schedule_start_time":  policy.ScheduleStartTime,
+		"schedule_end_time":    policy.ScheduleEndTime,
+		"schedule_timezone":    policy.ScheduleTimezone,
+		"allowed_operators":    policy.AllowedOperators,
+		"updated_at":           policy.UpdatedAt,
+		"updated_by":           policy.UpdatedBy,
+	})
 }
 
 func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) {
@@ -2108,6 +2122,23 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 		UpdatedBy:         s.remoteIP(r),
 	}
 
+	existing, _ := s.db.GetAccessPolicy(id)
+	existingSealed := existing != nil && existing.PasswordEnc != ""
+
+	// Unattended auto-auth needs a sealed password. Bcrypt-only legacy rows cannot be recovered.
+	if body.UnattendedEnabled && !body.ClearPassword && body.Password == "" && !existingSealed {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"error": "enter the access password once to enable unattended auto-connect (legacy hashes cannot be reused)",
+		})
+		return
+	}
+	if body.Password != "" && s.accessSecret == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+			"error": "connect-secret codec unavailable — check JWT_SECRET / restart betterdesk-server",
+		})
+		return
+	}
+
 	// Hash password if provided; also store reversible ciphertext for connect auto-auth.
 	if body.Password != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
@@ -2116,14 +2147,13 @@ func (s *Server) handleSaveAccessPolicy(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		policy.PasswordHash = string(hash)
-		if s.accessSecret != nil {
-			enc, err := s.accessSecret.Encrypt(body.Password)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to seal password"})
-				return
-			}
-			policy.PasswordEnc = enc
+		enc, err := s.accessSecret.Encrypt(body.Password)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to seal password"})
+			return
 		}
+		policy.PasswordEnc = enc
+		log.Printf("[api] access policy password sealed for peer %s (unattended=%v)", id, body.UnattendedEnabled)
 	} else if body.ClearPassword {
 		policy.PasswordHash = "CLEAR"
 		policy.PasswordEnc = ""
@@ -2155,27 +2185,31 @@ func (s *Server) handleGetConnectSecret(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if s.accessSecret == nil {
+		log.Printf("[api] connect-secret peer=%s: codec unavailable", id)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "connect secret unavailable"})
 		return
 	}
 
 	policy, err := s.db.GetAccessPolicy(id)
 	if err != nil || policy == nil {
+		log.Printf("[api] connect-secret peer=%s: no access policy", id)
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "no access policy"})
 		return
 	}
 	if !policy.UnattendedEnabled {
+		log.Printf("[api] connect-secret peer=%s: unattended disabled", id)
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "unattended access disabled"})
 		return
 	}
 	if policy.PasswordEnc == "" {
-		// Legacy rows may only have bcrypt — operator must re-save password once.
 		if policy.PasswordSet {
+			log.Printf("[api] connect-secret peer=%s: password hash present but not sealed", id)
 			writeJSON(w, http.StatusNotFound, map[string]any{
 				"error": "connect secret not sealed — re-save the Access Policy password in the console",
 			})
 			return
 		}
+		log.Printf("[api] connect-secret peer=%s: no password", id)
 		writeJSON(w, http.StatusNotFound, map[string]any{"error": "no connect secret"})
 		return
 	}
@@ -2210,10 +2244,11 @@ func (s *Server) handleGetConnectSecret(w http.ResponseWriter, r *http.Request) 
 		})
 	}
 
+	log.Printf("[api] connect-secret peer=%s: ok (auto-auth)", id)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"password":            plain,
-		"unattended_enabled":  true,
-		"peer_id":             id,
+		"password":           plain,
+		"unattended_enabled": true,
+		"peer_id":            id,
 	})
 }
 

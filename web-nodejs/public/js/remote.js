@@ -943,34 +943,56 @@
                 return true;
             };
 
-            const showPasswordPrompt = () => {
+            const showPasswordPrompt = (hint) => {
                 session.passwordOverlay.style.display = 'flex';
+                if (hint) {
+                    session.loginError.textContent = hint;
+                    session.loginError.style.display = 'block';
+                }
                 if (isActive(session)) session.passwordInput.focus();
                 if (isActive(session)) setToolbarChromeVisible(false);
             };
 
             // 1) Console unattended connect-secret (Access Policy)
             // 2) Local remembered peer password (auto-submit)
-            // 3) Manual prompt
+            // 3) Manual prompt (with reason when secret fetch fails)
             const fetchSecret = fetch('/api/devices/' + encodeURIComponent(session.deviceId) + '/connect-secret', {
                 credentials: 'same-origin',
                 headers: { Accept: 'application/json' },
-            }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+            }).then(async (r) => {
+                let body = null;
+                try { body = await r.json(); } catch (_) { /* ignore */ }
+                if (!r.ok) {
+                    return {
+                        ok: false,
+                        error: (body && (body.error || (body.data && body.data.error))) || ('HTTP ' + r.status),
+                    };
+                }
+                return {
+                    ok: true,
+                    password: (body && (body.password || (body.data && body.data.password))) || '',
+                };
+            }).catch((e) => ({ ok: false, error: e.message || 'connect-secret failed' }));
 
             const fetchVault = (window.RdClientSecureStore && session.deviceId)
                 ? window.RdClientSecureStore.loadPeerPassword(session.deviceId).catch(() => null)
                 : Promise.resolve(null);
 
             Promise.all([fetchSecret, fetchVault]).then(([secretResp, saved]) => {
-                const secretPw = secretResp && (secretResp.password || (secretResp.data && secretResp.data.password));
+                const secretPw = secretResp && secretResp.ok && secretResp.password;
                 if (secretPw && tryAuth(secretPw, true)) return;
                 if (saved && tryAuth(saved, true)) return;
                 if (saved) {
                     session.passwordInput.value = saved;
                     if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;
                 }
-                showPasswordPrompt();
-            }).catch(() => showPasswordPrompt());
+                let hint = '';
+                if (secretResp && !secretResp.ok && secretResp.error) {
+                    hint = secretResp.error;
+                    console.warn('[Remote] connect-secret:', secretResp.error);
+                }
+                showPasswordPrompt(hint);
+            }).catch(() => showPasswordPrompt(''));
         });
 
         c.on('login_error', (error) => {

@@ -813,9 +813,17 @@ router.get('/api/devices/:id/connect-secret', requireAuth, requirePermission('de
         const goApi = require('../services/betterdeskApi');
         const result = await goApi.getConnectSecret(req.params.id);
         if (!result.success) {
-            return res.status(404).json(result);
+            const err = String(result.error || '');
+            const status = /unavailable|codec/i.test(err) ? 503 : 404;
+            return res.status(status).json(result);
         }
-        res.json(result);
+        // Flatten for the viewer: password at top level (also keep data for older clients)
+        const password = result.data && result.data.password;
+        res.json({
+            success: true,
+            password,
+            data: result.data,
+        });
     } catch (err) {
         console.error('Get connect secret error:', err);
         res.status(500).json({ success: false, error: 'Failed to get connect secret' });

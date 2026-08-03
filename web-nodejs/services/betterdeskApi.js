@@ -894,10 +894,11 @@ async function getConnectSecret(id) {
         return wrap(data);
     } catch (e) {
         const status = e.response && e.response.status;
-        if (status === 404 || status === 403) {
-            return { success: false, error: (e.response && e.response.data && e.response.data.error) || e.message };
+        const apiErr = e.response && e.response.data && e.response.data.error;
+        if (status === 404 || status === 403 || status === 503) {
+            return { success: false, error: apiErr || e.message, status };
         }
-        return { success: false, error: e.message };
+        return { success: false, error: apiErr || e.message, status };
     }
 }
 
