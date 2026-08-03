@@ -54,7 +54,7 @@ const {
     isUpdatePermissionError,
 } = require('../lib/updateProjectRoot');
 const { restartWindowsNssmService } = require('../lib/windowsNssmRestart');
-const { ensureWindowsConsoleAppExitRestart } = require('../lib/windowsConsoleSelfRestart');
+const { ensureWindowsConsoleAppExitRestart, ensureWindowsConsoleServiceEnvFlag } = require('../lib/windowsConsoleSelfRestart');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -2381,6 +2381,14 @@ function patchServiceDefinitions() {
         if (appExit.error) {
             goPatch.consoleAppExitError = appExit.error;
         }
+        const serviceEnv = ensureWindowsConsoleServiceEnvFlag();
+        if (serviceEnv.changed) {
+            goPatch.changed = true;
+            goPatch.changes = (goPatch.changes || []).concat(serviceEnv.changes || []);
+        }
+        if (serviceEnv.error) {
+            goPatch.consoleServiceEnvError = serviceEnv.error;
+        }
         return goPatch;
     }
     if (process.platform !== 'linux') {
@@ -2422,6 +2430,10 @@ function runPostConsoleSecurityHooks() {
             cwd: ROOT_DIR,
             timeout: 120000,
             stdio: 'pipe',
+            env: {
+                ...process.env,
+                BETTERDESK_ARM_CONSOLE_RESTART: IS_WINDOWS ? '1' : '0',
+            },
         });
         out.verify = 'ok';
     } catch (err) {
@@ -2940,6 +2952,37 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
     if (results.needsConsoleRestart && criticalFailures.length === 0) {
         results.securityHooks = runPostConsoleSecurityHooks();
+    }
+
+    // Arm Windows console revival from the freshly written helper on disk.
+    // The in-memory settings.routes exit path may still be an older build; spawning
+    // here means interactive installs recover even when NSSM start is ineffective.
+    if (IS_WINDOWS && results.needsConsoleRestart && criticalFailures.length === 0) {
+        try {
+            const helperPath = path.join(ROOT_DIR, 'lib', 'windowsConsoleSelfRestart.js');
+            if (fs.existsSync(helperPath)) {
+                try { delete require.cache[require.resolve(helperPath)]; } catch (_e) { /* ok */ }
+                delete require.cache[helperPath];
+                const helper = require(helperPath);
+                if (typeof helper.prepareWindowsConsoleRestart === 'function') {
+                    results.windowsConsoleRestart = helper.prepareWindowsConsoleRestart({
+                        consoleRoot: ROOT_DIR,
+                        reason: 'applyUpdate',
+                    });
+                    const mode = results.windowsConsoleRestart.mode;
+                    if (mode === 'interactive-reexec' || mode === 'service-fallback-reexec') {
+                        if (results.windowsConsoleRestart.reexec?.spawned) {
+                            console.log('[UPDATE] Armed Windows console re-exec before process exit');
+                        }
+                    } else if (results.windowsConsoleRestart.scheduled?.scheduled) {
+                        console.log('[UPDATE] Armed Windows NSSM console start before process exit');
+                    }
+                }
+            }
+        } catch (err) {
+            results.windowsConsoleRestart = { error: err.message || String(err) };
+            console.warn(`[UPDATE] Windows console restart arming failed: ${err.message}`);
+        }
     }
 
     return results;

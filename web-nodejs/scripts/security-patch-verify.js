@@ -99,6 +99,28 @@ async function main() {
         fail('db migration', e.message);
     }
 
+    // Windows panel updates exit Node; arm NSSM start / interactive re-exec from
+    // the freshly written helper so older in-memory updaters still recover.
+    // Safe if console is still up: delayed child hits EADDRINUSE and exits.
+    if (process.platform === 'win32' && process.env.BETTERDESK_ARM_CONSOLE_RESTART !== '0') {
+        try {
+            const { spawnSync } = require('child_process');
+            const armScript = path.join(__dirname, 'windows-arm-console-restart.js');
+            const arm = spawnSync(process.execPath, [armScript], {
+                cwd: path.join(__dirname, '..'),
+                encoding: 'utf8',
+                timeout: 15000,
+                windowsHide: true,
+                env: process.env,
+            });
+            const out = `${arm.stdout || ''}${arm.stderr || ''}`.trim();
+            if (out) console.log(out);
+            pass('windowsConsoleRestart', arm.status === 0 ? 'arm script completed' : `arm script status ${arm.status}`);
+        } catch (e) {
+            pass('windowsConsoleRestart', `skipped: ${e.message}`);
+        }
+    }
+
     const failed = results.filter((r) => !r.ok);
     console.log(`\nSummary: ${results.length - failed.length}/${results.length} passed`);
     process.exit(failed.length ? 1 : 0);

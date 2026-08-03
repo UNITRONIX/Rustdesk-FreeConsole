@@ -31,30 +31,76 @@ const { getSmtpSettings, putSmtpSettings, testSmtpSettings } = require('../lib/s
 const { apiClient } = require('../services/betterdeskApi');
 const { requireAuth, requirePermission, roleHasPermission } = require('../middleware/auth');
 const deviceGroupService = require('../services/deviceGroupService');
-const {
-    scheduleWindowsConsoleServiceStart,
-    ensureWindowsConsoleAppExitRestart,
-} = require('../lib/windowsConsoleSelfRestart');
 const os = require('os');
 const multer = require('multer');
 
-/** Exit so systemd/NSSM (or a scheduled Windows start) can bring the console back. */
+/**
+ * Exit so systemd/NSSM (or a Windows re-exec) can bring the console back.
+ * On Windows, reload windowsConsoleSelfRestart from disk (require cache bust)
+ * so a just-applied panel update can change restart behaviour without an
+ * extra manual start — as long as this exit helper itself is already loaded.
+ */
 function exitConsoleForServiceRestart(reason) {
     if (process.platform === 'win32') {
+        let prepareWindowsConsoleRestart;
         try {
-            const appExit = ensureWindowsConsoleAppExitRestart();
-            if (appExit.changed) {
-                console.log(`[UPDATE] Set ${appExit.changes.join(', ')}`);
+            const helperPath = require.resolve('../lib/windowsConsoleSelfRestart');
+            delete require.cache[helperPath];
+            prepareWindowsConsoleRestart = require('../lib/windowsConsoleSelfRestart')
+                .prepareWindowsConsoleRestart;
+        } catch (err) {
+            console.warn(`[UPDATE] Windows restart helper unavailable: ${err.message}`);
+        }
+
+        if (typeof prepareWindowsConsoleRestart === 'function') {
+            const consoleRoot = path.join(__dirname, '..');
+            const prepared = prepareWindowsConsoleRestart({ consoleRoot, reason });
+            if (prepared.appExit?.changed) {
+                console.log(`[UPDATE] Set ${prepared.appExit.changes.join(', ')}`);
             }
-        } catch (_e) { /* non-fatal */ }
-        const scheduled = scheduleWindowsConsoleServiceStart();
-        if (scheduled.scheduled) {
-            console.log(
-                `[UPDATE] Scheduled NSSM start of ${scheduled.service} in ${scheduled.delaySec}s after exit`
-                + (reason ? ` (${reason})` : '')
-            );
-        } else if (scheduled.error) {
-            console.warn(`[UPDATE] Could not schedule Windows console restart: ${scheduled.error}`);
+            if (prepared.appExit?.error) {
+                console.warn(`[UPDATE] AppExit update skipped: ${prepared.appExit.error}`);
+            }
+            if (prepared.serviceEnv?.changed) {
+                console.log(`[UPDATE] Set ${prepared.serviceEnv.changes.join(', ')}`);
+            }
+            if (prepared.mode === 'interactive-reexec' || prepared.mode === 'service-fallback-reexec') {
+                if (prepared.reexec?.spawned) {
+                    console.log(
+                        `[UPDATE] Spawned replacement console process`
+                        + (prepared.reexec.pid ? ` pid=${prepared.reexec.pid}` : '')
+                        + (reason ? ` (${reason})` : '')
+                    );
+                } else {
+                    console.warn(
+                        `[UPDATE] Could not spawn replacement console: ${prepared.reexec?.error || 'unknown'}`
+                    );
+                }
+            } else if (prepared.scheduled?.scheduled) {
+                console.log(
+                    `[UPDATE] Scheduled NSSM start of ${prepared.scheduled.service}`
+                    + ` in ${prepared.scheduled.delaySec}s after exit`
+                    + (reason ? ` (${reason})` : '')
+                );
+            } else if (prepared.scheduled?.error) {
+                console.warn(`[UPDATE] Could not schedule Windows console restart: ${prepared.scheduled.error}`);
+            }
+        } else {
+            // Last-resort inline re-exec when helper failed to load.
+            try {
+                const { spawn } = require('child_process');
+                const serverJs = path.join(__dirname, '..', 'server.js');
+                const child = spawn(process.execPath, [serverJs], {
+                    detached: true,
+                    stdio: 'ignore',
+                    cwd: path.join(__dirname, '..'),
+                    windowsHide: true,
+                });
+                child.unref();
+                console.log(`[UPDATE] Inline spawned replacement console pid=${child.pid || '?'}`);
+            } catch (err) {
+                console.warn(`[UPDATE] Inline console re-exec failed: ${err.message}`);
+            }
         }
     }
     process.exit(0);
