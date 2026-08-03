@@ -92,12 +92,20 @@ const Modal = (function() {
                 if (onClose) onClose();
             });
             
-            // Close on overlay click
+            // Close only on a true backdrop click (mousedown + click both on overlay).
+            // Selecting/highlighting text in an input can end with mouseup on the
+            // dimmed backdrop, which browsers synthesize as a click on the overlay —
+            // without this guard that incorrectly dismisses the modal.
+            let pointerDownOnOverlay = false;
+            overlay.addEventListener('mousedown', (e) => {
+                pointerDownOnOverlay = (e.target === overlay);
+            });
             overlay.addEventListener('click', (e) => {
-                if (e.target === overlay) {
+                if (e.target === overlay && pointerDownOnOverlay) {
                     close();
                     if (onClose) onClose();
                 }
+                pointerDownOnOverlay = false;
             });
         }
         

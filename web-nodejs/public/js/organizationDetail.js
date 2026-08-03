@@ -223,11 +223,11 @@
                 <div id="modal-tab-create" class="modal-tab-content" style="display:block">
                     <div class="form-group">
                         <label class="form-label">${escHtml(t('username'))}</label>
-                        <input type="text" id="modal-user-name" class="form-input" required>
+                        <input type="text" id="modal-user-name" class="form-input" required autocomplete="off" autocapitalize="off" spellcheck="false">
                     </div>
                     <div class="form-group">
                         <label class="form-label">${escHtml(t('password'))}</label>
-                        <input type="password" id="modal-user-pass" class="form-input" required>
+                        <input type="password" id="modal-user-pass" class="form-input" required autocomplete="new-password">
                     </div>
                     <div class="form-group">
                         <label class="form-label">${escHtml(t('role'))}</label>

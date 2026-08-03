@@ -1,6 +1,8 @@
 ## [Unreleased]
 
 ### Fixed
+- **Modal closes while selecting text:** highlighting text in a modal field (e.g. Add User username) and releasing the mouse over the dimmed backdrop no longer dismisses the dialog. Ships via panel update.
+- **Add User fields autofilled by the browser:** username/password/email on Add User (and org Create User) now opt out of login autofill so they stay empty for new accounts. Ships via panel update.
 - **RdClient desktop — local-to-remote file drag-drop:** fixed vendor WebView2 drop-target registration (drops never reached JS after `SetAllowExternalDrop(false)`), split session Cliprdr paste vs modal upload, click-under-cursor + FormatList ack before Ctrl+V, and queue modal uploads until the file session is ready. Remote-to-local OS drag-out from the video surface remains unsupported (use Copy/Paste or File transfer). Requires rebuilt `rdclient-desktop` **and** panel update.
 - **Empty device/folder ACL was open to all users:** groups and folders with no allowed users and no allowed user groups used to be visible to every operator. ACL is now fail-closed (admins/`global_admin`/`server_admin` still bypass). Attach users or user groups before non-admins can see those devices. Ships via panel update (console + betterdesk-server).
 - **RdClient desktop — Explorer file copy/paste both ways:** local-to-remote Cliprdr no longer loses file formats when focus sync also pushed path-as-text; remote-to-local file copy now downloads via Cliprdr into a temp CF_HDROP so paste works in local Explorer. Requires rebuilt `rdclient-desktop` **and** panel update (`cliprdr.js` / `protocol.js` / `remote.js` / `client.js`).
