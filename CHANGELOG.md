@@ -3,12 +3,16 @@
 ### Added
 - **Support Agent completion (CDAP path):** Web Remote file transfer, in-session chat, remote audio, lock/restart control relay; Generator toolchain diagnostics + per-platform retry; immediate bundle rebuild after panel updates; last-good CDAP/API endpoint failover; branding seal + optional garble/UPX for release builds; capability flags in bundle branding. Ships via panel update (rebuild Support Agent bundles after update).
 
-### Fixed
-- **Enrollment Requests filter contrast (#320):** active status filter buttons used undefined `--primary` with white text, so labels were unreadable in light theme. Active state now uses `--accent-blue` / `--accent-blue-muted` (same pattern as Devices/Tickets). Ships via panel update.
-
 ### Docs
 - **Support Agent** documented as the active end-user client: [`Desktop-Clients.md`](docs/wiki/Desktop-Clients.md), [`Client-Generator.md`](docs/wiki/Client-Generator.md), [`PROJECT_STRUCTURE.md`](docs/architecture/PROJECT_STRUCTURE.md).
 - **Docker panel HTTPS mismatch (#299):** documented Firefox `SSL_ERROR_RX_RECORD_TOO_LONG` / Chrome `ERR_SSL_PROTOCOL_ERROR` when opening `https://…:5000` against the default HTTP-only GHCR image — [`DOCKER_TROUBLESHOOTING.md`](docs/docker/DOCKER_TROUBLESHOOTING.md), [`DOCKER_QUICKSTART.md`](docs/docker/DOCKER_QUICKSTART.md).
+
+---
+
+## [3.5.10] — 2026-08-03
+
+### Fixed
+- **Enrollment Requests filter contrast (#320):** active status filter buttons used undefined `--primary` with white text, so labels were unreadable in light theme. Active state now uses `--accent-blue` / `--accent-blue-muted` (same pattern as Devices/Tickets). Ships via panel update.
 
 ---
 
@@ -2599,3 +2603,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.7]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.6...v3.5.7
 [3.5.8]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.7...v3.5.8
 [3.5.9]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.8...v3.5.9
+[3.5.10]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.9...v3.5.10
