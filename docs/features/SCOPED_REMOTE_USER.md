@@ -25,8 +25,10 @@ RustDesk Pro **client features** are controlled separately via **strategy assign
 
 | Mode | Behavior |
 |------|----------|
-| **Open** (default) | Non-admins see all devices until folder/group ACL or direct grants exist |
+| **Open** (default) | Non-admins see devices that are not in a restricted folder/group. Folders and device groups with **no** allowed users/groups are private (hidden from non-admins) until ACL is set. Direct peer grants always apply. |
 | **Restricted** | Non-admins see only explicitly granted devices (Settings → Device visibility default) |
+
+Empty folder/device-group ACL is **deny by default** (admins/`global_admin`/`server_admin` still bypass). Attach allowed users and/or user groups before expecting operators to see those devices.
 
 ## Password and Web Client
 

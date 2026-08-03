@@ -155,8 +155,9 @@ func panelAccessAllowed(user *db.User, role string, userGroupGUIDs map[string]bo
 	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
 		return true
 	}
+	// Fail closed: empty ACL is private until users and/or user groups are attached.
 	if len(allowedUsers) == 0 && len(allowedGroups) == 0 {
-		return true
+		return false
 	}
 	for _, u := range allowedUsers {
 		if u == user.Username {
@@ -246,24 +247,11 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 		assignments = a
 	}
 
-	hasRestricted := false
-	for _, g := range panelGroups {
-		if len(g.AllowedUsers) > 0 || len(g.AllowedGroupGUIDs) > 0 {
-			hasRestricted = true
-			break
-		}
-	}
-	if !hasRestricted {
-		folders, _ := s.panelStore.ListFolders()
-		for _, folder := range folders {
-			allowedUsers, allowedGroups, _ := s.panelStore.FolderGroupAccess(folder.ID)
-			if len(allowedUsers) > 0 || len(allowedGroups) > 0 {
-				hasRestricted = true
-				break
-			}
-		}
-	}
-	if !hasRestricted && len(peerGrants) == 0 {
+	folders, _ := s.panelStore.ListFolders()
+	// Every device/folder group participates in scope. Empty ACL denies non-admins
+	// and still hides member peers from the open overlay.
+	hasScoped := len(panelGroups) > 0 || len(folders) > 0
+	if !hasScoped && len(peerGrants) == 0 {
 		if restrictedDefault {
 			return map[string]bool{}
 		}
@@ -273,9 +261,6 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 	allowed := make(map[string]bool)
 	restricted := make(map[string]bool)
 	for _, g := range panelGroups {
-		if len(g.AllowedUsers) == 0 && len(g.AllowedGroupGUIDs) == 0 {
-			continue
-		}
 		peerIDs := s.panelGroupPeerIDs(g, peerByID, nil)
 		target := restricted
 		if panelGroupAllowedForUser(g, user, role, userGroupGUIDs) {
@@ -286,12 +271,8 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 		}
 	}
 
-	folders, _ := s.panelStore.ListFolders()
 	for _, folder := range folders {
 		allowedUsers, allowedGroups, _ := s.panelStore.FolderGroupAccess(folder.ID)
-		if len(allowedUsers) == 0 && len(allowedGroups) == 0 {
-			continue
-		}
 		target := restricted
 		if panelAccessAllowed(user, role, userGroupGUIDs, allowedUsers, allowedGroups) {
 			target = allowed

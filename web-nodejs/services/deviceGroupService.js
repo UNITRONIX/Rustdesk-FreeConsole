@@ -127,7 +127,8 @@ function groupAllowedForUser(group, user) {
     }
     const allowedUsers = normalizeUsernames(group && group.allowed_users);
     const allowedGroups = normalizeGroupGuids(group && (group.allowed_groups || group.allowed_user_groups));
-    if (allowedUsers.length === 0 && allowedGroups.length === 0) return true;
+    // Fail closed: empty ACL is private until users and/or user groups are attached.
+    if (allowedUsers.length === 0 && allowedGroups.length === 0) return false;
     if (allowedUsers.includes(user.username)) return true;
 
     const userGroups = new Set(normalizeGroupGuids(user.user_groups || user.group_guids || user.allowed_groups));
@@ -206,10 +207,9 @@ async function getDeviceScopeForUser(db, user, devices = []) {
     const restrictedDefault = await isDeviceScopeRestrictedDefault(db);
     const accessUser = await getUserAccessContext(db, user);
     const groups = await db.getAllDeviceGroups();
-    const restrictedGroups = (groups || []).filter(group =>
-        normalizeUsernames(group.allowed_users).length > 0 ||
-        normalizeGroupGuids(group.allowed_groups || group.allowed_user_groups).length > 0
-    );
+    // Every device/folder group participates in scope. Empty ACL denies non-admins
+    // (groupAllowedForUser) and still hides member devices from the open overlay.
+    const scopedGroups = groups || [];
 
     let peerGrants = [];
     if (typeof db.getUserPeerGrants === 'function') {
@@ -220,13 +220,13 @@ async function getDeviceScopeForUser(db, user, devices = []) {
         }
     }
 
-    if (restrictedGroups.length === 0 && peerGrants.length === 0) {
+    if (scopedGroups.length === 0 && peerGrants.length === 0) {
         return restrictedDefault ? new Set() : null;
     }
 
     const allowedIds = new Set();
     const restrictedIds = new Set();
-    for (const group of restrictedGroups) {
+    for (const group of scopedGroups) {
         const ids = await getGroupPeerIds(db, group, devices);
         const target = groupAllowedForUser(group, accessUser) ? allowedIds : restrictedIds;
         for (const id of ids) target.add(id);

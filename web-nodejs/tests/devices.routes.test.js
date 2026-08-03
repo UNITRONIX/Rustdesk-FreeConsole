@@ -338,6 +338,30 @@ describe('Devices Routes', () => {
             expect(res.body.data.devices.map(device => device.id)).toEqual(['LINUX1']);
         });
 
+        it('should hide devices in groups with empty ACL from non-admins', async () => {
+            const scopedApp = createTestApp();
+            scopedApp.use((req, _res, next) => {
+                req.session.userId = 2;
+                req.session.user = { id: 2, username: 'operator1', role: 'operator' };
+                next();
+            });
+            scopedApp.use('/', devicesRoutes);
+
+            serverBackend.getAllDevices.mockResolvedValue([
+                { id: 'SECRET1', tags: ['Secret'] },
+                { id: 'OPEN1', tags: ['Open'] }
+            ]);
+            db.getUserGroupsForUser.mockResolvedValue([]);
+            db.getAllDeviceGroups.mockResolvedValue([
+                { guid: 'secret', name: 'Secret', source_type: 'tag', tag_filter: 'Secret', allowed_groups: [], allowed_users: [] }
+            ]);
+
+            const res = await request(scopedApp).get('/api/devices');
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.devices.map(device => device.id)).toEqual(['OPEN1']);
+        });
+
         it('should replace manual group memberships without touching dynamic groups', async () => {
             serverBackend.getDeviceById.mockResolvedValue({ id: '123456789', tags: ['Linux'] });
             serverBackend.getAllDevices.mockResolvedValue([{ id: '123456789', tags: ['Linux'] }]);

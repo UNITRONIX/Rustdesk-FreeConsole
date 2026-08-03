@@ -1237,7 +1237,7 @@
                 <div class="form-group">
                     <label>${_('devices.group_allowed_users') || 'Allowed users'}</label>
                     <input type="text" id="dg-users" class="form-input" placeholder="operator1, operator2" value="${Utils.escapeHtml(allowedUsersValue)}">
-                    <p class="form-hint">${_('devices.group_allowed_users_hint') || 'Leave empty to keep the group visible to everyone with device permissions.'}</p>
+                    <p class="form-hint">${_('devices.group_allowed_users_hint') || 'Assign allowed users and/or user groups. Leave empty to hide the group from non-admins.'}</p>
                 </div>
                 <div class="form-group">
                     <div class="form-label-row">

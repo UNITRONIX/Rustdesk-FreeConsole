@@ -230,7 +230,7 @@ describe('RustDesk Client API routes', () => {
                     guid: 'dg-servers',
                     name: 'Servers',
                     source_type: 'manual',
-                    allowed_users: [],
+                    allowed_users: ['operator1'],
                     allowed_groups: []
                 }
             ]);
@@ -371,6 +371,12 @@ describe('RustDesk Client API routes', () => {
             ]);
             db.getAllFolders.mockResolvedValue([{ id: 7, name: 'Servers' }]);
             db.getAllFolderAssignments.mockResolvedValue({ FOLDER1: 7 });
+            db.getDeviceGroupByGuid.mockResolvedValue({
+                guid: 'folder_7',
+                name: 'Servers',
+                allowed_users: ['operator1'],
+                allowed_groups: []
+            });
 
             const res = await request(app)
                 .get('/api/device-group')
@@ -390,7 +396,14 @@ describe('RustDesk Client API routes', () => {
         it('serves the legacy RustDesk group aliases with the same payload', async () => {
             authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
             db.getAllDeviceGroups.mockResolvedValue([
-                { guid: 'kuzzel', name: 'KUZZEL', source_type: 'tag', tag_filter: 'KUZZEL' }
+                {
+                    guid: 'kuzzel',
+                    name: 'KUZZEL',
+                    source_type: 'tag',
+                    tag_filter: 'KUZZEL',
+                    allowed_users: ['operator1'],
+                    allowed_groups: []
+                }
             ]);
             serverBackend.getAllDevices.mockResolvedValue([
                 { id: 'TAG1', hostname: 'Tagged', online: true, tags: ['KUZZEL'] }

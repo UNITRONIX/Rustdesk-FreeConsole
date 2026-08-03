@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **Empty device/folder ACL was open to all users:** groups and folders with no allowed users and no allowed user groups used to be visible to every operator. ACL is now fail-closed (admins/`global_admin`/`server_admin` still bypass). Attach users or user groups before non-admins can see those devices. Ships via panel update (console + betterdesk-server).
 - **Access Policy “needs reseal” after Save:** console treated Go seal failures as success (HTTP 200 + `{success:false}`), so the badge never cleared. Failed saves now return the real status/error; UI shows when the connect-secret codec is unavailable. Requires panel + betterdesk-server restart/update.
 - **Windows panel update — NSSM `SERVICE_PAUSED` restart:** after deploying a new Go server binary, `nssm restart BetterDeskServer` could fail with `Unexpected status SERVICE_PAUSED in response to START control` (NSSM restart throttle). Restart now clears pause via `nssm continue`, uses stop→start, and verifies `SERVICE_RUNNING`. Ships via panel update.
 
