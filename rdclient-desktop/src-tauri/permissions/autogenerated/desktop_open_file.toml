@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-open-file"
+description = "Enables the desktop_open_file command without any pre-configured scope."
+commands.allow = ["desktop_open_file"]
+
+[[permission]]
+identifier = "deny-desktop-open-file"
+description = "Denies the desktop_open_file command without any pre-configured scope."
+commands.deny = ["desktop_open_file"]

@@ -502,19 +502,42 @@
     // The browser cannot observe clipboard changes, but it can read the
     // clipboard once the tab regains focus (with transient activation), so we
     // push the current local clipboard to the active streaming session then.
+    function _clipDebug() {
+        if (window.BetterDesk && window.BetterDesk.debugRelay) {
+            console.log.apply(console, ['[ClipboardSync]'].concat(Array.prototype.slice.call(arguments)));
+        }
+    }
     let _lastSyncedClipboard = '';
     async function syncLocalClipboardToRemote() {
         const session = getActiveSession();
-        if (!session || !session.client || session.state !== 'streaming') return;
-        if (session.client.viewOnly) return;
-        if (!navigator.clipboard || !navigator.clipboard.readText) return;
+        if (!session || !session.client || session.state !== 'streaming') {
+            _clipDebug('skip: no active streaming session', session && session.state);
+            return;
+        }
+        if (session.client.viewOnly) {
+            _clipDebug('skip: view-only session');
+            return;
+        }
+        if (window.__BETTERDESK_RDCLIENT_DESKTOP__ && typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
+            _clipDebug('desktop bridge detected → syncCliprdrFiles()');
+            session.client.syncCliprdrFiles();
+        } else if (window.__BETTERDESK_RDCLIENT_DESKTOP__) {
+            _clipDebug('desktop flag set but RDCliprdr.isSupported() is false — check window.__TAURI__.core.invoke');
+        }
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+            _clipDebug('skip: navigator.clipboard.readText unavailable in this webview');
+            return;
+        }
         try {
             const text = await navigator.clipboard.readText();
+            _clipDebug('readText() ok, length=', text ? text.length : 0);
             if (text && text !== _lastSyncedClipboard) {
                 _lastSyncedClipboard = text;
                 session.client.sendClipboard(text);
+                _clipDebug('sendClipboard() called');
             }
-        } catch {
+        } catch (err) {
+            _clipDebug('readText() FAILED:', err && err.message ? err.message : err);
             // Permission denied or not focused — ignore, the manual paste
             // button remains available as a fallback.
         }
@@ -522,6 +545,25 @@
     window.addEventListener('focus', syncLocalClipboardToRemote);
     if (viewerContainer) {
         viewerContainer.addEventListener('mousedown', syncLocalClipboardToRemote);
+    }
+
+    if (window.__BETTERDESK_RDCLIENT_DESKTOP__
+        && typeof RDDesktopDnd !== 'undefined'
+        && RDDesktopDnd.isSupported()) {
+        RDDesktopDnd.ensureNativeDropListener();
+        RDDesktopDnd.bind({
+            onCliprdrSync(paths) {
+                const session = getActiveSession();
+                if (!session || !session.client || session.state !== 'streaming') return;
+                if (session.client.viewOnly) return;
+                session.client.syncCliprdrPaths(paths);
+            },
+            onUploadPaths(paths) {
+                if (window.__fileTransferModal && window.__fileTransferModal.isOpen()) {
+                    window.__fileTransferModal.uploadNativePaths(paths);
+                }
+            }
+        });
     }
 
 
@@ -1254,10 +1296,10 @@
     function applyTransportCapabilities() {
         const fileBtn = document.getElementById('btn-file-transfer');
         if (fileBtn && getTransportName() === 'cdap') {
-            // CDAP file transfer is wired via CDAPFileTransfer + /files WS.
-            fileBtn.disabled = false;
-            fileBtn.classList.remove('disabled');
-            fileBtn.title = t('remote.file_transfer', 'File transfer');
+            fileBtn.disabled = true;
+            fileBtn.classList.add('disabled');
+            fileBtn.title = t('remote.file_transfer_unavailable_cdap',
+                'File transfer is not available for CDAP snapshot sessions.');
         }
         applyGuestUiLockdown();
     }
@@ -1659,6 +1701,7 @@
     document.getElementById('btn-file-transfer')?.addEventListener('click', function () {
         const session = getActiveSession();
         if (!session || !session.client?.fileTransfer) return;
+        if (getTransportName() === 'cdap') return;
         const modal = window.__fileTransferModal;
         if (!modal) return;
         if (modal.isOpen()) {

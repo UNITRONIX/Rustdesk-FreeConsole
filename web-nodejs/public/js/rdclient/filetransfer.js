@@ -124,6 +124,11 @@ class RDFileTransfer {
         this._clearTransferTimeout(id);
         const fileName = transfer.fileName;
         const resumable = !!options.resumable;
+        if (transfer.file && transfer.file.__rdNativeHandle && window.__TAURI__ && window.__TAURI__.core) {
+            window.__TAURI__.core.invoke('desktop_release_file_handles', {
+                handles: [transfer.file.__rdNativeHandle]
+            }).catch(function () { /* ignore */ });
+        }
         if (resumable) {
             transfer.status = 'error';
             transfer.errorMessage = message || 'Transfer failed';
@@ -885,14 +890,30 @@ class RDFileTransfer {
         const file = transfer.file;
         if (!file) return;
 
+        const readSlice = async function (offset, end) {
+            if (file.__rdNativeHandle) {
+                const length = end - offset;
+                const bytes = await (window.__TAURI__ && window.__TAURI__.core
+                    ? window.__TAURI__.core.invoke('desktop_read_file_chunk', {
+                        handle: file.__rdNativeHandle,
+                        offset: offset,
+                        length: length
+                    })
+                    : Promise.reject(new Error('Desktop bridge unavailable')));
+                if (bytes instanceof Uint8Array) return bytes;
+                return new Uint8Array(bytes || []);
+            }
+            const slice = file.slice(offset, end);
+            return new Uint8Array(await slice.arrayBuffer());
+        };
+
         try {
             let offset = Math.max(0, Number(startOffset || 0));
             let blkId = RDFileTransfer.computeOffsetBlk(offset, this.BLOCK_SIZE);
 
             while (offset < file.size && transfer.status === 'transferring') {
                 const end = Math.min(offset + this.BLOCK_SIZE, file.size);
-                const slice = file.slice(offset, end);
-                const raw = new Uint8Array(await slice.arrayBuffer());
+                const raw = await readSlice(offset, end);
                 const packed = await this._tryCompressBlock(raw, file.name);
 
                 this._sendMessageSafe(this._proto.buildFileBlock(
@@ -922,6 +943,12 @@ class RDFileTransfer {
             // Send done
             if (transfer.status === 'transferring') {
                 this._sendMessageSafe(this._proto.buildFileDone(transfer.id, transfer.fileNum));
+            }
+
+            if (file.__rdNativeHandle && window.__TAURI__ && window.__TAURI__.core) {
+                window.__TAURI__.core.invoke('desktop_release_file_handles', {
+                    handles: [file.__rdNativeHandle]
+                }).catch(function () { /* ignore */ });
             }
         } catch (err) {
             transfer.status = 'error';

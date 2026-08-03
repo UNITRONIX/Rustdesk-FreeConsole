@@ -78,6 +78,18 @@ class RDProtocol {
         this.types.FileRename = this.protoRoot.lookupType('hbb.FileRename');
         this.types.FileTransfer = this.protoRoot.lookupType('hbb.FileTransfer');
 
+        // Cliprdr (file clipboard / Explorer paste)
+        this.types.Cliprdr = this.protoRoot.lookupType('hbb.Cliprdr');
+        this.types.CliprdrMonitorReady = this.protoRoot.lookupType('hbb.CliprdrMonitorReady');
+        this.types.CliprdrFormat = this.protoRoot.lookupType('hbb.CliprdrFormat');
+        this.types.CliprdrServerFormatList = this.protoRoot.lookupType('hbb.CliprdrServerFormatList');
+        this.types.CliprdrServerFormatListResponse = this.protoRoot.lookupType('hbb.CliprdrServerFormatListResponse');
+        this.types.CliprdrServerFormatDataRequest = this.protoRoot.lookupType('hbb.CliprdrServerFormatDataRequest');
+        this.types.CliprdrServerFormatDataResponse = this.protoRoot.lookupType('hbb.CliprdrServerFormatDataResponse');
+        this.types.CliprdrFileContentsRequest = this.protoRoot.lookupType('hbb.CliprdrFileContentsRequest');
+        this.types.CliprdrFileContentsResponse = this.protoRoot.lookupType('hbb.CliprdrFileContentsResponse');
+        this.types.CliprdrTryEmpty = this.protoRoot.lookupType('hbb.CliprdrTryEmpty');
+
         // Enums
         this.enums = {};
         this.enums.ConnType = this.protoRoot.lookupEnum('hbb.ConnType');
@@ -384,6 +396,104 @@ class RDProtocol {
                 compress: packed.compress,
                 content: packed.content,
                 format: this.enums.ClipboardFormat.values.Text
+            }
+        };
+    }
+
+    /**
+     * Build Cliprdr MonitorReady (initialize file clipboard channel)
+     * @returns {Object}
+     */
+    buildCliprdrMonitorReady() {
+        return {
+            cliprdr: {
+                ready: {}
+            }
+        };
+    }
+
+    /**
+     * Build Cliprdr FormatList advertising file descriptor + contents formats
+     * @param {Object} [names] - optional native format id/name map from desktop bridge
+     * @returns {Object}
+     */
+    buildCliprdrFormatList(names) {
+        const fdId = names && (names.fileDescriptorFormatId != null || names.file_descriptor_format_id != null)
+            ? Number(names.fileDescriptorFormatId != null ? names.fileDescriptorFormatId : names.file_descriptor_format_id)
+            : 49334;
+        const fdName = names && (names.fileDescriptorFormatName || names.file_descriptor_format_name)
+            ? String(names.fileDescriptorFormatName || names.file_descriptor_format_name)
+            : 'FileGroupDescriptorW';
+        const fcId = names && (names.fileContentsFormatId != null || names.file_contents_format_id != null)
+            ? Number(names.fileContentsFormatId != null ? names.fileContentsFormatId : names.file_contents_format_id)
+            : 49267;
+        const fcName = names && (names.fileContentsFormatName || names.file_contents_format_name)
+            ? String(names.fileContentsFormatName || names.file_contents_format_name)
+            : 'FileContents';
+        return {
+            cliprdr: {
+                formatList: {
+                    formats: [
+                        { id: fdId, format: fdName },
+                        { id: fcId, format: fcName }
+                    ]
+                }
+            }
+        };
+    }
+
+    /**
+     * @param {number} msgFlags
+     * @param {Uint8Array|ArrayBuffer|number[]} formatData
+     * @returns {Object}
+     */
+    buildCliprdrFormatDataResponse(msgFlags, formatData) {
+        return {
+            cliprdr: {
+                formatDataResponse: {
+                    msgFlags: msgFlags,
+                    formatData: formatData instanceof Uint8Array ? formatData : new Uint8Array(formatData || [])
+                }
+            }
+        };
+    }
+
+    /**
+     * @param {number} msgFlags
+     * @param {number} streamId
+     * @param {Uint8Array|ArrayBuffer|number[]} requestedData
+     * @returns {Object}
+     */
+    buildCliprdrFileContentsResponse(msgFlags, streamId, requestedData) {
+        return {
+            cliprdr: {
+                fileContentsResponse: {
+                    msgFlags: msgFlags,
+                    streamId: streamId,
+                    requestedData: requestedData instanceof Uint8Array ? requestedData : new Uint8Array(requestedData || [])
+                }
+            }
+        };
+    }
+
+    /**
+     * @param {number} msgFlags
+     * @returns {Object}
+     */
+    buildCliprdrFormatListResponse(msgFlags) {
+        return {
+            cliprdr: {
+                formatListResponse: {
+                    msgFlags: msgFlags
+                }
+            }
+        };
+    }
+
+    buildCliprdrTryEmpty() {
+        return {
+            cliprdr: {
+                tryEmpty: {}
             }
         };
     }

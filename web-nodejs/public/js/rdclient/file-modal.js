@@ -145,6 +145,14 @@
         var dropzone = el.querySelector('.ft-local-dropzone');
         dropzone.addEventListener('click', function () {
             if (dropzone.classList.contains('ft-dropzone-disabled')) return;
+            if (typeof LocalFiles !== 'undefined' && LocalFiles.isDesktopBridge && LocalFiles.isDesktopBridge()) {
+                LocalFiles.pickNativeFiles().then(function (files) {
+                    self._uploadNativeFiles(files);
+                }).catch(function (e) {
+                    if (e && e.message !== 'AbortError') console.warn('[FileModal]', e);
+                });
+                return;
+            }
             self._el.querySelector('.ft-local-file-input').click();
         });
         dropzone.addEventListener('keydown', function (e) {
@@ -168,6 +176,9 @@
             if (dropzone.classList.contains('ft-dropzone-disabled')) return;
             e.preventDefault();
             dropzone.classList.remove('ft-dropzone-active');
+            if (typeof LocalFiles !== 'undefined' && LocalFiles.isDesktopBridge && LocalFiles.isDesktopBridge()) {
+                return;
+            }
             if (e.dataTransfer && e.dataTransfer.files.length) self._uploadFiles(e.dataTransfer.files);
         });
 
@@ -189,6 +200,9 @@
             e.preventDefault();
             remotePane.classList.remove('ft-drag-over');
             self._hideDragOverlay();
+            if (typeof LocalFiles !== 'undefined' && LocalFiles.isDesktopBridge && LocalFiles.isDesktopBridge()) {
+                return;
+            }
             if (e.dataTransfer && e.dataTransfer.files.length) self._uploadFiles(e.dataTransfer.files);
         });
 
@@ -251,6 +265,12 @@
         var self = this;
         var ft = this._session && this._session.client && this._session.client.fileTransfer;
         if (!ft) return;
+        if (typeof LocalFiles !== 'undefined' && LocalFiles.isDesktopBridge && LocalFiles.isDesktopBridge()) {
+            ft._saveDownload = function (fileName, blob) {
+                return self._local.saveDownload(fileName, blob);
+            };
+            return;
+        }
         if (this._local.hasRoot) {
             ft._saveDownload = function (fileName, blob) {
                 return self._local.saveDownload(fileName, blob);
@@ -678,6 +698,36 @@
         var ft = this._session.client?.fileTransfer;
         if (!ft || !fileList || !this._remoteReady) return;
         for (var i = 0; i < fileList.length; i++) ft.uploadFile(fileList[i], ft.currentPath || '');
+    };
+
+    FileTransferModal.prototype._uploadNativeFiles = function (files) {
+        var ft = this._session.client?.fileTransfer;
+        if (!ft || !files || !files.length || !this._remoteReady) return;
+        for (var i = 0; i < files.length; i++) {
+            if (files[i]) ft.uploadFile(files[i], ft.currentPath || '');
+        }
+    };
+
+    FileTransferModal.prototype.uploadNativePaths = function (paths) {
+        var self = this;
+        if (!paths || !paths.length) return;
+        if (typeof RDDesktopDnd !== 'undefined' && RDDesktopDnd.openPaths) {
+            RDDesktopDnd.openPaths(paths).then(function (files) {
+                self._uploadNativeFiles(files);
+            }).catch(function (e) {
+                console.warn('[FileModal] native drop upload failed:', e);
+            });
+            return;
+        }
+        if (typeof LocalFiles !== 'undefined' && LocalFiles.isDesktopBridge && LocalFiles.isDesktopBridge()) {
+            var invoke = window.__TAURI__.core.invoke;
+            invoke('desktop_open_paths', { paths: paths }).then(function (infos) {
+                var files = (infos || []).map(LocalFiles.createNativeUploadFile).filter(Boolean);
+                self._uploadNativeFiles(files);
+            }).catch(function (e) {
+                console.warn('[FileModal] native drop upload failed:', e);
+            });
+        }
     };
 
     FileTransferModal.prototype._downloadSelectedRemote = function () {

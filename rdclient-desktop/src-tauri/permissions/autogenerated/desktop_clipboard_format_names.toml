@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-clipboard-format-names"
+description = "Enables the desktop_clipboard_format_names command without any pre-configured scope."
+commands.allow = ["desktop_clipboard_format_names"]
+
+[[permission]]
+identifier = "deny-desktop-clipboard-format-names"
+description = "Denies the desktop_clipboard_format_names command without any pre-configured scope."
+commands.deny = ["desktop_clipboard_format_names"]

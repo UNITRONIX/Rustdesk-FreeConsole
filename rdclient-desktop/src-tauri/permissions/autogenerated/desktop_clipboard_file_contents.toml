@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-clipboard-file-contents"
+description = "Enables the desktop_clipboard_file_contents command without any pre-configured scope."
+commands.allow = ["desktop_clipboard_file_contents"]
+
+[[permission]]
+identifier = "deny-desktop-clipboard-file-contents"
+description = "Denies the desktop_clipboard_file_contents command without any pre-configured scope."
+commands.deny = ["desktop_clipboard_file_contents"]

@@ -116,6 +116,32 @@ Production bundle instead of dev:
 3. Use **Connect** on a device — the desktop opens a new window instead of a browser tab.
 4. Open **Settings** (gear icon in the dashboard header) to change URL, TLS mode, language, sign out, or **Reset client** (clears config, cookies, and saved passwords).
 
+### File transfer (desktop)
+
+Remote sessions use the panel’s RustDesk **FILE_TRANSFER** channel (toolbar **File transfer** button). The desktop shell adds native OS integration:
+
+| Action | Desktop behaviour |
+|--------|-------------------|
+| **Upload** | Drag files onto the modal or remote pane; click the drop zone for a native multi-file picker; optional **Choose folder** to browse local directories |
+| **Download** | Native **Save as** dialog (instead of browser-only download) |
+| **Protocol** | Same `RDFileTransfer` / dedicated file relay as the web RdClient — browse, upload, download, overwrite prompts |
+
+Rebuild the desktop binary after pulling `rdclient-desktop` changes. Deploy or update the panel so `/js/rdclient/local-files.js` and `filetransfer.js` are current on your server.
+
+### Cliprdr file paste (desktop, Windows)
+
+Explorer **Copy** → focus the remote session → **Ctrl+V** on the remote uses RustDesk **Cliprdr** (same path as the native RustDesk client), separate from the file-transfer modal. Dragging files onto the session window also registers them for remote paste (native Tauri drop paths).
+
+| Step | Behaviour |
+|------|-----------|
+| **Local copy** | Windows CF_HDROP paths read natively; file tree expanded into FILEGROUPDESCRIPTORW PDUs |
+| **Drag-drop** | Native `tauri://drag-drop` paths (do **not** use `disable_drag_drop_handler` — HTML5 drops lack paths in WebView2) |
+| **Sync trigger** | Window focus / click in the viewer, ~1.5s poll while streaming, or native file drop |
+| **Remote paste** | Peer requests format data + file chunks; desktop serves bytes from disk |
+| **File transfer modal** | Open modal → drop files on the remote pane or drop zone → uploads via `desktop_open_paths` |
+
+Requires a rebuilt desktop binary **and** panel JS (`cliprdr.js`, updated `client.js` / `protocol.js` / `remote.js`). Linux/macOS Cliprdr outbound is not implemented yet.
+
 ### Environment & embedded URL
 
 | Source | Purpose |

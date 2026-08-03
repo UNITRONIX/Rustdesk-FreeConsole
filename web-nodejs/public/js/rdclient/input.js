@@ -73,6 +73,22 @@ class RDInput {
         this._releaseAllKeys(true);
     }
 
+    /**
+     * Synthesize a Ctrl+V key combo on the remote side (used to auto-complete
+     * a Cliprdr file paste right after a native drag-drop registers the
+     * files, so the operator doesn't have to press Ctrl+V manually).
+     */
+    sendCtrlV() {
+        this.pressedKeys.set('ControlLeft', { key: 'Control' });
+        this._sendKeyForCode('ControlLeft', 'Control', true, false, null);
+        this.pressedKeys.set('KeyV', { key: 'v' });
+        this._sendKeyForCode('KeyV', 'v', true, false, null);
+        this.pressedKeys.delete('KeyV');
+        this._sendKeyForCode('KeyV', 'v', false, false, null);
+        this.pressedKeys.delete('ControlLeft');
+        this._sendKeyForCode('ControlLeft', 'Control', false, false, null);
+    }
+
     start() {
         if (this.enabled) return;
 
