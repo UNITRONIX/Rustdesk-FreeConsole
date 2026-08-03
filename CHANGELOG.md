@@ -12,7 +12,7 @@
 - **Windows panel update — NSSM `SERVICE_PAUSED` restart:** after deploying a new Go server binary, `nssm restart BetterDeskServer` could fail with `Unexpected status SERVICE_PAUSED in response to START control` (NSSM restart throttle). Restart now clears pause via `nssm continue`, uses stop-to-start, and verifies `SERVICE_RUNNING`. Ships via panel update.
 
 ### Changed
-- _(none yet)_
+- **Devices list sort:** default order is Online first, then alphabetically by display name / hostname (stable by device id). Column header clicks remain a secondary sort within that grouping. Ships via panel update.
 
 ---
 

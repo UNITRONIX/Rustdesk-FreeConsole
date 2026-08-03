@@ -73,7 +73,8 @@
     let currentFilter = 'all';
     let currentFolder = 'all';
     let currentGroup = 'all';
-    let currentSort = { field: 'last_online', order: 'desc' };
+    // Online first, then hostname A–Z (display name). Column clicks still apply as secondary sort.
+    let currentSort = { field: 'hostname', order: 'asc' };
     let currentPage = 1;
     let perPage = 20;
     let searchQuery = '';
@@ -849,34 +850,55 @@
         updateEmptyState();
     }
     
+    /** Name shown in the hostname column — used for alphabetical sort. */
+    function deviceSortName(device) {
+        return String(device.display_name || device.hostname || device.note || device.id || '').toLowerCase();
+    }
+
     /**
-     * Sort devices
+     * Sort devices: online first, then current column (default hostname A–Z).
      */
     function sortDevices() {
         const { field, order } = currentSort;
         
         filteredDevices.sort((a, b) => {
-            let valA = a[field];
-            let valB = b[field];
-            
-            // Handle nulls
-            if (valA === null || valA === undefined) valA = '';
-            if (valB === null || valB === undefined) valB = '';
-            
-            // String comparison
-            if (typeof valA === 'string') {
-                valA = valA.toLowerCase();
-                valB = valB.toLowerCase();
-            }
-            
-            // Date comparison
-            if (field === 'last_online') {
-                valA = new Date(valA || 0).getTime();
-                valB = new Date(valB || 0).getTime();
+            // Primary: Online before Offline / No signal / Banned
+            const onlineA = a.online ? 0 : 1;
+            const onlineB = b.online ? 0 : 1;
+            if (onlineA !== onlineB) return onlineA - onlineB;
+
+            let valA;
+            let valB;
+
+            if (field === 'hostname') {
+                valA = deviceSortName(a);
+                valB = deviceSortName(b);
+            } else {
+                valA = a[field];
+                valB = b[field];
+
+                if (valA === null || valA === undefined) valA = '';
+                if (valB === null || valB === undefined) valB = '';
+
+                if (typeof valA === 'string') {
+                    valA = valA.toLowerCase();
+                    valB = typeof valB === 'string' ? valB.toLowerCase() : String(valB || '').toLowerCase();
+                }
+
+                if (field === 'last_online') {
+                    valA = new Date(valA || 0).getTime();
+                    valB = new Date(valB || 0).getTime();
+                }
             }
             
             if (valA < valB) return order === 'asc' ? -1 : 1;
             if (valA > valB) return order === 'asc' ? 1 : -1;
+
+            // Stable tie-break by id so refresh does not reshuffle equals
+            const idA = String(a.id || '');
+            const idB = String(b.id || '');
+            if (idA < idB) return -1;
+            if (idA > idB) return 1;
             return 0;
         });
     }
