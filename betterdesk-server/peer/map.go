@@ -500,12 +500,52 @@ func (m *Map) ForEach(fn func(e *Entry)) {
 	}
 }
 
+// normalizePeerAddr produces a canonical "ip:port" for exact endpoint matching.
+// IPv4-mapped IPv6 addresses are reduced to IPv4 form (same as signal normalizeAddrKey).
+func normalizePeerAddr(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return addr
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		return net.JoinHostPort(ip4.String(), port)
+	}
+	return addr
+}
+
+// FindByAddr returns the peer whose registered endpoint matches addr exactly
+// (ip:port). Used for outbound PunchHole/RequestRelay initiator authorization
+// so a pending client behind the same public NAT cannot inherit another peer's
+// identity (#302 residual / audit H2).
+func (m *Map) FindByAddr(addr *net.UDPAddr) *Entry {
+	if addr == nil || addr.IP == nil {
+		return nil
+	}
+	want := normalizePeerAddr(addr.String())
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, e := range m.entries {
+		if e.UDPAddr != nil && normalizePeerAddr(e.UDPAddr.String()) == want {
+			return e
+		}
+		if e.IP != "" && normalizePeerAddr(e.IP) == want {
+			return e
+		}
+	}
+	return nil
+}
+
 // FindByIP returns the first peer whose public IP matches.
 // Prefers peers with a UDPAddr; otherwise matches the host portion of entry.IP
 // (WebSocket/TCP peers store "ip:port" without UDPAddr). Used when forwarding
 // PunchHole/RelayResponse from a decoded socket_addr. If multiple peers share
 // the same IP (behind NAT), only the first match is returned — prefer
 // exact ip:port maps (tcpPunchConns / wsPunchConns) for initiator delivery (#276).
+// Do NOT use for outbound initiator authorization — use FindByAddr (#302).
 func (m *Map) FindByIP(ip net.IP) *Entry {
 	if ip == nil {
 		return nil

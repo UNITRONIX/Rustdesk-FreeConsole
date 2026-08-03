@@ -736,7 +736,7 @@ The Go server replaces ONLY the Rust binaries (`hbbs` + `hbbr`). Everything else
 | ID | Issue | File | Fix | Status |
 |----|-------|------|-----|--------|
 | H1 | No validation of `new_id` in change-id API | `api/server.go:297-324` | `peerIDRegexp` check | ✅ Fixed |
-| H2 | `FindByIP` fallback returns first peer behind NAT | `peer/map.go:449-460` | Document limitation, improve IP+port matching | ⚠️ Documented |
+| H2 | `FindByIP` fallback returns first peer behind NAT | `peer/map.go` / `signal/handler.go` | Outbound auth uses `FindByAddr` (exact ip:port) / TCP session / token / panel proxy — never bare `FindByIP` (#302 residual). `FindByIP` remains for non-auth delivery with `CountByIP` ambiguity checks. | ✅ Fixed (auth) |
 | H3 | No rate-limit on `/api/auth/login/2fa` | `api/auth_handlers.go:127-168` | `loginLimiter.Allow(clientIP)` + audit log | ✅ Fixed |
 | H4 | Partial 2FA token has 24h TTL | `api/auth_handlers.go:104-111` | `GenerateWithTTL()` 5min | ✅ Fixed |
 

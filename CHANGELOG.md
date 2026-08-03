@@ -8,6 +8,7 @@
 ## [3.5.12] — 2026-08-03
 
 ### Fixed
+- **Enrollment outbound same-NAT bypass (#302 residual):** PunchHole/RequestRelay initiator auth no longer uses IP-only `FindByIP` (a pending client behind the same public NAT as an approved peer could inherit that peer’s identity with no `Rejected outbound` log). Auth now requires exact `ip:port` (`FindByAddr`), the same TCP session after `RegisterPk`, a BetterDesk client login token, or `PANEL_SIGNAL_PROXY_CIDRS`. Ships via panel update (Go signal restart).
 - **Theme toggle blue flash (#320):** Light ↔ Dark preview briefly set solid hex into `--accent-*-muted` / `--ux35-active-bg`, so Enrollment filter pills, active sidebar item, and user avatar flashed bright blue until branding.css reloaded. Inline preview now uses the same `rgba(..., 0.15)` muted conversion as branding CSS. Ships via panel update.
 
 ### Changed

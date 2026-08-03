@@ -69,6 +69,15 @@ func TestLogAndCheckKeepAliveHttpProxyAndPunch(t *testing.T) {
 	if !srv.logAndCheckKeepAlive(relayMsg, "203.0.113.10:52001", true) {
 		t.Fatal("RequestRelay must keep TCP connection alive")
 	}
+
+	registerPkMsg := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RegisterPk{
+			RegisterPk: &pb.RegisterPk{Id: "VIEW01"},
+		},
+	}
+	if !srv.logAndCheckKeepAlive(registerPkMsg, "203.0.113.10:52001", true) {
+		t.Fatal("RegisterPk must keep TCP connection alive for #327 session bind")
+	}
 }
 
 func TestHandleEmptyOrUnknownUnion(t *testing.T) {
