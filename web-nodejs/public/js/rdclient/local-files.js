@@ -128,8 +128,8 @@
     LocalFiles.prototype.listCurrent = async function () {
         if (this._mode === 'desktop') {
             if (!this._currentPath) return [];
-            var entries = await desktopInvoke('desktop_list_directory', { path: this._currentPath });
-            return (entries || []).map(function (e) {
+            var desktopEntries = await desktopInvoke('desktop_list_directory', { path: this._currentPath });
+            return (desktopEntries || []).map(function (e) {
                 return {
                     name: e.name,
                     path: e.path,
@@ -140,8 +140,8 @@
             });
         }
         if (!this._currentHandle) return [];
-        const entries = [];
-        for await (const entry of this._currentHandle.values()) {
+        var entries = [];
+        for await (var entry of this._currentHandle.values()) {
             entries.push({
                 name: entry.name,
                 isDir: entry.kind === 'directory',
@@ -150,18 +150,19 @@
                 handle: entry
             });
         }
-        entries.sort((a, b) => {
+        entries.sort(function (a, b) {
             if (a.isDir && !b.isDir) return -1;
             if (!a.isDir && b.isDir) return 1;
             return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
         });
-        for (const e of entries) {
+        for (var i = 0; i < entries.length; i++) {
+            var e = entries[i];
             if (!e.isDir && e.handle) {
                 try {
-                    const file = await e.handle.getFile();
+                    var file = await e.handle.getFile();
                     e.size = file.size;
                     e.modifiedTime = file.lastModified ? Math.floor(file.lastModified / 1000) : 0;
-                } catch { /* ignore */ }
+                } catch (_err) { /* ignore */ }
             }
         }
         return entries;

@@ -1063,5 +1063,10 @@
     };
 
     window.FileTransferModal = FileTransferModal;
-    window.__fileTransferModal = new FileTransferModal();
+    try {
+        window.__fileTransferModal = new FileTransferModal();
+    } catch (err) {
+        console.error('[FileModal] failed to initialize — clipboard/Cliprdr must still work:', err);
+        window.__fileTransferModal = null;
+    }
 })();
