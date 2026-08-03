@@ -855,7 +855,9 @@
             "slug_invalid": "短链接只能包含小写字母、数字和连字符",
             "slug_too_short": "短链接至少需要 2 个字符",
             "slug_too_long": "短链接最多 32 个字符",
-            "slug_taken": "此短链接已被其他安装包使用"
+            "slug_taken": "此短链接已被其他安装包使用",
+            "missing_hash": "Bundle has no branding hash — save the bundle first",
+            "unsupported_platform": "Unsupported platform/format for rebuild"
         },
         "legacy_title": "客户端配置生成器",
         "connection_section": "服务器连接",
@@ -899,7 +901,22 @@
         "support_agent_new_bundle": "New Support Agent bundle",
         "product_agent_client": "Agent Client",
         "product_support_agent": "Support",
-        "product_rdclient": "RdClient"
+        "product_rdclient": "RdClient",
+        "retry_build": "重试",
+        "retry_queued": "已将平台构建加入队列",
+        "toolchain_banner_ok": "Build toolchain ready (Go {{go}}).",
+        "toolchain_banner_warn": "Build toolchain issues detected — some platforms may fail until tools are installed.",
+        "toolchain_worker_off": "Agent build worker is disabled (AGENT_BUILD_WORKER=off).",
+        "toolchain_go": "Go toolchain missing or unhealthy — install/update Go from Settings → Updates.",
+        "toolchain_wixl": "wixl (msitools) required for Windows .msi builds.",
+        "toolchain_appimage": "appimagetool required for Linux AppImage builds.",
+        "toolchain_deb": "dpkg-deb / fakeroot required for .deb packages.",
+        "toolchain_rpm": "rpmbuild required for .rpm packages.",
+        "toolchain_mesa": "Mesa/OpenGL support needed for Windows GUI builds on headless hosts.",
+        "toolchain_cgo": "CGO / mingw cross-compiler required for Windows Fyne builds.",
+        "toolchain_msi_missing": "MSI builder (wixl) not found — Windows installed builds will fail.",
+        "toolchain_go_missing": "Go is not available — Support Agent builds cannot run.",
+        "rebuild_pending_banner": "A generator rebuild is pending from the last update ({{reason}})."
     },
     "server": {
         "port": "端口",
@@ -3670,7 +3687,9 @@
         "docker_images": "镜像",
         "more_options": "更多选项",
         "option_advanced": "高级选项",
-        "option_advanced_desc": "备份保留、Docker 部署、服务器重建和更新策略"
+        "option_advanced_desc": "备份保留、Docker 部署、服务器重建和更新策略",
+        "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
     },
     "accessibility": {
         "title": "无障碍",

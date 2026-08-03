@@ -1254,10 +1254,10 @@
     function applyTransportCapabilities() {
         const fileBtn = document.getElementById('btn-file-transfer');
         if (fileBtn && getTransportName() === 'cdap') {
-            fileBtn.disabled = true;
-            fileBtn.classList.add('disabled');
-            fileBtn.title = t('remote.file_transfer_unavailable_cdap',
-                'File transfer is not available for CDAP snapshot sessions.');
+            // CDAP file transfer is wired via CDAPFileTransfer + /files WS.
+            fileBtn.disabled = false;
+            fileBtn.classList.remove('disabled');
+            fileBtn.title = t('remote.file_transfer', 'File transfer');
         }
         applyGuestUiLockdown();
     }
@@ -1659,7 +1659,6 @@
     document.getElementById('btn-file-transfer')?.addEventListener('click', function () {
         const session = getActiveSession();
         if (!session || !session.client?.fileTransfer) return;
-        if (getTransportName() === 'cdap') return;
         const modal = window.__fileTransferModal;
         if (!modal) return;
         if (modal.isOpen()) {

@@ -123,15 +123,24 @@ func RegisterDevice(b Branding, st *AppState, version string) (EnrollmentStatus,
 	}
 	payload["tags"] = tags
 
-	url := apiBaseURL(b) + "/devices/register"
-	// #region agent log
-	debugLog("H1", "enrollment.go:RegisterDevice", "register request", map[string]any{
-		"url": url, "device_id": deviceID, "sends_token": false,
-		"bundle_id": b.BundleID, "use_https": b.UseHTTPS,
-	})
-	// #endregion
 	var resp enrollmentResponse
-	code, err := apiJSON(http.MethodPost, url, payload, &resp)
+	var code int
+	var err error
+	var url string
+	for _, base := range CandidateAPIBases(b, st) {
+		url = strings.TrimRight(base, "/") + "/devices/register"
+		// #region agent log
+		debugLog("H1", "enrollment.go:RegisterDevice", "register request", map[string]any{
+			"url": url, "device_id": deviceID, "sends_token": false,
+			"bundle_id": b.BundleID, "use_https": b.UseHTTPS,
+		})
+		// #endregion
+		code, err = apiJSON(http.MethodPost, url, payload, &resp)
+		if err == nil {
+			st.RememberGoodEndpoints("", base)
+			break
+		}
+	}
 	if err != nil {
 		return EnrollmentStatus{}, err
 	}

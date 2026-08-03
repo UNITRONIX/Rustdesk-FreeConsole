@@ -78,18 +78,25 @@ fi
 WIN_LDFLAGS="-s -w -H=windowsgui"
 
 linux_dual_build() {
-    local out_dir launcher x11_bin wl_bin
+    local out_dir launcher x11_bin wl_bin bak
     out_dir="$(dirname "$OUTPUT")"
     mkdir -p "$out_dir"
     x11_bin="${out_dir}/betterdesk-support-x11"
     wl_bin="${out_dir}/betterdesk-support-wayland"
     launcher="${out_dir}/betterdesk-support"
 
+    bak="$(mktemp)"
+    cp resources/branding.json "$bak"
+    "$GO" run ./cmd/sealbranding -in resources/branding.json -out resources/branding.json || cp "$bak" resources/branding.json
+
     echo "Building Linux X11 UI → $x11_bin ..."
     GOOS=linux CGO_ENABLED=1 "$GO" build -trimpath -tags release -ldflags "-s -w" -o "$x11_bin" .
 
     echo "Building Linux Wayland UI → $wl_bin ..."
     GOOS=linux CGO_ENABLED=1 "$GO" build -trimpath -tags "release,wayland" -ldflags "-s -w" -o "$wl_bin" .
+
+    cp "$bak" resources/branding.json
+    rm -f "$bak"
 
     cp "$SCRIPT_DIR/scripts/betterdesk-support-launcher.sh" "$launcher"
     chmod +x "$launcher" "$x11_bin" "$wl_bin"
@@ -107,12 +114,44 @@ if [ "$TARGET_OS" = "linux" ] && [ "$DUAL_LINUX" = 1 ]; then
     exit 0
 fi
 
+# Seal branding for release embeds (plaintext restored after build).
+BRANDING_PLAIN_BAK=""
+if [ -f resources/branding.json ]; then
+    BRANDING_PLAIN_BAK="$(mktemp)"
+    cp resources/branding.json "$BRANDING_PLAIN_BAK"
+    if "$GO" run ./cmd/sealbranding -in resources/branding.json -out resources/branding.json; then
+        echo "Sealed branding for release embed"
+    else
+        echo "WARN: branding seal failed — embedding plaintext" >&2
+        cp "$BRANDING_PLAIN_BAK" resources/branding.json
+    fi
+fi
+restore_branding() {
+    if [ -n "$BRANDING_PLAIN_BAK" ] && [ -f "$BRANDING_PLAIN_BAK" ]; then
+        cp "$BRANDING_PLAIN_BAK" resources/branding.json
+        rm -f "$BRANDING_PLAIN_BAK"
+    fi
+}
+trap restore_branding EXIT
+
 echo "Building $OUTPUT (GOOS=$TARGET_OS) ..."
 LDFLAGS="-s -w"
 [ "$TARGET_OS" = "windows" ] && LDFLAGS="$WIN_LDFLAGS"
-GOOS="$TARGET_OS" CGO_ENABLED=1 "$GO" build -trimpath \
-    -tags "$BUILD_TAGS" \
-    -ldflags "$LDFLAGS" \
-    -o "$OUTPUT" .
+
+BUILD_CMD=("$GO" build -trimpath -tags "$BUILD_TAGS" -ldflags "$LDFLAGS" -o "$OUTPUT" .)
+if [ "${BETTERDESK_USE_GARBLE:-0}" = "1" ] && command -v garble >/dev/null 2>&1; then
+    echo "Using garble for release obfuscation"
+    BUILD_CMD=(garble -literals -tiny build -trimpath -tags "$BUILD_TAGS" -ldflags "$LDFLAGS" -o "$OUTPUT" .)
+fi
+
+GOOS="$TARGET_OS" CGO_ENABLED=1 "${BUILD_CMD[@]}"
+
+# Optional UPX pack (Windows portable) — opt-in; can trigger AV false positives.
+if [ "${BETTERDESK_USE_UPX:-0}" = "1" ] && command -v upx >/dev/null 2>&1; then
+    echo "Packing with UPX…"
+    upx -q --best "$OUTPUT" || echo "WARN: upx failed" >&2
+fi
 
 echo "Built: $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"
+restore_branding
+trap - EXIT

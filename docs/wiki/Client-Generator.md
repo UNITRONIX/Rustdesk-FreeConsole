@@ -1,60 +1,53 @@
 # Client Generator
 
-The **Client Generator** builds ready-to-deploy **RustDesk clients** with your BetterDesk server settings and optional branding baked in.
+The **Agent Generator** in the web console builds branded **BetterDesk Support Agent** installers with your server address, public key, and appearance baked in. End users download from a public hub page — no manual network configuration.
+
+> Legacy RustDesk TOML generation remains in the API for compatibility but is no longer the primary UI path.
 
 ---
 
 ## What you get
 
-Each generated client includes:
-- **ID Server** and **Relay Server** addresses
-- **Public key** from your BetterDesk server
-- **API Server** URL (port 21121)
-- Optional **custom application name** and icon/branding
+Each Support Agent bundle includes:
 
-End users install the client — no manual network configuration required.
+- Server / API / CDAP connection profile
+- Server public key
+- Company branding (colors, logo, product name, contact)
+- Optional unattended access flag
+- Incoming capability defaults (desktop, files, clipboard, audio, terminal, restart)
+
+### Platforms (Windows + Linux)
+
+| Platform | Formats |
+|----------|---------|
+| Windows x64 | Portable `.exe`, installed `.msi` |
+| Linux x64 | Portable `.tar.gz`, AppImage, `.deb`, `.rpm` |
 
 ---
 
 ## Quick start
 
-1. Log in to the web panel as **admin** or user with generator permission
-2. Open **Client Generator** (or **Generator** in the sidebar)
-3. Select **platform**:
-   - Windows (x64, x86, ARM64)
-   - Linux (AppImage, deb, rpm)
-   - Android (APK)
-   - macOS (Intel, Apple Silicon)
-4. Enter server details (auto-filled from Settings when available):
-   - ID Server / Relay Server
-   - API Server (`http://your-server:21121`)
-   - Public key
-   - Application name
-5. Click **Generate** and download the artifact
+1. Log in as **admin**
+2. Open **Generator** in the sidebar
+3. Click **New Support Agent bundle**
+4. Fill company name, branding, and public server host
+5. Save — the build worker queues all platforms
+6. Watch build status (Ready / Queued / Building / Failed); use **Retry** on failed platforms
+7. Share the download hub link (`/d/:slug`)
+
+### After a BetterDesk update
+
+When agent source changes, the panel syncs `agent-source/` and **requeues all non-revoked bundles** immediately (and again on console restart as a safety net). Check Settings → Updates log for “Support Agent generator rebuild queued…”.
+
+### Toolchain
+
+Support Agent builds need Go + CGO on the console host (mingw for Windows cross-builds, `wixl` for MSI, packaging tools for Linux). The Generator shows a toolchain status banner when tools are missing.
 
 ---
 
-## Deployment tips
+## Security notes
 
-| Scenario | Recommendation |
-|----------|----------------|
-| **Enterprise Windows** | MSI/NSIS + Group Policy or Intune |
-| **Linux fleet** | deb/rpm via package manager |
-| **Mobile** | Distribute APK via MDM; iOS uses standard RustDesk from store + QR |
-| **Updates** | Regenerate when server key or hostname changes |
-
----
-
-## Requirements
-
-- Server must be reachable from client networks (ports 21116–21117, 21121)
-- Generator runs on the panel — sufficient disk space for build artifacts
-- Some platforms require build tools on the server (installed by panel/update flow)
-
----
-
-## See also
-
-- [[Client Setup|Client-Setup]] — manual RustDesk configuration
-- [[TLS / SSL Certificates|TLS-SSL]] — use `https://` for API server when TLS enabled
-- [Client Generator docs](https://github.com/UNITRONIX/BetterDesk/blob/main/docs/features/CLIENT_GENERATOR.md)
+- Bundles do **not** embed a shared enrollment token
+- Each install registers independently; in **managed** mode a unique `device_token` is issued only after operator approval
+- Release builds seal branding inside the binary (obfuscation + integrity); local state is machine-bound AES-GCM
+- Support Agent is **inbound-only** — end users cannot browse or connect to other devices on your infrastructure

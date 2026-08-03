@@ -189,6 +189,35 @@ func (g *Gateway) RelayDesktopInput(ctx context.Context, sessionID string, input
 	return ds.deviceConn.WriteMessage(ctx, msg)
 }
 
+// RelayDesktopControl forwards session control messages (lock, restart,
+// privacy mode, block input, clipboard disable, etc.) to the agent.
+func (g *Gateway) RelayDesktopControl(ctx context.Context, sessionID, controlType string, enabled bool, raw json.RawMessage) error {
+	val, ok := g.desktopSessions.Load(sessionID)
+	if !ok {
+		return fmt.Errorf("desktop session %s not found", sessionID)
+	}
+	ds := val.(*DesktopSession)
+	if ds.closed.Load() {
+		return fmt.Errorf("desktop session %s is closed", sessionID)
+	}
+
+	payload := map[string]interface{}{
+		"session_id": sessionID,
+		"control":    controlType,
+		"enabled":    enabled,
+	}
+	if len(raw) > 0 {
+		payload["raw"] = json.RawMessage(raw)
+	}
+	payloadData, _ := json.Marshal(payload)
+	msg := &Message{
+		Type:      "desktop_control",
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Payload:   payloadData,
+	}
+	return ds.deviceConn.WriteMessage(ctx, msg)
+}
+
 // RelayDesktopResize forwards a viewport resize from browser to device.
 func (g *Gateway) RelayDesktopResize(ctx context.Context, sessionID string, width, height int) error {
 	val, ok := g.desktopSessions.Load(sessionID)

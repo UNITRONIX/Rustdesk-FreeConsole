@@ -56,7 +56,8 @@ func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*b
 	st.mu.Unlock()
 
 	cfg := bdagent.DefaultConfig()
-	cfg.Server = b.CDAPWebSocketURL()
+	cdapWS, _ := PickWorkingCDAP(b, st)
+	cfg.Server = cdapWS
 	cfg.AuthMethod = "device_token"
 	cfg.DeviceToken = token
 	cfg.DeviceID = deviceID
@@ -75,10 +76,17 @@ func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*b
 		cfg.Tags = append(cfg.Tags, "bundle:"+b.BundleID)
 	}
 
-	cfg.Screenshot = true
-	cfg.Terminal = true
-	cfg.Clipboard = true
-	cfg.FileBrowser = true
+	caps := b.Capabilities
+	cfg.Screenshot = capEnabled(nil, true)
+	cfg.Terminal = capEnabled(nil, true)
+	cfg.Clipboard = capEnabled(nil, true)
+	cfg.FileBrowser = capEnabled(nil, true)
+	if caps != nil {
+		cfg.Screenshot = capEnabled(caps.Desktop, true)
+		cfg.Terminal = capEnabled(caps.Terminal, true)
+		cfg.Clipboard = capEnabled(caps.Clipboard, true)
+		cfg.FileBrowser = capEnabled(caps.Files, true)
+	}
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		cfg.FileRoot = home
 	}
@@ -92,6 +100,7 @@ func buildConfig(b Branding, st *AppState, version string, handlers *Engine) (*b
 		cfg.Screenshot = false
 		cfg.Terminal = false
 		cfg.FileBrowser = false
+		cfg.Clipboard = false
 	default:
 		cfg.RequireConsent = true
 	}

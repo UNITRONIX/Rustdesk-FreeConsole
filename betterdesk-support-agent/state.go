@@ -45,6 +45,10 @@ type AppState struct {
 	DeviceToken         string `json:"device_token,omitempty"`
 	EnrollmentStatus    string `json:"enrollment_status,omitempty"`
 	EnrollmentMessage   string `json:"enrollment_message,omitempty"`
+	// Last-known-good connection endpoints (transport resilience).
+	LastGoodCDAP string `json:"last_good_cdap,omitempty"`
+	LastGoodAPI  string `json:"last_good_api,omitempty"`
+	LastGoodAt   string `json:"last_good_at,omitempty"`
 
 	mu   sync.Mutex `json:"-"`
 	path string     `json:"-"`

@@ -2817,12 +2817,21 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 listPaths: ghListRepoBlobPaths,
             });
             agentBuildWorker.markRebuildPending('in-app update');
+            // Requeue immediately so agent-only updates rebuild without waiting
+            // for a console restart. The pending flag remains as a restart safety net.
+            let requeue = { bundles: 0 };
+            try {
+                requeue = await agentBuildWorker.requeueAllBundleBuilds();
+            } catch (requeueErr) {
+                console.warn(`[UPDATE] Immediate agent rebuild requeue failed: ${requeueErr.message}`);
+            }
             results.agentSourcesStaged = stageResult.staged;
             results.agentSourcePaths = stageResult.paths;
             results.agentRebuildQueued = true;
+            results.agentRebuildBundles = requeue.bundles;
             console.log(
                 `[UPDATE] Agent source tree synced (${stageResult.staged}/${stageResult.paths} file(s));`
-                + ' generator bundles queued for rebuild on console restart'
+                + ` generator rebuild queued for ${requeue.bundles} bundle(s)`
             );
         } catch (err) {
             results.failed.push({ file: 'support-agent-source-sync', error: err.message, nonCritical: true });

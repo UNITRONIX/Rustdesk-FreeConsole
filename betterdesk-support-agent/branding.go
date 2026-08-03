@@ -50,6 +50,26 @@ type Branding struct {
 	BundleID         string          `json:"bundle_id"`
 	UseHTTPS         bool            `json:"use_https"`
 	Server           *ServerBranding `json:"server,omitempty"`
+	// Incoming capability defaults (RustDesk-style permissions matrix).
+	// Nil / omitted fields default to true so existing bundles stay permissive.
+	Capabilities *CapabilityFlags `json:"capabilities,omitempty"`
+}
+
+// CapabilityFlags gates incoming session features for Support Agent builds.
+type CapabilityFlags struct {
+	Desktop   *bool `json:"desktop,omitempty"`
+	Files     *bool `json:"files,omitempty"`
+	Clipboard *bool `json:"clipboard,omitempty"`
+	Audio     *bool `json:"audio,omitempty"`
+	Terminal  *bool `json:"terminal,omitempty"`
+	Restart   *bool `json:"restart,omitempty"`
+}
+
+func capEnabled(flag *bool, defaultOn bool) bool {
+	if flag == nil {
+		return defaultOn
+	}
+	return *flag
 }
 
 var (
@@ -83,6 +103,17 @@ func GetBranding() Branding {
 					raw = data
 				}
 			}
+		}
+		if isSealedBranding(raw) {
+			plain, err := unsealBranding(raw)
+			if err != nil {
+				// Tampered / wrong seal — refuse to start with empty branding
+				// rather than fall back to defaults that might phone home wrongly.
+				brandingVal = brandingDefaults()
+				brandingVal.ServerAddress = ""
+				return
+			}
+			raw = plain
 		}
 		var b Branding
 		if err := json.Unmarshal(raw, &b); err != nil {

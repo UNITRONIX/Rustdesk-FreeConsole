@@ -861,7 +861,9 @@
             "slug_invalid": "लघु लिंक में केवल छोटे अक्षर, संख्याएँ और डैश हो सकते हैं",
             "slug_too_short": "लघु लिंक कम से कम 2 वर्ण का होना चाहिए",
             "slug_too_long": "लघु लिंक अधिकतम 32 वर्ण का हो सकता है",
-            "slug_taken": "यह लघु लिंक पहले से किसी अन्य बंडल द्वारा उपयोग में है"
+            "slug_taken": "यह लघु लिंक पहले से किसी अन्य बंडल द्वारा उपयोग में है",
+            "missing_hash": "Bundle has no branding hash — save the bundle first",
+            "unsupported_platform": "Unsupported platform/format for rebuild"
         },
         "legacy_title": "क्लाइंट कॉन्फ़िगरेशन जेनरेटर",
         "connection_section": "सर्वर कनेक्शन",
@@ -905,7 +907,22 @@
         "support_agent_new_bundle": "New Support Agent bundle",
         "product_agent_client": "Agent Client",
         "product_support_agent": "Support",
-        "product_rdclient": "RdClient"
+        "product_rdclient": "RdClient",
+        "retry_build": "पुनः प्रयास",
+        "retry_queued": "प्लेटफ़ॉर्म बिल्ड कतार में",
+        "toolchain_banner_ok": "Build toolchain ready (Go {{go}}).",
+        "toolchain_banner_warn": "Build toolchain issues detected — some platforms may fail until tools are installed.",
+        "toolchain_worker_off": "Agent build worker is disabled (AGENT_BUILD_WORKER=off).",
+        "toolchain_go": "Go toolchain missing or unhealthy — install/update Go from Settings → Updates.",
+        "toolchain_wixl": "wixl (msitools) required for Windows .msi builds.",
+        "toolchain_appimage": "appimagetool required for Linux AppImage builds.",
+        "toolchain_deb": "dpkg-deb / fakeroot required for .deb packages.",
+        "toolchain_rpm": "rpmbuild required for .rpm packages.",
+        "toolchain_mesa": "Mesa/OpenGL support needed for Windows GUI builds on headless hosts.",
+        "toolchain_cgo": "CGO / mingw cross-compiler required for Windows Fyne builds.",
+        "toolchain_msi_missing": "MSI builder (wixl) not found — Windows installed builds will fail.",
+        "toolchain_go_missing": "Go is not available — Support Agent builds cannot run.",
+        "rebuild_pending_banner": "A generator rebuild is pending from the last update ({{reason}})."
     },
     "server": {
         "port": "Port",
@@ -3605,7 +3622,9 @@
         "docker_images": "इमेज",
         "more_options": "अधिक विकल्प",
         "option_advanced": "उन्नत विकल्प",
-        "option_advanced_desc": "बैकअप रखना, Docker तैनाती, सर्वर पुनर्निर्माण और अपडेट रणनीति"
+        "option_advanced_desc": "बैकअप रखना, Docker तैनाती, सर्वर पुनर्निर्माण और अपडेट रणनीति",
+        "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
     },
     "permissions": {
         "title": "अनुमतियां",

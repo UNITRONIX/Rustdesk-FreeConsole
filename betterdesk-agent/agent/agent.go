@@ -50,6 +50,7 @@ type Agent struct {
 	terminals      sync.Map // session_id → *TerminalSession
 	fileHandlers   sync.Map // session_id → context.CancelFunc
 	desktopStreams sync.Map // session_id → *DesktopStreamer
+	desktopFlags   sync.Map // session_id → *desktopSessionFlags
 	audioStreams   sync.Map // session_id → *AudioStreamer
 
 	// Consent system: when require_consent=true, handleDesktopStart prints
@@ -407,6 +408,8 @@ func (a *Agent) dispatch(msg *Message) {
 		a.handleDesktopStop(msg)
 	case "desktop_input":
 		a.handleDesktopInput(msg)
+	case "desktop_control":
+		a.handleDesktopControl(msg)
 
 	// ── Video / Audio ──
 	case "audio_start":
@@ -720,10 +723,14 @@ func (a *Agent) handleClipboardSet(msg *Message) {
 		return
 	}
 	var p struct {
-		Format string `json:"format"`
-		Data   string `json:"data"`
+		SessionID string `json:"session_id"`
+		Format    string `json:"format"`
+		Data      string `json:"data"`
 	}
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return
+	}
+	if a.sessionFlags(p.SessionID).isClipboardDisabled() {
 		return
 	}
 	if p.Format == "text" {

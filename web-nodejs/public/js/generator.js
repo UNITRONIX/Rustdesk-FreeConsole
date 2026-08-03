@@ -285,6 +285,32 @@
         }, 5000);
     }
 
+    function classifyBuildErrorClient(msg) {
+        const s = String(msg || '');
+        if (/not in std|Go toolchain|stdlib verification|go:|cannot find package/i.test(s)) {
+            return t('generator.toolchain_go', 'Go toolchain missing or unhealthy');
+        }
+        if (/wixl|msitools|\.wxs/i.test(s)) {
+            return t('generator.toolchain_wixl', 'wixl (msitools) required for Windows .msi builds');
+        }
+        if (/appimagetool|AppImage/i.test(s)) {
+            return t('generator.toolchain_appimage', 'appimagetool required for Linux AppImage builds');
+        }
+        if (/dpkg-deb|fakeroot|\.deb/i.test(s)) {
+            return t('generator.toolchain_deb', 'dpkg-deb / fakeroot required for .deb packages');
+        }
+        if (/rpmbuild|\.rpm/i.test(s)) {
+            return t('generator.toolchain_rpm', 'rpmbuild required for .rpm packages');
+        }
+        if (/mesa|opengl|libGL|WGL/i.test(s)) {
+            return t('generator.toolchain_mesa', 'Mesa/OpenGL support needed for Windows GUI builds');
+        }
+        if (/mingw|x86_64-w64-mingw|gcc|cgo/i.test(s)) {
+            return t('generator.toolchain_cgo', 'CGO / mingw cross-compiler required for Windows Fyne builds');
+        }
+        return t('generator.build_error_hint', 'Build error');
+    }
+
     function renderBuilds(builds) {
         state.currentBuilds = builds || [];
         const listEl = els['gen-builds-list'];
@@ -318,15 +344,31 @@
                     <tr>
                         <th>${escapeText(t('generator.builds_title', 'Client builds'))}</th>
                         <th>${escapeText(t('common.status', 'Status'))}</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     ${rows.map(b => {
-                        const err = b.error_message ? `<div class="build-error" title="${escapeText(b.error_message)}">${escapeText(b.error_message)}</div>` : '';
+                        const hint = b.error_message
+                            ? `<div class="build-error-hint">${escapeText(classifyBuildErrorClient(b.error_message))}</div>`
+                            : '';
+                        const err = b.error_message
+                            ? `<div class="build-error" title="${escapeText(b.error_message)}">${escapeText(b.error_message)}</div>`
+                            : '';
+                        const retry = b.status === 'failed'
+                            ? `<button type="button" class="btn btn-ghost btn-xs gen-retry-build"
+                                data-platform="${escapeText(b.platform)}"
+                                data-arch="${escapeText(b.arch)}"
+                                data-format="${escapeText(b.format)}">
+                                <span class="material-icons">replay</span>
+                                ${escapeText(t('generator.retry_build', 'Retry'))}
+                               </button>`
+                            : '';
                         return `
                             <tr class="build-row build-row--${escapeText(b.status)}">
-                                <td>${escapeText(platformLabel(b.platform, b.arch, b.format))}${err}</td>
+                                <td>${escapeText(platformLabel(b.platform, b.arch, b.format))}${hint}${err}</td>
                                 <td><span class="build-badge build-badge--${escapeText(b.status)}">${escapeText(statusLabel(b.status))}</span></td>
+                                <td class="build-actions">${retry}</td>
                             </tr>
                         `;
                     }).join('')}
@@ -334,7 +376,67 @@
             </table>
         `;
 
+        listEl.querySelectorAll('.gen-retry-build').forEach((btn) => {
+            btn.addEventListener('click', () => retryPlatformBuild(
+                btn.dataset.platform,
+                btn.dataset.arch,
+                btn.dataset.format
+            ));
+        });
+
         scheduleBuildsPoll();
+    }
+
+    async function retryPlatformBuild(platform, arch, format) {
+        if (!state.currentId || state.currentId === 'new') return;
+        try {
+            const res = await api(
+                'POST',
+                `/api/generator/bundles/${encodeURIComponent(state.currentId)}/rebuild/`
+                    + `${encodeURIComponent(platform)}/${encodeURIComponent(arch)}/${encodeURIComponent(format)}`
+            );
+            notify.success(t('generator.retry_queued', 'Platform build queued'));
+            renderBuilds((res && res.data && res.data.builds) || []);
+        } catch (e) {
+            notify.error(e.message);
+        }
+    }
+
+    async function loadToolchainStatus() {
+        const banner = els['gen-toolchain-banner'];
+        if (!banner) return;
+        try {
+            const res = await api('GET', '/api/generator/build-status');
+            const d = (res && res.data) || {};
+            const issues = [];
+            if (!d.workerEnabled) {
+                issues.push(t('generator.toolchain_worker_off', 'Agent build worker is disabled'));
+            }
+            if (!d.goHealthy) {
+                issues.push(t('generator.toolchain_go_missing', 'Go is not available'));
+            }
+            if (!d.msiBuilder) {
+                issues.push(t('generator.toolchain_msi_missing', 'MSI builder (wixl) not found'));
+            }
+            if (d.rebuildPending) {
+                issues.push(
+                    t('generator.rebuild_pending_banner', 'A generator rebuild is pending')
+                        .replace('{{reason}}', d.rebuildPending.reason || 'update')
+                );
+            }
+            if (issues.length) {
+                banner.className = 'toolchain-banner toolchain-banner--warn';
+                banner.textContent = issues.join(' · ');
+                banner.classList.remove('hidden');
+            } else {
+                banner.className = 'toolchain-banner toolchain-banner--ok';
+                banner.textContent = t('generator.toolchain_banner_ok', 'Build toolchain ready (Go {{go}}).')
+                    .replace('{{go}}', d.goBin || 'go');
+                banner.classList.remove('hidden');
+            }
+        } catch (_) {
+            banner.classList.add('hidden');
+        }
     }
 
     async function refreshBuilds() {
@@ -548,6 +650,7 @@
             await loadBundles();
             if (res && res.data && res.data.bundle) {
                 setEditorForBundle(res.data.bundle);
+                refreshBuilds().catch(() => {});
             }
         } catch (e) {
             const errs = (e.data && e.data.errors) || [e.message];
@@ -714,6 +817,7 @@
         bindEvents();
         await loadConnectionDefaults();
         await loadPlatformLabels();
+        loadToolchainStatus().catch(() => {});
         loadBundles();
     }
 

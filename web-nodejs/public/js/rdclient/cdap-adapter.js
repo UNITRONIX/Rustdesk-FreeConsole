@@ -203,19 +203,26 @@
                 start: () => { /* keyboard/mouse are bound on connect */ },
                 stop:  () => { this._releaseAllKeys(false); },
                 resetKeyboard: () => { this._releaseAllKeys(true); },
-                blockInput: () => false,
-                setBlockInput: () => false,
+                blockInput: () => this._blockInput,
+                setBlockInput: (b) => this.setBlockInput(b),
             };
-            // No-op file transfer stub (PR 2.5 will wire real CDAP file
-            // transfer). Keeps the toolbar callbacks in `remote.js` from
-            // throwing when the operator clicks file-browser buttons.
-            this.fileTransfer = {
-                browseParent: () => this._emit('log', 'File browser is not yet supported over CDAP.'),
-                browseDir:    () => this._emit('log', 'File browser is not yet supported over CDAP.'),
-                cancelTransfer: () => false,
-                upload: () => false,
-                download: () => false,
-            };
+            this.fileTransfer = (typeof CDAPFileTransfer !== 'undefined')
+                ? new CDAPFileTransfer({
+                    deviceId: this.deviceId,
+                    emit: (event, data) => this._emit(event, data),
+                })
+                : {
+                    browseParent: () => this._emit('log', 'CDAP file transfer script not loaded.'),
+                    browseDir:    () => this._emit('log', 'CDAP file transfer script not loaded.'),
+                    cancelTransfer: () => false,
+                    uploadFile: () => -1,
+                    downloadFile: () => -1,
+                    get currentPath() { return '/'; },
+                };
+            this._chatWs = null;
+            this._audioMuted = true;
+            this._blockInput = false;
+            this._clipboardDisabled = false;
 
             this._ws = null;
             this._connected = false;
@@ -331,6 +338,8 @@
             });
             ws.addEventListener('close',   (e) => this._handleClose(e));
 
+            this._connectChat();
+
             // Phase 3: don't let the operator stare at "Connecting…" forever.
             // If the agent never replies with `ready` (e.g. screen capture
             // permission denied, agent offline, no admin role on device),
@@ -351,6 +360,11 @@
             this._stopPresencePing();
             this._stopStats();
             this._closeVideoDecoder();
+            this._closeChat();
+            this._setAudioActive(false);
+            if (this.fileTransfer && typeof this.fileTransfer.close === 'function') {
+                try { this.fileTransfer.close(); } catch { /* ignore */ }
+            }
             if (this._readyTimer) { clearTimeout(this._readyTimer); this._readyTimer = null; }
             if (this._ws && this._ws.readyState !== WebSocket.CLOSED) {
                 try { this._ws.close(1000, 'client_disconnect'); }
@@ -405,9 +419,19 @@
         setShowRemoteCursor(b)   { this._send({ type: 'show_cursor', enabled: !!b }); }
         setLockAfterSession(b)   { this._send({ type: 'lock_after_session', enabled: !!b }); }
         setPrivacyMode(b)        { this._send({ type: 'privacy_mode', enabled: !!b }); }
-        setDisableClipboard(b)   { this._send({ type: 'disable_clipboard', enabled: !!b }); }
-        setBlockInput(b)         { this._send({ type: 'block_input', enabled: !!b }); }
-        setAudioMuted(_b)        { /* audio is handled via separate /audio WS */ }
+        setDisableClipboard(b) {
+            this._clipboardDisabled = !!b;
+            this._clipboardToLocalEnabled = !b && this._sessionActive;
+            this._send({ type: 'disable_clipboard', enabled: !!b });
+        }
+        setBlockInput(b) {
+            this._blockInput = !!b;
+            this._send({ type: 'block_input', enabled: !!b });
+        }
+        setAudioMuted(muted) {
+            this._audioMuted = !!muted;
+            this._setAudioActive(!this._audioMuted);
+        }
 
         /**
          * Mark whether this client is the active tab in the multi-session viewer.
@@ -492,8 +516,98 @@
             if (!text) return false;
             return this.sendText(text);
         }
-        toggleAudio() { /* page-level CDAPAudio handles this */ }
-        sendChat(_msg) { /* not yet relayed via CDAP desktop channel */ }
+        toggleAudio() {
+            this.setAudioMuted(!this._audioMuted);
+            return !this._audioMuted;
+        }
+        sendChat(msg) {
+            const text = String(msg || '').trim();
+            if (!text) return false;
+            if (!this._chatWs || this._chatWs.readyState !== WebSocket.OPEN) {
+                this._connectChat();
+                // Best-effort: queue briefly after reconnect
+                setTimeout(() => {
+                    if (this._chatWs && this._chatWs.readyState === WebSocket.OPEN) {
+                        this._chatWs.send(JSON.stringify({ type: 'message', text }));
+                    }
+                }, 500);
+                return true;
+            }
+            this._chatWs.send(JSON.stringify({ type: 'message', text }));
+            return true;
+        }
+
+        /** @private */
+        _connectChat() {
+            if (this._chatWs && (this._chatWs.readyState === WebSocket.OPEN
+                || this._chatWs.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const url = `${proto}//${window.location.host}/ws/chat-operator/${encodeURIComponent(this.deviceId)}`;
+            let ws;
+            try {
+                ws = new WebSocket(url);
+            } catch (err) {
+                console.warn('[CDAP] chat WS open failed:', err);
+                return;
+            }
+            this._chatWs = ws;
+            ws.addEventListener('message', (ev) => {
+                try {
+                    const frame = JSON.parse(ev.data);
+                    if (frame.type === 'message' && frame.text) {
+                        this._emit('chat', frame.text);
+                    } else if (frame.type === 'history' && Array.isArray(frame.messages)) {
+                        for (const m of frame.messages) {
+                            if (m && m.text && m.from !== 'operator') {
+                                this._emit('chat', m.text);
+                            }
+                        }
+                    }
+                } catch (_) { /* ignore */ }
+            });
+            ws.addEventListener('open', () => {
+                try {
+                    ws.send(JSON.stringify({ type: 'get_history' }));
+                } catch (_) { /* ignore */ }
+            });
+        }
+
+        /** @private */
+        _closeChat() {
+            if (this._chatWs) {
+                try { this._chatWs.close(); } catch (_) { /* ok */ }
+            }
+            this._chatWs = null;
+        }
+
+        /** @private */
+        _setAudioActive(active) {
+            if (typeof window.CDAPAudio === 'undefined') return;
+            const widgetId = 'remote-audio';
+            if (active) {
+                // Ensure a mount point exists for cdap-audio.js
+                let el = document.getElementById('wval-remote-audio');
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = 'wval-remote-audio';
+                    el.className = 'cdap-audio-widget';
+                    el.style.display = 'none';
+                    el.setAttribute('aria-hidden', 'true');
+                    el.innerHTML = '<div class="cdap-audio-status"></div><div class="cdap-audio-level"><div class="cdap-audio-level-fill"></div></div>';
+                    document.body.appendChild(el);
+                }
+                if (!window.CDAPAudio.isActive(this.deviceId, widgetId)) {
+                    window.CDAPAudio.open(this.deviceId, widgetId, { direction: 'receive' });
+                }
+                if (window.CDAPAudio.isMuted(this.deviceId, widgetId)) {
+                    window.CDAPAudio.toggleMute(this.deviceId, widgetId);
+                }
+            } else if (window.CDAPAudio.isActive(this.deviceId, widgetId)) {
+                window.CDAPAudio.close(this.deviceId, widgetId);
+            }
+        }
 
         // Monitors — populated from `monitor_list` control messages.
         getMonitors() { return this._monitors.slice(); }
@@ -941,8 +1055,9 @@
 
         _handleClipboardUpdate(msg) {
             // Mirror device → operator clipboard when the agent allows it.
-            const text = msg.text;
-            if (!text) return;
+            // Server clipboard.go sends `data`; some paths may still use `text`.
+            const text = msg.data || msg.text;
+            if (!text || this._clipboardDisabled) return;
             if (this._clipboardToLocalEnabled && navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).catch(() => { /* permission denied */ });
             }
@@ -1199,7 +1314,7 @@
         _startPresencePing() {
             this._stopPresencePing();
             this._presenceTimer = setInterval(() => {
-                this._send({ type: 'ping', t: Date.now() });
+                this._send({ type: 'presence_ping', t: Date.now() });
             }, PRESENCE_PING_MS);
         }
         _stopPresencePing() {

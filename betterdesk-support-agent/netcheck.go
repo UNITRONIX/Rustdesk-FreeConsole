@@ -43,19 +43,27 @@ func TestConnection(b Branding) ConnCheck {
 	}
 }
 
-// TestConnectionExtended includes enrollment reachability for the device API.
+// TestConnectionExtended includes enrollment reachability for the device API
+// and prefers last-known-good endpoints when available.
 func TestConnectionExtended(b Branding, st *AppState) ExtendedConnCheck {
+	_, cdapProbe := PickWorkingCDAP(b, st)
+	apiBase, apiProbe := PickWorkingAPI(b, st)
 	res := ExtendedConnCheck{
-		CDAP: probeHealth(b.CDAPHealthURL()),
-		API:  probeHealth(b.APIHealthURL()),
+		CDAP: cdapProbe,
+		API:  apiProbe,
 	}
 	if !b.HasConnection() {
 		res.Enrollment = ProbeResult{OK: false, Detail: "no server configured"}
 		return res
 	}
 	deviceID, _, _, _ := st.Snapshot()
-	url := fmt.Sprintf("%s/devices/register/status?device_id=%s", apiBaseURL(b), deviceID)
+	url := fmt.Sprintf("%s/devices/register/status?device_id=%s", apiBase, deviceID)
 	_, latency, err := httpGet(url)
+	if err != nil {
+		// Fallback to branded API base if last-good drifted.
+		url = fmt.Sprintf("%s/devices/register/status?device_id=%s", apiBaseURL(b), deviceID)
+		_, latency, err = httpGet(url)
+	}
 	if err != nil {
 		res.Enrollment = ProbeResult{OK: false, Detail: shortenErr(err.Error()), Latency: latency}
 		return res

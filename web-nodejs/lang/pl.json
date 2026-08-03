@@ -870,7 +870,9 @@
             "slug_invalid": "Krótki link może zawierać tylko małe litery, cyfry i myślniki",
             "slug_too_short": "Krótki link musi mieć co najmniej 2 znaki",
             "slug_too_long": "Krótki link może mieć maksymalnie 32 znaki",
-            "slug_taken": "Ten krótki link jest już używany przez inny pakiet"
+            "slug_taken": "Ten krótki link jest już używany przez inny pakiet",
+            "missing_hash": "Pakiet nie ma hasha brandingu — najpierw zapisz pakiet",
+            "unsupported_platform": "Nieobsługiwana platforma/format do przebudowy"
         },
         "legacy_title": "Generator konfiguracji klienta",
         "config_options": "Opcje konfiguracji",
@@ -899,7 +901,22 @@
         "support_agent_new_bundle": "Nowy bundle Support Agent",
         "product_agent_client": "Agent Client",
         "product_support_agent": "Support",
-        "product_rdclient": "RdClient"
+        "product_rdclient": "RdClient",
+        "retry_build": "Ponów",
+        "retry_queued": "Kompilacja platformy dodana do kolejki",
+        "toolchain_banner_ok": "Toolchain kompilacji gotowy (Go {{go}}).",
+        "toolchain_banner_warn": "Wykryto problemy z toolchinem — niektóre platformy mogą się nie zbudować.",
+        "toolchain_worker_off": "Worker budowania agentów jest wyłączony (AGENT_BUILD_WORKER=off).",
+        "toolchain_go": "Brak lub uszkodzony toolchain Go — zainstaluj/zaktualizuj Go w Ustawienia → Aktualizacje.",
+        "toolchain_wixl": "Do budowania Windows .msi wymagany jest wixl (msitools).",
+        "toolchain_appimage": "Do budowania Linux AppImage wymagany jest appimagetool.",
+        "toolchain_deb": "Do pakietów .deb wymagane są dpkg-deb / fakeroot.",
+        "toolchain_rpm": "Do pakietów .rpm wymagany jest rpmbuild.",
+        "toolchain_mesa": "Do budowania GUI Windows na hostach bez GPU potrzebne jest Mesa/OpenGL.",
+        "toolchain_cgo": "Do budowania Windows Fyne wymagany jest CGO / mingw.",
+        "toolchain_msi_missing": "Nie znaleziono buildera MSI (wixl) — instalatory Windows nie zostaną zbudowane.",
+        "toolchain_go_missing": "Go jest niedostępne — budowanie Support Agent nie jest możliwe.",
+        "rebuild_pending_banner": "Oczekuje przebudowa generatora po ostatniej aktualizacji ({{reason}})."
     },
     "download": {
         "title": "Pobierz Agenta BetterDesk",
@@ -3683,7 +3700,9 @@
         "channel_confirm_switch": "Przełączyć źródło aktualizacji z {from} na {to}? Zainstalowany commit pozostaje do momentu Sprawdź aktualizacje.",
         "more_options": "Więcej opcji",
         "option_advanced": "Opcje zaawansowane",
-        "option_advanced_desc": "Retencja kopii zapasowych, wdrożenie Docker, przebudowa serwera i strategia aktualizacji"
+        "option_advanced_desc": "Retencja kopii zapasowych, wdrożenie Docker, przebudowa serwera i strategia aktualizacji",
+        "agent_rebuild_queued": "Przebudowa generatora Support Agent w kolejce dla {{count}} pakietów (zsynchronizowano {{staged}}/{{paths}} plików źródłowych).",
+        "agent_source_sync_failed": "Synchronizacja źródeł Support Agent nie powiodła się — przebudowa generatora może być niepełna."
     },
     "accessibility": {
         "title": "Dostępność",

@@ -64,8 +64,5 @@
   "totp_disabled_success": "已禁用雙因素認證",
   "totp_setup_failed": "無法開始 2FA 設置",
   "totp_required": "需要雙因素認證",
-  "totp_wrong_code": "2FA 驗證碼無效",
-  "meta": {
-    "author": "UNITRONIX (recreated under AGPL-3.0)"
-  }
+  "totp_wrong_code": "2FA 驗證碼無效"
 }

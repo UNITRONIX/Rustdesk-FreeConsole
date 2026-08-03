@@ -3839,8 +3839,20 @@
             const failed  = result.failed?.length || 0;
             const removed = result.removed?.length || 0;
             logUpdate(`${_('updates.applied')}: ${applied} · ${_('updates.failed')}: ${failed} · ${_('updates.removed')}: ${removed}`);
+            if (result.agentRebuildQueued) {
+                logUpdate(
+                    _('updates.agent_rebuild_queued')
+                        .replace('{{count}}', String(result.agentRebuildBundles ?? '?'))
+                        .replace('{{staged}}', String(result.agentSourcesStaged ?? 0))
+                        .replace('{{paths}}', String(result.agentSourcePaths ?? 0))
+                );
+            }
             for (const item of (result.failed || [])) {
-                logUpdate(`${item.file}: ${item.error || ''}`);
+                if (item.file === 'support-agent-source-sync') {
+                    logUpdate(`${_('updates.agent_source_sync_failed')} ${item.error || ''}`);
+                } else {
+                    logUpdate(`${item.file}: ${item.error || ''}`);
+                }
             }
             for (const item of (result.servicesFailed || [])) {
                 logUpdate(`${item.service}: ${item.error || ''}`);

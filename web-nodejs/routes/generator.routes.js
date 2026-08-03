@@ -353,6 +353,53 @@ router.post('/api/generator/bundles/:bundleId/rebuild', requireAuth, requireAdmi
     }
 });
 
+router.post(
+    '/api/generator/bundles/:bundleId/rebuild/:platform/:arch/:format',
+    requireAuth,
+    requireAdmin,
+    async (req, res) => {
+        try {
+            const row = await db.getAgentBundle(req.params.bundleId);
+            if (!row) return res.status(404).json({ success: false, error: req.t('errors.not_found') });
+            if (row.revoked) {
+                return res.status(400).json({ success: false, error: req.t('generator.errors.rebuild_revoked') });
+            }
+            if (!row.branding_hash) {
+                return res.status(400).json({ success: false, error: req.t('generator.errors.missing_hash') });
+            }
+            const worker = resolveBuildWorker(row.product_type);
+            const requeueFn = worker.requeuePlatformBuild || buildWorker.requeuePlatformBuild;
+            const result = await requeueFn(
+                row.branding_hash,
+                req.params.platform,
+                req.params.arch,
+                req.params.format
+            );
+            if (!result.success) {
+                const errKey = result.error === 'unsupported_platform'
+                    ? 'generator.errors.unsupported_platform'
+                    : 'errors.bad_request';
+                return res.status(400).json({ success: false, error: req.t(errKey) });
+            }
+            const builds = await db.listAgentBundleBuildsForHash(row.branding_hash);
+            res.json({ success: true, data: { builds: builds || [] } });
+        } catch (err) {
+            console.error('[generator] rebuild platform error:', err);
+            res.status(500).json({ success: false, error: req.t('errors.server_error') });
+        }
+    }
+);
+
+router.get('/api/generator/build-status', requireAuth, requireAdmin, (req, res) => {
+    try {
+        const status = buildWorker.getBuildWorkerStatus();
+        res.json({ success: true, data: status });
+    } catch (err) {
+        console.error('[generator] build-status error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
 router.post('/api/generator/bundles/:bundleId/revoke', requireAuth, requireAdmin, async (req, res) => {
     try {
         const revoked = req.body.revoked !== false;

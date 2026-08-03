@@ -875,7 +875,9 @@
             "slug_invalid": "Der kurze Link darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten",
             "slug_too_short": "Der kurze Link muss mindestens 2 Zeichen haben",
             "slug_too_long": "Der kurze Link darf höchstens 32 Zeichen haben",
-            "slug_taken": "Dieser kurze Link wird bereits von einem anderen Paket verwendet"
+            "slug_taken": "Dieser kurze Link wird bereits von einem anderen Paket verwendet",
+            "missing_hash": "Bundle has no branding hash — save the bundle first",
+            "unsupported_platform": "Unsupported platform/format for rebuild"
         },
         "legacy_title": "Client-Konfigurationsgenerator",
         "config_options": "Options de configuration",
@@ -903,7 +905,22 @@
         "support_agent_new_bundle": "New Support Agent bundle",
         "product_agent_client": "Agent Client",
         "product_support_agent": "Support",
-        "product_rdclient": "RdClient"
+        "product_rdclient": "RdClient",
+        "retry_build": "Réessayer",
+        "retry_queued": "Compilation de la plateforme mise en file",
+        "toolchain_banner_ok": "Build toolchain ready (Go {{go}}).",
+        "toolchain_banner_warn": "Build toolchain issues detected — some platforms may fail until tools are installed.",
+        "toolchain_worker_off": "Agent build worker is disabled (AGENT_BUILD_WORKER=off).",
+        "toolchain_go": "Go toolchain missing or unhealthy — install/update Go from Settings → Updates.",
+        "toolchain_wixl": "wixl (msitools) required for Windows .msi builds.",
+        "toolchain_appimage": "appimagetool required for Linux AppImage builds.",
+        "toolchain_deb": "dpkg-deb / fakeroot required for .deb packages.",
+        "toolchain_rpm": "rpmbuild required for .rpm packages.",
+        "toolchain_mesa": "Mesa/OpenGL support needed for Windows GUI builds on headless hosts.",
+        "toolchain_cgo": "CGO / mingw cross-compiler required for Windows Fyne builds.",
+        "toolchain_msi_missing": "MSI builder (wixl) not found — Windows installed builds will fail.",
+        "toolchain_go_missing": "Go is not available — Support Agent builds cannot run.",
+        "rebuild_pending_banner": "A generator rebuild is pending from the last update ({{reason}})."
     },
     "download": {
         "title": "BetterDesk Agent herunterladen",
@@ -3687,7 +3704,9 @@
         "channel_confirm_switch": "Update-Quelle von {from} auf {to} wechseln? Installierter Commit bleibt bis „Auf Updates prüfen“.",
         "more_options": "Plus d'options",
         "option_advanced": "Options avancées",
-        "option_advanced_desc": "Rétention des sauvegardes, déploiement Docker, reconstruction du serveur et stratégie de mise à jour"
+        "option_advanced_desc": "Rétention des sauvegardes, déploiement Docker, reconstruction du serveur et stratégie de mise à jour",
+        "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
     },
     "accessibility": {
         "title": "Barrierefreiheit",

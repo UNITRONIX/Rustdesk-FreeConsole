@@ -27,7 +27,9 @@ BetterDesk/
 └── VERSION
 ```
 
-**Out of scope / unsupported for day-to-day work:** `betterdesk-agent/`, `betterdesk-agent-client/`, `betterdesk-support-agent/` (no active support).
+**Active end-user client:** `betterdesk-support-agent/` (Go/Fyne Support Agent) + shared engine `betterdesk-agent/`. Built via Console Generator (`web-nodejs` `agentBuildWorker`).
+
+**Lower priority / not the current product focus:** `betterdesk-agent-client/` (Tauri Agent Client alpha).
 
 ## Core components
 
@@ -37,8 +39,14 @@ Clean-room Go implementation replacing RustDesk `hbbs`+`hbbr`: UDP/TCP/WS signal
 ### `web-nodejs/`
 Node.js management panel: devices, users, policies, updates, remote viewer, i18n (26 locales). Talks to the Go API. Runtime: Node.js **22+** (Docker/CI/installers target **24 LTS**).
 
+### `betterdesk-support-agent/`
+Inbound-only end-user Support Agent (Go + Fyne). Branded installers produced by the panel Generator (Windows `.exe`/`.msi`, Linux portable/AppImage/`.deb`/`.rpm`). Connects via CDAP for Web Remote sessions; per-device enrollment; supervised/unattended access.
+
+### `betterdesk-agent/`
+Shared CDAP OS-agent engine (desktop, files, terminal, clipboard, audio) embedded by Support Agent.
+
 ### `rdclient-desktop/`
-Tauri 2 desktop client that hosts the panel remote UI. Vendored `wry` patch + documented glib/`RUSTSEC` ignore until GTK stack migration.
+Tauri 2 **operator** desktop shell that hosts the panel remote UI. Vendored `wry` patch + documented glib/`RUSTSEC` ignore until GTK stack migration.
 
 ### `sdks/` + `bridges/`
 CDAP client libraries and sample industrial/IoT bridges. SNMP bridge uses official **`pysnmp` 7.x** (not the legacy `pysnmplib` fork).

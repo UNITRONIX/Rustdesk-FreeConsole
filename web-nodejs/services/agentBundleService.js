@@ -174,6 +174,18 @@ function validateBranding(input = {}) {
 
     out.allow_unattended = !!(input.allow_unattended ?? input.allowUnattended ?? false);
 
+    // Incoming capability defaults (Support Agent). Omitted keys default to true.
+    const capsIn = input.capabilities && typeof input.capabilities === 'object' ? input.capabilities : {};
+    const cap = (v, d = true) => (v === undefined || v === null ? d : !!v);
+    out.capabilities = {
+        desktop:   cap(capsIn.desktop, true),
+        files:     cap(capsIn.files, true),
+        clipboard: cap(capsIn.clipboard, true),
+        audio:     cap(capsIn.audio, true),
+        terminal:  cap(capsIn.terminal, true),
+        restart:   cap(capsIn.restart, true),
+    };
+
     out.default_lang = String(input.default_lang || input.defaultLang || 'en');
     if (!SUPPORTED_LANGS.includes(out.default_lang)) {
         out.default_lang = 'en';
@@ -337,6 +349,14 @@ function defaultBranding() {
         status_ready_color: '#22c55e',
         header_text_color: '#ffffff',
         allow_unattended: false,
+        capabilities: {
+            desktop: true,
+            files: true,
+            clipboard: true,
+            audio: true,
+            terminal: true,
+            restart: true,
+        },
         default_lang: 'en',
         server_host: '',
         use_https: conn.defaultUseHttps(),

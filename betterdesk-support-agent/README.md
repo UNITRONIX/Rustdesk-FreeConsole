@@ -50,17 +50,32 @@ is additionally written with `0600` permissions.
 ## Branding
 
 Appearance and connection details are **baked at build time** by the Console
-"Generator agenta" into `resources/branding.json` (embedded via `go:embed`).
-Fields: `product_name`, `company_name`, `tagline`, `support_email`,
-`primary_color`, `accent_color`, `logo_data_url`, `default_language`,
-`allow_unattended`, `server_address`, `server_key`, `api_key`, and a nested
-`server { address, api_url, public_key }`.
+Generator into `resources/branding.json` (embedded via `go:embed`). Release
+builds **seal** that JSON (AES-GCM) so casual string dumps do not show server
+keys in cleartext. Fields: `product_name`, `company_name`, `tagline`,
+`support_email`, `primary_color`, `accent_color`, `logo_data_url`,
+`default_language`, `allow_unattended`, `capabilities`, `server_address`,
+`server_key`, `api_key`, and nested `server { address, api_url, public_key, cdap_url }`.
 
-Override for local testing without rebuilding:
+Optional build hardening:
+
+```bash
+BETTERDESK_USE_GARBLE=1 ./build.sh -b /tmp/branding.json   # needs garble in PATH
+BETTERDESK_USE_UPX=1 ./build.sh -p windows                 # opt-in; may trip AV
+```
+
+Override for local testing without rebuilding (non-release builds only):
 
 ```bash
 BETTERDESK_AGENT_BRANDING=/path/to/branding.json ./betterdesk-support
 ```
+
+## Connection resilience
+
+The agent remembers the last healthy CDAP WebSocket and API base URL in
+encrypted local state. On start and during “Test connection” it prefers those
+endpoints, then falls back to branding-derived candidates (including TLS
+scheme swaps) so operator-side config churn does not brick end-user installs.
 
 ## Build
 

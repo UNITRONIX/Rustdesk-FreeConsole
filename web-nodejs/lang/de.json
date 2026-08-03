@@ -855,7 +855,9 @@
             "slug_invalid": "Der kurze Link darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten",
             "slug_too_short": "Der kurze Link muss mindestens 2 Zeichen haben",
             "slug_too_long": "Der kurze Link darf höchstens 32 Zeichen haben",
-            "slug_taken": "Dieser kurze Link wird bereits von einem anderen Paket verwendet"
+            "slug_taken": "Dieser kurze Link wird bereits von einem anderen Paket verwendet",
+            "missing_hash": "Bundle hat keinen Branding-Hash — zuerst speichern",
+            "unsupported_platform": "Nicht unterstützte Plattform/Format für Rebuild"
         },
         "legacy_title": "Client-Konfigurationsgenerator",
         "background_color": "Fensterhintergrund",
@@ -899,7 +901,22 @@
         "support_agent_new_bundle": "New Support Agent bundle",
         "product_agent_client": "Agent Client",
         "product_support_agent": "Support",
-        "product_rdclient": "RdClient"
+        "product_rdclient": "RdClient",
+        "retry_build": "Erneut versuchen",
+        "retry_queued": "Plattform-Build in Warteschlange",
+        "toolchain_banner_ok": "Build-Toolchain bereit (Go {{go}}).",
+        "toolchain_banner_warn": "Probleme mit der Build-Toolchain erkannt — einige Plattformen können fehlschlagen.",
+        "toolchain_worker_off": "Agent-Build-Worker ist deaktiviert (AGENT_BUILD_WORKER=off).",
+        "toolchain_go": "Go-Toolchain fehlt oder ist fehlerhaft — Go unter Einstellungen → Updates installieren/aktualisieren.",
+        "toolchain_wixl": "wixl (msitools) für Windows-.msi-Builds erforderlich.",
+        "toolchain_appimage": "appimagetool für Linux-AppImage-Builds erforderlich.",
+        "toolchain_deb": "dpkg-deb / fakeroot für .deb-Pakete erforderlich.",
+        "toolchain_rpm": "rpmbuild für .rpm-Pakete erforderlich.",
+        "toolchain_mesa": "Mesa/OpenGL für Windows-GUI-Builds auf Headless-Hosts erforderlich.",
+        "toolchain_cgo": "CGO / mingw-Cross-Compiler für Windows-Fyne-Builds erforderlich.",
+        "toolchain_msi_missing": "MSI-Builder (wixl) nicht gefunden — Windows-Installer-Builds schlagen fehl.",
+        "toolchain_go_missing": "Go ist nicht verfügbar — Support-Agent-Builds können nicht ausgeführt werden.",
+        "rebuild_pending_banner": "Ein Generator-Rebuild aus dem letzten Update steht aus ({{reason}})."
     },
     "server": {
         "port": "Port",
@@ -3599,7 +3616,9 @@
         "docker_images": "Images",
         "more_options": "Weitere Optionen",
         "option_advanced": "Erweiterte Optionen",
-        "option_advanced_desc": "Backup-Aufbewahrung, Docker-Bereitstellung, Server-Neuaufbau und Update-Strategie"
+        "option_advanced_desc": "Backup-Aufbewahrung, Docker-Bereitstellung, Server-Neuaufbau und Update-Strategie",
+        "agent_rebuild_queued": "Support-Agent-Generator-Rebuild für {{count}} Bundle(s) in Warteschlange ({{staged}}/{{paths}} Quelldateien synchronisiert).",
+        "agent_source_sync_failed": "Support-Agent-Quellsynchronisation fehlgeschlagen — Generator-Rebuild möglicherweise unvollständig."
     },
     "permissions": {
         "title": "Berechtigungen",

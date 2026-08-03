@@ -369,16 +369,104 @@ async function processPendingRebuildOnStartup() {
     try {
         meta = JSON.parse(fs.readFileSync(REBUILD_FLAG_FILE, 'utf8'));
     } catch (_) { /* use defaults */ }
+
+    // Delete the flag only after a successful requeue so a crash mid-requeue
+    // does not lose the pending rebuild.
+    const result = await requeueAllBundleBuilds();
     try {
         fs.unlinkSync(REBUILD_FLAG_FILE);
     } catch (_) { /* ok */ }
-
-    const result = await requeueAllBundleBuilds();
     console.log(
         `[agentBuildWorker] auto-rebuild queued for ${result.bundles} bundle(s)`
         + (meta.reason ? ` (reason: ${meta.reason})` : '')
     );
     return { ...result, reason: meta.reason || 'pending' };
+}
+
+/** Classify a build stderr / error_message for UI hints. */
+function classifyBuildError(msg) {
+    const s = String(msg || '');
+    if (/not in std|Go toolchain|stdlib verification|go:|cannot find package/i.test(s)) {
+        return { kind: 'go', hintKey: 'generator.toolchain_go' };
+    }
+    if (/wixl|msitools|\.wxs/i.test(s)) {
+        return { kind: 'wixl', hintKey: 'generator.toolchain_wixl' };
+    }
+    if (/appimagetool|AppImage/i.test(s)) {
+        return { kind: 'appimage', hintKey: 'generator.toolchain_appimage' };
+    }
+    if (/dpkg-deb|fakeroot|\.deb/i.test(s)) {
+        return { kind: 'deb', hintKey: 'generator.toolchain_deb' };
+    }
+    if (/rpmbuild|\.rpm/i.test(s)) {
+        return { kind: 'rpm', hintKey: 'generator.toolchain_rpm' };
+    }
+    if (/mesa|opengl|libGL|WGL/i.test(s)) {
+        return { kind: 'mesa', hintKey: 'generator.toolchain_mesa' };
+    }
+    if (/mingw|x86_64-w64-mingw|gcc|cgo/i.test(s)) {
+        return { kind: 'cgo', hintKey: 'generator.toolchain_cgo' };
+    }
+    return { kind: 'compile', hintKey: 'generator.build_error_hint' };
+}
+
+/** Force-requeue a single platform build for a branding hash. */
+async function requeuePlatformBuild(brandingHash, platform, arch, format) {
+    if (!brandingHash || !platform || !arch || !format) {
+        return { success: false, error: 'missing_args' };
+    }
+    const allowed = (bundleService.PLATFORMS || []).some(
+        (p) => p.platform === platform && p.arch === arch && p.format === format
+    );
+    if (!allowed) return { success: false, error: 'unsupported_platform' };
+
+    await db.upsertAgentBundleBuild({
+        brandingHash,
+        platform,
+        arch,
+        format,
+        status: 'pending',
+        artifactPath: null,
+        artifactSize: 0,
+        artifactSha256: null,
+        errorMessage: '',
+    });
+    return { success: true };
+}
+
+/** Diagnostics for Generator / Settings panels. */
+function getBuildWorkerStatus() {
+    let rebuildPending = null;
+    if (fs.existsSync(REBUILD_FLAG_FILE)) {
+        try {
+            rebuildPending = JSON.parse(fs.readFileSync(REBUILD_FLAG_FILE, 'utf8'));
+        } catch (_) {
+            rebuildPending = { reason: 'unknown' };
+        }
+    }
+    let sourceStamp = null;
+    if (fs.existsSync(AGENT_SOURCE_STAMP_FILE)) {
+        try {
+            sourceStamp = fs.readFileSync(AGENT_SOURCE_STAMP_FILE, 'utf8').trim();
+        } catch (_) { /* ok */ }
+    }
+    const goBin = getGoBin();
+    return {
+        workerEnabled: process.env.AGENT_BUILD_WORKER !== 'off',
+        goBin,
+        goHealthy: _goBinaryHealthy(goBin),
+        sourceRoot: SOURCE_ROOT,
+        sourceStamp,
+        rebuildPending,
+        mesaDll: _mesaDllPath() || null,
+        msiBuilder: _resolveMsiBuilder(),
+        platforms: (bundleService.PLATFORMS || []).map((p) => ({
+            platform: p.platform,
+            arch: p.arch,
+            format: p.format,
+            label: p.label,
+        })),
+    };
 }
 
 /**
@@ -1096,6 +1184,7 @@ module.exports = {
     requeueAllBundleBuilds,
     rebuildBundleById,
     requeueFailedToolchainBuilds,
+    requeuePlatformBuild,
     markRebuildPending,
     processPendingRebuildOnStartup,
     reconcileAgentSourceDrift,
@@ -1105,5 +1194,7 @@ module.exports = {
     stopWorker,
     getReadyArtifact,
     getGoBin,
+    getBuildWorkerStatus,
+    classifyBuildError,
     _internals: { BUILD_PROFILES, BUILD_CACHE_DIR, ARTIFACT_ROOT, SOURCE_ROOT },
 };

@@ -51,6 +51,10 @@ func (a *Agent) handleDesktopInput(msg *Message) {
 	if !a.hasActiveDesktopStream(evt.SessionID) {
 		return
 	}
+	// block_input is an operator-side lock of the *local* user's input on
+	// Windows-class clients; for CDAP we treat it as "operator has exclusive
+	// control" and still inject operator events. Privacy mode does not
+	// suppress input either — it only affects capture (see desktop stream).
 
 	if err := injectInput(&evt); err != nil {
 		log.Printf("[input] Injection failed (%s): %v", evt.Type, err)

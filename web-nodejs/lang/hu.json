@@ -861,7 +861,9 @@
             "slug_invalid": "A rövid link csak kisbetűket, számokat és kötőjeleket tartalmazhat",
             "slug_too_short": "A rövid linknek legalább 2 karakterből kell állnia",
             "slug_too_long": "A rövid link legfeljebb 32 karakter lehet",
-            "slug_taken": "Ezt a rövid linket már egy másik csomag használja"
+            "slug_taken": "Ezt a rövid linket már egy másik csomag használja",
+            "missing_hash": "Bundle has no branding hash — save the bundle first",
+            "unsupported_platform": "Unsupported platform/format for rebuild"
         },
         "legacy_title": "Klienskonfiguráció-generátor",
         "connection_section": "Szerver kapcsolat",
@@ -905,7 +907,22 @@
         "support_agent_new_bundle": "New Support Agent bundle",
         "product_agent_client": "Agent Client",
         "product_support_agent": "Support",
-        "product_rdclient": "RdClient"
+        "product_rdclient": "RdClient",
+        "retry_build": "Újra",
+        "retry_queued": "Platform build sorba állítva",
+        "toolchain_banner_ok": "Build toolchain ready (Go {{go}}).",
+        "toolchain_banner_warn": "Build toolchain issues detected — some platforms may fail until tools are installed.",
+        "toolchain_worker_off": "Agent build worker is disabled (AGENT_BUILD_WORKER=off).",
+        "toolchain_go": "Go toolchain missing or unhealthy — install/update Go from Settings → Updates.",
+        "toolchain_wixl": "wixl (msitools) required for Windows .msi builds.",
+        "toolchain_appimage": "appimagetool required for Linux AppImage builds.",
+        "toolchain_deb": "dpkg-deb / fakeroot required for .deb packages.",
+        "toolchain_rpm": "rpmbuild required for .rpm packages.",
+        "toolchain_mesa": "Mesa/OpenGL support needed for Windows GUI builds on headless hosts.",
+        "toolchain_cgo": "CGO / mingw cross-compiler required for Windows Fyne builds.",
+        "toolchain_msi_missing": "MSI builder (wixl) not found — Windows installed builds will fail.",
+        "toolchain_go_missing": "Go is not available — Support Agent builds cannot run.",
+        "rebuild_pending_banner": "A generator rebuild is pending from the last update ({{reason}})."
     },
     "server": {
         "port": "Port",
@@ -3605,7 +3622,9 @@
         "docker_images": "Image-ek",
         "more_options": "További beállítások",
         "option_advanced": "Speciális beállítások",
-        "option_advanced_desc": "Biztonsági mentések megőrzése, Docker telepítés, szerver újraépítés és frissítési stratégia"
+        "option_advanced_desc": "Biztonsági mentések megőrzése, Docker telepítés, szerver újraépítés és frissítési stratégia",
+        "agent_rebuild_queued": "Support Agent generator rebuild queued for {{count}} bundle(s) ({{staged}}/{{paths}} source files synced).",
+        "agent_source_sync_failed": "Support Agent source sync failed — generator rebuild may be incomplete."
     },
     "permissions": {
         "title": "Engedélyek",

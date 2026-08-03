@@ -28,6 +28,7 @@ func main() {
 	)
 	flag.Parse()
 
+	antiDebugChecks()
 	prepWindowsGraphics()
 	prepLinuxDisplay()
 

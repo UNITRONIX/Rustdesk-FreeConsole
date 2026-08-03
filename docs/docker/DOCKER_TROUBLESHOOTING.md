@@ -521,6 +521,37 @@ docker run ... \
   ghcr.io/unitronix/betterdesk:<tag>
 ```
 
+### Problem: Browser shows `SSL_ERROR_RX_RECORD_TOO_LONG` (or Chrome “ERR_SSL_PROTOCOL_ERROR”)
+
+**Symptom:** After a fresh Docker install or `docker compose pull`, Firefox Advanced details show:
+
+```text
+SSL_ERROR_RX_RECORD_TOO_LONG
+The page you are trying to view cannot be shown because the authenticity
+of the received data could not be verified.
+```
+
+Chrome/Edge often report `ERR_SSL_PROTOCOL_ERROR` for the same case.
+
+**Cause:** The browser used **HTTPS** against a port that speaks plain **HTTP**. Official GHCR quick-start / all-in-one images serve the web panel as **HTTP on port 5000** by default (`HTTPS_ENABLED` is off). Common triggers (#299):
+
+- Opening `https://<host>:5000` (bookmark, autocomplete, Portainer “Open”)
+- Mapping host **443 → container 5000** and browsing `https://…` without a TLS terminator
+- A reverse proxy that forwards TLS to the panel without terminating SSL
+
+**Fix:**
+
+1. Use **`http://<host>:5000`** (not `https://`).
+2. Confirm the panel is up over HTTP:
+   ```bash
+   curl -v http://127.0.0.1:5000/health
+   docker compose logs --tail=80
+   ```
+   Expect a healthy HTTP response and a startup banner showing **HTTP**.
+3. Correct Portainer / compose port maps so host 443 is not pointed at the plain-HTTP panel port unless a proxy terminates TLS.
+
+**If you need TLS:** put nginx / Traefik / Caddy in front, or enable panel HTTPS (`HTTPS_ENABLED` + certs) — see [DOCKER_QUICKSTART — SSL/TLS](DOCKER_QUICKSTART.md#ssltls) and [HTTPS_SETUP.md](../setup/HTTPS_SETUP.md).
+
 ### Problem: "Database not found"
 ```bash
 # Check volumes
