@@ -1324,7 +1324,8 @@
         "file_status_folder_uploaded": "Mapp uppladdad",
         "file_status_folder_downloaded": "Mapp nedladdad",
         "file_status_current_file": "Aktuell: {name}",
-        "file_folder_download_desktop_only": "Mappnedladdning kräver RdClient desktop. Ladda ner filer individuellt eller använd RdClient desktop."
+        "file_folder_download_desktop_only": "Mappnedladdning kräver RdClient desktop. Ladda ner filer individuellt eller använd RdClient desktop.",
+        "cliprdr_use_file_transfer": "Den här mappen är för stor för att klistra in via Urklipp. Använd Filöverföring så att fjärrskrivbordet inte låser sig."
     },
     "branding": {
         "identity_title": "Varumärkesidentitet",

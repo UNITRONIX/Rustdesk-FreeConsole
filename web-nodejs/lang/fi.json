@@ -1324,7 +1324,8 @@
         "file_status_folder_uploaded": "Kansio ladattu",
         "file_status_folder_downloaded": "Kansio ladattu",
         "file_status_current_file": "Nykyinen: {name}",
-        "file_folder_download_desktop_only": "Kansion lataus edellyttää RdClient desktopia. Lataa tiedostot yksitellen tai käytä RdClient desktopia."
+        "file_folder_download_desktop_only": "Kansion lataus edellyttää RdClient desktopia. Lataa tiedostot yksitellen tai käytä RdClient desktopia.",
+        "cliprdr_use_file_transfer": "Tämä kansio on liian suuri liitettäväksi leikepöydältä. Käytä Tiedostonsiirtoa, jotta etätyöpöytä ei jäädy."
     },
     "branding": {
         "identity_title": "Brändin identiteetti",

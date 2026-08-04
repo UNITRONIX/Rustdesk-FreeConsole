@@ -309,6 +309,7 @@
             }
 
             var signature = sync.signature || '';
+            var tooLarge = !!(sync.tooLarge || sync.too_large);
             // DnD paths must always re-advertise + auto-paste even if signature matches
             // a prior clipboard copy of the same files.
             var forceAdvertise = !!(paths && paths.length);
@@ -316,6 +317,26 @@
                 return sync;
             }
             client._cliprdrLocalSignature = signature;
+
+            // Large folder trees freeze remote Explorer over the shared desktop
+            // relay — refuse Cliprdr and steer to dedicated File transfer.
+            if (tooLarge) {
+                console.warn(
+                    '[RDCliprdr] selection too large for Cliprdr paste (' +
+                    (sync.entryCount || sync.entry_count || '?') + ' entries / ' +
+                    (sync.totalBytes || sync.total_bytes || '?') +
+                    ' bytes) — use File transfer'
+                );
+                try {
+                    client._emit('cliprdr_too_large', {
+                        signature: signature,
+                        entryCount: Number(sync.entryCount != null ? sync.entryCount : (sync.entry_count || 0)),
+                        totalBytes: Number(sync.totalBytes != null ? sync.totalBytes : (sync.total_bytes || 0))
+                    });
+                } catch (_) { /* ignore */ }
+                return sync;
+            }
+
             debugLog('FormatList', paths ? paths.length + ' path(s)' : 'clipboard');
             if (client._cliprdrFormatNames == null) {
                 client._cliprdrFormatNames = await desktopInvoke('desktop_clipboard_format_names').catch(function () { return null; });
@@ -740,7 +761,14 @@
                 client._sendPeerMessage(client.proto.buildCliprdrFormatDataResponse(CB_RESPONSE_OK, bytes));
                 await yieldToUi();
             } catch (err) {
+                var msg = err && err.message ? err.message : String(err || '');
                 console.warn('[RDCliprdr] format data failed:', err);
+                if (/cliprdr_too_large/i.test(msg)) {
+                    try {
+                        client._emit('cliprdr_too_large', { signature: client._cliprdrLocalSignature || '' });
+                    } catch (_) { /* ignore */ }
+                }
+                // Fail fast so remote Explorer Paste unsticks instead of hanging.
                 client._sendPeerMessage(client.proto.buildCliprdrFormatDataResponse(CB_RESPONSE_FAIL, new Uint8Array(0)));
             }
         }

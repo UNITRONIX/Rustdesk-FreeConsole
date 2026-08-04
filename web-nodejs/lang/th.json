@@ -1324,7 +1324,8 @@
         "file_status_folder_uploaded": "อัปโหลดโฟลเดอร์แล้ว",
         "file_status_folder_downloaded": "ดาวน์โหลดโฟลเดอร์แล้ว",
         "file_status_current_file": "ปัจจุบัน: {name}",
-        "file_folder_download_desktop_only": "การดาวน์โหลดโฟลเดอร์ต้องใช้ RdClient เดสก์ท็อป ดาวน์โหลดไฟล์ทีละไฟล์ หรือใช้ RdClient เดสก์ท็อป"
+        "file_folder_download_desktop_only": "การดาวน์โหลดโฟลเดอร์ต้องใช้ RdClient เดสก์ท็อป ดาวน์โหลดไฟล์ทีละไฟล์ หรือใช้ RdClient เดสก์ท็อป",
+        "cliprdr_use_file_transfer": "โฟลเดอร์นี้ใหญ่เกินไปสำหรับการวางจากคลิปบอร์ด ใช้การถ่ายโอนไฟล์เพื่อไม่ให้เดสก์ท็อตรีโมตค้าง"
     },
     "branding": {
         "identity_title": "เอกลักษณ์ของแบรนด์",

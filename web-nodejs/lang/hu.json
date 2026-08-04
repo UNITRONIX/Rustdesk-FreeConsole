@@ -1324,7 +1324,8 @@
         "file_status_folder_uploaded": "Mappa feltöltve",
         "file_status_folder_downloaded": "Mappa letöltve",
         "file_status_current_file": "Aktuális: {name}",
-        "file_folder_download_desktop_only": "A mappa letöltéséhez RdClient desktop szükséges. Töltse le a fájlokat egyenként, vagy használja az RdClient desktopot."
+        "file_folder_download_desktop_only": "A mappa letöltéséhez RdClient desktop szükséges. Töltse le a fájlokat egyenként, vagy használja az RdClient desktopot.",
+        "cliprdr_use_file_transfer": "Ez a mappa túl nagy a vágólapos beillesztéshez. Használja a Fájlátvitelt, hogy a távoli asztal ne fagyjon le."
     },
     "branding": {
         "identity_title": "Márkaidentitás",

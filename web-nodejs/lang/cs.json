@@ -1318,7 +1318,8 @@
         "file_status_folder_uploaded": "Složka nahrána",
         "file_status_folder_downloaded": "Složka stažena",
         "file_status_current_file": "Aktuální: {name}",
-        "file_folder_download_desktop_only": "Stahování složek vyžaduje RdClient desktop. Stáhněte soubory jednotlivě, nebo použijte RdClient desktop."
+        "file_folder_download_desktop_only": "Stahování složek vyžaduje RdClient desktop. Stáhněte soubory jednotlivě, nebo použijte RdClient desktop.",
+        "cliprdr_use_file_transfer": "Tato složka je příliš velká pro vložení ze schránky. Použijte Přenos souborů, aby vzdálená plocha nezamrzla."
     },
     "branding": {
         "identity_title": "Identita značky",

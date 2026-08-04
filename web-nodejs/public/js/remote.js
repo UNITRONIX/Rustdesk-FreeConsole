@@ -1199,6 +1199,17 @@
             console.warn('[Remote] Signature warning:', msg);
             showSecurityWarning(session, msg, 'warning');
         });
+        c.on('cliprdr_too_large', (info) => {
+            const sig = (info && info.signature) || '';
+            if (sig && session._cliprdrTooLargeToastSig === sig) return;
+            if (sig) session._cliprdrTooLargeToastSig = sig;
+            showToast(
+                _('remote.cliprdr_use_file_transfer')
+                || 'This folder is too large for clipboard paste. Use File transfer to avoid freezing the remote desktop.',
+                'warning'
+            );
+        });
+
         c.on('encryption_warning', (msg) => {
             console.warn('[Remote] Encryption warning:', msg);
             showSecurityWarning(session, msg, 'error');

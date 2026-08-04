@@ -1339,7 +1339,8 @@
         "file_status_folder_uploaded": "Folder uploaded",
         "file_status_folder_downloaded": "Folder downloaded",
         "file_status_current_file": "Current: {name}",
-        "file_folder_download_desktop_only": "Folder download requires RdClient desktop. Download files individually, or use RdClient desktop."
+        "file_folder_download_desktop_only": "Folder download requires RdClient desktop. Download files individually, or use RdClient desktop.",
+        "cliprdr_use_file_transfer": "This folder is too large for clipboard paste. Use File transfer to avoid freezing the remote desktop."
     },
     "remote_dashboard": {
         "title": "Remote Desktop Client",

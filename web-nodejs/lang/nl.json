@@ -1318,7 +1318,8 @@
         "file_status_folder_uploaded": "Map geüpload",
         "file_status_folder_downloaded": "Map gedownload",
         "file_status_current_file": "Huidig: {name}",
-        "file_folder_download_desktop_only": "Mapdownload vereist RdClient desktop. Download bestanden afzonderlijk of gebruik RdClient desktop."
+        "file_folder_download_desktop_only": "Mapdownload vereist RdClient desktop. Download bestanden afzonderlijk of gebruik RdClient desktop.",
+        "cliprdr_use_file_transfer": "Deze map is te groot om via het klembord te plakken. Gebruik Bestandsoverdracht om te voorkomen dat het externe bureaublad vastloopt."
     },
     "branding": {
         "identity_title": "Merkidentiteit",

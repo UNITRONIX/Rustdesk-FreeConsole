@@ -1324,7 +1324,8 @@
         "file_status_folder_uploaded": "Mappe lastet opp",
         "file_status_folder_downloaded": "Mappe lastet ned",
         "file_status_current_file": "Gjeldende: {name}",
-        "file_folder_download_desktop_only": "Mappedownload krever RdClient desktop. Last ned filer enkeltvis, eller bruk RdClient desktop."
+        "file_folder_download_desktop_only": "Mappedownload krever RdClient desktop. Last ned filer enkeltvis, eller bruk RdClient desktop.",
+        "cliprdr_use_file_transfer": "Denne mappen er for stor til å lime inn via utklippstavlen. Bruk Filoverføring for å unngå at det eksterne skrivebordet fryser."
     },
     "branding": {
         "identity_title": "Merkeidentitet",

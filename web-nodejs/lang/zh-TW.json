@@ -1335,7 +1335,8 @@
         "file_status_folder_uploaded": "資料夾已上傳",
         "file_status_folder_downloaded": "資料夾已下載",
         "file_status_current_file": "目前：{name}",
-        "file_folder_download_desktop_only": "資料夾下載需要 RdClient 桌面版。請逐一下載檔案，或使用 RdClient 桌面版。"
+        "file_folder_download_desktop_only": "資料夾下載需要 RdClient 桌面版。請逐一下載檔案，或使用 RdClient 桌面版。",
+        "cliprdr_use_file_transfer": "此資料夾太大，不適合透過剪貼簿貼上。請使用檔案傳輸，以免遠端桌面當住。"
     },
     "branding": {
         "identity_title": "品牌標識",

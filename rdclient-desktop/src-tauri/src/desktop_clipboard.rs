@@ -30,6 +30,11 @@ const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
 const LDAP_EPOCH_DELTA: u64 = 116444736000000000;
 const FILEDESCRIPTORW_SIZE: usize = 592;
 
+/// Cliprdr rides the shared desktop relay (video/input). Large folder trees freeze
+/// remote Explorer during Paste — refuse and steer operators to File transfer.
+const CLIPRDR_MAX_ENTRIES: usize = 300;
+const CLIPRDR_MAX_TOTAL_BYTES: u64 = 200 * 1024 * 1024;
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct FileSig {
     size: u64,
@@ -68,6 +73,9 @@ struct ClipFileCache {
     file_list: Vec<LocalFileEntry>,
     files_pdu: Vec<u8>,
     signature: String,
+    too_large: bool,
+    entry_count: u32,
+    total_bytes: u64,
 }
 
 impl Default for ClipFileCache {
@@ -79,6 +87,9 @@ impl Default for ClipFileCache {
             file_list: Vec::new(),
             files_pdu: Vec::new(),
             signature: String::new(),
+            too_large: false,
+            entry_count: 0,
+            total_bytes: 0,
         }
     }
 }
@@ -91,16 +102,24 @@ impl ClipFileCache {
         self.file_list.clear();
         self.files_pdu.clear();
         self.signature.clear();
+        self.too_large = false;
+        self.entry_count = 0;
+        self.total_bytes = 0;
     }
 
     fn result(&self) -> DesktopClipboardSyncResult {
         DesktopClipboardSyncResult {
             // Top-level paths alone mean we have files; the FILEGROUPDESCRIPTOR PDU
             // may still be built lazily on FormatDataRequest.
+            // too_large selections still report has_files so JS can toast, but must
+            // not advertise FormatList / serve FormatData.
             has_files: !self.top_paths.is_empty() || !self.files_pdu.is_empty(),
             signature: self.signature.clone(),
             busy: false,
             paths: Vec::new(),
+            too_large: self.too_large,
+            entry_count: self.entry_count,
+            total_bytes: self.total_bytes,
         }
     }
 }
@@ -125,6 +144,9 @@ static CLIP_CACHE: Mutex<ClipFileCache> = Mutex::new(ClipFileCache {
     file_list: Vec::new(),
     files_pdu: Vec::new(),
     signature: String::new(),
+    too_large: false,
+    entry_count: 0,
+    total_bytes: 0,
 });
 
 static RECEIVE_SESSION: Mutex<Option<ReceiveSession>> = Mutex::new(None);
@@ -139,6 +161,13 @@ pub struct DesktopClipboardSyncResult {
     /// Top-level paths when this result comes from an inbound receive commit.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub paths: Vec<String>,
+    /// True when the selection exceeds Cliprdr safety limits (use File transfer).
+    #[serde(default)]
+    pub too_large: bool,
+    #[serde(default)]
+    pub entry_count: u32,
+    #[serde(default)]
+    pub total_bytes: u64,
 }
 
 #[derive(Serialize)]
@@ -326,26 +355,82 @@ fn open_local_file(relative_root: &Path, path: &Path) -> Result<LocalFileEntry, 
     })
 }
 
+/// Walk a tree until Cliprdr limits are hit. Returns (entries, total_file_bytes, exceeded).
+fn assess_tree(paths: &[PathBuf]) -> Result<(usize, u64, bool), String> {
+    fn walk(
+        path: &Path,
+        entries: &mut usize,
+        bytes: &mut u64,
+        visited: &mut HashSet<PathBuf>,
+    ) -> Result<bool, String> {
+        if visited.contains(path) {
+            return Ok(false);
+        }
+        visited.insert(path.to_path_buf());
+
+        let meta = fs::metadata(path).map_err(store_error)?;
+        *entries += 1;
+        if meta.is_file() {
+            *bytes = bytes.saturating_add(meta.len());
+        }
+        if *entries > CLIPRDR_MAX_ENTRIES || *bytes > CLIPRDR_MAX_TOTAL_BYTES {
+            return Ok(true);
+        }
+        if !meta.is_dir() {
+            return Ok(false);
+        }
+        for entry in fs::read_dir(path).map_err(store_error)? {
+            let entry = entry.map_err(store_error)?;
+            if walk(&entry.path(), entries, bytes, visited)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    let mut entries = 0usize;
+    let mut bytes = 0u64;
+    let mut visited = HashSet::new();
+    for path in paths {
+        if walk(path, &mut entries, &mut bytes, &mut visited)? {
+            return Ok((entries, bytes, true));
+        }
+    }
+    Ok((entries, bytes, false))
+}
+
 fn construct_file_list(paths: &[PathBuf]) -> Result<Vec<LocalFileEntry>, String> {
     fn walk(
         relative_root: &Path,
         path: &Path,
         out: &mut Vec<LocalFileEntry>,
         visited: &mut HashSet<PathBuf>,
+        total_bytes: &mut u64,
     ) -> Result<(), String> {
         if visited.contains(path) {
             return Ok(());
         }
         visited.insert(path.to_path_buf());
 
-        out.push(open_local_file(relative_root, path)?);
-        let meta = fs::metadata(path).map_err(store_error)?;
-        if !meta.is_dir() {
+        if out.len() >= CLIPRDR_MAX_ENTRIES {
+            return Err("cliprdr_too_large".into());
+        }
+
+        let entry = open_local_file(relative_root, path)?;
+        if !entry.is_dir {
+            *total_bytes = total_bytes.saturating_add(entry.size);
+            if *total_bytes > CLIPRDR_MAX_TOTAL_BYTES {
+                return Err("cliprdr_too_large".into());
+            }
+        }
+        let is_dir = entry.is_dir;
+        out.push(entry);
+        if !is_dir {
             return Ok(());
         }
-        for entry in fs::read_dir(path).map_err(store_error)? {
-            let entry = entry.map_err(store_error)?;
-            walk(relative_root, &entry.path(), out, visited)?;
+        for child in fs::read_dir(path).map_err(store_error)? {
+            let child = child.map_err(store_error)?;
+            walk(relative_root, &child.path(), out, visited, total_bytes)?;
         }
         Ok(())
     }
@@ -360,8 +445,15 @@ fn construct_file_list(paths: &[PathBuf]) -> Result<Vec<LocalFileEntry>, String>
 
     let mut out = Vec::new();
     let mut visited = HashSet::new();
+    let mut total_bytes = 0u64;
     for path in paths {
-        walk(&relative_root, path, &mut out, &mut visited)?;
+        walk(
+            &relative_root,
+            path,
+            &mut out,
+            &mut visited,
+            &mut total_bytes,
+        )?;
     }
     Ok(out)
 }
@@ -370,6 +462,9 @@ fn construct_file_list(paths: &[PathBuf]) -> Result<Vec<LocalFileEntry>, String>
 /// every clipboard poll. Copying a large local folder must stay cheap until the
 /// peer actually requests descriptors or file bytes.
 fn ensure_files_materialized(cache: &mut ClipFileCache) -> Result<(), String> {
+    if cache.too_large {
+        return Err("cliprdr_too_large".into());
+    }
     if !cache.files_pdu.is_empty() && !cache.file_list.is_empty() {
         return Ok(());
     }
@@ -377,9 +472,22 @@ fn ensure_files_materialized(cache: &mut ClipFileCache) -> Result<(), String> {
         return Err("no clipboard files cached".into());
     }
     let path_bufs: Vec<PathBuf> = cache.top_paths.iter().map(PathBuf::from).collect();
-    cache.file_list = construct_file_list(&path_bufs)?;
-    cache.files_pdu = build_files_pdu(&cache.file_list);
-    Ok(())
+    match construct_file_list(&path_bufs) {
+        Ok(list) => {
+            cache.entry_count = list.len() as u32;
+            cache.total_bytes = list.iter().filter(|e| !e.is_dir).map(|e| e.size).sum();
+            cache.file_list = list;
+            cache.files_pdu = build_files_pdu(&cache.file_list);
+            Ok(())
+        }
+        Err(err) if err == "cliprdr_too_large" => {
+            cache.too_large = true;
+            cache.file_list.clear();
+            cache.files_pdu.clear();
+            Err(err)
+        }
+        Err(err) => Err(err),
+    }
 }
 
 fn build_files_pdu(file_list: &[LocalFileEntry]) -> Vec<u8> {
@@ -672,6 +780,9 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
             signature: String::new(),
             busy: false,
             paths: Vec::new(),
+            too_large: false,
+            entry_count: 0,
+            total_bytes: 0,
         });
     }
 
@@ -683,14 +794,36 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
         return Ok(cache.result());
     }
 
-    // Record paths only. Directory trees are walked lazily in
-    // ensure_files_materialized() when FormatData/FileContents is requested.
+    // Record paths; assess size for outbound Cliprdr (not inbound Received cache).
+    // Full FILEGROUPDESCRIPTOR is still built lazily on FormatDataRequest.
     cache.file_list.clear();
     cache.files_pdu.clear();
     cache.source = source;
-    cache.top_paths = paths;
+    cache.top_paths = paths.clone();
     cache.sigs = sigs;
     cache.signature = signature;
+    cache.too_large = false;
+    cache.entry_count = 0;
+    cache.total_bytes = 0;
+
+    if source != CacheSource::Received {
+        let path_bufs: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+        match assess_tree(&path_bufs) {
+            Ok((entries, bytes, exceeded)) => {
+                cache.entry_count = entries.min(u32::MAX as usize) as u32;
+                cache.total_bytes = bytes;
+                cache.too_large = exceeded;
+                if exceeded {
+                    eprintln!(
+                        "[desktop_clipboard] Cliprdr refusal: {entries} entries / {bytes} bytes exceeds limits — use File transfer"
+                    );
+                }
+            }
+            Err(err) => {
+                eprintln!("[desktop_clipboard] assess_tree failed: {err}");
+            }
+        }
+    }
 
     Ok(cache.result())
 }
@@ -706,6 +839,9 @@ fn sync_from_clipboard() -> Result<DesktopClipboardSyncResult, String> {
                 signature: cache.signature.clone(),
                 busy: true,
                 paths: Vec::new(),
+                too_large: cache.too_large,
+                entry_count: cache.entry_count,
+                total_bytes: cache.total_bytes,
             })
         }
         ClipboardPathsRead::Empty => sync_from_paths(Vec::new(), CacheSource::Clipboard),
@@ -1027,5 +1163,24 @@ mod tests {
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].0, "folder");
         assert!(parsed[0].2);
+    }
+
+    #[test]
+    fn assess_tree_flags_too_many_entries() {
+        let dir = std::env::temp_dir().join(format!(
+            "betterdesk-cliprdr-assess-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("mkdir");
+        // Root + files → exceed CLIPRDR_MAX_ENTRIES quickly.
+        for i in 0..(CLIPRDR_MAX_ENTRIES + 5) {
+            fs::write(dir.join(format!("f{i}.txt")), b"x").expect("write");
+        }
+        let (entries, _bytes, exceeded) =
+            assess_tree(&[dir.clone()]).expect("assess");
+        let _ = fs::remove_dir_all(&dir);
+        assert!(exceeded, "expected too-large, got entries={entries}");
+        assert!(entries > CLIPRDR_MAX_ENTRIES);
     }
 }

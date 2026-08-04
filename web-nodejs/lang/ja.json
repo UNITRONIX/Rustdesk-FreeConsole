@@ -1318,7 +1318,8 @@
         "file_status_folder_uploaded": "フォルダーをアップロードしました",
         "file_status_folder_downloaded": "フォルダーをダウンロードしました",
         "file_status_current_file": "現在: {name}",
-        "file_folder_download_desktop_only": "フォルダーのダウンロードには RdClient デスクトップが必要です。ファイルを個別にダウンロードするか、RdClient デスクトップを使用してください。"
+        "file_folder_download_desktop_only": "フォルダーのダウンロードには RdClient デスクトップが必要です。ファイルを個別にダウンロードするか、RdClient デスクトップを使用してください。",
+        "cliprdr_use_file_transfer": "このフォルダーはクリップボード貼り付けには大きすぎます。リモートデスクトップのフリーズを避けるため、ファイル転送を使用してください。"
     },
     "branding": {
         "identity_title": "ブランドアイデンティティ",

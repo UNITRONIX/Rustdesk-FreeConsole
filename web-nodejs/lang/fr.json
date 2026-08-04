@@ -1335,7 +1335,8 @@
         "file_status_folder_uploaded": "Dossier téléversé",
         "file_status_folder_downloaded": "Dossier téléchargé",
         "file_status_current_file": "En cours : {name}",
-        "file_folder_download_desktop_only": "Le téléchargement de dossier nécessite RdClient desktop. Téléchargez les fichiers un par un, ou utilisez RdClient desktop."
+        "file_folder_download_desktop_only": "Le téléchargement de dossier nécessite RdClient desktop. Téléchargez les fichiers un par un, ou utilisez RdClient desktop.",
+        "cliprdr_use_file_transfer": "Ce dossier est trop volumineux pour coller via le presse-papiers. Utilisez le transfert de fichiers pour éviter de figer le bureau distant."
     },
     "branding": {
         "identity_title": "Identité de marque",

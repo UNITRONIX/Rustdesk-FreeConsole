@@ -1318,7 +1318,8 @@
         "file_status_folder_uploaded": "Carpeta subida",
         "file_status_folder_downloaded": "Carpeta descargada",
         "file_status_current_file": "Actual: {name}",
-        "file_folder_download_desktop_only": "La descarga de carpetas requiere RdClient desktop. Descargue archivos uno a uno o use RdClient desktop."
+        "file_folder_download_desktop_only": "La descarga de carpetas requiere RdClient desktop. Descargue archivos uno a uno o use RdClient desktop.",
+        "cliprdr_use_file_transfer": "Esta carpeta es demasiado grande para pegar desde el portapapeles. Use Transferencia de archivos para no congelar el escritorio remoto."
     },
     "branding": {
         "identity_title": "Identidad de marca",

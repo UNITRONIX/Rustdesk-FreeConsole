@@ -1318,7 +1318,8 @@
         "file_status_folder_uploaded": "Cartella caricata",
         "file_status_folder_downloaded": "Cartella scaricata",
         "file_status_current_file": "Corrente: {name}",
-        "file_folder_download_desktop_only": "Il download delle cartelle richiede RdClient desktop. Scarica i file singolarmente oppure usa RdClient desktop."
+        "file_folder_download_desktop_only": "Il download delle cartelle richiede RdClient desktop. Scarica i file singolarmente oppure usa RdClient desktop.",
+        "cliprdr_use_file_transfer": "Questa cartella è troppo grande per l'incolla dagli Appunti. Usa Trasferimento file per evitare di bloccare il desktop remoto."
     },
     "branding": {
         "identity_title": "Identità del marchio",

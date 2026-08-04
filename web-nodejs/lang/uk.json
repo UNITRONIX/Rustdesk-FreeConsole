@@ -1324,7 +1324,8 @@
         "file_status_folder_uploaded": "Папку завантажено",
         "file_status_folder_downloaded": "Папку завантажено",
         "file_status_current_file": "Поточний: {name}",
-        "file_folder_download_desktop_only": "Завантаження папок потребує RdClient desktop. Завантажте файли окремо або скористайтеся RdClient desktop."
+        "file_folder_download_desktop_only": "Завантаження папок потребує RdClient desktop. Завантажте файли окремо або скористайтеся RdClient desktop.",
+        "cliprdr_use_file_transfer": "Ця папка завелика для вставлення з буфера. Скористайтеся Передачею файлів, щоб віддалений робочий стіл не зависав."
     },
     "branding": {
         "identity_title": "Ідентичність бренду",

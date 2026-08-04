@@ -1325,7 +1325,8 @@
         "file_status_folder_uploaded": "تم رفع المجلد",
         "file_status_folder_downloaded": "تم تنزيل المجلد",
         "file_status_current_file": "الحالي: {name}",
-        "file_folder_download_desktop_only": "يتطلب تنزيل المجلدات تطبيق RdClient لسطح المكتب. نزّل الملفات فرديًا أو استخدم RdClient لسطح المكتب."
+        "file_folder_download_desktop_only": "يتطلب تنزيل المجلدات تطبيق RdClient لسطح المكتب. نزّل الملفات فرديًا أو استخدم RdClient لسطح المكتب.",
+        "cliprdr_use_file_transfer": "هذا المجلد كبير جدًا للصق عبر الحافظة. استخدم نقل الملفات لتجنب تجميد سطح المكتب البعيد."
     },
     "branding": {
         "identity_title": "هوية العلامة التجارية",

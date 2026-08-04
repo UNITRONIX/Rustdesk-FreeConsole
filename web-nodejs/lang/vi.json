@@ -1324,7 +1324,8 @@
         "file_status_folder_uploaded": "Đã tải thư mục lên",
         "file_status_folder_downloaded": "Đã tải thư mục xuống",
         "file_status_current_file": "Hiện tại: {name}",
-        "file_folder_download_desktop_only": "Tải thư mục xuống cần RdClient desktop. Hãy tải từng tệp hoặc dùng RdClient desktop."
+        "file_folder_download_desktop_only": "Tải thư mục xuống cần RdClient desktop. Hãy tải từng tệp hoặc dùng RdClient desktop.",
+        "cliprdr_use_file_transfer": "Thư mục này quá lớn để dán qua clipboard. Hãy dùng Chuyển tệp để tránh làm đơ máy tính từ xa."
     },
     "branding": {
         "identity_title": "Nhận diện thương hiệu",

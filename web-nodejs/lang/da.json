@@ -1324,7 +1324,8 @@
         "file_status_folder_uploaded": "Mappe uploadet",
         "file_status_folder_downloaded": "Mappe downloadet",
         "file_status_current_file": "Aktuel: {name}",
-        "file_folder_download_desktop_only": "Mappedownload kræver RdClient desktop. Download filer enkeltvis, eller brug RdClient desktop."
+        "file_folder_download_desktop_only": "Mappedownload kræver RdClient desktop. Download filer enkeltvis, eller brug RdClient desktop.",
+        "cliprdr_use_file_transfer": "Denne mappe er for stor til at indsætte via udklipsholder. Brug Filoverførsel for at undgå, at den fjernbetjente skrivebord fryser."
     },
     "branding": {
         "identity_title": "Brand Identitet",

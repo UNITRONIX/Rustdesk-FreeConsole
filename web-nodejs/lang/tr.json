@@ -1324,7 +1324,8 @@
         "file_status_folder_uploaded": "Klasör yüklendi",
         "file_status_folder_downloaded": "Klasör indirildi",
         "file_status_current_file": "Geçerli: {name}",
-        "file_folder_download_desktop_only": "Klasör indirme RdClient masaüstünü gerektirir. Dosyaları tek tek indirin veya RdClient masaüstünü kullanın."
+        "file_folder_download_desktop_only": "Klasör indirme RdClient masaüstünü gerektirir. Dosyaları tek tek indirin veya RdClient masaüstünü kullanın.",
+        "cliprdr_use_file_transfer": "Bu klasör panodan yapıştırmak için çok büyük. Uzak masaüstünün donmasını önlemek için Dosya aktarımını kullanın."
     },
     "branding": {
         "identity_title": "Marka Kimliği",

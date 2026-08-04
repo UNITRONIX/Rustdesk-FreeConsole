@@ -1318,7 +1318,8 @@
         "file_status_folder_uploaded": "Ordner hochgeladen",
         "file_status_folder_downloaded": "Ordner heruntergeladen",
         "file_status_current_file": "Aktuell: {name}",
-        "file_folder_download_desktop_only": "Ordner-Download erfordert RdClient Desktop. Einzelne Dateien herunterladen oder RdClient Desktop verwenden."
+        "file_folder_download_desktop_only": "Ordner-Download erfordert RdClient Desktop. Einzelne Dateien herunterladen oder RdClient Desktop verwenden.",
+        "cliprdr_use_file_transfer": "Dieser Ordner ist zu groß für Einfügen über die Zwischenablage. Nutzen Sie Dateiübertragung, damit der Remote-Desktop nicht einfriert."
     },
     "branding": {
         "identity_title": "Markenidentität",

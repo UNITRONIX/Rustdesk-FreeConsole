@@ -1318,7 +1318,8 @@
         "file_status_folder_uploaded": "文件夹已上传",
         "file_status_folder_downloaded": "文件夹已下载",
         "file_status_current_file": "当前：{name}",
-        "file_folder_download_desktop_only": "文件夹下载需要 RdClient 桌面端。请逐个下载文件，或使用 RdClient 桌面端。"
+        "file_folder_download_desktop_only": "文件夹下载需要 RdClient 桌面端。请逐个下载文件，或使用 RdClient 桌面端。",
+        "cliprdr_use_file_transfer": "此文件夹太大，不适合通过剪贴板粘贴。请使用文件传输，以免远程桌面卡住。"
     },
     "branding": {
         "identity_title": "品牌标识",
