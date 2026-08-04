@@ -96,7 +96,13 @@ class RDFileTransfer {
         if (typeof LocalFiles !== 'undefined' && LocalFiles.bytesToBase64) {
             return LocalFiles.bytesToBase64(data);
         }
-        const bytes = data instanceof Uint8Array ? data : new Uint8Array(data || []);
+        const bytes = (typeof LocalFiles !== 'undefined' && LocalFiles.coerceBinaryPayload)
+            ? LocalFiles.coerceBinaryPayload(data)
+            : (data instanceof Uint8Array
+                ? data
+                : (Array.isArray(data) || data instanceof ArrayBuffer
+                    ? new Uint8Array(data)
+                    : new Uint8Array(0)));
         let binary = '';
         const chunk = 0x8000;
         for (let i = 0; i < bytes.length; i += chunk) {
@@ -1751,18 +1757,23 @@ class RDFileTransfer {
         if (!file) return;
 
         const decodeChunkPayload = function (payload) {
+            if (typeof LocalFiles !== 'undefined' && LocalFiles.coerceBinaryPayload) {
+                return LocalFiles.coerceBinaryPayload(payload);
+            }
             if (typeof LocalFiles !== 'undefined' && LocalFiles.base64ToBytes) {
                 return LocalFiles.base64ToBytes(payload);
             }
             if (payload instanceof Uint8Array) return payload;
+            if (payload instanceof ArrayBuffer) return new Uint8Array(payload);
             if (Array.isArray(payload)) return new Uint8Array(payload);
             if (typeof payload === 'string') {
+                // Never `new Uint8Array(base64String)` — that yields length 0.
                 const binary = atob(payload);
                 const out = new Uint8Array(binary.length);
                 for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
                 return out;
             }
-            return new Uint8Array(payload || []);
+            return new Uint8Array(0);
         };
 
         const readSlice = async function (offset, end) {
@@ -1775,7 +1786,15 @@ class RDFileTransfer {
                         length: length
                     })
                     : Promise.reject(new Error('Desktop bridge unavailable')));
-                return decodeChunkPayload(payload);
+                const bytes = decodeChunkPayload(payload);
+                // Desktop returns base64; a missed decode produces length-0 and remote 0 KB shells.
+                if (length > 0 && (!bytes || bytes.length === 0) && offset < file.size) {
+                    throw new Error(
+                        'Empty file chunk at offset ' + offset +
+                        ' (desktop IPC decode failed or file unreadable)'
+                    );
+                }
+                return bytes;
             }
             const slice = file.slice(offset, end);
             return new Uint8Array(await slice.arrayBuffer());
@@ -1789,6 +1808,9 @@ class RDFileTransfer {
             while (offset < file.size && transfer.status === 'transferring') {
                 const end = Math.min(offset + this.BLOCK_SIZE, file.size);
                 const raw = await readSlice(offset, end);
+                if ((end - offset) > 0 && (!raw || raw.length === 0)) {
+                    throw new Error('Upload read returned empty data at offset ' + offset);
+                }
                 const packed = await this._tryCompressBlock(raw, file.name, transfer);
 
                 this._sendMessageSafe(this._proto.buildFileBlock(

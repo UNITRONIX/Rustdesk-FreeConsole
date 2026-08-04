@@ -491,11 +491,22 @@ class RDProtocol {
      * @returns {Object}
      */
     buildCliprdrFormatDataResponse(msgFlags, formatData) {
+        const bytes = formatData instanceof Uint8Array
+            ? formatData
+            : (typeof formatData === 'string'
+                // Callers must pass binary; string here is almost always mistaken base64.
+                // `new Uint8Array(string)` is length 0 — refuse silent empty FormatData.
+                ? (typeof LocalFiles !== 'undefined' && LocalFiles.coerceBinaryPayload
+                    ? LocalFiles.coerceBinaryPayload(formatData)
+                    : new Uint8Array(0))
+                : (Array.isArray(formatData) || formatData instanceof ArrayBuffer
+                    ? new Uint8Array(formatData)
+                    : new Uint8Array(0)));
         return {
             cliprdr: {
                 formatDataResponse: {
                     msgFlags: msgFlags,
-                    formatData: formatData instanceof Uint8Array ? formatData : new Uint8Array(formatData || [])
+                    formatData: bytes
                 }
             }
         };
@@ -508,12 +519,21 @@ class RDProtocol {
      * @returns {Object}
      */
     buildCliprdrFileContentsResponse(msgFlags, streamId, requestedData) {
+        const bytes = requestedData instanceof Uint8Array
+            ? requestedData
+            : (typeof requestedData === 'string'
+                ? (typeof LocalFiles !== 'undefined' && LocalFiles.coerceBinaryPayload
+                    ? LocalFiles.coerceBinaryPayload(requestedData)
+                    : new Uint8Array(0))
+                : (Array.isArray(requestedData) || requestedData instanceof ArrayBuffer
+                    ? new Uint8Array(requestedData)
+                    : new Uint8Array(0)));
         return {
             cliprdr: {
                 fileContentsResponse: {
                     msgFlags: msgFlags,
                     streamId: streamId,
-                    requestedData: requestedData instanceof Uint8Array ? requestedData : new Uint8Array(requestedData || [])
+                    requestedData: bytes
                 }
             }
         };
@@ -827,12 +847,21 @@ class RDProtocol {
      * @returns {Object}
      */
     buildFileBlock(id, fileNum, data, compressed, blkId) {
+        const bytes = data instanceof Uint8Array
+            ? data
+            : (typeof data === 'string'
+                ? (typeof LocalFiles !== 'undefined' && LocalFiles.coerceBinaryPayload
+                    ? LocalFiles.coerceBinaryPayload(data)
+                    : new Uint8Array(0))
+                : (Array.isArray(data) || data instanceof ArrayBuffer
+                    ? new Uint8Array(data)
+                    : new Uint8Array(0)));
         return {
             fileResponse: {
                 block: {
                     id: id,
                     fileNum: fileNum,
-                    data: data,
+                    data: bytes,
                     compressed: !!compressed,
                     blkId: blkId || 0
                 }

@@ -23,14 +23,49 @@
     }
 
     /**
+     * Coerce IPC / File payloads to Uint8Array.
+     *
+     * CRITICAL: never use `new Uint8Array(string)`. In JS that does
+     * `ToIndex(string)` → NaN → length 0, so base64 chunks become empty
+     * buffers and remote files land as 0 KB shells (Cliprdr + File transfer).
+     *
+     * Desktop Tauri commands return standard base64 strings for file chunks;
+     * older builds returned JSON number arrays.
+     *
+     * @param {*} payload
+     * @returns {Uint8Array}
+     */
+    function coerceBinaryPayload(payload) {
+        if (payload == null || payload === '') return new Uint8Array(0);
+        if (payload instanceof Uint8Array) return payload;
+        if (payload instanceof ArrayBuffer) return new Uint8Array(payload);
+        if (Array.isArray(payload)) return new Uint8Array(payload);
+        if (typeof payload === 'string') {
+            try {
+                var binary = atob(payload);
+                var out = new Uint8Array(binary.length);
+                for (var i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+                return out;
+            } catch (err) {
+                throw new Error('Invalid base64 file chunk from desktop bridge');
+            }
+        }
+        // TypedArray views / Buffer-like (must not be a string — handled above).
+        if (typeof payload === 'object' && payload.length != null
+            && typeof payload !== 'string'
+            && !(payload instanceof String)) {
+            return new Uint8Array(payload);
+        }
+        return new Uint8Array(0);
+    }
+
+    /**
      * Encode bytes as standard base64 (chunked to avoid call stack limits).
      * @param {Uint8Array|Array|ArrayBuffer} data
      * @returns {string}
      */
     function bytesToBase64(data) {
-        var bytes = data instanceof Uint8Array
-            ? data
-            : new Uint8Array(data || []);
+        var bytes = coerceBinaryPayload(data);
         var binary = '';
         var chunk = 0x8000;
         for (var i = 0; i < bytes.length; i += chunk) {
@@ -40,16 +75,7 @@
     }
 
     function base64ToBytes(b64) {
-        if (!b64) return new Uint8Array(0);
-        // Legacy: older desktop builds returned Vec<u8> as a number array.
-        if (Array.isArray(b64) || b64 instanceof Uint8Array || b64 instanceof ArrayBuffer) {
-            return b64 instanceof Uint8Array ? b64 : new Uint8Array(b64);
-        }
-        if (typeof b64 !== 'string') return new Uint8Array(0);
-        var binary = atob(b64);
-        var out = new Uint8Array(binary.length);
-        for (var i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
-        return out;
+        return coerceBinaryPayload(b64);
     }
 
     /**
@@ -105,6 +131,7 @@
     LocalFiles.createNativeUploadFile = createNativeUploadFile;
     LocalFiles.bytesToBase64 = bytesToBase64;
     LocalFiles.base64ToBytes = base64ToBytes;
+    LocalFiles.coerceBinaryPayload = coerceBinaryPayload;
 
     Object.defineProperty(LocalFiles.prototype, 'currentPath', {
         get: function () { return this._currentPath; }
@@ -418,7 +445,8 @@
 
     LocalFiles.writeDownload = async function (handle, data) {
         if (!isDesktopBridge() || !handle) return;
-        var bytes = data instanceof Uint8Array ? data : new Uint8Array(data || []);
+        var bytes = coerceBinaryPayload(data);
+        if (!bytes.length) return;
         await desktopInvoke('desktop_download_write', {
             handle: handle,
             dataBase64: bytesToBase64(bytes)

@@ -216,6 +216,41 @@ describe('RDClient file transfer message encoding', () => {
         const decoded = FileAction.decode(FileAction.encode(action).finish()).toJSON();
         expect(decoded.sendConfirm.offsetBlk).toBe(4);
     });
+    it('encodes FileResponse.block with non-empty bytes payload', () => {
+        const payload = Buffer.from('file-block-contents');
+        const msg = Message.fromObject({
+            fileResponse: {
+                block: {
+                    id: 1,
+                    fileNum: 0,
+                    data: payload,
+                    compressed: false,
+                    blkId: 0
+                }
+            }
+        });
+        const decoded = Message.decode(Message.encode(msg).finish());
+        expect(Buffer.from(decoded.fileResponse.block.data).toString()).toBe('file-block-contents');
+    });
+
+    it('encodes FileResponse.block empty when data is mistaken base64 string via Uint8Array trap', () => {
+        // Documents the IPC bug: new Uint8Array(base64String) → length 0 → empty remote file.
+        const b64 = Buffer.from('file-block-contents').toString('base64');
+        expect(new Uint8Array(b64).length).toBe(0);
+        const msg = Message.fromObject({
+            fileResponse: {
+                block: {
+                    id: 1,
+                    fileNum: 0,
+                    data: new Uint8Array(b64),
+                    compressed: false,
+                    blkId: 0
+                }
+            }
+        });
+        const decoded = Message.decode(Message.encode(msg).finish());
+        expect(decoded.fileResponse.block.data.length).toBe(0);
+    });
 });
 
 describe('RDClient KeyEvent protobuf encoding', () => {

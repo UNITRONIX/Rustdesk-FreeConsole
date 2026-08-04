@@ -28,11 +28,16 @@
     }
 
     function toUint8Array(data) {
+        // Prefer shared LocalFiles helper (same base64↔bytes contract as File transfer).
+        if (typeof LocalFiles !== 'undefined' && LocalFiles.coerceBinaryPayload) {
+            return LocalFiles.coerceBinaryPayload(data);
+        }
         if (!data) return new Uint8Array(0);
         if (data instanceof Uint8Array) return data;
         if (data instanceof ArrayBuffer) return new Uint8Array(data);
         if (Array.isArray(data)) return new Uint8Array(data);
         if (typeof data === 'string') return base64ToBytes(data);
+        // NEVER `new Uint8Array(string)` — that yields length 0 and empty remote files.
         return new Uint8Array(0);
     }
 
@@ -53,10 +58,15 @@
 
     function base64ToBytes(b64) {
         if (!b64 || typeof b64 !== 'string') return new Uint8Array(0);
-        var binary = atob(b64);
-        var out = new Uint8Array(binary.length);
-        for (var i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
-        return out;
+        try {
+            var binary = atob(b64);
+            var out = new Uint8Array(binary.length);
+            for (var i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+            return out;
+        } catch (_) {
+            // Invalid base64 must not become a silent empty shell on remote Paste.
+            throw new Error('Invalid base64 from desktop_clipboard IPC');
+        }
     }
 
     /** Let video / ping / input run between Cliprdr chunks (RustDesk keeps this off the UI thread). */
@@ -790,6 +800,14 @@
                     cbRequested: cbRequested
                 });
                 var bytes = toUint8Array(data);
+                // FILECONTENTS_SIZE must be exactly 8 LE bytes. Empty here means the
+                // desktop returned base64 that was decoded as `new Uint8Array(string)`
+                // (length 0) — which produces 0 KB shells on remote Paste.
+                if (dwFlags === FILECONTENTS_SIZE && bytes.length !== 8) {
+                    throw new Error(
+                        'invalid FILECONTENTS_SIZE payload length ' + bytes.length + ' (expected 8)'
+                    );
+                }
                 client._sendPeerMessage(client.proto.buildCliprdrFileContentsResponse(CB_RESPONSE_OK, streamId, bytes));
                 await yieldToUi();
             } catch (err) {
