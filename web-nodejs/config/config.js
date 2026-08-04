@@ -172,7 +172,7 @@ module.exports = {
     rustdeskApiDisableTotpAck: (process.env.RUSTDESK_API_DISABLE_TOTP_ACKNOWLEDGED || 'false').toLowerCase() === 'true',
 
     // Device visibility for non-admin roles: open (legacy overlay ACL) or restricted (default-deny).
-    deviceScopeDefault: (process.env.DEVICE_SCOPE_DEFAULT || 'open').toLowerCase(),
+    deviceScopeDefault: (process.env.DEVICE_SCOPE_DEFAULT || 'restricted').toLowerCase(),
 
     // HTTPS / SSL
     httpsEnabled: (process.env.HTTPS_ENABLED || 'false').toLowerCase() === 'true',

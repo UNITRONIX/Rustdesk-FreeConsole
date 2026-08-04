@@ -6,7 +6,7 @@ const config = require('../config/config');
 let scopeDefaultCache = { value: null, at: 0 };
 
 async function isDeviceScopeRestrictedDefault(db) {
-    const envRestricted = String(config.deviceScopeDefault || 'open').toLowerCase() === 'restricted';
+    const envRestricted = String(config.deviceScopeDefault || 'restricted').toLowerCase() === 'restricted';
     if (!db || typeof db.getSetting !== 'function') return envRestricted;
     const now = Date.now();
     if (scopeDefaultCache.value !== null && now - scopeDefaultCache.at < 30000) {
@@ -233,7 +233,10 @@ async function getDeviceScopeForUser(db, user, devices = []) {
     }
     for (const id of peerGrants) allowedIds.add(String(id));
 
-    if (restrictedDefault) {
+    // Security: once a non-admin has any explicit allowlist entry (folder/group ACL
+    // or peer grant), do not also expose the open-mode "unassigned" overlay — that
+    // leaked the rest of the fleet to operators granted only a subset of devices.
+    if (restrictedDefault || allowedIds.size > 0) {
         return allowedIds;
     }
 

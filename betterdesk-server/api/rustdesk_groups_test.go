@@ -128,18 +128,49 @@ func TestRustDeskVisiblePeerSetOpenModeHidesDeniedFolder(t *testing.T) {
 	peerByID := map[string]*db.Peer{
 		"ALLOW1": {ID: "ALLOW1"},
 		"DENY1":  {ID: "DENY1"},
-		"FREE1":  {ID: "FREE1"}, // unassigned — visible in open mode
+		"FREE1":  {ID: "FREE1"}, // unassigned — must NOT leak once user has any grant
 	}
 
 	visible := srv.rustDeskVisiblePeerSet(user, auth.RoleOperator, peerByID)
 	if visible == nil {
-		t.Fatal("open mode with folders must return an explicit set")
+		t.Fatal("scoped user must return an explicit set")
 	}
-	if !visible["ALLOW1"] || !visible["FREE1"] {
-		t.Fatalf("expected ALLOW1 + FREE1 visible, got %#v", visible)
+	if !visible["ALLOW1"] {
+		t.Fatalf("expected ALLOW1 visible, got %#v", visible)
 	}
-	if visible["DENY1"] {
-		t.Fatalf("DENY1 in other team's folder must be hidden, got %#v", visible)
+	if visible["DENY1"] || visible["FREE1"] {
+		t.Fatalf("DENY1 and unassigned FREE1 must be hidden when user has grants, got %#v", visible)
+	}
+}
+
+func TestRustDeskVisiblePeerSetOpenOverlayOnlyWithoutGrants(t *testing.T) {
+	// Open mode, user has no folder/group/peer grants: unassigned stays visible,
+	// devices in private folders stay hidden.
+	store := &folderACLStore{
+		mockPanelACLStore: mockPanelACLStore{
+			restrictedDefault: false,
+			userIDs:           map[string]int64{"op": 1},
+		},
+		folders:     []db.PanelFolder{{ID: 10, Name: "Private"}},
+		assignments: map[string]int64{"HIDE1": 10},
+		folderACL: map[int64][2][]string{
+			10: {{"admin-only"}, nil},
+		},
+	}
+	srv := &Server{}
+	srv.SetPanelStore(store)
+	user := &db.User{ID: 1, Username: "op", Role: auth.RoleOperator}
+	peerByID := map[string]*db.Peer{
+		"HIDE1": {ID: "HIDE1"},
+		"FREE1": {ID: "FREE1"},
+	}
+
+	visible := srv.rustDeskVisiblePeerSet(user, auth.RoleOperator, peerByID)
+	if visible == nil {
+		t.Fatal("expected explicit open-overlay set")
+	}
+	if !visible["FREE1"] || visible["HIDE1"] {
+		t.Fatalf("open overlay without grants: want FREE1 only, got %#v", visible)
 	}
 }
 

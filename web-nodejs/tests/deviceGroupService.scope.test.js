@@ -7,14 +7,31 @@ describe('deviceGroupService scope (#227)', () => {
         { id: '300', folder_id: null }
     ];
 
-    test('open default returns null when no ACL or grants', async () => {
+    beforeEach(() => {
+        deviceGroupService.invalidateDeviceScopeDefaultCache();
+    });
+
+    test('open setting returns null when no ACL or grants', async () => {
         const db = {
+            getSetting: jest.fn().mockResolvedValue('open'),
             getAllDeviceGroups: jest.fn().mockResolvedValue([]),
             getUserPeerGrants: jest.fn().mockResolvedValue([])
         };
         const user = { id: 5, username: 'op1', role: 'operator' };
         const scope = await deviceGroupService.getDeviceScopeForUser(db, user, devices);
         expect(scope).toBeNull();
+    });
+
+    test('restricted default denies all when no ACL or grants', async () => {
+        const db = {
+            getSetting: jest.fn().mockResolvedValue('restricted'),
+            getAllDeviceGroups: jest.fn().mockResolvedValue([]),
+            getUserPeerGrants: jest.fn().mockResolvedValue([])
+        };
+        const user = { id: 5, username: 'op1', role: 'operator' };
+        const scope = await deviceGroupService.getDeviceScopeForUser(db, user, devices);
+        expect(scope).not.toBeNull();
+        expect(scope.size).toBe(0);
     });
 
     test('empty ACL group denies non-admins and hides member devices', async () => {
@@ -26,6 +43,7 @@ describe('deviceGroupService scope (#227)', () => {
             source_type: 'manual'
         };
         const db = {
+            getSetting: jest.fn().mockResolvedValue('open'),
             getAllDeviceGroups: jest.fn().mockResolvedValue([emptyGroup]),
             getUserGroupsForUser: jest.fn().mockResolvedValue([]),
             getUserPeerGrants: jest.fn().mockResolvedValue([])
@@ -41,8 +59,39 @@ describe('deviceGroupService scope (#227)', () => {
         expect(scope.has('300')).toBe(true);
     });
 
-    test('direct peer grants are always visible in open overlay mode', async () => {
+    test('explicit grants switch to allowlist-only (no unassigned overlay)', async () => {
         const db = {
+            getSetting: jest.fn().mockResolvedValue('open'),
+            getAllDeviceGroups: jest.fn().mockResolvedValue([
+                {
+                    guid: 'folder_1',
+                    folder_id: 1,
+                    allowed_users: ['op1'],
+                    allowed_groups: [],
+                    source_type: 'manual'
+                },
+                {
+                    guid: 'folder_2',
+                    folder_id: 2,
+                    allowed_users: ['other'],
+                    allowed_groups: [],
+                    source_type: 'manual'
+                }
+            ]),
+            getUserGroupsForUser: jest.fn().mockResolvedValue([]),
+            getUserPeerGrants: jest.fn().mockResolvedValue([])
+        };
+        const user = { id: 5, username: 'op1', role: 'operator', user_groups: [] };
+        const scope = await deviceGroupService.getDeviceScopeForUser(db, user, devices);
+        expect(scope).not.toBeNull();
+        expect(scope.has('100')).toBe(true);
+        expect(scope.has('200')).toBe(false);
+        expect(scope.has('300')).toBe(false);
+    });
+
+    test('direct peer grants are allowlist-only in open mode', async () => {
+        const db = {
+            getSetting: jest.fn().mockResolvedValue('open'),
             getAllDeviceGroups: jest.fn().mockResolvedValue([
                 {
                     guid: 'folder_1',
@@ -59,5 +108,7 @@ describe('deviceGroupService scope (#227)', () => {
         const scope = await deviceGroupService.getDeviceScopeForUser(db, user, devices);
         expect(scope).not.toBeNull();
         expect(scope.has('300')).toBe(true);
+        expect(scope.has('100')).toBe(false);
+        expect(scope.has('200')).toBe(false);
     });
 });

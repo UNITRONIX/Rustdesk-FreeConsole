@@ -356,14 +356,22 @@ func (c *ConsoleAuthDB) ListUserPeerGrants(userID int64) ([]string, error) {
 }
 
 // DeviceScopeDefaultRestricted reads panel settings for default-deny device visibility.
+// When unset, defaults to restricted (allowlist-only for non-admins).
 func (c *ConsoleAuthDB) DeviceScopeDefaultRestricted() bool {
+	envDefault := func() bool {
+		env := strings.TrimSpace(os.Getenv("DEVICE_SCOPE_DEFAULT"))
+		if env == "" {
+			return true
+		}
+		return strings.EqualFold(env, "restricted")
+	}
 	if !c.hasTable("settings") {
-		return strings.EqualFold(strings.TrimSpace(os.Getenv("DEVICE_SCOPE_DEFAULT")), "restricted")
+		return envDefault()
 	}
 	var value string
 	err := c.db.QueryRow(`SELECT value FROM settings WHERE key = 'device_scope_default' LIMIT 1`).Scan(&value)
 	if err == sql.ErrNoRows || strings.TrimSpace(value) == "" {
-		return strings.EqualFold(strings.TrimSpace(os.Getenv("DEVICE_SCOPE_DEFAULT")), "restricted")
+		return envDefault()
 	}
 	return strings.EqualFold(strings.TrimSpace(value), "restricted")
 }

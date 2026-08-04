@@ -25,12 +25,14 @@ RustDesk Pro **client features** are controlled separately via **strategy assign
 
 | Mode | Behavior |
 |------|----------|
-| **Open** (default) | Non-admins see devices that are not in a restricted folder/group. Folders and device groups with **no** allowed users/groups are private (hidden from non-admins) until ACL is set. Direct peer grants always apply. |
-| **Restricted** | Non-admins see only explicitly granted devices (Settings → Device visibility default) |
+| **Restricted** (default) | Non-admins see only explicitly granted devices (folder/group ACL or direct peer grants). |
+| **Open** | Non-admins with **no** explicit grants may still see devices that are not in a restricted folder/group. As soon as a user has any folder/group ACL or peer grant, they are allowlist-only (unassigned devices are not exposed). Folders and device groups with **no** allowed users/groups stay private until ACL is set. |
 
 Empty folder/device-group ACL is **deny by default** (admins/`global_admin`/`server_admin` still bypass). Attach allowed users and/or user groups before expecting operators to see those devices.
 
-**Stock RustDesk clients** use the Go Client API (`/api/ab`, `/api/peers`) with the same scope rules as the console. If panel ACL sync is unavailable (no PostgreSQL panel tables / missing `AUTH_DB_PATH` for legacy SQLite), non-admins receive **no** devices (fail closed) — not the full inventory. Prefer **Restricted** when every machine should require an explicit grant.
+**Stock RustDesk clients** use the Go Client API (`/api/ab`, `/api/peers`) with the same scope rules as the console. If panel ACL sync is unavailable (no PostgreSQL panel tables / missing `AUTH_DB_PATH` for legacy SQLite), non-admins receive **no** devices (fail closed) — not the full inventory.
+
+Operators who previously relied on Open + unassigned overlay while also granting specific folders should switch those users to explicit grants only, or keep Open only for accounts with zero ACL attachments.
 
 ## Password and Web Client
 

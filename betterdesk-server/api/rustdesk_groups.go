@@ -316,7 +316,11 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 		allowed[id] = true
 	}
 
-	if restrictedDefault {
+	// Security: once a non-admin has any explicit allowlist entry (folder/group ACL
+	// or peer grant), do not also expose the open-mode "unassigned" overlay. That
+	// leak showed the full fleet to operators who were only granted a subset of
+	// devices (stock RustDesk /api/ab + /api/peers).
+	if restrictedDefault || len(allowed) > 0 {
 		return allowed
 	}
 
