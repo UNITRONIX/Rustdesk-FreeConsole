@@ -1731,18 +1731,29 @@ func (s *Server) relayUnauthorizedResponse(relayServer string) *pb.RendezvousMes
 // Remote proxy (trusted PANEL_SIGNAL_PROXY_CIDRS — typically loopback).
 //
 // Authorization sources (first match wins):
-//  1. Live peer in the in-memory map (UDP/WS heartbeat or TCP RegisterPk IP bind)
-//  2. Same Secure TCP session that already completed RegisterPk (#327)
-//  3. Panel signal-proxy CIDR (Web Remote)
-//  4. Valid BetterDesk client login token on the punch/relay message (#327)
+//  1. Valid BetterDesk client login token on the punch/relay message — username
+//     /password (or LDAP/OIDC) login is sufficient; enrollment / Windows service
+//     is not required for the initiator
+//  2. Panel signal-proxy CIDR (Web Remote)
+//  3. Live peer in the in-memory map (UDP/WS heartbeat or TCP RegisterPk IP bind)
 //
-// Managed and locked modes additionally require an approved DB peer row (pending
-// enrollment alone is not enough). Panel proxy initiators skip peer-map / DB
-// checks: operator auth is enforced at the panel WS upgrade before TCP is
-// bridged to hbbs.
+// Without a login token, managed and locked modes additionally require an
+// approved DB peer row (pending enrollment alone is not enough). Panel proxy
+// initiators skip peer-map / DB checks: operator auth is enforced at the panel
+// WS upgrade before TCP is bridged to hbbs.
 func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token string) (string, bool) {
 	if raddr == nil {
 		return "", false
+	}
+
+	// Login token first: stock RustDesk clients that signed in with panel
+	// credentials may initiate even when not enrolled / service stopped.
+	if id, ok := s.authorizeViaClientToken(token, raddr, targetID); ok {
+		return id, true
+	}
+
+	if s.cfg != nil && s.cfg.IPIsPanelSignalProxy(raddr.IP) {
+		return panelWebRemoteInitiatorID, true
 	}
 
 	initiator := s.peers.FindByIP(raddr.IP)
@@ -1755,17 +1766,11 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 	}
 
 	if initiator == nil || initiator.IsExpired(config.RegTimeout) {
-		if s.cfg != nil && s.cfg.IPIsPanelSignalProxy(raddr.IP) {
-			return panelWebRemoteInitiatorID, true
-		}
-		if id, ok := s.authorizeViaClientToken(token, raddr, targetID); ok {
-			return id, true
-		}
 		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
 		return "", false
 	}
 
-	return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned)
+	return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned, false)
 }
 
 // bindTCPSessionPeer records the peer ID on an open tcpPunchConn so a later
@@ -1804,6 +1809,8 @@ func hashOpaqueClientToken(token string) string {
 
 // authorizeViaClientToken accepts PunchHole/RequestRelay when the stock RustDesk
 // client sends a BetterDesk opaque login token (service may be stopped, #327).
+// A valid panel login is sufficient authorization in all enrollment modes —
+// the initiator does not need an approved peers row.
 func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targetID string) (string, bool) {
 	token = strings.TrimSpace(token)
 	if token == "" || s.db == nil || !opaqueClientTokenRegexp.MatchString(token) {
@@ -1815,23 +1822,19 @@ func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targe
 	}
 	initiatorID := strings.TrimSpace(sess.ClientID)
 	if initiatorID == "" {
-		// Logged-in but device id unknown — open mode only (no enrollment claim).
-		mode := s.cfg.EnrollmentMode
-		if mode == "" {
-			mode = config.EnrollmentModeOpen
-		}
-		if mode == config.EnrollmentModeManaged || mode == config.EnrollmentModeLocked {
-			s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_session_no_device")
-			return "", false
-		}
+		// Logged-in but device id unknown — still authorized via account credentials.
 		return fmt.Sprintf("session-user-%d", sess.UserID), true
 	}
-	return s.finalizeAuthorizedInitiator(initiatorID, raddr, targetID, false)
+	return s.finalizeAuthorizedInitiator(initiatorID, raddr, targetID, false, true)
 }
 
 // finalizeAuthorizedInitiator applies ban / soft-delete / enrollment checks shared
 // by live-peer and token-based authorization paths.
-func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPAddr, targetID string, memoryBanned bool) (string, bool) {
+//
+// viaLoginToken: skip pending/approved-peer enrollment gates — username/password
+// (or LDAP/OIDC) login already proved the initiator is a BetterDesk account.
+// Banned and soft-deleted devices remain refused.
+func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPAddr, targetID string, memoryBanned, viaLoginToken bool) (string, bool) {
 	if memoryBanned {
 		s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
 		return "", false
@@ -1841,10 +1844,12 @@ func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPA
 			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_soft_deleted")
 			return "", false
 		}
-		// Defense in depth: still queued for approval must not initiate (#302 residual).
-		if pending, _ := s.db.GetConfig("pending_device_" + initiatorID); pending != "" {
-			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_pending_enrollment")
-			return "", false
+		if !viaLoginToken {
+			// Defense in depth: still queued for approval must not initiate (#302 residual).
+			if pending, _ := s.db.GetConfig("pending_device_" + initiatorID); pending != "" {
+				s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_pending_enrollment")
+				return "", false
+			}
 		}
 	}
 
@@ -1859,6 +1864,10 @@ func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPA
 		}
 		dbPeer, err := s.db.GetPeer(initiatorID)
 		if err != nil || dbPeer == nil {
+			if viaLoginToken {
+				// Login proved account credentials; enrollment inventory is optional.
+				return initiatorID, true
+			}
 			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_not_enrolled")
 			return "", false
 		}

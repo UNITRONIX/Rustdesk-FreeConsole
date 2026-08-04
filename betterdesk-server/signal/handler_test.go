@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net"
 	"path/filepath"
 	"strings"
@@ -1040,10 +1041,86 @@ func TestClientTokenAuthorizesViewerOnlyPunch(t *testing.T) {
 		t.Fatalf("token auth = (%q, %v), want TOKINIT1", id, ok)
 	}
 
-	// Managed: token alone without approved DB peer must fail.
+	// Managed: username/password login token is enough — enrollment not required.
 	srv.cfg.EnrollmentMode = config.EnrollmentModeManaged
 	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
+	if !ok || id != "TOKINIT1" {
+		t.Fatalf("managed token without DB peer must succeed, got (%q, %v)", id, ok)
+	}
+
+	// Locked: same — login proves account credentials.
+	srv.cfg.EnrollmentMode = config.EnrollmentModeLocked
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
+	if !ok || id != "TOKINIT1" {
+		t.Fatalf("locked token without DB peer must succeed, got (%q, %v)", id, ok)
+	}
+}
+
+func TestClientTokenAuthorizesPendingLivePeer(t *testing.T) {
+	// Logged-in initiator that also has a live (pending) registration must still
+	// be allowed via the login token — enrollment approval is not required.
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTPENDTOK", "203.0.113.96", 52000, peer.ConnTCP)
+	putOnlinePeer(srv, "PENDTOK1", "198.51.100.76", 51000, peer.ConnUDP)
+	if err := database.SetConfig("pending_device_PENDTOK1", `{"device_id":"PENDTOK1"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	user := &db.User{Username: "pendtok", PasswordHash: "hash", Role: "user"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token := strings.Repeat("cd", 32)
+	sum := sha256.Sum256([]byte(token))
+	hash := hex.EncodeToString(sum[:])
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hash,
+		UserID:     user.ID,
+		ClientID:   "PENDTOK1",
+		ClientUUID: "pend-tok-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.76", 51000), "TGTPENDTOK", token)
+	if !ok || id != "PENDTOK1" {
+		t.Fatalf("pending+login token = (%q, %v), want PENDTOK1", id, ok)
+	}
+
+	// Without login token, pending live peer remains blocked (#302).
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.76", 51000), "TGTPENDTOK", "")
 	if ok {
-		t.Fatalf("managed token without DB peer must fail, got %q", id)
+		t.Fatalf("pending without token must fail, got %q", id)
+	}
+}
+
+func TestClientTokenWithoutDeviceIDAuthorizesManaged(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTOK2", "203.0.113.97", 52000, peer.ConnTCP)
+
+	user := &db.User{Username: "nodevice", PasswordHash: "hash", Role: "user"}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token := strings.Repeat("ef", 32)
+	sum := sha256.Sum256([]byte(token))
+	hash := hex.EncodeToString(sum[:])
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hash,
+		UserID:     user.ID,
+		ClientID:   "",
+		ClientUUID: "",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	want := fmt.Sprintf("session-user-%d", user.ID)
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.77", 51000), "TGTOK2", token)
+	if !ok || id != want {
+		t.Fatalf("token auth = (%q, %v), want %q", id, ok, want)
 	}
 }
