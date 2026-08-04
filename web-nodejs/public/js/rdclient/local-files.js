@@ -39,6 +39,19 @@
         return btoa(binary);
     }
 
+    function base64ToBytes(b64) {
+        if (!b64) return new Uint8Array(0);
+        // Legacy: older desktop builds returned Vec<u8> as a number array.
+        if (Array.isArray(b64) || b64 instanceof Uint8Array || b64 instanceof ArrayBuffer) {
+            return b64 instanceof Uint8Array ? b64 : new Uint8Array(b64);
+        }
+        if (typeof b64 !== 'string') return new Uint8Array(0);
+        var binary = atob(b64);
+        var out = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+        return out;
+    }
+
     /**
      * Build a duck-typed File-like object backed by a native read handle.
      * @param {Object} info - { handle, name, size, modifiedTime|modified_time }
@@ -65,10 +78,9 @@
                             handle: handle,
                             offset: offset,
                             length: length
-                        }).then(function (bytes) {
-                            if (bytes instanceof ArrayBuffer) return bytes;
-                            if (bytes instanceof Uint8Array) return bytes.buffer;
-                            return new Uint8Array(bytes || []).buffer;
+                        }).then(function (payload) {
+                            var bytes = base64ToBytes(payload);
+                            return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
                         });
                     }
                 };
@@ -92,6 +104,7 @@
     LocalFiles.isDesktopBridge = isDesktopBridge;
     LocalFiles.createNativeUploadFile = createNativeUploadFile;
     LocalFiles.bytesToBase64 = bytesToBase64;
+    LocalFiles.base64ToBytes = base64ToBytes;
 
     Object.defineProperty(LocalFiles.prototype, 'currentPath', {
         get: function () { return this._currentPath; }

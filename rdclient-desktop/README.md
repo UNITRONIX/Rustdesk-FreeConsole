@@ -127,6 +127,7 @@ Remote sessions use the panel’s RustDesk **FILE_TRANSFER** channel (toolbar **
 | **Download files** | Streaming **Save as** — blocks are appended to disk (no full-file buffer in the WebView) |
 | **Download folders** | Context menu / double-click **Download folder** — pick (or use) a local destination, walk remote `read_dir`, `mkdir`, stream each file |
 | **Queue** | Folder jobs show overall % + current file name; **Cancel** stops the active child and remaining items. One folder job runs at a time (others queue) |
+| **Performance** | Chunk IPC uses base64 (not JSON number arrays); download writes are batched; queue UI is throttled. Rebuild desktop **and** update panel together after FT changes |
 | **Protocol** | Same `RDFileTransfer` / dedicated file relay as the web RdClient — browse, upload, download, overwrite prompts |
 
 Rebuild the desktop binary after pulling `rdclient-desktop` changes. Deploy or update the panel so `/js/rdclient/local-files.js`, `filetransfer.js`, and `file-modal.js` are current on your server.

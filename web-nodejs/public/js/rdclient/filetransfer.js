@@ -59,6 +59,10 @@ class RDFileTransfer {
         // Block size for uploads (128KB, matching hbb_common BUF_SIZE)
         this.BLOCK_SIZE = 131072;
         this.TRANSFER_STALL_MS = 15000;
+        /** Batch streamed download IPC writes (bytes) — fewer Tauri round-trips */
+        this.DOWNLOAD_WRITE_BATCH = 512 * 1024;
+        /** Emit UI progress at most this often during block streaming */
+        this.PROGRESS_EMIT_MS = 200;
 
         /** @type {'overwrite'|'skip'|null} Session-wide overwrite strategy */
         this._overwriteStrategy = null;
@@ -1478,6 +1482,34 @@ class RDFileTransfer {
             });
         };
 
+        const flushWriteBatch = function () {
+            if (!transfer._writeBatch || !transfer._writeBatch.length) {
+                return Promise.resolve();
+            }
+            const parts = transfer._writeBatch;
+            transfer._writeBatch = [];
+            transfer._writeBatchLen = 0;
+            let total = 0;
+            for (let i = 0; i < parts.length; i++) total += parts[i].length;
+            const merged = new Uint8Array(total);
+            let off = 0;
+            for (let i = 0; i < parts.length; i++) {
+                merged.set(parts[i], off);
+                off += parts[i].length;
+            }
+            return LocalFiles.writeDownload(transfer.downloadHandle, merged);
+        };
+
+        const maybeEmitProgress = function (force) {
+            const now = Date.now();
+            if (!force && transfer._lastProgressEmit
+                && (now - transfer._lastProgressEmit) < self.PROGRESS_EMIT_MS) {
+                return;
+            }
+            transfer._lastProgressEmit = now;
+            emitProgress();
+        };
+
         const applyBlock = function (data) {
             const bytes = data && data.length
                 ? (data instanceof Uint8Array ? data : new Uint8Array(data))
@@ -1485,12 +1517,21 @@ class RDFileTransfer {
             if (transfer.streamDownload && transfer.downloadHandle) {
                 transfer.writeChain = transfer.writeChain.then(function () {
                     if (!bytes || !bytes.length) {
-                        emitProgress();
+                        maybeEmitProgress(false);
                         return null;
                     }
-                    return LocalFiles.writeDownload(transfer.downloadHandle, bytes).then(function () {
-                        transfer.receivedBytes += bytes.length;
-                        emitProgress();
+                    if (!transfer._writeBatch) {
+                        transfer._writeBatch = [];
+                        transfer._writeBatchLen = 0;
+                    }
+                    transfer._writeBatch.push(bytes);
+                    transfer._writeBatchLen += bytes.length;
+                    transfer.receivedBytes += bytes.length;
+                    const flush = transfer._writeBatchLen >= self.DOWNLOAD_WRITE_BATCH
+                        ? flushWriteBatch()
+                        : Promise.resolve();
+                    return flush.then(function () {
+                        maybeEmitProgress(false);
                     });
                 }).catch(function (err) {
                     self._failTransfer(id, 'Failed to write download: ' + (err.message || String(err)));
@@ -1502,7 +1543,7 @@ class RDFileTransfer {
                 transfer.blocks.push(bytes);
                 transfer.receivedBytes += bytes.length;
             }
-            emitProgress();
+            maybeEmitProgress(false);
         };
 
         const raw = block.data;
@@ -1577,6 +1618,24 @@ class RDFileTransfer {
                     });
                 }
                 transfer.writeChain.then(function () {
+                    // Flush any pending batched chunks before finish.
+                    if (transfer._writeBatch && transfer._writeBatch.length
+                        && typeof LocalFiles !== 'undefined' && LocalFiles.writeDownload) {
+                        const parts = transfer._writeBatch;
+                        transfer._writeBatch = [];
+                        transfer._writeBatchLen = 0;
+                        let total = 0;
+                        for (let i = 0; i < parts.length; i++) total += parts[i].length;
+                        const merged = new Uint8Array(total);
+                        let off = 0;
+                        for (let i = 0; i < parts.length; i++) {
+                            merged.set(parts[i], off);
+                            off += parts[i].length;
+                        }
+                        return LocalFiles.writeDownload(transfer.downloadHandle, merged);
+                    }
+                    return null;
+                }).then(function () {
                     return LocalFiles.finishDownload(transfer.downloadHandle);
                 }).then(function () {
                     transfer.downloadHandle = null;
@@ -1659,11 +1718,26 @@ class RDFileTransfer {
 
     // ---- Upload block streaming ----
 
-    async _tryCompressBlock(data, fileName) {
+    async _tryCompressBlock(data, fileName, transfer) {
+        if (transfer && transfer.skipCompress) {
+            return { data: data, compressed: false };
+        }
         if (RDFileTransfer.isPreCompressedFileName(fileName)) {
             return { data: data, compressed: false };
         }
         const result = await RDCompress.compressZstd(data);
+        if (transfer) {
+            if (result.compress) {
+                transfer._compressHits = (transfer._compressHits || 0) + 1;
+                transfer._compressMisses = 0;
+            } else {
+                transfer._compressMisses = (transfer._compressMisses || 0) + 1;
+                // After several non-beneficial blocks, skip zstd for the rest of the file.
+                if (transfer._compressMisses >= 4 && !(transfer._compressHits > 0)) {
+                    transfer.skipCompress = true;
+                }
+            }
+        }
         return { data: result.content, compressed: result.compress };
     }
 
@@ -1676,18 +1750,32 @@ class RDFileTransfer {
         const file = transfer.file;
         if (!file) return;
 
+        const decodeChunkPayload = function (payload) {
+            if (typeof LocalFiles !== 'undefined' && LocalFiles.base64ToBytes) {
+                return LocalFiles.base64ToBytes(payload);
+            }
+            if (payload instanceof Uint8Array) return payload;
+            if (Array.isArray(payload)) return new Uint8Array(payload);
+            if (typeof payload === 'string') {
+                const binary = atob(payload);
+                const out = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+                return out;
+            }
+            return new Uint8Array(payload || []);
+        };
+
         const readSlice = async function (offset, end) {
             if (file.__rdNativeHandle) {
                 const length = end - offset;
-                const bytes = await (window.__TAURI__ && window.__TAURI__.core
+                const payload = await (window.__TAURI__ && window.__TAURI__.core
                     ? window.__TAURI__.core.invoke('desktop_read_file_chunk', {
                         handle: file.__rdNativeHandle,
                         offset: offset,
                         length: length
                     })
                     : Promise.reject(new Error('Desktop bridge unavailable')));
-                if (bytes instanceof Uint8Array) return bytes;
-                return new Uint8Array(bytes || []);
+                return decodeChunkPayload(payload);
             }
             const slice = file.slice(offset, end);
             return new Uint8Array(await slice.arrayBuffer());
@@ -1696,11 +1784,12 @@ class RDFileTransfer {
         try {
             let offset = Math.max(0, Number(startOffset || 0));
             let blkId = RDFileTransfer.computeOffsetBlk(offset, this.BLOCK_SIZE);
+            let lastProgressEmit = 0;
 
             while (offset < file.size && transfer.status === 'transferring') {
                 const end = Math.min(offset + this.BLOCK_SIZE, file.size);
                 const raw = await readSlice(offset, end);
-                const packed = await this._tryCompressBlock(raw, file.name);
+                const packed = await this._tryCompressBlock(raw, file.name, transfer);
 
                 this._sendMessageSafe(this._proto.buildFileBlock(
                     transfer.id, transfer.fileNum, packed.data, packed.compressed, blkId
@@ -1710,36 +1799,42 @@ class RDFileTransfer {
                 blkId++;
                 offset = end;
 
-                const percent = Math.min(100, Math.round((end / file.size) * 100));
-                if (transfer.folderJobId && this._activeFolderJob
-                    && this._activeFolderJob.id === transfer.folderJobId) {
-                    const job = this._activeFolderJob;
-                    this._emit('file_transfer_progress', {
-                        id: job.id,
-                        fileName: job.fileName,
-                        fileSize: job.fileSize,
-                        transferred: job.transferred + end,
-                        percent: job.fileSize > 0
-                            ? Math.min(100, Math.round(((job.transferred + end) / job.fileSize) * 100))
-                            : percent,
-                        type: 'upload',
-                        isFolder: true,
-                        currentFile: job.currentFile,
-                        phase: 'transferring'
-                    });
-                } else {
-                    this._emit('file_transfer_progress', {
-                        id: transfer.id,
-                        fileName: transfer.fileName,
-                        fileSize: transfer.fileSize,
-                        transferred: end,
-                        percent: percent,
-                        type: 'upload'
-                    });
+                const now = Date.now();
+                const forceProgress = end >= file.size;
+                if (forceProgress || !lastProgressEmit
+                    || (now - lastProgressEmit) >= this.PROGRESS_EMIT_MS) {
+                    lastProgressEmit = now;
+                    const percent = Math.min(100, Math.round((end / file.size) * 100));
+                    if (transfer.folderJobId && this._activeFolderJob
+                        && this._activeFolderJob.id === transfer.folderJobId) {
+                        const job = this._activeFolderJob;
+                        this._emit('file_transfer_progress', {
+                            id: job.id,
+                            fileName: job.fileName,
+                            fileSize: job.fileSize,
+                            transferred: job.transferred + end,
+                            percent: job.fileSize > 0
+                                ? Math.min(100, Math.round(((job.transferred + end) / job.fileSize) * 100))
+                                : percent,
+                            type: 'upload',
+                            isFolder: true,
+                            currentFile: job.currentFile,
+                            phase: 'transferring'
+                        });
+                    } else {
+                        this._emit('file_transfer_progress', {
+                            id: transfer.id,
+                            fileName: transfer.fileName,
+                            fileSize: transfer.fileSize,
+                            transferred: end,
+                            percent: percent,
+                            type: 'upload'
+                        });
+                    }
                 }
 
-                // Yield to event loop every 16 blocks to avoid blocking UI
-                if (blkId % 16 === 0) {
+                // Yield occasionally so video/input keep running — not every few blocks.
+                if (blkId % 64 === 0) {
                     await new Promise(r => setTimeout(r, 0));
                 }
             }

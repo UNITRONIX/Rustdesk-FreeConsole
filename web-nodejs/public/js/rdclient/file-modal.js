@@ -39,6 +39,8 @@
         this._remoteReady = false;
         this._pendingNativePaths = null;
         this._contextMenu = null;
+        this._queuePaintTimer = null;
+        this._queuePaintPending = false;
     }
 
     FileTransferModal.prototype._ensureDom = function () {
@@ -957,9 +959,33 @@
             '</div>';
     };
 
+    FileTransferModal.prototype._scheduleTransferQueuePaint = function (immediate) {
+        if (immediate) {
+            if (this._queuePaintTimer) {
+                clearTimeout(this._queuePaintTimer);
+                this._queuePaintTimer = null;
+            }
+            this._queuePaintPending = false;
+            this._paintTransferQueue();
+            return;
+        }
+        if (this._queuePaintTimer) {
+            this._queuePaintPending = true;
+            return;
+        }
+        var self = this;
+        this._queuePaintTimer = setTimeout(function () {
+            self._queuePaintTimer = null;
+            self._queuePaintPending = false;
+            self._paintTransferQueue();
+        }, 150);
+    };
+
     FileTransferModal.prototype._paintTransferQueue = function () {
+        if (!this._el) return;
         var list = this._el.querySelector('.ft-queue-list');
         var empty = this._el.querySelector('.ft-queue-empty');
+        if (!list) return;
         var rows = Array.from(this._transferMeta.values());
         if (!rows.length) {
             list.innerHTML = '';
@@ -990,7 +1016,7 @@
                         meta.resumable = false;
                     }
                     ft.resumeTransfer(id);
-                    self._paintTransferQueue();
+                    self._scheduleTransferQueuePaint(true);
                 }
             });
         });
@@ -1009,7 +1035,7 @@
         meta.resumable = false;
         meta.isFolder = !!data.isFolder || meta.isFolder;
         meta.currentFile = data.currentFile || null;
-        this._paintTransferQueue();
+        this._scheduleTransferQueuePaint(true);
     };
 
     FileTransferModal.prototype._updateTransfer = function (data) {
@@ -1018,15 +1044,17 @@
         if (data.phase === 'saving') {
             meta.phase = 'saving';
             meta.percent = 100;
-        } else {
-            meta.phase = 'transferring';
-            meta.percent = data.percent || 0;
-            meta.transferred = data.transferred || 0;
-            meta.total = data.fileSize != null ? data.fileSize : meta.total;
+            this._scheduleTransferQueuePaint(true);
+            return;
         }
+        meta.phase = 'transferring';
+        meta.percent = data.percent || 0;
+        meta.transferred = data.transferred || 0;
+        meta.total = data.fileSize != null ? data.fileSize : meta.total;
         if (data.isFolder) meta.isFolder = true;
         if (data.currentFile != null) meta.currentFile = data.currentFile;
-        this._paintTransferQueue();
+        // Progress fires many times per second — throttle full queue DOM rebuilds.
+        this._scheduleTransferQueuePaint(false);
     };
 
     FileTransferModal.prototype._completeTransfer = function (data) {
@@ -1039,7 +1067,7 @@
         meta.resumable = false;
         meta.currentFile = null;
         if (data.isFolder) meta.isFolder = true;
-        this._paintTransferQueue();
+        this._scheduleTransferQueuePaint(true);
     };
 
     FileTransferModal.prototype._errorTransfer = function (data) {
@@ -1054,12 +1082,12 @@
         meta.resumable = !!data.resumable;
         if (data.isFolder) meta.isFolder = true;
         if (data.currentFile != null) meta.currentFile = data.currentFile;
-        this._paintTransferQueue();
+        this._scheduleTransferQueuePaint(true);
     };
 
     FileTransferModal.prototype._removeTransfer = function (id) {
         this._transferMeta.delete(id);
-        this._paintTransferQueue();
+        this._scheduleTransferQueuePaint(true);
     };
 
     window.FileTransferModal = FileTransferModal;

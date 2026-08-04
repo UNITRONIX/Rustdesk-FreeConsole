@@ -103,6 +103,11 @@ fn store_error(err: impl std::fmt::Display) -> String {
     err.to_string()
 }
 
+fn b64_encode(data: &[u8]) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(data)
+}
+
 fn b64_decode(data: &str) -> Result<Vec<u8>, String> {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD
@@ -322,14 +327,16 @@ pub fn desktop_open_paths(
     Ok(out)
 }
 
+/// Read a file chunk and return **base64** (not `Vec<u8>` JSON number arrays).
+/// Number-array IPC freezes the WebView and caps upload throughput to a few MB/s.
 #[tauri::command]
 pub fn desktop_read_file_chunk(
     store: State<'_, DesktopFileStore>,
     handle: String,
     offset: u64,
     length: u32,
-) -> Result<Vec<u8>, String> {
-    let len = length.min(512 * 1024) as usize;
+) -> Result<String, String> {
+    let len = length.min(1024 * 1024) as usize;
     let path = store
         .inner
         .lock()
@@ -343,7 +350,7 @@ pub fn desktop_read_file_chunk(
     let mut buf = vec![0u8; len];
     let read = file.read(&mut buf).map_err(store_error)?;
     buf.truncate(read);
-    Ok(buf)
+    Ok(b64_encode(&buf))
 }
 
 #[tauri::command]
