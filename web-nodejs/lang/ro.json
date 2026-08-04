@@ -1293,6 +1293,7 @@
         "file_connect_failed": "Nu s-a putut deschide sesiunea de transfer fișiere",
         "file_local_limited": "Navigarea completă a folderelor locale necesită Chrome sau Edge prin HTTPS. Încărcarea și descărcarea funcționează în continuare.",
         "file_transfer_unavailable_cdap": "Transferul de fișiere nu este disponibil pentru sesiunile snapshot CDAP.",
+        "file_transfer_unavailable": "Transferul de fișiere nu este disponibil pentru această sesiune.",
         "file_status_waiting": "Se așteaptă…",
         "file_status_transferring": "Se transferă…",
         "file_status_saving": "Se salvează…",

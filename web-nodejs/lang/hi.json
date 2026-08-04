@@ -1293,6 +1293,7 @@
         "file_connect_failed": "फ़ाइल स्थानांतरण सत्र नहीं खोला जा सका",
         "file_local_limited": "पूर्ण स्थानीय फ़ोल्डर ब्राउज़िंग के लिए HTTPS पर Chrome या Edge आवश्यक है। अपलोड और डाउनलोड अभी भी काम करते हैं।",
         "file_transfer_unavailable_cdap": "CDAP स्नैपशॉट सत्रों के लिए फ़ाइल स्थानांतरण उपलब्ध नहीं है।",
+        "file_transfer_unavailable": "इस सत्र के लिए फ़ाइल स्थानांतरण उपलब्ध नहीं है।",
         "file_status_waiting": "प्रतीक्षा…",
         "file_status_transferring": "स्थानांतरण…",
         "file_status_saving": "सहेजा जा रहा है…",

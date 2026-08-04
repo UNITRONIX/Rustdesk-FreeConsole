@@ -1293,6 +1293,7 @@
         "file_connect_failed": "Tidak dapat membuka sesi transfer file",
         "file_local_limited": "Penelusuran folder lokal penuh memerlukan Chrome atau Edge melalui HTTPS. Unggah dan unduh tetap berfungsi.",
         "file_transfer_unavailable_cdap": "Transfer file tidak tersedia untuk sesi snapshot CDAP.",
+        "file_transfer_unavailable": "Transfer file tidak tersedia untuk sesi ini.",
         "file_status_waiting": "Menunggu…",
         "file_status_transferring": "Mentransfer…",
         "file_status_saving": "Menyimpan…",

@@ -1293,6 +1293,7 @@
         "file_connect_failed": "Kunne ikke åbne filoverførselssession",
         "file_local_limited": "Fuld lokal mappevisning kræver Chrome eller Edge over HTTPS. Upload og download virker stadig.",
         "file_transfer_unavailable_cdap": "Filoverførsel er ikke tilgængelig for CDAP-snapshot-sessioner.",
+        "file_transfer_unavailable": "Filoverførsel er ikke tilgængelig for denne session.",
         "file_status_waiting": "Venter…",
         "file_status_transferring": "Overfører…",
         "file_status_saving": "Gemmer…",

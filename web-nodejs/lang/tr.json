@@ -1293,6 +1293,7 @@
         "file_connect_failed": "Dosya aktarım oturumu açılamadı",
         "file_local_limited": "Tam yerel klasör gezintisi HTTPS üzerinden Chrome veya Edge gerektirir. Yükleme ve indirme hâlâ çalışır.",
         "file_transfer_unavailable_cdap": "Dosya aktarımı CDAP anlık görüntü oturumlarında kullanılamaz.",
+        "file_transfer_unavailable": "Dosya aktarımı bu oturum için kullanılamaz.",
         "file_status_waiting": "Bekleniyor…",
         "file_status_transferring": "Aktarılıyor…",
         "file_status_saving": "Kaydediliyor…",

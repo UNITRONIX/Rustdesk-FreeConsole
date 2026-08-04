@@ -1293,6 +1293,7 @@
         "file_connect_failed": "Tiedostonsiirtosessiota ei voitu avata",
         "file_local_limited": "Täysi paikallinen kansioselaus vaatii Chromen tai Edgen HTTPS-yhteydellä. Lataus ja lähetys toimivat silti.",
         "file_transfer_unavailable_cdap": "Tiedostonsiirto ei ole käytettävissä CDAP-tilannekuvasessioissa.",
+        "file_transfer_unavailable": "Tiedostonsiirto ei ole käytettävissä tässä istunnossa.",
         "file_status_waiting": "Odotetaan…",
         "file_status_transferring": "Siirretään…",
         "file_status_saving": "Tallennetaan…",

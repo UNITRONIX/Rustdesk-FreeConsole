@@ -1287,6 +1287,7 @@
         "file_connect_failed": "无法打开文件传输会话",
         "file_local_limited": "完整的本地文件夹浏览需要 HTTPS 下的 Chrome 或 Edge。仍可上传和下载文件。",
         "file_transfer_unavailable_cdap": "CDAP 快照会话不支持文件传输。",
+        "file_transfer_unavailable": "此会话不支持文件传输。",
         "file_status_waiting": "等待中…",
         "file_status_transferring": "传输中…",
         "file_status_saving": "保存中…",

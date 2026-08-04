@@ -1287,6 +1287,7 @@
         "file_connect_failed": "ファイル転送セッションを開けませんでした",
         "file_local_limited": "ローカルフォルダの完全な閲覧には HTTPS 上の Chrome または Edge が必要です。アップロードとダウンロードは引き続き利用できます。",
         "file_transfer_unavailable_cdap": "CDAP スナップショットセッションではファイル転送は利用できません。",
+        "file_transfer_unavailable": "このセッションではファイル転送を利用できません。",
         "file_status_waiting": "待機中…",
         "file_status_transferring": "転送中…",
         "file_status_saving": "保存中…",

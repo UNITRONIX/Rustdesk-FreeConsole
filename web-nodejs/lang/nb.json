@@ -1293,6 +1293,7 @@
         "file_connect_failed": "Kunne ikke åpne filoverføringsøkt",
         "file_local_limited": "Full lokal mappevisning krever Chrome eller Edge over HTTPS. Opplasting og nedlasting fungerer fortsatt.",
         "file_transfer_unavailable_cdap": "Filoverføring er ikke tilgjengelig for CDAP-øyeblikksbildeøkter.",
+        "file_transfer_unavailable": "Filoverføring er ikke tilgjengelig for denne økten.",
         "file_status_waiting": "Venter…",
         "file_status_transferring": "Overfører…",
         "file_status_saving": "Lagrer…",

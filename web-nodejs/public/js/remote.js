@@ -109,7 +109,11 @@
         const toast = document.createElement('div');
         toast.className = 'rd-toast rd-toast-' + (type || 'info');
         toast.textContent = message;
-        document.body.appendChild(toast);
+        // Prefer the fullscreen / viewer shell host — body children are invisible in FS.
+        const host = document.fullscreenElement
+            || document.getElementById('rd-viewer-shell')
+            || document.body;
+        host.appendChild(toast);
         requestAnimationFrame(() => toast.classList.add('show'));
         setTimeout(() => {
             toast.classList.remove('show');
@@ -1880,9 +1884,24 @@
     // File transfer modal toggle (RustDesk RDFileTransfer or CDAPFileTransfer)
     document.getElementById('btn-file-transfer')?.addEventListener('click', function () {
         const session = getActiveSession();
-        if (!session || !session.client?.fileTransfer) return;
+        const unavailable = _('remote.file_transfer_unavailable')
+            || 'File transfer is not available for this session.';
+        if (!session || !session.client) {
+            showToast(unavailable, 'warning');
+            return;
+        }
+        if (!session.client.fileTransfer) {
+            showToast(unavailable, 'warning');
+            return;
+        }
         const modal = window.__fileTransferModal;
-        if (!modal) return;
+        if (!modal || typeof modal.open !== 'function') {
+            showToast(unavailable, 'warning');
+            return;
+        }
+        if (typeof modal._ensureMountedInHost === 'function') {
+            modal._ensureMountedInHost();
+        }
         if (modal.isOpen()) {
             modal.close();
         } else {
@@ -2000,6 +2019,11 @@
         const fsIcon = document.fullscreenElement ? 'fullscreen_exit' : 'fullscreen';
         const handleIcon = document.getElementById('btn-handle-fullscreen')?.querySelector('.material-icons');
         if (handleIcon) handleIcon.textContent = fsIcon;
+        // Notch is only for streaming sessions — re-sync after FS layout swap.
+        syncToolbarChrome(getActiveSession());
+        if (window.__fileTransferModal && typeof window.__fileTransferModal._ensureMountedInHost === 'function') {
+            window.__fileTransferModal._ensureMountedInHost();
+        }
         setTimeout(() => {
             const session = getActiveSession();
             if (session && session.client && session.client.renderer) session.client.renderer.resize();

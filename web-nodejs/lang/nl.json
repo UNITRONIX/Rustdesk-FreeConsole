@@ -1287,6 +1287,7 @@
         "file_connect_failed": "Kon bestandsoverdrachtsessie niet openen",
         "file_local_limited": "Volledig lokaal mapbladeren vereist Chrome of Edge via HTTPS. Uploaden en downloaden blijft mogelijk.",
         "file_transfer_unavailable_cdap": "Bestandsoverdracht is niet beschikbaar voor CDAP-snapshot-sessies.",
+        "file_transfer_unavailable": "Bestandsoverdracht is niet beschikbaar voor deze sessie.",
         "file_status_waiting": "Wachten…",
         "file_status_transferring": "Overdragen…",
         "file_status_saving": "Opslaan…",

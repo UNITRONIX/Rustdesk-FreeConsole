@@ -1288,6 +1288,7 @@
         "file_connect_failed": "تعذر فتح جلسة نقل الملفات",
         "file_local_limited": "يتطلب تصفح المجلدات المحلية بالكامل Chrome أو Edge عبر HTTPS. لا يزال الرفع والتنزيل متاحين.",
         "file_transfer_unavailable_cdap": "نقل الملفات غير متاح لجلسات لقطة CDAP.",
+        "file_transfer_unavailable": "نقل الملفات غير متاح لهذه الجلسة.",
         "file_status_waiting": "في الانتظار…",
         "file_status_transferring": "جارٍ النقل…",
         "file_status_saving": "جارٍ الحفظ…",

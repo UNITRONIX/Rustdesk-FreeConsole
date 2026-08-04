@@ -1287,6 +1287,7 @@
         "file_connect_failed": "Nepodařilo se otevřít relaci přenosu souborů",
         "file_local_limited": "Úplné procházení místních složek vyžaduje Chrome nebo Edge přes HTTPS. Nahrávání a stahování stále funguje.",
         "file_transfer_unavailable_cdap": "Přenos souborů není k dispozici pro relace snímku CDAP.",
+        "file_transfer_unavailable": "Přenos souborů není v této relaci k dispozici.",
         "file_status_waiting": "Čekání…",
         "file_status_transferring": "Přenos…",
         "file_status_saving": "Ukládání…",

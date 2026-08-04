@@ -1300,6 +1300,7 @@
         "file_connect_failed": "Nie udało się otworzyć sesji transferu plików",
         "file_local_limited": "Pełne przeglądanie folderów lokalnych wymaga Chrome lub Edge przez HTTPS. Wysyłanie i pobieranie plików nadal działa.",
         "file_transfer_unavailable_cdap": "Transfer plików jest niedostępny w sesjach podglądu CDAP.",
+        "file_transfer_unavailable": "Transfer plików jest niedostępny w tej sesji.",
         "file_status_waiting": "Oczekiwanie…",
         "file_status_transferring": "Transfer…",
         "file_status_saving": "Zapisywanie…",

@@ -1304,6 +1304,7 @@
         "file_connect_failed": "無法開啟檔案傳輸工作階段",
         "file_local_limited": "完整的本機資料夾瀏覽需要 HTTPS 下的 Chrome 或 Edge。仍可上傳和下載檔案。",
         "file_transfer_unavailable_cdap": "CDAP 快照工作階段不支援檔案傳輸。",
+        "file_transfer_unavailable": "此工作階段不支援檔案傳輸。",
         "file_status_waiting": "等待中…",
         "file_status_transferring": "傳輸中…",
         "file_status_saving": "儲存中…",

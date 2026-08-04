@@ -1287,6 +1287,7 @@
         "file_connect_failed": "Dateiübertragungssitzung konnte nicht geöffnet werden",
         "file_local_limited": "Vollständiges lokales Ordnerbrowsing erfordert Chrome oder Edge über HTTPS. Hoch- und Herunterladen funktioniert weiterhin.",
         "file_transfer_unavailable_cdap": "Dateiübertragung ist für CDAP-Snapshot-Sitzungen nicht verfügbar.",
+        "file_transfer_unavailable": "Dateiübertragung ist für diese Sitzung nicht verfügbar.",
         "file_status_waiting": "Warten…",
         "file_status_transferring": "Übertrage…",
         "file_status_saving": "Speichern…",

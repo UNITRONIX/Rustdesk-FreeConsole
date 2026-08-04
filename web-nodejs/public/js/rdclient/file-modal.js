@@ -26,6 +26,16 @@
         return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + ['B', 'KB', 'MB', 'GB'][i];
     }
 
+    /**
+     * Mount overlays inside the viewer shell so they stay visible when
+     * #rd-viewer-shell is the Fullscreen API element (body children are hidden).
+     */
+    function getOverlayHost() {
+        return document.fullscreenElement
+            || document.getElementById('rd-viewer-shell')
+            || document.body;
+    }
+
     function FileTransferModal() {
         this._el = null;
         this._session = null;
@@ -113,7 +123,7 @@
                     '</div>' +
                 '</div>' +
             '</div>';
-        document.body.appendChild(el);
+        getOverlayHost().appendChild(el);
         this._el = el;
         el.querySelector('.ft-pane-local .ft-pane-label').textContent = t('remote.file_local', 'Local computer');
         el.querySelector('.ft-pane-remote .ft-pane-label').textContent = t('remote.file_remote', 'Remote computer');
@@ -343,10 +353,19 @@
         }
     };
 
+    FileTransferModal.prototype._ensureMountedInHost = function () {
+        if (!this._el) return;
+        var host = getOverlayHost();
+        if (this._el.parentNode !== host) {
+            host.appendChild(this._el);
+        }
+    };
+
     FileTransferModal.prototype.open = function (session) {
         this._ensureDom();
+        this._ensureMountedInHost();
         this._session = session;
-        if (!session.client || !session.client.fileTransfer) return;
+        if (!session || !session.client || !session.client.fileTransfer) return;
         this._transferMeta.clear();
         this._remoteReady = false;
         this._el.querySelector('.ft-modal-title').textContent =
@@ -652,7 +671,7 @@
             self._remoteDelete(entry);
         });
 
-        document.body.appendChild(menu);
+        getOverlayHost().appendChild(menu);
         this._contextMenu = menu;
     };
 
@@ -742,7 +761,7 @@
             });
         }
 
-        document.body.appendChild(menu);
+        getOverlayHost().appendChild(menu);
         this._contextMenu = menu;
     };
 
@@ -1097,4 +1116,15 @@
         console.error('[FileModal] failed to initialize — clipboard/Cliprdr must still work:', err);
         window.__fileTransferModal = null;
     }
+
+    // Keep modal/context menus inside the fullscreen element when FS toggles.
+    document.addEventListener('fullscreenchange', function () {
+        var modal = window.__fileTransferModal;
+        if (modal && typeof modal._ensureMountedInHost === 'function') {
+            modal._ensureMountedInHost();
+        }
+        if (modal && modal._contextMenu && modal._contextMenu.parentNode) {
+            getOverlayHost().appendChild(modal._contextMenu);
+        }
+    });
 })();

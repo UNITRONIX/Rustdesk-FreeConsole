@@ -1293,6 +1293,7 @@
         "file_connect_failed": "Không thể mở phiên truyền tệp",
         "file_local_limited": "Duyệt thư mục cục bộ đầy đủ cần Chrome hoặc Edge qua HTTPS. Tải lên và tải xuống vẫn hoạt động.",
         "file_transfer_unavailable_cdap": "Truyền tệp không khả dụng cho phiên ảnh chụp CDAP.",
+        "file_transfer_unavailable": "Truyền tệp không khả dụng cho phiên này.",
         "file_status_waiting": "Đang chờ…",
         "file_status_transferring": "Đang truyền…",
         "file_status_saving": "Đang lưu…",

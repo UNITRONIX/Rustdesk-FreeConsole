@@ -1287,6 +1287,7 @@
         "file_connect_failed": "No se pudo abrir la sesión de transferencia de archivos",
         "file_local_limited": "La navegación completa de carpetas locales requiere Chrome o Edge con HTTPS. Aún puede subir y descargar archivos.",
         "file_transfer_unavailable_cdap": "La transferencia de archivos no está disponible en sesiones de instantánea CDAP.",
+        "file_transfer_unavailable": "La transferencia de archivos no está disponible en esta sesión.",
         "file_status_waiting": "Esperando…",
         "file_status_transferring": "Transfiriendo…",
         "file_status_saving": "Guardando…",

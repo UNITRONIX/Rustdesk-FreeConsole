@@ -1308,6 +1308,7 @@
         "file_connect_failed": "Could not open file transfer session",
         "file_local_limited": "Full local folder browsing requires Chrome or Edge over HTTPS. You can still upload and download files.",
         "file_transfer_unavailable_cdap": "File transfer is not available for CDAP snapshot sessions.",
+        "file_transfer_unavailable": "File transfer is not available for this session.",
         "file_status_waiting": "Waiting…",
         "file_status_transferring": "Transferring…",
         "file_status_saving": "Saving…",

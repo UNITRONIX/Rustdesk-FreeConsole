@@ -1293,6 +1293,7 @@
         "file_connect_failed": "Не вдалося відкрити сеанс передачі файлів",
         "file_local_limited": "Повний перегляд локальних тек потребує Chrome або Edge через HTTPS. Завантаження та вивантаження файлу все одно працюють.",
         "file_transfer_unavailable_cdap": "Передача файлів недоступна для сеансів знімка CDAP.",
+        "file_transfer_unavailable": "Передача файлів недоступна для цього сеансу.",
         "file_status_waiting": "Очікування…",
         "file_status_transferring": "Передача…",
         "file_status_saving": "Збереження…",

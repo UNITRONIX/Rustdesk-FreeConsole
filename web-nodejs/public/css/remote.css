@@ -1803,30 +1803,40 @@
     height: 100%;
 }
 
-.rd-viewer-shell:fullscreen {
-    display: flex;
-    flex-direction: column;
+/* Keep the same overlay layout as windowed mode: absolute tab bar + notch hanging
+   below it. A flex column was clipping/stacking the toolbar notch in fullscreen. */
+.rd-viewer-shell:fullscreen,
+.rd-viewer-shell:-webkit-full-screen {
+    display: block;
     width: 100%;
     height: 100%;
     background: #000;
+    overflow: visible;
 }
 
-.rd-viewer-shell:fullscreen .session-tab-bar {
-    position: relative;
-    top: auto;
-    left: auto;
-    right: auto;
-    flex-shrink: 0;
+.rd-viewer-shell:fullscreen .session-tab-bar,
+.rd-viewer-shell:-webkit-full-screen .session-tab-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 230;
+    overflow: visible;
 }
 
-.rd-viewer-shell:fullscreen .viewer-container {
-    position: relative;
-    top: auto;
-    left: auto;
-    right: auto;
-    bottom: auto;
-    flex: 1;
+.rd-viewer-shell:fullscreen .viewer-container,
+.rd-viewer-shell:-webkit-full-screen .viewer-container {
+    position: absolute;
+    top: var(--session-bar-slim, 18px);
+    left: 0;
+    right: 0;
+    bottom: 0;
     min-height: 0;
+}
+
+.rd-viewer-shell:fullscreen .toolbar-notch-slot,
+.rd-viewer-shell:-webkit-full-screen .toolbar-notch-slot {
+    z-index: 240;
 }
 
 .toolbar-streaming .toolbar-status,
@@ -1842,10 +1852,11 @@
 }
 
 /* ---- File Transfer Modal (RustDesk-style) ---- */
+/* Above session tab bar (220) / notch (230–240) so the dialog is usable in fullscreen. */
 .file-transfer-modal-overlay {
     position: fixed;
     inset: 0;
-    z-index: 200;
+    z-index: 260;
     display: flex;
     align-items: center;
     justify-content: center;
