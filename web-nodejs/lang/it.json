@@ -2113,6 +2113,10 @@
         "field_folder_none": "Nessuno cartella",
         "reject_ban_option": "Banna questo dispositivo",
         "reject_ban_hint": "L'appareil sera bloquè et ne pourra plus envoyer de nuove richieste d'inscription.",
+        "clear_rejection_btn": "Consenti nuova registrazione",
+        "clear_rejection_confirm": "Cancellare questo rifiuto in modo che il dispositivo possa richiedere di nuovo la registrazione?",
+        "clear_rejection_success": "Rifiuto di registrazione rimosso — il dispositivo può registrarsi di nuovo",
+        "view_device_btn": "Vedi dispositivo",
         "banner_open_mode": "L'inscription est ouverte — les nuovi client RustDesk si registrano sans approbation de l'opèrateur. Dèfinissez le modalità gèrè dans les impostazioni per usare questa coda d'attesa.",
         "banner_locked_mode": "L'inscription est verrouillèe — seuls les dispositivi liès à un jeton peuvent s'inscrire. Le modalità gèrè est richiesto per approvazione des clients sconosciutos par l'opèrateur.",
         "enrollment_settings_link": "Impostazioni d'inscription"

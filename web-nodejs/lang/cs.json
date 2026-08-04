@@ -2113,6 +2113,10 @@
         "field_folder_none": "Bez složkau",
         "reject_ban_option": "Zablokuj to urzadzenie",
         "reject_ban_hint": "Urzadzenie zostanie zablokowane i nie bedzie moglo ponownie wysylac zadan rejestracji.",
+        "clear_rejection_btn": "Povolit opětovnou registraci",
+        "clear_rejection_confirm": "Vymazat toto odmítnutí, aby zařízení mohlo znovu požádat o registraci?",
+        "clear_rejection_success": "Odmítnutí registrace zrušeno — zařízení se může znovu zaregistrovat",
+        "view_device_btn": "Zobrazit zařízení",
         "banner_open_mode": "Rejestracja jest otwarta — nowi klienci RustDesk rejestruja sie bez akceptacji operátora. Ustaw tryb Zarzadzany w Nastaveních, aby korzystac z tej kolejki.",
         "banner_locked_mode": "Rejestracja jest zablokowana — pouze urzadzenia z tokenem moga sie zarejestrowac. Do akceptacji nieznanych klientow vyžadujeny jest tryb Zarzadzany.",
         "enrollment_settings_link": "Nastavení rejestracji"

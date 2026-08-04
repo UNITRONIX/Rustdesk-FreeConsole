@@ -786,6 +786,21 @@ async function getEnrollmentPending() {
 }
 
 /**
+ * Get approved/rejected Go enrollment history (#351).
+ * @param {string} [status] - "approved" | "rejected" | omit for both
+ */
+async function getEnrollmentHistory(status) {
+    try {
+        const params = {};
+        if (status) params.status = status;
+        const { data } = await apiClient.get('/enrollment/history', { params });
+        return { success: true, data: data.devices || [], count: data.count || 0 };
+    } catch (e) {
+        return { success: false, error: e.message, data: [], count: 0 };
+    }
+}
+
+/**
  * Approve a pending enrollment request on Go server.
  * @param {string} deviceId - Device ID to approve
  * @param {string} displayName - Operator-assigned display name
@@ -815,6 +830,19 @@ async function rejectEnrollment(deviceId, ban) {
         const { data } = await apiClient.post(`/enrollment/reject/${encodeURIComponent(deviceId)}`, {
             ban: !!ban
         });
+        return wrap(data);
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+/**
+ * Clear enrollment rejection lock so the device can re-request enrollment (#351).
+ * @param {string} deviceId
+ */
+async function clearEnrollmentRejection(deviceId) {
+    try {
+        const { data } = await apiClient.post(`/enrollment/clear-rejection/${encodeURIComponent(deviceId)}`);
         return wrap(data);
     } catch (e) {
         return { success: false, error: e.message };
@@ -1332,8 +1360,10 @@ module.exports = {
     setEnrollmentMode,
     // Enrollment — pending devices
     getEnrollmentPending,
+    getEnrollmentHistory,
     approveEnrollment,
     rejectEnrollment,
+    clearEnrollmentRejection,
     // Branding (Go server)
     getBranding: getBranding,
     saveBranding: saveBranding,

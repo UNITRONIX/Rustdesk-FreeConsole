@@ -2113,6 +2113,10 @@
         "field_folder_none": "Kein Map",
         "reject_ban_option": "Dieses Gerat sperren",
         "reject_ban_hint": "Das Gerat wird gesperrt und kann keine neuen Registrierungsanfragen senden.",
+        "clear_rejection_btn": "Opnieuw inschrijven toestaan",
+        "clear_rejection_confirm": "Deze afwijzing wissen zodat het apparaat opnieuw inschrijving kan aanvragen?",
+        "clear_rejection_success": "Inschrijvingsafwijzing gewist — apparaat kan opnieuw inschrijven",
+        "view_device_btn": "Apparaat bekijken",
         "banner_open_mode": "Registrierung ist offen — neue RustDesk-Clients registrieren sich ohne Goedkeuring des Operators. Verwalteten Modus in den Instellingen festlegen, um diese Warteschlange zu nutzen.",
         "banner_locked_mode": "Registrierung ist gesperrt — nur token-gebundene Gerate konnen sich registrieren. Der verwaltete Modus ist fur die Goedkeuring onbekender Clients durch den Operator erforderlich.",
         "enrollment_settings_link": "Registrierungsinstellingen"

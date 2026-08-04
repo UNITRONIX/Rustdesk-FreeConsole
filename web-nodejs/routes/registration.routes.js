@@ -414,6 +414,21 @@ router.get('/api/enrollment/pending', requirePermission('enrollment.approve'), a
 });
 
 /**
+ * GET /api/enrollment/history — Approved/rejected Go enrollment history (#351).
+ * Query: status=approved|rejected (optional)
+ */
+router.get('/api/enrollment/history', requirePermission('enrollment.approve'), async (req, res) => {
+    try {
+        const status = typeof req.query.status === 'string' ? req.query.status : '';
+        const result = await betterdeskApi.getEnrollmentHistory(status);
+        res.json(result);
+    } catch (err) {
+        console.error('Get enrollment history error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
  * Apply manual device group memberships after enrollment approval.
  */
 async function applyDeviceGroupMemberships(req, deviceId, groupGuids) {
@@ -514,6 +529,32 @@ router.post('/api/enrollment/reject/:id', requirePermission('enrollment.approve'
         res.json(result);
     } catch (err) {
         console.error('Reject enrollment error:', err);
+        res.status(500).json({ success: false, error: req.t('errors.server_error') });
+    }
+});
+
+/**
+ * POST /api/enrollment/clear-rejection/:id — Clear rejection lock / allow re-enroll (#351).
+ */
+router.post('/api/enrollment/clear-rejection/:id', requirePermission('enrollment.approve'), async (req, res) => {
+    try {
+        const deviceId = req.params.id;
+        const result = await betterdeskApi.clearEnrollmentRejection(deviceId);
+
+        if (result.success) {
+            try {
+                await db.logAction(
+                    req.session?.user?.id || 0,
+                    'enrollment_rejection_cleared',
+                    `Cleared enrollment rejection for device ${deviceId}${result.data?.unbanned ? ' (unbanned)' : ''}`,
+                    getClientIp(req)
+                );
+            } catch (_) { /* audit log optional */ }
+        }
+
+        res.json(result);
+    } catch (err) {
+        console.error('Clear enrollment rejection error:', err);
         res.status(500).json({ success: false, error: req.t('errors.server_error') });
     }
 });

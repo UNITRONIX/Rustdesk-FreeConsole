@@ -2113,6 +2113,10 @@
         "field_folder_none": "폴더 없음",
         "reject_ban_option": "이 기기 차단",
         "reject_ban_hint": "기기가 차단되어 새 등록 요청을 보낼 수 없게 됩니다.",
+        "clear_rejection_btn": "재등록 허용",
+        "clear_rejection_confirm": "이 거부를 해제하여 장치가 다시 등록을 요청할 수 있게 할까요?",
+        "clear_rejection_success": "등록 거부가 해제되었습니다 — 장치가 다시 등록할 수 있습니다",
+        "view_device_btn": "장치 보기",
         "banner_open_mode": "등록이 열려 있습니다 — 새 RustDesk 클라이언트는 운영자 승인 없이 등록됩니다. 이 대기열을 사용하려면 설정에서 관리 모드를 설정하세요.",
         "banner_locked_mode": "등록이 잠겨 있습니다 — 토큰에 바인딩된 기기만 등록할 수 있습니다. 알 수 없는 클라이언트의 운영자 승인에는 관리 모드가 필요합니다.",
         "enrollment_settings_link": "등록 설정"

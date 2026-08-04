@@ -405,6 +405,76 @@ func (s *Server) handleDeviceRegisterStatus(w http.ResponseWriter, r *http.Reque
 //  Enrollment management — operator approval (admin/operator only)
 // ---------------------------------------------------------------------------
 
+const (
+	enrollmentDecisionPrefix  = "enrollment_decision_"
+	rejectedDevicePrefix      = "rejected_device_"
+	pendingDevicePrefix       = "pending_device_"
+	enrollmentRejectBanReason = "enrollment rejected"
+)
+
+// enrollmentDecision is persisted under enrollment_decision_<id> so Approved /
+// Rejected filters can show Go enrollment history (#351).
+type enrollmentDecision struct {
+	DeviceID  string `json:"device_id"`
+	Hostname  string `json:"hostname"`
+	Platform  string `json:"platform"`
+	Version   string `json:"version"`
+	IP        string `json:"ip"`
+	Status    string `json:"status"` // approved | rejected
+	Banned    bool   `json:"banned"`
+	DecidedAt string `json:"decided_at"`
+	CreatedAt string `json:"created_at,omitempty"`
+	Actor     string `json:"actor,omitempty"`
+}
+
+type pendingEnrollmentMeta struct {
+	DeviceID  string `json:"device_id"`
+	UUID      string `json:"uuid"`
+	Hostname  string `json:"hostname"`
+	Platform  string `json:"platform"`
+	Version   string `json:"version"`
+	PublicKey string `json:"public_key"`
+	IP        string `json:"ip"`
+	CreatedAt string `json:"created_at"`
+}
+
+func parsePendingEnrollmentMeta(raw string) pendingEnrollmentMeta {
+	var meta pendingEnrollmentMeta
+	if raw == "" {
+		return meta
+	}
+	_ = json.Unmarshal([]byte(raw), &meta)
+	return meta
+}
+
+func (s *Server) storeEnrollmentDecision(d enrollmentDecision) {
+	if d.DeviceID == "" {
+		return
+	}
+	data, err := json.Marshal(d)
+	if err != nil {
+		log.Printf("[API] storeEnrollmentDecision: marshal failed for %s: %v", d.DeviceID, err)
+		return
+	}
+	if err := s.db.SetConfig(enrollmentDecisionPrefix+d.DeviceID, string(data)); err != nil {
+		log.Printf("[API] storeEnrollmentDecision: store failed for %s: %v", d.DeviceID, err)
+	}
+}
+
+func (s *Server) clearEnrollmentRejectionState(deviceID string) {
+	if deviceID == "" || s.db == nil {
+		return
+	}
+	_ = s.db.DeleteConfig(rejectedDevicePrefix + deviceID)
+	// Keep approved history; only drop rejection decisions so Filters stay accurate.
+	if raw, err := s.db.GetConfig(enrollmentDecisionPrefix + deviceID); err == nil && raw != "" {
+		var d enrollmentDecision
+		if json.Unmarshal([]byte(raw), &d) == nil && d.Status == "rejected" {
+			_ = s.db.DeleteConfig(enrollmentDecisionPrefix + deviceID)
+		}
+	}
+}
+
 // handleListPendingDevices returns all pending enrollment requests.
 // GET /api/enrollment/pending
 func (s *Server) handleListPendingDevices(w http.ResponseWriter, r *http.Request) {
@@ -412,15 +482,6 @@ func (s *Server) handleListPendingDevices(w http.ResponseWriter, r *http.Request
 	// We scan all config keys with this prefix.
 	// Note: For production scale, a dedicated table would be better.
 	// Using server_config for now since it's available and simple.
-
-	type PendingDevice struct {
-		DeviceID  string `json:"device_id"`
-		Hostname  string `json:"hostname"`
-		Platform  string `json:"platform"`
-		Version   string `json:"version"`
-		IP        string `json:"ip"`
-		CreatedAt string `json:"created_at"`
-	}
 
 	// List all pending_ entries
 	pending := s.listPendingDevices()
@@ -430,6 +491,43 @@ func (s *Server) handleListPendingDevices(w http.ResponseWriter, r *http.Request
 		"devices": pending,
 		"count":   len(pending),
 	})
+}
+
+// handleListEnrollmentHistory returns approved/rejected Go enrollment decisions.
+// GET /api/enrollment/history?status=approved|rejected
+func (s *Server) handleListEnrollmentHistory(w http.ResponseWriter, r *http.Request) {
+	statusFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
+	if statusFilter != "" && statusFilter != "approved" && statusFilter != "rejected" {
+		http.Error(w, "Invalid status (approved, rejected)", http.StatusBadRequest)
+		return
+	}
+
+	devices := s.listEnrollmentHistory(statusFilter)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"devices": devices,
+		"count":   len(devices),
+	})
+}
+
+func (s *Server) listEnrollmentHistory(statusFilter string) []enrollmentDecision {
+	var result []enrollmentDecision
+	configs, err := s.db.ListConfigByPrefix(enrollmentDecisionPrefix)
+	if err != nil {
+		log.Printf("[API] listEnrollmentHistory: %v", err)
+		return result
+	}
+	for _, cfg := range configs {
+		var d enrollmentDecision
+		if json.Unmarshal([]byte(cfg.Value), &d) != nil || d.DeviceID == "" {
+			continue
+		}
+		if statusFilter != "" && d.Status != statusFilter {
+			continue
+		}
+		result = append(result, d)
+	}
+	return result
 }
 
 // handleApproveDevice approves a pending enrollment request.
@@ -462,23 +560,16 @@ func (s *Server) handleApproveDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Load pending device data
-	pendingJSON, _ := s.db.GetConfig("pending_device_" + deviceID)
+	pendingJSON, _ := s.db.GetConfig(pendingDevicePrefix + deviceID)
 	if pendingJSON == "" {
 		http.Error(w, "Device not found in pending list", http.StatusNotFound)
 		return
 	}
 
-	var pending struct {
-		DeviceID  string `json:"device_id"`
-		UUID      string `json:"uuid"`
-		Hostname  string `json:"hostname"`
-		Platform  string `json:"platform"`
-		Version   string `json:"version"`
-		PublicKey string `json:"public_key"`
-		IP        string `json:"ip"`
-		CreatedAt string `json:"created_at"`
+	pending := parsePendingEnrollmentMeta(pendingJSON)
+	if pending.DeviceID == "" {
+		pending.DeviceID = deviceID
 	}
-	json.Unmarshal([]byte(pendingJSON), &pending)
 
 	// Create the peer
 	enrollment := &EnrollmentRequest{
@@ -505,11 +596,26 @@ func (s *Server) handleApproveDevice(w http.ResponseWriter, r *http.Request) {
 		s.db.UpdatePeerFields(deviceID, map[string]string{"tags": tags})
 	}
 
-	// Remove from pending
-	s.db.DeleteConfig("pending_device_" + deviceID)
+	// Remove from pending and clear any prior rejection lock (#351).
+	s.db.DeleteConfig(pendingDevicePrefix + deviceID)
+	s.db.DeleteConfig(rejectedDevicePrefix + deviceID)
+
+	actor := getUsernameFromCtx(r)
+	s.storeEnrollmentDecision(enrollmentDecision{
+		DeviceID:  deviceID,
+		Hostname:  pending.Hostname,
+		Platform:  pending.Platform,
+		Version:   pending.Version,
+		IP:        pending.IP,
+		Status:    "approved",
+		Banned:    false,
+		DecidedAt: timeNowISO(),
+		CreatedAt: pending.CreatedAt,
+		Actor:     actor,
+	})
 
 	if s.auditLog != nil {
-		s.auditLog.Log("device_approved", s.remoteIP(r), getUsernameFromCtx(r), map[string]string{
+		s.auditLog.Log("device_approved", s.remoteIP(r), actor, map[string]string{
 			"device_id": deviceID, "sync_mode": syncMode, "display_name": req.DisplayName, "tags": tags,
 		})
 	}
@@ -549,20 +655,72 @@ func (s *Server) handleRejectDevice(w http.ResponseWriter, r *http.Request) {
 	// Body is optional; ignore decode errors (empty body = no ban).
 	_ = json.NewDecoder(r.Body).Decode(&req)
 
-	// Remove from pending
-	s.db.DeleteConfig("pending_device_" + deviceID)
-	// Store rejection marker (so status poll returns "rejected")
-	s.db.SetConfig("rejected_device_"+deviceID, `{"rejected":true}`)
+	pendingJSON, _ := s.db.GetConfig(pendingDevicePrefix + deviceID)
+	pending := parsePendingEnrollmentMeta(pendingJSON)
+	if pending.DeviceID == "" {
+		pending.DeviceID = deviceID
+	}
 
-	// Optionally ban the device so subsequent registration attempts are blocked.
+	// Remove from pending
+	s.db.DeleteConfig(pendingDevicePrefix + deviceID)
+
+	// Store rejection marker with metadata (status poll + history UI).
+	rejectedPayload, _ := json.Marshal(map[string]interface{}{
+		"rejected":   true,
+		"device_id":  deviceID,
+		"hostname":   pending.Hostname,
+		"platform":   pending.Platform,
+		"version":    pending.Version,
+		"ip":         pending.IP,
+		"created_at": pending.CreatedAt,
+		"banned":     req.Ban,
+		"decided_at": timeNowISO(),
+	})
+	s.db.SetConfig(rejectedDevicePrefix+deviceID, string(rejectedPayload))
+
+	// Optionally ban so Devices → Banned shows the device (#351).
+	// Pending enrollments often have no peers row yet — create one first.
 	if req.Ban {
-		if err := s.db.BanPeer(deviceID, "enrollment rejected"); err != nil {
+		existing, err := s.db.GetPeer(deviceID)
+		if err != nil {
+			log.Printf("[API] handleRejectDevice: GetPeer %s: %v", deviceID, err)
+		}
+		if existing == nil {
+			s.createPeerFromEnrollment(&EnrollmentRequest{
+				DeviceID:  pending.DeviceID,
+				UUID:      pending.UUID,
+				Hostname:  pending.Hostname,
+				Platform:  pending.Platform,
+				Version:   pending.Version,
+				PublicKey: pending.PublicKey,
+			}, pending.IP)
+		}
+		if err := s.db.BanPeer(deviceID, enrollmentRejectBanReason); err != nil {
 			log.Printf("[API] handleRejectDevice: failed to ban %s: %v", deviceID, err)
+		} else {
+			if s.peers != nil {
+				s.peers.Remove(deviceID)
+			}
+			_ = s.db.UpdatePeerStatus(deviceID, "OFFLINE", "")
 		}
 	}
 
+	actor := getUsernameFromCtx(r)
+	s.storeEnrollmentDecision(enrollmentDecision{
+		DeviceID:  deviceID,
+		Hostname:  pending.Hostname,
+		Platform:  pending.Platform,
+		Version:   pending.Version,
+		IP:        pending.IP,
+		Status:    "rejected",
+		Banned:    req.Ban,
+		DecidedAt: timeNowISO(),
+		CreatedAt: pending.CreatedAt,
+		Actor:     actor,
+	})
+
 	if s.auditLog != nil {
-		s.auditLog.Log("device_rejected", s.remoteIP(r), getUsernameFromCtx(r), map[string]string{
+		s.auditLog.Log("device_rejected", s.remoteIP(r), actor, map[string]string{
 			"device_id": deviceID,
 			"banned":    strconv.FormatBool(req.Ban),
 		})
@@ -580,6 +738,67 @@ func (s *Server) handleRejectDevice(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "banned": req.Ban})
+}
+
+// handleClearEnrollmentRejection removes the rejection lock so the device can
+// re-enter the pending queue. Also unbans when the ban reason is enrollment reject.
+// POST /api/enrollment/clear-rejection/{id}
+func (s *Server) handleClearEnrollmentRejection(w http.ResponseWriter, r *http.Request) {
+	deviceID := r.PathValue("id")
+	if deviceID == "" {
+		http.Error(w, "Device ID required", http.StatusBadRequest)
+		return
+	}
+
+	rejected, _ := s.db.GetConfig(rejectedDevicePrefix + deviceID)
+	decisionRaw, _ := s.db.GetConfig(enrollmentDecisionPrefix + deviceID)
+	if rejected == "" && decisionRaw == "" {
+		http.Error(w, "No enrollment rejection found for device", http.StatusNotFound)
+		return
+	}
+
+	unbanned := false
+	if peerRow, err := s.db.GetPeer(deviceID); err == nil && peerRow != nil && peerRow.Banned {
+		if peerRow.BanReason == enrollmentRejectBanReason {
+			if err := s.db.UnbanPeer(deviceID); err != nil {
+				log.Printf("[API] handleClearEnrollmentRejection: UnbanPeer %s: %v", deviceID, err)
+			} else {
+				unbanned = true
+				if s.peers != nil {
+					if entry := s.peers.Get(deviceID); entry != nil {
+						entry.Banned = false
+					}
+				}
+			}
+		}
+	}
+
+	s.clearEnrollmentRejectionState(deviceID)
+
+	actor := getUsernameFromCtx(r)
+	if s.auditLog != nil {
+		s.auditLog.Log("enrollment_rejection_cleared", s.remoteIP(r), actor, map[string]string{
+			"device_id": deviceID,
+			"unbanned":  strconv.FormatBool(unbanned),
+		})
+	}
+
+	if s.eventBus != nil {
+		s.eventBus.Publish(events.Event{
+			Type: "enrollment_rejection_cleared",
+			Data: map[string]string{
+				"device_id": deviceID,
+				"unbanned":  strconv.FormatBool(unbanned),
+			},
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":   true,
+		"device_id": deviceID,
+		"unbanned":  unbanned,
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -704,7 +923,7 @@ func (s *Server) storePendingDevice(req *EnrollmentRequest, clientIP string) {
 		CreatedAt: timeNowISO(),
 	}
 	data, _ := json.Marshal(info)
-	s.db.SetConfig("pending_device_"+req.DeviceID, string(data))
+	s.db.SetConfig(pendingDevicePrefix+req.DeviceID, string(data))
 }
 
 func (s *Server) listPendingDevices() []pendingDeviceInfo {
@@ -713,9 +932,7 @@ func (s *Server) listPendingDevices() []pendingDeviceInfo {
 	// a dedicated table would be more efficient.
 	var result []pendingDeviceInfo
 
-	// We need to query all server_config keys starting with "pending_device_"
-	// Since the DB interface doesn't have a ListConfigByPrefix, we'll add a helper.
-	configs, err := s.db.ListConfigByPrefix("pending_device_")
+	configs, err := s.db.ListConfigByPrefix(pendingDevicePrefix)
 	if err != nil {
 		log.Printf("[API] listPendingDevices: %v", err)
 		return result
