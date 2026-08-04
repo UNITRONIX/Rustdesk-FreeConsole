@@ -236,6 +236,11 @@ func peerHasTag(p *db.Peer, tagLower string) bool {
 // and /api/peers).
 func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map[string]*db.Peer) map[string]bool {
 	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
+		username := ""
+		if user != nil {
+			username = user.Username
+		}
+		log.Printf("[api] device scope SKIP (privileged role) user=%q role=%q — unrestricted peers", username, role)
 		return nil
 	}
 	denyAll := func(reason string) map[string]bool {
@@ -284,8 +289,12 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 	hasScoped := len(panelGroups) > 0 || len(folders) > 0
 	if !hasScoped && len(peerGrants) == 0 {
 		if restrictedDefault {
+			log.Printf("[api] device scope user=%q role=%q mode=restricted groups=0 folders=0 grants=0 allowed=0 (no ACL inventory)",
+				user.Username, role)
 			return map[string]bool{}
 		}
+		log.Printf("[api] device scope user=%q role=%q mode=open groups=0 folders=0 grants=0 → unrestricted nil",
+			user.Username, role)
 		return nil
 	}
 

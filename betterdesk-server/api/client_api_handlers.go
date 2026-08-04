@@ -234,6 +234,7 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = s.db.UpdateUserLogin(user.ID)
+	log.Printf("[api] /api/login ok user=%q role=%q client_id=%q", user.Username, user.Role, body.ID)
 
 	auditFields := map[string]string{"client_id": body.ID}
 	if login.AuthMethod != "" {

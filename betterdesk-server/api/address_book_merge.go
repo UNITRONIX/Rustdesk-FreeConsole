@@ -307,6 +307,7 @@ func filterAddressBookPeersByVisibleSet(data string, visible map[string]bool, kn
 // Pro accounts are scoped the same way as operators (no raw AB bypass).
 func (s *Server) applyDeviceScopeToAddressBook(r *http.Request, username, role, data string) string {
 	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
+		log.Printf("[api] device scope SKIP (privileged role) user=%q role=%q — full address book", username, role)
 		return data
 	}
 	user := s.rustDeskUserForGroups(r, username, role)
