@@ -92,6 +92,7 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 	}
 
 	visiblePeer := s.rustDeskVisiblePeerSet(user, role, peerByID)
+	visiblePeer = s.coerceNonAdminVisibleSet(user, role, peerByID, visiblePeer)
 	if !canBrowseRustDeskInventory(role) {
 		filtered := make(map[string]*db.Peer, len(allowedIDs))
 		for id := range allowedIDs {

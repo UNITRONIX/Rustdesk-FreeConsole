@@ -854,7 +854,7 @@ func (s *Server) handleListPeers(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		user := s.rustDeskUserForGroups(r, username, role)
-		if visible := s.rustDeskVisiblePeerSet(user, role, peerByID); visible != nil {
+		if visible := s.coerceNonAdminVisibleSet(user, role, peerByID, s.rustDeskVisiblePeerSet(user, role, peerByID)); visible != nil {
 			filtered := make([]*db.Peer, 0, len(peers))
 			for _, p := range peers {
 				if p != nil && visible[p.ID] {

@@ -1511,9 +1511,11 @@ async function repairMissingConsoleFiles(remoteSHA, changedConsoleFiles = []) {
  * Build the Go server binary from local source.
  * Uses async exec to avoid blocking the Node.js event loop.
  *
+ * @param {string|null} preferredGoBinPath
+ * @param {{ sha?: string }} [opts]
  * @returns {Promise<{ success: boolean, binaryPath: string|null, error?: string, duration?: number }>}
  */
-async function buildGoServer(preferredGoBinPath = null) {
+async function buildGoServer(preferredGoBinPath = null, opts = {}) {
     const serverDir = resolveServerSourceRootForUpdate();
     if (!fs.existsSync(path.join(serverDir, 'go.mod'))) {
         return { success: false, binaryPath: null, error: 'go.mod not found — server source incomplete' };
@@ -1547,7 +1549,13 @@ async function buildGoServer(preferredGoBinPath = null) {
         });
 
         const productVersion = readProductVersion({ rootDir: PROJECT_ROOT });
-        const ldflags = `-s -w -X main.Version=${productVersion}`;
+        const sha = String(opts.sha || '').trim() || String(getLocalSHA() || '').trim();
+        const shortSha = sha ? sha.slice(0, 7) : '';
+        const buildDate = new Date().toISOString();
+        let ldflags = `-s -w -X main.Version=${productVersion} -X main.BuildDate=${buildDate}`;
+        if (shortSha) {
+            ldflags += ` -X main.GitCommit=${shortSha}`;
+        }
         await spawnPromise(
             goBin,
             ['build', '-trimpath', `-ldflags=${ldflags}`, '-o', binaryName, '.'],
@@ -2747,7 +2755,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
         if (wantsCompile && goAvailable) {
             // ---- Strategy: Compile from source ----
-            const buildResult = await buildGoServer(preferredGoBinPath);
+            const buildResult = await buildGoServer(preferredGoBinPath, { sha: remoteSHA });
             results.serverBuild = {
                 success: buildResult.success,
                 duration: buildResult.duration || 0,
@@ -3466,7 +3474,7 @@ async function rebuildServerBinary(opts = {}) {
     }
 
     // 3. Build with the updated dependencies.
-    const build = await buildGoServer(preferredGoBinPath);
+    const build = await buildGoServer(preferredGoBinPath, { sha: remoteSHA });
     result.steps.build = {
         success: build.success,
         duration: build.duration || 0,

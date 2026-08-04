@@ -143,6 +143,7 @@ func (s *Server) consoleUserGroupGUIDs(userID int64) map[string]bool {
 	}
 	for _, g := range guids {
 		out[g] = true
+		out[strings.ToLower(g)] = true
 	}
 	return out
 }
@@ -159,13 +160,21 @@ func panelAccessAllowed(user *db.User, role string, userGroupGUIDs map[string]bo
 	if len(allowedUsers) == 0 && len(allowedGroups) == 0 {
 		return false
 	}
+	username := ""
+	if user != nil {
+		username = strings.TrimSpace(user.Username)
+	}
 	for _, u := range allowedUsers {
-		if u == user.Username {
+		if strings.EqualFold(strings.TrimSpace(u), username) {
 			return true
 		}
 	}
 	for _, g := range allowedGroups {
-		if userGroupGUIDs[g] {
+		g = strings.TrimSpace(g)
+		if g == "" {
+			continue
+		}
+		if userGroupGUIDs[g] || userGroupGUIDs[strings.ToLower(g)] {
 			return true
 		}
 	}
@@ -321,6 +330,9 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 	// leak showed the full fleet to operators who were only granted a subset of
 	// devices (stock RustDesk /api/ab + /api/peers).
 	if restrictedDefault || len(allowed) > 0 {
+		log.Printf("[api] device scope user=%q role=%q mode=%s groups=%d folders=%d userGroups=%d grants=%d allowed=%d",
+			user.Username, role, map[bool]string{true: "restricted", false: "open"}[restrictedDefault],
+			len(panelGroups), len(folders), len(userGroupGUIDs), len(peerGrants), len(allowed))
 		return allowed
 	}
 
@@ -330,7 +342,35 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 			visible[id] = true
 		}
 	}
+	log.Printf("[api] device scope user=%q role=%q mode=open-overlay groups=%d folders=%d allowed=%d restricted=%d visible=%d",
+		user.Username, role, len(panelGroups), len(folders), len(allowed), len(restricted), len(visible))
 	return visible
+}
+
+// coerceNonAdminVisibleSet ensures non-admins never receive a nil visible set
+// (unfiltered fleet). Restricted → deny-all; Open → explicit full inventory map.
+func (s *Server) coerceNonAdminVisibleSet(user *db.User, role string, peerByID map[string]*db.Peer, visible map[string]bool) map[string]bool {
+	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
+		return visible
+	}
+	if visible != nil {
+		return visible
+	}
+	username := ""
+	if user != nil {
+		username = user.Username
+	}
+	restricted := s.panelStore != nil && s.panelStore.DeviceScopeDefaultRestricted()
+	if restricted || s.panelStore == nil {
+		log.Printf("[api] device scope coerce nil→deny-all for non-admin user=%q role=%q restricted=%v", username, role, restricted)
+		return map[string]bool{}
+	}
+	out := make(map[string]bool, len(peerByID))
+	for id := range peerByID {
+		out[id] = true
+	}
+	log.Printf("[api] device scope coerce nil→open-all for non-admin user=%q role=%q inventory=%d", username, role, len(out))
+	return out
 }
 
 func folderGroupGUID(folderID int64) string {

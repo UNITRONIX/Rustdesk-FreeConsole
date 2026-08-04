@@ -216,7 +216,7 @@ router.get('/api/settings/server-info', requireAuth, (req, res) => {
 router.get('/api/settings/device-scope', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
         const stored = await db.getSetting('device_scope_default');
-        const mode = stored && String(stored).toLowerCase() === 'restricted' ? 'restricted' : 'open';
+        const mode = !stored || String(stored).toLowerCase() === 'restricted' ? 'restricted' : 'open';
         res.json({ success: true, data: { mode } });
     } catch (err) {
         console.error('Get device scope setting error:', err);
@@ -229,7 +229,7 @@ router.get('/api/settings/device-scope', requireAuth, requirePermission('server.
  */
 router.post('/api/settings/device-scope', requireAuth, requirePermission('server.config'), async (req, res) => {
     try {
-        const mode = String((req.body && req.body.mode) || 'open').toLowerCase();
+        const mode = String((req.body && req.body.mode) || 'restricted').toLowerCase();
         if (mode !== 'open' && mode !== 'restricted') {
             return res.status(400).json({ success: false, error: req.t('settings.device_scope_invalid') });
         }

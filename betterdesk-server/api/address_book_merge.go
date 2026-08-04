@@ -311,8 +311,8 @@ func (s *Server) applyDeviceScopeToAddressBook(r *http.Request, username, role, 
 	}
 	user := s.rustDeskUserForGroups(r, username, role)
 	peerByID, _ := s.loadRustDeskPeerByID(username, role)
-	visible := s.rustDeskVisiblePeerSet(user, role, peerByID)
-	// visible == nil means unrestricted (open mode, no scoped inventory). An empty
+	visible := s.coerceNonAdminVisibleSet(user, role, peerByID, s.rustDeskVisiblePeerSet(user, role, peerByID))
+	// visible == nil means unrestricted (admins only after coerce). An empty
 	// map means deny-all (panel ACL unavailable) — still strip known server peers.
 	return filterAddressBookPeersByVisibleSet(data, visible, peerByID)
 }

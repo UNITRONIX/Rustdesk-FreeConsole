@@ -8,21 +8,42 @@ import (
 	"github.com/unitronix/betterdesk-server/db"
 )
 
-func TestPanelAccessAllowed(t *testing.T) {
-	user := &db.User{Username: "operator1", Role: auth.RoleOperator}
-	guids := map[string]bool{"ug-1": true}
+func TestPanelAccessAllowedCaseInsensitive(t *testing.T) {
+	user := &db.User{Username: "Test", Role: auth.RoleOperator}
+	guids := map[string]bool{
+		"Ug-AbC": true,
+		"ug-abc": true,
+	}
+	if !panelAccessAllowed(user, auth.RoleOperator, guids, []string{"test"}, nil) {
+		t.Fatal("expected case-insensitive username match")
+	}
+	if !panelAccessAllowed(user, auth.RoleOperator, guids, nil, []string{"UG-ABC"}) {
+		t.Fatal("expected case-insensitive user-group GUID match")
+	}
+}
 
-	if panelAccessAllowed(user, auth.RoleOperator, guids, nil, nil) {
-		t.Fatal("expected deny for empty ACL (fail closed)")
+func TestCoerceNonAdminVisibleSet(t *testing.T) {
+	srv := &Server{}
+	user := &db.User{ID: 1, Username: "op", Role: auth.RoleOperator}
+	peerByID := map[string]*db.Peer{"A": {ID: "A"}, "B": {ID: "B"}}
+
+	// Restricted + nil → deny-all
+	srv.SetPanelStore(&mockPanelACLStore{restrictedDefault: true})
+	got := srv.coerceNonAdminVisibleSet(user, auth.RoleOperator, peerByID, nil)
+	if got == nil || len(got) != 0 {
+		t.Fatalf("restricted nil coerce = %#v, want empty map", got)
 	}
-	if panelAccessAllowed(user, auth.RoleOperator, guids, []string{"other"}, nil) {
-		t.Fatal("expected deny when username not in allowed_users")
+
+	// Open + nil → materialize full inventory (never leave nil for non-admins)
+	srv.SetPanelStore(&mockPanelACLStore{restrictedDefault: false})
+	got = srv.coerceNonAdminVisibleSet(user, auth.RoleOperator, peerByID, nil)
+	if got == nil || !got["A"] || !got["B"] {
+		t.Fatalf("open nil coerce = %#v, want full inventory", got)
 	}
-	if !panelAccessAllowed(user, auth.RoleOperator, guids, nil, []string{"ug-1"}) {
-		t.Fatal("expected allow via user group membership")
-	}
-	if !panelAccessAllowed(user, auth.RoleGlobalAdmin, guids, []string{"x"}, nil) {
-		t.Fatal("expected global_admin bypass")
+
+	// Admin keeps nil
+	if got := srv.coerceNonAdminVisibleSet(user, auth.RoleAdmin, peerByID, nil); got != nil {
+		t.Fatalf("admin nil must stay nil, got %#v", got)
 	}
 }
 

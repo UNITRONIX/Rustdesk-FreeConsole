@@ -41,6 +41,7 @@ import (
 var (
 	Version   = "dev"
 	BuildDate = "unknown"
+	GitCommit = ""
 )
 
 func init() {
@@ -61,6 +62,9 @@ func main() {
 	log.Printf("========================================")
 	log.Printf("  BetterDesk Server %s", Version)
 	log.Printf("  Build: %s", BuildDate)
+	if GitCommit != "" {
+		log.Printf("  Commit:   %s", GitCommit)
+	}
 	log.Printf("========================================")
 	log.Printf("  Mode:       %s", cfg.Mode)
 	log.Printf("  Signal:     :%d (UDP+TCP)", cfg.SignalPort)
@@ -290,7 +294,7 @@ func main() {
 	})
 
 	// Initialize admin TCP interface
-	adminSrv := admin.New(cfg, database, nil, Version) // peer map set per mode
+	adminSrv := admin.New(cfg, database, nil, apiVersionString()) // peer map set per mode
 	adminSrv.SetBlocklist(blocklist)
 	adminSrv.SetReloadFunc(reloadHandler.Execute)
 
@@ -366,7 +370,7 @@ func main() {
 		}
 		defer relaySrv.Stop()
 
-		apiSrv := api.New(cfg, database, sig.PeerMap(), relaySrv, Version)
+		apiSrv := api.New(cfg, database, sig.PeerMap(), relaySrv, apiVersionString())
 		defer attachPanelSync(apiSrv, billingSvc, database, cfg.AuthDBPath)()
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
@@ -465,7 +469,7 @@ func main() {
 		}
 		defer sig.Stop()
 
-		apiSrv := api.New(cfg, database, sig.PeerMap(), nil, Version)
+		apiSrv := api.New(cfg, database, sig.PeerMap(), nil, apiVersionString())
 		defer attachPanelSync(apiSrv, billingSvc, database, cfg.AuthDBPath)()
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
@@ -735,6 +739,18 @@ func attachPanelSync(apiSrv *api.Server, billingSvc *billing.Service, database d
 	}
 	log.Printf("RustDesk panel sync: legacy auth.db at %s", authDBPath)
 	return func() { _ = consoleAuth.Close() }
+}
+
+func apiVersionString() string {
+	v := Version
+	if GitCommit != "" {
+		short := GitCommit
+		if len(short) > 7 {
+			short = short[:7]
+		}
+		v = v + "+" + short
+	}
+	return v
 }
 
 func parseFlags() *config.Config {
