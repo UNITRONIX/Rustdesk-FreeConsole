@@ -218,36 +218,58 @@ func peerHasTag(p *db.Peer, tagLower string) bool {
 	return false
 }
 
-// rustDeskVisiblePeerSet implements device group scope (restricted groups). nil = all peers visible.
+// rustDeskVisiblePeerSet implements device group / folder scope for stock RustDesk
+// clients. nil = all peers visible (admins only, or open mode with no scoped inventory).
+//
+// Non-admins must never fail open: if panel ACL data is unavailable or a scope query
+// fails, return an empty set so the client sees no devices (console Node ACL still
+// works independently — a broken panelStore used to dump the full fleet to /api/ab
+// and /api/peers).
 func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map[string]*db.Peer) map[string]bool {
 	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
 		return nil
 	}
+	denyAll := func(reason string) map[string]bool {
+		username := ""
+		if user != nil {
+			username = user.Username
+		}
+		log.Printf("[api] device scope deny-all for user=%q role=%q: %s", username, role, reason)
+		return map[string]bool{}
+	}
 	if s.panelStore == nil {
-		return nil
+		return denyAll("panelStore not configured (AUTH_DB_PATH / PostgreSQL panel sync)")
+	}
+	if user == nil {
+		return denyAll("missing user for ACL")
 	}
 
 	restrictedDefault := s.panelStore.DeviceScopeDefaultRestricted()
 
 	var peerGrants []string
-	if user != nil && user.ID > 0 {
+	if user.ID > 0 {
 		if grants, err := s.panelStore.ListUserPeerGrants(user.ID); err == nil {
 			peerGrants = grants
+		} else {
+			log.Printf("[api] ListUserPeerGrants user=%s: %v (continuing without grants)", user.Username, err)
 		}
 	}
 
 	panelGroups, err := s.panelStore.ListPanelDeviceGroups()
 	if err != nil {
-		return nil
+		return denyAll("ListPanelDeviceGroups: " + err.Error())
 	}
 	userGroupGUIDs := s.consoleUserGroupGUIDs(user.ID)
 
-	assignments := map[string]int64{}
-	if a, err := s.panelStore.ListFolderAssignments(); err == nil {
-		assignments = a
+	assignments, err := s.panelStore.ListFolderAssignments()
+	if err != nil {
+		return denyAll("ListFolderAssignments: " + err.Error())
 	}
 
-	folders, _ := s.panelStore.ListFolders()
+	folders, err := s.panelStore.ListFolders()
+	if err != nil {
+		return denyAll("ListFolders: " + err.Error())
+	}
 	// Every device/folder group participates in scope. Empty ACL denies non-admins
 	// and still hides member peers from the open overlay.
 	hasScoped := len(panelGroups) > 0 || len(folders) > 0
@@ -272,7 +294,10 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 	}
 
 	for _, folder := range folders {
-		allowedUsers, allowedGroups, _ := s.panelStore.FolderGroupAccess(folder.ID)
+		allowedUsers, allowedGroups, accessErr := s.panelStore.FolderGroupAccess(folder.ID)
+		if accessErr != nil {
+			return denyAll("FolderGroupAccess: " + accessErr.Error())
+		}
 		target := restricted
 		if panelAccessAllowed(user, role, userGroupGUIDs, allowedUsers, allowedGroups) {
 			target = allowed

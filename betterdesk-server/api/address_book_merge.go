@@ -297,10 +297,9 @@ func (s *Server) applyDeviceScopeToAddressBook(r *http.Request, username, role, 
 		return data
 	}
 	user := s.rustDeskUserForGroups(r, username, role)
-	if user == nil {
-		return data
-	}
 	peerByID, _ := s.loadRustDeskPeerByID(username, role)
 	visible := s.rustDeskVisiblePeerSet(user, role, peerByID)
+	// visible == nil means unrestricted (open mode, no scoped inventory). An empty
+	// map means deny-all (panel ACL unavailable) — still strip known server peers.
 	return filterAddressBookPeersByVisibleSet(data, visible, peerByID)
 }

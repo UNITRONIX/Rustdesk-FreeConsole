@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/unitronix/betterdesk-server/auth"
@@ -54,4 +55,107 @@ func TestBuildRustDeskPeerManualGroupNames(t *testing.T) {
 	if got["P2"] != "Servers" || got["P3"] != "Servers" {
 		t.Fatalf("unexpected manual map: %#v", got)
 	}
+}
+
+type errPanelStore struct {
+	mockPanelACLStore
+	groupsErr error
+}
+
+func (e *errPanelStore) ListPanelDeviceGroups() ([]db.PanelDeviceGroup, error) {
+	if e.groupsErr != nil {
+		return nil, e.groupsErr
+	}
+	return e.mockPanelACLStore.ListPanelDeviceGroups()
+}
+
+func TestRustDeskVisiblePeerSetFailClosedWithoutPanelStore(t *testing.T) {
+	srv := &Server{}
+	user := &db.User{ID: 1, Username: "op", Role: auth.RoleOperator}
+	peerByID := map[string]*db.Peer{"A": {ID: "A"}, "B": {ID: "B"}}
+
+	visible := srv.rustDeskVisiblePeerSet(user, auth.RoleOperator, peerByID)
+	if visible == nil {
+		t.Fatal("missing panelStore must not mean unrestricted (nil)")
+	}
+	if len(visible) != 0 {
+		t.Fatalf("expected empty deny-all set, got %#v", visible)
+	}
+
+	// Admins still unrestricted without panelStore.
+	if got := srv.rustDeskVisiblePeerSet(user, auth.RoleAdmin, peerByID); got != nil {
+		t.Fatalf("admin should be unrestricted (nil), got %#v", got)
+	}
+}
+
+func TestRustDeskVisiblePeerSetFailClosedOnPanelQueryError(t *testing.T) {
+	srv := &Server{}
+	srv.SetPanelStore(&errPanelStore{
+		mockPanelACLStore: mockPanelACLStore{
+			restrictedDefault: true,
+			groups: []db.PanelDeviceGroup{{
+				ID: 1, GUID: "dg-a", Name: "A", AllowedUsers: []string{"op"},
+			}},
+			members: map[int64][]string{1: {"A"}},
+		},
+		groupsErr: fmt.Errorf("db unavailable"),
+	})
+	user := &db.User{ID: 1, Username: "op", Role: auth.RoleOperator}
+	peerByID := map[string]*db.Peer{"A": {ID: "A"}, "B": {ID: "B"}}
+
+	visible := srv.rustDeskVisiblePeerSet(user, auth.RoleOperator, peerByID)
+	if visible == nil || len(visible) != 0 {
+		t.Fatalf("panel query error must deny-all, got %#v", visible)
+	}
+}
+
+func TestRustDeskVisiblePeerSetOpenModeHidesDeniedFolder(t *testing.T) {
+	store := &folderACLStore{
+		mockPanelACLStore: mockPanelACLStore{
+			restrictedDefault: false,
+			userIDs:           map[string]int64{"op": 1},
+		},
+		folders: []db.PanelFolder{{ID: 10, Name: "TeamA"}, {ID: 20, Name: "TeamB"}},
+		assignments: map[string]int64{"ALLOW1": 10, "DENY1": 20},
+		folderACL: map[int64][2][]string{
+			10: {{"op"}, nil},
+			20: {{"other"}, nil},
+		},
+	}
+	srv := &Server{}
+	srv.SetPanelStore(store)
+	user := &db.User{ID: 1, Username: "op", Role: auth.RoleOperator}
+	peerByID := map[string]*db.Peer{
+		"ALLOW1": {ID: "ALLOW1"},
+		"DENY1":  {ID: "DENY1"},
+		"FREE1":  {ID: "FREE1"}, // unassigned — visible in open mode
+	}
+
+	visible := srv.rustDeskVisiblePeerSet(user, auth.RoleOperator, peerByID)
+	if visible == nil {
+		t.Fatal("open mode with folders must return an explicit set")
+	}
+	if !visible["ALLOW1"] || !visible["FREE1"] {
+		t.Fatalf("expected ALLOW1 + FREE1 visible, got %#v", visible)
+	}
+	if visible["DENY1"] {
+		t.Fatalf("DENY1 in other team's folder must be hidden, got %#v", visible)
+	}
+}
+
+// folderACLStore extends mockPanelACLStore with folder ACL fixtures.
+type folderACLStore struct {
+	mockPanelACLStore
+	folders     []db.PanelFolder
+	assignments map[string]int64
+	folderACL   map[int64][2][]string
+}
+
+func (f *folderACLStore) ListFolders() ([]db.PanelFolder, error) { return f.folders, nil }
+func (f *folderACLStore) ListFolderAssignments() (map[string]int64, error) {
+	return f.assignments, nil
+}
+func (f *folderACLStore) FolderGroupAccess(folderID int64) ([]string, []string, error) {
+	acl := f.folderACL[folderID]
+	return acl[0], acl[1], nil
 }

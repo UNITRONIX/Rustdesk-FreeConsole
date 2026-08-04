@@ -30,6 +30,8 @@ RustDesk Pro **client features** are controlled separately via **strategy assign
 
 Empty folder/device-group ACL is **deny by default** (admins/`global_admin`/`server_admin` still bypass). Attach allowed users and/or user groups before expecting operators to see those devices.
 
+**Stock RustDesk clients** use the Go Client API (`/api/ab`, `/api/peers`) with the same scope rules as the console. If panel ACL sync is unavailable (no PostgreSQL panel tables / missing `AUTH_DB_PATH` for legacy SQLite), non-admins receive **no** devices (fail closed) — not the full inventory. Prefer **Restricted** when every machine should require an explicit grant.
+
 ## Password and Web Client
 
 - **Password**: Remote Operator / Viewer → Settings → Change password (local accounts).
