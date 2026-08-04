@@ -15,7 +15,9 @@ jest.mock('../services/database', () => ({
     saveAddressBook: jest.fn(),
     getAllDeviceGroups: jest.fn(),
     getDeviceGroupByGuid: jest.fn(),
-    getDeviceGroupMembers: jest.fn()
+    getDeviceGroupMembers: jest.fn(),
+    getSetting: jest.fn(),
+    getUserPeerGrants: jest.fn()
 }));
 
 jest.mock('../services/authService', () => ({
@@ -30,6 +32,7 @@ jest.mock('../services/serverBackend', () => ({
 const db = require('../services/database');
 const authService = require('../services/authService');
 const serverBackend = require('../services/serverBackend');
+const deviceGroupService = require('../services/deviceGroupService');
 const rustdeskApiRoutes = require('../routes/rustdesk-api.routes');
 
 describe('RustDesk Client API routes', () => {
@@ -40,6 +43,7 @@ describe('RustDesk Client API routes', () => {
         app.use('/', rustdeskApiRoutes);
 
         jest.clearAllMocks();
+        deviceGroupService.invalidateDeviceScopeDefaultCache();
         authService.validateAccessToken.mockResolvedValue({ id: 2, username: 'viewer1', role: 'viewer' });
         db.getAllDevices.mockResolvedValue([
             { id: 'OWNED1', hostname: 'Owned', online: true, tags: 'Allowed' },
@@ -57,6 +61,9 @@ describe('RustDesk Client API routes', () => {
         db.getAllDeviceGroups.mockResolvedValue([]);
         db.getDeviceGroupByGuid.mockResolvedValue(null);
         db.getDeviceGroupMembers.mockResolvedValue([]);
+        // Open + empty ACL: operators may see unassigned inventory (legacy route tests).
+        db.getSetting.mockResolvedValue('open');
+        db.getUserPeerGrants.mockResolvedValue([]);
         db.getAddressBook.mockImplementation(async (_userId, abType) => {
             if (abType === 'legacy') {
                 return { data: JSON.stringify({ peers: [{ id: 'OWNED1' }] }) };
@@ -241,11 +248,11 @@ describe('RustDesk Client API routes', () => {
                 .set('Authorization', 'Bearer operator-token');
 
             expect(res.status).toBe(200);
-            expect(res.body.data.find(peer => peer.id === 'GROUP1')).toMatchObject({
+            // Explicit group grant → allowlist-only (OTHER1 must not leak via open overlay).
+            expect(res.body.data.map(peer => peer.id)).toEqual(['GROUP1']);
+            expect(res.body.data[0]).toMatchObject({
+                id: 'GROUP1',
                 device_group_name: 'Servers'
-            });
-            expect(res.body.data.find(peer => peer.id === 'OTHER1')).toMatchObject({
-                device_group_name: ''
             });
         });
 

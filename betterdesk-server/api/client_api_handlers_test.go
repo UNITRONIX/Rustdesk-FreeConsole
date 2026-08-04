@@ -347,7 +347,16 @@ func TestHandleClientAddressBookMergesOrgSharedBook(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Without panel ACL, operators fail closed (empty AB). Grant both peers so
+	// org merge can be verified under Restricted scope.
+	panel := &mockPanelACLStore{
+		userIDs:           map[string]int64{"alice": 42},
+		restrictedDefault: true,
+		peerGrants:        map[int64][]string{42: {"111", "999"}},
+	}
+
 	srv := New(config.DefaultConfig(), database, peer.NewMap(), nil, "test")
+	srv.SetPanelStore(panel)
 	req := httptest.NewRequest(http.MethodGet, "/api/ab", nil)
 	ctx := context.WithValue(req.Context(), ctxKeyUsername, "alice")
 	ctx = context.WithValue(ctx, ctxKeyRole, "operator")

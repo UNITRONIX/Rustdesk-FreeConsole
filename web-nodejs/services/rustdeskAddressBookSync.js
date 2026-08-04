@@ -191,9 +191,11 @@ function collectPeerTagUpdates(data, options = {}) {
 }
 
 /**
- * Strip known server peers outside the caller's device-group ACL.
- * Peers not in knownDeviceIds (user-typed remote IDs) are kept.
- * When visibleIds is null/undefined, no filtering is applied.
+ * Strip peers outside the caller's device-group ACL.
+ * When visibleIds is null/undefined, no filtering is applied (unrestricted / admin).
+ * When knownDeviceIds is non-empty, user-typed remote IDs (not in inventory) are kept.
+ * When knownDeviceIds is empty under a non-null visible set, allowlist-only: keep iff
+ * visible — otherwise an empty inventory would fail open and re-expose a saved fleet.
  */
 function filterAddressBookPeersByScope(data, options = {}) {
     const ab = parseAddressBookData(data);
@@ -206,12 +208,14 @@ function filterAddressBookPeersByScope(data, options = {}) {
             .map(id => String(id || '').trim())
             .filter(Boolean)
     );
+    const inventoryLoaded = known.size > 0;
     ab.peers = ab.peers.filter(peer => {
         if (!peer || typeof peer !== 'object') return false;
         const id = String(peer.id || '').trim();
         if (!id) return false;
-        if (known.has(id) && !visibleIds.has(id)) return false;
-        return true;
+        if (visibleIds.has(id)) return true;
+        if (inventoryLoaded && !known.has(id)) return true;
+        return false;
     });
     return JSON.stringify(ab);
 }

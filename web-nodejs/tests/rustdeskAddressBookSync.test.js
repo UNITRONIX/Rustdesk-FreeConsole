@@ -106,6 +106,22 @@ describe('rustdeskAddressBookSync', () => {
         expect(result.peers.map(p => p.id)).toEqual(['ALLOW1', 'REMOTE']);
     });
 
+    it('allowlist-only when knownDeviceIds is empty (no fail-open)', () => {
+        const result = JSON.parse(sync.filterAddressBookPeersByScope(JSON.stringify({
+            peers: [
+                { id: 'ALLOW1' },
+                { id: 'DENY1' },
+                { id: 'REMOTE' }
+            ],
+            tags: []
+        }), {
+            visibleIds: new Set(['ALLOW1']),
+            knownDeviceIds: []
+        }));
+
+        expect(result.peers.map(p => p.id)).toEqual(['ALLOW1']);
+    });
+
     it('leaves address book unchanged when visibleIds is null', () => {
         const raw = JSON.stringify({ peers: [{ id: 'A' }], tags: [] });
         expect(sync.filterAddressBookPeersByScope(raw, { visibleIds: null })).toBe(

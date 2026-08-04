@@ -198,11 +198,16 @@ async function enrichGroups(db, groups, devices = []) {
 }
 
 async function getDeviceScopeForUser(db, user, devices = []) {
-    if (!user || !user.id || isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin') {
+    if (!user) {
+        return new Set();
+    }
+    if (isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin') {
         return null;
     }
-
-    if (typeof db.getAllDeviceGroups !== 'function') return null;
+    // Non-admins must never fail open: missing user id or ACL adapter → deny-all.
+    if (!user.id || typeof db.getAllDeviceGroups !== 'function') {
+        return new Set();
+    }
 
     const restrictedDefault = await isDeviceScopeRestrictedDefault(db);
     const accessUser = await getUserAccessContext(db, user);

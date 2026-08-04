@@ -111,4 +111,25 @@ describe('deviceGroupService scope (#227)', () => {
         expect(scope.has('100')).toBe(false);
         expect(scope.has('200')).toBe(false);
     });
+
+    test('missing getAllDeviceGroups denies non-admins (never null)', async () => {
+        const db = {
+            getSetting: jest.fn().mockResolvedValue('restricted')
+        };
+        const user = { id: 5, username: 'op1', role: 'operator' };
+        const scope = await deviceGroupService.getDeviceScopeForUser(db, user, devices);
+        expect(scope).not.toBeNull();
+        expect(scope.size).toBe(0);
+    });
+
+    test('missing user.id denies non-admins (never null)', async () => {
+        const db = {
+            getSetting: jest.fn().mockResolvedValue('open'),
+            getAllDeviceGroups: jest.fn().mockResolvedValue([])
+        };
+        const user = { username: 'op1', role: 'operator' };
+        const scope = await deviceGroupService.getDeviceScopeForUser(db, user, devices);
+        expect(scope).not.toBeNull();
+        expect(scope.size).toBe(0);
+    });
 });

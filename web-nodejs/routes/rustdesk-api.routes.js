@@ -43,7 +43,7 @@ const betterdeskApi = require('../services/betterdeskApi');
 const addressBookSync = require('../services/rustdeskAddressBookSync');
 const deviceGroupService = require('../services/deviceGroupService');
 const config = require('../config/config');
-const { roleHasPermission } = require('../middleware/auth');
+const { roleHasPermission, isSuperAdminRole } = require('../middleware/auth');
 
 // After the API-port consolidation the RustDesk clients report audit events to
 // the Go server (port 21121). When Node's own client API listener is disabled
@@ -189,6 +189,36 @@ function canSyncDeviceTags(user) {
     return user && user.role !== 'pro' && roleHasPermission(user.role, 'device.edit');
 }
 
+function isUnscopedAdminUser(user) {
+    return !!(user && (isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin'));
+}
+
+/**
+ * Apply device-group ACL to address-book JSON. On scope errors, non-admins get
+ * an empty peer list (fail closed) instead of the unfiltered book.
+ */
+async function applyDeviceScopeToAddressBookData(user, dataStr) {
+    try {
+        const allDevices = await serverBackend.getAllDevices({});
+        const scope = await deviceGroupService.getDeviceScopeForUser(db, user, allDevices);
+        if (!scope) {
+            return typeof dataStr === 'string' ? dataStr : JSON.stringify(dataStr || {});
+        }
+        return addressBookSync.filterAddressBookPeersByScope(dataStr, {
+            visibleIds: scope,
+            knownDeviceIds: (allDevices || []).map(d => d && d.id)
+        });
+    } catch (err) {
+        console.warn(`[API:AB] Failed to apply device scope to address book for ${user && user.username}:`, err.message);
+        if (isUnscopedAdminUser(user)) {
+            return typeof dataStr === 'string' ? dataStr : JSON.stringify(dataStr || {});
+        }
+        const ab = addressBookSync.parseAddressBookData(dataStr);
+        ab.peers = [];
+        return JSON.stringify(ab);
+    }
+}
+
 function isReachableRustDeskDevice(device) {
     if (!device || device.banned || device.disabled) return false;
     if (device.online === true || device.live_online === true || device.cdap_connected === true) return true;
@@ -328,6 +358,10 @@ async function filterDevicesForRustDeskUser(user, devices) {
         );
     } catch (err) {
         console.warn(`[API:PEERS] Failed to apply device group scope for ${user && user.username}:`, err.message);
+        // Fail closed: never return the full fleet to non-admins on scope errors.
+        if (!isUnscopedAdminUser(user)) {
+            scoped = [];
+        }
     }
 
     if (canBrowseDeviceInventory(user)) return scoped;
@@ -393,10 +427,10 @@ async function getConsoleDeviceContext(user) {
 async function buildSyncedAddressBook(user, abType) {
     const abRecord = await db.getAddressBook(user.id, abType);
     const abData = (abRecord && abRecord.data) ? String(abRecord.data) : '{}';
-    if (user.role === 'pro') {
-        return abData;
-    }
-    const context = await getConsoleDeviceContext(user);
+    // Pro is scoped like operators (no raw AB bypass). Admins still get full merges below.
+    const context = user.role === 'pro'
+        ? { devices: [], folders: [], assignments: {} }
+        : await getConsoleDeviceContext(user);
 
     // Issue #138 (2.1): Do NOT auto-include all server devices into the AB.
     // Previously this was true for admin/operator users, causing "ghost" entries
@@ -408,18 +442,7 @@ async function buildSyncedAddressBook(user, abType) {
     });
 
     // Strip org/stale peers outside device-group ACL (same scope as peer list).
-    try {
-        const allDevices = await serverBackend.getAllDevices({});
-        const scope = await deviceGroupService.getDeviceScopeForUser(db, user, allDevices);
-        if (scope) {
-            merged = addressBookSync.filterAddressBookPeersByScope(merged, {
-                visibleIds: scope,
-                knownDeviceIds: (allDevices || []).map(d => d && d.id)
-            });
-        }
-    } catch (err) {
-        console.warn(`[API:AB] Failed to apply device scope to address book for ${user && user.username}:`, err.message);
-    }
+    merged = await applyDeviceScopeToAddressBookData(user, merged);
 
     return merged;
 }
@@ -970,8 +993,9 @@ router.post('/api/ab', async (req, res) => {
     }
     const { data } = req.body || {};
     if (data !== undefined) {
-        const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+        let dataStr = typeof data === 'string' ? data : JSON.stringify(data);
         try {
+            dataStr = await applyDeviceScopeToAddressBookData(user, dataStr);
             await db.saveAddressBook(user.id, dataStr, 'legacy');
             await syncAddressBookTagsToConsole(user, dataStr, 'legacy');
             console.log(`[API:AB] Saved legacy address book for user ${user.username} (${dataStr.length} bytes)`);
@@ -1066,8 +1090,9 @@ router.post('/api/ab/personal', async (req, res) => {
     if (!hasData) {
         return res.status(404).end();
     }
-    const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+    const dataStrRaw = typeof data === 'string' ? data : JSON.stringify(data);
     try {
+        const dataStr = await applyDeviceScopeToAddressBookData(user, dataStrRaw);
         await db.saveAddressBook(user.id, dataStr, 'personal');
         await syncAddressBookTagsToConsole(user, dataStr, 'personal');
         console.log(`[API:AB] Saved personal address book for user ${user.username} (${dataStr.length} bytes)`);

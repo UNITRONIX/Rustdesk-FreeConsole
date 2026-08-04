@@ -419,6 +419,8 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Address book too large"})
 			return
 		}
+		// Do not persist out-of-scope enrolled peers (client may re-upload a leaked fleet).
+		dataStr = s.applyDeviceScopeToAddressBook(r, username, role, dataStr)
 		if err := s.db.SaveAddressBook(username, "legacy", dataStr); err != nil {
 			log.Printf("[api] SaveAddressBook error for %s: %v", username, err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})
@@ -474,6 +476,8 @@ func (s *Server) handleClientAddressBookPersonal(w http.ResponseWriter, r *http.
 			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Address book too large"})
 			return
 		}
+		// Do not persist out-of-scope enrolled peers (client may re-upload a leaked fleet).
+		dataStr = s.applyDeviceScopeToAddressBook(r, username, role, dataStr)
 		if err := s.db.SaveAddressBook(username, "personal", dataStr); err != nil {
 			log.Printf("[api] SaveAddressBook(personal) error for %s: %v", username, err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Internal error"})

@@ -98,3 +98,29 @@ func TestFilterAddressBookPeersByVisibleSet(t *testing.T) {
 		t.Fatalf("nil visible should leave data unchanged")
 	}
 }
+
+func TestFilterAddressBookPeersByVisibleSetEmptyKnownAllowlistOnly(t *testing.T) {
+	t.Parallel()
+
+	// Empty knownPeers used to fail open (keep every AB peer). Must allowlist-only.
+	data := `{"peers":[{"id":"A"},{"id":"B"},{"id":"C"},{"id":"REMOTE"}],"tags":[]}`
+	visible := map[string]bool{"A": true, "B": true}
+	got := filterAddressBookPeersByVisibleSet(data, visible, map[string]*db.Peer{})
+	ab := parseAddressBookMap(got)
+	peers := toPeerSlice(ab["peers"])
+	if len(peers) != 2 {
+		t.Fatalf("peer count = %d, want 2 (A+B only); data=%s", len(peers), got)
+	}
+	ids := map[string]bool{}
+	for _, p := range peers {
+		ids[p["id"].(string)] = true
+	}
+	if !ids["A"] || !ids["B"] || ids["C"] || ids["REMOTE"] {
+		t.Fatalf("empty known must be allowlist-only, got %v", ids)
+	}
+
+	denyAll := filterAddressBookPeersByVisibleSet(data, map[string]bool{}, map[string]*db.Peer{})
+	if len(toPeerSlice(parseAddressBookMap(denyAll)["peers"])) != 0 {
+		t.Fatalf("empty visible + empty known should strip all peers, got %s", denyAll)
+	}
+}

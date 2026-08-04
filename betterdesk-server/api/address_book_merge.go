@@ -258,9 +258,16 @@ func (s *Server) mergeOrgAddressBooksIntoAB(r *http.Request, data string) string
 	return mergeAddressBookJSON(data, overlays...)
 }
 
-// filterAddressBookPeersByVisibleSet strips known server peers outside the caller's
-// device-group ACL. Peers not present in knownPeers (user-typed remote IDs) are kept.
+// emptyAddressBookPeersJSON is returned when scoped filtering cannot safely
+// serialize the filtered book (fail closed — never return the unfiltered payload).
+const emptyAddressBookPeersJSON = `{"peers":[],"tags":[]}`
+
+// filterAddressBookPeersByVisibleSet strips peers outside the caller's device-group ACL.
 // When visible is nil, no filtering is applied (unrestricted / admin).
+// When knownPeers is non-empty, user-typed remote IDs (not in inventory) are kept.
+// When knownPeers is empty under a non-nil visible set, allowlist-only: keep iff
+// visible[id] — otherwise an empty inventory would fail open and re-expose a
+// previously saved full fleet from POST /api/ab.
 func filterAddressBookPeersByVisibleSet(data string, visible map[string]bool, knownPeers map[string]*db.Peer) string {
 	if visible == nil {
 		return data
@@ -268,31 +275,37 @@ func filterAddressBookPeersByVisibleSet(data string, visible map[string]bool, kn
 	ab := parseAddressBookMap(data)
 	peers := toPeerSlice(ab["peers"])
 	filtered := make([]map[string]any, 0, len(peers))
+	inventoryLoaded := len(knownPeers) > 0
 	for _, p := range peers {
 		id, _ := p["id"].(string)
 		id = strings.TrimSpace(id)
 		if id == "" {
 			continue
 		}
-		if _, known := knownPeers[id]; known && !visible[id] {
+		if visible[id] {
+			filtered = append(filtered, p)
 			continue
 		}
-		filtered = append(filtered, p)
+		if inventoryLoaded {
+			if _, known := knownPeers[id]; !known {
+				// User-typed remote ID not in server inventory — keep.
+				filtered = append(filtered, p)
+			}
+		}
+		// inventory empty → allowlist-only (drop non-visible, including "unknown")
 	}
 	ab["peers"] = peersToAny(filtered)
 	out, err := json.Marshal(ab)
 	if err != nil {
-		return data
+		return emptyAddressBookPeersJSON
 	}
 	return string(out)
 }
 
 // applyDeviceScopeToAddressBook filters Address Book peers with the same ACL as
 // /api/peers/list (device groups, folders, peer grants, Restricted default).
+// Pro accounts are scoped the same way as operators (no raw AB bypass).
 func (s *Server) applyDeviceScopeToAddressBook(r *http.Request, username, role, data string) string {
-	if auth.IsProRole(role) {
-		return data
-	}
 	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
 		return data
 	}
