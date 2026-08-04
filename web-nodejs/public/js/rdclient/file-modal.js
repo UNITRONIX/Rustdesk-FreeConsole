@@ -38,8 +38,9 @@
 
     function FileTransferModal() {
         this._el = null;
+        this._open = false;
         this._session = null;
-        this._local = new LocalFiles();
+        this._local = typeof LocalFiles === 'function' ? new LocalFiles() : null;
         this._localEntries = [];
         this._remoteEntries = [];
         this._selectedLocal = null;
@@ -273,7 +274,7 @@
 
     FileTransferModal.prototype._syncLocalLayout = function () {
         if (!this._el) return;
-        var hasRoot = this._local.hasRoot;
+        var hasRoot = !!(this._local && this._local.hasRoot);
         var dz = this._el.querySelector('.ft-local-dropzone');
         var list = this._el.querySelector('.ft-local-list');
         if (dz) dz.classList.toggle('compact', hasRoot);
@@ -284,6 +285,10 @@
         var self = this;
         var ft = this._session && this._session.client && this._session.client.fileTransfer;
         if (!ft) return;
+        if (!this._local) {
+            ft._saveDownload = null;
+            return;
+        }
         if (typeof LocalFiles !== 'undefined' && LocalFiles.isDesktopBridge && LocalFiles.isDesktopBridge()) {
             ft._saveDownload = function (fileName, blob) {
                 return self._local.saveDownload(fileName, blob);
@@ -316,7 +321,7 @@
 
     FileTransferModal.prototype._updateLocalToolbarState = function () {
         if (!this._el) return;
-        var hasRoot = this._local.hasRoot;
+        var hasRoot = !!(this._local && this._local.hasRoot);
         var noTreeTitle = t('remote.file_no_local_tree', 'Choose a folder to browse local files (optional)');
         var upBtn = this._el.querySelector('.ft-local-up');
         var homeBtn = this._el.querySelector('.ft-local-home');
@@ -362,14 +367,34 @@
     };
 
     FileTransferModal.prototype.open = function (session) {
+        if (!this._local && typeof LocalFiles === 'function') {
+            this._local = new LocalFiles();
+        }
         this._ensureDom();
         this._ensureMountedInHost();
-        this._session = session;
-        if (!session || !session.client || !session.client.fileTransfer) return;
+        this._session = session || null;
+
+        // Always show the overlay first — never fail closed with a silent return.
+        this._el.style.display = 'flex';
+        this._open = true;
+        document.getElementById('btn-file-transfer')?.classList.add('active');
+
+        var title = t('remote.file_transfer', 'File Transfer');
+        if (session && (session.deviceName || session.deviceId)) {
+            title += ' — ' + (session.deviceName || session.deviceId);
+        }
+        this._el.querySelector('.ft-modal-title').textContent = title;
+
+        if (!session || !session.client || !session.client.fileTransfer) {
+            this._remoteReady = false;
+            this._setDropzoneEnabled(false);
+            this._renderRemoteError(t('remote.file_transfer_unavailable', 'File transfer is not available for this session.'));
+            this._paintTransferQueue();
+            return;
+        }
+
         this._transferMeta.clear();
         this._remoteReady = false;
-        this._el.querySelector('.ft-modal-title').textContent =
-            t('remote.file_transfer', 'File Transfer') + ' — ' + (session.deviceName || session.deviceId);
         this._initDropzoneLabels();
         this._setDropzoneEnabled(false);
         this._updateLocalToolbarState();
@@ -379,18 +404,23 @@
         this._el.querySelector('.ft-remote-path').textContent = '';
         this._renderRemoteLoading(t('remote.file_connecting', 'Connecting file transfer session…'));
         this._updateRemoteHiddenButton();
-        this._el.style.display = 'flex';
-        document.getElementById('btn-file-transfer')?.classList.add('active');
         if (this._wiredSessionId !== session.deviceId) {
             this._wireClient(session);
             this._wiredSessionId = session.deviceId;
         }
         this._syncSaveDownloadHook();
-        session.client.fileTransfer.browseDir('');
+        var ft = session.client.fileTransfer;
+        if (ft && typeof ft.enable === 'function' && !ft.enabled) {
+            try { ft.enable(); } catch (_e) { /* ignore */ }
+        }
+        if (typeof ft.browseDir === 'function') {
+            ft.browseDir('');
+        }
         this._paintTransferQueue();
     };
 
     FileTransferModal.prototype.close = function () {
+        this._open = false;
         if (this._el) this._el.style.display = 'none';
         this._hideDragOverlay();
         this._hideContextMenu();
@@ -403,7 +433,7 @@
     };
 
     FileTransferModal.prototype.isOpen = function () {
-        return this._el && this._el.style.display !== 'none';
+        return !!this._open && !!this._el && this._el.style.display !== 'none';
     };
 
     FileTransferModal.prototype._wireClient = function (session) {
@@ -486,7 +516,8 @@
 
     FileTransferModal.prototype._renderLocalList = function () {
         var list = this._el.querySelector('.ft-local-list');
-        if (!this._local.hasRoot) {
+        if (!list) return;
+        if (!this._local || !this._local.hasRoot) {
             list.innerHTML = '';
             return;
         }

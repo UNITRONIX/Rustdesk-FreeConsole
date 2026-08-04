@@ -315,11 +315,12 @@
     margin-top: 0;
 }
 
-/* ---- Toolbar (notch integrated in session tab bar) ---- */
+/* ---- Toolbar notch (sibling of session tab bar — not inside drag region) ---- */
 .toolbar-notch-slot {
     position: absolute;
     left: 50%;
-    top: 100%;
+    /* Hang just under the slim session tab bar (shell is the containing block). */
+    top: var(--session-bar-slim, 18px);
     transform: translateX(-50%);
     z-index: 230;
     pointer-events: none;
@@ -327,6 +328,15 @@
     opacity: 1;
     visibility: visible;
     transition: opacity 0.22s ease, visibility 0.22s ease, transform 0.22s ease;
+}
+
+.toolbar-notch-slot,
+.toolbar-notch-slot .viewer-toolbar,
+.toolbar-notch-slot .toolbar-btn,
+.toolbar-notch-slot .handle-btn,
+.toolbar-notch-slot .toolbar-handle,
+.toolbar-notch-slot .toolbar-dropdown-menu {
+    -webkit-app-region: no-drag;
 }
 
 .toolbar-notch-slot.toolbar-chrome-hidden {

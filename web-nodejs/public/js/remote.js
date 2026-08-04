@@ -1882,32 +1882,69 @@
     });
 
     // File transfer modal toggle (RustDesk RDFileTransfer or CDAPFileTransfer)
-    document.getElementById('btn-file-transfer')?.addEventListener('click', function () {
-        const session = getActiveSession();
-        const unavailable = _('remote.file_transfer_unavailable')
-            || 'File transfer is not available for this session.';
-        if (!session || !session.client) {
-            showToast(unavailable, 'warning');
-            return;
+    function ensureFileTransferModal() {
+        if (window.__fileTransferModal && typeof window.__fileTransferModal.open === 'function') {
+            return window.__fileTransferModal;
         }
-        if (!session.client.fileTransfer) {
-            showToast(unavailable, 'warning');
-            return;
+        if (typeof window.FileTransferModal === 'function') {
+            try {
+                window.__fileTransferModal = new window.FileTransferModal();
+                return window.__fileTransferModal;
+            } catch (err) {
+                console.error('[Remote] FileTransferModal re-init failed:', err);
+                window.__fileTransferModal = null;
+            }
         }
-        const modal = window.__fileTransferModal;
-        if (!modal || typeof modal.open !== 'function') {
-            showToast(unavailable, 'warning');
-            return;
+        return null;
+    }
+
+    function toggleFileTransferModal(ev) {
+        if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
         }
-        if (typeof modal._ensureMountedInHost === 'function') {
-            modal._ensureMountedInHost();
-        }
-        if (modal.isOpen()) {
-            modal.close();
-        } else {
+        const unavailable = t('remote.file_transfer_unavailable',
+            'File transfer is not available for this session.');
+        try {
+            const session = getActiveSession();
+            const modal = ensureFileTransferModal();
+            if (!modal) {
+                showToast(unavailable, 'warning');
+                return;
+            }
+            if (modal.isOpen()) {
+                modal.close();
+                return;
+            }
+            if (!session || !session.client) {
+                // Still open the shell so the operator sees a dialog, not a dead click.
+                modal.open(null);
+                showToast(unavailable, 'warning');
+                return;
+            }
+            if (!session.client.fileTransfer && typeof session.client.ensureFileConnection === 'function') {
+                // RD path: object exists from ctor; Mesh may create it in connect().
+            }
+            if (!session.client.fileTransfer) {
+                modal.open(session);
+                showToast(unavailable, 'warning');
+                return;
+            }
+            if (typeof modal._ensureMountedInHost === 'function') {
+                modal._ensureMountedInHost();
+            }
             modal.open(session);
+            // Expand drawer so the active state on the folder button is visible.
+            if (!toolbar?.classList.contains('expanded') && !toolbarPinned) {
+                expandToolbar();
+            }
+        } catch (err) {
+            console.error('[Remote] File transfer toggle failed:', err);
+            showToast(unavailable, 'error');
         }
-    });
+    }
+
+    document.getElementById('btn-file-transfer')?.addEventListener('click', toggleFileTransferModal);
 
     // Recording
     document.getElementById('btn-record')?.addEventListener('click', function () {
