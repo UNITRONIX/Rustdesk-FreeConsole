@@ -967,7 +967,7 @@ func TestManagedPendingStillRejectedDespitePanelAllowlist(t *testing.T) {
 }
 
 func TestTCPRegisterPkBindsIPForViewerOnlyPunch(t *testing.T) {
-	// #327: approved peer, no UDP heartbeat; TCP RegisterPk then PunchHole on same IP.
+	// #327: approved peer, no UDP heartbeat; TCP RegisterPk then PunchHole on same exact addr.
 	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
 	if err := database.UpsertPeer(&db.Peer{ID: "VIEWINIT1", Status: "OFFLINE", IP: "198.51.100.40"}); err != nil {
 		t.Fatalf("UpsertPeer: %v", err)
@@ -992,6 +992,73 @@ func TestTCPRegisterPkBindsIPForViewerOnlyPunch(t *testing.T) {
 		if failure := phr.GetPunchHoleResponse(); failure != nil && failure.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
 			t.Fatal("viewer-only TCP RegisterPk initiator must not be refused as unauthorized")
 		}
+	}
+}
+
+func TestManagedPendingSameNATAsApprovedInitiatorRejected(t *testing.T) {
+	// #302 residual: pending client shares public IP with an approved peer but
+	// uses a different source port — must not inherit the approved identity.
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	if err := database.UpsertPeer(&db.Peer{ID: "APPRNAT1", Status: "ONLINE", IP: "203.0.113.44"}); err != nil {
+		t.Fatalf("UpsertPeer approved: %v", err)
+	}
+	putOnlinePeer(srv, "APPRNAT1", "203.0.113.44", 50001, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTNAT1", "198.51.100.44", 52000, peer.ConnUDP)
+	if err := database.SetConfig("pending_device_PENDNAT1", `{"device_id":"PENDNAT1"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.44", 59999), "TGTNAT1", "")
+	if ok {
+		t.Fatalf("same-NAT pending punch must be rejected, got id=%q", id)
+	}
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTNAT1"}, udpAddr("203.0.113.44", 59999))
+	phr := resp.GetPunchHoleResponse()
+	if phr == nil || phr.Failure != pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatalf("same-NAT pending PunchHole should be unauthorized, got %+v", resp)
+	}
+}
+
+func TestExactAddrInitiatorAuthorized(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	if err := database.UpsertPeer(&db.Peer{ID: "EXACTINIT1", Status: "ONLINE", IP: "198.51.100.81"}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+	putOnlinePeer(srv, "EXACTINIT1", "198.51.100.81", 51000, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTEXACT1", "203.0.113.81", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51000), "TGTEXACT1", "")
+	if !ok || id != "EXACTINIT1" {
+		t.Fatalf("exact addr auth = (%q, %v), want EXACTINIT1", id, ok)
+	}
+
+	// Different port at same IP must not authorize.
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51001), "TGTEXACT1", "")
+	if ok {
+		t.Fatalf("wrong port must be rejected, got id=%q", id)
+	}
+}
+
+func TestTCPSessionPeerIDAuthorizesWithoutFindByAddr(t *testing.T) {
+	// #327: RegisterPk on the same Secure TCP session binds peerID even when
+	// the peer map entry has a different registered port (no IP-only fallback).
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "SESSINIT1", Status: "ONLINE", IP: "198.51.100.82"}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+	putOnlinePeer(srv, "SESSINIT1", "198.51.100.82", 40000, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTSESS1", "203.0.113.82", 52000, peer.ConnTCP)
+
+	addr := "198.51.100.82:51000"
+	srv.tcpPunchConns.Store(normalizeAddrKey(addr), &tcpPunchConn{
+		createdAt: time.Now(),
+		peerID:    "SESSINIT1",
+	})
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.82", 51000), "TGTSESS1", "")
+	if !ok || id != "SESSINIT1" {
+		t.Fatalf("tcp session auth = (%q, %v), want SESSINIT1", id, ok)
 	}
 }
 

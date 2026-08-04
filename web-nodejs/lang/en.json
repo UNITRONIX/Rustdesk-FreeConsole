@@ -2189,6 +2189,10 @@
         "field_folder_none": "No folder",
         "reject_ban_option": "Ban this device",
         "reject_ban_hint": "The device will be blocked and cannot send new registration requests.",
+        "clear_rejection_btn": "Allow re-enroll",
+        "clear_rejection_confirm": "Clear this rejection so the device can request enrollment again?",
+        "clear_rejection_success": "Enrollment rejection cleared — device may re-enroll",
+        "view_device_btn": "View device",
         "banner_open_mode": "Enrollment is open — new RustDesk clients register without operator approval. Set Managed mode in Settings to use this queue.",
         "banner_locked_mode": "Enrollment is locked — only token-bound devices can register. Managed mode is required for operator approval of unknown clients.",
         "enrollment_settings_link": "Enrollment settings"

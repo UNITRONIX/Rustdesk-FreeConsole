@@ -476,8 +476,10 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 	entry.UUID = msg.Uuid
 	entry.PK = msg.Pk
 	entry.LastReg = time.Now()
-	// Bind address so FindByIP works for TCP/WS-only RegisterPk (viewer-only
-	// outbound when the background service is not sending UDP heartbeats, #327).
+	// Bind exact ip:port so FindByAddr can authorize TCP/WS-only RegisterPk
+	// (viewer-only outbound when the OS service is not sending UDP heartbeats, #327).
+	// Prefer same-TCP-session bind (tcpSessionPeerID) when RegisterPk keep-alive
+	// leaves the connection open for a following PunchHole.
 	if addrStr != "" {
 		entry.IP = addrStr
 		if entry.UDPAddr == nil && entry.ConnType != peer.ConnWS {
@@ -1695,8 +1697,11 @@ func (s *Server) peerIDForAddr(raddr *net.UDPAddr) string {
 	if raddr == nil || s.peers == nil {
 		return ""
 	}
-	if p := s.peers.FindByIP(raddr.IP); p != nil {
+	if p := s.peers.FindByAddr(raddr); p != nil {
 		return p.ID
+	}
+	if id := s.tcpSessionPeerID(raddr); id != "" {
+		return id
 	}
 	return ""
 }
@@ -1731,11 +1736,14 @@ func (s *Server) relayUnauthorizedResponse(relayServer string) *pb.RendezvousMes
 // Remote proxy (trusted PANEL_SIGNAL_PROXY_CIDRS — typically loopback).
 //
 // Authorization sources (first match wins):
-//  1. Valid BetterDesk client login token on the punch/relay message — username
+//  1. Same Secure TCP session that already completed RegisterPk (#327)
+//  2. Valid BetterDesk client login token on the punch/relay message — username
 //     /password (or LDAP/OIDC) login is sufficient; enrollment / Windows service
-//     is not required for the initiator
-//  2. Panel signal-proxy CIDR (Web Remote)
-//  3. Live peer in the in-memory map (UDP/WS heartbeat or TCP RegisterPk IP bind)
+//     is not required for the initiator (viaLoginToken skips pending/approved gates)
+//  3. Panel signal-proxy CIDR (Web Remote)
+//  4. Live peer with exact ip:port match (FindByAddr) — never bare FindByIP,
+//     which would let a pending client behind the same NAT inherit an approved
+//     peer's identity (#302 residual / audit H2)
 //
 // Without a login token, managed and locked modes additionally require an
 // approved DB peer row (pending enrollment alone is not enough). Panel proxy
@@ -1746,25 +1754,31 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 		return "", false
 	}
 
-	// Login token first: stock RustDesk clients that signed in with panel
-	// credentials may initiate even when not enrolled / service stopped.
-	if id, ok := s.authorizeViaClientToken(token, raddr, targetID); ok {
-		return id, true
+	// 1. Same TCP session after RegisterPk (viewer-only / secure TCP, #327).
+	if id := s.tcpSessionPeerID(raddr); id != "" {
+		banned := false
+		if e := s.peers.Get(id); e != nil {
+			banned = e.Banned
+		}
+		return s.finalizeAuthorizedInitiator(id, raddr, targetID, banned, false)
 	}
 
+	// 2. Opaque client login token — hard-fail when present so we never fall
+	// through to address matching with a different peer identity.
+	if tok := strings.TrimSpace(token); tok != "" && opaqueClientTokenRegexp.MatchString(tok) {
+		if id, ok := s.authorizeViaClientToken(tok, raddr, targetID); ok {
+			return id, true
+		}
+		return "", false
+	}
+
+	// 3. Panel Web Remote proxy (loopback / PANEL_SIGNAL_PROXY_CIDRS).
 	if s.cfg != nil && s.cfg.IPIsPanelSignalProxy(raddr.IP) {
 		return panelWebRemoteInitiatorID, true
 	}
 
-	initiator := s.peers.FindByIP(raddr.IP)
-	if initiator == nil || initiator.IsExpired(config.RegTimeout) {
-		if id := s.tcpSessionPeerID(raddr); id != "" {
-			if e := s.peers.Get(id); e != nil && !e.IsExpired(config.RegTimeout) {
-				initiator = e
-			}
-		}
-	}
-
+	// 4. Exact registered endpoint only (no IP-only NAT impersonation).
+	initiator := s.peers.FindByAddr(raddr)
 	if initiator == nil || initiator.IsExpired(config.RegTimeout) {
 		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
 		return "", false
@@ -1818,6 +1832,7 @@ func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targe
 	}
 	sess, err := s.db.GetClientSessionByTokenHash(hashOpaqueClientToken(token))
 	if err != nil || sess == nil {
+		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_token_rejected")
 		return "", false
 	}
 	initiatorID := strings.TrimSpace(sess.ClientID)

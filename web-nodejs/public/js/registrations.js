@@ -88,15 +88,24 @@
         `;
 
         try {
+            const enrollmentFetch = shouldLoadEnrollmentPending()
+                ? apiFetch('/api/enrollment/pending')
+                : shouldLoadEnrollmentHistory()
+                    ? apiFetch(`/api/enrollment/history?status=${encodeURIComponent(currentStatus)}`)
+                    : Promise.resolve({ success: true, data: [], count: 0 });
+
             const [registrationResult, enrollmentResult] = await Promise.all([
                 apiFetch(`/api/registrations?${params}`),
-                shouldLoadEnrollmentPending() ? apiFetch('/api/enrollment/pending') : Promise.resolve({ success: true, data: [], count: 0 }),
+                enrollmentFetch,
             ]);
             if (!registrationResult.success) throw new Error(registrationResult.error);
 
             const registrations = normalizeRegistrations(registrationResult.data || []);
             const enrollments = enrollmentResult.success
-                ? normalizeEnrollments(enrollmentResult.data || []).filter(matchesSearch)
+                ? (shouldLoadEnrollmentHistory()
+                    ? normalizeEnrollmentHistory(enrollmentResult.data || [])
+                    : normalizeEnrollments(enrollmentResult.data || [])
+                  ).filter(matchesSearch)
                 : [];
 
             renderTable([...enrollments, ...registrations]);
@@ -169,6 +178,20 @@
                         <span class="material-icons">close</span>
                         ${_('registrations.reject_btn')}
                     </button>
+                `;
+            } else if (source === SOURCE_ENROLLMENT && reg.status === 'rejected') {
+                actions = `
+                    <button class="action-btn approve" data-reg-action="clear-rejection" data-source="${escapeAttr(source)}" data-id="${escapeAttr(rowId)}" title="${escapeAttr(_('registrations.clear_rejection_btn'))}">
+                        <span class="material-icons">lock_open</span>
+                        ${_('registrations.clear_rejection_btn')}
+                    </button>
+                `;
+            } else if (source === SOURCE_ENROLLMENT && reg.status === 'approved') {
+                actions = `
+                    <a class="action-btn" href="/devices?search=${encodeURIComponent(reg.device_id || '')}" title="${escapeAttr(_('registrations.view_device_btn'))}">
+                        <span class="material-icons">devices</span>
+                        ${_('registrations.view_device_btn')}
+                    </a>
                 `;
             } else if (source === SOURCE_REGISTRATION) {
                 actions = `
@@ -482,6 +505,24 @@
         }
     }
 
+    async function clearEnrollmentRejection(id) {
+        if (!confirm(_('registrations.clear_rejection_confirm'))) return;
+
+        try {
+            const result = await apiFetch(`/api/enrollment/clear-rejection/${encodeURIComponent(id)}`, {
+                method: 'POST',
+                body: '{}',
+            });
+            if (!result.success) throw new Error(result.error);
+
+            showToast(_('registrations.clear_rejection_success'), 'success');
+            loadRegistrations();
+            loadPendingCount();
+        } catch (err) {
+            showToast(err.message || _('errors.server_error'), 'error');
+        }
+    }
+
     // ---- Helpers ----
 
     function escapeHtml(str) {
@@ -496,6 +537,10 @@
 
     function shouldLoadEnrollmentPending() {
         return !currentStatus || currentStatus === 'pending';
+    }
+
+    function shouldLoadEnrollmentHistory() {
+        return currentStatus === 'approved' || currentStatus === 'rejected';
     }
 
     function normalizeRegistrations(items) {
@@ -515,6 +560,18 @@
             source: SOURCE_ENROLLMENT,
             status: 'pending',
             ip_address: item.ip || item.ip_address || '',
+        }));
+    }
+
+    function normalizeEnrollmentHistory(items) {
+        return items.map(item => ({
+            ...item,
+            id: item.device_id,
+            row_id: item.device_id,
+            source: SOURCE_ENROLLMENT,
+            status: item.status === 'approved' ? 'approved' : 'rejected',
+            ip_address: item.ip || item.ip_address || '',
+            created_at: item.decided_at || item.created_at || '',
         }));
     }
 
@@ -622,6 +679,9 @@
                 break;
             case 'remove':
                 deleteRegistration(id);
+                break;
+            case 'clear-rejection':
+                clearEnrollmentRejection(id);
                 break;
         }
     });

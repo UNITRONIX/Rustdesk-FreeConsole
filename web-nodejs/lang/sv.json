@@ -2136,6 +2136,10 @@
         "field_folder_none": "Ingen mapp",
         "reject_ban_option": "Blockera den här enheten",
         "reject_ban_hint": "Enheten blockeras och kan inte skicka nya registreringsförfrågningar.",
+        "clear_rejection_btn": "Tillåt ny registrering",
+        "clear_rejection_confirm": "Rensa detta avslag så att enheten kan begära registrering igen?",
+        "clear_rejection_success": "Registreringsavslag rensat — enheten kan registrera sig igen",
+        "view_device_btn": "Visa enhet",
         "banner_open_mode": "Registrering är öppen — nya RustDesk-klienter registreras utan operatörsgodkännande.",
         "banner_locked_mode": "Registrering är låst — endast tokenbaserade enheter kan registreras.",
         "enrollment_settings_link": "Registreringsinställningar"

@@ -151,6 +151,18 @@
         });
     }
 
+    /** Match brandingService.hexToMutedRgba — solid hex → translucent muted for theme preview. */
+    function hexToMutedRgba(hex, alpha) {
+        if (hex == null) return null;
+        var raw = String(hex).trim().replace(/^#/, '');
+        if (!/^[0-9a-fA-F]{6}$/.test(raw)) return null;
+        var r = parseInt(raw.substring(0, 2), 16);
+        var g = parseInt(raw.substring(2, 4), 16);
+        var b = parseInt(raw.substring(4, 6), 16);
+        var a = (typeof alpha === 'number' && isFinite(alpha)) ? alpha : 0.15;
+        return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
+    }
+
     function applyThemeLocally(next) {
         document.documentElement.setAttribute('data-theme', next);
         document.documentElement.setAttribute('data-theme-mode', next);
@@ -167,8 +179,16 @@
             borderPrimary: '--border-primary', borderSecondary: '--border-secondary'
         };
         Object.keys(palette).forEach(function (key) {
-            if (map[key]) root.setProperty(map[key], palette[key]);
+            if (!map[key]) return;
+            var value = palette[key];
+            // Muted accents must be translucent (same as branding.css) or filters/nav/avatar flash solid blue
+            if (/Muted$/.test(key) && typeof value === 'string' && value.charAt(0) === '#') {
+                value = hexToMutedRgba(value, 0.15) || value;
+            }
+            root.setProperty(map[key], value);
         });
+
+        var accentBlueMutedCss = hexToMutedRgba(palette.accentBlueMuted, 0.15) || palette.accentBlueMuted;
 
         // Solid surfaces — opaque tokens so UX 3.5 repaints immediately (no glass compositor lag)
         root.setProperty('--bg-hover', next === 'light' ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)');
@@ -189,7 +209,7 @@
         root.setProperty('--ux35-muted', palette.textSecondary);
         root.setProperty('--ux35-hover', next === 'light' ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)');
         root.setProperty('--ux35-primary', palette.accentBlue);
-        root.setProperty('--ux35-active-bg', palette.accentBlueMuted);
+        root.setProperty('--ux35-active-bg', accentBlueMutedCss);
         root.setProperty('--ux35-glass-blur', '0px');
         root.setProperty('--ux35-glass-saturate', '1');
 

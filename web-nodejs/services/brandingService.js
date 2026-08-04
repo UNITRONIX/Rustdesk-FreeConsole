@@ -834,6 +834,23 @@ function generateSemanticAliasCss(branding) {
 }
 
 /**
+ * Convert a solid hex accent to a translucent muted rgba (matches branding.css + theme preview).
+ * @param {string} hex - #RRGGBB or RRGGBB
+ * @param {number} [alpha=0.15]
+ * @returns {string|null} rgba(...) or null if hex is invalid
+ */
+function hexToMutedRgba(hex, alpha = 0.15) {
+    if (hex == null) return null;
+    const raw = String(hex).trim().replace(/^#/, '');
+    if (!/^[0-9a-fA-F]{6}$/.test(raw)) return null;
+    const r = parseInt(raw.substring(0, 2), 16);
+    const g = parseInt(raw.substring(2, 4), 16);
+    const b = parseInt(raw.substring(4, 6), 16);
+    const a = Number.isFinite(alpha) ? alpha : 0.15;
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+/**
  * Generate CSS :root overrides from branding colors and fonts
  * @returns {string} CSS string with @font-face imports and :root variable overrides
  */
@@ -848,11 +865,8 @@ function generateThemeCss() {
         if (value && String(value).trim()) {
             // For muted colors, auto-generate rgba if a hex color is provided
             if (key.endsWith('Muted') && String(value).startsWith('#')) {
-                const hex = String(value).replace('#', '');
-                const r = parseInt(hex.substring(0, 2), 16);
-                const g = parseInt(hex.substring(2, 4), 16);
-                const b = parseInt(hex.substring(4, 6), 16);
-                overrides.push(`    ${cssVar}: rgba(${r}, ${g}, ${b}, 0.15);`);
+                const muted = hexToMutedRgba(value, 0.15);
+                overrides.push(`    ${cssVar}: ${muted || value};`);
             } else {
                 overrides.push(`    ${cssVar}: ${value};`);
             }
@@ -1285,6 +1299,7 @@ module.exports = {
     BUILTIN_THEME_PALETTES,
     normalizeThemeMode,
     resolveThemeColors,
+    hexToMutedRgba,
     loadBranding,
     getBranding,
     saveBranding,

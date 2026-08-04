@@ -2147,6 +2147,10 @@
         "field_folder_none": "無文件夾",
         "reject_ban_option": "封禁此設備",
         "reject_ban_hint": "該設備將被封禁，無法發送新的註冊請求。",
+        "clear_rejection_btn": "允許重新註冊",
+        "clear_rejection_confirm": "清除此拒絕，以便裝置可以再次請求註冊？",
+        "clear_rejection_success": "已清除註冊拒絕 — 裝置可以重新註冊",
+        "view_device_btn": "檢視裝置",
         "banner_open_mode": "註冊開放中 — 新 RustDesk 客戶端無需操作員審批即可註冊。在設置中啓用託管模式以使用此隊列。",
         "banner_locked_mode": "註冊已鎖定 — 僅綁定令牌的設備可註冊。需要託管模式以允許操作員審批未知客戶端。",
         "enrollment_settings_link": "註冊設置"

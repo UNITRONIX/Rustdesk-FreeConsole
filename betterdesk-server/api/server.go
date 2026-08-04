@@ -73,12 +73,12 @@ type Server struct {
 	// branding endpoints to deter device-ID enumeration and config probing.
 	enrollmentLimiter *ratelimit.IPLimiter
 	brandingLimiter   *ratelimit.IPLimiter
-	keyPair           *crypto.KeyPair    // Ed25519 keypair for signing
-	accessSecret      *crypto.AccessSecretCodec // reversible access-policy passwords
-	cdapGw            *cdap.Gateway      // CDAP gateway (nil if CDAP disabled)
+	keyPair           *crypto.KeyPair              // Ed25519 keypair for signing
+	accessSecret      *crypto.AccessSecretCodec    // reversible access-policy passwords
+	cdapGw            *cdap.Gateway                // CDAP gateway (nil if CDAP disabled)
 	meshGw            *meshcentral.Gateway // MeshCentral compat (nil if disabled)
-	ldapProvider      ldapAuthProvider // LDAP auth provider (nil if not configured)
-	oidcProvider      *auth.OIDCProvider // OIDC/OAuth2 auth provider (nil if not configured)
+	ldapProvider      ldapAuthProvider     // LDAP auth provider (nil if not configured)
+	oidcProvider      *auth.OIDCProvider   // OIDC/OAuth2 auth provider (nil if not configured)
 	clientTFASessions *tfaSessionStore
 	panelStore        db.PanelSyncStore // device groups, folders, ACL (PostgreSQL or legacy auth.db)
 	timeSync          *timesync.Service
@@ -505,8 +505,10 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Enrollment — operator approval (admin/operator)
 	mux.HandleFunc("GET /api/enrollment/pending", s.requireRole(auth.RoleOperator, s.handleListPendingDevices))
+	mux.HandleFunc("GET /api/enrollment/history", s.requireRole(auth.RoleOperator, s.handleListEnrollmentHistory))
 	mux.HandleFunc("POST /api/enrollment/approve/{id}", s.requireRole(auth.RoleOperator, s.handleApproveDevice))
 	mux.HandleFunc("POST /api/enrollment/reject/{id}", s.requireRole(auth.RoleOperator, s.handleRejectDevice))
+	mux.HandleFunc("POST /api/enrollment/clear-rejection/{id}", s.requireRole(auth.RoleOperator, s.handleClearEnrollmentRejection))
 
 	// LDAP configuration (server.config permission)
 	mux.HandleFunc("GET /api/auth/ldap/config", s.requirePermission(auth.PermServerConfig, s.handleGetLDAPConfig))
@@ -1292,6 +1294,9 @@ func (s *Server) handleUnbanPeer(w http.ResponseWriter, r *http.Request) {
 	if entry != nil {
 		entry.Banned = false
 	}
+
+	// Also clear enrollment rejection lock so the device can re-queue (#351).
+	s.clearEnrollmentRejectionState(id)
 
 	if s.auditLog != nil {
 		s.auditLog.Log(audit.ActionPeerUnbanned, s.remoteIP(r), id, nil)

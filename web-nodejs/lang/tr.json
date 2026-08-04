@@ -2136,6 +2136,10 @@
         "field_folder_none": "Klasör yok",
         "reject_ban_option": "Bu cihazı yasakla",
         "reject_ban_hint": "Cihaz engellenir ve yeni kayıt isteği gönderemez.",
+        "clear_rejection_btn": "Yeniden kayda izin ver",
+        "clear_rejection_confirm": "Cihazın yeniden kayıt isteyebilmesi için bu reddi temizle?",
+        "clear_rejection_success": "Kayıt reddi temizlendi — cihaz yeniden kaydolabilir",
+        "view_device_btn": "Cihazı görüntüle",
         "banner_open_mode": "Kayıt açık — yeni RustDesk istemcileri operatör onayı olmadan kaydoluyor. Bu kuyruğu kullanmak için Ayarlar'da Yönetilen mod'u ayarlayın.",
         "banner_locked_mode": "Kayıt kilitli — yalnızca belirteçe bağlı cihazlar kaydolabilir. Bilinmeyen istemciler için operatör onayı amacıyla Yönetilen mod gereklidir.",
         "enrollment_settings_link": "Kayıt ayarları"

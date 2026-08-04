@@ -2136,6 +2136,10 @@
         "field_folder_none": "Tidak ada folder",
         "reject_ban_option": "Blokir perangkat ini",
         "reject_ban_hint": "Perangkat akan diblokir dan tidak dapat mengirim permintaan pendaftaran baru.",
+        "clear_rejection_btn": "Izinkan daftar ulang",
+        "clear_rejection_confirm": "Hapus penolakan ini agar perangkat dapat meminta pendaftaran lagi?",
+        "clear_rejection_success": "Penolakan pendaftaran dihapus — perangkat boleh mendaftar ulang",
+        "view_device_btn": "Lihat perangkat",
         "banner_open_mode": "Pendaftaran terbuka — klien RustDesk baru mendaftar tanpa persetujuan operator. Atur mode Terkelola di Pengaturan untuk menggunakan antrian ini.",
         "banner_locked_mode": "Pendaftaran terkunci — hanya perangkat terikat token yang dapat mendaftar. Mode Terkelola diperlukan untuk persetujuan operator atas klien yang tidak dikenal.",
         "enrollment_settings_link": "Pengaturan pendaftaran"
