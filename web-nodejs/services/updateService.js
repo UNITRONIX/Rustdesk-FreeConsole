@@ -935,6 +935,7 @@ function resolveConsoleAuthDbPath() {
     }
     candidates.push(path.join(ROOT_DIR, 'data', 'auth.db'));
     if (IS_WINDOWS) {
+        candidates.push('C:\\betterdesk-console\\data\\auth.db');
         candidates.push('C:\\BetterDeskConsole\\data\\auth.db');
         candidates.push('C:\\Program Files\\BetterDeskConsole\\data\\auth.db');
     } else {

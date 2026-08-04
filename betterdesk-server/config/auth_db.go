@@ -40,6 +40,7 @@ func ResolveAuthDBPath(explicit, dbPath string) string {
 	if runtime.GOOS == "windows" {
 		candidates = append(candidates,
 			`C:\BetterDeskConsole\data\auth.db`,
+			`C:\betterdesk-console\data\auth.db`,
 			`C:\Program Files\BetterDeskConsole\data\auth.db`,
 		)
 		if local := os.Getenv("LOCALAPPDATA"); local != "" {

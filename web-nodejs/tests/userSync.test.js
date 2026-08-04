@@ -57,6 +57,19 @@ function createSqliteMock(goUsers = [], inserts = [], updates = []) {
                     }),
                 };
             }
+            if (sql.startsWith('UPDATE users SET password_hash')) {
+                return {
+                    run: jest.fn((hash, username) => {
+                        updates.push({ sql, args: [hash, username] });
+                        const user = goUsers.find(u => String(u.username || '').toLowerCase() === username);
+                        if (user) {
+                            user.password_hash = hash;
+                            return { changes: 1 };
+                        }
+                        return { changes: 0 };
+                    }),
+                };
+            }
             if (sql.startsWith('SELECT')) return { all: jest.fn(() => goUsers) };
             if (sql.startsWith('UPDATE users SET totp_')) {
                 return { run: jest.fn((...args) => updates.push({ sql, args })) };
@@ -211,7 +224,7 @@ describe('userSync', () => {
         const { goDb } = createSqliteMock([], inserts);
         mockDb.getDb.mockReturnValue(goDb);
         mockApiClient.get.mockResolvedValue({ data: [{ id: 1, username: 'admin' }] });
-        mockDb.getAllUsers.mockResolvedValue([
+        mockDb.getAllUsersForBackup.mockResolvedValue([
             { id: 1, username: 'admin', password_hash: '$2b$10$existing', role: 'admin', auth_provider: 'local' },
             { id: 2, username: 'operator1', password_hash: '$2b$10$panelhash', role: 'operator', auth_provider: 'local' },
         ]);
@@ -227,7 +240,7 @@ describe('userSync', () => {
     it('backfillFromNode falls back to API placeholder password when hash insert is unavailable', async () => {
         mockDb.type = 'postgres';
         mockApiClient.get.mockResolvedValue({ data: [] });
-        mockDb.getAllUsers.mockResolvedValue([
+        mockDb.getAllUsersForBackup.mockResolvedValue([
             { id: 2, username: 'operator1', password_hash: '$2b$10$panelhash', role: 'operator', auth_provider: 'local' },
         ]);
         mockApiClient.post.mockResolvedValue({ data: { id: 9 } });
@@ -240,6 +253,82 @@ describe('userSync', () => {
         expect(body.role).toBe('operator');
         expect(body.password).toEqual(expect.any(String));
         expect(body.password.length).toBeGreaterThanOrEqual(16);
+    });
+
+    it('backfillFromNode patches panel hash after API placeholder create on SQLite', async () => {
+        const updates = [];
+        const goDb = {
+            prepare: jest.fn((sql) => {
+                if (sql.includes('sqlite_master')) return { get: jest.fn(() => ({ name: 'users' })) };
+                if (sql.startsWith('PRAGMA table_info(users)')) {
+                    return { all: jest.fn(() => [
+                        { name: 'id' }, { name: 'username' }, { name: 'password_hash' },
+                        { name: 'role' }, { name: 'auth_provider' },
+                    ]) };
+                }
+                if (sql.startsWith('INSERT INTO users')) {
+                    return {
+                        run: jest.fn(() => {
+                            throw new Error('database is locked');
+                        }),
+                    };
+                }
+                if (sql.startsWith('UPDATE users SET password_hash')) {
+                    return {
+                        run: jest.fn((hash, username) => {
+                            updates.push({ hash, username });
+                            return { changes: 1 };
+                        }),
+                    };
+                }
+                throw new Error(`Unexpected SQL: ${sql}`);
+            }),
+        };
+        mockDb.getDb.mockReturnValue(goDb);
+        mockApiClient.get.mockResolvedValue({ data: [] });
+        mockDb.getAllUsersForBackup.mockResolvedValue([
+            { id: 2, username: 'operator1', password_hash: '$2b$10$panelhash', role: 'operator', auth_provider: 'local' },
+        ]);
+        mockApiClient.post.mockResolvedValue({ data: { id: 9 } });
+
+        await userSync.backfillFromNode();
+
+        expect(mockApiClient.post).toHaveBeenCalledTimes(1);
+        expect(updates.length).toBeGreaterThanOrEqual(1);
+        expect(updates.some((u) => u.hash === '$2b$10$panelhash' && u.username === 'operator1')).toBe(true);
+    });
+
+    it('restoreGoPasswordHashesFromPanel copies hashes for existing Go users', () => {
+        const updates = [];
+        const goDb = {
+            prepare: jest.fn((sql) => {
+                if (sql.includes('sqlite_master')) return { get: jest.fn(() => ({ name: 'users' })) };
+                if (sql.startsWith('PRAGMA table_info(users)')) {
+                    return { all: jest.fn(() => [
+                        { name: 'id' }, { name: 'username' }, { name: 'password_hash' },
+                    ]) };
+                }
+                if (sql.startsWith('UPDATE users SET password_hash')) {
+                    return {
+                        run: jest.fn((hash, username) => {
+                            updates.push({ hash, username });
+                            return { changes: 1 };
+                        }),
+                    };
+                }
+                throw new Error(`Unexpected SQL: ${sql}`);
+            }),
+        };
+        mockDb.getDb.mockReturnValue(goDb);
+
+        const result = userSync.restoreGoPasswordHashesFromPanel([
+            { username: 'Test', password_hash: '$2b$10$real', auth_provider: 'local' },
+            { username: 'ldap1', password_hash: 'x', auth_provider: 'ldap' },
+        ]);
+
+        expect(result.restored).toBe(1);
+        expect(result.skipped).toBe(1);
+        expect(updates).toEqual([{ hash: '$2b$10$real', username: 'test' }]);
     });
 
     // Issue #301: POST 409 + empty GET must not recurse into endless CreateUser INSERTs.
