@@ -256,6 +256,36 @@ describe('RustDesk Client API routes', () => {
             });
         });
 
+        it('prefers device group name over folder assignment for device_group_name', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
+            serverBackend.getAllDevices.mockResolvedValue([
+                { id: 'EVENT1', hostname: 'event-server', online: true, tags: 'Allowed' }
+            ]);
+            db.getAllFolders.mockResolvedValue([{ id: 1, name: 'DCS Servers' }]);
+            db.getAllFolderAssignments.mockResolvedValue({ EVENT1: 1 });
+            db.getAllDeviceGroups.mockResolvedValue([
+                {
+                    id: 9,
+                    guid: 'dg-event',
+                    name: 'Event Servers',
+                    source_type: 'manual',
+                    allowed_users: ['operator1'],
+                    allowed_groups: []
+                }
+            ]);
+            db.getDeviceGroupMembers.mockResolvedValue(['EVENT1']);
+
+            const res = await request(app)
+                .get('/api/peers?accessible=&status=1')
+                .set('Authorization', 'Bearer operator-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body.data[0]).toMatchObject({
+                id: 'EVENT1',
+                device_group_name: 'Event Servers'
+            });
+        });
+
         it('supports the RustDesk peers/list envelope with body-based folder filters', async () => {
             authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
             serverBackend.getAllDevices.mockResolvedValue([

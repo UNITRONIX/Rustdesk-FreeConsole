@@ -53,10 +53,10 @@ func TestRustDeskPeerDeviceGroupName(t *testing.T) {
 	manual := map[string]string{"P3": "Servers", "P4": "Servers"}
 
 	if got := rustDeskPeerDeviceGroupName("P1", assignments, folderNames, manual); got != "Admins" {
-		t.Fatalf("folder assignment: got %q", got)
+		t.Fatalf("folder assignment only: got %q", got)
 	}
-	if got := rustDeskPeerDeviceGroupName("P3", assignments, folderNames, manual); got != "Users" {
-		t.Fatalf("folder wins over manual group: got %q", got)
+	if got := rustDeskPeerDeviceGroupName("P3", assignments, folderNames, manual); got != "Servers" {
+		t.Fatalf("device group must win over folder: got %q", got)
 	}
 	if got := rustDeskPeerDeviceGroupName("P4", assignments, folderNames, manual); got != "Servers" {
 		t.Fatalf("manual group without folder: got %q", got)

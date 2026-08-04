@@ -408,19 +408,24 @@ func buildRustDeskPeerManualGroupNames(groups []rustDeskGroup) map[string]string
 }
 
 // rustDeskPeerDeviceGroupName is the sidebar group name RustDesk uses to filter peers.
-// Folder assignment wins over manual/tag device groups when both apply.
+// Device-group membership wins over folder assignment when both apply — otherwise
+// stock RustDesk shows empty Event/Kola-style groups while every peer appears under
+// the folder name (e.g. "DCS Servers").
 func rustDeskPeerDeviceGroupName(
 	peerID string,
 	assignments map[string]int64,
 	folderNames map[int64]string,
 	manualGroupNames map[string]string,
 ) string {
+	if name := manualGroupNames[peerID]; name != "" {
+		return name
+	}
 	if fid, ok := assignments[peerID]; ok {
 		if name := folderNames[fid]; name != "" {
 			return name
 		}
 	}
-	return manualGroupNames[peerID]
+	return ""
 }
 
 // rustDeskAccessibleDeviceGroupPayload matches RustDesk DeviceGroupPayload (name only).

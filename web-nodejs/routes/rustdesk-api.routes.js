@@ -645,9 +645,10 @@ async function getRustDeskPeerList(user, params = {}) {
         const sysinfo = sysinfoMap[device.id] || {};
         const tags = addressBookSync.normalizeTags(device.tags);
         const folderId = getDeviceFolderId(device);
-        const deviceGroupName = folderId
-            ? (folderNames.get(folderId) || '')
-            : (manualGroupNameByPeer.get(String(device.id)) || '');
+        const manualName = manualGroupNameByPeer.get(String(device.id)) || '';
+        // Device-group membership wins over folder (matches Go rustDeskPeerDeviceGroupName).
+        const deviceGroupName = manualName
+            || (folderId ? (folderNames.get(folderId) || '') : '');
         const hostname = sysinfo.hostname || device.hostname || '';
         const username = sysinfo.username || device.username || device.user || '';
         const platform = sysinfo.platform || device.platform || device.os || '';
