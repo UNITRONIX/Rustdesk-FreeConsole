@@ -24,9 +24,11 @@ use desktop_drag::{
     desktop_clipboard_start_drag,
 };
 use desktop_files::{
-    desktop_list_directory, desktop_open_file, desktop_open_paths, desktop_pick_files,
-    desktop_pick_folder, desktop_read_file_chunk, desktop_release_file_handles,
-    desktop_save_download, DesktopFileStore,
+    desktop_download_abort, desktop_download_begin, desktop_download_finish,
+    desktop_download_write, desktop_list_directory, desktop_mkdir_p, desktop_open_file,
+    desktop_open_paths, desktop_pick_files, desktop_pick_folder, desktop_read_file_chunk,
+    desktop_release_file_handles, desktop_save_download, desktop_walk_paths,
+    DesktopDownloadStore, DesktopFileStore,
 };
 use discovery::discover_udp;
 use server_probe::probe_panel_url;
@@ -158,6 +160,12 @@ const PANEL_INVOKE_PERMISSIONS: &[&str] = &[
     "allow-desktop-pick-folder",
     "allow-desktop-list-directory",
     "allow-desktop-save-download",
+    "allow-desktop-download-begin",
+    "allow-desktop-download-write",
+    "allow-desktop-download-finish",
+    "allow-desktop-download-abort",
+    "allow-desktop-mkdir-p",
+    "allow-desktop-walk-paths",
     "allow-desktop-clipboard-sync",
     "allow-desktop-clipboard-format-data",
     "allow-desktop-clipboard-file-contents",
@@ -594,6 +602,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .manage(DesktopFileStore::default())
+        .manage(DesktopDownloadStore::default())
         .invoke_handler(tauri::generate_handler![
             get_client_info,
             get_server_url,
@@ -616,6 +625,12 @@ pub fn run() {
             desktop_pick_folder,
             desktop_list_directory,
             desktop_save_download,
+            desktop_download_begin,
+            desktop_download_write,
+            desktop_download_finish,
+            desktop_download_abort,
+            desktop_mkdir_p,
+            desktop_walk_paths,
             desktop_clipboard_sync,
             desktop_clipboard_format_data,
             desktop_clipboard_file_contents,

@@ -2097,6 +2097,7 @@ function Setup-Services {
             "HBBS_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",
             "BETTERDESK_API_URL=${apiScheme}://localhost:$($script:API_PORT)/api",
             "SERVER_BACKEND=betterdesk",
+            "BETTERDESK_SERVICE=1",
             "PORT=5000",
             "HOST=0.0.0.0",
             "API_HOST=0.0.0.0"

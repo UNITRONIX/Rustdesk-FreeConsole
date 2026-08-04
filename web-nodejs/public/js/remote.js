@@ -109,7 +109,11 @@
         const toast = document.createElement('div');
         toast.className = 'rd-toast rd-toast-' + (type || 'info');
         toast.textContent = message;
-        document.body.appendChild(toast);
+        // Prefer the fullscreen / viewer shell host — body children are invisible in FS.
+        const host = document.fullscreenElement
+            || document.getElementById('rd-viewer-shell')
+            || document.body;
+        host.appendChild(toast);
         requestAnimationFrame(() => toast.classList.add('show'));
         setTimeout(() => {
             toast.classList.remove('show');
@@ -1199,6 +1203,17 @@
             console.warn('[Remote] Signature warning:', msg);
             showSecurityWarning(session, msg, 'warning');
         });
+        c.on('cliprdr_too_large', (info) => {
+            const sig = (info && info.signature) || '';
+            if (sig && session._cliprdrTooLargeToastSig === sig) return;
+            if (sig) session._cliprdrTooLargeToastSig = sig;
+            showToast(
+                _('remote.cliprdr_use_file_transfer')
+                || 'This folder is too large for clipboard paste. Use File transfer to avoid freezing the remote desktop.',
+                'warning'
+            );
+        });
+
         c.on('encryption_warning', (msg) => {
             console.warn('[Remote] Encryption warning:', msg);
             showSecurityWarning(session, msg, 'error');
@@ -1867,17 +1882,69 @@
     });
 
     // File transfer modal toggle (RustDesk RDFileTransfer or CDAPFileTransfer)
-    document.getElementById('btn-file-transfer')?.addEventListener('click', function () {
-        const session = getActiveSession();
-        if (!session || !session.client?.fileTransfer) return;
-        const modal = window.__fileTransferModal;
-        if (!modal) return;
-        if (modal.isOpen()) {
-            modal.close();
-        } else {
-            modal.open(session);
+    function ensureFileTransferModal() {
+        if (window.__fileTransferModal && typeof window.__fileTransferModal.open === 'function') {
+            return window.__fileTransferModal;
         }
-    });
+        if (typeof window.FileTransferModal === 'function') {
+            try {
+                window.__fileTransferModal = new window.FileTransferModal();
+                return window.__fileTransferModal;
+            } catch (err) {
+                console.error('[Remote] FileTransferModal re-init failed:', err);
+                window.__fileTransferModal = null;
+            }
+        }
+        return null;
+    }
+
+    function toggleFileTransferModal(ev) {
+        if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+        }
+        const unavailable = t('remote.file_transfer_unavailable',
+            'File transfer is not available for this session.');
+        try {
+            const session = getActiveSession();
+            const modal = ensureFileTransferModal();
+            if (!modal) {
+                showToast(unavailable, 'warning');
+                return;
+            }
+            if (modal.isOpen()) {
+                modal.close();
+                return;
+            }
+            if (!session || !session.client) {
+                // Still open the shell so the operator sees a dialog, not a dead click.
+                modal.open(null);
+                showToast(unavailable, 'warning');
+                return;
+            }
+            if (!session.client.fileTransfer && typeof session.client.ensureFileConnection === 'function') {
+                // RD path: object exists from ctor; Mesh may create it in connect().
+            }
+            if (!session.client.fileTransfer) {
+                modal.open(session);
+                showToast(unavailable, 'warning');
+                return;
+            }
+            if (typeof modal._ensureMountedInHost === 'function') {
+                modal._ensureMountedInHost();
+            }
+            modal.open(session);
+            // Expand drawer so the active state on the folder button is visible.
+            if (!toolbar?.classList.contains('expanded') && !toolbarPinned) {
+                expandToolbar();
+            }
+        } catch (err) {
+            console.error('[Remote] File transfer toggle failed:', err);
+            showToast(unavailable, 'error');
+        }
+    }
+
+    document.getElementById('btn-file-transfer')?.addEventListener('click', toggleFileTransferModal);
 
     // Recording
     document.getElementById('btn-record')?.addEventListener('click', function () {
@@ -1989,6 +2056,11 @@
         const fsIcon = document.fullscreenElement ? 'fullscreen_exit' : 'fullscreen';
         const handleIcon = document.getElementById('btn-handle-fullscreen')?.querySelector('.material-icons');
         if (handleIcon) handleIcon.textContent = fsIcon;
+        // Notch is only for streaming sessions — re-sync after FS layout swap.
+        syncToolbarChrome(getActiveSession());
+        if (window.__fileTransferModal && typeof window.__fileTransferModal._ensureMountedInHost === 'function') {
+            window.__fileTransferModal._ensureMountedInHost();
+        }
         setTimeout(() => {
             const session = getActiveSession();
             if (session && session.client && session.client.renderer) session.client.renderer.resize();
