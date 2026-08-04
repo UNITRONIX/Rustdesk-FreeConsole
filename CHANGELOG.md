@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.14] — 2026-08-04
+
 ### Fixed
 - **Enrollment history filters & irreversible reject (#351):** Go enrollment Approve/Reject now persists `enrollment_decision_*` history so Enrollment Requests **Approved** / **Rejected** filters show past decisions. Reject & Ban creates a `peers` row when missing so the device appears under Devices → Banned. New **Allow re-enroll** clears `rejected_device_*` (and enrollment bans); Unban also clears the rejection lock. Ships via panel update (Go API restart).
 
@@ -2635,3 +2642,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.11]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.10...v3.5.11
 [3.5.12]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.11...v3.5.12
 [3.5.13]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.12...v3.5.13
+[3.5.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.13...v3.5.14
