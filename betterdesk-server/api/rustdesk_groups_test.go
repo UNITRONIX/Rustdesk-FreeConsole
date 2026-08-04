@@ -22,6 +22,34 @@ func TestPanelAccessAllowedCaseInsensitive(t *testing.T) {
 	}
 }
 
+func TestPanelAccessAllowedStrictIgnoresAdminBypass(t *testing.T) {
+	admin := &db.User{Username: "Chesster", Role: auth.RoleAdmin}
+	guids := map[string]bool{"ug-ops": true}
+
+	// Privileged bypass still applies for panel-style checks.
+	if !panelAccessAllowed(admin, auth.RoleAdmin, guids, nil, nil) {
+		t.Fatal("panelAccessAllowed should bypass for admin on empty ACL")
+	}
+	// RustDesk AB must not list groups without an explicit grant.
+	if panelAccessAllowedStrict(admin, guids, nil, nil) {
+		t.Fatal("strict ACL must deny empty grants even for admin")
+	}
+	if panelAccessAllowedStrict(admin, guids, nil, []string{"ug-other"}) {
+		t.Fatal("strict ACL must deny groups outside the admin's user groups")
+	}
+	if !panelAccessAllowedStrict(admin, guids, nil, []string{"ug-ops"}) {
+		t.Fatal("strict ACL must allow groups granted to the admin's user group")
+	}
+	g := db.PanelDeviceGroup{Name: "Event Servers", AllowedGroupGUIDs: []string{"ug-other"}}
+	if panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
+		t.Fatal("RustDesk AB must hide device groups not granted to the admin's user group")
+	}
+	g.AllowedGroupGUIDs = []string{"ug-ops"}
+	if !panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
+		t.Fatal("RustDesk AB must show device groups granted to the admin's user group")
+	}
+}
+
 func TestCoerceNonAdminVisibleSet(t *testing.T) {
 	srv := &Server{}
 	user := &db.User{ID: 1, Username: "op", Role: auth.RoleOperator}

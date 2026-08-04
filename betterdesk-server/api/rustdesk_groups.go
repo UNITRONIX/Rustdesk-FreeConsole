@@ -64,7 +64,7 @@ func (s *Server) buildRustDeskDeviceGroupsFromContext(
 			log.Printf("[api] ListPanelDeviceGroups user=%s: 0 groups (check panel DB / device_groups table)", user.Username)
 		} else {
 			for _, g := range panelGroups {
-				if !panelGroupAllowedForUser(g, user, role, userGroupGUIDs) {
+				if !panelGroupAllowedForRustDeskAB(g, user, role, userGroupGUIDs) {
 					continue
 				}
 				groups = append(groups, rustDeskGroup{
@@ -82,7 +82,7 @@ func (s *Server) buildRustDeskDeviceGroupsFromContext(
 		}
 		for _, folder := range folders {
 			allowedUsers, allowedGroups, _ := s.panelStore.FolderGroupAccess(folder.ID)
-			if !panelAccessAllowed(user, role, userGroupGUIDs, allowedUsers, allowedGroups) {
+			if !panelAccessAllowedStrict(user, userGroupGUIDs, allowedUsers, allowedGroups) {
 				continue
 			}
 			var peerIDs []string
@@ -152,10 +152,21 @@ func panelGroupAllowedForUser(g db.PanelDeviceGroup, user *db.User, role string,
 	return panelAccessAllowed(user, role, userGroupGUIDs, g.AllowedUsers, g.AllowedGroupGUIDs)
 }
 
+// panelGroupAllowedForRustDeskAB applies device-group ACL without privileged-role bypass.
+// Panel admins still see every device in the console; stock RustDesk only lists groups
+// the user (or their user groups) are explicitly granted.
+func panelGroupAllowedForRustDeskAB(g db.PanelDeviceGroup, user *db.User, role string, userGroupGUIDs map[string]bool) bool {
+	return panelAccessAllowedStrict(user, userGroupGUIDs, g.AllowedUsers, g.AllowedGroupGUIDs)
+}
+
 func panelAccessAllowed(user *db.User, role string, userGroupGUIDs map[string]bool, allowedUsers, allowedGroups []string) bool {
 	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
 		return true
 	}
+	return panelAccessAllowedStrict(user, userGroupGUIDs, allowedUsers, allowedGroups)
+}
+
+func panelAccessAllowedStrict(user *db.User, userGroupGUIDs map[string]bool, allowedUsers, allowedGroups []string) bool {
 	// Fail closed: empty ACL is private until users and/or user groups are attached.
 	if len(allowedUsers) == 0 && len(allowedGroups) == 0 {
 		return false

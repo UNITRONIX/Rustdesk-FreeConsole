@@ -121,10 +121,12 @@ function getGroupFolderId(group) {
     return folderIdFromGroupGuid(group && group.guid);
 }
 
-function groupAllowedForUser(group, user) {
-    if (!user || isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin') {
+function groupAllowedForUser(group, user, opts = {}) {
+    const strict = opts && opts.strict === true;
+    if (!strict && (!user || isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin')) {
         return true;
     }
+    if (!user) return false;
     const allowedUsers = normalizeUsernames(group && group.allowed_users);
     const allowedGroups = normalizeGroupGuids(group && (group.allowed_groups || group.allowed_user_groups));
     // Fail closed: empty ACL is private until users and/or user groups are attached.
@@ -136,10 +138,10 @@ function groupAllowedForUser(group, user) {
 }
 
 async function getUserAccessContext(db, user) {
-    if (!user || !user.id || isSuperAdminRole(user.role) || user.role === 'global_admin' || user.role === 'server_admin') {
-        return user;
-    }
-    if (Array.isArray(user.user_groups) || typeof db.getUserGroupsForUser !== 'function') return user;
+    // Always resolve user-group membership — RustDesk AB uses strict ACL even for
+    // panel admins, so privileged roles still need their user_groups loaded.
+    if (!user || !user.id || typeof db.getUserGroupsForUser !== 'function') return user;
+    if (Array.isArray(user.user_groups)) return user;
     try {
         const groups = await db.getUserGroupsForUser(user.id);
         return {

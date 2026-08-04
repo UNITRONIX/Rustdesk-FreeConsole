@@ -30,7 +30,7 @@ RustDesk Pro **client features** are controlled separately via **strategy assign
 
 Empty folder/device-group ACL is **deny by default** (admins/`global_admin`/`server_admin` still bypass). Attach allowed users and/or user groups before expecting operators to see those devices.
 
-**Stock RustDesk clients** use the Go Client API (`/api/ab`, `/api/peers`) with the same scope rules as the console. If panel ACL sync is unavailable (no PostgreSQL panel tables / missing `AUTH_DB_PATH` for legacy SQLite), non-admins receive **no** devices (fail closed) — not the full inventory. On Windows, BetterDeskServer NSSM must include `AUTH_DB_PATH` pointing at console `data\auth.db` (and read ACL for `NT SERVICE\BetterDeskServer`); panel update patches this automatically.
+**Stock RustDesk clients** use the Go Client API (`/api/ab`, `/api/peers`) with the same scope rules as the console for **non-admins**. Panel **admins** still see every device in the web console; in stock RustDesk the **device-group / folder sidebar** is ACL-filtered (no privileged bypass) so groups not granted to that admin’s user group stay hidden. On Windows, BetterDeskServer NSSM must include `AUTH_DB_PATH` pointing at console `data\auth.db` (and read ACL for `NT SERVICE\BetterDeskServer`); panel update patches this automatically.
 
 Operators who previously relied on Open + unassigned overlay while also granting specific folders should switch those users to explicit grants only, or keep Open only for accounts with zero ACL attachments.
 

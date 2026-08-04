@@ -51,12 +51,34 @@ describe('deviceGroupService scope (#227)', () => {
         const user = { id: 5, username: 'op1', role: 'operator', user_groups: [] };
         expect(deviceGroupService.groupAllowedForUser(emptyGroup, user)).toBe(false);
         expect(deviceGroupService.groupAllowedForUser(emptyGroup, { ...user, role: 'admin' })).toBe(true);
+        expect(deviceGroupService.groupAllowedForUser(emptyGroup, { ...user, role: 'admin' }, { strict: true })).toBe(false);
 
         const scope = await deviceGroupService.getDeviceScopeForUser(db, user, devices);
         expect(scope).not.toBeNull();
         expect(scope.has('100')).toBe(false);
         expect(scope.has('200')).toBe(true);
         expect(scope.has('300')).toBe(true);
+    });
+
+    test('strict ACL for RustDesk AB hides admin groups outside their user group', () => {
+        const eventGroup = {
+            guid: 'dg-event',
+            name: 'Event Servers',
+            allowed_users: [],
+            allowed_groups: ['ug-other'],
+            source_type: 'manual'
+        };
+        const dcsGroup = {
+            guid: 'dg-dcs',
+            name: 'DCS Servers',
+            allowed_users: [],
+            allowed_groups: ['ug-ops'],
+            source_type: 'manual'
+        };
+        const admin = { id: 1, username: 'Chesster', role: 'admin', user_groups: ['ug-ops'] };
+        expect(deviceGroupService.groupAllowedForUser(eventGroup, admin)).toBe(true);
+        expect(deviceGroupService.groupAllowedForUser(eventGroup, admin, { strict: true })).toBe(false);
+        expect(deviceGroupService.groupAllowedForUser(dcsGroup, admin, { strict: true })).toBe(true);
     });
 
     test('explicit grants switch to allowlist-only (no unassigned overlay)', async () => {

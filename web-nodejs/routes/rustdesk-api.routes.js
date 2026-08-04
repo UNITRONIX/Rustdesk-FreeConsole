@@ -498,7 +498,7 @@ async function getRustDeskDeviceGroups(user) {
     try {
         const rawGroups = (await db.getAllDeviceGroups())
             .filter(group => folderIdFromGroupGuid(group.guid) === null)
-            .filter(group => deviceGroupService.groupAllowedForUser(group, accessUser));
+            .filter(group => deviceGroupService.groupAllowedForUser(group, accessUser, { strict: true }));
         const deviceGroups = await deviceGroupService.enrichGroups(db, rawGroups, devices);
         for (const group of deviceGroups) {
             const peerIds = await deviceGroupService.getGroupPeerIds(db, group, devices);
@@ -523,7 +523,7 @@ async function getRustDeskDeviceGroups(user) {
             } catch (_) { /* non-critical */ }
             const allowedUsers = mirrorGroup && Array.isArray(mirrorGroup.allowed_users) ? mirrorGroup.allowed_users : [];
             const allowedGroups = mirrorGroup && Array.isArray(mirrorGroup.allowed_groups) ? mirrorGroup.allowed_groups : [];
-            if (!deviceGroupService.groupAllowedForUser({ allowed_users: allowedUsers, allowed_groups: allowedGroups }, accessUser)) continue;
+            if (!deviceGroupService.groupAllowedForUser({ allowed_users: allowedUsers, allowed_groups: allowedGroups }, accessUser, { strict: true })) continue;
 
             // Collect peer IDs assigned to this folder
             const folderPeerIds = [];
@@ -602,7 +602,7 @@ async function getRustDeskPeerList(user, params = {}) {
                 group = (allGroups || []).find(item => String(item.name || '').trim().toLowerCase() === normalizedGroup) || null;
             }
         } catch (_) { /* non-critical */ }
-        if (group && deviceGroupService.groupAllowedForUser(group, accessUser)) {
+        if (group && deviceGroupService.groupAllowedForUser(group, accessUser, { strict: true })) {
             const groupPeerIds = await deviceGroupService.getGroupPeerIds(db, group, devices);
             devices = devices.filter(device => groupPeerIds.has(String(device.id)));
         } else if (!group && normalizedGroup) {
