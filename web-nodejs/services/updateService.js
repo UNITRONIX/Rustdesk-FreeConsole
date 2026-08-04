@@ -925,6 +925,108 @@ function ensureMeshEnabledInServiceEnv(envText) {
 }
 
 /**
+ * Resolve console auth.db path for Go AUTH_DB_PATH (Windows SQLite ACL sync).
+ * @returns {string}
+ */
+function resolveConsoleAuthDbPath() {
+    const candidates = [];
+    if (config.dataDir) {
+        candidates.push(path.join(config.dataDir, 'auth.db'));
+    }
+    candidates.push(path.join(ROOT_DIR, 'data', 'auth.db'));
+    if (IS_WINDOWS) {
+        candidates.push('C:\\BetterDeskConsole\\data\\auth.db');
+        candidates.push('C:\\Program Files\\BetterDeskConsole\\data\\auth.db');
+    } else {
+        candidates.push('/opt/BetterDeskConsole/data/auth.db');
+    }
+    for (const p of candidates) {
+        try {
+            if (p && fs.existsSync(p) && fs.statSync(p).isFile()) return p;
+        } catch (_e) { /* ignore */ }
+    }
+    return candidates[0] || path.join(ROOT_DIR, 'data', 'auth.db');
+}
+
+/**
+ * Ensure NSSM AppEnvironmentExtra includes AUTH_DB_PATH for panel device ACL.
+ * @param {string} envText
+ * @param {string} authDbPath
+ * @returns {{ text: string, changed: boolean }}
+ */
+function ensureAuthDbPathInWindowsServiceEnv(envText, authDbPath) {
+    if (!authDbPath) return { text: envText, changed: false };
+    const lines = (envText || '')
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+    const map = new Map();
+    for (const line of lines) {
+        const eq = line.indexOf('=');
+        if (eq <= 0) continue;
+        map.set(line.slice(0, eq), line.slice(eq + 1));
+    }
+    const current = map.get('AUTH_DB_PATH');
+    if (current === authDbPath) return { text: envText, changed: false };
+    if (current) {
+        try {
+            if (fs.existsSync(current) && fs.statSync(current).isFile()) {
+                return { text: envText, changed: false };
+            }
+        } catch (_e) { /* rewrite broken path */ }
+    }
+    map.set('AUTH_DB_PATH', authDbPath);
+    const merged = [...map.entries()].map(([k, v]) => `${k}=${v}`).join('\n');
+    return { text: merged, changed: true };
+}
+
+/**
+ * Ensure systemd unit has Environment=AUTH_DB_PATH=… for SQLite panel ACL.
+ * @param {string} unitText
+ * @param {string} authDbPath
+ * @returns {{ text: string, changed: boolean }}
+ */
+function ensureAuthDbPathInSystemdUnit(unitText, authDbPath) {
+    if (!unitText || typeof unitText !== 'string' || !authDbPath) {
+        return { text: unitText, changed: false };
+    }
+    if (/^Environment=AUTH_DB_PATH=/m.test(unitText)) {
+        return { text: unitText, changed: false };
+    }
+    const line = `Environment=AUTH_DB_PATH=${authDbPath}`;
+    if (/^\[Service\]/m.test(unitText)) {
+        return {
+            text: unitText.replace(/^\[Service\]/m, `[Service]\n${line}`),
+            changed: true
+        };
+    }
+    return { text: `${line}\n${unitText}`, changed: true };
+}
+
+/**
+ * Grant NT SERVICE\\BetterDeskServer read access to console data/ (auth.db).
+ * Best-effort; failures are non-fatal (LocalSystem installs need no grant).
+ * @param {string} authDbPath
+ * @returns {{ ok: boolean }}
+ */
+function grantWindowsGoServerAuthDbAccess(authDbPath) {
+    if (!IS_WINDOWS || !authDbPath) return { ok: false };
+    const dataDir = path.dirname(authDbPath);
+    if (!fs.existsSync(dataDir)) return { ok: false };
+    const account = `NT SERVICE\\${COMPONENTS.server.service}`;
+    try {
+        execFileSync('icacls', [dataDir, '/grant', `${account}:(OI)(CI)R`, '/T', '/C', '/Q'], {
+            timeout: 15000,
+            stdio: 'pipe'
+        });
+        return { ok: true };
+    } catch (_e) {
+        return { ok: false };
+    }
+}
+
+/**
  * Ensure Go server systemd unit loads console .env (NTP / billing keys for timesync).
  */
 function ensureGoServerEnvironmentFile(unitText, envFilePath) {
@@ -1004,15 +1106,30 @@ function sanitizeGoServerServiceConfig() {
                     timeout: 5000,
                     stdio: 'pipe'
                 }).toString();
-                const meshPatch = ensureMeshEnabledInServiceEnv(serverEnvRaw);
+                let nextEnv = serverEnvRaw;
+                const meshPatch = ensureMeshEnabledInServiceEnv(nextEnv);
                 if (meshPatch.changed) {
-                    execFileSync('nssm', ['set', serviceName, 'AppEnvironmentExtra', meshPatch.text], {
+                    nextEnv = meshPatch.text;
+                    result.changes.push('set MESH_ENABLED=Y on BetterDesk Go Server NSSM environment');
+                }
+                const authDbPath = resolveConsoleAuthDbPath();
+                const authPatch = ensureAuthDbPathInWindowsServiceEnv(nextEnv, authDbPath);
+                if (authPatch.changed) {
+                    nextEnv = authPatch.text;
+                    result.changes.push('set AUTH_DB_PATH on BetterDesk Go Server NSSM environment (panel ACL)');
+                }
+                if (nextEnv !== serverEnvRaw) {
+                    execFileSync('nssm', ['set', serviceName, 'AppEnvironmentExtra', nextEnv], {
                         timeout: 5000,
                         stdio: 'pipe'
                     });
                     result.changed = true;
                     result.needsRestart = true;
-                    result.changes.push('set MESH_ENABLED=Y on BetterDesk Go Server NSSM environment');
+                }
+                // AUTH_DB_PATH is useless if the virtual service account cannot read auth.db.
+                const aclGrant = grantWindowsGoServerAuthDbAccess(authDbPath);
+                if (aclGrant.ok && authPatch.changed) {
+                    result.changes.push('granted BetterDeskServer read access to console data/auth.db');
                 }
             } catch (_e) { /* server service may not exist */ }
 
@@ -1071,6 +1188,14 @@ function sanitizeGoServerServiceConfig() {
             }
             result.needsRestart = true;
             result.changes.push('set MESH_ENABLED=Y in betterdesk-server systemd unit');
+        }
+
+        const authDbPath = resolveConsoleAuthDbPath();
+        const authUnitPatch = ensureAuthDbPathInSystemdUnit(clean, authDbPath);
+        if (authUnitPatch.changed) {
+            clean = authUnitPatch.text;
+            result.needsRestart = true;
+            result.changes.push('set AUTH_DB_PATH on betterdesk-server systemd unit (panel ACL)');
         }
 
         const consoleEnvPath = path.join(ROOT_DIR, '.env');
@@ -3684,6 +3809,9 @@ module.exports = {
     getDockerUpdateInstructions,
     isGithubRateLimitError,
     ensureMeshEnabledInServiceEnv,
+    ensureAuthDbPathInWindowsServiceEnv,
+    ensureAuthDbPathInSystemdUnit,
+    resolveConsoleAuthDbPath,
     ensureGoServerEnvironmentFile,
     ensureGoServerSignalRelayPorts,
     githubApiError,

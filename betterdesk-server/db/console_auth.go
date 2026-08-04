@@ -5,7 +5,9 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	_ "modernc.org/sqlite"
@@ -44,17 +46,31 @@ type ConsolePeerSysinfo struct {
 
 // OpenConsoleAuth opens auth.db read-only (shared with BetterDesk Console).
 func OpenConsoleAuth(path string) (*ConsoleAuthDB, error) {
-	if strings.TrimSpace(path) == "" {
+	path = strings.TrimSpace(path)
+	if path == "" {
 		return nil, fmt.Errorf("console auth path is empty")
 	}
-	dsn := fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000", path)
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = path
+	}
+	if st, err := os.Stat(abs); err != nil {
+		return nil, fmt.Errorf("auth.db not reachable (%s): %w", abs, err)
+	} else if st.IsDir() {
+		return nil, fmt.Errorf("auth.db path is a directory: %s", abs)
+	}
+	// mode=ro only — do not set _journal_mode on a read-only open (can CANTOPEN on WAL DBs).
+	q := url.Values{}
+	q.Set("mode", "ro")
+	q.Set("_busy_timeout", "5000")
+	dsn := sqliteFileURI(abs, q)
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
 	if err := sqlDB.Ping(); err != nil {
 		_ = sqlDB.Close()
-		return nil, err
+		return nil, fmt.Errorf("%w (dsn=%s)", err, dsn)
 	}
 	return &ConsoleAuthDB{db: sqlDB}, nil
 }

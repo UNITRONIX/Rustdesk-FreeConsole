@@ -1802,7 +1802,7 @@ function Set-ServiceLeastPrivilege {
     Print-Info "Service $ServiceName runs under least-privilege account ($account)"
 }
 
-# Safe in-place patch of NSSM services (TLS API flags, HTTP URLs) without remove+install.
+# Safe in-place patch of NSSM services (TLS API flags, HTTP URLs, AUTH_DB_PATH) without remove+install.
 function Patch-ServiceDefinitions {
     $nssm = Get-Command nssm -ErrorAction SilentlyContinue
     if (-not $nssm) {
@@ -1827,14 +1827,33 @@ function Patch-ServiceDefinitions {
                 }
             }
             $envRaw = (& $nssmExe get $svc AppEnvironmentExtra 2>$null)
-            if ($envRaw) {
-                $cleanEnv = $envRaw `
-                    -replace 'HBBS_API_URL=https://localhost', 'HBBS_API_URL=http://localhost' `
-                    -replace 'BETTERDESK_API_URL=https://localhost', 'BETTERDESK_API_URL=http://localhost'
-                if ($cleanEnv -ne $envRaw) {
-                    & $nssmExe set $svc AppEnvironmentExtra $cleanEnv | Out-Null
+            if ($null -eq $envRaw) { $envRaw = "" }
+            $envText = "$envRaw".Replace("`r`n", "`n").TrimEnd()
+            $cleanEnv = $envText `
+                -replace 'HBBS_API_URL=https://localhost', 'HBBS_API_URL=http://localhost' `
+                -replace 'BETTERDESK_API_URL=https://localhost', 'BETTERDESK_API_URL=http://localhost'
+            if ($svc -eq $script:SERVER_SERVICE) {
+                $authDbPath = Join-Path $script:CONSOLE_PATH "data\auth.db"
+                if ($cleanEnv -notmatch '(?m)^AUTH_DB_PATH=') {
+                    if ($cleanEnv) {
+                        $cleanEnv = $cleanEnv + "`nAUTH_DB_PATH=$authDbPath"
+                    } else {
+                        $cleanEnv = "AUTH_DB_PATH=$authDbPath"
+                    }
+                    Print-Info "Patched $svc AppEnvironmentExtra (AUTH_DB_PATH for panel ACL)"
+                }
+                $consoleDataDir = Join-Path $script:CONSOLE_PATH "data"
+                if (Test-Path $consoleDataDir) {
+                    try {
+                        & icacls "$consoleDataDir" /grant "NT SERVICE\${svc}:(OI)(CI)R" /T /C /Q 2>$null | Out-Null
+                    } catch { }
+                }
+            }
+            if ($cleanEnv -ne $envText) {
+                & $nssmExe set $svc AppEnvironmentExtra $cleanEnv | Out-Null
+                $changed = $true
+                if ($envText -match 'https://localhost' -and $cleanEnv -notmatch 'https://localhost') {
                     Print-Info "Patched $svc AppEnvironmentExtra (Go API URLs stay HTTP)"
-                    $changed = $true
                 }
             }
         } catch { }
@@ -2064,10 +2083,18 @@ function Setup-Services {
     # queued for operator approval. Existing installs are left untouched.
     if ($script:FRESH_INSTALL) { $serverEnvExtra += "ENROLLMENT_MODE=managed" }
     $serverEnvExtra += "MESH_ENABLED=Y"
+    # Panel device groups / folders / ACL live in console auth.db (SQLite) or the
+    # shared PostgreSQL DB. Windows NSSM must set AUTH_DB_PATH so SQLite Go builds
+    # can scope stock RustDesk address books (Linux systemd already sets this).
+    $authDbPath = Join-Path $script:CONSOLE_PATH "data\auth.db"
+    $serverEnvExtra += "AUTH_DB_PATH=$authDbPath"
+    $serverEnvExtra += "CONSOLE_PATH=$script:CONSOLE_PATH"
     & $nssm set $script:SERVER_SERVICE AppEnvironmentExtra $serverEnvExtra
     
     # Privilege separation: drop the Go server to its low-privilege virtual account.
-    Set-ServiceLeastPrivilege -ServiceName $script:SERVER_SERVICE -NssmPath $nssm -Paths @($script:RUSTDESK_PATH)
+    # Include console data/ so AUTH_DB_PATH (auth.db) is readable for device ACL.
+    $consoleDataDir = Join-Path $script:CONSOLE_PATH "data"
+    Set-ServiceLeastPrivilege -ServiceName $script:SERVER_SERVICE -NssmPath $nssm -Paths @($script:RUSTDESK_PATH, $consoleDataDir)
     
     Print-Success "Created BetterDesk Go Server service"
     

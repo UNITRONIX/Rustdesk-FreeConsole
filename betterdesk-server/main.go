@@ -678,42 +678,6 @@ func loadAPIKey(cfg *config.Config, database db.Database) {
 	}
 }
 
-// resolveAuthDBPath finds legacy console auth.db (SQLite-only deployments).
-// PostgreSQL deployments use PanelSyncStore on the primary database instead.
-func resolveAuthDBPath(explicit, dbPath string) string {
-	if strings.TrimSpace(explicit) != "" {
-		return explicit
-	}
-	candidates := []string{
-		"/opt/BetterDeskConsole/data/auth.db",
-		"/opt/rustdesk/../BetterDeskConsole/data/auth.db",
-	}
-	if v := os.Getenv("CONSOLE_DATA_DIR"); v != "" {
-		candidates = append(candidates, filepath.Join(v, "auth.db"))
-	}
-	if v := os.Getenv("DATA_DIR"); v != "" {
-		candidates = append(candidates, filepath.Join(v, "auth.db"))
-	}
-	if v := os.Getenv("BETTERDESK_AUTH_DB_PATH"); v != "" {
-		candidates = append(candidates, v)
-	}
-	if dbPath != "" && !strings.HasPrefix(dbPath, "postgres") {
-		dir := filepath.Dir(dbPath)
-		candidates = append(candidates,
-			filepath.Join(dir, "auth.db"),
-			filepath.Join(dir, "../data/auth.db"),
-			filepath.Join(dir, "../../BetterDeskConsole/data/auth.db"),
-			filepath.Join(dir, "../BetterDeskConsole/data/auth.db"),
-		)
-	}
-	for _, p := range candidates {
-		if st, err := os.Stat(p); err == nil && !st.IsDir() {
-			return p
-		}
-	}
-	return explicit
-}
-
 // attachPanelSync wires RustDesk group/folder sync to PostgreSQL or legacy auth.db.
 func attachPanelSync(apiSrv *api.Server, billingSvc *billing.Service, database db.Database, authDBPath string) func() {
 	if pg, ok := database.(*db.PostgresDB); ok {
@@ -725,12 +689,12 @@ func attachPanelSync(apiSrv *api.Server, billingSvc *billing.Service, database d
 		return func() {}
 	}
 	if strings.TrimSpace(authDBPath) == "" {
-		log.Printf("WARN: no panel sync source — device groups/folders unavailable to RustDesk client")
+		log.Printf("WARN: no panel sync source — device groups/folders unavailable (set AUTH_DB_PATH to console data/auth.db, or use PostgreSQL DB_URL)")
 		return func() {}
 	}
 	consoleAuth, err := db.OpenConsoleAuth(authDBPath)
 	if err != nil {
-		log.Printf("WARN: console auth.db not opened (%s): %v — RustDesk groups from panel may be missing", authDBPath, err)
+		log.Printf("WARN: console auth.db not opened (%s): %v — scoped RustDesk clients get deny-all until AUTH_DB_PATH is readable", authDBPath, err)
 		return func() {}
 	}
 	apiSrv.SetPanelStore(consoleAuth)
@@ -803,7 +767,7 @@ func parseFlags() *config.Config {
 
 	// Override with environment variables
 	cfg.LoadEnv()
-	cfg.AuthDBPath = resolveAuthDBPath(cfg.AuthDBPath, cfg.DBPath)
+	cfg.AuthDBPath = config.ResolveAuthDBPath(cfg.AuthDBPath, cfg.DBPath)
 
 	// CLI --trusted-proxies overrides env when set (LoadEnv already applied TRUSTED_PROXIES).
 	if *trustedProxiesFlag != "" {

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +20,11 @@ type SQLiteDB struct {
 
 // OpenSQLite opens or creates a SQLite database at the given path.
 func OpenSQLite(path string) (*SQLiteDB, error) {
-	dsn := fmt.Sprintf("file:%s?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=ON", path)
+	q := url.Values{}
+	q.Set("_journal_mode", "WAL")
+	q.Set("_busy_timeout", "5000")
+	q.Set("_foreign_keys", "ON")
+	dsn := sqliteFileURI(path, q)
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("db: failed to open SQLite %q: %w", path, err)
