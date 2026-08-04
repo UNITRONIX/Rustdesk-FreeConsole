@@ -279,11 +279,12 @@ fn session_url(base: &str, device_id: &str) -> Result<tauri::Url, String> {
     .map_err(|_| "Failed to build session URL".to_string())
 }
 
-/// Shared WebView2 options for every window in this process.
+/// Shared window options for every webview in this process.
 ///
-/// On Windows, secondary webviews must use the same `CoreWebView2EnvironmentOptions`
-/// as the first webview when they share a user-data folder; mismatched browser args
-/// leave new windows stuck on a blank white surface.
+/// On Windows, do **not** call `additional_browser_args` here — that API deadlocks when
+/// a second window is created against the shared WebView2 user-data folder
+/// (tauri-apps/tauri#15014), even with identical argument strings. TLS / GPU flags are
+/// applied once via `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` in `tls_policy::init`.
 ///
 /// `enable_clipboard_access` is required for `navigator.clipboard` (local ↔ remote text
 /// sync and the toolbar Paste action). Keep Tauri's native drag-drop handler enabled so
@@ -490,6 +491,8 @@ async fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
+    // async command required on Windows — sync create deadlocks (WebView2 / Tauri docs).
+    // Do not call additional_browser_args (tauri#15014 multi-window hang).
     apply_webview_window(
         WebviewWindowBuilder::new(
             &app,
@@ -498,7 +501,8 @@ async fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
         )
         .title("Settings")
         .inner_size(520.0, 680.0)
-        .min_inner_size(400.0, 500.0),
+        .min_inner_size(400.0, 500.0)
+        .disable_drag_drop_handler(),
     )
     .build()
     .map_err(|e| e.to_string())?;
