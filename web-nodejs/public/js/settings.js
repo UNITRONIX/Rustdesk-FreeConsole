@@ -3504,11 +3504,22 @@
         window.location.replace(url.toString());
     }
 
+    function criticalServicesFailed(result) {
+        return (result?.servicesFailed || []).filter((s) => !s.nonCritical);
+    }
+
+    function softServicesFailed(result) {
+        // Windows NSSM OpenService Access Denied (#272) — files applied; do not
+        // treat as a failed update when the service is often already Running.
+        return (result?.servicesFailed || []).filter((s) => s.nonCritical);
+    }
+
     function hasUpdateFailures(result) {
         if (!result) return false;
         const deployFailed = !!(result.serverDeploy && result.serverDeploy.success === false);
-        return (result.failed?.length || 0) > 0
-            || (result.servicesFailed?.length || 0) > 0
+        const criticalFailed = (result.failed || []).filter((f) => !f.nonCritical);
+        return criticalFailed.length > 0
+            || criticalServicesFailed(result).length > 0
             || !!result.consoleRestartBlocked
             || !!result.restartTimeout
             || deployFailed;
@@ -3530,13 +3541,29 @@
         ];
         lines.push(`<ul>${stats.map(s => `<li>${Utils.escapeHtml(s.label)}: <strong>${s.value}</strong></li>`).join('')}</ul>`);
         if (result?.failed?.length) {
-            lines.push(`<ul class="update-wizard-error-list">${result.failed.map(f =>
-                `<li><strong>${Utils.escapeHtml(f.file || 'unknown')}</strong>${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
+            const hardFailed = result.failed.filter((f) => !f.nonCritical);
+            const softFailed = result.failed.filter((f) => f.nonCritical);
+            if (hardFailed.length) {
+                lines.push(`<ul class="update-wizard-error-list">${hardFailed.map(f =>
+                    `<li><strong>${Utils.escapeHtml(f.file || 'unknown')}</strong>${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
+                ).join('')}</ul>`);
+            }
+            if (softFailed.length) {
+                lines.push(`<ul class="text-muted" style="margin-top:0.5em">${softFailed.map(f =>
+                    `<li>${Utils.escapeHtml(f.file || 'unknown')}${f.error ? `: ${Utils.escapeHtml(f.error)}` : ''}</li>`
+                ).join('')}</ul>`);
+            }
+        }
+        const hardSvc = criticalServicesFailed(result);
+        if (hardSvc.length) {
+            lines.push(`<ul class="update-wizard-error-list">${hardSvc.map(s =>
+                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}${s.hint ? `<br><span class="text-muted">${Utils.escapeHtml(s.hint)}</span>` : ''}</li>`
             ).join('')}</ul>`);
         }
-        if (result?.servicesFailed?.length) {
-            lines.push(`<ul class="update-wizard-error-list">${result.servicesFailed.map(s =>
-                `<li><strong>${Utils.escapeHtml(s.service || 'service')}</strong>${s.error ? `: ${Utils.escapeHtml(s.error)}` : ''}${s.hint ? `<br><span class="text-muted">${Utils.escapeHtml(s.hint)}</span>` : ''}</li>`
+        const softSvc = softServicesFailed(result);
+        if (softSvc.length) {
+            lines.push(`<ul class="text-muted" style="margin-top:0.5em">${softSvc.map(s =>
+                `<li>${Utils.escapeHtml(s.service || 'service')}${s.hint ? `: ${Utils.escapeHtml(s.hint)}` : (s.error ? `: ${Utils.escapeHtml(s.error)}` : '')}</li>`
             ).join('')}</ul>`);
         }
         if (result?.consoleRestartBlocked) {
@@ -3634,10 +3661,15 @@
             if (bannerDetails) bannerDetails.innerHTML = buildUpdateSummaryHtml(result, { includeSummary: false });
             const footer = [closeFooterBtn];
             const needsReload = (result?.applied || []).some(p => /\.(js|css|html|ejs)$/i.test(p));
-            if (needsReload) {
+            const autoRefresh = !!(result?.panelRefreshRecommended);
+            if (needsReload || autoRefresh) {
                 footer.push({ label: _('updates.modal_reload_now'), class: 'btn-primary', icon: 'refresh', onClick: reloadConsole });
             }
             updateModalFooter(footer);
+            // Services verified running after soft NSSM ACL — show success, then refresh.
+            if (autoRefresh) {
+                startReloadCountdown(8);
+            }
         } else if (state === 'partial_error' || state === 'error') {
             toggleUpdateLogExpanded(true);
             setModalClosable(true);

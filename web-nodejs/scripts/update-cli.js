@@ -141,9 +141,14 @@ async function main() {
     step(5, 6, 'Restarting affected services');
     if (result.needsServerRestart) {
         const serviceName = process.platform === 'win32' ? 'BetterDeskServer' : 'betterdesk-server';
-        const restart = updateService.restartService(serviceName);
-        if (restart.success) console.log(`  - ${serviceName}: restarted`);
-        else {
+        const restart = process.platform === 'win32'
+            ? updateService.startService(serviceName)
+            : updateService.restartService(serviceName);
+        if (restart.success) console.log(`  - ${serviceName}: ${restart.method || 'restarted'}`);
+        else if (restart.nonCritical) {
+            console.log(`  - ${serviceName}: skipped (${restart.error})`);
+            if (restart.hint) console.log(`    ${restart.hint}`);
+        } else {
             console.log(`  - ${serviceName}: restart failed (${restart.error})`);
             process.exitCode = 1;
         }

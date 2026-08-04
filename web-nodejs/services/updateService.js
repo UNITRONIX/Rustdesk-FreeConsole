@@ -53,7 +53,13 @@ const {
     ensureParentDirForFile,
     isUpdatePermissionError,
 } = require('../lib/updateProjectRoot');
-const { restartWindowsNssmService } = require('../lib/windowsNssmRestart');
+const {
+    restartWindowsNssmService,
+    stopWindowsNssmService,
+    startWindowsNssmService,
+    queryNssmStatus,
+    isStatusRunning,
+} = require('../lib/windowsNssmRestart');
 const { ensureWindowsConsoleAppExitRestart, ensureWindowsConsoleServiceEnvFlag } = require('../lib/windowsConsoleSelfRestart');
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
@@ -2812,8 +2818,27 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             }
         }
 
-        // 4. Deploy to service path (common for both strategies)
+        // 4. Deploy to service path (common for both strategies).
+        // Windows: stop BetterDeskServer before replacing the exe (avoids locks /
+        // NSSM pause), then start after — never rely on bare `nssm restart`.
         if (serverBinaryPath) {
+            const serviceName = IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server';
+            let stoppedForDeploy = false;
+            if (IS_WINDOWS) {
+                const stopResult = stopService(serviceName);
+                results.serverStop = stopResult;
+                if (stopResult.success) {
+                    stoppedForDeploy = true;
+                } else {
+                    // Best-effort: continue deploy (rename/.old path may still work).
+                    // Do not count as update Failed — users react to a non-zero Failed tally.
+                    console.warn(
+                        `[UPDATE] Could not stop ${serviceName} before deploy: ${stopResult.error}`
+                        + (stopResult.hint ? ` — ${stopResult.hint}` : '')
+                    );
+                }
+            }
+
             const targetPath = detectServerBinaryPath();
             const deployResult = deployServerBinary(serverBinaryPath, targetPath);
             results.serverDeploy = {
@@ -2840,7 +2865,49 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 // Fresh binary (with updated dependencies) is in place — any
                 // previous staleness warning no longer applies.
                 clearServerBinaryStale();
+
+                if (IS_WINDOWS) {
+                    // Prefer start after deploy when we stopped (or service was already down).
+                    const startResult = startService(serviceName);
+                    results.serverStart = startResult;
+                    if (startResult.success) {
+                        results.servicesRestarted.push('server');
+                        results.needsServerRestart = false;
+                    } else if (startResult.nonCritical) {
+                        // Access Denied: if the service is already up, treat as
+                        // success and let the UI refresh — do not scare operators.
+                        const recovered = await recoverSoftServerControlFailure(
+                            results,
+                            serviceName,
+                            startResult
+                        );
+                        if (!recovered.recovered) {
+                            results.servicesFailed.push({
+                                service: 'server',
+                                error: startResult.error,
+                                nonCritical: true,
+                                hint: startResult.hint,
+                            });
+                            results.needsServerRestart = false;
+                            console.warn(
+                                `[UPDATE] Could not start ${serviceName} after deploy: ${startResult.error}`
+                                + (startResult.hint ? ` — ${startResult.hint}` : '')
+                            );
+                        }
+                    } else if (stoppedForDeploy) {
+                        // We stopped it — surface start failure so routes can retry restart.
+                        results.needsServerRestart = true;
+                    }
+                }
             } else {
+                // Deploy failed — try to bring the service back if we stopped it.
+                if (IS_WINDOWS && stoppedForDeploy) {
+                    const recover = startService(serviceName);
+                    results.serverStart = recover;
+                    if (recover.success) {
+                        results.servicesRestarted.push('server');
+                    }
+                }
                 results.failed.push({ file: 'betterdesk-server-deploy', error: deployResult.error || 'Server deploy failed' });
             }
         }
@@ -3019,12 +3086,147 @@ async function syncAgentSourceAtSha(remoteSHA) {
 }
 
 /**
+ * Classify Windows NSSM OpenService ACL failures (#272) as non-critical so the
+ * update UI does not look like a failed install when files applied cleanly.
+ */
+function classifyWindowsServiceControlError(err, action) {
+    const message = err.message || String(err);
+    const nonCritical = /access is denied|OpenService/i.test(message);
+    const pauseHint = 'NSSM left BetterDeskServer paused (restart throttle). In Admin PowerShell: nssm continue BetterDeskServer; if still paused: nssm stop BetterDeskServer && nssm start BetterDeskServer';
+    const aclHint = action === 'stop'
+        ? 'Could not stop BetterDeskServer (Access Denied). Binary deploy may still succeed; restart via Admin PowerShell or betterdesk.ps1 → Update if needed'
+        : 'Could not start/restart BetterDeskServer (Access Denied). If the service is already Running, no action is needed — otherwise Admin PowerShell: nssm stop BetterDeskServer && nssm start BetterDeskServer, or betterdesk.ps1 → Update';
+    return {
+        success: false,
+        error: message,
+        nonCritical,
+        hint: nonCritical
+            ? aclHint
+            : (/SERVICE_PAUSED/i.test(message) ? pauseHint : undefined),
+    };
+}
+
+/**
+ * Whether the Go API answers /api/health (works even when NSSM OpenService is denied).
+ * @returns {Promise<boolean>}
+ */
+async function isGoApiReachable() {
+    try {
+        const health = await require('./betterdeskApi').getHealth();
+        const status = String(health?.status || '').toLowerCase();
+        return status === 'running' || status === 'ok';
+    } catch (_e) {
+        return false;
+    }
+}
+
+/**
+ * Check if BetterDeskServer looks up without needing start rights.
+ * Prefer nssm status when allowed; fall back to HTTP /api/health.
+ *
+ * @param {string} [serviceName]
+ * @returns {Promise<{ running: boolean, via?: string }>}
+ */
+async function verifyServerLooksRunning(serviceName = IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server') {
+    if (IS_WINDOWS) {
+        try {
+            const status = queryNssmStatus(execSync, serviceName);
+            if (isStatusRunning(status)) {
+                return { running: true, via: 'nssm' };
+            }
+        } catch (_e) {
+            // OpenService often denied for status too — fall through to HTTP.
+        }
+    }
+
+    if (await isGoApiReachable()) {
+        return { running: true, via: 'http-health' };
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+    if (await isGoApiReachable()) {
+        return { running: true, via: 'http-health' };
+    }
+    return { running: false };
+}
+
+/**
+ * After Access Denied (or similar soft control failure): if the service is
+ * already up, treat as success and ask the UI to refresh the panel.
+ *
+ * @returns {Promise<{ recovered: boolean, via?: string }>}
+ */
+async function recoverSoftServerControlFailure(results, serviceName, controlResult) {
+    const verify = await verifyServerLooksRunning(serviceName);
+    if (!verify.running) {
+        return { recovered: false };
+    }
+    if (!results.servicesRestarted.includes('server')) {
+        results.servicesRestarted.push('server');
+    }
+    results.serverVerifiedRunning = true;
+    results.panelRefreshRecommended = true;
+    results.needsServerRestart = false;
+    results.serverStart = {
+        ...(controlResult || {}),
+        success: true,
+        recovered: true,
+        method: verify.via || 'verified-running',
+    };
+    console.log(
+        `[UPDATE] ${serviceName} service control failed (${controlResult?.error || 'unknown'})`
+        + ` but service appears running via ${verify.via} — treating as success`
+    );
+    return { recovered: true, via: verify.via };
+}
+
+/**
+ * Stop a system service before replacing its binary (Windows NSSM / Linux systemd).
+ * Returns { success, service, error?, nonCritical?, hint?, method? }.
+ */
+function stopService(serviceName) {
+    try {
+        if (IS_WINDOWS) {
+            const win = stopWindowsNssmService(serviceName);
+            return { success: true, service: serviceName, method: win.method || 'stop' };
+        }
+        runPrivileged(`systemctl stop ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
+        return { success: true, service: serviceName, method: 'stop' };
+    } catch (err) {
+        if (IS_WINDOWS) {
+            return { service: serviceName, ...classifyWindowsServiceControlError(err, 'stop') };
+        }
+        return { success: false, service: serviceName, error: err.message || String(err) };
+    }
+}
+
+/**
+ * Start a system service after binary deploy.
+ * Returns { success, service, error?, nonCritical?, hint?, method? }.
+ */
+function startService(serviceName) {
+    try {
+        if (IS_WINDOWS) {
+            const win = startWindowsNssmService(serviceName);
+            return { success: true, service: serviceName, method: win.method || 'start' };
+        }
+        runPrivileged(`systemctl start ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
+        return { success: true, service: serviceName, method: 'start' };
+    } catch (err) {
+        if (IS_WINDOWS) {
+            return { service: serviceName, ...classifyWindowsServiceControlError(err, 'start') };
+        }
+        return { success: false, service: serviceName, error: err.message || String(err) };
+    }
+}
+
+/**
  * Restart a system service.
  * Returns { success, service, error?, nonCritical?, hint?, method? }.
  *
  * Windows: uses stop→start with SERVICE_PAUSED recovery. NSSM enters PAUSED
  * while restart-throttling after a binary swap; bare `nssm restart` then fails
  * with "Unexpected status SERVICE_PAUSED in response to START control".
+ * Preferred update path: stopService → deploy → startService (see applyUpdate).
  */
 function restartService(serviceName) {
     try {
@@ -3035,21 +3237,13 @@ function restartService(serviceName) {
         runPrivileged(`systemctl restart ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
         return { success: true, service: serviceName };
     } catch (err) {
-        const message = err.message || String(err);
-        // Console service account often lacks rights to OpenService on sibling
-        // NSSM units (BetterDeskServer). Treat as non-critical so SHA save /
-        // success banner are not blocked — operator can restart via PS1 (#272).
-        const nonCritical = IS_WINDOWS && /access is denied|OpenService/i.test(message);
+        if (IS_WINDOWS) {
+            return { service: serviceName, ...classifyWindowsServiceControlError(err, 'start') };
+        }
         return {
             success: false,
             service: serviceName,
-            error: message,
-            nonCritical,
-            hint: nonCritical
-                ? 'Restart BetterDeskServer manually (Admin PowerShell: nssm restart BetterDeskServer) or run betterdesk.ps1 → Update'
-                : (/SERVICE_PAUSED/i.test(message)
-                    ? 'NSSM left BetterDeskServer paused (restart throttle). In Admin PowerShell: nssm continue BetterDeskServer; if still paused: nssm stop BetterDeskServer && nssm start BetterDeskServer'
-                    : undefined),
+            error: err.message || String(err),
         };
     }
 }
@@ -3286,8 +3480,15 @@ async function rebuildServerBinary(opts = {}) {
     }
 
     // 4. Deploy to the service path.
+    // Windows: stop → replace exe → start (not bare nssm restart).
     if (!IS_WINDOWS) {
         result.steps.linuxPrivilegeSync = syncLinuxPanelUpdatePrivileges();
+    }
+    const serviceName = IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server';
+    let stoppedForDeploy = false;
+    if (IS_WINDOWS && opts.restart !== false) {
+        result.steps.stop = stopService(serviceName);
+        stoppedForDeploy = !!result.steps.stop.success;
     }
     const targetPath = detectServerBinaryPath();
     const deploy = deployServerBinary(build.binaryPath, targetPath);
@@ -3298,6 +3499,9 @@ async function rebuildServerBinary(opts = {}) {
         targetPath
     };
     if (!deploy.success) {
+        if (IS_WINDOWS && stoppedForDeploy) {
+            result.steps.start = startService(serviceName);
+        }
         result.error = deploy.error || 'Deploy failed';
         markServerBinaryStale({ reason: 'deploy_failed', detail: result.error, sha: remoteSHA });
         return result;
@@ -3307,9 +3511,16 @@ async function rebuildServerBinary(opts = {}) {
     result.steps.serviceConfig = sanitizeGoServerServiceConfig();
     clearServerBinaryStale();
 
-    // 6. Restart the service so the new binary takes effect.
+    // 6. Start (Windows after stop) or restart (Linux / fallback) so the new binary takes effect.
     if (opts.restart !== false) {
-        result.steps.restart = restartService(IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server');
+        if (IS_WINDOWS) {
+            result.steps.start = startService(serviceName);
+            result.steps.restart = result.steps.start.success
+                ? result.steps.start
+                : restartService(serviceName);
+        } else {
+            result.steps.restart = restartService(serviceName);
+        }
     }
 
     result.success = true;
@@ -3435,6 +3646,10 @@ module.exports = {
     syncBillingEnvToWindowsGoServer,
     BILLING_ENV_KEYS,
     restartService,
+    stopService,
+    startService,
+    verifyServerLooksRunning,
+    recoverSoftServerControlFailure,
     daemonReload,
     listBackups,
     deleteBackup,

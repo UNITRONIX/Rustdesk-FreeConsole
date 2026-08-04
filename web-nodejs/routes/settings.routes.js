@@ -1272,17 +1272,30 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
             }
         }
 
-        // Restart Go server when its binary was updated.
+        // Restart Go server when its binary was updated and applyUpdate did not
+        // already complete stop→start (Windows prefers stop before deploy).
         if (result.needsServerRestart) {
             const serviceName = process.platform === 'win32' ? 'BetterDeskServer' : 'betterdesk-server';
-            let svc = updateService.restartService(serviceName);
+            let svc = process.platform === 'win32'
+                ? updateService.startService(serviceName)
+                : updateService.restartService(serviceName);
             if (!svc.success) {
                 svc = updateService.restartService(serviceName);
             }
             if (svc.success) result.servicesRestarted.push('server');
-            else {
+            else if (svc.nonCritical) {
+                const recovered = await updateService.recoverSoftServerControlFailure(
+                    result,
+                    serviceName,
+                    svc
+                );
+                if (!recovered.recovered) {
+                    const fail = { service: 'server', error: svc.error, nonCritical: true };
+                    if (svc.hint) fail.hint = svc.hint;
+                    result.servicesFailed.push(fail);
+                }
+            } else {
                 const fail = { service: 'server', error: svc.error };
-                if (svc.nonCritical) fail.nonCritical = true;
                 if (svc.hint) fail.hint = svc.hint;
                 result.servicesFailed.push(fail);
             }

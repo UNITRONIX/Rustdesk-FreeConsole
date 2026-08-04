@@ -1,8 +1,9 @@
 'use strict';
 
 /**
- * Robust NSSM service restart for Windows panel updates.
+ * Robust NSSM service stop/start for Windows panel updates.
  *
+ * Prefer stop → replace binary → start over bare `nssm restart`.
  * NSSM enters SERVICE_PAUSED while restart-throttling after the monitored
  * app exits too soon (common when the Go binary is swapped under a running
  * service). `nssm restart` then fails with:
@@ -108,98 +109,114 @@ function waitForNssmStatus(execSync, serviceName, predicate, timeoutMs, sleepFn,
     return last;
 }
 
-/**
- * Restart an NSSM-managed Windows service, recovering from SERVICE_PAUSED.
- *
- * @param {string} serviceName
- * @param {object} [deps]
- * @param {Function} [deps.execSync]
- * @param {Function} [deps.sleep]
- * @param {number} [deps.pollMs]
- * @param {number} [deps.stopTimeoutMs]
- * @param {number} [deps.startTimeoutMs]
- * @returns {{ success: true, service: string, method: string }}
- */
-function restartWindowsNssmService(serviceName, deps = {}) {
+function resolveDeps(deps = {}) {
+    return {
+        execSync: deps.execSync || require('child_process').execSync,
+        sleep: typeof deps.sleep === 'function' ? deps.sleep : sleepSync,
+        pollMs: deps.pollMs || DEFAULT_POLL_MS,
+        stopTimeoutMs: deps.stopTimeoutMs || DEFAULT_STOP_TIMEOUT_MS,
+        startTimeoutMs: deps.startTimeoutMs || DEFAULT_START_TIMEOUT_MS,
+    };
+}
+
+function assertServiceName(serviceName) {
     if (!serviceName || typeof serviceName !== 'string') {
         throw new Error('serviceName is required');
     }
+}
 
-    const execSync = deps.execSync || require('child_process').execSync;
-    const sleep = typeof deps.sleep === 'function' ? deps.sleep : sleepSync;
-    const pollMs = deps.pollMs || DEFAULT_POLL_MS;
-    const stopTimeoutMs = deps.stopTimeoutMs || DEFAULT_STOP_TIMEOUT_MS;
-    const startTimeoutMs = deps.startTimeoutMs || DEFAULT_START_TIMEOUT_MS;
+/**
+ * Clear NSSM restart-throttle pause so stop/start can proceed.
+ */
+function clearPausedIfNeeded(serviceName, d) {
+    let status = queryNssmStatus(d.execSync, serviceName);
+    if (!isStatusPaused(status)) return status;
 
-    let status = queryNssmStatus(execSync, serviceName);
+    runNssm(d.execSync, ['continue', serviceName]);
+    status = waitForNssmStatus(
+        d.execSync,
+        serviceName,
+        (s) => isStatusRunning(s) || isStatusStopped(s),
+        Math.min(5000, d.startTimeoutMs),
+        d.sleep,
+        d.pollMs
+    );
+    return status;
+}
 
-    // NSSM throttle: Continue cancels the delay and starts the app immediately.
-    if (isStatusPaused(status)) {
-        runNssm(execSync, ['continue', serviceName]);
-        status = waitForNssmStatus(
-            execSync,
-            serviceName,
-            (s) => isStatusRunning(s) || isStatusStopped(s),
-            Math.min(5000, startTimeoutMs),
-            sleep,
-            pollMs
-        );
-        if (isStatusRunning(status)) {
-            // Still stop/start so a freshly deployed binary is loaded.
-            // Fall through unless caller only needed a wake — always reload.
-        }
+/**
+ * Stop an NSSM-managed Windows service (SERVICE_STOPPED).
+ *
+ * @returns {{ success: true, service: string, method: string, wasAlreadyStopped?: boolean }}
+ */
+function stopWindowsNssmService(serviceName, deps = {}) {
+    assertServiceName(serviceName);
+    const d = resolveDeps(deps);
+
+    let status = clearPausedIfNeeded(serviceName, d);
+
+    if (isStatusStopped(status)) {
+        return { success: true, service: serviceName, method: 'stop', wasAlreadyStopped: true };
     }
 
-    // Prefer stop → start over `nssm restart` (fragile when already PAUSED).
-    runNssm(execSync, ['stop', serviceName]);
-    status = waitForNssmStatus(execSync, serviceName, isStatusStopped, stopTimeoutMs, sleep, pollMs);
+    runNssm(d.execSync, ['stop', serviceName]);
+    status = waitForNssmStatus(d.execSync, serviceName, isStatusStopped, d.stopTimeoutMs, d.sleep, d.pollMs);
 
     if (isStatusPaused(status)) {
-        runNssm(execSync, ['continue', serviceName]);
-        sleep(pollMs);
-        runNssm(execSync, ['stop', serviceName]);
-        status = waitForNssmStatus(execSync, serviceName, isStatusStopped, stopTimeoutMs, sleep, pollMs);
+        runNssm(d.execSync, ['continue', serviceName]);
+        d.sleep(d.pollMs);
+        runNssm(d.execSync, ['stop', serviceName]);
+        status = waitForNssmStatus(d.execSync, serviceName, isStatusStopped, d.stopTimeoutMs, d.sleep, d.pollMs);
     }
 
-    if (!isStatusStopped(status) && !isStatusRunning(status)) {
-        // Last resort: classic restart, then recover pause.
-        const restart = runNssm(execSync, ['restart', serviceName]);
-        if (!restart.ok && /SERVICE_PAUSED/i.test(restart.message + restart.output)) {
-            runNssm(execSync, ['continue', serviceName]);
-        }
-        status = waitForNssmStatus(execSync, serviceName, isStatusRunning, startTimeoutMs, sleep, pollMs);
-        if (isStatusRunning(status)) {
-            return { success: true, service: serviceName, method: 'restart-continue' };
-        }
+    if (!isStatusStopped(status)) {
+        // Last resort: classic restart may leave it stopped briefly; prefer fail so
+        // callers know the binary may still be locked.
         throw new Error(
-            `Command failed: nssm restart "${serviceName}" `
-            + `${serviceName}: Unexpected status ${status || 'SERVICE_PAUSED'} in response to START control.`
+            `Service ${serviceName} did not reach SERVICE_STOPPED (status: ${status || 'unknown'})`
         );
     }
 
-    const start = runNssm(execSync, ['start', serviceName]);
+    return { success: true, service: serviceName, method: 'stop' };
+}
+
+/**
+ * Start an NSSM-managed Windows service and verify SERVICE_RUNNING.
+ *
+ * @returns {{ success: true, service: string, method: string }}
+ */
+function startWindowsNssmService(serviceName, deps = {}) {
+    assertServiceName(serviceName);
+    const d = resolveDeps(deps);
+
+    let status = clearPausedIfNeeded(serviceName, d);
+
+    if (isStatusRunning(status)) {
+        return { success: true, service: serviceName, method: 'already-running' };
+    }
+
+    const start = runNssm(d.execSync, ['start', serviceName]);
     if (!start.ok) {
         const blob = `${start.message} ${start.output}`;
-        if (/SERVICE_PAUSED/i.test(blob) || isStatusPaused(queryNssmStatus(execSync, serviceName))) {
-            runNssm(execSync, ['continue', serviceName]);
+        if (/SERVICE_PAUSED/i.test(blob) || isStatusPaused(queryNssmStatus(d.execSync, serviceName))) {
+            runNssm(d.execSync, ['continue', serviceName]);
         } else if (!/already/i.test(blob)) {
             // Retry once after a short wait (pending stop → start race).
-            sleep(500);
-            const retry = runNssm(execSync, ['start', serviceName]);
+            d.sleep(500);
+            const retry = runNssm(d.execSync, ['start', serviceName]);
             if (!retry.ok && /SERVICE_PAUSED/i.test(`${retry.message} ${retry.output}`)) {
-                runNssm(execSync, ['continue', serviceName]);
+                runNssm(d.execSync, ['continue', serviceName]);
             } else if (!retry.ok) {
                 throw new Error(retry.message || `nssm start "${serviceName}" failed`);
             }
         }
     }
 
-    status = waitForNssmStatus(execSync, serviceName, isStatusRunning, startTimeoutMs, sleep, pollMs);
+    status = waitForNssmStatus(d.execSync, serviceName, isStatusRunning, d.startTimeoutMs, d.sleep, d.pollMs);
     if (!isStatusRunning(status)) {
-        // One more continue pass for throttle after a crash-loop exit.
         if (isStatusPaused(status)) {
-            runNssm(execSync, ['continue', serviceName]);
-            status = waitForNssmStatus(execSync, serviceName, isStatusRunning, startTimeoutMs, sleep, pollMs);
+            runNssm(d.execSync, ['continue', serviceName]);
+            status = waitForNssmStatus(d.execSync, serviceName, isStatusRunning, d.startTimeoutMs, d.sleep, d.pollMs);
         }
     }
 
@@ -209,11 +226,60 @@ function restartWindowsNssmService(serviceName, deps = {}) {
         );
     }
 
-    return { success: true, service: serviceName, method: 'stop-start' };
+    return { success: true, service: serviceName, method: 'start' };
+}
+
+/**
+ * Restart an NSSM-managed Windows service: stop → start (never bare `nssm restart`
+ * as the primary path). Recovers from SERVICE_PAUSED.
+ *
+ * @returns {{ success: true, service: string, method: string }}
+ */
+function restartWindowsNssmService(serviceName, deps = {}) {
+    assertServiceName(serviceName);
+    const d = resolveDeps(deps);
+
+    let status;
+    try {
+        status = queryNssmStatus(d.execSync, serviceName);
+    } catch (err) {
+        throw err;
+    }
+
+    // If stop fails mid-way but service is wedged, fall back to restart+continue.
+    try {
+        stopWindowsNssmService(serviceName, deps);
+    } catch (stopErr) {
+        const restart = runNssm(d.execSync, ['restart', serviceName]);
+        if (!restart.ok && /SERVICE_PAUSED/i.test(restart.message + restart.output)) {
+            runNssm(d.execSync, ['continue', serviceName]);
+        }
+        status = waitForNssmStatus(
+            d.execSync,
+            serviceName,
+            isStatusRunning,
+            d.startTimeoutMs,
+            d.sleep,
+            d.pollMs
+        );
+        if (isStatusRunning(status)) {
+            return { success: true, service: serviceName, method: 'restart-continue' };
+        }
+        throw stopErr;
+    }
+
+    const started = startWindowsNssmService(serviceName, deps);
+    return {
+        success: true,
+        service: serviceName,
+        method: started.method === 'already-running' ? 'stop-start' : 'stop-start',
+    };
 }
 
 module.exports = {
     restartWindowsNssmService,
+    stopWindowsNssmService,
+    startWindowsNssmService,
     queryNssmStatus,
     isStatusRunning,
     isStatusStopped,
