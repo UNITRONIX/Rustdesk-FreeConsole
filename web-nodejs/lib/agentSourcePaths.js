@@ -4,6 +4,23 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * Linux install default `/opt/BetterDeskConsole/...` resolves on Windows to
+ * `C:\opt\BetterDeskConsole\...` (current drive + \opt\...). That tree is
+ * usually unwritable by the console service account (EPERM).
+ *
+ * @param {string} filePath
+ * @param {string} [platform]
+ * @returns {boolean}
+ */
+function isWindowsLinuxOptTrap(filePath, platform = process.platform) {
+    if (platform !== 'win32') return false;
+    const norm = path.resolve(String(filePath || ''))
+        .replace(/\//g, '\\')
+        .toLowerCase();
+    return /^[a-z]:\\opt\\betterdeskconsole(?:\\|$)/.test(norm);
+}
+
+/**
  * Resolve where the Support Agent build worker stages GitHub source trees.
  *
  * Prefer `<consoleRoot>/agent-source/betterdesk-support-agent` so Windows panel
@@ -14,30 +31,46 @@ const path = require('path');
  * @param {string} [opts.consoleRoot]
  * @param {NodeJS.ProcessEnv} [opts.env]
  * @param {(p: string) => boolean} [opts.existsSync]
+ * @param {string} [opts.platform]
  * @returns {string}
  */
 function resolveSupportAgentSourceRoot(opts = {}) {
     const env = opts.env || process.env;
-    if (env.AGENT_SOURCE_DIR) return env.AGENT_SOURCE_DIR;
-
+    const platform = opts.platform || process.platform;
     const exists = opts.existsSync || fs.existsSync;
     const consoleRoot = path.resolve(opts.consoleRoot || path.join(__dirname, '..'));
-    const candidates = [
-        path.join(consoleRoot, 'agent-source', 'betterdesk-support-agent'),
-        '/opt/BetterDeskConsole/agent-source/betterdesk-support-agent',
+    const besideConsole = path.join(consoleRoot, 'agent-source', 'betterdesk-support-agent');
+
+    if (env.AGENT_SOURCE_DIR) {
+        const override = path.resolve(env.AGENT_SOURCE_DIR);
+        // Stale NSSM/.env overrides from older Linux-path docs must not pin
+        // Windows installs to the unwritable C:\opt\... tree.
+        if (!isWindowsLinuxOptTrap(override, platform)) {
+            return override;
+        }
+    }
+
+    const candidates = [besideConsole];
+    // Never probe /opt on Windows — orphan trees from older builds still have
+    // build.sh and would otherwise win over an empty console agent-source/.
+    if (platform !== 'win32') {
+        candidates.push('/opt/BetterDeskConsole/agent-source/betterdesk-support-agent');
+    }
+    candidates.push(
         path.resolve(consoleRoot, '..', 'betterdesk-support-agent'),
         path.resolve(process.cwd(), 'betterdesk-support-agent'),
-    ];
+    );
 
     const seen = new Set();
     for (const candidate of candidates) {
         const resolved = path.resolve(candidate);
         if (seen.has(resolved)) continue;
         seen.add(resolved);
+        if (isWindowsLinuxOptTrap(resolved, platform)) continue;
         if (exists(path.join(resolved, 'build.sh'))) return resolved;
     }
     // Default beside the running console (writable on normal Windows installs).
-    return path.resolve(candidates[0]);
+    return path.resolve(besideConsole);
 }
 
 /**
@@ -84,6 +117,7 @@ async function writeAgentSourceFileAtomic(dest, content, deps = {}) {
 }
 
 module.exports = {
+    isWindowsLinuxOptTrap,
     resolveSupportAgentSourceRoot,
     agentSourceSiblingDirs,
     writeAgentSourceFileAtomic,

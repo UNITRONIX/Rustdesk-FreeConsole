@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
+    isWindowsLinuxOptTrap,
     resolveSupportAgentSourceRoot,
     agentSourceSiblingDirs,
     writeAgentSourceFileAtomic,
@@ -30,6 +31,39 @@ describe('agentSourcePaths', () => {
             existsSync: (p) => p === path.join(preferred, 'build.sh'),
         });
         expect(resolved).toBe(path.resolve(preferred));
+    });
+
+    test('on Windows ignores orphan C:\\opt tree even when build.sh exists there', () => {
+        const consoleRoot = 'C:\\BetterDeskConsole';
+        const preferred = path.join(consoleRoot, 'agent-source', 'betterdesk-support-agent');
+        const orphan = 'C:\\opt\\BetterDeskConsole\\agent-source\\betterdesk-support-agent';
+        const resolved = resolveSupportAgentSourceRoot({
+            consoleRoot,
+            env: {},
+            platform: 'win32',
+            existsSync: (p) => p === path.join(orphan, 'build.sh'),
+        });
+        expect(resolved).toBe(path.resolve(preferred));
+        expect(isWindowsLinuxOptTrap(resolved, 'win32')).toBe(false);
+    });
+
+    test('on Windows ignores AGENT_SOURCE_DIR pinned to C:\\opt\\...', () => {
+        const consoleRoot = 'C:\\BetterDeskConsole';
+        const preferred = path.join(consoleRoot, 'agent-source', 'betterdesk-support-agent');
+        const resolved = resolveSupportAgentSourceRoot({
+            consoleRoot,
+            platform: 'win32',
+            env: { AGENT_SOURCE_DIR: 'C:\\opt\\BetterDeskConsole\\agent-source\\betterdesk-support-agent' },
+            existsSync: () => false,
+        });
+        expect(resolved).toBe(path.resolve(preferred));
+    });
+
+    test('isWindowsLinuxOptTrap matches drive\\opt\\BetterDeskConsole only on win32', () => {
+        expect(isWindowsLinuxOptTrap('C:\\opt\\BetterDeskConsole\\agent-source\\x', 'win32')).toBe(true);
+        expect(isWindowsLinuxOptTrap('/opt/BetterDeskConsole/agent-source/x', 'win32')).toBe(true);
+        expect(isWindowsLinuxOptTrap('C:\\BetterDeskConsole\\agent-source\\x', 'win32')).toBe(false);
+        expect(isWindowsLinuxOptTrap('/opt/BetterDeskConsole/agent-source/x', 'linux')).toBe(false);
     });
 
     test('honors AGENT_SOURCE_DIR override', () => {

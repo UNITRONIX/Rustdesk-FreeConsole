@@ -47,29 +47,36 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 function _resolveSourceRoot() {
     if (process.env.AGENT_CLIENT_SOURCE_DIR) return process.env.AGENT_CLIENT_SOURCE_DIR;
     const consoleRoot = path.resolve(__dirname, '..');
+    const besideConsole = path.join(consoleRoot, 'agent-source', 'betterdesk-agent-client');
     const candidates = [
-        path.join(consoleRoot, 'agent-source', 'betterdesk-agent-client'),
+        besideConsole,
         path.join(REPO_ROOT, 'betterdesk-agent-client'),
-        '/opt/BetterDeskConsole/agent-source/betterdesk-agent-client',
     ];
+    // Linux-only default — on Windows `/opt/...` becomes `C:\opt\...` (EPERM).
+    if (process.platform !== 'win32') {
+        candidates.push('/opt/BetterDeskConsole/agent-source/betterdesk-agent-client');
+    }
     for (const c of candidates) {
         if (fs.existsSync(path.join(c, 'src-tauri', 'Cargo.toml'))) return c;
     }
-    return candidates[0];
+    return besideConsole;
 }
 
 function _resolveAgentLibRoot() {
     if (process.env.AGENT_LIB_DIR) return process.env.AGENT_LIB_DIR;
     const consoleRoot = path.resolve(__dirname, '..');
+    const besideConsole = path.join(consoleRoot, 'agent-source', 'betterdesk-agent');
     const candidates = [
-        path.join(consoleRoot, 'agent-source', 'betterdesk-agent'),
+        besideConsole,
         path.join(REPO_ROOT, 'betterdesk-agent'),
-        '/opt/BetterDeskConsole/agent-source/betterdesk-agent',
     ];
+    if (process.platform !== 'win32') {
+        candidates.push('/opt/BetterDeskConsole/agent-source/betterdesk-agent');
+    }
     for (const c of candidates) {
         if (fs.existsSync(path.join(c, 'go.mod'))) return c;
     }
-    return candidates[0];
+    return besideConsole;
 }
 
 const SOURCE_ROOT = _resolveSourceRoot();

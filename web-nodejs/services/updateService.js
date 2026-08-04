@@ -262,6 +262,7 @@ const AGENT_REBUILD_TRIGGER_PATHS = [
     /^betterdesk-agent\//,
     /^betterdesk-server\//,
     /^web-nodejs\/services\/agentBuildWorker\.js$/,
+    /^web-nodejs\/lib\/agentSourcePaths\.js$/,
     /^web-nodejs\/services\/agentBundleConnection\.js$/,
     /^web-nodejs\/services\/agentBundleService\.js$/,
     /^web-nodejs\/routes\/generator\.routes\.js$/,
@@ -272,6 +273,19 @@ const AGENT_REBUILD_TRIGGER_PATHS = [
 function shouldQueueAgentRebuild(changedData) {
     const all = Object.values(changedData?.grouped || {}).flat();
     return all.some((f) => AGENT_REBUILD_TRIGGER_PATHS.some((rx) => rx.test(f.path)));
+}
+
+/**
+ * Drop require cache for agent-source path policy + build worker so an in-flight
+ * panel update uses the just-written modules (not the pre-update C:\opt trap).
+ */
+function loadAgentBuildWorkerFresh() {
+    for (const rel of ['../lib/agentSourcePaths', './agentBuildWorker']) {
+        try {
+            delete require.cache[require.resolve(rel)];
+        } catch (_) { /* module may not have been loaded yet */ }
+    }
+    return require('./agentBuildWorker');
 }
 
 /**
@@ -2835,7 +2849,10 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
     // ---- Generator agent: sync agent-source/ + queue bundle rebuilds ----
     if (shouldQueueAgentRebuild(changedData)) {
         try {
-            const agentBuildWorker = require('./agentBuildWorker');
+            // Re-load after files were written so this same update process picks up
+            // the Windows /opt→C:\opt path policy (stale require cache would keep
+            // syncing into the orphan tree and fail with EPERM again).
+            const agentBuildWorker = loadAgentBuildWorkerFresh();
             const stageResult = await agentBuildWorker.syncFullAgentSourceFromGitHub({
                 remoteSHA,
                 download: ghDownloadFile,
@@ -2993,7 +3010,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
 
 /** Sync full support-agent trees from GitHub at the given commit SHA. */
 async function syncAgentSourceAtSha(remoteSHA) {
-    const agentBuildWorker = require('./agentBuildWorker');
+    const agentBuildWorker = loadAgentBuildWorkerFresh();
     return agentBuildWorker.syncFullAgentSourceFromGitHub({
         remoteSHA,
         download: ghDownloadFile,

@@ -169,8 +169,8 @@ function _resolveSourceRoot() {
     return resolveSupportAgentSourceRoot({ consoleRoot: path.join(__dirname, '..') });
 }
 
-function _resolveAgentLibRoot() {
-    const siblings = agentSourceSiblingDirs(SOURCE_ROOT);
+function _resolveAgentLibRoot(supportRoot = _resolveSourceRoot()) {
+    const siblings = agentSourceSiblingDirs(supportRoot);
     const candidates = [
         siblings.agentLib,
         path.resolve(__dirname, '..', '..', 'betterdesk-agent'),
@@ -181,8 +181,8 @@ function _resolveAgentLibRoot() {
     return candidates[0];
 }
 
-function _resolveServerLibRoot() {
-    const siblings = agentSourceSiblingDirs(SOURCE_ROOT);
+function _resolveServerLibRoot(supportRoot = _resolveSourceRoot()) {
+    const siblings = agentSourceSiblingDirs(supportRoot);
     const consoleRoot = siblings.base.endsWith('agent-source')
         ? path.dirname(siblings.base)
         : siblings.base;
@@ -197,9 +197,16 @@ function _resolveServerLibRoot() {
     return candidates[candidates.length - 1];
 }
 
+// Resolved at call time for sync paths so Windows never keeps a stale
+// C:\opt\... root from module load / orphan trees after path-policy fixes.
+function _agentSourceDirs() {
+    const supportAgent = _resolveSourceRoot();
+    return agentSourceSiblingDirs(supportAgent);
+}
+
 const SOURCE_ROOT = _resolveSourceRoot();
-const AGENT_LIB_ROOT = _resolveAgentLibRoot();
-const SERVER_LIB_ROOT = _resolveServerLibRoot();
+const AGENT_LIB_ROOT = _resolveAgentLibRoot(SOURCE_ROOT);
+const SERVER_LIB_ROOT = _resolveServerLibRoot(SOURCE_ROOT);
 
 const BUILD_PROFILES = {
     'windows/x64/portable':  { os: 'windows', ext: '.exe',  pack: 'exe-portable' },
@@ -260,10 +267,6 @@ const AGENT_SOURCE_PREFIXES = [
     'betterdesk-agent/',
     'betterdesk-server/',
 ];
-
-function _agentSourceDirs() {
-    return agentSourceSiblingDirs(SOURCE_ROOT);
-}
 
 async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
     if (!brandingHash) throw new Error('brandingHash required');
