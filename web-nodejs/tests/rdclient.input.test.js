@@ -263,6 +263,57 @@ describe('RDKeyboardEncoder parity', () => {
         expect(evt.chr).toBe('ą'.codePointAt(0));
     });
 
+    it('Legacy Norwegian symbol keys use e.key not US LEGACY_CHAR_MAP', () => {
+        // Physical Slash produces '-' on Norwegian QWERTY; map would wrongly send '/'.
+        const hyphen = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'Slash',
+            key: '-',
+            down: true,
+            press: false,
+            e: { key: '-', code: 'Slash', shiftKey: false },
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(),
+        });
+        expect(hyphen.mode).toBe('Legacy');
+        expect(hyphen.chr).toBe('-'.codePointAt(0));
+
+        // Physical Minus produces '+' on Norwegian; map would wrongly send '-'.
+        const plus = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'Minus',
+            key: '+',
+            down: true,
+            press: false,
+            e: { key: '+', code: 'Minus', shiftKey: false },
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(),
+        });
+        expect(plus.chr).toBe('+'.codePointAt(0));
+
+        // Physical Equal often produces '\\' on Norwegian; map would send '='.
+        const backslash = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'Equal',
+            key: '\\',
+            down: true,
+            press: false,
+            e: { key: '\\', code: 'Equal', shiftKey: false },
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(),
+        });
+        expect(backslash.chr).toBe('\\'.codePointAt(0));
+
+        // Shift+, → ';' on Norwegian (and US); must not force unshifted ','.
+        const semicolon = RDKeyboardEncoder.encodeKeyEvent({
+            code: 'Comma',
+            key: ';',
+            down: true,
+            press: false,
+            e: { key: ';', code: 'Comma', shiftKey: true },
+            keyboardMode: 'Legacy',
+            pressedCodes: new Set(['ShiftLeft']),
+        });
+        expect(semicolon.chr).toBe(';'.codePointAt(0));
+    });
+
     it('Legacy Caps+A → uppercase chr when Caps Lock is on', () => {
         const evt = RDKeyboardEncoder.encodeKeyEvent({
             code: 'KeyA',
