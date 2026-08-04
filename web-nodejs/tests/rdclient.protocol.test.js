@@ -413,4 +413,21 @@ describe('RDClient Cliprdr protobuf encoding', () => {
         expect(decoded.cliprdr.formatList.formats).toHaveLength(2);
         expect(decoded.cliprdr.formatList.formats[0].format).toBe('FileGroupDescriptorW');
     });
+
+    it('encodes FileContentsResponse with non-empty requestedData', () => {
+        const payload = Buffer.from('cliprdr-file-bytes');
+        const buf = Message.encode(Message.fromObject({
+            cliprdr: {
+                fileContentsResponse: {
+                    msgFlags: 1,
+                    streamId: 9,
+                    requestedData: payload
+                }
+            }
+        })).finish();
+        const decoded = Message.decode(buf);
+        expect(decoded.cliprdr.fileContentsResponse.streamId).toBe(9);
+        expect(Buffer.from(decoded.cliprdr.fileContentsResponse.requestedData).toString())
+            .toBe('cliprdr-file-bytes');
+    });
 });

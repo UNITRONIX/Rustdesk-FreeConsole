@@ -24,7 +24,6 @@ const FLAGS_FD_ATTRIBUTES: u32 = 0x04;
 const FLAGS_FD_SIZE: u32 = 0x40;
 const FLAGS_FD_LAST_WRITE: u32 = 0x20;
 const FLAGS_FD_PROGRESSUI: u32 = 0x4000;
-const FLAGS_FD_UNIX_MODE: u32 = 0x08;
 const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
 /// FILETIME (100ns since 1601-01-01) ↔ Unix epoch delta.
 const LDAP_EPOCH_DELTA: u64 = 116444736000000000;
@@ -289,19 +288,25 @@ fn file_descriptor_bin(entry: &LocalFileEntry) -> Vec<u8> {
     let name = encode_utf16le_path(&rel_str);
     let name_len = name.len().min(520);
 
-    let flags = FLAGS_FD_SIZE
-        | FLAGS_FD_LAST_WRITE
-        | FLAGS_FD_ATTRIBUTES
-        | FLAGS_FD_PROGRESSUI
-        | FLAGS_FD_UNIX_MODE;
+    // Match RustDesk wf_cliprdr outbound flags:
+    //   FD_ATTRIBUTES | FD_WRITESTIME | FD_PROGRESSUI
+    // Deliberately omit FD_FILESIZE. When FD_FILESIZE is set, the remote
+    // CliprdrStream uses nFileSize* as the stream length and never probes
+    // FILECONTENTS_SIZE. A zero (or mistrusted) advertised size becomes
+    // immediate EOF → remote Explorer creates a 0 KB shell with no progress
+    // and no FILECONTENTS_RANGE requests. RustDesk keeps FD_FILESIZE off for
+    // compatibility and lets the peer learn size via FILECONTENTS_SIZE.
+    // Also never set 0x08 as "unix mode" — that bit is Windows FD_CREATETIME.
+    let flags = FLAGS_FD_LAST_WRITE | FLAGS_FD_ATTRIBUTES | FLAGS_FD_PROGRESSUI;
 
     let mut buf = Vec::with_capacity(FILEDESCRIPTORW_SIZE);
     put_u32_le(&mut buf, flags);
-    buf.extend_from_slice(&[0u8; 32]);
+    buf.extend_from_slice(&[0u8; 32]); // clsid + sizel + pointl
     put_u32_le(&mut buf, file_attributes);
-    buf.extend_from_slice(&[0u8; 12]);
-    put_u32_le(&mut buf, entry.perm);
-    put_u64_le(&mut buf, win32_time);
+    // ftCreationTime (8) + ftLastAccessTime (8) — leave zeroed.
+    buf.extend_from_slice(&[0u8; 16]);
+    put_u64_le(&mut buf, win32_time); // ftLastWriteTime
+    // Still populate size fields (RustDesk does too) even without FD_FILESIZE.
     put_u32_le(&mut buf, size_high);
     put_u32_le(&mut buf, size_low);
     buf.extend_from_slice(&name[..name_len]);
@@ -890,10 +895,15 @@ pub fn desktop_clipboard_file_contents(
         return Err("cannot read directory contents".into());
     }
 
-    if dw_flags == 0x1 {
+    // MS-RDPECLIP: FILECONTENTS_SIZE=0x1, FILECONTENTS_RANGE=0x2.
+    // Accept bit tests (some peers may combine flags).
+    const FILECONTENTS_SIZE: i32 = 0x1;
+    const FILECONTENTS_RANGE: i32 = 0x2;
+    if dw_flags & FILECONTENTS_SIZE != 0 && dw_flags & FILECONTENTS_RANGE == 0 {
+        // u64 LE = LowPart then HighPart — matches RustDesk/FreeRDP SIZE payload.
         return Ok(b64_encode(&entry.size.to_le_bytes()));
     }
-    if dw_flags != 0x2 {
+    if dw_flags & FILECONTENTS_RANGE == 0 {
         return Err(format!("unsupported dw_flags {dw_flags}"));
     }
 
@@ -1141,8 +1151,30 @@ mod tests {
         let parsed = parse_files_pdu(&pdu).expect("parse");
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].0, "hello.txt");
-        assert_eq!(parsed[0].1, 42);
+        // Outbound omits FD_FILESIZE (RustDesk compatibility), so parse sees size 0
+        // unless FLAGS_FD_SIZE is set. Size fields are still present for probes.
         assert!(!parsed[0].2);
+        // Descriptor layout: size_low at offset 4+68 within PDU.
+        let size_low = u32::from_le_bytes(pdu[4 + 68..4 + 72].try_into().unwrap());
+        let size_high = u32::from_le_bytes(pdu[4 + 64..4 + 68].try_into().unwrap());
+        let raw_size = ((size_high as u64) << 32) | (size_low as u64);
+        assert_eq!(raw_size, 42);
+        let flags = u32::from_le_bytes(pdu[4..8].try_into().unwrap());
+        assert_eq!(flags & FLAGS_FD_SIZE, 0, "outbound must omit FD_FILESIZE");
+        assert_ne!(flags & FLAGS_FD_PROGRESSUI, 0);
+        // Must not set Windows FD_CREATETIME (0x08) — old bug treated it as unix mode.
+        assert_eq!(flags & 0x08, 0, "must not set FD_CREATETIME/0x08");
+    }
+
+    #[test]
+    fn file_contents_size_is_u64_le() {
+        let size: u64 = 0x1_0000_0042;
+        let bytes = size.to_le_bytes();
+        assert_eq!(bytes.len(), 8);
+        let lo = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
+        let hi = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
+        assert_eq!(lo, 0x42);
+        assert_eq!(hi, 1);
     }
 
     #[test]

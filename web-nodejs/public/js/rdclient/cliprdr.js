@@ -143,6 +143,14 @@
             || (client._cliprdrSuppressOutboundUntil && Date.now() < client._cliprdrSuppressOutboundUntil);
     }
 
+    /** Serialize FormatData / FileContents responses so IPC + cache stays consistent. */
+    function enqueueOutbound(client, work) {
+        var prev = client._cliprdrOutboundQueue || Promise.resolve();
+        var next = prev.catch(function () { /* keep chain alive */ }).then(work);
+        client._cliprdrOutboundQueue = next;
+        return next;
+    }
+
     // eslint-disable-next-line no-unused-vars
     class RDCliprdr {
         static FILEDESCRIPTOR_FORMAT_ID = 49334;
@@ -456,7 +464,9 @@
 
             var formatDataReq = clipField(cliprdr, 'formatDataRequest', 'format_data_request');
             if (formatDataReq) {
-                await RDCliprdr._respondFormatData(client, formatDataReq);
+                await enqueueOutbound(client, function () {
+                    return RDCliprdr._respondFormatData(client, formatDataReq);
+                });
                 return;
             }
 
@@ -468,7 +478,9 @@
 
             var fileContentsReq = clipField(cliprdr, 'fileContentsRequest', 'file_contents_request');
             if (fileContentsReq) {
-                await RDCliprdr._respondFileContents(client, fileContentsReq);
+                await enqueueOutbound(client, function () {
+                    return RDCliprdr._respondFileContents(client, fileContentsReq);
+                });
                 return;
             }
 
@@ -792,22 +804,44 @@
             var cbRequested = Number(req.cbRequested != null ? req.cbRequested : req.cb_requested || 0);
 
             try {
+                if (!cbRequested && (dwFlags & FILECONTENTS_RANGE)) {
+                    throw new Error('FILECONTENTS_RANGE with cbRequested=0');
+                }
+                // Pass both camelCase and snake_case — Tauri 2 normally converts,
+                // but a missed rename leaves dw_flags=0 → unsupported → empty shells.
                 var data = await desktopInvoke('desktop_clipboard_file_contents', {
                     listIndex: listIndex,
+                    list_index: listIndex,
                     dwFlags: dwFlags,
+                    dw_flags: dwFlags,
                     nPositionLow: nPositionLow,
+                    n_position_low: nPositionLow,
                     nPositionHigh: nPositionHigh,
-                    cbRequested: cbRequested
+                    n_position_high: nPositionHigh,
+                    cbRequested: cbRequested,
+                    cb_requested: cbRequested
                 });
                 var bytes = toUint8Array(data);
                 // FILECONTENTS_SIZE must be exactly 8 LE bytes. Empty here means the
                 // desktop returned base64 that was decoded as `new Uint8Array(string)`
                 // (length 0) — which produces 0 KB shells on remote Paste.
-                if (dwFlags === FILECONTENTS_SIZE && bytes.length !== 8) {
+                if ((dwFlags & FILECONTENTS_SIZE) && !(dwFlags & FILECONTENTS_RANGE)
+                    && bytes.length !== 8) {
                     throw new Error(
                         'invalid FILECONTENTS_SIZE payload length ' + bytes.length + ' (expected 8)'
                     );
                 }
+                // Never ACK an empty RANGE — remote Explorer would leave a 0 KB shell.
+                if ((dwFlags & FILECONTENTS_RANGE) && cbRequested > 0 && !bytes.length) {
+                    throw new Error('empty FILECONTENTS_RANGE payload at listIndex ' + listIndex);
+                }
+                debugLog(
+                    'FileContentsResponse',
+                    'stream=' + streamId,
+                    'flags=' + dwFlags,
+                    'bytes=' + bytes.length,
+                    'cb=' + cbRequested
+                );
                 client._sendPeerMessage(client.proto.buildCliprdrFileContentsResponse(CB_RESPONSE_OK, streamId, bytes));
                 await yieldToUi();
             } catch (err) {
