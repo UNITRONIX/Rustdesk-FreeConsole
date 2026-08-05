@@ -864,7 +864,7 @@
         "server_host": "Publiczny adres servera",
         "server_host_placeholder": "wsparcie.example.com lub 203.0.113.10",
         "server_host_hint": "Domena lub publiczny adres IP, pod ktorym uzytkownicy docieraja do servera BetterDesk. Port jest pobierany z konfiguracji konsoli.",
-        "use_https": "Uzywaj HTTPS / WSS (doporučeno)",
+        "use_https": "Používat HTTPS / WSS (doporučeno; odškrtněte pro HTTP v LAN jako RustDesk)",
         "enrollment_token": "Rejestracja urzadzenia",
         "enrollment_token_pending": "Indywidualnie po zatwierdzeniu",
         "enrollment_token_set": "Indywidualnie — zatwierdz w Rejestracjach",

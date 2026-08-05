@@ -869,7 +869,7 @@
         "connection_section": "Conexiune server",
         "server_host": "Adresa serverului public",
         "server_host_hint": "Numele de domeniu sau IP-ul public unde utilizatorii finali ajung la serverul dvs. BetterDesk.",
-        "use_https": "Utilizați HTTPS / WSS (recomandat)",
+        "use_https": "Utilizați HTTPS / WSS (recomandat; debifați pentru HTTP în LAN ca RustDesk)",
         "enrollment_per_device": "Per dispozitiv — aprobați în Înregistrări",
         "builds_title": "Build-uri client",
         "rebuild_all": "Recompilare toate",

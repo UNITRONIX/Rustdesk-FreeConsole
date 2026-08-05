@@ -119,7 +119,8 @@ function addSupportProfileValidity(branding, now = new Date()) {
         branding.server?.cdap_url,
     ].filter((endpoint, index, all) => {
         if (typeof endpoint !== 'string' || !endpoint) return false;
-        if (!/^https:\/\//i.test(endpoint) && !/^wss:\/\//i.test(endpoint)) return false;
+        // Allow HTTPS/WSS or HTTP/WS (LAN / RustDesk-style plaintext transport).
+        if (!/^https?:\/\//i.test(endpoint) && !/^wss?:\/\//i.test(endpoint)) return false;
         return all.indexOf(endpoint) === index;
     });
     branding.profile_issued_at = now.toISOString();

@@ -869,7 +869,7 @@
         "connection_section": "Szerver kapcsolat",
         "server_host": "Nyilvános szervercím",
         "server_host_hint": "Domáinnév vagy nyilvános IP, ahol a végfelhasználók elérik a BetterDesk szerverét.",
-        "use_https": "HTTPS / WSS használata (ajánlott)",
+        "use_https": "HTTPS / WSS használata (ajánlott; LAN HTTP-hez kapcsolja ki, mint RustDesk)",
         "enrollment_per_device": "Eszközönként — jóváhagyás a Regisztrációkban",
         "builds_title": "Kliens buildek",
         "rebuild_all": "Összes újraépítése",

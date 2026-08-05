@@ -864,7 +864,7 @@
         "server_host": "공용 서버 주소",
         "server_host_placeholder": "support.example.com 또는 203.0.113.10",
         "server_host_hint": "최종 사용자가 BetterDesk 서버에 접속하는 도메인 이름 또는 공용 IP. 포트는 콘솔 구성에서 가져옵니다.",
-        "use_https": "HTTPS / WSS 사용(권장)",
+        "use_https": "HTTPS / WSS 사용(권장; LAN HTTP는 RustDesk처럼 선택 해제)",
         "enrollment_token": "기기 등록",
         "enrollment_token_pending": "기기별 승인 후 할당",
         "enrollment_token_set": "기기별 — 등록에서 승인",

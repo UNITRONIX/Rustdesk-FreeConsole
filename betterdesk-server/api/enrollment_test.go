@@ -51,7 +51,7 @@ func TestDeviceRegisterIdentityConflict(t *testing.T) {
 		"uuid":        "different-machine-uuid",
 		"hostname":    "host-b",
 		"platform":    "linux amd64",
-		"device_type": "os_agent",
+		"device_type": "desktop",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/devices/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -101,6 +101,7 @@ func TestDeviceRegisterSameUUIDReissues(t *testing.T) {
 		"hostname":    "host-a",
 		"platform":    "linux amd64",
 		"device_type": "os_agent",
+		"bundle_id":   "support-bundle-test2",
 		"public_key":  base64.StdEncoding.EncodeToString(publicKey),
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/devices/register", bytes.NewReader(body))
@@ -121,6 +122,42 @@ func TestDeviceRegisterSameUUIDReissues(t *testing.T) {
 	}
 	if resp.DeviceToken == "" {
 		t.Fatal("expected device token on re-registration")
+	}
+}
+
+func TestSupportAgentEnrollmentCannotChangeBoundBundle(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const deviceID = "BD-BUNDLE-BOUND"
+	if err := database.UpsertPeer(&db.Peer{ID: deviceID, UUID: "bundle-machine"}); err != nil {
+		t.Fatal(err)
+	}
+	srv := New(config.DefaultConfig(), database, peer.NewMap(), nil, "test")
+	if err := srv.storeBdMgmtPublicKey(deviceID, base64.StdEncoding.EncodeToString(publicKey)); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.SetConfig(deviceBundleIDPrefix+deviceID, "support-bundle-a"); err != nil {
+		t.Fatal(err)
+	}
+
+	body, _ := json.Marshal(map[string]any{
+		"device_id":   deviceID,
+		"uuid":        "bundle-machine",
+		"device_type": "os_agent",
+		"bundle_id":   "support-bundle-b",
+		"public_key":  base64.StdEncoding.EncodeToString(publicKey),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/devices/register", bytes.NewReader(body))
+	applyHeaders(req, signedEnrollmentHeaders(t, privateKey, http.MethodPost, "/api/devices/register", deviceID, publicKey))
+	rec := httptest.NewRecorder()
+	srv.handleDeviceRegister(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("bundle change status = %d, want 403: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -268,17 +305,24 @@ func TestOpenEnrollmentRequiresProofBeforeIssuingDeviceToken(t *testing.T) {
 		"device_id":   "BD-OPEN01",
 		"uuid":        "machine-uuid-open",
 		"device_type": "os_agent",
+		"bundle_id":   "support-bundle-open",
 		"public_key":  base64.StdEncoding.EncodeToString(publicKey),
 	})
 	unauthenticated := httptest.NewRequest(http.MethodPost, "/api/devices/register", bytes.NewReader(body))
 	unauthenticatedRec := httptest.NewRecorder()
 	srv.handleDeviceRegister(unauthenticatedRec, unauthenticated)
+	if unauthenticatedRec.Code != http.StatusForbidden {
+		t.Fatalf("unproven support-agent enrollment status = %d, want 403: %s", unauthenticatedRec.Code, unauthenticatedRec.Body.String())
+	}
 	var unauthenticatedResp EnrollmentResponse
 	if err := json.Unmarshal(unauthenticatedRec.Body.Bytes(), &unauthenticatedResp); err != nil {
 		t.Fatal(err)
 	}
 	if unauthenticatedResp.DeviceToken != "" {
 		t.Fatal("open enrollment without proof must not issue a device token")
+	}
+	if peerInfo, err := database.GetPeer("BD-OPEN01"); err != nil || peerInfo != nil {
+		t.Fatalf("unproven support-agent enrollment created a peer: peer=%+v err=%v", peerInfo, err)
 	}
 
 	proof := httptest.NewRequest(http.MethodPost, "/api/devices/register", bytes.NewReader(body))
@@ -298,7 +342,7 @@ func TestManagedApprovalPreservesEnrollmentMetadata(t *testing.T) {
 	database := testSetupDB(t)
 	defer database.Close()
 
-	publicKey, _, err := ed25519.GenerateKey(rand.Reader)
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,6 +362,7 @@ func TestManagedApprovalPreservesEnrollmentMetadata(t *testing.T) {
 		"public_key":  base64.StdEncoding.EncodeToString(publicKey),
 	})
 	register := httptest.NewRequest(http.MethodPost, "/api/devices/register", bytes.NewReader(body))
+	applyHeaders(register, signedEnrollmentHeaders(t, privateKey, http.MethodPost, "/api/devices/register", "BD-META1", publicKey))
 	registerRec := httptest.NewRecorder()
 	srv.handleDeviceRegister(registerRec, register)
 	if registerRec.Code != http.StatusAccepted {

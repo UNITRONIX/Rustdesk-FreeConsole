@@ -1,7 +1,7 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- Support Agent generator and release profiles allow **HTTP/WS** (LAN/IP) as well as HTTPS/WSS; remote-session encryption remains on the signal/relay protocol layer (RustDesk-style). Uncheck “Use HTTPS / WSS” and re-save the bundle before rebuilding.
 
 ---
 

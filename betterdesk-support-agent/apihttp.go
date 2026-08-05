@@ -168,9 +168,8 @@ func validateAPIEndpoint(apiURL string) error {
 	if err != nil || u.Host == "" {
 		return fmt.Errorf("invalid BetterDesk API endpoint")
 	}
-	if isReleaseBuild() && !strings.EqualFold(u.Scheme, "https") {
-		return fmt.Errorf("release build refuses non-HTTPS BetterDesk API endpoint")
-	}
+	// http and https are both valid; release builds bind the exact URL via the
+	// signed allowed_endpoints list (RustDesk-style HTTP for LAN is supported).
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return fmt.Errorf("unsupported BetterDesk API endpoint scheme")
 	}

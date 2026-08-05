@@ -869,7 +869,7 @@
         "connection_section": "Підключення до сервера",
         "server_host": "Публічна адреса сервера",
         "server_host_hint": "Доменне імʼя або публічний IP, де кінцеві користувачі досягають вашого сервера BetterDesk.",
-        "use_https": "Використовувати HTTPS / WSS (рекомендовано)",
+        "use_https": "Використовувати HTTPS / WSS (рекомендовано; зніміть для HTTP у LAN як RustDesk)",
         "enrollment_per_device": "По пристрою — затвердіть у Реєстраціях",
         "builds_title": "Збірки клієнтів",
         "rebuild_all": "Перебудувати всі",

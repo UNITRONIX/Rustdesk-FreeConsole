@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
@@ -17,7 +18,27 @@ const (
 	enrollmentProofNonceMax  = 256
 )
 
+type enrollmentProofVerifiedKey struct{}
+
 var enrollmentProofNonceCache = &bdMgmtNonceCache{items: make(map[string]time.Time)}
+
+// withEnrollmentProofVerified marks that this request already consumed a valid
+// enrollment proof for deviceID. Later token-issue authorization must not
+// verify the same nonce again (that would look like a replay).
+func withEnrollmentProofVerified(r *http.Request, deviceID string) *http.Request {
+	if r == nil {
+		return r
+	}
+	return r.WithContext(context.WithValue(r.Context(), enrollmentProofVerifiedKey{}, strings.TrimSpace(deviceID)))
+}
+
+func enrollmentProofAlreadyVerified(r *http.Request, deviceID string) bool {
+	if r == nil {
+		return false
+	}
+	verified, _ := r.Context().Value(enrollmentProofVerifiedKey{}).(string)
+	return verified != "" && verified == strings.TrimSpace(deviceID)
+}
 
 // enrollmentProofPayload is deliberately distinct from the management-channel
 // signature format. A valid management proof must not be replayable to mint a
@@ -212,6 +233,9 @@ func (s *Server) hasEnrollmentCredential(deviceID string, candidates []string, r
 func (s *Server) authorizeEnrollmentTokenIssue(r *http.Request, deviceID, publicKey, bodyToken string, requireBoundToken bool) bool {
 	if r == nil {
 		return false
+	}
+	if enrollmentProofAlreadyVerified(r, deviceID) {
+		return true
 	}
 	if enrollmentProofProvided(r) {
 		// Do not fall back to a valid bearer token here. A replayed proof must

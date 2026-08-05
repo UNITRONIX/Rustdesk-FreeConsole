@@ -210,7 +210,7 @@ func (b Branding) validateReleaseProfile(now time.Time) error {
 	if !expiresAt.After(now.UTC()) {
 		return fmt.Errorf("release branding profile has expired")
 	}
-	if !allSecureAndAllowed(b.AllowedEndpoints, b.Server.Address, b.Server.APIURL, b.Server.CDAPURL) {
+	if !allEndpointsAllowed(b.AllowedEndpoints, b.Server.Address, b.Server.APIURL, b.Server.CDAPURL) {
 		return fmt.Errorf("release branding profile has unauthorized endpoint")
 	}
 	if b.Server.CertPin != "" && normalizeServerCertPin(b.Server.CertPin) == "" {
@@ -219,15 +219,24 @@ func (b Branding) validateReleaseProfile(now time.Time) error {
 	return nil
 }
 
-func allSecureAndAllowed(allowed []string, endpoints ...string) bool {
+func isAllowedTransportEndpoint(endpoint string) bool {
+	lower := strings.ToLower(strings.TrimSpace(endpoint))
+	return strings.HasPrefix(lower, "https://") ||
+		strings.HasPrefix(lower, "http://") ||
+		strings.HasPrefix(lower, "wss://") ||
+		strings.HasPrefix(lower, "ws://")
+}
+
+// allEndpointsAllowed requires every baked endpoint to appear in the signed
+// allowlist. HTTPS/WSS and HTTP/WS are both accepted (LAN / RustDesk-style).
+func allEndpointsAllowed(allowed []string, endpoints ...string) bool {
 	if len(allowed) == 0 {
 		return false
 	}
 	allowedSet := make(map[string]struct{}, len(allowed))
 	for _, endpoint := range allowed {
 		endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
-		if strings.HasPrefix(strings.ToLower(endpoint), "https://") ||
-			strings.HasPrefix(strings.ToLower(endpoint), "wss://") {
+		if isAllowedTransportEndpoint(endpoint) {
 			allowedSet[endpoint] = struct{}{}
 		}
 	}

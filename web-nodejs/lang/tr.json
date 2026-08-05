@@ -870,7 +870,7 @@
         "server_host": "Genel sunucu adresi",
         "server_host_placeholder": "support.example.com veya 203.0.113.10",
         "server_host_hint": "Son kullanıcıların BetterDesk sunucunuza ulaştığı etki alanı adı veya genel IP. Port, konsol yapılandırmasından alınır.",
-        "use_https": "HTTPS / WSS kullan (önerilen)",
+        "use_https": "HTTPS / WSS kullan (önerilen; LAN HTTP için RustDesk gibi işareti kaldırın)",
         "enrollment_token": "Cihaz kaydı",
         "enrollment_token_pending": "Onaydan sonra cihaz başına",
         "enrollment_token_set": "Cihaz başına — Kayıtlar'da onayla",

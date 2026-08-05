@@ -870,7 +870,7 @@
         "server_host": "Địa chỉ máy chủ công khai",
         "server_host_placeholder": "support.example.com hoặc 203.0.113.10",
         "server_host_hint": "Tên miền hoặc IP công khai mà người dùng cuối truy cập máy chủ BetterDesk của bạn. Cổng lấy từ cấu hình console.",
-        "use_https": "Dùng HTTPS / WSS (khuyến nghị)",
+        "use_https": "Dùng HTTPS / WSS (khuyến nghị; bỏ chọn cho HTTP LAN như RustDesk)",
         "enrollment_token": "Đăng ký thiết bị",
         "enrollment_token_pending": "Từng thiết bị sau phê duyệt",
         "enrollment_token_set": "Từng thiết bị — phê duyệt trong Registrations",

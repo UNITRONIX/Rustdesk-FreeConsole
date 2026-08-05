@@ -889,7 +889,7 @@
         "surface_color": "Kartenhintergrund",
         "text_color": "Textfarbe",
         "text_muted_color": "Gedämpfte Textfarbe",
-        "use_https": "HTTPS / WSS verwenden (empfohlen)",
+        "use_https": "HTTPS / WSS verwenden (empfohlen; für LAN-HTTP wie RustDesk abwählen)",
         "preview_help": "Hilfe anfordern",
         "rdclient_tab": "RdClient Desktop",
         "rdclient_new_bundle": "Neues RdClient-Paket",

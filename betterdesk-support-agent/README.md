@@ -75,6 +75,12 @@ non-release developer builds and is obfuscation, not a trust boundary. Fields:
 `allowed_endpoints`, and nested
 `server { address, api_url, public_key, cert_pin, cdap_url }`.
 
+Transport may be **HTTPS/WSS** (recommended on the public internet) or
+**HTTP/WS** for LAN/IP deployments, matching the RustDesk model: management
+and CDAP can use plaintext HTTP/WebSocket while remote-session crypto stays on
+the signal/relay protocol layer. The signed `allowed_endpoints` list still
+binds the agent to the baked URLs.
+
 Optional build hardening:
 
 ```bash

@@ -889,7 +889,7 @@
         "surface_color": "Fondo de tarjeta",
         "text_color": "Color del texto",
         "text_muted_color": "Color de texto atenuado",
-        "use_https": "Usar HTTPS / WSS (recomendado)",
+        "use_https": "Usar HTTPS / WSS (recomendado; desmarcar para HTTP en LAN como RustDesk)",
         "preview_help": "Solicitar ayuda",
         "rdclient_tab": "RdClient escritorio",
         "rdclient_new_bundle": "Nuevo paquete RdClient",

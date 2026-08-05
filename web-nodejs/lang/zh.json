@@ -864,7 +864,7 @@
         "server_host": "公网服务器地址",
         "server_host_placeholder": "support.example.com 或 203.0.113.10",
         "server_host_hint": "最终用户访问您 BetterDesk 服务器的域名或公网 IP。端口取自控制台配置。",
-        "use_https": "使用 HTTPS / WSS（推荐）",
+        "use_https": "使用 HTTPS / WSS（推荐；局域网 HTTP 可取消，类似 RustDesk）",
         "enrollment_token": "设备注册",
         "enrollment_token_pending": "按设备审批后分配",
         "enrollment_token_set": "按设备 — 在注册中审批",

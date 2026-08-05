@@ -203,13 +203,10 @@ function validateBranding(input = {}) {
     } else {
         errors.push('server_host_required');
     }
+    // HTTPS/WSS is recommended for public internet; HTTP/WS is allowed for
+    // LAN/IP deployments (RustDesk-style). Session crypto stays on the
+    // signal/relay protocol layer; the signed profile still binds endpoints.
     out.use_https = !!(input.use_https ?? input.useHttps ?? true);
-    // Console-generated artifacts are always distributed release builds. A
-    // local developer can use a non-release `go build` profile, but the
-    // production generator must never issue an HTTP/WS bundle.
-    if (!out.use_https) {
-        errors.push('https_required');
-    }
 
     // Never accept enrollment_token from the browser — issued by backend only.
     if (input.server && typeof input.server === 'object') {

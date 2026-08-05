@@ -870,7 +870,7 @@
         "server_host": "ที่อยู่เซิร์ฟเวอร์สาธารณะ",
         "server_host_placeholder": "support.example.com หรือ 203.0.113.10",
         "server_host_hint": "ชื่อโดเมนหรือ IP สาธารณะที่ผู้ใช้งานเข้าถึงเซิร์ฟเวอร์ BetterDesk ของคุณ พอร์ตมาจากการกำหนดค่าคอนโซล",
-        "use_https": "ใช้ HTTPS / WSS (แนะนำ)",
+        "use_https": "ใช้ HTTPS / WSS (แนะนำ; ยกเลิกเลือกสำหรับ HTTP ใน LAN แบบ RustDesk)",
         "enrollment_token": "การลงทะเบียนอุปกรณ์",
         "enrollment_token_pending": "ต่ออุปกรณ์หลังการอนุมัติ",
         "enrollment_token_set": "ต่ออุปกรณ์ — อนุมัติใน Registrations",

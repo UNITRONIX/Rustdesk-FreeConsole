@@ -790,7 +790,7 @@
         "server_host": "公網服務器地址",
         "server_host_placeholder": "support.example.com 或 203.0.113.10",
         "server_host_hint": "最終用戶訪問您 BetterDesk 服務器的域名或公網 IP。端口取自控制檯配置。",
-        "use_https": "使用 HTTPS / WSS（推薦）",
+        "use_https": "使用 HTTPS / WSS（推薦；區網 HTTP 可取消，類似 RustDesk）",
         "enrollment_token": "設備註冊",
         "enrollment_token_pending": "按設備審批後分配",
         "enrollment_token_set": "按設備 — 在註冊中審批",

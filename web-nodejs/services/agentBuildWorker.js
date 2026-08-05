@@ -884,10 +884,10 @@ function _assertReleaseSupportProfile(branding) {
         || !Number.isFinite(expiresAt)
         || expiresAt <= Math.max(issuedAt, Date.now())
         || endpoints.length < 3
-        || endpoints.some((endpoint) => !/^https:\/\//i.test(endpoint) && !/^wss:\/\//i.test(endpoint))
+        || endpoints.some((endpoint) => !/^https?:\/\//i.test(endpoint) && !/^wss?:\/\//i.test(endpoint))
         || (certPin && !CERT_PIN_RE.test(certPin))) {
         throw new Error(
-            'Support Agent bundle profile is incomplete or expired; save the bundle again to issue a signed HTTPS profile'
+            'Support Agent bundle profile is incomplete or expired; save the bundle again to issue a signed profile'
         );
     }
 }

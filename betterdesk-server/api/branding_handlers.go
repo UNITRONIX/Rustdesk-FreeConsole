@@ -167,6 +167,40 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if isSupportAgentEnrollment(&req) {
+		// A Support Agent is a pre-configured passive endpoint. Unlike generic
+		// open enrollment, it must prove possession of its installation key
+		// before it can reserve a device ID, enter the pending queue, or bind
+		// bundle metadata. This prevents a public endpoint from being used to
+		// pre-register somebody else's Support Agent identity.
+		if strings.TrimSpace(req.UUID) == "" ||
+			strings.TrimSpace(req.BundleID) == "" ||
+			strings.TrimSpace(req.PublicKey) == "" {
+			resp := EnrollmentResponse{
+				Status:   "rejected",
+				DeviceID: req.DeviceID,
+				Message:  "support-agent enrollment requires uuid, bundle_id, and public_key",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
+		if err := s.verifyEnrollmentDeviceProof(r, req.DeviceID, req.PublicKey); err != nil {
+			resp := EnrollmentResponse{
+				Status:   "rejected",
+				DeviceID: req.DeviceID,
+				Message:  "valid support-agent installation proof is required",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
+		// Proof nonce is consumed above; mark the request so later token-issue
+		// authorization does not treat the same headers as a replay.
+		r = withEnrollmentProofVerified(r, req.DeviceID)
+	}
 
 	clientIP := s.remoteIP(r)
 	mode := s.cfg.EnrollmentMode
@@ -245,6 +279,21 @@ func (s *Server) handleDeviceRegister(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			_, boundKeyErr = s.loadBdMgmtPublicKey(req.DeviceID)
+		}
+		if isSupportAgentEnrollment(&req) {
+			bundleID := normalizeEnrollmentBundleID(req.BundleID)
+			boundBundleID, _ := s.db.GetConfig(deviceBundleIDPrefix + req.DeviceID)
+			boundBundleID = normalizeEnrollmentBundleID(boundBundleID)
+			if boundBundleID != "" && boundBundleID != bundleID {
+				http.Error(w, "bundle_id does not match enrolled device", http.StatusForbidden)
+				return
+			}
+			if boundBundleID == "" {
+				if err := s.db.SetConfig(deviceBundleIDPrefix+req.DeviceID, bundleID); err != nil {
+					http.Error(w, "failed to bind support-agent bundle", http.StatusInternalServerError)
+					return
+				}
+			}
 		}
 
 		// Device already known — return approved with current config
@@ -1079,6 +1128,24 @@ func normalizeEnrollmentBundleID(raw string) string {
 	return bundleID
 }
 
+func isSupportAgentEnrollment(req *EnrollmentRequest) bool {
+	if req == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(req.DeviceType)) {
+	case "os_agent", "support-agent", "support_agent":
+		return true
+	}
+	for _, tag := range strings.FieldsFunc(strings.ToLower(req.Tags), func(r rune) bool {
+		return r == ',' || r == ';' || r == '|' || r == ' ' || r == '\t' || r == '\n'
+	}) {
+		if tag == "support-agent" || tag == "support_agent" {
+			return true
+		}
+	}
+	return false
+}
+
 // storePendingDevice keeps the first identity submission immutable. Otherwise
 // a later unauthenticated retry could replace the public key used to recover a
 // token after operator approval.
@@ -1097,6 +1164,10 @@ func (s *Server) storePendingDevice(req *EnrollmentRequest, clientIP string) err
 			if err != nil || incoming != stored {
 				return fmt.Errorf("pending device public key does not match")
 			}
+		}
+		if existing.BundleID != "" && req.BundleID != "" &&
+			normalizeEnrollmentBundleID(existing.BundleID) != normalizeEnrollmentBundleID(req.BundleID) {
+			return fmt.Errorf("pending device bundle ID does not match")
 		}
 		return nil
 	}

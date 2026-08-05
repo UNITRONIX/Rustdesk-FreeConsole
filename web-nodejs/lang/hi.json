@@ -870,7 +870,7 @@
         "server_host": "सार्वजनिक सर्वर पता",
         "server_host_placeholder": "support.example.com या 203.0.113.10",
         "server_host_hint": "डोमेन नाम या सार्वजनिक IP जहाँ अंत उपयोगकर्ता आपके BetterDesk सर्वर तक पहुँचते हैं। पोर्ट कंसोल कॉन्फ़िगरेशन से लिया जाता है।",
-        "use_https": "HTTPS / WSS उपयोग करें (अनुशंसित)",
+        "use_https": "HTTPS / WSS उपयोग करें (अनुशंसित; LAN HTTP के लिए RustDesk की तरह अनचेक करें)",
         "enrollment_token": "डिवाइस पंजीकरण",
         "enrollment_token_pending": "स्वीकृति के बाद प्रति डिवाइस",
         "enrollment_token_set": "प्रति डिवाइस — Registrations में स्वीकृत करें",

@@ -871,7 +871,7 @@
         "server_host": "عنوان الخادم العام",
         "server_host_placeholder": "support.example.com أو 203.0.113.10",
         "server_host_hint": "اسم النطاق أو IP العام الذي يصل من خلاله المستخدمون النهائيون إلى خادم BetterDesk. يُستمد المنفذ من تكوين وحدة التحكم.",
-        "use_https": "استخدام HTTPS / WSS (موصى به)",
+        "use_https": "استخدام HTTPS / WSS (موصى به؛ ألغِ التحديد لـ HTTP في الشبكة المحلية مثل RustDesk)",
         "enrollment_token": "تسجيل الأجهزة",
         "enrollment_token_pending": "لكل جهاز بعد الموافقة",
         "enrollment_token_set": "لكل جهاز — الموافقة في التسجيلات",

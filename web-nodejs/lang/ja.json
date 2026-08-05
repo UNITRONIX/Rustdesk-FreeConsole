@@ -864,7 +864,7 @@
         "server_host": "パブリックサーバーアドレス",
         "server_host_placeholder": "support.example.com または 203.0.113.10",
         "server_host_hint": "エンドユーザーが BetterDesk サーバーに接続するドメイン名またはパブリック IP。ポートはコンソール設定から取得されます。",
-        "use_https": "HTTPS / WSS を使用（推奨）",
+        "use_https": "HTTPS / WSS を使用（推奨；LAN の HTTP は RustDesk 同様にオフ可）",
         "enrollment_token": "デバイス登録",
         "enrollment_token_pending": "デバイスごとに承認後割り当て",
         "enrollment_token_set": "デバイスごと — 登録で承認",

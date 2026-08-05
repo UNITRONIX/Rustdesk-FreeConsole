@@ -93,8 +93,7 @@ func (b Branding) allowsEndpoint(endpoint string) bool {
 		return true
 	}
 	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
-	if !strings.HasPrefix(strings.ToLower(endpoint), "https://") &&
-		!strings.HasPrefix(strings.ToLower(endpoint), "wss://") {
+	if !isAllowedTransportEndpoint(endpoint) {
 		return false
 	}
 	for _, allowed := range b.AllowedEndpoints {

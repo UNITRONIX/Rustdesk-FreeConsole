@@ -869,7 +869,7 @@
         "connection_section": "Palvelinyhteys",
         "server_host": "Julkinen palvelinosoite",
         "server_host_hint": "Toimialue tai julkinen IP, jolla loppukäyttäjät tavoittavat BetterDesk-palvelimesi.",
-        "use_https": "Käytä HTTPS / WSS (suositeltu)",
+        "use_https": "Käytä HTTPS / WSS (suositeltu; poista valinta LAN-HTTP:lle kuten RustDesk)",
         "enrollment_per_device": "Per laite — hyväksy Rekisteröinneissä",
         "builds_title": "Asiakasohjelman koonnokset",
         "rebuild_all": "Kokoa kaikki uudelleen",

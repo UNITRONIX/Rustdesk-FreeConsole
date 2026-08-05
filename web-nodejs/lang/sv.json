@@ -869,7 +869,7 @@
         "connection_section": "Serveranslutning",
         "server_host": "Offentlig serveradress",
         "server_host_hint": "Domännamn eller offentlig IP där slutanvändare når din BetterDesk-server.",
-        "use_https": "Använd HTTPS / WSS (rekommenderat)",
+        "use_https": "Använd HTTPS / WSS (rekommenderat; avmarkera för LAN-HTTP som RustDesk)",
         "enrollment_per_device": "Per enhet — godkänn i Registreringar",
         "builds_title": "Klientbyggen",
         "rebuild_all": "Bygg om alla",

@@ -870,7 +870,7 @@
         "server_host": "Alamat server publik",
         "server_host_placeholder": "support.example.com atau 203.0.113.10",
         "server_host_hint": "Nama domain atau IP publik tempat pengguna akhir menjangkau server BetterDesk Anda. Port diambil dari konfigurasi console.",
-        "use_https": "Gunakan HTTPS / WSS (disarankan)",
+        "use_https": "Gunakan HTTPS / WSS (disarankan; hapus centang untuk HTTP LAN seperti RustDesk)",
         "enrollment_token": "Pendaftaran perangkat",
         "enrollment_token_pending": "Per perangkat setelah persetujuan",
         "enrollment_token_set": "Per perangkat — setujui di Registrations",

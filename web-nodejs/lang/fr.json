@@ -790,7 +790,7 @@
         "server_host": "Öffentliche Serveradresse",
         "server_host_placeholder": "support.example.com oder 203.0.113.10",
         "server_host_hint": "Domainname oder öffentliche IP-Adresse, unter der Endbenutzer Ihren BetterDesk-Server erreichen. Port wird aus der Konsolenkonfiguration übernommen.",
-        "use_https": "HTTPS / WSS verwenden (empfohlen)",
+        "use_https": "Utiliser HTTPS / WSS (recommandé ; décocher pour HTTP LAN comme RustDesk)",
         "enrollment_token": "Geräteregistrierung",
         "enrollment_token_pending": "Pro Gerät nach Genehmigung",
         "enrollment_token_set": "Pro Gerät — in Registrierungen genehmigen",

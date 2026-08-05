@@ -870,7 +870,7 @@
         "server_host": "Offentlig serveradresse",
         "server_host_placeholder": "support.eksempel.dk eller 203.0.113.10",
         "server_host_hint": "Domænenavn eller offentlig IP, hvor slutbrugerne når din BetterDesk-server.",
-        "use_https": "Brug HTTPS / WSS (anbefalet)",
+        "use_https": "Brug HTTPS / WSS (anbefalet; fjern markering for LAN-HTTP som RustDesk)",
         "enrollment_token": "Enhedsregistrering",
         "enrollment_token_hint": "Hver installation registrerer sig selv. Godkend nye enheder i Registreringspanelet.",
         "enrollment_per_device": "Per enhed — godkend i Registreringer",
