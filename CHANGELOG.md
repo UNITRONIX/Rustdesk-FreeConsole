@@ -4,6 +4,9 @@
 - **Dependabot dependency bumps:** `brace-expansion` → 5.0.9 (web-nodejs override), `postcss` → ≥8.5.23 (root + agent-client overrides), `quinn-proto` → 0.11.16 (RdClient Cargo.lock). Dev/build tooling and transitive deps only for postcss/quinn; brace-expansion via panel lockfile.
 - **CDAP file transfer dynamic callback (CodeQL):** validate `request_id` (string + whitelist) and use own-property lookup before invoking pending download callbacks in `cdap-filetransfer.js`. Ships via panel update (static JS).
 
+### Fixed
+- **Outbound “ID does not exist” after 3.5.12 initiator hardening (#302 residual):** stock RustDesk PunchHole/RequestRelay on a new TCP port (no login token, no shared RegisterPk session) was rejected as `initiator_not_registered` because auth required exact `ip:port` only. Restore a safe IP fallback: authorize when exactly one live peer shares the public IP; multiple live peers at that IP still refuse with `initiator_ambiguous_same_nat` (no identity inheritance). Ships via panel update (Go signal restart).
+
 ### Changed
 - _(none yet)_
 

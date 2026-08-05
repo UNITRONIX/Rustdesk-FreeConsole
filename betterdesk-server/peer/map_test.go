@@ -552,3 +552,44 @@ func TestMapFindByAddrExactPort(t *testing.T) {
 		t.Fatalf("nil addr must return nil, got %+v", got)
 	}
 }
+
+func TestFindAllByIP(t *testing.T) {
+	m := NewMap()
+	m.Put(&Entry{
+		ID:      "A1",
+		UDPAddr: &net.UDPAddr{IP: net.ParseIP("203.0.113.44"), Port: 50001},
+		LastReg: time.Now(),
+	})
+	m.Put(&Entry{
+		ID:       "B1",
+		IP:       "203.0.113.44:60001",
+		ConnType: ConnTCP,
+		LastReg:  time.Now(),
+	})
+	m.Put(&Entry{
+		ID:      "C1",
+		UDPAddr: &net.UDPAddr{IP: net.ParseIP("198.51.100.10"), Port: 51000},
+		LastReg: time.Now(),
+	})
+
+	got := m.FindAllByIP(net.ParseIP("203.0.113.44"))
+	if len(got) != 2 {
+		t.Fatalf("FindAllByIP = %d peers, want 2", len(got))
+	}
+	ids := map[string]bool{}
+	for _, e := range got {
+		ids[e.ID] = true
+	}
+	if !ids["A1"] || !ids["B1"] {
+		t.Fatalf("FindAllByIP ids = %v, want A1 and B1", ids)
+	}
+	if got := m.FindAllByIP(net.ParseIP("198.51.100.10")); len(got) != 1 || got[0].ID != "C1" {
+		t.Fatalf("FindAllByIP single = %+v, want C1", got)
+	}
+	if got := m.FindAllByIP(nil); got != nil {
+		t.Fatalf("FindAllByIP(nil) = %+v, want nil", got)
+	}
+	if m.CountByIP(net.ParseIP("203.0.113.44")) != 2 {
+		t.Fatalf("CountByIP should match FindAllByIP length")
+	}
+}

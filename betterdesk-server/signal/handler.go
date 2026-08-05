@@ -1739,9 +1739,10 @@ func (s *Server) relayUnauthorizedResponse(relayServer string) *pb.RendezvousMes
 //  1. Same Secure TCP session that already completed RegisterPk (#327)
 //  2. Valid BetterDesk client login token on the punch/relay message (#327)
 //  3. Panel signal-proxy CIDR (Web Remote)
-//  4. Live peer with exact ip:port match (FindByAddr) — never bare FindByIP,
-//     which would let a pending client behind the same NAT inherit an approved
-//     peer's identity (#302 residual / audit H2)
+//  4. Live peer with exact ip:port match (FindByAddr)
+//  5. Exactly one live peer at the same public IP (safe FindByIP fallback for
+//     stock clients that PunchHole on a new TCP port). Multiple live peers at
+//     that IP → initiator_ambiguous_same_nat (no identity inheritance, #302)
 //
 // Managed and locked modes additionally require an approved DB peer row (pending
 // enrollment alone is not enough). Panel proxy initiators skip peer-map / DB
@@ -1775,14 +1776,31 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 		return panelWebRemoteInitiatorID, true
 	}
 
-	// 4. Exact registered endpoint only (no IP-only NAT impersonation).
+	// 4. Exact registered endpoint (ip:port).
 	initiator := s.peers.FindByAddr(raddr)
-	if initiator == nil || initiator.IsExpired(config.RegTimeout) {
-		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
-		return "", false
+	if initiator != nil && !initiator.IsExpired(config.RegTimeout) {
+		return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned)
 	}
 
-	return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned)
+	// 5. Safe IP-only fallback: stock RustDesk opens PunchHole on a new TCP
+	// port after RegisterPk/UDP heartbeat, so FindByAddr misses. Authorize only
+	// when exactly one live peer shares this public IP.
+	var live []*peer.Entry
+	for _, e := range s.peers.FindAllByIP(raddr.IP) {
+		if e != nil && !e.IsExpired(config.RegTimeout) {
+			live = append(live, e)
+		}
+	}
+	switch len(live) {
+	case 0:
+		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
+		return "", false
+	case 1:
+		return s.finalizeAuthorizedInitiator(live[0].ID, raddr, targetID, live[0].Banned)
+	default:
+		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_ambiguous_same_nat")
+		return "", false
+	}
 }
 
 // bindTCPSessionPeer records the peer ID on an open tcpPunchConn so a later

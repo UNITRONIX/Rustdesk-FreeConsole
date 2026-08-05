@@ -997,22 +997,25 @@ func TestTCPRegisterPkBindsIPForViewerOnlyPunch(t *testing.T) {
 func TestManagedPendingSameNATAsApprovedInitiatorRejected(t *testing.T) {
 	// #302 residual: pending client shares public IP with an approved peer but
 	// uses a different source port — must not inherit the approved identity.
+	// Both peers must be live in the map so IP-only fallback sees ambiguity.
 	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
 	if err := database.UpsertPeer(&db.Peer{ID: "APPRNAT1", Status: "ONLINE", IP: "203.0.113.44"}); err != nil {
 		t.Fatalf("UpsertPeer approved: %v", err)
 	}
 	putOnlinePeer(srv, "APPRNAT1", "203.0.113.44", 50001, peer.ConnUDP)
+	putOnlinePeer(srv, "PENDNAT1", "203.0.113.44", 59999, peer.ConnUDP)
 	putOnlinePeer(srv, "TGTNAT1", "198.51.100.44", 52000, peer.ConnUDP)
 	if err := database.SetConfig("pending_device_PENDNAT1", `{"device_id":"PENDNAT1"}`); err != nil {
 		t.Fatalf("SetConfig: %v", err)
 	}
 
-	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.44", 59999), "TGTNAT1", "")
+	// Punch from a third port so FindByAddr misses; two live peers → ambiguous.
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.44", 58888), "TGTNAT1", "")
 	if ok {
 		t.Fatalf("same-NAT pending punch must be rejected, got id=%q", id)
 	}
 
-	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTNAT1"}, udpAddr("203.0.113.44", 59999))
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTNAT1"}, udpAddr("203.0.113.44", 58888))
 	phr := resp.GetPunchHoleResponse()
 	if phr == nil || phr.Failure != pb.PunchHoleResponse_ID_NOT_EXIST {
 		t.Fatalf("same-NAT pending PunchHole should be unauthorized, got %+v", resp)
@@ -1032,10 +1035,54 @@ func TestExactAddrInitiatorAuthorized(t *testing.T) {
 		t.Fatalf("exact addr auth = (%q, %v), want EXACTINIT1", id, ok)
 	}
 
-	// Different port at same IP must not authorize.
+	// Different port at same IP: single live peer → safe IP fallback authorizes.
 	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51001), "TGTEXACT1", "")
+	if !ok || id != "EXACTINIT1" {
+		t.Fatalf("single-IP fallback auth = (%q, %v), want EXACTINIT1", id, ok)
+	}
+}
+
+func TestSingleIPFallbackAuthorizesDifferentPort(t *testing.T) {
+	// Stock client: RegisterPk/UDP on :51000, PunchHole on new TCP :55041.
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "SOLEINIT1", Status: "ONLINE", IP: "78.31.94.73"}); err != nil {
+		t.Fatalf("UpsertPeer: %v", err)
+	}
+	putOnlinePeer(srv, "SOLEINIT1", "78.31.94.73", 51000, peer.ConnTCP)
+	putOnlinePeer(srv, "TGTSINGLE1", "203.0.113.90", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("78.31.94.73", 55041), "TGTSINGLE1", "")
+	if !ok || id != "SOLEINIT1" {
+		t.Fatalf("single-IP fallback = (%q, %v), want SOLEINIT1", id, ok)
+	}
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTSINGLE1"}, udpAddr("78.31.94.73", 55041))
+	if phr := resp.GetPunchHoleResponse(); phr != nil && phr.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatal("single live peer PunchHole must not be refused as unauthorized")
+	}
+}
+
+func TestMultiApprovedSameIPAmbiguousRejected(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "APPR1", Status: "ONLINE", IP: "203.0.113.88"}); err != nil {
+		t.Fatalf("UpsertPeer APPR1: %v", err)
+	}
+	if err := database.UpsertPeer(&db.Peer{ID: "APPR2", Status: "ONLINE", IP: "203.0.113.88"}); err != nil {
+		t.Fatalf("UpsertPeer APPR2: %v", err)
+	}
+	putOnlinePeer(srv, "APPR1", "203.0.113.88", 50001, peer.ConnUDP)
+	putOnlinePeer(srv, "APPR2", "203.0.113.88", 50002, peer.ConnUDP)
+	putOnlinePeer(srv, "TGTMULTI1", "198.51.100.88", 52000, peer.ConnTCP)
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("203.0.113.88", 59999), "TGTMULTI1", "")
 	if ok {
-		t.Fatalf("wrong port must be rejected, got id=%q", id)
+		t.Fatalf("ambiguous same-NAT must be rejected, got id=%q", id)
+	}
+
+	// Exact port still works for each peer.
+	id, ok = srv.requireAuthorizedInitiator(udpAddr("203.0.113.88", 50001), "TGTMULTI1", "")
+	if !ok || id != "APPR1" {
+		t.Fatalf("exact addr APPR1 = (%q, %v)", id, ok)
 	}
 }
 
