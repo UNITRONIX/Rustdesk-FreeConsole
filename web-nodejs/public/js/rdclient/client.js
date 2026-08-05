@@ -772,7 +772,7 @@ class RDClient {
             return;
         }
 
-        // Cursor data (cursor image)
+        // Cursor data (cursor image — RustDesk sends zstd-compressed RGBA)
         if (msg.cursorData) {
             this.renderer.updateCursor(msg.cursorData).catch(() => {
                 // Handled inside updateCursor — ignore unhandled promise rejection
@@ -780,14 +780,15 @@ class RDClient {
             return;
         }
 
-        // Cursor position
+        // Cursor position (software overlay / follower; CSS cursor tracks local pointer)
         if (msg.cursorPosition) {
             this.renderer.updateCursorPosition(msg.cursorPosition);
             return;
         }
 
-        // Cursor ID (predefined cursor)
-        if (msg.cursorId) {
+        // Cursor ID (peer cache hit — only id, client must retain prior CursorData)
+        if (msg.cursorId != null && msg.cursorId !== '') {
+            this.renderer.setCursorById(msg.cursorId);
             this._emit('cursor_id', msg.cursorId);
             return;
         }
@@ -1254,13 +1255,10 @@ class RDClient {
             this._sendPeerMessage(this.proto.buildMisc('refreshVideo', true));
         };
 
-        // Signal CSS when remote cursor data is available (hide local crosshair)
-        this.renderer.onCursorReady = (ready) => {
-            const container = this.canvas.parentElement;
-            if (container) {
-                container.classList.toggle('has-remote-cursor', !!ready);
-            }
-        };
+        // Remote CursorData applied as CSS cursor on the canvas (resize shapes, etc.).
+        // Do not toggle has-remote-cursor / cursor:none — that hid the OS pointer behind
+        // a software overlay and left a permanent crosshair when zstd cursors were skipped.
+        this.renderer.onCursorReady = null;
 
         // Start render loop
         this.renderer.startRenderLoop();

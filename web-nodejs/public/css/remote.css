@@ -63,12 +63,12 @@
     cursor: default;
 }
 
-/* During streaming: show crosshair as fallback (remote cursor drawn on canvas overlay) */
+/* During streaming: crosshair fallback until remote CursorData applies a CSS cursor */
 .session-panel.streaming .session-canvas {
     cursor: crosshair;
 }
 
-/* When remote cursor overlay is active, hide local cursor to avoid double cursor */
+/* Legacy: software-drawn remote cursor overlay (cursor:none). Prefer CSS url() cursors. */
 .session-panel.streaming.has-remote-cursor .session-canvas {
     cursor: none;
 }

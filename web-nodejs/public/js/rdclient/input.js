@@ -238,8 +238,8 @@ class RDInput {
 
     /**
      * Temporarily stop forwarding mouse to the remote (used during local OLE drag-out).
-     * Also restores a visible local cursor — remote overlay uses cursor:none so the
-     * file icon appears stuck at the video edge even when the OS pointer can leave.
+     * Also forces a visible local cursor via `.ole-drag-out` (overrides CSS remote cursor)
+     * so the file icon is not stuck at the video edge when the OS pointer leaves.
      * @param {boolean} suppressed
      */
     setMouseSuppressed(suppressed) {
