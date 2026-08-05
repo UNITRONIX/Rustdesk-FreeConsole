@@ -3,7 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -25,13 +29,60 @@ func tlsInsecureEnabled() bool {
 
 // apiHTTPClient returns an HTTP client for BetterDesk API calls.
 func apiHTTPClient(timeout time.Duration) *http.Client {
-	client := &http.Client{Timeout: timeout}
-	if tlsInsecureEnabled() {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // opt-in dev
-		}
+	pin := ""
+	if b := GetBranding(); b.Server != nil {
+		pin = b.Server.CertPin
 	}
+	return apiHTTPClientWithPin(timeout, pin)
+}
+
+func apiHTTPClientWithPin(timeout time.Duration, pin string) *http.Client {
+	client := &http.Client{Timeout: timeout}
+	pin = normalizeServerCertPin(pin)
+	if pin == "" && !tlsInsecureEnabled() {
+		return client
+	}
+
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+	if pin != "" {
+		// Pinning the leaf SPKI is an authentication check stronger than
+		// platform trust alone. The profile's endpoint allowlist prevents this
+		// key from being used for an arbitrary destination.
+		tlsConfig.InsecureSkipVerify = true //nolint:gosec // verified below
+		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			if len(rawCerts) == 0 {
+				return fmt.Errorf("tls: server presented no certificate")
+			}
+			leaf, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return fmt.Errorf("tls: parse leaf certificate: %w", err)
+			}
+			sum := sha256.Sum256(leaf.RawSubjectPublicKeyInfo)
+			got := hex.EncodeToString(sum[:])
+			if subtle.ConstantTimeCompare([]byte(got), []byte(pin)) != 1 {
+				return fmt.Errorf("tls: server public-key pin mismatch")
+			}
+			return nil
+		}
+	} else {
+		// Development-only self-signed test mode. tlsInsecureEnabled() cannot
+		// become true in a release build.
+		tlsConfig.InsecureSkipVerify = true //nolint:gosec // opt-in development mode
+	}
+	client.Transport = &http.Transport{TLSClientConfig: tlsConfig}
 	return client
+}
+
+func normalizeServerCertPin(pin string) string {
+	pin = strings.ToLower(strings.TrimSpace(pin))
+	pin = strings.NewReplacer("sha256:", "", ":", "", " ", "", "\t", "", "\n", "").Replace(pin)
+	if len(pin) != sha256.Size*2 {
+		return ""
+	}
+	if _, err := hex.DecodeString(pin); err != nil {
+		return ""
+	}
+	return pin
 }
 
 // apiBaseURL resolves the Go server API base (…/api) from branding.

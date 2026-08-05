@@ -212,7 +212,7 @@ func (g *Gateway) authDeviceToken(p AuthPayload, clientIP string) (string, strin
 		return "", "", fmt.Errorf("device token is not bound to this device")
 	}
 	peerInfo, err := g.db.GetPeer(p.DeviceID)
-	if err != nil || peerInfo == nil || peerInfo.Banned || peerInfo.SoftDeleted {
+	if err != nil || peerInfo == nil || peerInfo.Disabled || peerInfo.Banned || peerInfo.SoftDeleted {
 		g.auditAction("cdap_auth_failed", clientIP, map[string]string{
 			"device_id": p.DeviceID,
 			"reason":    "device not enrolled or unavailable",

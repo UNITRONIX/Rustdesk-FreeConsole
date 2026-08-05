@@ -213,6 +213,9 @@ func (b Branding) validateReleaseProfile(now time.Time) error {
 	if !allSecureAndAllowed(b.AllowedEndpoints, b.Server.Address, b.Server.APIURL, b.Server.CDAPURL) {
 		return fmt.Errorf("release branding profile has unauthorized endpoint")
 	}
+	if b.Server.CertPin != "" && normalizeServerCertPin(b.Server.CertPin) == "" {
+		return fmt.Errorf("release branding profile has invalid certificate pin")
+	}
 	return nil
 }
 

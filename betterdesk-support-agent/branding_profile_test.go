@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/unitronix/betterdesk-support-agent/internal/brandprofile"
 )
@@ -46,6 +47,10 @@ func TestReleaseBrandingRequiresValidSignedProfile(t *testing.T) {
 	if branding.ProductName != "Acme Support" || branding.Server == nil ||
 		branding.Server.Address != "https://support.example.test" {
 		t.Fatalf("unexpected branding: %+v", branding)
+	}
+	branding.Server.CertPin = "invalid-pin"
+	if err := branding.validateReleaseProfile(time.Now()); err == nil {
+		t.Fatal("release profile unexpectedly accepted an invalid certificate pin")
 	}
 
 	if _, err := decodeBrandingProfile(profile, []byte(publicKeyResource), true); err == nil {

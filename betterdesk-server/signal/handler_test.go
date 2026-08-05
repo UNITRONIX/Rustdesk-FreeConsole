@@ -1029,6 +1029,83 @@ func TestInboundOnlyAgentCanBeConnectionTarget(t *testing.T) {
 	}
 }
 
+func TestInboundOnlySupportTargetForcesRelay(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{ID: "CLIENTRELAY1", DeviceType: "desktop"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UpsertPeer(&db.Peer{
+		ID:         "SUPPORTRELAY1",
+		DeviceType: "os_agent",
+		Tags:       "support-agent",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	putOnlinePeer(srv, "CLIENTRELAY1", "198.51.100.160", 51000, peer.ConnTCP)
+	putOnlinePeer(srv, "SUPPORTRELAY1", "203.0.113.160", 52000, peer.ConnTCP)
+
+	response := srv.handlePunchHoleRequestTCP(
+		&pb.PunchHoleRequest{Id: "SUPPORTRELAY1"},
+		udpAddr("198.51.100.160", 51000),
+	)
+	punch := response.GetPunchHoleResponse()
+	if punch == nil {
+		t.Fatalf("response = %+v, want PunchHoleResponse", response)
+	}
+	if punch.GetNatType() != pb.NatType_SYMMETRIC {
+		t.Fatalf("NatType = %v, want forced relay (%v)", punch.GetNatType(), pb.NatType_SYMMETRIC)
+	}
+}
+
+func TestUnavailableTargetCannotReceiveRelay(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		setup func(t *testing.T, database db.Database, targetID string)
+	}{
+		{
+			name: "disabled",
+			setup: func(t *testing.T, database db.Database, targetID string) {
+				t.Helper()
+				if err := database.UpsertPeer(&db.Peer{ID: targetID, Disabled: true}); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "soft deleted",
+			setup: func(t *testing.T, database db.Database, targetID string) {
+				t.Helper()
+				if err := database.UpsertPeer(&db.Peer{ID: targetID}); err != nil {
+					t.Fatal(err)
+				}
+				if err := database.DeletePeer(targetID); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+			const initiatorID = "ACTIVEINIT1"
+			const targetID = "UNAVAILTGT1"
+			if err := database.UpsertPeer(&db.Peer{ID: initiatorID, DeviceType: "desktop"}); err != nil {
+				t.Fatal(err)
+			}
+			tc.setup(t, database, targetID)
+			putOnlinePeer(srv, initiatorID, "198.51.100.150", 51000, peer.ConnTCP)
+			putOnlinePeer(srv, targetID, "203.0.113.150", 52000, peer.ConnTCP)
+
+			response := srv.handleRequestRelayTCP(&pb.RequestRelay{
+				Id:   targetID,
+				Uuid: "unavailable-target-" + strings.ReplaceAll(tc.name, " ", "-"),
+			}, udpAddr("198.51.100.150", 51000), peer.ConnTCP)
+			if relay := response.GetRelayResponse(); relay == nil || relay.RefuseReason != "Target offline" {
+				t.Fatalf("relay response = %+v, want unavailable target rejection", response)
+			}
+		})
+	}
+}
+
 func TestPanelProxyLoopbackCanPunchHoleWithoutPeer(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeManaged)
 	putOnlinePeer(srv, "TGTWEB1", "203.0.113.90", 52000, peer.ConnTCP)

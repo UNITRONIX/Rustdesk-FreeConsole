@@ -80,3 +80,21 @@ func TestDeviceTokenCannotAuthenticateAnotherDevice(t *testing.T) {
 		t.Fatal("device token bound to AGENT001 authenticated OTHER001")
 	}
 }
+
+func TestDeviceTokenCannotAuthenticateDisabledDevice(t *testing.T) {
+	gateway, database, token := newDeviceTokenAuthGateway(t)
+	if err := database.UpsertPeer(&db.Peer{
+		ID:       "AGENT001",
+		Status:   "ONLINE",
+		Disabled: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := gateway.authDeviceToken(AuthPayload{
+		Token:    token,
+		DeviceID: "AGENT001",
+	}, "127.0.0.1"); err == nil {
+		t.Fatal("disabled device token unexpectedly authenticated")
+	}
+}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -135,11 +134,12 @@ func httpGet(endpoint string) ([]byte, time.Duration, error) {
 }
 
 func healthHTTPClient(endpoint string) *http.Client {
-	client := &http.Client{Timeout: 8 * time.Second}
-	if strings.HasPrefix(endpoint, "https://") && tlsInsecureEnabled() {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // opt-in dev only
-		}
+	if !strings.HasPrefix(strings.ToLower(endpoint), "https://") {
+		return &http.Client{Timeout: 8 * time.Second}
 	}
-	return client
+	pin := ""
+	if b := GetBranding(); b.Server != nil {
+		pin = b.Server.CertPin
+	}
+	return apiHTTPClientWithPin(8*time.Second, pin)
 }

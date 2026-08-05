@@ -97,6 +97,22 @@ func (s *Server) targetAcceptsInboundSession(targetID string) bool {
 	return state != db.PeerIDSoftDeleted
 }
 
+// requiresRelayOnlyCompatibility keeps the temporary RustDesk-compatible
+// support-agent path on relay transport. Direct transport has no equivalent
+// server-bound session grant yet, so allowing P2P would create an
+// authorization bypass around the passive-session policy.
+func (s *Server) requiresRelayOnlyCompatibility(peerID string) bool {
+	if peerID == "" || s.db == nil {
+		return false
+	}
+	p, err := s.db.GetPeer(peerID)
+	if err != nil {
+		log.Printf("[signal] Compatibility peer %s lookup failed: %v", peerID, err)
+		return true
+	}
+	return isInboundOnlyPeer(p)
+}
+
 // handleUDPMessage dispatches a UDP message to the appropriate handler.
 func (s *Server) handleUDPMessage(msg *pb.RendezvousMessage, raddr *net.UDPAddr) {
 	switch {
@@ -737,8 +753,9 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 		return
 	}
 
-	// Target is banned
-	if target.Banned {
+	// Target policy is durable; do not trust a stale live-peer entry after an
+	// administrator has disabled, banned, or removed the device.
+	if target.Banned || !s.targetAcceptsInboundSession(targetID) {
 		resp := &pb.RendezvousMessage{
 			Union: &pb.RendezvousMessage_PunchHoleResponse{
 				PunchHoleResponse: &pb.PunchHoleResponse{
@@ -779,7 +796,9 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 		targetID, target.UDPAddr, target.StatusTier, time.Since(target.LastReg), relayServer)
 
 	// If force relay or always use relay
-	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin || s.shouldForceRelayForPeers(initiatorID, targetID) {
+	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin ||
+		s.shouldForceRelayForPeers(initiatorID, targetID) ||
+		s.requiresRelayOnlyCompatibility(targetID) {
 		log.Printf("[signal] PunchHole: force relay for %s", targetID)
 		s.sendRelayResponse(target, raddr, msg, relayServer, initiatorID)
 		return
@@ -919,9 +938,9 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 		}
 	}
 
-	// Target is banned — report as offline to initiator
-	if target.Banned {
-		log.Printf("[signal] PunchHole (TCP): target %s is banned, rejecting", targetID)
+	// Reject disabled, banned, or soft-deleted targets as offline.
+	if target.Banned || !s.targetAcceptsInboundSession(targetID) {
+		log.Printf("[signal] PunchHole (TCP): target %s is unavailable, rejecting", targetID)
 		return &pb.RendezvousMessage{
 			Union: &pb.RendezvousMessage_PunchHoleResponse{
 				PunchHoleResponse: &pb.PunchHoleResponse{
@@ -959,7 +978,9 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 	// PunchHoleResponse), generate their own UUID, and connect to relay with it
 	// — while the target connects with the server's UUID. This broke relay
 	// pairing every time (Issue #66).
-	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin || s.shouldForceRelayForPeers(initiatorID, targetID) {
+	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin ||
+		s.shouldForceRelayForPeers(initiatorID, targetID) ||
+		s.requiresRelayOnlyCompatibility(targetID) {
 		log.Printf("[signal] PunchHole (TCP): force relay for %s (returning SYMMETRIC to let client drive relay UUID)", targetID)
 
 		var signedPk []byte
@@ -1238,9 +1259,9 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		return
 	}
 
-	// Target is banned — reject relay as if offline
-	if target.Banned {
-		log.Printf("[signal] RequestRelay: target %s is banned, rejecting", targetID)
+	// Reject disabled, banned, or soft-deleted targets as offline.
+	if target.Banned || !s.targetAcceptsInboundSession(targetID) {
+		log.Printf("[signal] RequestRelay: target %s is unavailable, rejecting", targetID)
 		resp := &pb.RendezvousMessage{
 			Union: &pb.RendezvousMessage_RelayResponse{
 				RelayResponse: &pb.RelayResponse{
@@ -1413,9 +1434,9 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 		}
 	}
 
-	// Target is banned — reject relay as if offline
-	if target.Banned {
-		log.Printf("[signal] RequestRelay (TCP): target %s is banned, rejecting", targetID)
+	// Reject disabled, banned, or soft-deleted targets as offline.
+	if target.Banned || !s.targetAcceptsInboundSession(targetID) {
+		log.Printf("[signal] RequestRelay (TCP): target %s is unavailable, rejecting", targetID)
 		return &pb.RendezvousMessage{
 			Union: &pb.RendezvousMessage_RelayResponse{
 				RelayResponse: &pb.RelayResponse{
