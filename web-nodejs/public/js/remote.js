@@ -506,13 +506,26 @@
     // The browser cannot observe clipboard changes, but it can read the
     // clipboard once the tab regains focus (with transient activation), so we
     // push the current local clipboard to the active streaming session then.
+    //
+    // Never run this on right/middle-click: Desktop Cliprdr sync + FormatData
+    // share a cache lock with remote Explorer context-menu probes. Awaiting
+    // sync on button 2 is what made right-click take 20+ seconds when the
+    // local clipboard held files.
     function _clipDebug() {
         if (window.BetterDesk && window.BetterDesk.debugRelay) {
             console.log.apply(console, ['[ClipboardSync]'].concat(Array.prototype.slice.call(arguments)));
         }
     }
     let _lastSyncedClipboard = '';
-    async function syncLocalClipboardToRemote() {
+    let _clipSyncTimer = null;
+    let _clipSyncQueued = false;
+    async function syncLocalClipboardToRemote(ev) {
+        if (typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.shouldSyncOnUserGesture === 'function'
+            && !RDCliprdr.shouldSyncOnUserGesture(ev)) {
+            _clipDebug('skip: non-left mouse button (keep remote context menu responsive)');
+            return;
+        }
         const session = getActiveSession();
         if (!session || !session.client || session.state !== 'streaming') {
             _clipDebug('skip: no active streaming session', session && session.state);
@@ -576,9 +589,28 @@
             // button remains available as a fallback.
         }
     }
-    window.addEventListener('focus', syncLocalClipboardToRemote);
+    function scheduleLocalClipboardSync(ev) {
+        if (typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.shouldSyncOnUserGesture === 'function'
+            && !RDCliprdr.shouldSyncOnUserGesture(ev)) {
+            return;
+        }
+        // Debounce left-click storms so we do not stack Cliprdr IPC on every
+        // mousedown while a prior assess/materialize is still running.
+        _clipSyncQueued = true;
+        if (_clipSyncTimer) return;
+        _clipSyncTimer = setTimeout(function () {
+            _clipSyncTimer = null;
+            if (!_clipSyncQueued) return;
+            _clipSyncQueued = false;
+            void syncLocalClipboardToRemote({ button: 0 });
+        }, 200);
+    }
+    window.addEventListener('focus', function () {
+        void syncLocalClipboardToRemote(null);
+    });
     if (viewerContainer) {
-        viewerContainer.addEventListener('mousedown', syncLocalClipboardToRemote);
+        viewerContainer.addEventListener('mousedown', scheduleLocalClipboardSync);
 
         // Browser HTML5 drag-and-drop onto the session surface → file transfer upload
         viewerContainer.addEventListener('dragover', (e) => {

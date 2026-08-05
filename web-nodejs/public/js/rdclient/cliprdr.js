@@ -158,6 +158,17 @@
         static FILEDESCRIPTOR_FORMAT_NAME = 'FileGroupDescriptorW';
         static FILECONTENTS_FORMAT_NAME = 'FileContents';
 
+        /**
+         * Right/middle-click must not kick off Cliprdr IPC. Remote Explorer builds
+         * its context menu via FormatData; concurrent sync holding the desktop
+         * cache lock (or re-walking trees) stalls that path for tens of seconds.
+         * @param {MouseEvent|{button?: number}|null|undefined} ev
+         * @returns {boolean}
+         */
+        static shouldSyncOnUserGesture(ev) {
+            if (!ev || typeof ev.button !== 'number') return true;
+            return ev.button === 0;
+        }
         static isSupported() {
             return isDesktopBridge();
         }

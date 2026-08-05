@@ -157,6 +157,44 @@ describe('RDCompress helpers', () => {
     });
 });
 
+describe('RDCliprdr gesture gating', () => {
+    let RDCliprdr;
+
+    beforeAll(() => {
+        const sandbox = {
+            console,
+            Uint8Array,
+            ArrayBuffer,
+            setTimeout,
+            clearTimeout,
+            Promise,
+            window: {
+                __BETTERDESK_RDCLIENT_DESKTOP__: true,
+                __TAURI__: { core: { invoke: async () => ({}) } }
+            },
+            globalThis: {}
+        };
+        sandbox.globalThis = sandbox;
+        sandbox.window = Object.assign(sandbox.window, { BetterDesk: undefined });
+        // Minimal stubs so cliprdr.js can define RDCliprdr without LocalFiles.
+        const base = path.join(__dirname, '..', 'public/js/rdclient');
+        vm.runInNewContext(
+            fs.readFileSync(path.join(base, 'cliprdr.js'), 'utf8'),
+            sandbox,
+            { filename: 'cliprdr.js' }
+        );
+        RDCliprdr = sandbox.RDCliprdr || sandbox.window.RDCliprdr;
+    });
+
+    it('skips Cliprdr sync on right/middle mouse button', () => {
+        expect(RDCliprdr.shouldSyncOnUserGesture({ button: 2 })).toBe(false);
+        expect(RDCliprdr.shouldSyncOnUserGesture({ button: 1 })).toBe(false);
+        expect(RDCliprdr.shouldSyncOnUserGesture({ button: 0 })).toBe(true);
+        expect(RDCliprdr.shouldSyncOnUserGesture(null)).toBe(true);
+        expect(RDCliprdr.shouldSyncOnUserGesture(undefined)).toBe(true);
+    });
+});
+
 describe('RDClient clipboard protobuf field', () => {
     const protobuf = require('protobufjs');
 

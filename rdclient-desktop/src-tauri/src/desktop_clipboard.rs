@@ -462,32 +462,77 @@ fn construct_file_list(paths: &[PathBuf]) -> Result<Vec<LocalFileEntry>, String>
     Ok(out)
 }
 
-/// Build FILEGROUPDESCRIPTOR + file_list on demand (Paste / FormatData), not on
-/// every clipboard poll. Copying a large local folder must stay cheap until the
-/// peer actually requests descriptors or file bytes.
-fn ensure_files_materialized(cache: &mut ClipFileCache) -> Result<(), String> {
-    if cache.too_large {
-        return Err("cliprdr_too_large".into());
-    }
-    if !cache.files_pdu.is_empty() && !cache.file_list.is_empty() {
-        return Ok(());
-    }
-    if cache.top_paths.is_empty() {
-        return Err("no clipboard files cached".into());
-    }
-    let path_bufs: Vec<PathBuf> = cache.top_paths.iter().map(PathBuf::from).collect();
-    match construct_file_list(&path_bufs) {
-        Ok(list) => {
-            cache.entry_count = list.len() as u32;
-            cache.total_bytes = list.iter().filter(|e| !e.is_dir).map(|e| e.size).sum();
-            cache.file_list = list;
-            cache.files_pdu = build_files_pdu(&cache.file_list);
+/// Build FILEGROUPDESCRIPTOR + file_list for `paths` (no cache lock held).
+fn materialize_paths(
+    paths: &[PathBuf],
+) -> Result<(Vec<LocalFileEntry>, Vec<u8>, u32, u64), String> {
+    let list = construct_file_list(paths)?;
+    let total_bytes = list.iter().filter(|e| !e.is_dir).map(|e| e.size).sum();
+    let entry_count = list.len() as u32;
+    let pdu = build_files_pdu(&list);
+    Ok((list, pdu, entry_count, total_bytes))
+}
+
+fn apply_too_large(cache: &mut ClipFileCache, entries: u32, bytes: u64) {
+    cache.too_large = true;
+    cache.entry_count = entries;
+    cache.total_bytes = bytes;
+    cache.file_list.clear();
+    cache.files_pdu.clear();
+}
+
+fn apply_materialized(
+    cache: &mut ClipFileCache,
+    list: Vec<LocalFileEntry>,
+    pdu: Vec<u8>,
+    entry_count: u32,
+    total_bytes: u64,
+) {
+    cache.too_large = false;
+    cache.entry_count = entry_count;
+    cache.total_bytes = total_bytes;
+    cache.file_list = list;
+    cache.files_pdu = pdu;
+}
+
+/// Ensure PDU/file_list exist without holding CLIP_CACHE across disk walks.
+/// Remote Explorer context menus request FormatData on right-click — a locked
+/// tree walk here freezes the remote for tens of seconds.
+fn ensure_files_ready() -> Result<(), String> {
+    let (paths, signature) = {
+        let cache = CLIP_CACHE
+            .lock()
+            .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
+        if cache.too_large {
+            return Err("cliprdr_too_large".into());
+        }
+        if !cache.files_pdu.is_empty() && !cache.file_list.is_empty() {
+            return Ok(());
+        }
+        if cache.top_paths.is_empty() {
+            return Err("no clipboard files cached".into());
+        }
+        (cache.top_paths.clone(), cache.signature.clone())
+    };
+
+    let path_bufs: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+    match materialize_paths(&path_bufs) {
+        Ok((list, pdu, entry_count, total_bytes)) => {
+            let mut cache = CLIP_CACHE
+                .lock()
+                .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
+            if cache.signature == signature {
+                apply_materialized(&mut cache, list, pdu, entry_count, total_bytes);
+            }
             Ok(())
         }
         Err(err) if err == "cliprdr_too_large" => {
-            cache.too_large = true;
-            cache.file_list.clear();
-            cache.files_pdu.clear();
+            let mut cache = CLIP_CACHE
+                .lock()
+                .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
+            if cache.signature == signature {
+                apply_too_large(&mut cache, 0, 0);
+            }
             Err(err)
         }
         Err(err) => Err(err),
@@ -763,11 +808,10 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
         .filter(|p| !p.is_empty())
         .collect();
 
-    let mut cache = CLIP_CACHE
-        .lock()
-        .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
-
     if paths.is_empty() {
+        let mut cache = CLIP_CACHE
+            .lock()
+            .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
         match source {
             CacheSource::Clipboard => {
                 if cache.source == CacheSource::Paths && !cache.files_pdu.is_empty() {
@@ -793,40 +837,93 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
     let sigs = fingerprint(&paths);
     let signature = make_signature(&paths, &sigs);
 
-    if cache.source == source && cache.top_paths == paths && cache.sigs == sigs {
-        // Same top-level clipboard selection — do not re-walk directories every poll.
-        return Ok(cache.result());
+    // Fast path: identical selection already assessed/materialized.
+    {
+        let cache = CLIP_CACHE
+            .lock()
+            .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
+        if cache.source == source && cache.top_paths == paths && cache.sigs == sigs {
+            let ready = source == CacheSource::Received
+                || cache.too_large
+                || (!cache.files_pdu.is_empty() && !cache.file_list.is_empty());
+            if ready {
+                return Ok(cache.result());
+            }
+        }
     }
 
-    // Record paths; assess size for outbound Cliprdr (not inbound Received cache).
-    // Full FILEGROUPDESCRIPTOR is still built lazily on FormatDataRequest.
-    cache.file_list.clear();
-    cache.files_pdu.clear();
-    cache.source = source;
-    cache.top_paths = paths.clone();
-    cache.sigs = sigs;
-    cache.signature = signature;
-    cache.too_large = false;
-    cache.entry_count = 0;
-    cache.total_bytes = 0;
+    // Assess + materialize *outside* CLIP_CACHE so FormatData / FileContents /
+    // right-click IPC are never blocked on a directory walk.
+    let path_bufs: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+    let mut too_large = false;
+    let mut entry_count = 0u32;
+    let mut total_bytes = 0u64;
+    let mut file_list: Vec<LocalFileEntry> = Vec::new();
+    let mut files_pdu: Vec<u8> = Vec::new();
 
     if source != CacheSource::Received {
-        let path_bufs: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
         match assess_tree(&path_bufs) {
             Ok((entries, bytes, exceeded)) => {
-                cache.entry_count = entries.min(u32::MAX as usize) as u32;
-                cache.total_bytes = bytes;
-                cache.too_large = exceeded;
+                entry_count = entries.min(u32::MAX as usize) as u32;
+                total_bytes = bytes;
                 if exceeded {
+                    too_large = true;
                     eprintln!(
                         "[desktop_clipboard] Cliprdr refusal: {entries} entries / {bytes} bytes exceeds limits — use File transfer"
                     );
+                } else {
+                    // Pre-build FILEGROUPDESCRIPTOR before FormatList so remote
+                    // Explorer context menus get an instant FormatDataResponse
+                    // (lazy-on-FormatData put the walk on the right-click path).
+                    match materialize_paths(&path_bufs) {
+                        Ok((list, pdu, count, bytes_sum)) => {
+                            file_list = list;
+                            files_pdu = pdu;
+                            entry_count = count;
+                            total_bytes = bytes_sum;
+                        }
+                        Err(err) if err == "cliprdr_too_large" => {
+                            too_large = true;
+                            eprintln!(
+                                "[desktop_clipboard] Cliprdr refusal during materialize — use File transfer"
+                            );
+                        }
+                        Err(err) => {
+                            eprintln!("[desktop_clipboard] materialize failed: {err}");
+                        }
+                    }
                 }
             }
             Err(err) => {
                 eprintln!("[desktop_clipboard] assess_tree failed: {err}");
             }
         }
+    }
+
+    let mut cache = CLIP_CACHE
+        .lock()
+        .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
+    cache.source = source;
+    cache.top_paths = paths;
+    cache.sigs = sigs;
+    cache.signature = signature;
+    if too_large {
+        apply_too_large(&mut cache, entry_count, total_bytes);
+    } else if source == CacheSource::Received {
+        cache.too_large = false;
+        cache.entry_count = 0;
+        cache.total_bytes = 0;
+        cache.file_list.clear();
+        cache.files_pdu.clear();
+    } else if !files_pdu.is_empty() {
+        apply_materialized(&mut cache, file_list, files_pdu, entry_count, total_bytes);
+    } else {
+        // Assess/materialize failed — keep paths so a later FormatData can retry.
+        cache.too_large = false;
+        cache.entry_count = entry_count;
+        cache.total_bytes = total_bytes;
+        cache.file_list.clear();
+        cache.files_pdu.clear();
     }
 
     Ok(cache.result())
@@ -867,10 +964,13 @@ pub fn desktop_clipboard_sync_paths(
 
 #[tauri::command]
 pub fn desktop_clipboard_format_data() -> Result<String, String> {
-    let mut cache = CLIP_CACHE
+    ensure_files_ready()?;
+    let cache = CLIP_CACHE
         .lock()
         .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
-    ensure_files_materialized(&mut cache)?;
+    if cache.files_pdu.is_empty() {
+        return Err("no clipboard files cached".into());
+    }
     Ok(b64_encode(&cache.files_pdu))
 }
 
@@ -882,15 +982,18 @@ pub fn desktop_clipboard_file_contents(
     n_position_high: i32,
     cb_requested: i32,
 ) -> Result<String, String> {
-    let mut cache = CLIP_CACHE
-        .lock()
-        .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
-    ensure_files_materialized(&mut cache)?;
+    ensure_files_ready()?;
     let idx = list_index as usize;
-    let Some(entry) = cache.file_list.get(idx) else {
-        return Err(format!("invalid file index {list_index}"));
+    let (path, size, is_dir) = {
+        let cache = CLIP_CACHE
+            .lock()
+            .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
+        let Some(entry) = cache.file_list.get(idx) else {
+            return Err(format!("invalid file index {list_index}"));
+        };
+        (entry.path.clone(), entry.size, entry.is_dir)
     };
-    if entry.is_dir {
+    if is_dir {
         return Err("cannot read directory contents".into());
     }
 
@@ -900,7 +1003,7 @@ pub fn desktop_clipboard_file_contents(
     const FILECONTENTS_RANGE: i32 = 0x2;
     if dw_flags & FILECONTENTS_SIZE != 0 && dw_flags & FILECONTENTS_RANGE == 0 {
         // u64 LE = LowPart then HighPart — matches RustDesk/FreeRDP SIZE payload.
-        return Ok(b64_encode(&entry.size.to_le_bytes()));
+        return Ok(b64_encode(&size.to_le_bytes()));
     }
     if dw_flags & FILECONTENTS_RANGE == 0 {
         return Err(format!("unsupported dw_flags {dw_flags}"));
@@ -908,16 +1011,17 @@ pub fn desktop_clipboard_file_contents(
 
     let offset = ((n_position_high as u32 as u64) << 32) | (n_position_low as u32 as u64);
     let length = cb_requested as u32 as u64;
-    if offset > entry.size {
+    if offset > size {
         return Err("invalid read offset".into());
     }
-    let read_size = if offset.saturating_add(length) > entry.size {
-        entry.size - offset
+    let read_size = if offset.saturating_add(length) > size {
+        size - offset
     } else {
         length
     } as usize;
 
-    let mut file = File::open(&entry.path).map_err(store_error)?;
+    // Read outside CLIP_CACHE so concurrent FormatData / sync stay responsive.
+    let mut file = File::open(&path).map_err(store_error)?;
     file.seek(SeekFrom::Start(offset)).map_err(store_error)?;
     let mut buf = vec![0u8; read_size];
     file.read_exact(&mut buf).map_err(store_error)?;
@@ -1207,5 +1311,47 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         assert!(exceeded, "expected too-large, got entries={entries}");
         assert!(entries > CLIPRDR_MAX_ENTRIES);
+    }
+
+    #[test]
+    fn sync_from_paths_prematerializes_descriptor() {
+        let dir = std::env::temp_dir().join(format!(
+            "betterdesk-cliprdr-sync-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("mkdir");
+        let file = dir.join("note.txt");
+        fs::write(&file, b"hello-cliprdr").expect("write");
+
+        let result = sync_from_paths(
+            vec![file.to_string_lossy().into_owned()],
+            CacheSource::Clipboard,
+        )
+        .expect("sync");
+        assert!(result.has_files);
+        assert!(!result.too_large);
+        assert!(!result.signature.is_empty());
+
+        // FormatData must be a cache hit (no second walk) after sync.
+        let b64 = desktop_clipboard_format_data().expect("format_data");
+        let bytes = b64_decode(&b64).expect("b64");
+        assert!(bytes.len() >= 4 + FILEDESCRIPTORW_SIZE);
+        let count = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
+        assert_eq!(count, 1);
+
+        desktop_clipboard_clear();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn format_data_does_not_need_cache_lock_during_walk_smoke() {
+        // After clear, FormatData fails fast without hanging.
+        desktop_clipboard_clear();
+        let err = desktop_clipboard_format_data().expect_err("empty cache");
+        assert!(
+            err.contains("no clipboard files") || err.contains("cliprdr"),
+            "unexpected err={err}"
+        );
     }
 }
