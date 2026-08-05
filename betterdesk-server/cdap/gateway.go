@@ -6,6 +6,7 @@ package cdap
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -25,6 +26,7 @@ import (
 	"github.com/unitronix/betterdesk-server/peer"
 	"github.com/unitronix/betterdesk-server/ratelimit"
 	"github.com/unitronix/betterdesk-server/security"
+	"github.com/unitronix/betterdesk-server/sessiongrant"
 )
 
 // Gateway is the CDAP WebSocket server.
@@ -37,6 +39,9 @@ type Gateway struct {
 	blocklist *security.Blocklist
 	jwt       *auth.JWTManager
 	limiter   *ratelimit.IPLimiter
+	// sessionGrantSigner binds passive Support Agent sessions to the
+	// authenticated CDAP operator and target device.
+	sessionGrantSigner *sessiongrant.Signer
 
 	httpSrv *http.Server
 	ln      net.Listener
@@ -111,6 +116,18 @@ func (g *Gateway) SetAuditLogger(al *audit.Logger) { g.auditLog = al }
 
 // SetJWTManager sets the JWT manager.
 func (g *Gateway) SetJWTManager(jm *auth.JWTManager) { g.jwt = jm }
+
+// SetSessionGrantPrivateKey enables signed passive-session grants for Support
+// Agent devices. It must receive the server identity key whose public half is
+// embedded in their signed branding profile.
+func (g *Gateway) SetSessionGrantPrivateKey(key ed25519.PrivateKey) error {
+	signer, err := sessiongrant.NewSigner(key)
+	if err != nil {
+		return err
+	}
+	g.sessionGrantSigner = signer
+	return nil
+}
 
 // SetRateLimiter overrides the default rate limiter.
 func (g *Gateway) SetRateLimiter(l *ratelimit.IPLimiter) { g.limiter = l }

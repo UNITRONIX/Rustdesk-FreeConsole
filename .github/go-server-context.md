@@ -14,11 +14,14 @@ both `hbbs` (signal) and `hbbr` (relay).
 
 ### Legal Basis
 
-- `.proto` files (`rendezvous.proto`, `message.proto`) have **no copyright headers** — they
-  define the wire protocol, not copyrightable expression.
-- AGPL-3.0 covers the Rust **source code**, not the protocol itself.
-- Clean-room = we implement from the **protocol specification** (protobuf messages, framing,
-  port layout), never copying Rust code.
+- Do not infer the provenance or copyright status of `.proto` files from their
+  protocol role or file headers. Existing schemas are subject to the provenance
+  gate in `docs/important/support-agent-provenance.md`.
+- Do not copy external source, generated artifacts, comments, or test fixtures.
+  Implement only from BetterDesk-owned specifications and independently
+  authored black-box test vectors.
+- Do not make clean-room or relicensing claims in code, documentation, or
+  release notes until the provenance register has been reviewed.
 
 ---
 

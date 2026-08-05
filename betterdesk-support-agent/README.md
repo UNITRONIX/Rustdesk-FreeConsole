@@ -8,6 +8,18 @@ Go binary** (Fyne GUI). One codebase, one binary — two distribution forms:
 | **Installer** | `betterdesk-support -install` then launches at login | XDG autostart / HKCU Run / LaunchAgent | per-user config dir |
 | **Portable** | run the binary directly, no install | none | `data/` next to the binary (with a `portable` marker file) |
 
+## Product identity and compatibility
+
+BetterDesk Support Agent is a BetterDesk product and a passive remote-support
+target. It does not provide an outbound “connect to peer” workflow.
+
+Some releases include a desktop-client wire compatibility surface so approved
+operators can connect to the Support Agent. That surface is being isolated
+behind a BetterDesk compatibility adapter and is subject to the provenance gate
+in [`../docs/important/support-agent-provenance.md`](../docs/important/support-agent-provenance.md).
+Until that gate is complete, do not describe the compatibility component as a
+fork, clone, clean-room implementation, or independently licensable component.
+
 The remote-desktop engine is reused from the shared `betterdesk-agent` module,
 so the support agent offers the same remote-desktop capabilities while exposing
 only a minimal "quick help" surface.
@@ -51,11 +63,17 @@ is additionally written with `0600` permissions.
 
 Appearance and connection details are **baked at build time** by the Console
 Generator into `resources/branding.json` (embedded via `go:embed`). Release
-builds **seal** that JSON (AES-GCM) so casual string dumps do not show server
-keys in cleartext. Fields: `product_name`, `company_name`, `tagline`,
+builds require an Ed25519-signed profile; the matching public key is embedded
+in the binary and any verification, expiry, or endpoint-allowlist failure
+disables its connection profile. `BETTERDESK_BUNDLE_SIGNING_KEY_FILE` is
+required for every distributed build. The legacy AES seal is accepted only by
+non-release developer builds and is obfuscation, not a trust boundary. Fields:
+`product_name`, `company_name`, `tagline`,
 `support_email`, `primary_color`, `accent_color`, `logo_data_url`,
 `default_language`, `allow_unattended`, `capabilities`, `server_address`,
-`server_key`, `api_key`, and nested `server { address, api_url, public_key, cdap_url }`.
+`server_key`, `bundle_id`, `profile_issued_at`, `profile_expires_at`,
+`allowed_endpoints`, and nested
+`server { address, api_url, public_key, cert_pin, cdap_url }`.
 
 Optional build hardening:
 
@@ -72,19 +90,20 @@ BETTERDESK_AGENT_BRANDING=/path/to/branding.json ./betterdesk-support
 
 ## Connection resilience
 
-The agent remembers the last healthy CDAP WebSocket and API base URL in
-encrypted local state. On start and during “Test connection” it prefers those
-endpoints, then falls back to branding-derived candidates (including TLS
-scheme swaps) so operator-side config churn does not brick end-user installs.
+The agent remembers last-known healthy endpoint metadata in encrypted local
+state. Distributed builds use only the HTTPS/WSS endpoints explicitly allowed
+by their signed profile; they never downgrade to HTTP/WS after a failure.
 
 ## Build
 
 ```bash
-# Host platform, unbranded
-./build.sh
+# Generate or provide an Ed25519 PKCS#8 key outside the workspace, then build.
+BETTERDESK_BUNDLE_SIGNING_KEY_FILE=/secure/path/branding-ed25519.pem \
+  ./build.sh
 
 # With a generated branding profile
-./build.sh -b /tmp/branding.json -o dist/acme-support
+BETTERDESK_BUNDLE_SIGNING_KEY_FILE=/secure/path/branding-ed25519.pem \
+  ./build.sh -b /tmp/branding.json -o dist/acme-support
 
 # Windows target (needs mingw-w64 CGO toolchain)
 ./build.sh -p windows
@@ -151,5 +170,5 @@ Supervised consent prompts require the GUI; use unattended access mode for `-nog
 |----------|--------|
 | `BETTERDESK_AGENT_BRANDING` | Load branding from an external JSON file |
 | `BETTERDESK_AGENT_DATA_DIR` | Force the state directory |
-| `BETTERDESK_CDAP_TLS=1` | Use `wss://` for the CDAP gateway |
-| `BETTERDESK_AGENT_INSECURE_TLS=1` | Skip TLS verification for help requests (self-signed test servers) |
+| `BETTERDESK_CDAP_TLS=1` | Enable TLS in non-release developer profiles |
+| `BETTERDESK_AGENT_INSECURE_TLS=1` | Non-release-only local self-signed test override; ignored by release binaries |

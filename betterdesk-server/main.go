@@ -419,6 +419,9 @@ func main() {
 			cdapGw.SetBlocklist(blocklist)
 			cdapGw.SetAuditLogger(auditLogger)
 			cdapGw.SetJWTManager(jwtManager)
+			if err := cdapGw.SetSessionGrantPrivateKey(kp.PrivateKey); err != nil {
+				log.Fatalf("Failed to configure CDAP session grant signer: %v", err)
+			}
 			cdapGw.SetVersion(Version)
 			apiSrv.SetCDAPGateway(cdapGw)
 		}

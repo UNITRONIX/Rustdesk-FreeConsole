@@ -45,6 +45,58 @@ func relayTransportMismatch(initiator, target peer.ConnType) bool {
 	return (initiator == peer.ConnWS) != (target == peer.ConnWS)
 }
 
+// isInboundOnlyDeviceType identifies agents that may be contacted by an
+// operator/client but must never start RustDesk P2P or relay sessions
+// themselves. Normalize common spelling variants because metadata has existed
+// in both underscore and hyphen forms.
+func isInboundOnlyDeviceType(deviceType string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(deviceType))
+	normalized = strings.NewReplacer("-", "", "_", "", " ", "").Replace(normalized)
+	return normalized == "osagent" || normalized == "supportagent"
+}
+
+func isInboundOnlyPeer(p *db.Peer) bool {
+	if p == nil {
+		return false
+	}
+	if isInboundOnlyDeviceType(p.DeviceType) {
+		return true
+	}
+	for _, tag := range strings.FieldsFunc(p.Tags, func(r rune) bool {
+		return r == ',' || r == ';' || r == ' ' || r == '\t' || r == '\n'
+	}) {
+		if isInboundOnlyDeviceType(tag) {
+			return true
+		}
+	}
+	return false
+}
+
+// targetAcceptsInboundSession checks durable target status before forwarding a
+// new signaling or relay request. The in-memory peer map can remain populated
+// briefly after an administrator disables, bans, or deletes a device.
+func (s *Server) targetAcceptsInboundSession(targetID string) bool {
+	if targetID == "" || s.db == nil {
+		return targetID != ""
+	}
+	p, err := s.db.GetPeer(targetID)
+	if err != nil {
+		log.Printf("[signal] Target %s database lookup failed: %v", targetID, err)
+		return false
+	}
+	if p != nil {
+		return !p.Banned && !p.Disabled && !p.SoftDeleted
+	}
+	state, err := s.db.GetPeerIDState(targetID)
+	if err != nil {
+		log.Printf("[signal] Target %s state lookup failed: %v", targetID, err)
+		return false
+	}
+	// A target that was never stored by the BetterDesk inventory can still use
+	// compatibility signaling in open mode; a known soft-deleted ID cannot.
+	return state != db.PeerIDSoftDeleted
+}
+
 // handleUDPMessage dispatches a UDP message to the appropriate handler.
 func (s *Server) handleUDPMessage(msg *pb.RendezvousMessage, raddr *net.UDPAddr) {
 	switch {
@@ -1977,6 +2029,23 @@ func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPA
 		dbPeer, err := s.db.GetPeer(initiatorID)
 		if err != nil || dbPeer == nil {
 			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_not_enrolled")
+			return "", false
+		}
+		if isInboundOnlyPeer(dbPeer) {
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_inbound_only_device")
+			return "", false
+		}
+	} else if s.db != nil {
+		// Open mode still needs to prevent an approved support/OS agent from
+		// initiating connections. Do not rely on the in-memory peer map: it
+		// does not carry durable device_type metadata.
+		dbPeer, err := s.db.GetPeer(initiatorID)
+		if err != nil {
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_type_lookup_failed")
+			return "", false
+		}
+		if isInboundOnlyPeer(dbPeer) {
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_inbound_only_device")
 			return "", false
 		}
 	}

@@ -17,7 +17,10 @@ import (
 const defaultAPIPort = 21114
 
 func tlsInsecureEnabled() bool {
-	return os.Getenv("BETTERDESK_AGENT_INSECURE_TLS") == "1"
+	// A release binary must never allow an environment variable to downgrade
+	// certificate verification. Development builds may opt in for local
+	// self-signed test servers only.
+	return !isReleaseBuild() && os.Getenv("BETTERDESK_AGENT_INSECURE_TLS") == "1"
 }
 
 // apiHTTPClient returns an HTTP client for BetterDesk API calls.
@@ -50,6 +53,9 @@ func apiBaseURL(b Branding) string {
 
 // apiJSON performs a JSON HTTP request against the BetterDesk API.
 func apiJSON(method, apiURL string, body any, out any) (int, error) {
+	if err := validateAPIEndpoint(apiURL); err != nil {
+		return 0, err
+	}
 	var reader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -104,6 +110,20 @@ func apiJSON(method, apiURL string, body any, out any) (int, error) {
 		// #endregion
 	}
 	return resp.StatusCode, nil
+}
+
+func validateAPIEndpoint(apiURL string) error {
+	u, err := url.Parse(apiURL)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("invalid BetterDesk API endpoint")
+	}
+	if isReleaseBuild() && !strings.EqualFold(u.Scheme, "https") {
+		return fmt.Errorf("release build refuses non-HTTPS BetterDesk API endpoint")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("unsupported BetterDesk API endpoint scheme")
+	}
+	return nil
 }
 
 // normalizeServerOrigin stores a canonical https?://host:port origin in branding address.

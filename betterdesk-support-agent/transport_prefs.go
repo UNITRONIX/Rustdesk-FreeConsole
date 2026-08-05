@@ -38,7 +38,7 @@ func CandidateCDAPWebSockets(b Branding, st *AppState) []string {
 	seen := map[string]bool{}
 	add := func(u string) {
 		u = strings.TrimRight(strings.TrimSpace(u), "/")
-		if u == "" || seen[u] {
+		if u == "" || seen[u] || !b.allowsEndpoint(u) {
 			return
 		}
 		seen[u] = true
@@ -52,12 +52,15 @@ func CandidateCDAPWebSockets(b Branding, st *AppState) []string {
 	if b.Server != nil {
 		add(strings.TrimSpace(b.Server.CDAPURL))
 	}
-	// Derived fallbacks: swap ws/wss when TLS branding flips.
-	primary := b.CDAPWebSocketURL()
-	if strings.HasPrefix(primary, "wss://") {
-		add("ws://" + strings.TrimPrefix(primary, "wss://"))
-	} else if strings.HasPrefix(primary, "ws://") {
-		add("wss://" + strings.TrimPrefix(primary, "ws://"))
+	// A local developer may deliberately test a scheme change. Distributed
+	// profiles never derive a plaintext fallback from a signed WSS endpoint.
+	if !isReleaseBuild() {
+		primary := b.CDAPWebSocketURL()
+		if strings.HasPrefix(primary, "wss://") {
+			add("ws://" + strings.TrimPrefix(primary, "wss://"))
+		} else if strings.HasPrefix(primary, "ws://") {
+			add("wss://" + strings.TrimPrefix(primary, "ws://"))
+		}
 	}
 	return out
 }
@@ -68,7 +71,7 @@ func CandidateAPIBases(b Branding, st *AppState) []string {
 	seen := map[string]bool{}
 	add := func(u string) {
 		u = strings.TrimRight(strings.TrimSpace(u), "/")
-		if u == "" || seen[u] {
+		if u == "" || seen[u] || !b.allowsEndpoint(u) {
 			return
 		}
 		seen[u] = true
@@ -83,6 +86,23 @@ func CandidateAPIBases(b Branding, st *AppState) []string {
 		add(strings.TrimSpace(b.Server.APIURL))
 	}
 	return out
+}
+
+func (b Branding) allowsEndpoint(endpoint string) bool {
+	if !isReleaseBuild() {
+		return true
+	}
+	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	if !strings.HasPrefix(strings.ToLower(endpoint), "https://") &&
+		!strings.HasPrefix(strings.ToLower(endpoint), "wss://") {
+		return false
+	}
+	for _, allowed := range b.AllowedEndpoints {
+		if endpoint == strings.TrimRight(strings.TrimSpace(allowed), "/") {
+			return true
+		}
+	}
+	return false
 }
 
 // healthURLFromCDAPWS converts a CDAP websocket URL to its /cdap/health HTTP twin.

@@ -10,6 +10,7 @@ const config = require('../config/config');
 
 const HOST_RE = /^[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,253}[a-zA-Z0-9])?$/;
 const IP_V4_RE = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+const CERT_PIN_RE = /^[a-f0-9]{64}$/;
 
 function clip(s, max) {
     if (typeof s !== 'string') return '';
@@ -38,6 +39,14 @@ function defaultCdapPort() {
 function formatOrigin(scheme, hostPart, port) {
     const omitPort = (scheme === 'https' && port === 443) || (scheme === 'http' && port === 80);
     return omitPort ? `${scheme}://${hostPart}` : `${scheme}://${hostPart}:${port}`;
+}
+
+function configuredCertificatePin() {
+    const normalized = String(config.agentServerCertPin || '')
+        .replace(/:/g, '')
+        .trim()
+        .toLowerCase();
+    return CERT_PIN_RE.test(normalized) ? normalized : '';
 }
 
 /** Suggested host prefill from local server config. */
@@ -98,6 +107,7 @@ function buildServerUrls(host, useHttps, apiPort) {
     return {
         address: origin,
         api_url: `${origin}/api`,
+        cert_pin: configuredCertificatePin(),
         cdap_port: cdapPort,
         cdap_url: cdapUrl,
     };
@@ -131,5 +141,6 @@ module.exports = {
     defaultUseHttps,
     normalizeServerHost,
     buildServerUrls,
+    configuredCertificatePin,
     connectionFingerprint,
 };

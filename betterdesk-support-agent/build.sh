@@ -41,6 +41,25 @@ if [ -z "$TARGET_OS" ]; then
     TARGET_OS="$($GO env GOOS 2>/dev/null || uname -s | tr '[:upper:]' '[:lower:]')"
 fi
 
+SIGNING_KEY_FILE="${BETTERDESK_BUNDLE_SIGNING_KEY_FILE:-}"
+if [ -z "$SIGNING_KEY_FILE" ]; then
+    echo "ERROR: release builds require BETTERDESK_BUNDLE_SIGNING_KEY_FILE" >&2
+    exit 1
+fi
+if [ ! -f "$SIGNING_KEY_FILE" ]; then
+    echo "ERROR: BETTERDESK_BUNDLE_SIGNING_KEY_FILE does not exist: $SIGNING_KEY_FILE" >&2
+    exit 1
+fi
+
+seal_branding() {
+    local args
+    args=(-in resources/branding.json -out resources/branding.json)
+    if [ -n "$SIGNING_KEY_FILE" ]; then
+        args+=(-signing-key-file "$SIGNING_KEY_FILE" -public-key-out resources/branding.pub)
+    fi
+    "$GO" run ./cmd/sealbranding "${args[@]}"
+}
+
 # Bake branding (Console generator overwrites this before invoking build).
 if [ -n "$BRANDING" ]; then
     if [ ! -f "$BRANDING" ]; then
@@ -78,7 +97,7 @@ fi
 WIN_LDFLAGS="-s -w -H=windowsgui"
 
 linux_dual_build() {
-    local out_dir launcher x11_bin wl_bin bak
+    local out_dir launcher x11_bin wl_bin bak pub_bak
     out_dir="$(dirname "$OUTPUT")"
     mkdir -p "$out_dir"
     x11_bin="${out_dir}/betterdesk-support-x11"
@@ -86,8 +105,18 @@ linux_dual_build() {
     launcher="${out_dir}/betterdesk-support"
 
     bak="$(mktemp)"
+    pub_bak="$(mktemp)"
     cp resources/branding.json "$bak"
-    "$GO" run ./cmd/sealbranding -in resources/branding.json -out resources/branding.json || cp "$bak" resources/branding.json
+    cp resources/branding.pub "$pub_bak"
+    if ! seal_branding; then
+        cp "$bak" resources/branding.json
+        cp "$pub_bak" resources/branding.pub
+        if [ -n "$SIGNING_KEY_FILE" ]; then
+            echo "ERROR: signed branding profile could not be created" >&2
+            rm -f "$bak" "$pub_bak"
+            return 1
+        fi
+    fi
 
     echo "Building Linux X11 UI → $x11_bin ..."
     GOOS=linux CGO_ENABLED=1 "$GO" build -trimpath -tags release -ldflags "-s -w" -o "$x11_bin" .
@@ -96,7 +125,9 @@ linux_dual_build() {
     GOOS=linux CGO_ENABLED=1 "$GO" build -trimpath -tags "release,wayland" -ldflags "-s -w" -o "$wl_bin" .
 
     cp "$bak" resources/branding.json
+    cp "$pub_bak" resources/branding.pub
     rm -f "$bak"
+    rm -f "$pub_bak"
 
     cp "$SCRIPT_DIR/scripts/betterdesk-support-launcher.sh" "$launcher"
     chmod +x "$launcher" "$x11_bin" "$wl_bin"
@@ -116,20 +147,29 @@ fi
 
 # Seal branding for release embeds (plaintext restored after build).
 BRANDING_PLAIN_BAK=""
+BRANDING_PUB_BAK=""
 if [ -f resources/branding.json ]; then
     BRANDING_PLAIN_BAK="$(mktemp)"
+    BRANDING_PUB_BAK="$(mktemp)"
     cp resources/branding.json "$BRANDING_PLAIN_BAK"
-    if "$GO" run ./cmd/sealbranding -in resources/branding.json -out resources/branding.json; then
-        echo "Sealed branding for release embed"
+    cp resources/branding.pub "$BRANDING_PUB_BAK"
+    if seal_branding; then
+        echo "Signed branding profile for release embed"
     else
-        echo "WARN: branding seal failed — embedding plaintext" >&2
+        echo "ERROR: branding signing failed; refusing to embed plaintext" >&2
         cp "$BRANDING_PLAIN_BAK" resources/branding.json
+        cp "$BRANDING_PUB_BAK" resources/branding.pub
+        exit 1
     fi
 fi
 restore_branding() {
     if [ -n "$BRANDING_PLAIN_BAK" ] && [ -f "$BRANDING_PLAIN_BAK" ]; then
         cp "$BRANDING_PLAIN_BAK" resources/branding.json
         rm -f "$BRANDING_PLAIN_BAK"
+    fi
+    if [ -n "$BRANDING_PUB_BAK" ] && [ -f "$BRANDING_PUB_BAK" ]; then
+        cp "$BRANDING_PUB_BAK" resources/branding.pub
+        rm -f "$BRANDING_PUB_BAK"
     fi
 }
 trap restore_branding EXIT

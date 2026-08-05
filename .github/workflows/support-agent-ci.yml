@@ -1,0 +1,141 @@
+name: Support Agent CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'betterdesk-support-agent/**'
+      - 'betterdesk-agent/**'
+      - 'betterdesk-server/protos/**'
+      - 'web-nodejs/protos/**'
+      - 'docs/important/support-agent-provenance.md'
+      - 'docs/important/support-agent-conformance.md'
+      - 'THIRD_PARTY_NOTICES.md'
+      - 'docs/features/WEB_REMOTE_CLIENT_PLAN.md'
+      - '.github/go-server-context.md'
+      - '.github/workflows/support-agent-ci.yml'
+      - 'web-nodejs/scripts/check-cleanroom-provenance.js'
+      - 'web-nodejs/scripts/sync-protocol-schemas.js'
+  pull_request:
+    paths:
+      - 'betterdesk-support-agent/**'
+      - 'betterdesk-agent/**'
+      - 'betterdesk-server/protos/**'
+      - 'web-nodejs/protos/**'
+      - 'docs/important/support-agent-provenance.md'
+      - 'docs/important/support-agent-conformance.md'
+      - 'THIRD_PARTY_NOTICES.md'
+      - 'docs/features/WEB_REMOTE_CLIENT_PLAN.md'
+      - '.github/go-server-context.md'
+      - '.github/workflows/support-agent-ci.yml'
+      - 'web-nodejs/scripts/check-cleanroom-provenance.js'
+      - 'web-nodejs/scripts/sync-protocol-schemas.js'
+
+permissions:
+  contents: read
+
+jobs:
+  provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify compatibility provenance policy
+        run: node web-nodejs/scripts/check-cleanroom-provenance.js && node web-nodejs/scripts/sync-protocol-schemas.js
+
+  support-agent:
+    name: Support Agent (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: betterdesk-support-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-support-agent/go.mod
+          cache-dependency-path: betterdesk-support-agent/go.sum
+      - name: Install Fyne build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libdecor-0-dev
+      - name: go vet
+        run: go vet ./...
+      - name: go test with race detector
+        run: go test -race -count=1 -timeout=10m ./...
+
+  shared-agent:
+    name: Shared Agent (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: betterdesk-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-agent/go.mod
+          cache-dependency-path: betterdesk-agent/go.sum
+      - name: go vet
+        run: go vet ./...
+      - name: go test with race detector
+        run: go test -race -count=1 -timeout=10m ./...
+
+  framing-fuzz:
+    name: Framing fuzz smoke (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: support-agent peer frames
+            module: betterdesk-support-agent
+            package: ./signalhost
+            target: '^FuzzPeerFrameFraming$'
+          - name: support-agent Annex-B frames
+            module: betterdesk-support-agent
+            package: ./signalhost
+            target: '^FuzzAnnexBFraming$'
+          - name: shared-agent stream frames
+            module: betterdesk-agent
+            package: ./agent
+            target: '^FuzzEncodedStreamFraming$'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - name: Fuzz parser and framing boundary
+        working-directory: ${{ matrix.module }}
+        run: go test -run '^$' -fuzz '${{ matrix.target }}' -fuzztime=15s -parallel=1 -timeout=2m ${{ matrix.package }}
+
+  platform:
+    name: Native platform tests (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: betterdesk-support-agent/go.mod
+          cache-dependency-path: |
+            betterdesk-support-agent/go.sum
+            betterdesk-agent/go.sum
+      - name: Test shared-agent platform implementation
+        working-directory: betterdesk-agent
+        run: go test -count=1 -timeout=10m ./...
+      - name: Test support-agent platform implementation
+        working-directory: betterdesk-support-agent
+        run: go test -count=1 -timeout=10m ./...

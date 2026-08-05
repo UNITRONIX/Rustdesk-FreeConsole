@@ -1,21 +1,29 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
-	_ "embed"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/unitronix/betterdesk-support-agent/internal/brandprofile"
 )
 
 //go:embed resources/branding.json
 var brandingJSON []byte
 
+//go:embed resources/branding.pub
+var brandingPublicKey []byte
+
 type ServerBranding struct {
 	Address     string `json:"address"`
 	APIURL      string `json:"api_url"`
 	PublicKey   string `json:"public_key"`
+	CertPin     string `json:"cert_pin,omitempty"`
 	CDAPPort    int    `json:"cdap_port,omitempty"`
 	ConsolePort int    `json:"console_port,omitempty"`
 	CDAPURL     string `json:"cdap_url,omitempty"`
@@ -48,21 +56,30 @@ type Branding struct {
 	ServerKey        string          `json:"server_key"`
 	APIKey           string          `json:"api_key"`
 	BundleID         string          `json:"bundle_id"`
+	ProfileIssuedAt  string          `json:"profile_issued_at,omitempty"`
+	ProfileExpiresAt string          `json:"profile_expires_at,omitempty"`
+	AllowedEndpoints []string        `json:"allowed_endpoints,omitempty"`
 	UseHTTPS         bool            `json:"use_https"`
 	Server           *ServerBranding `json:"server,omitempty"`
-	// Incoming capability defaults (RustDesk-style permissions matrix).
-	// Nil / omitted fields default to true so existing bundles stay permissive.
+	// Incoming host capability policy. Desktop remains enabled by default for
+	// existing bundles; all other capabilities require both a profile opt-in
+	// and a locally enforceable implementation before they can be exposed.
 	Capabilities *CapabilityFlags `json:"capabilities,omitempty"`
 }
 
 // CapabilityFlags gates incoming session features for Support Agent builds.
 type CapabilityFlags struct {
-	Desktop   *bool `json:"desktop,omitempty"`
-	Files     *bool `json:"files,omitempty"`
-	Clipboard *bool `json:"clipboard,omitempty"`
-	Audio     *bool `json:"audio,omitempty"`
-	Terminal  *bool `json:"terminal,omitempty"`
-	Restart   *bool `json:"restart,omitempty"`
+	Desktop      *bool `json:"desktop,omitempty"`
+	Files        *bool `json:"files,omitempty"`
+	Clipboard    *bool `json:"clipboard,omitempty"`
+	Audio        *bool `json:"audio,omitempty"`
+	Terminal     *bool `json:"terminal,omitempty"`
+	Chat         *bool `json:"chat,omitempty"`
+	MultiMonitor *bool `json:"multi_monitor,omitempty"`
+	PrivacyMode  *bool `json:"privacy_mode,omitempty"`
+	BlockInput   *bool `json:"block_input,omitempty"`
+	Restart      *bool `json:"restart,omitempty"`
+	Recording    *bool `json:"recording,omitempty"`
 }
 
 func capEnabled(flag *bool, defaultOn bool) bool {
@@ -104,24 +121,120 @@ func GetBranding() Branding {
 				}
 			}
 		}
-		if isSealedBranding(raw) {
-			plain, err := unsealBranding(raw)
-			if err != nil {
-				// Tampered / wrong seal — refuse to start with empty branding
-				// rather than fall back to defaults that might phone home wrongly.
-				brandingVal = brandingDefaults()
-				brandingVal.ServerAddress = ""
-				return
-			}
-			raw = plain
-		}
-		var b Branding
-		if err := json.Unmarshal(raw, &b); err != nil {
-			b = brandingDefaults()
+		b, err := decodeBrandingProfile(raw, brandingPublicKey, isReleaseBuild())
+		if err != nil {
+			// Do not substitute a default endpoint after integrity verification
+			// fails. A release binary must be signed by its bundle issuer.
+			brandingVal = rejectedBranding()
+			return
 		}
 		brandingVal = b.normalize()
 	})
 	return brandingVal
+}
+
+func rejectedBranding() Branding {
+	b := brandingDefaults()
+	b.ServerAddress = ""
+	return b
+}
+
+// decodeBrandingProfile validates the profile that is embedded in a binary.
+// Release builds accept only authenticated profiles. Development builds may
+// deliberately load a plaintext or legacy-sealed local profile to preserve the
+// supported developer workflow, but never silently downgrade a signed profile.
+func decodeBrandingProfile(raw, publicKeyResource []byte, requireSigned bool) (Branding, error) {
+	if brandprofile.IsSigned(raw) {
+		publicKey, err := brandprofile.DecodePublicKey(strings.TrimSpace(string(publicKeyResource)))
+		if err != nil {
+			return Branding{}, fmt.Errorf("decode branding public key: %w", err)
+		}
+		plain, err := brandprofile.Verify(raw, publicKey)
+		if err != nil {
+			return Branding{}, fmt.Errorf("verify branding profile: %w", err)
+		}
+		raw = plain
+	} else {
+		if requireSigned {
+			return Branding{}, fmt.Errorf("unsigned branding profile in release build")
+		}
+		if isSealedBranding(raw) {
+			plain, err := unsealBranding(raw)
+			if err != nil {
+				return Branding{}, fmt.Errorf("unseal branding profile: %w", err)
+			}
+			raw = plain
+		}
+	}
+
+	var branding Branding
+	if err := json.Unmarshal(raw, &branding); err != nil {
+		return Branding{}, fmt.Errorf("decode branding profile: %w", err)
+	}
+	if requireSigned {
+		if err := branding.validateReleaseProfile(time.Now()); err != nil {
+			return Branding{}, err
+		}
+	}
+	return branding, nil
+}
+
+func (b Branding) validateReleaseProfile(now time.Time) error {
+	if strings.TrimSpace(b.BundleID) == "" {
+		return fmt.Errorf("release branding profile is missing bundle ID")
+	}
+	if b.Server == nil || strings.TrimSpace(b.Server.Address) == "" ||
+		strings.TrimSpace(b.Server.APIURL) == "" || strings.TrimSpace(b.Server.CDAPURL) == "" {
+		return fmt.Errorf("release branding profile has incomplete server endpoints")
+	}
+	if strings.TrimSpace(b.ServerKey) == "" && strings.TrimSpace(b.Server.PublicKey) == "" {
+		return fmt.Errorf("release branding profile is missing server signing key")
+	}
+	if strings.TrimSpace(b.ProfileExpiresAt) == "" {
+		return fmt.Errorf("release branding profile is missing expiry")
+	}
+	if strings.TrimSpace(b.ProfileIssuedAt) == "" {
+		return fmt.Errorf("release branding profile is missing issue time")
+	}
+	issuedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(b.ProfileIssuedAt))
+	if err != nil {
+		return fmt.Errorf("parse release branding profile issue time: %w", err)
+	}
+	expiresAt, err := time.Parse(time.RFC3339, strings.TrimSpace(b.ProfileExpiresAt))
+	if err != nil {
+		return fmt.Errorf("parse release branding profile expiry: %w", err)
+	}
+	if issuedAt.After(now.UTC().Add(5*time.Minute)) || !expiresAt.After(issuedAt) {
+		return fmt.Errorf("release branding profile has invalid validity period")
+	}
+	if !expiresAt.After(now.UTC()) {
+		return fmt.Errorf("release branding profile has expired")
+	}
+	if !allSecureAndAllowed(b.AllowedEndpoints, b.Server.Address, b.Server.APIURL, b.Server.CDAPURL) {
+		return fmt.Errorf("release branding profile has unauthorized endpoint")
+	}
+	return nil
+}
+
+func allSecureAndAllowed(allowed []string, endpoints ...string) bool {
+	if len(allowed) == 0 {
+		return false
+	}
+	allowedSet := make(map[string]struct{}, len(allowed))
+	for _, endpoint := range allowed {
+		endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+		if strings.HasPrefix(strings.ToLower(endpoint), "https://") ||
+			strings.HasPrefix(strings.ToLower(endpoint), "wss://") {
+			allowedSet[endpoint] = struct{}{}
+		}
+	}
+	for _, endpoint := range endpoints {
+		endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+		if _, ok := allowedSet[endpoint]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func isReleaseBuild() bool {

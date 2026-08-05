@@ -134,18 +134,8 @@ func (s *Server) handleDeviceSelfHelpRequest(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	tokenHash := hashToken(body.DeviceToken)
-	dt, err := s.db.ValidateToken(tokenHash)
-	if err != nil || dt == nil {
+	if !s.hasBoundActiveDeviceToken(body.DeviceID, body.DeviceToken) {
 		http.Error(w, `{"error":"invalid device token"}`, http.StatusForbidden)
-		return
-	}
-	if dt.PeerID != "" && dt.PeerID != body.DeviceID {
-		http.Error(w, `{"error":"token bound to another device"}`, http.StatusForbidden)
-		return
-	}
-	if peer, _ := s.db.GetPeer(body.DeviceID); peer == nil {
-		http.Error(w, `{"error":"device not enrolled"}`, http.StatusForbidden)
 		return
 	}
 

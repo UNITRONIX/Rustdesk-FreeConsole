@@ -51,7 +51,10 @@ type Agent struct {
 	fileHandlers   sync.Map // session_id → context.CancelFunc
 	desktopStreams sync.Map // session_id → *DesktopStreamer
 	desktopFlags   sync.Map // session_id → *desktopSessionFlags
-	audioStreams   sync.Map // session_id → *AudioStreamer
+	// desktopControlMu keeps stream lifecycle and control flags coherent so a
+	// late control cannot outlive the desktop session it targeted.
+	desktopControlMu sync.Mutex
+	audioStreams     sync.Map // session_id → *AudioStreamer
 
 	// Consent system: when require_consent=true, handleDesktopStart prints
 	// CONSENT_REQUEST to stdout and waits on a channel stored here.
@@ -481,6 +484,12 @@ func (a *Agent) executeWidgetCommand(widgetID, action string, value any) (any, e
 			return a.captureAndSendScreenshot()
 		}
 	case "sys_clipboard":
+		if !a.cfg.Clipboard {
+			return nil, fmt.Errorf("clipboard capability disabled")
+		}
+		if a.isClipboardOperationBlocked("") {
+			return nil, fmt.Errorf("clipboard is disabled for an active remote desktop session")
+		}
 		if action == "query" {
 			text := a.clipboard.Get()
 			return map[string]string{"text": text}, nil
@@ -730,7 +739,8 @@ func (a *Agent) handleClipboardSet(msg *Message) {
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
 		return
 	}
-	if a.sessionFlags(p.SessionID).isClipboardDisabled() {
+	if a.isClipboardOperationBlocked(p.SessionID) {
+		log.Printf("[clipboard] Ignored clipboard_set while disabled for session %s", normalizeDesktopSessionID(p.SessionID))
 		return
 	}
 	if p.Format == "text" {
@@ -744,16 +754,24 @@ func (a *Agent) handleClipboardSet(msg *Message) {
 func (a *Agent) handleClipboardGet(msg *Message) {
 	var p struct {
 		RequestID string `json:"request_id"`
+		SessionID string `json:"session_id"`
 	}
 	_ = json.Unmarshal(msg.Payload, &p)
 
 	resp := map[string]any{
 		"request_id": p.RequestID,
+		"session_id": p.SessionID,
 		"format":     "text",
 	}
 
 	if !a.cfg.Clipboard {
 		resp["error"] = "clipboard capability disabled"
+		resp["data"] = ""
+		a.sendMessage("clipboard_data", resp)
+		return
+	}
+	if a.isClipboardOperationBlocked(p.SessionID) {
+		resp["error"] = "clipboard disabled for this remote desktop session"
 		resp["data"] = ""
 		a.sendMessage("clipboard_data", resp)
 		return
@@ -780,7 +798,6 @@ func (a *Agent) cleanupSessions() {
 	})
 	a.desktopStreams.Range(func(key, value any) bool {
 		value.(*DesktopStreamer).Stop()
-		a.desktopStreams.Delete(key)
 		return true
 	})
 }

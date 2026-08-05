@@ -185,6 +185,9 @@ module.exports = {
     sslKeyPath: process.env.SSL_KEY_PATH || '',
     sslCaPath: process.env.SSL_CA_PATH || '',
     httpRedirect: (process.env.HTTP_REDIRECT_HTTPS || 'true').toLowerCase() === 'true',
+    // Optional SHA-256 certificate pin embedded in signed Support Agent
+    // bundles. This is public verifier material, never a private key.
+    agentServerCertPin: String(process.env.BETTERDESK_AGENT_SERVER_CERT_PIN || '').trim(),
 
     // Paths
     dataDir: DATA_DIR,

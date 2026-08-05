@@ -11,6 +11,11 @@ const defaultCDAPPort = 21122
 
 // useTLS reports whether baked branding expects TLS for HTTP/WebSocket calls.
 func (b Branding) useTLS() bool {
+	// Distributed binaries have a signed profile and must never allow a
+	// configuration/environment fallback to plaintext HTTP or WebSocket.
+	if isReleaseBuild() {
+		return true
+	}
 	if b.UseHTTPS {
 		return true
 	}
@@ -109,7 +114,11 @@ func (b Branding) APIHealthURL() string {
 // CDAPWebSocketURL is the remote-session gateway URL passed to the engine.
 func (b Branding) CDAPWebSocketURL() string {
 	if b.Server != nil && strings.TrimSpace(b.Server.CDAPURL) != "" {
-		return strings.TrimRight(strings.TrimSpace(b.Server.CDAPURL), "/")
+		u := strings.TrimRight(strings.TrimSpace(b.Server.CDAPURL), "/")
+		if isReleaseBuild() && !strings.HasPrefix(strings.ToLower(u), "wss://") {
+			return ""
+		}
+		return u
 	}
 	host := hostFromAddr(b.ServerAddress)
 	if strings.Contains(host, ":") {

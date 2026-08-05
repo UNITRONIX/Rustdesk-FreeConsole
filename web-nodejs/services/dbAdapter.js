@@ -27,6 +27,7 @@ const fs = require('fs');
 const agentBundleService = require('./agentBundleService');
 const { hashAccessToken } = require('../lib/tokenHash');
 const { redactAuditDetails } = require('../lib/logRedact');
+const { normalizeProductType, normalizeBuildStatus } = require('../lib/generatorBuildTypes');
 
 // Lazy-loaded drivers — keeps startup fast when one backend isn't installed.
 let _sqlite = null;
@@ -988,6 +989,31 @@ function createSqliteAdapter(config) {
         }
     }
 
+    function migrateAgentBundleProductTypesSqlite(db) {
+        try {
+            const cols = new Set(db.prepare('PRAGMA table_info(agent_bundles)').all().map(c => c.name));
+            if (!cols.has('product_type')) {
+                db.exec("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'support-agent'");
+                console.log('[DB] Migration: added agent_bundles.product_type');
+            }
+            // SQLite cannot alter a column default in place. Normalize legacy
+            // values now; callers still accept aliases for older deployments.
+            db.exec(`
+                UPDATE agent_bundles
+                SET product_type = CASE LOWER(TRIM(COALESCE(product_type, '')))
+                    WHEN 'rdclient' THEN 'rdclient'
+                    WHEN 'agent-client' THEN 'agent-client'
+                    WHEN 'agent_client' THEN 'agent-client'
+                    ELSE 'support-agent'
+                END
+                WHERE product_type IS NULL
+                   OR LOWER(TRIM(product_type)) NOT IN ('support-agent', 'agent-client', 'rdclient')
+            `);
+        } catch (e) {
+            console.warn('[DB] Migration agent_bundles.product_type error:', e.message);
+        }
+    }
+
     function ensureAgentBundleTables(db) {
         db.exec(`
             CREATE TABLE IF NOT EXISTS agent_bundles (
@@ -998,6 +1024,7 @@ function createSqliteAdapter(config) {
                 branding TEXT NOT NULL DEFAULT '{}',
                 branding_hash TEXT NOT NULL DEFAULT '',
                 created_by INTEGER DEFAULT NULL,
+                product_type TEXT NOT NULL DEFAULT 'support-agent',
                 revoked INTEGER NOT NULL DEFAULT 0,
                 download_count INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -1027,15 +1054,7 @@ function createSqliteAdapter(config) {
             CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_status ON agent_bundle_builds (status);
         `);
         migrateAgentBundleSlugsSqlite(db);
-        try {
-            const cols = new Set(db.prepare('PRAGMA table_info(agent_bundles)').all().map(c => c.name));
-            if (!cols.has('product_type')) {
-                db.exec("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'agent'");
-                console.log('[DB] Migration: added agent_bundles.product_type');
-            }
-        } catch (e) {
-            console.warn('[DB] Migration agent_bundles.product_type error:', e.message);
-        }
+        migrateAgentBundleProductTypesSqlite(db);
     }
 
     // -- Multi-tenancy tables ----------------------------------------------
@@ -3548,7 +3567,15 @@ function createSqliteAdapter(config) {
             const r = db.prepare(`
                 INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by, product_type)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(bundleId, slug || null, name, branding, brandingHash, createdBy || null, productType || 'agent');
+            `).run(
+                bundleId,
+                slug || null,
+                name,
+                branding,
+                brandingHash,
+                createdBy || null,
+                normalizeProductType(productType)
+            );
             return db.prepare('SELECT * FROM agent_bundles WHERE id = ?').get(r.lastInsertRowid);
         },
 
@@ -3597,14 +3624,13 @@ function createSqliteAdapter(config) {
 
         async upsertAgentBundleBuild({ brandingHash, platform, arch, format, status, artifactPath, artifactSize, artifactSha256, errorMessage }) {
             const db = openMain();
-            const ts = (status === 'building') ? "datetime('now')" : 'started_at';
-            const finishTs = (status === 'ready' || status === 'failed') ? "datetime('now')" : 'finished_at';
+            const buildStatus = normalizeBuildStatus(status);
             db.prepare(`
                 INSERT INTO agent_bundle_builds (
                     branding_hash, platform, arch, format, status,
                     artifact_path, artifact_size, artifact_sha256, error_message,
                     started_at, finished_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${status === 'building' ? "datetime('now')" : 'NULL'}, ${status === 'ready' || status === 'failed' ? "datetime('now')" : 'NULL'})
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${buildStatus === 'building' ? "datetime('now')" : 'NULL'}, ${buildStatus === 'ready' || buildStatus === 'failed' ? "datetime('now')" : 'NULL'})
                 ON CONFLICT(branding_hash, platform, arch, format) DO UPDATE SET
                     status = excluded.status,
                     artifact_path = COALESCE(excluded.artifact_path, agent_bundle_builds.artifact_path),
@@ -3615,7 +3641,7 @@ function createSqliteAdapter(config) {
                     finished_at = CASE WHEN excluded.status IN ('ready','failed') THEN datetime('now') ELSE agent_bundle_builds.finished_at END,
                     updated_at = datetime('now')
             `).run(
-                brandingHash, platform, arch, format, status,
+                brandingHash, platform, arch, format, buildStatus,
                 artifactPath || null, artifactSize || 0, artifactSha256 || null, errorMessage || ''
             );
             return this.getAgentBundleBuild({ brandingHash, platform, arch, format });
@@ -4165,6 +4191,7 @@ function createPostgresAdapter() {
                 branding TEXT NOT NULL DEFAULT '{}',
                 branding_hash TEXT NOT NULL DEFAULT '',
                 created_by INTEGER DEFAULT NULL,
+                product_type TEXT NOT NULL DEFAULT 'support-agent',
                 revoked BOOLEAN NOT NULL DEFAULT FALSE,
                 download_count INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -4195,6 +4222,36 @@ function createPostgresAdapter() {
             }
         } catch (e) {
             console.warn('[DB] Migration agent_bundles.slug error:', e.message);
+        }
+        try {
+            const productTypeCols = await all(
+                `SELECT is_nullable, column_default FROM information_schema.columns
+                 WHERE table_name = 'agent_bundles' AND column_name = 'product_type'`
+            );
+            if (productTypeCols.length === 0) {
+                await q("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'support-agent'");
+                console.log('[DB] Migration: added agent_bundles.product_type');
+            } else {
+                await q(`
+                    UPDATE agent_bundles
+                    SET product_type = CASE LOWER(TRIM(COALESCE(product_type, '')))
+                        WHEN 'rdclient' THEN 'rdclient'
+                        WHEN 'agent-client' THEN 'agent-client'
+                        WHEN 'agent_client' THEN 'agent-client'
+                        ELSE 'support-agent'
+                    END
+                    WHERE product_type IS NULL
+                       OR LOWER(TRIM(product_type)) NOT IN ('support-agent', 'agent-client', 'rdclient')
+                `);
+                if (productTypeCols[0].is_nullable === 'YES') {
+                    await q('ALTER TABLE agent_bundles ALTER COLUMN product_type SET NOT NULL');
+                }
+                if (!String(productTypeCols[0].column_default || '').includes('support-agent')) {
+                    await q("ALTER TABLE agent_bundles ALTER COLUMN product_type SET DEFAULT 'support-agent'");
+                }
+            }
+        } catch (e) {
+            console.warn('[DB] Migration agent_bundles.product_type error:', e.message);
         }
         await q(`
             CREATE TABLE IF NOT EXISTS agent_bundle_builds (
@@ -6844,12 +6901,20 @@ function createPostgresAdapter() {
             return excludeBundleId ? row.bundle_id !== excludeBundleId : true;
         },
 
-        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy }) {
+        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy, productType }) {
             return one(`
-                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by, product_type)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING *
-            `, [bundleId, slug || null, name, branding, brandingHash, createdBy || null]);
+            `, [
+                bundleId,
+                slug || null,
+                name,
+                branding,
+                brandingHash,
+                createdBy || null,
+                normalizeProductType(productType),
+            ]);
         },
 
         async updateAgentBundle(bundleId, { name, slug, branding, brandingHash }) {
@@ -6895,6 +6960,7 @@ function createPostgresAdapter() {
         },
 
         async upsertAgentBundleBuild({ brandingHash, platform, arch, format, status, artifactPath, artifactSize, artifactSha256, errorMessage }) {
+            const buildStatus = normalizeBuildStatus(status);
             return one(`
                 INSERT INTO agent_bundle_builds (
                     branding_hash, platform, arch, format, status,
@@ -6915,7 +6981,7 @@ function createPostgresAdapter() {
                     finished_at = CASE WHEN EXCLUDED.status IN ('ready','failed') THEN NOW() ELSE agent_bundle_builds.finished_at END,
                     updated_at = NOW()
                 RETURNING *
-            `, [brandingHash, platform, arch, format, status, artifactPath || null, artifactSize || 0, artifactSha256 || null, errorMessage || '']);
+            `, [brandingHash, platform, arch, format, buildStatus, artifactPath || null, artifactSize || 0, artifactSha256 || null, errorMessage || '']);
         },
 
         // ---- Integration Housekeeping ----

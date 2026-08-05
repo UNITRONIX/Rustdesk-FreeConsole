@@ -11,26 +11,33 @@ import (
 
 // sessionOverlay shows an always-on-top bar during remote sessions.
 type sessionOverlay struct {
-	win      fyne.Window
-	label    *widget.Label
-	operator string
-	start    time.Time
-	ticker   *time.Ticker
-	mu       sync.Mutex
+	win          fyne.Window
+	label        *widget.Label
+	operator     string
+	start        time.Time
+	ticker       *time.Ticker
+	mu           sync.Mutex
+	onDisconnect func()
 }
 
-func newSessionOverlay(app fyne.App, productName string) *sessionOverlay {
-	o := &sessionOverlay{start: time.Now()}
+func newSessionOverlay(app fyne.App, productName string, onDisconnect func()) *sessionOverlay {
+	o := &sessionOverlay{start: time.Now(), onDisconnect: onDisconnect}
 	o.win = app.NewWindow(productName + " — " + t("session_active"))
 	o.win.SetFixedSize(true)
 	o.label = widget.NewLabel("")
 	disconnect := widget.NewButton(t("session_disconnect"), func() {
-		// Operator disconnect is server-side; local user can hide overlay.
+		o.requestDisconnect()
 		o.hide()
 	})
 	o.win.SetContent(container.NewVBox(o.label, disconnect))
 	o.win.SetCloseIntercept(func() { o.win.Hide() })
 	return o
+}
+
+func (o *sessionOverlay) requestDisconnect() {
+	if o.onDisconnect != nil {
+		o.onDisconnect()
+	}
 }
 
 func (o *sessionOverlay) show(operator, mode string) {

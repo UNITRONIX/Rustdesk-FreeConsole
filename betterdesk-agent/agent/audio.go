@@ -32,6 +32,15 @@ func (a *AudioStreamer) Stop() {
 	<-a.done
 }
 
+// audioCodecCapability reports the only audio codec the agent can safely
+// advertise. The current platform capture commands are best-effort probes and
+// emit muxed Ogg chunks, not the packetized Opus media contract CDAP expects.
+// Until a backend produces that contract reliably and is declared in the
+// manifest, audio remains unavailable rather than being falsely negotiated.
+func (a *Agent) audioCodecCapability() string {
+	return CodecNone
+}
+
 func (a *Agent) handleAudioStart(msg *Message) {
 	var p struct {
 		SessionID string `json:"session_id"`
@@ -39,6 +48,14 @@ func (a *Agent) handleAudioStart(msg *Message) {
 	_ = json.Unmarshal(msg.Payload, &p)
 	if p.SessionID == "" {
 		p.SessionID = "default"
+	}
+	if a.audioCodecCapability() == CodecNone {
+		log.Printf("[audio] audio_start rejected: audio is not supported by this agent build")
+		_ = a.sendMessage("audio_end", map[string]any{
+			"session_id": p.SessionID,
+			"reason":     "audio capability unavailable",
+		})
+		return
 	}
 
 	if old, loaded := a.audioStreams.LoadAndDelete(p.SessionID); loaded {

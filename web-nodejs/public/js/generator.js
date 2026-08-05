@@ -251,6 +251,7 @@
         const map = {
             ready: t('generator.build_status_ready', 'Ready'),
             pending: t('generator.build_status_pending', 'Queued'),
+            queued: t('generator.build_status_pending', 'Queued'),
             building: t('generator.build_status_building', 'Building'),
             failed: t('generator.build_status_failed', 'Failed'),
         };
@@ -260,13 +261,16 @@
     function summarizeBuilds(builds) {
         const counts = { ready: 0, pending: 0, building: 0, failed: 0 };
         for (const b of builds || []) {
-            if (counts[b.status] != null) counts[b.status]++;
+            const status = b.status === 'queued' ? 'pending' : b.status;
+            if (counts[status] != null) counts[status]++;
         }
         return counts;
     }
 
     function buildsNeedPoll(builds) {
-        return (builds || []).some(b => b.status === 'pending' || b.status === 'building');
+        return (builds || []).some(
+            (b) => b.status === 'queued' || b.status === 'pending' || b.status === 'building'
+        );
     }
 
     function stopBuildsPoll() {
@@ -485,7 +489,7 @@
             const revokedBadge = bundle.revoked
                 ? `<span class="badge-revoked">${escapeText(t('generator.revoked', 'Revoked'))}</span>`
                 : '';
-            const pt = bundle.product_type || 'agent-client';
+            const pt = bundle.product_type || 'support-agent';
             const productBadge = pt === 'rdclient'
                 ? `<span class="badge-product">${escapeText(t('generator.product_rdclient', 'RdClient'))}</span>`
                 : pt === 'support-agent' || pt === 'agent'
@@ -569,7 +573,7 @@
     function setEditorForBundle(bundle) {
         state.currentId = bundle.bundle_id;
         state.currentBundle = bundle;
-        state.productType = bundle.product_type || 'agent-client';
+        state.productType = bundle.product_type || 'support-agent';
         state.dirty = false;
         state.slugManual = true;
         stopBuildsPoll();

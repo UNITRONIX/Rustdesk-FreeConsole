@@ -15,7 +15,14 @@ const { spawn } = require('child_process');
 
 const db = require('./database');
 const bundleService = require('./agentBundleService');
+const { resolveBundleSigningKeyFile } = require('./bundleSigningKey');
 const config = require('../config/config');
+const { readProductVersion } = require('../lib/productVersion');
+const {
+    PRODUCT_TYPES,
+    normalizeProductType,
+    isQueuedBuildStatus,
+} = require('../lib/generatorBuildTypes');
 
 try {
     const envFile = process.env.BETTERDESK_BUILD_ENV_FILE || '/etc/betterdesk/build.env';
@@ -49,6 +56,7 @@ const BUILD_ORDER = (bundleService.PLATFORMS || []).map(
     (p) => `${p.platform}/${p.arch}/${p.format}`
 );
 const IS_WINDOWS = process.platform === 'win32';
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const VENDORED_GO_BIN = path.join(
     config.dataDir || path.join(__dirname, '..', 'data'),
     'go-toolchain', 'go', 'bin', IS_WINDOWS ? 'go.exe' : 'go'
@@ -224,6 +232,55 @@ function _buildOrderIndex(row) {
     return idx >= 0 ? idx : BUILD_ORDER.length + 1;
 }
 
+function _isSupportAgentBundle(bundle) {
+    return normalizeProductType(bundle?.product_type) === PRODUCT_TYPES.SUPPORT_AGENT;
+}
+
+function _getSupportAgentBuildVersion(opts = {}) {
+    const rootDir = opts.rootDir || PROJECT_ROOT;
+    return readProductVersion({
+        rootDir,
+        consoleDir: opts.consoleDir || path.join(rootDir, 'web-nodejs'),
+        fallback: '0.1.0',
+    });
+}
+
+function _getAgentSourceStamp() {
+    try {
+        return fs.readFileSync(AGENT_SOURCE_STAMP_FILE, 'utf8').trim() || 'unversioned';
+    } catch (_) {
+        return 'unversioned';
+    }
+}
+
+function _buildFingerprint(
+    brandingHash,
+    version = _getSupportAgentBuildVersion(),
+    signingKeyFingerprint = ''
+) {
+    return JSON.stringify({
+        brandingHash,
+        sourceStamp: _getAgentSourceStamp(),
+        version,
+        signingKeyFingerprint,
+    });
+}
+
+async function _injectSupportAgentVersion(workDir, opts = {}) {
+    const version = opts.version || _getSupportAgentBuildVersion(opts);
+    const mainPath = path.join(workDir, 'main.go');
+    const source = await fsp.readFile(mainPath, 'utf8');
+    const next = source.replace(
+        /^(\s*var\s+version\s*=\s*)"[^"]*"/m,
+        `$1"${version}"`
+    );
+    if (next === source) {
+        throw new Error('support-agent version variable not found in build workspace');
+    }
+    await fsp.writeFile(mainPath, next, 'utf8');
+    return version;
+}
+
 function _compileRoot(brandingHash, osName) {
     return path.join(WORK_ROOT, brandingHash, osName);
 }
@@ -290,7 +347,7 @@ async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
             platform: p.platform,
             arch: p.arch,
             format: p.format,
-            status: 'pending',
+            status: 'queued',
             artifactPath: existing?.artifact_path || null,
             artifactSize: existing?.artifact_size || 0,
             artifactSha256: existing?.artifact_sha256 || null,
@@ -299,11 +356,14 @@ async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
     }
 }
 
-/** Queue rebuilds for every non-revoked generator bundle (e.g. after agent source update). */
+/** Queue Support Agent rebuilds after a Support Agent source update. */
 async function requeueAllBundleBuilds() {
     const bundles = await db.listAgentBundles({ includeRevoked: false });
     const hashes = [...new Set(
-        bundles.filter(b => !b.revoked).map(b => b.branding_hash).filter(Boolean)
+        bundles
+            .filter((bundle) => !bundle.revoked && _isSupportAgentBundle(bundle))
+            .map((bundle) => bundle.branding_hash)
+            .filter(Boolean)
     )];
     for (const hash of hashes) {
         await enqueueBuildsForHash(hash, { force: true });
@@ -315,6 +375,7 @@ async function requeueAllBundleBuilds() {
 async function rebuildBundleById(bundleId) {
     const row = await db.getAgentBundle(bundleId);
     if (!row) return { success: false, error: 'not_found' };
+    if (!_isSupportAgentBundle(row)) return { success: false, error: 'not_support_agent' };
     if (!row.branding_hash) return { success: false, error: 'missing_hash' };
     await enqueueBuildsForHash(row.branding_hash, { force: true });
     const platforms = (bundleService.PLATFORMS || []).length;
@@ -328,7 +389,7 @@ async function requeueFailedToolchainBuilds() {
     const bundles = await db.listAgentBundles({ includeRevoked: false });
     let requeued = 0;
     for (const b of bundles) {
-        if (b.revoked) continue;
+        if (b.revoked || !_isSupportAgentBundle(b)) continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         for (const row of builds) {
             const err = String(row.error_message || '');
@@ -339,7 +400,7 @@ async function requeueFailedToolchainBuilds() {
                 platform: row.platform,
                 arch: row.arch,
                 format: row.format,
-                status: 'pending',
+                status: 'queued',
                 artifactPath: row.artifact_path || null,
                 artifactSize: row.artifact_size || 0,
                 artifactSha256: row.artifact_sha256 || null,
@@ -425,7 +486,7 @@ async function requeuePlatformBuild(brandingHash, platform, arch, format) {
         platform,
         arch,
         format,
-        status: 'pending',
+        status: 'queued',
         artifactPath: null,
         artifactSize: 0,
         artifactSha256: null,
@@ -457,6 +518,7 @@ function getBuildWorkerStatus() {
         goHealthy: _goBinaryHealthy(goBin),
         sourceRoot: SOURCE_ROOT,
         sourceStamp,
+        buildVersion: _getSupportAgentBuildVersion(),
         rebuildPending,
         mesaDll: _mesaDllPath() || null,
         msiBuilder: _resolveMsiBuilder(),
@@ -554,7 +616,7 @@ async function reconcileAgentSourceDrift() {
     if (fs.existsSync(REBUILD_FLAG_FILE)) return null;
 
     const bundles = await db.listAgentBundles({ includeRevoked: false });
-    const active = bundles.filter((b) => !b.revoked);
+    const active = bundles.filter((bundle) => !bundle.revoked && _isSupportAgentBundle(bundle));
     if (active.length === 0) return null;
 
     const supportRoot = _agentSourceDirs().supportAgent;
@@ -665,7 +727,7 @@ async function _hasBuildInProgress() {
     if (_activeBuilds > 0) return true;
     const bundles = await db.listAgentBundles();
     for (const b of bundles) {
-        if (b.revoked) continue;
+        if (b.revoked || !_isSupportAgentBundle(b)) continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         if (builds.some((r) => r.status === 'building')) return true;
     }
@@ -682,8 +744,7 @@ async function _claimNextBuild() {
     });
     for (const row of candidates) {
         const bundleRow = await _findBundleForHash(row.branding_hash);
-        const pt = bundleRow?.product_type || 'support-agent';
-        if (pt === 'rdclient' || pt === 'agent-client') continue;
+        if (!bundleRow || !_isSupportAgentBundle(bundleRow)) continue;
         const profile = BUILD_PROFILES[`${row.platform}/${row.arch}/${row.format}`];
         if (!profile) continue;
         await db.upsertAgentBundleBuild({
@@ -706,12 +767,10 @@ async function _listPendingBuilds(limit) {
     const bundles = await db.listAgentBundles();
     const out = [];
     for (const b of bundles) {
-        if (b.revoked) continue;
-        const pt = b.product_type || 'support-agent';
-        if (pt === 'rdclient' || pt === 'agent-client') continue;
+        if (b.revoked || !_isSupportAgentBundle(b)) continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         for (const r of builds) {
-            if (r.status === 'pending') out.push(r);
+            if (isQueuedBuildStatus(r.status)) out.push(r);
             if (out.length >= limit) break;
         }
         if (out.length >= limit) break;
@@ -731,22 +790,32 @@ async function _runOne(buildRow) {
         if (!bundleRow) throw new Error(`no bundle with hash ${buildRow.branding_hash}`);
 
         const branding = JSON.parse(bundleRow.branding || '{}');
+        _assertReleaseSupportProfile(branding);
         const compileDir = _compileRoot(buildRow.branding_hash, profile.os);
         const brandingFile = path.join(compileDir, 'resources', 'branding.json');
         const binaryName = profile.os === 'windows' ? 'betterdesk-support.exe' : 'betterdesk-support';
         const binaryPath = path.join(compileDir, 'dist', binaryName);
+        const buildVersion = _getSupportAgentBuildVersion();
+        const signingKeyFile = await resolveBundleSigningKeyFile({ keysPath: config.keysPath });
+        const signingKeyFingerprint = await _sha256OfFile(signingKeyFile);
+        const buildFingerprint = _buildFingerprint(
+            buildRow.branding_hash,
+            buildVersion,
+            signingKeyFingerprint
+        );
         const shouldCompile = await _needsCompile(
-            compileDir, buildRow.branding_hash, binaryPath, profile.os
+            compileDir, buildFingerprint, binaryPath, profile.os
         );
 
         await _materialiseWorkspace(compileDir, branding, { refreshSources: shouldCompile });
         await _ensureGoToolchain();
 
         if (shouldCompile) {
-            await _runGoBuild(compileDir, brandingFile, binaryPath, profile.os);
+            await _injectSupportAgentVersion(compileDir, { version: buildVersion });
+            await _runGoBuild(compileDir, brandingFile, binaryPath, profile.os, signingKeyFile);
             await fsp.writeFile(
                 path.join(compileDir, '.built_for'),
-                buildRow.branding_hash,
+                buildFingerprint,
                 'utf8'
             );
         } else {
@@ -798,15 +867,37 @@ async function _runOne(buildRow) {
     }
 }
 
+function _assertReleaseSupportProfile(branding) {
+    const issuedAt = Date.parse(String(branding?.profile_issued_at || ''));
+    const expiresAt = Date.parse(String(branding?.profile_expires_at || ''));
+    const endpoints = Array.isArray(branding?.allowed_endpoints) ? branding.allowed_endpoints : [];
+    const required = [
+        branding?.bundle_id,
+        branding?.server?.address,
+        branding?.server?.api_url,
+        branding?.server?.cdap_url,
+    ];
+    if (required.some((value) => !String(value || '').trim())
+        || !Number.isFinite(issuedAt)
+        || !Number.isFinite(expiresAt)
+        || expiresAt <= Math.max(issuedAt, Date.now())
+        || endpoints.length < 3
+        || endpoints.some((endpoint) => !/^https:\/\//i.test(endpoint) && !/^wss:\/\//i.test(endpoint))) {
+        throw new Error(
+            'Support Agent bundle profile is incomplete or expired; save the bundle again to issue a signed HTTPS profile'
+        );
+    }
+}
+
 async function _findBundleForHash(hash) {
     const all = await db.listAgentBundles();
     return all.find(b => b.branding_hash === hash) || null;
 }
 
-async function _needsCompile(workDir, brandingHash, binaryPath, targetOS) {
+async function _needsCompile(workDir, buildFingerprint, binaryPath, targetOS) {
     try {
         const stamp = (await fsp.readFile(path.join(workDir, '.built_for'), 'utf8')).trim();
-        if (stamp !== brandingHash) return true;
+        if (stamp !== buildFingerprint) return true;
         await fsp.access(binaryPath, fs.constants.R_OK);
         if (targetOS === 'linux') {
             const distDir = path.dirname(binaryPath);
@@ -880,7 +971,7 @@ async function _ensureMesaForWindows(workDir) {
     return true;
 }
 
-async function _runGoBuild(workDir, brandingPath, outputPath, targetOS) {
+async function _runGoBuild(workDir, brandingPath, outputPath, targetOS, signingKeyFile) {
     await fsp.mkdir(path.dirname(outputPath), { recursive: true });
     if (targetOS === 'windows') {
         await _ensureMesaForWindows(workDir);
@@ -890,7 +981,13 @@ async function _runGoBuild(workDir, brandingPath, outputPath, targetOS) {
     if (targetOS === 'linux') {
         args.push('-d');
     }
-    await _runProcess('/bin/bash', [buildScript, ...args], { cwd: workDir });
+    if (!signingKeyFile) {
+        throw new Error('Support Agent branding signing key is required');
+    }
+    await _runProcess('/bin/bash', [buildScript, ...args], {
+        cwd: workDir,
+        env: { BETTERDESK_BUNDLE_SIGNING_KEY_FILE: signingKeyFile },
+    });
     await fsp.access(outputPath, fs.constants.R_OK);
     if (targetOS === 'linux') {
         const distDir = path.dirname(outputPath);
@@ -1196,5 +1293,16 @@ module.exports = {
     getGoBin,
     getBuildWorkerStatus,
     classifyBuildError,
-    _internals: { BUILD_PROFILES, BUILD_CACHE_DIR, ARTIFACT_ROOT, SOURCE_ROOT },
+    _internals: {
+        BUILD_PROFILES,
+        BUILD_CACHE_DIR,
+        ARTIFACT_ROOT,
+        SOURCE_ROOT,
+        isSupportAgentBundle: _isSupportAgentBundle,
+        listPendingBuilds: _listPendingBuilds,
+        getSupportAgentBuildVersion: _getSupportAgentBuildVersion,
+        injectSupportAgentVersion: _injectSupportAgentVersion,
+        buildFingerprint: _buildFingerprint,
+        assertReleaseSupportProfile: _assertReleaseSupportProfile,
+    },
 };

@@ -956,6 +956,79 @@ func TestOpenRegisteredInitiatorCanRequestRelay(t *testing.T) {
 	}
 }
 
+func TestInboundOnlyAgentsCannotInitiatePunchOrRelay(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		deviceType string
+		tags       string
+	}{
+		{name: "os_agent type", deviceType: "os_agent"},
+		{name: "support-agent type", deviceType: "support-agent"},
+		{name: "support-agent tag", deviceType: "desktop", tags: "managed,support-agent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+			if err := database.UpsertPeer(&db.Peer{
+				ID:         "AGENTOUT1",
+				DeviceType: tc.deviceType,
+				Tags:       tc.tags,
+				Status:     "ONLINE",
+				IP:         "198.51.100.101",
+			}); err != nil {
+				t.Fatalf("UpsertPeer initiator: %v", err)
+			}
+			putOnlinePeer(srv, "AGENTOUT1", "198.51.100.101", 51000, peer.ConnTCP)
+			putOnlinePeer(srv, "TARGETOUT1", "203.0.113.101", 52000, peer.ConnTCP)
+
+			punch := srv.handlePunchHoleRequestTCP(
+				&pb.PunchHoleRequest{Id: "TARGETOUT1"},
+				udpAddr("198.51.100.101", 51000),
+			)
+			if response := punch.GetPunchHoleResponse(); response == nil || response.Failure != pb.PunchHoleResponse_ID_NOT_EXIST {
+				t.Fatalf("PunchHole response = %+v, want unauthorized rejection", punch)
+			}
+
+			relay := srv.handleRequestRelayTCP(&pb.RequestRelay{
+				Id:   "TARGETOUT1",
+				Uuid: "inbound-only-relay-" + strings.ReplaceAll(tc.name, " ", "-"),
+			}, udpAddr("198.51.100.101", 51000), peer.ConnTCP)
+			if response := relay.GetRelayResponse(); response == nil || response.RefuseReason != refuseInitiatorNotAuthorized {
+				t.Fatalf("RequestRelay response = %+v, want unauthorized rejection", relay)
+			}
+		})
+	}
+}
+
+func TestInboundOnlyAgentCanBeConnectionTarget(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	if err := database.UpsertPeer(&db.Peer{
+		ID:         "CLIENTIN1",
+		DeviceType: "betterdesk",
+		Status:     "ONLINE",
+		IP:         "198.51.100.102",
+	}); err != nil {
+		t.Fatalf("UpsertPeer initiator: %v", err)
+	}
+	if err := database.UpsertPeer(&db.Peer{
+		ID:         "AGENTIN01",
+		DeviceType: "os_agent",
+		Status:     "ONLINE",
+		IP:         "203.0.113.102",
+	}); err != nil {
+		t.Fatalf("UpsertPeer target: %v", err)
+	}
+	putOnlinePeer(srv, "CLIENTIN1", "198.51.100.102", 51000, peer.ConnTCP)
+	putOnlinePeer(srv, "AGENTIN01", "203.0.113.102", 52000, peer.ConnTCP)
+
+	relay := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "AGENTIN01",
+		Uuid: "agent-is-target-relay",
+	}, udpAddr("198.51.100.102", 51000), peer.ConnTCP)
+	if response := relay.GetRelayResponse(); response == nil || response.RefuseReason != "" {
+		t.Fatalf("RequestRelay to inbound-only target = %+v, want accepted", relay)
+	}
+}
+
 func TestPanelProxyLoopbackCanPunchHoleWithoutPeer(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeManaged)
 	putOnlinePeer(srv, "TGTWEB1", "203.0.113.90", 52000, peer.ConnTCP)

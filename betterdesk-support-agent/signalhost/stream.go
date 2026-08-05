@@ -4,33 +4,32 @@ import (
 	"context"
 	"io"
 	"log"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	bdagent "github.com/unitronix/betterdesk-agent/agent"
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
 
-const streamFPS = 15
-
-type streamState struct {
-	forceKeyframe atomic.Bool
-}
-
 // streamSession sends H.264 frames and processes peer input until the connection closes.
-func (h *Host) streamSession(ps *peerSession) error {
+func (h *Host) streamSession(ps *peerSession, codec negotiatedVideoCodec, options *pb.OptionMessage) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	st := &streamState{}
+	st := newStreamState(codec, options)
 	inputDone := make(chan struct{})
 	go func() {
 		defer close(inputDone)
 		h.readPeerInput(ctx, ps, st)
+		// A closed relay must also stop the video encoder. Without this, a
+		// local disconnect closed only the input reader while ffmpeg kept the
+		// session alive until its next unrelated exit.
+		cancel()
 	}()
 
-	err := h.streamH264(ctx, ps, st)
+	var err error
+	if codec == videoCodecH264 {
+		err = h.streamH264(ctx, ps, st)
+	}
 	cancel()
 	<-inputDone
 	return err
@@ -50,68 +49,120 @@ func (h *Host) readPeerInput(ctx context.Context, ps *peerSession, st *streamSta
 			}
 			return
 		}
-		handlePeerMessage(frame, st)
+		h.handlePeerMessage(frame, st)
 	}
 }
 
 func (h *Host) streamH264(ctx context.Context, ps *peerSession, st *streamState) error {
-	args := ffmpegStreamArgs(streamFPS)
-	if len(args) == 0 {
-		return h.streamScreenshotFallback(ctx, ps, st)
-	}
-
-	cmd, stdout, err := startFFmpegCapture(ctx, args)
-	if err != nil {
-		log.Printf("[signalhost] ffmpeg: %v", err)
-		return h.streamScreenshotFallback(ctx, ps, st)
-	}
-	defer func() { _ = cmd.Wait() }()
-
 	var pts int64
-	var writeMu sync.Mutex
-	readAnnexBFrames(ctx, stdout, func(au []byte, keyframe bool) {
-		if st.forceKeyframe.Swap(false) {
-			keyframe = true
+	for {
+		settings := st.settings()
+		args := ffmpegStreamArgsForQuality(settings.fps, settings.quality)
+		if len(args) == 0 {
+			return h.streamScreenshotFallback(ctx, ps, st)
 		}
-		vf := videoFrameH264(au, keyframe, pts)
-		writeMu.Lock()
-		err := ps.write(vf)
-		writeMu.Unlock()
+
+		encoderCtx, cancelEncoder := context.WithCancel(ctx)
+		cmd, stdout, err := startFFmpegCapture(encoderCtx, args)
 		if err != nil {
-			log.Printf("[signalhost] video frame: %v", err)
+			cancelEncoder()
+			log.Printf("[signalhost] ffmpeg: %v", err)
+			return h.streamScreenshotFallback(ctx, ps, st)
 		}
-		pts++
-	})
-	return nil
+		st.markEncoderStarted(time.Now())
+
+		done := make(chan error, 1)
+		go func() {
+			var writeErr error
+			readAnnexBFrames(encoderCtx, stdout, func(au []byte, keyframe bool) {
+				if writeErr != nil {
+					return
+				}
+				started := time.Now()
+				if err := ps.write(videoFrameH264(au, keyframe, pts)); err != nil {
+					writeErr = err
+					cancelEncoder()
+					return
+				}
+				pts++
+				st.observeWrite(time.Since(started))
+			})
+			done <- writeErr
+		}()
+
+		select {
+		case <-ctx.Done():
+			cancelEncoder()
+			<-done
+			_ = cmd.Wait()
+			return nil
+		case <-st.reconfigure:
+			cancelEncoder()
+			writeErr := <-done
+			_ = cmd.Wait()
+			if writeErr != nil {
+				return writeErr
+			}
+			if ctx.Err() != nil {
+				return nil
+			}
+			continue
+		case writeErr := <-done:
+			cancelEncoder()
+			waitErr := cmd.Wait()
+			if writeErr != nil {
+				return writeErr
+			}
+			if ctx.Err() != nil {
+				return nil
+			}
+			if waitErr != nil {
+				log.Printf("[signalhost] H.264 capture ended: %v", waitErr)
+			}
+			return h.streamScreenshotFallback(ctx, ps, st)
+		}
+	}
 }
 
 func (h *Host) streamScreenshotFallback(ctx context.Context, ps *peerSession, st *streamState) error {
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
 	var pts int64
 	for {
+		settings := st.settings()
+		timer := time.NewTimer(frameInterval(settings.fps))
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			return nil
-		case <-ticker.C:
-			jpeg, err := bdagent.CaptureScreenshotJPEG()
-			if err != nil || len(jpeg) == 0 {
-				continue
+		case <-st.reconfigure:
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
 			}
-			au, key, encErr := encodeJPEGToH264(ctx, jpeg)
-			if encErr != nil || len(au) == 0 {
-				continue
-			}
-			if st.forceKeyframe.Load() {
-				key = true
-				st.forceKeyframe.Store(false)
-			}
-			if err := ps.write(videoFrameH264(au, key, pts)); err != nil {
-				return err
-			}
-			pts++
+			continue
+		case <-timer.C:
 		}
+
+		jpeg, err := bdagent.CaptureScreenshotJPEG()
+		if err != nil || len(jpeg) == 0 {
+			continue
+		}
+		au, key, encErr := encodeJPEGToH264(ctx, jpeg, settings.quality)
+		if encErr != nil || len(au) == 0 {
+			continue
+		}
+		started := time.Now()
+		if err := ps.write(videoFrameH264(au, key, pts)); err != nil {
+			return err
+		}
+		pts++
+		st.observeWrite(time.Since(started))
 	}
 }
 

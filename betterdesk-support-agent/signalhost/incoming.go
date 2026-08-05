@@ -1,18 +1,20 @@
 package signalhost
 
 import (
-	"bytes"
+	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"runtime"
+	"strings"
 	"time"
 
-	pb "github.com/unitronix/betterdesk-server/proto"
 	"github.com/unitronix/betterdesk-server/codec"
+	pb "github.com/unitronix/betterdesk-server/proto"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -21,7 +23,10 @@ const (
 	publicKeyWait       = 1500 * time.Millisecond
 )
 
-func (h *Host) handleIncomingRelay(relayServer, uuid string) {
+func (h *Host) handleIncomingRelay(ctx context.Context, relayServer, uuid string) {
+	if ctx.Err() != nil || !h.accessAllowed() {
+		return
+	}
 	addr := relayServer
 	if !hasPort(addr) {
 		addr = net.JoinHostPort(addr, "21117")
@@ -30,12 +35,18 @@ func (h *Host) handleIncomingRelay(relayServer, uuid string) {
 		addr = h.cfg.RelayAddr
 	}
 
-	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
+	conn, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", addr)
 	if err != nil {
-		log.Printf("[signalhost] relay dial: %v", err)
+		if ctx.Err() == nil {
+			log.Printf("[signalhost] relay dial: %v", err)
+		}
 		return
 	}
 	defer conn.Close()
+	if !h.trackRelay(conn) {
+		return
+	}
+	defer h.untrackRelay(conn)
 
 	req := &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_RequestRelay{
@@ -78,6 +89,13 @@ func hasPort(hostport string) bool {
 }
 
 func (h *Host) runPeerSession(conn net.Conn) error {
+	if !h.accessAllowed() {
+		return fmt.Errorf("remote access disabled")
+	}
+	identity := h.hostIdentity()
+	if identity == nil || len(identity.secretKey) == 0 {
+		return fmt.Errorf("host identity is unavailable")
+	}
 	ephemeral, err := generateEphemeralKeyPair()
 	if err != nil {
 		return err
@@ -85,7 +103,7 @@ func (h *Host) runPeerSession(conn net.Conn) error {
 
 	ps := newPeerSession(conn)
 
-	signedID, err := buildSignedID(h.cfg.DeviceID, ephemeral.public)
+	signedID, err := buildSignedID(h.cfg.DeviceID, ephemeral.public, identity.secretKey)
 	if err != nil {
 		return err
 	}
@@ -94,9 +112,10 @@ func (h *Host) runPeerSession(conn net.Conn) error {
 	}
 	log.Printf("[signalhost] sent SignedId (device=%s)", h.cfg.DeviceID)
 
-	// RustDesk initiators send PublicKey; RDClient waits for plaintext Hash.
+	// A session must establish the authenticated encrypted channel before
+	// credentials or desktop data are exchanged. There is no plaintext fallback.
 	if err := h.waitPublicKey(ps, ephemeral); err != nil {
-		log.Printf("[signalhost] plaintext relay mode: %v", err)
+		return fmt.Errorf("authenticated key exchange: %w", err)
 	}
 
 	salt := randomToken()
@@ -118,21 +137,33 @@ func (h *Host) runPeerSession(conn net.Conn) error {
 	if operator == "" {
 		operator = login.GetMyId()
 	}
+	if h.auth != nil && !h.auth.allow(operator) {
+		_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			Union: &pb.LoginResponse_Error{Error: "Too many authentication attempts"},
+		}}})
+		return fmt.Errorf("authentication temporarily locked")
+	}
 
 	pw := ""
 	if h.cfg.Password != nil {
 		pw = h.cfg.Password()
 	}
-	unattended := h.cfg.Unattended != nil && h.cfg.Unattended()
+	pw = strings.TrimSpace(pw)
 
-	if pw != "" {
-		expected := hashPassword(pw, salt, challenge)
-		if !bytes.Equal(login.GetPassword(), expected[:]) {
-			_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
-				Union: &pb.LoginResponse_Error{Error: "Wrong Password"},
-			}}})
-			return fmt.Errorf("wrong password")
+	if pw == "" {
+		_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			Union: &pb.LoginResponse_Error{Error: "Access password unavailable"},
+		}}})
+		return fmt.Errorf("local access password is empty")
+	}
+	if !validLoginPassword(pw, salt, challenge, login.GetPassword()) {
+		if h.auth != nil {
+			h.auth.failure(operator)
 		}
+		_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			Union: &pb.LoginResponse_Error{Error: "Wrong Password"},
+		}}})
+		return fmt.Errorf("wrong password")
 	}
 
 	if h.cfg.TOTPEnabled != nil && h.cfg.TOTPEnabled() {
@@ -147,20 +178,46 @@ func (h *Host) runPeerSession(conn net.Conn) error {
 		}
 		auth2fa := authFrame.GetAuth_2Fa()
 		if auth2fa == nil || h.cfg.TOTPVerify == nil || !h.cfg.TOTPVerify(auth2fa.GetCode()) {
+			if h.auth != nil {
+				h.auth.failure(operator)
+			}
 			_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
 				Union: &pb.LoginResponse_Error{Error: "Wrong 2FA code"},
 			}}})
 			return fmt.Errorf("wrong 2fa code")
 		}
 	}
+	if h.auth != nil {
+		h.auth.success(operator)
+	}
 
-	if !unattended && h.cfg.Consent != nil {
-		if !h.cfg.Consent(operator) {
-			_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
-				Union: &pb.LoginResponse_Error{Error: "Connection denied"},
-			}}})
-			return fmt.Errorf("consent denied")
-		}
+	if !h.accessAllowed() {
+		_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			Union: &pb.LoginResponse_Error{Error: "Remote access disabled"},
+		}}})
+		return fmt.Errorf("remote access disabled")
+	}
+
+	if !h.authorizesOperator(operator) {
+		_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			Union: &pb.LoginResponse_Error{Error: "Connection denied"},
+		}}})
+		return fmt.Errorf("consent denied")
+	}
+	if !h.accessAllowed() {
+		_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			Union: &pb.LoginResponse_Error{Error: "Remote access disabled"},
+		}}})
+		return fmt.Errorf("remote access disabled")
+	}
+
+	encoding := advertisedVideoEncoding()
+	codec := negotiateVideoCodec(encoding, login.GetOption().GetSupportedDecoding())
+	if codec == videoCodecNone {
+		_ = ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
+			Union: &pb.LoginResponse_Error{Error: "No mutually supported desktop video codec"},
+		}}})
+		return fmt.Errorf("no mutually supported desktop video codec")
 	}
 
 	if h.cfg.OnSession != nil {
@@ -168,15 +225,27 @@ func (h *Host) runPeerSession(conn net.Conn) error {
 		defer h.cfg.OnSession(false, operator)
 	}
 
-	peerInfo, _, _ := buildPeerInfo(h.cfg.DeviceID)
+	peerInfo, _, _ := buildPeerInfo(h.cfg.DeviceID, encoding)
 	if err := ps.write(&pb.Message{Union: &pb.Message_LoginResponse{LoginResponse: &pb.LoginResponse{
 		Union: &pb.LoginResponse_PeerInfo{PeerInfo: peerInfo},
 	}}}); err != nil {
 		return err
 	}
-	log.Printf("[signalhost] authenticated operator=%s encrypted=%v platform=%s", operator, ps.encrypted, runtime.GOOS)
+	log.Printf("[signalhost] authenticated operator=%s encrypted=%v platform=%s codec=%s", operator, ps.encrypted, runtime.GOOS, codec)
 
-	return h.streamSession(ps)
+	return h.streamSession(ps, codec, login.GetOption())
+}
+
+// authorizesOperator evaluates the current local policy immediately before a
+// session starts. A non-unattended host must fail closed when no local consent
+// callback is available; accepting the password alone would bypass supervised
+// mode. Re-evaluating Unattended here also prevents a policy change during the
+// login exchange from retaining an earlier unattended decision.
+func (h *Host) authorizesOperator(operator string) bool {
+	if h.cfg.Unattended != nil && h.cfg.Unattended() {
+		return true
+	}
+	return h.cfg.Consent != nil && h.cfg.Consent(operator)
 }
 
 func (h *Host) waitPublicKey(ps *peerSession, ephemeral ephemeralKeyPair) error {
@@ -211,4 +280,13 @@ func randomToken() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+func validLoginPassword(password, salt, challenge string, provided []byte) bool {
+	password = strings.TrimSpace(password)
+	if password == "" {
+		return false
+	}
+	expected := hashPassword(password, salt, challenge)
+	return subtle.ConstantTimeCompare(provided, expected[:]) == 1
 }

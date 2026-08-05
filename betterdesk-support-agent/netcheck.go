@@ -109,12 +109,7 @@ func httpGet(endpoint string) ([]byte, time.Duration, error) {
 		return nil, 0, err
 	}
 
-	client := &http.Client{Timeout: 8 * time.Second}
-	if strings.HasPrefix(endpoint, "https://") {
-		client.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: tlsInsecureEnabled()}, //nolint:gosec
-		}
-	}
+	client := healthHTTPClient(endpoint)
 
 	start := time.Now()
 	resp, err := client.Do(req)
@@ -137,4 +132,14 @@ func httpGet(endpoint string) ([]byte, time.Duration, error) {
 		}
 	}
 	return buf, latency, nil
+}
+
+func healthHTTPClient(endpoint string) *http.Client {
+	client := &http.Client{Timeout: 8 * time.Second}
+	if strings.HasPrefix(endpoint, "https://") && tlsInsecureEnabled() {
+		client.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // opt-in dev only
+		}
+	}
+	return client
 }

@@ -203,7 +203,13 @@ function validateBranding(input = {}) {
     } else {
         errors.push('server_host_required');
     }
-    out.use_https = !!(input.use_https ?? input.useHttps ?? conn.defaultUseHttps());
+    out.use_https = !!(input.use_https ?? input.useHttps ?? true);
+    // Console-generated artifacts are always distributed release builds. A
+    // local developer can use a non-release `go build` profile, but the
+    // production generator must never issue an HTTP/WS bundle.
+    if (!out.use_https) {
+        errors.push('https_required');
+    }
 
     // Never accept enrollment_token from the browser — issued by backend only.
     if (input.server && typeof input.server === 'object') {
@@ -359,7 +365,7 @@ function defaultBranding() {
         },
         default_lang: 'en',
         server_host: '',
-        use_https: conn.defaultUseHttps(),
+        use_https: true,
         server: { address: '', api_url: '', public_key: '' },
     };
 }

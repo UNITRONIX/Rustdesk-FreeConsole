@@ -348,6 +348,9 @@ func av1IsKeyframe(f []byte) bool {
 		hasSize := (hdr >> 1) & 0x01
 		i++
 		if extFlag == 1 {
+			if i >= len(f) {
+				return false
+			}
 			i++ // extension header byte
 		}
 		var size int

@@ -174,7 +174,20 @@ func monitorsSwaymsg() []MonitorInfo {
 // to install to make screen capture work on this Linux machine.
 func desktopCaptureHint() string {
 	if isWaylandSession() {
-		return "Install gst-plugins-good and pipewire (Wayland) or grant the screen-capture portal permission, e.g. 'sudo dnf install gstreamer1-plugins-good gstreamer1-plugin-pipewire' on Fedora/Nobara."
+		readiness := detectWaylandPortalReadiness()
+		switch {
+		case readiness.Portal && readiness.PipeWire:
+			return "Wayland Portal and PipeWire are available, but this build does not yet implement the required OpenPipeWireRemote file-descriptor bridge. Live portal capture is disabled; install grim or wayshot for screenshot fallback, or use an X11 session."
+		case readiness.Portal:
+			return "Wayland Portal is available but PipeWire is not reachable in this session. Live portal capture is disabled; install grim or wayshot for screenshot fallback, or use an X11 session."
+		case readiness.PipeWire:
+			return "PipeWire is available but no XDG Desktop Portal service was detected. Live Wayland capture is disabled; install grim or wayshot for screenshot fallback, or use an X11 session."
+		default:
+			return "No usable XDG Desktop Portal/PipeWire pair was detected for this Wayland session. Install grim or wayshot for screenshot fallback, or use an X11 session."
+		}
+	}
+	if !hasX11Display() {
+		return "No graphical X11 display is available to this agent process. Start it in the logged-in desktop session with $DISPLAY set."
 	}
 	return "Install ffmpeg or scrot/grim/imagemagick (e.g. 'sudo apt install ffmpeg' or 'sudo dnf install ffmpeg') and ensure $DISPLAY is set."
 }

@@ -19,6 +19,10 @@ const (
 	RoleOperator = "operator"
 	RoleViewer   = "viewer"
 	RolePro      = "pro" // API-only RustDesk PRO activation; no device access
+
+	// RoleDevice is an internal, device-scoped principal used for authenticated
+	// agents. It is intentionally not a user-assignable role.
+	RoleDevice = "device"
 )
 
 // RoleLevel returns the numeric privilege level for a role.
@@ -37,6 +41,8 @@ func RoleLevel(role string) int {
 	case RoleViewer:
 		return 1
 	case RolePro:
+		return 0
+	case RoleDevice:
 		return 0
 	default:
 		return 0
@@ -80,7 +86,17 @@ func CanAssignRole(callerRole, targetRole string) bool {
 // HasPermission returns true if userRole has at least the privileges of requiredRole.
 // Kept for backward compatibility — prefer requirePermission middleware.
 func HasPermission(userRole, requiredRole string) bool {
+	// A device credential must never satisfy a user-role check merely because
+	// both roles have the same numeric level.
+	if IsDeviceRole(userRole) {
+		return userRole == requiredRole
+	}
 	return RoleLevel(userRole) >= RoleLevel(requiredRole)
+}
+
+// IsDeviceRole reports whether role is the internal device-only principal.
+func IsDeviceRole(role string) bool {
+	return role == RoleDevice
 }
 
 // ValidRole returns true if the given string is a recognised role.

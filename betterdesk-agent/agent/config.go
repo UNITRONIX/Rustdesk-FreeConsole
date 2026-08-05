@@ -50,10 +50,15 @@ type Config struct {
 	HwAccel string `json:"hw_accel,omitempty"`
 
 	// Lifecycle callbacks for embedded UIs (support agent, tests).
-	ConsentHandler      func(sessionID, operator string) bool
-	SessionStartHandler func(sessionID, operator, mode string)
-	SessionEndHandler   func(sessionID string)
-	ChatMessageHandler  func(fromName, text string)
+	ConsentHandler func(sessionID, operator string) bool
+	// SessionAuthorizeHandler is called before consent and before any desktop
+	// stream is started. Embedded products use it to verify a short-lived,
+	// target-bound server grant without coupling this shared agent to a
+	// particular authorization implementation.
+	SessionAuthorizeHandler func(sessionID, operator, transport string, capabilities []string, grant string) error
+	SessionStartHandler     func(sessionID, operator, mode string)
+	SessionEndHandler       func(sessionID string)
+	ChatMessageHandler      func(fromName, text string)
 
 	// ── TLS hardening (Phase 4) ──────────────────────────────────────
 	// EnforceTLS rejects plaintext ws:// for any non-local host (returns an

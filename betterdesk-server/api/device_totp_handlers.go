@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/unitronix/betterdesk-server/auth"
+	"github.com/unitronix/betterdesk-server/db"
 )
 
 type deviceTOTPStatus struct {
@@ -14,21 +15,33 @@ type deviceTOTPStatus struct {
 	Secret  string `json:"secret,omitempty"`
 }
 
-func deviceTokenPeerID(s *Server, deviceID, token string) (string, bool) {
-	if deviceID == "" || token == "" {
-		return "", false
+// hasBoundActiveDeviceToken verifies a credential used by a device self-service
+// endpoint. Enrollment tokens are intentionally allowed to be unbound while a
+// device is enrolling, but they must never authorize actions as an enrolled
+// device before they are active and tied to that exact peer.
+func (s *Server) hasBoundActiveDeviceToken(deviceID, token string) bool {
+	if s.db == nil || deviceID == "" || token == "" {
+		return false
 	}
 	dt, err := s.db.ValidateToken(hashToken(token))
-	if err != nil || dt == nil {
-		return "", false
+	if err != nil || dt == nil || dt.Status != db.TokenStatusActive || dt.PeerID != deviceID {
+		return false
 	}
-	if dt.PeerID != "" && dt.PeerID != deviceID {
+	peer, err := s.db.GetPeer(deviceID)
+	return err == nil && peer != nil && !peer.Banned && !peer.SoftDeleted
+}
+
+func deviceTokenPeerID(s *Server, deviceID, token string) (string, bool) {
+	if !s.hasBoundActiveDeviceToken(deviceID, token) {
 		return "", false
 	}
 	return deviceID, true
 }
 
-// GET/POST /api/devices/self/totp
+// POST /api/devices/self/totp
+//
+// Device credentials and TOTP codes are accepted only in the JSON body. Query
+// parameters are routinely captured by proxies, browser history, and logs.
 func (s *Server) handleDeviceSelfTOTP(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		DeviceID    string `json:"device_id"`
@@ -36,17 +49,14 @@ func (s *Server) handleDeviceSelfTOTP(w http.ResponseWriter, r *http.Request) {
 		Action      string `json:"action"`
 		Code        string `json:"code"`
 	}
-	if r.Method == http.MethodPost {
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
-			return
-		}
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
-	if body.DeviceID == "" {
-		body.DeviceID = r.URL.Query().Get("device_id")
-	}
-	if body.DeviceToken == "" {
-		body.DeviceToken = r.URL.Query().Get("device_token")
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
 	}
 	if _, ok := deviceTokenPeerID(s, body.DeviceID, body.DeviceToken); !ok {
 		http.Error(w, "invalid device token", http.StatusForbidden)
@@ -55,13 +65,6 @@ func (s *Server) handleDeviceSelfTOTP(w http.ResponseWriter, r *http.Request) {
 
 	enabledKey := "device_totp_enabled_" + body.DeviceID
 	secretKey := "device_totp_secret_" + body.DeviceID
-
-	if r.Method == http.MethodGet {
-		enabled, _ := s.db.GetConfig(enabledKey)
-		resp := deviceTOTPStatus{Enabled: enabled == "true"}
-		writeDeviceJSON(w, resp)
-		return
-	}
 
 	switch strings.ToLower(strings.TrimSpace(body.Action)) {
 	case "setup":

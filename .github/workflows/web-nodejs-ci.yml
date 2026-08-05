@@ -40,5 +40,8 @@ jobs:
       - name: Check browser JavaScript syntax
         run: npm run check:frontend
 
+      - name: Verify protocol schema artifacts
+        run: npm run protocols:check
+
       - name: Run tests
         run: npm run test:ci

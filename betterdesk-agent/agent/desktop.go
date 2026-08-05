@@ -128,15 +128,20 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	}
 
 	var p struct {
-		SessionID    string   `json:"session_id"`
-		Quality      int      `json:"quality"`
-		FPS          int      `json:"fps"`
-		OperatorName string   `json:"operator_name"`
+		SessionID    string `json:"session_id"`
+		Quality      int    `json:"quality"`
+		FPS          int    `json:"fps"`
+		OperatorName string `json:"operator_name"`
 		// VideoCodec is the operator's preferred codec ("", "auto" or concrete).
 		VideoCodec string `json:"video_codec"`
 		// Codecs is the list of codecs the operator can DECODE. A legacy operator
 		// omits this, in which case only JPEG is assumed and used.
 		Codecs []string `json:"codecs"`
+		// SessionGrant and Capabilities are injected by the BetterDesk CDAP
+		// gateway for passive Support Agent sessions. They are intentionally
+		// opaque to this shared package.
+		SessionGrant string   `json:"session_grant,omitempty"`
+		Capabilities []string `json:"capabilities,omitempty"`
 	}
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
 		return
@@ -154,6 +159,21 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	if p.OperatorName == "" {
 		p.OperatorName = "operator"
 	}
+	if a.cfg.SessionAuthorizeHandler != nil {
+		if err := a.cfg.SessionAuthorizeHandler(
+			p.SessionID,
+			p.OperatorName,
+			"cdap",
+			p.Capabilities,
+			p.SessionGrant,
+		); err != nil {
+			_ = a.sendMessage("desktop_authorization_denied", map[string]any{
+				"session_id": p.SessionID,
+			})
+			log.Printf("[desktop] authorization denied for session %s: %v", p.SessionID, err)
+			return
+		}
+	}
 
 	// ── Consent gate ─────────────────────────────────────────────────────────
 	if !a.requestRemoteConsent(p.SessionID, p.OperatorName, "desktop") {
@@ -165,13 +185,22 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 	log.Printf("[desktop] Consent granted for session %s", p.SessionID)
 
 	// Stop any existing session for this session ID.
-	if old, loaded := a.desktopStreams.LoadAndDelete(p.SessionID); loaded {
+	a.desktopControlMu.Lock()
+	old, loaded := a.desktopStreams.LoadAndDelete(p.SessionID)
+	a.desktopControlMu.Unlock()
+	if loaded {
 		old.(*DesktopStreamer).Stop()
 	}
+	// Desktop controls are scoped to one capture session. Never carry a
+	// previous operator's block/clipboard/lock choices into a new session
+	// that happens to reuse the same ID.
+	a.desktopControlMu.Lock()
+	a.resetSessionFlags(p.SessionID)
 
 	ctx, cancel := context.WithCancel(a.ctx)
 	streamer := newDesktopStreamer(p.SessionID, cancel)
 	a.desktopStreams.Store(p.SessionID, streamer)
+	a.desktopControlMu.Unlock()
 
 	// Notify embedded UI or Tauri wrapper about active session.
 	modeLabel := sessionModeLabel(a.cfg.RequireConsent)
@@ -183,11 +212,12 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 			p.SessionID, p.OperatorName, modeLabel)
 	}
 
-	// Send the monitor list as soon as the session is accepted so the
-	// operator's toolbar can populate its dropdown before any frames
-	// arrive. Errors here are non-fatal — single-monitor placeholder is
-	// emitted by enumerateMonitors() on platforms without a backend.
-	monitors := enumerateMonitors()
+	// This stream has one stable capture source. Physical-monitor switching
+	// would require a coordinated capture-process restart and coordinate
+	// remapping; neither is safe to claim until every platform backend
+	// implements it. Advertise the actual single source rather than a list
+	// whose selected state cannot be enforced.
+	monitors := currentCaptureMonitorList()
 	_ = a.sendMessage("monitor_list", map[string]any{
 		"session_id": p.SessionID,
 		"monitors":   monitors,
@@ -208,7 +238,7 @@ func (a *Agent) handleDesktopStart(msg *Message) {
 
 	go func() {
 		defer close(streamer.done)
-		defer a.desktopStreams.Delete(p.SessionID)
+		defer a.finishDesktopStream(p.SessionID, streamer)
 		// Always emit SESSION_END (matched to the SESSION_START above) when
 		// the streamer goroutine exits, no matter the reason — stop request,
 		// operator disconnect, or watchdog failure. The overlay state machine
@@ -268,19 +298,34 @@ func (a *Agent) handleDesktopStop(msg *Message) {
 	if err := json.Unmarshal(msg.Payload, &p); err != nil || p.SessionID == "" {
 		p.SessionID = "default"
 	}
+	p.SessionID = normalizeDesktopSessionID(p.SessionID)
 
-	if sess, loaded := a.desktopStreams.LoadAndDelete(p.SessionID); loaded {
+	a.desktopControlMu.Lock()
+	sess, loaded := a.desktopStreams.LoadAndDelete(p.SessionID)
+	a.desktopControlMu.Unlock()
+	if loaded {
 		sess.(*DesktopStreamer).Stop()
 		log.Printf("[desktop] Stopped session %s", p.SessionID)
 	}
 }
 
-// handleMonitorSelect updates the active monitor index for a streaming
-// session and re-emits the monitor list so the operator's UI reflects the
-// new selection. Region-aware capture switching (cropping ffmpeg's input
-// to the chosen monitor) is wired in a follow-up — for now any selected
-// monitor still streams the whole virtual desktop, but the toolbar's
-// active state is correct so the dropdown is usable.
+// currentCaptureMonitorList describes the one source this stream can
+// truthfully expose. It intentionally does not reuse enumerateMonitors:
+// listing physical displays implies that monitor_select can switch to them.
+func currentCaptureMonitorList() []MonitorInfo {
+	return []MonitorInfo{{
+		Index:   0,
+		Name:    "Current capture",
+		Primary: true,
+	}}
+}
+
+// handleMonitorSelect preserves the actual active state. Capture pipelines
+// are long-lived processes; changing their crop/input at runtime would need a
+// coordinated restart and input-coordinate remapping that is not implemented
+// consistently across Windows, macOS, X11, and Wayland. Do not claim a
+// requested physical monitor is active when the existing process still emits
+// the original source.
 func (a *Agent) handleMonitorSelect(msg *Message) {
 	var p struct {
 		SessionID string `json:"session_id"`
@@ -292,24 +337,19 @@ func (a *Agent) handleMonitorSelect(msg *Message) {
 	if p.SessionID == "" {
 		p.SessionID = "default"
 	}
+	p.SessionID = normalizeDesktopSessionID(p.SessionID)
 	if _, ok := a.desktopStreams.Load(p.SessionID); !ok {
 		return
 	}
-	monitors := enumerateMonitors()
-	active := p.Index
-	if active < 0 || active >= len(monitors) {
-		active = 0
-	}
-	if sess, ok := a.desktopStreams.Load(p.SessionID); ok {
-		sess.(*DesktopStreamer).monitor.Store(int32(active))
-	}
+	monitors := currentCaptureMonitorList()
 	_ = a.sendMessage("monitor_list", map[string]any{
 		"session_id": p.SessionID,
 		"monitors":   monitors,
-		"active":     active,
+		"active":     0,
 	})
-	log.Printf("[desktop] Active monitor for session %s set to %d (%s)",
-		p.SessionID, active, monitors[active].Name)
+	if p.Index != 0 {
+		log.Printf("[desktop] Ignored monitor_select=%d for session %s: capture switching is unavailable", p.Index, p.SessionID)
+	}
 }
 
 // monitorCropFilter returns an ffmpeg -vf crop filter for the given monitor index.
@@ -344,7 +384,6 @@ func (a *Agent) captureAndSendScreenshot() (any, error) {
 // handleCodecOffer responds with the agent's actual encoding capabilities,
 // probed live (available ffmpeg encoders + validated hardware back-ends). The
 // operator picks one of these and the agent honours it at desktop_start time.
-// Audio is never supported in os_agent mode.
 func (a *Agent) handleCodecOffer(msg *Message) {
 	var p struct {
 		SessionID string `json:"session_id"`
@@ -352,17 +391,20 @@ func (a *Agent) handleCodecOffer(msg *Message) {
 	_ = json.Unmarshal(msg.Payload, &p)
 
 	caps := a.videoCapabilities()
-	primary := ""
-	if len(caps) > 0 {
-		primary = caps[0]
-	}
+	_ = a.sendMessage("codec_answer", codecAnswerPayload(p.SessionID, caps, a.audioCodecCapability()))
+}
 
-	_ = a.sendMessage("codec_answer", map[string]any{
-		"session_id":   p.SessionID,
+func codecAnswerPayload(sessionID string, videoCaps []string, audioCodec string) map[string]any {
+	primary := ""
+	if len(videoCaps) > 0 {
+		primary = videoCaps[0]
+	}
+	return map[string]any{
+		"session_id":   sessionID,
 		"video_codec":  primary,
-		"video_codecs": caps,
-		"audio_codec":  "opus",
-	})
+		"video_codecs": videoCaps,
+		"audio_codec":  audioCodec,
+	}
 }
 
 // ── Streaming logic ──────────────────────────────────────────────────────

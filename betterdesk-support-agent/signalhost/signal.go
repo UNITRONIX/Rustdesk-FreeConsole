@@ -2,6 +2,7 @@ package signalhost
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 	"time"
@@ -15,12 +16,20 @@ const (
 	udpTimeout        = 3 * time.Second
 )
 
+var errAccessDisabled = errors.New("incoming access disabled")
+
 func (h *Host) runLoop(ctx context.Context) {
 	for {
 		if ctx.Err() != nil {
 			return
 		}
+		if !h.accessAllowed() {
+			return
+		}
 		if err := h.runUDP(ctx); err != nil {
+			if errors.Is(err, errAccessDisabled) {
+				return
+			}
 			log.Printf("[signalhost] loop error: %v", err)
 		}
 		select {
@@ -32,16 +41,29 @@ func (h *Host) runLoop(ctx context.Context) {
 }
 
 func (h *Host) runUDP(ctx context.Context) error {
+	if !h.accessAllowed() {
+		return errAccessDisabled
+	}
 	id, err := loadIdentity(h.cfg.DataDir, "")
 	if err != nil {
 		return err
 	}
+	h.setIdentity(id)
 
 	conn, err := net.Dial("udp", h.cfg.SignalAddr)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+	closeWatcher := make(chan struct{})
+	defer close(closeWatcher)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-closeWatcher:
+		}
+	}()
 	_ = conn.SetDeadline(time.Time{})
 
 	var serial int32
@@ -66,7 +88,7 @@ func (h *Host) runUDP(ctx context.Context) error {
 	_ = conn.SetReadDeadline(time.Now().Add(udpTimeout))
 	buf := make([]byte, 4096)
 	if n, err := conn.Read(buf); err == nil {
-		h.handleUDPMessage(conn, id, buf[:n])
+		h.handleUDPMessage(ctx, conn, id, buf[:n])
 	}
 
 	ticker := time.NewTicker(heartbeatInterval)
@@ -77,10 +99,16 @@ func (h *Host) runUDP(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
+			if !h.accessAllowed() {
+				return errAccessDisabled
+			}
 			if err := sendRegister(); err != nil {
 				return err
 			}
 		default:
+		}
+		if !h.accessAllowed() {
+			return errAccessDisabled
 		}
 
 		_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
@@ -91,11 +119,14 @@ func (h *Host) runUDP(ctx context.Context) error {
 			}
 			return err
 		}
-		h.handleUDPMessage(conn, id, buf[:n])
+		h.handleUDPMessage(ctx, conn, id, buf[:n])
 	}
 }
 
-func (h *Host) handleUDPMessage(conn net.Conn, id *identity, data []byte) {
+func (h *Host) handleUDPMessage(ctx context.Context, conn net.Conn, id *identity, data []byte) {
+	if !h.accessAllowed() {
+		return
+	}
 	msg, err := codec.DecodeUDP(data)
 	if err != nil {
 		return
@@ -108,7 +139,7 @@ func (h *Host) handleUDPMessage(conn net.Conn, id *identity, data []byte) {
 	case *pb.RendezvousMessage_RelayResponse:
 		rr := u.RelayResponse
 		if rr.GetUuid() != "" && rr.GetRelayServer() != "" {
-			go h.handleIncomingRelay(rr.GetRelayServer(), rr.GetUuid())
+			go h.handleIncomingRelay(ctx, rr.GetRelayServer(), rr.GetUuid())
 		}
 	case *pb.RendezvousMessage_RequestRelay:
 		rr := u.RequestRelay
@@ -117,7 +148,7 @@ func (h *Host) handleUDPMessage(conn net.Conn, id *identity, data []byte) {
 			relay = h.cfg.RelayAddr
 		}
 		if rr.GetUuid() != "" {
-			go h.handleIncomingRelay(relay, rr.GetUuid())
+			go h.handleIncomingRelay(ctx, relay, rr.GetUuid())
 		}
 	}
 }

@@ -14,8 +14,13 @@ func BuildManifest(cfg *Config, sys *SystemCollector, version string) map[string
 	// alerts, logs, remote_desktop, video_stream, audio, clipboard,
 	// file_transfer, input_control. Anything else is rejected with
 	// "unknown capability". Both terminal and screenshot map to
-	// remote_desktop — deduplicate via a set.
-	capsSet := map[string]bool{"telemetry": true, "commands": true}
+	// remote_desktop — deduplicate via a set. The server uses "commands" as
+	// its terminal admission capability, so never advertise it when the local
+	// terminal handler is disabled.
+	capsSet := map[string]bool{"telemetry": true}
+	if cfg.Terminal {
+		capsSet["commands"] = true
+	}
 	if cfg.Terminal || cfg.Screenshot {
 		capsSet["remote_desktop"] = true
 	}
@@ -29,6 +34,8 @@ func BuildManifest(cfg *Config, sys *SystemCollector, version string) map[string
 	if cfg.Clipboard {
 		capsSet["clipboard"] = true
 	}
+	// Audio intentionally remains absent until audioCodecCapability can
+	// advertise a CDAP-compatible stream rather than a best-effort backend.
 	caps := make([]string, 0, len(capsSet))
 	for c := range capsSet {
 		caps = append(caps, c)
