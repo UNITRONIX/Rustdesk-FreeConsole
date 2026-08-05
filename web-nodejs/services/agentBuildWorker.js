@@ -52,6 +52,7 @@ const POLL_INTERVAL_MS = parseInt(process.env.AGENT_BUILD_POLL_MS || '5000', 10)
 const WORKER_CONCURRENCY = 1;
 const BUILD_COOLDOWN_MS = parseInt(process.env.AGENT_BUILD_COOLDOWN_MS || '3000', 10);
 const BUILD_TIMEOUT_MS = parseInt(process.env.AGENT_BUILD_TIMEOUT_MS || (30 * 60 * 1000), 10);
+const CERT_PIN_RE = /^[a-f0-9]{64}$/;
 const BUILD_ORDER = (bundleService.PLATFORMS || []).map(
     (p) => `${p.platform}/${p.arch}/${p.format}`
 );
@@ -871,6 +872,7 @@ function _assertReleaseSupportProfile(branding) {
     const issuedAt = Date.parse(String(branding?.profile_issued_at || ''));
     const expiresAt = Date.parse(String(branding?.profile_expires_at || ''));
     const endpoints = Array.isArray(branding?.allowed_endpoints) ? branding.allowed_endpoints : [];
+    const certPin = String(branding?.server?.cert_pin || '').replace(/:/g, '').trim().toLowerCase();
     const required = [
         branding?.bundle_id,
         branding?.server?.address,
@@ -882,7 +884,8 @@ function _assertReleaseSupportProfile(branding) {
         || !Number.isFinite(expiresAt)
         || expiresAt <= Math.max(issuedAt, Date.now())
         || endpoints.length < 3
-        || endpoints.some((endpoint) => !/^https:\/\//i.test(endpoint) && !/^wss:\/\//i.test(endpoint))) {
+        || endpoints.some((endpoint) => !/^https:\/\//i.test(endpoint) && !/^wss:\/\//i.test(endpoint))
+        || (certPin && !CERT_PIN_RE.test(certPin))) {
         throw new Error(
             'Support Agent bundle profile is incomplete or expired; save the bundle again to issue a signed HTTPS profile'
         );
