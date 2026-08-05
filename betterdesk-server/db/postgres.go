@@ -1117,16 +1117,18 @@ func (pg *PostgresDB) GetIDChangeHistory(id string) ([]*IDChangeHistory, error) 
 	return history, rows.Err()
 }
 
-// IsRenamedPeerID returns true if the given ID was previously used and then
-// changed to a different one (appears as old_id in id_change_history).
+// IsRenamedPeerID returns true when id is a historical source ID that is no
+// longer a current peer. This permits legitimate round-trip renames (A → B →
+// A) while still reserving genuinely stale IDs.
 func (pg *PostgresDB) IsRenamedPeerID(id string) (bool, error) {
-	var count int
+	var renamed bool
 	err := pg.pool.QueryRow(pg.ctx,
-		`SELECT COUNT(*) FROM id_change_history WHERE old_id = $1`, id).Scan(&count)
+		`SELECT EXISTS(SELECT 1 FROM id_change_history WHERE old_id = $1)
+		    AND NOT EXISTS(SELECT 1 FROM peers WHERE id = $1)`, id).Scan(&renamed)
 	if err != nil {
 		return false, err
 	}
-	return count > 0, nil
+	return renamed, nil
 }
 
 // GetLatestRenameTarget returns the most recent new_id for old_id.

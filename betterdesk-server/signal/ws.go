@@ -209,9 +209,10 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 	remoteAddr := wsc.RemoteAddr()
 	peerID := ""
 	wsc.SetKeepAliveHandler(func() {
-		if peerID != "" {
-			s.peers.TouchHeartbeat(peerID)
-		}
+		// Follow the live connection rather than a captured ID. The ID may be
+		// changed by a separate API/TCP request while this WSS registration
+		// remains open.
+		s.peers.TouchWSHeartbeat(wsc)
 	})
 	keepAliveDone := make(chan struct{})
 	registered := make(chan struct{})
@@ -240,9 +241,10 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 
 		switch {
 		case msg.GetRegisterPeer() != nil:
-			peerID = msg.GetRegisterPeer().Id
-			resp := s.handleRegisterPeerWS(msg.GetRegisterPeer(), remoteAddr)
+			registerPeer := msg.GetRegisterPeer()
+			resp := s.handleRegisterPeerWS(registerPeer, remoteAddr)
 			if resp != nil {
+				peerID = registerPeer.Id
 				bindPeerWSConn(s, peerID, wsc)
 				s.registerWSPunchConn(remoteAddr, wsc)
 				notifyRegistered()
@@ -250,10 +252,11 @@ func (s *Server) wsSignalLoop(wsc *codec.WSConn) {
 			}
 
 		case msg.GetRegisterPk() != nil:
-			peerID = msg.GetRegisterPk().Id
-			resp := s.processRegisterPk(msg.GetRegisterPk(), remoteAddr)
+			registerPK := msg.GetRegisterPk()
+			resp := s.processRegisterPk(registerPK, remoteAddr)
 			if resp != nil {
 				if rpk := resp.GetRegisterPkResponse(); rpk != nil && rpk.GetResult() == pb.RegisterPkResponse_OK {
+					peerID = registerPK.Id
 					bindPeerWSConn(s, peerID, wsc)
 					s.registerWSPunchConn(remoteAddr, wsc)
 					notifyRegistered()
@@ -479,6 +482,7 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 		return nil
 	} else if effectiveID != id {
 		id = effectiveID
+		msg.Id = effectiveID
 	}
 
 	existing := s.peers.Get(id)

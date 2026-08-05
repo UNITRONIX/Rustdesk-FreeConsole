@@ -1386,12 +1386,10 @@ func (s *Server) handleChangePeerID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update memory map
-	entry := s.peers.Remove(oldID)
-	if entry != nil {
-		entry.ID = body.NewID
-		s.peers.Put(entry)
-	}
+	// Preserve the live TCP/WSS registration while changing its map key.
+	// Closing that connection makes the renamed device appear present in the
+	// management API but unreachable for inbound RustDesk sessions.
+	s.peers.Rename(oldID, body.NewID)
 
 	if s.auditLog != nil {
 		s.auditLog.Log(audit.ActionPeerIDChanged, s.remoteIP(r), oldID, map[string]string{"new_id": body.NewID})

@@ -18,6 +18,15 @@ import (
 	"github.com/unitronix/betterdesk-server/ratelimit"
 )
 
+type signalTestCloser struct {
+	closed bool
+}
+
+func (c *signalTestCloser) Close() error {
+	c.closed = true
+	return nil
+}
+
 func newTestSignalServer(t *testing.T, mode string) (*Server, db.Database) {
 	t.Helper()
 
@@ -376,6 +385,41 @@ func TestProcessIDChangeSuccessEmptyPK(t *testing.T) {
 	}
 }
 
+func TestProcessIDChangePreservesLiveWSRegistration(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	storedPK := bytes.Repeat([]byte{0x42}, 32)
+	if err := database.UpsertPeer(&db.Peer{
+		ID: "LIVEOLD", PK: storedPK, Status: "ONLINE",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	conn := &signalTestCloser{}
+	entry := &peer.Entry{
+		ID:       "LIVEOLD",
+		PK:       storedPK,
+		ConnType: peer.ConnWS,
+		WSConn:   conn,
+		LastReg:  time.Now(),
+	}
+	srv.peers.Put(entry)
+
+	resp := srv.processIDChange(&pb.RegisterPk{
+		Id: "LIVENEW", OldId: "LIVEOLD", Uuid: []byte("machine-uid-bytes"),
+	})
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("ID change result = %v, want %v", got, pb.RegisterPkResponse_OK)
+	}
+	if conn.closed {
+		t.Fatal("ID change closed the persistent WS registration")
+	}
+	if srv.peers.Get("LIVEOLD") != nil || srv.peers.Get("LIVENEW") != entry {
+		t.Fatal("live peer map was not moved to the new ID")
+	}
+	if entry.WSConn != conn {
+		t.Fatal("renamed peer lost its WS connection binding")
+	}
+}
+
 func TestProcessIDChangeRejectsWrongPKWhenPKSent(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
 
@@ -418,6 +462,31 @@ func TestResolveRegistrationPeerIDRedirectsSameDevice(t *testing.T) {
 	effective, ok = srv.resolveRegistrationPeerID("MACPRO1", "198.51.100.99", nil, nil)
 	if ok {
 		t.Fatalf("resolveRegistrationPeerID different IP = (%q, %v), want reject", effective, ok)
+	}
+}
+
+func TestResolveRegistrationPeerIDAllowsCurrentRoundTripID(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
+	pk := bytes.Repeat([]byte{0x42}, 32)
+	if err := database.UpsertPeer(&db.Peer{
+		ID: "ROUND_A", Status: "ONLINE", PK: pk,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.ChangePeerID("ROUND_A", "ROUND_B", "client"); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.ChangePeerID("ROUND_B", "ROUND_A", "client"); err != nil {
+		t.Fatal(err)
+	}
+
+	effective, ok := srv.resolveRegistrationPeerID("ROUND_A", "198.51.100.99", nil, nil)
+	if !ok || effective != "ROUND_A" {
+		t.Fatalf("current round-trip ID resolved as (%q, %v), want (ROUND_A, true)", effective, ok)
+	}
+	effective, ok = srv.resolveRegistrationPeerID("ROUND_B", "198.51.100.99", nil, pk)
+	if !ok || effective != "ROUND_A" {
+		t.Fatalf("stale round-trip ID resolved as (%q, %v), want (ROUND_A, true)", effective, ok)
 	}
 }
 
@@ -591,7 +660,7 @@ func TestHandleRequestRelayTCPSamePublicIPIgnoresPrivateRelayHint(t *testing.T) 
 	}
 }
 
-func TestHandleRequestRelayTCPProtocolMismatch(t *testing.T) {
+func TestHandleRequestRelayTCPMixedTransportAllowed(t *testing.T) {
 	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
 	srv.localIP.Store("198.51.100.20")
 
@@ -612,15 +681,18 @@ func TestHandleRequestRelayTCPProtocolMismatch(t *testing.T) {
 
 	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
 		Id:   "NATIVETGT",
-		Uuid: "issue-290-mismatch-uuid",
+		Uuid: "issue-290-mixed-uuid",
 	}, udpAddr("198.51.100.30", 51000), peer.ConnWS)
 
 	rr := resp.GetRelayResponse()
 	if rr == nil {
 		t.Fatalf("expected RelayResponse, got %+v", resp)
 	}
-	if rr.RefuseReason != refuseRelayProtocolMismatch {
-		t.Fatalf("RefuseReason = %q, want %q", rr.RefuseReason, refuseRelayProtocolMismatch)
+	if rr.RefuseReason != "" {
+		t.Fatalf("unexpected RefuseReason %q", rr.RefuseReason)
+	}
+	if rr.Uuid != "issue-290-mixed-uuid" {
+		t.Fatalf("uuid = %q", rr.Uuid)
 	}
 }
 
@@ -657,27 +729,6 @@ func TestHandleRequestRelayTCPMatchingWSAllowed(t *testing.T) {
 	}
 	if rr.Uuid != "issue-290-match-uuid" {
 		t.Fatalf("uuid = %q", rr.Uuid)
-	}
-}
-
-func TestRelayTransportMismatchHelper(t *testing.T) {
-	cases := []struct {
-		a, b peer.ConnType
-		want bool
-	}{
-		{peer.ConnWS, peer.ConnTCP, true},
-		{peer.ConnWS, peer.ConnUDP, true},
-		{peer.ConnTCP, peer.ConnWS, true},
-		{peer.ConnUDP, peer.ConnWS, true},
-		{peer.ConnWS, peer.ConnWS, false},
-		{peer.ConnTCP, peer.ConnUDP, false},
-		{peer.ConnTCP, peer.ConnTCP, false},
-		{peer.ConnUDP, peer.ConnUDP, false},
-	}
-	for _, tc := range cases {
-		if got := relayTransportMismatch(tc.a, tc.b); got != tc.want {
-			t.Errorf("relayTransportMismatch(%s, %s) = %v, want %v", tc.a, tc.b, got, tc.want)
-		}
 	}
 }
 
