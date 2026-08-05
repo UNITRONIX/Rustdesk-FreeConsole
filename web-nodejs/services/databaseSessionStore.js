@@ -18,6 +18,7 @@ class DatabaseSessionStore extends session.Store {
             ? 'postgres'
             : 'sqlite';
         this.sqlite = null;
+        this.ownsSqlite = false;
         this.pool = null;
         this.ready = this.initialize();
     }
@@ -37,10 +38,21 @@ class DatabaseSessionStore extends session.Store {
             `);
             return;
         }
-        const Database = require('better-sqlite3');
-        this.sqlite = new Database(this.config.dbPath, { readonly: false, fileMustExist: false });
-        this.sqlite.pragma('busy_timeout = 5000');
-        this.sqlite.pragma('journal_mode = WAL');
+        // Prefer the process-wide SQLite handle (#353) when the adapter is
+        // already bound to the same db path; otherwise open a private handle
+        // (unit tests with a temp DB). Never create the adapter singleton here.
+        const { getSharedSqliteMainDbIfReady } = require('./dbAdapter');
+        const shared = getSharedSqliteMainDbIfReady(this.config.dbPath);
+        if (shared) {
+            this.sqlite = shared;
+            this.ownsSqlite = false;
+        } else {
+            const Database = require('better-sqlite3');
+            this.sqlite = new Database(this.config.dbPath, { readonly: false, fileMustExist: false });
+            this.sqlite.pragma('busy_timeout = 5000');
+            this.sqlite.pragma('journal_mode = WAL');
+            this.ownsSqlite = true;
+        }
         this.sqlite.exec(`
             CREATE TABLE IF NOT EXISTS panel_sessions (
                 sid TEXT PRIMARY KEY,
@@ -145,7 +157,11 @@ class DatabaseSessionStore extends session.Store {
     async close() {
         await this.ready;
         if (this.pool) await this.pool.end();
-        if (this.sqlite) this.sqlite.close();
+        // Never close a shared adapter handle — only private test handles.
+        if (this.ownsSqlite && this.sqlite) {
+            this.sqlite.close();
+        }
+        this.sqlite = null;
     }
 }
 

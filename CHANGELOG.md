@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Console CrashLoop after event-bus connect (#353):** Node.js abort `RemoveEnvironmentCleanupHook` / `(env) != nullptr` was a native N-API lifecycle failure (not Go event-bus init). Console now shares one `better-sqlite3` handle for the main DB (`getDb` / session store / enrollment token lookup), bumps `better-sqlite3` to 13.x for Node 24 Alpine, and defers agent build workers until after listen/WS connect. Ships via panel/Docker console image update.
+
 ### Changed
 - Support Agent generator and release profiles allow **HTTP/WS** (LAN/IP) as well as HTTPS/WSS; remote-session encryption remains on the signal/relay protocol layer (RustDesk-style). Uncheck “Use HTTPS / WSS” and re-save the bundle before rebuilding.
 

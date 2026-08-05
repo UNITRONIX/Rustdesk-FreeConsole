@@ -1348,6 +1348,27 @@ function createSqliteAdapter(config) {
             if (mainDb) { mainDb.close(); mainDb = null; }
         },
 
+        /**
+         * Shared better-sqlite3 handle for db_v2.sqlite3 (#353).
+         * Callers must not close this — adapter.close() owns lifecycle.
+         */
+        getSqliteMainDb() {
+            return openMain();
+        },
+
+        /** Absolute/configured path for the shared main SQLite file. */
+        getSqliteDbPath() {
+            return config.dbPath;
+        },
+
+        /**
+         * Shared auth SQLite handle (main DB when consolidated, else auth.db).
+         * Callers must not close this — adapter.close() owns lifecycle.
+         */
+        getSqliteAuthDb() {
+            return openAuth();
+        },
+
         // ---- Peers ----
 
         async getAllPeers(filters = {}) {
@@ -7024,4 +7045,19 @@ function getAdapter(config) {
     return _adapter;
 }
 
-module.exports = { getAdapter, DB_TYPE };
+/**
+ * Return the process-wide SQLite main handle when the adapter is already
+ * initialized for the same path. Does not create an adapter (#353).
+ * @param {string} dbPath
+ * @returns {import('better-sqlite3').Database|null}
+ */
+function getSharedSqliteMainDbIfReady(dbPath) {
+    if (!_adapter || typeof _adapter.getSqliteMainDb !== 'function') return null;
+    if (typeof _adapter.getSqliteDbPath !== 'function') return null;
+    const adapterPath = _adapter.getSqliteDbPath();
+    if (!dbPath || !adapterPath) return null;
+    if (path.resolve(String(adapterPath)) !== path.resolve(String(dbPath))) return null;
+    return _adapter.getSqliteMainDb();
+}
+
+module.exports = { getAdapter, getSharedSqliteMainDbIfReady, DB_TYPE };

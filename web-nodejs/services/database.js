@@ -15,11 +15,10 @@
 'use strict';
 
 const { getAdapter, DB_TYPE } = require('./dbAdapter');
-const config = require('../config/config');
 
 // Create (or retrieve) the singleton adapter.  This does NOT open any
 // database connections yet  that happens lazily on first use or on init().
-const adapter = getAdapter(config);
+const adapter = getAdapter(require('../config/config'));
 
 // =========================================================================
 //  Facade  Legacy Name Mappings
@@ -270,50 +269,20 @@ const facade = {
 // =========================================================================
 
 if (DB_TYPE === 'sqlite' || DB_TYPE === '') {
-    const Database = require('better-sqlite3');
-    const path = require('path');
-    const fs = require('fs');
-    let _mainDb = null;
-    let _authDb = null;
-
+    // Share the adapter's better-sqlite3 handles (#353). A second
+    // Database() on the same file races N-API cleanup hooks on Node 24/musl.
     facade.getDb = function getDb() {
-        if (!_mainDb) {
-            _mainDb = new Database(config.dbPath, { readonly: false, fileMustExist: false });
-            _mainDb.pragma('journal_mode = WAL');
-            _mainDb.pragma('foreign_keys = ON');
+        if (typeof adapter.getSqliteMainDb !== 'function') {
+            throw new Error('[DB] getSqliteMainDb is not available on this adapter');
         }
-        return _mainDb;
+        return adapter.getSqliteMainDb();
     };
 
     facade.getAuthDb = function getAuthDb() {
-        const legacyPath = config.authDbPath || path.join(config.dataDir, 'auth.db');
-        const requestedMode = (process.env.SQLITE_AUTH_DB_MODE || '').toLowerCase();
-        const useConsolidated = (() => {
-            if (requestedMode === 'legacy') return false;
-            if (requestedMode === 'consolidated' || !fs.existsSync(legacyPath)) return true;
-            try {
-                const main = facade.getDb();
-                const markerTable = main.prepare(`
-                    SELECT 1 FROM sqlite_master
-                    WHERE type = 'table' AND name = 'betterdesk_migrations'
-                `).get();
-                return !!markerTable && !!main.prepare(`
-                    SELECT 1 FROM betterdesk_migrations
-                    WHERE name = 'sqlite_auth_consolidation_v1' AND status = 'complete'
-                `).get();
-            } catch (_) {
-                return false;
-            }
-        })();
-        if (useConsolidated) return facade.getDb();
-        if (!_authDb) {
-            if (!fs.existsSync(legacyPath)) {
-                throw new Error(`Legacy auth database is missing: ${legacyPath}`);
-            }
-            _authDb = new Database(legacyPath, { readonly: false, fileMustExist: true });
-            _authDb.pragma('journal_mode = WAL');
+        if (typeof adapter.getSqliteAuthDb !== 'function') {
+            throw new Error('[DB] getSqliteAuthDb is not available on this adapter');
         }
-        return _authDb;
+        return adapter.getSqliteAuthDb();
     };
 } else {
     facade.getDb = function getDb() {

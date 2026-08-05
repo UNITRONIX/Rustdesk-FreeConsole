@@ -579,33 +579,37 @@ async function startServer() {
             console.warn('[server] mDNS panel discovery disabled:', err.message);
         }
 
-        // Start branded agent installer build worker (Generator Agenta / Phase 2).
-        // Disabled when AGENT_BUILD_WORKER=off — useful for hosts without the
-        // build toolchain (e.g. small consoles that only proxy to a build node).
-        if (process.env.AGENT_BUILD_WORKER !== 'off') {
-            try {
-                const agentBuildWorker = require('./services/agentBuildWorker');
-                agentBuildWorker.startWorker();
-            } catch (err) {
-                console.warn('[server] agent build worker disabled:', err.message);
+        // Defer build workers until after listen + event-bus WS connect settle
+        // (#353): toolchain/DB work racing native addon init can abort Node 24.
+        setImmediate(() => {
+            // Start branded agent installer build worker (Generator Agenta / Phase 2).
+            // Disabled when AGENT_BUILD_WORKER=off — useful for hosts without the
+            // build toolchain (e.g. small consoles that only proxy to a build node).
+            if (process.env.AGENT_BUILD_WORKER !== 'off') {
+                try {
+                    const agentBuildWorker = require('./services/agentBuildWorker');
+                    agentBuildWorker.startWorker();
+                } catch (err) {
+                    console.warn('[server] agent build worker disabled:', err.message);
+                }
             }
-        }
-        if (process.env.RDCLIENT_BUILD_WORKER !== 'off') {
-            try {
-                const rdclientBuildWorker = require('./services/rdclientBuildWorker');
-                rdclientBuildWorker.startWorker();
-            } catch (err) {
-                console.warn('[server] rdclient build worker disabled:', err.message);
+            if (process.env.RDCLIENT_BUILD_WORKER !== 'off') {
+                try {
+                    const rdclientBuildWorker = require('./services/rdclientBuildWorker');
+                    rdclientBuildWorker.startWorker();
+                } catch (err) {
+                    console.warn('[server] rdclient build worker disabled:', err.message);
+                }
             }
-        }
-        if (process.env.AGENT_CLIENT_BUILD_WORKER !== 'off') {
-            try {
-                const agentClientBuildWorker = require('./services/agentClientBuildWorker');
-                agentClientBuildWorker.startWorker();
-            } catch (err) {
-                console.warn('[server] agent-client build worker disabled:', err.message);
+            if (process.env.AGENT_CLIENT_BUILD_WORKER !== 'off') {
+                try {
+                    const agentClientBuildWorker = require('./services/agentClientBuildWorker');
+                    agentClientBuildWorker.startWorker();
+                } catch (err) {
+                    console.warn('[server] agent-client build worker disabled:', err.message);
+                }
             }
-        }
+        });
         
         // ============ RustDesk Client API (WAN :21121 → Go :21114 proxy) ============
         let apiServer = null;
