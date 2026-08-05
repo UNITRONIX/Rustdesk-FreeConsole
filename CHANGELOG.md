@@ -4,6 +4,13 @@
 - **Console CrashLoop after event-bus connect (#353):** Node.js abort `RemoveEnvironmentCleanupHook` / `(env) != nullptr` was a native N-API lifecycle failure (not Go event-bus init). Console now shares one `better-sqlite3` handle for the main DB (`getDb` / session store / enrollment token lookup), bumps `better-sqlite3` to 13.x for Node 24 Alpine, and defers agent build workers until after listen/WS connect. Ships via panel/Docker console image update.
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.5.22] — 2026-08-05
+
+### Changed
 - Support Agent generator and release profiles allow **HTTP/WS** (LAN/IP) as well as HTTPS/WSS; remote-session encryption remains on the signal/relay protocol layer (RustDesk-style). Uncheck “Use HTTPS / WSS” and re-save the bundle before rebuilding.
 
 ---
@@ -2709,3 +2716,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.19]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.18...v3.5.19
 [3.5.20]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.19...v3.5.20
 [3.5.21]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.20...v3.5.21
+[3.5.22]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.21...v3.5.22
