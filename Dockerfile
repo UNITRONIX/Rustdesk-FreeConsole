@@ -131,6 +131,7 @@ ENV DOCKER=true
 ENV ENCRYPTED_ONLY=1
 ENV RELAY_SERVERS=
 # Billing clock / NTP — required by supervisord %(ENV_*)s (#299 / #223)
+ENV ENROLLMENT_MODE=
 ENV NTP_SERVERS=pool.ntp.org,time.google.com,time.cloudflare.com
 ENV BILLING_MAX_CLOCK_SKEW_MS=2000
 ENV BILLING_REQUIRE_SYNCED_CLOCK=1

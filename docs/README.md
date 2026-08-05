@@ -23,6 +23,8 @@ This directory contains comprehensive documentation for BetterDesk Console, orga
 
 - **[Client Generator](features/CLIENT_GENERATOR.md)** — Custom client generator
 - **[Client Generator Quick Start](features/CLIENT_GENERATOR_QUICKSTART_EN.md)** — Quick start guide
+- **[RustDesk Client Generator](features/REAL_CLIENT_GENERATOR.md)** — Secure
+  cross-platform source builds, complete provider setup and verification
 - **[Device ID Change](features/ID_CHANGE_FEATURE.md)** — Device ID change feature
 - **[Status Tracking v3](features/STATUS_TRACKING_v3.md)** — Device status tracking system
 - **[CDAP / Custom Device API](features/CUSTOM_DEVICE_API.md)** — Custom Device Access Protocol

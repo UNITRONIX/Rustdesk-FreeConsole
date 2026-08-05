@@ -12,6 +12,7 @@
 'use strict';
 
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const keyService = require('../services/keyService');
@@ -23,6 +24,18 @@ const db = require('../services/database');
 const config = require('../config/config');
 const brandingService = require('../services/brandingService');
 const conn = require('../services/agentBundleConnection');
+const clientConfigHost = require('../services/clientConfigHost');
+const realClientBuildService = require('../services/realClientBuildService');
+const realClientAssetService = require('../services/realClientAssetService');
+
+const realClientUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: realClientAssetService.MAX_ASSET_BYTES, files: 1, fields: 4 },
+    fileFilter: (_req, file, callback) => {
+        if (file.mimetype !== 'image/png') return callback(new Error('Only PNG images are accepted'));
+        callback(null, true);
+    },
+});
 
 // Branding payloads may carry a base64-encoded logo up to 10 MB; expand the
 // default 2 MB JSON body limit on the bundle CRUD + preview endpoints only.
@@ -195,15 +208,292 @@ router.get('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
 });
 
 router.get('/api/generator/defaults', requireAuth, requireAdmin, async (req, res) => {
+    const endpoints = clientConfigHost.resolveRustDeskEndpoints(req);
     res.json({
         success: true,
         data: {
-            server_host: conn.defaultServerHost(),
+            server_host: endpoints.host || conn.defaultServerHost(),
+            relay_server: endpoints.relay || '',
+            api_url: endpoints.api || '',
             use_https: conn.defaultUseHttps(),
             api_port: conn.defaultApiPort(),
             public_key: (await keyService.resolvePublicKey()) || '',
         },
     });
+});
+
+// =========================================================================
+//  RustDesk Client Generator
+// =========================================================================
+
+// GitHub Actions downloads an encrypted, build-specific payload from here.
+// The UUID is unguessable and the response is RSA/AES encrypted; no provider
+// credential or plaintext build configuration crosses this public endpoint.
+router.get('/api/generator/real-client/payload/:buildId', async (req, res) => {
+    try {
+        const payload = await realClientBuildService.readPublicPayload(req.params.buildId);
+        if (!payload) return res.sendStatus(404);
+        res.set({
+            'Content-Type': 'application/json',
+            'Content-Length': String(payload.length),
+            'Cache-Control': 'no-store, private',
+            'X-Content-Type-Options': 'nosniff',
+        });
+        return res.send(payload);
+    } catch (error) {
+        if (error.code === 'ENOENT') return res.sendStatus(404);
+        console.error('[real-client] payload read error:', error.message);
+        return res.sendStatus(500);
+    }
+});
+
+router.get('/api/generator/real-client/capabilities', requireAuth, requireAdmin, (_req, res) => {
+    res.json({ success: true, data: realClientBuildService.capabilities() });
+});
+
+router.get('/api/generator/real-client/configs', requireAuth, requireAdmin, async (_req, res) => {
+    try {
+        res.json({ success: true, data: { configs: await realClientBuildService.listConfigs() } });
+    } catch (error) {
+        console.error('[real-client] list configs:', error.message);
+        res.status(500).json({ success: false, error: 'Could not list RustDesk client configurations' });
+    }
+});
+
+router.get('/api/generator/real-client/organizations', requireAuth, requireAdmin, async (_req, res) => {
+    try {
+        const organizations = (await db.getTenants()).map((tenant) => ({
+            id: String(tenant.id),
+            name: tenant.name,
+            slug: tenant.slug || '',
+            active: tenant.active === true || tenant.active === 1,
+        }));
+        res.json({ success: true, data: { organizations } });
+    } catch (error) {
+        console.error('[real-client] list organizations:', error.message);
+        res.status(500).json({ success: false, error: 'Could not list organizations' });
+    }
+});
+
+router.get('/api/generator/real-client/configs/:configId', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const item = await realClientBuildService.getConfig(req.params.configId);
+        if (!item) return res.status(404).json({ success: false, error: 'Configuration not found' });
+        res.json({ success: true, data: { config: item } });
+    } catch (error) {
+        console.error('[real-client] get config:', error.message);
+        res.status(500).json({ success: false, error: 'Could not load RustDesk client configuration' });
+    }
+});
+
+router.post('/api/generator/real-client/configs', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const result = await realClientBuildService.createConfig(req.body, req.session.userId);
+        if (!result.valid) return res.status(400).json({ success: false, error: 'Validation failed', errors: result.errors, warnings: result.warnings });
+        await db.logAction(req.session.userId, 'real_client_config_created', `Created RustDesk client configuration ${result.data.id}`, req.ip);
+        res.status(201).json({ success: true, data: { config: result.data, warnings: result.warnings } });
+    } catch (error) {
+        console.error('[real-client] create config:', error.message);
+        res.status(500).json({ success: false, error: 'Could not create RustDesk client configuration' });
+    }
+});
+
+router.put('/api/generator/real-client/configs/:configId', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const result = await realClientBuildService.updateConfig(req.params.configId, req.body);
+        if (result.notFound) return res.status(404).json({ success: false, error: 'Configuration not found' });
+        if (!result.valid) return res.status(400).json({ success: false, error: 'Validation failed', errors: result.errors, warnings: result.warnings });
+        await db.logAction(req.session.userId, 'real_client_config_updated', `Updated RustDesk client configuration ${req.params.configId}`, req.ip);
+        res.json({ success: true, data: { config: result.data, warnings: result.warnings } });
+    } catch (error) {
+        console.error('[real-client] update config:', error.message);
+        res.status(500).json({ success: false, error: 'Could not update RustDesk client configuration' });
+    }
+});
+
+router.post('/api/generator/real-client/configs/:configId/duplicate', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const item = await realClientBuildService.duplicateConfig(req.params.configId, req.session.userId);
+        if (!item) return res.status(404).json({ success: false, error: 'Configuration not found' });
+        await db.logAction(req.session.userId, 'real_client_config_duplicated', `Duplicated RustDesk client configuration ${req.params.configId} as ${item.id}`, req.ip);
+        res.status(201).json({ success: true, data: { config: item } });
+    } catch (error) {
+        console.error('[real-client] duplicate config:', error.message);
+        res.status(500).json({ success: false, error: 'Could not duplicate RustDesk client configuration' });
+    }
+});
+
+router.delete('/api/generator/real-client/configs/:configId', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const removed = await realClientBuildService.deleteConfig(req.params.configId);
+        if (!removed) return res.status(404).json({ success: false, error: 'Configuration not found' });
+        await db.logAction(req.session.userId, 'real_client_config_deleted', `Deleted RustDesk client configuration ${req.params.configId}`, req.ip);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[real-client] delete config:', error.message);
+        res.status(500).json({ success: false, error: 'Could not delete RustDesk client configuration' });
+    }
+});
+
+router.post('/api/generator/real-client/assets/:kind', requireAuth, requireAdmin, (req, res) => {
+    realClientUpload.single('asset')(req, res, async (uploadError) => {
+        if (uploadError) return res.status(400).json({ success: false, error: uploadError.message });
+        if (!req.file) return res.status(400).json({ success: false, error: 'PNG asset is required' });
+        try {
+            let ownerUserId = req.session.userId;
+            if (req.body.config_id) {
+                const existing = await db.getRealClientConfig(String(req.body.config_id));
+                if (!existing) return res.status(404).json({ success: false, error: 'Configuration not found' });
+                ownerUserId = existing.owner_user_id || ownerUserId;
+            }
+            const asset = await realClientAssetService.saveAsset({
+                ownerUserId,
+                kind: req.params.kind,
+                buffer: req.file.buffer,
+                originalName: req.file.originalname,
+            });
+            res.status(201).json({ success: true, data: { asset } });
+        } catch (error) {
+            const status = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
+            if (status === 500) console.error('[real-client] asset upload:', error.message);
+            res.status(status).json({ success: false, error: status === 500 ? 'Could not store PNG asset' : error.message });
+        }
+    });
+});
+
+router.get('/api/generator/real-client/builds', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const builds = await realClientBuildService.listBuilds({
+            configId: req.query.config_id || null,
+            batchId: req.query.batch_id || null,
+            limit: req.query.limit,
+        });
+        res.json({ success: true, data: { builds } });
+    } catch (error) {
+        console.error('[real-client] list builds:', error.message);
+        res.status(500).json({ success: false, error: 'Could not list builds' });
+    }
+});
+
+router.get('/api/generator/real-client/builds/:buildId', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const build = await realClientBuildService.syncBuild(req.params.buildId);
+        if (!build) return res.status(404).json({ success: false, error: 'Build not found' });
+        res.json({ success: true, data: { build } });
+    } catch (error) {
+        console.error('[real-client] get build:', error.message);
+        res.status(500).json({ success: false, error: 'Could not load build' });
+    }
+});
+
+router.post('/api/generator/real-client/builds', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const result = await realClientBuildService.createBuild({
+            configId: String(req.body.config_id || ''),
+            providerId: String(req.body.provider || 'github'),
+            oneTimeSecrets: { permanentPassword: req.body.permanent_password || '' },
+            targetId: req.body.target ? String(req.body.target) : null,
+            clientVariant: req.body.client_variant ? String(req.body.client_variant) : 'client',
+        }, req.session.userId);
+        if (!result.ok) return res.status(result.statusCode || 400).json({ success: false, error: 'Build could not be started', errors: result.errors, warnings: result.warnings, data: result.build ? { build: result.build } : undefined });
+        await db.logAction(req.session.userId, 'real_client_build_started', `Started RustDesk client build ${result.build.id}`, req.ip);
+        res.status(202).json({ success: true, data: { build: result.build, warnings: result.warnings } });
+    } catch (error) {
+        console.error('[real-client] create build:', error.message);
+        res.status(500).json({ success: false, error: 'Could not start build' });
+    }
+});
+
+router.get('/api/generator/real-client/build-plan', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const plan = await realClientBuildService.planBuildMatrix({
+            configId: String(req.query.config_id || ''),
+            providerId: String(req.query.provider || 'github'),
+        });
+        if (!plan) return res.status(404).json({ success: false, error: 'Configuration not found' });
+        res.json({ success: true, data: { plan } });
+    } catch (error) {
+        console.error('[real-client] build plan:', error.message);
+        res.status(500).json({ success: false, error: 'Could not prepare the build matrix' });
+    }
+});
+
+router.post('/api/generator/real-client/builds/batch', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const result = await realClientBuildService.createBuildBatch({
+            configId: String(req.body.config_id || ''),
+            providerId: String(req.body.provider || 'github'),
+            oneTimeSecrets: { permanentPassword: req.body.permanent_password || '' },
+            targetIds: req.body.targets,
+            clientVariants: req.body.variants,
+        }, req.session.userId);
+        if (!result.ok) {
+            return res.status(result.statusCode || 400).json({
+                success: false,
+                error: 'Build batch could not be started',
+                errors: result.errors,
+                warnings: result.warnings,
+            });
+        }
+        await db.logAction(
+            req.session.userId,
+            'real_client_build_batch_started',
+            `Started RustDesk client build batch ${result.batchId} with ${result.builds.length} build(s)`,
+            req.ip,
+        );
+        res.status(202).json({
+            success: true,
+            data: {
+                batch_id: result.batchId,
+                builds: result.builds,
+                partial: result.partial,
+                errors: result.errors,
+                warnings: result.warnings,
+            },
+        });
+    } catch (error) {
+        console.error('[real-client] create build batch:', error.message);
+        res.status(500).json({ success: false, error: 'Could not start build batch' });
+    }
+});
+
+router.post('/api/generator/real-client/builds/:buildId/sync', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const build = await realClientBuildService.syncBuild(req.params.buildId);
+        if (!build) return res.status(404).json({ success: false, error: 'Build not found' });
+        res.json({ success: true, data: { build } });
+    } catch (error) {
+        console.error('[real-client] sync build:', error.message);
+        res.status(502).json({ success: false, error: 'Could not synchronize build provider status' });
+    }
+});
+
+router.post('/api/generator/real-client/builds/:buildId/cancel', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const build = await realClientBuildService.cancelBuild(req.params.buildId);
+        if (!build) return res.status(404).json({ success: false, error: 'Build not found' });
+        await db.logAction(req.session.userId, 'real_client_build_cancelled', `Cancelled RustDesk client build ${req.params.buildId}`, req.ip);
+        res.json({ success: true, data: { build } });
+    } catch (error) {
+        console.error('[real-client] cancel build:', error.message);
+        res.status(502).json({ success: false, error: 'Could not cancel build' });
+    }
+});
+
+router.get('/api/generator/real-client/builds/:buildId/download', requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const artifact = await realClientBuildService.artifactForDownload(req.params.buildId);
+        if (!artifact) return res.status(404).json({ success: false, error: 'Artifact is not available' });
+        res.set({
+            'Cache-Control': 'private, no-store',
+            'X-Artifact-SHA256': artifact.sha256 || '',
+            'Content-Length': String(artifact.size),
+        });
+        res.download(artifact.path, artifact.name);
+    } catch (error) {
+        console.error('[real-client] download:', error.message);
+        res.status(500).json({ success: false, error: 'Artifact integrity check failed' });
+    }
 });
 
 router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res) => {

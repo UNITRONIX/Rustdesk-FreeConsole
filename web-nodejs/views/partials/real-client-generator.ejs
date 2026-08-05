@@ -1,0 +1,286 @@
+<div id="rc-panel" class="rc-panel hidden" role="dialog" aria-modal="true" aria-labelledby="rc-title">
+    <div class="rc-panel-backdrop" data-rc-close></div>
+    <section class="rc-dialog card">
+        <header class="rc-header">
+            <div>
+                <h2 id="rc-title"><span class="material-icons">desktop_windows</span> RustDesk Client Generator</h2>
+                <p>Configure once, then build Full Client and QuickSupport packages for every verified platform.</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" data-rc-close aria-label="Close">
+                <span class="material-icons">close</span>
+            </button>
+        </header>
+
+        <div id="rc-provider-state" class="rc-provider-state" role="status"></div>
+
+        <div class="rc-workspace">
+            <aside class="rc-sidebar">
+                <div class="rc-sidebar-header">
+                    <strong>Saved configurations</strong>
+                    <button type="button" id="rc-new" class="btn btn-primary btn-sm"><span class="material-icons">add</span> New</button>
+                </div>
+                <div id="rc-config-list" class="rc-config-list"><p class="text-muted">Loading…</p></div>
+            </aside>
+
+            <main class="rc-main">
+                <form id="rc-form" novalidate>
+                    <div class="rc-form-toolbar">
+                        <div>
+                            <span id="rc-mode-label" class="rc-kicker">New configuration</span>
+                            <span id="rc-save-state" class="text-muted"></span>
+                            <div id="rc-config-meta" class="rc-config-detail text-muted"></div>
+                        </div>
+                        <div class="rc-toolbar-actions">
+                            <button type="button" id="rc-duplicate" class="btn btn-secondary btn-sm hidden"><span class="material-icons">content_copy</span> Duplicate</button>
+                            <button type="button" id="rc-delete" class="btn btn-danger btn-sm hidden"><span class="material-icons">delete</span> Delete</button>
+                            <button type="submit" id="rc-save" class="btn btn-primary btn-sm"><span class="material-icons">save</span> Save</button>
+                        </div>
+                    </div>
+
+                    <div id="rc-errors" class="validation-errors hidden" role="alert"></div>
+
+                    <details class="rc-section" open>
+                        <summary>Configuration and target</summary>
+                        <div class="rc-section-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-name">Name</label>
+                                    <input id="rc-name" class="form-input" maxlength="120" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-version">RustDesk version</label>
+                                    <input id="rc-version" class="form-input" value="1.4.9" maxlength="80" placeholder="1.4.9, master or nightly" list="rc-version-options" required>
+                                    <datalist id="rc-version-options"></datalist>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="rc-description">Description</label>
+                                <textarea id="rc-description" class="form-input" maxlength="1000" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="rc-organization">Organization / tenant</label>
+                                <select id="rc-organization" class="form-input"><option value="">Global / unscoped</option></select>
+                                <p class="form-hint">The creator remains the configuration owner. An optional tenant reference is stored with the configuration.</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="rc-target">Target platform, architecture and package</label>
+                                <select id="rc-target" class="form-input" required></select>
+                                <p class="form-hint">Only targets explicitly verified and enabled by the selected provider can be built. Disabled targets remain visible and are never silently substituted.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details class="rc-section" open>
+                        <summary>Server connection</summary>
+                        <div class="rc-section-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-id-server">ID server (host:port)</label>
+                                    <input id="rc-id-server" class="form-input" maxlength="512" placeholder="id.example.com:21116" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-relay-server">Relay server (host:port)</label>
+                                    <input id="rc-relay-server" class="form-input" maxlength="512" placeholder="relay.example.com:21117">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-api-server">API server</label>
+                                    <input id="rc-api-server" class="form-input" maxlength="512" placeholder="https://api.example.com">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-public-key">Server public key</label>
+                                    <input id="rc-public-key" class="form-input rc-monospace" maxlength="2048" required autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="rc-network-scope">Network configuration policy</label>
+                                <select id="rc-network-scope" class="form-input">
+                                    <option value="override">Enforced override</option>
+                                    <option value="default">Default (user may change it)</option>
+                                </select>
+                                <p class="form-hint">The ID server, relay, API and public key are applied together. No public RustDesk fallback is inserted.</p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details class="rc-section">
+                        <summary>Branding and application identity</summary>
+                        <div class="rc-section-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-app-name">Application name</label>
+                                    <input id="rc-app-name" class="form-input" maxlength="64" value="RustDesk" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-executable-name">Output filename</label>
+                                    <input id="rc-executable-name" class="form-input" maxlength="64" value="rustdesk" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-company-name">Company name</label>
+                                    <input id="rc-company-name" class="form-input" maxlength="100">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-custom-url">Product URL</label>
+                                    <input id="rc-custom-url" type="url" class="form-input" maxlength="512">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-download-url">Download URL</label>
+                                    <input id="rc-download-url" type="url" class="form-input" maxlength="512">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-android-id">Android application ID</label>
+                                    <input id="rc-android-id" class="form-input" maxlength="150" value="com.carriez.flutter_hbb">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-macos-bundle-id">macOS bundle identifier</label>
+                                    <input id="rc-macos-bundle-id" class="form-input" maxlength="255" value="com.carriez.flutterHbb">
+                                    <p class="form-hint">Kept separate from Android because Apple bundle identifiers cannot use Android-style underscores.</p>
+                                </div>
+                            </div>
+                            <div class="rc-assets">
+                                <div class="form-group" data-asset-kind="icon">
+                                    <label class="form-label" for="rc-asset-icon">Icon (square PNG)</label>
+                                    <input id="rc-asset-icon" type="file" accept="image/png" class="form-input">
+                                    <span class="rc-asset-state text-muted">Not selected</span>
+                                    <button type="button" class="btn btn-ghost btn-sm" data-rc-asset-clear="icon">Clear</button>
+                                </div>
+                                <div class="form-group" data-asset-kind="logo">
+                                    <label class="form-label" for="rc-asset-logo">Logo (PNG)</label>
+                                    <input id="rc-asset-logo" type="file" accept="image/png" class="form-input">
+                                    <span class="rc-asset-state text-muted">Not selected</span>
+                                    <button type="button" class="btn btn-ghost btn-sm" data-rc-asset-clear="logo">Clear</button>
+                                </div>
+                                <div class="form-group" data-asset-kind="privacy">
+                                    <label class="form-label" for="rc-asset-privacy">Privacy mode image (PNG)</label>
+                                    <input id="rc-asset-privacy" type="file" accept="image/png" class="form-input">
+                                    <span class="rc-asset-state text-muted">Not selected</span>
+                                    <button type="button" class="btn btn-ghost btn-sm" data-rc-asset-clear="privacy">Clear</button>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details class="rc-section">
+                        <summary>Access and behavior</summary>
+                        <div class="rc-section-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-direction">Connection direction</label>
+                                    <select id="rc-direction" class="form-input"><option value="both">Incoming and outgoing</option><option value="incoming">Incoming only</option><option value="outgoing">Outgoing only</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-theme">Theme</label>
+                                    <select id="rc-theme" class="form-input"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-theme-scope">Theme policy</label>
+                                    <select id="rc-theme-scope" class="form-input"><option value="default">Default</option><option value="override">Enforced override</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-approval">Approval mode</label>
+                                    <select id="rc-approval" class="form-input"><option value="password-click">Password or click</option><option value="password">Password</option><option value="click">Click approval</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-preset">Permission preset</label>
+                                    <select id="rc-preset" class="form-input"><option value="custom">Custom</option><option value="full">Full access</option><option value="view">View only</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-permissions-scope">Permission policy</label>
+                                    <select id="rc-permissions-scope" class="form-input"><option value="default">Default</option><option value="override">Enforced override</option></select>
+                                </div>
+                            </div>
+                            <div class="rc-check-grid" id="rc-behavior-checks">
+                                <label><input type="checkbox" data-field="delayFix" checked> Apply revision-guarded third-party API delay fix</label>
+                                <label><input type="checkbox" data-field="disableInstallation"> Disable installation</label>
+                                <label><input type="checkbox" data-field="disableSettings"> Disable settings</label>
+                                <label><input type="checkbox" data-field="allowAutoDisconnect"> Allow automatic disconnect</label>
+                                <label><input type="checkbox" data-field="denyLanDiscovery"> Deny LAN discovery</label>
+                                <label><input type="checkbox" data-field="directIpAccess"> Direct IP access</label>
+                                <label><input type="checkbox" data-field="removeWallpaper" checked> Remove wallpaper</label>
+                                <label><input type="checkbox" data-field="hideConnectionManager"> Hide connection manager</label>
+                                <label><input type="checkbox" data-field="cycleMonitor"> Cycle monitors</label>
+                                <label><input type="checkbox" data-field="offlineIndicator"> Offline indicator</label>
+                                <label><input type="checkbox" data-field="removeVersionNotification"> Remove update notification</label>
+                            </div>
+                        </div>
+                    </details>
+
+                    <details class="rc-section">
+                        <summary>Session permissions</summary>
+                        <div class="rc-section-body rc-check-grid" id="rc-permission-checks">
+                            <label><input type="checkbox" data-field="keyboard" checked> Keyboard and mouse</label>
+                            <label><input type="checkbox" data-field="clipboard" checked> Clipboard</label>
+                            <label><input type="checkbox" data-field="fileTransfer" checked> File transfer</label>
+                            <label><input type="checkbox" data-field="audio" checked> Audio</label>
+                            <label><input type="checkbox" data-field="tcpTunnel" checked> TCP tunnel</label>
+                            <label><input type="checkbox" data-field="remoteRestart" checked> Remote restart</label>
+                            <label><input type="checkbox" data-field="recording" checked> Session recording</label>
+                            <label><input type="checkbox" data-field="blockInput" checked> Block remote input</label>
+                            <label><input type="checkbox" data-field="remoteConfig"> Remote configuration</label>
+                            <label><input type="checkbox" data-field="printer" checked> Remote printer</label>
+                            <label><input type="checkbox" data-field="camera" checked> Camera</label>
+                            <label><input type="checkbox" data-field="terminal" checked> Terminal</label>
+                        </div>
+                    </details>
+
+                    <details class="rc-section">
+                        <summary>Advanced RustDesk settings</summary>
+                        <div class="rc-section-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-default-settings">Default settings (one key=value per line)</label>
+                                    <textarea id="rc-default-settings" class="form-input rc-monospace" rows="7" spellcheck="false"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="rc-override-settings">Override settings (one key=value per line)</label>
+                                    <textarea id="rc-override-settings" class="form-input rc-monospace" rows="7" spellcheck="false"></textarea>
+                                </div>
+                            </div>
+                            <p class="form-hint">Unknown keys are preserved. Invalid lines are rejected with an explicit validation error.</p>
+                        </div>
+                    </details>
+
+                    <section class="rc-build-section" aria-labelledby="rc-build-title">
+                        <div class="rc-build-header">
+                            <div>
+                                <h3 id="rc-build-title">One-click build matrix</h3>
+                                <p class="form-hint">The saved servers, key, branding, icon, logo, permissions and one-time password are copied to every selected output. Each output keeps its own status and audit history.</p>
+                            </div>
+                            <div class="rc-build-actions">
+                                <select id="rc-provider" class="form-input"></select>
+                                <button type="button" id="rc-build" class="btn btn-primary" disabled><span class="material-icons">construction</span> Build selected</button>
+                            </div>
+                        </div>
+                        <div class="rc-variant-selector" id="rc-variant-selector" aria-label="Client variants"></div>
+                        <div class="rc-matrix-toolbar">
+                            <strong>Platforms and packages</strong>
+                            <div class="rc-toolbar-actions">
+                                <button type="button" id="rc-select-all-builds" class="btn btn-secondary btn-sm">Select all verified</button>
+                                <button type="button" id="rc-select-default-build" class="btn btn-ghost btn-sm">Default target</button>
+                                <button type="button" id="rc-clear-builds" class="btn btn-ghost btn-sm">Clear</button>
+                            </div>
+                        </div>
+                        <div id="rc-build-matrix" class="rc-build-matrix" aria-live="polite">
+                            <p class="text-muted">Save a configuration to load verified build targets.</p>
+                        </div>
+                        <div id="rc-build-selection-summary" class="rc-build-selection-summary" role="status">No outputs selected.</div>
+                        <div class="form-group rc-one-time-secret">
+                            <label class="form-label" for="rc-permanent-password">Permanent password for all selected outputs (optional)</label>
+                            <input id="rc-permanent-password" type="password" class="form-input" maxlength="256" autocomplete="new-password">
+                            <p class="form-hint">Entered once and copied only into each encrypted one-time build payload. It is never saved, returned by the API or written to logs.</p>
+                        </div>
+                        <p class="form-hint"><strong>QuickSupport profile:</strong> incoming-only, visible connection window and a distinct “QuickSupport” filename; portable installation is disabled where supported. Android remains an installable APK and is marked explicitly.</p>
+                        <div class="rc-matrix-toolbar rc-history-toolbar">
+                            <strong id="rc-build-history-title">Build history</strong>
+                            <button type="button" id="rc-toggle-all-builds" class="btn btn-ghost btn-sm">Show all builds</button>
+                        </div>
+                        <div id="rc-build-list" class="rc-build-list"><p class="text-muted">Save a configuration to view build history.</p></div>
+                    </section>
+                </form>
+            </main>
+        </div>
+    </section>
+</div>

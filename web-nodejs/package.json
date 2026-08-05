@@ -39,11 +39,13 @@
     "multer": "^2.2.0",
     "nodemailer": "^9.0.3",
     "otplib": "^12.0.1",
+    "pngjs": "^7.0.0",
     "protobufjs": "^7.6.5",
     "qrcode": "^1.5.4",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
-    "ws": "^8.21.1"
+    "ws": "^8.21.1",
+    "yauzl": "^3.4.0"
   },
   "optionalDependencies": {
     "node-pty": "^1.0.0",

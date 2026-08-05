@@ -112,6 +112,25 @@ if (!sessionSecret) {
 const GO_API_PORT_DEFAULT = 21114;
 const CLIENT_API_PORT_DEFAULT = 21121;
 
+function parseJsonEnv(name, fallback = {}) {
+    const value = process.env[name];
+    if (!value) return fallback;
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+    } catch (_) {
+        console.warn(`Warning: ${name} is not valid JSON; ignoring it.`);
+        return fallback;
+    }
+}
+
+function parsePemEnv(name) {
+    const value = String(process.env[name] || '').trim();
+    if (!value) return '';
+    if (value.includes('-----BEGIN')) return value.replace(/\\n/g, '\n');
+    try { return Buffer.from(value, 'base64').toString('utf8'); } catch (_) { return value; }
+}
+
 function parseApiUrlPort(urlString, fallback) {
     try {
         const u = new URL(urlString);
@@ -231,6 +250,27 @@ module.exports = {
         hbbsPort: parseInt(process.env.WS_HBBS_PORT, 10) || 21116,
         hbbrHost: process.env.WS_HBBR_HOST || 'localhost',
         hbbrPort: parseInt(process.env.WS_HBBR_PORT, 10) || 21117
+    },
+
+    // Real Client generator. The GitHub token and payload decryption private
+    // key stay outside the database and are never exposed through the API.
+    // No target is advertised until it is explicitly allow-listed after an
+    // end-to-end build/sign/install test in the configured central repository.
+    realClient: {
+        githubToken: process.env.REAL_CLIENT_GITHUB_TOKEN || '',
+        githubOwner: process.env.REAL_CLIENT_GITHUB_OWNER || '',
+        githubRepo: process.env.REAL_CLIENT_GITHUB_REPO || '',
+        githubRef: process.env.REAL_CLIENT_GITHUB_REF || 'main',
+        githubWorkflowCommit: process.env.REAL_CLIENT_GITHUB_WORKFLOW_COMMIT || '',
+        githubApiUrl: process.env.REAL_CLIENT_GITHUB_API_URL || 'https://api.github.com',
+        githubWorkflows: parseJsonEnv('REAL_CLIENT_GITHUB_WORKFLOWS', {}),
+        verifiedMatrix: parseJsonEnv('REAL_CLIENT_GITHUB_MATRIX', {}),
+        sourceRevisions: parseJsonEnv('REAL_CLIENT_GITHUB_REVISIONS', {}),
+        publicBaseUrl: String(process.env.REAL_CLIENT_PUBLIC_BASE_URL || '').replace(/\/+$/, ''),
+        payloadPublicKey: parsePemEnv('REAL_CLIENT_PAYLOAD_PUBLIC_KEY'),
+        artifactRetentionDays: Math.max(1, Math.min(parseInt(process.env.REAL_CLIENT_ARTIFACT_RETENTION_DAYS, 10) || 30, 365)),
+        maxArtifactBytes: Math.max(10 * 1024 * 1024, Math.min(parseInt(process.env.REAL_CLIENT_MAX_ARTIFACT_BYTES, 10) || 750 * 1024 * 1024, 2 * 1024 * 1024 * 1024)),
+        pollIntervalMs: Math.max(5000, Math.min(parseInt(process.env.REAL_CLIENT_POLL_INTERVAL_MS, 10) || 15000, 120000)),
     },
 
     // Database type: 'sqlite' (default) or 'postgres' (auto-detected from DATABASE_URL)

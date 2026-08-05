@@ -1,0 +1,624 @@
+name: BetterDesk Real Client
+run-name: Real Client ${{ inputs.build_id }} · ${{ inputs.target }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: BetterDesk build UUID
+        type: string
+        required: true
+      payload_url:
+        description: HTTPS encrypted payload URL
+        type: string
+        required: true
+      target:
+        description: Exact verified target ID
+        type: string
+        required: true
+      rustdesk_version:
+        description: Exact RustDesk version or approved branch
+        type: string
+        required: true
+      source_commit:
+        description: Immutable RustDesk source commit
+        type: string
+        required: true
+      workflow_commit:
+        description: Expected immutable commit of this central build repository
+        type: string
+        required: true
+      artifact_retention_days:
+        description: Provider artifact retention matching BetterDesk (1-365 days)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.24.5"
+  CARGO_EXPAND_VERSION: "1.0.95"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  FLUTTER_ELINUX_COMMIT: "ac5e8387cdeadece7ed747d99da24d02adb354a6"
+  FLUTTER_ARM_FRAMEWORK_COMMIT: "dec2ee5c1f98f8e84a7d5380c05eb8a3d0a81668"
+  RUST_VERSION: "1.75"
+  MAC_RUST_VERSION: "1.81"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  CARGO_NDK_VERSION: "3.1.2"
+  NDK_VERSION: "r28c"
+
+concurrency:
+  group: real-client-${{ inputs.build_id }}
+  cancel-in-progress: false
+
+jobs:
+  route:
+    # Routing is intentionally resolved by a small trusted job. RustDesk and
+    # vcpkg need substantially more than the hosted image's initial free disk.
+    # Linux x64 and Android may use the fixed ephemeral ubuntu-22.04 runner only
+    # after the build job reclaims and attests its workspace. Other targets use
+    # an explicitly provisioned betterdesk-* runner. Keeping this decision out
+    # of workflow_dispatch inputs prevents a caller from choosing the worker
+    # that receives signing secrets.
+    runs-on: ubuntu-22.04
+    outputs:
+      runner: ${{ steps.runner.outputs.runner }}
+      environment: ${{ steps.runner.outputs.environment }}
+    steps:
+      - name: Verify immutable central workflow revision before routing
+        shell: bash
+        env:
+          ACTUAL_WORKFLOW_COMMIT: ${{ github.sha }}
+          EXPECTED_WORKFLOW_COMMIT: ${{ inputs.workflow_commit }}
+          ARTIFACT_RETENTION_DAYS: ${{ inputs.artifact_retention_days }}
+        run: |
+          node -e "const a=String(process.env.ACTUAL_WORKFLOW_COMMIT||'').toLowerCase(),e=String(process.env.EXPECTED_WORKFLOW_COMMIT||'').toLowerCase(),r=String(process.env.ARTIFACT_RETENTION_DAYS||'');if(!/^[0-9a-f]{40}$/.test(e)||a!==e){console.error('Central build workflow revision mismatch');process.exit(1)}if(!/^[0-9]{1,3}$/.test(r)||Number(r)<1||Number(r)>365){console.error('Artifact retention must be an integer from 1 to 365 days');process.exit(1)}"
+
+      - name: Select protected platform runner
+        id: runner
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ inputs.target }}
+          WINDOWS_X64_RUNNER: ${{ vars.REAL_CLIENT_RUNNER_WINDOWS_X64 }}
+          LINUX_X64_RUNNER: ${{ vars.REAL_CLIENT_RUNNER_LINUX_X64 }}
+          LINUX_ARM64_RUNNER: ${{ vars.REAL_CLIENT_RUNNER_LINUX_ARM64 }}
+          ANDROID_X64_RUNNER: ${{ vars.REAL_CLIENT_RUNNER_ANDROID_X64 }}
+          MACOS_X64_RUNNER: ${{ vars.REAL_CLIENT_RUNNER_MACOS_X64 }}
+          MACOS_ARM64_RUNNER: ${{ vars.REAL_CLIENT_RUNNER_MACOS_ARM64 }}
+        run: |
+          case "$BUILD_TARGET" in
+            windows-x64-exe|windows-x64-msi|windows-x86-exe) runner="$WINDOWS_X64_RUNNER" ;;
+            linux-x64-deb|linux-x64-appimage|linux-x64-flatpak) runner="${LINUX_X64_RUNNER:-ubuntu-22.04}" ;;
+            linux-arm64-deb|linux-arm64-appimage|linux-arm64-flatpak) runner="$LINUX_ARM64_RUNNER" ;;
+            android-arm64-apk|android-armv7-apk|android-x64-apk) runner="${ANDROID_X64_RUNNER:-ubuntu-22.04}" ;;
+            macos-x64-dmg) runner="$MACOS_X64_RUNNER" ;;
+            macos-arm64-dmg) runner="$MACOS_ARM64_RUNNER" ;;
+            *) echo "Target is not recognized by the runner router" >&2; exit 1 ;;
+          esac
+          case "$BUILD_TARGET" in
+            windows-*) environment="betterdesk-real-client-windows" ;;
+            *-flatpak) environment="betterdesk-real-client-flatpak" ;;
+            linux-*) environment="betterdesk-real-client-linux" ;;
+            android-*) environment="betterdesk-real-client-android" ;;
+            macos-*) environment="betterdesk-real-client-macos" ;;
+            *) echo "Target has no protected signing environment" >&2; exit 1 ;;
+          esac
+          if [[ "$runner" == "ubuntu-22.04" ]]; then
+            case "$BUILD_TARGET" in
+              linux-x64-*|android-*) ;;
+              *) echo "The fixed GitHub-hosted runner is allowed only for Linux x64 and Android" >&2; exit 1 ;;
+            esac
+          elif [[ ! "$runner" =~ ^betterdesk-[A-Za-z0-9][A-Za-z0-9._-]{0,116}$ ]]; then
+            echo "The protected runner label for $BUILD_TARGET must be ubuntu-22.04 or a dedicated betterdesk-* label" >&2
+            exit 1
+          fi
+          printf 'runner=%s\n' "$runner" >> "$GITHUB_OUTPUT"
+          printf 'environment=%s\n' "$environment" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: route
+    runs-on: ${{ needs.route.outputs.runner }}
+    environment: ${{ needs.route.outputs.environment }}
+    timeout-minutes: 180
+    steps:
+      - name: Verify immutable central workflow revision
+        shell: bash
+        env:
+          ACTUAL_WORKFLOW_COMMIT: ${{ github.sha }}
+          EXPECTED_WORKFLOW_COMMIT: ${{ inputs.workflow_commit }}
+        run: |
+          node -e "const a=String(process.env.ACTUAL_WORKFLOW_COMMIT||'').toLowerCase(),e=String(process.env.EXPECTED_WORKFLOW_COMMIT||'').toLowerCase();if(!/^[0-9a-f]{40}$/.test(e)||a!==e){console.error('Central build workflow revision mismatch');process.exit(1)}"
+
+      - name: Reclaim and attest hosted Linux workspace
+        if: ${{ runner.os == 'Linux' && needs.route.outputs.runner == 'ubuntu-22.04' }}
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ inputs.target }}
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/share/swift /usr/local/share/powershell /usr/local/share/boost /usr/local/share/chromium /usr/local/julia* /opt/az /opt/ghc /opt/google /opt/microsoft /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          if [[ "$BUILD_TARGET" == linux-x64-* ]]; then
+            sudo rm -rf /usr/local/lib/android /usr/lib/jvm
+          else
+            # setup-ndk installs the pinned NDK later; retain the Android SDK
+            # and JDK required by Gradle, but discard bundled NDK revisions.
+            sudo rm -rf /usr/local/lib/android/sdk/ndk /usr/local/lib/android/sdk/ndk-bundle
+          fi
+          docker system prune --all --force >/dev/null 2>&1 || true
+          command -v node >/dev/null
+          /usr/bin/python3 --version
+          available="$(df --output=avail -B1 / | tail -1 | tr -d ' ')"
+          minimum="$((40 * 1024 * 1024 * 1024))"
+          if [[ ! "$available" =~ ^[0-9]+$ ]] || (( available < minimum )); then
+            echo "Hosted Linux workspace has less than the required 40 GiB free" >&2
+            df -h /
+            exit 1
+          fi
+          df -h /
+
+      - name: Check out pinned central RustDesk fork
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Verify E2E-tested central build adapter is installed
+        shell: bash
+        run: |
+          test -f .betterdesk/build-real-client.mjs
+          test ! -L .betterdesk/build-real-client.mjs
+
+      - name: Verify complete central repository contract
+        shell: bash
+        run: node .betterdesk/verify-central-repository.mjs .
+
+      - name: Verify adapter admission contract
+        shell: bash
+        env:
+          EXPECTED_TARGET: ${{ inputs.target }}
+          EXPECTED_VERSION: ${{ inputs.rustdesk_version }}
+          EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          node --input-type=module -e "import {describeBuildAdapter} from './.betterdesk/build-real-client.mjs';const c=describeBuildAdapter(),t=c.targets.find(x=>x.id===process.env.EXPECTED_TARGET);if(!t?.implementedByAdapter||c.sourceRevisions[process.env.EXPECTED_VERSION]!==String(process.env.EXPECTED_SOURCE_COMMIT||'').toLowerCase()){console.error('Target, version or source commit is not admitted by this adapter');process.exit(1)}"
+
+      - name: Check out exact immutable RustDesk source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ inputs.source_commit }}
+          path: rustdesk-source
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install pinned Flutter SDK
+        if: ${{ !startsWith(inputs.target, 'linux-arm64-') }}
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Check out pinned Flutter-elinux for Linux ARM64
+        if: ${{ startsWith(inputs.target, 'linux-arm64-') }}
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: sony/flutter-elinux
+          ref: ${{ env.FLUTTER_ELINUX_COMMIT }}
+          path: .betterdesk-toolchains/flutter-elinux
+          persist-credentials: false
+
+      - name: Initialize pinned Flutter-elinux SDK
+        if: ${{ startsWith(inputs.target, 'linux-arm64-') }}
+        shell: bash
+        env:
+          EXPECTED_FLUTTER_ELINUX_COMMIT: ${{ env.FLUTTER_ELINUX_COMMIT }}
+          EXPECTED_FLUTTER_FRAMEWORK_COMMIT: ${{ env.FLUTTER_ARM_FRAMEWORK_COMMIT }}
+        run: |
+          toolchain="$GITHUB_WORKSPACE/.betterdesk-toolchains/flutter-elinux"
+          test "$(git -C "$toolchain" rev-parse HEAD)" = "$EXPECTED_FLUTTER_ELINUX_COMMIT"
+          test "$(sed -n '1p' "$toolchain/bin/internal/flutter.version")" = "$EXPECTED_FLUTTER_FRAMEWORK_COMMIT"
+          test "$(sed -n '2p' "$toolchain/bin/internal/flutter.version")" = "$FLUTTER_VERSION"
+          "$toolchain/bin/flutter-elinux" doctor -v
+          "$toolchain/bin/flutter-elinux" precache --linux
+          test "$(git -C "$toolchain/flutter" rev-parse HEAD)" = "$EXPECTED_FLUTTER_FRAMEWORK_COMMIT"
+          echo "$toolchain/bin" >> "$GITHUB_PATH"
+          echo "$toolchain/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Apply RustDesk 1.4.9 Flutter SDK compatibility patch
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ inputs.target }}
+        run: |
+          if [[ "$BUILD_TARGET" == linux-arm64-* ]]; then
+            sdk_root="$GITHUB_WORKSPACE/.betterdesk-toolchains/flutter-elinux/flutter"
+          else
+            sdk_root="$(dirname "$(dirname "$(command -v flutter)")")"
+          fi
+          git -C "$sdk_root" apply --check "$GITHUB_WORKSPACE/rustdesk-source/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+          git -C "$sdk_root" apply "$GITHUB_WORKSPACE/rustdesk-source/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+
+      - name: Install pinned desktop and Android Rust toolchain
+        if: ${{ !startsWith(inputs.target, 'macos-') }}
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt
+
+      - name: Install pinned macOS Rust toolchain
+        if: ${{ startsWith(inputs.target, 'macos-') }}
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: ${{ env.MAC_RUST_VERSION }}
+          components: rustfmt
+
+      - name: Install pinned Flutter Rust bridge toolchain
+        shell: bash
+        run: |
+          cargo install cargo-expand --version "$CARGO_EXPAND_VERSION" --locked
+          cargo install flutter_rust_bridge_codegen --version "$FLUTTER_RUST_BRIDGE_VERSION" --features uuid --locked
+          test "$(cargo expand --version)" = "cargo-expand $CARGO_EXPAND_VERSION"
+          test "$(flutter_rust_bridge_codegen --version)" = "flutter_rust_bridge_codegen $FLUTTER_RUST_BRIDGE_VERSION"
+
+      - name: Install pinned Android NDK
+        if: ${{ startsWith(inputs.target, 'android-') }}
+        id: setup-ndk
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: true
+
+      - name: Install pinned cargo-ndk
+        if: ${{ startsWith(inputs.target, 'android-') }}
+        shell: bash
+        run: cargo install cargo-ndk --version "$CARGO_NDK_VERSION" --locked
+
+      - name: Install LLVM on Windows
+        if: ${{ startsWith(inputs.target, 'windows-') }}
+        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0 # v2.0.9
+        with:
+          version: "15.0.6"
+
+      - name: Setup pinned vcpkg
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install Windows vcpkg dependencies
+        if: ${{ startsWith(inputs.target, 'windows-') }}
+        shell: bash
+        working-directory: rustdesk-source
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          "$VCPKG_ROOT/vcpkg" install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"
+
+      - name: Install Android vcpkg dependencies
+        if: ${{ startsWith(inputs.target, 'android-') }}
+        shell: bash
+        working-directory: rustdesk-source
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          case "${{ inputs.target }}" in
+            android-arm64-apk) abi=arm64-v8a ;;
+            android-armv7-apk) abi=armeabi-v7a ;;
+            android-x64-apk) abi=x86_64 ;;
+            *) exit 1 ;;
+          esac
+          ./flutter/build_android_deps.sh "$abi"
+
+      - name: Install Linux system and vcpkg dependencies
+        if: ${{ startsWith(inputs.target, 'linux-') }}
+        shell: bash
+        working-directory: rustdesk-source
+        env:
+          BUILD_TARGET: ${{ inputs.target }}
+        run: |
+          sudo apt-get update -y
+          # Ubuntu 22.04 runner images include LLVM's versioned unwind headers,
+          # which conflict with the generic libunwind-dev required by GStreamer.
+          sudo apt-get remove -y libunwind-14-dev
+          sudo apt-get install -y appstream clang cmake curl g++ gcc git gnupg imagemagick libarchive-tools libasound2-dev libayatana-appindicator3-dev libclang-dev libdbus-1-dev libfuse2 libglib2.0-dev libgstreamer-plugins-base1.0-dev libgstreamer1.0-dev libgtk-3-dev liblzma-dev libpam0g-dev libpulse-dev libssl-dev libunwind-dev libva-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxdo-dev libxfixes-dev nasm ninja-build pkg-config python3-pip rpm unzip wget xz-utils
+          triplet=x64-linux
+          if [[ "$BUILD_TARGET" == linux-arm64-* ]]; then triplet=arm64-linux; fi
+          "$VCPKG_ROOT/vcpkg" install --triplet "$triplet" --x-install-root="$VCPKG_ROOT/installed"
+
+      - name: Install Linux package builder for selected output
+        if: ${{ contains(inputs.target, '-appimage') || contains(inputs.target, '-flatpak') }}
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ inputs.target }}
+        run: |
+          if [[ "$BUILD_TARGET" == *-appimage ]]; then
+            python3 -m pip install --disable-pip-version-check "setuptools_scm<10" "git+https://github.com/rustdesk-org/appimage-builder.git@4ea36c95c6f3e29ff3c35807c1651ba353302f21"
+          else
+            sudo apt-get install -y flatpak flatpak-builder
+            flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          fi
+
+      - name: Install macOS build dependencies
+        if: ${{ startsWith(inputs.target, 'macos-') }}
+        shell: bash
+        run: brew install create-dmg imagemagick llvm nasm ninja pkg-config
+
+      - name: Install macOS vcpkg dependencies
+        if: ${{ startsWith(inputs.target, 'macos-') }}
+        shell: bash
+        working-directory: rustdesk-source
+        env:
+          BUILD_TARGET: ${{ inputs.target }}
+        run: |
+          triplet=x64-osx
+          if [[ "$BUILD_TARGET" == macos-arm64-dmg ]]; then triplet=arm64-osx; fi
+          "$VCPKG_ROOT/vcpkg" install --triplet "$triplet" --x-install-root="$VCPKG_ROOT/installed"
+
+      - name: Add MSBuild to PATH
+        if: ${{ startsWith(inputs.target, 'windows-') }}
+        uses: microsoft/setup-msbuild@6fb02220983dee41ce7ae257b6f4d8f9bf5ed4ce # v2
+
+      - name: Verify selected toolchain before build secrets are exposed
+        shell: bash
+        working-directory: rustdesk-source
+        run: |
+          flutter --version
+          rustc --version
+          cargo --version
+          python3 --version
+          test -f build.py
+
+      - name: Decrypt and validate BetterDesk payload
+        shell: bash
+        env:
+          REAL_CLIENT_PAYLOAD_PRIVATE_KEY: ${{ secrets.REAL_CLIENT_PAYLOAD_PRIVATE_KEY }}
+          BETTERDESK_PAYLOAD_ORIGIN: ${{ vars.BETTERDESK_PAYLOAD_ORIGIN }}
+          PAYLOAD_URL: ${{ inputs.payload_url }}
+          BUILD_ID: ${{ inputs.build_id }}
+        run: |
+          node .betterdesk/decrypt-payload.mjs "$PAYLOAD_URL" "$BUILD_ID"
+          node .betterdesk/extract-build-input.mjs
+
+      - name: Verify dispatch and encrypted payload agree
+        shell: bash
+        env:
+          EXPECTED_TARGET: ${{ inputs.target }}
+          EXPECTED_VERSION: ${{ inputs.rustdesk_version }}
+          EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          node -e "const p=require('./.betterdesk-build/payload.json'); if(p.build.target!==process.env.EXPECTED_TARGET||p.build.rustdeskVersion!==process.env.EXPECTED_VERSION||p.build.sourceCommit!==String(process.env.EXPECTED_SOURCE_COMMIT||'').toLowerCase()) process.exit(1)"
+
+      - name: Verify clean source revision before transforms
+        shell: bash
+        run: node .betterdesk/verify-source-revision.mjs .betterdesk-build/input/build-plan.json rustdesk-source
+
+      - name: Apply revision-guarded common source patches
+        shell: bash
+        run: node .betterdesk/apply-source-patches.mjs .betterdesk-build/input/build-plan.json rustdesk-source
+
+      - name: Sign RustDesk custom configuration
+        shell: bash
+        env:
+          REAL_CLIENT_CUSTOM_CONFIG_SIGNING_KEY: ${{ secrets.REAL_CLIENT_CUSTOM_CONFIG_SIGNING_KEY }}
+        run: node .betterdesk/sign-custom-config.mjs .betterdesk-build/input/custom-config.json .betterdesk-build/input/custom_.txt rustdesk-source
+
+      - name: Import Windows release-signing certificate
+        if: ${{ startsWith(inputs.target, 'windows-') }}
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.REAL_CLIENT_WINDOWS_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.REAL_CLIENT_WINDOWS_PFX_PASSWORD }}
+          EXPECTED_THUMBPRINT: ${{ vars.REAL_CLIENT_WINDOWS_SIGN_THUMBPRINT }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:PFX_PASSWORD) -or [string]::IsNullOrWhiteSpace($env:EXPECTED_THUMBPRINT)) { throw "Windows signing secrets are incomplete" }
+          $expected = ($env:EXPECTED_THUMBPRINT -replace '\s', '').ToUpperInvariant()
+          if ($expected -notmatch '^[0-9A-F]{40}$') { throw "Windows signing thumbprint is invalid" }
+          $pfx = Join-Path $env:RUNNER_TEMP "betterdesk-real-client.pfx"
+          $manifest = Join-Path $env:RUNNER_TEMP "betterdesk-real-client-cert-thumbprints.txt"
+          $imported = @()
+          try {
+            New-Item -ItemType File -Path $manifest -Force | Out-Null
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+            $password = ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force
+            if (Test-Path "Cert:\CurrentUser\My\$expected") { throw "Windows signing certificate already exists on the runner" }
+            $expected | Set-Content -LiteralPath $manifest -Encoding ascii
+            $imported = @(Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password)
+            $thumbprints = @($imported | ForEach-Object { $_.Thumbprint.ToUpperInvariant() } | Where-Object { $_ -match '^[0-9A-F]{40}$' })
+            (@($expected) + $thumbprints) | Sort-Object -Unique | Set-Content -LiteralPath $manifest -Encoding ascii
+            if ($thumbprints -notcontains $expected) { throw "Imported Windows signing certificate does not match the configured thumbprint" }
+          } catch {
+            $imported | ForEach-Object { Remove-Item "Cert:\CurrentUser\My\$($_.Thumbprint)" -Force -ErrorAction SilentlyContinue }
+            if (Test-Path -LiteralPath $manifest) {
+              Get-Content -LiteralPath $manifest | Where-Object { $_ -match '^[0-9A-Fa-f]{40}$' } | ForEach-Object {
+                Remove-Item "Cert:\CurrentUser\My\$($_)" -Force -ErrorAction SilentlyContinue
+              }
+            }
+            Remove-Item -LiteralPath $pfx, $manifest -Force -ErrorAction SilentlyContinue
+            throw
+          }
+
+      - name: Import macOS release-signing certificate
+        if: ${{ startsWith(inputs.target, 'macos-') }}
+        shell: bash
+        env:
+          P12_BASE64: ${{ secrets.REAL_CLIENT_MACOS_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.REAL_CLIENT_MACOS_P12_PASSWORD }}
+          EXPECTED_IDENTITY: ${{ vars.REAL_CLIENT_MACOS_SIGN_IDENTITY }}
+        run: |
+          test -n "$P12_BASE64" && test -n "$P12_PASSWORD" && test -n "$EXPECTED_IDENTITY"
+          [[ "$EXPECTED_IDENTITY" != *$'\n'* && "$EXPECTED_IDENTITY" != *$'\r'* ]]
+          signing_dir="$(mktemp -d "$RUNNER_TEMP/betterdesk-signing.XXXXXX")"
+          signing_keychain="$signing_dir/signing.keychain-db"
+          p12="$signing_dir/signing.p12"
+          keychain_password="$(openssl rand -hex 32)"
+          cleanup_failed_import() {
+            security delete-keychain "$signing_keychain" 2>/dev/null || true
+            rm -rf "$signing_dir"
+          }
+          trap cleanup_failed_import ERR
+          printf 'REAL_CLIENT_MACOS_SIGN_DIR=%s\n' "$signing_dir" >> "$GITHUB_ENV"
+          printf 'REAL_CLIENT_MACOS_SIGN_KEYCHAIN=%s\n' "$signing_keychain" >> "$GITHUB_ENV"
+          umask 077
+          printf '%s' "$P12_BASE64" | openssl base64 -d -A -out "$p12"
+          test -s "$p12"
+          security create-keychain -p "$keychain_password" "$signing_keychain"
+          security set-keychain-settings -lut 10800 "$signing_keychain"
+          security unlock-keychain -p "$keychain_password" "$signing_keychain"
+          security import "$p12" -k "$signing_keychain" -f pkcs12 -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$signing_keychain"
+          security find-identity -v -p codesigning "$signing_keychain" | grep -F -- "$EXPECTED_IDENTITY" >/dev/null
+          rm -f "$p12"
+          trap - ERR
+
+      - name: Configure macOS notarization profile
+        if: ${{ startsWith(inputs.target, 'macos-') }}
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.REAL_CLIENT_MACOS_NOTARY_APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.REAL_CLIENT_MACOS_NOTARY_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.REAL_CLIENT_MACOS_NOTARY_APP_PASSWORD }}
+        run: |
+          test -n "$APPLE_ID" && test -n "$APPLE_TEAM_ID" && test -n "$APPLE_APP_PASSWORD"
+          notary_dir="$(mktemp -d "$RUNNER_TEMP/betterdesk-notary.XXXXXX")"
+          keychain="$notary_dir/notary.keychain-db"
+          cleanup_failed_notary() {
+            security delete-keychain "$keychain" 2>/dev/null || true
+            rm -rf "$notary_dir"
+          }
+          trap cleanup_failed_notary ERR
+          printf 'REAL_CLIENT_MACOS_NOTARY_PROFILE=betterdesk-real-client\n' >> "$GITHUB_ENV"
+          printf 'REAL_CLIENT_MACOS_NOTARY_KEYCHAIN=%s\n' "$keychain" >> "$GITHUB_ENV"
+          printf 'REAL_CLIENT_MACOS_NOTARY_DIR=%s\n' "$notary_dir" >> "$GITHUB_ENV"
+          keychain_password="$(openssl rand -hex 32)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 10800 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          xcrun notarytool store-credentials betterdesk-real-client --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --keychain "$keychain"
+          trap - ERR
+
+      - name: Import Flatpak signing-only subkey
+        if: ${{ contains(inputs.target, '-flatpak') }}
+        shell: bash
+        env:
+          FLATPAK_GPG_PRIVATE_KEY_BASE64: ${{ secrets.REAL_CLIENT_FLATPAK_GPG_PRIVATE_KEY_BASE64 }}
+          EXPECTED_FLATPAK_FINGERPRINT: ${{ vars.REAL_CLIENT_FLATPAK_GPG_KEY }}
+        run: |
+          fingerprint="$(printf '%s' "$EXPECTED_FLATPAK_FINGERPRINT" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
+          [[ "$fingerprint" =~ ^([0-9A-F]{40}|[0-9A-F]{64})$ ]]
+          test -n "$FLATPAK_GPG_PRIVATE_KEY_BASE64"
+          export GNUPGHOME="$RUNNER_TEMP/betterdesk-real-client-gnupg"
+          key_file="$RUNNER_TEMP/betterdesk-real-client-flatpak-key.gpg"
+          install -d -m 700 "$GNUPGHOME"
+          umask 077
+          printf '%s' "$FLATPAK_GPG_PRIVATE_KEY_BASE64" | base64 --decode > "$key_file"
+          actual="$(gpg --batch --homedir "$GNUPGHOME" --with-colons --import-options show-only --import "$key_file" | awk -F: '$1 == "fpr" { print toupper($10); exit }')"
+          test "$actual" = "$fingerprint"
+          gpg --batch --homedir "$GNUPGHOME" --import "$key_file"
+          rm -f "$key_file"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+
+      - name: Build, brand and sign exact Windows target
+        if: ${{ startsWith(inputs.target, 'windows-') }}
+        shell: bash
+        env:
+          REAL_CLIENT_WINDOWS_SIGN_THUMBPRINT: ${{ vars.REAL_CLIENT_WINDOWS_SIGN_THUMBPRINT }}
+          REAL_CLIENT_WINDOWS_TIMESTAMP_URL: ${{ vars.REAL_CLIENT_WINDOWS_TIMESTAMP_URL }}
+        run: node .betterdesk/build-real-client.mjs .betterdesk-build/input .betterdesk-build/out rustdesk-source
+
+      - name: Build, brand and sign exact Android target
+        if: ${{ startsWith(inputs.target, 'android-') }}
+        shell: bash
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+          REAL_CLIENT_ANDROID_KEYSTORE_BASE64: ${{ secrets.REAL_CLIENT_ANDROID_KEYSTORE_BASE64 }}
+          REAL_CLIENT_ANDROID_STORE_PASSWORD: ${{ secrets.REAL_CLIENT_ANDROID_STORE_PASSWORD }}
+          REAL_CLIENT_ANDROID_KEY_ALIAS: ${{ secrets.REAL_CLIENT_ANDROID_KEY_ALIAS }}
+          REAL_CLIENT_ANDROID_KEY_PASSWORD: ${{ secrets.REAL_CLIENT_ANDROID_KEY_PASSWORD }}
+          REAL_CLIENT_ANDROID_CERT_SHA256: ${{ vars.REAL_CLIENT_ANDROID_CERT_SHA256 }}
+        run: node .betterdesk/build-real-client.mjs .betterdesk-build/input .betterdesk-build/out rustdesk-source
+
+      - name: Build, brand and sign exact macOS target
+        if: ${{ startsWith(inputs.target, 'macos-') }}
+        shell: bash
+        env:
+          REAL_CLIENT_MACOS_SIGN_IDENTITY: ${{ vars.REAL_CLIENT_MACOS_SIGN_IDENTITY }}
+          REAL_CLIENT_REQUIRE_NOTARIZATION: "true"
+        run: node .betterdesk/build-real-client.mjs .betterdesk-build/input .betterdesk-build/out rustdesk-source
+
+      - name: Build, brand and sign exact Flatpak target
+        if: ${{ contains(inputs.target, '-flatpak') }}
+        shell: bash
+        env:
+          REAL_CLIENT_FLATPAK_GPG_KEY: ${{ vars.REAL_CLIENT_FLATPAK_GPG_KEY }}
+        run: node .betterdesk/build-real-client.mjs .betterdesk-build/input .betterdesk-build/out rustdesk-source
+
+      - name: Build and brand exact Linux package target
+        if: ${{ startsWith(inputs.target, 'linux-') && !contains(inputs.target, '-flatpak') }}
+        shell: bash
+        run: node .betterdesk/build-real-client.mjs .betterdesk-build/input .betterdesk-build/out rustdesk-source
+
+      - name: Validate exact output contract
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ inputs.target }}
+        run: node .betterdesk/validate-output.mjs "$BUILD_TARGET" .betterdesk-build/out
+
+      - name: Publish one validated package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: real-client-${{ inputs.build_id }}
+          path: .betterdesk-build/out/*
+          if-no-files-found: error
+          # Keep the provider copy for the same configured window used by
+          # BetterDesk so a server outage does not defeat restart recovery.
+          retention-days: ${{ inputs.artifact_retention_days }}
+          compression-level: 0
+
+      - name: Remove imported Windows signing material
+        if: ${{ always() && startsWith(inputs.target, 'windows-') }}
+        shell: pwsh
+        run: |
+          Remove-Item (Join-Path $env:RUNNER_TEMP "betterdesk-real-client.pfx") -Force -ErrorAction SilentlyContinue
+          $manifest = Join-Path $env:RUNNER_TEMP "betterdesk-real-client-cert-thumbprints.txt"
+          if (Test-Path -LiteralPath $manifest) {
+            Get-Content -LiteralPath $manifest | Where-Object { $_ -match '^[0-9A-Fa-f]{40}$' } | ForEach-Object {
+              Remove-Item "Cert:\CurrentUser\My\$($_)" -Force -ErrorAction SilentlyContinue
+            }
+          }
+          Remove-Item -LiteralPath $manifest -Force -ErrorAction SilentlyContinue
+
+      - name: Remove imported Flatpak signing material
+        if: ${{ always() && contains(inputs.target, '-flatpak') }}
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/betterdesk-real-client-flatpak-key.gpg"
+          rm -rf "$RUNNER_TEMP/betterdesk-real-client-gnupg"
+
+      - name: Remove temporary Android signing material
+        if: ${{ always() && startsWith(inputs.target, 'android-') }}
+        shell: bash
+        run: |
+          rm -f rustdesk-source/flutter/android/key.properties
+          rm -rf .betterdesk-build/secrets
+
+      - name: Remove temporary macOS signing and notarization keychains
+        if: ${{ always() && startsWith(inputs.target, 'macos-') }}
+        shell: bash
+        run: |
+          if [[ -n "${REAL_CLIENT_MACOS_SIGN_KEYCHAIN:-}" && "$REAL_CLIENT_MACOS_SIGN_KEYCHAIN" == "$RUNNER_TEMP"/betterdesk-signing.*/signing.keychain-db ]]; then
+            security delete-keychain "$REAL_CLIENT_MACOS_SIGN_KEYCHAIN" 2>/dev/null || true
+          fi
+          if [[ -n "${REAL_CLIENT_MACOS_SIGN_DIR:-}" && "$REAL_CLIENT_MACOS_SIGN_DIR" == "$RUNNER_TEMP"/betterdesk-signing.* ]]; then
+            rm -rf "$REAL_CLIENT_MACOS_SIGN_DIR"
+          fi
+          if [[ -n "${REAL_CLIENT_MACOS_NOTARY_KEYCHAIN:-}" && "$REAL_CLIENT_MACOS_NOTARY_KEYCHAIN" == "$RUNNER_TEMP"/betterdesk-notary.*/notary.keychain-db ]]; then
+            security delete-keychain "$REAL_CLIENT_MACOS_NOTARY_KEYCHAIN" 2>/dev/null || true
+          fi
+          if [[ -n "${REAL_CLIENT_MACOS_NOTARY_DIR:-}" && "$REAL_CLIENT_MACOS_NOTARY_DIR" == "$RUNNER_TEMP"/betterdesk-notary.* ]]; then
+            rm -rf "$REAL_CLIENT_MACOS_NOTARY_DIR"
+          fi
+
+      - name: Remove decrypted input and transformed source
+        if: always()
+        shell: bash
+        run: rm -rf .betterdesk-build rustdesk-source .betterdesk-toolchains
