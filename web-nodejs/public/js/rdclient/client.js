@@ -40,6 +40,9 @@ class RDClient {
         this.audio = new RDAudio();
         this.renderer = new RDRenderer(canvas);
         this.input = new RDInput(canvas, this.renderer, (msg) => this._sendPeerMessage(msg));
+        this.input.onLocalPaste = (text) => this._onBrowserLocalPaste(text);
+        this.input.onLocalPasteFiles = (files) => this._emit('local-paste-files', files);
+        this._pendingLocalClipboardText = '';
         this._fileConnection = null;
         this._sessionPassword = '';
         this.fileTransfer = new RDFileTransfer({
@@ -1103,9 +1106,50 @@ class RDClient {
             this._emit('clipboard', text);
         }
 
-        await RDClipboard.applyToLocal(decoded, {
+        const applied = await RDClipboard.applyToLocal(decoded, {
             enabled: this._clipboardToLocalEnabled
         });
+        // Browsers often deny clipboard.write without a user gesture. Stash
+        // plain text and flush on the next focus/mousedown (see remote.js).
+        if (applied && applied.wrote) {
+            this._pendingLocalClipboardText = '';
+        } else if (applied && applied.text) {
+            this._pendingLocalClipboardText = applied.text;
+        } else if (text) {
+            this._pendingLocalClipboardText = text;
+        }
+    }
+
+    /**
+     * Retry writing a remote→local text clipboard after a user gesture.
+     * @returns {Promise<boolean>}
+     */
+    async flushPendingLocalClipboard() {
+        if (!this._clipboardToLocalEnabled) return false;
+        const text = this._pendingLocalClipboardText;
+        if (!text || !navigator.clipboard || !navigator.clipboard.writeText) return false;
+        try {
+            await navigator.clipboard.writeText(text);
+            this._pendingLocalClipboardText = '';
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
+     * Browser paste event: push local text to the peer before KeyV is sent.
+     * @param {string} text
+     * @returns {Promise<void>}
+     */
+    async _onBrowserLocalPaste(text) {
+        if (this._state !== 'streaming' || this._viewOnly) return;
+        const value = text == null ? '' : String(text);
+        if (!value) return;
+        this._lastSyncedClipboardHint = value;
+        await this._sendClipboard(value);
+        // Brief yield so the peer can apply Clipboard before KeyV arrives.
+        await new Promise((resolve) => setTimeout(resolve, 40));
     }
 
     _handleClipboard(clipboard) {

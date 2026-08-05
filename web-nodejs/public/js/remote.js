@@ -522,6 +522,15 @@
             _clipDebug('skip: view-only session');
             return;
         }
+        // Remote→local writes often fail without a gesture; retry on focus/click.
+        if (typeof session.client.flushPendingLocalClipboard === 'function') {
+            try {
+                await session.client.flushPendingLocalClipboard();
+            } catch (_) { /* ignore */ }
+        }
+        if (session.client._lastSyncedClipboardHint) {
+            _lastSyncedClipboard = session.client._lastSyncedClipboardHint;
+        }
         let hasFiles = false;
         if (window.__BETTERDESK_RDCLIENT_DESKTOP__ && typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
             _clipDebug('desktop bridge detected → syncCliprdrFiles()');
@@ -1167,6 +1176,19 @@
         c.on('latency', (rtt) => { session.latency = rtt; });
 
         c.on('chat', (text) => addChatMessage(session, text, 'received'));
+
+        // Browser file paste (Explorer → Ctrl+V) — no CF_HDROP; use File Transfer upload.
+        c.on('local-paste-files', (files) => {
+            if (!isActive(session) || session.client.viewOnly) return;
+            if (!files || !files.length) return;
+            if (!window.__fileTransferModal) return;
+            if (!window.__fileTransferModal.isOpen()) {
+                window.__fileTransferModal.open(session);
+            }
+            if (typeof window.__fileTransferModal._uploadFiles === 'function') {
+                window.__fileTransferModal._uploadFiles(files);
+            }
+        });
 
         // CDAP transport: agent emits `monitors` after `monitor_list`. Show
         // the toolbar dropdown on multi-display agents and refresh contents.

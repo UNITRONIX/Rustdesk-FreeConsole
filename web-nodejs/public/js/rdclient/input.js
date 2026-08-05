@@ -53,10 +53,25 @@ class RDInput {
         this._onWheel = this._handleWheel.bind(this);
         this._onKeyDown = this._handleKeyDown.bind(this);
         this._onKeyUp = this._handleKeyUp.bind(this);
+        this._onPaste = this._handlePaste.bind(this);
         this._onContextMenu = (e) => e.preventDefault();
         this._onPointerLockChange = this._handlePointerLockChange.bind(this);
         this._onWindowBlur = this._handleWindowBlur.bind(this);
         this._onVisibilityChange = this._handleVisibilityChange.bind(this);
+
+        /**
+         * Browser cannot expose CF_HDROP; text/file paste uses the DOM paste event.
+         * Called with plain text after Ctrl/Cmd+V (before remote KeyV is synthesized).
+         * @type {null|function(string): (void|Promise<void>)}
+         */
+        this.onLocalPaste = null;
+        /**
+         * When the OS exposes File objects on paste (Explorer → browser), upload path.
+         * @type {null|function(FileList|File[]): (void|Promise<void>)}
+         */
+        this.onLocalPasteFiles = null;
+        this._awaitingBrowserPaste = false;
+        this._pasteFallbackTimer = null;
     }
 
     /**
@@ -146,6 +161,9 @@ class RDInput {
 
         document.addEventListener('keydown', this._onKeyDown);
         document.addEventListener('keyup', this._onKeyUp);
+        // Capture phase: paste targets the focused node; keydown preventDefault
+        // used to block paste entirely — Ctrl/Cmd+V is now exempt so this fires.
+        document.addEventListener('paste', this._onPaste, true);
         document.addEventListener('pointerlockchange', this._onPointerLockChange);
         window.addEventListener('blur', this._onWindowBlur);
         document.addEventListener('visibilitychange', this._onVisibilityChange);
@@ -159,6 +177,7 @@ class RDInput {
     stop() {
         if (!this.enabled) return;
 
+        this._clearPasteWait();
         this._releaseAllKeys(false);
 
         const c = this.canvas;
@@ -170,6 +189,7 @@ class RDInput {
 
         document.removeEventListener('keydown', this._onKeyDown);
         document.removeEventListener('keyup', this._onKeyUp);
+        document.removeEventListener('paste', this._onPaste, true);
         document.removeEventListener('pointerlockchange', this._onPointerLockChange);
         window.removeEventListener('blur', this._onWindowBlur);
         document.removeEventListener('visibilitychange', this._onVisibilityChange);
@@ -427,9 +447,112 @@ class RDInput {
         });
     }
 
+    /**
+     * Ctrl/Cmd+V (not AltGr): let the browser fire `paste` so clipboardData is
+     * available without clipboard-read permission. KeyV is not forwarded until
+     * onLocalPaste has pushed text to the peer.
+     * @param {KeyboardEvent} e
+     * @returns {boolean}
+     */
+    _isPasteShortcut(e) {
+        if (!e) return false;
+        if (!(e.ctrlKey || e.metaKey) || e.altKey) return false;
+        return e.code === 'KeyV' || e.key === 'v' || e.key === 'V';
+    }
+
+    _clearPasteWait() {
+        this._awaitingBrowserPaste = false;
+        if (this._pasteFallbackTimer) {
+            clearTimeout(this._pasteFallbackTimer);
+            this._pasteFallbackTimer = null;
+        }
+    }
+
+    /**
+     * @param {ClipboardEvent} e
+     */
+    _handlePaste(e) {
+        if (!this.enabled) return;
+        if (this._isInputFocused()) return;
+
+        this._clearPasteWait();
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const dt = e && e.clipboardData;
+        const files = dt && dt.files && dt.files.length ? dt.files : null;
+        if (files && typeof this.onLocalPasteFiles === 'function') {
+            void this.onLocalPasteFiles(files);
+            return;
+        }
+
+        let text = '';
+        try {
+            text = (dt && dt.getData('text/plain')) || '';
+        } catch (_) {
+            text = '';
+        }
+
+        if (typeof this.onLocalPaste === 'function') {
+            void Promise.resolve(this.onLocalPaste(text)).then(() => {
+                this._sendPasteKeyV();
+            }).catch(() => {
+                this._sendPasteKeyV();
+            });
+            return;
+        }
+        this._sendPasteKeyV();
+    }
+
+    /** Control/Meta already held from the real keydown — only synthesize KeyV. */
+    _sendPasteKeyV() {
+        if (!this.enabled) return;
+        this._sendKeyForCode('KeyV', 'v', true, false, null);
+        this._sendKeyForCode('KeyV', 'v', false, false, null);
+    }
+
+    async _pasteViaClipboardApi() {
+        if (!this.enabled || typeof this.onLocalPaste !== 'function') {
+            this._sendPasteKeyV();
+            return;
+        }
+        let text = '';
+        try {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                text = await navigator.clipboard.readText();
+            }
+        } catch (_) {
+            text = '';
+        }
+        try {
+            await this.onLocalPaste(text || '');
+        } catch (_) { /* ignore */ }
+        this._sendPasteKeyV();
+    }
+
     _handleKeyDown(e) {
         if (!this.enabled) return;
         if (this._isInputFocused()) return;
+
+        // Do not preventDefault on Ctrl/Cmd+V — that cancels the paste event.
+        if (this._isPasteShortcut(e)) {
+            e.stopPropagation();
+            if (e.repeat) return;
+            this._awaitingBrowserPaste = true;
+            if (this._pasteFallbackTimer) clearTimeout(this._pasteFallbackTimer);
+            const schedule = (typeof setTimeout === 'function') ? setTimeout : null;
+            if (schedule) {
+                this._pasteFallbackTimer = schedule(() => {
+                    this._pasteFallbackTimer = null;
+                    if (!this._awaitingBrowserPaste) return;
+                    this._awaitingBrowserPaste = false;
+                    void this._pasteViaClipboardApi();
+                }, 120);
+            }
+            return;
+        }
 
         e.preventDefault();
         e.stopPropagation();
@@ -448,6 +571,12 @@ class RDInput {
     _handleKeyUp(e) {
         if (!this.enabled) return;
         if (this._isInputFocused()) return;
+
+        // KeyV was never sent down during paste intercept — skip the up event.
+        if (e.code === 'KeyV' && !this.pressedKeys.has('KeyV')) {
+            e.stopPropagation();
+            return;
+        }
 
         e.preventDefault();
         e.stopPropagation();

@@ -113,6 +113,29 @@ describe('RDClipboard helpers', () => {
         expect(decoded).toHaveLength(1);
         expect(decoded[0].text).toBe('kept');
     });
+
+    it('applyToLocal returns wrote=true when writeText succeeds', async () => {
+        const sandbox = loadRdclientModules();
+        const writeText = sandbox.navigator.clipboard.writeText;
+        writeText.mockResolvedValue(undefined);
+        const result = await sandbox.RDClipboard.applyToLocal(
+            [{ format: 'text', text: 'remote line' }],
+            { enabled: true }
+        );
+        expect(result).toEqual({ wrote: true, text: 'remote line' });
+        expect(writeText).toHaveBeenCalledWith('remote line');
+    });
+
+    it('applyToLocal returns wrote=false and stashes text when write fails', async () => {
+        const sandbox = loadRdclientModules();
+        sandbox.navigator.clipboard.writeText.mockRejectedValue(new Error('denied'));
+        const result = await sandbox.RDClipboard.applyToLocal(
+            [{ format: 'text', text: 'stash me' }],
+            { enabled: true }
+        );
+        expect(result.wrote).toBe(false);
+        expect(result.text).toBe('stash me');
+    });
 });
 
 describe('RDCompress helpers', () => {
