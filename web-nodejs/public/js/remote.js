@@ -522,12 +522,6 @@
             _clipDebug('skip: view-only session');
             return;
         }
-        // Remote→local writes often fail without a gesture; retry on focus/click.
-        if (typeof session.client.flushPendingLocalClipboard === 'function') {
-            try {
-                await session.client.flushPendingLocalClipboard();
-            } catch (_) { /* ignore */ }
-        }
         if (session.client._lastSyncedClipboardHint) {
             _lastSyncedClipboard = session.client._lastSyncedClipboardHint;
         }
@@ -550,9 +544,19 @@
         // Explorer file copies often also expose a path as CF_UNICODETEXT. Sending
         // that text Clipboard message after Cliprdr FormatList clears file formats
         // on the peer — skip text when local CF_HDROP is present.
+        // Also never flushPendingLocalClipboard (writeText) before Cliprdr sync:
+        // that wipes CF_HDROP and can leave remote Explorer stuck on a half-applied
+        // FormatList from the previous click.
         if (hasFiles) {
             _clipDebug('skip text clipboard: local file clipboard (CF_HDROP) present');
             return;
+        }
+        // Remote→local writes often fail without a gesture; retry on focus/click
+        // only when we are not holding a local file clipboard.
+        if (typeof session.client.flushPendingLocalClipboard === 'function') {
+            try {
+                await session.client.flushPendingLocalClipboard();
+            } catch (_) { /* ignore */ }
         }
         if (!navigator.clipboard || !navigator.clipboard.readText) {
             _clipDebug('skip: navigator.clipboard.readText unavailable in this webview');

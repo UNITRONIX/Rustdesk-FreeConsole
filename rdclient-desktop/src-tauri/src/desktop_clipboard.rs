@@ -288,16 +288,16 @@ fn file_descriptor_bin(entry: &LocalFileEntry) -> Vec<u8> {
     let name = encode_utf16le_path(&rel_str);
     let name_len = name.len().min(520);
 
-    // Match RustDesk wf_cliprdr outbound flags:
-    //   FD_ATTRIBUTES | FD_WRITESTIME | FD_PROGRESSUI
-    // Deliberately omit FD_FILESIZE. When FD_FILESIZE is set, the remote
-    // CliprdrStream uses nFileSize* as the stream length and never probes
-    // FILECONTENTS_SIZE. A zero (or mistrusted) advertised size becomes
-    // immediate EOF → remote Explorer creates a 0 KB shell with no progress
-    // and no FILECONTENTS_RANGE requests. RustDesk keeps FD_FILESIZE off for
-    // compatibility and lets the peer learn size via FILECONTENTS_SIZE.
-    // Also never set 0x08 as "unix mode" — that bit is Windows FD_CREATETIME.
-    let flags = FLAGS_FD_LAST_WRITE | FLAGS_FD_ATTRIBUTES | FLAGS_FD_PROGRESSUI;
+    // Advertise FD_FILESIZE with a correct FILEDESCRIPTORW layout so remote
+    // Explorer can open the paste menu without a FILECONTENTS_SIZE round-trip
+    // per file (those probes over the desktop relay freeze Explorer as
+    // "Not Responding"). Keep size fields accurate — the #350 0 KB bug was
+    // empty RANGE payloads (base64 coerce) plus mistyped FD_CREATETIME (0x08),
+    // not FD_FILESIZE itself. Never set 0x08 ("unix mode" mistype).
+    let flags = FLAGS_FD_SIZE
+        | FLAGS_FD_LAST_WRITE
+        | FLAGS_FD_ATTRIBUTES
+        | FLAGS_FD_PROGRESSUI;
 
     let mut buf = Vec::with_capacity(FILEDESCRIPTORW_SIZE);
     put_u32_le(&mut buf, flags);
@@ -306,7 +306,6 @@ fn file_descriptor_bin(entry: &LocalFileEntry) -> Vec<u8> {
     // ftCreationTime (8) + ftLastAccessTime (8) — leave zeroed.
     buf.extend_from_slice(&[0u8; 16]);
     put_u64_le(&mut buf, win32_time); // ftLastWriteTime
-    // Still populate size fields (RustDesk does too) even without FD_FILESIZE.
     put_u32_le(&mut buf, size_high);
     put_u32_le(&mut buf, size_low);
     buf.extend_from_slice(&name[..name_len]);
@@ -1151,16 +1150,10 @@ mod tests {
         let parsed = parse_files_pdu(&pdu).expect("parse");
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].0, "hello.txt");
-        // Outbound omits FD_FILESIZE (RustDesk compatibility), so parse sees size 0
-        // unless FLAGS_FD_SIZE is set. Size fields are still present for probes.
+        assert_eq!(parsed[0].1, 42);
         assert!(!parsed[0].2);
-        // Descriptor layout: size_low at offset 4+68 within PDU.
-        let size_low = u32::from_le_bytes(pdu[4 + 68..4 + 72].try_into().unwrap());
-        let size_high = u32::from_le_bytes(pdu[4 + 64..4 + 68].try_into().unwrap());
-        let raw_size = ((size_high as u64) << 32) | (size_low as u64);
-        assert_eq!(raw_size, 42);
         let flags = u32::from_le_bytes(pdu[4..8].try_into().unwrap());
-        assert_eq!(flags & FLAGS_FD_SIZE, 0, "outbound must omit FD_FILESIZE");
+        assert_ne!(flags & FLAGS_FD_SIZE, 0, "outbound must advertise FD_FILESIZE");
         assert_ne!(flags & FLAGS_FD_PROGRESSUI, 0);
         // Must not set Windows FD_CREATETIME (0x08) — old bug treated it as unix mode.
         assert_eq!(flags & 0x08, 0, "must not set FD_CREATETIME/0x08");
