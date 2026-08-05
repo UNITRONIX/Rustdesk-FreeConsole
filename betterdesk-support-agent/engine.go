@@ -197,6 +197,16 @@ func (e *Engine) Stop() {
 	if a != nil {
 		a.Stop()
 	}
+	// A local disconnect is an authorization boundary, not merely a transport
+	// pause. Drop the prior session arbiter so a later reconnect must obtain
+	// and validate a fresh server grant.
+	e.mu.Lock()
+	if e.agent == a {
+		e.agent = nil
+		e.running = false
+		e.sessionAuthorizer = nil
+	}
+	e.mu.Unlock()
 }
 
 // Restart applies a changed local access policy after the active agent exits.
@@ -216,9 +226,6 @@ func (e *Engine) Restart(st *AppState) error {
 		case <-ticker.C:
 		}
 	}
-	e.mu.Lock()
-	e.sessionAuthorizer = nil
-	e.mu.Unlock()
 	return e.Start(st)
 }
 
