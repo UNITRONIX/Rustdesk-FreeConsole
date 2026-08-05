@@ -78,6 +78,8 @@ body.app-page.ux35-page {
 
 .ux35-topbar-menu-btn {
     display: none;
+    min-width: var(--ux35-control-size);
+    min-height: var(--ux35-control-size);
     background: none;
     border: none;
     color: var(--ux35-topbar-fg-muted);
@@ -112,11 +114,19 @@ body.app-page.ux35-page {
     align-items: center;
     gap: 4px;
 }
+.ux35-topbar-action-list {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.ux35-topbar-actions-menu-btn { display: none; }
 
 .ux35-topbar-btn {
     background: none;
     border: none;
     color: var(--ux35-topbar-fg-muted);
+    min-width: var(--ux35-control-size);
+    min-height: var(--ux35-control-size);
     padding: 6px;
     border-radius: var(--ux35-radius-sm);
     cursor: pointer;
@@ -127,6 +137,16 @@ body.app-page.ux35-page {
 }
 .ux35-topbar-btn:hover { background: rgba(255, 255, 255, 0.12); color: var(--ux35-topbar-fg); }
 .ux35-topbar-btn .material-icons { font-size: 20px; }
+
+/* Keyboard focus uses the active brand color without relying on hover. */
+.ux35-topbar-btn:focus-visible,
+.ux35-topbar-menu-btn:focus-visible,
+.ux35-sidebar-item:focus-visible,
+.ux35-sidebar-resize:focus-visible {
+    outline: 2px solid var(--ux35-focus-ring, var(--ux35-primary));
+    outline-offset: -2px;
+    box-shadow: 0 0 0 3px var(--ux35-active-bg);
+}
 
 .ux35-topbar .notif-badge {
     position: absolute;
@@ -218,6 +238,7 @@ body.app-page.ux35-page {
     align-items: center;
     gap: 10px;
     padding: 7px 16px;
+    min-height: var(--ux35-nav-item-min-height);
     font-size: 13px;
     color: var(--ux35-text);
     cursor: pointer;
@@ -314,17 +335,30 @@ body.app-page.ux35-page {
 .ux35-sidebar-resize {
     position: absolute;
     top: 0;
-    right: 0;
-    width: 4px;
+    right: -6px;
+    width: 16px;
     height: 100%;
     cursor: col-resize;
     z-index: 5;
     touch-action: none;
 }
+.ux35-sidebar-resize::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 6px;
+    width: 4px;
+    background: transparent;
+}
 .ux35-sidebar-resize:hover,
 .ux35-sidebar-resize.active {
+    background: color-mix(in srgb, var(--ux35-primary) 18%, transparent);
+}
+.ux35-sidebar-resize:hover::after,
+.ux35-sidebar-resize.active::after {
     background: var(--ux35-primary);
-    opacity: 0.35;
+    opacity: 0.55;
 }
 .ux35-sidebar { position: relative; }
 
@@ -501,6 +535,45 @@ body.ux35-is-resizing {
 }
 
 @media (max-width: 767px) {
+    .ux35-topbar {
+        gap: var(--ux35-space-2);
+    }
+    .ux35-beta-chip {
+        display: none;
+    }
+    .ux35-topbar-actions-menu-btn {
+        display: flex;
+    }
+    .ux35-topbar-btn,
+    .ux35-topbar-menu-btn,
+    .ux35-sidebar-item {
+        min-width: var(--ux35-control-size-touch);
+        min-height: var(--ux35-control-size-touch);
+    }
+    .ux35-topbar-action-list {
+        position: fixed;
+        top: calc(var(--ux35-topbar-height) + var(--safe-top, 0px) + var(--ux35-space-2));
+        right: calc(var(--safe-right, 0px) + var(--ux35-space-2));
+        z-index: 60;
+        display: none;
+        flex-direction: column;
+        align-items: stretch;
+        min-width: 52px;
+        padding: var(--ux35-space-2);
+        border: 1px solid var(--ux35-topbar-border);
+        border-radius: var(--ux35-radius);
+        background: var(--ux35-topbar-bg);
+        box-shadow: var(--shadow-lg);
+    }
+    .ux35-topbar-action-list.is-open {
+        display: flex;
+    }
+    .ux35-topbar-action-list > .ux35-topbar-btn,
+    .ux35-topbar-action-list > .lang-selector,
+    .ux35-topbar-action-list > .notif-wrapper {
+        display: flex;
+        justify-content: center;
+    }
     .ux35-content {
         padding: var(--ux35-content-padding);
         padding-bottom: calc(var(--ux35-content-padding) + 72px);

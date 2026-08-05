@@ -12,6 +12,12 @@
 
 /* global RDProtocol, RDCompress */
 
+function rdFileDebug() {
+    if (window.BetterDesk && window.BetterDesk.debugRemote === true) {
+        console.log.apply(console, arguments);
+    }
+}
+
 // eslint-disable-next-line no-unused-vars
 class RDFileTransfer {
     /**
@@ -309,7 +315,7 @@ class RDFileTransfer {
         const dir = path != null ? path : '';
         const self = this;
         const run = function () {
-            console.log('[FileTransfer] browseDir:', JSON.stringify(dir));
+            rdFileDebug('[FileTransfer] browseDir:', JSON.stringify(dir));
             self._sendMessageSafe(self._proto.buildReadDir(dir, self._showHidden));
             self._emit('file_browsing', { path: dir });
             if (self._browseTimeout) clearTimeout(self._browseTimeout);
@@ -553,7 +559,7 @@ class RDFileTransfer {
      * @param {Object} resp - Decoded FileResponse protobuf
      */
     handleFileResponse(resp) {
-        console.log('[FileTransfer] handleFileResponse:', Object.keys(resp).filter(k => resp[k] != null).join(', '));
+        rdFileDebug('[FileTransfer] handleFileResponse:', Object.keys(resp).filter(k => resp[k] != null).join(', '));
         if (resp.dir) {
             this._handleDir(resp.dir);
         } else if (resp.block) {
@@ -579,7 +585,7 @@ class RDFileTransfer {
         }
         this._browseTimedOut = false;
 
-        console.log('[FileTransfer] _handleDir: path=%s entries=%d', dir.path || '(root)', (dir.entries || []).length);
+        rdFileDebug('[FileTransfer] _handleDir: path=%s entries=%d', dir.path || '(root)', (dir.entries || []).length);
         this._currentPath = dir.path || '';
         this._entries = (dir.entries || []).map(e => ({
             name: e.name,

@@ -45,18 +45,21 @@
     <div class="ux35-topbar-spacer"></div>
 
     <div class="ux35-topbar-actions">
+        <div class="ux35-topbar-action-list" id="ux35-topbar-action-list">
         <button type="button" class="ux35-topbar-btn" id="ui-shell-switch-btn" data-ui-shell-switch="classic"
                 title="<%= _('ux35.switch_to_classic') || 'Switch to classic UI' %>"
                 aria-label="<%= _('ux35.switch_to_classic') || 'Switch to classic UI' %>">
             <span class="material-icons">dashboard_customize</span>
         </button>
 
-        <button type="button" class="ux35-topbar-btn" id="refresh-btn" title="<%= _('actions.refresh') %>">
+        <button type="button" class="ux35-topbar-btn" id="refresh-btn" title="<%= _('actions.refresh') %>"
+                aria-label="<%= _('actions.refresh') %>">
             <span class="material-icons">refresh</span>
         </button>
 
         <div class="notif-wrapper">
-            <button type="button" class="ux35-topbar-btn notif-btn" id="notif-btn" title="<%= _('notifications.title') %>" aria-haspopup="true" aria-expanded="false">
+            <button type="button" class="ux35-topbar-btn notif-btn" id="notif-btn" title="<%= _('notifications.title') %>"
+                    aria-label="<%= _('notifications.title') %>" aria-haspopup="true" aria-expanded="false">
                 <span class="material-icons">notifications</span>
                 <span class="notif-badge" id="notif-badge" hidden>0</span>
             </button>
@@ -83,7 +86,8 @@
         </button>
 
         <div class="lang-selector">
-            <button type="button" class="ux35-topbar-btn" id="lang-btn" title="<%= _('settings.language') %>">
+            <button type="button" class="ux35-topbar-btn" id="lang-btn" title="<%= _('settings.language') %>"
+                    aria-label="<%= _('settings.language') %>" aria-haspopup="true" aria-expanded="false">
                 <span class="material-icons">language</span>
             </button>
             <div class="lang-dropdown" id="lang-dropdown">
@@ -100,19 +104,26 @@
         </div>
 
         <div class="lang-selector">
-            <button type="button" class="ux35-topbar-btn" id="user-btn" title="<%= user ? user.username : 'User' %>">
+            <button type="button" class="ux35-topbar-btn" id="user-btn" title="<%= user ? user.username : 'User' %>"
+                    aria-label="<%= user ? user.username : 'User' %>" aria-haspopup="true" aria-expanded="false">
                 <span class="material-icons">account_circle</span>
             </button>
             <div class="lang-dropdown" id="user-dropdown">
-                <div class="lang-option" id="change-password-btn">
+                <div class="lang-option" id="change-password-btn" role="button" tabindex="0">
                     <span class="material-icons" style="font-size: 18px;">lock</span>
                     <span><%= _('auth.change_password') %></span>
                 </div>
-                <div class="lang-option" id="logout-btn" style="color: var(--accent-red);">
+                <div class="lang-option" id="logout-btn" role="button" tabindex="0" style="color: var(--accent-red);">
                     <span class="material-icons" style="font-size: 18px;">logout</span>
                     <span><%= _('auth.logout') %></span>
                 </div>
             </div>
         </div>
+        </div>
+        <button type="button" class="ux35-topbar-btn ux35-topbar-actions-menu-btn" id="ux35-actions-menu-btn"
+                aria-label="<%= _('mobile_nav.more') || 'More actions' %>"
+                aria-controls="ux35-topbar-action-list" aria-expanded="false">
+            <span class="material-icons">more_vert</span>
+        </button>
     </div>
 </header>

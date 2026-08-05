@@ -26,6 +26,12 @@
 (function () {
     'use strict';
 
+    function debugLog() {
+        if (window.BetterDesk && window.BetterDesk.debugRemote === true) {
+            console.log.apply(console, arguments);
+        }
+    }
+
     // Mouse encoding (MUST match cdap server expectations + cdap-desktop.js)
     const MOUSE_TYPE_MOVE   = 0;
     const MOUSE_TYPE_DOWN   = 1;
@@ -315,7 +321,7 @@
             this._setState('connecting');
             this._codecFallbackDone = false;
             this._emit('log', 'Opening CDAP desktop session…');
-            console.log('[CDAP] connect()', this.deviceId);
+            debugLog('[CDAP] connect()', this.deviceId);
 
             const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const url = `${proto}//${window.location.host}/api/cdap/devices/${encodeURIComponent(this.deviceId)}/desktop`;
@@ -694,7 +700,7 @@
             if (this._readyTimer) { clearTimeout(this._readyTimer); this._readyTimer = null; }
             this._connected = false;
             const reason = (e && e.reason) || 'closed';
-            console.log('[CDAP] socket closed', e && e.code, reason);
+            debugLog('[CDAP] socket closed', e && e.code, reason);
             this._setState('disconnected');
             this._emit('disconnected', reason);
         }
@@ -742,7 +748,7 @@
                         this._streamThrottledActive = null;
                         this._syncStreamThrottle();
                     }
-                    console.log('[CDAP] ready, session=', this._sessionId);
+                    debugLog('[CDAP] ready, session=', this._sessionId);
                     break;
 
                 case 'desktop_meta':
@@ -778,7 +784,7 @@
                         height: m.height | 0,
                     }));
                     if (typeof msg.active === 'number') this._activeMonitor = msg.active;
-                    console.log('[CDAP] monitor_list', this._monitors);
+                    debugLog('[CDAP] monitor_list', this._monitors);
                     this._emit('monitors', this._monitors);
                     break;
                 }
@@ -795,7 +801,7 @@
                 case 'consent_required':
                 case 'permission_required':
                     this._emit('log', msg.message || 'Awaiting user consent on the device…');
-                    console.log('[CDAP] consent_required', msg);
+                    debugLog('[CDAP] consent_required', msg);
                     break;
 
                 case 'error':
@@ -814,7 +820,7 @@
 
                 case 'end':
                     if (this._readyTimer) { clearTimeout(this._readyTimer); this._readyTimer = null; }
-                    console.log('[CDAP] end', msg);
+                    debugLog('[CDAP] end', msg);
                     this._setState('disconnected');
                     this._emit('disconnected', msg.reason || 'agent_end');
                     break;

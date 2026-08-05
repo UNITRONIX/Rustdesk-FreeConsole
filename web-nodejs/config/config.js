@@ -65,7 +65,8 @@ const KEYS_PATH = resolveKeysPath();
 const RUSTDESK_DIR = KEYS_PATH;
 
 // Warn if KEYS_PATH was auto-detected and looks wrong
-if (!process.env.KEYS_PATH && !process.env.RUSTDESK_DIR && !process.env.RUSTDESK_PATH) {
+if (process.env.NODE_ENV !== 'test'
+    && !process.env.KEYS_PATH && !process.env.RUSTDESK_DIR && !process.env.RUSTDESK_PATH) {
     const apiKeyFile = path.join(KEYS_PATH, '.api_key');
     const keyFile = path.join(KEYS_PATH, 'id_ed25519');
     if (!fs.existsSync(apiKeyFile) && !fs.existsSync(keyFile)) {

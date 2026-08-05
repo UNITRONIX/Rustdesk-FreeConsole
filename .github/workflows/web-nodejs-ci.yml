@@ -37,5 +37,8 @@ jobs:
       - name: npm audit (moderate+)
         run: npm audit --omit=dev --audit-level=moderate
 
+      - name: Check browser JavaScript syntax
+        run: npm run check:frontend
+
       - name: Run tests
         run: npm run test:ci

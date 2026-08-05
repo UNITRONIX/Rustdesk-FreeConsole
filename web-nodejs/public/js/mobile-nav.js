@@ -6,57 +6,33 @@
 
     var drawerOpen = false;
     var touchStartX = 0;
+    var drawerFocusOrigin = null;
 
     function isMobileShell() {
         return window.DeviceCapabilities && window.DeviceCapabilities.isMobileShell();
+    }
+
+    function isUx35Drawer() {
+        return !!(window.Ux35Shell
+            && window.matchMedia('(max-width: 1099px)').matches
+            && document.body.classList.contains('ux35-page'));
+    }
+
+    function focusableIn(container) {
+        if (!container) return [];
+        return Array.prototype.slice.call(container.querySelectorAll(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter(function (el) { return el.offsetParent !== null; });
     }
 
     function buildDrawerFromSidebar() {
         var body = document.getElementById('mobile-more-drawer-body');
         if (!body || body.dataset.built === '1') return;
 
-        /* UX 3.5: full-list sidebar sections */
+        /* UX 3.5 has a native sidebar drawer. Do not create a second,
+           stale copy of the navigation for the same mobile control. */
         var sections = document.querySelectorAll('.ux35-sidebar-section');
         if (sections.length) {
-            sections.forEach(function(panel) {
-                var links = panel.querySelectorAll('a.ux35-sidebar-item');
-                if (!links.length) return;
-
-                var section = document.createElement('div');
-                section.className = 'mobile-drawer-section';
-
-                var heading = panel.querySelector('.ux35-sidebar-heading');
-                var title = document.createElement('div');
-                title.className = 'mobile-drawer-section-title';
-                title.textContent = heading ? heading.textContent.trim() : (panel.getAttribute('data-panel') || '');
-                section.appendChild(title);
-
-                links.forEach(function(link) {
-                    var a = document.createElement('a');
-                    a.href = link.getAttribute('href') || '#';
-                    a.className = 'mobile-drawer-link';
-                    if (link.classList.contains('active')) a.classList.add('active');
-                    if (link.getAttribute('target')) a.target = link.getAttribute('target');
-
-                    var icon = link.querySelector('.material-icons');
-                    if (icon) {
-                        var ic = document.createElement('span');
-                        ic.className = 'material-icons';
-                        ic.textContent = icon.textContent;
-                        a.appendChild(ic);
-                    }
-
-                    var labels = link.querySelectorAll('span:not(.material-icons):not(.badge-sidebar):not(.ux35-sidebar-item-badge)');
-                    var span = document.createElement('span');
-                    span.textContent = labels.length ? labels[0].textContent.trim() : link.textContent.trim();
-                    a.appendChild(span);
-
-                    a.addEventListener('click', closeDrawer);
-                    section.appendChild(a);
-                });
-
-                body.appendChild(section);
-            });
             body.dataset.built = '1';
             return;
         }
@@ -90,28 +66,44 @@
     }
 
     function openDrawer() {
-        /* Prefer UX 3.5 sidebar drawer on narrow viewports */
-        if (window.Ux35Shell && typeof window.Ux35Shell.openDrawer === 'function'
-            && window.matchMedia('(max-width: 1099px)').matches) {
+        var btn = document.getElementById('mobile-more-btn');
+        /* UX 3.5 owns its drawer state; mobile "More" becomes a second,
+           equivalent trigger rather than maintaining a separate drawer. */
+        if (isUx35Drawer()) {
             window.Ux35Shell.openDrawer();
+            drawerOpen = true;
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'true');
+                btn.setAttribute('aria-controls', 'ux35-sidebar');
+            }
             return;
         }
         var drawer = document.getElementById('mobile-more-drawer');
-        var btn = document.getElementById('mobile-more-btn');
         if (!drawer) return;
+        drawerFocusOrigin = document.activeElement;
         drawer.classList.add('open');
         drawer.setAttribute('aria-hidden', 'false');
         if (btn) btn.setAttribute('aria-expanded', 'true');
         drawerOpen = true;
         document.body.style.overflow = 'hidden';
+        window.requestAnimationFrame(function () {
+            var focusable = focusableIn(drawer);
+            if (focusable.length) focusable[0].focus({ preventScroll: true });
+        });
     }
 
     function closeDrawer() {
-        if (window.Ux35Shell && typeof window.Ux35Shell.closeDrawer === 'function') {
+        var btn = document.getElementById('mobile-more-btn');
+        if (isUx35Drawer()) {
             window.Ux35Shell.closeDrawer();
+            drawerOpen = false;
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.setAttribute('aria-controls', 'ux35-sidebar');
+            }
+            return;
         }
         var drawer = document.getElementById('mobile-more-drawer');
-        var btn = document.getElementById('mobile-more-btn');
         if (!drawer) return;
         drawer.classList.remove('open');
         drawer.setAttribute('aria-hidden', 'true');
@@ -119,6 +111,10 @@
         drawerOpen = false;
         if (isMobileShell()) {
             document.body.style.overflow = '';
+        }
+        if (drawerFocusOrigin && document.contains(drawerFocusOrigin)) {
+            drawerFocusOrigin.focus({ preventScroll: true });
+            drawerFocusOrigin = null;
         }
     }
 
@@ -143,8 +139,10 @@
         if (window.BetterDesk && window.BetterDesk.embed) return;
 
         buildDrawerFromSidebar();
+        var moreBtn = document.getElementById('mobile-more-btn');
+        if (moreBtn && isUx35Drawer()) moreBtn.setAttribute('aria-controls', 'ux35-sidebar');
 
-        document.getElementById('mobile-more-btn')?.addEventListener('click', function() {
+        moreBtn?.addEventListener('click', function() {
             if (drawerOpen) closeDrawer();
             else openDrawer();
         });
@@ -153,7 +151,25 @@
         document.getElementById('mobile-more-drawer-backdrop')?.addEventListener('click', closeDrawer);
 
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && drawerOpen) closeDrawer();
+            if (!drawerOpen || isUx35Drawer()) return;
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeDrawer();
+                return;
+            }
+            if (e.key !== 'Tab') return;
+            var drawer = document.getElementById('mobile-more-drawer');
+            var focusable = focusableIn(drawer);
+            if (!focusable.length) return;
+            var first = focusable[0];
+            var last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
         });
 
         initSwipeGestures();

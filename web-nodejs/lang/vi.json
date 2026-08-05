@@ -3619,7 +3619,7 @@
         "channel_apply_hint": "Lưu ngay sau khi xác nhận. Sau đó bấm Kiểm tra cập nhật.",
         "channel_confirm_switch": "Chuyển nguồn từ {from} sang {to}? Commit đã cài giữ nguyên cho đến khi kiểm tra cập nhật.",
         "docker_title": "Triển khai image Docker",
-        "docker_desc": "Bảng điều khiển chạy từ image container dựng sẵn (all-in-one chính thức hoặc split legacy). Cập nhật trên máy chủ bằng cách kéo image container mới từ GHCR, không qua cài đặt trong ứng dụng hay build lại Go.",
+        "docker_desc": "Bảng điều khiển chạy từ image container dựng sẵn. Cập nhật bằng cách kéo image mới từ GHCR, không qua cài đặt trong ứng dụng hay build lại Go.",
         "docker_install_note": "Cài đặt trong ứng dụng bị tắt trên Docker. Chạy các lệnh trên trên máy chủ, rồi làm mới trang này.",
         "docker_update_available": "Có image container mới",
         "docker_sha_unknown": "Đã cập nhật (commit image không rõ)",

@@ -10,6 +10,7 @@
     var closeBtn = null;
     var open = false;
     var wired = false;
+    var focusOrigin = null;
 
     function t(key, fallback) {
         if (window.I18n && typeof window.I18n.t === 'function') {
@@ -28,8 +29,16 @@
         return document.getElementById('app');
     }
 
+    function focusableIn(container) {
+        if (!container) return [];
+        return Array.prototype.slice.call(container.querySelectorAll(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter(function (el) { return el.offsetParent !== null; });
+    }
+
     function setOpen(next) {
         if (!panel) return;
+        if (next && !open) focusOrigin = document.activeElement;
         open = !!next;
         panel.classList.toggle('is-open', open);
         panel.setAttribute('aria-hidden', open ? 'false' : 'true');
@@ -53,6 +62,10 @@
 
         if (open && closeBtn) {
             try { closeBtn.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+        } else if (!open && focusOrigin && document.contains(focusOrigin)
+            && panel.contains(document.activeElement)) {
+            try { focusOrigin.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+            focusOrigin = null;
         }
     }
 
@@ -60,6 +73,19 @@
         if (e.key === 'Escape' && open) {
             e.preventDefault();
             setOpen(false);
+            return;
+        }
+        if (e.key !== 'Tab' || !open || isUx35Desktop()) return;
+        var focusable = focusableIn(panel);
+        if (!focusable.length) return;
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
         }
     }
 

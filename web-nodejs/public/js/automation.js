@@ -70,16 +70,16 @@
             return;
         }
         rulesBody.innerHTML = rules.map(r => `
-            <tr data-id="${r.id}">
+            <tr data-id="${escapeHtml(r.id)}">
                 <td>${escapeHtml(r.name)}</td>
-                <td>${_('automation.type_' + r.condition_type) || r.condition_type}</td>
-                <td>${_('automation.op_' + r.condition_op) || r.condition_op}</td>
-                <td>${r.condition_value}</td>
-                <td><span class="severity-badge ${r.severity}">${_('automation.severity_' + r.severity) || r.severity}</span></td>
+                <td>${escapeHtml(_('automation.type_' + r.condition_type) || r.condition_type)}</td>
+                <td>${escapeHtml(_('automation.op_' + r.condition_op) || r.condition_op)}</td>
+                <td>${escapeHtml(r.condition_value)}</td>
+                <td><span class="severity-badge ${safeSeverity(r.severity)}">${escapeHtml(_('automation.severity_' + r.severity) || r.severity)}</span></td>
                 <td><span class="toggle-indicator ${r.enabled ? 'on' : 'off'}"></span></td>
                 <td class="action-btn-group">
-                    <button class="btn btn-sm btn-secondary edit-rule-btn" data-id="${r.id}"><span class="material-icons" style="font-size:16px">edit</span></button>
-                    <button class="btn btn-sm btn-danger del-rule-btn" data-id="${r.id}"><span class="material-icons" style="font-size:16px">delete</span></button>
+                    <button class="btn btn-sm btn-secondary edit-rule-btn" data-id="${escapeHtml(r.id)}"><span class="material-icons" style="font-size:16px">edit</span></button>
+                    <button class="btn btn-sm btn-danger del-rule-btn" data-id="${escapeHtml(r.id)}"><span class="material-icons" style="font-size:16px">delete</span></button>
                 </td>
             </tr>
         `).join('');
@@ -174,13 +174,13 @@
         }
         alertsBody.innerHTML = alerts.map(a => `
             <tr>
-                <td><span class="severity-badge ${a.severity}">${_('automation.severity_' + a.severity) || a.severity}</span></td>
+                <td><span class="severity-badge ${safeSeverity(a.severity)}">${escapeHtml(_('automation.severity_' + a.severity) || a.severity)}</span></td>
                 <td>${escapeHtml(a.rule_name || '—')}</td>
                 <td>${escapeHtml(a.device_id || '—')}</td>
-                <td>${a.measured_value != null ? a.measured_value : '—'}</td>
+                <td>${a.measured_value != null ? escapeHtml(a.measured_value) : '—'}</td>
                 <td class="time-cell">${formatTimeAgo(a.triggered_at)}</td>
                 <td>${a.acknowledged_at ? '<span class="material-icons" style="color:var(--accent-green);font-size:18px">check_circle</span>' : '—'}</td>
-                <td>${!a.acknowledged_at ? `<button class="btn btn-sm btn-secondary ack-btn" data-id="${a.id}"><span class="material-icons" style="font-size:16px">check</span></button>` : ''}</td>
+                <td>${!a.acknowledged_at ? `<button class="btn btn-sm btn-secondary ack-btn" data-id="${escapeHtml(a.id)}"><span class="material-icons" style="font-size:16px">check</span></button>` : ''}</td>
             </tr>
         `).join('');
 
@@ -224,13 +224,13 @@
         }
         commandsBody.innerHTML = cmds.map(c => `
             <tr>
-                <td>#${c.id}</td>
+                <td>#${escapeHtml(c.id)}</td>
                 <td>${escapeHtml(c.device_id)}</td>
                 <td>${escapeHtml(c.command_type)}</td>
-                <td title="${escapeHtml(c.payload)}">${truncate(c.payload, 40)}</td>
-                <td><span class="cmd-status ${c.status}">${_('automation.status_' + c.status) || c.status}</span></td>
+                <td title="${escapeHtml(c.payload)}">${escapeHtml(truncate(c.payload, 40))}</td>
+                <td><span class="cmd-status ${safeStatus(c.status)}">${escapeHtml(_('automation.status_' + c.status) || c.status)}</span></td>
                 <td class="time-cell">${formatTimeAgo(c.created_at)}</td>
-                <td>${c.result ? `<button class="btn btn-sm btn-secondary result-btn" data-id="${c.id}"><span class="material-icons" style="font-size:16px">article</span></button>` : '—'}</td>
+                <td>${c.result ? `<button class="btn btn-sm btn-secondary result-btn" data-id="${escapeHtml(c.id)}"><span class="material-icons" style="font-size:16px">article</span></button>` : '—'}</td>
             </tr>
         `).join('');
 
@@ -248,7 +248,7 @@
                 <div class="detail-grid" style="margin-bottom:16px">
                     <div class="detail-item"><span class="detail-label">${_('inventory.device_id')}</span><span class="detail-value">${escapeHtml(cmd.device_id)}</span></div>
                     <div class="detail-item"><span class="detail-label">${_('automation.command_type')}</span><span class="detail-value">${escapeHtml(cmd.command_type)}</span></div>
-                    <div class="detail-item"><span class="detail-label">${_('automation.command_status')}</span><span class="cmd-status ${cmd.status}">${_('automation.status_' + cmd.status)}</span></div>
+                    <div class="detail-item"><span class="detail-label">${_('automation.command_status')}</span><span class="cmd-status ${safeStatus(cmd.status)}">${escapeHtml(_('automation.status_' + cmd.status))}</span></div>
                 </div>
                 <h4>${_('automation.command_payload')}</h4>
                 <div class="result-output">${escapeHtml(cmd.payload)}</div>
@@ -289,6 +289,18 @@
         const div = document.createElement('div');
         div.textContent = String(str);
         return div.innerHTML;
+    }
+
+    function safeToken(value, allowed, fallback) {
+        return allowed.includes(value) ? value : fallback;
+    }
+
+    function safeSeverity(value) {
+        return safeToken(value, ['info', 'low', 'warning', 'medium', 'high', 'critical'], 'warning');
+    }
+
+    function safeStatus(value) {
+        return safeToken(value, ['pending', 'queued', 'running', 'success', 'completed', 'failed', 'error', 'cancelled'], 'pending');
     }
 
     function truncate(str, max) {

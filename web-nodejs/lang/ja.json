@@ -3613,7 +3613,7 @@
         "channel_apply_hint": "確認後すぐに保存されます。その後「更新を確認」をクリック。",
         "channel_confirm_switch": "更新元を {from} から {to} に切り替えますか？「更新を確認」まで現在の commit はそのままです。",
         "docker_title": "Docker イメージのデプロイ",
-        "docker_desc": "このコンソールは事前ビルド済みコンテナイメージ（公式 all-in-one またはレガシー split）から動作します。更新はホスト上で GHCR から新しいコンテナイメージを pull して適用し、アプリ内インストールや Go 再ビルドでは行いません。",
+        "docker_desc": "このコンソールは事前ビルド済みコンテナイメージから動作します。更新は GHCR から新しいイメージを pull して適用し、アプリ内インストールや Go 再ビルドでは行いません。",
         "docker_install_note": "Docker ではアプリ内インストールは無効です。上記コマンドをホストで実行し、このページを更新してください。",
         "docker_update_available": "新しいコンテナイメージが利用可能",
         "docker_sha_unknown": "最新（イメージ commit 不明）",

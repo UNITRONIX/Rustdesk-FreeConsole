@@ -3613,7 +3613,7 @@
         "channel_apply_hint": "확인 후 즉시 저장됩니다. 그다음 업데이트 확인을 클릭하세요.",
         "channel_confirm_switch": "{from}에서 {to}(으)로 전환할까요? 업데이트 확인 전까지 설치된 commit은 유지됩니다.",
         "docker_title": "Docker 이미지 배포",
-        "docker_desc": "이 콘솔은 사전 빌드된 컨테이너 이미지(공식 all-in-one 또는 레거시 split)에서 실행됩니다. 업데이트는 호스트에서 GHCR의 최신 컨테이너 이미지를 pull하여 적용하며, 앱 내 설치나 Go 재빌드가 아닙니다.",
+        "docker_desc": "이 콘솔은 사전 빌드된 컨테이너 이미지에서 실행됩니다. 업데이트는 GHCR에서 최신 이미지를 pull하여 적용하며, 앱 내 설치나 Go 재빌드가 아닙니다.",
         "docker_install_note": "Docker에서는 앱 내 설치가 비활성화되어 있습니다. 위 명령을 호스트에서 실행한 뒤 이 페이지를 새로고침하세요.",
         "docker_update_available": "새 컨테이너 이미지 사용 가능",
         "docker_sha_unknown": "최신 (이미지 commit 알 수 없음)",

@@ -8,6 +8,7 @@
     "dev": "node --watch server.js",
     "test": "jest --detectOpenHandles --forceExit",
     "test:ci": "jest --detectOpenHandles --forceExit --ci",
+    "check:frontend": "node scripts/check-frontend.js",
     "i18n:check": "node scripts/i18n-check.js --system web-nodejs",
     "i18n:check:all": "node scripts/i18n-check.js",
     "i18n:commercialization": "node scripts/patch-commercialization-i18n.js",
@@ -37,13 +38,13 @@
     "express-session": "^1.18.1",
     "helmet": "^7.2.0",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^9.0.4",
     "otplib": "^12.0.1",
     "protobufjs": "^7.6.5",
     "qrcode": "^1.5.4",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
-    "ws": "^8.21.1"
+    "ws": "^8.21.2"
   },
   "optionalDependencies": {
     "node-pty": "^1.0.0",

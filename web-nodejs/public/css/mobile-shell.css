@@ -31,7 +31,9 @@
         padding-right: calc(var(--space-sm) + var(--safe-right));
     }
 
-    body.app-page.is-mobile-shell .main-content {
+    /* Classic shell owns its scroll region. UX 3.5 uses its own flex layout
+       and a 48px topbar, so this must not override .ux35-content. */
+    body.app-page.is-mobile-shell .app-layout .main-content {
         height: calc(var(--app-height) - var(--navbar-height) - var(--safe-top));
         min-height: 0;
         padding-bottom: calc(var(--space-lg) + var(--mobile-chrome-bottom));
@@ -53,6 +55,31 @@
 
     body.app-page.is-mobile-shell .sidebar-overlay {
         display: none;
+    }
+
+    /* UX 3.5 uses the same mobile chrome, but keeps its own scroll container
+       and dimensions. This prevents the classic 60px navbar calculation from
+       clipping content below the 48px UX 3.5 topbar on tablets. */
+    body.app-page.is-mobile-shell.ux35-page .ux35-shell {
+        height: var(--app-height);
+    }
+
+    body.app-page.is-mobile-shell.ux35-page .ux35-topbar {
+        min-height: calc(var(--ux35-topbar-height) + var(--safe-top));
+        height: calc(var(--ux35-topbar-height) + var(--safe-top));
+        padding-top: var(--safe-top);
+        padding-left: calc(var(--ux35-space-4) + var(--safe-left));
+        padding-right: calc(var(--ux35-space-4) + var(--safe-right));
+    }
+
+    body.app-page.is-mobile-shell.ux35-page .ux35-sidebar {
+        top: calc(var(--ux35-topbar-height) + var(--safe-top));
+    }
+
+    body.app-page.is-mobile-shell.ux35-page .ux35-content.main-content {
+        height: auto;
+        min-height: 0;
+        padding-bottom: calc(var(--ux35-content-padding) + var(--mobile-chrome-bottom));
     }
 }
 
@@ -82,6 +109,15 @@
     -webkit-backdrop-filter: blur(var(--surface-glass-blur, 16px)) saturate(var(--surface-glass-saturate, 1.2));
     border-top: 1px solid var(--surface-glass-border, var(--border-primary));
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* UX 3.5 intentionally uses solid surfaces; matching the bottom nav avoids a
+   glass/solid seam on phones and tablets. */
+body.ux35-page .mobile-bottom-nav {
+    background: var(--ux35-card-bg, var(--bg-secondary));
+    border-top-color: var(--ux35-border, var(--border-primary));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 @media (max-width: 1024px) {
@@ -476,6 +512,12 @@
         max-height: calc(var(--app-height) - var(--navbar-height) - var(--mobile-chrome-bottom) - 4rem);
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
+    }
+
+    body.fold-unfolded.is-mobile-shell.ux35-page .devices-folders-panel,
+    body.fold-unfolded.is-mobile-shell.ux35-page .rd-dashboard-sidebar,
+    body.fold-unfolded.is-mobile-shell.ux35-page .rd-desk-sidebar {
+        max-height: calc(var(--app-height) - var(--ux35-topbar-height) - var(--safe-top) - var(--mobile-chrome-bottom) - 4rem);
     }
 }
 

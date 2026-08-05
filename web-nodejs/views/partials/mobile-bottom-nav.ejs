@@ -3,7 +3,7 @@
     <a href="/"
        class="mobile-bottom-nav-item <%= currentPage === 'dashboard' ? 'active' : '' %>"
        data-nav="home"
-       aria-current="<%= currentPage === 'dashboard' ? 'page' : 'false' %>">
+       <%= currentPage === 'dashboard' ? 'aria-current="page"' : '' %>>
         <span class="material-icons" aria-hidden="true">home</span>
         <span><%= _('mobile_nav.home') %></span>
     </a>
@@ -11,7 +11,7 @@
     <a href="/devices"
        class="mobile-bottom-nav-item <%= currentPage === 'devices' ? 'active' : '' %>"
        data-nav="devices"
-       aria-current="<%= currentPage === 'devices' ? 'page' : 'false' %>">
+       <%= currentPage === 'devices' ? 'aria-current="page"' : '' %>>
         <span class="material-icons" aria-hidden="true">devices</span>
         <span><%= _('mobile_nav.devices') %></span>
     </a>
@@ -19,14 +19,14 @@
     <a href="/remote-dashboard"
        class="mobile-bottom-nav-item <%= ['remote', 'remote-dashboard'].includes(currentPage) ? 'active' : '' %>"
        data-nav="remote"
-       aria-current="<%= ['remote', 'remote-dashboard'].includes(currentPage) ? 'page' : 'false' %>">
+       <%= ['remote', 'remote-dashboard'].includes(currentPage) ? 'aria-current="page"' : '' %>>
         <span class="material-icons" aria-hidden="true">desktop_windows</span>
         <span><%= _('mobile_nav.remote') %></span>
     </a>
     <a href="/chat"
        class="mobile-bottom-nav-item <%= currentPage === 'chat' ? 'active' : '' %>"
        data-nav="chat"
-       aria-current="<%= currentPage === 'chat' ? 'page' : 'false' %>">
+       <%= currentPage === 'chat' ? 'aria-current="page"' : '' %>>
         <span class="material-icons" aria-hidden="true">chat</span>
         <span><%= _('mobile_nav.chat') %></span>
     </a>
