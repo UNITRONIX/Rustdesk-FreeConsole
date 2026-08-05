@@ -1040,11 +1040,11 @@ func (s *Server) handlePunchHoleSent(phs *pb.PunchHoleSent, senderAddr *net.UDPA
 	// socket_addr = target's (sender's) address, pk = SIGNED target's public key.
 	// LAN detection: set is_local only for genuine LAN cases. Shared public IP
 	// peers keep the public relay to avoid NAT hairpin failures (#121).
-	relayServer := phs.RelayServer
-	if relayServer == "" {
-		relayServer = s.getRelayServer()
-	}
-	relayServer, sameNetwork, hairpin := s.selectPeerRelayServer(relayServer, senderAddr, initiatorAddr)
+	//
+	// Always advertise the server-configured/auto-detected relay. Do not trust
+	// phs.RelayServer — targets often echo their local ID-server setting
+	// (private LAN IP or localhost), which external initiators cannot reach.
+	relayServer, sameNetwork, hairpin := s.selectPeerRelayServer(s.getRelayServer(), senderAddr, initiatorAddr)
 	if sameNetwork {
 		log.Printf("[signal] PunchHoleSent LAN detected: %s and %s on same network, relay=%s", senderAddr.IP, initiatorAddr.IP, relayServer)
 	}
@@ -1118,10 +1118,8 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 
 	log.Printf("[signal] RequestRelay from %s for target %s (uuid=%s, secure=%v, connType=%v)", raddr, targetID, relayUUID, msg.Secure, msg.ConnType)
 
+	// Server owns relay advertisement; ignore msg.RelayServer (see PunchHoleSent).
 	relayServer := s.getRelayServer()
-	if msg.RelayServer != "" {
-		relayServer = msg.RelayServer
-	}
 
 	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
 		s.sendUDP(s.relayUnauthorizedResponse(relayServer), raddr)
@@ -1292,10 +1290,8 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 
 	log.Printf("[signal] RequestRelay (TCP) from %s for target %s (uuid=%s, secure=%v, connType=%v)", raddr, targetID, relayUUID, msg.Secure, msg.ConnType)
 
+	// Server owns relay advertisement; ignore msg.RelayServer (see PunchHoleSent).
 	relayServer := s.getRelayServer()
-	if msg.RelayServer != "" {
-		relayServer = msg.RelayServer
-	}
 
 	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
 		return s.relayUnauthorizedResponse(relayServer)

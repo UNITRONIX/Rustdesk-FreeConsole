@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unitronix/betterdesk-server/codec"
 	"github.com/unitronix/betterdesk-server/config"
+	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
@@ -589,6 +591,102 @@ func TestHandleRequestRelayTCPSamePublicIPIgnoresPrivateRelayHint(t *testing.T) 
 	}
 	if rr.RelayServer != "198.51.100.20:21117" {
 		t.Fatalf("relay = %q, want public relay", rr.RelayServer)
+	}
+}
+
+func TestHandleRequestRelayTCPIgnoresClientPrivateRelayForExternalInitiator(t *testing.T) {
+	// External initiator + LAN target: client often sends RelayServer=LAN IP
+	// (its configured ID host). Server must advertise configured/public relay.
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.RelayServers = "dcsnorge.no:21117"
+	srv.localIP.Store("193.69.83.122")
+	srv.lanIP.Store("10.0.3.220")
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "398123891",
+		UDPAddr:    udpAddr("10.0.2.212", 54847),
+		ConnType:   peer.ConnTCP, // nil TCPConn: sendToPeer no-ops (avoids UDP panic in unit test)
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+	srv.peers.Put(&peer.Entry{
+		ID:         "EXTINIT01",
+		UDPAddr:    udpAddr("80.212.61.234", 5747),
+		ConnType:   peer.ConnTCP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:          "398123891",
+		Uuid:        "ext-lan-relay-uuid",
+		RelayServer: "10.0.3.220", // client hint — must be ignored
+	}, udpAddr("80.212.61.234", 5747), peer.ConnTCP)
+
+	rr := resp.GetRelayResponse()
+	if rr == nil {
+		t.Fatalf("expected RelayResponse, got %+v", resp)
+	}
+	if rr.RefuseReason != "" {
+		t.Fatalf("unexpected RefuseReason %q", rr.RefuseReason)
+	}
+	if rr.RelayServer != "dcsnorge.no:21117" {
+		t.Fatalf("relay = %q, want server-configured dcsnorge.no:21117", rr.RelayServer)
+	}
+}
+
+func TestHandlePunchHoleSentIgnoresClientPrivateRelay(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.RelayServers = "dcsnorge.no:21117"
+	srv.localIP.Store("193.69.83.122")
+	srv.lanIP.Store("10.0.3.220")
+
+	srv.peers.Put(&peer.Entry{
+		ID:         "398123891",
+		UDPAddr:    udpAddr("10.0.2.212", 54847),
+		ConnType:   peer.ConnUDP,
+		LastReg:    time.Now(),
+		StatusTier: peer.StatusOnline,
+	})
+
+	initiatorConn, serverConn := net.Pipe()
+	defer initiatorConn.Close()
+	defer serverConn.Close()
+
+	initiatorKey := normalizeAddrKey("80.212.61.234:5747")
+	srv.tcpPunchConns.Store(initiatorKey, &tcpPunchConn{
+		conn:      serverConn,
+		createdAt: time.Now(),
+	})
+
+	done := make(chan *pb.RendezvousMessage, 1)
+	go func() {
+		msg, err := codec.ReadRawProto(initiatorConn, 2*time.Second)
+		if err != nil {
+			t.Errorf("read PunchHoleResponse: %v", err)
+			done <- nil
+			return
+		}
+		done <- msg
+	}()
+
+	srv.handlePunchHoleSent(&pb.PunchHoleSent{
+		Id:          "398123891",
+		SocketAddr:  crypto.EncodeAddr(udpAddr("80.212.61.234", 5747)),
+		RelayServer: "10.0.3.220", // echoed ID host — must be ignored
+		NatType:     pb.NatType_ASYMMETRIC,
+	}, udpAddr("10.0.2.212", 65293), false)
+
+	msg := <-done
+	if msg == nil {
+		t.Fatal("no PunchHoleResponse delivered to initiator")
+	}
+	phr := msg.GetPunchHoleResponse()
+	if phr == nil {
+		t.Fatalf("expected PunchHoleResponse, got %T", msg.Union)
+	}
+	if phr.RelayServer != "dcsnorge.no:21117" {
+		t.Fatalf("relay = %q, want server-configured dcsnorge.no:21117", phr.RelayServer)
 	}
 }
 
