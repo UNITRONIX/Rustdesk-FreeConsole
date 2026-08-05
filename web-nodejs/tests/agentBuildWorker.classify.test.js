@@ -33,6 +33,26 @@ describe('agentBuildWorker diagnostics', () => {
         expect(worker.classifyBuildError('random compile fail').kind).toBe('compile');
     });
 
+    it('rejects malformed certificate pins in release profiles', () => {
+        const profile = {
+            bundle_id: 'bundle-test',
+            profile_issued_at: '2026-01-01T00:00:00Z',
+            profile_expires_at: '2099-01-01T00:00:00Z',
+            allowed_endpoints: [
+                'https://support.example.test',
+                'https://support.example.test/api',
+                'wss://support.example.test:21122/cdap',
+            ],
+            server: {
+                address: 'https://support.example.test',
+                api_url: 'https://support.example.test/api',
+                cdap_url: 'wss://support.example.test:21122/cdap',
+                cert_pin: 'not-a-sha256-pin',
+            },
+        };
+        expect(() => worker._internals.assertReleaseSupportProfile(profile)).toThrow(/incomplete or expired/i);
+    });
+
     it('getBuildWorkerStatus exposes worker and platform matrix', () => {
         const status = worker.getBuildWorkerStatus();
         expect(status).toHaveProperty('workerEnabled');
