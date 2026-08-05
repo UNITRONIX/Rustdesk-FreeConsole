@@ -26,6 +26,7 @@ const { roleHasPermission, isSuperAdminRole } = require('./middleware/auth');
 const authService = require('./services/authService');
 const serverBackend = require('./services/serverBackend');
 const db = require('./services/database');
+const { DatabaseSessionStore } = require('./services/databaseSessionStore');
 const userSync = require('./services/userSync');
 const { initWsProxy } = require('./services/wsRelay');
 const { initBdRelay } = require('./services/bdRelay');
@@ -109,17 +110,28 @@ app.use(cookieParser());
 // Use a different cookie name in HTTP mode to avoid collision with stale
 // Secure cookies left over from a previous HTTPS configuration (Issue #82).
 //
-// MemoryStore is intentional for the single-process console (GitHub #295).
-// express-session warns in production that MemoryStore is not for multi-process
-// or HA; BetterDesk runs one Node panel per host. Shared store (PostgreSQL/Redis)
-// is planned only for multi-instance HA — see docs/enterprise/IMPLEMENTATION_PLAN.md.
+// Store sessions in the selected BetterDesk database. This makes logout,
+// password/role changes and process restarts enforceable without another
+// hidden auth database.
 const SESSION_COOKIE = config.httpsEnabled ? 'betterdesk.sid' : 'bd.sid';
+const persistentSessionStore = new DatabaseSessionStore({
+    config,
+    ttlMs: config.sessionMaxAge
+});
+persistentSessionStore.ready.catch((err) => {
+    logger.error('[Session] Persistent session store initialization failed:', err.message);
+});
+const sessionCleanupTimer = setInterval(
+    () => persistentSessionStore.cleanup((err) => err && logger.warn('[Session] Cleanup failed:', err.message)),
+    Math.max(60 * 60 * 1000, config.sessionMaxAge)
+);
+sessionCleanupTimer.unref?.();
 const sessionMiddleware = session({
     secret: config.sessionSecret,
     name: SESSION_COOKIE,
     resave: false,
     saveUninitialized: false,
-    store: new session.MemoryStore(),
+    store: persistentSessionStore,
     cookie: {
         secure: config.httpsEnabled,
         httpOnly: true,

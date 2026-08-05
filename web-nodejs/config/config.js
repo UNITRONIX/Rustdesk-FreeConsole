@@ -77,6 +77,9 @@ if (process.env.NODE_ENV !== 'test'
 
 // Database path
 const DB_PATH = process.env.DB_PATH || path.join(RUSTDESK_DIR, 'db_v2.sqlite3');
+// Legacy SQLite panel store. Existing installations retain this file until the
+// versioned consolidation has completed; new installs never create it.
+const AUTH_DB_PATH = process.env.AUTH_DB_PATH || path.join(DATA_DIR, 'auth.db');
 
 // Key paths
 const PUB_KEY_PATH = process.env.PUB_KEY_PATH || path.join(KEYS_PATH, 'id_ed25519.pub');
@@ -188,6 +191,7 @@ module.exports = {
     keysPath: KEYS_PATH,
     rustdeskDir: RUSTDESK_DIR,
     dbPath: DB_PATH,
+    authDbPath: AUTH_DB_PATH,
     pubKeyPath: PUB_KEY_PATH,
     apiKeyPath: API_KEY_PATH,
 

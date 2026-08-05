@@ -138,7 +138,29 @@ else
     export DB_URL="${DB_PATH:-/opt/rustdesk/db_v2.sqlite3}"
     export AUTH_DB_PATH="${AUTH_DB_PATH:-/app/data/auth.db}"
     echo "Database:     SQLite (${DB_URL})"
-    echo "Panel sync:   ${AUTH_DB_PATH}"
+    echo "Legacy panel store: ${AUTH_DB_PATH}"
+fi
+
+# SQLite identity-store consolidation is explicit and runs before either
+# service starts. It produces candidate/backup snapshots and aborts the
+# container start on conflict instead of ever creating or overwriting auth.db.
+if [ "${MIGRATE_SQLITE_AUTH_DB:-N}" = "Y" ] && [ "${DB_TYPE}" != "postgres" ] && [ "${DB_TYPE}" != "postgresql" ]; then
+    if [ ! -f "${AUTH_DB_PATH}" ]; then
+        echo "ERROR: MIGRATE_SQLITE_AUTH_DB=Y but legacy auth.db is missing: ${AUTH_DB_PATH}"
+        exit 1
+    fi
+    if [ "${MIGRATE_SQLITE_AUTH_DRY_RUN:-N}" = "Y" ]; then
+        echo "Validating legacy SQLite auth migration..."
+        /usr/local/bin/betterdesk-server -migrate-sqlite-auth -migrate-sqlite-auth-dry-run \
+            -db "${DB_URL}" -migrate-sqlite-auth-backup-dir /app/data/backups
+    else
+        echo "Consolidating legacy auth.db into ${DB_URL}..."
+        /usr/local/bin/betterdesk-server -migrate-sqlite-auth \
+            -db "${DB_URL}" -migrate-sqlite-auth-backup-dir /app/data/backups
+    fi
+    if [ "${MIGRATE_SQLITE_AUTH_DRY_RUN:-N}" != "Y" ]; then
+        export SQLITE_AUTH_DB_MODE=consolidated
+    fi
 fi
 
 # Wait for PostgreSQL if configured

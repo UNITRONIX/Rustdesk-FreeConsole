@@ -53,6 +53,19 @@ function isSuperAdminRole(role) {
     return role === 'super_admin' || role === 'admin';
 }
 
+function usesSharedUserStore() {
+    if (db.type === 'postgres') return true;
+    try {
+        return typeof db.getAuthDb === 'function' && db.getAuthDb() === db.getDb();
+    } catch (_) {
+        return false;
+    }
+}
+
+function usesSharedSQLiteStore() {
+    return db.type === 'sqlite' && usesSharedUserStore();
+}
+
 /**
  * Fetch Go users via API. Distinguishes empty list from API failure (Issue #315).
  * @returns {Promise<{ users: object[], ok: boolean, status?: number, error?: string }>}
@@ -85,7 +98,7 @@ async function listGoUsers() {
  */
 async function assertGoAllowsSuperAdminDelete(username) {
     if (!username) return { ok: true, reason: 'no-username' };
-    if (db.type === 'postgres') return { ok: true, reason: 'shared-db' };
+    if (usesSharedUserStore()) return { ok: true, reason: 'shared-db' };
 
     const listed = await listGoUsers();
     if (!listed.ok) {
@@ -295,6 +308,7 @@ async function resolveGoUserId(localUserId) {
         return null;
     }
     if (!localUser) return null;
+    if (usesSharedUserStore()) return localUser.id;
 
     const goUser = await findGoUserByUsername(localUser.username);
     return goUser?.id || localUser.id;
@@ -309,7 +323,7 @@ async function resolveGoUserId(localUserId) {
  */
 async function mirrorCreate(username, password, role) {
     if (!username || !password) return;
-    if (db.type === 'postgres') {
+    if (usesSharedUserStore()) {
         return;
     }
     try {
@@ -344,6 +358,7 @@ async function mirrorCreate(username, password, role) {
 async function mirrorUpdate(username, { password, role, allowCreate = true } = {}) {
     if (!username) return;
     if (!password && !role) return;
+    if (usesSharedUserStore()) return;
 
     let goUser = await findGoUserByUsername(username);
 
@@ -391,7 +406,7 @@ async function mirrorUpdate(username, { password, role, allowCreate = true } = {
  */
 async function mirrorDelete(username) {
     if (!username) return { ok: true, skipped: true };
-    if (db.type === 'postgres') return { ok: true, skipped: 'shared-db' };
+    if (usesSharedUserStore()) return { ok: true, skipped: 'shared-db' };
 
     const goUser = await findGoUserByUsername(username);
     if (!goUser) return { ok: true, skipped: 'not-on-go' };
@@ -415,19 +430,13 @@ async function mirrorDelete(username) {
 
 async function mirrorTotpEnable(username, { secret } = {}) {
     if (!username || !secret) return;
-    if (db.type === 'postgres') {
-        // PostgreSQL uses the shared users table; the local enable already
-        // updates the row read by the Go API.
-        return;
-    }
+    if (usesSharedUserStore()) return;
     mirrorTotpToGoSqlite(username, { enabled: true, secret });
 }
 
 async function mirrorTotpDisable(username) {
     if (!username) return;
-    if (db.type === 'postgres') {
-        return;
-    }
+    if (usesSharedUserStore()) return;
     mirrorTotpToGoSqlite(username, { enabled: false });
 }
 
@@ -440,6 +449,7 @@ async function mirrorTotpDisable(username) {
  * PostgreSQL shared-DB installs normally already share the users table.
  */
 async function backfillFromNode() {
+    if (usesSharedSQLiteStore()) return { skipped: 'shared-store' };
     let nodeUsers;
     try {
         nodeUsers = await db.getAllUsers();
@@ -545,16 +555,26 @@ async function backfillFromGoPostgres() {
 }
 
 /**
- * Backfill: recover Node auth.db users from the Go server SQLite database.
+ * Backfill only legacy dual-store SQLite deployments.
  *
- * SQLite dual-DB installs read db_v2.sqlite3 directly (preserves password hashes).
- * PostgreSQL uses the Go REST API to reconcile auth_provider/role only.
+ * Consolidated SQLite and PostgreSQL already share one users table and must
+ * not run best-effort reconciliation over that source of truth.
  */
 async function backfillFromGo() {
     if (db.type === 'postgres') {
         return backfillFromGoPostgres();
     }
     if (typeof db.getAuthDb !== 'function') return { imported: 0, skipped: 'no-auth-db' };
+    let authDb;
+    try {
+        authDb = db.getAuthDb();
+        if (authDb === db.getDb()) {
+            return { imported: 0, skipped: 'shared-sqlite-store' };
+        }
+    } catch (err) {
+        console.warn(`[userSync] Go->Node backfill: cannot open local auth DB: ${err.message}`);
+        return { imported: 0, error: err.message };
+    }
 
     const goUsers = readGoUsersFromSqlite()
         .filter(u => normalizeUsername(u.username) && String(u.password_hash || '').trim() !== '');
@@ -571,14 +591,6 @@ async function backfillFromGo() {
     const localByUsername = new Set((localUsers || []).map(u => normalizeUsername(u.username)));
     const localIds = new Set((localUsers || []).map(u => Number(u.id)).filter(Number.isInteger));
     const missing = goUsers.filter(u => !localByUsername.has(normalizeUsername(u.username)));
-
-    let authDb;
-    try {
-        authDb = db.getAuthDb();
-    } catch (err) {
-        console.warn(`[userSync] Go->Node backfill: cannot open local auth DB: ${err.message}`);
-        return { imported: 0, error: err.message };
-    }
 
     const insertWithId = authDb.prepare(`
         INSERT INTO users (id, username, password_hash, role, auth_provider, created_at, last_login, totp_secret, totp_enabled)

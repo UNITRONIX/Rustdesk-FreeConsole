@@ -238,9 +238,16 @@ func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+	acceptOpts := &websocket.AcceptOptions{
 		Subprotocols: []string{"cdap-v1"},
-	})
+	}
+	if g.cfg != nil {
+		// With no configured patterns, coder/websocket enforces its safe
+		// same-host default for browser origins. Native CDAP agents omit Origin
+		// and remain compatible; configured patterns allow trusted dashboards.
+		acceptOpts.OriginPatterns = g.cfg.GetAllowedWSOrigins()
+	}
+	conn, err := websocket.Accept(w, r, acceptOpts)
 	if err != nil {
 		log.Printf("[cdap] WebSocket upgrade failed from %s: %v", clientIP, err)
 		return

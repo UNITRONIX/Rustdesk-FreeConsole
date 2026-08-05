@@ -221,6 +221,38 @@ function normalizeUserEmail(value) {
     return trimmed;
 }
 
+const VALID_USER_ROLES = new Set([
+    'super_admin',
+    'admin',
+    'server_admin',
+    'global_admin',
+    'operator',
+    'viewer',
+    'pro',
+]);
+
+/**
+ * Mirrors betterdesk-server/auth.CanAssignRole. The role hierarchy is
+ * branched: global_admin is not permitted to create or promote server-level
+ * roles, even though it can manage users.
+ */
+function canAssignUserRole(callerRole, targetRole) {
+    if (isSuperAdminRole(callerRole)) return true;
+    if (callerRole === 'global_admin') {
+        return targetRole === 'operator'
+            || targetRole === 'viewer'
+            || targetRole === 'pro';
+    }
+    return false;
+}
+
+function rejectUnauthorizedRoleAssignment(res) {
+    return res.status(403).json({
+        success: false,
+        error: 'Cannot assign a role higher than your own',
+    });
+}
+
 function requireAnyPermission(...permissions) {
     return function(req, res, next) {
         const role = req.session && req.session.user && req.session.user.role;
@@ -399,9 +431,13 @@ router.post('/api/users', requireAuth, requirePermission('user.create'), passwor
             });
         }
         
-        // Validate role (7-role hierarchy — Phase 52)
-        const validRoles = ['super_admin', 'admin', 'server_admin', 'global_admin', 'operator', 'viewer', 'pro'];
-        const userRole = validRoles.includes(role) ? role : 'viewer';
+        // Validate role (7-role hierarchy — Phase 52) and apply the same
+        // branched assignment boundaries as the Go API before any local write
+        // or asynchronous user sync.
+        const userRole = VALID_USER_ROLES.has(role) ? role : 'viewer';
+        if (!canAssignUserRole(req.session.user?.role, userRole)) {
+            return rejectUnauthorizedRoleAssignment(res);
+        }
         
         // Hash password
         const passwordHash = await authService.hashPassword(password);
@@ -503,12 +539,14 @@ router.patch('/api/users/:id', requireAuth, requirePermission('user.edit'), asyn
         
         // Update role if provided
         if (role) {
-            const validRoles = ['super_admin', 'admin', 'server_admin', 'global_admin', 'operator', 'viewer', 'pro'];
-            if (!validRoles.includes(role)) {
+            if (!VALID_USER_ROLES.has(role)) {
                 return res.status(400).json({
                     success: false,
                     error: req.t('users.invalid_role')
                 });
+            }
+            if (!canAssignUserRole(req.session.user?.role, role)) {
+                return rejectUnauthorizedRoleAssignment(res);
             }
             await db.updateUserRole(userId, role);
             // Mirror role change to Go (Issue #125)

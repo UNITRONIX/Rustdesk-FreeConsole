@@ -70,6 +70,7 @@ func TestWSRelayPairing(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	uuid := "ws-relay-test-uuid-456"
+	authorizeTestRelayPair(t, uuid)
 	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/", cfg.WSRelayPort())
 
 	// Connect first side
@@ -110,6 +111,49 @@ func TestWSRelayPairing(t *testing.T) {
 	}
 }
 
+func TestWSRelayRejectsUnknownUUID(t *testing.T) {
+	cfg := config.DefaultConfig()
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	cfg.RelayPort = port
+
+	srv := New(cfg)
+	ctx := t.Context()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+	time.Sleep(100 * time.Millisecond)
+
+	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/", cfg.WSRelayPort())
+	ws, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ws.CloseNow()
+
+	data, err := proto.Marshal(&pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RequestRelay{
+			RequestRelay: &pb.RequestRelay{Uuid: "unknown-ws-relay-uuid"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.Write(ctx, websocket.MessageBinary, data); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if srv.ActiveSessions.Load() != 0 || srv.TotalRelayed.Load() != 0 {
+		t.Fatalf("unknown WS UUID must not create a session: active=%d total=%d",
+			srv.ActiveSessions.Load(), srv.TotalRelayed.Load())
+	}
+}
+
 // TestWSRelayLargeMessagePreserved ensures payloads larger than io.Copy's default
 // buffer (~32 KiB) stay as a single WebSocket message after relay (#293).
 func TestWSRelayLargeMessagePreserved(t *testing.T) {
@@ -131,6 +175,7 @@ func TestWSRelayLargeMessagePreserved(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	uuid := "ws-relay-large-msg-293"
+	authorizeTestRelayPair(t, uuid)
 	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/", cfg.WSRelayPort())
 
 	ws1, _, err := websocket.Dial(ctx, wsURL, nil)
@@ -217,6 +262,7 @@ func TestRelayRejectsMixedTCPAndWS(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	uuid := "mixed-transport-uuid-290"
+	authorizeTestRelayPair(t, uuid)
 	wsURL := fmt.Sprintf("ws://127.0.0.1:%d/", cfg.WSRelayPort())
 
 	// First peer: WebSocket RequestRelay

@@ -243,9 +243,10 @@ func (s *Server) InitOIDC() {
 func (s *Server) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 
-	// Health + info (public, no auth required)
+	// Health and public key are needed for client bootstrap. Detailed runtime
+	// stats use the same allowlist/auth policy as Prometheus metrics.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
-	mux.HandleFunc("GET /api/server/stats", s.handleServerStats)
+	mux.HandleFunc("GET /api/server/stats", s.metricsGuard(s.handleServerStats))
 	mux.HandleFunc("GET /api/server/pubkey", s.handlePubKey)
 
 	// Peers (permission-based access control)

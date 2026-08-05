@@ -1318,8 +1318,11 @@ async function ensureServerSource(remoteSHA, opts = {}) {
 
     fs.mkdirSync(serverDir, { recursive: true });
 
-    // --- Try git clone --depth=1 (fastest) ---
+    // --- Try git clone --depth=1, then pin it to the already verified SHA ---
     try {
+        if (!/^[a-f0-9]{40}$/i.test(String(remoteSHA || ''))) {
+            throw new Error('Refusing to clone an invalid remote commit SHA');
+        }
         const tmpDir = path.join(config.dataDir, '_tmp_server_clone');
         if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
 
@@ -1327,10 +1330,15 @@ async function ensureServerSource(remoteSHA, opts = {}) {
             ? `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git`
             : `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git`;
 
-        execSync(
-            `git clone --depth=1 --single-branch --branch "${getGithubBranch()}" "${repoUrl}" "${tmpDir}"`,
-            { timeout: 120000, stdio: 'pipe' }
-        );
+        execFileSync('git', [
+            'clone', '--depth=1', '--single-branch', '--branch', getGithubBranch(), repoUrl, tmpDir
+        ], { timeout: 120000, stdio: 'pipe' });
+        const clonedSHA = String(execFileSync(
+            'git', ['-C', tmpDir, 'rev-parse', 'HEAD'], { timeout: 10_000, encoding: 'utf8' }
+        )).trim().toLowerCase();
+        if (clonedSHA !== String(remoteSHA).toLowerCase()) {
+            throw new Error(`Cloned commit ${clonedSHA} does not match requested ${remoteSHA}`);
+        }
 
         const srcDir = path.join(tmpDir, 'betterdesk-server');
         if (fs.existsSync(srcDir)) {

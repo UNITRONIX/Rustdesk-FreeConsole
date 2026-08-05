@@ -272,6 +272,7 @@ const facade = {
 if (DB_TYPE === 'sqlite' || DB_TYPE === '') {
     const Database = require('better-sqlite3');
     const path = require('path');
+    const fs = require('fs');
     let _mainDb = null;
     let _authDb = null;
 
@@ -285,9 +286,31 @@ if (DB_TYPE === 'sqlite' || DB_TYPE === '') {
     };
 
     facade.getAuthDb = function getAuthDb() {
+        const legacyPath = config.authDbPath || path.join(config.dataDir, 'auth.db');
+        const requestedMode = (process.env.SQLITE_AUTH_DB_MODE || '').toLowerCase();
+        const useConsolidated = (() => {
+            if (requestedMode === 'legacy') return false;
+            if (requestedMode === 'consolidated' || !fs.existsSync(legacyPath)) return true;
+            try {
+                const main = facade.getDb();
+                const markerTable = main.prepare(`
+                    SELECT 1 FROM sqlite_master
+                    WHERE type = 'table' AND name = 'betterdesk_migrations'
+                `).get();
+                return !!markerTable && !!main.prepare(`
+                    SELECT 1 FROM betterdesk_migrations
+                    WHERE name = 'sqlite_auth_consolidation_v1' AND status = 'complete'
+                `).get();
+            } catch (_) {
+                return false;
+            }
+        })();
+        if (useConsolidated) return facade.getDb();
         if (!_authDb) {
-            const authDbPath = path.join(config.dataDir, 'auth.db');
-            _authDb = new Database(authDbPath, { readonly: false, fileMustExist: false });
+            if (!fs.existsSync(legacyPath)) {
+                throw new Error(`Legacy auth database is missing: ${legacyPath}`);
+            }
+            _authDb = new Database(legacyPath, { readonly: false, fileMustExist: true });
             _authDb.pragma('journal_mode = WAL');
         }
         return _authDb;

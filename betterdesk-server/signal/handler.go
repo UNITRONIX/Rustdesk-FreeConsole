@@ -22,6 +22,7 @@ import (
 	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
 	pb "github.com/unitronix/betterdesk-server/proto"
+	"github.com/unitronix/betterdesk-server/relay"
 )
 
 // refuseRelayProtocolMismatch is returned when one peer uses WebSocket Mode
@@ -259,6 +260,16 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 		// Reject banned peers — do not heartbeat or respond
 		if existing.Banned {
 			log.Printf("[signal] Rejected banned peer heartbeat: %s from %s", id, raddr.IP)
+			s.revokeBannedPeerAccess(id, nil)
+			return
+		}
+		if banned, err := s.db.IsPeerBanned(id); err != nil || banned {
+			if err != nil {
+				log.Printf("[signal] Failed ban check for peer heartbeat %s: %v", id, err)
+			} else {
+				log.Printf("[signal] Rejected banned peer heartbeat: %s from %s", id, raddr.IP)
+				s.revokeBannedPeerAccess(id, nil)
+			}
 			return
 		}
 
@@ -301,8 +312,13 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 
 	// Check if this peer is banned in the database (e.g. removed from memory
 	// map after ban but trying to re-register)
-	if banned, _ := s.db.IsPeerBanned(id); banned {
+	if banned, err := s.db.IsPeerBanned(id); err != nil || banned {
+		if err != nil {
+			log.Printf("[signal] Failed ban check for peer registration %s: %v", id, err)
+			return
+		}
 		log.Printf("[signal] Rejected banned peer registration: %s from %s", id, raddr.IP)
+		s.revokeBannedPeerAccess(id, nil)
 		if s.auditLog != nil {
 			s.auditLog.Log(audit.ActionPeerRegistrationRejected, raddr.IP.String(), id, map[string]string{
 				"reason": "banned",
@@ -447,9 +463,14 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 	}
 
 	// Check ban status
-	banned, _ := s.db.IsPeerBanned(id)
+	banned, err := s.db.IsPeerBanned(id)
+	if err != nil {
+		log.Printf("[signal] Failed ban check before RegisterPk for %s: %v", id, err)
+		return registerPkResponse(pb.RegisterPkResponse_SERVER_ERROR)
+	}
 	if banned {
 		log.Printf("[signal] Rejected banned peer: %s", id)
+		s.revokeBannedPeerAccess(id, nil)
 		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
 	}
 
@@ -463,18 +484,38 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 		s.peers.Put(entry)
 	}
 
-	// Check UUID consistency (prevent hijacking)
-	if len(entry.UUID) > 0 && len(msg.Uuid) > 0 {
-		if !peerUUIDEqual(entry.UUID, msg.Uuid) {
-			log.Printf("[signal] UUID mismatch for %s: registered=%x, received=%x",
-				id, entry.UUID, msg.Uuid)
-			return registerPkResponse(pb.RegisterPkResponse_UUID_MISMATCH)
+	// Bind the persisted device identity before processing RegisterPk. After a
+	// restart peer.Map is empty; without this hydration any caller could replace
+	// the stored PK/UUID on its first RegisterPk. Empty stored fields remain
+	// enrollable for legacy rows and legitimate first enrollment.
+	if existingPeer != nil {
+		if len(entry.UUID) == 0 && existingPeer.UUID != "" {
+			entry.UUID = peerUUIDFromDB(existingPeer.UUID)
+		}
+		if len(entry.PK) == 0 && len(existingPeer.PK) > 0 {
+			entry.PK = append([]byte(nil), existingPeer.PK...)
 		}
 	}
 
-	// Store key data
-	entry.UUID = msg.Uuid
-	entry.PK = msg.Pk
+	// Existing identity is immutable through RegisterPk. RustDesk public keys
+	// are long-lived; rotation must use an authenticated management workflow.
+	if len(entry.UUID) > 0 && len(msg.Uuid) > 0 && !peerUUIDEqual(entry.UUID, msg.Uuid) {
+		log.Printf("[signal] UUID mismatch for %s: registered=%x, received=%x",
+			id, entry.UUID, msg.Uuid)
+		return registerPkResponse(pb.RegisterPkResponse_UUID_MISMATCH)
+	}
+	if len(entry.PK) > 0 && len(msg.Pk) > 0 && !bytes.Equal(entry.PK, msg.Pk) {
+		log.Printf("[signal] PK mismatch for %s", id)
+		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+	}
+
+	// Preserve a persisted identity when a compatible client omits either field.
+	if len(msg.Uuid) > 0 {
+		entry.UUID = normalizePeerUUIDBytes(msg.Uuid)
+	}
+	if len(msg.Pk) > 0 {
+		entry.PK = append([]byte(nil), msg.Pk...)
+	}
 	entry.LastReg = time.Now()
 	// Bind exact ip:port so FindByAddr can authorize TCP/WS-only RegisterPk
 	// (viewer-only outbound when the OS service is not sending UDP heartbeats, #327).
@@ -491,8 +532,8 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 	// Persist to database
 	dbPeer := &db.Peer{
 		ID:     id,
-		UUID:   fmt.Sprintf("%x", msg.Uuid),
-		PK:     msg.Pk,
+		UUID:   fmt.Sprintf("%x", entry.UUID),
+		PK:     entry.PK,
 		Status: "ONLINE",
 	}
 	if err := s.db.UpsertPeer(dbPeer); err != nil {
@@ -617,7 +658,8 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 
 	log.Printf("[signal] PunchHoleRequest from %s for target %s", raddr, targetID)
 
-	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
+	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken())
+	if !ok {
 		s.sendUDP(s.punchHoleUnauthorizedResponse(), raddr)
 		return
 	}
@@ -672,7 +714,6 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 	}
 
 	relayServer, sameNetwork, hairpin := s.selectPeerRelayServer(s.getRelayServer(), raddr, target.UDPAddr)
-	initiatorID := s.peerIDForAddr(raddr)
 	relayServer = s.applyNetworkRelayPolicy(relayServer, initiatorID, targetID)
 	if sameNetwork {
 		log.Printf("[signal] LAN detected: %s and %s on same network, relay=%s", raddr.IP, target.UDPAddr.IP, relayServer)
@@ -688,7 +729,7 @@ func (s *Server) handlePunchHoleRequest(msg *pb.PunchHoleRequest, raddr *net.UDP
 	// If force relay or always use relay
 	if msg.ForceRelay || s.cfg.AlwaysUseRelay || hairpin || s.shouldForceRelayForPeers(initiatorID, targetID) {
 		log.Printf("[signal] PunchHole: force relay for %s", targetID)
-		s.sendRelayResponse(target, raddr, msg, relayServer)
+		s.sendRelayResponse(target, raddr, msg, relayServer, initiatorID)
 		return
 	}
 
@@ -804,7 +845,8 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 
 	log.Printf("[signal] PunchHoleRequest (TCP) from %s for target %s", raddr, targetID)
 
-	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
+	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken())
+	if !ok {
 		return s.punchHoleUnauthorizedResponse()
 	}
 
@@ -838,7 +880,6 @@ func (s *Server) handlePunchHoleRequestTCP(msg *pb.PunchHoleRequest, raddr *net.
 	}
 
 	relayServer, sameNetwork, hairpin := s.selectPeerRelayServer(s.getRelayServer(), raddr, target.UDPAddr)
-	initiatorID := s.peerIDForAddr(raddr)
 	relayServer = s.applyNetworkRelayPolicy(relayServer, initiatorID, targetID)
 	if sameNetwork {
 		log.Printf("[signal] LAN detected (TCP): %s and %s on same network, relay=%s", raddr.IP, target.UDPAddr.IP, relayServer)
@@ -1123,7 +1164,8 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		relayServer = msg.RelayServer
 	}
 
-	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
+	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken())
+	if !ok {
 		s.sendUDP(s.relayUnauthorizedResponse(relayServer), raddr)
 		return
 	}
@@ -1161,7 +1203,7 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 
 	// WebSocket Mode and native TCP/UDP cannot share a relay session (#290).
 	initiatorType := peer.ConnUDP
-	if initiator := s.peers.FindByIP(raddr.IP); initiator != nil {
+	if initiator := s.peers.Get(initiatorID); initiator != nil {
 		initiatorType = initiator.ConnType
 	}
 	if relayTransportMismatch(initiatorType, target.ConnType) {
@@ -1179,7 +1221,6 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 		return
 	}
 
-	initiatorID := s.peerIDForAddr(raddr)
 	if s.billing != nil {
 		if check := s.billing.CheckConnection(targetID); !check.Allowed {
 			log.Printf("[signal] RequestRelay: billing denied for target %s: %s", targetID, check.Reason)
@@ -1207,6 +1248,10 @@ func (s *Server) handleRequestRelay(msg *pb.RequestRelay, raddr *net.UDPAddr) {
 			s.sendUDP(resp, raddr)
 			return
 		}
+	}
+	if !s.authorizeRelayTicket(relayUUID, initiatorID, targetID) {
+		s.sendUDP(s.relayTicketRejectedResponse(relayServer), raddr)
+		return
 	}
 
 	// LAN detection: use server's LAN IP only for genuine LAN cases. Shared
@@ -1297,7 +1342,8 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 		relayServer = msg.RelayServer
 	}
 
-	if _, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken()); !ok {
+	initiatorID, ok := s.requireAuthorizedInitiator(raddr, targetID, msg.GetToken())
+	if !ok {
 		return s.relayUnauthorizedResponse(relayServer)
 	}
 
@@ -1330,7 +1376,7 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 
 	// WebSocket Mode and native TCP/UDP cannot share a relay session (#290).
 	initiatorType := initiatorHint
-	if initiator := s.peers.FindByIP(raddr.IP); initiator != nil {
+	if initiator := s.peers.Get(initiatorID); initiator != nil {
 		initiatorType = initiator.ConnType
 	}
 	if relayTransportMismatch(initiatorType, target.ConnType) {
@@ -1344,6 +1390,9 @@ func (s *Server) handleRequestRelayTCP(msg *pb.RequestRelay, raddr *net.UDPAddr,
 				},
 			},
 		}
+	}
+	if !s.authorizeRelayTicket(relayUUID, initiatorID, targetID) {
+		return s.relayTicketRejectedResponse(relayServer)
 	}
 
 	// LAN detection: use server's LAN IP only for genuine LAN cases. Shared
@@ -1639,9 +1688,13 @@ func (s *Server) handleOnlineRequest(msg *pb.OnlineRequest) *pb.RendezvousMessag
 // sendRelayResponse sends relay-only response to the initiator when direct connection is skipped.
 // The target's public key is signed with the server's Ed25519 key (NaCl combined format)
 // so the initiator can verify the target's identity for E2E encryption.
-func (s *Server) sendRelayResponse(target *peer.Entry, raddr *net.UDPAddr, msg *pb.PunchHoleRequest, relay string) {
+func (s *Server) sendRelayResponse(target *peer.Entry, raddr *net.UDPAddr, msg *pb.PunchHoleRequest, relay, initiatorID string) {
 	// Generate a relay session UUID for pairing both peers at hbbr.
 	relayUUID := uuid.New().String()
+	if !s.authorizeRelayTicket(relayUUID, initiatorID, target.ID) {
+		s.sendUDP(s.relayTicketRejectedResponse(relay), raddr)
+		return
+	}
 
 	// Sign the target's PK with server's Ed25519 key for E2E verification.
 	// Format: [64-byte Ed25519 signature][serialized IdPk protobuf] — NaCl combined mode.
@@ -1731,6 +1784,28 @@ func (s *Server) relayUnauthorizedResponse(relayServer string) *pb.RendezvousMes
 	}
 }
 
+// relayTicketRejectedResponse avoids advertising a relay UUID that has not been
+// accepted by the server-side relay authorization registry.
+func (s *Server) relayTicketRejectedResponse(relayServer string) *pb.RendezvousMessage {
+	return &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RelayResponse{
+			RelayResponse: &pb.RelayResponse{
+				RefuseReason: "Relay authorization rejected",
+				RelayServer:  relayServer,
+			},
+		},
+	}
+}
+
+func (s *Server) authorizeRelayTicket(relayUUID, initiatorID, targetID string) bool {
+	if relay.AuthorizeRelayPair(relayUUID, initiatorID, targetID) {
+		return true
+	}
+	log.Printf("[signal] Rejected relay authorization (uuid=%q initiator=%q target=%q)",
+		relayUUID, initiatorID, targetID)
+	return false
+}
+
 // requireAuthorizedInitiator enforces that PunchHole/RequestRelay may only be
 // started by an authorized initiator (#302 / #327), or by the Node panel Web
 // Remote proxy (trusted PANEL_SIGNAL_PROXY_CIDRS — typically loopback).
@@ -1740,9 +1815,6 @@ func (s *Server) relayUnauthorizedResponse(relayServer string) *pb.RendezvousMes
 //  2. Valid BetterDesk client login token on the punch/relay message (#327)
 //  3. Panel signal-proxy CIDR (Web Remote)
 //  4. Live peer with exact ip:port match (FindByAddr)
-//  5. Exactly one live peer at the same public IP (safe FindByIP fallback for
-//     stock clients that PunchHole on a new TCP port). Multiple live peers at
-//     that IP → initiator_ambiguous_same_nat (no identity inheritance, #302)
 //
 // Managed and locked modes additionally require an approved DB peer row (pending
 // enrollment alone is not enough). Panel proxy initiators skip peer-map / DB
@@ -1782,25 +1854,10 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 		return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned)
 	}
 
-	// 5. Safe IP-only fallback: stock RustDesk opens PunchHole on a new TCP
-	// port after RegisterPk/UDP heartbeat, so FindByAddr misses. Authorize only
-	// when exactly one live peer shares this public IP.
-	var live []*peer.Entry
-	for _, e := range s.peers.FindAllByIP(raddr.IP) {
-		if e != nil && !e.IsExpired(config.RegTimeout) {
-			live = append(live, e)
-		}
-	}
-	switch len(live) {
-	case 0:
-		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
-		return "", false
-	case 1:
-		return s.finalizeAuthorizedInitiator(live[0].ID, raddr, targetID, live[0].Banned)
-	default:
-		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_ambiguous_same_nat")
-		return "", false
-	}
+	// Never inherit an identity solely from a public IP address. NAT addresses
+	// are shared and attacker-controlled source ports are trivial to create.
+	s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
+	return "", false
 }
 
 // bindTCPSessionPeer records the peer ID on an open tcpPunchConn so a later
@@ -1862,6 +1919,19 @@ func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targe
 		}
 		return fmt.Sprintf("session-user-%d", sess.UserID), true
 	}
+	// Token initiators must always consult the persisted ban state, including
+	// open enrollment mode. Memory entries are cleared on restart and cannot be
+	// the authority for a revocation decision.
+	banned, err := s.db.IsPeerBanned(initiatorID)
+	if err != nil {
+		s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_ban_check_failed")
+		return "", false
+	}
+	if banned {
+		s.revokeBannedPeerAccess(initiatorID, sess)
+		s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
+		return "", false
+	}
 	return s.finalizeAuthorizedInitiator(initiatorID, raddr, targetID, false)
 }
 
@@ -1869,10 +1939,21 @@ func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targe
 // by live-peer and token-based authorization paths.
 func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPAddr, targetID string, memoryBanned bool) (string, bool) {
 	if memoryBanned {
+		s.revokeBannedPeerAccess(initiatorID, nil)
 		s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
 		return "", false
 	}
 	if s.db != nil {
+		banned, err := s.db.IsPeerBanned(initiatorID)
+		if err != nil {
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_ban_check_failed")
+			return "", false
+		}
+		if banned {
+			s.revokeBannedPeerAccess(initiatorID, nil)
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
+			return "", false
+		}
 		if softDeleted, _ := s.db.IsPeerSoftDeleted(initiatorID); softDeleted {
 			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_soft_deleted")
 			return "", false
@@ -1896,10 +1977,6 @@ func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPA
 		dbPeer, err := s.db.GetPeer(initiatorID)
 		if err != nil || dbPeer == nil {
 			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_not_enrolled")
-			return "", false
-		}
-		if dbPeer.Banned {
-			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
 			return "", false
 		}
 	}
