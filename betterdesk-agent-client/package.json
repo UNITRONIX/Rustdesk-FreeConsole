@@ -27,5 +27,8 @@
     "vite": "^6.4.3",
     "vite-plugin-solid": "^2.10.0",
     "vitest": "^3.2.5"
+  },
+  "overrides": {
+    "postcss": "^8.5.23"
   }
 }
