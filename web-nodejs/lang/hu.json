@@ -1309,7 +1309,15 @@
         "file_up": "Fel",
         "file_home": "Kezdőlap",
         "file_hide_hidden": "Rejtett fájlok elrejtése",
-        "windows_sessions": "Windows munkamenetek"
+        "windows_sessions": "Windows munkamenetek",
+        "cliprdr_use_file_transfer": "Ez a mappa túl nagy a vágólapos beillesztéshez. Használja a Fájlátvitelt, hogy a távoli asztal ne fagyjon le.",
+        "file_upload_folder": "Mappa feltöltése",
+        "file_download_folder": "Mappa letöltése",
+        "file_folder_tag": "mappa",
+        "file_status_folder_uploaded": "Mappa feltöltve",
+        "file_status_folder_downloaded": "Mappa letöltve",
+        "file_status_current_file": "Aktuális: {name}",
+        "file_folder_download_desktop_only": "A mappa letöltéséhez RdClient desktop szükséges. Töltse le a fájlokat egyenként, vagy használja az RdClient desktopot."
     },
     "branding": {
         "identity_title": "Márkaidentitás",

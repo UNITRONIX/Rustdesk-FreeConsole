@@ -18,7 +18,7 @@ use std::{
 use windows::{
   core::{implement, BOOL},
   Win32::{
-    Foundation::{DRAGDROP_E_INVALIDHWND, HWND, LPARAM, POINT, POINTL},
+    Foundation::{HWND, LPARAM, POINT, POINTL},
     Graphics::Gdi::ScreenToClient,
     System::{
       Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL},
@@ -47,6 +47,10 @@ impl DragDropController {
 
     let handler = Rc::new(handler);
 
+    // Register on the top-level HWND as well as children. WebView2 may recreate
+    // child HWNDs after navigation; the parent remains a reliable drop target.
+    controller.inject_in_hwnd(hwnd, handler.clone());
+
     // Enumerate child windows to find the WebView2 "window" and override!
     {
       let mut callback = |hwnd| controller.inject_in_hwnd(hwnd, handler.clone());
@@ -66,9 +70,12 @@ impl DragDropController {
   #[inline]
   fn inject_in_hwnd(&mut self, hwnd: HWND, handler: Rc<dyn Fn(DragDropEvent) -> bool>) -> bool {
     let drag_drop_target: IDropTarget = DragDropTarget::new(hwnd, handler).into();
-    if unsafe { RevokeDragDrop(hwnd) } != Err(DRAGDROP_E_INVALIDHWND.into())
-      && unsafe { RegisterDragDrop(hwnd, &drag_drop_target) }.is_ok()
-    {
+    // Always revoke any existing target (IGNORE INVALIDHWND), then register ours.
+    // The previous logic only registered when Revoke succeeded — after
+    // SetAllowExternalDrop(false) children often have no target, so Register
+    // was skipped and OS file drops never reached Tauri/JS.
+    let _ = unsafe { RevokeDragDrop(hwnd) };
+    if unsafe { RegisterDragDrop(hwnd, &drag_drop_target) }.is_ok() {
       self.drop_targets.push(drag_drop_target);
     }
 

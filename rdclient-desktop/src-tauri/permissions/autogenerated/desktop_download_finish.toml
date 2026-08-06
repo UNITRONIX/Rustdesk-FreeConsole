@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-download-finish"
+description = "Enables the desktop_download_finish command without any pre-configured scope."
+commands.allow = ["desktop_download_finish"]
+
+[[permission]]
+identifier = "deny-desktop-download-finish"
+description = "Denies the desktop_download_finish command without any pre-configured scope."
+commands.deny = ["desktop_download_finish"]

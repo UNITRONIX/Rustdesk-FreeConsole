@@ -1,5 +1,8 @@
 mod config;
 mod discovery;
+mod desktop_clipboard;
+mod desktop_drag;
+mod desktop_files;
 mod server_probe;
 
 #[cfg(target_os = "linux")]
@@ -9,6 +12,23 @@ pub mod tls_policy;
 use config::{
     apply_tls_from_config, clear_config, env_server_url, load_config, load_embedded_server_url,
     save_config, AppConfig,
+};
+use desktop_clipboard::{
+    desktop_clipboard_clear, desktop_clipboard_file_contents, desktop_clipboard_format_data,
+    desktop_clipboard_format_names, desktop_clipboard_receive_abort,
+    desktop_clipboard_receive_begin, desktop_clipboard_receive_commit,
+    desktop_clipboard_receive_write, desktop_clipboard_sync, desktop_clipboard_sync_paths,
+};
+use desktop_drag::{
+    desktop_clipboard_lbutton_down, desktop_clipboard_prepare_ole_drag,
+    desktop_clipboard_start_drag,
+};
+use desktop_files::{
+    desktop_download_abort, desktop_download_begin, desktop_download_finish,
+    desktop_download_write, desktop_list_directory, desktop_mkdir_p, desktop_open_file,
+    desktop_open_paths, desktop_pick_files, desktop_pick_folder, desktop_read_file_chunk,
+    desktop_release_file_handles, desktop_save_download, desktop_walk_paths,
+    DesktopDownloadStore, DesktopFileStore,
 };
 use discovery::discover_udp;
 use server_probe::probe_panel_url;
@@ -85,10 +105,34 @@ document.addEventListener('click',function(e){
     });
   }).catch(function(){});
 })();
+(function(){
+  function bindNativeDrop(){
+    var ev=window.__TAURI__&&window.__TAURI__.event;
+    if(!ev||typeof ev.listen!=='function'||window.__rdDeskNativeDropBound)return;
+    window.__rdDeskNativeDropBound=true;
+    function emitDrop(paths,position){
+      if(!paths||!paths.length)return;
+      var key=paths.join('\0');
+      var now=Date.now();
+      if(window.__rdDeskNativeDropLastKey===key&&window.__rdDeskNativeDropLastAt&&(now-window.__rdDeskNativeDropLastAt)<400)return;
+      window.__rdDeskNativeDropLastKey=key;
+      window.__rdDeskNativeDropLastAt=now;
+      window.dispatchEvent(new CustomEvent('rd-desk-native-drop',{detail:{paths:paths,position:position||null}}));
+    }
+    ev.listen('tauri://drag-drop',function(e){
+      var p=e&&e.payload?e.payload:{};
+      emitDrop(p.paths||[],p.position||null);
+    }).catch(function(){window.__rdDeskNativeDropBound=false;});
+  }
+  bindNativeDrop();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindNativeDrop,{once:true});
+  else setTimeout(bindNativeDrop,0);
+})();
 "#;
 
 const PANEL_INVOKE_PERMISSIONS: &[&str] = &[
     "core:default",
+    "core:event:allow-listen",
     "core:window:allow-create",
     "core:window:allow-set-focus",
     "core:window:allow-close",
@@ -109,6 +153,33 @@ const PANEL_INVOKE_PERMISSIONS: &[&str] = &[
     "allow-get-system-locale",
     "allow-open-session",
     "allow-close-current-window",
+    "allow-desktop-pick-files",
+    "allow-desktop-open-file",
+    "allow-desktop-read-file-chunk",
+    "allow-desktop-release-file-handles",
+    "allow-desktop-pick-folder",
+    "allow-desktop-list-directory",
+    "allow-desktop-save-download",
+    "allow-desktop-download-begin",
+    "allow-desktop-download-write",
+    "allow-desktop-download-finish",
+    "allow-desktop-download-abort",
+    "allow-desktop-mkdir-p",
+    "allow-desktop-walk-paths",
+    "allow-desktop-clipboard-sync",
+    "allow-desktop-clipboard-format-data",
+    "allow-desktop-clipboard-file-contents",
+    "allow-desktop-clipboard-clear",
+    "allow-desktop-clipboard-format-names",
+    "allow-desktop-clipboard-sync-paths",
+    "allow-desktop-clipboard-receive-begin",
+    "allow-desktop-clipboard-receive-write",
+    "allow-desktop-clipboard-receive-commit",
+    "allow-desktop-clipboard-receive-abort",
+    "allow-desktop-clipboard-lbutton-down",
+    "allow-desktop-clipboard-prepare-ole-drag",
+    "allow-desktop-clipboard-start-drag",
+    "allow-desktop-open-paths",
 ];
 
 pub fn normalize_server_url(raw: &str) -> Result<String, String> {
@@ -208,14 +279,30 @@ fn session_url(base: &str, device_id: &str) -> Result<tauri::Url, String> {
     .map_err(|_| "Failed to build session URL".to_string())
 }
 
-fn apply_desktop_window<R: tauri::Runtime, M: tauri::Manager<R>>(
+/// Shared window options for every webview in this process.
+///
+/// On Windows, do **not** call `additional_browser_args` here — that API deadlocks when
+/// a second window is created against the shared WebView2 user-data folder
+/// (tauri-apps/tauri#15014), even with identical argument strings. TLS / GPU flags are
+/// applied once via `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` in `tls_policy::init`.
+///
+/// `enable_clipboard_access` is required for `navigator.clipboard` (local ↔ remote text
+/// sync and the toolbar Paste action). Keep Tauri's native drag-drop handler enabled so
+/// OS file drops deliver real filesystem paths (HTML5 drops alone are unusable in WebView2).
+fn apply_webview_window<R: tauri::Runtime, M: tauri::Manager<R>>(
     builder: WebviewWindowBuilder<'_, R, M>,
 ) -> WebviewWindowBuilder<'_, R, M> {
     apply_window_builder(
         builder
-            .initialization_script(DESKTOP_INIT_SCRIPT)
-            .background_throttling(BackgroundThrottlingPolicy::Disabled),
+            .background_throttling(BackgroundThrottlingPolicy::Disabled)
+            .enable_clipboard_access(),
     )
+}
+
+fn apply_desktop_window<R: tauri::Runtime, M: tauri::Manager<R>>(
+    builder: WebviewWindowBuilder<'_, R, M>,
+) -> WebviewWindowBuilder<'_, R, M> {
+    apply_webview_window(builder.initialization_script(DESKTOP_INIT_SCRIPT))
 }
 
 fn close_session_windows(app: &AppHandle) {
@@ -396,24 +483,33 @@ fn get_system_locale() -> Option<String> {
     sys_locale::get_locale()
 }
 
+
 #[tauri::command]
-fn open_settings(app: AppHandle) -> Result<(), String> {
+async fn open_settings(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(existing) = app.get_webview_window(SETTINGS_LABEL) {
-        existing.set_focus().map_err(|e| e.to_string())?;
+        let _ = existing.set_focus();
         return Ok(());
     }
 
-    apply_desktop_window(
-        WebviewWindowBuilder::new(&app, SETTINGS_LABEL, WebviewUrl::App("settings.html".into()))
-            .title("BetterDesk RdClient — Settings")
-            .inner_size(520.0, 640.0)
-            .resizable(true)
-            .center(),
+    // async command required on Windows — sync create deadlocks (WebView2 / Tauri docs).
+    // Do not call additional_browser_args (tauri#15014 multi-window hang).
+    apply_webview_window(
+        WebviewWindowBuilder::new(
+            &app,
+            SETTINGS_LABEL,
+            WebviewUrl::App("settings.html".into()),
+        )
+        .title("Settings")
+        .inner_size(520.0, 680.0)
+        .min_inner_size(400.0, 500.0)
+        .disable_drag_drop_handler(),
     )
     .build()
     .map_err(|e| e.to_string())?;
     Ok(())
 }
+
+
 
 #[tauri::command]
 async fn sign_out(app: AppHandle) -> Result<(), String> {
@@ -448,43 +544,55 @@ async fn reset_client(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_session(app: AppHandle, device_id: String, device_name: Option<String>) -> Result<(), String> {
-    let device_id = device_id.trim().to_string();
+async fn open_session(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let body = request.body();
+    let args: serde_json::Value = match body {
+        tauri::ipc::InvokeBody::Json(json) => json.clone(),
+        _ => serde_json::Value::Null,
+    };
+
+    let device_id = args
+        .get("deviceId")
+        .or_else(|| args.get("device_id"))
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "deviceId is required".to_string())?
+        .to_string();
+
     if !is_valid_device_id(&device_id) {
         return Err("Invalid device ID".into());
     }
 
-    let cfg = load_config(&app)?;
-    let base = cfg
+    let title = args
+        .get("deviceName")
+        .or_else(|| args.get("device_name"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&device_id)
+        .to_string();
+
+    let base = load_config(&app)?
         .server_url
-        .ok_or("Server URL is not configured. Complete setup first.")?;
+        .ok_or_else(|| "Server URL is not configured".to_string())?;
 
     let label = session_label(&device_id);
     if let Some(existing) = app.get_webview_window(&label) {
-        existing.set_focus().map_err(|e| e.to_string())?;
+        let _ = existing.set_focus();
         return Ok(());
     }
 
-    let title = device_name
-        .filter(|n| !n.trim().is_empty())
-        .unwrap_or_else(|| device_id.clone());
+    let url = WebviewUrl::External(session_url(&base, &device_id)?);
 
     apply_desktop_window(
-        WebviewWindowBuilder::new(
-            &app,
-            &label,
-            WebviewUrl::External(session_url(&base, &device_id)?),
-        )
-        .title(format!("Remote — {title}"))
-        .inner_size(1280.0, 720.0)
-        .min_inner_size(640.0, 480.0)
-        .center(),
+        WebviewWindowBuilder::new(&app, &label, url)
+            .title(format!("Remote – {title}"))
+            .inner_size(1280.0, 800.0)
+            .min_inner_size(900.0, 600.0),
     )
     .build()
     .map_err(|e| e.to_string())?;
-
     Ok(())
 }
+
 
 #[tauri::command]
 fn close_current_window(window: WebviewWindow) -> Result<(), String> {
@@ -497,6 +605,8 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .manage(DesktopFileStore::default())
+        .manage(DesktopDownloadStore::default())
         .invoke_handler(tauri::generate_handler![
             get_client_info,
             get_server_url,
@@ -511,7 +621,34 @@ pub fn run() {
             sign_out,
             reset_client,
             open_session,
-            close_current_window
+            close_current_window,
+            desktop_pick_files,
+            desktop_open_file,
+            desktop_read_file_chunk,
+            desktop_release_file_handles,
+            desktop_pick_folder,
+            desktop_list_directory,
+            desktop_save_download,
+            desktop_download_begin,
+            desktop_download_write,
+            desktop_download_finish,
+            desktop_download_abort,
+            desktop_mkdir_p,
+            desktop_walk_paths,
+            desktop_clipboard_sync,
+            desktop_clipboard_format_data,
+            desktop_clipboard_file_contents,
+            desktop_clipboard_clear,
+            desktop_clipboard_format_names,
+            desktop_clipboard_sync_paths,
+            desktop_clipboard_receive_begin,
+            desktop_clipboard_receive_write,
+            desktop_clipboard_receive_commit,
+            desktop_clipboard_receive_abort,
+            desktop_clipboard_lbutton_down,
+            desktop_clipboard_prepare_ole_drag,
+            desktop_clipboard_start_drag,
+            desktop_open_paths,
         ])
         .setup(|app| {
             if let Some(base) = load_config(app.handle())?.server_url.clone() {

@@ -1320,7 +1320,15 @@
         "file_up": "上層",
         "file_home": "首頁",
         "file_hide_hidden": "隱藏隱藏檔案",
-        "windows_sessions": "Windows 工作階段"
+        "windows_sessions": "Windows 工作階段",
+        "cliprdr_use_file_transfer": "此資料夾太大，不適合透過剪貼簿貼上。請使用檔案傳輸，以免遠端桌面當住。",
+        "file_upload_folder": "上傳資料夾",
+        "file_download_folder": "下載資料夾",
+        "file_folder_tag": "資料夾",
+        "file_status_folder_uploaded": "資料夾已上傳",
+        "file_status_folder_downloaded": "資料夾已下載",
+        "file_status_current_file": "目前：{name}",
+        "file_folder_download_desktop_only": "資料夾下載需要 RdClient 桌面版。請逐一下載檔案，或使用 RdClient 桌面版。"
     },
     "branding": {
         "identity_title": "品牌標識",

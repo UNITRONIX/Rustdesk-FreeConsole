@@ -1303,7 +1303,15 @@
         "file_up": "Acima",
         "file_home": "Início",
         "file_hide_hidden": "Ocultar ficheiros ocultos",
-        "windows_sessions": "Sessoes Windows"
+        "windows_sessions": "Sessoes Windows",
+        "cliprdr_use_file_transfer": "Esta pasta é grande demais para colar pela área de transferência. Use Transferência de arquivos para não travar a área de trabalho remota.",
+        "file_upload_folder": "Enviar pasta",
+        "file_download_folder": "Baixar pasta",
+        "file_folder_tag": "pasta",
+        "file_status_folder_uploaded": "Pasta enviada",
+        "file_status_folder_downloaded": "Pasta baixada",
+        "file_status_current_file": "Atual: {name}",
+        "file_folder_download_desktop_only": "O download de pastas requer o RdClient desktop. Baixe arquivos individualmente ou use o RdClient desktop."
     },
     "branding": {
         "identity_title": "Identidade da marca",

@@ -1,6 +1,11 @@
 ## [Unreleased]
 
+### Added
+- **RdClient desktop — native Cliprdr + folder file transfer stack (Refs #350):** recovered onto current `dev` from divergent history — Tauri `desktop_*` / `desktop_clipboard_*` IPC, `cliprdr.js`, desktop DnD, streamed folder upload/download. Requires rebuilt `rdclient-desktop` **and** panel update.
+
 ### Fixed
+- **RdClient desktop — Copy-Paste / File Transfer creates 0KB empty remote files (#350):** Tauri IPC returns file chunks as base64 strings; JS treated them as `Uint8Array` constructors (`new Uint8Array(base64String)`), which always yields length 0, so Cliprdr and the File Transfer modal wrote empty remote files. `coerceBinaryPayload` now decodes base64 before upload/Cliprdr paths. Ships via panel update (`local-files.js` / `filetransfer.js` / `cliprdr.js` / `compress.js` / `protocol.js`).
+- **RdClient desktop — Cliprdr paste still 0KB after base64 coerce (#350):** outbound FILEGROUPDESCRIPTOR advertised `FD_FILESIZE` plus Windows `FD_CREATETIME` (0x08 mistyped as “unix mode”). Remote CliprdrStream trusted a bad/zero stream length and returned EOF without `FILECONTENTS_RANGE`. Descriptors now match RustDesk (`FD_ATTRIBUTES | FD_WRITESTIME | FD_PROGRESSUI`, size via `FILECONTENTS_SIZE` probe); FileContents rejects empty RANGE ACKs and serializes responses. Requires rebuilt `rdclient-desktop` **and** panel update (`cliprdr.js`). Verify: paste/upload a non-empty local file and confirm remote size matches.
 - **Enrollment QA follow-up (#351):** Enrollment Requests **All** filter aggregates pending + approved + rejected Go history. Reject & Ban → **Allow re-enroll** / Unban hard-deletes the enrollment audit peer so managed mode re-queues instead of leaving a zombie or bypassing approval. Orphan legacy `rejected_device_*` locks appear under Rejected. Devices `?search=` is applied on load (View device). Pending metadata can be enriched when HTTP enrollment supplies hostname/platform/version after a signal queue. Copy Device ID on the registrations table. Ships via panel update (Go API/signal restart).
 
 ### Changed

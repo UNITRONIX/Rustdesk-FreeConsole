@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-list-directory"
+description = "Enables the desktop_list_directory command without any pre-configured scope."
+commands.allow = ["desktop_list_directory"]
+
+[[permission]]
+identifier = "deny-desktop-list-directory"
+description = "Denies the desktop_list_directory command without any pre-configured scope."
+commands.deny = ["desktop_list_directory"]

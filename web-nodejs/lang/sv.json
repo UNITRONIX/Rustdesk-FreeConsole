@@ -1309,7 +1309,15 @@
         "file_up": "Upp",
         "file_home": "Hem",
         "file_hide_hidden": "Dölj dolda filer",
-        "windows_sessions": "Windows-sessioner"
+        "windows_sessions": "Windows-sessioner",
+        "cliprdr_use_file_transfer": "Den här mappen är för stor för att klistra in via Urklipp. Använd Filöverföring så att fjärrskrivbordet inte låser sig.",
+        "file_upload_folder": "Ladda upp mapp",
+        "file_download_folder": "Ladda ner mapp",
+        "file_folder_tag": "mapp",
+        "file_status_folder_uploaded": "Mapp uppladdad",
+        "file_status_folder_downloaded": "Mapp nedladdad",
+        "file_status_current_file": "Aktuell: {name}",
+        "file_folder_download_desktop_only": "Mappnedladdning kräver RdClient desktop. Ladda ner filer individuellt eller använd RdClient desktop."
     },
     "branding": {
         "identity_title": "Varumärkesidentitet",

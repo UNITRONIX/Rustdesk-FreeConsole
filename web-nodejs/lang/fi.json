@@ -1309,7 +1309,15 @@
         "file_up": "Ylös",
         "file_home": "Alku",
         "file_hide_hidden": "Piilota piilotetut tiedostot",
-        "windows_sessions": "Windows-istunnot"
+        "windows_sessions": "Windows-istunnot",
+        "cliprdr_use_file_transfer": "Tämä kansio on liian suuri liitettäväksi leikepöydältä. Käytä Tiedostonsiirtoa, jotta etätyöpöytä ei jäädy.",
+        "file_upload_folder": "Lataa kansio",
+        "file_download_folder": "Lataa kansio paikalliseksi",
+        "file_folder_tag": "kansio",
+        "file_status_folder_uploaded": "Kansio ladattu",
+        "file_status_folder_downloaded": "Kansio ladattu",
+        "file_status_current_file": "Nykyinen: {name}",
+        "file_folder_download_desktop_only": "Kansion lataus edellyttää RdClient desktopia. Lataa tiedostot yksitellen tai käytä RdClient desktopia."
     },
     "branding": {
         "identity_title": "Brändin identiteetti",

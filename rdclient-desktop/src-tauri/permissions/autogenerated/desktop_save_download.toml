@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-save-download"
+description = "Enables the desktop_save_download command without any pre-configured scope."
+commands.allow = ["desktop_save_download"]
+
+[[permission]]
+identifier = "deny-desktop-save-download"
+description = "Denies the desktop_save_download command without any pre-configured scope."
+commands.deny = ["desktop_save_download"]

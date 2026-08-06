@@ -1309,7 +1309,15 @@
         "file_up": "Lên",
         "file_home": "Trang chủ",
         "file_hide_hidden": "Ẩn tệp ẩn",
-        "windows_sessions": "Phien Windows"
+        "windows_sessions": "Phien Windows",
+        "cliprdr_use_file_transfer": "Thư mục này quá lớn để dán qua clipboard. Hãy dùng Chuyển tệp để tránh làm đơ máy tính từ xa.",
+        "file_upload_folder": "Tải thư mục lên",
+        "file_download_folder": "Tải thư mục xuống",
+        "file_folder_tag": "thư mục",
+        "file_status_folder_uploaded": "Đã tải thư mục lên",
+        "file_status_folder_downloaded": "Đã tải thư mục xuống",
+        "file_status_current_file": "Hiện tại: {name}",
+        "file_folder_download_desktop_only": "Tải thư mục xuống cần RdClient desktop. Hãy tải từng tệp hoặc dùng RdClient desktop."
     },
     "branding": {
         "identity_title": "Nhận diện thương hiệu",

@@ -1309,7 +1309,15 @@
         "file_up": "ขึ้น",
         "file_home": "หน้าแรก",
         "file_hide_hidden": "ซ่อนไฟล์ที่ซ่อนอยู่",
-        "windows_sessions": "เซสชัน Windows"
+        "windows_sessions": "เซสชัน Windows",
+        "cliprdr_use_file_transfer": "โฟลเดอร์นี้ใหญ่เกินไปสำหรับการวางจากคลิปบอร์ด ใช้การถ่ายโอนไฟล์เพื่อไม่ให้เดสก์ท็อตรีโมตค้าง",
+        "file_upload_folder": "อัปโหลดโฟลเดอร์",
+        "file_download_folder": "ดาวน์โหลดโฟลเดอร์",
+        "file_folder_tag": "โฟลเดอร์",
+        "file_status_folder_uploaded": "อัปโหลดโฟลเดอร์แล้ว",
+        "file_status_folder_downloaded": "ดาวน์โหลดโฟลเดอร์แล้ว",
+        "file_status_current_file": "ปัจจุบัน: {name}",
+        "file_folder_download_desktop_only": "การดาวน์โหลดโฟลเดอร์ต้องใช้ RdClient เดสก์ท็อป ดาวน์โหลดไฟล์ทีละไฟล์ หรือใช้ RdClient เดสก์ท็อป"
     },
     "branding": {
         "identity_title": "เอกลักษณ์ของแบรนด์",

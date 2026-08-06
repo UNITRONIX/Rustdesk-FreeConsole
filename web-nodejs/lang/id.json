@@ -1309,7 +1309,15 @@
         "file_up": "Naik",
         "file_home": "Beranda",
         "file_hide_hidden": "Sembunyikan file tersembunyi",
-        "windows_sessions": "Sesi Windows"
+        "windows_sessions": "Sesi Windows",
+        "cliprdr_use_file_transfer": "Folder ini terlalu besar untuk ditempel lewat clipboard. Gunakan Transfer file agar desktop remote tidak macet.",
+        "file_upload_folder": "Unggah folder",
+        "file_download_folder": "Unduh folder",
+        "file_folder_tag": "folder",
+        "file_status_folder_uploaded": "Folder diunggah",
+        "file_status_folder_downloaded": "Folder diunduh",
+        "file_status_current_file": "Saat ini: {name}",
+        "file_folder_download_desktop_only": "Unduhan folder memerlukan RdClient desktop. Unduh file satu per satu, atau gunakan RdClient desktop."
     },
     "branding": {
         "identity_title": "Identitas Merek",

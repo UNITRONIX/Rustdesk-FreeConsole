@@ -1303,7 +1303,15 @@
         "file_up": "Nach oben",
         "file_home": "Start",
         "file_hide_hidden": "Versteckte Dateien ausblenden",
-        "windows_sessions": "Windows-Sitzungen"
+        "windows_sessions": "Windows-Sitzungen",
+        "cliprdr_use_file_transfer": "Dieser Ordner ist zu groß für Einfügen über die Zwischenablage. Nutzen Sie Dateiübertragung, damit der Remote-Desktop nicht einfriert.",
+        "file_upload_folder": "Ordner hochladen",
+        "file_download_folder": "Ordner herunterladen",
+        "file_folder_tag": "Ordner",
+        "file_status_folder_uploaded": "Ordner hochgeladen",
+        "file_status_folder_downloaded": "Ordner heruntergeladen",
+        "file_status_current_file": "Aktuell: {name}",
+        "file_folder_download_desktop_only": "Ordner-Download erfordert RdClient Desktop. Einzelne Dateien herunterladen oder RdClient Desktop verwenden."
     },
     "branding": {
         "identity_title": "Markenidentität",

@@ -12,7 +12,10 @@ class RDCompress {
     static normalizeBytes(data) {
         if (data instanceof Uint8Array) return data;
         if (data instanceof ArrayBuffer) return new Uint8Array(data);
-        if (data && data.length != null) return new Uint8Array(data);
+        // Strings are array-like but `new Uint8Array(string)` yields length 0
+        // (ToIndex → NaN). Never treat a string as a byte source here.
+        if (typeof data === 'string') return new Uint8Array(0);
+        if (Array.isArray(data)) return new Uint8Array(data);
         return new Uint8Array(0);
     }
 
