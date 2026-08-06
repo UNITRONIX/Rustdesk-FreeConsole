@@ -1309,7 +1309,15 @@
         "file_up": "Opp",
         "file_home": "Hjem",
         "file_hide_hidden": "Skjul skjulte filer",
-        "windows_sessions": "Windows-okter"
+        "windows_sessions": "Windows-okter",
+        "cliprdr_use_file_transfer": "Denne mappen er for stor til å lime inn via utklippstavlen. Bruk Filoverføring for å unngå at det eksterne skrivebordet fryser.",
+        "file_upload_folder": "Last opp mappe",
+        "file_download_folder": "Last ned mappe",
+        "file_folder_tag": "mappe",
+        "file_status_folder_uploaded": "Mappe lastet opp",
+        "file_status_folder_downloaded": "Mappe lastet ned",
+        "file_status_current_file": "Gjeldende: {name}",
+        "file_folder_download_desktop_only": "Mappedownload krever RdClient desktop. Last ned filer enkeltvis, eller bruk RdClient desktop."
     },
     "branding": {
         "identity_title": "Merkeidentitet",

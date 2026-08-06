@@ -1309,7 +1309,15 @@
         "file_up": "ऊपर",
         "file_home": "होम",
         "file_hide_hidden": "छिपी फ़ाइलें छुपाएँ",
-        "windows_sessions": "Windows सत्र"
+        "windows_sessions": "Windows सत्र",
+        "cliprdr_use_file_transfer": "यह फ़ोल्डर क्लिपबोर्ड से पेस्ट करने के लिए बहुत बड़ा है। रिमोट डेस्कटॉप फ्रीज होने से बचने के लिए फ़ाइल स्थानांतरण उपयोग करें।",
+        "file_upload_folder": "फ़ोल्डर अपलोड करें",
+        "file_download_folder": "फ़ोल्डर डाउनलोड करें",
+        "file_folder_tag": "फ़ोल्डर",
+        "file_status_folder_uploaded": "फ़ोल्डर अपलोड हो गया",
+        "file_status_folder_downloaded": "फ़ोल्डर डाउनलोड हो गया",
+        "file_status_current_file": "वर्तमान: {name}",
+        "file_folder_download_desktop_only": "फ़ोल्डर डाउनलोड के लिए RdClient डेस्कटॉप आवश्यक है। फ़ाइलें अलग-अलग डाउनलोड करें, या RdClient डेस्कटॉप उपयोग करें।"
     },
     "branding": {
         "identity_title": "ब्रांड पहचान",

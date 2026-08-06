@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-clipboard-lbutton-down"
+description = "Enables the desktop_clipboard_lbutton_down command without any pre-configured scope."
+commands.allow = ["desktop_clipboard_lbutton_down"]
+
+[[permission]]
+identifier = "deny-desktop-clipboard-lbutton-down"
+description = "Denies the desktop_clipboard_lbutton_down command without any pre-configured scope."
+commands.deny = ["desktop_clipboard_lbutton_down"]

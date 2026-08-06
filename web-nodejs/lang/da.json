@@ -1309,7 +1309,15 @@
         "file_up": "Op",
         "file_home": "Hjem",
         "file_hide_hidden": "Skjul skjulte filer",
-        "windows_sessions": "Windows-sessioner"
+        "windows_sessions": "Windows-sessioner",
+        "cliprdr_use_file_transfer": "Denne mappe er for stor til at indsætte via udklipsholder. Brug Filoverførsel for at undgå, at den fjernbetjente skrivebord fryser.",
+        "file_upload_folder": "Upload mappe",
+        "file_download_folder": "Download mappe",
+        "file_folder_tag": "mappe",
+        "file_status_folder_uploaded": "Mappe uploadet",
+        "file_status_folder_downloaded": "Mappe downloadet",
+        "file_status_current_file": "Aktuel: {name}",
+        "file_folder_download_desktop_only": "Mappedownload kræver RdClient desktop. Download filer enkeltvis, eller brug RdClient desktop."
     },
     "branding": {
         "identity_title": "Brand Identitet",

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-walk-paths"
+description = "Enables the desktop_walk_paths command without any pre-configured scope."
+commands.allow = ["desktop_walk_paths"]
+
+[[permission]]
+identifier = "deny-desktop-walk-paths"
+description = "Denies the desktop_walk_paths command without any pre-configured scope."
+commands.deny = ["desktop_walk_paths"]

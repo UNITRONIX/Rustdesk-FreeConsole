@@ -1303,7 +1303,15 @@
         "file_up": "Su",
         "file_home": "Home",
         "file_hide_hidden": "Nascondi file nascosti",
-        "windows_sessions": "Sessioni Windows"
+        "windows_sessions": "Sessioni Windows",
+        "cliprdr_use_file_transfer": "Questa cartella è troppo grande per l'incolla dagli Appunti. Usa Trasferimento file per evitare di bloccare il desktop remoto.",
+        "file_upload_folder": "Carica cartella",
+        "file_download_folder": "Scarica cartella",
+        "file_folder_tag": "cartella",
+        "file_status_folder_uploaded": "Cartella caricata",
+        "file_status_folder_downloaded": "Cartella scaricata",
+        "file_status_current_file": "Corrente: {name}",
+        "file_folder_download_desktop_only": "Il download delle cartelle richiede RdClient desktop. Scarica i file singolarmente oppure usa RdClient desktop."
     },
     "branding": {
         "identity_title": "Identità del marchio",

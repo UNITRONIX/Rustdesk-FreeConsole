@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-clipboard-prepare-ole-drag"
+description = "Enables the desktop_clipboard_prepare_ole_drag command without any pre-configured scope."
+commands.allow = ["desktop_clipboard_prepare_ole_drag"]
+
+[[permission]]
+identifier = "deny-desktop-clipboard-prepare-ole-drag"
+description = "Denies the desktop_clipboard_prepare_ole_drag command without any pre-configured scope."
+commands.deny = ["desktop_clipboard_prepare_ole_drag"]

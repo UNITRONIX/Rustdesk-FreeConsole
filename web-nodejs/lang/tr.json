@@ -1309,7 +1309,15 @@
         "file_up": "Yukarı",
         "file_home": "Ana",
         "file_hide_hidden": "Gizli dosyaları gizle",
-        "windows_sessions": "Windows oturumlari"
+        "windows_sessions": "Windows oturumlari",
+        "cliprdr_use_file_transfer": "Bu klasör panodan yapıştırmak için çok büyük. Uzak masaüstünün donmasını önlemek için Dosya aktarımını kullanın.",
+        "file_upload_folder": "Klasör yükle",
+        "file_download_folder": "Klasörü indir",
+        "file_folder_tag": "klasör",
+        "file_status_folder_uploaded": "Klasör yüklendi",
+        "file_status_folder_downloaded": "Klasör indirildi",
+        "file_status_current_file": "Geçerli: {name}",
+        "file_folder_download_desktop_only": "Klasör indirme RdClient masaüstünü gerektirir. Dosyaları tek tek indirin veya RdClient masaüstünü kullanın."
     },
     "branding": {
         "identity_title": "Marka Kimliği",

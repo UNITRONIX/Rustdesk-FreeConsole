@@ -1303,7 +1303,15 @@
         "file_up": "上へ",
         "file_home": "ホーム",
         "file_hide_hidden": "隠しファイルを非表示",
-        "windows_sessions": "Windows セッション"
+        "windows_sessions": "Windows セッション",
+        "cliprdr_use_file_transfer": "このフォルダーはクリップボード貼り付けには大きすぎます。リモートデスクトップのフリーズを避けるため、ファイル転送を使用してください。",
+        "file_upload_folder": "フォルダーをアップロード",
+        "file_download_folder": "フォルダーをダウンロード",
+        "file_folder_tag": "フォルダー",
+        "file_status_folder_uploaded": "フォルダーをアップロードしました",
+        "file_status_folder_downloaded": "フォルダーをダウンロードしました",
+        "file_status_current_file": "現在: {name}",
+        "file_folder_download_desktop_only": "フォルダーのダウンロードには RdClient デスクトップが必要です。ファイルを個別にダウンロードするか、RdClient デスクトップを使用してください。"
     },
     "branding": {
         "identity_title": "ブランドアイデンティティ",

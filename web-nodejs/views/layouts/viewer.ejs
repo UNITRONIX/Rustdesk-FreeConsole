@@ -63,10 +63,13 @@
     <script src="/js/rdclient/touch.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/file-connection.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/local-files.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/rdclient/file-modal.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclient/desktop-dnd.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/compress.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/clipboard.js?v=<%= cacheVersion %>"></script>
+    <script src="/js/rdclient/cliprdr.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/filetransfer.js?v=<%= cacheVersion %>"></script>
+    <!-- file-modal after filetransfer/local-files so LocalFiles + RDFileTransfer exist at init -->
+    <script src="/js/rdclient/file-modal.js?v=<%= cacheVersion %>"></script>
     <script src="/js/rdclient/client.js?v=<%= cacheVersion %>"></script>
     <!-- CDAP transport adapter (RDClient-compatible surface for OS-agent devices) -->
     <script src="/js/cdap-audio.js?v=<%= cacheVersion %>"></script>

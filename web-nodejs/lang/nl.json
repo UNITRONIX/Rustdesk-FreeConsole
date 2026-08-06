@@ -1303,7 +1303,15 @@
         "file_up": "Omhoog",
         "file_home": "Home",
         "file_hide_hidden": "Verborgen bestanden verbergen",
-        "windows_sessions": "Windows-sessies"
+        "windows_sessions": "Windows-sessies",
+        "cliprdr_use_file_transfer": "Deze map is te groot om via het klembord te plakken. Gebruik Bestandsoverdracht om te voorkomen dat het externe bureaublad vastloopt.",
+        "file_upload_folder": "Map uploaden",
+        "file_download_folder": "Map downloaden",
+        "file_folder_tag": "map",
+        "file_status_folder_uploaded": "Map geüpload",
+        "file_status_folder_downloaded": "Map gedownload",
+        "file_status_current_file": "Huidig: {name}",
+        "file_folder_download_desktop_only": "Mapdownload vereist RdClient desktop. Download bestanden afzonderlijk of gebruik RdClient desktop."
     },
     "branding": {
         "identity_title": "Merkidentiteit",

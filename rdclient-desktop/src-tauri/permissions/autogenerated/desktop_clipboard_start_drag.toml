@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-desktop-clipboard-start-drag"
+description = "Enables the desktop_clipboard_start_drag command without any pre-configured scope."
+commands.allow = ["desktop_clipboard_start_drag"]
+
+[[permission]]
+identifier = "deny-desktop-clipboard-start-drag"
+description = "Denies the desktop_clipboard_start_drag command without any pre-configured scope."
+commands.deny = ["desktop_clipboard_start_drag"]

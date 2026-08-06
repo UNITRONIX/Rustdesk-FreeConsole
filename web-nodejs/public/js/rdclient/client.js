@@ -13,7 +13,7 @@
  *   client.disconnect();
  */
 
-/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput, RDFileConnection, RDClipboard */
+/* global RDConnection, RDProtocol, RDCrypto, RDVideo, RDAudio, RDRenderer, RDInput, RDFileConnection, RDClipboard, RDCliprdr */
 
 // eslint-disable-next-line no-unused-vars
 class RDClient {
@@ -840,6 +840,12 @@ class RDClient {
             return;
         }
 
+        // Cliprdr file clipboard (Explorer copy → remote paste on desktop)
+        if (msg.cliprdr) {
+            void this._handleCliprdr(msg.cliprdr);
+            return;
+        }
+
         // Signed ID from peer
         if (msg.signedId) {
             this._handleSignedId(msg.signedId);
@@ -1239,6 +1245,10 @@ class RDClient {
 
         this._advertiseSupportedEncoding();
 
+        if (typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
+            void RDCliprdr.initClient(this);
+        }
+
         // Start ping interval
         this._pingInterval = setInterval(() => {
             if (this._state === 'streaming') {
@@ -1384,7 +1394,15 @@ class RDClient {
      * @param {Object} msgObj - Message object (will be encoded as Message protobuf)
      */
     _sendPeerMessage(msgObj) {
-        if (!this.proto.loaded) return;
+        if (!this.proto.loaded) {
+            if (msgObj && (msgObj.clipboard || msgObj.cliprdr)) {
+                console.warn('[RDClient] Dropped clipboard/cliprdr message — proto not loaded yet');
+            }
+            return;
+        }
+        if (msgObj && (msgObj.clipboard || msgObj.cliprdr)) {
+            this._debugRelay('[RDClient] Sending', msgObj.clipboard ? 'clipboard' : 'cliprdr.' + Object.keys(msgObj.cliprdr)[0], msgObj);
+        }
 
         // Step 1: Serialize to raw protobuf bytes (no frame header)
         let data = this.proto.serializeMessage(msgObj);
@@ -1466,6 +1484,10 @@ class RDClient {
         if (this._rendezvousDecoder) {
             this._rendezvousDecoder.reset();
         }
+        if (typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
+            RDCliprdr.stopPolling(this);
+            void RDCliprdr.clearLocalCache();
+        }
     }
 
     // ---- Public Utility Methods ----
@@ -1483,6 +1505,31 @@ class RDClient {
     async _sendClipboard(text) {
         const msg = await this.proto.buildClipboard(text);
         this._sendPeerMessage(msg);
+    }
+
+    /**
+     * Sync local file clipboard to remote (desktop Cliprdr).
+     * @returns {Promise<{hasFiles?: boolean, signature?: string, busy?: boolean}|void>}
+     */
+    syncCliprdrFiles() {
+        if (typeof RDCliprdr === 'undefined' || !RDCliprdr.isSupported()) {
+            return Promise.resolve({ hasFiles: false, signature: '', busy: false });
+        }
+        return RDCliprdr.syncLocalFiles(this);
+    }
+
+    /**
+     * @param {string[]} paths
+     * @param {{x?: number, y?: number}|null} [position]
+     */
+    syncCliprdrPaths(paths, position) {
+        if (typeof RDCliprdr === 'undefined' || !RDCliprdr.isSupported()) return;
+        void RDCliprdr.syncPaths(this, paths, position || null);
+    }
+
+    _handleCliprdr(cliprdr) {
+        if (typeof RDCliprdr === 'undefined' || !RDCliprdr.isSupported()) return;
+        void RDCliprdr.handleMessage(this, cliprdr);
     }
 
     /**

@@ -1309,7 +1309,15 @@
         "file_up": "Sus",
         "file_home": "Acasă",
         "file_hide_hidden": "Ascunde fișierele ascunse",
-        "windows_sessions": "Sesiuni Windows"
+        "windows_sessions": "Sesiuni Windows",
+        "cliprdr_use_file_transfer": "Acest folder este prea mare pentru lipire din clipboard. Folosiți Transferul de fișiere ca să nu înghețe desktopul remote.",
+        "file_upload_folder": "Încarcă folder",
+        "file_download_folder": "Descarcă folder",
+        "file_folder_tag": "folder",
+        "file_status_folder_uploaded": "Folder încărcat",
+        "file_status_folder_downloaded": "Folder descărcat",
+        "file_status_current_file": "Curent: {name}",
+        "file_folder_download_desktop_only": "Descărcarea folderelor necesită RdClient desktop. Descărcați fișierele individual sau folosiți RdClient desktop."
     },
     "branding": {
         "identity_title": "Identitatea de marcă",

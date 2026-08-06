@@ -1310,7 +1310,15 @@
         "file_up": "أعلى",
         "file_home": "الرئيسية",
         "file_hide_hidden": "إخفاء الملفات المخفية",
-        "windows_sessions": "جلسات Windows"
+        "windows_sessions": "جلسات Windows",
+        "cliprdr_use_file_transfer": "هذا المجلد كبير جدًا للصق عبر الحافظة. استخدم نقل الملفات لتجنب تجميد سطح المكتب البعيد.",
+        "file_upload_folder": "رفع المجلد",
+        "file_download_folder": "تنزيل المجلد",
+        "file_folder_tag": "مجلد",
+        "file_status_folder_uploaded": "تم رفع المجلد",
+        "file_status_folder_downloaded": "تم تنزيل المجلد",
+        "file_status_current_file": "الحالي: {name}",
+        "file_folder_download_desktop_only": "يتطلب تنزيل المجلدات تطبيق RdClient لسطح المكتب. نزّل الملفات فرديًا أو استخدم RdClient لسطح المكتب."
     },
     "branding": {
         "identity_title": "هوية العلامة التجارية",

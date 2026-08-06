@@ -1316,7 +1316,15 @@
         "file_up": "W górę",
         "file_home": "Początek",
         "file_hide_hidden": "Ukryj ukryte pliki",
-        "windows_sessions": "Sesje Windows"
+        "windows_sessions": "Sesje Windows",
+        "cliprdr_use_file_transfer": "Ten folder jest zbyt duży do wklejenia ze schowka. Użyj Transferu plików, aby uniknąć zawieszenia pulpitu zdalnego.",
+        "file_upload_folder": "Prześlij folder",
+        "file_download_folder": "Pobierz folder",
+        "file_folder_tag": "folder",
+        "file_status_folder_uploaded": "Folder przesłany",
+        "file_status_folder_downloaded": "Folder pobrany",
+        "file_status_current_file": "Bieżący: {name}",
+        "file_folder_download_desktop_only": "Pobieranie folderów wymaga RdClient desktop. Pobierz pliki pojedynczo lub użyj RdClient desktop."
     },
     "branding": {
         "identity_title": "Identyfikacja marki",
