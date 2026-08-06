@@ -1259,6 +1259,28 @@ func (s *Server) handleUnbanPeer(w http.ResponseWriter, r *http.Request) {
 	if !s.peerOrgScopeCheck(w, r, id) {
 		return
 	}
+
+	peerRow, _ := s.db.GetPeer(id)
+	enrollmentRejectBan := peerRow != nil && peerRow.BanReason == enrollmentRejectBanReason
+
+	// Enrollment Reject & Ban created an audit-only peer. Unban must remove it
+	// so managed mode re-queues for approval instead of treating the ID as enrolled (#351).
+	if enrollmentRejectBan {
+		s.clearEnrollmentRejectionState(id)
+		if err := s.removeEnrollmentRejectAuditPeer(id); err != nil {
+			writeInternalError(w, err, "removeEnrollmentRejectAuditPeer")
+			return
+		}
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionPeerUnbanned, s.remoteIP(r), id, map[string]string{
+				"peer_removed": "true",
+				"reason":       enrollmentRejectBanReason,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "unbanned", "id": id, "peer_removed": "true"})
+		return
+	}
+
 	if err := s.db.UnbanPeer(id); err != nil {
 		writeInternalError(w, err, "UnbanPeer")
 		return

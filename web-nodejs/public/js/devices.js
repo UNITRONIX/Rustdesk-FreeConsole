@@ -2131,6 +2131,13 @@
     function initSearch() {
         const searchInput = document.getElementById('search-input');
         if (!searchInput) return;
+
+        // Honor ?search= from Enrollment Requests "View device" links (#351).
+        const urlSearch = new URLSearchParams(window.location.search).get('search');
+        if (urlSearch) {
+            searchQuery = urlSearch.trim();
+            searchInput.value = searchQuery;
+        }
         
         searchInput.addEventListener('input', Utils.debounce((e) => {
             searchQuery = e.target.value.trim();

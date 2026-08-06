@@ -88,25 +88,36 @@
         `;
 
         try {
-            const enrollmentFetch = shouldLoadEnrollmentPending()
-                ? apiFetch('/api/enrollment/pending')
-                : shouldLoadEnrollmentHistory()
-                    ? apiFetch(`/api/enrollment/history?status=${encodeURIComponent(currentStatus)}`)
-                    : Promise.resolve({ success: true, data: [], count: 0 });
+            const enrollmentFetches = [];
+            if (shouldLoadEnrollmentPending()) {
+                enrollmentFetches.push(
+                    apiFetch('/api/enrollment/pending').then(result => ({ kind: 'pending', result }))
+                );
+            }
+            if (shouldLoadEnrollmentHistory()) {
+                const historyUrl = currentStatus
+                    ? `/api/enrollment/history?status=${encodeURIComponent(currentStatus)}`
+                    : '/api/enrollment/history';
+                enrollmentFetches.push(
+                    apiFetch(historyUrl).then(result => ({ kind: 'history', result }))
+                );
+            }
 
-            const [registrationResult, enrollmentResult] = await Promise.all([
+            const [registrationResult, ...enrollmentParts] = await Promise.all([
                 apiFetch(`/api/registrations?${params}`),
-                enrollmentFetch,
+                ...enrollmentFetches,
             ]);
             if (!registrationResult.success) throw new Error(registrationResult.error);
 
             const registrations = normalizeRegistrations(registrationResult.data || []);
-            const enrollments = enrollmentResult.success
-                ? (shouldLoadEnrollmentHistory()
-                    ? normalizeEnrollmentHistory(enrollmentResult.data || [])
-                    : normalizeEnrollments(enrollmentResult.data || [])
-                  ).filter(matchesSearch)
-                : [];
+            const enrollments = [];
+            for (const part of enrollmentParts) {
+                if (!part.result?.success) continue;
+                const rows = part.kind === 'history'
+                    ? normalizeEnrollmentHistory(part.result.data || [])
+                    : normalizeEnrollments(part.result.data || []);
+                enrollments.push(...rows.filter(matchesSearch));
+            }
 
             renderTable([...enrollments, ...registrations]);
         } catch (err) {
@@ -203,7 +214,14 @@
 
             return `
                 <tr data-id="${escapeAttr(rowId)}" data-source="${escapeAttr(source)}">
-                    <td class="device-id-cell">${escapeHtml(reg.device_id)}</td>
+                    <td class="device-id-cell">
+                        <div class="device-id">
+                            <span class="device-id-text">${escapeHtml(reg.device_id)}</span>
+                            <button type="button" class="copy-btn" title="${escapeAttr(_('actions.copy'))}" data-copy="${escapeAttr(reg.device_id || '')}">
+                                <span class="material-icons">content_copy</span>
+                            </button>
+                        </div>
+                    </td>
                     <td>${escapeHtml(reg.hostname || '—')}</td>
                     <td class="col-platform">
                         <div class="platform-cell">
@@ -221,6 +239,31 @@
                 </tr>
             `;
         }).join('');
+
+        tbody.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const id = btn.dataset.copy || '';
+                if (!id) return;
+                try {
+                    if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(id);
+                    } else {
+                        const ta = document.createElement('textarea');
+                        ta.value = id;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        ta.remove();
+                    }
+                    btn.classList.add('copied');
+                    setTimeout(() => btn.classList.remove('copied'), 2000);
+                    showToast(_('common.copied'), 'success');
+                } catch (_) {
+                    showToast(_('common.copy_failed') || _('actions.copy'), 'error');
+                }
+            });
+        });
     }
 
     // ---- Actions ----
@@ -540,7 +583,8 @@
     }
 
     function shouldLoadEnrollmentHistory() {
-        return currentStatus === 'approved' || currentStatus === 'rejected';
+        // All (empty status) aggregates pending + approved + rejected history (#351).
+        return !currentStatus || currentStatus === 'approved' || currentStatus === 'rejected';
     }
 
     function normalizeRegistrations(items) {

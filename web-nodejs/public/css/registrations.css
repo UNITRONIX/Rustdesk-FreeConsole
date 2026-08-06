@@ -287,6 +287,36 @@
     color: var(--primary);
 }
 
+.device-id-cell .device-id {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.device-id-cell .copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 4px;
+    opacity: 0.55;
+}
+
+.device-id-cell .copy-btn .material-icons {
+    font-size: 1rem;
+}
+
+.device-id-cell .device-id:hover .copy-btn,
+.device-id-cell .copy-btn:hover,
+.device-id-cell .copy-btn.copied {
+    opacity: 1;
+    color: var(--primary);
+}
+
 /* Time column */
 .time-cell {
     color: var(--text-secondary);

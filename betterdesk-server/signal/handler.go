@@ -2389,7 +2389,7 @@ func (s *Server) checkEnrollmentPermission(peerID, clientIP string) bool {
 		// In managed mode, unknown devices are placed into the pending
 		// enrollment queue so an operator can review and approve/reject them.
 		// The connection is still denied until approval.
-		s.recordPendingEnrollment(peerID, clientIP)
+		s.recordPendingEnrollment(peerID, clientIP, pendingEnrollmentMeta{})
 		log.Printf("[signal] Enrollment: queued unknown peer %s for approval (managed mode)", peerID)
 		return false
 	}
@@ -2421,11 +2421,20 @@ type pendingEnrollmentInfo struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// pendingEnrollmentMeta carries optional display fields when available.
+// Stock RustDesk RegisterPeer/RegisterPk do not include these; a later HTTP
+// enrollment or enriching call may supply them (#351).
+type pendingEnrollmentMeta struct {
+	Hostname string
+	Platform string
+	Version  string
+}
+
 // recordPendingEnrollment stores an unknown peer in the pending enrollment
 // queue (server_config key "pending_device_<id>") so operators can review it.
-// It is idempotent: existing pending entries are preserved (to keep their
-// original timestamp) and already-rejected devices are never re-queued.
-func (s *Server) recordPendingEnrollment(peerID, clientIP string) {
+// Existing created_at is preserved; empty hostname/platform/version may be
+// filled when later metadata arrives. Already-rejected devices are never re-queued.
+func (s *Server) recordPendingEnrollment(peerID, clientIP string, meta pendingEnrollmentMeta) {
 	if s.db == nil {
 		return
 	}
@@ -2435,14 +2444,48 @@ func (s *Server) recordPendingEnrollment(peerID, clientIP string) {
 		return
 	}
 
-	// Preserve an existing pending entry (keeps the original created_at).
 	key := "pending_device_" + peerID
 	if v, err := s.db.GetConfig(key); err == nil && v != "" {
+		var existing pendingEnrollmentInfo
+		if json.Unmarshal([]byte(v), &existing) != nil {
+			return
+		}
+		changed := false
+		if existing.Hostname == "" && meta.Hostname != "" {
+			existing.Hostname = meta.Hostname
+			changed = true
+		}
+		if existing.Platform == "" && meta.Platform != "" {
+			existing.Platform = meta.Platform
+			changed = true
+		}
+		if existing.Version == "" && meta.Version != "" {
+			existing.Version = meta.Version
+			changed = true
+		}
+		if existing.IP == "" && clientIP != "" {
+			existing.IP = clientIP
+			changed = true
+		}
+		if !changed {
+			return
+		}
+		data, mErr := json.Marshal(existing)
+		if mErr != nil {
+			log.Printf("[signal] recordPendingEnrollment: marshal enrich failed for %s: %v", peerID, mErr)
+			return
+		}
+		if err := s.db.SetConfig(key, string(data)); err != nil {
+			log.Printf("[signal] recordPendingEnrollment: enrich store failed for %s: %v", peerID, err)
+		}
 		return
 	}
 
 	info := pendingEnrollmentInfo{
 		DeviceID:  peerID,
+		Hostname:  meta.Hostname,
+		Platform:  meta.Platform,
+		Version:   meta.Version,
 		IP:        clientIP,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}

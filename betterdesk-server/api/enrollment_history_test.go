@@ -116,6 +116,17 @@ func TestEnrollmentClearRejectionAllowsRequeue(t *testing.T) {
 		t.Fatalf("clear: expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
 
+	var clearResp struct {
+		Unbanned    bool `json:"unbanned"`
+		PeerRemoved bool `json:"peer_removed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &clearResp); err != nil {
+		t.Fatal(err)
+	}
+	if !clearResp.Unbanned || !clearResp.PeerRemoved {
+		t.Fatalf("clear response: unbanned=%v peer_removed=%v", clearResp.Unbanned, clearResp.PeerRemoved)
+	}
+
 	rejected, _ := database.GetConfig(rejectedDevicePrefix + deviceID)
 	if rejected != "" {
 		t.Fatal("rejected_device should be cleared")
@@ -129,11 +140,150 @@ func TestEnrollmentClearRejectionAllowsRequeue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetPeer: %v", err)
 	}
-	if p == nil {
-		t.Fatal("peer should still exist after clear")
+	if p != nil {
+		t.Fatal("enrollment-reject audit peer must be hard-deleted so managed mode re-queues")
+	}
+}
+
+func TestEnrollmentClearRejectionWithoutBanKeepsNoPeer(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+
+	const deviceID = "ENR-CLR2"
+	seedPendingEnrollment(t, database, deviceID)
+
+	cfg := config.DefaultConfig()
+	srv := New(cfg, database, peer.NewMap(), nil, "test")
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/enrollment/reject/{id}", srv.handleRejectDevice)
+	mux.HandleFunc("POST /api/enrollment/clear-rejection/{id}", srv.handleClearEnrollmentRejection)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/enrollment/reject/"+deviceID, bytes.NewReader([]byte("{}")))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reject: %d %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/enrollment/clear-rejection/"+deviceID, nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("clear: %d %s", rec.Code, rec.Body.String())
+	}
+
+	p, _ := database.GetPeer(deviceID)
+	if p != nil {
+		t.Fatal("reject without ban should not create a peer")
+	}
+	rejected, _ := database.GetConfig(rejectedDevicePrefix + deviceID)
+	if rejected != "" {
+		t.Fatal("rejection should be cleared")
+	}
+}
+
+func TestEnrollmentUnbanRemovesAuditPeer(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+
+	const deviceID = "ENR-UNBAN1"
+	seedPendingEnrollment(t, database, deviceID)
+
+	cfg := config.DefaultConfig()
+	srv := New(cfg, database, peer.NewMap(), nil, "test")
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/enrollment/reject/{id}", srv.handleRejectDevice)
+	mux.HandleFunc("POST /api/peers/{id}/unban", srv.handleUnbanPeer)
+
+	body, _ := json.Marshal(map[string]any{"ban": true})
+	req := httptest.NewRequest(http.MethodPost, "/api/enrollment/reject/"+deviceID, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reject: %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/peers/"+deviceID+"/unban", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unban: %d %s", rec.Code, rec.Body.String())
+	}
+
+	p, _ := database.GetPeer(deviceID)
+	if p != nil {
+		t.Fatal("unban of enrollment-reject peer must hard-delete audit row")
+	}
+	rejected, _ := database.GetConfig(rejectedDevicePrefix + deviceID)
+	if rejected != "" {
+		t.Fatal("unban should clear rejected_device")
+	}
+}
+
+func TestEnrollmentManualBanUnbanKeepsPeer(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+
+	const deviceID = "ENR-MANBAN1"
+	if err := database.UpsertPeer(&db.Peer{ID: deviceID, Hostname: "keep-me", Status: "OFFLINE"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.BanPeer(deviceID, "manual panel ban"); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.DefaultConfig()
+	srv := New(cfg, database, peer.NewMap(), nil, "test")
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/peers/{id}/unban", srv.handleUnbanPeer)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/peers/"+deviceID+"/unban", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unban: %d %s", rec.Code, rec.Body.String())
+	}
+
+	p, err := database.GetPeer(deviceID)
+	if err != nil || p == nil {
+		t.Fatal("manual ban unban must keep peer row")
 	}
 	if p.Banned {
-		t.Fatal("peer should be unbanned after clear-rejection")
+		t.Fatal("peer should be unbanned")
+	}
+}
+
+func TestEnrollmentHistoryIncludesOrphanRejected(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+
+	const deviceID = "ENR-ORPHAN1"
+	if err := database.SetConfig(rejectedDevicePrefix+deviceID, `{"rejected":true,"device_id":"`+deviceID+`","hostname":"old-host","banned":false}`); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.DefaultConfig()
+	srv := New(cfg, database, peer.NewMap(), nil, "test")
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/enrollment/history", srv.handleListEnrollmentHistory)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/enrollment/history?status=rejected", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("history: %d", rec.Code)
+	}
+	var hist struct {
+		Devices []enrollmentDecision `json:"devices"`
+		Count   int                  `json:"count"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &hist); err != nil {
+		t.Fatal(err)
+	}
+	if hist.Count != 1 || hist.Devices[0].DeviceID != deviceID || hist.Devices[0].Hostname != "old-host" {
+		t.Fatalf("expected orphan rejected row, got %+v", hist)
 	}
 }
 
