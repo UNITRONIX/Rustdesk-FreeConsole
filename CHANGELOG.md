@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.23] — 2026-08-05
+
 ### Fixed
 - **Support Agent rebuild profile gate:** Rebuild / Retry / post-update requeue now re-issues incomplete or expired signed Support Agent profiles (URLs + TTL) before enqueueing builds, so operators are not stuck in a Retry loop that only Save previously fixed.
 - **Support Agent version inject on flat deploys:** Build worker resolves product `VERSION` from the console install root (not `/opt` above a flattened tree) and treats an already-matching `var version` as success, fixing false “version variable not found” failures when the placeholder was still `0.1.0`.
@@ -2720,3 +2727,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.20]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.19...v3.5.20
 [3.5.21]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.20...v3.5.21
 [3.5.22]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.21...v3.5.22
+[3.5.23]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.22...v3.5.23
