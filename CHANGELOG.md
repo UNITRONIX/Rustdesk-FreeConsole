@@ -1,6 +1,9 @@
 ## [Unreleased]
 
 ### Fixed
+- **Support Agent rebuild profile gate:** Rebuild / Retry / post-update requeue now re-issues incomplete or expired signed Support Agent profiles (URLs + TTL) before enqueueing builds, so operators are not stuck in a Retry loop that only Save previously fixed.
+- **Support Agent version inject on flat deploys:** Build worker resolves product `VERSION` from the console install root (not `/opt` above a flattened tree) and treats an already-matching `var version` as success, fixing false “version variable not found” failures when the placeholder was still `0.1.0`.
+- **Support Agent `build.sh` branding.pub backup:** Release packaging no longer requires a pre-existing `resources/branding.pub` before `sealbranding` creates it (fresh workspaces failed with `cp: cannot stat 'resources/branding.pub'`).
 - **Console CrashLoop after event-bus connect (#353):** Node.js abort `RemoveEnvironmentCleanupHook` / `(env) != nullptr` was a native N-API lifecycle failure (not Go event-bus init). Console now shares one `better-sqlite3` handle for the main DB (`getDb` / session store / enrollment token lookup), bumps `better-sqlite3` to 13.x for Node 24 Alpine, and defers agent build workers until after listen/WS connect. Ships via panel/Docker console image update.
 
 ### Changed

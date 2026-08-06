@@ -23,6 +23,7 @@ const db = require('../services/database');
 const config = require('../config/config');
 const brandingService = require('../services/brandingService');
 const conn = require('../services/agentBundleConnection');
+const supportProfile = require('../services/supportAgentProfile');
 const { PRODUCT_TYPES, normalizeProductType } = require('../lib/generatorBuildTypes');
 
 // Branding payloads may carry a base64-encoded logo up to 10 MB; expand the
@@ -86,47 +87,15 @@ async function resolveBundleSlug({ preferred, name, fallbackId, excludeBundleId 
 
 function injectServerBranding(input) {
     // Legacy alias — use finalizeBundleBranding for new bundles.
-    return finalizeBundleBrandingSync(input);
+    return supportProfile.finalizeBundleBrandingSync(input);
 }
 
 function finalizeBundleBrandingSync(input) {
-    const branding = { ...(input || {}) };
-    const host = branding.server_host || conn.defaultServerHost();
-    const useHttps = branding.use_https ?? true;
-    const urls = conn.buildServerUrls(host, useHttps);
-    branding.server = {
-        address: urls.address,
-        api_url: urls.api_url,
-        public_key: keyService.getPublicKey() || '',
-        cdap_port: urls.cdap_port,
-        cdap_url: urls.cdap_url,
-    };
-    branding.server_address = branding.server.address;
-    branding.server_key = branding.server.public_key;
-    branding.use_https = !!useHttps;
-    return branding;
+    return supportProfile.finalizeBundleBrandingSync(input);
 }
 
 function addSupportProfileValidity(branding, now = new Date()) {
-    const ttlDaysRaw = Number.parseInt(process.env.BETTERDESK_AGENT_PROFILE_TTL_DAYS || '365', 10);
-    const ttlDays = Number.isFinite(ttlDaysRaw)
-        ? Math.max(1, Math.min(ttlDaysRaw, 730))
-        : 365;
-    const expiresAt = new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000);
-    const endpoints = [
-        branding.server?.address,
-        branding.server?.api_url,
-        branding.server?.cdap_url,
-    ].filter((endpoint, index, all) => {
-        if (typeof endpoint !== 'string' || !endpoint) return false;
-        // Allow HTTPS/WSS or HTTP/WS (LAN / RustDesk-style plaintext transport).
-        if (!/^https?:\/\//i.test(endpoint) && !/^wss?:\/\//i.test(endpoint)) return false;
-        return all.indexOf(endpoint) === index;
-    });
-    branding.profile_issued_at = now.toISOString();
-    branding.profile_expires_at = expiresAt.toISOString();
-    branding.allowed_endpoints = endpoints;
-    return branding;
+    return supportProfile.addSupportProfileValidity(branding, now);
 }
 
 /**
@@ -136,19 +105,7 @@ function addSupportProfileValidity(branding, now = new Date()) {
  * after operator approval (managed enrollment).
  */
 async function finalizeBundleBranding(input) {
-    const branding = finalizeBundleBrandingSync(input);
-    const pubKey = (await keyService.resolvePublicKey()) || '';
-    if (branding.server) {
-        branding.server.public_key = pubKey;
-    }
-    branding.server_key = pubKey;
-    // Strip legacy shared tokens from older bundles on save/rebuild.
-    delete branding.enrollment_token;
-    delete branding.has_enrollment_token;
-    delete branding.enrollment_token_masked;
-    branding.server_host = input.server_host || conn.defaultServerHost();
-    branding.use_https = !!(input.use_https ?? true);
-    return branding;
+    return supportProfile.refreshSupportAgentBranding(input);
 }
 
 function publicBrandingView(branding) {
@@ -368,7 +325,8 @@ router.post('/api/generator/bundles/:bundleId/rebuild', requireAuth, requireAdmi
         if (!result.success) {
             return res.status(404).json({ success: false, error: req.t('errors.not_found') });
         }
-        const builds = await db.listAgentBundleBuildsForHash(row.branding_hash);
+        const listHash = result.brandingHash || row.branding_hash;
+        const builds = await db.listAgentBundleBuildsForHash(listHash);
         res.json({
             success: true,
             data: {
@@ -410,7 +368,8 @@ router.post(
                     : 'errors.bad_request';
                 return res.status(400).json({ success: false, error: req.t(errKey) });
             }
-            const builds = await db.listAgentBundleBuildsForHash(row.branding_hash);
+            const listHash = result.brandingHash || row.branding_hash;
+            const builds = await db.listAgentBundleBuildsForHash(listHash);
             res.json({ success: true, data: { builds: builds || [] } });
         } catch (err) {
             console.error('[generator] rebuild platform error:', err);

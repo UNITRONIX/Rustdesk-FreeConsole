@@ -16,6 +16,7 @@ const { spawn } = require('child_process');
 const db = require('./database');
 const bundleService = require('./agentBundleService');
 const { resolveBundleSigningKeyFile } = require('./bundleSigningKey');
+const supportProfile = require('./supportAgentProfile');
 const config = require('../config/config');
 const { readProductVersion } = require('../lib/productVersion');
 const {
@@ -52,12 +53,14 @@ const POLL_INTERVAL_MS = parseInt(process.env.AGENT_BUILD_POLL_MS || '5000', 10)
 const WORKER_CONCURRENCY = 1;
 const BUILD_COOLDOWN_MS = parseInt(process.env.AGENT_BUILD_COOLDOWN_MS || '3000', 10);
 const BUILD_TIMEOUT_MS = parseInt(process.env.AGENT_BUILD_TIMEOUT_MS || (30 * 60 * 1000), 10);
-const CERT_PIN_RE = /^[a-f0-9]{64}$/;
 const BUILD_ORDER = (bundleService.PLATFORMS || []).map(
     (p) => `${p.platform}/${p.arch}/${p.format}`
 );
 const IS_WINDOWS = process.platform === 'win32';
+/** Monorepo root when developing from git; may be wrong on flat console deploys. */
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+/** Console install root (`web-nodejs/` in git, `/opt/BetterDeskConsole` when flattened). */
+const CONSOLE_ROOT = path.resolve(__dirname, '..');
 const VENDORED_GO_BIN = path.join(
     config.dataDir || path.join(__dirname, '..', 'data'),
     'go-toolchain', 'go', 'bin', IS_WINDOWS ? 'go.exe' : 'go'
@@ -237,11 +240,21 @@ function _isSupportAgentBundle(bundle) {
     return normalizeProductType(bundle?.product_type) === PRODUCT_TYPES.SUPPORT_AGENT;
 }
 
+function _resolveProductRootDir() {
+    // Flat/packaged console keeps VERSION next to server.js (CONSOLE_ROOT).
+    // Git checkout keeps VERSION at the monorepo root (PROJECT_ROOT).
+    if (fs.existsSync(path.join(CONSOLE_ROOT, 'VERSION'))
+        || fs.existsSync(path.join(CONSOLE_ROOT, 'package.json'))) {
+        return CONSOLE_ROOT;
+    }
+    return PROJECT_ROOT;
+}
+
 function _getSupportAgentBuildVersion(opts = {}) {
-    const rootDir = opts.rootDir || PROJECT_ROOT;
+    const rootDir = opts.rootDir || _resolveProductRootDir();
     return readProductVersion({
         rootDir,
-        consoleDir: opts.consoleDir || path.join(rootDir, 'web-nodejs'),
+        consoleDir: opts.consoleDir || CONSOLE_ROOT,
         fallback: '0.1.0',
     });
 }
@@ -276,6 +289,11 @@ async function _injectSupportAgentVersion(workDir, opts = {}) {
         `$1"${version}"`
     );
     if (next === source) {
+        // Already at the target version (common when fallback matches placeholder).
+        const escaped = String(version).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (new RegExp(`^\\s*var\\s+version\\s*=\\s*"${escaped}"`, 'm').test(source)) {
+            return version;
+        }
         throw new Error('support-agent version variable not found in build workspace');
     }
     await fsp.writeFile(mainPath, next, 'utf8');
@@ -357,19 +375,62 @@ async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
     }
 }
 
+function _parseBundleBranding(raw) {
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw;
+    try {
+        return JSON.parse(raw);
+    } catch (_) {
+        return {};
+    }
+}
+
+/**
+ * Re-issue signed profile fields when rebuild/requeue would otherwise fail the
+ * release-profile gate. Valid profiles keep their branding_hash unchanged.
+ */
+async function _ensureFreshSupportProfile(bundleRow) {
+    if (!bundleRow || !_isSupportAgentBundle(bundleRow)) {
+        return {
+            brandingHash: bundleRow?.branding_hash || null,
+            refreshed: false,
+        };
+    }
+    const branding = _parseBundleBranding(bundleRow.branding);
+    if (supportProfile.isReleaseSupportProfileValid(branding)) {
+        return { brandingHash: bundleRow.branding_hash, refreshed: false };
+    }
+
+    const refreshed = await supportProfile.refreshSupportAgentBranding(branding);
+    refreshed.bundle_id = bundleRow.bundle_id;
+    refreshed.product_name = refreshed.company_name || 'BetterDesk Support';
+    supportProfile.addSupportProfileValidity(refreshed);
+    const brandingHash = bundleService.hashBranding(refreshed);
+    await db.updateAgentBundle(bundleRow.bundle_id, {
+        name: bundleRow.name,
+        slug: bundleRow.slug,
+        branding: JSON.stringify(refreshed),
+        brandingHash,
+    });
+    console.log(
+        `[agentBuildWorker] refreshed Support Agent profile for bundle ${bundleRow.bundle_id}`
+        + ` (hash ${String(bundleRow.branding_hash || '').slice(0, 8)}… → ${String(brandingHash).slice(0, 8)}…)`
+    );
+    return { brandingHash, refreshed: true };
+}
+
 /** Queue Support Agent rebuilds after a Support Agent source update. */
 async function requeueAllBundleBuilds() {
     const bundles = await db.listAgentBundles({ includeRevoked: false });
-    const hashes = [...new Set(
-        bundles
-            .filter((bundle) => !bundle.revoked && _isSupportAgentBundle(bundle))
-            .map((bundle) => bundle.branding_hash)
-            .filter(Boolean)
-    )];
-    for (const hash of hashes) {
-        await enqueueBuildsForHash(hash, { force: true });
+    const hashes = [];
+    for (const bundle of bundles) {
+        if (bundle.revoked || !_isSupportAgentBundle(bundle)) continue;
+        const { brandingHash } = await _ensureFreshSupportProfile(bundle);
+        if (!brandingHash) continue;
+        hashes.push(brandingHash);
+        await enqueueBuildsForHash(brandingHash, { force: true });
     }
-    return { bundles: hashes.length };
+    return { bundles: [...new Set(hashes)].length };
 }
 
 /** Force-requeue every platform build for one generator bundle. */
@@ -377,10 +438,11 @@ async function rebuildBundleById(bundleId) {
     const row = await db.getAgentBundle(bundleId);
     if (!row) return { success: false, error: 'not_found' };
     if (!_isSupportAgentBundle(row)) return { success: false, error: 'not_support_agent' };
-    if (!row.branding_hash) return { success: false, error: 'missing_hash' };
-    await enqueueBuildsForHash(row.branding_hash, { force: true });
+    const { brandingHash } = await _ensureFreshSupportProfile(row);
+    if (!brandingHash) return { success: false, error: 'missing_hash' };
+    await enqueueBuildsForHash(brandingHash, { force: true });
     const platforms = (bundleService.PLATFORMS || []).length;
-    return { success: true, platforms, brandingHash: row.branding_hash };
+    return { success: true, platforms, brandingHash };
 }
 
 /** Re-queue builds that failed only because the host Go install was broken. */
@@ -482,8 +544,15 @@ async function requeuePlatformBuild(brandingHash, platform, arch, format) {
     );
     if (!allowed) return { success: false, error: 'unsupported_platform' };
 
+    const bundle = await _findBundleForHash(brandingHash);
+    let hash = brandingHash;
+    if (bundle) {
+        const ensured = await _ensureFreshSupportProfile(bundle);
+        if (ensured.brandingHash) hash = ensured.brandingHash;
+    }
+
     await db.upsertAgentBundleBuild({
-        brandingHash,
+        brandingHash: hash,
         platform,
         arch,
         format,
@@ -493,7 +562,7 @@ async function requeuePlatformBuild(brandingHash, platform, arch, format) {
         artifactSha256: null,
         errorMessage: '',
     });
-    return { success: true };
+    return { success: true, brandingHash: hash };
 }
 
 /** Diagnostics for Generator / Settings panels. */
@@ -869,27 +938,7 @@ async function _runOne(buildRow) {
 }
 
 function _assertReleaseSupportProfile(branding) {
-    const issuedAt = Date.parse(String(branding?.profile_issued_at || ''));
-    const expiresAt = Date.parse(String(branding?.profile_expires_at || ''));
-    const endpoints = Array.isArray(branding?.allowed_endpoints) ? branding.allowed_endpoints : [];
-    const certPin = String(branding?.server?.cert_pin || '').replace(/:/g, '').trim().toLowerCase();
-    const required = [
-        branding?.bundle_id,
-        branding?.server?.address,
-        branding?.server?.api_url,
-        branding?.server?.cdap_url,
-    ];
-    if (required.some((value) => !String(value || '').trim())
-        || !Number.isFinite(issuedAt)
-        || !Number.isFinite(expiresAt)
-        || expiresAt <= Math.max(issuedAt, Date.now())
-        || endpoints.length < 3
-        || endpoints.some((endpoint) => !/^https?:\/\//i.test(endpoint) && !/^wss?:\/\//i.test(endpoint))
-        || (certPin && !CERT_PIN_RE.test(certPin))) {
-        throw new Error(
-            'Support Agent bundle profile is incomplete or expired; save the bundle again to issue a signed profile'
-        );
-    }
+    supportProfile.assertReleaseSupportProfile(branding);
 }
 
 async function _findBundleForHash(hash) {
@@ -1307,5 +1356,7 @@ module.exports = {
         injectSupportAgentVersion: _injectSupportAgentVersion,
         buildFingerprint: _buildFingerprint,
         assertReleaseSupportProfile: _assertReleaseSupportProfile,
+        ensureFreshSupportProfile: _ensureFreshSupportProfile,
+        parseBundleBranding: _parseBundleBranding,
     },
 };

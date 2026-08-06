@@ -6,12 +6,14 @@ jest.mock('../services/database', () => ({
     getAgentBundleBuild: jest.fn(),
     upsertAgentBundleBuild: jest.fn(),
     getAgentBundle: jest.fn(),
+    updateAgentBundle: jest.fn(),
 }));
 
 jest.mock('../services/agentBundleService', () => ({
     PLATFORMS: [
         { platform: 'linux', arch: 'x64', format: 'portable', label: 'Linux portable' },
     ],
+    hashBranding: jest.fn((branding) => `hash-${branding.bundle_id || 'x'}`),
 }));
 
 jest.mock('../config/config', () => ({ dataDir: '/tmp/betterdesk-generator-worker-test' }));
@@ -21,9 +23,41 @@ const supportWorker = require('../services/agentBuildWorker');
 const agentClientWorker = require('../services/agentClientBuildWorker');
 const rdclientWorker = require('../services/rdclientBuildWorker');
 
+const validSupportBranding = JSON.stringify({
+    bundle_id: 'support-test',
+    profile_issued_at: '2026-01-01T00:00:00.000Z',
+    profile_expires_at: '2099-01-01T00:00:00.000Z',
+    allowed_endpoints: [
+        'https://support.example.test',
+        'https://support.example.test/api',
+        'wss://support.example.test:21122/cdap',
+    ],
+    server: {
+        address: 'https://support.example.test',
+        api_url: 'https://support.example.test/api',
+        cdap_url: 'wss://support.example.test:21122/cdap',
+    },
+});
+
 const bundles = [
-    { branding_hash: 'legacy-support', product_type: 'agent', revoked: false },
-    { branding_hash: 'support', product_type: 'support-agent', revoked: false },
+    {
+        bundle_id: 'legacy-1',
+        name: 'Legacy',
+        slug: 'legacy',
+        branding_hash: 'legacy-support',
+        product_type: 'agent',
+        revoked: false,
+        branding: validSupportBranding,
+    },
+    {
+        bundle_id: 'support-1',
+        name: 'Support',
+        slug: 'support',
+        branding_hash: 'support',
+        product_type: 'support-agent',
+        revoked: false,
+        branding: validSupportBranding,
+    },
     { branding_hash: 'client', product_type: 'agent-client', revoked: false },
     { branding_hash: 'rdclient', product_type: 'rdclient', revoked: false },
 ];
@@ -42,6 +76,7 @@ describe('generator build workers', () => {
         db.listAgentBundleBuildsForHash.mockImplementation(async (hash) => buildsByHash[hash] || []);
         db.getAgentBundleBuild.mockResolvedValue(null);
         db.upsertAgentBundleBuild.mockResolvedValue({});
+        db.updateAgentBundle.mockResolvedValue({});
     });
 
     test('claims both queued and pending records only for its product type', async () => {
@@ -63,6 +98,7 @@ describe('generator build workers', () => {
         expect(db.upsertAgentBundleBuild.mock.calls.map(([job]) => job.brandingHash).sort())
             .toEqual(['legacy-support', 'support']);
         expect(db.upsertAgentBundleBuild.mock.calls.every(([job]) => job.status === 'queued')).toBe(true);
+        expect(db.updateAgentBundle).not.toHaveBeenCalled();
 
         db.upsertAgentBundleBuild.mockClear();
         await agentClientWorker.requeueAllBundleBuilds();

@@ -105,12 +105,17 @@ linux_dual_build() {
     launcher="${out_dir}/betterdesk-support"
 
     bak="$(mktemp)"
-    pub_bak="$(mktemp)"
+    pub_bak=""
     cp resources/branding.json "$bak"
-    cp resources/branding.pub "$pub_bak"
+    if [ -f resources/branding.pub ]; then
+        pub_bak="$(mktemp)"
+        cp resources/branding.pub "$pub_bak"
+    fi
     if ! seal_branding; then
         cp "$bak" resources/branding.json
-        cp "$pub_bak" resources/branding.pub
+        if [ -n "$pub_bak" ] && [ -f "$pub_bak" ]; then
+            cp "$pub_bak" resources/branding.pub
+        fi
         if [ -n "$SIGNING_KEY_FILE" ]; then
             echo "ERROR: signed branding profile could not be created" >&2
             rm -f "$bak" "$pub_bak"
@@ -125,7 +130,9 @@ linux_dual_build() {
     GOOS=linux CGO_ENABLED=1 "$GO" build -trimpath -tags "release,wayland" -ldflags "-s -w" -o "$wl_bin" .
 
     cp "$bak" resources/branding.json
-    cp "$pub_bak" resources/branding.pub
+    if [ -n "$pub_bak" ] && [ -f "$pub_bak" ]; then
+        cp "$pub_bak" resources/branding.pub
+    fi
     rm -f "$bak"
     rm -f "$pub_bak"
 
@@ -150,15 +157,19 @@ BRANDING_PLAIN_BAK=""
 BRANDING_PUB_BAK=""
 if [ -f resources/branding.json ]; then
     BRANDING_PLAIN_BAK="$(mktemp)"
-    BRANDING_PUB_BAK="$(mktemp)"
     cp resources/branding.json "$BRANDING_PLAIN_BAK"
-    cp resources/branding.pub "$BRANDING_PUB_BAK"
+    if [ -f resources/branding.pub ]; then
+        BRANDING_PUB_BAK="$(mktemp)"
+        cp resources/branding.pub "$BRANDING_PUB_BAK"
+    fi
     if seal_branding; then
         echo "Signed branding profile for release embed"
     else
         echo "ERROR: branding signing failed; refusing to embed plaintext" >&2
         cp "$BRANDING_PLAIN_BAK" resources/branding.json
-        cp "$BRANDING_PUB_BAK" resources/branding.pub
+        if [ -n "$BRANDING_PUB_BAK" ] && [ -f "$BRANDING_PUB_BAK" ]; then
+            cp "$BRANDING_PUB_BAK" resources/branding.pub
+        fi
         exit 1
     fi
 fi
