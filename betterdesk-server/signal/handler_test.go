@@ -873,11 +873,11 @@ func TestLegacyOutboundCompatibilityOpenAllowsControllerOnly(t *testing.T) {
 	if phr == nil {
 		t.Fatalf("expected relay-forcing PunchHoleResponse, got %+v", resp)
 	}
-	if phr.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
-		t.Fatalf("legacy controller was rejected: %+v", phr)
-	}
 	if phr.GetNatType() != pb.NatType_SYMMETRIC {
 		t.Fatalf("NatType = %v, want SYMMETRIC relay fallback", phr.GetNatType())
+	}
+	if len(phr.SocketAddr) == 0 || phr.RelayServer == "" {
+		t.Fatalf("relay-forcing response is incomplete: %+v", phr)
 	}
 }
 
