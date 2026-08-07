@@ -73,3 +73,20 @@ func TestLoadEnv_SignalPortPrecedenceOverPort(t *testing.T) {
 		t.Fatalf("SignalPort = %d, want 21116 (SIGNAL_PORT should win over PORT)", cfg.SignalPort)
 	}
 }
+
+func TestLoadEnv_AllowLegacyOutbound(t *testing.T) {
+	t.Setenv("ALLOW_LEGACY_OUTBOUND", "yes")
+
+	cfg := DefaultConfig()
+	cfg.LoadEnv()
+
+	if !cfg.AllowLegacyOutbound {
+		t.Fatal("AllowLegacyOutbound = false, want true")
+	}
+}
+
+func TestDefaultConfig_LegacyOutboundIsSecureByDefault(t *testing.T) {
+	if DefaultConfig().AllowLegacyOutbound {
+		t.Fatal("AllowLegacyOutbound must be disabled by default")
+	}
+}

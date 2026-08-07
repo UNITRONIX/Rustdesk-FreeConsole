@@ -857,6 +857,80 @@ func TestAnonymousInitiatorRequestRelayRejected(t *testing.T) {
 	}
 }
 
+func TestLegacyOutboundCompatibilityOpenAllowsControllerOnly(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.AllowLegacyOutbound = true
+	putOnlinePeer(srv, "TGTLEGACY1", "203.0.113.52", 52000, peer.ConnTCP)
+	addr := udpAddr("198.51.100.97", 51000)
+
+	id, ok := srv.requireAuthorizedInitiator(addr, "TGTLEGACY1", "")
+	if !ok || !isLegacyOutboundInitiator(id) {
+		t.Fatalf("legacy controller authorization = (%q, %v), want synthetic identity", id, ok)
+	}
+
+	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTLEGACY1"}, addr)
+	phr := resp.GetPunchHoleResponse()
+	if phr == nil {
+		t.Fatalf("expected relay-forcing PunchHoleResponse, got %+v", resp)
+	}
+	if phr.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatalf("legacy controller was rejected: %+v", phr)
+	}
+	if phr.GetNatType() != pb.NatType_SYMMETRIC {
+		t.Fatalf("NatType = %v, want SYMMETRIC relay fallback", phr.GetNatType())
+	}
+}
+
+func TestLegacyOutboundCompatibilityMintsRelayTicket(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.AllowLegacyOutbound = true
+	putOnlinePeer(srv, "TGTLEGACY2", "203.0.113.53", 52000, peer.ConnTCP)
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "TGTLEGACY2",
+		Uuid: "legacy-controller-relay-ticket",
+	}, udpAddr("198.51.100.96", 51001), peer.ConnTCP)
+	rr := resp.GetRelayResponse()
+	if rr == nil || rr.RefuseReason != "" {
+		t.Fatalf("legacy controller relay = %+v, want accepted", resp)
+	}
+	if !relay.ClaimRelayPair("legacy-controller-relay-ticket") ||
+		!relay.ClaimRelayPair("legacy-controller-relay-ticket") {
+		t.Fatal("legacy controller relay UUID did not receive a two-party ticket")
+	}
+}
+
+func TestLegacyOutboundCompatibilityWebSocketRelay(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	srv.cfg.AllowLegacyOutbound = true
+	putOnlinePeer(srv, "TGTLEGACYWS", "203.0.113.54", 52000, peer.ConnWS)
+
+	resp := srv.handleRequestRelayTCP(&pb.RequestRelay{
+		Id:   "TGTLEGACYWS",
+		Uuid: "legacy-controller-ws-ticket",
+	}, udpAddr("198.51.100.95", 51002), peer.ConnWS)
+	rr := resp.GetRelayResponse()
+	if rr == nil || rr.RefuseReason != "" {
+		t.Fatalf("legacy WebSocket controller relay = %+v, want accepted", resp)
+	}
+}
+
+func TestLegacyOutboundCompatibilityNeverBypassesManagedEnrollment(t *testing.T) {
+	for _, mode := range []string{config.EnrollmentModeManaged, config.EnrollmentModeLocked} {
+		t.Run(mode, func(t *testing.T) {
+			srv, _ := newTestSignalServer(t, mode)
+			srv.cfg.AllowLegacyOutbound = true
+
+			id, ok := srv.requireAuthorizedInitiator(
+				udpAddr("198.51.100.94", 51003), "TGTSTRICT1", "",
+			)
+			if ok || id != "" {
+				t.Fatalf("mode %s authorized anonymous controller as %q", mode, id)
+			}
+		})
+	}
+}
+
 func TestManagedPendingInitiatorCannotPunchHole(t *testing.T) {
 	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
 	putOnlinePeer(srv, "TGTPEND1", "203.0.113.60", 52000, peer.ConnUDP)

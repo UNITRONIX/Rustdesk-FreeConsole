@@ -70,6 +70,7 @@ services:
       - RELAY_SERVERS=${RELAY_SERVERS:-}
       # Raise this for very large NAT/proxy deployments; 0 disables signal rate limiting.
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
+      - ALLOW_LEGACY_OUTBOUND=${ALLOW_LEGACY_OUTBOUND:-N}
       # Enrollment policy. Fresh volumes default to "managed" (operator approves
       # new devices); pre-existing volumes keep their current mode. Override with
       # "open", "managed", or "locked".
