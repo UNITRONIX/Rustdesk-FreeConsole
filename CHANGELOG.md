@@ -3,6 +3,13 @@
 ### Changed
 - _(none yet)_
 
+### Fixed
+- **Standalone relay rejected every session after relay-ticket hardening:** add
+  explicit `RELAY_REQUIRE_TICKETS=N` compatibility for a relay running in a
+  different process or host from signal. Ticket enforcement remains enabled by
+  default for all-in-one deployments; disabling it emits a security warning and
+  restores official `hbbr`-compatible pairing by unguessable session UUID.
+
 ---
 
 ## [3.5.24] — 2026-08-07

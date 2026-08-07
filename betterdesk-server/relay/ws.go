@@ -137,7 +137,7 @@ func (s *Server) handleWSRelayUpgrade(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uuid := rr.Uuid
-	if s.authorizations == nil || !s.authorizations.Claim(uuid) {
+	if !s.claimRelayTicket(uuid) {
 		log.Printf("[relay] WS unauthorized relay UUID from %s (rejecting)", r.RemoteAddr)
 		wsc.Close()
 		return

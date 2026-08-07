@@ -30,6 +30,23 @@ func authorizeTestRelayPair(t *testing.T, uuid string) {
 	}
 }
 
+func TestStandaloneCompatibilityAcceptsUUIDWithoutLocalTicket(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.RelayRequireTickets = false
+	srv := New(cfg)
+
+	if !srv.claimRelayTicket("standalone-uuid") || !srv.claimRelayTicket("standalone-uuid") {
+		t.Fatal("standalone relay must accept both sides without a process-local signal ticket")
+	}
+}
+
+func TestRelayRejectsUUIDWithoutTicketByDefault(t *testing.T) {
+	srv := New(config.DefaultConfig())
+	if srv.claimRelayTicket("unknown-default-uuid") {
+		t.Fatal("all-in-one relay accepted a UUID without a signal-issued ticket")
+	}
+}
+
 func TestRelayPairing(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.RelayPort = 0 // let OS pick a free port

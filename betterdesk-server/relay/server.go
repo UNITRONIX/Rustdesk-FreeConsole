@@ -30,6 +30,7 @@ type Server struct {
 	connLimiter    *ratelimit.ConnLimiter
 	sessionLimiter *ratelimit.ConnLimiter // active paired sessions per IP (post-pair)
 	authorizations *AuthorizationRegistry
+	requireTickets bool
 	tcpLn          net.Listener
 	wsHTTP         *http.Server // WebSocket relay listener
 	ctx            context.Context
@@ -99,7 +100,15 @@ func New(cfg *config.Config) *Server {
 	return &Server{
 		cfg:            cfg,
 		authorizations: defaultAuthorizationRegistry,
+		requireTickets: cfg == nil || cfg.RelayRequireTickets,
 	}
+}
+
+func (s *Server) claimRelayTicket(uuid string) bool {
+	if !s.requireTickets {
+		return true
+	}
+	return s.authorizations != nil && s.authorizations.Claim(uuid)
 }
 
 // SetBandwidthLimiter sets the bandwidth limiter for relay sessions.
@@ -134,6 +143,9 @@ func (s *Server) SetBillingCallbacks(onStart, onEnd func(uuid string)) {
 // Start launches the relay TCP listener.
 func (s *Server) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
+	if !s.requireTickets {
+		log.Printf("[relay] SECURITY WARNING: signal-issued relay UUID tickets are disabled (standalone compatibility mode)")
+	}
 
 	var err error
 	s.tcpLn, err = net.Listen("tcp", fmt.Sprintf(":%d", s.cfg.RelayPort))
@@ -248,7 +260,7 @@ func (s *Server) handleConn(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	if s.authorizations == nil || !s.authorizations.Claim(uuid) {
+	if !s.claimRelayTicket(uuid) {
 		log.Printf("[relay] Unauthorized relay UUID from %s (rejecting)", conn.RemoteAddr())
 		conn.Close()
 		return
