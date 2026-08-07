@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.24] — 2026-08-07
+
 ### Added
 - **RdClient desktop — native Cliprdr + folder file transfer stack (Refs #350):** recovered onto current `dev` from divergent history — Tauri `desktop_*` / `desktop_clipboard_*` IPC, `cliprdr.js`, desktop DnD, streamed folder upload/download. Requires rebuilt `rdclient-desktop` **and** panel update.
 
@@ -2737,3 +2744,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.21]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.20...v3.5.21
 [3.5.22]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.21...v3.5.22
 [3.5.23]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.22...v3.5.23
+[3.5.24]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.23...v3.5.24
