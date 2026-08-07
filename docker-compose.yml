@@ -41,6 +41,10 @@ services:
       - DB_URL=${DB_URL:-/opt/rustdesk/db_v2.sqlite3}
       - AUTH_DB_PATH=/app/data/auth.db
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
+      # Opt-in compatibility for stock controller-only clients (for example,
+      # mobile clients with screen sharing disabled). Effective only with
+      # ENROLLMENT_MODE=open; strict initiator authorization remains default.
+      - ALLOW_LEGACY_OUTBOUND=${ALLOW_LEGACY_OUTBOUND:-N}
       - P2P_FIRST=${P2P_FIRST:-Y}
       - ALWAYS_USE_RELAY=${ALWAYS_USE_RELAY:-N}
       - P2P_FALLBACK_MS=${P2P_FALLBACK_MS:-2000}

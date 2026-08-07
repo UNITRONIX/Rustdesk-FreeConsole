@@ -90,6 +90,13 @@ type Config struct {
 	// (set to 0 to disable rate limiting entirely).
 	SignalRateLimitPerIP int
 
+	// AllowLegacyOutbound permits controller-only stock RustDesk clients to
+	// start sessions without first registering a local device identity. This is
+	// compatible with the official RustDesk server, but is deliberately opt-in
+	// because the server cannot apply initiator device policy to an anonymous
+	// controller. It is honored only while enrollment mode is open.
+	AllowLegacyOutbound bool
+
 	// SameNATRelay forces relay fallback when both peers connect from the
 	// same public IP (i.e. they sit behind the same NAT gateway).  Many
 	// consumer routers refuse hairpin NAT, so the LAN-address exchange that
@@ -350,6 +357,14 @@ func (c *Config) LoadEnv() {
 	if v := os.Getenv("SIGNAL_RATE_LIMIT_PER_IP"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			c.SignalRateLimitPerIP = n
+		}
+	}
+	if v := strings.ToUpper(strings.TrimSpace(os.Getenv("ALLOW_LEGACY_OUTBOUND"))); v != "" {
+		switch v {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.AllowLegacyOutbound = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.AllowLegacyOutbound = false
 		}
 	}
 	// Issue #121: when both peers share the same public IP, the LAN

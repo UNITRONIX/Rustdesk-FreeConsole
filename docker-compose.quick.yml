@@ -66,6 +66,7 @@ services:
       # Example: RELAY_SERVERS=203.2.1413.10:21117 docker compose up -d
       - RELAY_SERVERS=${RELAY_SERVERS:-}
       - SIGNAL_RATE_LIMIT_PER_IP=${SIGNAL_RATE_LIMIT_PER_IP:-20}
+      - ALLOW_LEGACY_OUTBOUND=${ALLOW_LEGACY_OUTBOUND:-N}
       # Enrollment policy. Fresh volumes default to "managed" (operator approves
       # new devices); pre-existing volumes keep their current mode. Override with
       # "open", "managed", or "locked".

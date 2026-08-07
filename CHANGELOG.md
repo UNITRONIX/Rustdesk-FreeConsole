@@ -3,6 +3,14 @@
 ### Changed
 - _(none yet)_
 
+### Fixed
+- **Stock mobile/desktop controller reports “ID does not exist”:** add the
+  opt-in `ALLOW_LEGACY_OUTBOUND=Y` compatibility path for controller-only
+  RustDesk clients that do not register a local device before `PunchHole` or
+  `RequestRelay`. It is restricted to open enrollment, uses a non-persistent
+  connection identity, forces a ticket-authorized relay, and remains disabled
+  by default; managed and locked enrollment keep strict initiator checks.
+
 ---
 
 ## [3.5.24] — 2026-08-07
