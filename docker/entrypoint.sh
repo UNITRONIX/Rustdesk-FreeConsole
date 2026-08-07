@@ -84,7 +84,10 @@ fi
 # their current behavior (Go default "open", or whatever was set via the panel
 # and persisted in the database). A volume that already contains a server key
 # or SQLite database is treated as pre-existing.
-if [ -z "${ENROLLMENT_MODE:-}" ]; then
+if [ -n "${ENROLLMENT_MODE:-}" ]; then
+    export ENROLLMENT_MODE_ENV_OVERRIDE="Y"
+else
+    export ENROLLMENT_MODE_ENV_OVERRIDE="N"
     ENROLLMENT_SENTINEL="/opt/rustdesk/.enrollment_initialized"
     if [ ! -f "$ENROLLMENT_SENTINEL" ]; then
         if [ -f /opt/rustdesk/db_v2.sqlite3 ] || [ -f /opt/rustdesk/id_ed25519 ]; then

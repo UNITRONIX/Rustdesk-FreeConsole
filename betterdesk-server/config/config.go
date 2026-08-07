@@ -134,7 +134,8 @@ type Config struct {
 	// "open" (default) - Accept all device registrations (backward compatible)
 	// "managed" - New devices need to be approved or have a valid token
 	// "locked" - Only devices with valid tokens can register
-	EnrollmentMode string
+	EnrollmentMode            string
+	EnrollmentModeEnvOverride bool // ENROLLMENT_MODE was explicitly configured by the operator
 
 	// CDAP Gateway
 	CDAPPort      int  // WebSocket gateway port (default 21122)
@@ -412,6 +413,11 @@ func (c *Config) LoadEnv() {
 		mode := strings.ToLower(v)
 		if mode == "open" || mode == "managed" || mode == "locked" {
 			c.EnrollmentMode = mode
+			// Native launches have no marker, so a valid ENROLLMENT_MODE is
+			// explicit by default. Docker entrypoints set the marker to N when
+			// they inject the fresh-install default internally.
+			marker := strings.ToUpper(strings.TrimSpace(os.Getenv("ENROLLMENT_MODE_ENV_OVERRIDE")))
+			c.EnrollmentModeEnvOverride = marker != "N" && marker != "NO" && marker != "FALSE" && marker != "0"
 		}
 	}
 	if v := os.Getenv("CDAP_PORT"); v != "" {
