@@ -1591,17 +1591,38 @@ func (s *Server) handleRelayResponseForward(msg *pb.RendezvousMessage, senderAdd
 		}
 	}
 
+	// Resolve the initiator so we can mint a relay ticket before advertising the
+	// UUID. Without this, P2P→relay fallback forwards a RelayResponse that the
+	// hardened relay rejects as "Unauthorized relay UUID" (#356).
+	initiatorID := s.peerIDForAddr(initiatorAddr)
+	if initiatorID == "" && initiatorAddr != nil {
+		if n := s.peers.CountByIP(initiatorAddr.IP); n > 1 {
+			log.Printf("[signal] RelayResponse forward: ambiguous initiator IP lookup for %s (%d peers)", initiatorAddr.IP, n)
+		} else if entry := s.peers.FindByIP(initiatorAddr.IP); entry != nil {
+			initiatorID = entry.ID
+			log.Printf("[signal] RelayResponse forward: resolved initiator %s to peer %s via IP lookup", initiatorAddr, initiatorID)
+		}
+	}
+	if targetID == "" || initiatorID == "" {
+		log.Printf("[signal] RelayResponse forward: refusing uuid=%q — unresolved pair (initiator=%q target=%q sender=%s)",
+			rr.Uuid, initiatorID, targetID, senderAddr)
+		return
+	}
+	if !s.authorizeRelayTicket(rr.Uuid, initiatorID, targetID) {
+		log.Printf("[signal] RelayResponse forward: relay ticket rejected (uuid=%q initiator=%q target=%q) — not forwarding",
+			rr.Uuid, initiatorID, targetID)
+		return
+	}
+
 	var signedPk []byte
-	if targetID != "" {
-		if target := s.peers.Get(targetID); target != nil && len(target.PK) > 0 {
-			// Sign the PK with server's Ed25519 key (enables client E2E verification)
-			signed, err := s.kp.SignIdPk(targetID, target.PK)
-			if err != nil {
-				log.Printf("[signal] Failed to sign PK for %s in RelayResponse: %v", targetID, err)
-			} else {
-				signedPk = signed
-				log.Printf("[signal] Signed PK for %s in RelayResponse: %d bytes", targetID, len(signedPk))
-			}
+	if target := s.peers.Get(targetID); target != nil && len(target.PK) > 0 {
+		// Sign the PK with server's Ed25519 key (enables client E2E verification)
+		signed, err := s.kp.SignIdPk(targetID, target.PK)
+		if err != nil {
+			log.Printf("[signal] Failed to sign PK for %s in RelayResponse: %v", targetID, err)
+		} else {
+			signedPk = signed
+			log.Printf("[signal] Signed PK for %s in RelayResponse: %d bytes", targetID, len(signedPk))
 		}
 	}
 

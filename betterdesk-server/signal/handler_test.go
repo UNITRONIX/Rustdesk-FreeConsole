@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/unitronix/betterdesk-server/config"
+	cryptopkg "github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
@@ -1370,6 +1371,86 @@ func TestClientTokenAuthorizesViewerOnlyPunch(t *testing.T) {
 	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.75", 51000), "TGTOK1", token)
 	if ok {
 		t.Fatalf("managed token without DB peer must fail, got %q", id)
+	}
+}
+
+func TestHandleRelayResponseForwardAuthorizesRelayTicket(t *testing.T) {
+	// #356: P2P→RelayResponse forward must mint a relay ticket before the
+	// initiator/target reach hbbr, otherwise Claim rejects with
+	// "Unauthorized relay UUID" and clients see Reset by the peer.
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	initiatorAddr := udpAddr("198.51.100.56", 58616)
+	targetAddr := udpAddr("203.0.113.56", 59057)
+	putOnlinePeer(srv, "INIT356", initiatorAddr.IP.String(), initiatorAddr.Port, peer.ConnTCP)
+	putOnlinePeer(srv, "TGT356", targetAddr.IP.String(), targetAddr.Port, peer.ConnTCP)
+
+	// Keep a TCP punch sink so forward returns before the nil udpConn path.
+	client, server := net.Pipe()
+	t.Cleanup(func() { client.Close(); server.Close() })
+	go func() {
+		buf := make([]byte, 64*1024)
+		for {
+			if _, err := client.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+	srv.tcpPunchConns.Store(normalizeAddrKey(initiatorAddr.String()), &tcpPunchConn{
+		conn:      server,
+		createdAt: time.Now(),
+		peerID:    "INIT356",
+	})
+
+	const relayUUID = "356-p2p-relay-fallback-uuid"
+	msg := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RelayResponse{
+			RelayResponse: &pb.RelayResponse{
+				SocketAddr: cryptopkg.EncodeAddr(initiatorAddr),
+				Uuid:       relayUUID,
+				Union:      &pb.RelayResponse_Id{Id: "TGT356"},
+			},
+		},
+	}
+	srv.handleRelayResponseForward(msg, targetAddr)
+
+	if relay.AuthorizeRelayPair(relayUUID, "OTHER356", "TGT356") {
+		t.Fatal("existing ticket must not rebind to a different initiator")
+	}
+	if !relay.AuthorizeRelayPair(relayUUID, "INIT356", "TGT356") {
+		t.Fatal("same initiator/target pair must remain authorized after forward")
+	}
+	if !relay.ClaimRelayPair(relayUUID) {
+		t.Fatal("first Claim after RelayResponse forward must succeed")
+	}
+	if !relay.ClaimRelayPair(relayUUID) {
+		t.Fatal("second Claim after RelayResponse forward must succeed")
+	}
+	if relay.ClaimRelayPair(relayUUID) {
+		t.Fatal("third Claim must fail after the pair is consumed")
+	}
+}
+
+func TestHandleRelayResponseForwardRefusesUnresolvedPair(t *testing.T) {
+	srv, _ := newTestSignalServer(t, config.EnrollmentModeOpen)
+	initiatorAddr := udpAddr("198.51.100.57", 58617)
+	targetAddr := udpAddr("203.0.113.57", 59058)
+	// Target is known; initiator is not in the peer map / TCP session → refuse.
+	putOnlinePeer(srv, "TGT356B", targetAddr.IP.String(), targetAddr.Port, peer.ConnTCP)
+
+	const relayUUID = "356-unresolved-initiator-uuid"
+	msg := &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RelayResponse{
+			RelayResponse: &pb.RelayResponse{
+				SocketAddr: cryptopkg.EncodeAddr(initiatorAddr),
+				Uuid:       relayUUID,
+				Union:      &pb.RelayResponse_Id{Id: "TGT356B"},
+			},
+		},
+	}
+	srv.handleRelayResponseForward(msg, targetAddr)
+
+	if relay.ClaimRelayPair(relayUUID) {
+		t.Fatal("unresolved initiator must not mint a claimable relay ticket")
 	}
 }
 

@@ -48,6 +48,12 @@ func AuthorizeRelayPair(uuid, initiatorID, targetID string) bool {
 	return defaultAuthorizationRegistry.Authorize(uuid, initiatorID, targetID)
 }
 
+// ClaimRelayPair reserves one of the two connections for a signal-authorized
+// UUID on the shared all-in-one registry (same store Claim uses in hbbr).
+func ClaimRelayPair(uuid string) bool {
+	return defaultAuthorizationRegistry.Claim(uuid)
+}
+
 // RevokeRelayPairsForPeer removes unpaired tickets involving a banned peer.
 func RevokeRelayPairsForPeer(peerID string) {
 	defaultAuthorizationRegistry.RevokeForPeer(peerID)
