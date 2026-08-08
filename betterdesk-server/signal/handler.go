@@ -1909,6 +1909,9 @@ func (s *Server) authorizeRelayTicket(relayUUID, initiatorID, targetID string) b
 //  2. Valid BetterDesk client login token on the punch/relay message (#327)
 //  3. Panel signal-proxy CIDR (Web Remote)
 //  4. Live peer with exact ip:port match (FindByAddr)
+//  5. Exactly one live peer at the same public IP (safe FindByIP fallback for
+//     stock clients that PunchHole on a new TCP port). Multiple live peers at
+//     that IP → initiator_ambiguous_same_nat (no identity inheritance, #302)
 //
 // Managed and locked modes additionally require an approved DB peer row (pending
 // enrollment alone is not enough). Panel proxy initiators skip peer-map / DB
@@ -1948,10 +1951,25 @@ func (s *Server) requireAuthorizedInitiator(raddr *net.UDPAddr, targetID, token 
 		return s.finalizeAuthorizedInitiator(initiator.ID, raddr, targetID, initiator.Banned)
 	}
 
-	// Never inherit an identity solely from a public IP address. NAT addresses
-	// are shared and attacker-controlled source ports are trivial to create.
-	s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
-	return "", false
+	// 5. Safe IP-only fallback: stock RustDesk opens PunchHole on a new TCP
+	// port after RegisterPk/UDP heartbeat, so FindByAddr misses. Authorize only
+	// when exactly one live peer shares this public IP.
+	var live []*peer.Entry
+	for _, e := range s.peers.FindAllByIP(raddr.IP) {
+		if e != nil && !e.IsExpired(config.RegTimeout) {
+			live = append(live, e)
+		}
+	}
+	switch len(live) {
+	case 0:
+		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_not_registered")
+		return "", false
+	case 1:
+		return s.finalizeAuthorizedInitiator(live[0].ID, raddr, targetID, live[0].Banned)
+	default:
+		s.logUnauthorizedInitiator(raddr, "", targetID, "initiator_ambiguous_same_nat")
+		return "", false
+	}
 }
 
 // bindTCPSessionPeer records the peer ID on an open tcpPunchConn so a later

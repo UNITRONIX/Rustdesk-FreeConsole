@@ -1246,16 +1246,16 @@ func TestExactAddrInitiatorAuthorized(t *testing.T) {
 		t.Fatalf("exact addr auth = (%q, %v), want EXACTINIT1", id, ok)
 	}
 
-	// A different port at the same public IP is not an authenticated identity.
+	// Sole live peer at this IP: stock clients PunchHole on a new TCP port.
 	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.81", 51001), "TGTEXACT1", "")
-	if ok || id != "" {
-		t.Fatalf("IP-only fallback auth = (%q, %v), want rejection", id, ok)
+	if !ok || id != "EXACTINIT1" {
+		t.Fatalf("single-IP fallback auth = (%q, %v), want EXACTINIT1", id, ok)
 	}
 }
 
-func TestSingleIPFallbackRejectsDifferentPort(t *testing.T) {
-	// A stock client must use the same registered endpoint, a bound TCP
-	// session, or an opaque client token; a shared NAT address is insufficient.
+func TestSingleIPFallbackAuthorizesDifferentPort(t *testing.T) {
+	// Stock RustDesk PunchHole uses a new TCP port; with exactly one live peer
+	// at the public IP, authorize via FindAllByIP (3.5.15 / regression after 3.5.16).
 	srv, database := newTestSignalServer(t, config.EnrollmentModeOpen)
 	if err := database.UpsertPeer(&db.Peer{ID: "SOLEINIT1", Status: "ONLINE", IP: "78.31.94.73"}); err != nil {
 		t.Fatalf("UpsertPeer: %v", err)
@@ -1264,13 +1264,13 @@ func TestSingleIPFallbackRejectsDifferentPort(t *testing.T) {
 	putOnlinePeer(srv, "TGTSINGLE1", "203.0.113.90", 52000, peer.ConnTCP)
 
 	id, ok := srv.requireAuthorizedInitiator(udpAddr("78.31.94.73", 55041), "TGTSINGLE1", "")
-	if ok || id != "" {
-		t.Fatalf("IP-only fallback = (%q, %v), want rejection", id, ok)
+	if !ok || id != "SOLEINIT1" {
+		t.Fatalf("single-IP fallback = (%q, %v), want SOLEINIT1", id, ok)
 	}
 
 	resp := srv.handlePunchHoleRequestTCP(&pb.PunchHoleRequest{Id: "TGTSINGLE1"}, udpAddr("78.31.94.73", 55041))
-	if phr := resp.GetPunchHoleResponse(); phr == nil || phr.Failure != pb.PunchHoleResponse_ID_NOT_EXIST {
-		t.Fatalf("IP-only PunchHole must be unauthorized, got %+v", resp)
+	if phr := resp.GetPunchHoleResponse(); phr != nil && phr.Failure == pb.PunchHoleResponse_ID_NOT_EXIST {
+		t.Fatal("single live peer PunchHole must not be refused as unauthorized")
 	}
 }
 
