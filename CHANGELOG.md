@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.34] — 2026-08-09
+
 ### Fixed
 - **Windows panel update — Go binary deploy while BetterDeskServer still RUNNING:** `nssm stop` could time out with status still `SERVICE_RUNNING` (process ignored the control), and Apply continued best-effort deploy — leaving NSSM `SERVICE_PAUSED` / half-updated server+console. Stop now escalates (`sc stop` → `taskkill` by service PID / Application exe); if still running, Go binary deploy is skipped as a critical failure with a recovery hint. Ships via panel update.
 
@@ -2880,3 +2887,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.31]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.30...v3.5.31
 [3.5.32]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.31...v3.5.32
 [3.5.33]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.32...v3.5.33
+[3.5.34]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.33...v3.5.34
