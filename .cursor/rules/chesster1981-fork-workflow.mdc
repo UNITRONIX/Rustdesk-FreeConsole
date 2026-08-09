@@ -15,15 +15,23 @@ alwaysApply: true
 
 1. Before commit/push/PR: confirm `git remote -v` shows **Chesster1981**, and `git branch --show-current` is **`dev`** (or a feature branch off that fork’s `dev`).
 2. **Never** open PRs, merges, or push attempts against **UNITRONIX/BetterDesk** unless Ole **explicitly** asks in that session.
-3. Do **not** treat UNITRONIX issues/PRs (e.g. obsolete UNITRONIX #365) as merge targets for this workspace — Ole closes/ignores those himself.
-4. Day-to-day commits land on **`origin/dev`** (Chesster1981). Feature branches, if used, push to Chesster1981 and stay off UNITRONIX.
+3. **Never** create “upstream” PRs to UNITRONIX as a side effect of a fix (e.g. Cliprdr). Improve **Chesster1981/BetterDesk** only; close mistaken UNITRONIX PRs with a short note when asked.
+4. Do **not** treat UNITRONIX issues/PRs as merge targets for this workspace — Ole closes/ignores those himself unless he orders otherwise.
+5. Day-to-day commits land on **`origin/dev`** (Chesster1981). Feature branches, if used, push to Chesster1981 and stay off UNITRONIX.
 
 ## Panel Updates (Settings → Updates)
 
-Code already supports `UPDATE_GITHUB_OWNER` (default `UNITRONIX` in `updateService.js`). If this install should track the fork:
+`web-nodejs/services/updateService.js` reads:
 
-- Panel update source / `UPDATE_GITHUB_OWNER` should be **`Chesster1981`** so Settings → Updates sees fork `dev` commits.
-- **Do not** invent or blindly change production `.env` — only mention or change when operator asks and existing merge/update paths support it (`envMerge` append-missing only).
+| Env | Default | Fork value |
+|-----|---------|------------|
+| `UPDATE_GITHUB_OWNER` | `UNITRONIX` | **`Chesster1981`** |
+| `UPDATE_GITHUB_REPO` | `BetterDesk` | `BetterDesk` |
+| `UPDATE_GITHUB_BRANCH` | `main` (Stable) | **`dev`** for Development channel |
+
+Settings → Updates only switches **channel** (branch: `main` ↔ `dev`) via `setUpdateChannel` / `UPDATE_GITHUB_BRANCH`. **Owner is not in the UI** — set `UPDATE_GITHUB_OWNER=Chesster1981` in the console `.env` (and restart the console service) so Updates pull fork commits. Leaving the default `UNITRONIX` explains why Chesster-only fixes “did nothing” on Apply.
+
+- **Do not** invent or blindly overwrite production `.env` secrets — only append/change when Ole asks (`envMerge` / `upsertEnvKey` patterns).
 
 ## Release exception (UNITRONIX)
 
