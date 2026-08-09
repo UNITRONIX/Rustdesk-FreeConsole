@@ -2725,7 +2725,10 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     file: 'npm install',
                     error: npmResult.error || 'npm install failed',
                     nodeModulesOk: npmResult.nodeModulesOk,
-                    nonCritical: npmResult.nodeModulesOk,
+                    nativeError: npmResult.nativeError,
+                    // resolve-only checks are not enough after better-sqlite3 major bumps;
+                    // broken native bindings must block "successful" console restart.
+                    nonCritical: npmResult.nodeModulesOk === true && !npmResult.nativeError,
                 });
                 console.error(`[UPDATE] npm install failed: ${npmResult.error || 'unknown'}`);
             }
