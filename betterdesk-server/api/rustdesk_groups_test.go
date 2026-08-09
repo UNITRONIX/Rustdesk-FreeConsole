@@ -100,6 +100,29 @@ func TestRustDeskPeerDeviceGroupName(t *testing.T) {
 	}
 }
 
+func TestBuildRustDeskDeviceGroupsHidesEmptyGroups(t *testing.T) {
+	srv := &Server{}
+	srv.SetPanelStore(&mockPanelACLStore{
+		restrictedDefault: false,
+		userIDs:           map[string]int64{"admin": 1},
+		groups: []db.PanelDeviceGroup{
+			{ID: 1, GUID: "g-full", Name: "With Peers", AllowedUsers: []string{"admin"}},
+			{ID: 2, GUID: "g-empty", Name: "Empty Group", AllowedUsers: []string{"admin"}},
+		},
+		members: map[int64][]string{
+			1: {"P1"},
+			2: {}, // no members — must not appear in sidebar
+		},
+	})
+	user := &db.User{ID: 1, Username: "admin", Role: auth.RoleAdmin}
+	peerByID := map[string]*db.Peer{"P1": {ID: "P1"}}
+
+	got := srv.buildRustDeskDeviceGroupsFromContext(user, auth.RoleAdmin, peerByID, nil)
+	if len(got) != 1 || got[0].name != "With Peers" {
+		t.Fatalf("expected only non-empty group, got %#v", got)
+	}
+}
+
 func TestBuildRustDeskPeerManualGroupNames(t *testing.T) {
 	groups := []rustDeskGroup{
 		{guid: "folder_1", name: "Admins", peerIDs: []string{"P1"}},

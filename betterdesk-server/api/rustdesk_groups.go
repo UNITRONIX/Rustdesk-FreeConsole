@@ -67,11 +67,16 @@ func (s *Server) buildRustDeskDeviceGroupsFromContext(
 				if !panelGroupAllowedForRustDeskAB(g, user, role, userGroupGUIDs) {
 					continue
 				}
+				peerIDs := s.panelGroupPeerIDs(g, peerByID, visiblePeer)
+				if len(peerIDs) == 0 {
+					// Hide groups the user cannot reach any member of.
+					continue
+				}
 				groups = append(groups, rustDeskGroup{
 					guid:    g.GUID,
 					name:    g.Name,
 					note:    g.Note,
-					peerIDs: s.panelGroupPeerIDs(g, peerByID, visiblePeer),
+					peerIDs: peerIDs,
 				})
 			}
 		}
@@ -97,6 +102,9 @@ func (s *Server) buildRustDeskDeviceGroupsFromContext(
 					continue
 				}
 				peerIDs = append(peerIDs, deviceID)
+			}
+			if len(peerIDs) == 0 {
+				continue
 			}
 			groups = append(groups, rustDeskGroup{
 				guid:    folderGroupGUID(folder.ID),

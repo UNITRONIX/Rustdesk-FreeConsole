@@ -716,17 +716,14 @@ func (s *Server) mergeAdminTagsIntoAB(data string) string {
 				p["alias"] = alias
 				modified = true
 			}
-			// Prefer enriched note (cleared when it duplicates the title alias).
+			// Prefer enriched note (ID under Display Name, or cleared duplicate).
 			if n, _ := p["note"].(string); strings.TrimSpace(n) != note {
 				p["note"] = note
 				modified = true
 			}
-			// When a managed label drives the card title, clear computer name so it
-			// does not appear on the secondary line (and so group→AB merge does
-			// not refill hostname from /api/peers/list).
-			managedTitle := rustDeskPanelAlias(info) != "" ||
-				(strings.TrimSpace(abAlias) == "" && alias != "" && strings.TrimSpace(abNote) != "" && alias == strings.TrimSpace(abNote))
-			if alias != "" && managedTitle {
+			// When a title alias is set, clear computer name so the secondary line
+			// is note (typically the peer ID) rather than username@hostname.
+			if alias != "" {
 				if h, _ := p["hostname"].(string); strings.TrimSpace(h) != "" {
 					p["hostname"] = ""
 					modified = true

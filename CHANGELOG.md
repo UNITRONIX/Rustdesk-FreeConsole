@@ -4,7 +4,7 @@
 - **Windows panel update — Go binary still blocked after force-stop:** `taskkill` on BetterDeskServer could leave `SERVICE_RUNNING` because NSSM `AppExit Default=Restart` immediately respawned the process, so Apply skipped deploying the new Go binary (console updates applied; server stayed on the old build). Force-stop now sets `AppExit Default=Exit` before kill, then restores Restart after `SERVICE_STOPPED`. Ships via panel update (console JS only — Apply once to get the stop fix, then Apply again if the prior run skipped the Go binary).
 
 ### Changed
-- _(none yet)_
+- **Stock RustDesk — hide empty device groups; Display Name as card title:** `/api/group` and `/api/device-group/accessible` omit groups/folders with no accessible member peers for the caller. Peer cards put panel Display Name (else note/hostname) in `alias` (bold title) and the peer ID in `note` (secondary line). Ships via Go rebuild/restart; refresh address book in RustDesk.
 
 ---
 
