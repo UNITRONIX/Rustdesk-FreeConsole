@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.15] — 2026-08-09
+
 ### Added
 - **RdClient desktop — RustDesk-like folder file transfer:** File transfer modal can upload/download whole folder trees (recursive mkdir + sequential files) with aggregate queue progress/cancel; downloads stream to disk via Tauri `desktop_download_begin/write/finish` (no full-file WebView buffer). Prefer File transfer for large trees; Cliprdr remains Explorer convenience. Requires rebuilt `rdclient-desktop` **and** panel update (`filetransfer.js` / `file-modal.js` / `local-files.js` + locales).
 
@@ -2686,3 +2693,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.12]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.11...v3.5.12
 [3.5.13]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.12...v3.5.13
 [3.5.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.13...v3.5.14
+[3.5.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.14...v3.5.15
