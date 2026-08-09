@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Fleet org filter 404 (#364):** Fleet Management called non-existent `GET /api/panel/organizations`; it now uses `GET /api/panel/org` (same as Policies). Ships via panel update (`fleet.js`). Verify: Fleet page Network tab shows `/api/panel/org` (no 404), org dropdowns populate.
+
 ### Changed
 - _(none yet)_
 
