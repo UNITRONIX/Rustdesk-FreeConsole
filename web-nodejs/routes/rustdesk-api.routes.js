@@ -652,23 +652,29 @@ async function getRustDeskPeerList(user, params = {}) {
         const hostname = sysinfo.hostname || device.hostname || '';
         const username = sysinfo.username || device.username || device.user || '';
         const platform = sysinfo.platform || device.platform || device.os || '';
-        const displayName = device.display_name || '';
-        const alias = displayName || device.note || hostname || String(device.id || '');
+        const displayName = String(device.display_name || '').trim();
+        const deviceNote = String(device.note || '').trim();
+        // Match Go rustDeskCardFields: panel display name / note → alias (bold title).
+        // Do not fall back to hostname (that belongs on the secondary line).
+        const alias = displayName || deviceNote;
+        const note = deviceNote && deviceNote !== alias ? deviceNote : '';
+        const infoHostname = alias ? '' : hostname;
+        const infoUsername = alias ? '' : username;
         const reachable = isReachableRustDeskDevice(device);
 
         // Match Go server PeerPayload format — info as nested map, status as int
         return {
             id: device.id,
             info: {
-                device_name: hostname,
+                device_name: infoHostname,
                 os: platform,
-                username: username,
+                username: infoUsername,
                 version: sysinfo.version || ''
             },
             status: 1,
-            user: username,
-            user_name: username,
-            note: device.note || '',
+            user: infoUsername,
+            user_name: infoUsername,
+            note,
             device_group_name: deviceGroupName,
             tags,
             online: reachable,
