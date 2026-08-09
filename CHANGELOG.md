@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.28] — 2026-08-09
+
 ### Fixed
 - **Support Agent Windows console cascade:** Without a quiet capture path, PeerInfo / screenshot fallback spawned a visible PowerShell window per frame (and ffmpeg without `CREATE_NO_WINDOW`). Desktop capture on Windows now uses GDI→JPEG; helper `exec` calls hide the console. Ships via rebuilt Support Agent (agent-source). Verify: start agent + open a session — no flood of cmd/PowerShell windows.
 - **Support Agent Windows builds (sealbranding + mingw CC):** `build.sh` no longer exports mingw `CC`/`CXX` before `go run ./cmd/sealbranding`. Seal runs with `CGO_ENABLED=0`; mingw is applied only around the final Windows `go build`. This was mis-reported in the UI as “CGO / mingw required” while mingw was already installed. Ships via panel update (agent-source `build.sh` + `agentBuildWorker.js`).
@@ -2780,3 +2787,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.25]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.24...v3.5.25
 [3.5.26]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.25...v3.5.26
 [3.5.27]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.26...v3.5.27
+[3.5.28]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.27...v3.5.28
