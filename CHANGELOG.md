@@ -9,6 +9,7 @@
 
 ### Fixed
 - **Windows panel update — Go binary deploy Access Denied / SERVICE_RUNNING:** Console runs as `NT SERVICE\BetterDeskConsole` and cannot `nssm set AppExit` / `sc stop` / `taskkill` on BetterDeskServer, so Apply compiled the server then skipped deploy (`app-exit-exit-failed`, `taskkill-*-failed`). Adds SYSTEM scheduled task `BetterDeskServiceControl` (`scripts/windows-service-control.js`) for privileged stop → copy → start; panel uses it for Go deploy and stops the server before build. `betterdesk.ps1` Update/Repair registers the task and grants the console SCM start/stop on the server. **One-time Admin:** run `betterdesk.ps1` → Update (or Repair services), then Settings → Updates → Apply again.
+- **Stock RustDesk — groups without ACL still listed; Display Name missing on Group cards:** Device-group / folder sidebar listing no longer bypasses ACL for panel admins (empty or unmatched grants stay hidden; empty member lists still omitted). Stock Group `PeerPayload` drops top-level `alias`, so Display Name is also mirrored into `info.device_name` (hostname row) while `alias` + peer ID in `note` stay set for Address Book / newer clients. Ships via Go rebuild/restart; re-login or refresh Groups in RustDesk. Attach the user (or their user group) on each device group/folder ACL you want visible.
 
 ### Changed
 - _(none yet)_

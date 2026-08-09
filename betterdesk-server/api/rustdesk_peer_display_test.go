@@ -23,8 +23,12 @@ func TestRustDeskCardFields_panelDisplayNameBecomesAlias(t *testing.T) {
 	if note != "1031876693" {
 		t.Fatalf("note should be peer ID under display name, got %q", note)
 	}
-	if host != "" || user != "" {
-		t.Fatalf("hostname/username should be hidden when title alias is set, got host=%q user=%q", host, user)
+	// Stock Group PeerPayload.toPeer drops alias; device_name carries the label.
+	if host != "Training" {
+		t.Fatalf("device_name should mirror alias for Group cards, got %q", host)
+	}
+	if user != "" {
+		t.Fatalf("username should clear when title alias is set, got %q", user)
 	}
 }
 
@@ -39,8 +43,8 @@ func TestRustDeskCardFields_noteFillsAliasWhenNoDisplayName(t *testing.T) {
 	if note != "1" {
 		t.Fatalf("note should be peer ID, got %q", note)
 	}
-	if host != "" || user != "" {
-		t.Fatalf("expected cleared secondary hostname line, got host=%q user=%q", host, user)
+	if host != "Front desk" || user != "" {
+		t.Fatalf("expected device_name=alias and cleared user, got host=%q user=%q", host, user)
 	}
 }
 
@@ -68,8 +72,8 @@ func TestRustDeskCardFields_hostnameBecomesAliasWhenNoLabels(t *testing.T) {
 	if note != "42" {
 		t.Fatalf("note=%q, want peer ID", note)
 	}
-	if host != "" || user != "" {
-		t.Fatalf("expected cleared hostname chrome, got host=%q user=%q", host, user)
+	if host != "pc-1" || user != "" {
+		t.Fatalf("expected device_name=alias, got host=%q user=%q", host, user)
 	}
 }
 
@@ -84,8 +88,8 @@ func TestRustDeskCardFields_abAliasUsedWhenNoPanelLabel(t *testing.T) {
 	if note != "7" {
 		t.Fatalf("note=%q, want peer ID", note)
 	}
-	if host != "" {
-		t.Fatalf("hostname should clear when alias set, got %q", host)
+	if host != "My Alias" {
+		t.Fatalf("device_name should mirror alias, got %q", host)
 	}
 }
 
@@ -100,8 +104,8 @@ func TestRustDeskCardFields_abNotePromotedToAlias(t *testing.T) {
 	if note != "1031876693" {
 		t.Fatalf("note=%q, want peer ID", note)
 	}
-	if host != "" || user != "" {
-		t.Fatalf("hostname should hide when AB note becomes title, got host=%q user=%q", host, user)
+	if host != "Training" || user != "" {
+		t.Fatalf("expected device_name=alias, got host=%q user=%q", host, user)
 	}
 }
 

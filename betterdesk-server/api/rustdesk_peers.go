@@ -439,10 +439,11 @@ func rustDeskPanelAlias(p *db.Peer) string {
 }
 
 // rustDeskCardFields maps BetterDesk peer metadata onto RustDesk card slots:
-//   - alias → bold primary title (else client shows formatted ID)
-//   - note → secondary line (prefer unique panel/AB note; otherwise the peer ID
-//     so Display Name stays bold and the ID is less prominent)
-//   - hostname/username → cleared when a title alias is set (avoids crowding)
+//   - alias → bold primary title when the client maps it (Address Book does;
+//     stock Group PeerPayload.toPeer drops alias — see rustDeskPeerPayload)
+//   - note → secondary line (prefer unique panel/AB note; otherwise the peer ID)
+//   - device_name → mirrored to the managed title when set, so Group cards still
+//     show Display Name on the hostname line (toPeer maps info.device_name only)
 //
 // Title preference: panel display_name → panel note → AB alias → AB note → hostname.
 func rustDeskCardFields(p *db.Peer, abAlias, abNote, deviceName, username string) (alias, note, outDevice, outUser string) {
@@ -487,8 +488,12 @@ func rustDeskCardFields(p *db.Peer, abAlias, abNote, deviceName, username string
 
 	outDevice, outUser = deviceName, username
 	if alias != "" {
-		// Title + note (often the ID) — hide username@hostname chrome.
-		outDevice, outUser = "", ""
+		// Stock Group UI ignores top-level alias; keep the label in device_name
+		// so the card's hostname / "name" row shows Display Name. Clear username
+		// so it does not render as user@label. Address Book clears hostname
+		// separately after enrichment (it does map alias → bold title).
+		outDevice = alias
+		outUser = ""
 	}
 	return alias, note, outDevice, outUser
 }

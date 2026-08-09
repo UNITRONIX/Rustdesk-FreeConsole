@@ -40,16 +40,21 @@ func TestPanelAccessAllowedStrictIgnoresAdminBypass(t *testing.T) {
 	if !panelAccessAllowedStrict(admin, guids, nil, []string{"ug-ops"}) {
 		t.Fatal("strict ACL must allow groups granted to the admin's user group")
 	}
-	// RustDesk AB group listing uses panelAccessAllowed — admins see all groups.
+	// RustDesk AB group listing is strict — no admin bypass (web panel keeps bypass).
 	g := db.PanelDeviceGroup{Name: "Event Servers", AllowedGroupGUIDs: []string{"ug-other"}}
-	if !panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
-		t.Fatal("RustDesk AB must list device groups for panel admins (panel parity)")
+	if panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
+		t.Fatal("RustDesk AB must hide groups outside the admin's user-group grants")
 	}
 	g.AllowedGroupGUIDs = nil
+	if panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
+		t.Fatal("RustDesk AB must hide empty-ACL groups even for panel admins")
+	}
+	g.AllowedGroupGUIDs = []string{"ug-ops"}
 	if !panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
-		t.Fatal("RustDesk AB must list empty-ACL groups for panel admins")
+		t.Fatal("RustDesk AB must show groups granted to the admin's user group")
 	}
 	op := &db.User{Username: "op", Role: auth.RoleOperator}
+	g.AllowedGroupGUIDs = nil
 	if panelGroupAllowedForRustDeskAB(g, op, auth.RoleOperator, guids) {
 		t.Fatal("RustDesk AB must hide empty-ACL groups from operators")
 	}
@@ -120,6 +125,29 @@ func TestBuildRustDeskDeviceGroupsHidesEmptyGroups(t *testing.T) {
 	got := srv.buildRustDeskDeviceGroupsFromContext(user, auth.RoleAdmin, peerByID, nil)
 	if len(got) != 1 || got[0].name != "With Peers" {
 		t.Fatalf("expected only non-empty group, got %#v", got)
+	}
+}
+
+func TestBuildRustDeskDeviceGroupsStrictACLHidesUngranted(t *testing.T) {
+	srv := &Server{}
+	srv.SetPanelStore(&mockPanelACLStore{
+		restrictedDefault: true,
+		userIDs:           map[string]int64{"admin": 1},
+		groups: []db.PanelDeviceGroup{
+			{ID: 1, GUID: "g-mine", Name: "DCS Servers", AllowedUsers: []string{"admin"}},
+			{ID: 2, GUID: "g-other", Name: "Event Servers", AllowedUsers: []string{"other"}},
+		},
+		members: map[int64][]string{
+			1: {"P1"},
+			2: {"P2"},
+		},
+	})
+	user := &db.User{ID: 1, Username: "admin", Role: auth.RoleAdmin}
+	peerByID := map[string]*db.Peer{"P1": {ID: "P1"}, "P2": {ID: "P2"}}
+
+	got := srv.buildRustDeskDeviceGroupsFromContext(user, auth.RoleAdmin, peerByID, nil)
+	if len(got) != 1 || got[0].name != "DCS Servers" {
+		t.Fatalf("admin must only see granted non-empty groups, got %#v", got)
 	}
 }
 
