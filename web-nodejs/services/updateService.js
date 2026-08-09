@@ -67,7 +67,36 @@ const {
     privilegedStartService,
     privilegedDeployServerBinary,
     taskExists: windowsServiceControlTaskExists,
+    controlDir: windowsServiceControlDir,
 } = require('../lib/windowsPrivilegedServiceControl');
+
+function writeWindowsPendingServerDeploy(sourcePath, targetPath) {
+    try {
+        const dir = windowsServiceControlDir(ROOT_DIR);
+        fs.mkdirSync(dir, { recursive: true });
+        const pending = {
+            source: sourcePath,
+            target: targetPath,
+            requestedAt: new Date().toISOString(),
+        };
+        fs.writeFileSync(
+            path.join(dir, 'pending-server-deploy.json'),
+            `${JSON.stringify(pending, null, 2)}\n`,
+            'utf8'
+        );
+    } catch (err) {
+        console.warn(`[UPDATE] Could not write pending-server-deploy.json: ${err.message}`);
+    }
+}
+
+function windowsAdminDeployHint() {
+    const script = path.join(ROOT_DIR, 'scripts', 'windows-install-service-control-and-deploy.ps1');
+    return `Admin PowerShell once (stops BetterDeskServer, deploys pending Go binary, installs BetterDeskServiceControl watcher): `
+        + `powershell -ExecutionPolicy Bypass -File "${script}" `
+        + `— then Settings → Updates → Apply again. `
+        + `Why not stop both services from the panel? BetterDeskConsole *is* the updater; stopping it aborts Apply. `
+        + `The console VA also cannot taskkill BetterDeskServer — hence the SYSTEM watcher / self-replace API.`;
+}
 
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'Chesster1981';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
@@ -2996,6 +3025,43 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             let skipDeployWhileRunning = false;
             if (IS_WINDOWS) {
                 const targetPath = detectServerBinaryPath();
+
+                // Preferred: ask the running Go process to replace its own image
+                // (it has rights; BetterDeskConsole does not). Stopping the console
+                // mid-Apply would abort this update — we never stop both from here.
+                try {
+                    const selfReplace = await require('./betterdeskApi').replaceServerBinary(serverBinaryPath);
+                    results.selfReplace = selfReplace;
+                    if (selfReplace && selfReplace.success) {
+                        results.serverStop = {
+                            success: true,
+                            service: serviceName,
+                            method: 'self-replace-exit',
+                        };
+                        results.serverDeploy = {
+                            success: true,
+                            backupPath: selfReplace.backupPath || null,
+                            error: null,
+                            method: `self-replace:${buildUsed}`,
+                        };
+                        results.serverStart = {
+                            success: true,
+                            service: serviceName,
+                            method: 'nssm-restart-expected',
+                            note: 'Go process exited after replace; NSSM AppExit=Restart loads the new binary',
+                        };
+                        results.serverServiceConfig = sanitizeGoServerServiceConfig();
+                        results.servicesRestarted.push('server');
+                        results.needsServerRestart = false;
+                        clearServerBinaryStale();
+                        stoppedForDeploy = true;
+                        serverBinaryPath = null;
+                    }
+                } catch (selfErr) {
+                    results.selfReplace = { success: false, error: selfErr.message || String(selfErr) };
+                }
+
+                if (serverBinaryPath) {
                 const privDeploy = privilegedDeployServerBinary(serverBinaryPath, targetPath, {
                     consoleRoot: ROOT_DIR,
                     service: serviceName,
@@ -3031,6 +3097,8 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     serverBinaryPath = null; // mark handled
                 } else {
                     results.privilegedDeploy = privDeploy || { success: false, error: 'no result' };
+                    writeWindowsPendingServerDeploy(serverBinaryPath, targetPath);
+                    const adminHint = windowsAdminDeployHint();
                     // Windows can often rename a running .exe aside and place a new
                     // binary at the original path. Do that before giving up — the live
                     // process stays on old code until restart, but the next start loads
@@ -3060,8 +3128,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                                     file: 'betterdesk-server',
                                     error: `Binary deployed (rename-swap) but could not start ${serviceName}: ${startResult.error || 'unknown'}`,
                                     nonCritical: true,
-                                    hint: startResult.hint
-                                        || 'Start BetterDeskServer from services.msc, or Admin: nssm start BetterDeskServer',
+                                    hint: startResult.hint || adminHint,
                                 });
                             }
                         } else {
@@ -3070,9 +3137,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                                 file: 'betterdesk-server',
                                 error: `Go binary replaced on disk (rename-swap) but ${serviceName} is still running the old image: ${stopResult.error || 'stop failed'}`,
                                 nonCritical: true,
-                                hint: (privDeploy && privDeploy.hint)
-                                    || stopResult.hint
-                                    || 'Admin PowerShell once: betterdesk.ps1 → Update (installs BetterDeskServiceControl watcher), then nssm restart BetterDeskServer — later Applies will stop/deploy automatically',
+                                hint: adminHint,
                             });
                             console.warn(
                                 `[UPDATE] rename-swap deployed new Go binary; ${serviceName} still running old process`
@@ -3093,11 +3158,10 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                                 results.failed.push({
                                     file: 'betterdesk-server',
                                     error: `Cannot deploy Go binary while ${serviceName} is still running: ${stopResult.error}`
-                                        + (swapDeploy.error ? ` (rename-swap: ${swapDeploy.error})` : ''),
+                                        + (swapDeploy.error ? ` (rename-swap: ${swapDeploy.error})` : '')
+                                        + ' — Console cannot stop BetterDeskServer (no SCM/taskkill rights). Stopping BetterDeskConsole mid-Apply would abort the update; run the Admin bootstrap once.',
                                     nonCritical: false,
-                                    hint: stopResult.hint
-                                        || (privDeploy && privDeploy.hint)
-                                        || 'Admin PowerShell once: betterdesk.ps1 → Update (installs BetterDeskServiceControl SYSTEM watcher), then Retry update',
+                                    hint: adminHint,
                                 });
                                 console.error(
                                     `[UPDATE] Skipping Go binary deploy — ${serviceName} still SERVICE_RUNNING after stop/force-kill`
@@ -3113,6 +3177,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                         }
                     }
                 }
+                } // end if serverBinaryPath still set after self-replace
             }
 
             if (serverBinaryPath && !skipDeployWhileRunning) {

@@ -461,6 +461,39 @@ async function getServerInfo() {
     }
 }
 
+/**
+ * Ask the running Go server to replace its own binary and exit (NSSM restarts it).
+ * Used on Windows when the console VA cannot stop/kill BetterDeskServer.
+ *
+ * @param {string} sourcePath absolute path to the newly built betterdesk-server.exe
+ * @returns {Promise<{ success: boolean, backupPath?: string, error?: string }>}
+ */
+async function replaceServerBinary(sourcePath) {
+    try {
+        const res = await apiClient.post('/system/replace-binary', { source: sourcePath }, {
+            timeout: 120000,
+            validateStatus: () => true,
+        });
+        if (res.status === 404) {
+            return { success: false, error: 'replace-binary not supported by this Go build', unsupported: true };
+        }
+        if (res.status === 401 || res.status === 403) {
+            return { success: false, error: `replace-binary auth failed (${res.status})` };
+        }
+        if (res.status >= 200 && res.status < 300 && res.data && res.data.success) {
+            return {
+                success: true,
+                backupPath: res.data.backupPath || null,
+                target: res.data.target || null,
+            };
+        }
+        const err = (res.data && (res.data.error || res.data.message)) || `HTTP ${res.status}`;
+        return { success: false, error: String(err) };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+}
+
 // ========================== Sync (no-op for BetterDesk) ======================
 
 /**
@@ -1329,6 +1362,7 @@ module.exports = {
     getHealth,
     getServerStats,
     getServerInfo,
+    replaceServerBinary,
     // Peers
     getAllPeers,
     getPeer,

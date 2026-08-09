@@ -360,6 +360,8 @@ func (s *Server) Start(ctx context.Context) error {
 	// Config (server.config permission)
 	mux.HandleFunc("GET /api/config/{key}", s.requirePermission(auth.PermServerConfig, s.handleGetConfig))
 	mux.HandleFunc("PUT /api/config/{key}", s.requirePermission(auth.PermServerConfig, s.handleSetConfig))
+	// Panel Windows updates: server replaces its own binary (console cannot taskkill it).
+	mux.HandleFunc("POST /api/system/replace-binary", s.requirePermission(auth.PermServerConfig, s.handleReplaceBinary))
 
 	// Auth (public — no auth required, handled by middleware exclusion)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)

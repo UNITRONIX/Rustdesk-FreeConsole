@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Windows panel update — cannot stop both services from inside Apply:** BetterDeskConsole *is* the updater; stopping it mid-Apply aborts the job, and the console VA still cannot `sc stop`/`taskkill` BetterDeskServer. Deploy now tries (1) `POST /api/system/replace-binary` (Go renames/replaces its own exe and exits for NSSM restart), (2) SYSTEM watcher, (3) rename-swap. On failure writes `pending-server-deploy.json` and points at Admin script `scripts/windows-install-service-control-and-deploy.ps1` (stop server → deploy pending → install watcher). **One-time Admin:** run that script elevated, then Apply again.
+
 ### Changed
 - _(none yet)_
 
