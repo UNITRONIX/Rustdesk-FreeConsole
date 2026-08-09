@@ -1,5 +1,5 @@
 ---
-description: Always commit and push panel (web-nodejs) updates on dev in the same session
+description: Always commit and push panel (web-nodejs) updates on Chesster1981 origin/dev in the same session
 alwaysApply: true
 ---
 
@@ -11,17 +11,21 @@ Operator standing preference: **always commit + push after panel updates**.
 
 After a ready change that ships via **Settings → Updates** — especially under `web-nodejs/` (`public/js`, views, locales, services tied to the panel updater) — **commit on `dev` and `git push origin dev` in the same session**. Do not leave panel-only fixes uncommitted/unpushed waiting for a separate ask.
 
+Same habit for **agent standing-workflow rules** under `.cursor/rules/` when Ole wants them persisted (see `chesster1981-fork-workflow.mdc`).
+
 ## Rules
 
 1. Target branch: **`dev`** (day-to-day), not `main`.
-2. Push: `git push origin dev` — never force-push unless the operator explicitly requests it.
-3. If the same logical fix also touches `rdclient-desktop` Rust, include those files in the **same** commit, then push.
-4. Do **not** stage secrets (`.env`, credentials), `rdclient-desktop/dist-release/` binaries, or unrelated junk.
-5. Override: if the operator says **"don't push"** (or equivalent) for that task, skip the push.
+2. Push: `git push origin dev` on **Chesster1981/BetterDesk** — never UNITRONIX unless Ole explicitly asks; never force-push unless the operator explicitly requests it.
+3. Confirm `git remote -v` shows Chesster1981 before pushing.
+4. If the same logical fix also touches `rdclient-desktop` Rust, include those files in the **same** commit, then push.
+5. Do **not** stage secrets (`.env`, credentials), `rdclient-desktop/dist-release/` binaries, or unrelated junk.
+6. Override: if the operator says **"don't push"** (or equivalent) for that task, skip the push.
+7. Do **not** open UNITRONIX PRs as part of this habit.
 
 ## Checklist
 
 - [ ] On `dev` (or feature branch off `dev` as directed)
 - [ ] Only relevant fix files staged
 - [ ] Commit created
-- [ ] Pushed to `origin/dev` (unless overridden)
+- [ ] Pushed to Chesster1981 `origin/dev` (unless overridden)
