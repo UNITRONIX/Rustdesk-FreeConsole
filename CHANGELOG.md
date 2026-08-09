@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.42] — 2026-08-09
+
 ### Fixed
 - **Windows panel update — BetterDeskServiceControl watcher (no schtasks /Run):** Panel Go deploy still failed with `SERVICE_RUNNING` / `taskkill-*-failed` because `NT SERVICE\BetterDeskConsole` often cannot `schtasks /Run` the one-shot SYSTEM task. `BetterDeskServiceControl` is now a persistent LocalSystem NSSM **watcher** (`--watch-loop` on `data\service-control`); the panel only drops request files. Fallback: legacy scheduled task + rename-swap of a running `betterdesk-server.exe` when stop fails. **One-time Admin:** `betterdesk.ps1` → Update/Repair, confirm service `BetterDeskServiceControl` is Running, then Settings → Updates → Apply.
 
@@ -2959,3 +2966,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.39]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.38...v3.5.39
 [3.5.40]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.39...v3.5.40
 [3.5.41]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.40...v3.5.41
+[3.5.42]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.41...v3.5.42
