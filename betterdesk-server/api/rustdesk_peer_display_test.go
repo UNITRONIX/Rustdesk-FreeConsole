@@ -118,3 +118,16 @@ func TestRustDeskPanelAlias(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestRustDeskGroupSecondaryNote_stripsDuplicatePeerID(t *testing.T) {
+	t.Parallel()
+	if got := rustDeskGroupSecondaryNote("1031876693", "1031876693"); got != "" {
+		t.Fatalf("duplicate peer ID note should clear, got %q", got)
+	}
+	if got := rustDeskGroupSecondaryNote("Front desk", "1031876693"); got != "Front desk" {
+		t.Fatalf("distinct note must stay, got %q", got)
+	}
+	if got := rustDeskGroupSecondaryNote("", "1031876693"); got != "" {
+		t.Fatalf("empty note stays empty, got %q", got)
+	}
+}
