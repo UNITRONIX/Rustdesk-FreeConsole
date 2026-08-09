@@ -91,10 +91,37 @@ function mergePeerFields(existing, device, tags) {
         : {};
 
     peer.id = String(peer.id || device.id || '');
-    if (!peer.username && (device.username || device.user)) peer.username = String(device.username || device.user);
-    if (!peer.hostname && device.hostname) peer.hostname = String(device.hostname);
-    if (!peer.alias && (device.display_name || device.note)) peer.alias = String(device.display_name || device.note);
-    if (!peer.platform && (device.platform || device.os)) peer.platform = String(device.platform || device.os);
+    const displayName = String(device.display_name || '').trim();
+    const deviceNote = String(device.note || '').trim();
+    const panelAlias = displayName || deviceNote;
+
+    // Panel display name is the managed RustDesk card title (alias). Note fills
+    // alias only when the peer has no alias yet. Never fall back to hostname —
+    // stock RustDesk already shows hostname on the secondary line.
+    if (displayName) {
+        peer.alias = displayName;
+    } else if (!peer.alias && deviceNote) {
+        peer.alias = deviceNote;
+    }
+
+    if (panelAlias) {
+        peer.hostname = '';
+        peer.username = '';
+        if (String(peer.note || '').trim() === panelAlias) {
+            peer.note = '';
+        }
+    } else {
+        if (!peer.username && (device.username || device.user)) {
+            peer.username = String(device.username || device.user);
+        }
+        if (!peer.hostname && device.hostname) {
+            peer.hostname = String(device.hostname);
+        }
+    }
+
+    if (!peer.platform && (device.platform || device.os)) {
+        peer.platform = String(device.platform || device.os);
+    }
     peer.tags = tags;
 
     return peer;

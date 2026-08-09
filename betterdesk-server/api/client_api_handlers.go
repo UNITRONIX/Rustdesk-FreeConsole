@@ -694,23 +694,56 @@ func (s *Server) mergeAdminTagsIntoAB(data string) string {
 		}
 		filtered = append(filtered, p)
 
-		// Enrich peer with sysinfo from peers table (Issue #138: OS icon/name not showing)
+		// Enrich peer with sysinfo + panel display alias (Issue #138 + AB card title).
 		if info, ok := peerInfo[id]; ok {
-			if _, hasHostname := p["hostname"]; !hasHostname || p["hostname"] == "" {
-				if info.Hostname != "" {
-					p["hostname"] = info.Hostname
+			abAlias, _ := p["alias"].(string)
+			curHost, _ := p["hostname"].(string)
+			curUser, _ := p["username"].(string)
+			if strings.TrimSpace(curHost) == "" {
+				curHost = info.Hostname
+			}
+			if strings.TrimSpace(curUser) == "" {
+				curUser = info.User
+			}
+			alias, _, host, user := rustDeskCardFields(info, abAlias, curHost, curUser)
+			if a, _ := p["alias"].(string); strings.TrimSpace(a) != alias {
+				p["alias"] = alias
+				modified = true
+			}
+			// Avoid "Training" twice: clear AB note when it duplicates the title alias.
+			if note, _ := p["note"].(string); alias != "" && strings.TrimSpace(note) == alias {
+				p["note"] = ""
+				modified = true
+			}
+			// When a panel label drives the card title, clear computer name so it
+			// does not appear on the secondary line (and so group→AB merge does
+			// not refill hostname from /api/peers/list).
+			if alias != "" && rustDeskPanelAlias(info) != "" {
+				if h, _ := p["hostname"].(string); strings.TrimSpace(h) != "" {
+					p["hostname"] = ""
 					modified = true
+				}
+				if u, _ := p["username"].(string); strings.TrimSpace(u) != "" {
+					p["username"] = ""
+					modified = true
+				}
+			} else {
+				if _, hasHostname := p["hostname"]; !hasHostname || p["hostname"] == "" {
+					if host != "" {
+						p["hostname"] = host
+						modified = true
+					}
+				}
+				if _, hasUsername := p["username"]; !hasUsername || p["username"] == "" {
+					if user != "" {
+						p["username"] = user
+						modified = true
+					}
 				}
 			}
 			if _, hasPlatform := p["platform"]; !hasPlatform || p["platform"] == "" {
 				if info.OS != "" {
 					p["platform"] = info.OS
-					modified = true
-				}
-			}
-			if _, hasUsername := p["username"]; !hasUsername || p["username"] == "" {
-				if info.User != "" {
-					p["username"] = info.User
 					modified = true
 				}
 			}

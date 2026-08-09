@@ -376,6 +376,60 @@ func peerHasAllTagsLower(p *db.Peer, expected []string) bool {
 	return true
 }
 
+// rustDeskPanelAlias is the operator-facing label from the panel (display name,
+// then note). Stock RustDesk cards use peer.alias as the bold title when set.
+func rustDeskPanelAlias(p *db.Peer) string {
+	if p == nil {
+		return ""
+	}
+	if s := strings.TrimSpace(p.DisplayName); s != "" {
+		return s
+	}
+	return strings.TrimSpace(p.Note)
+}
+
+// rustDeskCardFields maps BetterDesk peer metadata onto RustDesk card slots:
+//   - alias → bold primary title (else client shows formatted ID)
+//   - hostname/username → secondary line (username@hostname); cleared when a
+//     panel label is present so the computer name does not crowd the card
+//   - note → trailing secondary text; cleared when it duplicates alias
+//
+// Stock RustDesk cannot put the ID on the secondary line — only alias vs ID
+// for the title, and username@hostname (+ note) below.
+func rustDeskCardFields(p *db.Peer, abAlias, deviceName, username string) (alias, note, outDevice, outUser string) {
+	abAlias = strings.TrimSpace(abAlias)
+	displayName := ""
+	peerNote := ""
+	if p != nil {
+		displayName = strings.TrimSpace(p.DisplayName)
+		peerNote = strings.TrimSpace(p.Note)
+	}
+	panelAlias := displayName
+	if panelAlias == "" {
+		panelAlias = peerNote
+	}
+
+	alias = abAlias
+	if displayName != "" {
+		// Panel display name is the managed title for enrolled devices.
+		alias = displayName
+	} else if alias == "" {
+		alias = peerNote
+	}
+
+	note = peerNote
+	if alias != "" && note == alias {
+		note = ""
+	}
+
+	outDevice, outUser = deviceName, username
+	if alias != "" && panelAlias != "" {
+		// Hide OS computer name when BetterDesk supplies a display label.
+		outDevice, outUser = "", ""
+	}
+	return alias, note, outDevice, outUser
+}
+
 func rustDeskPeerPayload(
 	s *Server,
 	p *db.Peer,
@@ -408,20 +462,24 @@ func rustDeskPeerPayload(
 			version = si.Version
 		}
 	}
-	if deviceName == "" {
-		deviceName = p.ID
-	}
 
 	tags := splitPeerTags(p.Tags)
 	deviceGroupName := rustDeskPeerDeviceGroupName(p.ID, assignments, folderNames, manualGroupNames)
 
-	alias := p.Note
+	abAlias := ""
 	if abPeer != nil {
 		if ab, ok := abPeer[p.ID]; ok {
-			if a, ok := ab["alias"].(string); ok && a != "" {
-				alias = a
+			if a, ok := ab["alias"].(string); ok {
+				abAlias = a
 			}
 		}
+	}
+
+	alias, note, deviceName, username := rustDeskCardFields(p, abAlias, deviceName, username)
+	// When no panel/AB title is set, keep a non-empty device_name fallback for
+	// clients that still surface hostname in secondary UI chrome.
+	if alias == "" && deviceName == "" {
+		deviceName = p.ID
 	}
 
 	online := s.peers.IsOnline(p.ID, config.RegTimeout)
@@ -431,7 +489,7 @@ func rustDeskPeerPayload(
 		"info":   map[string]any{"device_name": deviceName, "os": platform, "username": username, "version": version},
 		"status": statusInt,
 		"user":   username, "user_name": username,
-		"note":              p.Note,
+		"note":              note,
 		"device_group_name": deviceGroupName,
 		"tags":              tags,
 		"online":            online,

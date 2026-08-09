@@ -163,15 +163,74 @@ describe('RustDesk Client API routes', () => {
             expect(res.body.data[0]).toMatchObject({
                 id: 'PEER1',
                 info: {
+                    device_name: '',
+                    os: 'Windows',
+                    username: ''
+                },
+                user: '',
+                user_name: '',
+                alias: 'Finance PC',
+                note: '',
+                online: true,
+                status: 1
+            });
+        });
+
+        it('uses device note as alias when display_name is empty', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
+            serverBackend.getAllDevices.mockResolvedValue([
+                {
+                    id: 'PEER2',
+                    hostname: 'dcstrainingserver',
+                    username: 'alice',
+                    platform: 'Windows',
+                    note: 'Training',
+                    online: true,
+                    tags: ['Allowed']
+                }
+            ]);
+
+            const res = await request(app)
+                .get('/api/peers')
+                .set('Authorization', 'Bearer operator-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body.data[0]).toMatchObject({
+                id: 'PEER2',
+                alias: 'Training',
+                note: '',
+                info: { device_name: '', username: '', os: 'Windows' }
+            });
+        });
+
+        it('keeps hostname on secondary line when no panel display label exists', async () => {
+            authService.validateAccessToken.mockResolvedValue({ id: 3, username: 'operator1', role: 'operator' });
+            serverBackend.getAllDevices.mockResolvedValue([
+                {
+                    id: 'PEER3',
+                    hostname: 'server-a',
+                    username: 'alice',
+                    platform: 'Windows',
+                    online: true,
+                    tags: ['Allowed']
+                }
+            ]);
+
+            const res = await request(app)
+                .get('/api/peers')
+                .set('Authorization', 'Bearer operator-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body.data[0]).toMatchObject({
+                id: 'PEER3',
+                alias: '',
+                info: {
                     device_name: 'server-a',
                     os: 'Windows',
                     username: 'alice'
                 },
                 user: 'alice',
-                user_name: 'alice',
-                alias: 'Finance PC',
-                online: true,
-                status: 1
+                user_name: 'alice'
             });
         });
 
