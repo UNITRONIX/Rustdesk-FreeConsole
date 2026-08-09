@@ -64,7 +64,8 @@ describe('dbAdapter token_hash SQLite migration', () => {
 
     test('adds token_hash column and backfills legacy tokens', async () => {
         const { getAdapter } = require('../services/dbAdapter');
-        await getAdapter().init();
+        const adapter = getAdapter();
+        await adapter.init();
 
         const auth = new Database(authPath);
         const cols = auth.prepare('PRAGMA table_info(access_tokens)').all().map((c) => c.name);
@@ -78,5 +79,6 @@ describe('dbAdapter token_hash SQLite migration', () => {
         expect(cols).toContain('token_hash');
         expect(row.token_hash).toHaveLength(64);
         expect(indexes).toHaveLength(1);
+        await adapter.close();
     });
 });

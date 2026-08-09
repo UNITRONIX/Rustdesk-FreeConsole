@@ -3,6 +3,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -68,9 +69,9 @@ type Config struct {
 	ClientSessionExpiryDays int    // RustDesk client session TTL in days (default 7)
 	ClientSessionSliding    bool   // Extend client session on activity (default true)
 	ClientSessionMaxDays    int    // Max sliding session lifetime from login (default 30)
-	AdminPassword           string // Password for admin TCP interface (empty = no auth)
-	ForceHTTPS      bool   // Reject non-TLS API requests (except behind reverse proxy)
-	TrustProxy      bool   // Trust X-Forwarded-For / X-Real-IP headers from reverse proxy
+	AdminPassword           string // Password for admin TCP interface (required when AdminPort is enabled)
+	ForceHTTPS              bool   // Reject non-TLS API requests (except behind reverse proxy)
+	TrustProxy              bool   // Trust X-Forwarded-For / X-Real-IP headers from reverse proxy
 	// TrustedProxies is the CIDR allowlist of reverse proxies that may set
 	// X-Forwarded-For / X-Real-IP. Required when TrustProxy is true — empty
 	// means forwarded headers are ignored (security-first, issue #276).
@@ -80,9 +81,9 @@ type Config struct {
 	// as a RustDesk peer; PunchHole/RequestRelay from these CIDRs are treated
 	// as panel-authorized initiators (#302 regression fix). Default: loopback.
 	PanelSignalProxyCIDRs []*net.IPNet
-	RelayMaxConnsIP int // Max relay connections per IP (0 = unlimited)
-	InitAdminUser   string // Initial admin username (created on first start)
-	InitAdminPass   string // Initial admin password (auto-generated if empty)
+	RelayMaxConnsIP       int    // Max relay connections per IP (0 = unlimited)
+	InitAdminUser         string // Initial admin username (created on first start)
+	InitAdminPass         string // Initial admin password (auto-generated if empty)
 
 	// Signal rate limiting (registrations per IP per minute).
 	// Issue #122: large NAT deployments may need to raise or disable this
@@ -112,7 +113,7 @@ type Config struct {
 	P2PFallbackMs int
 
 	// WebSocket security (M3)
-	AllowedWSOrigins    string // Comma-separated allowed WebSocket origins (empty = allow all)
+	AllowedWSOrigins    string // Comma-separated allowed WebSocket origins (empty = same-host only)
 	APIAllowedWSOrigins string // Comma-separated allowed WebSocket origins for HTTP API events endpoint
 
 	// Metrics endpoint access control (audit fix H-03, 2026-04-10)
@@ -166,29 +167,29 @@ const DefaultPanelSignalProxyCIDRs = "127.0.0.0/8,::1/128"
 func DefaultConfig() *Config {
 	panelCIDRs, _ := ParseTrustedProxies(DefaultPanelSignalProxyCIDRs)
 	return &Config{
-		SignalPort:           21116,
-		RelayPort:            21117,
-		APIPort:              DefaultAPIPort,
-		Mode:                 "all",
-		DBPath:               "./db_v2.sqlite3",
-		KeyFile:              "id_ed25519",
-		JWTExpiry:            24,
-		ClientSessionExpiryDays: 7,
-		ClientSessionSliding:    true,
-		ClientSessionMaxDays:    30,
-		RelayMaxConnsIP:      20,
-		EnrollmentMode:       EnrollmentModeOpen, // Backward compatible default
-		PanelSignalProxyCIDRs: panelCIDRs,
-		CDAPPort:             21122,
-		CDAPEnabled:          true, // Enabled by default; set CDAP_ENABLED=N for minimal installs
-		CDAPRateLimit:        30,
-		MeshCentralEnabled:   true, // default on; set MESH_ENABLED=N to disable
-		MeshCoreVersion:      "1.2.0",
-		MeshAgentCertFile:    "mesh_agent_server.pem",
-		MeshRateLimit:        30,
-		SignalRateLimitPerIP: IPRateLimitRegistrations,
-		SameNATRelay:         true, // issue #121: auto-fallback to relay on shared public IP
-		P2PFirst:             true, // issue #157: give direct P2P a real chance before relay
+		SignalPort:                21116,
+		RelayPort:                 21117,
+		APIPort:                   DefaultAPIPort,
+		Mode:                      "all",
+		DBPath:                    "./db_v2.sqlite3",
+		KeyFile:                   "id_ed25519",
+		JWTExpiry:                 24,
+		ClientSessionExpiryDays:   7,
+		ClientSessionSliding:      true,
+		ClientSessionMaxDays:      30,
+		RelayMaxConnsIP:           20,
+		EnrollmentMode:            EnrollmentModeOpen, // Backward compatible default
+		PanelSignalProxyCIDRs:     panelCIDRs,
+		CDAPPort:                  21122,
+		CDAPEnabled:               true, // Enabled by default; set CDAP_ENABLED=N for minimal installs
+		CDAPRateLimit:             30,
+		MeshCentralEnabled:        true, // default on; set MESH_ENABLED=N to disable
+		MeshCoreVersion:           "1.2.0",
+		MeshAgentCertFile:         "mesh_agent_server.pem",
+		MeshRateLimit:             30,
+		SignalRateLimitPerIP:      IPRateLimitRegistrations,
+		SameNATRelay:              true, // issue #121: auto-fallback to relay on shared public IP
+		P2PFirst:                  true, // issue #157: give direct P2P a real chance before relay
 		P2PFallbackMs:             2000, // grace period for target hole punch before relay fallback
 		LogLevel:                  "info",
 		BillingMaxClockSkewMS:     2000,
@@ -492,6 +493,16 @@ func (c *Config) LoadEnv() {
 	}
 }
 
+// ValidateAdminInterface rejects an enabled admin TCP listener without a
+// password. The listener provides privileged server management commands, so
+// binding it without authentication is not permitted.
+func (c *Config) ValidateAdminInterface() error {
+	if c != nil && c.AdminPort != 0 && strings.TrimSpace(c.AdminPassword) == "" {
+		return fmt.Errorf("ADMIN_PASSWORD is required when ADMIN_PORT is enabled")
+	}
+	return nil
+}
+
 // GetNTPServers returns configured NTP server hostnames.
 func (c *Config) GetNTPServers() []string {
 	if c.NTPServers == "" {
@@ -557,7 +568,7 @@ func (c *Config) GetRelayServers() []string {
 }
 
 // GetAllowedWSOrigins parses the comma-separated list of allowed WebSocket origins.
-// Returns nil if empty (meaning all origins are allowed for backward compatibility).
+// Returns nil when unset so websocket.Accept uses its safe same-host default.
 // Supports glob patterns accepted by nhooyr.io/websocket:
 //   - "*" matches any origin
 //   - "*.example.com" matches subdomains

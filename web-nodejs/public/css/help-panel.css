@@ -85,6 +85,11 @@
     background: var(--ux35-hover, var(--bg-hover, rgba(255, 255, 255, 0.06)));
 }
 
+.bd-help-panel :focus-visible {
+    outline: 2px solid var(--ux35-focus-ring, var(--ux35-primary, var(--accent-blue)));
+    outline-offset: 2px;
+}
+
 .bd-help-panel-body {
     flex: 1;
     overflow-y: auto;

@@ -15,6 +15,63 @@
     }
 }
 
+.bundle-item .badge-product--legacy {
+    opacity: 0.7;
+}
+
+.platforms-checklist {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    margin: 8px 0 16px;
+}
+
+@media (max-width: 700px) {
+    .platforms-checklist {
+        grid-template-columns: 1fr;
+    }
+}
+
+.platform-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.35;
+    cursor: pointer;
+}
+
+.platform-check input {
+    margin-top: 2px;
+}
+
+.gen-advanced {
+    margin: 12px 0 20px;
+    border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+    border-radius: 10px;
+    padding: 0 14px 14px;
+    background: var(--color-bg-elevated, rgba(255, 255, 255, 0.02));
+}
+
+.gen-advanced-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    padding: 12px 0;
+    list-style: none;
+}
+
+.gen-advanced-summary::-webkit-details-marker {
+    display: none;
+}
+
+.gen-advanced-summary .material-icons {
+    font-size: 18px;
+    opacity: 0.8;
+}
+
 /* ---- Bundle list ---- */
 
 .generator-bundles .card-header {

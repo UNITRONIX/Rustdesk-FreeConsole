@@ -15,6 +15,8 @@ import (
 	"github.com/unitronix/betterdesk-server/security"
 )
 
+const testAdminPassword = "test-admin-password"
+
 func setupTestAdmin(t *testing.T) (*Server, int) {
 	t.Helper()
 
@@ -28,6 +30,7 @@ func setupTestAdmin(t *testing.T) (*Server, int) {
 	ln.Close()
 
 	cfg.AdminPort = port
+	cfg.AdminPassword = testAdminPassword
 
 	database, err := db.Open(":memory:")
 	if err != nil {
@@ -38,6 +41,7 @@ func setupTestAdmin(t *testing.T) (*Server, int) {
 
 	peerMap := peer.NewMap()
 	srv := New(cfg, database, peerMap, "test")
+	srv.SetAdminPassword(testAdminPassword)
 	srv.SetBlocklist(security.NewBlocklist())
 
 	ctx := context.Background()
@@ -60,6 +64,11 @@ func connectAdmin(t *testing.T, port int) net.Conn {
 	// Read banner
 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 	reader := bufio.NewReader(conn)
+	if prompt, err := reader.ReadString(' '); err != nil || prompt != "Password: " {
+		t.Fatalf("expected password prompt, got %q (err: %v)", prompt, err)
+	}
+	fmt.Fprintf(conn, "%s\r\n", testAdminPassword)
+	reader.ReadString('\n') // Authenticated.
 	reader.ReadString('\n') // BetterDesk Admin Console
 	reader.ReadString('\n') // Type 'help'...
 	reader.ReadString('\n') // blank line
@@ -141,4 +150,14 @@ func TestAdminDisabledByDefault(t *testing.T) {
 		t.Errorf("should not error when disabled, got: %v", err)
 	}
 	srv.Stop()
+}
+
+func TestAdminRejectsEnabledPortWithoutPassword(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.AdminPort = 21115
+
+	srv := New(cfg, nil, peer.NewMap(), "test")
+	if err := srv.Start(context.Background()); err == nil {
+		t.Fatal("expected enabled admin interface without password to be rejected")
+	}
 }

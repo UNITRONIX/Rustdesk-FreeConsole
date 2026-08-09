@@ -20,7 +20,7 @@
 
     async function loadOrganizations() {
         try {
-            const resp = await fetch('/api/panel/organizations');
+            const resp = await fetch('/api/panel/org', { credentials: 'same-origin' });
             const data = await resp.json();
             _orgs = Array.isArray(data) ? data : (data.data || data.organizations || []);
         } catch { _orgs = []; }

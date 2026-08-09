@@ -13,7 +13,7 @@ Agents (`betterdesk-agent*`) are out of scope until support resumes.
 | express-rate-limit | 7.x | 8.x | Prefer with Express 5 |
 | csrf-csrf | 3.x | 4.x | Auth/CSRF regression suite |
 | bcrypt | 5.x | 6.x | Native rebuild; sheds deprecated `node-gyp` transitive tree |
-| better-sqlite3 | 11.x | 13.x | Native + Alpine musl rebuild |
+| better-sqlite3 | **13.x** | — | Done (#353): shared SQLite handles + Node 24 Alpine musl |
 | ejs | 3.x | 6.x | Template audit |
 | otplib | 12.x | 13.x | **npm-deprecated** at 12; 2FA/TOTP tests required |
 | protobufjs | 7.x | 8.x | RdClient / proto paths |

@@ -10,6 +10,9 @@ import (
 const defaultCDAPPort = 21122
 
 // useTLS reports whether baked branding expects TLS for HTTP/WebSocket calls.
+// Release builds follow the signed profile: HTTPS/WSS when requested, or
+// HTTP/WS for LAN/IP deployments (RustDesk-style). Session encryption remains
+// on the signal/relay protocol layer regardless of transport TLS.
 func (b Branding) useTLS() bool {
 	if b.UseHTTPS {
 		return true
@@ -23,6 +26,17 @@ func (b Branding) useTLS() bool {
 		if strings.HasPrefix(s, "https://") {
 			return true
 		}
+		if strings.HasPrefix(strings.TrimSpace(b.Server.APIURL), "https://") {
+			return true
+		}
+		if strings.HasPrefix(strings.TrimSpace(b.Server.CDAPURL), "wss://") {
+			return true
+		}
+	}
+	// Non-release developer builds may force TLS via env; release trusts the
+	// signed UseHTTPS / endpoint schemes only (no silent upgrade or downgrade).
+	if isReleaseBuild() {
+		return false
 	}
 	return os.Getenv("BETTERDESK_CDAP_TLS") == "1"
 }
@@ -109,7 +123,12 @@ func (b Branding) APIHealthURL() string {
 // CDAPWebSocketURL is the remote-session gateway URL passed to the engine.
 func (b Branding) CDAPWebSocketURL() string {
 	if b.Server != nil && strings.TrimSpace(b.Server.CDAPURL) != "" {
-		return strings.TrimRight(strings.TrimSpace(b.Server.CDAPURL), "/")
+		u := strings.TrimRight(strings.TrimSpace(b.Server.CDAPURL), "/")
+		lower := strings.ToLower(u)
+		if isReleaseBuild() && !strings.HasPrefix(lower, "wss://") && !strings.HasPrefix(lower, "ws://") {
+			return ""
+		}
+		return u
 	}
 	host := hostFromAddr(b.ServerAddress)
 	if strings.Contains(host, ":") {

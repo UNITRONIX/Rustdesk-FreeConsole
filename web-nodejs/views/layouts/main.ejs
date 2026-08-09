@@ -93,28 +93,28 @@
             uiShell: '<%= shell %>'
         };
     </script>
-    <script src="/js/utils.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/utils.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/i18n-client.js?v=<%= cacheVersion %>"></script>
     <% if (!embed) { %>
-    <script src="/js/device-capabilities.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/rdclient-mobile-shell.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/device-capabilities.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/rdclient-mobile-shell.js?v=<%= cacheVersion %>"></script>
     <% } %>
-    <script src="/js/notifications.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/notif-center.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/modal.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/accessibility.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/app.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/ui-shell.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/notifications.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/notif-center.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/modal.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/accessibility.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/app.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/ui-shell.js?v=<%= cacheVersion %>"></script>
     <% if (!embed) { %>
     <% if (shell === 'ux35') { %>
-    <script src="/js/ux35-shell.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/ux35-shell.js?v=<%= cacheVersion %>"></script>
     <% } %>
-    <script src="/js/mobile-nav.js?v=<%= cacheVersion %>"></script>
-    <script src="/js/help-panel.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/mobile-nav.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/help-panel.js?v=<%= cacheVersion %>"></script>
     <% } %>
     <% if (typeof pageScripts !== 'undefined' && pageScripts.length) { %>
         <% pageScripts.forEach(script => { %>
-    <script src="/js/<%= script %>.js?v=<%= cacheVersion %>"></script>
+    <script defer src="/js/<%= script %>.js?v=<%= cacheVersion %>"></script>
         <% }); %>
     <% } %>
 </body>

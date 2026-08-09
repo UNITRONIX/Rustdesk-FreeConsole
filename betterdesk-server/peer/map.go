@@ -545,7 +545,8 @@ func (m *Map) FindByAddr(addr *net.UDPAddr) *Entry {
 // PunchHole/RelayResponse from a decoded socket_addr. If multiple peers share
 // the same IP (behind NAT), only the first match is returned — prefer
 // exact ip:port maps (tcpPunchConns / wsPunchConns) for initiator delivery (#276).
-// Do NOT use for outbound initiator authorization — use FindByAddr (#302).
+// Do NOT use bare FindByIP for outbound initiator authorization when multiple
+// peers may share a NAT — use FindByAddr or FindAllByIP with a single-match rule (#302).
 func (m *Map) FindByIP(ip net.IP) *Entry {
 	if ip == nil {
 		return nil
@@ -575,18 +576,25 @@ func (m *Map) FindByIP(ip net.IP) *Entry {
 
 // CountByIP returns how many peers share the given public IP (UDPAddr or IP host).
 func (m *Map) CountByIP(ip net.IP) int {
+	return len(m.FindAllByIP(ip))
+}
+
+// FindAllByIP returns every peer whose public IP matches (UDPAddr or IP host).
+// Used for outbound initiator auth when exact ip:port is unavailable: a single
+// live match can authorize; multiple matches are ambiguous (same-NAT).
+func (m *Map) FindAllByIP(ip net.IP) []*Entry {
 	if ip == nil {
-		return 0
+		return nil
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	n := 0
+	var out []*Entry
 	for _, e := range m.entries {
 		if peerEntryMatchesIP(e, ip) {
-			n++
+			out = append(out, e)
 		}
 	}
-	return n
+	return out
 }
 
 // FindWSByIP returns the first WebSocket peer whose public IP matches.

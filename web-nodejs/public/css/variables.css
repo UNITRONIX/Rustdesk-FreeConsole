@@ -50,6 +50,8 @@
     --accent-blue: #58a6ff;
     --accent-blue-hover: #79c0ff;
     --accent-blue-muted: rgba(88, 166, 255, 0.15);
+    /* Legacy-compatible primary accent. New UI should prefer --accent-blue. */
+    --accent-color: var(--accent-blue);
     
     --accent-red: #f85149;
     --accent-red-hover: #ff6b6b;
@@ -141,6 +143,8 @@
     /* Mobile / responsive breakpoints (match device-capabilities.js) */
     --bp-phone-max: 767px;
     --bp-tablet-max: 1024px;
+    --bp-shell-drawer-max: 1099px;
+    --bp-shell-desktop-min: 1100px;
     --bp-fold-inner-max: 720px;
     --bp-desktop-min: 1025px;
 

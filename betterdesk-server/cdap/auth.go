@@ -12,6 +12,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/unitronix/betterdesk-server/audit"
 	"github.com/unitronix/betterdesk-server/auth"
+	"github.com/unitronix/betterdesk-server/db"
 )
 
 // handleAuth reads the initial "auth" message from the client, validates
@@ -184,6 +185,9 @@ func (g *Gateway) authDeviceToken(p AuthPayload, clientIP string) (string, strin
 	if p.Token == "" {
 		return "", "", fmt.Errorf("device token required")
 	}
+	if p.DeviceID == "" {
+		return "", "", fmt.Errorf("device_id required for device token authentication")
+	}
 
 	h := sha256.Sum256([]byte(p.Token))
 	tokenHash := hex.EncodeToString(h[:])
@@ -196,15 +200,32 @@ func (g *Gateway) authDeviceToken(p AuthPayload, clientIP string) (string, strin
 		return "", "", fmt.Errorf("invalid or expired device token")
 	}
 
-	// Bind token to device if not already bound
-	if dt.PeerID == "" && p.DeviceID != "" {
-		g.db.BindTokenToPeer(tokenHash, p.DeviceID)
+	// A CDAP device token is a device-scoped credential, not a general
+	// enrollment capability. It must already be active and bound to the exact
+	// device claiming it; otherwise a stolen/pre-issued token could be used to
+	// impersonate an arbitrary device.
+	if dt.Status != db.TokenStatusActive || dt.PeerID == "" || dt.PeerID != p.DeviceID {
+		g.auditAction("cdap_auth_failed", clientIP, map[string]string{
+			"device_id": p.DeviceID,
+			"reason":    "device token not bound to requested device",
+		})
+		return "", "", fmt.Errorf("device token is not bound to this device")
+	}
+	peerInfo, err := g.db.GetPeer(p.DeviceID)
+	if err != nil || peerInfo == nil || peerInfo.Disabled || peerInfo.Banned || peerInfo.SoftDeleted {
+		g.auditAction("cdap_auth_failed", clientIP, map[string]string{
+			"device_id": p.DeviceID,
+			"reason":    "device not enrolled or unavailable",
+		})
+		return "", "", fmt.Errorf("device is not enrolled or available")
 	}
 
 	// Increment usage
-	g.db.IncrementTokenUse(tokenHash)
+	if err := g.db.IncrementTokenUse(tokenHash); err != nil {
+		return "", "", fmt.Errorf("record device token use: %w", err)
+	}
 
-	return fmt.Sprintf("token:%s", dt.Name), "operator", nil
+	return "device:" + p.DeviceID, auth.RoleDevice, nil
 }
 
 // auditAction logs a CDAP action to the audit log.

@@ -2,4 +2,4 @@
 
 package main
 
-func mesaDLLBytes() []byte { return nil }
+func ensureMesaBesideExe() {}

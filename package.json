@@ -4,5 +4,8 @@
   },
   "devDependencies": {
     "vitest": "^3.2.5"
+  },
+  "overrides": {
+    "postcss": "^8.5.23"
   }
 }

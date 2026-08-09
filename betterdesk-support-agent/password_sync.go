@@ -8,10 +8,11 @@ import (
 	"time"
 )
 
-// SyncAccessPassword pushes the local access password to the server so
-// operators can connect in unattended mode via rdclient/rustdesk.
+// SyncAccessPassword publishes only the local password-policy state. The
+// unattended secret is deliberately verified by the Support Agent and never
+// sent to, stored by, or logged by the server.
 func SyncAccessPassword(b Branding, st *AppState) error {
-	deviceID, mode, password, _ := st.Snapshot()
+	deviceID, _, _, _ := st.Snapshot()
 	st.mu.Lock()
 	token := st.DeviceToken
 	st.mu.Unlock()
@@ -19,12 +20,13 @@ func SyncAccessPassword(b Branding, st *AppState) error {
 	if token == "" {
 		return fmt.Errorf("device not enrolled")
 	}
+	policy := accessPolicyFor(b, st)
 
 	payload := map[string]any{
 		"device_id":          deviceID,
 		"device_token":       token,
-		"password":           password,
-		"unattended_enabled": mode == AccessUnattended,
+		"password_set":       policy.passwordConfigured,
+		"unattended_enabled": policy.allowsUnattended(),
 	}
 	endpoint := apiBaseURL(b) + "/devices/self/access-policy"
 	code, err := apiJSON(http.MethodPost, endpoint, payload, nil)

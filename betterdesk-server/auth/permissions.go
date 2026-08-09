@@ -24,8 +24,8 @@ const (
 	PermUserDelete = "user.delete"
 
 	// Server configuration
-	PermServerConfig     = "server.config"     // read/write server_config
-	PermServerKeys       = "server.keys"       // manage API keys
+	PermServerConfig      = "server.config"      // read/write server_config
+	PermServerKeys        = "server.keys"        // manage API keys
 	PermServerAttestation = "server.attestation" // run/view server performance attestation
 
 	// Organization permissions
@@ -62,10 +62,10 @@ const (
 	PermBrandingEdit = "branding.edit"
 
 	// Billing / commercialization
-	PermBillingView   = "billing.view"
-	PermBillingManage = "billing.manage"
+	PermBillingView    = "billing.view"
+	PermBillingManage  = "billing.manage"
 	PermBillingReports = "billing.reports"
-	PermBillingExport = "billing.export"
+	PermBillingExport  = "billing.export"
 )
 
 // AllPermissions is the complete list of permission strings for validation.
@@ -88,13 +88,14 @@ var AllPermissions = []string{
 // Custom overrides from the DB take precedence.
 //
 // Role scoping (Discussion #99):
-//   super_admin  — all permissions, manages other super admins
-//   server_admin — server infrastructure only, read-only user list
-//   global_admin — all-org user/device/org management, NO server access
-//   admin        — legacy alias, equivalent to super_admin
-//   operator     — day-to-day device ops + chat
-//   viewer       — read-only dashboards
-//   pro          — API-only RustDesk PRO activation; no device or org device access
+//
+//	super_admin  — all permissions, manages other super admins
+//	server_admin — server infrastructure only, read-only user list
+//	global_admin — all-org user/device/org management, NO server access
+//	admin        — legacy alias, equivalent to super_admin
+//	operator     — day-to-day device ops + chat
+//	viewer       — read-only dashboards
+//	pro          — API-only RustDesk PRO activation; no device or org device access
 var DefaultRolePermissions = map[string]map[string]bool{
 	RoleSuperAdmin: buildPermMap(AllPermissions),
 	RoleAdmin:      buildPermMap(AllPermissions), // legacy admin = super_admin
@@ -143,6 +144,9 @@ var DefaultRolePermissions = map[string]map[string]bool{
 		PermChatAccess,
 	}),
 	RolePro: buildPermMap([]string{}),
+	// Device credentials authenticate an agent to its own transport only.
+	// They never confer panel/API permissions.
+	RoleDevice: buildPermMap([]string{}),
 }
 
 // buildPermMap converts a slice of permission strings into a lookup map.
@@ -169,6 +173,9 @@ func ProRoleBlocksPermission(permission string) bool {
 // according to default role mappings. Returns true for super_admin and legacy admin.
 // For DB-overridden permissions, use the Database.HasRolePermission method instead.
 func RoleHasPermission(role, permission string) bool {
+	if IsDeviceRole(role) {
+		return false
+	}
 	if IsProRole(role) && ProRoleBlocksPermission(permission) {
 		return false
 	}

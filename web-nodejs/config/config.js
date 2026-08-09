@@ -65,7 +65,8 @@ const KEYS_PATH = resolveKeysPath();
 const RUSTDESK_DIR = KEYS_PATH;
 
 // Warn if KEYS_PATH was auto-detected and looks wrong
-if (!process.env.KEYS_PATH && !process.env.RUSTDESK_DIR && !process.env.RUSTDESK_PATH) {
+if (process.env.NODE_ENV !== 'test'
+    && !process.env.KEYS_PATH && !process.env.RUSTDESK_DIR && !process.env.RUSTDESK_PATH) {
     const apiKeyFile = path.join(KEYS_PATH, '.api_key');
     const keyFile = path.join(KEYS_PATH, 'id_ed25519');
     if (!fs.existsSync(apiKeyFile) && !fs.existsSync(keyFile)) {
@@ -76,6 +77,9 @@ if (!process.env.KEYS_PATH && !process.env.RUSTDESK_DIR && !process.env.RUSTDESK
 
 // Database path
 const DB_PATH = process.env.DB_PATH || path.join(RUSTDESK_DIR, 'db_v2.sqlite3');
+// Legacy SQLite panel store. Existing installations retain this file until the
+// versioned consolidation has completed; new installs never create it.
+const AUTH_DB_PATH = process.env.AUTH_DB_PATH || path.join(DATA_DIR, 'auth.db');
 
 // Key paths
 const PUB_KEY_PATH = process.env.PUB_KEY_PATH || path.join(KEYS_PATH, 'id_ed25519.pub');
@@ -181,12 +185,16 @@ module.exports = {
     sslKeyPath: process.env.SSL_KEY_PATH || '',
     sslCaPath: process.env.SSL_CA_PATH || '',
     httpRedirect: (process.env.HTTP_REDIRECT_HTTPS || 'true').toLowerCase() === 'true',
+    // Optional SHA-256 certificate pin embedded in signed Support Agent
+    // bundles. This is public verifier material, never a private key.
+    agentServerCertPin: String(process.env.BETTERDESK_AGENT_SERVER_CERT_PIN || '').trim(),
 
     // Paths
     dataDir: DATA_DIR,
     keysPath: KEYS_PATH,
     rustdeskDir: RUSTDESK_DIR,
     dbPath: DB_PATH,
+    authDbPath: AUTH_DB_PATH,
     pubKeyPath: PUB_KEY_PATH,
     apiKeyPath: API_KEY_PATH,
 

@@ -500,13 +500,19 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 		// Reject banned peers — do not heartbeat or respond
 		if existing.Banned {
 			log.Printf("[signal] Rejected banned WS peer heartbeat: %s from %s", id, remoteAddr)
+			s.revokeBannedPeerAccess(id, nil)
 			return nil
 		}
 		if s.rejectIfPeerSoftDeleted(id, clientHost) {
 			return nil
 		}
-		if banned, _ := s.db.IsPeerBanned(id); banned {
+		if banned, err := s.db.IsPeerBanned(id); err != nil || banned {
+			if err != nil {
+				log.Printf("[signal] Failed ban check for WS peer heartbeat %s: %v", id, err)
+				return nil
+			}
 			log.Printf("[signal] Rejected banned WS peer heartbeat: %s from %s", id, remoteAddr)
+			s.revokeBannedPeerAccess(id, nil)
 			return nil
 		}
 
@@ -539,8 +545,13 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 
 	// Check if this peer is banned in the database (e.g. removed from memory
 	// map after ban but trying to re-register via WS)
-	if banned, _ := s.db.IsPeerBanned(id); banned {
+	if banned, err := s.db.IsPeerBanned(id); err != nil || banned {
+		if err != nil {
+			log.Printf("[signal] Failed ban check for WS peer registration %s: %v", id, err)
+			return nil
+		}
 		log.Printf("[signal] Rejected banned WS peer registration: %s from %s", id, remoteAddr)
+		s.revokeBannedPeerAccess(id, nil)
 		return nil
 	}
 

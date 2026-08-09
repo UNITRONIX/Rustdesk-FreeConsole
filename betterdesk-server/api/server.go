@@ -268,9 +268,10 @@ func (s *Server) InitOIDC() {
 func (s *Server) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 
-	// Health + info (public, no auth required)
+	// Health and public key are needed for client bootstrap. Detailed runtime
+	// stats use the same allowlist/auth policy as Prometheus metrics.
 	mux.HandleFunc("GET /api/health", s.handleHealth)
-	mux.HandleFunc("GET /api/server/stats", s.handleServerStats)
+	mux.HandleFunc("GET /api/server/stats", s.metricsGuard(s.handleServerStats))
 	mux.HandleFunc("GET /api/server/pubkey", s.handlePubKey)
 
 	// Peers (permission-based access control)
@@ -294,6 +295,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("PUT /api/peers/{id}/access-policy", s.requireRole(auth.RoleAdmin, s.handleSaveAccessPolicy))
 	mux.HandleFunc("DELETE /api/peers/{id}/access-policy", s.requireRole(auth.RoleAdmin, s.handleDeleteAccessPolicy))
 	mux.HandleFunc("GET /api/peers/{id}/connect-secret", s.requireRole(auth.RoleOperator, s.handleGetConnectSecret))
+	mux.HandleFunc("POST /api/peers/{id}/session-grant", s.requireRole(auth.RoleOperator, s.handleIssueSupportSessionGrant))
 	mux.HandleFunc("GET /api/peers/{id}/policy", s.handleGetPeerPolicy)
 
 	// Blocklist management
@@ -472,7 +474,6 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("POST /api/devices/self/access-policy", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfAccessPolicy))
 	mux.HandleFunc("GET /api/devices/self/access-policy", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfGetAccessPolicy))
 	mux.HandleFunc("POST /api/devices/self/help-request", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfHelpRequest))
-	mux.HandleFunc("GET /api/devices/self/totp", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfTOTP))
 	mux.HandleFunc("POST /api/devices/self/totp", s.rateLimitPublic(s.enrollmentLimiter, s.handleDeviceSelfTOTP))
 
 	// Help requests — operator panel (raised by agents via CDAP or REST self endpoint)
@@ -1285,6 +1286,28 @@ func (s *Server) handleUnbanPeer(w http.ResponseWriter, r *http.Request) {
 	if !s.peerOrgScopeCheck(w, r, id) {
 		return
 	}
+
+	peerRow, _ := s.db.GetPeer(id)
+	enrollmentRejectBan := peerRow != nil && peerRow.BanReason == enrollmentRejectBanReason
+
+	// Enrollment Reject & Ban created an audit-only peer. Unban must remove it
+	// so managed mode re-queues for approval instead of treating the ID as enrolled (#351).
+	if enrollmentRejectBan {
+		s.clearEnrollmentRejectionState(id)
+		if err := s.removeEnrollmentRejectAuditPeer(id); err != nil {
+			writeInternalError(w, err, "removeEnrollmentRejectAuditPeer")
+			return
+		}
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionPeerUnbanned, s.remoteIP(r), id, map[string]string{
+				"peer_removed": "true",
+				"reason":       enrollmentRejectBanReason,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "unbanned", "id": id, "peer_removed": "true"})
+		return
+	}
+
 	if err := s.db.UnbanPeer(id); err != nil {
 		writeInternalError(w, err, "UnbanPeer")
 		return

@@ -9,12 +9,3 @@ func SendChatMessage(engine *Engine, text string) error {
 	}
 	return engine.SendChat(text)
 }
-
-// sendChatMessage delivers a chat line via CDAP.
-func (u *ui) sendChatMessage(text string) {
-	if err := SendChatMessage(u.engine, text); err != nil {
-		u.notify(err.Error())
-		return
-	}
-	u.chatMessages = append(u.chatMessages, "You: "+text)
-}

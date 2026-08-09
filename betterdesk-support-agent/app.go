@@ -1,7 +1,10 @@
+//go:build fyneui
+
 package main
 
 import (
 	"log"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -18,27 +21,22 @@ import (
 
 // ui holds the long-lived application objects shared across the window.
 type ui struct {
-	app       fyne.App
-	win       fyne.Window
-	brand     Branding
-	state     *AppState
-	engine    *Engine
-	overlay   *sessionOverlay
-	pwShown   bool
-	pwValueLbl *widget.Label
-	pwBox     fyne.CanvasObject
-	statusLbl *widget.Label
-	statusDot *canvas.Rectangle
+	app          fyne.App
+	win          fyne.Window
+	brand        Branding
+	state        *AppState
+	engine       *Engine
+	overlay      *sessionOverlay
+	pwShown      bool
+	pwValueLbl   *widget.Label
+	pwBox        fyne.CanvasObject
+	statusLbl    *widget.Label
+	statusDot    *canvas.Rectangle
 	consentCh    chan consentRequest
 	chatMessages []string
 	chatWindow   fyne.Window
+	signalHostMu sync.Mutex
 	signalHost   *signalhost.Host
-}
-
-type consentRequest struct {
-	sessionID string
-	operator  string
-	response  chan bool
 }
 
 // run boots the GUI.
@@ -64,7 +62,7 @@ func run() {
 		engine:    NewEngine(version),
 		consentCh: make(chan consentRequest, 1),
 	}
-	u.overlay = newSessionOverlay(a, brand.ProductName)
+	u.overlay = newSessionOverlay(a, brand.ProductName, u.disconnectActiveSessions)
 
 	u.engine.SetCallbacks(u.handleConsent, u.handleSessionStart, u.handleSessionEnd)
 	u.engine.SetChatHandler(u.handleChatMessage)
@@ -94,15 +92,15 @@ func (u *ui) bootstrapConnection() {
 	go func() {
 		// #region agent log
 		debugLog("H1", "app.go:bootstrapConnection", "branding connection profile", map[string]any{
-			"server_address":          u.brand.ServerAddress,
-			"api_base":                apiBaseURL(u.brand),
-			"cdap_health":             u.brand.CDAPHealthURL(),
-			"cdap_ws":                 u.brand.CDAPWebSocketURL(),
-			"use_https":               u.brand.UseHTTPS,
-			"sends_token":             false,
+			"server_address":           u.brand.ServerAddress,
+			"api_base":                 apiBaseURL(u.brand),
+			"cdap_health":              u.brand.CDAPHealthURL(),
+			"cdap_ws":                  u.brand.CDAPWebSocketURL(),
+			"use_https":                u.brand.UseHTTPS,
+			"sends_token":              false,
 			"branding_embed_has_token": brandingEmbedHasLegacyToken(),
-			"bundle_id":               u.brand.BundleID,
-			"device_id":               u.state.DeviceID,
+			"bundle_id":                u.brand.BundleID,
+			"device_id":                u.state.DeviceID,
 		})
 		// #endregion
 		res, err := EnsureEnrolled(u.brand, u.state, version)
@@ -121,15 +119,7 @@ func (u *ui) bootstrapConnection() {
 		})
 		// #endregion
 		u.onEnrollmentUpdate(res)
-		if res.Status == EnrollmentApproved {
-			if err := u.engine.Start(u.state); err != nil {
-				log.Printf("[support-agent] engine start: %v", err)
-			}
-			_ = PullAccessPolicy(u.brand, u.state)
-			_ = SyncAccessPassword(u.brand, u.state)
-			go startAccessPolicyPullLoop(u.brand, u.state)
-			u.startSignalHost()
-		} else if res.Status == EnrollmentPending {
+		if res.Status == EnrollmentPending {
 			StartEnrollmentPoll(u.brand, u.state, version, 5*time.Second, u.onEnrollmentUpdate)
 		}
 		u.startStatusLoop()
@@ -148,24 +138,40 @@ func (u *ui) onEnrollmentUpdate(res EnrollmentStatus) {
 		} else {
 			u.applyStatus(statusKindPending, t("disconnected"))
 		}
+		if err := SyncAccessPassword(u.brand, u.state); err != nil {
+			log.Printf("[support-agent] access password sync: %v", err)
+		}
+		_ = PullAccessPolicy(u.brand, u.state)
+		go startAccessPolicyPullLoop(u.brand, u.state)
 		if !u.engine.Running() {
-			_ = u.engine.Start(u.state)
-			_ = PullAccessPolicy(u.brand, u.state)
-			_ = SyncAccessPassword(u.brand, u.state)
-			go startAccessPolicyPullLoop(u.brand, u.state)
+			if err := u.engine.Start(u.state); err != nil {
+				log.Printf("[support-agent] engine start: %v", err)
+				return
+			}
+		}
+		if u.engine.Running() {
 			u.startSignalHost()
 		}
 	case EnrollmentPending:
+		u.stopRemoteAccessForEnrollmentState()
 		msg := t("enrollment_pending")
 		if res.Message != "" {
 			msg = res.Message
 		}
 		u.applyStatus(statusKindPending, msg)
 	case EnrollmentRejected:
+		u.stopRemoteAccessForEnrollmentState()
 		u.applyStatus(statusKindError, t("enrollment_rejected"))
 	default:
 		u.applyStatus(statusKindPending, t("disconnected"))
 	}
+}
+
+func (u *ui) stopRemoteAccessForEnrollmentState() {
+	if u.engine != nil {
+		u.engine.Stop()
+	}
+	u.stopSignalHost()
 }
 
 func (u *ui) handleConsent(sessionID, operator string) bool {
@@ -220,11 +226,21 @@ func (u *ui) handleSessionEnd(sessionID string) {
 	u.overlay.hide()
 }
 
+// disconnectActiveSessions is invoked by the local session overlay. The shared
+// CDAP engine does not expose a per-session disconnect API, so stopping it is
+// the only reliable way to terminate its active local session. The signal host
+// can close relay connections without unregistering itself.
+func (u *ui) disconnectActiveSessions() {
+	if u.engine != nil {
+		u.engine.Stop()
+	}
+	u.disconnectSignalSessions()
+}
+
 func (u *ui) handleChatMessage(from, text string) {
 	line := from + ": " + text
 	u.chatMessages = append(u.chatMessages, line)
 }
-
 
 func (u *ui) buildMainLayout() fyne.CanvasObject {
 	header := u.buildBrandedHeaderBar()
@@ -339,8 +355,8 @@ func (u *ui) showConnTest() {
 	go func() {
 		// #region agent log
 		debugLog("H1", "app.go:showConnTest", "probe urls", map[string]any{
-			"cdap_health": u.brand.CDAPHealthURL(),
-			"api_health":  u.brand.APIHealthURL(),
+			"cdap_health":  u.brand.CDAPHealthURL(),
+			"api_health":   u.brand.APIHealthURL(),
 			"register_url": apiBaseURL(u.brand) + "/devices/register",
 		})
 		// #endregion
@@ -392,7 +408,7 @@ func (u *ui) showCustomPasswordDialog() {
 
 func (u *ui) onModeChange(label string) {
 	mode := modeFromLabel(label)
-	_, cur, _, custom := u.state.Snapshot()
+	_, cur, _, _ := u.state.Snapshot()
 	if mode == cur {
 		return
 	}
@@ -411,14 +427,22 @@ func (u *ui) onModeChange(label string) {
 			u.pwBox.Hide()
 		}
 	}
+	// AccessDisabled must immediately remove the signal/relay presence, not
+	// merely reject a later login attempt.
+	u.stopSignalHost()
 	if u.brand.HasConnection() && u.state.IsEnrolled() {
 		u.engine.Stop()
-		if err := u.engine.Start(u.state); err != nil {
-			log.Printf("[support-agent] engine restart: %v", err)
-		}
-		go func() { _ = SyncAccessPassword(u.brand, u.state) }()
+		go func() {
+			if err := SyncAccessPassword(u.brand, u.state); err != nil {
+				log.Printf("[support-agent] access password sync: %v", err)
+			}
+			if err := u.engine.Restart(u.state); err != nil {
+				log.Printf("[support-agent] engine restart: %v", err)
+				return
+			}
+			u.startSignalHost()
+		}()
 	}
-	_ = custom
 }
 
 func (u *ui) rebuildMainLayout() {
@@ -467,17 +491,6 @@ func (u *ui) notify(msg string) {
 	u.app.SendNotification(fyne.NewNotification(u.brand.ProductName, msg))
 }
 
-func maskPassword(pw string) string {
-	out := make([]rune, len([]rune(pw)))
-	for i := range out {
-		out[i] = '•'
-	}
-	if len(out) == 0 {
-		return "—"
-	}
-	return string(out)
-}
-
 func modeLabel(mode string) string {
 	switch mode {
 	case AccessUnattended:
@@ -486,16 +499,5 @@ func modeLabel(mode string) string {
 		return t("mode_disabled")
 	default:
 		return t("mode_supervised")
-	}
-}
-
-func modeFromLabel(label string) string {
-	switch label {
-	case t("mode_unattended"):
-		return AccessUnattended
-	case t("mode_disabled"):
-		return AccessDisabled
-	default:
-		return AccessSupervised
 	}
 }

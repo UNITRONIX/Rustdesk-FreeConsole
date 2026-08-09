@@ -1,5 +1,5 @@
 /**
- * BetterDesk Console — Support Agent Build Worker (Go Fyne)
+ * BetterDesk Console — Support Agent Build Worker (Go / Wails UI)
  *
  * Builds branded betterdesk-support-agent binaries for product_type=support-agent.
  * Agent-client (Tauri) builds are handled by agentClientBuildWorker.js.
@@ -15,12 +15,20 @@ const { spawn } = require('child_process');
 
 const db = require('./database');
 const bundleService = require('./agentBundleService');
+const { resolveBundleSigningKeyFile } = require('./bundleSigningKey');
+const supportProfile = require('./supportAgentProfile');
 const config = require('../config/config');
 const {
     resolveSupportAgentSourceRoot,
     agentSourceSiblingDirs,
     writeAgentSourceFileAtomic,
 } = require('../lib/agentSourcePaths');
+const { readProductVersion } = require('../lib/productVersion');
+const {
+    PRODUCT_TYPES,
+    normalizeProductType,
+    isQueuedBuildStatus,
+} = require('../lib/generatorBuildTypes');
 
 try {
     const envFile = process.env.BETTERDESK_BUILD_ENV_FILE || '/etc/betterdesk/build.env';
@@ -46,7 +54,7 @@ const WORK_ROOT        = path.join(BUILD_CACHE_DIR, 'work');
 const ARTIFACT_ROOT    = process.env.AGENT_ARTIFACT_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'agent-builds');
 const POLL_INTERVAL_MS = parseInt(process.env.AGENT_BUILD_POLL_MS || '5000', 10);
-/** Always 1 — Go/Fyne builds are CPU/RAM heavy; platforms run one after another. */
+/** Always 1 — Go/Wails builds are CPU/RAM heavy; platforms run one after another. */
 const WORKER_CONCURRENCY = 1;
 const BUILD_COOLDOWN_MS = parseInt(process.env.AGENT_BUILD_COOLDOWN_MS || '3000', 10);
 const BUILD_TIMEOUT_MS = parseInt(process.env.AGENT_BUILD_TIMEOUT_MS || (30 * 60 * 1000), 10);
@@ -54,20 +62,42 @@ const BUILD_ORDER = (bundleService.PLATFORMS || []).map(
     (p) => `${p.platform}/${p.arch}/${p.format}`
 );
 const IS_WINDOWS = process.platform === 'win32';
+/** Monorepo root when developing from git; may be wrong on flat console deploys. */
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
+/** Console install root (`web-nodejs/` in git, `/opt/BetterDeskConsole` when flattened). */
+const CONSOLE_ROOT = path.resolve(__dirname, '..');
 const VENDORED_GO_BIN = path.join(
     config.dataDir || path.join(__dirname, '..', 'data'),
     'go-toolchain', 'go', 'bin', IS_WINDOWS ? 'go.exe' : 'go'
 );
-const MESA_DLL_CANDIDATES = [
-    path.join(config.dataDir || path.join(__dirname, '..', 'data'), 'mesa-win64', 'opengl32.dll'),
-    path.join(__dirname, '..', 'vendor', 'mesa-win64', 'opengl32.dll'),
+const MESA_DIR_CANDIDATES = [
+    path.join(config.dataDir || path.join(__dirname, '..', 'data'), 'mesa-win64'),
+    path.join(__dirname, '..', 'vendor', 'mesa-win64'),
 ];
+/** Mesa opengl32.dll alone is unloadable without libgallium_wgl.dll — never ship incomplete sets. */
+const MESA_REQUIRED_DLLS = ['opengl32.dll', 'libgallium_wgl.dll'];
 
-function _mesaDllPath() {
-    for (const p of MESA_DLL_CANDIDATES) {
-        if (fs.existsSync(p)) return p;
+function _mesaDirPath() {
+    for (const dir of MESA_DIR_CANDIDATES) {
+        if (MESA_REQUIRED_DLLS.every((name) => fs.existsSync(path.join(dir, name)))) {
+            return dir;
+        }
     }
     return null;
+}
+
+function _mesaDllPath() {
+    const dir = _mesaDirPath();
+    return dir ? path.join(dir, 'opengl32.dll') : null;
+}
+
+function _mesaCompanionFiles() {
+    const dir = _mesaDirPath();
+    if (!dir) return [];
+    return MESA_REQUIRED_DLLS.map((name) => ({
+        name,
+        src: path.join(dir, name),
+    }));
 }
 
 async function _stageLinuxUI(distDir, stageDir, launcherName) {
@@ -228,6 +258,70 @@ function _buildOrderIndex(row) {
     return idx >= 0 ? idx : BUILD_ORDER.length + 1;
 }
 
+function _isSupportAgentBundle(bundle) {
+    return normalizeProductType(bundle?.product_type) === PRODUCT_TYPES.SUPPORT_AGENT;
+}
+
+function _resolveProductRootDir() {
+    // Flat/packaged console keeps VERSION next to server.js (CONSOLE_ROOT).
+    // Git checkout keeps VERSION at the monorepo root (PROJECT_ROOT).
+    if (fs.existsSync(path.join(CONSOLE_ROOT, 'VERSION'))
+        || fs.existsSync(path.join(CONSOLE_ROOT, 'package.json'))) {
+        return CONSOLE_ROOT;
+    }
+    return PROJECT_ROOT;
+}
+
+function _getSupportAgentBuildVersion(opts = {}) {
+    const rootDir = opts.rootDir || _resolveProductRootDir();
+    return readProductVersion({
+        rootDir,
+        consoleDir: opts.consoleDir || CONSOLE_ROOT,
+        fallback: '0.1.0',
+    });
+}
+
+function _getAgentSourceStamp() {
+    try {
+        return fs.readFileSync(AGENT_SOURCE_STAMP_FILE, 'utf8').trim() || 'unversioned';
+    } catch (_) {
+        return 'unversioned';
+    }
+}
+
+function _buildFingerprint(
+    brandingHash,
+    version = _getSupportAgentBuildVersion(),
+    signingKeyFingerprint = ''
+) {
+    return JSON.stringify({
+        brandingHash,
+        sourceStamp: _getAgentSourceStamp(),
+        version,
+        signingKeyFingerprint,
+    });
+}
+
+async function _injectSupportAgentVersion(workDir, opts = {}) {
+    const version = opts.version || _getSupportAgentBuildVersion(opts);
+    const mainPath = path.join(workDir, 'main.go');
+    const source = await fsp.readFile(mainPath, 'utf8');
+    const next = source.replace(
+        /^(\s*var\s+version\s*=\s*)"[^"]*"/m,
+        `$1"${version}"`
+    );
+    if (next === source) {
+        // Already at the target version (common when fallback matches placeholder).
+        const escaped = String(version).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (new RegExp(`^\\s*var\\s+version\\s*=\\s*"${escaped}"`, 'm').test(source)) {
+            return version;
+        }
+        throw new Error('support-agent version variable not found in build workspace');
+    }
+    await fsp.writeFile(mainPath, next, 'utf8');
+    return version;
+}
+
 function _compileRoot(brandingHash, osName) {
     return path.join(WORK_ROOT, brandingHash, osName);
 }
@@ -245,19 +339,66 @@ function _upgradeGuidFromHash(brandingHash) {
     return `{${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}}`.toUpperCase();
 }
 
+function _which(cmd) {
+    const { execSync } = require('child_process');
+    try {
+        const found = execSync(`command -v ${cmd} 2>/dev/null`, { encoding: 'utf8' }).trim();
+        return found || null;
+    } catch (_) {
+        return null;
+    }
+}
+
 function _resolveMsiBuilder() {
     // wixl compiles .wxs → .msi. msibuild (same msitools package) is a different
     // tool for editing MSI databases and must not be used here.
     const candidates = ['wixl', '/usr/bin/wixl'];
     for (const c of candidates) {
+        if (c.includes('/') && fs.existsSync(c)) return c;
+    }
+    return _which('wixl');
+}
+
+/** Prefer an extracted (non-FUSE) appimagetool so the betterdesk user can run it. */
+function _resolveAppImageTool() {
+    const candidates = [
+        process.env.APPIMAGETOOL_BIN,
+        '/usr/local/lib/appimagetool/AppRun',
+        '/usr/local/lib/appimagetool/usr/bin/appimagetool',
+        '/usr/local/bin/appimagetool',
+    ].filter(Boolean);
+    for (const c of candidates) {
         if (fs.existsSync(c)) return c;
     }
-    const { execSync } = require('child_process');
-    try {
-        const found = execSync('command -v wixl 2>/dev/null', { encoding: 'utf8' }).trim();
-        if (found) return found;
-    } catch (_) { /* ok */ }
+    return _which('appimagetool');
+}
+
+function _resolveMingwGcc() {
+    const candidates = [
+        process.env.MINGW_CC,
+        '/usr/bin/x86_64-w64-mingw32-gcc',
+        'x86_64-w64-mingw32-gcc',
+    ].filter(Boolean);
+    for (const c of candidates) {
+        if (c.includes('/') && fs.existsSync(c)) return c;
+        if (!c.includes('/')) {
+            const found = _which(c);
+            if (found) return found;
+        }
+    }
     return null;
+}
+
+/** Normalize optional platform filter from API ({platform,arch,format}[]). */
+function _filterPlatforms(only) {
+    const all = bundleService.PLATFORMS || [];
+    if (!Array.isArray(only) || only.length === 0) return all;
+    const filtered = all.filter((p) => only.some((o) => (
+        String(o.platform || o.os || '') === p.platform
+        && String(o.arch || 'x64') === p.arch
+        && String(o.format || '') === p.format
+    )));
+    return filtered.length ? filtered : all;
 }
 
 const REBUILD_FLAG_FILE = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.agent_rebuild_pending');
@@ -268,9 +409,9 @@ const AGENT_SOURCE_PREFIXES = [
     'betterdesk-server/',
 ];
 
-async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
+async function enqueueBuildsForHash(brandingHash, { force = false, platforms: onlyPlatforms = null } = {}) {
     if (!brandingHash) throw new Error('brandingHash required');
-    const platforms = bundleService.PLATFORMS || [];
+    const platforms = _filterPlatforms(onlyPlatforms);
     for (const p of platforms) {
         const existing = await db.getAgentBundleBuild({
             brandingHash, platform: p.platform, arch: p.arch, format: p.format,
@@ -283,7 +424,7 @@ async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
             platform: p.platform,
             arch: p.arch,
             format: p.format,
-            status: 'pending',
+            status: 'queued',
             artifactPath: existing?.artifact_path || null,
             artifactSize: existing?.artifact_size || 0,
             artifactSha256: existing?.artifact_sha256 || null,
@@ -292,26 +433,74 @@ async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
     }
 }
 
-/** Queue rebuilds for every non-revoked generator bundle (e.g. after agent source update). */
-async function requeueAllBundleBuilds() {
-    const bundles = await db.listAgentBundles({ includeRevoked: false });
-    const hashes = [...new Set(
-        bundles.filter(b => !b.revoked).map(b => b.branding_hash).filter(Boolean)
-    )];
-    for (const hash of hashes) {
-        await enqueueBuildsForHash(hash, { force: true });
+function _parseBundleBranding(raw) {
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw;
+    try {
+        return JSON.parse(raw);
+    } catch (_) {
+        return {};
     }
-    return { bundles: hashes.length };
 }
 
-/** Force-requeue every platform build for one generator bundle. */
-async function rebuildBundleById(bundleId) {
+/**
+ * Re-issue signed profile fields when rebuild/requeue would otherwise fail the
+ * release-profile gate. Valid profiles keep their branding_hash unchanged.
+ */
+async function _ensureFreshSupportProfile(bundleRow) {
+    if (!bundleRow || !_isSupportAgentBundle(bundleRow)) {
+        return {
+            brandingHash: bundleRow?.branding_hash || null,
+            refreshed: false,
+        };
+    }
+    const branding = _parseBundleBranding(bundleRow.branding);
+    if (supportProfile.isReleaseSupportProfileValid(branding)) {
+        return { brandingHash: bundleRow.branding_hash, refreshed: false };
+    }
+
+    const refreshed = await supportProfile.refreshSupportAgentBranding(branding);
+    refreshed.bundle_id = bundleRow.bundle_id;
+    refreshed.product_name = refreshed.company_name || 'BetterDesk Support';
+    supportProfile.addSupportProfileValidity(refreshed);
+    const brandingHash = bundleService.hashBranding(refreshed);
+    await db.updateAgentBundle(bundleRow.bundle_id, {
+        name: bundleRow.name,
+        slug: bundleRow.slug,
+        branding: JSON.stringify(refreshed),
+        brandingHash,
+    });
+    console.log(
+        `[agentBuildWorker] refreshed Support Agent profile for bundle ${bundleRow.bundle_id}`
+        + ` (hash ${String(bundleRow.branding_hash || '').slice(0, 8)}… → ${String(brandingHash).slice(0, 8)}…)`
+    );
+    return { brandingHash, refreshed: true };
+}
+
+/** Queue Support Agent rebuilds after a Support Agent source update. */
+async function requeueAllBundleBuilds() {
+    const bundles = await db.listAgentBundles({ includeRevoked: false });
+    const hashes = [];
+    for (const bundle of bundles) {
+        if (bundle.revoked || !_isSupportAgentBundle(bundle)) continue;
+        const { brandingHash } = await _ensureFreshSupportProfile(bundle);
+        if (!brandingHash) continue;
+        hashes.push(brandingHash);
+        await enqueueBuildsForHash(brandingHash, { force: true });
+    }
+    return { bundles: [...new Set(hashes)].length };
+}
+
+/** Force-requeue platform builds for one generator bundle (optional filter). */
+async function rebuildBundleById(bundleId, { platforms: onlyPlatforms = null } = {}) {
     const row = await db.getAgentBundle(bundleId);
     if (!row) return { success: false, error: 'not_found' };
-    if (!row.branding_hash) return { success: false, error: 'missing_hash' };
-    await enqueueBuildsForHash(row.branding_hash, { force: true });
-    const platforms = (bundleService.PLATFORMS || []).length;
-    return { success: true, platforms, brandingHash: row.branding_hash };
+    if (!_isSupportAgentBundle(row)) return { success: false, error: 'not_support_agent' };
+    const { brandingHash } = await _ensureFreshSupportProfile(row);
+    if (!brandingHash) return { success: false, error: 'missing_hash' };
+    const platforms = _filterPlatforms(onlyPlatforms);
+    await enqueueBuildsForHash(brandingHash, { force: true, platforms });
+    return { success: true, platforms: platforms.length, brandingHash };
 }
 
 /** Re-queue builds that failed only because the host Go install was broken. */
@@ -321,7 +510,7 @@ async function requeueFailedToolchainBuilds() {
     const bundles = await db.listAgentBundles({ includeRevoked: false });
     let requeued = 0;
     for (const b of bundles) {
-        if (b.revoked) continue;
+        if (b.revoked || !_isSupportAgentBundle(b)) continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         for (const row of builds) {
             const err = String(row.error_message || '');
@@ -332,7 +521,7 @@ async function requeueFailedToolchainBuilds() {
                 platform: row.platform,
                 arch: row.arch,
                 format: row.format,
-                status: 'pending',
+                status: 'queued',
                 artifactPath: row.artifact_path || null,
                 artifactSize: row.artifact_size || 0,
                 artifactSha256: row.artifact_sha256 || null,
@@ -379,13 +568,17 @@ async function processPendingRebuildOnStartup() {
 /** Classify a build stderr / error_message for UI hints. */
 function classifyBuildError(msg) {
     const s = String(msg || '');
+    // Branding seal must win over incidental cgo/gcc noise from a failed go run.
+    if (/branding signing|sealbranding|refusing to embed plaintext|signed branding profile could not/i.test(s)) {
+        return { kind: 'branding_seal', hintKey: 'generator.toolchain_branding_seal' };
+    }
     if (/not in std|Go toolchain|stdlib verification|go:|cannot find package/i.test(s)) {
         return { kind: 'go', hintKey: 'generator.toolchain_go' };
     }
     if (/wixl|msitools|\.wxs/i.test(s)) {
         return { kind: 'wixl', hintKey: 'generator.toolchain_wixl' };
     }
-    if (/appimagetool|AppImage/i.test(s)) {
+    if (/appimagetool|AppImage|Failed to extract AppImage|could not create symlink/i.test(s)) {
         return { kind: 'appimage', hintKey: 'generator.toolchain_appimage' };
     }
     if (/dpkg-deb|fakeroot|\.deb/i.test(s)) {
@@ -397,7 +590,7 @@ function classifyBuildError(msg) {
     if (/mesa|opengl|libGL|WGL/i.test(s)) {
         return { kind: 'mesa', hintKey: 'generator.toolchain_mesa' };
     }
-    if (/mingw|x86_64-w64-mingw|gcc|cgo/i.test(s)) {
+    if (/mingw|x86_64-w64-mingw|cgo: C compiler|CC=.*mingw/i.test(s)) {
         return { kind: 'cgo', hintKey: 'generator.toolchain_cgo' };
     }
     return { kind: 'compile', hintKey: 'generator.build_error_hint' };
@@ -413,18 +606,25 @@ async function requeuePlatformBuild(brandingHash, platform, arch, format) {
     );
     if (!allowed) return { success: false, error: 'unsupported_platform' };
 
+    const bundle = await _findBundleForHash(brandingHash);
+    let hash = brandingHash;
+    if (bundle) {
+        const ensured = await _ensureFreshSupportProfile(bundle);
+        if (ensured.brandingHash) hash = ensured.brandingHash;
+    }
+
     await db.upsertAgentBundleBuild({
-        brandingHash,
+        brandingHash: hash,
         platform,
         arch,
         format,
-        status: 'pending',
+        status: 'queued',
         artifactPath: null,
         artifactSize: 0,
         artifactSha256: null,
         errorMessage: '',
     });
-    return { success: true };
+    return { success: true, brandingHash: hash };
 }
 
 /** Diagnostics for Generator / Settings panels. */
@@ -450,9 +650,12 @@ function getBuildWorkerStatus() {
         goHealthy: _goBinaryHealthy(goBin),
         sourceRoot: SOURCE_ROOT,
         sourceStamp,
+        buildVersion: _getSupportAgentBuildVersion(),
         rebuildPending,
         mesaDll: _mesaDllPath() || null,
         msiBuilder: _resolveMsiBuilder(),
+        mingwGcc: _resolveMingwGcc(),
+        appimagetool: _resolveAppImageTool(),
         platforms: (bundleService.PLATFORMS || []).map((p) => ({
             platform: p.platform,
             arch: p.arch,
@@ -546,7 +749,7 @@ async function reconcileAgentSourceDrift() {
     if (fs.existsSync(REBUILD_FLAG_FILE)) return null;
 
     const bundles = await db.listAgentBundles({ includeRevoked: false });
-    const active = bundles.filter((b) => !b.revoked);
+    const active = bundles.filter((bundle) => !bundle.revoked && _isSupportAgentBundle(bundle));
     if (active.length === 0) return null;
 
     const supportRoot = _agentSourceDirs().supportAgent;
@@ -657,7 +860,7 @@ async function _hasBuildInProgress() {
     if (_activeBuilds > 0) return true;
     const bundles = await db.listAgentBundles();
     for (const b of bundles) {
-        if (b.revoked) continue;
+        if (b.revoked || !_isSupportAgentBundle(b)) continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         if (builds.some((r) => r.status === 'building')) return true;
     }
@@ -674,8 +877,7 @@ async function _claimNextBuild() {
     });
     for (const row of candidates) {
         const bundleRow = await _findBundleForHash(row.branding_hash);
-        const pt = bundleRow?.product_type || 'support-agent';
-        if (pt === 'rdclient' || pt === 'agent-client') continue;
+        if (!bundleRow || !_isSupportAgentBundle(bundleRow)) continue;
         const profile = BUILD_PROFILES[`${row.platform}/${row.arch}/${row.format}`];
         if (!profile) continue;
         await db.upsertAgentBundleBuild({
@@ -698,12 +900,10 @@ async function _listPendingBuilds(limit) {
     const bundles = await db.listAgentBundles();
     const out = [];
     for (const b of bundles) {
-        if (b.revoked) continue;
-        const pt = b.product_type || 'support-agent';
-        if (pt === 'rdclient' || pt === 'agent-client') continue;
+        if (b.revoked || !_isSupportAgentBundle(b)) continue;
         const builds = await db.listAgentBundleBuildsForHash(b.branding_hash);
         for (const r of builds) {
-            if (r.status === 'pending') out.push(r);
+            if (isQueuedBuildStatus(r.status)) out.push(r);
             if (out.length >= limit) break;
         }
         if (out.length >= limit) break;
@@ -723,22 +923,32 @@ async function _runOne(buildRow) {
         if (!bundleRow) throw new Error(`no bundle with hash ${buildRow.branding_hash}`);
 
         const branding = JSON.parse(bundleRow.branding || '{}');
+        _assertReleaseSupportProfile(branding);
         const compileDir = _compileRoot(buildRow.branding_hash, profile.os);
         const brandingFile = path.join(compileDir, 'resources', 'branding.json');
         const binaryName = profile.os === 'windows' ? 'betterdesk-support.exe' : 'betterdesk-support';
         const binaryPath = path.join(compileDir, 'dist', binaryName);
+        const buildVersion = _getSupportAgentBuildVersion();
+        const signingKeyFile = await resolveBundleSigningKeyFile({ keysPath: config.keysPath });
+        const signingKeyFingerprint = await _sha256OfFile(signingKeyFile);
+        const buildFingerprint = _buildFingerprint(
+            buildRow.branding_hash,
+            buildVersion,
+            signingKeyFingerprint
+        );
         const shouldCompile = await _needsCompile(
-            compileDir, buildRow.branding_hash, binaryPath, profile.os
+            compileDir, buildFingerprint, binaryPath, profile.os
         );
 
         await _materialiseWorkspace(compileDir, branding, { refreshSources: shouldCompile });
         await _ensureGoToolchain();
 
         if (shouldCompile) {
-            await _runGoBuild(compileDir, brandingFile, binaryPath, profile.os);
+            await _injectSupportAgentVersion(compileDir, { version: buildVersion });
+            await _runGoBuild(compileDir, brandingFile, binaryPath, profile.os, signingKeyFile);
             await fsp.writeFile(
                 path.join(compileDir, '.built_for'),
-                buildRow.branding_hash,
+                buildFingerprint,
                 'utf8'
             );
         } else {
@@ -790,15 +1000,19 @@ async function _runOne(buildRow) {
     }
 }
 
+function _assertReleaseSupportProfile(branding) {
+    supportProfile.assertReleaseSupportProfile(branding);
+}
+
 async function _findBundleForHash(hash) {
     const all = await db.listAgentBundles();
     return all.find(b => b.branding_hash === hash) || null;
 }
 
-async function _needsCompile(workDir, brandingHash, binaryPath, targetOS) {
+async function _needsCompile(workDir, buildFingerprint, binaryPath, targetOS) {
     try {
         const stamp = (await fsp.readFile(path.join(workDir, '.built_for'), 'utf8')).trim();
-        if (stamp !== brandingHash) return true;
+        if (stamp !== buildFingerprint) return true;
         await fsp.access(binaryPath, fs.constants.R_OK);
         if (targetOS === 'linux') {
             const distDir = path.dirname(binaryPath);
@@ -861,18 +1075,23 @@ async function _copyDir(src, dst) {
 }
 
 async function _ensureMesaForWindows(workDir) {
-    const mesa = _mesaDllPath();
-    if (!mesa) {
-        console.warn('[agentBuildWorker] mesa opengl32.dll not found — Windows GUI may fail on VMs/RDP. Run scripts/fetch-mesa-windows.sh');
+    const companions = _mesaCompanionFiles();
+    if (!companions.length) {
+        console.warn(
+            '[agentBuildWorker] complete Mesa set not found (need opengl32.dll + libgallium_wgl.dll) — '
+            + 'skipping software OpenGL embed. Run scripts/fetch-mesa-windows.sh'
+        );
         return false;
     }
     const destDir = path.join(workDir, 'windows');
     await fsp.mkdir(destDir, { recursive: true });
-    await fsp.copyFile(mesa, path.join(destDir, 'opengl32.dll'));
+    for (const f of companions) {
+        await fsp.copyFile(f.src, path.join(destDir, f.name));
+    }
     return true;
 }
 
-async function _runGoBuild(workDir, brandingPath, outputPath, targetOS) {
+async function _runGoBuild(workDir, brandingPath, outputPath, targetOS, signingKeyFile) {
     await fsp.mkdir(path.dirname(outputPath), { recursive: true });
     if (targetOS === 'windows') {
         await _ensureMesaForWindows(workDir);
@@ -882,7 +1101,13 @@ async function _runGoBuild(workDir, brandingPath, outputPath, targetOS) {
     if (targetOS === 'linux') {
         args.push('-d');
     }
-    await _runProcess('/bin/bash', [buildScript, ...args], { cwd: workDir });
+    if (!signingKeyFile) {
+        throw new Error('Support Agent branding signing key is required');
+    }
+    await _runProcess('/bin/bash', [buildScript, ...args], {
+        cwd: workDir,
+        env: { BETTERDESK_BUNDLE_SIGNING_KEY_FILE: signingKeyFile },
+    });
     await fsp.access(outputPath, fs.constants.R_OK);
     if (targetOS === 'linux') {
         const distDir = path.dirname(outputPath);
@@ -913,16 +1138,23 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {},
             const msiDir = path.join(packDir, 'msi');
             await fsp.mkdir(msiDir, { recursive: true });
             await fsp.copyFile(binaryPath, path.join(msiDir, 'betterdesk-support.exe'));
-            const mesa = _mesaDllPath();
+            const mesaFiles = _mesaCompanionFiles();
             let mesaComponent = '';
             let mesaFeatureRef = '';
-            if (mesa) {
-                await fsp.copyFile(mesa, path.join(msiDir, 'opengl32.dll'));
-                mesaComponent = `
-      <Component Id="MesaOpenGL" Guid="*">
-        <File Id="MesaDll" Source="opengl32.dll" KeyPath="yes"/>
-      </Component>`;
-                mesaFeatureRef = '\n      <ComponentRef Id="MesaOpenGL"/>';
+            if (mesaFiles.length) {
+                const componentXml = [];
+                const refs = [];
+                for (const f of mesaFiles) {
+                    await fsp.copyFile(f.src, path.join(msiDir, f.name));
+                    const id = f.name.replace(/[^A-Za-z0-9]/g, '');
+                    componentXml.push(`
+      <Component Id="Mesa${id}" Guid="*">
+        <File Id="MesaFile${id}" Source="${f.name}" KeyPath="yes"/>
+      </Component>`);
+                    refs.push(`\n      <ComponentRef Id="Mesa${id}"/>`);
+                }
+                mesaComponent = componentXml.join('');
+                mesaFeatureRef = refs.join('');
             }
             const productName = _escapeXml(
                 branding.product_name || branding.company_name || 'BetterDesk Support'
@@ -1109,9 +1341,24 @@ StartupNotify=true
             await _writeAppImageIcon(appDir, branding);
 
             const outPath = path.join(packDir, `betterdesk-support-${label}-portable.AppImage`);
-            await _runProcess('appimagetool', ['--no-appstream', appDir, outPath], {
+            const appimagetool = _resolveAppImageTool();
+            if (!appimagetool) {
+                throw new Error(
+                    'appimagetool not found — install via scripts/install-build-toolchain.sh (extracted wrapper)'
+                );
+            }
+            const tmpDir = path.join(BUILD_CACHE_DIR, 'tmp');
+            await fsp.mkdir(tmpDir, { recursive: true });
+            await _runProcess(appimagetool, ['--no-appstream', appDir, outPath], {
                 cwd: packDir,
-                env: { ARCH: 'x86_64', APPIMAGE_EXTRACT_AND_RUN: '1' },
+                env: {
+                    ARCH: 'x86_64',
+                    APPIMAGE_EXTRACT_AND_RUN: '1',
+                    HOME: BUILD_CACHE_DIR,
+                    TMPDIR: tmpDir,
+                    TEMP: tmpDir,
+                    TMP: tmpDir,
+                },
             });
             return outPath;
         }
@@ -1188,5 +1435,18 @@ module.exports = {
     getGoBin,
     getBuildWorkerStatus,
     classifyBuildError,
-    _internals: { BUILD_PROFILES, BUILD_CACHE_DIR, ARTIFACT_ROOT, SOURCE_ROOT },
+    _internals: {
+        BUILD_PROFILES,
+        BUILD_CACHE_DIR,
+        ARTIFACT_ROOT,
+        SOURCE_ROOT,
+        isSupportAgentBundle: _isSupportAgentBundle,
+        listPendingBuilds: _listPendingBuilds,
+        getSupportAgentBuildVersion: _getSupportAgentBuildVersion,
+        injectSupportAgentVersion: _injectSupportAgentVersion,
+        buildFingerprint: _buildFingerprint,
+        assertReleaseSupportProfile: _assertReleaseSupportProfile,
+        ensureFreshSupportProfile: _ensureFreshSupportProfile,
+        parseBundleBranding: _parseBundleBranding,
+    },
 };

@@ -1,3 +1,5 @@
+//go:build !release
+
 package main
 
 import (
@@ -44,8 +46,12 @@ func debugLog(hypothesisID, location, message string, data map[string]any) {
 		if dir := filepath.Dir(p); dir != "" {
 			_ = os.MkdirAll(dir, 0o700)
 		}
-		f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
+			continue
+		}
+		if err := f.Chmod(0o600); err != nil {
+			_ = f.Close()
 			continue
 		}
 		_, _ = f.Write(line)

@@ -145,14 +145,20 @@ func copyLinuxUIBundle(src, dst string) error {
 	return os.Rename(tmp, dst)
 }
 
-// copyMesaCompanion copies software OpenGL (Mesa opengl32.dll) beside the installed binary.
+// copyMesaCompanion copies the complete Mesa software-OpenGL DLL set beside the
+// installed binary. Never copy opengl32.dll alone — it requires libgallium_wgl.dll.
 func copyMesaCompanion(srcExe, dstExe string) {
-	mesa := filepath.Join(filepath.Dir(srcExe), "opengl32.dll")
-	if _, err := os.Stat(mesa); err != nil {
-		return
+	srcDir := filepath.Dir(srcExe)
+	dstDir := filepath.Dir(dstExe)
+	required := []string{"opengl32.dll", "libgallium_wgl.dll"}
+	for _, name := range required {
+		if _, err := os.Stat(filepath.Join(srcDir, name)); err != nil {
+			return
+		}
 	}
-	dst := filepath.Join(filepath.Dir(dstExe), "opengl32.dll")
-	_ = copyExecutable(mesa, dst)
+	for _, name := range required {
+		_ = copyExecutable(filepath.Join(srcDir, name), filepath.Join(dstDir, name))
+	}
 }
 
 // registerAutostart wires the installed binary to launch at user login.
@@ -221,10 +227,12 @@ func autostartWindows(binPath string, enable bool) error {
 	const key = `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 	if !enable {
 		cmd := exec.Command("reg", "delete", key, "/v", installAppName, "/f")
+		hideConsole(cmd)
 		_ = cmd.Run() // ignore "value not found"
 		return nil
 	}
 	cmd := exec.Command("reg", "add", key, "/v", installAppName, "/t", "REG_SZ", "/d", binPath, "/f")
+	hideConsole(cmd)
 	return cmd.Run()
 }
 

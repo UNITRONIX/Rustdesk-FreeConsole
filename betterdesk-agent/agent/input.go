@@ -33,6 +33,9 @@ func InjectInputEvent(evt *InputEvent) error {
 	if evt == nil {
 		return fmt.Errorf("nil input event")
 	}
+	if remoteInputInjectionBlocked() {
+		return fmt.Errorf("remote input is blocked")
+	}
 	return injectInput(evt)
 }
 
@@ -48,23 +51,30 @@ func (a *Agent) handleDesktopInput(msg *Message) {
 		log.Printf("[input] Parse error: %v", err)
 		return
 	}
+	evt.SessionID = normalizeDesktopSessionID(evt.SessionID)
 	if !a.hasActiveDesktopStream(evt.SessionID) {
 		return
 	}
-	// block_input is an operator-side lock of the *local* user's input on
-	// Windows-class clients; for CDAP we treat it as "operator has exclusive
-	// control" and still inject operator events. Privacy mode does not
-	// suppress input either — it only affects capture (see desktop stream).
+	if a.isRemoteInputBlocked(evt.SessionID) {
+		const message = "remote input is blocked for this session"
+		log.Printf("[input] Dropped %s for blocked session %s", evt.Type, evt.SessionID)
+		a.sendDesktopInputError(&evt, message)
+		return
+	}
 
-	if err := injectInput(&evt); err != nil {
+	if err := InjectInputEvent(&evt); err != nil {
 		log.Printf("[input] Injection failed (%s): %v", evt.Type, err)
-		if shouldEmitInputError(evt.SessionID, evt.Type, err.Error()) {
-			_ = a.sendMessage("desktop_input_error", map[string]any{
-				"session_id": evt.SessionID,
-				"type":       evt.Type,
-				"message":    err.Error(),
-			})
-		}
+		a.sendDesktopInputError(&evt, err.Error())
+	}
+}
+
+func (a *Agent) sendDesktopInputError(evt *InputEvent, message string) {
+	if shouldEmitInputError(evt.SessionID, evt.Type, message) {
+		_ = a.sendMessage("desktop_input_error", map[string]any{
+			"session_id": evt.SessionID,
+			"type":       evt.Type,
+			"message":    message,
+		})
 	}
 }
 

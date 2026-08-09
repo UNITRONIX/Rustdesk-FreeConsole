@@ -23,6 +23,7 @@ const router = express.Router();
 const db = require('../services/database');
 const { getAdapter } = require('../services/dbAdapter');
 const betterdeskApi = require('../services/betterdeskApi');
+const { requireAuth, requirePermission } = require('../middleware/auth');
 
 // ---------------------------------------------------------------------------
 //  Helpers (shared with bd-api.routes.js)
@@ -30,46 +31,73 @@ const betterdeskApi = require('../services/betterdeskApi');
 
 function extractBearerToken(req) {
     const auth = req.headers['authorization'];
-    if (!auth || !auth.startsWith('Bearer ')) return null;
-    return auth.substring(7).trim();
+    const match = typeof auth === 'string' && /^Bearer\s+(\S+)$/.exec(auth);
+    return match ? match[1] : null;
 }
 
 /**
- * Lightweight auth — token OR X-Device-Id header.
+ * Authenticate a device with an unrevoked, non-expired access token.
+ *
+ * X-Device-Id is intentionally not an authentication credential: accepting it
+ * alone would let any client impersonate an enrolled device.
  */
-async function identifyDevice(req, res, next) {
+async function requireDeviceToken(req, res, next) {
     const token = extractBearerToken(req);
-    if (token) {
-        try {
-            const tokenRow = await db.getAccessToken(token);
-            if (tokenRow) {
-                req.deviceId = tokenRow.client_id || null;
-                req.deviceToken = tokenRow;
-                await db.touchAccessToken(token);
-                return next();
-            }
-        } catch (_) { /* ignored */ }
+    if (!token) {
+        return res.status(401).json({ error: 'Bearer access token required' });
     }
-    const deviceId = req.headers['x-device-id'];
-    if (deviceId && /^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
-        req.deviceId = deviceId;
-        return next();
+
+    let tokenRow;
+    try {
+        tokenRow = await db.getAccessToken(token);
+    } catch (_) {
+        return res.status(401).json({ error: 'Invalid or expired access token' });
     }
-    return res.status(401).json({ error: 'Missing device identification' });
+
+    if (!tokenRow || !tokenRow.client_id) {
+        return res.status(401).json({ error: 'Invalid or unbound access token' });
+    }
+
+    req.deviceId = tokenRow.client_id;
+    req.deviceToken = tokenRow;
+    try {
+        await db.touchAccessToken(token);
+    } catch (_) {
+        // Recording last use must not invalidate an already validated token.
+    }
+    return next();
 }
 
 /**
- * Admin auth — require valid session (web console login).
+ * Require the access token to belong to the requested device before any data
+ * lookup or write. This also protects against a valid token reading another
+ * device's inventory.
  */
-function requireAdmin(req, res, next) {
-    if (req.session && req.session.user) {
-        return next();
+function requireTokenDeviceMatch(req, res, deviceId) {
+    if (req.deviceId !== deviceId) {
+        res.status(403).json({ success: false, error: 'Device ID mismatch' });
+        return false;
     }
-    return res.status(401).json({ error: 'Admin authentication required' });
+    return true;
+}
+
+function parsePagination(req) {
+    const parsePositiveInteger = (value, fallback, max) => {
+        if (value === undefined) return fallback;
+        if (typeof value !== 'string' || !/^\d+$/.test(value)) return null;
+        const parsed = Number(value);
+        if (!Number.isSafeInteger(parsed) || parsed < 1) return null;
+        return Math.min(parsed, max);
+    };
+
+    const page = parsePositiveInteger(req.query.page, 1, Number.MAX_SAFE_INTEGER);
+    const limit = parsePositiveInteger(req.query.limit, 50, 100);
+    if (!page || !limit) return null;
+    return { page, limit };
 }
 
 // ---------------------------------------------------------------------------
-//  Device-facing endpoints (authenticated via token / device-id)
+//  Device-facing endpoints (authenticated via device-bound access token)
 // ---------------------------------------------------------------------------
 
 /**
@@ -77,7 +105,7 @@ function requireAdmin(req, res, next) {
  *
  * Body: { device_id, hardware: {...}, software: {...}, collected_at }
  */
-router.post('/inventory', identifyDevice, async (req, res) => {
+router.post('/inventory', requireDeviceToken, async (req, res) => {
     try {
         const { device_id, hardware, software, collected_at } = req.body;
 
@@ -86,9 +114,7 @@ router.post('/inventory', identifyDevice, async (req, res) => {
         }
 
         // Validate that the authenticated device matches
-        if (req.deviceId && req.deviceId !== device_id) {
-            return res.status(403).json({ success: false, error: 'Device ID mismatch' });
-        }
+        if (!requireTokenDeviceMatch(req, res, device_id)) return;
 
         // Persist to database
         const adapter = getAdapter();
@@ -129,7 +155,7 @@ router.post('/inventory', identifyDevice, async (req, res) => {
  *
  * Body: { device_id, cpu_usage_percent, memory_used_bytes, memory_total_bytes, uptime_secs, timestamp }
  */
-router.post('/telemetry', identifyDevice, async (req, res) => {
+router.post('/telemetry', requireDeviceToken, async (req, res) => {
     try {
         const {
             device_id,
@@ -144,9 +170,7 @@ router.post('/telemetry', identifyDevice, async (req, res) => {
             return res.status(400).json({ success: false, error: 'Missing device_id' });
         }
 
-        if (req.deviceId && req.deviceId !== device_id) {
-            return res.status(403).json({ success: false, error: 'Device ID mismatch' });
-        }
+        if (!requireTokenDeviceMatch(req, res, device_id)) return;
 
         const adapter = getAdapter();
         await adapter.upsertTelemetry(device_id, {
@@ -168,9 +192,10 @@ router.post('/telemetry', identifyDevice, async (req, res) => {
  * GET /api/bd/inventory/:id — Get last inventory for a specific device.
  * Accessible by the device itself (via token) or by admin.
  */
-router.get('/inventory/:id', identifyDevice, async (req, res) => {
+router.get('/inventory/:id', requireDeviceToken, async (req, res) => {
     try {
         const deviceId = req.params.id;
+        if (!requireTokenDeviceMatch(req, res, deviceId)) return;
         const adapter = getAdapter();
         const entry = await adapter.getInventory(deviceId);
 
@@ -192,64 +217,79 @@ router.get('/inventory/:id', identifyDevice, async (req, res) => {
 /**
  * GET /api/inventory — List all device inventories (admin only).
  */
-router.get('/', requireAdmin, async (req, res) => {
+router.get('/', requireAuth, requirePermission('device.view'), async (req, res) => {
     try {
+        const pagination = parsePagination(req);
+        if (!pagination) {
+            return res.status(400).json({ error: 'Invalid pagination parameters' });
+        }
+
         const adapter = getAdapter();
         const inventories = await adapter.getAllInventories();
-        const devices = [];
+        let devices = [];
 
         if (inventories.length > 0) {
-            for (const inv of inventories) {
-                const telemetry = await adapter.getTelemetry(inv.device_id);
-                devices.push({
-                    device_id: inv.device_id,
-                    hostname: inv.hardware?.hostname || inv.device_id,
-                    os: `${inv.hardware?.os_name || ''} ${inv.hardware?.os_version || ''}`.trim(),
-                    cpu: inv.hardware?.cpu?.brand || 'Unknown',
-                    cpu_cores: inv.hardware?.cpu?.logical_cores || 0,
-                    cpu_usage: telemetry?.cpu_usage_percent ?? inv.hardware?.cpu?.usage_percent ?? null,
-                    memory_total_mb: inv.hardware?.memory?.total_bytes
-                        ? Math.round(inv.hardware.memory.total_bytes / 1048576)
-                        : 0,
-                    memory_used_mb: telemetry?.memory_used_bytes
-                        ? Math.round(telemetry.memory_used_bytes / 1048576)
-                        : inv.hardware?.memory?.used_bytes
-                            ? Math.round(inv.hardware.memory.used_bytes / 1048576)
-                            : 0,
-                    disk_count: inv.hardware?.disks?.length || 0,
-                    software_count: inv.software?.apps?.length || 0,
-                    last_seen: telemetry?.received_at || inv.received_at,
-                    collected_at: inv.collected_at,
-                });
-            }
+            // Inventory includes the most recent collected hardware data. Do
+            // not issue a per-device telemetry query here: that was an N+1
+            // database pattern on this list endpoint.
+            devices = inventories.map(inv => ({
+                device_id: inv.device_id,
+                hostname: inv.hardware?.hostname || inv.device_id,
+                os: `${inv.hardware?.os_name || ''} ${inv.hardware?.os_version || ''}`.trim(),
+                cpu: inv.hardware?.cpu?.brand || 'Unknown',
+                cpu_cores: inv.hardware?.cpu?.logical_cores || 0,
+                cpu_usage: inv.hardware?.cpu?.usage_percent ?? null,
+                memory_total_mb: inv.hardware?.memory?.total_bytes
+                    ? Math.round(inv.hardware.memory.total_bytes / 1048576)
+                    : 0,
+                memory_used_mb: inv.hardware?.memory?.used_bytes
+                    ? Math.round(inv.hardware.memory.used_bytes / 1048576)
+                    : 0,
+                disk_count: inv.hardware?.disks?.length || 0,
+                software_count: inv.software?.apps?.length || 0,
+                last_seen: inv.received_at,
+                collected_at: inv.collected_at,
+            }));
         } else {
             // Fallback: populate from Go server peer list when no agent inventory exists
             try {
                 const peers = await betterdeskApi.getAllPeers();
                 const peerList = Array.isArray(peers) ? peers : (peers?.data || []);
-                for (const p of peerList) {
-                    devices.push({
-                        device_id: p.id,
-                        hostname: p.hostname || p.id,
-                        os: p.platform || p.os || '',
-                        cpu: '',
-                        cpu_cores: 0,
-                        cpu_usage: null,
-                        memory_total_mb: 0,
-                        memory_used_mb: 0,
-                        disk_count: 0,
-                        software_count: 0,
-                        last_seen: p.last_online || null,
-                        collected_at: null,
-                        source: 'peer_list',
-                    });
-                }
+                devices = peerList.map(p => ({
+                    device_id: p.id,
+                    hostname: p.hostname || p.id,
+                    os: p.platform || p.os || '',
+                    cpu: '',
+                    cpu_cores: 0,
+                    cpu_usage: null,
+                    memory_total_mb: 0,
+                    memory_used_mb: 0,
+                    disk_count: 0,
+                    software_count: 0,
+                    last_seen: p.last_online || null,
+                    collected_at: null,
+                    source: 'peer_list',
+                }));
             } catch (fallbackErr) {
                 console.warn('[Inventory] Peer list fallback failed:', fallbackErr.message);
             }
         }
 
-        res.json({ devices, total: devices.length });
+        const total = devices.length;
+        const totalPages = Math.ceil(total / pagination.limit);
+        // Avoid multiplying an unbounded client-supplied page value.
+        const start = pagination.page > totalPages
+            ? total
+            : (pagination.page - 1) * pagination.limit;
+        const pagedDevices = devices.slice(start, start + pagination.limit);
+
+        res.json({
+            devices: pagedDevices,
+            total,
+            page: pagination.page,
+            limit: pagination.limit,
+            total_pages: totalPages,
+        });
     } catch (err) {
         console.error('[Inventory] List error:', err.message);
         res.status(500).json({ error: 'Internal server error' });
@@ -259,7 +299,7 @@ router.get('/', requireAdmin, async (req, res) => {
 /**
  * GET /api/inventory/:id — Full inventory detail for one device (admin only).
  */
-router.get('/:id', requireAdmin, async (req, res) => {
+router.get('/:id', requireAuth, requirePermission('device.view'), async (req, res) => {
     try {
         const deviceId = req.params.id;
         const adapter = getAdapter();

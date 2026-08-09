@@ -1,6 +1,7 @@
 package signalhost
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"fmt"
 
@@ -22,13 +23,20 @@ func generateEphemeralKeyPair() (ephemeralKeyPair, error) {
 	return ephemeralKeyPair{public: *pub, private: *priv}, nil
 }
 
-func buildSignedID(deviceID string, pub [32]byte) (*pb.Message, error) {
+// buildSignedID proves that the ephemeral key belongs to this host identity.
+// The peer verifies the first 64 bytes against the Ed25519 key registered with
+// the signal server; zero-filled bytes are not a signature.
+func buildSignedID(deviceID string, pub [32]byte, signingKey ed25519.PrivateKey) (*pb.Message, error) {
+	if len(signingKey) != ed25519.PrivateKeySize {
+		return nil, fmt.Errorf("invalid host signing key")
+	}
 	idPk := &pb.IdPk{Id: deviceID, Pk: pub[:]}
 	idPkBytes, err := proto.Marshal(idPk)
 	if err != nil {
 		return nil, err
 	}
-	signed := append(make([]byte, 64), idPkBytes...)
+	signature := ed25519.Sign(signingKey, idPkBytes)
+	signed := append(signature, idPkBytes...)
 	return &pb.Message{
 		Union: &pb.Message_SignedId{SignedId: &pb.SignedId{Id: signed}},
 	}, nil

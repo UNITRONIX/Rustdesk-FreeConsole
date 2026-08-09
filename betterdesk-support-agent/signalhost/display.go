@@ -9,7 +9,10 @@ import (
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
 
-func buildPeerInfo(deviceID string) (*pb.PeerInfo, uint32, uint32) {
+// buildPeerInfo publishes only codecs that were actively probed for this host.
+// Features such as audio, file transfer, clipboard, terminal, and multi-monitor
+// remain absent until their corresponding host paths exist.
+func buildPeerInfo(deviceID string, encoding *pb.SupportedEncoding) (*pb.PeerInfo, uint32, uint32) {
 	displays, w, h := primaryDisplayInfo()
 	username := "user"
 	if u, err := user.Current(); err == nil && u.Username != "" {
@@ -26,9 +29,7 @@ func buildPeerInfo(deviceID string) (*pb.PeerInfo, uint32, uint32) {
 		Displays:       displays,
 		CurrentDisplay: 0,
 		Version:        "1.0",
-		Encoding: &pb.SupportedEncoding{
-			H264: true,
-		},
+		Encoding:       encoding,
 	}, w, h
 }
 

@@ -25,10 +25,10 @@ type AgentConn struct {
 	clientIP    string
 	hostname    string
 
-	serverNonce []byte
-	agentNonce  []byte
-	webHash     []byte
-	receivedCmd uint8
+	serverNonce   []byte
+	agentNonce    []byte
+	webHash       []byte
+	receivedCmd   uint8
 	authenticated bool
 	coreStable    bool
 
@@ -39,9 +39,7 @@ func (g *Gateway) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 	if !g.allowIP(w, r) {
 		return
 	}
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true,
-	})
+	conn, err := websocket.Accept(w, r, g.webSocketAcceptOptions())
 	if err != nil {
 		log.Printf("[mesh] agent WS upgrade failed: %v", err)
 		return
@@ -52,7 +50,7 @@ func (g *Gateway) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 	ac := &AgentConn{
 		gw:       g,
 		conn:     conn,
-		clientIP: clientIP(r),
+		clientIP: clientIP(r, g.cfg),
 	}
 	defer func() {
 		g.activeAgents.Add(-1)
@@ -302,8 +300,8 @@ func (ac *AgentConn) disconnect(reason string) {
 		ac.gw.agents.Delete(pid)
 		ac.gw.db.UpdatePeerStatus(pid, "OFFLINE", ac.clientIP)
 		if ac.gw.eventBus != nil {
-		ac.gw.eventBus.Publish(events.Event{
-			Type: events.EventType("mesh_agent_disconnect"),
+			ac.gw.eventBus.Publish(events.Event{
+				Type: events.EventType("mesh_agent_disconnect"),
 				Data: map[string]string{"peer_id": pid, "reason": reason},
 			})
 		}

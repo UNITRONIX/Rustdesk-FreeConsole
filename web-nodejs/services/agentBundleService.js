@@ -107,7 +107,10 @@ function validateBranding(input = {}) {
     const out = {};
 
     out.company_name = clip(input.company_name || input.companyName, MAX_NAME);
-    if (!out.company_name) errors.push('company_name_required');
+    // Optional for quick Support Agent creation — defaults to product name.
+    if (!out.company_name) {
+        out.company_name = 'BetterDesk Support';
+    }
 
     out.short_text   = clip(input.short_text   || input.shortText,   MAX_SHORT_TEXT);
     out.contact_email = clip(input.contact_email || input.contactEmail, MAX_CONTACT);
@@ -203,7 +206,10 @@ function validateBranding(input = {}) {
     } else {
         errors.push('server_host_required');
     }
-    out.use_https = !!(input.use_https ?? input.useHttps ?? conn.defaultUseHttps());
+    // HTTPS/WSS is recommended for public internet; HTTP/WS is allowed for
+    // LAN/IP deployments (RustDesk-style). Session crypto stays on the
+    // signal/relay protocol layer; the signed profile still binds endpoints.
+    out.use_https = !!(input.use_https ?? input.useHttps ?? true);
 
     // Never accept enrollment_token from the browser — issued by backend only.
     if (input.server && typeof input.server === 'object') {
@@ -359,7 +365,7 @@ function defaultBranding() {
         },
         default_lang: 'en',
         server_host: '',
-        use_https: conn.defaultUseHttps(),
+        use_https: true,
         server: { address: '', api_url: '', public_key: '' },
     };
 }

@@ -98,10 +98,15 @@ class CDAPFileTransfer {
                 this._onList(msg);
                 break;
             case 'file_read_response': {
-                const cb = msg.request_id && this._pending[msg.request_id];
-                if (cb) {
-                    cb(msg);
-                    delete this._pending[msg.request_id];
+                const requestId = msg.request_id;
+                if (requestId && typeof requestId === 'string' && /^[\w-]{1,64}$/.test(requestId)) {
+                    const cb = Object.prototype.hasOwnProperty.call(this._pending, requestId)
+                        ? this._pending[requestId]
+                        : null;
+                    if (typeof cb === 'function') {
+                        cb(msg);
+                        delete this._pending[requestId];
+                    }
                 }
                 break;
             }

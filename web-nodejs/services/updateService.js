@@ -1466,8 +1466,11 @@ async function ensureServerSource(remoteSHA, opts = {}) {
 
     fs.mkdirSync(serverDir, { recursive: true });
 
-    // --- Try git clone --depth=1 (fastest) ---
+    // --- Try git clone --depth=1, then pin it to the already verified SHA ---
     try {
+        if (!/^[a-f0-9]{40}$/i.test(String(remoteSHA || ''))) {
+            throw new Error('Refusing to clone an invalid remote commit SHA');
+        }
         const tmpDir = path.join(config.dataDir, '_tmp_server_clone');
         if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
 
@@ -1475,10 +1478,15 @@ async function ensureServerSource(remoteSHA, opts = {}) {
             ? `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git`
             : `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}.git`;
 
-        execSync(
-            `git clone --depth=1 --single-branch --branch "${getGithubBranch()}" "${repoUrl}" "${tmpDir}"`,
-            { timeout: 120000, stdio: 'pipe' }
-        );
+        execFileSync('git', [
+            'clone', '--depth=1', '--single-branch', '--branch', getGithubBranch(), repoUrl, tmpDir
+        ], { timeout: 120000, stdio: 'pipe' });
+        const clonedSHA = String(execFileSync(
+            'git', ['-C', tmpDir, 'rev-parse', 'HEAD'], { timeout: 10_000, encoding: 'utf8' }
+        )).trim().toLowerCase();
+        if (clonedSHA !== String(remoteSHA).toLowerCase()) {
+            throw new Error(`Cloned commit ${clonedSHA} does not match requested ${remoteSHA}`);
+        }
 
         const srcDir = path.join(tmpDir, 'betterdesk-server');
         if (fs.existsSync(srcDir)) {
@@ -3144,8 +3152,47 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
             fs.writeFileSync(versionDest, versionContent);
         } catch (_e) { /* non-critical */ }
 
-        if (nonCriticalFailures.length > 0) {
-            console.log(`[UPDATE] SHA saved despite ${nonCriticalFailures.length} non-critical failure(s): ${nonCriticalFailures.map(f => f.file).join(', ')}`);
+        // ---- Support Agent generator: stage source + queue only its bundles ----
+        // Agent Client and RdClient use their own workers. Keeping this rebuild
+        // scoped prevents a Support Agent source update from invalidating their
+        // ready artifacts, while legacy "agent" rows normalize to Support Agent.
+        if (shouldQueueAgentRebuild(changedData)) {
+            try {
+                const agentBuildWorker = require('./agentBuildWorker');
+                const stageResult = await agentBuildWorker.syncFullAgentSourceFromGitHub({
+                    remoteSHA,
+                    download: ghDownloadFile,
+                    listPaths: ghListRepoBlobPaths,
+                });
+                agentBuildWorker.markRebuildPending('in-app update');
+                // The worker's product-type filter deliberately requeues only
+                // Support Agent bundles. The flag remains a restart safety net.
+                let requeue = { bundles: 0 };
+                try {
+                    requeue = await agentBuildWorker.requeueAllBundleBuilds();
+                } catch (requeueErr) {
+                    console.warn(`[UPDATE] Immediate support-agent rebuild requeue failed: ${requeueErr.message}`);
+                }
+                results.agentSourcesStaged = stageResult.staged;
+                results.agentSourcePaths = stageResult.paths;
+                results.agentRebuildQueued = true;
+                results.agentRebuildBundles = requeue.bundles;
+                results.agentRebuildProductType = 'support-agent';
+                console.log(
+                    `[UPDATE] Support Agent source tree synced (${stageResult.staged}/${stageResult.paths} file(s));`
+                    + ` rebuild queued for ${requeue.bundles} bundle(s)`
+                );
+            } catch (err) {
+                results.failed.push({ file: 'support-agent-source-sync', error: err.message, nonCritical: true });
+                console.warn(`[UPDATE] Full support-agent source sync failed: ${err.message}`);
+            }
+        }
+
+        const finalFailures = splitUpdateFailures(results.failed, ROOT_DIR);
+        results.criticalFailures = finalFailures.critical;
+        results.nonCriticalFailures = finalFailures.nonCritical;
+        if (finalFailures.nonCritical.length > 0) {
+            console.log(`[UPDATE] SHA saved despite ${finalFailures.nonCritical.length} non-critical failure(s): ${finalFailures.nonCritical.map(f => f.file).join(', ')}`);
         }
     } else {
         results.skipped.push('SHA tracking (critical update steps incomplete)');

@@ -25,6 +25,9 @@
     --ux35-help-panel-width: 300px;
     --ux35-radius: 8px;
     --ux35-radius-sm: 6px;
+    --ux35-control-size: 36px;
+    --ux35-control-size-touch: 44px;
+    --ux35-nav-item-min-height: 36px;
     --ux35-motion: 150ms;
     --ux35-motion-fast: 120ms;
 
@@ -47,6 +50,7 @@
     --ux35-hover: var(--bg-hover);
     --ux35-active-bg: var(--accent-blue-muted);
     --ux35-primary: var(--accent-blue);
+    --ux35-focus-ring: var(--accent-blue);
     --ux35-glass-blur: 0px;
     --ux35-glass-saturate: 1;
 }

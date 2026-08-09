@@ -1,3 +1,5 @@
+//go:build fyneui
+
 package main
 
 import (
@@ -21,9 +23,12 @@ func (u *ui) fetchTOTPStatus() (deviceTOTPStatus, error) {
 	deviceID := st.DeviceID
 	token := st.DeviceToken
 	st.mu.Unlock()
-	url := fmt.Sprintf("%s/devices/self/totp?device_id=%s&device_token=%s", apiBaseURL(u.brand), deviceID, token)
 	var resp deviceTOTPStatus
-	code, err := apiJSON(http.MethodGet, url, nil, &resp)
+	code, err := apiJSON(http.MethodPost, apiBaseURL(u.brand)+"/devices/self/totp", map[string]string{
+		"device_id":    deviceID,
+		"device_token": token,
+		"action":       "status",
+	}, &resp)
 	if err != nil {
 		return resp, err
 	}

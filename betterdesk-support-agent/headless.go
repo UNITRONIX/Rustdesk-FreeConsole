@@ -4,8 +4,11 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
+
+	"github.com/unitronix/betterdesk-support-agent/signalhost"
 )
 
 // runHeadless starts enrollment and the remote engine without a Fyne window.
@@ -24,18 +27,103 @@ func runHeadless() {
 
 	log.Printf("[support-agent] %s starting headless (device=%s)", version, st.DeviceID)
 
+	var hostMu sync.Mutex
+	var host *signalhost.Host
+	stopSignalHost := func() {
+		hostMu.Lock()
+		activeHost := host
+		host = nil
+		hostMu.Unlock()
+		if activeHost != nil {
+			activeHost.Stop()
+		}
+	}
+	startSignalHost := func() {
+		hostMu.Lock()
+		if host != nil {
+			hostMu.Unlock()
+			return
+		}
+		hostMu.Unlock()
+
+		candidate, reason := newSignalHost(brand, st, true, signalHostCallbacks{
+			consent: func(operator string) bool {
+				return headlessConsent(brand, st)("signal", operator)
+			},
+			audit: func(policy hostCapabilityPolicy) {
+				auditHostCapabilityPolicy(hostCapabilityAuditTransportSignal, policy)
+			},
+		})
+		if candidate == nil {
+			log.Printf("[support-agent] headless RustDesk-compatible host disabled: %s", reason)
+			return
+		}
+		if !candidate.Start() {
+			log.Printf("[support-agent] headless RustDesk-compatible host disabled: access policy changed")
+			return
+		}
+
+		hostMu.Lock()
+		if host == nil {
+			host = candidate
+			candidate = nil
+		}
+		hostMu.Unlock()
+		if candidate != nil {
+			candidate.Stop()
+			return
+		}
+		log.Printf("[support-agent] headless RustDesk-compatible host started")
+	}
+
 	if brand.HasConnection() {
-		go headlessBootstrap(brand, st, engine)
+		go headlessBootstrap(brand, st, engine, startSignalHost, stopSignalHost)
 	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	<-sig
 	log.Printf("[support-agent] shutting down")
+	stopSignalHost()
 	engine.Stop()
 }
 
-func headlessBootstrap(brand Branding, st *AppState, engine *Engine) {
+func headlessBootstrap(brand Branding, st *AppState, engine *Engine, onApproved, onRejected func()) {
+	startApproved := func() {
+		_ = PullAccessPolicy(brand, st)
+		if err := SyncAccessPassword(brand, st); err != nil {
+			log.Printf("[support-agent] access password sync: %v", err)
+		}
+		go startAccessPolicyPullLoop(brand, st)
+		policy := accessPolicyFor(brand, st)
+		if !policy.allowsSignalHost(true) {
+			// A headless process has no trustworthy local consent surface.
+			// Fail before registering the CDAP engine so supervised, disabled,
+			// and passwordless modes cannot advertise an unreachable session.
+			log.Printf("[support-agent] headless remote access disabled: %s", policy.signalHostDisabledReason(true))
+			return
+		}
+		if !engine.Running() {
+			if err := engine.Start(st); err != nil {
+				log.Printf("[support-agent] engine start: %v", err)
+				return
+			}
+		}
+		if onApproved != nil {
+			onApproved()
+		}
+		StartEnrollmentRevalidation(brand, st, version, enrollmentRevalidationInterval, func(result EnrollmentStatus) {
+			if result.Status != EnrollmentRejected {
+				return
+			}
+			log.Printf("[support-agent] enrollment revoked: %s", result.Message)
+			if onRejected != nil {
+				onRejected()
+			}
+			engine.Stop()
+		})
+	}
+
 	res, err := EnsureEnrolled(brand, st, version)
 	if err != nil {
 		log.Printf("[support-agent] enrollment: %v", err)
@@ -43,21 +131,12 @@ func headlessBootstrap(brand Branding, st *AppState, engine *Engine) {
 	}
 	switch res.Status {
 	case EnrollmentApproved:
-		if err := engine.Start(st); err != nil {
-			log.Printf("[support-agent] engine start: %v", err)
-			return
-		}
-		_ = PullAccessPolicy(brand, st)
-		_ = SyncAccessPassword(brand, st)
-		go startAccessPolicyPullLoop(brand, st)
+		startApproved()
 	case EnrollmentPending:
 		log.Printf("[support-agent] enrollment pending: %s", res.Message)
 		StartEnrollmentPoll(brand, st, version, 5*time.Second, func(u EnrollmentStatus) {
-			if u.Status == EnrollmentApproved && !engine.Running() {
-				_ = engine.Start(st)
-				_ = PullAccessPolicy(brand, st)
-				_ = SyncAccessPassword(brand, st)
-				go startAccessPolicyPullLoop(brand, st)
+			if u.Status == EnrollmentApproved {
+				startApproved()
 			}
 		})
 	case EnrollmentRejected:
@@ -67,12 +146,16 @@ func headlessBootstrap(brand Branding, st *AppState, engine *Engine) {
 
 func headlessConsent(brand Branding, st *AppState) func(string, string) bool {
 	return func(sessionID, operator string) bool {
-		mode, _, _, _ := st.Snapshot()
-		if brand.AllowUnattended || mode == AccessUnattended {
+		policy := accessPolicyFor(brand, st)
+		if policy.allowsUnattended() {
 			log.Printf("[support-agent] headless consent auto-allow session=%s operator=%s", sessionID, operator)
 			return true
 		}
-		log.Printf("[support-agent] headless consent denied (supervised, no UI) session=%s operator=%s", sessionID, operator)
+		if policy.mode == AccessDisabled {
+			log.Printf("[support-agent] headless consent denied (access disabled) session=%s operator=%s", sessionID, operator)
+			return false
+		}
+		log.Printf("[support-agent] headless consent denied (no approved unattended policy) session=%s operator=%s", sessionID, operator)
 		return false
 	}
 }

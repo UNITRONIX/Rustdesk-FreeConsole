@@ -3,42 +3,9 @@
 ### Fixed
 - **RdClient desktop — local file Copy never enables remote Paste:** right-click / focus races set “input priority” and **cancelled** Cliprdr sync, so FormatList never reached the peer and Explorer Paste stayed grey. Sync is still not awaited on the click path (menu stays responsive), but a deferred flush now advertises CF_HDROP after the priority window. Ships via panel update (`remote.js` / `cliprdr.js`); no desktop rebuild required for this JS-only fix.
 
-### Changed
-- _(none yet)_
-
----
-
-## [3.5.18] — 2026-08-09
 - **RdClient desktop — right-click context menu still laggy after prior Cliprdr fixes:** mouse down/up were already sent immediately, but remote Explorer still blocked the menu on Cliprdr `FormatData` while that reply waited on Tauri IPC (and could queue behind `FileContents` / clipboard poll `spawn_blocking`). Sync now returns the pre-built FILEGROUPDESCRIPTOR for an in-memory JS cache; FormatData answers from that cache with no IPC, is no longer serialized behind FileContents, and clipboard polls/focus sync pause briefly during clicks. FormatData on the Rust side is cache-hit only (no lazy tree walk). Requires rebuilt `rdclient-desktop` **and** panel update (`cliprdr.js` / `remote.js` / `input.js`).
-
-### Changed
-- _(none yet)_
-
----
-
-## [3.5.17] — 2026-08-09
-
-### Changed
 - **Panel Updates (this fork):** default GitHub update source is now `Chesster1981/BetterDesk` (`UPDATE_GITHUB_OWNER`). Existing installs that still omit the env key (and therefore pulled UNITRONIX) need a one-time `.env` set to `Chesster1981` + Development channel, then Settings → Updates, so fork commits (including RustDesk AB alias) actually install.
-
-### Fixed
-- _(none yet)_
-
----
-
-## [3.5.16] — 2026-08-09
-
-### Changed
-- _(none yet)_
-
----
-
-## [3.5.15] — 2026-08-09
-
-### Added
 - **RdClient desktop — RustDesk-like folder file transfer:** File transfer modal can upload/download whole folder trees (recursive mkdir + sequential files) with aggregate queue progress/cancel; downloads stream to disk via Tauri `desktop_download_begin/write/finish` (no full-file WebView buffer). Prefer File transfer for large trees; Cliprdr remains Explorer convenience. Requires rebuilt `rdclient-desktop` **and** panel update (`filetransfer.js` / `file-modal.js` / `local-files.js` + locales).
-
-### Fixed
 - **Stock RustDesk — address book card shows ID instead of panel name:** peer cards use `alias` as the bold title (else formatted ID) and `username@hostname` (+ `note`) on the secondary line. BetterDesk maps panel **Display name** (else **Note**, else stale AB `note`) into RustDesk `alias`, hides the computer hostname when that managed label is set, and clears a duplicate `note`. On this fork, set `UPDATE_GITHUB_OWNER=Chesster1981` and Development channel so Settings → Updates installs the Go/console change; then rebuild/restart Go and re-login or refresh the address book in RustDesk. Set Devices → Display name (or Note) for the title you want.
 - **RdClient desktop — 5MB Copy freezes click (~30s) and Paste never starts:** Tauri ran sync `desktop_clipboard_*` commands on the WebView UI thread, so `OpenClipboard` after a local Explorer file Copy self-deadlocked with WebView2 (~30s) and large `FileContents` base64 froze Paste with no progress. Clipboard IPC is now `async` + `spawn_blocking` (CF_HDROP Busy retries); focus/click Cliprdr sync is fire-and-forget with in-flight coalescing and never waits on FormatList ACK. Requires rebuilt `rdclient-desktop` **and** panel update (`remote.js` / `cliprdr.js`).
 - **RdClient desktop — right-click 20s lag when local clipboard has files:** every viewer `mousedown` (including right-click) awaited Cliprdr `desktop_clipboard_sync`, which held the clipboard cache lock during folder walks while remote Explorer simultaneously requested FormatData for the context menu — menu waited on the lock + a second lazy tree walk. Right/middle-click no longer triggers clipboard sync (debounced left-click/focus only); Rust assesses/materializes FILEGROUPDESCRIPTOR *before* FormatList and **outside** the cache lock; FileContents reads also release the lock. Paste progress (`FD_PROGRESSUI` + `FD_FILESIZE`) can start once FormatData is instant. Oversized trees still toast → File transfer. Requires rebuilt `rdclient-desktop` **and** panel update (`remote.js` / `cliprdr.js`).
@@ -76,10 +43,152 @@
 - **Access Policy “needs reseal” after Save:** console treated Go seal failures as success (HTTP 200 + `{success:false}`), so the badge never cleared. Failed saves now return the real status/error; UI shows when the connect-secret codec is unavailable. Requires panel + betterdesk-server restart/update.
 - **Windows panel update — NSSM `SERVICE_PAUSED` restart:** after deploying a new Go server binary, `nssm restart BetterDeskServer` could fail with `Unexpected status SERVICE_PAUSED in response to START control` (NSSM restart throttle). Restart now clears pause via `nssm continue`, uses stop-to-start, and verifies `SERVICE_RUNNING`. Ships via panel update.
 - **Windows panel update — stop before binary deploy:** in-app updates now `nssm stop BetterDeskServer` before replacing `betterdesk-server.exe`, then `nssm start` when deploy finishes (not bare `nssm restart`). If OpenService Access Denied occurs, the panel probes `nssm status` / Go `/api/health`; when the service is already running it treats the update as success and auto-refreshes the UI (no red failure). Ships via panel update.
-
-### Changed
 - **Devices / RdClient sort:** Online first, then alphabetically by display name / hostname (stable by device id) on Console Devices, RdClient `/remote` address book (desktop + web), and guest device lists. Column header clicks on Console Devices remain a secondary sort within that grouping. Ships via panel update.
 - **Access Policy — Passwordless server access:** new per-device checkbox under Unattended Access. When enabled (default), RdClient prefers the sealed Access Password from the server over any password remembered on the operator device; when disabled, the local vault is tried first. Ships via panel update (console + betterdesk-server).
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.29] — 2026-08-09
+
+### Added
+- **Support Agent Wails UI:** Default GUI is Wails (WebView2 / WebKit) with branded HTML shell; Fyne remains behind `fyneui` / `BETTERDESK_SUPPORT_FYNEUI=1`. Ships via rebuilt Support Agent (agent-source). Verify: window shows device ID / password without Mesa OpenGL DLL crashes.
+- **Support Agent multi-codec remote desktop:** `signalhost` negotiates RustDesk PreferCodec (Auto / VP8 / VP9 / AV1 / H264 / H265), probes HW encoders (NVENC/QSV/AMF/…), prefers Windows `ddagrab` then `gdigrab`. Ships via rebuilt Support Agent. Verify: RdClient codec menu switches encoder; Task Manager shows GPU encode when available.
+
+### Fixed
+- **Support Agent Windows console cascade:** Without a quiet capture path, PeerInfo / screenshot fallback spawned a visible PowerShell window per frame (and ffmpeg without `CREATE_NO_WINDOW`). Desktop capture on Windows now uses GDI→JPEG; helper `exec` calls hide the console. Ships via rebuilt Support Agent (agent-source). Verify: start agent + open a session — no flood of cmd/PowerShell windows.
+- **Support Agent Windows builds (sealbranding + mingw CC):** `build.sh` no longer exports mingw `CC`/`CXX` before `go run ./cmd/sealbranding`. Seal runs with `CGO_ENABLED=0`; mingw is applied only around the final Windows `go build`. This was mis-reported in the UI as “CGO / mingw required” while mingw was already installed. Ships via panel update (agent-source `build.sh` + `agentBuildWorker.js`).
+- **Support Agent AppImage as `betterdesk` user:** install toolchain now extracts `appimagetool` to `/usr/local/lib/appimagetool` with a shell wrapper (no FUSE / no write next to `/usr/local/bin`). Worker packs with writable `HOME`/`TMPDIR` under the build cache. Re-run `scripts/install-build-toolchain.sh` (or menu **B**) on hosts that still have the raw AppImage binary.
+- **Support Agent Windows crash `0xC0000135` / missing DLL:** Generator shipped incomplete Mesa `opengl32.dll` without `libgallium_wgl.dll`, which shadowed system OpenGL and blocked startup. Fetch/pack/embed now require the full DLL pair (or skip Mesa entirely). Agents already installed: delete `opengl32.dll` next to the exe if `libgallium_wgl.dll` is missing.
+
+### Changed
+- **Generator — Support Agent only:** primary CTA is New Support Agent; Agent Client / RdClient create buttons hidden. Defaults to `support-agent`. Optional branding is collapsed; build-platform checkboxes control which installers are queued. Toolchain banner probes mingw + appimagetool; branding-seal errors are classified correctly.
+
+---
+
+## [3.5.28] — 2026-08-09
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.27] — 2026-08-09
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.26] — 2026-08-09
+
+### Fixed
+- **Attestation Light theme contrast (#363):** Tier guide descriptions use `--text-primary`; IRON/TITANIUM/OBSIDIAN badge gradients stay readable on the dark chip; attestation cards use `--bg-secondary` (undefined `--bg-surface` removed). Ships via panel update (`server-attestation.css`). Verify: Light theme → Server Attestation → “What does each tier mean?” text and IRON/TITANIUM/OBSIDIAN badges are readable.
+- **Fleet org filter 404 (#364):** Fleet Management called non-existent `GET /api/panel/organizations`; it now uses `GET /api/panel/org` (same as Policies). Ships via panel update (`fleet.js`). Verify: Fleet page Network tab shows `/api/panel/org` (no 404), org dropdowns populate.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.25] — 2026-08-08
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.24] — 2026-08-07
+
+### Added
+- **RdClient desktop — native Cliprdr + folder file transfer stack (Refs #350):** recovered onto current `dev` from divergent history — Tauri `desktop_*` / `desktop_clipboard_*` IPC, `cliprdr.js`, desktop DnD, streamed folder upload/download. Requires rebuilt `rdclient-desktop` **and** panel update.
+
+### Fixed
+- **Outbound “ID does not exist” after 3.5.16 (#302 residual):** stock RustDesk PunchHole/RequestRelay on a new TCP port (no login token, no shared RegisterPk session) was rejected as `initiator_not_registered` because 3.5.16 removed the safe `FindAllByIP` fallback restored in 3.5.15. Auth again authorizes when exactly one live peer shares the public IP; multiple live peers at that IP still refuse with `initiator_ambiguous_same_nat` (no identity inheritance). Ships via panel update (Go signal restart). Verify: stock client connect no longer shows “ID does not exist” when the initiator is the sole live peer at its public IP.
+- **Relay `Unauthorized relay UUID` after P2P fallback (#356):** when hole punch timed out and the target sent `RelayResponse`, signal forwarded the UUID without minting a relay ticket, so hbbr rejected both peers (`Reset by the peer(0)`). `handleRelayResponseForward` now authorizes the initiator/target pair before advertising the UUID (same ticket path as `RequestRelay`). Ships via panel update (Go signal/relay restart). Verify: connection that needs relay after P2P timeout succeeds; no `[relay] Unauthorized relay UUID` for that session.
+- **RdClient desktop — Copy-Paste / File Transfer creates 0KB empty remote files (#350):** Tauri IPC returns file chunks as base64 strings; JS treated them as `Uint8Array` constructors (`new Uint8Array(base64String)`), which always yields length 0, so Cliprdr and the File Transfer modal wrote empty remote files. `coerceBinaryPayload` now decodes base64 before upload/Cliprdr paths. Ships via panel update (`local-files.js` / `filetransfer.js` / `cliprdr.js` / `compress.js` / `protocol.js`).
+- **RdClient desktop — Cliprdr paste still 0KB after base64 coerce (#350):** outbound FILEGROUPDESCRIPTOR advertised `FD_FILESIZE` plus Windows `FD_CREATETIME` (0x08 mistyped as “unix mode”). Remote CliprdrStream trusted a bad/zero stream length and returned EOF without `FILECONTENTS_RANGE`. Descriptors now match RustDesk (`FD_ATTRIBUTES | FD_WRITESTIME | FD_PROGRESSUI`, size via `FILECONTENTS_SIZE` probe); FileContents rejects empty RANGE ACKs and serializes responses. Requires rebuilt `rdclient-desktop` **and** panel update (`cliprdr.js`). Verify: paste/upload a non-empty local file and confirm remote size matches.
+- **Enrollment QA follow-up (#351):** Enrollment Requests **All** filter aggregates pending + approved + rejected Go history. Reject & Ban → **Allow re-enroll** / Unban hard-deletes the enrollment audit peer so managed mode re-queues instead of leaving a zombie or bypassing approval. Orphan legacy `rejected_device_*` locks appear under Rejected. Devices `?search=` is applied on load (View device). Pending metadata can be enriched when HTTP enrollment supplies hostname/platform/version after a signal queue. Copy Device ID on the registrations table. Ships via panel update (Go API/signal restart).
+
+### Changed
+- **Devices drag & drop:** while dragging a device row onto folder/group chips, the panel content (`.main-content` / UX 3.5) auto-scrolls when the pointer nears the top or bottom edge.
+
+---
+
+## [3.5.23] — 2026-08-05
+
+### Fixed
+- **Support Agent rebuild profile gate:** Rebuild / Retry / post-update requeue now re-issues incomplete or expired signed Support Agent profiles (URLs + TTL) before enqueueing builds, so operators are not stuck in a Retry loop that only Save previously fixed.
+- **Support Agent version inject on flat deploys:** Build worker resolves product `VERSION` from the console install root (not `/opt` above a flattened tree) and treats an already-matching `var version` as success, fixing false “version variable not found” failures when the placeholder was still `0.1.0`.
+- **Support Agent `build.sh` branding.pub backup:** Release packaging no longer requires a pre-existing `resources/branding.pub` before `sealbranding` creates it (fresh workspaces failed with `cp: cannot stat 'resources/branding.pub'`).
+- **Console CrashLoop after event-bus connect (#353):** Node.js abort `RemoveEnvironmentCleanupHook` / `(env) != nullptr` was a native N-API lifecycle failure (not Go event-bus init). Console now shares one `better-sqlite3` handle for the main DB (`getDb` / session store / enrollment token lookup), bumps `better-sqlite3` to 13.x for Node 24 Alpine, and defers agent build workers until after listen/WS connect. Ships via panel/Docker console image update.
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.22] — 2026-08-05
+
+### Changed
+- Support Agent generator and release profiles allow **HTTP/WS** (LAN/IP) as well as HTTPS/WSS; remote-session encryption remains on the signal/relay protocol layer (RustDesk-style). Uncheck “Use HTTPS / WSS” and re-save the bundle before rebuilding.
+
+---
+
+## [3.5.21] — 2026-08-05
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.20] — 2026-08-05
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.19] — 2026-08-05
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.18] — 2026-08-05
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.17] — 2026-08-05
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.16] — 2026-08-05
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.15] — 2026-08-05
+
+### Security
+- **Dependabot dependency bumps:** `brace-expansion` → 5.0.9 (web-nodejs override), `postcss` → ≥8.5.23 (root + agent-client overrides), `quinn-proto` → 0.11.16 (RdClient Cargo.lock). Dev/build tooling and transitive deps only for postcss/quinn; brace-expansion via panel lockfile.
+- **CDAP file transfer dynamic callback (CodeQL):** validate `request_id` (string + whitelist) and use own-property lookup before invoking pending download callbacks in `cdap-filetransfer.js`. Ships via panel update (static JS).
+
+### Fixed
+- **Outbound “ID does not exist” after 3.5.12 initiator hardening (#302 residual):** stock RustDesk PunchHole/RequestRelay on a new TCP port (no login token, no shared RegisterPk session) was rejected as `initiator_not_registered` because auth required exact `ip:port` only. Restore a safe IP fallback: authorize when exactly one live peer shares the public IP; multiple live peers at that IP still refuse with `initiator_ambiguous_same_nat` (no identity inheritance). Ships via panel update (Go signal restart).
+
+### Changed
+- _(none yet)_
 
 ---
 
@@ -2725,3 +2834,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.16]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.15...v3.5.16
 [3.5.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.16...v3.5.17
 [3.5.18]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.17...v3.5.18
+[3.5.19]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.18...v3.5.19
+[3.5.20]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.19...v3.5.20
+[3.5.21]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.20...v3.5.21
+[3.5.22]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.21...v3.5.22
+[3.5.23]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.22...v3.5.23
+[3.5.24]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.23...v3.5.24
+[3.5.25]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.24...v3.5.25
+[3.5.26]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.25...v3.5.26
+[3.5.27]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.26...v3.5.27
+[3.5.28]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.27...v3.5.28
+[3.5.29]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.28...v3.5.29
+

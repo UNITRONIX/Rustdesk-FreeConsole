@@ -23,6 +23,13 @@ func waitRelayPairing(t *testing.T, srv *Server) {
 	t.Fatalf("relay pairing did not complete within 3s, active sessions = %d", srv.ActiveSessions.Load())
 }
 
+func authorizeTestRelayPair(t *testing.T, uuid string) {
+	t.Helper()
+	if !AuthorizeRelayPair(uuid, "test-initiator", "test-target") {
+		t.Fatalf("authorize relay UUID %q", uuid)
+	}
+}
+
 func TestRelayPairing(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.RelayPort = 0 // let OS pick a free port
@@ -48,6 +55,7 @@ func TestRelayPairing(t *testing.T) {
 	defer srv.Stop()
 
 	uuid := "test-session-uuid-123"
+	authorizeTestRelayPair(t, uuid)
 
 	// Connect side A
 	connA, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 5*time.Second)
@@ -153,6 +161,7 @@ func TestRelaySimultaneousPairing(t *testing.T) {
 	defer srv.Stop()
 
 	uuid := "simul-pair-uuid-789"
+	authorizeTestRelayPair(t, uuid)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	dialAndRequest := func(id string) net.Conn {
 		conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
@@ -180,6 +189,42 @@ func TestRelaySimultaneousPairing(t *testing.T) {
 	defer connB.Close()
 
 	waitRelayPairing(t, srv)
+}
+
+func TestRelayRejectsUnknownUUID(t *testing.T) {
+	cfg := config.DefaultConfig()
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	cfg.RelayPort = port
+	srv := New(cfg)
+	if err := srv.Start(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Stop()
+
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if err := codec.WriteRawProto(conn, &pb.RendezvousMessage{
+		Union: &pb.RendezvousMessage_RequestRelay{
+			RequestRelay: &pb.RequestRelay{Uuid: "unknown-relay-uuid"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	if srv.ActiveSessions.Load() != 0 || srv.TotalRelayed.Load() != 0 {
+		t.Fatalf("unknown UUID must not create a session: active=%d total=%d",
+			srv.ActiveSessions.Load(), srv.TotalRelayed.Load())
+	}
 }
 
 func TestRelayHealthCheck(t *testing.T) {

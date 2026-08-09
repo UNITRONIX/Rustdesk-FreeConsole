@@ -17,6 +17,7 @@ const mockDb = {
     getUserGroupsForUser: jest.fn(),
     setUserGroupMemberships: jest.fn(),
     updateUserProfile: jest.fn().mockResolvedValue(undefined),
+    updateUserRole: jest.fn().mockResolvedValue(undefined),
     createUser: jest.fn(),
     deleteUser: jest.fn().mockResolvedValue(undefined),
     countAdmins: jest.fn().mockResolvedValue(2),
@@ -159,6 +160,43 @@ describe('Users Routes', () => {
         expect(res.status).toBe(200);
         expect(mockDb.createUser).toHaveBeenCalledWith('viewer1', 'hashed', 'viewer');
         expect(mockDb.setUserGroupMemberships).toHaveBeenCalledWith(22, ['volunteers']);
+    });
+
+    it('does not let global_admin create a super_admin user', async () => {
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'global-admin', role: 'global_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app)
+            .post('/api/users')
+            .send({ username: 'elevated1', password: 'StrongPass123!', role: 'super_admin' });
+
+        expect(res.status).toBe(403);
+        expect(res.body.success).toBe(false);
+        expect(mockDb.createUser).not.toHaveBeenCalled();
+        expect(mockUserSync.mirrorCreate).not.toHaveBeenCalled();
+    });
+
+    it('does not let global_admin promote a user to super_admin', async () => {
+        mockDb.getUserById.mockResolvedValue({
+            id: 12,
+            username: 'operator1',
+            role: 'operator',
+            auth_provider: 'local',
+        });
+
+        const app = createTestApp();
+        withAuth(app, { id: 1, username: 'global-admin', role: 'global_admin' });
+        app.use(usersRoutes);
+
+        const res = await request(app)
+            .patch('/api/users/12')
+            .send({ role: 'super_admin' });
+
+        expect(res.status).toBe(403);
+        expect(res.body.success).toBe(false);
+        expect(mockDb.updateUserRole).not.toHaveBeenCalled();
+        expect(mockUserSync.mirrorUpdate).not.toHaveBeenCalled();
     });
 
     it('maps unique username constraint errors to username_exists', async () => {

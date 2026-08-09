@@ -2,26 +2,56 @@ package signalhost
 
 import (
 	"log"
+	"time"
 
 	bdagent "github.com/unitronix/betterdesk-agent/agent"
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
 
-func handlePeerMessage(msg *pb.Message, st *streamState) {
+func (h *Host) handlePeerMessage(msg *pb.Message, st *streamState) {
+	if !h.accessAllowed() {
+		return
+	}
 	if me := msg.GetMouseEvent(); me != nil {
-		injectMouse(me)
+		if h.cfg.DesktopEnabled {
+			injectMouse(me)
+		}
 		return
 	}
 	if ke := msg.GetKeyEvent(); ke != nil {
-		injectKey(ke)
+		if h.cfg.DesktopEnabled {
+			injectKey(ke)
+		}
+		return
+	}
+	if msg.GetAudioFrame() != nil {
+		// Audio capture/playback is not implemented in the support host. Keep
+		// the policy check explicit so a future bridge cannot bypass branding.
+		if !h.cfg.AudioEnabled {
+			return
+		}
 		return
 	}
 	if misc := msg.GetMisc(); misc != nil {
-		if misc.GetRefreshVideo() || misc.GetRefreshVideoDisplay() != 0 {
-			if st != nil {
-				st.forceKeyframe.Store(true)
+		if misc.GetRestartRemoteDevice() {
+			// The host deliberately has no privileged remote-restart handler.
+			// Consult the policy before ignoring the request so adding one later
+			// cannot accidentally bypass a disabled restart capability.
+			if !h.cfg.RestartEnabled {
+				return
 			}
-			log.Printf("[signalhost] refresh video requested")
+			return
+		}
+		if option := misc.GetOption(); option != nil {
+			if st != nil && st.applyPeerOptions(option, time.Now()) {
+				log.Printf("[signalhost] applied bounded video settings update")
+			}
+			return
+		}
+		if misc.GetRefreshVideo() || misc.GetRefreshVideoDisplay() != 0 {
+			if st != nil && st.requestKeyframe(time.Now()) {
+				log.Printf("[signalhost] refresh video requested")
+			}
 		}
 		return
 	}

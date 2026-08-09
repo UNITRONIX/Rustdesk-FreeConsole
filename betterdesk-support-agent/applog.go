@@ -51,6 +51,13 @@ func writeAppLog(level, event, message string, fields map[string]any) {
 	if err != nil {
 		return
 	}
+	// OpenFile's mode only applies on creation. Repair a pre-existing log so
+	// release diagnostics containing device/session metadata never remain
+	// world-readable after an older build or manual file replacement.
+	if err := f.Chmod(0o600); err != nil {
+		_ = f.Close()
+		return
+	}
 	_, _ = f.Write(line)
 	_ = f.Close()
 }

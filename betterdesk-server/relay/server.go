@@ -25,15 +25,16 @@ import (
 
 // Server is the relay server instance.
 type Server struct {
-	cfg         *config.Config
-	bwLimiter   *ratelimit.BandwidthLimiter
-	connLimiter *ratelimit.ConnLimiter
+	cfg            *config.Config
+	bwLimiter      *ratelimit.BandwidthLimiter
+	connLimiter    *ratelimit.ConnLimiter
 	sessionLimiter *ratelimit.ConnLimiter // active paired sessions per IP (post-pair)
-	tcpLn       net.Listener
-	wsHTTP      *http.Server // WebSocket relay listener
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	authorizations *AuthorizationRegistry
+	tcpLn          net.Listener
+	wsHTTP         *http.Server // WebSocket relay listener
+	ctx            context.Context
+	cancel         context.CancelFunc
+	wg             sync.WaitGroup
 
 	// Pending connections waiting for a pair (key: UUID string)
 	pending sync.Map // map[string]*pendingConn
@@ -95,7 +96,10 @@ func (pc *pendingConn) remoteAddr() string {
 
 // New creates a new relay server instance.
 func New(cfg *config.Config) *Server {
-	return &Server{cfg: cfg}
+	return &Server{
+		cfg:            cfg,
+		authorizations: defaultAuthorizationRegistry,
+	}
 }
 
 // SetBandwidthLimiter sets the bandwidth limiter for relay sessions.
@@ -111,6 +115,14 @@ func (s *Server) SetConnLimiter(cl *ratelimit.ConnLimiter) {
 // SetSessionLimiter limits active (paired) relay sessions per IP.
 func (s *Server) SetSessionLimiter(cl *ratelimit.ConnLimiter) {
 	s.sessionLimiter = cl
+}
+
+// SetAuthorizationRegistry overrides the signal-issued relay authorization
+// registry. It is primarily useful for isolated deployments and tests.
+func (s *Server) SetAuthorizationRegistry(registry *AuthorizationRegistry) {
+	if registry != nil {
+		s.authorizations = registry
+	}
 }
 
 // SetBillingCallbacks registers hooks when relay sessions start/end (commercialization).
@@ -236,6 +248,11 @@ func (s *Server) handleConn(conn net.Conn) {
 		conn.Close()
 		return
 	}
+	if s.authorizations == nil || !s.authorizations.Claim(uuid) {
+		log.Printf("[relay] Unauthorized relay UUID from %s (rejecting)", conn.RemoteAddr())
+		conn.Close()
+		return
+	}
 
 	log.Printf("[relay] Connection from %s for UUID %s", conn.RemoteAddr(), uuid)
 	s.pairIncomingConn(&pendingConn{
@@ -277,12 +294,14 @@ func (s *Server) pairIncomingConn(pc *pendingConn, uuid string) {
 	case <-timeAfter(config.RelayPairTimeout):
 		if val, ok := s.pending.Load(uuid); ok && val.(*pendingConn) == pc {
 			s.pending.Delete(uuid)
+			s.authorizations.Release(uuid)
 			pc.close()
 			log.Printf("[relay] Pair timeout for UUID %s", uuid)
 		}
 	case <-s.ctx.Done():
 		if val, ok := s.pending.Load(uuid); ok && val.(*pendingConn) == pc {
 			s.pending.Delete(uuid)
+			s.authorizations.Release(uuid)
 			pc.close()
 		}
 	}
@@ -430,6 +449,7 @@ func (s *Server) cleanupPending() {
 				pc := value.(*pendingConn)
 				if time.Since(pc.created) > config.RelayPairTimeout {
 					if _, loaded := s.pending.LoadAndDelete(key); loaded {
+						s.authorizations.Release(key.(string))
 						pc.close()
 						close(pc.done)
 					}

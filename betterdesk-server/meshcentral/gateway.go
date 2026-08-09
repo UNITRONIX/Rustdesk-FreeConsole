@@ -34,8 +34,8 @@ type Gateway struct {
 	assets    *CoreAssets
 	webHash   []byte // SHA-384 of TLS web cert (48 bytes)
 
-	agents sync.Map // peerID -> *AgentConn
-	relays sync.Map // relayID -> *relaySession (non-KVM)
+	agents    sync.Map // peerID -> *AgentConn
+	relays    sync.Map // relayID -> *relaySession (non-KVM)
 	relayHubs sync.Map // relayID -> *relayHub (KVM multiplex)
 	relayMeta sync.Map // relayID -> *relayMeta
 
@@ -65,15 +65,15 @@ func NewGateway(cfg *config.Config, database db.Database, peerMap *peer.Map, eve
 		return nil, err
 	}
 	return &Gateway{
-		cfg:       cfg,
-		db:        database,
-		peerMap:   peerMap,
-		eventBus:  eventBus,
-		limiter:   ratelimit.NewIPLimiter(rate, 1*time.Minute, 5*time.Minute),
-		cookies:   cookieCodec,
-		creds:     creds,
-		assets:    assets,
-		version:   cfg.MeshCoreVersion,
+		cfg:      cfg,
+		db:       database,
+		peerMap:  peerMap,
+		eventBus: eventBus,
+		limiter:  ratelimit.NewIPLimiter(rate, 1*time.Minute, 5*time.Minute),
+		cookies:  cookieCodec,
+		creds:    creds,
+		assets:   assets,
+		version:  cfg.MeshCoreVersion,
 	}, nil
 }
 
@@ -172,7 +172,7 @@ func (g *Gateway) handleBetterCoreJS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Gateway) allowIP(w http.ResponseWriter, r *http.Request) bool {
-	ip := clientIP(r)
+	ip := clientIP(r, g.cfg)
 	if g.blocklist != nil && g.blocklist.IsIPBlocked(ip) {
 		http.Error(w, "blocked", http.StatusForbidden)
 		return false
@@ -184,16 +184,18 @@ func (g *Gateway) allowIP(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-func clientIP(r *http.Request) string {
+func clientIP(r *http.Request, cfg *config.Config) string {
 	ip := r.RemoteAddr
 	if idx := lastIndexByte(ip, ':'); idx > 0 {
 		ip = ip[:idx]
 	}
-	if g := r.Header.Get("X-Forwarded-For"); g != "" {
-		if i := indexByte(g, ','); i > 0 {
-			return trimSpace(g[:i])
+	if cfg != nil && cfg.ShouldHonorForwardedHeaders(r.RemoteAddr) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			if i := indexByte(xff, ','); i > 0 {
+				return trimSpace(xff[:i])
+			}
+			return trimSpace(xff)
 		}
-		return trimSpace(g)
 	}
 	return ip
 }

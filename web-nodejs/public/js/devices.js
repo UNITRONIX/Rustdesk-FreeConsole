@@ -80,6 +80,11 @@
     let searchQuery = '';
     let showDeleted = false;
     let draggedDeviceId = null;
+    let lastDragClientY = null;
+    let dragScrollRafId = null;
+    const DRAG_SCROLL_EDGE_PX = 56;
+    const DRAG_SCROLL_MIN_SPEED = 4;
+    const DRAG_SCROLL_MAX_SPEED = 20;
     const STORAGE_PER_PAGE = 'bd_devices_per_page';
     const STORAGE_SHOW_DELETED = 'bd_devices_show_deleted';
     const PER_PAGE_OPTIONS = [10, 20, 50, 100];
@@ -2201,6 +2206,13 @@
     function initSearch() {
         const searchInput = document.getElementById('search-input');
         if (!searchInput) return;
+
+        // Honor ?search= from Enrollment Requests "View device" links (#351).
+        const urlSearch = new URLSearchParams(window.location.search).get('search');
+        if (urlSearch) {
+            searchQuery = urlSearch.trim();
+            searchInput.value = searchQuery;
+        }
         
         searchInput.addEventListener('input', Utils.debounce((e) => {
             searchQuery = e.target.value.trim();
@@ -3262,11 +3274,64 @@
     }
     
     // ==================== Drag & Drop ====================
+
+    function stopDragAutoScroll() {
+        if (dragScrollRafId != null) {
+            cancelAnimationFrame(dragScrollRafId);
+            dragScrollRafId = null;
+        }
+        lastDragClientY = null;
+    }
+
+    function dragScrollSpeed(depthPx) {
+        const t = Math.min(1, Math.max(0, depthPx / DRAG_SCROLL_EDGE_PX));
+        return DRAG_SCROLL_MIN_SPEED + t * (DRAG_SCROLL_MAX_SPEED - DRAG_SCROLL_MIN_SPEED);
+    }
+
+    function tickDragAutoScroll() {
+        dragScrollRafId = null;
+        if (!draggedDeviceId || lastDragClientY == null) return;
+
+        const mainContent = document.querySelector('.main-content');
+        if (!mainContent || mainContent.scrollHeight <= mainContent.clientHeight) {
+            dragScrollRafId = requestAnimationFrame(tickDragAutoScroll);
+            return;
+        }
+
+        const rect = mainContent.getBoundingClientRect();
+        const y = lastDragClientY;
+        let delta = 0;
+
+        if (y < rect.top + DRAG_SCROLL_EDGE_PX) {
+            delta = -dragScrollSpeed(rect.top + DRAG_SCROLL_EDGE_PX - y);
+        } else if (y > rect.bottom - DRAG_SCROLL_EDGE_PX) {
+            delta = dragScrollSpeed(y - (rect.bottom - DRAG_SCROLL_EDGE_PX));
+        }
+
+        if (delta !== 0) {
+            mainContent.scrollTop += delta;
+        }
+
+        dragScrollRafId = requestAnimationFrame(tickDragAutoScroll);
+    }
+
+    function startDragAutoScroll() {
+        if (dragScrollRafId != null) return;
+        dragScrollRafId = requestAnimationFrame(tickDragAutoScroll);
+    }
+
+    function onDocumentDragOver(e) {
+        if (!draggedDeviceId) return;
+        lastDragClientY = e.clientY;
+    }
     
     /**
      * Initialize drag & drop - row drag events only (called once)
      */
     function initDragDrop() {
+        // Track pointer Y during HTML5 drag (mousemove is unreliable while dragging)
+        document.addEventListener('dragover', onDocumentDragOver, true);
+
         // Handle drag start on rows
         tableBody?.addEventListener('dragstart', (e) => {
             const row = e.target.closest('tr');
@@ -3276,15 +3341,21 @@
             row.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', draggedDeviceId);
+            lastDragClientY = e.clientY;
+            startDragAutoScroll();
         });
         
         tableBody?.addEventListener('dragend', (e) => {
             const row = e.target.closest('tr');
             if (row) row.classList.remove('dragging');
             draggedDeviceId = null;
+            stopDragAutoScroll();
             
             // Remove drop indicators
             document.querySelectorAll('.folder-chip.drag-over').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+            document.querySelectorAll('.group-chip.drag-over').forEach(el => {
                 el.classList.remove('drag-over');
             });
         });

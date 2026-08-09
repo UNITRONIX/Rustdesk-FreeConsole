@@ -23,9 +23,11 @@
 // ---------------------------------------------------------------------------
 
 const path = require('path');
+const fs = require('fs');
 const agentBundleService = require('./agentBundleService');
 const { hashAccessToken } = require('../lib/tokenHash');
 const { redactAuditDetails } = require('../lib/logRedact');
+const { normalizeProductType, normalizeBuildStatus } = require('../lib/generatorBuildTypes');
 
 // Lazy-loaded drivers — keeps startup fast when one backend isn't installed.
 let _sqlite = null;
@@ -201,6 +203,7 @@ function createSqliteAdapter(config) {
     const Database = getSqliteDriver();
     let mainDb = null;
     let authDb = null;
+    let authUsesMain = false;
 
     /** open helper */
     function openMain() {
@@ -212,14 +215,67 @@ function createSqliteAdapter(config) {
         return mainDb;
     }
 
+    /**
+     * New installs use db_v2.sqlite3 as the only SQLite store. Existing
+     * installations continue to use auth.db until the Go migration writes its
+     * completion marker; this prevents an accidental empty-store cutover.
+     */
+    function authStorageIsConsolidated() {
+        if ((process.env.SQLITE_AUTH_DB_MODE || '').toLowerCase() === 'legacy') return false;
+        if ((process.env.SQLITE_AUTH_DB_MODE || '').toLowerCase() === 'consolidated') return true;
+        const legacyPath = config.authDbPath || path.join(config.dataDir, 'auth.db');
+        if (!fs.existsSync(legacyPath)) return true;
+        try {
+            const db = openMain();
+            const markerTable = db.prepare(`
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table' AND name = 'betterdesk_migrations'
+            `).get();
+            if (!markerTable) return false;
+            return !!db.prepare(`
+                SELECT 1 FROM betterdesk_migrations
+                WHERE name = 'sqlite_auth_consolidation_v1' AND status = 'complete'
+            `).get();
+        } catch (_) {
+            // Fail safely: preserve the existing legacy store when its
+            // consolidation state cannot be determined.
+            return false;
+        }
+    }
+
     function openAuth() {
         if (authDb) return authDb;
-        const authDbPath = path.join(config.dataDir, 'auth.db');
-        authDb = new Database(authDbPath, { readonly: false, fileMustExist: false });
+        if (authStorageIsConsolidated()) {
+            authDb = openMain();
+            authUsesMain = true;
+            return authDb;
+        }
+        const authDbPath = config.authDbPath || path.join(config.dataDir, 'auth.db');
+        // Existing legacy paths must already exist. Never recreate a missing
+        // auth.db, otherwise a failed/misconfigured migration could silently
+        // create a second identity store.
+        if (!fs.existsSync(authDbPath)) {
+            throw new Error(`Legacy auth database is missing: ${authDbPath}`);
+        }
+        authDb = new Database(authDbPath, { readonly: false, fileMustExist: true });
         authDb.pragma('busy_timeout = 5000');
         authDb.pragma('journal_mode = WAL');
         authDb.pragma('foreign_keys = ON');
         return authDb;
+    }
+
+    function usesUsernameAddressBooks(db = openAuth()) {
+        try {
+            return db.prepare('PRAGMA table_info(address_books)').all()
+                .some((column) => column.name === 'username');
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function usernameForUserId(db, userId) {
+        const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+        return user ? user.username : null;
     }
 
     // ---- Schema bootstrap ----
@@ -939,6 +995,31 @@ function createSqliteAdapter(config) {
         }
     }
 
+    function migrateAgentBundleProductTypesSqlite(db) {
+        try {
+            const cols = new Set(db.prepare('PRAGMA table_info(agent_bundles)').all().map(c => c.name));
+            if (!cols.has('product_type')) {
+                db.exec("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'support-agent'");
+                console.log('[DB] Migration: added agent_bundles.product_type');
+            }
+            // SQLite cannot alter a column default in place. Normalize legacy
+            // values now; callers still accept aliases for older deployments.
+            db.exec(`
+                UPDATE agent_bundles
+                SET product_type = CASE LOWER(TRIM(COALESCE(product_type, '')))
+                    WHEN 'rdclient' THEN 'rdclient'
+                    WHEN 'agent-client' THEN 'agent-client'
+                    WHEN 'agent_client' THEN 'agent-client'
+                    ELSE 'support-agent'
+                END
+                WHERE product_type IS NULL
+                   OR LOWER(TRIM(product_type)) NOT IN ('support-agent', 'agent-client', 'rdclient')
+            `);
+        } catch (e) {
+            console.warn('[DB] Migration agent_bundles.product_type error:', e.message);
+        }
+    }
+
     function ensureAgentBundleTables(db) {
         db.exec(`
             CREATE TABLE IF NOT EXISTS agent_bundles (
@@ -949,6 +1030,7 @@ function createSqliteAdapter(config) {
                 branding TEXT NOT NULL DEFAULT '{}',
                 branding_hash TEXT NOT NULL DEFAULT '',
                 created_by INTEGER DEFAULT NULL,
+                product_type TEXT NOT NULL DEFAULT 'support-agent',
                 revoked INTEGER NOT NULL DEFAULT 0,
                 download_count INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -978,15 +1060,7 @@ function createSqliteAdapter(config) {
             CREATE INDEX IF NOT EXISTS idx_agent_bundle_builds_status ON agent_bundle_builds (status);
         `);
         migrateAgentBundleSlugsSqlite(db);
-        try {
-            const cols = new Set(db.prepare('PRAGMA table_info(agent_bundles)').all().map(c => c.name));
-            if (!cols.has('product_type')) {
-                db.exec("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'agent'");
-                console.log('[DB] Migration: added agent_bundles.product_type');
-            }
-        } catch (e) {
-            console.warn('[DB] Migration agent_bundles.product_type error:', e.message);
-        }
+        migrateAgentBundleProductTypesSqlite(db);
     }
 
     // -- Multi-tenancy tables ----------------------------------------------
@@ -1274,8 +1348,31 @@ function createSqliteAdapter(config) {
         },
 
         async close() {
+            if (authDb && !authUsesMain) { authDb.close(); }
+            authDb = null;
+            authUsesMain = false;
             if (mainDb) { mainDb.close(); mainDb = null; }
-            if (authDb) { authDb.close(); authDb = null; }
+        },
+
+        /**
+         * Shared better-sqlite3 handle for db_v2.sqlite3 (#353).
+         * Callers must not close this — adapter.close() owns lifecycle.
+         */
+        getSqliteMainDb() {
+            return openMain();
+        },
+
+        /** Absolute/configured path for the shared main SQLite file. */
+        getSqliteDbPath() {
+            return config.dbPath;
+        },
+
+        /**
+         * Shared auth SQLite handle (main DB when consolidated, else auth.db).
+         * Callers must not close this — adapter.close() owns lifecycle.
+         */
+        getSqliteAuthDb() {
+            return openAuth();
         },
 
         // ---- Peers ----
@@ -1656,10 +1753,28 @@ function createSqliteAdapter(config) {
         // ---- Address books ----
 
         async getAddressBook(userId, abType = 'legacy') {
-            return openAuth().prepare('SELECT * FROM address_books WHERE user_id = ? AND ab_type = ?').get(userId, abType) || null;
+            const db = openAuth();
+            if (usesUsernameAddressBooks(db)) {
+                const username = usernameForUserId(db, userId);
+                return username
+                    ? db.prepare('SELECT * FROM address_books WHERE username = ? AND ab_type = ?').get(username, abType) || null
+                    : null;
+            }
+            return db.prepare('SELECT * FROM address_books WHERE user_id = ? AND ab_type = ?').get(userId, abType) || null;
         },
         async saveAddressBook(userId, abType, data) {
-            openAuth().prepare(`
+            const db = openAuth();
+            if (usesUsernameAddressBooks(db)) {
+                const username = usernameForUserId(db, userId);
+                if (!username) return;
+                db.prepare(`
+                    INSERT INTO address_books (username, ab_type, data, updated_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                    ON CONFLICT(username, ab_type) DO UPDATE SET data = excluded.data, updated_at = datetime('now')
+                `).run(username, abType, data);
+                return;
+            }
+            db.prepare(`
                 INSERT INTO address_books (user_id, ab_type, data, updated_at)
                 VALUES (?, ?, ?, datetime('now'))
                 ON CONFLICT(user_id, ab_type) DO UPDATE SET data = excluded.data, updated_at = datetime('now')
@@ -1865,9 +1980,15 @@ function createSqliteAdapter(config) {
             return openAuth().prepare('SELECT * FROM users ORDER BY id').all();
         },
         async getAllAddressBooks() {
-            return openAuth().prepare(
-                'SELECT user_id, ab_type, data, updated_at FROM address_books ORDER BY user_id'
-            ).all();
+            const db = openAuth();
+            if (usesUsernameAddressBooks(db)) {
+                return db.prepare(`
+                    SELECT u.id AS user_id, ab.ab_type, ab.data, ab.updated_at
+                    FROM address_books ab INNER JOIN users u ON u.username = ab.username
+                    ORDER BY u.id
+                `).all();
+            }
+            return db.prepare('SELECT user_id, ab_type, data, updated_at FROM address_books ORDER BY user_id').all();
         },
         async restoreUsers(users) {
             const db = openAuth();
@@ -1906,7 +2027,9 @@ function createSqliteAdapter(config) {
          * Used by full backups for a 1:1 raw file copy. Returns null for PostgreSQL.
          */
         getDatabaseFilePath() {
-            return path.join(config.dataDir, 'auth.db');
+            return authStorageIsConsolidated()
+                ? config.dbPath
+                : (config.authDbPath || path.join(config.dataDir, 'auth.db'));
         },
 
         /**
@@ -3387,7 +3510,15 @@ function createSqliteAdapter(config) {
         // ---- Address Book Tags ----
 
         async getAddressBookTags(userId) {
-            const row = openAuth().prepare('SELECT data FROM address_books WHERE user_id = ? AND ab_type = ?').get(userId, 'legacy');
+            const db = openAuth();
+            const row = usesUsernameAddressBooks(db)
+                ? (() => {
+                    const username = usernameForUserId(db, userId);
+                    return username
+                        ? db.prepare('SELECT data FROM address_books WHERE username = ? AND ab_type = ?').get(username, 'legacy')
+                        : null;
+                })()
+                : db.prepare('SELECT data FROM address_books WHERE user_id = ? AND ab_type = ?').get(userId, 'legacy');
             if (!row) return [];
             try { return JSON.parse(row.data).tags || []; } catch { return []; }
         },
@@ -3463,7 +3594,15 @@ function createSqliteAdapter(config) {
             const r = db.prepare(`
                 INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by, product_type)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).run(bundleId, slug || null, name, branding, brandingHash, createdBy || null, productType || 'agent');
+            `).run(
+                bundleId,
+                slug || null,
+                name,
+                branding,
+                brandingHash,
+                createdBy || null,
+                normalizeProductType(productType)
+            );
             return db.prepare('SELECT * FROM agent_bundles WHERE id = ?').get(r.lastInsertRowid);
         },
 
@@ -3512,14 +3651,13 @@ function createSqliteAdapter(config) {
 
         async upsertAgentBundleBuild({ brandingHash, platform, arch, format, status, artifactPath, artifactSize, artifactSha256, errorMessage }) {
             const db = openMain();
-            const ts = (status === 'building') ? "datetime('now')" : 'started_at';
-            const finishTs = (status === 'ready' || status === 'failed') ? "datetime('now')" : 'finished_at';
+            const buildStatus = normalizeBuildStatus(status);
             db.prepare(`
                 INSERT INTO agent_bundle_builds (
                     branding_hash, platform, arch, format, status,
                     artifact_path, artifact_size, artifact_sha256, error_message,
                     started_at, finished_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${status === 'building' ? "datetime('now')" : 'NULL'}, ${status === 'ready' || status === 'failed' ? "datetime('now')" : 'NULL'})
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${buildStatus === 'building' ? "datetime('now')" : 'NULL'}, ${buildStatus === 'ready' || buildStatus === 'failed' ? "datetime('now')" : 'NULL'})
                 ON CONFLICT(branding_hash, platform, arch, format) DO UPDATE SET
                     status = excluded.status,
                     artifact_path = COALESCE(excluded.artifact_path, agent_bundle_builds.artifact_path),
@@ -3530,7 +3668,7 @@ function createSqliteAdapter(config) {
                     finished_at = CASE WHEN excluded.status IN ('ready','failed') THEN datetime('now') ELSE agent_bundle_builds.finished_at END,
                     updated_at = datetime('now')
             `).run(
-                brandingHash, platform, arch, format, status,
+                brandingHash, platform, arch, format, buildStatus,
                 artifactPath || null, artifactSize || 0, artifactSha256 || null, errorMessage || ''
             );
             return this.getAgentBundleBuild({ brandingHash, platform, arch, format });
@@ -4080,6 +4218,7 @@ function createPostgresAdapter() {
                 branding TEXT NOT NULL DEFAULT '{}',
                 branding_hash TEXT NOT NULL DEFAULT '',
                 created_by INTEGER DEFAULT NULL,
+                product_type TEXT NOT NULL DEFAULT 'support-agent',
                 revoked BOOLEAN NOT NULL DEFAULT FALSE,
                 download_count INTEGER NOT NULL DEFAULT 0,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -4110,6 +4249,36 @@ function createPostgresAdapter() {
             }
         } catch (e) {
             console.warn('[DB] Migration agent_bundles.slug error:', e.message);
+        }
+        try {
+            const productTypeCols = await all(
+                `SELECT is_nullable, column_default FROM information_schema.columns
+                 WHERE table_name = 'agent_bundles' AND column_name = 'product_type'`
+            );
+            if (productTypeCols.length === 0) {
+                await q("ALTER TABLE agent_bundles ADD COLUMN product_type TEXT NOT NULL DEFAULT 'support-agent'");
+                console.log('[DB] Migration: added agent_bundles.product_type');
+            } else {
+                await q(`
+                    UPDATE agent_bundles
+                    SET product_type = CASE LOWER(TRIM(COALESCE(product_type, '')))
+                        WHEN 'rdclient' THEN 'rdclient'
+                        WHEN 'agent-client' THEN 'agent-client'
+                        WHEN 'agent_client' THEN 'agent-client'
+                        ELSE 'support-agent'
+                    END
+                    WHERE product_type IS NULL
+                       OR LOWER(TRIM(product_type)) NOT IN ('support-agent', 'agent-client', 'rdclient')
+                `);
+                if (productTypeCols[0].is_nullable === 'YES') {
+                    await q('ALTER TABLE agent_bundles ALTER COLUMN product_type SET NOT NULL');
+                }
+                if (!String(productTypeCols[0].column_default || '').includes('support-agent')) {
+                    await q("ALTER TABLE agent_bundles ALTER COLUMN product_type SET DEFAULT 'support-agent'");
+                }
+            }
+        } catch (e) {
+            console.warn('[DB] Migration agent_bundles.product_type error:', e.message);
         }
         await q(`
             CREATE TABLE IF NOT EXISTS agent_bundle_builds (
@@ -6759,12 +6928,20 @@ function createPostgresAdapter() {
             return excludeBundleId ? row.bundle_id !== excludeBundleId : true;
         },
 
-        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy }) {
+        async createAgentBundle({ bundleId, slug, name, branding, brandingHash, createdBy, productType }) {
             return one(`
-                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO agent_bundles (bundle_id, slug, name, branding, branding_hash, created_by, product_type)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING *
-            `, [bundleId, slug || null, name, branding, brandingHash, createdBy || null]);
+            `, [
+                bundleId,
+                slug || null,
+                name,
+                branding,
+                brandingHash,
+                createdBy || null,
+                normalizeProductType(productType),
+            ]);
         },
 
         async updateAgentBundle(bundleId, { name, slug, branding, brandingHash }) {
@@ -6810,6 +6987,7 @@ function createPostgresAdapter() {
         },
 
         async upsertAgentBundleBuild({ brandingHash, platform, arch, format, status, artifactPath, artifactSize, artifactSha256, errorMessage }) {
+            const buildStatus = normalizeBuildStatus(status);
             return one(`
                 INSERT INTO agent_bundle_builds (
                     branding_hash, platform, arch, format, status,
@@ -6830,7 +7008,7 @@ function createPostgresAdapter() {
                     finished_at = CASE WHEN EXCLUDED.status IN ('ready','failed') THEN NOW() ELSE agent_bundle_builds.finished_at END,
                     updated_at = NOW()
                 RETURNING *
-            `, [brandingHash, platform, arch, format, status, artifactPath || null, artifactSize || 0, artifactSha256 || null, errorMessage || '']);
+            `, [brandingHash, platform, arch, format, buildStatus, artifactPath || null, artifactSize || 0, artifactSha256 || null, errorMessage || '']);
         },
 
         // ---- Integration Housekeeping ----
@@ -6873,4 +7051,19 @@ function getAdapter(config) {
     return _adapter;
 }
 
-module.exports = { getAdapter, DB_TYPE };
+/**
+ * Return the process-wide SQLite main handle when the adapter is already
+ * initialized for the same path. Does not create an adapter (#353).
+ * @param {string} dbPath
+ * @returns {import('better-sqlite3').Database|null}
+ */
+function getSharedSqliteMainDbIfReady(dbPath) {
+    if (!_adapter || typeof _adapter.getSqliteMainDb !== 'function') return null;
+    if (typeof _adapter.getSqliteDbPath !== 'function') return null;
+    const adapterPath = _adapter.getSqliteDbPath();
+    if (!dbPath || !adapterPath) return null;
+    if (path.resolve(String(adapterPath)) !== path.resolve(String(dbPath))) return null;
+    return _adapter.getSqliteMainDb();
+}
+
+module.exports = { getAdapter, getSharedSqliteMainDbIfReady, DB_TYPE };

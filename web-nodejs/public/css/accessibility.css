@@ -38,6 +38,18 @@ html[data-a11y-font-scaled="true"] .sidebar-rail-btn .material-icons {
     font-size: calc(22px * var(--bd-a11y-font-scale, 1));
 }
 
+/* UX 3.5 keeps its chrome geometry stable, but navigation needs to remain
+   readable when the operator chooses a larger type scale. */
+html[data-a11y-font-scaled="true"] .ux35-sidebar-item,
+html[data-a11y-font-scaled="true"] .ux35-sidebar-user-name {
+    font-size: calc(13px * var(--bd-a11y-font-scale, 1));
+}
+
+html[data-a11y-font-scaled="true"] .ux35-sidebar-heading,
+html[data-a11y-font-scaled="true"] .ux35-sidebar-user-role {
+    font-size: calc(11px * var(--bd-a11y-font-scale, 1));
+}
+
 html[data-a11y-active="true"] .main-content,
 html[data-a11y-active="true"] .sidebar-flyout,
 html[data-a11y-active="true"] .bd-a11y-modal {
@@ -116,6 +128,10 @@ html[data-a11y-contrast="high-dark"] {
     --sidebar-cat-system-muted: rgba(217, 184, 255, 0.28);
     --sidebar-cat-server-mgmt-accent: #ffb89a;
     --sidebar-cat-server-mgmt-muted: rgba(255, 184, 154, 0.28);
+    --ux35-topbar-bg: #000000;
+    --ux35-topbar-fg: #ffffff;
+    --ux35-topbar-fg-muted: #f2f2f2;
+    --ux35-topbar-border: #ffffff;
 }
 
 html[data-a11y-contrast="high-light"] {
@@ -158,6 +174,10 @@ html[data-a11y-contrast="high-light"] {
     --sidebar-cat-system-muted: rgba(90, 31, 158, 0.14);
     --sidebar-cat-server-mgmt-accent: #9a3b1a;
     --sidebar-cat-server-mgmt-muted: rgba(154, 59, 26, 0.14);
+    --ux35-topbar-bg: #ffffff;
+    --ux35-topbar-fg: #000000;
+    --ux35-topbar-fg-muted: #1f2937;
+    --ux35-topbar-border: #000000;
 }
 
 html[data-a11y-contrast="yellow-black"] {
@@ -200,6 +220,10 @@ html[data-a11y-contrast="yellow-black"] {
     --sidebar-cat-system-muted: rgba(217, 184, 255, 0.24);
     --sidebar-cat-server-mgmt-accent: #ffb89a;
     --sidebar-cat-server-mgmt-muted: rgba(255, 184, 154, 0.24);
+    --ux35-topbar-bg: #000000;
+    --ux35-topbar-fg: #fff36d;
+    --ux35-topbar-fg-muted: #ffe66d;
+    --ux35-topbar-border: #fff36d;
 }
 
 /* Apply color filters on body — NOT on .main-wrapper (breaks position:fixed navbar offset) */
@@ -228,6 +252,9 @@ html[data-a11y-highlight-links="true"] .main-content a,
 html[data-a11y-highlight-links="true"] .main-content button:not(.modal-close):not(.navbar-btn),
 html[data-a11y-highlight-links="true"] .sidebar-flyout a,
 html[data-a11y-highlight-links="true"] .sidebar-flyout button,
+html[data-a11y-highlight-links="true"] .ux35-sidebar a,
+html[data-a11y-highlight-links="true"] .ux35-sidebar button,
+html[data-a11y-highlight-links="true"] .ux35-topbar button,
 html[data-a11y-highlight-links="true"] .bd-a11y-modal a,
 html[data-a11y-highlight-links="true"] .bd-a11y-modal button:not(.bd-a11y-close) {
     outline: 2px solid var(--accent-blue) !important;
