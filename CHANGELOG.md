@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.19] — 2026-08-09
+
 ### Fixed
 - **RdClient desktop — local file Copy never enables remote Paste:** right-click / focus races set “input priority” and **cancelled** Cliprdr sync, so FormatList never reached the peer and Explorer Paste stayed grey. Sync is still not awaited on the click path (menu stays responsive), but a deferred flush now advertises CF_HDROP after the priority window. Ships via panel update (`remote.js` / `cliprdr.js`); no desktop rebuild required for this JS-only fix.
 
@@ -2725,3 +2732,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.16]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.15...v3.5.16
 [3.5.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.16...v3.5.17
 [3.5.18]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.17...v3.5.18
+[3.5.19]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.18...v3.5.19
