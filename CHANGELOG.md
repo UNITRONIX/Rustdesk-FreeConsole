@@ -1,4 +1,11 @@
 ## [Unreleased]
+
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.18] — 2026-08-09
 - **RdClient desktop — right-click context menu still laggy after prior Cliprdr fixes:** mouse down/up were already sent immediately, but remote Explorer still blocked the menu on Cliprdr `FormatData` while that reply waited on Tauri IPC (and could queue behind `FileContents` / clipboard poll `spawn_blocking`). Sync now returns the pre-built FILEGROUPDESCRIPTOR for an in-memory JS cache; FormatData answers from that cache with no IPC, is no longer serialized behind FileContents, and clipboard polls/focus sync pause briefly during clicks. FormatData on the Rust side is cache-hit only (no lazy tree walk). Requires rebuilt `rdclient-desktop` **and** panel update (`cliprdr.js` / `remote.js` / `input.js`).
 
 ### Changed
@@ -2714,3 +2721,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.14...v3.5.15
 [3.5.16]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.15...v3.5.16
 [3.5.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.16...v3.5.17
+[3.5.18]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.17...v3.5.18
