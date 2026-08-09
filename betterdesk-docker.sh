@@ -1408,7 +1408,7 @@ do_install() {
 #===============================================================================
 
 # GitHub repository configuration for online updates
-UPDATE_GITHUB_OWNER="${UPDATE_GITHUB_OWNER:-UNITRONIX}"
+UPDATE_GITHUB_OWNER="${UPDATE_GITHUB_OWNER:-Chesster1981}"
 UPDATE_GITHUB_REPO="${UPDATE_GITHUB_REPO:-BetterDesk}"
 UPDATE_GITHUB_BRANCH="${UPDATE_GITHUB_BRANCH:-main}"
 

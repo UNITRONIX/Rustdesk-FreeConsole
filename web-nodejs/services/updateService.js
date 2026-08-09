@@ -6,7 +6,7 @@
  * categorises them by component (console / server / agent / scripts),
  * applies updates, and restarts affected services.
  *
- * GitHub repo:  UNITRONIX/BetterDesk
+ * GitHub repo:  Chesster1981/BetterDesk (fork default; override via UPDATE_GITHUB_OWNER)
  * Tracking:     data/.update_sha (deployed commit SHA)
  *
  * Flow:
@@ -62,7 +62,7 @@ const {
 } = require('../lib/windowsNssmRestart');
 const { ensureWindowsConsoleAppExitRestart, ensureWindowsConsoleServiceEnvFlag } = require('../lib/windowsConsoleSelfRestart');
 
-const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'UNITRONIX';
+const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'Chesster1981';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
 const GITHUB_API    = 'https://api.github.com';
 

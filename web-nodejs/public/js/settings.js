@@ -2849,7 +2849,7 @@
             renderUpdateChannelBadge(data);
             if (branchEl) {
                 branchEl.textContent = data?.branch
-                    ? `${data.branch} · ${data.owner || 'UNITRONIX'}/${data.repo || 'BetterDesk'}`
+                    ? `${data.branch} · ${data.owner || 'Chesster1981'}/${data.repo || 'BetterDesk'}`
                     : '—';
             }
         } catch (_e) {

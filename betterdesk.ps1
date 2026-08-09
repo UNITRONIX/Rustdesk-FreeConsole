@@ -3024,7 +3024,7 @@ function Do-Install {
 #===============================================================================
 
 # GitHub repository configuration for online updates
-$script:UPDATE_GITHUB_OWNER = if ($env:UPDATE_GITHUB_OWNER) { $env:UPDATE_GITHUB_OWNER } else { "UNITRONIX" }
+$script:UPDATE_GITHUB_OWNER = if ($env:UPDATE_GITHUB_OWNER) { $env:UPDATE_GITHUB_OWNER } else { "Chesster1981" }
 $script:UPDATE_GITHUB_REPO = if ($env:UPDATE_GITHUB_REPO) { $env:UPDATE_GITHUB_REPO } else { "BetterDesk" }
 $script:UPDATE_GITHUB_BRANCH = if ($env:UPDATE_GITHUB_BRANCH) { $env:UPDATE_GITHUB_BRANCH } else { "main" }
 

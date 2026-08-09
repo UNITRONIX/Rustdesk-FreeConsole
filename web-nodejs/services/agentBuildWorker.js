@@ -470,7 +470,7 @@ async function stageSourcesFromGitHub({ remoteSHA, files, download }) {
     if (!files?.length || typeof download !== 'function') {
         return { staged: 0 };
     }
-    const owner = process.env.UPDATE_GITHUB_OWNER || 'UNITRONIX';
+    const owner = process.env.UPDATE_GITHUB_OWNER || 'Chesster1981';
     const repo = process.env.UPDATE_GITHUB_REPO || 'BetterDesk';
     let staged = 0;
     for (const file of files) {
@@ -491,7 +491,7 @@ async function syncFullAgentSourceFromGitHub({ remoteSHA, download, listPaths })
     if (typeof download !== 'function' || typeof listPaths !== 'function') {
         throw new Error('download and listPaths are required');
     }
-    const owner = process.env.UPDATE_GITHUB_OWNER || 'UNITRONIX';
+    const owner = process.env.UPDATE_GITHUB_OWNER || 'Chesster1981';
     const repo = process.env.UPDATE_GITHUB_REPO || 'BetterDesk';
     const allPaths = await listPaths(remoteSHA);
     const agentPaths = allPaths.filter((fp) =>
