@@ -502,26 +502,106 @@
     // The browser cannot observe clipboard changes, but it can read the
     // clipboard once the tab regains focus (with transient activation), so we
     // push the current local clipboard to the active streaming session then.
+    //
+    // Never run this on right/middle-click: Desktop Cliprdr sync + FormatData
+    // share a cache lock with remote Explorer context-menu probes.
+    //
+    // Focus/left-click must stay fire-and-forget: sync Tauri clipboard commands
+    // on the WebView UI thread self-deadlock OpenClipboard after a local file
+    // Copy (~30s) and freeze click/menu delivery.
+    //
+    // Critical: Explorer file copies also expose a path as CF_UNICODETEXT.
+    // Sending that text Clipboard message after Cliprdr FormatList clears file
+    // formats on the peer — always syncCliprdrFiles first and skip text when
+    // CF_HDROP is present (this is what made Paste appear to "do nothing").
+    function _clipDebug() {
+        if (window.BetterDesk && window.BetterDesk.debugRelay) {
+            console.log.apply(console, ['[ClipboardSync]'].concat(Array.prototype.slice.call(arguments)));
+        }
+    }
     let _lastSyncedClipboard = '';
-    async function syncLocalClipboardToRemote() {
+    let _clipSyncTimer = null;
+    let _clipSyncQueued = false;
+    async function syncLocalClipboardToRemote(ev) {
+        if (typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.shouldSyncOnUserGesture === 'function'
+            && !RDCliprdr.shouldSyncOnUserGesture(ev)) {
+            _clipDebug('skip: non-left mouse button (keep remote context menu responsive)');
+            return;
+        }
         const session = getActiveSession();
-        if (!session || !session.client || session.state !== 'streaming') return;
-        if (session.client.viewOnly) return;
-        if (!navigator.clipboard || !navigator.clipboard.readText) return;
+        if (!session || !session.client || session.state !== 'streaming') {
+            _clipDebug('skip: no active streaming session', session && session.state);
+            return;
+        }
+        if (session.client.viewOnly) {
+            _clipDebug('skip: view-only session');
+            return;
+        }
+        if (session.client._lastSyncedClipboardHint) {
+            _lastSyncedClipboard = session.client._lastSyncedClipboardHint;
+        }
+        let hasFiles = false;
+        if (window.__BETTERDESK_RDCLIENT_DESKTOP__ && typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
+            _clipDebug('desktop bridge detected -> syncCliprdrFiles()');
+            try {
+                const sync = await session.client.syncCliprdrFiles();
+                hasFiles = !!(sync && sync.hasFiles);
+                if (sync && sync.busy) {
+                    _clipDebug('Cliprdr sync busy — skipping text push');
+                    return;
+                }
+            } catch (err) {
+                _clipDebug('syncCliprdrFiles failed:', err && err.message ? err.message : err);
+            }
+        } else if (window.__BETTERDESK_RDCLIENT_DESKTOP__) {
+            _clipDebug('desktop flag set but RDCliprdr.isSupported() is false — check window.__TAURI__.core.invoke');
+        }
+        if (hasFiles) {
+            _clipDebug('skip text clipboard: local file clipboard (CF_HDROP) present');
+            return;
+        }
+        if (typeof session.client.flushPendingLocalClipboard === 'function') {
+            try {
+                await session.client.flushPendingLocalClipboard();
+            } catch (_) { /* ignore */ }
+        }
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+            _clipDebug('skip: navigator.clipboard.readText unavailable in this webview');
+            return;
+        }
         try {
             const text = await navigator.clipboard.readText();
+            _clipDebug('readText() ok, length=', text ? text.length : 0);
             if (text && text !== _lastSyncedClipboard) {
                 _lastSyncedClipboard = text;
                 session.client.sendClipboard(text);
+                _clipDebug('sendClipboard() called');
             }
-        } catch {
-            // Permission denied or not focused — ignore, the manual paste
-            // button remains available as a fallback.
+        } catch (err) {
+            _clipDebug('readText() FAILED:', err && err.message ? err.message : err);
         }
     }
-    window.addEventListener('focus', syncLocalClipboardToRemote);
+    function scheduleLocalClipboardSync(ev) {
+        if (typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.shouldSyncOnUserGesture === 'function'
+            && !RDCliprdr.shouldSyncOnUserGesture(ev)) {
+            return;
+        }
+        _clipSyncQueued = true;
+        if (_clipSyncTimer) return;
+        _clipSyncTimer = setTimeout(function () {
+            _clipSyncTimer = null;
+            if (!_clipSyncQueued) return;
+            _clipSyncQueued = false;
+            void syncLocalClipboardToRemote({ button: 0 });
+        }, 200);
+    }
+    window.addEventListener('focus', function () {
+        void syncLocalClipboardToRemote(null);
+    });
     if (viewerContainer) {
-        viewerContainer.addEventListener('mousedown', syncLocalClipboardToRemote);
+        viewerContainer.addEventListener('mousedown', scheduleLocalClipboardSync);
     }
 
 
@@ -987,6 +1067,16 @@
         c.on('signature_warning', (msg) => {
             console.warn('[Remote] Signature warning:', msg);
             showSecurityWarning(session, msg, 'warning');
+        });
+        c.on('cliprdr_too_large', (info) => {
+            const sig = (info && info.signature) || '';
+            if (sig && session._cliprdrTooLargeToastSig === sig) return;
+            if (sig) session._cliprdrTooLargeToastSig = sig;
+            showToast(
+                _('remote.cliprdr_use_file_transfer')
+                || 'This folder is too large for clipboard paste. Use File transfer to avoid freezing the remote desktop.',
+                'warning'
+            );
         });
         c.on('encryption_warning', (msg) => {
             console.warn('[Remote] Encryption warning:', msg);

@@ -158,6 +158,17 @@
         static FILEDESCRIPTOR_FORMAT_NAME = 'FileGroupDescriptorW';
         static FILECONTENTS_FORMAT_NAME = 'FileContents';
 
+        /**
+         * Right/middle-click must not kick off Cliprdr IPC. Remote Explorer builds
+         * its context menu via FormatData; concurrent sync holding the desktop
+         * cache lock (or re-walking trees) stalls that path for tens of seconds.
+         * @param {MouseEvent|{button?: number}|null|undefined} ev
+         * @returns {boolean}
+         */
+        static shouldSyncOnUserGesture(ev) {
+            if (!ev || typeof ev.button !== 'number') return true;
+            return ev.button === 0;
+        }
         static isSupported() {
             return isDesktopBridge();
         }
@@ -273,10 +284,8 @@
             client._cliprdrPollTimer = setInterval(function () {
                 if (client._state !== 'streaming' || client.viewOnly) return;
                 if (client._cliprdrSyncInFlight || client._cliprdrReceiving) return;
-                client._cliprdrSyncInFlight = true;
-                Promise.resolve(RDCliprdr.syncLocalFiles(client)).finally(function () {
-                    client._cliprdrSyncInFlight = false;
-                });
+                // Fire-and-forget — never await on the timer tick (input path).
+                void RDCliprdr.syncLocalFiles(client);
             }, CLIP_POLL_MS);
         }
 
@@ -303,77 +312,105 @@
                 return { hasFiles: false, signature: client._cliprdrLocalSignature || '', busy: false };
             }
 
-            var sync;
+            // Clipboard polls (focus/click/timer) must not stack. DnD paths always run.
+            var fromClipboard = !(paths && paths.length);
+            if (fromClipboard && client._cliprdrSyncInFlight) {
+                client._cliprdrSyncQueued = true;
+                debugLog('syncPaths skipped: already in flight (queued follow-up)');
+                return {
+                    hasFiles: !!client._cliprdrLocalSignature,
+                    signature: client._cliprdrLocalSignature || '',
+                    busy: true
+                };
+            }
+            if (fromClipboard) {
+                client._cliprdrSyncInFlight = true;
+                client._cliprdrSyncQueued = false;
+            }
+
             try {
-                if (paths && paths.length) {
-                    sync = await desktopInvoke('desktop_clipboard_sync_paths', { paths: paths });
-                } else {
-                    sync = await desktopInvoke('desktop_clipboard_sync');
-                }
-            } catch (err) {
-                console.warn('[RDCliprdr] sync failed:', err);
-                return { hasFiles: false, signature: '', busy: false };
-            }
-
-            debugLog('sync result:', sync, paths ? paths.length + ' path(s) supplied' : 'clipboard poll');
-
-            if (sync && sync.busy) {
-                return sync;
-            }
-
-            if (!sync || !sync.hasFiles) {
-                if (!paths) client._cliprdrLocalSignature = '';
-                return sync || { hasFiles: false, signature: '', busy: false };
-            }
-
-            var signature = sync.signature || '';
-            var tooLarge = !!(sync.tooLarge || sync.too_large);
-            // DnD paths must always re-advertise + auto-paste even if signature matches
-            // a prior clipboard copy of the same files.
-            var forceAdvertise = !!(paths && paths.length);
-            if (!forceAdvertise && signature && signature === client._cliprdrLocalSignature) {
-                return sync;
-            }
-            client._cliprdrLocalSignature = signature;
-
-            // Large folder trees freeze remote Explorer over the shared desktop
-            // relay — refuse Cliprdr and steer to dedicated File transfer.
-            if (tooLarge) {
-                console.warn(
-                    '[RDCliprdr] selection too large for Cliprdr paste (' +
-                    (sync.entryCount || sync.entry_count || '?') + ' entries / ' +
-                    (sync.totalBytes || sync.total_bytes || '?') +
-                    ' bytes) — use File transfer'
-                );
+                var sync;
                 try {
-                    client._emit('cliprdr_too_large', {
-                        signature: signature,
-                        entryCount: Number(sync.entryCount != null ? sync.entryCount : (sync.entry_count || 0)),
-                        totalBytes: Number(sync.totalBytes != null ? sync.totalBytes : (sync.total_bytes || 0))
-                    });
-                } catch (_) { /* ignore */ }
+                    if (paths && paths.length) {
+                        sync = await desktopInvoke('desktop_clipboard_sync_paths', { paths: paths });
+                    } else {
+                        sync = await desktopInvoke('desktop_clipboard_sync');
+                    }
+                } catch (err) {
+                    console.warn('[RDCliprdr] sync failed:', err);
+                    return { hasFiles: false, signature: '', busy: false };
+                }
+
+                debugLog('sync result:', sync, paths ? paths.length + ' path(s) supplied' : 'clipboard poll');
+
+                if (sync && sync.busy) {
+                    return sync;
+                }
+
+                if (!sync || !sync.hasFiles) {
+                    if (!paths) client._cliprdrLocalSignature = '';
+                    return sync || { hasFiles: false, signature: '', busy: false };
+                }
+
+                var signature = sync.signature || '';
+                var tooLarge = !!(sync.tooLarge || sync.too_large);
+                // DnD paths must always re-advertise + auto-paste even if signature matches
+                // a prior clipboard copy of the same files.
+                var forceAdvertise = !!(paths && paths.length);
+                if (!forceAdvertise && signature && signature === client._cliprdrLocalSignature) {
+                    return sync;
+                }
+                client._cliprdrLocalSignature = signature;
+
+                // Large folder trees freeze remote Explorer over the shared desktop
+                // relay — refuse Cliprdr and steer to dedicated File transfer.
+                if (tooLarge) {
+                    console.warn(
+                        '[RDCliprdr] selection too large for Cliprdr paste (' +
+                        (sync.entryCount || sync.entry_count || '?') + ' entries / ' +
+                        (sync.totalBytes || sync.total_bytes || '?') +
+                        ' bytes) — use File transfer'
+                    );
+                    try {
+                        client._emit('cliprdr_too_large', {
+                            signature: signature,
+                            entryCount: Number(sync.entryCount != null ? sync.entryCount : (sync.entry_count || 0)),
+                            totalBytes: Number(sync.totalBytes != null ? sync.totalBytes : (sync.total_bytes || 0))
+                        });
+                    } catch (_) { /* ignore */ }
+                    return sync;
+                }
+
+                debugLog('FormatList', paths ? paths.length + ' path(s)' : 'clipboard');
+                if (client._cliprdrFormatNames == null) {
+                    client._cliprdrFormatNames = await desktopInvoke('desktop_clipboard_format_names').catch(function () { return null; });
+                }
+
+                var formatListAck = null;
+                if (forceAdvertise) {
+                    formatListAck = RDCliprdr._waitFormatListAck(client, 2500);
+                }
+                // Never await FormatList ACK on the clipboard/focus path — that would
+                // delay click delivery. DnD auto-paste waits separately.
+                client._sendPeerMessage(client.proto.buildCliprdrFormatList(
+                    client._cliprdrFormatNames || undefined
+                ));
+
+                // Explicit paths = OS drag-drop onto the viewer — focus the drop
+                // point on the remote, wait briefly for FormatList ack, then Ctrl+V.
+                if (forceAdvertise && client.input) {
+                    RDCliprdr._autoPasteAfterDrop(client, position, formatListAck);
+                }
                 return sync;
+            } finally {
+                if (fromClipboard) {
+                    client._cliprdrSyncInFlight = false;
+                    if (client._cliprdrSyncQueued) {
+                        client._cliprdrSyncQueued = false;
+                        void RDCliprdr.syncLocalFiles(client);
+                    }
+                }
             }
-
-            debugLog('FormatList', paths ? paths.length + ' path(s)' : 'clipboard');
-            if (client._cliprdrFormatNames == null) {
-                client._cliprdrFormatNames = await desktopInvoke('desktop_clipboard_format_names').catch(function () { return null; });
-            }
-
-            var formatListAck = null;
-            if (forceAdvertise) {
-                formatListAck = RDCliprdr._waitFormatListAck(client, 2500);
-            }
-            client._sendPeerMessage(client.proto.buildCliprdrFormatList(
-                client._cliprdrFormatNames || undefined
-            ));
-
-            // Explicit paths = OS drag-drop onto the viewer — focus the drop
-            // point on the remote, wait briefly for FormatList ack, then Ctrl+V.
-            if (forceAdvertise && client.input) {
-                RDCliprdr._autoPasteAfterDrop(client, position, formatListAck);
-            }
-            return sync;
         }
 
         static _waitFormatListAck(client, timeoutMs) {

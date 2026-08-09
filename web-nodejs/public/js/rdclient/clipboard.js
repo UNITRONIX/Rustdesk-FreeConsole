@@ -213,30 +213,34 @@ class RDClipboard {
      * @param {Object[]} decodedEntries
      * @param {Object} [opts]
      * @param {boolean} [opts.enabled]
-     * @returns {Promise<void>}
+     * @returns {Promise<{wrote: boolean, text: string}>}
      */
     static async applyToLocal(decodedEntries, opts) {
+        const empty = { wrote: false, text: '' };
         const options = opts || {};
-        if (!options.enabled) return;
-        if (!navigator.clipboard) return;
+        if (!options.enabled) return empty;
+        if (!navigator.clipboard) return empty;
 
         const entries = (decodedEntries || []).filter(Boolean);
-        if (!entries.length) return;
+        if (!entries.length) return empty;
 
         const text = RDClipboard.pickBestText(entries);
         const htmlEntry = entries.find((e) => e.format === 'html' && e.html);
         const pngEntry = entries.find((e) => e.pngBlob);
         const svgEntry = entries.find((e) => e.format === 'image/svg+xml' && e.svgText);
+        const result = { wrote: false, text: text || '' };
 
         try {
             if (pngEntry && navigator.clipboard.write && typeof ClipboardItem !== 'undefined') {
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngEntry.pngBlob })]);
-                return;
+                result.wrote = true;
+                return result;
             }
             if (svgEntry && navigator.clipboard.write && typeof ClipboardItem !== 'undefined') {
                 const blob = new Blob([svgEntry.svgText], { type: 'image/svg+xml' });
                 await navigator.clipboard.write([new ClipboardItem({ 'image/svg+xml': blob })]);
-                return;
+                result.wrote = true;
+                return result;
             }
             if (htmlEntry && navigator.clipboard.write && typeof ClipboardItem !== 'undefined') {
                 const plain = htmlEntry.text || RDClipboard.stripHtml(htmlEntry.html);
@@ -244,20 +248,27 @@ class RDClipboard {
                     'text/html': new Blob([htmlEntry.html], { type: 'text/html' }),
                     'text/plain': new Blob([plain], { type: 'text/plain' })
                 })]);
-                return;
+                result.wrote = true;
+                result.text = plain || result.text;
+                return result;
             }
             if (text && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(text);
+                result.wrote = true;
+                return result;
             }
         } catch (err) {
             if (text && navigator.clipboard.writeText) {
                 try {
                     await navigator.clipboard.writeText(text);
+                    result.wrote = true;
+                    return result;
                 } catch (_) {
-                    // permission denied — ignore
+                    // permission denied / no user gesture — caller may stash text
                 }
             }
         }
+        return result;
     }
 
     /**

@@ -113,6 +113,29 @@ describe('RDClipboard helpers', () => {
         expect(decoded).toHaveLength(1);
         expect(decoded[0].text).toBe('kept');
     });
+
+    it('applyToLocal returns wrote=true when writeText succeeds', async () => {
+        const sandbox = loadRdclientModules();
+        const writeText = sandbox.navigator.clipboard.writeText;
+        writeText.mockResolvedValue(undefined);
+        const result = await sandbox.RDClipboard.applyToLocal(
+            [{ format: 'text', text: 'remote line' }],
+            { enabled: true }
+        );
+        expect(result).toEqual({ wrote: true, text: 'remote line' });
+        expect(writeText).toHaveBeenCalledWith('remote line');
+    });
+
+    it('applyToLocal returns wrote=false and stashes text when write fails', async () => {
+        const sandbox = loadRdclientModules();
+        sandbox.navigator.clipboard.writeText.mockRejectedValue(new Error('denied'));
+        const result = await sandbox.RDClipboard.applyToLocal(
+            [{ format: 'text', text: 'stash me' }],
+            { enabled: true }
+        );
+        expect(result.wrote).toBe(false);
+        expect(result.text).toBe('stash me');
+    });
 });
 
 describe('RDCompress helpers', () => {
@@ -131,6 +154,97 @@ describe('RDCompress helpers', () => {
         const raw = new Uint8Array([72, 105]);
         const out = await RDCompress.decompressZstd(raw);
         expect(Array.from(out)).toEqual([72, 105]);
+    });
+});
+
+describe('RDCliprdr gesture gating', () => {
+    let RDCliprdr;
+    let sandbox;
+
+    beforeAll(() => {
+        sandbox = {
+            console,
+            Uint8Array,
+            ArrayBuffer,
+            setTimeout,
+            clearTimeout,
+            Promise,
+            window: {
+                __BETTERDESK_RDCLIENT_DESKTOP__: true,
+                __TAURI__: { core: { invoke: async () => ({}) } }
+            },
+            globalThis: {}
+        };
+        sandbox.globalThis = sandbox;
+        sandbox.window = Object.assign(sandbox.window, { BetterDesk: undefined });
+        // Minimal stubs so cliprdr.js can define RDCliprdr without LocalFiles.
+        const base = path.join(__dirname, '..', 'public/js/rdclient');
+        vm.runInNewContext(
+            fs.readFileSync(path.join(base, 'cliprdr.js'), 'utf8'),
+            sandbox,
+            { filename: 'cliprdr.js' }
+        );
+        RDCliprdr = sandbox.RDCliprdr || sandbox.window.RDCliprdr;
+    });
+
+    it('skips Cliprdr sync on right/middle mouse button', () => {
+        expect(RDCliprdr.shouldSyncOnUserGesture({ button: 2 })).toBe(false);
+        expect(RDCliprdr.shouldSyncOnUserGesture({ button: 1 })).toBe(false);
+        expect(RDCliprdr.shouldSyncOnUserGesture({ button: 0 })).toBe(true);
+        expect(RDCliprdr.shouldSyncOnUserGesture(null)).toBe(true);
+        expect(RDCliprdr.shouldSyncOnUserGesture(undefined)).toBe(true);
+    });
+
+    it('coalesces clipboard sync while one invoke is in flight', async () => {
+        let resolveSync;
+        const syncPromise = new Promise((resolve) => { resolveSync = resolve; });
+        let invokeCount = 0;
+        sandbox.window.__TAURI__.core.invoke = async (cmd) => {
+            if (cmd === 'desktop_clipboard_sync') {
+                invokeCount += 1;
+                return syncPromise;
+            }
+            if (cmd === 'desktop_clipboard_format_names') {
+                return {
+                    fileDescriptorFormatId: 49334,
+                    fileDescriptorFormatName: 'FileGroupDescriptorW',
+                    fileContentsFormatId: 49267,
+                    fileContentsFormatName: 'FileContents'
+                };
+            }
+            return {};
+        };
+
+        const sent = [];
+        const client = {
+            _state: 'streaming',
+            viewOnly: false,
+            proto: {
+                buildCliprdrFormatList: () => ({ cliprdr: { formatList: {} } })
+            },
+            _sendPeerMessage: (msg) => { sent.push(msg); },
+            _emit: () => {}
+        };
+
+        const first = RDCliprdr.syncLocalFiles(client);
+        const second = await RDCliprdr.syncLocalFiles(client);
+        expect(second.busy).toBe(true);
+        expect(invokeCount).toBe(1);
+
+        resolveSync({
+            hasFiles: true,
+            signature: 'sig-a',
+            busy: false,
+            tooLarge: false,
+            entryCount: 1,
+            totalBytes: 5
+        });
+        const firstResult = await first;
+        expect(firstResult.hasFiles).toBe(true);
+        expect(sent.length).toBeGreaterThanOrEqual(1);
+        // Queued follow-up may start after first finishes.
+        await new Promise((r) => setTimeout(r, 20));
+        expect(invokeCount).toBeGreaterThanOrEqual(1);
     });
 });
 
