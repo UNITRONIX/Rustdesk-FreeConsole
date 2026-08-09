@@ -163,6 +163,30 @@ describe('rustdeskAddressBookSync', () => {
         expect(result.peers[0].note || '').toBe('');
     });
 
+    it('promotes stale AB note to alias when panel has no label', () => {
+        const result = JSON.parse(sync.mergeAddressBookData(JSON.stringify({
+            peers: [{
+                id: '1031876693',
+                hostname: 'dcstrainingserver',
+                username: 'admin',
+                note: 'Training',
+                tags: []
+            }],
+            tags: []
+        }), {
+            devices: [{ id: '1031876693', hostname: 'dcstrainingserver', tags: [] }],
+            includeDevices: false
+        }));
+
+        expect(result.peers[0]).toMatchObject({
+            id: '1031876693',
+            alias: 'Training',
+            hostname: '',
+            username: '',
+            note: ''
+        });
+    });
+
     it('keeps hostname when the panel has no display label', () => {
         const result = JSON.parse(sync.mergeAddressBookData(JSON.stringify({
             peers: [{ id: '1', tags: [] }],
