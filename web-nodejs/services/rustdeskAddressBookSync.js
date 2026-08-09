@@ -96,18 +96,26 @@ function mergePeerFields(existing, device, tags) {
     const panelAlias = displayName || deviceNote;
 
     // Panel display name is the managed RustDesk card title (alias). Note fills
-    // alias only when the peer has no alias yet. Never fall back to hostname —
-    // stock RustDesk already shows hostname on the secondary line.
+    // alias only when the peer has no alias yet. Stale AB cards often keep the
+    // label in note with empty alias — promote that too. Never fall back to
+    // hostname (secondary line on stock RustDesk).
+    const existingAlias = String(peer.alias || '').trim();
+    const existingNote = String(peer.note || '').trim();
     if (displayName) {
         peer.alias = displayName;
-    } else if (!peer.alias && deviceNote) {
+    } else if (!existingAlias && deviceNote) {
         peer.alias = deviceNote;
+    } else if (!existingAlias && existingNote) {
+        peer.alias = existingNote;
     }
 
-    if (panelAlias) {
+    const titleAlias = String(peer.alias || '').trim();
+    const managedTitle = Boolean(panelAlias) ||
+        (!existingAlias && existingNote && titleAlias === existingNote);
+    if (managedTitle && titleAlias) {
         peer.hostname = '';
         peer.username = '';
-        if (String(peer.note || '').trim() === panelAlias) {
+        if (String(peer.note || '').trim() === titleAlias) {
             peer.note = '';
         }
     } else {

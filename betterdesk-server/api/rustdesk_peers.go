@@ -391,13 +391,18 @@ func rustDeskPanelAlias(p *db.Peer) string {
 // rustDeskCardFields maps BetterDesk peer metadata onto RustDesk card slots:
 //   - alias → bold primary title (else client shows formatted ID)
 //   - hostname/username → secondary line (username@hostname); cleared when a
-//     panel label is present so the computer name does not crowd the card
+//     managed label is present so the computer name does not crowd the card
 //   - note → trailing secondary text; cleared when it duplicates alias
+//
+// Title preference: panel display_name → panel note → existing AB alias → AB note.
+// A "managed" title (panel fields, or AB note promoted when alias was empty)
+// hides username@hostname. A client-typed AB alias alone does not.
 //
 // Stock RustDesk cannot put the ID on the secondary line — only alias vs ID
 // for the title, and username@hostname (+ note) below.
-func rustDeskCardFields(p *db.Peer, abAlias, deviceName, username string) (alias, note, outDevice, outUser string) {
+func rustDeskCardFields(p *db.Peer, abAlias, abNote, deviceName, username string) (alias, note, outDevice, outUser string) {
 	abAlias = strings.TrimSpace(abAlias)
+	abNote = strings.TrimSpace(abNote)
 	displayName := ""
 	peerNote := ""
 	if p != nil {
@@ -414,17 +419,28 @@ func rustDeskCardFields(p *db.Peer, abAlias, deviceName, username string) (alias
 		// Panel display name is the managed title for enrolled devices.
 		alias = displayName
 	} else if alias == "" {
-		alias = peerNote
+		if peerNote != "" {
+			alias = peerNote
+		} else if abNote != "" {
+			// Stale AB cards often keep the label in note with empty alias
+			// (pre-fix enrichment only filled hostname). Promote so the bold
+			// title is the label, not the formatted ID.
+			alias = abNote
+		}
 	}
 
 	note = peerNote
+	if note == "" {
+		note = abNote
+	}
 	if alias != "" && note == alias {
 		note = ""
 	}
 
 	outDevice, outUser = deviceName, username
-	if alias != "" && panelAlias != "" {
-		// Hide OS computer name when BetterDesk supplies a display label.
+	managedTitle := panelAlias != "" || (abAlias == "" && abNote != "" && alias == abNote)
+	if alias != "" && managedTitle {
+		// Hide OS computer name when BetterDesk / AB note supplies the title.
 		outDevice, outUser = "", ""
 	}
 	return alias, note, outDevice, outUser
@@ -467,15 +483,19 @@ func rustDeskPeerPayload(
 	deviceGroupName := rustDeskPeerDeviceGroupName(p.ID, assignments, folderNames, manualGroupNames)
 
 	abAlias := ""
+	abNote := ""
 	if abPeer != nil {
 		if ab, ok := abPeer[p.ID]; ok {
 			if a, ok := ab["alias"].(string); ok {
 				abAlias = a
 			}
+			if n, ok := ab["note"].(string); ok {
+				abNote = n
+			}
 		}
 	}
 
-	alias, note, deviceName, username := rustDeskCardFields(p, abAlias, deviceName, username)
+	alias, note, deviceName, username := rustDeskCardFields(p, abAlias, abNote, deviceName, username)
 	// When no panel/AB title is set, keep a non-empty device_name fallback for
 	// clients that still surface hostname in secondary UI chrome.
 	if alias == "" && deviceName == "" {

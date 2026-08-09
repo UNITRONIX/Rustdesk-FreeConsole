@@ -4,7 +4,7 @@
 - _(none yet)_
 
 ### Fixed
-- **Stock RustDesk — address book card shows ID instead of panel name:** peer cards use `alias` as the bold title (else formatted ID) and `username@hostname` (+ `note`) on the secondary line. BetterDesk maps panel **Display name** (else **Note**, else stale AB `note`) into RustDesk `alias`, hides the computer hostname when that managed label is set, and clears a duplicate `note`. Ships via panel update (console + Go rebuild/restart); re-login or refresh address book in RustDesk. Set Devices → Display name for the title you want.
+- **Stock RustDesk — address book card shows ID instead of panel name:** peer cards use `alias` as the bold title (else formatted ID) and `username@hostname` (+ `note`) on the secondary line. BetterDesk maps panel **Display name** (else **Note**, else stale AB `note`) into RustDesk `alias`, hides the computer hostname when that managed label is set, and clears a duplicate `note`. **Must land on `UNITRONIX/BetterDesk` `dev`** — panel Updates pull that repo by default (`UPDATE_GITHUB_OWNER`), not a personal fork; after update, rebuild/restart Go and re-login or refresh the address book in RustDesk. Set Devices → Display name for the title you want.
 
 ---
 

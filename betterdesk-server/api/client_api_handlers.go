@@ -697,6 +697,7 @@ func (s *Server) mergeAdminTagsIntoAB(data string) string {
 		// Enrich peer with sysinfo + panel display alias (Issue #138 + AB card title).
 		if info, ok := peerInfo[id]; ok {
 			abAlias, _ := p["alias"].(string)
+			abNote, _ := p["note"].(string)
 			curHost, _ := p["hostname"].(string)
 			curUser, _ := p["username"].(string)
 			if strings.TrimSpace(curHost) == "" {
@@ -705,20 +706,22 @@ func (s *Server) mergeAdminTagsIntoAB(data string) string {
 			if strings.TrimSpace(curUser) == "" {
 				curUser = info.User
 			}
-			alias, _, host, user := rustDeskCardFields(info, abAlias, curHost, curUser)
+			alias, note, host, user := rustDeskCardFields(info, abAlias, abNote, curHost, curUser)
 			if a, _ := p["alias"].(string); strings.TrimSpace(a) != alias {
 				p["alias"] = alias
 				modified = true
 			}
-			// Avoid "Training" twice: clear AB note when it duplicates the title alias.
-			if note, _ := p["note"].(string); alias != "" && strings.TrimSpace(note) == alias {
-				p["note"] = ""
+			// Prefer enriched note (cleared when it duplicates the title alias).
+			if n, _ := p["note"].(string); strings.TrimSpace(n) != note {
+				p["note"] = note
 				modified = true
 			}
-			// When a panel label drives the card title, clear computer name so it
+			// When a managed label drives the card title, clear computer name so it
 			// does not appear on the secondary line (and so group→AB merge does
 			// not refill hostname from /api/peers/list).
-			if alias != "" && rustDeskPanelAlias(info) != "" {
+			managedTitle := rustDeskPanelAlias(info) != "" ||
+				(strings.TrimSpace(abAlias) == "" && alias != "" && strings.TrimSpace(abNote) != "" && alias == strings.TrimSpace(abNote))
+			if alias != "" && managedTitle {
 				if h, _ := p["hostname"].(string); strings.TrimSpace(h) != "" {
 					p["hostname"] = ""
 					modified = true
