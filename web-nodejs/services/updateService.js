@@ -3031,31 +3031,85 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                     serverBinaryPath = null; // mark handled
                 } else {
                     results.privilegedDeploy = privDeploy || { success: false, error: 'no result' };
-                    const stopResult = stopService(serviceName);
-                    results.serverStop = stopResult;
-                    if (stopResult.success) {
-                        stoppedForDeploy = true;
-                    } else {
-                        const stillRunning = /SERVICE_RUNNING/i.test(stopResult.error || '');
-                        if (stillRunning) {
-                            skipDeployWhileRunning = true;
+                    // Windows can often rename a running .exe aside and place a new
+                    // binary at the original path. Do that before giving up — the live
+                    // process stays on old code until restart, but the next start loads
+                    // the update (and SYSTEM watcher / Admin restart finishes the job).
+                    const swapDeploy = deployServerBinary(serverBinaryPath, targetPath);
+                    if (swapDeploy.success) {
+                        results.serverDeploy = {
+                            success: true,
+                            backupPath: swapDeploy.backupPath || null,
+                            error: null,
+                            method: `rename-swap:${buildUsed}`,
+                            note: 'Binary replaced while service may still be running old image',
+                        };
+                        clearServerBinaryStale();
+                        const stopResult = stopService(serviceName);
+                        results.serverStop = stopResult;
+                        if (stopResult.success) {
+                            stoppedForDeploy = true;
+                            const startResult = startService(serviceName);
+                            results.serverStart = startResult;
+                            if (startResult.success) {
+                                results.servicesRestarted.push('server');
+                                results.needsServerRestart = false;
+                            } else {
+                                results.needsServerRestart = true;
+                                results.failed.push({
+                                    file: 'betterdesk-server',
+                                    error: `Binary deployed (rename-swap) but could not start ${serviceName}: ${startResult.error || 'unknown'}`,
+                                    nonCritical: true,
+                                    hint: startResult.hint
+                                        || 'Start BetterDeskServer from services.msc, or Admin: nssm start BetterDeskServer',
+                                });
+                            }
+                        } else {
+                            results.needsServerRestart = true;
                             results.failed.push({
                                 file: 'betterdesk-server',
-                                error: `Cannot deploy Go binary while ${serviceName} is still running: ${stopResult.error}`,
-                                nonCritical: false,
-                                hint: stopResult.hint
-                                    || (privDeploy && privDeploy.hint)
-                                    || 'Admin PowerShell once: betterdesk.ps1 → Update (installs BetterDeskServiceControl), or: nssm set BetterDeskServer AppExit Default Exit; nssm stop BetterDeskServer; taskkill /F /IM betterdesk-server.exe /T',
+                                error: `Go binary replaced on disk (rename-swap) but ${serviceName} is still running the old image: ${stopResult.error || 'stop failed'}`,
+                                nonCritical: true,
+                                hint: (privDeploy && privDeploy.hint)
+                                    || stopResult.hint
+                                    || 'Admin PowerShell once: betterdesk.ps1 → Update (installs BetterDeskServiceControl watcher), then nssm restart BetterDeskServer — later Applies will stop/deploy automatically',
                             });
-                            console.error(
-                                `[UPDATE] Skipping Go binary deploy — ${serviceName} still SERVICE_RUNNING after stop/force-kill`
+                            console.warn(
+                                `[UPDATE] rename-swap deployed new Go binary; ${serviceName} still running old process`
                                 + (privDeploy && privDeploy.error ? ` (privileged: ${privDeploy.error})` : '')
                             );
+                        }
+                        serverBinaryPath = null; // handled (restart may still be needed)
+                        skipDeployWhileRunning = true;
+                    } else {
+                        const stopResult = stopService(serviceName);
+                        results.serverStop = stopResult;
+                        if (stopResult.success) {
+                            stoppedForDeploy = true;
                         } else {
-                            console.warn(
-                                `[UPDATE] Could not stop ${serviceName} before deploy: ${stopResult.error}`
-                                + (stopResult.hint ? ` — ${stopResult.hint}` : '')
-                            );
+                            const stillRunning = /SERVICE_RUNNING/i.test(stopResult.error || '');
+                            if (stillRunning) {
+                                skipDeployWhileRunning = true;
+                                results.failed.push({
+                                    file: 'betterdesk-server',
+                                    error: `Cannot deploy Go binary while ${serviceName} is still running: ${stopResult.error}`
+                                        + (swapDeploy.error ? ` (rename-swap: ${swapDeploy.error})` : ''),
+                                    nonCritical: false,
+                                    hint: stopResult.hint
+                                        || (privDeploy && privDeploy.hint)
+                                        || 'Admin PowerShell once: betterdesk.ps1 → Update (installs BetterDeskServiceControl SYSTEM watcher), then Retry update',
+                                });
+                                console.error(
+                                    `[UPDATE] Skipping Go binary deploy — ${serviceName} still SERVICE_RUNNING after stop/force-kill`
+                                    + (privDeploy && privDeploy.error ? ` (privileged: ${privDeploy.error})` : '')
+                                    + (swapDeploy.error ? ` (rename-swap: ${swapDeploy.error})` : '')
+                                );
+                            } else {
+                                console.warn(
+                                    `[UPDATE] Could not stop ${serviceName} before deploy: ${stopResult.error}`
+                                    + (stopResult.hint ? ` — ${stopResult.hint}` : '')
+                                );
+                            }
                         }
                     }
                 }
@@ -3449,17 +3503,25 @@ async function recoverSoftServerControlFailure(results, serviceName, controlResu
  * Stop a system service before replacing its binary (Windows NSSM / Linux systemd).
  * Returns { success, service, error?, nonCritical?, hint?, method? }.
  *
- * Windows: prefer LocalSystem scheduled task (BetterDeskServiceControl) because
- * NT SERVICE\\BetterDeskConsole cannot taskkill / nssm-set AppExit on BetterDeskServer.
+ * Windows: prefer LocalSystem BetterDeskServiceControl watcher (file drop) because
+ * NT SERVICE\\BetterDeskConsole cannot taskkill / nssm-set AppExit on BetterDeskServer,
+ * and schtasks /Run often Access Denied for the console virtual account.
  */
 function stopService(serviceName) {
     try {
         if (IS_WINDOWS) {
-            // Direct attempt first (works when console runs as LocalSystem / elevated).
-            try {
-                const win = stopWindowsNssmService(serviceName);
-                return { success: true, service: serviceName, method: win.method || 'stop' };
-            } catch (directErr) {
+            const {
+                isWatchLoopAlive,
+                serviceExists: svcCtrlExists,
+                taskExists: svcTaskExists,
+            } = require('../lib/windowsPrivilegedServiceControl');
+
+            const helperLikely = isWatchLoopAlive(ROOT_DIR)
+                || svcCtrlExists()
+                || svcTaskExists();
+            let privFail = null;
+
+            if (helperLikely) {
                 const priv = privilegedStopService(serviceName, { consoleRoot: ROOT_DIR });
                 if (priv && priv.success) {
                     return {
@@ -3469,16 +3531,35 @@ function stopService(serviceName) {
                         privileged: true,
                     };
                 }
+                privFail = priv;
+            }
+
+            try {
+                const win = stopWindowsNssmService(serviceName);
+                return { success: true, service: serviceName, method: win.method || 'stop' };
+            } catch (directErr) {
+                if (!helperLikely) {
+                    const priv = privilegedStopService(serviceName, { consoleRoot: ROOT_DIR });
+                    if (priv && priv.success) {
+                        return {
+                            success: true,
+                            service: serviceName,
+                            method: `privileged:${priv.method || 'stop'}`,
+                            privileged: true,
+                        };
+                    }
+                    privFail = priv;
+                }
                 const classified = classifyWindowsServiceControlError(directErr, 'stop');
-                if (priv && priv.error) {
+                if (privFail && privFail.error) {
                     classified.hint = [
                         classified.hint,
-                        priv.hint,
-                        priv.needTaskInstall
-                            ? 'Admin once: betterdesk.ps1 → Update (registers BetterDeskServiceControl SYSTEM task)'
+                        privFail.hint,
+                        privFail.needTaskInstall
+                            ? 'Admin once: betterdesk.ps1 → Update (installs BetterDeskServiceControl SYSTEM watcher service)'
                             : null,
                     ].filter(Boolean).join(' — ');
-                    classified.privilegedError = priv.error;
+                    classified.privilegedError = privFail.error;
                 }
                 return { service: serviceName, ...classified };
             }

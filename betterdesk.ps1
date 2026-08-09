@@ -1803,7 +1803,8 @@ function Set-ServiceLeastPrivilege {
 }
 
 # Panel updates run as NT SERVICE\BetterDeskConsole and cannot taskkill BetterDeskServer.
-# Register an on-demand SYSTEM scheduled task that the panel invokes for stop/deploy/start.
+# Install a persistent LocalSystem watcher service that polls console data\service-control
+# (panel only writes request files — no schtasks /Run, which often Access Denied for the console VA).
 function Register-BetterDeskServiceControlTask {
     $helper = Join-Path $script:CONSOLE_PATH "scripts\windows-service-control.js"
     if (-not (Test-Path $helper)) {
@@ -1814,20 +1815,74 @@ function Register-BetterDeskServiceControlTask {
     if (-not $node) { $node = "node.exe" }
     $watchDir = Join-Path $script:CONSOLE_PATH "data\service-control"
     New-Item -ItemType Directory -Path $watchDir -Force | Out-Null
-
-    $tr = "`"$node`" `"$helper`" --watch-dir `"$watchDir`""
+    # Console VA must write requests; SYSTEM watcher reads/writes results + heartbeat.
     try {
-        & schtasks /Create /TN "BetterDeskServiceControl" /TR $tr /SC ONCE /ST 23:59 /SD 01/01/2099 /RU SYSTEM /RL HIGHEST /F 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Print-Success "Registered BetterDeskServiceControl (SYSTEM) for panel Go binary updates"
-            return $true
-        }
-        Print-Warning "Could not register BetterDeskServiceControl (exit $LASTEXITCODE)"
-        return $false
-    } catch {
-        Print-Warning "Could not register BetterDeskServiceControl: $($_.Exception.Message)"
-        return $false
+        & icacls $watchDir /grant "NT SERVICE\BetterDeskConsole:(OI)(CI)M" /T /C /Q 2>$null | Out-Null
+        & icacls $watchDir /grant "SYSTEM:(OI)(CI)F" /T /C /Q 2>$null | Out-Null
+    } catch { }
+
+    $svcName = "BetterDeskServiceControl"
+    $nssmCmd = Get-Command nssm -ErrorAction SilentlyContinue
+    $nssm = $null
+    if ($nssmCmd) {
+        $nssm = $nssmCmd.Source
+    } else {
+        $nssmLocal = Join-Path $script:ScriptDir "tools\nssm.exe"
+        if (Test-Path $nssmLocal) { $nssm = $nssmLocal }
     }
+
+    $ok = $false
+    if ($nssm) {
+        try {
+            $existing = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+            if (-not $existing) {
+                & $nssm install $svcName $node | Out-Null
+            }
+            $appParams = "`"$helper`" --watch-loop `"$watchDir`""
+            & $nssm set $svcName AppParameters $appParams | Out-Null
+            & $nssm set $svcName AppDirectory $script:CONSOLE_PATH | Out-Null
+            & $nssm set $svcName DisplayName "BetterDesk Service Control" | Out-Null
+            & $nssm set $svcName Description "LocalSystem helper for panel Go binary updates (stop/deploy BetterDeskServer)" | Out-Null
+            & $nssm set $svcName Start SERVICE_AUTO_START | Out-Null
+            & $nssm set $svcName AppStdout "$script:CONSOLE_PATH\logs\service-control.log" | Out-Null
+            & $nssm set $svcName AppStderr "$script:CONSOLE_PATH\logs\service-control_error.log" | Out-Null
+            & $nssm set $svcName AppRotateFiles 1 | Out-Null
+            & $nssm set $svcName ObjectName LocalSystem | Out-Null
+            & $nssm set $svcName AppExit Default Restart | Out-Null
+            New-Item -ItemType Directory -Path "$script:CONSOLE_PATH\logs" -Force | Out-Null
+            Start-Service -Name $svcName -ErrorAction SilentlyContinue
+            if (-not (Get-Service -Name $svcName -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' })) {
+                & $nssm start $svcName 2>$null | Out-Null
+            }
+            if ((Get-Service -Name $svcName -ErrorAction SilentlyContinue).Status -eq 'Running') {
+                Print-Success "Registered $svcName (LocalSystem watcher) for panel Go binary updates"
+                $ok = $true
+            } else {
+                Print-Warning "$svcName installed but not running — start it before panel Updates"
+                $ok = $true
+            }
+        } catch {
+            Print-Warning "Could not register $svcName NSSM service: $($_.Exception.Message)"
+        }
+    } else {
+        Print-Warning "nssm not found — falling back to scheduled task for $svcName"
+    }
+
+    # Legacy fallback: on-demand schtasks (panel prefers watcher heartbeat when present).
+    try {
+        $tr = "`"$node`" `"$helper`" --watch-dir `"$watchDir`""
+        & schtasks /Create /TN $svcName /TR $tr /SC ONCE /ST 23:59 /SD 01/01/2099 /RU SYSTEM /RL HIGHEST /F 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0 -and -not $ok) {
+            Print-Success "Registered $svcName scheduled task (legacy) for panel Go binary updates"
+            $ok = $true
+        }
+    } catch {
+        if (-not $ok) {
+            Print-Warning "Could not register $svcName scheduled task: $($_.Exception.Message)"
+        }
+    }
+
+    return $ok
 }
 
 # Grant the console virtual account SCM start/stop/query on BetterDeskServer.

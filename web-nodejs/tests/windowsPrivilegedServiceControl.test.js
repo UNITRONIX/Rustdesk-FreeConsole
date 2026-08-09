@@ -6,8 +6,10 @@ const os = require('os');
 
 const {
     TASK_NAME,
+    SERVICE_NAME,
     controlDir,
-    ensureWindowsServiceControlTask,
+    isWatchLoopAlive,
+    readHeartbeat,
     runWindowsPrivilegedServiceJob,
 } = require('../lib/windowsPrivilegedServiceControl');
 
@@ -27,26 +29,61 @@ describe('windowsPrivilegedServiceControl', () => {
         try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (_e) { /* ok */ }
     });
 
-    test('ensureWindowsServiceControlTask creates schtasks command', () => {
-        const calls = [];
-        const result = ensureWindowsServiceControlTask({
-            consoleRoot,
-            nodePath: 'C:\\Node\\node.exe',
-            execSync: (cmd) => {
-                calls.push(cmd);
-                if (String(cmd).includes('schtasks /Query')) {
-                    throw new Error('not found');
-                }
-                return '';
-            },
-        });
-        // execFileSync is used for Create — mock via replacing isn't wired;
-        // when Create fails and Query fails, ok=false.
-        expect(result.ok === true || result.ok === false).toBe(true);
+    test('exports stable service/task names', () => {
         expect(TASK_NAME).toBe('BetterDeskServiceControl');
+        expect(SERVICE_NAME).toBe('BetterDeskServiceControl');
     });
 
-    test('runWindowsPrivilegedServiceJob writes request and reads result', () => {
+    test('isWatchLoopAlive requires fresh heartbeat', () => {
+        expect(isWatchLoopAlive(consoleRoot)).toBe(false);
+        fs.writeFileSync(
+            path.join(watchDir, 'heartbeat.json'),
+            JSON.stringify({ ok: true, at: new Date().toISOString(), mode: 'watch-loop' })
+        );
+        expect(isWatchLoopAlive(consoleRoot)).toBe(true);
+        const hb = readHeartbeat(consoleRoot);
+        expect(hb.fresh).toBe(true);
+        expect(hb.mode).toBe('watch-loop');
+    });
+
+    test('runWindowsPrivilegedServiceJob uses watch-loop without schtasks when heartbeat fresh', () => {
+        fs.writeFileSync(
+            path.join(watchDir, 'heartbeat.json'),
+            JSON.stringify({ ok: true, at: new Date().toISOString(), mode: 'watch-loop' })
+        );
+        const calls = [];
+        const result = runWindowsPrivilegedServiceJob(
+            { action: 'stop', service: 'BetterDeskServer' },
+            {
+                consoleRoot,
+                skipEnsure: true,
+                timeoutMs: 200,
+                pollMs: 20,
+                sleep: () => {
+                    // Simulate watcher completing on first poll.
+                    const pointer = JSON.parse(
+                        fs.readFileSync(path.join(watchDir, 'current-request.json'), 'utf8')
+                    );
+                    if (!fs.existsSync(pointer.resultPath)) {
+                        fs.writeFileSync(
+                            pointer.resultPath,
+                            JSON.stringify({ success: true, action: 'stop', method: 'force-stop' })
+                        );
+                    }
+                },
+                execSync: (cmd) => {
+                    calls.push(cmd);
+                    throw new Error(`unexpected helper start: ${cmd}`);
+                },
+            }
+        );
+        expect(result.success).toBe(true);
+        expect(result.method).toBe('force-stop');
+        expect(calls.length).toBe(0);
+    });
+
+    test('runWindowsPrivilegedServiceJob falls back to schtasks when no heartbeat', () => {
+        try { fs.unlinkSync(path.join(watchDir, 'heartbeat.json')); } catch (_e) { /* ok */ }
         const calls = [];
         const result = runWindowsPrivilegedServiceJob(
             { action: 'stop', service: 'BetterDeskServer' },
@@ -58,11 +95,13 @@ describe('windowsPrivilegedServiceControl', () => {
                 sleep: () => {},
                 execSync: (cmd) => {
                     calls.push(cmd);
+                    if (String(cmd).includes('sc query')) {
+                        throw new Error('service missing');
+                    }
                     if (String(cmd).includes('schtasks /Query')) {
                         return 'TaskName: BetterDeskServiceControl';
                     }
                     if (String(cmd).includes('schtasks /Run')) {
-                        // Simulate SYSTEM helper completing immediately.
                         const pointer = JSON.parse(
                             fs.readFileSync(path.join(watchDir, 'current-request.json'), 'utf8')
                         );
@@ -77,7 +116,6 @@ describe('windowsPrivilegedServiceControl', () => {
             }
         );
         expect(result.success).toBe(true);
-        expect(result.method).toBe('force-stop');
         expect(calls.some((c) => String(c).includes('schtasks /Run'))).toBe(true);
     });
 });

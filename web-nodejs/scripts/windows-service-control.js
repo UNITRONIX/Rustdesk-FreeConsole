@@ -3,30 +3,44 @@
 /**
  * SYSTEM-level Windows service control for panel updates.
  *
- * Invoked by scheduled task BetterDeskServiceControl (LocalSystem).
- * Reads a request JSON, performs stop/start/deploy, writes result JSON.
+ * Preferred: NSSM service BetterDeskServiceControl running as LocalSystem with
+ *   --watch-loop <console>\data\service-control
+ * The panel only writes request JSON into that directory (no schtasks /Run).
+ *
+ * Legacy: scheduled task BetterDeskServiceControl started via schtasks /Run.
  *
  * Usage:
  *   node windows-service-control.js --request <path.json>
  *   node windows-service-control.js --watch-dir <dir>
+ *   node windows-service-control.js --watch-loop <dir>
  */
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
 const {
     stopWindowsNssmService,
     startWindowsNssmService,
 } = require('../lib/windowsNssmRestart');
 
-function writeResult(resultPath, payload) {
-    if (!resultPath) return;
+const HEARTBEAT_NAME = 'heartbeat.json';
+const POINTER_NAME = 'current-request.json';
+const LOCK_NAME = 'processing.lock';
+
+function writeJson(filePath, payload) {
+    if (!filePath) return;
     try {
-        fs.mkdirSync(path.dirname(resultPath), { recursive: true });
-        fs.writeFileSync(resultPath, `${JSON.stringify(payload)}\n`, 'utf8');
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        const tmp = `${filePath}.${process.pid}.tmp`;
+        fs.writeFileSync(tmp, `${JSON.stringify(payload)}\n`, 'utf8');
+        try {
+            fs.renameSync(tmp, filePath);
+        } catch (_e) {
+            fs.writeFileSync(filePath, `${JSON.stringify(payload)}\n`, 'utf8');
+            try { fs.unlinkSync(tmp); } catch (_u) { /* ok */ }
+        }
     } catch (err) {
-        console.error(`[windows-service-control] write result failed: ${err.message}`);
+        console.error(`[windows-service-control] write failed (${filePath}): ${err.message}`);
     }
 }
 
@@ -46,6 +60,14 @@ function deployBinary(source, target) {
     }
     const staging = `${target}.new.${process.pid}.${Date.now()}`;
     fs.copyFileSync(source, staging);
+    if (fs.existsSync(target)) {
+        const aside = `${target}.old.${Date.now()}`;
+        try {
+            fs.renameSync(target, aside);
+        } catch (_e) {
+            // Running image may refuse rename on some volumes; try overwrite below.
+        }
+    }
     try {
         fs.renameSync(staging, target);
     } catch (_e) {
@@ -61,7 +83,6 @@ function handleRequest(req) {
 
     if (action === 'stop') {
         const win = stopWindowsNssmService(service, {
-            // Running as SYSTEM — force-kill must be allowed.
             allowForceKill: true,
             stopTimeoutMs: req.stopTimeoutMs || 60000,
             forceKillWaitMs: req.forceKillWaitMs || 15000,
@@ -79,7 +100,6 @@ function handleRequest(req) {
     if (action === 'deploy-server') {
         const source = req.source;
         const target = req.target;
-        // Always force-stop before replacing a running Go binary.
         const stop = stopWindowsNssmService(service, {
             allowForceKill: true,
             stopTimeoutMs: req.stopTimeoutMs || 60000,
@@ -121,6 +141,10 @@ function handleRequest(req) {
         };
     }
 
+    if (action === 'ping') {
+        return { success: true, action: 'ping', pid: process.pid };
+    }
+
     throw new Error(`unknown action: ${action || '(empty)'}`);
 }
 
@@ -129,44 +153,153 @@ function loadRequest(requestPath) {
     return JSON.parse(raw);
 }
 
+function resultIsFresh(requestPath, resultPath) {
+    if (!resultPath || !fs.existsSync(resultPath) || !fs.existsSync(requestPath)) {
+        return false;
+    }
+    try {
+        const reqM = fs.statSync(requestPath).mtimeMs;
+        const resM = fs.statSync(resultPath).mtimeMs;
+        return resM >= reqM;
+    } catch (_e) {
+        return false;
+    }
+}
+
+function processPointer(watchDir) {
+    const pointerPath = path.join(watchDir, POINTER_NAME);
+    if (!fs.existsSync(pointerPath)) return false;
+
+    let ptr;
+    try {
+        ptr = JSON.parse(fs.readFileSync(pointerPath, 'utf8'));
+    } catch (_e) {
+        return false;
+    }
+
+    const requestPath = ptr.requestPath || ptr.path;
+    const resultPath = ptr.resultPath
+        || (requestPath ? requestPath.replace(/req-/, 'res-') : null);
+    if (!requestPath || !fs.existsSync(requestPath)) return false;
+    if (resultIsFresh(requestPath, resultPath)) return false;
+
+    const lockPath = path.join(watchDir, LOCK_NAME);
+    try {
+        fs.writeFileSync(lockPath, `${process.pid}\n`, { flag: 'wx' });
+    } catch (_e) {
+        return false; // another worker
+    }
+
+    try {
+        const req = loadRequest(requestPath);
+        const outPath = req.resultPath || resultPath;
+        try {
+            const result = handleRequest(req);
+            writeJson(outPath, result);
+            process.stdout.write(`${JSON.stringify(result)}\n`);
+        } catch (err) {
+            const failure = { success: false, error: err.message || String(err) };
+            writeJson(outPath, failure);
+            process.stdout.write(`${JSON.stringify(failure)}\n`);
+        }
+        return true;
+    } finally {
+        try { fs.unlinkSync(lockPath); } catch (_e) { /* ok */ }
+    }
+}
+
+function watchLoop(watchDir) {
+    if (!watchDir) {
+        throw new Error('--watch-loop requires a directory');
+    }
+    fs.mkdirSync(watchDir, { recursive: true });
+    const heartbeatPath = path.join(watchDir, HEARTBEAT_NAME);
+    console.log(`[windows-service-control] watch-loop dir=${watchDir} pid=${process.pid}`);
+
+    const beat = () => {
+        writeJson(heartbeatPath, {
+            ok: true,
+            pid: process.pid,
+            at: new Date().toISOString(),
+            mode: 'watch-loop',
+        });
+    };
+    beat();
+    setInterval(beat, 2000);
+
+    const tick = () => {
+        try {
+            processPointer(watchDir);
+        } catch (err) {
+            console.error(`[windows-service-control] tick error: ${err.message}`);
+        }
+    };
+    tick();
+    setInterval(tick, 250);
+}
+
+function runOnceFromWatchDir(watchDir) {
+    const pointer = path.join(watchDir, POINTER_NAME);
+    if (!fs.existsSync(pointer)) {
+        throw new Error(`missing ${pointer}`);
+    }
+    const ptr = JSON.parse(fs.readFileSync(pointer, 'utf8'));
+    const requestPath = ptr.requestPath || ptr.path;
+    if (!requestPath) {
+        throw new Error('current-request.json missing requestPath');
+    }
+    const req = loadRequest(requestPath);
+    const resultPath = req.resultPath || ptr.resultPath || path.join(watchDir, 'last-result.json');
+    try {
+        const result = handleRequest(req);
+        writeJson(resultPath, result);
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+    } catch (err) {
+        const failure = { success: false, error: err.message || String(err) };
+        writeJson(resultPath, failure);
+        process.stdout.write(`${JSON.stringify(failure)}\n`);
+        process.exitCode = 1;
+    }
+}
+
 function main() {
     const args = process.argv.slice(2);
     let requestPath = null;
     let watchDir = null;
+    let watchLoopDir = null;
     for (let i = 0; i < args.length; i += 1) {
         if (args[i] === '--request' && args[i + 1]) {
             requestPath = args[++i];
         } else if (args[i] === '--watch-dir' && args[i + 1]) {
             watchDir = args[++i];
+        } else if (args[i] === '--watch-loop' && args[i + 1]) {
+            watchLoopDir = args[++i];
         }
+    }
+
+    if (watchLoopDir) {
+        watchLoop(watchLoopDir);
+        return; // keep process alive
     }
 
     if (watchDir) {
-        const pointer = path.join(watchDir, 'current-request.json');
-        if (!fs.existsSync(pointer)) {
-            throw new Error(`missing ${pointer}`);
-        }
-        const ptr = JSON.parse(fs.readFileSync(pointer, 'utf8'));
-        requestPath = ptr.requestPath || ptr.path;
+        runOnceFromWatchDir(watchDir);
+        return;
     }
 
     if (!requestPath) {
-        throw new Error('usage: windows-service-control.js --request <file> | --watch-dir <dir>');
+        throw new Error('usage: windows-service-control.js --request <file> | --watch-dir <dir> | --watch-loop <dir>');
     }
 
     const req = loadRequest(requestPath);
-    const resultPath = req.resultPath || (watchDir ? path.join(watchDir, 'last-result.json') : null);
-
+    const resultPath = req.resultPath || null;
     try {
         const result = handleRequest(req);
-        writeResult(resultPath, result);
+        writeJson(resultPath, result);
         process.stdout.write(`${JSON.stringify(result)}\n`);
     } catch (err) {
-        const failure = {
-            success: false,
-            error: err.message || String(err),
-        };
-        writeResult(resultPath, failure);
+        const failure = { success: false, error: err.message || String(err) };
+        writeJson(resultPath, failure);
         process.stdout.write(`${JSON.stringify(failure)}\n`);
         process.exitCode = 1;
     }
@@ -185,4 +318,7 @@ if (require.main === module) {
 module.exports = {
     handleRequest,
     deployBinary,
+    processPointer,
+    watchLoop,
+    HEARTBEAT_NAME,
 };

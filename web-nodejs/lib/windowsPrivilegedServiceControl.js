@@ -1,8 +1,13 @@
 'use strict';
 
 /**
- * Invoke LocalSystem scheduled task BetterDeskServiceControl so the panel
- * (NT SERVICE\\BetterDeskConsole) can stop/kill/deploy BetterDeskServer.
+ * Ask LocalSystem BetterDeskServiceControl to stop/kill/deploy BetterDeskServer.
+ *
+ * Preferred path: persistent NSSM service in --watch-loop mode. The panel only
+ * writes request JSON under data/service-control (writable by BetterDeskConsole).
+ * No schtasks /Run — that often fails for NT SERVICE\BetterDeskConsole.
+ *
+ * Legacy fallback: on-demand scheduled task via schtasks /Run.
  */
 
 const fs = require('fs');
@@ -10,8 +15,10 @@ const path = require('path');
 const { execSync, execFileSync } = require('child_process');
 
 const TASK_NAME = 'BetterDeskServiceControl';
+const SERVICE_NAME = 'BetterDeskServiceControl';
 const DEFAULT_POLL_MS = 250;
 const DEFAULT_TIMEOUT_MS = 120000;
+const HEARTBEAT_MAX_AGE_MS = 15000;
 
 function controlDir(consoleRoot) {
     return path.join(consoleRoot, 'data', 'service-control');
@@ -44,8 +51,50 @@ function taskExists(execSyncFn = execSync) {
     }
 }
 
+function serviceExists(execSyncFn = execSync) {
+    try {
+        const out = execSyncFn(`sc query "${SERVICE_NAME}"`, {
+            encoding: 'utf8',
+            timeout: 10000,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+        });
+        return /SERVICE_NAME:\s*BetterDeskServiceControl/i.test(String(out || ''))
+            || /STATE\s*:/i.test(String(out || ''));
+    } catch (err) {
+        const blob = `${err.stdout || ''}\n${err.message || ''}`;
+        // sc query prints STATE even on some non-zero exits when service exists
+        return /SERVICE_NAME:\s*BetterDeskServiceControl/i.test(blob)
+            || /STATE\s*:/i.test(blob);
+    }
+}
+
+function readHeartbeat(consoleRoot) {
+    const hbPath = path.join(controlDir(consoleRoot), 'heartbeat.json');
+    try {
+        if (!fs.existsSync(hbPath)) return null;
+        const raw = fs.readFileSync(hbPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        const at = parsed && parsed.at ? Date.parse(parsed.at) : 0;
+        const ageMs = Number.isFinite(at) ? (Date.now() - at) : Number.POSITIVE_INFINITY;
+        return {
+            ...parsed,
+            ageMs,
+            fresh: ageMs >= 0 && ageMs <= HEARTBEAT_MAX_AGE_MS,
+            path: hbPath,
+        };
+    } catch (_e) {
+        return null;
+    }
+}
+
+function isWatchLoopAlive(consoleRoot) {
+    const hb = readHeartbeat(consoleRoot);
+    return !!(hb && hb.fresh);
+}
+
 /**
- * Create/update the on-demand SYSTEM task (requires elevation — installer / Admin).
+ * Best-effort: create legacy scheduled task (Admin). Prefer NSSM watcher from betterdesk.ps1.
  */
 function ensureWindowsServiceControlTask(opts = {}) {
     const consoleRoot = opts.consoleRoot;
@@ -57,11 +106,24 @@ function ensureWindowsServiceControlTask(opts = {}) {
         return { ok: false, error: `missing helper script: ${scriptPath}` };
     }
 
-    const nodePath = resolveNodePath(opts);
     const watchDir = controlDir(consoleRoot);
     fs.mkdirSync(watchDir, { recursive: true });
 
-    // /SC ONCE with far-future start — task is only started via /Run.
+    if (isWatchLoopAlive(consoleRoot) || serviceExists(opts.execSync || execSync)) {
+        return {
+            ok: true,
+            task: SERVICE_NAME,
+            mode: isWatchLoopAlive(consoleRoot) ? 'watch-loop' : 'service',
+            created: false,
+        };
+    }
+
+    if (taskExists(opts.execSync || execSync)) {
+        return { ok: true, task: TASK_NAME, mode: 'schtasks', created: false };
+    }
+
+    const nodePath = resolveNodePath(opts);
+    // Legacy one-shot task (watch-dir). New installs use NSSM --watch-loop via betterdesk.ps1.
     const tr = `"${nodePath}" "${scriptPath}" --watch-dir "${watchDir}"`;
     const createCmd = [
         'schtasks', '/Create',
@@ -82,16 +144,16 @@ function ensureWindowsServiceControlTask(opts = {}) {
             stdio: ['ignore', 'pipe', 'pipe'],
             windowsHide: true,
         });
-        return { ok: true, task: TASK_NAME, created: true };
+        return { ok: true, task: TASK_NAME, mode: 'schtasks', created: true };
     } catch (err) {
-        if (taskExists(opts.execSync || execSync)) {
+        if (taskExists(opts.execSync || execSync) || serviceExists(opts.execSync || execSync)) {
             return { ok: true, task: TASK_NAME, created: false, warning: err.message };
         }
         return {
             ok: false,
             error: err.message || String(err),
-            hint: 'Run Admin PowerShell: betterdesk.ps1 (Update/Repair) or: '
-                + `schtasks /Create /TN ${TASK_NAME} ... as SYSTEM`,
+            needTaskInstall: true,
+            hint: 'Admin PowerShell once: betterdesk.ps1 → Update (installs BetterDeskServiceControl SYSTEM watcher service)',
         };
     }
 }
@@ -107,8 +169,66 @@ function sleepSync(ms) {
     }
 }
 
+function tryStartHelper(opts = {}) {
+    const exec = opts.execSync || execSync;
+    const tried = [];
+
+    // Persistent NSSM/service watcher — just ensure it is running.
+    if (serviceExists(exec)) {
+        try {
+            exec(`sc start "${SERVICE_NAME}"`, {
+                encoding: 'utf8',
+                timeout: 30000,
+                stdio: ['ignore', 'pipe', 'pipe'],
+                windowsHide: true,
+            });
+            tried.push('sc-start');
+        } catch (_e) {
+            tried.push('sc-start-failed');
+        }
+        // Give heartbeat a moment to appear.
+        const sleep = typeof opts.sleep === 'function' ? opts.sleep : sleepSync;
+        for (let i = 0; i < 20; i += 1) {
+            if (isWatchLoopAlive(opts.consoleRoot)) {
+                return { ok: true, method: 'watch-loop', tried };
+            }
+            sleep(250);
+        }
+    }
+
+    // Legacy scheduled task.
+    if (taskExists(exec)) {
+        try {
+            exec(`schtasks /Run /TN "${TASK_NAME}"`, {
+                encoding: 'utf8',
+                timeout: 30000,
+                stdio: ['ignore', 'pipe', 'pipe'],
+                windowsHide: true,
+            });
+            return { ok: true, method: 'schtasks', tried: tried.concat(['schtasks-run']) };
+        } catch (err) {
+            return {
+                ok: false,
+                method: 'schtasks',
+                tried: tried.concat(['schtasks-run-failed']),
+                error: `schtasks /Run failed: ${err.message || err}`,
+                needTaskInstall: true,
+                hint: 'Admin once: betterdesk.ps1 → Update (registers BetterDeskServiceControl as SYSTEM watcher — panel no longer needs schtasks /Run)',
+            };
+        }
+    }
+
+    return {
+        ok: false,
+        tried,
+        error: 'BetterDeskServiceControl watcher not installed',
+        needTaskInstall: true,
+        hint: 'Admin PowerShell once: betterdesk.ps1 → Update (or Repair services). Installs LocalSystem watcher so panel updates can stop/deploy BetterDeskServer.',
+    };
+}
+
 /**
- * Queue a job for the SYSTEM task and wait for result.json.
+ * Queue a job for the SYSTEM helper and wait for result.json.
  *
  * @returns {{ success: boolean, error?: string, [key: string]: any }}
  */
@@ -121,17 +241,12 @@ function runWindowsPrivilegedServiceJob(job, opts = {}) {
         return { success: false, error: 'Windows only' };
     }
 
-    const ensure = opts.skipEnsure
-        ? (taskExists(opts.execSync || execSync) ? { ok: true } : { ok: false, error: 'task missing' })
-        : ensureWindowsServiceControlTask({ consoleRoot, nodePath: opts.nodePath, execSync: opts.execSync });
-
-    if (!ensure.ok && !taskExists(opts.execSync || execSync)) {
-        return {
-            success: false,
-            error: ensure.error || 'BetterDeskServiceControl task not installed',
-            hint: ensure.hint,
-            needTaskInstall: true,
-        };
+    if (!opts.skipEnsure) {
+        ensureWindowsServiceControlTask({
+            consoleRoot,
+            nodePath: opts.nodePath,
+            execSync: opts.execSync,
+        });
     }
 
     const dir = controlDir(consoleRoot);
@@ -150,21 +265,26 @@ function runWindowsPrivilegedServiceJob(job, opts = {}) {
     fs.writeFileSync(pointerPath, `${JSON.stringify({ requestPath, resultPath })}\n`, 'utf8');
     try { fs.unlinkSync(resultPath); } catch (_e) { /* ok */ }
 
-    const exec = opts.execSync || execSync;
-    try {
-        exec(`schtasks /Run /TN "${TASK_NAME}"`, {
-            encoding: 'utf8',
-            timeout: 30000,
-            stdio: ['ignore', 'pipe', 'pipe'],
-            windowsHide: true,
-        });
-    } catch (err) {
-        return {
-            success: false,
-            error: `schtasks /Run failed: ${err.message || err}`,
-            hint: 'Install/repair BetterDeskServiceControl as Administrator (betterdesk.ps1 Update)',
-            needTaskInstall: true,
-        };
+    const alive = isWatchLoopAlive(consoleRoot);
+    if (!alive) {
+        const started = tryStartHelper({ ...opts, consoleRoot });
+        if (!started.ok && !isWatchLoopAlive(consoleRoot)) {
+            // schtasks /Run may still process the pointer asynchronously
+            if (!(started.method === 'schtasks' && started.ok !== false && !started.error)) {
+                if (started.error && started.method !== 'schtasks') {
+                    return {
+                        success: false,
+                        error: started.error,
+                        hint: started.hint,
+                        needTaskInstall: true,
+                        tried: started.tried,
+                    };
+                }
+                if (started.error) {
+                    // Continue polling briefly in case Run actually queued
+                }
+            }
+        }
     }
 
     const timeoutMs = opts.timeoutMs || DEFAULT_TIMEOUT_MS;
@@ -187,10 +307,15 @@ function runWindowsPrivilegedServiceJob(job, opts = {}) {
         sleep(pollMs);
     }
 
+    const hb = readHeartbeat(consoleRoot);
     return {
         success: false,
-        error: `timed out waiting for ${TASK_NAME} (${timeoutMs}ms)`,
-        hint: 'Check Task Scheduler history for BetterDeskServiceControl',
+        error: `timed out waiting for ${SERVICE_NAME} (${timeoutMs}ms)`
+            + (hb && hb.fresh ? '' : ' — watcher heartbeat missing'),
+        hint: hb && hb.fresh
+            ? 'Watcher is alive but did not process the job — check BetterDeskServiceControl logs'
+            : 'Admin PowerShell once: betterdesk.ps1 → Update (installs BetterDeskServiceControl SYSTEM watcher)',
+        needTaskInstall: !(hb && hb.fresh),
     };
 }
 
@@ -220,9 +345,15 @@ function privilegedDeployServerBinary(source, target, opts = {}) {
 
 module.exports = {
     TASK_NAME,
+    SERVICE_NAME,
+    HEARTBEAT_MAX_AGE_MS,
     controlDir,
     taskExists,
+    serviceExists,
+    readHeartbeat,
+    isWatchLoopAlive,
     ensureWindowsServiceControlTask,
+    tryStartHelper,
     runWindowsPrivilegedServiceJob,
     privilegedStopService,
     privilegedStartService,

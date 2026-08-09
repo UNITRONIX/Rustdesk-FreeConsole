@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Windows panel update — BetterDeskServiceControl watcher (no schtasks /Run):** Panel Go deploy still failed with `SERVICE_RUNNING` / `taskkill-*-failed` because `NT SERVICE\BetterDeskConsole` often cannot `schtasks /Run` the one-shot SYSTEM task. `BetterDeskServiceControl` is now a persistent LocalSystem NSSM **watcher** (`--watch-loop` on `data\service-control`); the panel only drops request files. Fallback: legacy scheduled task + rename-swap of a running `betterdesk-server.exe` when stop fails. **One-time Admin:** `betterdesk.ps1` → Update/Repair, confirm service `BetterDeskServiceControl` is Running, then Settings → Updates → Apply.
+
 ### Changed
 - _(none yet)_
 
