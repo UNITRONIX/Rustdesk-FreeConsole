@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Windows panel update — Go binary deploy while BetterDeskServer still RUNNING:** `nssm stop` could time out with status still `SERVICE_RUNNING` (process ignored the control), and Apply continued best-effort deploy — leaving NSSM `SERVICE_PAUSED` / half-updated server+console. Stop now escalates (`sc stop` → `taskkill` by service PID / Application exe); if still running, Go binary deploy is skipped as a critical failure with a recovery hint. Ships via panel update.
+
 ### Changed
 - _(none yet)_
 

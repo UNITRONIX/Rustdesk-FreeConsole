@@ -2969,21 +2969,40 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
         if (serverBinaryPath) {
             const serviceName = IS_WINDOWS ? 'BetterDeskServer' : 'betterdesk-server';
             let stoppedForDeploy = false;
+            let skipDeployWhileRunning = false;
             if (IS_WINDOWS) {
                 const stopResult = stopService(serviceName);
                 results.serverStop = stopResult;
                 if (stopResult.success) {
                     stoppedForDeploy = true;
                 } else {
-                    // Best-effort: continue deploy (rename/.old path may still work).
-                    // Do not count as update Failed — users react to a non-zero Failed tally.
-                    console.warn(
-                        `[UPDATE] Could not stop ${serviceName} before deploy: ${stopResult.error}`
-                        + (stopResult.hint ? ` — ${stopResult.hint}` : '')
-                    );
+                    const stillRunning = /SERVICE_RUNNING/i.test(stopResult.error || '');
+                    if (stillRunning) {
+                        // Deploying over a live exe leaves NSSM PAUSED / half-updated.
+                        // Force-stop already ran inside stopWindowsNssmService; if we
+                        // are still RUNNING, abort binary replace for this Apply.
+                        skipDeployWhileRunning = true;
+                        results.failed.push({
+                            file: 'betterdesk-server',
+                            error: `Cannot deploy Go binary while ${serviceName} is still running: ${stopResult.error}`,
+                            nonCritical: false,
+                            hint: stopResult.hint
+                                || 'In Admin PowerShell: nssm stop BetterDeskServer; if still running: taskkill /F /IM betterdesk-server.exe && nssm start BetterDeskServer — then Apply Updates again',
+                        });
+                        console.error(
+                            `[UPDATE] Skipping Go binary deploy — ${serviceName} still SERVICE_RUNNING after stop/force-kill`
+                        );
+                    } else {
+                        // Access Denied etc.: best-effort deploy (rename/.old may work).
+                        console.warn(
+                            `[UPDATE] Could not stop ${serviceName} before deploy: ${stopResult.error}`
+                            + (stopResult.hint ? ` — ${stopResult.hint}` : '')
+                        );
+                    }
                 }
             }
 
+            if (!skipDeployWhileRunning) {
             const targetPath = detectServerBinaryPath();
             const deployResult = deployServerBinary(serverBinaryPath, targetPath);
             results.serverDeploy = {
@@ -3055,6 +3074,7 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                 }
                 results.failed.push({ file: 'betterdesk-server-deploy', error: deployResult.error || 'Server deploy failed' });
             }
+            } // !skipDeployWhileRunning
         }
     }
 
@@ -3277,6 +3297,7 @@ function classifyWindowsServiceControlError(err, action) {
     const message = err.message || String(err);
     const nonCritical = /access is denied|OpenService/i.test(message);
     const pauseHint = 'NSSM left BetterDeskServer paused (restart throttle). In Admin PowerShell: nssm continue BetterDeskServer; if still paused: nssm stop BetterDeskServer && nssm start BetterDeskServer';
+    const runningHint = 'BetterDeskServer stayed SERVICE_RUNNING after stop — force-kill may have failed. Admin PowerShell: nssm stop BetterDeskServer; if still running: taskkill /F /IM betterdesk-server.exe && nssm start BetterDeskServer';
     const aclHint = action === 'stop'
         ? 'Could not stop BetterDeskServer (Access Denied). Binary deploy may still succeed; restart via Admin PowerShell or betterdesk.ps1 → Update if needed'
         : 'Could not start/restart BetterDeskServer (Access Denied). If the service is already Running, no action is needed — otherwise Admin PowerShell: nssm stop BetterDeskServer && nssm start BetterDeskServer, or betterdesk.ps1 → Update';
@@ -3286,7 +3307,9 @@ function classifyWindowsServiceControlError(err, action) {
         nonCritical,
         hint: nonCritical
             ? aclHint
-            : (/SERVICE_PAUSED/i.test(message) ? pauseHint : undefined),
+            : (/SERVICE_PAUSED/i.test(message)
+                ? pauseHint
+                : (/SERVICE_RUNNING/i.test(message) ? runningHint : undefined)),
     };
 }
 

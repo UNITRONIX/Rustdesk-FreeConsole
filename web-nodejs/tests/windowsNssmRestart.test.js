@@ -194,6 +194,67 @@ describe('windowsNssmRestart', () => {
         expect(calls.some((c) => c.includes('nssm restart'))).toBe(false);
     });
 
+    test('force-kills SERVICE_RUNNING after nssm stop is ignored', () => {
+        const calls = [];
+        let status = 'SERVICE_RUNNING';
+        let nssmStopCount = 0;
+
+        const execSync = (cmd) => {
+            calls.push(cmd);
+            if (cmd.includes('nssm status')) {
+                return status;
+            }
+            if (cmd.includes('nssm stop')) {
+                nssmStopCount += 1;
+                // First graceful stop is ignored (stays RUNNING) — matches operator logs.
+                if (nssmStopCount === 1) {
+                    return '';
+                }
+                status = 'SERVICE_STOPPED';
+                return '';
+            }
+            if (cmd.includes('sc stop')) {
+                return '';
+            }
+            if (cmd.includes('sc queryex')) {
+                return 'STATE              : 4  RUNNING\r\nPID                : 4242\r\n';
+            }
+            if (cmd.includes('nssm get') && cmd.includes('Application')) {
+                return 'C:\\BetterDesk\\betterdesk-server.exe\r\n';
+            }
+            if (cmd.includes('taskkill /F /PID 4242')) {
+                status = 'SERVICE_STOPPED';
+                return '';
+            }
+            if (cmd.includes('taskkill /F /IM')) {
+                status = 'SERVICE_STOPPED';
+                return '';
+            }
+            throw new Error(`unexpected: ${cmd}`);
+        };
+
+        const result = stopWindowsNssmService('BetterDeskServer', {
+            execSync,
+            sleep: () => {},
+            pollMs: 1,
+            stopTimeoutMs: 20,
+            forceKillWaitMs: 20,
+            startTimeoutMs: 20,
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.method).toBe('force-stop');
+        expect(calls.some((c) => c.includes('sc stop'))).toBe(true);
+        expect(calls.some((c) => c.includes('taskkill /F /PID 4242'))).toBe(true);
+        expect(status).toBe('SERVICE_STOPPED');
+    });
+
+    test('parseScQueryExPid reads PID lines', () => {
+        const { parseScQueryExPid } = require('../lib/windowsNssmRestart');
+        expect(parseScQueryExPid('PID                : 1234')).toBe(1234);
+        expect(parseScQueryExPid('STATE : 1 STOPPED')).toBe(0);
+    });
+
     test('throws when service never reaches SERVICE_RUNNING', () => {
         let status = 'SERVICE_STOPPED';
         const execSync = (cmd) => {

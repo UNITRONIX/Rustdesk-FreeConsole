@@ -11,11 +11,18 @@
  *
  * Recovery: clear pause via `nssm continue`, then stop → wait → start, and
  * verify SERVICE_RUNNING.
+ *
+ * When `nssm stop` leaves the service SERVICE_RUNNING (Go ignoring control /
+ * hung accept loop), escalate: `sc stop` → taskkill by PID / Application exe
+ * so the panel can replace betterdesk-server.exe without locking / PAUSED wedges.
  */
 
+const path = require('path');
+
 const DEFAULT_POLL_MS = 250;
-const DEFAULT_STOP_TIMEOUT_MS = 20000;
+const DEFAULT_STOP_TIMEOUT_MS = 45000;
 const DEFAULT_START_TIMEOUT_MS = 20000;
+const DEFAULT_FORCE_KILL_WAIT_MS = 8000;
 
 function sleepSync(ms) {
     const n = Math.max(0, Number(ms) || 0);
@@ -116,7 +123,114 @@ function resolveDeps(deps = {}) {
         pollMs: deps.pollMs || DEFAULT_POLL_MS,
         stopTimeoutMs: deps.stopTimeoutMs || DEFAULT_STOP_TIMEOUT_MS,
         startTimeoutMs: deps.startTimeoutMs || DEFAULT_START_TIMEOUT_MS,
+        forceKillWaitMs: deps.forceKillWaitMs || DEFAULT_FORCE_KILL_WAIT_MS,
+        allowForceKill: deps.allowForceKill !== false,
     };
+}
+
+/**
+ * Parse PID from `sc queryex` output (0 when absent / SERVICE_STOPPED).
+ * @param {string} raw
+ * @returns {number}
+ */
+function parseScQueryExPid(raw) {
+    const m = String(raw || '').match(/\bPID\s*:\s*(\d+)/i);
+    if (!m) return 0;
+    const pid = Number.parseInt(m[1], 10);
+    return Number.isFinite(pid) && pid > 0 ? pid : 0;
+}
+
+function queryServicePid(execSync, serviceName, options = {}) {
+    const timeout = options.timeout || 10000;
+    try {
+        const out = execSync(`sc queryex "${serviceName}"`, {
+            timeout,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+        });
+        return parseScQueryExPid(out);
+    } catch (err) {
+        const blob = `${extractNssmStdout(err)}\n${err.stdout || ''}\n${err.message || ''}`;
+        return parseScQueryExPid(blob);
+    }
+}
+
+function queryNssmApplication(execSync, serviceName, options = {}) {
+    const timeout = options.timeout || 10000;
+    try {
+        const out = execSync(`nssm get "${serviceName}" Application`, {
+            timeout,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+        });
+        return String(out || '').trim().replace(/^"|"$/g, '');
+    } catch (err) {
+        const fromOut = String(err.stdout || extractNssmStdout(err) || '').trim();
+        return fromOut.replace(/^"|"$/g, '');
+    }
+}
+
+/**
+ * Last-resort stop when NSSM leave the service RUNNING after a graceful stop.
+ * Safe for BetterDeskServer updates: kills only the service PID / Application exe.
+ *
+ * @returns {{ attempted: boolean, methods: string[] }}
+ */
+function forceKillWindowsServiceProcess(serviceName, d) {
+    const methods = [];
+    if (!d.allowForceKill) {
+        return { attempted: false, methods };
+    }
+
+    try {
+        d.execSync(`sc stop "${serviceName}"`, {
+            timeout: 15000,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+        });
+        methods.push('sc-stop');
+    } catch (_e) {
+        methods.push('sc-stop-failed');
+    }
+
+    d.sleep(Math.min(1500, d.pollMs * 4));
+
+    const pid = queryServicePid(d.execSync, serviceName);
+    if (pid > 0) {
+        try {
+            d.execSync(`taskkill /F /PID ${pid} /T`, {
+                timeout: 15000,
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'pipe'],
+                windowsHide: true,
+            });
+            methods.push(`taskkill-pid:${pid}`);
+        } catch (_e) {
+            methods.push(`taskkill-pid-failed:${pid}`);
+        }
+    }
+
+    const application = queryNssmApplication(d.execSync, serviceName);
+    const base = application ? path.basename(application) : '';
+    // Only kill known BetterDesk / configured service binaries (never bare "node.exe").
+    if (base && /\.exe$/i.test(base) && !/^node\.exe$/i.test(base)) {
+        try {
+            d.execSync(`taskkill /F /IM "${base}" /T`, {
+                timeout: 15000,
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'pipe'],
+                windowsHide: true,
+            });
+            methods.push(`taskkill-im:${base}`);
+        } catch (_e) {
+            methods.push(`taskkill-im-failed:${base}`);
+        }
+    }
+
+    return { attempted: methods.length > 0, methods };
 }
 
 function assertServiceName(serviceName) {
@@ -169,15 +283,43 @@ function stopWindowsNssmService(serviceName, deps = {}) {
         status = waitForNssmStatus(d.execSync, serviceName, isStatusStopped, d.stopTimeoutMs, d.sleep, d.pollMs);
     }
 
+    let method = 'stop';
+    if (!isStatusStopped(status) && (isStatusRunning(status) || isStatusPaused(status))) {
+        // Graceful NSSM stop ignored the process (common under load during panel
+        // updates). Escalate before callers try to overwrite betterdesk-server.exe.
+        const forced = forceKillWindowsServiceProcess(serviceName, d);
+        if (forced.attempted) {
+            method = 'force-stop';
+            status = waitForNssmStatus(
+                d.execSync,
+                serviceName,
+                isStatusStopped,
+                d.forceKillWaitMs,
+                d.sleep,
+                d.pollMs
+            );
+            // NSSM may still report RUNNING briefly after taskkill; ask it to stop again.
+            if (!isStatusStopped(status)) {
+                runNssm(d.execSync, ['stop', serviceName]);
+                status = waitForNssmStatus(
+                    d.execSync,
+                    serviceName,
+                    isStatusStopped,
+                    d.forceKillWaitMs,
+                    d.sleep,
+                    d.pollMs
+                );
+            }
+        }
+    }
+
     if (!isStatusStopped(status)) {
-        // Last resort: classic restart may leave it stopped briefly; prefer fail so
-        // callers know the binary may still be locked.
         throw new Error(
             `Service ${serviceName} did not reach SERVICE_STOPPED (status: ${status || 'unknown'})`
         );
     }
 
-    return { success: true, service: serviceName, method: 'stop' };
+    return { success: true, service: serviceName, method };
 }
 
 /**
@@ -280,7 +422,10 @@ module.exports = {
     restartWindowsNssmService,
     stopWindowsNssmService,
     startWindowsNssmService,
+    forceKillWindowsServiceProcess,
     queryNssmStatus,
+    queryServicePid,
+    parseScQueryExPid,
     isStatusRunning,
     isStatusStopped,
     isStatusPaused,
