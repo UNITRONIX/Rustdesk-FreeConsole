@@ -31,14 +31,14 @@ func TestReleaseTransportCandidatesAllowSignedHTTPProfile(t *testing.T) {
 	brand := Branding{
 		UseHTTPS: false,
 		AllowedEndpoints: []string{
-			"http://192.168.0.110:5443",
-			"http://192.168.0.110:5443/api",
-			"ws://192.168.0.110:21122/cdap",
+			"http://203.0.113.10:5443",
+			"http://203.0.113.10:5443/api",
+			"ws://203.0.113.10:21122/cdap",
 		},
 		Server: &ServerBranding{
-			Address: "http://192.168.0.110:5443",
-			APIURL:  "http://192.168.0.110:5443/api",
-			CDAPURL: "ws://192.168.0.110:21122/cdap",
+			Address: "http://203.0.113.10:5443",
+			APIURL:  "http://203.0.113.10:5443/api",
+			CDAPURL: "ws://203.0.113.10:21122/cdap",
 		},
 	}
 	state := &AppState{

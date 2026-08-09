@@ -43,14 +43,14 @@ func TestCDAPWebSocketURLWithHTTPS(t *testing.T) {
 
 func TestCDAPWebSocketURLWithHTTP(t *testing.T) {
 	b := Branding{
-		ServerAddress: "http://192.168.0.110:5443",
+		ServerAddress: "http://203.0.113.10:5443",
 		UseHTTPS:      false,
 		Server: &ServerBranding{
-			CDAPURL: "ws://192.168.0.110:21122/cdap",
+			CDAPURL: "ws://203.0.113.10:21122/cdap",
 		},
 	}.normalize()
 	got := b.CDAPWebSocketURL()
-	if got != "ws://192.168.0.110:21122/cdap" {
+	if got != "ws://203.0.113.10:21122/cdap" {
 		t.Fatalf("got %q", got)
 	}
 	if b.useTLS() {
