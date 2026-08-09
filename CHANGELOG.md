@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **Attestation Light theme contrast (#363):** Tier guide descriptions use `--text-primary`; IRON/TITANIUM/OBSIDIAN badge gradients stay readable on the dark chip; attestation cards use `--bg-secondary` (undefined `--bg-surface` removed). Ships via panel update (`server-attestation.css`). Verify: Light theme → Server Attestation → “What does each tier mean?” text and IRON/TITANIUM/OBSIDIAN badges are readable.
 - **Fleet org filter 404 (#364):** Fleet Management called non-existent `GET /api/panel/organizations`; it now uses `GET /api/panel/org` (same as Policies). Ships via panel update (`fleet.js`). Verify: Fleet page Network tab shows `/api/panel/org` (no 404), org dropdowns populate.
 
 ### Changed
