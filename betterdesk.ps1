@@ -1802,6 +1802,68 @@ function Set-ServiceLeastPrivilege {
     Print-Info "Service $ServiceName runs under least-privilege account ($account)"
 }
 
+# Panel updates run as NT SERVICE\BetterDeskConsole and cannot taskkill BetterDeskServer.
+# Register an on-demand SYSTEM scheduled task that the panel invokes for stop/deploy/start.
+function Register-BetterDeskServiceControlTask {
+    $helper = Join-Path $script:CONSOLE_PATH "scripts\windows-service-control.js"
+    if (-not (Test-Path $helper)) {
+        Print-Warning "windows-service-control.js missing — panel cannot force-stop BetterDeskServer during updates"
+        return $false
+    }
+    $node = (Get-Command node -ErrorAction SilentlyContinue).Source
+    if (-not $node) { $node = "node.exe" }
+    $watchDir = Join-Path $script:CONSOLE_PATH "data\service-control"
+    New-Item -ItemType Directory -Path $watchDir -Force | Out-Null
+
+    $tr = "`"$node`" `"$helper`" --watch-dir `"$watchDir`""
+    try {
+        & schtasks /Create /TN "BetterDeskServiceControl" /TR $tr /SC ONCE /ST 23:59 /SD 01/01/2099 /RU SYSTEM /RL HIGHEST /F 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Print-Success "Registered BetterDeskServiceControl (SYSTEM) for panel Go binary updates"
+            return $true
+        }
+        Print-Warning "Could not register BetterDeskServiceControl (exit $LASTEXITCODE)"
+        return $false
+    } catch {
+        Print-Warning "Could not register BetterDeskServiceControl: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+# Grant the console virtual account SCM start/stop/query on BetterDeskServer.
+function Grant-ConsoleControlOfServer {
+    $server = $script:SERVER_SERVICE
+    $console = $script:CONSOLE_SERVICE
+    if (-not (Get-Service -Name $server -ErrorAction SilentlyContinue)) { return }
+    if (-not (Get-Service -Name $console -ErrorAction SilentlyContinue)) { return }
+    try {
+        $sid = (New-Object System.Security.Principal.NTAccount("NT SERVICE\$console")).Translate(
+            [System.Security.Principal.SecurityIdentifier]
+        ).Value
+        $sd = (& sc.exe sdshow $server 2>$null | Out-String).Trim()
+        if (-not $sd) { return }
+        if ($sd -match [regex]::Escape($sid)) {
+            Print-Info "Console already has SCM rights on $server"
+            return
+        }
+        # RP=START WP=STOP LC=QUERY_STATUS CC=QUERY_CONFIG RC=READ_CONTROL
+        $ace = "(A;;RPWPLCCCRC;;;$sid)"
+        if ($sd -match '^(D:)') {
+            $newSd = $sd -replace '^(D:)', "`$1$ace"
+        } else {
+            $newSd = "D:$ace$sd"
+        }
+        & sc.exe sdset $server $newSd 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Print-Success "Granted $console start/stop rights on $server"
+        } else {
+            Print-Warning "sc sdset $server failed (exit $LASTEXITCODE) — SYSTEM task still handles force-stop"
+        }
+    } catch {
+        Print-Warning "Grant-ConsoleControlOfServer: $($_.Exception.Message)"
+    }
+}
+
 # Safe in-place patch of NSSM services (TLS API flags, HTTP URLs, AUTH_DB_PATH) without remove+install.
 function Patch-ServiceDefinitions {
     $nssm = Get-Command nssm -ErrorAction SilentlyContinue
@@ -1861,6 +1923,8 @@ function Patch-ServiceDefinitions {
     if ($changed) {
         Print-Success "Service definitions patched (custom NSSM settings preserved)"
     }
+    Grant-ConsoleControlOfServer
+    Register-BetterDeskServiceControlTask | Out-Null
 }
 
 # During UPDATE: create missing services; patch existing; optional full recreate.
@@ -2162,6 +2226,9 @@ function Setup-Services {
     # Create logs directories
     New-Item -ItemType Directory -Path "$script:RUSTDESK_PATH\logs" -Force | Out-Null
     New-Item -ItemType Directory -Path "$script:CONSOLE_PATH\logs" -Force | Out-Null
+
+    Grant-ConsoleControlOfServer
+    Register-BetterDeskServiceControlTask | Out-Null
     
     Print-Success "Windows services configured"
     Print-Info "Services: $script:SERVER_SERVICE, $script:CONSOLE_SERVICE"
