@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.40] — 2026-08-09
+
 ### Fixed
 - **Windows panel update — Go binary deploy Access Denied / SERVICE_RUNNING:** Console runs as `NT SERVICE\BetterDeskConsole` and cannot `nssm set AppExit` / `sc stop` / `taskkill` on BetterDeskServer, so Apply compiled the server then skipped deploy (`app-exit-exit-failed`, `taskkill-*-failed`). Adds SYSTEM scheduled task `BetterDeskServiceControl` (`scripts/windows-service-control.js`) for privileged stop → copy → start; panel uses it for Go deploy and stops the server before build. `betterdesk.ps1` Update/Repair registers the task and grants the console SCM start/stop on the server. **One-time Admin:** run `betterdesk.ps1` → Update (or Repair services), then Settings → Updates → Apply again.
 
@@ -2939,3 +2946,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.37]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.36...v3.5.37
 [3.5.38]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.37...v3.5.38
 [3.5.39]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.38...v3.5.39
+[3.5.40]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.39...v3.5.40
