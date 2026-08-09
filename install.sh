@@ -15,7 +15,7 @@
 #   --docker | --native          Installation mode (default: docker)
 #   --split                      Legacy two-container layout (server + console images)
 #   --install-dir PATH             Install directory (default: /opt/betterdesk)
-#   --version TAG                  Docker image tag / release baseline (default: 3.5.38)
+#   --version TAG                  Docker image tag / release baseline (default: 3.5.39)
 #   --branch BRANCH                Git branch for native install (default: main)
 #   --relay-mode auto|local|public Relay auto-detection strategy
 #   --relay-servers IP[:port]      Fixed relay address (overrides --relay-mode)
@@ -39,7 +39,7 @@ set -euo pipefail
 VERSION="1.0.0"
 BETTERDESK_REPO="${BETTERDESK_REPO:-UNITRONIX/BetterDesk}"
 BETTERDESK_BRANCH="${BETTERDESK_BRANCH:-main}"
-BETTERDESK_VERSION="${BETTERDESK_VERSION:-3.5.38}"
+BETTERDESK_VERSION="${BETTERDESK_VERSION:-3.5.39}"
 BETTERDESK_RAW_BASE="${BETTERDESK_RAW_BASE:-https://raw.githubusercontent.com/${BETTERDESK_REPO}/${BETTERDESK_BRANCH}}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/betterdesk}"
 INSTALL_MODE="docker"
