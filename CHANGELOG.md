@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.38] — 2026-08-09
+
 ### Fixed
 - **Windows panel update — Go binary still blocked after force-stop:** `taskkill` on BetterDeskServer could leave `SERVICE_RUNNING` because NSSM `AppExit Default=Restart` immediately respawned the process, so Apply skipped deploying the new Go binary (console updates applied; server stayed on the old build). Force-stop now sets `AppExit Default=Exit` before kill, then restores Restart after `SERVICE_STOPPED`. Ships via panel update (console JS only — Apply once to get the stop fix, then Apply again if the prior run skipped the Go binary).
 
@@ -2920,3 +2927,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.35]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.34...v3.5.35
 [3.5.36]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.35...v3.5.36
 [3.5.37]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.36...v3.5.37
+[3.5.38]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.37...v3.5.38
