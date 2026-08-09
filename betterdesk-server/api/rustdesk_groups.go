@@ -82,7 +82,7 @@ func (s *Server) buildRustDeskDeviceGroupsFromContext(
 		}
 		for _, folder := range folders {
 			allowedUsers, allowedGroups, _ := s.panelStore.FolderGroupAccess(folder.ID)
-			if !panelAccessAllowedStrict(user, userGroupGUIDs, allowedUsers, allowedGroups) {
+			if !panelAccessAllowed(user, role, userGroupGUIDs, allowedUsers, allowedGroups) {
 				continue
 			}
 			var peerIDs []string
@@ -152,11 +152,14 @@ func panelGroupAllowedForUser(g db.PanelDeviceGroup, user *db.User, role string,
 	return panelAccessAllowed(user, role, userGroupGUIDs, g.AllowedUsers, g.AllowedGroupGUIDs)
 }
 
-// panelGroupAllowedForRustDeskAB applies device-group ACL without privileged-role bypass.
-// Panel admins still see every device in the console; stock RustDesk only lists groups
-// the user (or their user groups) are explicitly granted.
+// panelGroupAllowedForRustDeskAB applies device-group ACL for stock RustDesk
+// sidebar listing (/api/group, /api/device-group/accessible).
+//
+// Privileged console roles (admin / global_admin / server_admin / super_admin)
+// see every device group — same visibility as the web panel. Operators and
+// other non-privileged roles stay on strict grants (empty ACL = hidden).
 func panelGroupAllowedForRustDeskAB(g db.PanelDeviceGroup, user *db.User, role string, userGroupGUIDs map[string]bool) bool {
-	return panelAccessAllowedStrict(user, userGroupGUIDs, g.AllowedUsers, g.AllowedGroupGUIDs)
+	return panelAccessAllowed(user, role, userGroupGUIDs, g.AllowedUsers, g.AllowedGroupGUIDs)
 }
 
 func panelAccessAllowed(user *db.User, role string, userGroupGUIDs map[string]bool, allowedUsers, allowedGroups []string) bool {

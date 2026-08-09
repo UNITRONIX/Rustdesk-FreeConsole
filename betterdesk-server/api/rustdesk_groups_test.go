@@ -30,7 +30,7 @@ func TestPanelAccessAllowedStrictIgnoresAdminBypass(t *testing.T) {
 	if !panelAccessAllowed(admin, auth.RoleAdmin, guids, nil, nil) {
 		t.Fatal("panelAccessAllowed should bypass for admin on empty ACL")
 	}
-	// RustDesk AB must not list groups without an explicit grant.
+	// Strict helper itself must deny empty grants even for admin.
 	if panelAccessAllowedStrict(admin, guids, nil, nil) {
 		t.Fatal("strict ACL must deny empty grants even for admin")
 	}
@@ -40,13 +40,22 @@ func TestPanelAccessAllowedStrictIgnoresAdminBypass(t *testing.T) {
 	if !panelAccessAllowedStrict(admin, guids, nil, []string{"ug-ops"}) {
 		t.Fatal("strict ACL must allow groups granted to the admin's user group")
 	}
+	// RustDesk AB group listing uses panelAccessAllowed — admins see all groups.
 	g := db.PanelDeviceGroup{Name: "Event Servers", AllowedGroupGUIDs: []string{"ug-other"}}
-	if panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
-		t.Fatal("RustDesk AB must hide device groups not granted to the admin's user group")
+	if !panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
+		t.Fatal("RustDesk AB must list device groups for panel admins (panel parity)")
+	}
+	g.AllowedGroupGUIDs = nil
+	if !panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
+		t.Fatal("RustDesk AB must list empty-ACL groups for panel admins")
+	}
+	op := &db.User{Username: "op", Role: auth.RoleOperator}
+	if panelGroupAllowedForRustDeskAB(g, op, auth.RoleOperator, guids) {
+		t.Fatal("RustDesk AB must hide empty-ACL groups from operators")
 	}
 	g.AllowedGroupGUIDs = []string{"ug-ops"}
-	if !panelGroupAllowedForRustDeskAB(g, admin, auth.RoleAdmin, guids) {
-		t.Fatal("RustDesk AB must show device groups granted to the admin's user group")
+	if !panelGroupAllowedForRustDeskAB(g, op, auth.RoleOperator, guids) {
+		t.Fatal("RustDesk AB must show groups granted to the operator's user group")
 	}
 }
 

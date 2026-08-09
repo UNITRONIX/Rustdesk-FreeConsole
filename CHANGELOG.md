@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Stock RustDesk — admin address-book sidebar empty after ACL harden:** `/api/group` and `/api/device-group/accessible` applied strict group ACL with no privileged bypass, so panel admins (e.g. `Chesster`) saw devices but no device groups/folders in the RustDesk sidebar when grants were empty or on another user group. Privileged roles again list all groups (web-panel parity); operators stay fail-closed on empty/unmatched ACL. Ships via Go rebuild/restart; re-login or refresh address book in RustDesk.
+
 ### Changed
 - _(none yet)_
 
