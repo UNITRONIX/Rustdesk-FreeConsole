@@ -127,7 +127,15 @@ type Server struct {
 	networkPolicy *policy.NetworkResolver
 
 	billing *billing.Service
+
+	// targetAccess optionally enforces panel device ACL for logged-in initiators
+	// (wired from api.Server.UserMayConnectToPeer in main).
+	targetAccess TargetAccessFunc
 }
+
+// TargetAccessFunc reports whether a panel user may open a session to targetID.
+// nil checker = skip (unit tests / signal-only without panel sync).
+type TargetAccessFunc func(userID int64, username, role, targetID string) bool
 
 // New creates a new signal server instance.
 func New(cfg *config.Config, kp *crypto.KeyPair, database db.Database) *Server {
@@ -161,6 +169,12 @@ func (s *Server) SetAuditLogger(l *audit.Logger) {
 // SetBillingService attaches commercialization billing gates to signal handling.
 func (s *Server) SetBillingService(b *billing.Service) {
 	s.billing = b
+}
+
+// SetTargetAccessChecker attaches panel device-scope ACL for PunchHole/RequestRelay
+// when the initiator is identified via a BetterDesk client login session.
+func (s *Server) SetTargetAccessChecker(fn TargetAccessFunc) {
+	s.targetAccess = fn
 }
 
 // PeerMap returns the server's in-memory peer map for external access (e.g., API).

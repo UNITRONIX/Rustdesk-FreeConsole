@@ -152,6 +152,55 @@ func canBrowseRustDeskInventory(role string) bool {
 	return role != auth.RolePro && auth.RoleHasPermission(role, auth.PermDeviceView)
 }
 
+// UserMayConnectToPeer reports whether a logged-in panel user may initiate a
+// RustDesk session to targetID. Privileged roles may connect to any non-empty
+// target; other roles must pass the same device-scope ACL as /api/peers.
+func (s *Server) UserMayConnectToPeer(userID int64, username, role, targetID string) bool {
+	targetID = strings.TrimSpace(targetID)
+	if targetID == "" {
+		return false
+	}
+	username = strings.TrimSpace(username)
+	role = strings.TrimSpace(role)
+	if role == auth.RolePro || !auth.RoleHasPermission(role, auth.PermDeviceView) {
+		return false
+	}
+	if auth.IsSuperAdminRole(role) || role == auth.RoleGlobalAdmin || role == auth.RoleServerAdmin {
+		return true
+	}
+
+	user := &db.User{ID: userID, Username: username, Role: role}
+	if userID > 0 && s.db != nil {
+		if u, err := s.db.GetUserByID(userID); err == nil && u != nil {
+			user = u
+			if role == "" {
+				role = u.Role
+			}
+		}
+	}
+
+	peerByID, allowedIDs := s.loadRustDeskPeerByID(username, role)
+	if !canBrowseRustDeskInventory(role) {
+		if len(allowedIDs) == 0 || !allowedIDs[targetID] {
+			return false
+		}
+	}
+	if _, ok := peerByID[targetID]; !ok {
+		// Target may still be connectable if present in inventory but filtered
+		// earlier — reload single peer for ACL membership checks.
+		if s.db != nil {
+			if p, err := s.db.GetPeer(targetID); err == nil && p != nil && !p.Banned && !p.SoftDeleted && !p.Disabled {
+				peerByID[targetID] = p
+			}
+		}
+	}
+	visible := s.coerceNonAdminVisibleSet(user, role, peerByID, s.rustDeskVisiblePeerSet(user, role, peerByID))
+	if visible == nil {
+		return true
+	}
+	return visible[targetID]
+}
+
 func (s *Server) addressBookPeerIDs(username string) map[string]bool {
 	out := make(map[string]bool)
 	for _, abType := range []string{"legacy", "personal"} {

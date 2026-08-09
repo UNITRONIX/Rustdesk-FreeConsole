@@ -1,6 +1,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **Managed enrollment blocked logged-in viewer connections:** In managed/locked mode the viewer's own peer ID was queued/rejected by enrollment before PunchHole could run, so a valid BetterDesk login was not enough to connect. Logged-in clients now get ephemeral signal registration (memory/TCP only, no inventory peer) and may initiate when panel device ACL allows the target; only targets still require enrollment approval. Ships via Go rebuild/restart.
 - **Stock RustDesk — admin address-book sidebar empty after ACL harden:** `/api/group` and `/api/device-group/accessible` applied strict group ACL with no privileged bypass, so panel admins (e.g. `Chesster`) saw devices but no device groups/folders in the RustDesk sidebar when grants were empty or on another user group. Privileged roles again list all groups (web-panel parity); operators stay fail-closed on empty/unmatched ACL. Ships via Go rebuild/restart; re-login or refresh address book in RustDesk.
 
 ### Changed

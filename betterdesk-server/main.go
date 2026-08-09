@@ -403,6 +403,7 @@ func main() {
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), relaySrv, apiVersionString())
 		defer attachPanelSync(apiSrv, billingSvc, database, cfg.DBPath, cfg.AuthDBPath)()
+		sig.SetTargetAccessChecker(apiSrv.UserMayConnectToPeer)
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)
@@ -505,6 +506,7 @@ func main() {
 
 		apiSrv := api.New(cfg, database, sig.PeerMap(), nil, apiVersionString())
 		defer attachPanelSync(apiSrv, billingSvc, database, cfg.DBPath, cfg.AuthDBPath)()
+		sig.SetTargetAccessChecker(apiSrv.UserMayConnectToPeer)
 		apiSrv.SetBlocklist(blocklist)
 		apiSrv.SetBandwidthLimiter(bwLimiter)
 		apiSrv.SetAuditLogger(auditLogger)

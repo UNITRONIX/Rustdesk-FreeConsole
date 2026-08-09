@@ -14,6 +14,7 @@ import (
 	"github.com/unitronix/betterdesk-server/codec"
 	"github.com/unitronix/betterdesk-server/config"
 	cryptopkg "github.com/unitronix/betterdesk-server/crypto"
+	"github.com/unitronix/betterdesk-server/auth"
 	"github.com/unitronix/betterdesk-server/db"
 	"github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/peer"
@@ -1512,10 +1513,25 @@ func TestClientTokenAuthorizesPendingLivePeer(t *testing.T) {
 		t.Fatalf("pending+login token = (%q, %v), want PENDTOK1", id, ok)
 	}
 
-	// Without login token, pending live peer remains blocked (#302).
+	// Active client_sessions row is enough even without PunchHole token — viewer
+	// login must not require inventory enrollment.
 	id, ok = srv.requireAuthorizedInitiator(udpAddr("198.51.100.76", 51000), "TGTPENDTOK", "")
+	if !ok || id != "PENDTOK1" {
+		t.Fatalf("pending+active session without punch token = (%q, %v), want PENDTOK1", id, ok)
+	}
+}
+
+func TestPendingWithoutLoginStillBlocked(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTPENDNOL", "203.0.113.98", 52000, peer.ConnTCP)
+	putOnlinePeer(srv, "PENDNOL1", "198.51.100.77", 51000, peer.ConnUDP)
+	if err := database.SetConfig("pending_device_PENDNOL1", `{"device_id":"PENDNOL1"}`); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.77", 51000), "TGTPENDNOL", "")
 	if ok {
-		t.Fatalf("pending without token must fail, got %q", id)
+		t.Fatalf("pending without login must fail, got %q", id)
 	}
 }
 
@@ -1670,5 +1686,86 @@ func TestBannedTokenInitiatorRevokesSessionAndRelayTickets(t *testing.T) {
 	}
 	if relay.AuthorizeRelayPair(relayUUID, "TOKBAN1", "TGTBAN1") {
 		t.Fatal("banned peer relay ticket must remain revoked")
+	}
+}
+
+func TestManagedLoggedInViewerRegistersEphemerally(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	user := &db.User{Username: "viewer", PasswordHash: "hash", Role: auth.RoleAdmin}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  "ephemeral-hash",
+		UserID:     user.ID,
+		ClientID:   "VIEWEP1",
+		ClientUUID: "view-ep-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	resp := srv.processRegisterPk(&pb.RegisterPk{
+		Id:   "VIEWEP1",
+		Uuid: []byte("view-ep-uuid"),
+		Pk:   []byte("view-ep-pk-bytes-32!!!!!!!!!!!!!!"),
+	}, "198.51.100.88:51000")
+	if got := registerPkResult(resp); got != pb.RegisterPkResponse_OK {
+		t.Fatalf("logged-in viewer RegisterPk = %v, want OK", got)
+	}
+	if p, err := database.GetPeer("VIEWEP1"); err != nil {
+		t.Fatal(err)
+	} else if p != nil {
+		t.Fatalf("ephemeral viewer must not create inventory peer, got %+v", p)
+	}
+	if pending, _ := database.GetConfig("pending_device_VIEWEP1"); pending != "" {
+		t.Fatalf("logged-in viewer must not be queued pending, got %q", pending)
+	}
+	entry := srv.peers.Get("VIEWEP1")
+	if entry == nil || entry.IP == "" {
+		t.Fatalf("expected memory peer for ephemeral viewer, got %#v", entry)
+	}
+
+	putOnlinePeer(srv, "TGTEP1", "203.0.113.88", 52000, peer.ConnTCP)
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.88", 51000), "TGTEP1", "")
+	if !ok || id != "VIEWEP1" {
+		t.Fatalf("login-backed ephemeral punch = (%q, %v), want VIEWEP1", id, ok)
+	}
+}
+
+func TestLoggedInInitiatorTargetAccessDenied(t *testing.T) {
+	srv, database := newTestSignalServer(t, config.EnrollmentModeManaged)
+	putOnlinePeer(srv, "TGTACL1", "203.0.113.89", 52000, peer.ConnTCP)
+	user := &db.User{Username: "opacl", PasswordHash: "hash", Role: auth.RoleOperator}
+	if err := database.CreateUser(user); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token := strings.Repeat("ef", 32)
+	sum := sha256.Sum256([]byte(token))
+	if err := database.CreateClientSession(&db.ClientSession{
+		TokenHash:  hex.EncodeToString(sum[:]),
+		UserID:     user.ID,
+		ClientID:   "ACLINIT1",
+		ClientUUID: "acl-uuid",
+		ExpiresAt:  time.Now().UTC().Add(24 * time.Hour).Format("2006-01-02 15:04:05"),
+		CreatedAt:  time.Now().UTC().Format("2006-01-02 15:04:05"),
+	}); err != nil {
+		t.Fatalf("CreateClientSession: %v", err)
+	}
+
+	srv.SetTargetAccessChecker(func(userID int64, username, role, targetID string) bool {
+		return targetID != "TGTACL1"
+	})
+	if id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.89", 51000), "TGTACL1", token); ok || id != "" {
+		t.Fatalf("ACL deny = (%q, %v), want rejection", id, ok)
+	}
+
+	srv.SetTargetAccessChecker(func(userID int64, username, role, targetID string) bool {
+		return targetID == "TGTACL1"
+	})
+	id, ok := srv.requireAuthorizedInitiator(udpAddr("198.51.100.89", 51000), "TGTACL1", token)
+	if !ok || id != "ACLINIT1" {
+		t.Fatalf("ACL allow = (%q, %v), want ACLINIT1", id, ok)
 	}
 }

@@ -368,7 +368,14 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 	}
 
 	// NEW PEER — Dual Key System enrollment check.
-	if !s.checkEnrollmentPermission(id, raddr.IP.String()) {
+	// In managed/locked modes, logged-in viewers may register ephemerally in the
+	// signal map without inventory enrollment — only targets need approval.
+	ephemeralViewer := false
+	if s.enrollmentRequiresApproval() && s.hasActiveClientLogin(id, "") {
+		ephemeralViewer = true
+		s.clearPendingEnrollment(id)
+		log.Printf("[signal] Ephemeral viewer registration for logged-in client %s from %s (skip enrollment)", id, raddr.IP)
+	} else if !s.checkEnrollmentPermission(id, raddr.IP.String()) {
 		log.Printf("[signal] Rejected new peer %s from %s (enrollment policy)", id, raddr.IP)
 		if s.auditLog != nil {
 			s.auditLog.Log(audit.ActionPeerRegistrationRejected, raddr.IP.String(), id, map[string]string{
@@ -437,6 +444,12 @@ func (s *Server) handleRegisterPeer(msg *pb.RegisterPeer, raddr *net.UDPAddr) {
 		},
 	}
 	s.sendUDP(resp, raddr)
+
+	if ephemeralViewer {
+		log.Printf("[signal] New ephemeral viewer registered: %s from %s (memory only)", id, raddr)
+		s.publishPeerOnline(id)
+		return
+	}
 
 	log.Printf("[signal] New peer registered: %s from %s (pk_loaded=%v)", id, raddr, len(entry.PK) > 0)
 	s.db.UpdatePeerStatus(id, "ONLINE", raddr.IP.String())
@@ -524,10 +537,17 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 		log.Printf("[signal] Failed to check peer %s before RegisterPk enrollment: %v", id, err)
 		return registerPkResponse(pb.RegisterPkResponse_SERVER_ERROR)
 	}
-	if existingPeer == nil && !s.checkEnrollmentPermission(id, clientHost) {
-		log.Printf("[signal] Rejected new peer PK registration: %s from %s (enrollment policy)", id, clientHost)
-		s.peers.Remove(id)
-		return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+	ephemeralViewer := false
+	if existingPeer == nil {
+		if s.enrollmentRequiresApproval() && s.hasActiveClientLogin(id, strings.TrimSpace(string(msg.Uuid))) {
+			ephemeralViewer = true
+			s.clearPendingEnrollment(id)
+			log.Printf("[signal] Ephemeral viewer PK registration for logged-in client %s from %s (skip enrollment)", id, clientHost)
+		} else if !s.checkEnrollmentPermission(id, clientHost) {
+			log.Printf("[signal] Rejected new peer PK registration: %s from %s (enrollment policy)", id, clientHost)
+			s.peers.Remove(id)
+			return registerPkResponse(pb.RegisterPkResponse_NOT_SUPPORT)
+		}
 	}
 
 	// Check ban status
@@ -597,21 +617,24 @@ func (s *Server) processRegisterPk(msg *pb.RegisterPk, addrStr string) *pb.Rende
 	}
 	s.bindTCPSessionPeer(addrStr, id)
 
-	// Persist to database
-	dbPeer := &db.Peer{
-		ID:     id,
-		UUID:   fmt.Sprintf("%x", entry.UUID),
-		PK:     entry.PK,
-		Status: "ONLINE",
-	}
-	if err := s.db.UpsertPeer(dbPeer); err != nil {
-		log.Printf("[signal] Failed to upsert peer %s: %v", id, err)
-	} else {
-		// Bind peers.user when an active RustDesk client login exists for this device.
-		db.ApplyActiveSessionOwner(s.db, id, dbPeer.UUID)
+	// Persist to database — ephemeral logged-in viewers stay memory/TCP-session
+	// only so managed inventory enrollment is reserved for target devices.
+	if !ephemeralViewer {
+		dbPeer := &db.Peer{
+			ID:     id,
+			UUID:   fmt.Sprintf("%x", entry.UUID),
+			PK:     entry.PK,
+			Status: "ONLINE",
+		}
+		if err := s.db.UpsertPeer(dbPeer); err != nil {
+			log.Printf("[signal] Failed to upsert peer %s: %v", id, err)
+		} else {
+			// Bind peers.user when an active RustDesk client login exists for this device.
+			db.ApplyActiveSessionOwner(s.db, id, dbPeer.UUID)
+		}
 	}
 
-	log.Printf("[signal] PK registered for %s (pk=%d bytes)", id, len(msg.Pk))
+	log.Printf("[signal] PK registered for %s (pk=%d bytes ephemeral=%v)", id, len(msg.Pk), ephemeralViewer)
 
 	return &pb.RendezvousMessage{
 		Union: &pb.RendezvousMessage_RegisterPkResponse{
@@ -1911,7 +1934,7 @@ func (s *Server) authorizeRelayTicket(relayUUID, initiatorID, targetID string) b
 //     stock clients that PunchHole on a new TCP port). Multiple live peers at
 //     that IP → initiator_ambiguous_same_nat (no identity inheritance, #302)
 //
-// Without a login token, managed and locked modes additionally require an
+// Without a login session, managed and locked modes additionally require an
 // approved DB peer row (pending enrollment alone is not enough). Panel proxy
 // initiators skip peer-map / DB checks: operator auth is enforced at the panel
 // WS upgrade before TCP is bridged to hbbs.
@@ -2021,7 +2044,11 @@ func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targe
 	initiatorID := strings.TrimSpace(sess.ClientID)
 	if initiatorID == "" {
 		// Logged-in but device id unknown — still authorized via account credentials.
-		return fmt.Sprintf("session-user-%d", sess.UserID), true
+		initiatorID = fmt.Sprintf("session-user-%d", sess.UserID)
+		if !s.assertLoggedInTargetAccess(sess.UserID, initiatorID, targetID, raddr) {
+			return "", false
+		}
+		return initiatorID, true
 	}
 	// Token initiators must always consult the persisted ban state, including
 	// open enrollment mode. Memory entries are cleared on restart and cannot be
@@ -2036,7 +2063,11 @@ func (s *Server) authorizeViaClientToken(token string, raddr *net.UDPAddr, targe
 		s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_banned")
 		return "", false
 	}
-	return s.finalizeAuthorizedInitiator(initiatorID, raddr, targetID, false, true)
+	id, ok := s.finalizeAuthorizedInitiator(initiatorID, raddr, targetID, false, true)
+	if !ok {
+		return "", false
+	}
+	return id, true
 }
 
 // finalizeAuthorizedInitiator applies ban / soft-delete / enrollment checks shared
@@ -2066,6 +2097,11 @@ func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPA
 			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_soft_deleted")
 			return "", false
 		}
+		// Active client login for this device ID is equivalent to PunchHole token
+		// for enrollment gates (viewer clients must not need target enrollment).
+		if !viaLoginToken && s.hasActiveClientLogin(initiatorID, "") {
+			viaLoginToken = true
+		}
 		if !viaLoginToken {
 			// Defense in depth: still queued for approval must not initiate (#302 residual).
 			if pending, _ := s.db.GetConfig("pending_device_" + initiatorID); pending != "" {
@@ -2088,6 +2124,9 @@ func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPA
 		if err != nil || dbPeer == nil {
 			if viaLoginToken {
 				// Login proved account credentials; enrollment inventory is optional.
+				if !s.assertActiveSessionTargetAccess(initiatorID, targetID, raddr) {
+					return "", false
+				}
 				return initiatorID, true
 			}
 			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_not_enrolled")
@@ -2112,7 +2151,80 @@ func (s *Server) finalizeAuthorizedInitiator(initiatorID string, raddr *net.UDPA
 		}
 	}
 
+	if viaLoginToken && !s.assertActiveSessionTargetAccess(initiatorID, targetID, raddr) {
+		return "", false
+	}
+
 	return initiatorID, true
+}
+
+func (s *Server) hasActiveClientLogin(peerID, peerUUID string) bool {
+	if s.db == nil {
+		return false
+	}
+	peerID = strings.TrimSpace(peerID)
+	peerUUID = strings.TrimSpace(peerUUID)
+	if peerID == "" && peerUUID == "" {
+		return false
+	}
+	sess, err := s.db.GetActiveClientSessionByClient(peerID, peerUUID)
+	return err == nil && sess != nil
+}
+
+func (s *Server) enrollmentRequiresApproval() bool {
+	mode := ""
+	if s.cfg != nil {
+		mode = s.cfg.EnrollmentMode
+	}
+	if mode == "" {
+		mode = config.EnrollmentModeOpen
+	}
+	return mode == config.EnrollmentModeManaged || mode == config.EnrollmentModeLocked
+}
+
+func (s *Server) clearPendingEnrollment(peerID string) {
+	if s.db == nil || strings.TrimSpace(peerID) == "" {
+		return
+	}
+	if err := s.db.DeleteConfig("pending_device_" + peerID); err != nil {
+		log.Printf("[signal] clearPendingEnrollment %s: %v", peerID, err)
+	}
+}
+
+// assertLoggedInTargetAccess enforces panel device ACL for authenticated viewers.
+// When no checker is wired (tests / signal-only), access is allowed.
+func (s *Server) assertLoggedInTargetAccess(userID int64, initiatorID, targetID string, raddr *net.UDPAddr) bool {
+	if s.targetAccess == nil || targetID == "" || userID <= 0 || s.db == nil {
+		return true
+	}
+	user, err := s.db.GetUserByID(userID)
+	if err != nil || user == nil {
+		s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "initiator_user_lookup_failed")
+		return false
+	}
+	if s.targetAccess(user.ID, user.Username, user.Role, targetID) {
+		return true
+	}
+	s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "target_access_denied")
+	return false
+}
+
+func (s *Server) assertActiveSessionTargetAccess(initiatorID, targetID string, raddr *net.UDPAddr) bool {
+	if s.targetAccess == nil || s.db == nil {
+		return true
+	}
+	sess, err := s.db.GetActiveClientSessionByClient(initiatorID, "")
+	if err != nil || sess == nil {
+		// Token path already checked with sess.UserID; peer-map login-backed path
+		// without a resolvable session stays enrollment-exempt but ACL-unknown → deny
+		// only when checker is present and we expected a session.
+		if strings.HasPrefix(initiatorID, "session-user-") {
+			s.logUnauthorizedInitiator(raddr, initiatorID, targetID, "target_access_denied")
+			return false
+		}
+		return true
+	}
+	return s.assertLoggedInTargetAccess(sess.UserID, initiatorID, targetID, raddr)
 }
 
 func (s *Server) logUnauthorizedInitiator(raddr *net.UDPAddr, initiatorID, targetID, reason string) {
