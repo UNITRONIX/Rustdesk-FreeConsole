@@ -1,3 +1,5 @@
+//go:build fyneui
+
 package main
 
 import "testing"

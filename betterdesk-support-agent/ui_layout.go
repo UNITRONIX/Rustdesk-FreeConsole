@@ -1,3 +1,5 @@
+//go:build fyneui
+
 package main
 
 import (
@@ -12,22 +14,6 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
-
-// formatDeviceID inserts spaces every three characters for readability.
-func formatDeviceID(id string) string {
-	id = strings.TrimSpace(id)
-	if id == "" {
-		return "—"
-	}
-	var b strings.Builder
-	for i, r := range id {
-		if i > 0 && i%3 == 0 {
-			b.WriteRune(' ')
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
-}
 
 func (u *ui) brandedTheme() *brandedTheme {
 	if th, ok := u.app.Settings().Theme().(*brandedTheme); ok {

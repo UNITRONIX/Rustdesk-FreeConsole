@@ -1,3 +1,5 @@
+//go:build fyneui
+
 package main
 
 import (
@@ -35,12 +37,6 @@ type ui struct {
 	chatWindow   fyne.Window
 	signalHostMu sync.Mutex
 	signalHost   *signalhost.Host
-}
-
-type consentRequest struct {
-	sessionID string
-	operator  string
-	response  chan bool
 }
 
 // run boots the GUI.
@@ -493,17 +489,6 @@ func (u *ui) notify(msg string) {
 	u.app.SendNotification(fyne.NewNotification(u.brand.ProductName, msg))
 }
 
-func maskPassword(pw string) string {
-	out := make([]rune, len([]rune(pw)))
-	for i := range out {
-		out[i] = '•'
-	}
-	if len(out) == 0 {
-		return "—"
-	}
-	return string(out)
-}
-
 func modeLabel(mode string) string {
 	switch mode {
 	case AccessUnattended:
@@ -512,16 +497,5 @@ func modeLabel(mode string) string {
 		return t("mode_disabled")
 	default:
 		return t("mode_supervised")
-	}
-}
-
-func modeFromLabel(label string) string {
-	switch label {
-	case t("mode_unattended"):
-		return AccessUnattended
-	case t("mode_disabled"):
-		return AccessDisabled
-	default:
-		return AccessSupervised
 	}
 }

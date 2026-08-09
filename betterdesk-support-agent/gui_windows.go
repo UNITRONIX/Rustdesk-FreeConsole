@@ -11,10 +11,9 @@ func init() {
 	prepWindowsGraphics()
 }
 
-// prepWindowsGraphics enables Mesa software OpenGL when a complete Mesa DLL
-// set ships next to the exe. An incomplete opengl32.dll (missing
-// libgallium_wgl.dll) is removed so it cannot shadow system OpenGL and crash
-// with STATUS_DLL_NOT_FOUND (0xC0000135).
+// prepWindowsGraphics cleans up incomplete Mesa OpenGL sidecars left by older
+// Fyne builds. The default Wails UI uses WebView2 and does not need Mesa; an
+// orphan opengl32.dll without libgallium_wgl.dll still must not shadow system GL.
 func prepWindowsGraphics() {
 	ensureMesaBesideExe()
 	dir := exeDir()

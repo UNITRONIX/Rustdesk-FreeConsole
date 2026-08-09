@@ -1,0 +1,143 @@
+:root {
+  --primary: #2563eb;
+  --surface: #1e293b;
+  --bg: #0f172a;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --ready: #22c55e;
+  --pending: #f59e0b;
+  --error: #ef4444;
+  --radius: 12px;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  user-select: none;
+}
+#app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 70%, #000));
+  padding: 20px 20px 24px;
+}
+.brand-row { display: flex; gap: 14px; align-items: center; }
+.logo { width: 48px; height: 48px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,.12); }
+.product { font-size: 1.15rem; font-weight: 700; }
+.tagline { font-size: .85rem; opacity: .9; margin-top: 2px; }
+.main {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: .92rem;
+  color: var(--muted);
+}
+.dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--ready);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ready) 25%, transparent);
+}
+.dot.pending { background: var(--pending); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pending) 25%, transparent); }
+.dot.error { background: var(--error); box-shadow: 0 0 0 3px color-mix(in srgb, var(--error) 25%, transparent); }
+.dot.connected { background: var(--ready); }
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.card-label {
+  font-size: .7rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.card-row { display: flex; align-items: center; gap: 8px; }
+.card-value { flex: 1; font-size: 1.15rem; font-weight: 700; word-break: break-all; }
+.mono { font-family: ui-monospace, Consolas, monospace; letter-spacing: .04em; }
+.btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: .95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn.primary { background: var(--primary); color: #fff; }
+.btn.secondary { background: color-mix(in srgb, var(--surface) 80%, #fff); color: var(--text); }
+.btn.danger { background: var(--error); color: #fff; padding: 8px 12px; font-size: .85rem; }
+.icon-btn {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.icon-btn:hover { background: rgba(255,255,255,.08); }
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 14px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.version { color: var(--muted); font-size: .75rem; }
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; z-index: 40;
+}
+.modal[hidden] { display: none !important; }
+.modal-card {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 18px;
+}
+.modal-card h2 { margin: 0 0 12px; font-size: 1.05rem; }
+.modal-card textarea, .modal-card select, .modal-card input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+}
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.toast {
+  position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%);
+  background: #111827; color: #fff; padding: 10px 14px; border-radius: 999px;
+  z-index: 50; font-size: .85rem;
+}
+.toast[hidden] { display: none !important; }
+.session-bar {
+  position: fixed; left: 12px; right: 12px; bottom: 12px;
+  background: color-mix(in srgb, var(--primary) 85%, #000);
+  color: #fff; border-radius: 12px; padding: 10px 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  z-index: 30;
+}
+.session-bar[hidden] { display: none !important; }
+.chat-log {
+  max-height: 220px; overflow: auto; background: var(--bg);
+  border-radius: 8px; padding: 10px; font-size: .85rem; margin-bottom: 10px;
+  white-space: pre-wrap;
+}

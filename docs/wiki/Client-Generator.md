@@ -52,10 +52,14 @@ Support Agent builds need Go + CGO on the console host:
 - **wixl** (msitools) for MSI
 - **appimagetool** as an **extracted wrapper** under `/usr/local/lib/appimagetool` (raw AppImage in `/usr/local/bin` fails for the `betterdesk` service user)
 - `dpkg-deb` / `rpmbuild` for Linux packages
+- **WebView2** runtime on end-user Windows machines (Wails UI; usually preinstalled on Windows 10/11)
+- **webkit2gtk** on Linux build/runtime hosts for the Wails UI
 
 Install via `sudo ./scripts/install-build-toolchain.sh` or `betterdesk.sh` menu **B**, then restart `betterdesk-console`. The Generator banner reports Go, mingw, wixl, and appimagetool.
 
-**Note:** Do not set mingw `CC` before branding seal — `sealbranding` is a host (Linux) Go tool and must run with `CGO_ENABLED=0` / native compilers. Windows `CC`/`CXX` apply only to the final Fyne cross-compile.
+**UI:** Support Agent defaults to **Wails** (HTML UI + Go bindings). Legacy Fyne builds remain available with `BETTERDESK_SUPPORT_FYNEUI=1` (may embed Mesa OpenGL DLLs). Remote desktop capture uses ffmpeg (`ddagrab`/`gdigrab` on Windows) with hardware H.264/VP8/VP9/AV1/H.265 when available.
+
+**Note:** Do not set mingw `CC` before branding seal — `sealbranding` is a host (Linux) Go tool and must run with `CGO_ENABLED=0` / native compilers. Windows `CC`/`CXX` apply only to the final cross-compile.
 
 ---
 

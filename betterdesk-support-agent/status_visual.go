@@ -38,14 +38,3 @@ func statusColor(kind statusKind, b Branding) color.Color {
 		return parseHexColor(b.StatusReadyColor, color.RGBA{R: 0x22, G: 0xc5, B: 0x5e, A: 0xff})
 	}
 }
-
-func (u *ui) applyStatus(kind statusKind, text string) {
-	text = shortenStatusText(text, 160)
-	if u.statusLbl != nil {
-		u.statusLbl.SetText(text)
-	}
-	if u.statusDot != nil {
-		u.statusDot.FillColor = statusColor(kind, u.brand)
-		u.statusDot.Refresh()
-	}
-}

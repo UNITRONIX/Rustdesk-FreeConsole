@@ -13,8 +13,10 @@
 #   -b FILE   Branding profile copied to resources/branding.json before build
 #             (default: keep the checked-in unbranded profile)
 #   -o FILE   Output binary path (default: dist/betterdesk-support[-os])
-#   -p OS     Target OS (default: host OS). Cross-compiling Fyne needs the
-#             matching CGO toolchain (mingw-w64 for windows, osxcross for darwin).
+#   -p OS     Target OS (default: host OS). Default UI is Wails (WebView2 /
+#             WebKit). Set BETTERDESK_SUPPORT_FYNEUI=1 for legacy Fyne builds
+#             (needs OpenGL/Mesa on Windows). Cross-compiling still needs the
+#             matching CGO toolchain (mingw-w64 for windows).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -88,10 +90,20 @@ fi
 # Do NOT export mingw CC/CXX here — seal_branding (and any host go run) must
 # use the native toolchain. Windows CC is applied only around the final build.
 
+# Default UI: Wails (embedded frontend/dist). Legacy Fyne remains behind the
+# fyneui build tag for emergency rebuilds.
 BUILD_TAGS="release"
-if [ "$TARGET_OS" = "windows" ] && [ -f "windows/opengl32.dll" ]; then
-    BUILD_TAGS="release,mesaembed"
-    echo "Embedding Mesa opengl32.dll for software OpenGL on Windows"
+if [ "${BETTERDESK_SUPPORT_FYNEUI:-0}" = "1" ]; then
+    BUILD_TAGS="release,fyneui"
+    if [ "$TARGET_OS" = "windows" ] && [ -f "windows/opengl32.dll" ] && [ -f "windows/libgallium_wgl.dll" ]; then
+        BUILD_TAGS="release,fyneui,mesaembed"
+        echo "Legacy Fyne UI: embedding Mesa OpenGL DLLs"
+    fi
+fi
+
+if [ ! -f "frontend/ui/index.html" ]; then
+    echo "ERROR: frontend/ui/index.html missing (Wails UI assets)" >&2
+    exit 1
 fi
 
 WIN_LDFLAGS="-s -w -H=windowsgui"
@@ -144,12 +156,15 @@ linux_dual_build() {
 }
 
 if [ "$TARGET_OS" = "linux" ] && [ "$DUAL_LINUX" = 1 ]; then
-    if [ -z "$OUTPUT" ]; then
-        mkdir -p dist
-        OUTPUT="dist/betterdesk-support"
+    if [ "${BETTERDESK_SUPPORT_FYNEUI:-0}" = "1" ]; then
+        if [ -z "$OUTPUT" ]; then
+            mkdir -p dist
+            OUTPUT="dist/betterdesk-support"
+        fi
+        linux_dual_build
+        exit 0
     fi
-    linux_dual_build
-    exit 0
+    echo "Note: Wails UI uses a single Linux binary (ignoring -d X11/Wayland split)"
 fi
 
 # Seal branding for release embeds (plaintext restored after build).

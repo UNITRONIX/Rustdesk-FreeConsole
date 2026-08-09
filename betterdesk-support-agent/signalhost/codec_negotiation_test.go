@@ -7,61 +7,93 @@ import (
 	pb "github.com/unitronix/betterdesk-server/proto"
 )
 
-func TestSupportedEncodingOnlyAdvertisesValidatedH264(t *testing.T) {
-	if got := supportedEncodingForH264(false); got != nil {
-		t.Fatalf("unsupported encoder advertised as %#v", got)
+func TestSupportedEncodingFromCaps(t *testing.T) {
+	if got := supportedEncodingFromCaps(encodeCaps{}); got != nil {
+		t.Fatalf("empty caps advertised as %#v", got)
 	}
-
-	got := supportedEncodingForH264(true)
-	if got == nil || !got.GetH264() {
-		t.Fatalf("H.264 capability = %#v, want H.264", got)
+	if got := supportedEncodingFromCaps(encodeCaps{vp9: true}); got == nil {
+		t.Fatal("vp9-only should still produce non-nil encoding")
 	}
-	if got.GetH265() || got.GetVp8() || got.GetAv1() || got.GetI444() != nil {
-		t.Fatalf("unexpected unsupported codec advertisement: %#v", got)
+	got := supportedEncodingFromCaps(encodeCaps{h264: true, av1: true, h265: true, vp8: true})
+	if got == nil || !got.GetH264() || !got.GetAv1() || !got.GetH265() || !got.GetVp8() {
+		t.Fatalf("encoding = %#v", got)
 	}
 }
 
-func TestNegotiateVideoCodecRequiresMutualH264(t *testing.T) {
-	local := supportedEncodingForH264(true)
+func TestNegotiateVideoCodecPreferAndAuto(t *testing.T) {
+	caps := encodeCaps{h264: true, vp9: true, av1: true, vp8: true, h265: true}
+	local := supportedEncodingFromCaps(caps)
 
 	tests := []struct {
-		name  string
-		local *pb.SupportedEncoding
-		peer  *pb.SupportedDecoding
-		want  negotiatedVideoCodec
+		name string
+		peer *pb.SupportedDecoding
+		want negotiatedVideoCodec
 	}{
 		{
-			name:  "missing local capability",
-			local: nil,
-			peer:  &pb.SupportedDecoding{AbilityH264: 1},
-			want:  videoCodecNone,
+			name: "missing peer",
+			peer: nil,
+			want: videoCodecNone,
 		},
 		{
-			name:  "missing peer capability",
-			local: local,
-			peer:  nil,
-			want:  videoCodecNone,
+			name: "prefer h264",
+			peer: &pb.SupportedDecoding{AbilityH264: 1, AbilityVp9: 1, Prefer: pb.SupportedDecoding_H264},
+			want: videoCodecH264,
 		},
 		{
-			name:  "preference without ability",
-			local: local,
-			peer:  &pb.SupportedDecoding{Prefer: pb.SupportedDecoding_H264},
-			want:  videoCodecNone,
+			name: "prefer vp9",
+			peer: &pb.SupportedDecoding{AbilityH264: 1, AbilityVp9: 1, Prefer: pb.SupportedDecoding_VP9},
+			want: videoCodecVP9,
 		},
 		{
-			name:  "mutual h264 despite another preference",
-			local: local,
-			peer:  &pb.SupportedDecoding{AbilityH264: 1, Prefer: pb.SupportedDecoding_AV1},
-			want:  videoCodecH264,
+			name: "prefer av1",
+			peer: &pb.SupportedDecoding{AbilityAv1: 1, AbilityH264: 1, Prefer: pb.SupportedDecoding_AV1},
+			want: videoCodecAV1,
+		},
+		{
+			name: "prefer vp8",
+			peer: &pb.SupportedDecoding{AbilityVp8: 1, AbilityH264: 1, Prefer: pb.SupportedDecoding_VP8},
+			want: videoCodecVP8,
+		},
+		{
+			name: "prefer h265",
+			peer: &pb.SupportedDecoding{AbilityH265: 1, AbilityH264: 1, Prefer: pb.SupportedDecoding_H265},
+			want: videoCodecH265,
+		},
+		{
+			name: "auto prefers av1",
+			peer: &pb.SupportedDecoding{
+				AbilityAv1: 1, AbilityVp9: 1, AbilityH264: 1, AbilityVp8: 1, AbilityH265: 1,
+				Prefer: pb.SupportedDecoding_Auto,
+			},
+			want: videoCodecAV1,
+		},
+		{
+			name: "prefer unavailable falls back",
+			peer: &pb.SupportedDecoding{AbilityH264: 1, Prefer: pb.SupportedDecoding_AV1},
+			want: videoCodecH264,
+		},
+		{
+			name: "preference without ability",
+			peer: &pb.SupportedDecoding{Prefer: pb.SupportedDecoding_H264},
+			want: videoCodecNone,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := negotiateVideoCodec(tc.local, tc.peer); got != tc.want {
-				t.Fatalf("negotiateVideoCodec() = %s, want %s", got, tc.want)
+			if got := negotiateVideoCodecCaps(caps, local, tc.peer); got != tc.want {
+				t.Fatalf("got %s, want %s", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestNegotiateRespectsLocalCaps(t *testing.T) {
+	caps := encodeCaps{h264: true}
+	local := supportedEncodingFromCaps(caps)
+	peer := &pb.SupportedDecoding{AbilityH264: 1, AbilityAv1: 1, Prefer: pb.SupportedDecoding_AV1}
+	if got := negotiateVideoCodecCaps(caps, local, peer); got != videoCodecH264 {
+		t.Fatalf("got %s, want h264", got)
 	}
 }
 
@@ -121,6 +153,28 @@ func TestPeerOptionChangesAreRateLimitedAndBounded(t *testing.T) {
 	}
 }
 
+func TestPeerCodecPreferenceRestartsEncoder(t *testing.T) {
+	restore := setEncodeCapsForTest(encodeCaps{h264: true, vp9: true})
+	defer restore()
+
+	st := newStreamState(videoCodecH264, nil)
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	st.markEncoderStarted(start.Add(-encoderReconfigureInterval))
+
+	if !st.applyPeerOptions(&pb.OptionMessage{
+		SupportedDecoding: &pb.SupportedDecoding{
+			AbilityH264: 1,
+			AbilityVp9:  1,
+			Prefer:      pb.SupportedDecoding_VP9,
+		},
+	}, start) {
+		t.Fatal("codec preference did not trigger reconfigure")
+	}
+	if st.currentCodec() != videoCodecVP9 {
+		t.Fatalf("codec = %s, want vp9", st.currentCodec())
+	}
+}
+
 func TestCongestionControllerStaysWithinNegotiatedLimits(t *testing.T) {
 	st := newStreamState(videoCodecH264, &pb.OptionMessage{
 		CustomImageQuality: 90,
@@ -160,5 +214,25 @@ func TestH264HasIDRDoesNotMislabelDeltaFrames(t *testing.T) {
 	delta := []byte{0, 0, 0, 1, 0x67, 0, 0, 1, 0x41, 1}
 	if h264HasIDR(delta) {
 		t.Fatal("delta access unit was incorrectly marked as key")
+	}
+}
+
+func TestBuildCaptureEncodeArgs(t *testing.T) {
+	plan := encoderPlan{wire: wireH264, ffmpegName: "libx264", hwAccel: hwNone, mode: frameModeAnnexB}
+	args := buildCaptureEncodeArgs(captureStrategy{
+		Name: "gdigrab",
+		Args: []string{"-f", "gdigrab", "-framerate", "15", "-i", "desktop"},
+	}, plan, 15, 65)
+	if len(args) < 8 {
+		t.Fatalf("args too short: %#v", args)
+	}
+	joined := false
+	for _, a := range args {
+		if a == "libx264" {
+			joined = true
+		}
+	}
+	if !joined {
+		t.Fatalf("missing encoder in %#v", args)
 	}
 }

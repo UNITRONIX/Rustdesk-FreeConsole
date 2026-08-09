@@ -1,5 +1,5 @@
 /**
- * BetterDesk Console — Support Agent Build Worker (Go Fyne)
+ * BetterDesk Console — Support Agent Build Worker (Go / Wails UI)
  *
  * Builds branded betterdesk-support-agent binaries for product_type=support-agent.
  * Agent-client (Tauri) builds are handled by agentClientBuildWorker.js.
@@ -49,7 +49,7 @@ const WORK_ROOT        = path.join(BUILD_CACHE_DIR, 'work');
 const ARTIFACT_ROOT    = process.env.AGENT_ARTIFACT_DIR
     || path.join(config.dataDir || '/opt/BetterDeskConsole/data', 'agent-builds');
 const POLL_INTERVAL_MS = parseInt(process.env.AGENT_BUILD_POLL_MS || '5000', 10);
-/** Always 1 — Go/Fyne builds are CPU/RAM heavy; platforms run one after another. */
+/** Always 1 — Go/Wails builds are CPU/RAM heavy; platforms run one after another. */
 const WORKER_CONCURRENCY = 1;
 const BUILD_COOLDOWN_MS = parseInt(process.env.AGENT_BUILD_COOLDOWN_MS || '3000', 10);
 const BUILD_TIMEOUT_MS = parseInt(process.env.AGENT_BUILD_TIMEOUT_MS || (30 * 60 * 1000), 10);

@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+- **Support Agent Wails UI:** Default GUI is Wails (WebView2 / WebKit) with branded HTML shell; Fyne remains behind `fyneui` / `BETTERDESK_SUPPORT_FYNEUI=1`. Ships via rebuilt Support Agent (agent-source). Verify: window shows device ID / password without Mesa OpenGL DLL crashes.
+- **Support Agent multi-codec remote desktop:** `signalhost` negotiates RustDesk PreferCodec (Auto / VP8 / VP9 / AV1 / H264 / H265), probes HW encoders (NVENC/QSV/AMF/…), prefers Windows `ddagrab` then `gdigrab`. Ships via rebuilt Support Agent. Verify: RdClient codec menu switches encoder; Task Manager shows GPU encode when available.
+
 ### Fixed
 - **Support Agent Windows console cascade:** Without a quiet capture path, PeerInfo / screenshot fallback spawned a visible PowerShell window per frame (and ffmpeg without `CREATE_NO_WINDOW`). Desktop capture on Windows now uses GDI→JPEG; helper `exec` calls hide the console. Ships via rebuilt Support Agent (agent-source). Verify: start agent + open a session — no flood of cmd/PowerShell windows.
 - **Support Agent Windows builds (sealbranding + mingw CC):** `build.sh` no longer exports mingw `CC`/`CXX` before `go run ./cmd/sealbranding`. Seal runs with `CGO_ENABLED=0`; mingw is applied only around the final Windows `go build`. This was mis-reported in the UI as “CGO / mingw required” while mingw was already installed. Ships via panel update (agent-source `build.sh` + `agentBuildWorker.js`).

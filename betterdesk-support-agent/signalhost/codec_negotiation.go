@@ -1,10 +1,6 @@
 package signalhost
 
 import (
-	"context"
-	"io"
-	"os/exec"
-	"strconv"
 	"sync"
 	"time"
 
@@ -16,6 +12,10 @@ type negotiatedVideoCodec uint8
 const (
 	videoCodecNone negotiatedVideoCodec = iota
 	videoCodecH264
+	videoCodecH265
+	videoCodecVP8
+	videoCodecVP9
+	videoCodecAV1
 )
 
 const (
@@ -126,46 +126,31 @@ func clampStreamFPS(fps int) int {
 	return fps
 }
 
-// h264CRF maps the negotiated 0-100 quality scale to libx264's CRF range.
-// The exposed quality is deliberately clamped before this conversion.
+// h264CRF maps the negotiated 0-100 quality scale to libx264/libx265 CRF.
 func h264CRF(quality int) int {
 	quality = clampStreamQuality(quality)
 	return 42 - quality*28/100
 }
 
-// ffmpegStreamArgsForQuality inserts the CRF before the pixel-format output
-// option. Platform-specific files retain ownership of their capture inputs.
-func ffmpegStreamArgsForQuality(fps, quality int) []string {
-	args := ffmpegStreamArgs(fps)
-	if len(args) == 0 {
-		return nil
-	}
-
-	out := make([]string, 0, len(args)+2)
-	inserted := false
-	for _, arg := range args {
-		if arg == "-pix_fmt" && !inserted {
-			out = append(out, "-crf", strconv.Itoa(h264CRF(quality)))
-			inserted = true
-		}
-		out = append(out, arg)
-	}
-	if inserted {
-		return out
-	}
-
-	// All supported platform arguments include -pix_fmt today. Keep a safe
-	// fallback if a future capture path does not: insert before the output URL.
-	if len(out) > 0 {
-		last := out[len(out)-1]
-		out = out[:len(out)-1]
-		out = append(out, "-crf", strconv.Itoa(h264CRF(quality)), last)
-	}
-	return out
-}
-
 func frameInterval(fps int) time.Duration {
 	return time.Second / time.Duration(clampStreamFPS(fps))
+}
+
+func (c negotiatedVideoCodec) wire() string {
+	switch c {
+	case videoCodecH264:
+		return wireH264
+	case videoCodecH265:
+		return wireH265
+	case videoCodecVP8:
+		return wireVP8
+	case videoCodecVP9:
+		return wireVP9
+	case videoCodecAV1:
+		return wireAV1
+	default:
+		return wireNone
+	}
 }
 
 func (s *streamState) settings() videoSettings {
@@ -184,7 +169,13 @@ func (s *streamState) markEncoderStarted(now time.Time) {
 func (s *streamState) applyPeerOptions(options *pb.OptionMessage, now time.Time) bool {
 	quality, hasQuality := requestedQuality(options)
 	fps, hasFPS := requestedFPS(options)
-	if !hasQuality && !hasFPS {
+	var nextCodec negotiatedVideoCodec
+	hasCodec := false
+	if sd := options.GetSupportedDecoding(); sd != nil {
+		nextCodec = negotiateVideoCodec(advertisedVideoEncoding(), sd)
+		hasCodec = nextCodec != videoCodecNone
+	}
+	if !hasQuality && !hasFPS && !hasCodec {
 		return false
 	}
 
@@ -196,6 +187,7 @@ func (s *streamState) applyPeerOptions(options *pb.OptionMessage, now time.Time)
 
 	next := videoSettings{fps: s.fps, quality: s.quality}
 	targetFPS, targetQuality := s.targetFPS, s.targetQuality
+	changed := false
 	if hasFPS {
 		next.fps = fps
 		targetFPS = fps
@@ -204,21 +196,34 @@ func (s *streamState) applyPeerOptions(options *pb.OptionMessage, now time.Time)
 		next.quality = quality
 		targetQuality = quality
 	}
-	if next.fps == s.fps && next.quality == s.quality &&
-		targetFPS == s.targetFPS && targetQuality == s.targetQuality {
+	if hasCodec && nextCodec != s.codec {
+		s.codec = nextCodec
+		changed = true
+	}
+	if next.fps != s.fps || next.quality != s.quality ||
+		targetFPS != s.targetFPS || targetQuality != s.targetQuality {
+		s.fps = next.fps
+		s.quality = next.quality
+		s.targetFPS = targetFPS
+		s.targetQuality = targetQuality
+		changed = true
+	}
+	if !changed {
 		s.mu.Unlock()
 		return false
 	}
 
-	s.fps = next.fps
-	s.quality = next.quality
-	s.targetFPS = targetFPS
-	s.targetQuality = targetQuality
 	s.lastRestart = now
 	s.healthyWrites = 0
 	s.mu.Unlock()
 	s.requestReconfigure()
 	return true
+}
+
+func (s *streamState) currentCodec() negotiatedVideoCodec {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.codec
 }
 
 // requestKeyframe starts a fresh H.264 encoder rather than marking an arbitrary
@@ -319,68 +324,138 @@ func (s *streamState) requestReconfigure() {
 	}
 }
 
-func supportedEncodingForH264(h264 bool) *pb.SupportedEncoding {
-	if !h264 {
-		return nil
+func supportedEncodingFromCaps(caps encodeCaps) *pb.SupportedEncoding {
+	if !caps.h264 && !caps.h265 && !caps.vp8 && !caps.av1 {
+		// VP9 is not a field on SupportedEncoding in the RustDesk schema;
+		// hosts still send vp9s when negotiated. If only VP9 works, advertise
+		// a non-nil encoding so PeerInfo stays valid and negotiation uses
+		// local VP9 capability + peer AbilityVp9.
+		if !caps.vp9 {
+			return nil
+		}
+		return &pb.SupportedEncoding{}
 	}
-	return &pb.SupportedEncoding{H264: true}
-}
-
-// negotiateVideoCodec requires an explicit decoder capability from the peer.
-// An absent or zero ability is not treated as an H.264 fallback because doing
-// so can send undecodable video to clients that only support another codec.
-func negotiateVideoCodec(local *pb.SupportedEncoding, peer *pb.SupportedDecoding) negotiatedVideoCodec {
-	if local == nil || !local.GetH264() || peer == nil || peer.GetAbilityH264() <= 0 {
-		return videoCodecNone
-	}
-	return videoCodecH264
-}
-
-func (codec negotiatedVideoCodec) String() string {
-	switch codec {
-	case videoCodecH264:
-		return "h264"
-	default:
-		return "none"
+	return &pb.SupportedEncoding{
+		H264: caps.h264,
+		H265: caps.h265,
+		Vp8:  caps.vp8,
+		Av1:  caps.av1,
 	}
 }
 
-var h264Probe struct {
-	once      sync.Once
-	supported bool
+type encodeCaps struct {
+	h264 bool
+	h265 bool
+	vp8  bool
+	vp9  bool
+	av1  bool
+}
+
+func probeEncodeCaps() encodeCaps {
+	return encodeCaps{
+		h264: canEncodeWire(wireH264),
+		h265: canEncodeWire(wireH265),
+		vp8:  canEncodeWire(wireVP8),
+		vp9:  canEncodeWire(wireVP9),
+		av1:  canEncodeWire(wireAV1),
+	}
+}
+
+var (
+	advertisedCapsOnce     sync.Once
+	advertisedCapsValue    encodeCaps
+	advertisedCapsOverride *encodeCaps // tests only
+)
+
+func localEncodeCaps() encodeCaps {
+	if advertisedCapsOverride != nil {
+		return *advertisedCapsOverride
+	}
+	advertisedCapsOnce.Do(func() {
+		advertisedCapsValue = probeEncodeCaps()
+	})
+	return advertisedCapsValue
+}
+
+func setEncodeCapsForTest(caps encodeCaps) func() {
+	prev := advertisedCapsOverride
+	cp := caps
+	advertisedCapsOverride = &cp
+	return func() { advertisedCapsOverride = prev }
 }
 
 func advertisedVideoEncoding() *pb.SupportedEncoding {
-	return supportedEncodingForH264(h264EncoderSupported())
+	return supportedEncodingFromCaps(localEncodeCaps())
 }
 
-// h264EncoderSupported verifies the exact encoder and output format used by
-// this host. Merely finding an ffmpeg binary is not enough to advertise H.264.
-func h264EncoderSupported() bool {
-	h264Probe.once.Do(func() {
-		if len(ffmpegStreamArgs(defaultStreamFPS)) == 0 {
-			return
+// negotiateVideoCodec picks a mutually supported codec using PreferCodec.
+// Auto order matches RdClient efficiency preference: AV1 → VP9 → H264 → VP8 → H265.
+func negotiateVideoCodec(local *pb.SupportedEncoding, peer *pb.SupportedDecoding) negotiatedVideoCodec {
+	return negotiateVideoCodecCaps(localEncodeCaps(), local, peer)
+}
+
+func negotiateVideoCodecCaps(caps encodeCaps, local *pb.SupportedEncoding, peer *pb.SupportedDecoding) negotiatedVideoCodec {
+	if peer == nil {
+		return videoCodecNone
+	}
+	if local == nil && !caps.vp9 && !caps.h264 && !caps.h265 && !caps.vp8 && !caps.av1 {
+		return videoCodecNone
+	}
+
+	can := func(c negotiatedVideoCodec) bool {
+		switch c {
+		case videoCodecH264:
+			return caps.h264 && peer.GetAbilityH264() > 0
+		case videoCodecH265:
+			return caps.h265 && peer.GetAbilityH265() > 0
+		case videoCodecVP8:
+			return caps.vp8 && peer.GetAbilityVp8() > 0
+		case videoCodecVP9:
+			return caps.vp9 && peer.GetAbilityVp9() > 0
+		case videoCodecAV1:
+			return caps.av1 && peer.GetAbilityAv1() > 0
+		default:
+			return false
 		}
-		path, err := exec.LookPath("ffmpeg")
-		if err != nil {
-			return
+	}
+
+	switch peer.GetPrefer() {
+	case pb.SupportedDecoding_VP9:
+		if can(videoCodecVP9) {
+			return videoCodecVP9
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		cmd := exec.CommandContext(ctx, path,
-			"-hide_banner", "-loglevel", "error",
-			"-f", "lavfi", "-i", "color=c=black:s=16x16:r=1",
-			"-frames:v", "1",
-			"-c:v", "libx264",
-			"-preset", "ultrafast",
-			"-tune", "zerolatency",
-			"-pix_fmt", "yuv420p",
-			"-f", "h264", "-",
-		)
-		hideConsole(cmd)
-		cmd.Stdout = io.Discard
-		cmd.Stderr = io.Discard
-		h264Probe.supported = cmd.Run() == nil
-	})
-	return h264Probe.supported
+	case pb.SupportedDecoding_H264:
+		if can(videoCodecH264) {
+			return videoCodecH264
+		}
+	case pb.SupportedDecoding_H265:
+		if can(videoCodecH265) {
+			return videoCodecH265
+		}
+	case pb.SupportedDecoding_VP8:
+		if can(videoCodecVP8) {
+			return videoCodecVP8
+		}
+	case pb.SupportedDecoding_AV1:
+		if can(videoCodecAV1) {
+			return videoCodecAV1
+		}
+	}
+
+	for _, c := range []negotiatedVideoCodec{
+		videoCodecAV1, videoCodecVP9, videoCodecH264, videoCodecVP8, videoCodecH265,
+	} {
+		if can(c) {
+			return c
+		}
+	}
+	return videoCodecNone
+}
+
+func (codec negotiatedVideoCodec) String() string {
+	w := codec.wire()
+	if w == wireNone {
+		return "none"
+	}
+	return w
 }

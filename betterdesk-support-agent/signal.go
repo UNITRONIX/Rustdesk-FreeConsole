@@ -15,9 +15,7 @@ type signalHostCallbacks struct {
 }
 
 // newSignalHost builds an outbound-only RustDesk-compatible relay host when
-// the current local access policy permits it. The returned reason is intended
-// for headless startup logs, where there is no UI to explain why the host is
-// unavailable.
+// the current local access policy permits it.
 func newSignalHost(brand Branding, st *AppState, headless bool, callbacks signalHostCallbacks) (*signalhost.Host, string) {
 	if !brand.HasConnection() {
 		return nil, "no server is configured"
@@ -62,57 +60,6 @@ func newSignalHost(brand Branding, st *AppState, headless bool, callbacks signal
 		Consent:        callbacks.consent,
 		OnSession:      callbacks.onSession,
 	}), ""
-}
-
-func (u *ui) startSignalHost() {
-	u.signalHostMu.Lock()
-	defer u.signalHostMu.Unlock()
-	if u.signalHost != nil {
-		return
-	}
-	host, _ := newSignalHost(u.brand, u.state, false, signalHostCallbacks{
-		consent: func(operator string) bool {
-			return u.handleConsent("signal", operator)
-		},
-		audit: func(policy hostCapabilityPolicy) {
-			auditHostCapabilityPolicy(hostCapabilityAuditTransportSignal, policy)
-		},
-		onSession: func(start bool, operator string) {
-			if start {
-				_, mode, _, _ := u.state.Snapshot()
-				u.handleSessionStart("signal", operator, mode)
-			} else {
-				u.handleSessionEnd("signal")
-			}
-		},
-	})
-	if host == nil || !host.Start() {
-		return
-	}
-	u.signalHost = host
-	appLogInfo("signal_host", "signal/relay host started", map[string]any{
-		"signal": signalAddress(u.brand),
-		"relay":  relayAddress(u.brand),
-	})
-}
-
-func (u *ui) stopSignalHost() {
-	u.signalHostMu.Lock()
-	host := u.signalHost
-	u.signalHost = nil
-	u.signalHostMu.Unlock()
-	if host != nil {
-		host.Stop()
-	}
-}
-
-func (u *ui) disconnectSignalSessions() {
-	u.signalHostMu.Lock()
-	host := u.signalHost
-	u.signalHostMu.Unlock()
-	if host != nil {
-		host.DisconnectSessions()
-	}
 }
 
 func signalAddress(b Branding) string {

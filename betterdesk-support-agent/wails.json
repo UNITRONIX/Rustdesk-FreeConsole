@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "betterdesk-support",
+  "outputfilename": "betterdesk-support",
+  "frontend": {
+    "dir": "frontend/ui",
+    "install": "echo skip",
+    "build": "echo skip",
+    "dev": false
+  },
+  "author": {
+    "name": "UNITRONIX",
+    "email": ""
+  },
+  "info": {
+    "companyName": "UNITRONIX",
+    "productName": "BetterDesk Support",
+    "productVersion": "0.1.0"
+  }
+}
