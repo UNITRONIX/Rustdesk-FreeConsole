@@ -352,6 +352,9 @@ class RDInput {
 
     _handleMouseDown(e) {
         if (!this.enabled || this._suppressMouse) return;
+        const t0 = (typeof performance !== 'undefined' && performance.now)
+            ? performance.now()
+            : Date.now();
         e.preventDefault();
         this.canvas.focus();
         if (e.pointerId != null) this._lastPointerId = e.pointerId;
@@ -389,6 +392,12 @@ class RDInput {
                     modifiers: this._getMouseModifiers(e)
                 }
             });
+            if (e.button === 2 && window.BetterDesk && window.BetterDesk.debugRelay) {
+                const dt = ((typeof performance !== 'undefined' && performance.now)
+                    ? performance.now()
+                    : Date.now()) - t0;
+                console.log('[RDInput] right-down sent in', dt.toFixed(2), 'ms');
+            }
         }
     }
 

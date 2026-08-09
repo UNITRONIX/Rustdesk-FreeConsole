@@ -515,6 +515,10 @@
     // Focus/left-click must also stay fire-and-forget: Tauri used to run
     // desktop_clipboard_sync on the WebView UI thread, so OpenClipboard after a
     // local file Copy self-deadlocked (~30s) and froze click/menu delivery.
+    //
+    // Even after spawn_blocking, remote Explorer still probes FormatData on
+    // every context menu when file formats are advertised. That reply must not
+    // wait on sync IPC — see RDCliprdr cached PDU + input-priority pause.
     function _clipDebug() {
         if (window.BetterDesk && window.BetterDesk.debugRelay) {
             console.log.apply(console, ['[ClipboardSync]'].concat(Array.prototype.slice.call(arguments)));
@@ -533,6 +537,12 @@
         const session = getActiveSession();
         if (!session || !session.client || session.state !== 'streaming') {
             _clipDebug('skip: no active streaming session', session && session.state);
+            return;
+        }
+        if (typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.isInputPriority === 'function'
+            && RDCliprdr.isInputPriority(session.client)) {
+            _clipDebug('skip: input priority (clicks/context menu in progress)');
             return;
         }
         if (session.client.viewOnly) {
@@ -599,6 +609,19 @@
         if (typeof RDCliprdr !== 'undefined'
             && typeof RDCliprdr.shouldSyncOnUserGesture === 'function'
             && !RDCliprdr.shouldSyncOnUserGesture(ev)) {
+            // Cancel a pending left-click sync so it cannot start mid right-click.
+            _clipSyncQueued = false;
+            if (_clipSyncTimer) {
+                clearTimeout(_clipSyncTimer);
+                _clipSyncTimer = null;
+            }
+            return;
+        }
+        const session = getActiveSession();
+        if (session && session.client
+            && typeof RDCliprdr !== 'undefined'
+            && typeof RDCliprdr.isInputPriority === 'function'
+            && RDCliprdr.isInputPriority(session.client)) {
             return;
         }
         // Debounce left-click storms so we do not stack Cliprdr IPC on every
@@ -609,13 +632,44 @@
             _clipSyncTimer = null;
             if (!_clipSyncQueued) return;
             _clipSyncQueued = false;
+            const s = getActiveSession();
+            if (s && s.client
+                && typeof RDCliprdr !== 'undefined'
+                && typeof RDCliprdr.isInputPriority === 'function'
+                && RDCliprdr.isInputPriority(s.client)) {
+                return;
+            }
             void syncLocalClipboardToRemote({ button: 0 });
         }, 200);
     }
+    let _focusClipSyncTimer = null;
     window.addEventListener('focus', function () {
-        void syncLocalClipboardToRemote(null);
+        // Debounce + yield to clicks: focus often fires around window activation
+        // right before the operator right-clicks into Explorer.
+        if (_focusClipSyncTimer) clearTimeout(_focusClipSyncTimer);
+        _focusClipSyncTimer = setTimeout(function () {
+            _focusClipSyncTimer = null;
+            const session = getActiveSession();
+            if (session && session.client
+                && typeof RDCliprdr !== 'undefined'
+                && typeof RDCliprdr.isInputPriority === 'function'
+                && RDCliprdr.isInputPriority(session.client)) {
+                _clipDebug('skip focus sync: input priority');
+                return;
+            }
+            void syncLocalClipboardToRemote(null);
+        }, 350);
     });
     if (viewerContainer) {
+        // Capture phase: mark input priority before RDInput / Cliprdr handlers run.
+        viewerContainer.addEventListener('mousedown', function (ev) {
+            const session = getActiveSession();
+            if (session && session.client
+                && typeof RDCliprdr !== 'undefined'
+                && typeof RDCliprdr.noteUserInput === 'function') {
+                RDCliprdr.noteUserInput(session.client, ev);
+            }
+        }, true);
         viewerContainer.addEventListener('mousedown', scheduleLocalClipboardSync);
 
         // Browser HTML5 drag-and-drop onto the session surface → file transfer upload

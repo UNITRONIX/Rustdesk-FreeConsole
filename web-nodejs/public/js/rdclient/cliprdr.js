@@ -11,6 +11,9 @@
     // Larger chunks = fewer IPC round-trips. Still leave room for other relay traffic.
     var INBOUND_CHUNK = 256 * 1024;
     var OUTBOUND_SUPPRESS_MS = 4000;
+    /** Pause clipboard polls while the operator is clicking (esp. right-click). */
+    var INPUT_PRIORITY_MS_RIGHT = 900;
+    var INPUT_PRIORITY_MS_OTHER = 280;
     var CB_RESPONSE_OK = 0x1;
     var CB_RESPONSE_FAIL = 0x2;
     var FILECONTENTS_SIZE = 0x1;
@@ -143,12 +146,31 @@
             || (client._cliprdrSuppressOutboundUntil && Date.now() < client._cliprdrSuppressOutboundUntil);
     }
 
-    /** Serialize FormatData / FileContents responses so IPC + cache stays consistent. */
-    function enqueueOutbound(client, work) {
-        var prev = client._cliprdrOutboundQueue || Promise.resolve();
+    /** Serialize FileContents responses so IPC + cache stays consistent.
+     * FormatData is intentionally NOT on this queue — remote Explorer context
+     * menus must not wait behind a multi-MB FileContents transfer. */
+    function enqueueFileContents(client, work) {
+        var prev = client._cliprdrFileContentsQueue || Promise.resolve();
         var next = prev.catch(function () { /* keep chain alive */ }).then(work);
-        client._cliprdrOutboundQueue = next;
+        client._cliprdrFileContentsQueue = next;
         return next;
+    }
+
+    function hydrateFormatDataCache(client, sync) {
+        if (!client) return;
+        if (!sync || sync.busy || sync.tooLarge || sync.too_large || !sync.hasFiles) {
+            client._cliprdrCachedPdu = null;
+            return;
+        }
+        var pduB64 = sync.filesPduB64 || sync.files_pdu_b64;
+        if (pduB64) {
+            try {
+                var bytes = toUint8Array(pduB64);
+                client._cliprdrCachedPdu = bytes && bytes.length ? bytes : null;
+            } catch (_) {
+                client._cliprdrCachedPdu = null;
+            }
+        }
     }
 
     // eslint-disable-next-line no-unused-vars
@@ -169,6 +191,28 @@
             if (!ev || typeof ev.button !== 'number') return true;
             return ev.button === 0;
         }
+
+        /**
+         * Mark a short window where clipboard polls/focus sync must yield so
+         * mouse → remote delivery and FormatData replies stay snappy.
+         * @param {Object} client
+         * @param {MouseEvent|{button?: number}|null|undefined} ev
+         */
+        static noteUserInput(client, ev) {
+            if (!client) return;
+            var button = ev && typeof ev.button === 'number' ? ev.button : 0;
+            var ms = (button === 2 || button === 1) ? INPUT_PRIORITY_MS_RIGHT : INPUT_PRIORITY_MS_OTHER;
+            var until = Date.now() + ms;
+            if (!client._cliprdrInputPriorityUntil || until > client._cliprdrInputPriorityUntil) {
+                client._cliprdrInputPriorityUntil = until;
+            }
+        }
+
+        static isInputPriority(client) {
+            return !!(client && client._cliprdrInputPriorityUntil
+                && Date.now() < client._cliprdrInputPriorityUntil);
+        }
+
         static isSupported() {
             return isDesktopBridge();
         }
@@ -186,6 +230,9 @@
             client._cliprdrPeerFcId = RDCliprdr.FILECONTENTS_FORMAT_ID;
             client._cliprdrDragOutConverting = false;
             client._cliprdrOleDragIntent = false;
+            client._cliprdrCachedPdu = null;
+            client._cliprdrInputPriorityUntil = 0;
+            client._cliprdrFileContentsQueue = Promise.resolve();
             if (client._cliprdrDragOutTimer) {
                 clearTimeout(client._cliprdrDragOutTimer);
                 client._cliprdrDragOutTimer = null;
@@ -284,6 +331,11 @@
             client._cliprdrPollTimer = setInterval(function () {
                 if (client._state !== 'streaming' || client.viewOnly) return;
                 if (client._cliprdrSyncInFlight || client._cliprdrReceiving) return;
+                if (RDCliprdr.isInputPriority(client)) {
+                    // Defer until clicks settle — do not contend with FormatData IPC.
+                    client._cliprdrSyncQueued = true;
+                    return;
+                }
                 // Fire-and-forget — never await on the timer tick (input path).
                 void RDCliprdr.syncLocalFiles(client);
             }, CLIP_POLL_MS);
@@ -314,6 +366,15 @@
 
             // Clipboard polls (focus/click/timer) must not stack. DnD paths always run.
             var fromClipboard = !(paths && paths.length);
+            if (fromClipboard && RDCliprdr.isInputPriority(client)) {
+                client._cliprdrSyncQueued = true;
+                debugLog('syncPaths deferred: input priority (keep context menu snappy)');
+                return {
+                    hasFiles: !!client._cliprdrLocalSignature,
+                    signature: client._cliprdrLocalSignature || '',
+                    busy: true
+                };
+            }
             if (fromClipboard && client._cliprdrSyncInFlight) {
                 client._cliprdrSyncQueued = true;
                 debugLog('syncPaths skipped: already in flight (queued follow-up)');
@@ -349,6 +410,7 @@
 
                 if (!sync || !sync.hasFiles) {
                     if (!paths) client._cliprdrLocalSignature = '';
+                    client._cliprdrCachedPdu = null;
                     return sync || { hasFiles: false, signature: '', busy: false };
                 }
 
@@ -357,6 +419,7 @@
                 // DnD paths must always re-advertise + auto-paste even if signature matches
                 // a prior clipboard copy of the same files.
                 var forceAdvertise = !!(paths && paths.length);
+                hydrateFormatDataCache(client, sync);
                 if (!forceAdvertise && signature && signature === client._cliprdrLocalSignature) {
                     return sync;
                 }
@@ -365,6 +428,7 @@
                 // Large folder trees freeze remote Explorer over the shared desktop
                 // relay — refuse Cliprdr and steer to dedicated File transfer.
                 if (tooLarge) {
+                    client._cliprdrCachedPdu = null;
                     console.warn(
                         '[RDCliprdr] selection too large for Cliprdr paste (' +
                         (sync.entryCount || sync.entry_count || '?') + ' entries / ' +
@@ -407,7 +471,9 @@
                     client._cliprdrSyncInFlight = false;
                     if (client._cliprdrSyncQueued) {
                         client._cliprdrSyncQueued = false;
-                        void RDCliprdr.syncLocalFiles(client);
+                        if (!RDCliprdr.isInputPriority(client)) {
+                            void RDCliprdr.syncLocalFiles(client);
+                        }
                     }
                 }
             }
@@ -501,9 +567,8 @@
 
             var formatDataReq = clipField(cliprdr, 'formatDataRequest', 'format_data_request');
             if (formatDataReq) {
-                await enqueueOutbound(client, function () {
-                    return RDCliprdr._respondFormatData(client, formatDataReq);
-                });
+                // Never queue behind FileContents — context menus need this immediately.
+                void RDCliprdr._respondFormatData(client, formatDataReq);
                 return;
             }
 
@@ -515,7 +580,7 @@
 
             var fileContentsReq = clipField(cliprdr, 'fileContentsRequest', 'file_contents_request');
             if (fileContentsReq) {
-                await enqueueOutbound(client, function () {
+                await enqueueFileContents(client, function () {
                     return RDCliprdr._respondFileContents(client, fileContentsReq);
                 });
                 return;
@@ -795,6 +860,7 @@
         }
 
         static async _respondFormatData(client, req) {
+            var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
             var formatId = Number(req.requestedFormatId != null
                 ? req.requestedFormatId
                 : req.requested_format_id);
@@ -810,15 +876,29 @@
             }
 
             try {
-                const data = await desktopInvoke('desktop_clipboard_format_data');
-                const bytes = toUint8Array(data);
-                if (!bytes.length) {
+                var bytes = null;
+                // Prefer in-memory PDU from the last sync — zero Tauri IPC on the
+                // remote Explorer context-menu path (this was the remaining lag).
+                if (client._cliprdrCachedPdu && client._cliprdrCachedPdu.length) {
+                    bytes = client._cliprdrCachedPdu;
+                    debugLog('FormatDataResponse cache-hit', bytes.length, 'bytes');
+                } else {
+                    var data = await desktopInvoke('desktop_clipboard_format_data');
+                    bytes = toUint8Array(data);
+                    if (bytes && bytes.length) {
+                        client._cliprdrCachedPdu = bytes;
+                    }
+                    debugLog('FormatDataResponse ipc', bytes ? bytes.length : 0, 'bytes');
+                }
+                if (!bytes || !bytes.length) {
                     client._sendPeerMessage(client.proto.buildCliprdrFormatDataResponse(CB_RESPONSE_FAIL, new Uint8Array(0)));
                     return;
                 }
-                debugLog('FormatDataResponse', bytes.length, 'bytes');
                 client._sendPeerMessage(client.proto.buildCliprdrFormatDataResponse(CB_RESPONSE_OK, bytes));
-                await yieldToUi();
+                var dt = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - t0;
+                if (dt > 40) {
+                    console.info('[RDCliprdr] FormatData took ' + dt.toFixed(1) + 'ms (' + bytes.length + ' bytes)');
+                }
             } catch (err) {
                 var msg = err && err.message ? err.message : String(err || '');
                 console.warn('[RDCliprdr] format data failed:', err);

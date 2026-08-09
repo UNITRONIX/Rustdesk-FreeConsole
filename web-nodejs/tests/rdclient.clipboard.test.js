@@ -195,6 +195,64 @@ describe('RDCliprdr gesture gating', () => {
         expect(RDCliprdr.shouldSyncOnUserGesture(undefined)).toBe(true);
     });
 
+    it('marks input priority on right-click and defers clipboard sync', async () => {
+        const client = {
+            _state: 'streaming',
+            viewOnly: false,
+            _cliprdrLocalSignature: 'sig-prior',
+            proto: {
+                buildCliprdrFormatList: () => ({ cliprdr: { formatList: {} } })
+            },
+            _sendPeerMessage: () => {},
+            _emit: () => {}
+        };
+        let invokeCount = 0;
+        sandbox.window.__TAURI__.core.invoke = async (cmd) => {
+            if (cmd === 'desktop_clipboard_sync') {
+                invokeCount += 1;
+                return { hasFiles: false, signature: '', busy: false };
+            }
+            return {};
+        };
+
+        RDCliprdr.noteUserInput(client, { button: 2 });
+        expect(RDCliprdr.isInputPriority(client)).toBe(true);
+        const deferred = await RDCliprdr.syncLocalFiles(client);
+        expect(deferred.busy).toBe(true);
+        expect(invokeCount).toBe(0);
+    });
+
+    it('answers FormatData from cached PDU without Tauri IPC', async () => {
+        const sent = [];
+        const pdu = new Uint8Array([1, 2, 3, 4, 5]);
+        const client = {
+            _state: 'streaming',
+            viewOnly: false,
+            _cliprdrCachedPdu: pdu,
+            _cliprdrFormatNames: {
+                fileDescriptorFormatId: 49334
+            },
+            proto: {
+                buildCliprdrFormatDataResponse: (flags, bytes) => ({
+                    cliprdr: { formatDataResponse: { msgFlags: flags, formatData: bytes } }
+                })
+            },
+            _sendPeerMessage: (msg) => { sent.push(msg); },
+            _emit: () => {}
+        };
+        let invokeCount = 0;
+        sandbox.window.__TAURI__.core.invoke = async () => {
+            invokeCount += 1;
+            throw new Error('IPC should not run for cache hit');
+        };
+
+        await RDCliprdr._respondFormatData(client, { requestedFormatId: 49334 });
+        expect(invokeCount).toBe(0);
+        expect(sent).toHaveLength(1);
+        expect(sent[0].cliprdr.formatDataResponse.msgFlags).toBe(0x1);
+        expect(Array.from(sent[0].cliprdr.formatDataResponse.formatData)).toEqual([1, 2, 3, 4, 5]);
+    });
+
     it('coalesces clipboard sync while one invoke is in flight', async () => {
         let resolveSync;
         const syncPromise = new Promise((resolve) => { resolveSync = resolve; });

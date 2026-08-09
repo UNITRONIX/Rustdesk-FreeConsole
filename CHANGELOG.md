@@ -1,4 +1,5 @@
 ## [Unreleased]
+- **RdClient desktop — right-click context menu still laggy after prior Cliprdr fixes:** mouse down/up were already sent immediately, but remote Explorer still blocked the menu on Cliprdr `FormatData` while that reply waited on Tauri IPC (and could queue behind `FileContents` / clipboard poll `spawn_blocking`). Sync now returns the pre-built FILEGROUPDESCRIPTOR for an in-memory JS cache; FormatData answers from that cache with no IPC, is no longer serialized behind FileContents, and clipboard polls/focus sync pause briefly during clicks. FormatData on the Rust side is cache-hit only (no lazy tree walk). Requires rebuilt `rdclient-desktop` **and** panel update (`cliprdr.js` / `remote.js` / `input.js`).
 
 ### Changed
 - _(none yet)_

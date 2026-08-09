@@ -106,7 +106,9 @@ impl ClipFileCache {
         self.total_bytes = 0;
     }
 
-    fn result(&self) -> DesktopClipboardSyncResult {
+    /// When `include_pdu` is set, embed the FILEGROUPDESCRIPTOR so the WebView can
+    /// answer remote Explorer FormatDataRequest (context menu) without another IPC.
+    fn result_with_pdu(&self, include_pdu: bool) -> DesktopClipboardSyncResult {
         DesktopClipboardSyncResult {
             // Top-level paths alone mean we have files; the FILEGROUPDESCRIPTOR PDU
             // may still be built lazily on FormatDataRequest.
@@ -119,6 +121,11 @@ impl ClipFileCache {
             too_large: self.too_large,
             entry_count: self.entry_count,
             total_bytes: self.total_bytes,
+            files_pdu_b64: if include_pdu && !self.too_large && !self.files_pdu.is_empty() {
+                Some(b64_encode(&self.files_pdu))
+            } else {
+                None
+            },
         }
     }
 }
@@ -167,6 +174,9 @@ pub struct DesktopClipboardSyncResult {
     pub entry_count: u32,
     #[serde(default)]
     pub total_bytes: u64,
+    /// Pre-built FILEGROUPDESCRIPTORW (base64) for instant FormatData replies in JS.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub files_pdu_b64: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -832,7 +842,7 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
         match source {
             CacheSource::Clipboard => {
                 if cache.source == CacheSource::Paths && !cache.files_pdu.is_empty() {
-                    return Ok(cache.result());
+                    return Ok(cache.result_with_pdu(true));
                 }
                 // Received files are on CF_HDROP after commit; if the OS clipboard
                 // no longer has files, drop the cache like a normal Explorer clear.
@@ -848,6 +858,7 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
             too_large: false,
             entry_count: 0,
             total_bytes: 0,
+            files_pdu_b64: None,
         });
     }
 
@@ -864,7 +875,8 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
                 || cache.too_large
                 || (!cache.files_pdu.is_empty() && !cache.file_list.is_empty());
             if ready {
-                return Ok(cache.result());
+                // Include PDU so JS can hydrate its FormatData cache after reload.
+                return Ok(cache.result_with_pdu(true));
             }
         }
     }
@@ -935,7 +947,8 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
     } else if !files_pdu.is_empty() {
         apply_materialized(&mut cache, file_list, files_pdu, entry_count, total_bytes);
     } else {
-        // Assess/materialize failed — keep paths so a later FormatData can retry.
+        // Assess/materialize failed — keep paths so a later sync/paste can retry.
+        // Do NOT rematerialize on FormatData (that stalls remote context menus).
         cache.too_large = false;
         cache.entry_count = entry_count;
         cache.total_bytes = total_bytes;
@@ -943,7 +956,7 @@ fn sync_from_paths(paths: Vec<String>, source: CacheSource) -> Result<DesktopCli
         cache.files_pdu.clear();
     }
 
-    Ok(cache.result())
+    Ok(cache.result_with_pdu(true))
 }
 
 fn sync_from_clipboard() -> Result<DesktopClipboardSyncResult, String> {
@@ -960,6 +973,7 @@ fn sync_from_clipboard() -> Result<DesktopClipboardSyncResult, String> {
                 too_large: cache.too_large,
                 entry_count: cache.entry_count,
                 total_bytes: cache.total_bytes,
+                files_pdu_b64: None,
             })
         }
         ClipboardPathsRead::Empty => sync_from_paths(Vec::new(), CacheSource::Clipboard),
@@ -980,11 +994,16 @@ where
         .map_err(|e| format!("clipboard task join: {e}"))?
 }
 
+/// Context-menu FormatData must be instant. Never walk the filesystem here —
+/// sync pre-materializes the PDU; if it is missing, fail fast so Explorer does
+/// not sit on "Not Responding" while a background assess runs.
 fn format_data_inner() -> Result<String, String> {
-    ensure_files_ready()?;
     let cache = CLIP_CACHE
         .lock()
         .map_err(|_| "Clipboard cache lock poisoned".to_string())?;
+    if cache.too_large {
+        return Err("cliprdr_too_large".into());
+    }
     if cache.files_pdu.is_empty() {
         return Err("no clipboard files cached".into());
     }
@@ -1419,6 +1438,10 @@ mod tests {
         assert!(result.has_files);
         assert!(!result.too_large);
         assert!(!result.signature.is_empty());
+        assert!(
+            result.files_pdu_b64.as_ref().map(|s| !s.is_empty()).unwrap_or(false),
+            "sync must return files_pdu_b64 for instant JS FormatData"
+        );
 
         // FormatData must be a cache hit (no second walk) after sync.
         let b64 = format_data_inner().expect("format_data");
