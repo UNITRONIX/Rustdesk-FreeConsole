@@ -1,4 +1,4 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
     BetterDesk Console Manager v3.5.26 - All-in-One Interactive Tool for Windows

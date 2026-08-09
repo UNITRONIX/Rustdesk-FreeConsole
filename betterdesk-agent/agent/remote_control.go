@@ -228,7 +228,9 @@ func (a *Agent) handleDesktopControl(msg *Message) {
 func lockWorkstation() error {
 	switch runtime.GOOS {
 	case "windows":
-		return exec.Command("rundll32.exe", "user32.dll,LockWorkStation").Start()
+		cmd := exec.Command("rundll32.exe", "user32.dll,LockWorkStation")
+		hideConsole(cmd)
+		return cmd.Start()
 	case "linux":
 		if err := exec.Command("loginctl", "lock-session").Start(); err == nil {
 			return nil
@@ -244,7 +246,9 @@ func lockWorkstation() error {
 func restartHost() error {
 	switch runtime.GOOS {
 	case "windows":
-		return exec.Command("shutdown", "/r", "/t", "5", "/c", "BetterDesk remote restart").Start()
+		cmd := exec.Command("shutdown", "/r", "/t", "5", "/c", "BetterDesk remote restart")
+		hideConsole(cmd)
+		return cmd.Start()
 	case "linux":
 		if err := exec.Command("systemctl", "reboot").Start(); err == nil {
 			return nil

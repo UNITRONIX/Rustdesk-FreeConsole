@@ -65,16 +65,34 @@ const VENDORED_GO_BIN = path.join(
     config.dataDir || path.join(__dirname, '..', 'data'),
     'go-toolchain', 'go', 'bin', IS_WINDOWS ? 'go.exe' : 'go'
 );
-const MESA_DLL_CANDIDATES = [
-    path.join(config.dataDir || path.join(__dirname, '..', 'data'), 'mesa-win64', 'opengl32.dll'),
-    path.join(__dirname, '..', 'vendor', 'mesa-win64', 'opengl32.dll'),
+const MESA_DIR_CANDIDATES = [
+    path.join(config.dataDir || path.join(__dirname, '..', 'data'), 'mesa-win64'),
+    path.join(__dirname, '..', 'vendor', 'mesa-win64'),
 ];
+/** Mesa opengl32.dll alone is unloadable without libgallium_wgl.dll — never ship incomplete sets. */
+const MESA_REQUIRED_DLLS = ['opengl32.dll', 'libgallium_wgl.dll'];
 
-function _mesaDllPath() {
-    for (const p of MESA_DLL_CANDIDATES) {
-        if (fs.existsSync(p)) return p;
+function _mesaDirPath() {
+    for (const dir of MESA_DIR_CANDIDATES) {
+        if (MESA_REQUIRED_DLLS.every((name) => fs.existsSync(path.join(dir, name)))) {
+            return dir;
+        }
     }
     return null;
+}
+
+function _mesaDllPath() {
+    const dir = _mesaDirPath();
+    return dir ? path.join(dir, 'opengl32.dll') : null;
+}
+
+function _mesaCompanionFiles() {
+    const dir = _mesaDirPath();
+    if (!dir) return [];
+    return MESA_REQUIRED_DLLS.map((name) => ({
+        name,
+        src: path.join(dir, name),
+    }));
 }
 
 async function _stageLinuxUI(distDir, stageDir, launcherName) {
@@ -317,19 +335,66 @@ function _upgradeGuidFromHash(brandingHash) {
     return `{${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}}`.toUpperCase();
 }
 
+function _which(cmd) {
+    const { execSync } = require('child_process');
+    try {
+        const found = execSync(`command -v ${cmd} 2>/dev/null`, { encoding: 'utf8' }).trim();
+        return found || null;
+    } catch (_) {
+        return null;
+    }
+}
+
 function _resolveMsiBuilder() {
     // wixl compiles .wxs → .msi. msibuild (same msitools package) is a different
     // tool for editing MSI databases and must not be used here.
     const candidates = ['wixl', '/usr/bin/wixl'];
     for (const c of candidates) {
+        if (c.includes('/') && fs.existsSync(c)) return c;
+    }
+    return _which('wixl');
+}
+
+/** Prefer an extracted (non-FUSE) appimagetool so the betterdesk user can run it. */
+function _resolveAppImageTool() {
+    const candidates = [
+        process.env.APPIMAGETOOL_BIN,
+        '/usr/local/lib/appimagetool/AppRun',
+        '/usr/local/lib/appimagetool/usr/bin/appimagetool',
+        '/usr/local/bin/appimagetool',
+    ].filter(Boolean);
+    for (const c of candidates) {
         if (fs.existsSync(c)) return c;
     }
-    const { execSync } = require('child_process');
-    try {
-        const found = execSync('command -v wixl 2>/dev/null', { encoding: 'utf8' }).trim();
-        if (found) return found;
-    } catch (_) { /* ok */ }
+    return _which('appimagetool');
+}
+
+function _resolveMingwGcc() {
+    const candidates = [
+        process.env.MINGW_CC,
+        '/usr/bin/x86_64-w64-mingw32-gcc',
+        'x86_64-w64-mingw32-gcc',
+    ].filter(Boolean);
+    for (const c of candidates) {
+        if (c.includes('/') && fs.existsSync(c)) return c;
+        if (!c.includes('/')) {
+            const found = _which(c);
+            if (found) return found;
+        }
+    }
     return null;
+}
+
+/** Normalize optional platform filter from API ({platform,arch,format}[]). */
+function _filterPlatforms(only) {
+    const all = bundleService.PLATFORMS || [];
+    if (!Array.isArray(only) || only.length === 0) return all;
+    const filtered = all.filter((p) => only.some((o) => (
+        String(o.platform || o.os || '') === p.platform
+        && String(o.arch || 'x64') === p.arch
+        && String(o.format || '') === p.format
+    )));
+    return filtered.length ? filtered : all;
 }
 
 const REBUILD_FLAG_FILE = path.join(config.dataDir || path.join(__dirname, '..', 'data'), '.agent_rebuild_pending');
@@ -351,9 +416,9 @@ function _agentSourceDirs() {
     };
 }
 
-async function enqueueBuildsForHash(brandingHash, { force = false } = {}) {
+async function enqueueBuildsForHash(brandingHash, { force = false, platforms: onlyPlatforms = null } = {}) {
     if (!brandingHash) throw new Error('brandingHash required');
-    const platforms = bundleService.PLATFORMS || [];
+    const platforms = _filterPlatforms(onlyPlatforms);
     for (const p of platforms) {
         const existing = await db.getAgentBundleBuild({
             brandingHash, platform: p.platform, arch: p.arch, format: p.format,
@@ -433,16 +498,16 @@ async function requeueAllBundleBuilds() {
     return { bundles: [...new Set(hashes)].length };
 }
 
-/** Force-requeue every platform build for one generator bundle. */
-async function rebuildBundleById(bundleId) {
+/** Force-requeue platform builds for one generator bundle (optional filter). */
+async function rebuildBundleById(bundleId, { platforms: onlyPlatforms = null } = {}) {
     const row = await db.getAgentBundle(bundleId);
     if (!row) return { success: false, error: 'not_found' };
     if (!_isSupportAgentBundle(row)) return { success: false, error: 'not_support_agent' };
     const { brandingHash } = await _ensureFreshSupportProfile(row);
     if (!brandingHash) return { success: false, error: 'missing_hash' };
-    await enqueueBuildsForHash(brandingHash, { force: true });
-    const platforms = (bundleService.PLATFORMS || []).length;
-    return { success: true, platforms, brandingHash };
+    const platforms = _filterPlatforms(onlyPlatforms);
+    await enqueueBuildsForHash(brandingHash, { force: true, platforms });
+    return { success: true, platforms: platforms.length, brandingHash };
 }
 
 /** Re-queue builds that failed only because the host Go install was broken. */
@@ -510,13 +575,17 @@ async function processPendingRebuildOnStartup() {
 /** Classify a build stderr / error_message for UI hints. */
 function classifyBuildError(msg) {
     const s = String(msg || '');
+    // Branding seal must win over incidental cgo/gcc noise from a failed go run.
+    if (/branding signing|sealbranding|refusing to embed plaintext|signed branding profile could not/i.test(s)) {
+        return { kind: 'branding_seal', hintKey: 'generator.toolchain_branding_seal' };
+    }
     if (/not in std|Go toolchain|stdlib verification|go:|cannot find package/i.test(s)) {
         return { kind: 'go', hintKey: 'generator.toolchain_go' };
     }
     if (/wixl|msitools|\.wxs/i.test(s)) {
         return { kind: 'wixl', hintKey: 'generator.toolchain_wixl' };
     }
-    if (/appimagetool|AppImage/i.test(s)) {
+    if (/appimagetool|AppImage|Failed to extract AppImage|could not create symlink/i.test(s)) {
         return { kind: 'appimage', hintKey: 'generator.toolchain_appimage' };
     }
     if (/dpkg-deb|fakeroot|\.deb/i.test(s)) {
@@ -528,7 +597,7 @@ function classifyBuildError(msg) {
     if (/mesa|opengl|libGL|WGL/i.test(s)) {
         return { kind: 'mesa', hintKey: 'generator.toolchain_mesa' };
     }
-    if (/mingw|x86_64-w64-mingw|gcc|cgo/i.test(s)) {
+    if (/mingw|x86_64-w64-mingw|cgo: C compiler|CC=.*mingw/i.test(s)) {
         return { kind: 'cgo', hintKey: 'generator.toolchain_cgo' };
     }
     return { kind: 'compile', hintKey: 'generator.build_error_hint' };
@@ -592,6 +661,8 @@ function getBuildWorkerStatus() {
         rebuildPending,
         mesaDll: _mesaDllPath() || null,
         msiBuilder: _resolveMsiBuilder(),
+        mingwGcc: _resolveMingwGcc(),
+        appimagetool: _resolveAppImageTool(),
         platforms: (bundleService.PLATFORMS || []).map((p) => ({
             platform: p.platform,
             arch: p.arch,
@@ -1012,14 +1083,19 @@ async function _copyDir(src, dst) {
 }
 
 async function _ensureMesaForWindows(workDir) {
-    const mesa = _mesaDllPath();
-    if (!mesa) {
-        console.warn('[agentBuildWorker] mesa opengl32.dll not found — Windows GUI may fail on VMs/RDP. Run scripts/fetch-mesa-windows.sh');
+    const companions = _mesaCompanionFiles();
+    if (!companions.length) {
+        console.warn(
+            '[agentBuildWorker] complete Mesa set not found (need opengl32.dll + libgallium_wgl.dll) — '
+            + 'skipping software OpenGL embed. Run scripts/fetch-mesa-windows.sh'
+        );
         return false;
     }
     const destDir = path.join(workDir, 'windows');
     await fsp.mkdir(destDir, { recursive: true });
-    await fsp.copyFile(mesa, path.join(destDir, 'opengl32.dll'));
+    for (const f of companions) {
+        await fsp.copyFile(f.src, path.join(destDir, f.name));
+    }
     return true;
 }
 
@@ -1070,16 +1146,23 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {},
             const msiDir = path.join(packDir, 'msi');
             await fsp.mkdir(msiDir, { recursive: true });
             await fsp.copyFile(binaryPath, path.join(msiDir, 'betterdesk-support.exe'));
-            const mesa = _mesaDllPath();
+            const mesaFiles = _mesaCompanionFiles();
             let mesaComponent = '';
             let mesaFeatureRef = '';
-            if (mesa) {
-                await fsp.copyFile(mesa, path.join(msiDir, 'opengl32.dll'));
-                mesaComponent = `
-      <Component Id="MesaOpenGL" Guid="*">
-        <File Id="MesaDll" Source="opengl32.dll" KeyPath="yes"/>
-      </Component>`;
-                mesaFeatureRef = '\n      <ComponentRef Id="MesaOpenGL"/>';
+            if (mesaFiles.length) {
+                const componentXml = [];
+                const refs = [];
+                for (const f of mesaFiles) {
+                    await fsp.copyFile(f.src, path.join(msiDir, f.name));
+                    const id = f.name.replace(/[^A-Za-z0-9]/g, '');
+                    componentXml.push(`
+      <Component Id="Mesa${id}" Guid="*">
+        <File Id="MesaFile${id}" Source="${f.name}" KeyPath="yes"/>
+      </Component>`);
+                    refs.push(`\n      <ComponentRef Id="Mesa${id}"/>`);
+                }
+                mesaComponent = componentXml.join('');
+                mesaFeatureRef = refs.join('');
             }
             const productName = _escapeXml(
                 branding.product_name || branding.company_name || 'BetterDesk Support'
@@ -1266,9 +1349,24 @@ StartupNotify=true
             await _writeAppImageIcon(appDir, branding);
 
             const outPath = path.join(packDir, `betterdesk-support-${label}-portable.AppImage`);
-            await _runProcess('appimagetool', ['--no-appstream', appDir, outPath], {
+            const appimagetool = _resolveAppImageTool();
+            if (!appimagetool) {
+                throw new Error(
+                    'appimagetool not found — install via scripts/install-build-toolchain.sh (extracted wrapper)'
+                );
+            }
+            const tmpDir = path.join(BUILD_CACHE_DIR, 'tmp');
+            await fsp.mkdir(tmpDir, { recursive: true });
+            await _runProcess(appimagetool, ['--no-appstream', appDir, outPath], {
                 cwd: packDir,
-                env: { ARCH: 'x86_64', APPIMAGE_EXTRACT_AND_RUN: '1' },
+                env: {
+                    ARCH: 'x86_64',
+                    APPIMAGE_EXTRACT_AND_RUN: '1',
+                    HOME: BUILD_CACHE_DIR,
+                    TMPDIR: tmpDir,
+                    TEMP: tmpDir,
+                    TMP: tmpDir,
+                },
             });
             return outPath;
         }

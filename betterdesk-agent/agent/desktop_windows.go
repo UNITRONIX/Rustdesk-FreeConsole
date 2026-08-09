@@ -78,7 +78,9 @@ func ffmpegSupportsDDAGrab() bool {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		out, err := exec.CommandContext(ctx, path, "-hide_banner", "-filters").CombinedOutput()
+		probe := exec.CommandContext(ctx, path, "-hide_banner", "-filters")
+		hideConsole(probe)
+		out, err := probe.CombinedOutput()
 		if err != nil || ctx.Err() != nil {
 			return
 		}

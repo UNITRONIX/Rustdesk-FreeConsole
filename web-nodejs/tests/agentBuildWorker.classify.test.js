@@ -31,6 +31,18 @@ describe('agentBuildWorker diagnostics', () => {
         expect(worker.classifyBuildError('dpkg-deb error').kind).toBe('deb');
         expect(worker.classifyBuildError('mingw-w64 not found').kind).toBe('cgo');
         expect(worker.classifyBuildError('random compile fail').kind).toBe('compile');
+        // Branding seal must win over incidental cgo/gcc noise from failed go run
+        expect(worker.classifyBuildError(
+            '# runtime/cgo\ngcc_linux_amd64.c: In function\nERROR: branding signing failed; refusing to embed plaintext'
+        ).kind).toBe('branding_seal');
+        expect(worker.classifyBuildError('sealbranding: signing key missing').kind).toBe('branding_seal');
+    });
+
+    it('getBuildWorkerStatus exposes mingw and appimagetool probes', () => {
+        const status = worker.getBuildWorkerStatus();
+        expect(status).toHaveProperty('mingwGcc');
+        expect(status).toHaveProperty('appimagetool');
+        expect(status).toHaveProperty('msiBuilder');
     });
 
     it('rejects malformed certificate pins in release profiles', () => {

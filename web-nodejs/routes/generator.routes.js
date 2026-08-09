@@ -184,7 +184,7 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
         if (!name) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.name_required') });
         }
-        const productType = normalizeProductType(req.body.product_type, PRODUCT_TYPES.AGENT_CLIENT);
+        const productType = normalizeProductType(req.body.product_type, PRODUCT_TYPES.SUPPORT_AGENT);
         const validateFn = productType === PRODUCT_TYPES.RDCLIENT
             ? bundleService.validateRdclientBranding
             : bundleService.validateBranding;
@@ -228,7 +228,10 @@ router.post('/api/generator/bundles', requireAuth, requireAdmin, async (req, res
             createdBy: req.session?.userId || null,
             productType,
         });
-        resolveBuildWorker(productType).enqueueBuildsForHash(brandingHash).catch((e) => {
+        const platformsFilter = Array.isArray(req.body.platforms) ? req.body.platforms : null;
+        resolveBuildWorker(productType).enqueueBuildsForHash(brandingHash, {
+            platforms: platformsFilter,
+        }).catch((e) => {
             console.error('[generator] enqueue builds failed:', e.message);
         });
         res.json({ success: true, data: { bundle: serializeBundle(created) } });
@@ -303,7 +306,10 @@ router.put('/api/generator/bundles/:bundleId', requireAuth, requireAdmin, async 
         // Phase 2: if branding hash changed, queue new builds; cached artifacts
         // for the previous hash remain reusable for prior portal links.
         if (existing.branding_hash !== brandingHash) {
-            resolveBuildWorker(existing.product_type).enqueueBuildsForHash(brandingHash).catch((e) => {
+            const platformsFilter = Array.isArray(req.body.platforms) ? req.body.platforms : null;
+            resolveBuildWorker(existing.product_type).enqueueBuildsForHash(brandingHash, {
+                platforms: platformsFilter,
+            }).catch((e) => {
                 console.error('[generator] enqueue builds failed:', e.message);
             });
         }
@@ -321,7 +327,11 @@ router.post('/api/generator/bundles/:bundleId/rebuild', requireAuth, requireAdmi
         if (row.revoked) {
             return res.status(400).json({ success: false, error: req.t('generator.errors.rebuild_revoked') });
         }
-        const result = await resolveBuildWorker(row.product_type).rebuildBundleById(req.params.bundleId);
+        const platformsFilter = Array.isArray(req.body?.platforms) ? req.body.platforms : null;
+        const result = await resolveBuildWorker(row.product_type).rebuildBundleById(
+            req.params.bundleId,
+            platformsFilter ? { platforms: platformsFilter } : undefined
+        );
         if (!result.success) {
             return res.status(404).json({ success: false, error: req.t('errors.not_found') });
         }

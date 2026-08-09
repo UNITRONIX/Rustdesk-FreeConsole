@@ -52,12 +52,14 @@ if [ ! -f "$SIGNING_KEY_FILE" ]; then
 fi
 
 seal_branding() {
+    # Pure-Go helper — must not inherit mingw CC/CXX or host CGO from the
+    # Windows cross-compile env (that compiles runtime/cgo with the wrong CC).
     local args
     args=(-in resources/branding.json -out resources/branding.json)
     if [ -n "$SIGNING_KEY_FILE" ]; then
         args+=(-signing-key-file "$SIGNING_KEY_FILE" -public-key-out resources/branding.pub)
     fi
-    "$GO" run ./cmd/sealbranding "${args[@]}"
+    CGO_ENABLED=0 CC= CXX= "$GO" run ./cmd/sealbranding "${args[@]}"
 }
 
 # Bake branding (Console generator overwrites this before invoking build).
@@ -83,10 +85,8 @@ if [ -z "$OUTPUT" ]; then
     OUTPUT="dist/betterdesk-support-${TARGET_OS}${EXT}"
 fi
 
-if [ "$TARGET_OS" = "windows" ]; then
-    export CC="${CC:-x86_64-w64-mingw32-gcc}"
-    export CXX="${CXX:-x86_64-w64-mingw32-g++}"
-fi
+# Do NOT export mingw CC/CXX here — seal_branding (and any host go run) must
+# use the native toolchain. Windows CC is applied only around the final build.
 
 BUILD_TAGS="release"
 if [ "$TARGET_OS" = "windows" ] && [ -f "windows/opengl32.dll" ]; then
@@ -195,6 +195,10 @@ if [ "${BETTERDESK_USE_GARBLE:-0}" = "1" ] && command -v garble >/dev/null 2>&1;
     BUILD_CMD=(garble -literals -tiny build -trimpath -tags "$BUILD_TAGS" -ldflags "$LDFLAGS" -o "$OUTPUT" .)
 fi
 
+if [ "$TARGET_OS" = "windows" ]; then
+    export CC="${CC:-x86_64-w64-mingw32-gcc}"
+    export CXX="${CXX:-x86_64-w64-mingw32-g++}"
+fi
 GOOS="$TARGET_OS" CGO_ENABLED=1 "${BUILD_CMD[@]}"
 
 # Optional UPX pack (Windows portable) — opt-in; can trigger AV false positives.

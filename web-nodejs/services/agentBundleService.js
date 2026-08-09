@@ -107,7 +107,10 @@ function validateBranding(input = {}) {
     const out = {};
 
     out.company_name = clip(input.company_name || input.companyName, MAX_NAME);
-    if (!out.company_name) errors.push('company_name_required');
+    // Optional for quick Support Agent creation — defaults to product name.
+    if (!out.company_name) {
+        out.company_name = 'BetterDesk Support';
+    }
 
     out.short_text   = clip(input.short_text   || input.shortText,   MAX_SHORT_TEXT);
     out.contact_email = clip(input.contact_email || input.contactEmail, MAX_CONTACT);

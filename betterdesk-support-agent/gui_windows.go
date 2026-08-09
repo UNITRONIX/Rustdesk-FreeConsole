@@ -11,15 +11,20 @@ func init() {
 	prepWindowsGraphics()
 }
 
-// prepWindowsGraphics enables Mesa software OpenGL when opengl32.dll ships next to the exe.
+// prepWindowsGraphics enables Mesa software OpenGL when a complete Mesa DLL
+// set ships next to the exe. An incomplete opengl32.dll (missing
+// libgallium_wgl.dll) is removed so it cannot shadow system OpenGL and crash
+// with STATUS_DLL_NOT_FOUND (0xC0000135).
 func prepWindowsGraphics() {
 	ensureMesaBesideExe()
-	exe, err := os.Executable()
-	if err != nil {
+	dir := exeDir()
+	gl := filepath.Join(dir, "opengl32.dll")
+	gallium := filepath.Join(dir, "libgallium_wgl.dll")
+	if _, err := os.Stat(gl); err != nil {
 		return
 	}
-	dir := filepath.Dir(exe)
-	if _, err := os.Stat(filepath.Join(dir, "opengl32.dll")); err != nil {
+	if _, err := os.Stat(gallium); err != nil {
+		_ = os.Remove(gl)
 		return
 	}
 	if os.Getenv("GALLIUM_DRIVER") == "" {

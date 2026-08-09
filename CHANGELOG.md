@@ -1,7 +1,13 @@
 ## [Unreleased]
 
+### Fixed
+- **Support Agent Windows console cascade:** Without a quiet capture path, PeerInfo / screenshot fallback spawned a visible PowerShell window per frame (and ffmpeg without `CREATE_NO_WINDOW`). Desktop capture on Windows now uses GDI→JPEG; helper `exec` calls hide the console. Ships via rebuilt Support Agent (agent-source). Verify: start agent + open a session — no flood of cmd/PowerShell windows.
+- **Support Agent Windows builds (sealbranding + mingw CC):** `build.sh` no longer exports mingw `CC`/`CXX` before `go run ./cmd/sealbranding`. Seal runs with `CGO_ENABLED=0`; mingw is applied only around the final Windows `go build`. This was mis-reported in the UI as “CGO / mingw required” while mingw was already installed. Ships via panel update (agent-source `build.sh` + `agentBuildWorker.js`).
+- **Support Agent AppImage as `betterdesk` user:** install toolchain now extracts `appimagetool` to `/usr/local/lib/appimagetool` with a shell wrapper (no FUSE / no write next to `/usr/local/bin`). Worker packs with writable `HOME`/`TMPDIR` under the build cache. Re-run `scripts/install-build-toolchain.sh` (or menu **B**) on hosts that still have the raw AppImage binary.
+- **Support Agent Windows crash `0xC0000135` / missing DLL:** Generator shipped incomplete Mesa `opengl32.dll` without `libgallium_wgl.dll`, which shadowed system OpenGL and blocked startup. Fetch/pack/embed now require the full DLL pair (or skip Mesa entirely). Agents already installed: delete `opengl32.dll` next to the exe if `libgallium_wgl.dll` is missing.
+
 ### Changed
-- _(none yet)_
+- **Generator — Support Agent only:** primary CTA is New Support Agent; Agent Client / RdClient create buttons hidden. Defaults to `support-agent`. Optional branding is collapsed; build-platform checkboxes control which installers are queued. Toolchain banner probes mingw + appimagetool; branding-seal errors are classified correctly.
 
 ---
 

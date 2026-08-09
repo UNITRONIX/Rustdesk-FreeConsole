@@ -377,6 +377,7 @@ func h264EncoderSupported() bool {
 			"-pix_fmt", "yuv420p",
 			"-f", "h264", "-",
 		)
+		hideConsole(cmd)
 		cmd.Stdout = io.Discard
 		cmd.Stderr = io.Discard
 		h264Probe.supported = cmd.Run() == nil

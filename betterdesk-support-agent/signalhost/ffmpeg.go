@@ -14,6 +14,7 @@ func startFFmpegCapture(ctx context.Context, args []string) (*exec.Cmd, io.ReadC
 		return nil, nil, err
 	}
 	cmd := exec.CommandContext(ctx, path, args...)
+	hideConsole(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, nil, err
@@ -40,6 +41,7 @@ func encodeJPEGToH264(ctx context.Context, jpeg []byte, quality int) ([]byte, bo
 		"-pix_fmt", "yuv420p",
 		"-f", "h264", "pipe:1",
 	)
+	hideConsole(cmd)
 	cmd.Stdin = bytes.NewReader(jpeg)
 	out, err := cmd.Output()
 	if err != nil {

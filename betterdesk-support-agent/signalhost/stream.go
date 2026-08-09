@@ -155,6 +155,13 @@ func (h *Host) streamScreenshotFallback(ctx context.Context, ps *peerSession, st
 		}
 		au, key, encErr := encodeJPEGToH264(ctx, jpeg, settings.quality)
 		if encErr != nil || len(au) == 0 {
+			// No usable H.264 encoder (e.g. ffmpeg missing mid-session) —
+			// back off instead of spinning CPU / helper processes every frame.
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(2 * time.Second):
+			}
 			continue
 		}
 		started := time.Now()

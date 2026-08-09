@@ -518,6 +518,7 @@ func streamWithFFmpeg(ctx context.Context, a *Agent, s *DesktopStreamer, fps, qu
 			}
 			cmd = exec.CommandContext(ctx, ffmpegPath, args...)
 		}
+		hideConsole(cmd)
 		stderr := &bytes.Buffer{}
 		cmd.Stderr = stderr
 

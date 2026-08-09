@@ -159,7 +159,9 @@ func (p *encoderProbe) load() {
 		p.ffmpeg = ffmpeg
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
-		out, err := exec.CommandContext(ctx, ffmpeg, "-hide_banner", "-encoders").Output()
+		encCmd := exec.CommandContext(ctx, ffmpeg, "-hide_banner", "-encoders")
+		hideConsole(encCmd)
+		out, err := encCmd.Output()
 		if err != nil {
 			return
 		}
@@ -216,6 +218,7 @@ func (p *encoderProbe) testEncode(name string) bool {
 	args = append(args, "-c:v", name, "-f", "null", "-")
 
 	cmd := exec.CommandContext(ctx, p.ffmpeg, args...)
+	hideConsole(cmd)
 	return cmd.Run() == nil
 }
 

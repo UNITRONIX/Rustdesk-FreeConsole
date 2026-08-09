@@ -107,6 +107,7 @@ func (a *Agent) streamAudio(ctx context.Context, s *AudioStreamer) {
 		"-",
 	)
 	cmd := exec.CommandContext(ctx, ffmpegPath, args...)
+	hideConsole(cmd)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return
