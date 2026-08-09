@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.36] — 2026-08-09
+
 ### Fixed
 - **Stock RustDesk — admin address-book sidebar empty after ACL harden:** `/api/group` and `/api/device-group/accessible` applied strict group ACL with no privileged bypass, so panel admins (e.g. `Chesster`) saw devices but no device groups/folders in the RustDesk sidebar when grants were empty or on another user group. Privileged roles again list all groups (web-panel parity); operators stay fail-closed on empty/unmatched ACL. Ships via Go rebuild/restart; re-login or refresh address book in RustDesk.
 
@@ -2900,3 +2907,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.33]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.32...v3.5.33
 [3.5.34]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.33...v3.5.34
 [3.5.35]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.34...v3.5.35
+[3.5.36]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.35...v3.5.36
