@@ -606,22 +606,25 @@
         }
     }
     function scheduleLocalClipboardSync(ev) {
+        const session = getActiveSession();
+        // Right/middle-click must not *await* Cliprdr on the input path (menu lag),
+        // but must still queue FormatList so remote Paste becomes enabled.
+        // Cancelling sync here was why Copy → right-click → Paste stayed grey.
         if (typeof RDCliprdr !== 'undefined'
             && typeof RDCliprdr.shouldSyncOnUserGesture === 'function'
             && !RDCliprdr.shouldSyncOnUserGesture(ev)) {
-            // Cancel a pending left-click sync so it cannot start mid right-click.
-            _clipSyncQueued = false;
-            if (_clipSyncTimer) {
-                clearTimeout(_clipSyncTimer);
-                _clipSyncTimer = null;
+            if (session && session.client) {
+                session.client._cliprdrSyncQueued = true;
             }
+            _clipDebug('right/middle-click: queue Cliprdr sync (do not run on click path)');
             return;
         }
-        const session = getActiveSession();
         if (session && session.client
             && typeof RDCliprdr !== 'undefined'
             && typeof RDCliprdr.isInputPriority === 'function'
             && RDCliprdr.isInputPriority(session.client)) {
+            session.client._cliprdrSyncQueued = true;
+            _clipDebug('defer left-click sync: input priority (queued)');
             return;
         }
         // Debounce left-click storms so we do not stack Cliprdr IPC on every
@@ -637,6 +640,8 @@
                 && typeof RDCliprdr !== 'undefined'
                 && typeof RDCliprdr.isInputPriority === 'function'
                 && RDCliprdr.isInputPriority(s.client)) {
+                s.client._cliprdrSyncQueued = true;
+                _clipDebug('left-click sync still in priority window — queued for flush');
                 return;
             }
             void syncLocalClipboardToRemote({ button: 0 });
@@ -654,7 +659,8 @@
                 && typeof RDCliprdr !== 'undefined'
                 && typeof RDCliprdr.isInputPriority === 'function'
                 && RDCliprdr.isInputPriority(session.client)) {
-                _clipDebug('skip focus sync: input priority');
+                session.client._cliprdrSyncQueued = true;
+                _clipDebug('focus sync deferred: input priority (queued for flush)');
                 return;
             }
             void syncLocalClipboardToRemote(null);

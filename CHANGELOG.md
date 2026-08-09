@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **RdClient desktop — local file Copy never enables remote Paste:** right-click / focus races set “input priority” and **cancelled** Cliprdr sync, so FormatList never reached the peer and Explorer Paste stayed grey. Sync is still not awaited on the click path (menu stays responsive), but a deferred flush now advertises CF_HDROP after the priority window. Ships via panel update (`remote.js` / `cliprdr.js`); no desktop rebuild required for this JS-only fix.
+
 ### Changed
 - _(none yet)_
 

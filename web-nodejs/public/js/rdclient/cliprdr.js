@@ -195,6 +195,12 @@
         /**
          * Mark a short window where clipboard polls/focus sync must yield so
          * mouse → remote delivery and FormatData replies stay snappy.
+         *
+         * IMPORTANT: yielding must not *drop* outbound FormatList. Operators
+         * commonly Copy locally then immediately right-click remote Explorer.
+         * That used to skip focus sync (input priority) and cancel left-click
+         * sync, so Paste stayed disabled forever. Queue a flush when priority ends.
+         *
          * @param {Object} client
          * @param {MouseEvent|{button?: number}|null|undefined} ev
          */
@@ -206,6 +212,16 @@
             if (!client._cliprdrInputPriorityUntil || until > client._cliprdrInputPriorityUntil) {
                 client._cliprdrInputPriorityUntil = until;
             }
+            // Always re-arm flush: right-click / focus races must still advertise CF_HDROP.
+            if (client._cliprdrPriorityFlushTimer) {
+                clearTimeout(client._cliprdrPriorityFlushTimer);
+            }
+            client._cliprdrPriorityFlushTimer = setTimeout(function () {
+                client._cliprdrPriorityFlushTimer = null;
+                if (RDCliprdr.isInputPriority(client)) return;
+                client._cliprdrSyncQueued = true;
+                void RDCliprdr.syncLocalFiles(client);
+            }, ms + 40);
         }
 
         static isInputPriority(client) {
@@ -233,6 +249,10 @@
             client._cliprdrCachedPdu = null;
             client._cliprdrInputPriorityUntil = 0;
             client._cliprdrFileContentsQueue = Promise.resolve();
+            if (client._cliprdrPriorityFlushTimer) {
+                clearTimeout(client._cliprdrPriorityFlushTimer);
+                client._cliprdrPriorityFlushTimer = null;
+            }
             if (client._cliprdrDragOutTimer) {
                 clearTimeout(client._cliprdrDragOutTimer);
                 client._cliprdrDragOutTimer = null;

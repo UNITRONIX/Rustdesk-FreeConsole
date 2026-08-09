@@ -217,9 +217,15 @@ describe('RDCliprdr gesture gating', () => {
 
         RDCliprdr.noteUserInput(client, { button: 2 });
         expect(RDCliprdr.isInputPriority(client)).toBe(true);
+        expect(client._cliprdrPriorityFlushTimer).toBeTruthy();
         const deferred = await RDCliprdr.syncLocalFiles(client);
         expect(deferred.busy).toBe(true);
+        expect(client._cliprdrSyncQueued).toBe(true);
         expect(invokeCount).toBe(0);
+        if (client._cliprdrPriorityFlushTimer) {
+            clearTimeout(client._cliprdrPriorityFlushTimer);
+            client._cliprdrPriorityFlushTimer = null;
+        }
     });
 
     it('answers FormatData from cached PDU without Tauri IPC', async () => {
