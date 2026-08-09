@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.44] — 2026-08-09
+
 ### Fixed
 - **Windows panel update — cannot stop both services from inside Apply:** BetterDeskConsole *is* the updater; stopping it mid-Apply aborts the job, and the console VA still cannot `sc stop`/`taskkill` BetterDeskServer. Deploy now tries (1) `POST /api/system/replace-binary` (Go renames/replaces its own exe and exits for NSSM restart), (2) SYSTEM watcher, (3) rename-swap. On failure writes `pending-server-deploy.json` and points at Admin script `scripts/windows-install-service-control-and-deploy.ps1` (stop server → deploy pending → install watcher). **One-time Admin:** run that script elevated, then Apply again.
 
@@ -2979,3 +2986,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.41]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.40...v3.5.41
 [3.5.42]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.41...v3.5.42
 [3.5.43]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.42...v3.5.43
+[3.5.44]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.43...v3.5.44
