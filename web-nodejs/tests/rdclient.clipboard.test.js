@@ -159,9 +159,10 @@ describe('RDCompress helpers', () => {
 
 describe('RDCliprdr gesture gating', () => {
     let RDCliprdr;
+    let sandbox;
 
     beforeAll(() => {
-        const sandbox = {
+        sandbox = {
             console,
             Uint8Array,
             ArrayBuffer,
@@ -192,6 +193,58 @@ describe('RDCliprdr gesture gating', () => {
         expect(RDCliprdr.shouldSyncOnUserGesture({ button: 0 })).toBe(true);
         expect(RDCliprdr.shouldSyncOnUserGesture(null)).toBe(true);
         expect(RDCliprdr.shouldSyncOnUserGesture(undefined)).toBe(true);
+    });
+
+    it('coalesces clipboard sync while one invoke is in flight', async () => {
+        let resolveSync;
+        const syncPromise = new Promise((resolve) => { resolveSync = resolve; });
+        let invokeCount = 0;
+        sandbox.window.__TAURI__.core.invoke = async (cmd) => {
+            if (cmd === 'desktop_clipboard_sync') {
+                invokeCount += 1;
+                return syncPromise;
+            }
+            if (cmd === 'desktop_clipboard_format_names') {
+                return {
+                    fileDescriptorFormatId: 49334,
+                    fileDescriptorFormatName: 'FileGroupDescriptorW',
+                    fileContentsFormatId: 49267,
+                    fileContentsFormatName: 'FileContents'
+                };
+            }
+            return {};
+        };
+
+        const sent = [];
+        const client = {
+            _state: 'streaming',
+            viewOnly: false,
+            proto: {
+                buildCliprdrFormatList: () => ({ cliprdr: { formatList: {} } })
+            },
+            _sendPeerMessage: (msg) => { sent.push(msg); },
+            _emit: () => {}
+        };
+
+        const first = RDCliprdr.syncLocalFiles(client);
+        const second = await RDCliprdr.syncLocalFiles(client);
+        expect(second.busy).toBe(true);
+        expect(invokeCount).toBe(1);
+
+        resolveSync({
+            hasFiles: true,
+            signature: 'sig-a',
+            busy: false,
+            tooLarge: false,
+            entryCount: 1,
+            totalBytes: 5
+        });
+        const firstResult = await first;
+        expect(firstResult.hasFiles).toBe(true);
+        expect(sent.length).toBeGreaterThanOrEqual(1);
+        // Queued follow-up may start after first finishes.
+        await new Promise((r) => setTimeout(r, 20));
+        expect(invokeCount).toBeGreaterThanOrEqual(1);
     });
 });
 

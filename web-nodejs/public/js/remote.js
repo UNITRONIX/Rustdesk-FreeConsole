@@ -511,6 +511,10 @@
     // share a cache lock with remote Explorer context-menu probes. Awaiting
     // sync on button 2 is what made right-click take 20+ seconds when the
     // local clipboard held files.
+    //
+    // Focus/left-click must also stay fire-and-forget: Tauri used to run
+    // desktop_clipboard_sync on the WebView UI thread, so OpenClipboard after a
+    // local file Copy self-deadlocked (~30s) and froze click/menu delivery.
     function _clipDebug() {
         if (window.BetterDesk && window.BetterDesk.debugRelay) {
             console.log.apply(console, ['[ClipboardSync]'].concat(Array.prototype.slice.call(arguments)));
@@ -542,10 +546,12 @@
         if (window.__BETTERDESK_RDCLIENT_DESKTOP__ && typeof RDCliprdr !== 'undefined' && RDCliprdr.isSupported()) {
             _clipDebug('desktop bridge detected → syncCliprdrFiles()');
             try {
+                // Intentionally not blocking input: invoke runs off the UI thread
+                // (async Rust command). Stacking is gated inside RDCliprdr.syncPaths.
                 const sync = await session.client.syncCliprdrFiles();
                 hasFiles = !!(sync && sync.hasFiles);
                 if (sync && sync.busy) {
-                    _clipDebug('Cliprdr sync busy (clipboard locked) — skipping text push');
+                    _clipDebug('Cliprdr sync busy (clipboard locked / in-flight) — skipping text push');
                     return;
                 }
             } catch (err) {

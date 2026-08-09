@@ -628,7 +628,7 @@ enum ClipboardPathsRead {
 }
 
 #[cfg(windows)]
-fn read_clipboard_paths() -> ClipboardPathsRead {
+fn read_clipboard_paths_once() -> ClipboardPathsRead {
     use windows::Win32::Foundation::{HGLOBAL, HWND};
     use windows::Win32::System::DataExchange::{
         CloseClipboard, GetClipboardData, IsClipboardFormatAvailable, OpenClipboard,
@@ -710,6 +710,23 @@ fn read_clipboard_paths() -> ClipboardPathsRead {
             Some(paths) => ClipboardPathsRead::Paths(paths),
         }
     }
+}
+
+/// Read CF_HDROP with short Busy retries. Must run off the WebView UI thread
+/// (see async command wrappers) — OpenClipboard on that thread self-deadlocks
+/// with WebView2 clipboard handling for ~30s after a local file Copy.
+#[cfg(windows)]
+fn read_clipboard_paths() -> ClipboardPathsRead {
+    const ATTEMPTS: u32 = 8;
+    for i in 0..ATTEMPTS {
+        match read_clipboard_paths_once() {
+            ClipboardPathsRead::Busy if i + 1 < ATTEMPTS => {
+                std::thread::sleep(std::time::Duration::from_millis(15 + 15 * i as u64));
+            }
+            other => return other,
+        }
+    }
+    ClipboardPathsRead::Busy
 }
 
 #[cfg(windows)]
@@ -950,20 +967,20 @@ fn sync_from_clipboard() -> Result<DesktopClipboardSyncResult, String> {
     }
 }
 
-#[tauri::command]
-pub fn desktop_clipboard_sync() -> Result<DesktopClipboardSyncResult, String> {
-    sync_from_clipboard()
+/// Tauri runs sync `#[command]` fns on the WebView UI thread. OpenClipboard /
+/// large FileContents base64 on that thread freezes input (~30s self-deadlock
+/// after local file Copy) and makes Paste appear hung. Always offload.
+async fn spawn_clip_blocking<T, F>(work: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| format!("clipboard task join: {e}"))?
 }
 
-#[tauri::command]
-pub fn desktop_clipboard_sync_paths(
-    paths: Vec<String>,
-) -> Result<DesktopClipboardSyncResult, String> {
-    sync_from_paths(paths, CacheSource::Paths)
-}
-
-#[tauri::command]
-pub fn desktop_clipboard_format_data() -> Result<String, String> {
+fn format_data_inner() -> Result<String, String> {
     ensure_files_ready()?;
     let cache = CLIP_CACHE
         .lock()
@@ -974,8 +991,7 @@ pub fn desktop_clipboard_format_data() -> Result<String, String> {
     Ok(b64_encode(&cache.files_pdu))
 }
 
-#[tauri::command]
-pub fn desktop_clipboard_file_contents(
+fn file_contents_inner(
     list_index: i32,
     dw_flags: i32,
     n_position_low: i32,
@@ -1028,15 +1044,60 @@ pub fn desktop_clipboard_file_contents(
     Ok(b64_encode(&buf))
 }
 
-#[tauri::command]
-pub fn desktop_clipboard_clear() {
+fn clear_cache_inner() {
     if let Ok(mut cache) = CLIP_CACHE.lock() {
         cache.clear();
     }
 }
 
 #[tauri::command]
-pub fn desktop_clipboard_format_names() -> DesktopClipboardFormatNames {
+pub async fn desktop_clipboard_sync() -> Result<DesktopClipboardSyncResult, String> {
+    spawn_clip_blocking(sync_from_clipboard).await
+}
+
+#[tauri::command]
+pub async fn desktop_clipboard_sync_paths(
+    paths: Vec<String>,
+) -> Result<DesktopClipboardSyncResult, String> {
+    spawn_clip_blocking(move || sync_from_paths(paths, CacheSource::Paths)).await
+}
+
+#[tauri::command]
+pub async fn desktop_clipboard_format_data() -> Result<String, String> {
+    spawn_clip_blocking(format_data_inner).await
+}
+
+#[tauri::command]
+pub async fn desktop_clipboard_file_contents(
+    list_index: i32,
+    dw_flags: i32,
+    n_position_low: i32,
+    n_position_high: i32,
+    cb_requested: i32,
+) -> Result<String, String> {
+    spawn_clip_blocking(move || {
+        file_contents_inner(
+            list_index,
+            dw_flags,
+            n_position_low,
+            n_position_high,
+            cb_requested,
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn desktop_clipboard_clear() {
+    let _ = spawn_clip_blocking(|| {
+        clear_cache_inner();
+        Ok::<(), String>(())
+    })
+    .await;
+}
+
+#[tauri::command]
+pub async fn desktop_clipboard_format_names() -> DesktopClipboardFormatNames {
     DesktopClipboardFormatNames {
         file_descriptor_format_id: FILEDESCRIPTOR_FORMAT_ID,
         file_descriptor_format_name: FILEDESCRIPTORW_FORMAT_NAME.to_string(),
@@ -1046,8 +1107,7 @@ pub fn desktop_clipboard_format_names() -> DesktopClipboardFormatNames {
 }
 
 /// Begin an inbound Cliprdr receive: parse FILEGROUPDESCRIPTORW and prepare temp files.
-#[tauri::command]
-pub fn desktop_clipboard_receive_begin(
+fn receive_begin_inner(
     format_data_base64: String,
 ) -> Result<DesktopClipboardReceiveBeginResult, String> {
     let format_data = b64_decode(&format_data_base64)?;
@@ -1133,10 +1193,16 @@ pub fn desktop_clipboard_receive_begin(
     Ok(DesktopClipboardReceiveBeginResult { files })
 }
 
+#[tauri::command]
+pub async fn desktop_clipboard_receive_begin(
+    format_data_base64: String,
+) -> Result<DesktopClipboardReceiveBeginResult, String> {
+    spawn_clip_blocking(move || receive_begin_inner(format_data_base64)).await
+}
+
 /// Append/write a chunk into a file started by `desktop_clipboard_receive_begin`.
 /// Payload is base64 to avoid JSON number-array IPC (which freezes WebView on GB transfers).
-#[tauri::command]
-pub fn desktop_clipboard_receive_write(
+fn receive_write_inner(
     list_index: i32,
     offset: u64,
     data_base64: String,
@@ -1165,12 +1231,20 @@ pub fn desktop_clipboard_receive_write(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn desktop_clipboard_receive_write(
+    list_index: i32,
+    offset: u64,
+    data_base64: String,
+) -> Result<(), String> {
+    spawn_clip_blocking(move || receive_write_inner(list_index, offset, data_base64)).await
+}
+
 /// Place received top-level paths on the local CF_HDROP clipboard.
 ///
 /// Clipboard write is best-effort: if OpenClipboard fails (busy / OLE), we still
 /// return the temp paths so remote→local OLE drag-out can proceed.
-#[tauri::command]
-pub fn desktop_clipboard_receive_commit() -> Result<DesktopClipboardSyncResult, String> {
+fn receive_commit_inner() -> Result<DesktopClipboardSyncResult, String> {
     let mut slot = RECEIVE_SESSION
         .lock()
         .map_err(|_| "Receive session lock poisoned".to_string())?;
@@ -1204,6 +1278,11 @@ pub fn desktop_clipboard_receive_commit() -> Result<DesktopClipboardSyncResult, 
     Ok(result)
 }
 
+#[tauri::command]
+pub async fn desktop_clipboard_receive_commit() -> Result<DesktopClipboardSyncResult, String> {
+    spawn_clip_blocking(receive_commit_inner).await
+}
+
 #[cfg(windows)]
 fn write_clipboard_paths_retry(paths: &[PathBuf], attempts: u32) -> Result<(), String> {
     let mut last = String::new();
@@ -1226,11 +1305,19 @@ fn write_clipboard_paths_retry(paths: &[PathBuf], _attempts: u32) -> Result<(), 
     write_clipboard_paths(paths)
 }
 
-#[tauri::command]
-pub fn desktop_clipboard_receive_abort() {
+fn receive_abort_inner() {
     if let Ok(mut slot) = RECEIVE_SESSION.lock() {
         abort_receive_locked(&mut slot);
     }
+}
+
+#[tauri::command]
+pub async fn desktop_clipboard_receive_abort() {
+    let _ = spawn_clip_blocking(|| {
+        receive_abort_inner();
+        Ok::<(), String>(())
+    })
+    .await;
 }
 
 #[cfg(test)]
@@ -1334,21 +1421,75 @@ mod tests {
         assert!(!result.signature.is_empty());
 
         // FormatData must be a cache hit (no second walk) after sync.
-        let b64 = desktop_clipboard_format_data().expect("format_data");
+        let b64 = format_data_inner().expect("format_data");
         let bytes = b64_decode(&b64).expect("b64");
         assert!(bytes.len() >= 4 + FILEDESCRIPTORW_SIZE);
         let count = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
         assert_eq!(count, 1);
 
-        desktop_clipboard_clear();
+        // FileContents RANGE must return real bytes (not empty) for paste progress.
+        let chunk_b64 = file_contents_inner(0, 0x2, 0, 0, 5).expect("range");
+        let chunk = b64_decode(&chunk_b64).expect("chunk b64");
+        assert_eq!(chunk.as_slice(), b"hello");
+
+        clear_cache_inner();
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn single_file_sync_and_contents_are_fast() {
+        let dir = std::env::temp_dir().join(format!(
+            "betterdesk-cliprdr-5mb-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("mkdir");
+        let file = dir.join("five.bin");
+        let payload = vec![0xABu8; 5 * 1024 * 1024];
+        fs::write(&file, &payload).expect("write 5MB");
+
+        let started = std::time::Instant::now();
+        let result = sync_from_paths(
+            vec![file.to_string_lossy().into_owned()],
+            CacheSource::Clipboard,
+        )
+        .expect("sync");
+        let sync_ms = started.elapsed().as_millis();
+        assert!(result.has_files);
+        assert!(!result.too_large);
+        // Metadata-only assess/materialize must not scale with file bytes.
+        assert!(
+            sync_ms < 2_000,
+            "sync took {sync_ms}ms — must not read 5MB into the descriptor"
+        );
+
+        let started = std::time::Instant::now();
+        let b64 = format_data_inner().expect("format_data");
+        let format_ms = started.elapsed().as_millis();
+        assert!(format_ms < 500, "FormatData took {format_ms}ms");
+        let bytes = b64_decode(&b64).expect("b64");
+        assert!(bytes.len() < 8_192, "descriptor must not embed file bytes");
+
+        let started = std::time::Instant::now();
+        let chunk_b64 = file_contents_inner(0, 0x2, 0, 0, 64 * 1024).expect("range");
+        let range_ms = started.elapsed().as_millis();
+        let chunk = b64_decode(&chunk_b64).expect("chunk");
+        assert_eq!(chunk.len(), 64 * 1024);
+        assert_eq!(chunk[0], 0xAB);
+        assert!(
+            range_ms < 2_000,
+            "64KiB FileContents took {range_ms}ms"
+        );
+
+        clear_cache_inner();
         let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn format_data_does_not_need_cache_lock_during_walk_smoke() {
         // After clear, FormatData fails fast without hanging.
-        desktop_clipboard_clear();
-        let err = desktop_clipboard_format_data().expect_err("empty cache");
+        clear_cache_inner();
+        let err = format_data_inner().expect_err("empty cache");
         assert!(
             err.contains("no clipboard files") || err.contains("cliprdr"),
             "unexpected err={err}"
