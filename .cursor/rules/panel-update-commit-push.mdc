@@ -1,0 +1,15 @@
+---
+description: After panel-update or agent-workflow rule changes, commit on dev and push to Chesster1981 origin/dev
+alwaysApply: true
+---
+
+# Panel update / agent-rule — commit and push
+
+When you change files that affect **Settings → Updates**, agent standing workflow, or deployable panel behaviour (including `.cursor/rules/` that encode that workflow):
+
+1. Work on **`dev`** (Chesster1981 fork).
+2. **Commit** when Ole asks, or when Ole’s standing instruction for that change type is commit+push (e.g. persisting workspace rules).
+3. **Push to `origin/dev`** on **Chesster1981/BetterDesk** — not UNITRONIX.
+4. Confirm with `git remote -v` and `git status -sb` that the tracking branch is `origin/dev` on the fork before `git push`.
+
+Do **not** open UNITRONIX PRs as part of this habit. Upstream release remains an explicit Ole request only (see `chesster1981-fork-workflow.mdc` + `betterdesk-release-workflow.mdc`).

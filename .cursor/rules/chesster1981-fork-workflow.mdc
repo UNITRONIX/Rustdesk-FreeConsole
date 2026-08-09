@@ -1,0 +1,34 @@
+---
+description: Day-to-day git remote is Chesster1981/BetterDesk; never PR/merge/push to UNITRONIX unless Ole explicitly asks
+alwaysApply: true
+---
+
+# Chesster1981 fork — default remote / branch
+
+## Default (always)
+
+| Item | Value |
+|------|--------|
+| Remote | **`origin`** → `https://github.com/Chesster1981/BetterDesk.git` |
+| Working branch | **`dev`** (operator’s fork) |
+| Push / PR target | **Chesster1981/BetterDesk** only |
+
+1. Before commit/push/PR: confirm `git remote -v` shows **Chesster1981**, and `git branch --show-current` is **`dev`** (or a feature branch off that fork’s `dev`).
+2. **Never** open PRs, merges, or push attempts against **UNITRONIX/BetterDesk** unless Ole **explicitly** asks in that session.
+3. Do **not** treat UNITRONIX issues/PRs (e.g. obsolete UNITRONIX #365) as merge targets for this workspace — Ole closes/ignores those himself.
+4. Day-to-day commits land on **`origin/dev`** (Chesster1981). Feature branches, if used, push to Chesster1981 and stay off UNITRONIX.
+
+## Panel Updates (Settings → Updates)
+
+Code already supports `UPDATE_GITHUB_OWNER` (default `UNITRONIX` in `updateService.js`). If this install should track the fork:
+
+- Panel update source / `UPDATE_GITHUB_OWNER` should be **`Chesster1981`** so Settings → Updates sees fork `dev` commits.
+- **Do not** invent or blindly change production `.env` — only mention or change when operator asks and existing merge/update paths support it (`envMerge` append-missing only).
+
+## Release exception (UNITRONIX)
+
+When Ole **explicitly** asks for an upstream / production release to UNITRONIX, follow [`betterdesk-release-workflow.mdc`](betterdesk-release-workflow.mdc). Default remains Chesster-only; severity or “critical” does **not** authorize UNITRONIX targeting.
+
+## Commit + push after panel-relevant rule/doc changes
+
+Follow [`panel-update-commit-push.mdc`](panel-update-commit-push.mdc): push target is **`origin/dev` on Chesster1981**, never UNITRONIX.
