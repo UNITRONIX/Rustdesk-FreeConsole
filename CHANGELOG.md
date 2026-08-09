@@ -1,6 +1,13 @@
 ## [Unreleased]
 
 ### Changed
+- _(none yet)_
+
+---
+
+## [3.5.17] — 2026-08-09
+
+### Changed
 - **Panel Updates (this fork):** default GitHub update source is now `Chesster1981/BetterDesk` (`UPDATE_GITHUB_OWNER`). Existing installs that still omit the env key (and therefore pulled UNITRONIX) need a one-time `.env` set to `Chesster1981` + Development channel, then Settings → Updates, so fork commits (including RustDesk AB alias) actually install.
 
 ### Fixed
@@ -2705,3 +2712,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.14]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.13...v3.5.14
 [3.5.15]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.14...v3.5.15
 [3.5.16]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.15...v3.5.16
+[3.5.17]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.16...v3.5.17
