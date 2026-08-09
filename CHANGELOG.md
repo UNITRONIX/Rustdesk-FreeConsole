@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.26] — 2026-08-09
+
 ### Fixed
 - **Attestation Light theme contrast (#363):** Tier guide descriptions use `--text-primary`; IRON/TITANIUM/OBSIDIAN badge gradients stay readable on the dark chip; attestation cards use `--bg-secondary` (undefined `--bg-surface` removed). Ships via panel update (`server-attestation.css`). Verify: Light theme → Server Attestation → “What does each tier mean?” text and IRON/TITANIUM/OBSIDIAN badges are readable.
 - **Fleet org filter 404 (#364):** Fleet Management called non-existent `GET /api/panel/organizations`; it now uses `GET /api/panel/org` (same as Policies). Ships via panel update (`fleet.js`). Verify: Fleet page Network tab shows `/api/panel/org` (no 404), org dropdowns populate.
@@ -2758,3 +2765,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.23]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.22...v3.5.23
 [3.5.24]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.23...v3.5.24
 [3.5.25]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.24...v3.5.25
+[3.5.26]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.25...v3.5.26
