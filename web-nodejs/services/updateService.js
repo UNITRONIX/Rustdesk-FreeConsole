@@ -98,6 +98,41 @@ function windowsAdminDeployHint() {
         + `The console VA also cannot taskkill BetterDeskServer — hence the SYSTEM watcher / self-replace API.`;
 }
 
+/**
+ * After console restart: if a rename-swap left BetterDeskServer on the old image,
+ * try privileged/direct stop→start again (helper may now exist) and clear pending.
+ */
+function resumePendingWindowsServerRestart() {
+    if (!IS_WINDOWS) {
+        return { skipped: true };
+    }
+    try {
+        const dir = windowsServiceControlDir(ROOT_DIR);
+        const pendingPath = path.join(dir, 'pending-server-deploy.json');
+        const flagPath = path.join(dir, 'server-restart-pending.flag');
+        const hasPending = fs.existsSync(pendingPath) || fs.existsSync(flagPath);
+        if (!hasPending) {
+            return { skipped: true, reason: 'no-pending' };
+        }
+        const serviceName = 'BetterDeskServer';
+        console.log('[UPDATE] Resuming pending Windows BetterDeskServer restart after binary swap…');
+        const restarted = restartService(serviceName);
+        if (restarted.success) {
+            try { fs.unlinkSync(flagPath); } catch (_e) { /* ok */ }
+            try { fs.unlinkSync(pendingPath); } catch (_e) { /* ok */ }
+            console.log(`[UPDATE] Pending server restart succeeded (${restarted.method || 'restart'})`);
+            return { success: true, method: restarted.method };
+        }
+        console.warn(
+            `[UPDATE] Pending server restart still blocked: ${restarted.error || 'unknown'}`
+            + (restarted.hint ? ` — ${restarted.hint}` : '')
+        );
+        return { success: false, error: restarted.error, hint: restarted.hint || windowsAdminDeployHint() };
+    } catch (err) {
+        return { success: false, error: err.message || String(err) };
+    }
+}
+
 const GITHUB_OWNER  = process.env.UPDATE_GITHUB_OWNER  || 'Chesster1981';
 const GITHUB_REPO   = process.env.UPDATE_GITHUB_REPO   || 'BetterDesk';
 const GITHUB_API    = 'https://api.github.com';
@@ -3133,6 +3168,16 @@ async function applyUpdate(remoteSHA, changedData, opts = {}) {
                             }
                         } else {
                             results.needsServerRestart = true;
+                            results.serverBinaryPendingRestart = true;
+                            try {
+                                const dir = windowsServiceControlDir(ROOT_DIR);
+                                fs.mkdirSync(dir, { recursive: true });
+                                fs.writeFileSync(
+                                    path.join(dir, 'server-restart-pending.flag'),
+                                    `${new Date().toISOString()}\n`,
+                                    'utf8'
+                                );
+                            } catch (_e) { /* ok */ }
                             results.failed.push({
                                 file: 'betterdesk-server',
                                 error: `Go binary replaced on disk (rename-swap) but ${serviceName} is still running the old image: ${stopResult.error || 'stop failed'}`,
@@ -3538,9 +3583,26 @@ async function verifyServerLooksRunning(serviceName = IS_WINDOWS ? 'BetterDeskSe
  * After Access Denied (or similar soft control failure): if the service is
  * already up, treat as success and ask the UI to refresh the panel.
  *
+ * IMPORTANT: after a Windows rename-swap deploy the old process may still be
+ * RUNNING and answering HTTP — that is NOT a successful restart. Never recover
+ * when serverBinaryPendingRestart is set.
+ *
  * @returns {Promise<{ recovered: boolean, via?: string }>}
  */
 async function recoverSoftServerControlFailure(results, serviceName, controlResult) {
+    if (results && results.serverBinaryPendingRestart) {
+        console.warn(
+            `[UPDATE] ${serviceName} still needs a real stop/start after binary swap — not treating HTTP-up as success`
+        );
+        return { recovered: false };
+    }
+    const method = String(results?.serverDeploy?.method || '');
+    if (/^rename-swap/i.test(method)) {
+        console.warn(
+            `[UPDATE] ${serviceName} deploy was rename-swap — running process may still be the old image`
+        );
+        return { recovered: false };
+    }
     const verify = await verifyServerLooksRunning(serviceName);
     if (!verify.running) {
         return { recovered: false };
@@ -3681,16 +3743,38 @@ function startService(serviceName) {
  * Restart a system service.
  * Returns { success, service, error?, nonCritical?, hint?, method? }.
  *
- * Windows: uses stop→start with SERVICE_PAUSED recovery. NSSM enters PAUSED
- * while restart-throttling after a binary swap; bare `nssm restart` then fails
- * with "Unexpected status SERVICE_PAUSED in response to START control".
- * Preferred update path: stopService → deploy → startService (see applyUpdate).
+ * Windows: always stop→start (via stopService/startService) so privileged
+ * SYSTEM helper is tried. Bare start is a no-op when SERVICE_RUNNING — that
+ * left rename-swapped binaries stuck on the old process image.
  */
 function restartService(serviceName) {
     try {
         if (IS_WINDOWS) {
-            const win = restartWindowsNssmService(serviceName);
-            return { success: true, service: serviceName, method: win.method || 'stop-start' };
+            const stop = stopService(serviceName);
+            if (!stop.success) {
+                return {
+                    success: false,
+                    service: serviceName,
+                    error: stop.error || 'stop failed during restart',
+                    hint: stop.hint,
+                    nonCritical: stop.nonCritical,
+                    privilegedError: stop.privilegedError,
+                    method: 'restart-stop-failed',
+                };
+            }
+            const start = startService(serviceName);
+            if (!start.success) {
+                return {
+                    ...start,
+                    method: `restart-start-failed:${start.method || 'start'}`,
+                };
+            }
+            return {
+                success: true,
+                service: serviceName,
+                method: `restart:${stop.method || 'stop'}→${start.method || 'start'}`,
+                privileged: !!(stop.privileged || start.privileged),
+            };
         }
         runPrivileged(`systemctl restart ${shellQuote(serviceName)}`, { timeout: 30000, stdio: 'pipe' });
         return { success: true, service: serviceName };
@@ -4108,6 +4192,7 @@ module.exports = {
     startService,
     verifyServerLooksRunning,
     recoverSoftServerControlFailure,
+    resumePendingWindowsServerRestart,
     daemonReload,
     listBackups,
     deleteBackup,

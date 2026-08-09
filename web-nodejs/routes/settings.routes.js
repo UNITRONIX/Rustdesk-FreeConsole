@@ -1274,16 +1274,21 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
 
         // Restart Go server when its binary was updated and applyUpdate did not
         // already complete stop→start (Windows prefers stop before deploy).
+        //
+        // Windows: never use startService alone — if BetterDeskServer is still
+        // RUNNING the *old* image after rename-swap, start is a no-op and the
+        // new binary never loads. Always stop→start (privileged helper when needed).
         if (result.needsServerRestart) {
             const serviceName = process.platform === 'win32' ? 'BetterDeskServer' : 'betterdesk-server';
-            let svc = process.platform === 'win32'
-                ? updateService.startService(serviceName)
-                : updateService.restartService(serviceName);
-            if (!svc.success) {
+            let svc = updateService.restartService(serviceName);
+            if (!svc.success && process.platform === 'win32') {
+                // One more privileged stop/start pass after console files (helper script) landed.
                 svc = updateService.restartService(serviceName);
             }
-            if (svc.success) result.servicesRestarted.push('server');
-            else if (svc.nonCritical) {
+            if (svc.success) {
+                result.servicesRestarted.push('server');
+                result.serverBinaryPendingRestart = false;
+            } else if (svc.nonCritical) {
                 const recovered = await updateService.recoverSoftServerControlFailure(
                     result,
                     serviceName,
@@ -1292,6 +1297,12 @@ router.post('/api/settings/updates/install', requireAuth, requirePermission('ser
                 if (!recovered.recovered) {
                     const fail = { service: 'server', error: svc.error, nonCritical: true };
                     if (svc.hint) fail.hint = svc.hint;
+                    if (result.serverBinaryPendingRestart) {
+                        fail.error = (fail.error || '')
+                            + ' — binary is on disk but old process still runs; Admin: '
+                            + `powershell -ExecutionPolicy Bypass -File "${path.join(__dirname, '..', 'scripts', 'windows-install-service-control-and-deploy.ps1')}"`
+                            + ' (or: nssm restart BetterDeskServer)';
+                    }
                     result.servicesFailed.push(fail);
                 }
             } else {

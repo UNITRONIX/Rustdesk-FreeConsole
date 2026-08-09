@@ -549,9 +549,14 @@ func rustDeskPeerPayload(
 
 	alias, note, deviceName, username := rustDeskCardFields(p, abAlias, abNote, deviceName, username)
 	// Stock Group PeerPayload.toPeer drops alias, so the bold title is always
-	// formatID(peer.id). Putting the same ID in note duplicates it beside the
-	// Display Name on the secondary row — leave only a distinct human note.
-	note = rustDeskGroupSecondaryNote(note, p.ID)
+	// formatID(peer.id). Never put the peer ID (or any note) on the secondary
+	// row when we already surface Display Name via device_name — user wants
+	// only the alias under the bold ID.
+	if strings.TrimSpace(alias) != "" {
+		note = ""
+	} else {
+		note = rustDeskGroupSecondaryNote(note, p.ID)
+	}
 	// When no panel/AB title is set, keep a non-empty device_name fallback for
 	// clients that still surface hostname in secondary UI chrome.
 	if alias == "" && deviceName == "" {

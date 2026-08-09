@@ -27,6 +27,7 @@ import (
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
 	"github.com/unitronix/betterdesk-server/db"
+	"github.com/unitronix/betterdesk-server/exewatch"
 	"github.com/unitronix/betterdesk-server/internal/productversion"
 	"github.com/unitronix/betterdesk-server/logging"
 	"github.com/unitronix/betterdesk-server/meshcentral"
@@ -332,6 +333,10 @@ func main() {
 	// Context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// After Windows panel rename-swap, the new exe is on disk while this process
+	// still runs the old image. Exit when the on-disk file changes so NSSM restarts.
+	go exewatch.WatchExecutable(ctx, 3*time.Second)
 
 	// Time sync + billing (commercialization module)
 	timeSyncSvc := timesync.NewService(database, timesync.Config{

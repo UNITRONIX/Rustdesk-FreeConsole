@@ -566,6 +566,24 @@ async function startServer() {
 
         initMeshAshxProxy(server, sessionMiddleware);
 
+        // After Windows rename-swap, BetterDeskServer may still run the old image.
+        // Retry stop→start once the console is back (SYSTEM helper may be available).
+        if (process.platform === 'win32') {
+            setTimeout(() => {
+                try {
+                    const updateService = require('./services/updateService');
+                    const resumed = updateService.resumePendingWindowsServerRestart();
+                    if (resumed && resumed.success) {
+                        logger.info('Resumed pending BetterDeskServer restart after binary swap');
+                    } else if (resumed && resumed.success === false) {
+                        logger.warn(`Pending BetterDeskServer restart still blocked: ${resumed.error || 'unknown'}`);
+                    }
+                } catch (err) {
+                    logger.warn(`Pending server restart resume failed: ${err.message}`);
+                }
+            }, 5000);
+        }
+
         // Initialize real-time device status push (Go event bus → browser)
         initDeviceStatusPush(server, sessionMiddleware, config.betterdeskApiUrl, config.betterdeskApiKey);
         initHelpRequestEmailService(config.betterdeskApiUrl, config.betterdeskApiKey);

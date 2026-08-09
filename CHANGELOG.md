@@ -8,6 +8,7 @@
 ## [3.5.44] — 2026-08-09
 
 ### Fixed
+- **Windows panel update — rename-swap left old BetterDeskServer running:** After swapping the exe on disk, Apply called `startService` (no-op while SERVICE_RUNNING) and treated HTTP-up as success, so the old process kept serving. Now always **stop→start** on `needsServerRestart`, never recover soft-failure when a binary swap is pending, retry pending restart when the console boots, and Go watches its on-disk exe and exits for NSSM restart once that build is loaded. Group cards also omit duplicate peer ID in `note` when Display Name is set. **If still stuck now:** Admin `nssm restart BetterDeskServer` once (or run `scripts/windows-install-service-control-and-deploy.ps1`).
 - **Windows panel update — cannot stop both services from inside Apply:** BetterDeskConsole *is* the updater; stopping it mid-Apply aborts the job, and the console VA still cannot `sc stop`/`taskkill` BetterDeskServer. Deploy now tries (1) `POST /api/system/replace-binary` (Go renames/replaces its own exe and exits for NSSM restart), (2) SYSTEM watcher, (3) rename-swap. On failure writes `pending-server-deploy.json` and points at Admin script `scripts/windows-install-service-control-and-deploy.ps1` (stop server → deploy pending → install watcher). **One-time Admin:** run that script elevated, then Apply again.
 
 ### Changed
