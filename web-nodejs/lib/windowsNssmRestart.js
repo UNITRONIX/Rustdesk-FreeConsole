@@ -13,8 +13,9 @@
  * verify SERVICE_RUNNING.
  *
  * When `nssm stop` leaves the service SERVICE_RUNNING (Go ignoring control /
- * hung accept loop), escalate: `sc stop` → taskkill by PID / Application exe
- * so the panel can replace betterdesk-server.exe without locking / PAUSED wedges.
+ * hung accept loop), escalate: set AppExit=Exit (so NSSM does not respawn),
+ * then `sc stop` → taskkill by PID / Application exe, so the panel can replace
+ * betterdesk-server.exe without locking / PAUSED wedges.
  */
 
 const path = require('path');
@@ -173,6 +174,36 @@ function queryNssmApplication(execSync, serviceName, options = {}) {
 }
 
 /**
+ * Read NSSM AppExit Default (Restart / Exit / Ignore / …).
+ * Empty string when unset or unreadable.
+ */
+function queryNssmAppExitDefault(execSync, serviceName, options = {}) {
+    const timeout = options.timeout || 10000;
+    try {
+        const out = execSync(`nssm get "${serviceName}" AppExit Default`, {
+            timeout,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+        });
+        return String(out || '').trim().replace(/^"|"$/g, '');
+    } catch (err) {
+        const fromOut = String(err.stdout || extractNssmStdout(err) || '').trim();
+        return fromOut.replace(/^"|"$/g, '');
+    }
+}
+
+const NSSM_APP_EXIT_ACTIONS = new Set(['restart', 'exit', 'ignore', 'suicide']);
+
+function normalizeAppExitAction(raw) {
+    const v = String(raw || '').trim();
+    if (!v) return '';
+    const lower = v.toLowerCase();
+    if (!NSSM_APP_EXIT_ACTIONS.has(lower)) return '';
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+/**
  * Last-resort stop when NSSM leave the service RUNNING after a graceful stop.
  * Safe for BetterDeskServer updates: kills only the service PID / Application exe.
  *
@@ -182,6 +213,17 @@ function forceKillWindowsServiceProcess(serviceName, d) {
     const methods = [];
     if (!d.allowForceKill) {
         return { attempted: false, methods };
+    }
+
+    // Prevent NSSM from immediately respawning the process after taskkill
+    // (AppExit Default=Restart is common on BetterDesk installs).
+    const previousExit = normalizeAppExitAction(queryNssmAppExitDefault(d.execSync, serviceName));
+    const setExit = runNssm(d.execSync, ['set', serviceName, 'AppExit', 'Default', 'Exit']);
+    if (setExit.ok) {
+        methods.push(previousExit ? `app-exit-exit(was:${previousExit})` : 'app-exit-exit');
+        d._restoreAppExit = previousExit || 'Restart';
+    } else {
+        methods.push('app-exit-exit-failed');
     }
 
     try {
@@ -231,6 +273,18 @@ function forceKillWindowsServiceProcess(serviceName, d) {
     }
 
     return { attempted: methods.length > 0, methods };
+}
+
+function restoreNssmAppExitAfterForceStop(serviceName, d, forced) {
+    const restore = normalizeAppExitAction(d._restoreAppExit) || 'Restart';
+    delete d._restoreAppExit;
+    if (!forced || !forced.attempted) return;
+    const set = runNssm(d.execSync, ['set', serviceName, 'AppExit', 'Default', restore]);
+    if (set.ok) {
+        forced.methods.push(`app-exit-restore:${restore}`);
+    } else {
+        forced.methods.push(`app-exit-restore-failed:${restore}`);
+    }
 }
 
 function assertServiceName(serviceName) {
@@ -284,10 +338,11 @@ function stopWindowsNssmService(serviceName, deps = {}) {
     }
 
     let method = 'stop';
+    let forced = null;
     if (!isStatusStopped(status) && (isStatusRunning(status) || isStatusPaused(status))) {
         // Graceful NSSM stop ignored the process (common under load during panel
         // updates). Escalate before callers try to overwrite betterdesk-server.exe.
-        const forced = forceKillWindowsServiceProcess(serviceName, d);
+        forced = forceKillWindowsServiceProcess(serviceName, d);
         if (forced.attempted) {
             method = 'force-stop';
             status = waitForNssmStatus(
@@ -314,12 +369,21 @@ function stopWindowsNssmService(serviceName, deps = {}) {
     }
 
     if (!isStatusStopped(status)) {
+        const detail = forced && forced.methods && forced.methods.length
+            ? ` [escalation: ${forced.methods.join(', ')}]`
+            : '';
+        // Leave AppExit=Exit if we set it — operator can recover; do not restore
+        // Restart while the process is still alive (would keep respawning).
         throw new Error(
-            `Service ${serviceName} did not reach SERVICE_STOPPED (status: ${status || 'unknown'})`
+            `Service ${serviceName} did not reach SERVICE_STOPPED (status: ${status || 'unknown'})${detail}`
         );
     }
 
-    return { success: true, service: serviceName, method };
+    if (forced) {
+        restoreNssmAppExitAfterForceStop(serviceName, d, forced);
+    }
+
+    return { success: true, service: serviceName, method, escalation: forced ? forced.methods : undefined };
 }
 
 /**
