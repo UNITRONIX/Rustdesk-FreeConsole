@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Fixed
+- **Users “devices visible” always 0:** `Utils.api` already unwraps `{ success, data }`, but the users table read `resp.data.count` (always undefined). Use `resp.count` so admin/operator scope matches address-book access (including device groups). Ships via Settings → Updates.
+
 ### Changed
 - _(none yet)_
 
