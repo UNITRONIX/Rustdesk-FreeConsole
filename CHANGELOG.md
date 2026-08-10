@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.32] — 2026-08-10
+
 ### Added
 - **Org peer credential vault (#367):** Organizations → Address Book can Set/Clear a per-contact unattended preset. Secrets are AES-256-GCM encrypted in the main DB (`org_peer_credentials`, SQLite/PostgreSQL), never stored in shared AB JSON. Runtime inject into `GET /api/ab` (`password` field) for authorized members; Web Remote pre-fills via `/api/devices/:id/connect-password`. Prefer `ORG_PEER_VAULT_KEY` (falls back to JWT secret). Ships via panel update (Go API restart). Verify: set password on org contact → RustDesk AB / Web Remote can connect without typing the secret; Advanced JSON dump has no password/hash.
 
@@ -2819,3 +2826,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.29]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.28...v3.5.29
 [3.5.30]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.29...v3.5.30
 [3.5.31]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.30...v3.5.31
+[3.5.32]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.31...v3.5.32
