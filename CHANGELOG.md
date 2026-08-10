@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.46] — 2026-08-10
+
 ### Added
 - **Org Address Book peer passwords:** Shared org contacts can store a RustDesk connection `password` (structured editor + Advanced JSON). The field is preserved on save and included in GET `/api/ab` so clients can connect without a password prompt when the stored value matches the peer’s permanent password.
 
@@ -2999,3 +3006,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.43]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.42...v3.5.43
 [3.5.44]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.43...v3.5.44
 [3.5.45]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.44...v3.5.45
+[3.5.46]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.45...v3.5.46
