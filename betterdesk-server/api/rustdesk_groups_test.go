@@ -283,6 +283,39 @@ func TestRustDeskVisiblePeerSetOpenOverlayOnlyWithoutGrants(t *testing.T) {
 	}
 }
 
+// Dual-SQLite: Go users.id (client_sessions) ≠ auth.db users.id used by user_group_members.
+// Scope must resolve the console auth id via username or operators see allowed=0 and
+// PunchHole returns target_access_denied ("ID does not exist" in the client).
+func TestRustDeskVisiblePeerSetRemapsAuthDBUserIDForUserGroups(t *testing.T) {
+	const target = "1580461728"
+	store := &mockPanelACLStore{
+		restrictedDefault: true,
+		userIDs:           map[string]int64{"DemoUser": 5},
+		userGroups:        map[int64][]string{5: {"ug-kola"}},
+		groups: []db.PanelDeviceGroup{{
+			ID: 1, GUID: "dg-kola", Name: "Kola Server",
+			AllowedGroupGUIDs: []string{"ug-kola"},
+		}},
+		members: map[int64][]string{1: {target}},
+	}
+	srv := &Server{}
+	srv.SetPanelStore(store)
+	// Session / Go DB id is 99; memberships are stored under auth id 5.
+	user := &db.User{ID: 99, Username: "DemoUser", Role: auth.RoleOperator}
+	peerByID := map[string]*db.Peer{target: {ID: target}}
+
+	visible := srv.rustDeskVisiblePeerSet(user, auth.RoleOperator, peerByID)
+	if visible == nil {
+		t.Fatal("restricted operator must get an explicit set")
+	}
+	if !visible[target] {
+		t.Fatalf("expected %s visible via user-group ACL after auth-id remap, got %#v", target, visible)
+	}
+	if len(visible) != 1 {
+		t.Fatalf("expected only target peer, got %#v", visible)
+	}
+}
+
 // folderACLStore extends mockPanelACLStore with folder ACL fixtures.
 type folderACLStore struct {
 	mockPanelACLStore

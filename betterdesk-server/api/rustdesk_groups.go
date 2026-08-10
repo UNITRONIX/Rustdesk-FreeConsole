@@ -282,11 +282,20 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 		return denyAll("missing user for ACL")
 	}
 
+	// Dual-SQLite: client_sessions / Go users.id often differ from auth.db users.id.
+	// Panel ACL joins (user_group_members, peer grants) use the console auth id.
+	authUserID := user.ID
+	if user.Username != "" {
+		if authID, err := s.panelStore.GetUserIDByUsername(user.Username); err == nil && authID > 0 {
+			authUserID = authID
+		}
+	}
+
 	restrictedDefault := s.panelStore.DeviceScopeDefaultRestricted()
 
 	var peerGrants []string
-	if user.ID > 0 {
-		if grants, err := s.panelStore.ListUserPeerGrants(user.ID); err == nil {
+	if authUserID > 0 {
+		if grants, err := s.panelStore.ListUserPeerGrants(authUserID); err == nil {
 			peerGrants = grants
 		} else {
 			log.Printf("[api] ListUserPeerGrants user=%s: %v (continuing without grants)", user.Username, err)
@@ -297,7 +306,7 @@ func (s *Server) rustDeskVisiblePeerSet(user *db.User, role string, peerByID map
 	if err != nil {
 		return denyAll("ListPanelDeviceGroups: " + err.Error())
 	}
-	userGroupGUIDs := s.consoleUserGroupGUIDs(user.ID)
+	userGroupGUIDs := s.consoleUserGroupGUIDs(authUserID)
 
 	assignments, err := s.panelStore.ListFolderAssignments()
 	if err != nil {

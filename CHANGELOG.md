@@ -9,6 +9,7 @@
 
 ### Fixed
 - **Users “devices visible” always 0:** `Utils.api` already unwraps `{ success, data }`, but the users table read `resp.data.count` (always undefined). Use `resp.count` so admin/operator scope matches address-book access (including device groups). Ships via Settings → Updates.
+- **Operator “ID does not exist” / `target_access_denied` with group ACL:** Go PunchHole used `client_sessions` Go `users.id` for panel `user_group_members` joins (dual-SQLite), so `userGroups=0` / `allowed=0` even when Node showed the device. Remap to auth.db user id by username in device-scope + `UserMayConnectToPeer`. Ships via Settings → Updates (Go signal restart).
 
 ### Changed
 - _(none yet)_

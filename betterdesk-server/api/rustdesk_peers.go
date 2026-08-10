@@ -184,6 +184,16 @@ func (s *Server) UserMayConnectToPeer(userID int64, username, role, targetID str
 			if role == "" {
 				role = u.Role
 			}
+			if username == "" {
+				username = u.Username
+			}
+		}
+	}
+	// Remap to auth.db user id so device-group / user-group ACL matches the panel
+	// (signal PunchHole passes Go users.id from client_sessions).
+	if s.panelStore != nil && user.Username != "" {
+		if authID, err := s.panelStore.GetUserIDByUsername(user.Username); err == nil && authID > 0 {
+			user.ID = authID
 		}
 	}
 
