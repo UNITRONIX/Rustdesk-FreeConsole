@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 	"strings"
 
 	"github.com/unitronix/betterdesk-server/db"
@@ -96,33 +95,7 @@ func (s *Server) enrichAddressBookWithAccessPasswords(username, data string) str
 		seen[id] = true
 		ids = append(ids, id)
 	}
-	if len(ids) == 0 {
-		return data
-	}
-
-	policies, err := s.db.GetAccessPoliciesByPeerIDs(ids)
-	if err != nil {
-		log.Printf("[api] GetAccessPoliciesByPeerIDs for AB enrich: %v", err)
-		return data
-	}
-	if len(policies) == 0 {
-		return data
-	}
-
-	passwords := make(map[string]string)
-	for id, policy := range policies {
-		if !accessPolicyEligibleForABPassword(policy) {
-			continue
-		}
-		if !operatorAllowedForAccessPolicy(username, policy.AllowedOperators) {
-			continue
-		}
-		plain, err := s.accessSecret.Decrypt(policy.PasswordEnc)
-		if err != nil || plain == "" {
-			continue
-		}
-		passwords[id] = plain
-	}
+	passwords := s.resolveAccessPasswordsForPeers(username, ids)
 	if len(passwords) == 0 {
 		return data
 	}

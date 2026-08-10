@@ -384,6 +384,22 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("GET /api/ab/personal", s.handleClientAddressBookPersonal)
 	mux.HandleFunc("POST /api/ab/personal", s.handleClientAddressBookPersonal)
 	mux.HandleFunc("GET /api/ab/tags", s.handleClientAddressBookTags)
+	// RustDesk Pro shared address book protocol (password auto-connect).
+	mux.HandleFunc("POST /api/ab/settings", s.handleClientABSettings)
+	mux.HandleFunc("GET /api/ab/settings", s.handleClientABSettings)
+	mux.HandleFunc("POST /api/ab/shared/profiles", s.handleClientABSharedProfiles)
+	mux.HandleFunc("GET /api/ab/shared/profiles", s.handleClientABSharedProfiles)
+	mux.HandleFunc("POST /api/ab/peers", s.handleClientABPeers)
+	mux.HandleFunc("GET /api/ab/peers", s.handleClientABPeers)
+	mux.HandleFunc("POST /api/ab/tags/{guid}", s.handleClientABTagsByGUID)
+	mux.HandleFunc("GET /api/ab/tags/{guid}", s.handleClientABTagsByGUID)
+	mux.HandleFunc("POST /api/ab/peer/add/{guid}", s.handleClientABPeerMutation)
+	mux.HandleFunc("PUT /api/ab/peer/update/{guid}", s.handleClientABPeerMutation)
+	mux.HandleFunc("DELETE /api/ab/peer/{guid}", s.handleClientABPeerMutation)
+	mux.HandleFunc("POST /api/ab/tag/add/{guid}", s.handleClientABTagMutation)
+	mux.HandleFunc("PUT /api/ab/tag/update/{guid}", s.handleClientABTagMutation)
+	mux.HandleFunc("PUT /api/ab/tag/rename/{guid}", s.handleClientABTagMutation)
+	mux.HandleFunc("DELETE /api/ab/tag/{guid}", s.handleClientABTagMutation)
 
 	// RustDesk PRO group endpoint stubs — Flutter clients query these and expect
 	// the {total,data,msg} envelope; without them the device list never finishes

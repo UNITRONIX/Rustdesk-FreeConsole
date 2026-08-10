@@ -470,9 +470,11 @@ func (s *Server) handleClientAddressBookPersonal(w http.ResponseWriter, r *http.
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
 			return
 		}
-		// RustDesk 1.4.7 probes with an empty POST body; legacy servers return 404 (PR #14813).
+		// Pro shared-AB probe: empty POST expects {"guid": "..."} (not 404).
+		// Returning a guid exits legacy mode so the client can use shared books
+		// with peers[].password for Access Policy auto-connect.
 		if emptyBody || !abDataFieldPresent(body.Data) {
-			http.NotFound(w, r)
+			writeJSON(w, http.StatusOK, map[string]any{"guid": personalABGUID(username)})
 			return
 		}
 		dataStr := normalizeAbDataField(body.Data)
