@@ -45,10 +45,11 @@ See [[API Reference|API-Reference]] for CRUD endpoints.
 
 Two separate steps — both are required for hands-off remote access:
 
-1. **On the target:** configure RustDesk for unattended access (permanent password via `--password`, client Security settings, or BetterDesk Agent Client unattended mode). Without this, the peer still prompts for a temporary password or on-screen approval.
-2. **In BetterDesk (optional):** record the same password / schedule under Access Policy for inventory and operator reference. This does **not** push credentials to stock RustDesk or skip the peer login prompt.
+1. **On the target:** configure RustDesk for unattended access (permanent password via `--password`, client Security settings, or BetterDesk Agent Client / Support Agent unattended mode). Without this, the peer still prompts for a temporary password or on-screen approval.
+2. **In BetterDesk (optional inventory):** record schedule / notes under Access Policy. Access Policy bcrypt hashes are **inventory only** and cannot auto-fill connect.
+3. **Org preset vault (#367, optional):** Organizations → Address Book → contact → **Set password**. The plaintext is stored **encrypted (AES-256-GCM)** in the main BetterDesk database (`org_peer_credentials` on SQLite or PostgreSQL), never in shared AB JSON. On `GET /api/ab`, authorized members receive a runtime `password` field for stock RustDesk shared-AB style auto-use; Web Remote can fetch `/api/devices/:id/connect-password` to pre-fill. Set the same permanent password on the workstation. Prefer env `ORG_PEER_VAULT_KEY` (falls back to JWT secret).
 
-Operators still enter the **target peer password** when connecting (desktop RustDesk, Web Remote, or RdClient). BetterDesk account login and device-group membership only control **visibility** (address book / ACL) and audit attribution — not passwordless peer connect.
+Operators still complete the **target peer password** handshake. BetterDesk account login and device-group membership control **visibility** (address book / ACL) and audit attribution — not passwordless peer connect. Anyone who can see a vaulted contact may receive the preset for connect.
 
 Wake-on-LAN for offline devices: device kebab menu → **Wake on LAN** (requires known MAC).
 

@@ -85,6 +85,7 @@ func (pg *PostgresDB) DeleteOrganization(id string) error {
 	}
 	defer tx.Rollback(context.Background())
 
+	tx.Exec(pg.ctx, `DELETE FROM org_peer_credentials WHERE org_id = $1`, id)
 	tx.Exec(pg.ctx, `DELETE FROM org_address_books WHERE org_id = $1`, id)
 	tx.Exec(pg.ctx, `DELETE FROM org_settings WHERE org_id = $1`, id)
 	tx.Exec(pg.ctx, `DELETE FROM org_invitations WHERE org_id = $1`, id)
@@ -537,6 +538,76 @@ func (pg *PostgresDB) SaveOrgAddressBook(orgID, abType, data, updatedBy string) 
 		   updated_at = EXCLUDED.updated_at,
 		   updated_by = EXCLUDED.updated_by`,
 		orgID, abType, data, updatedBy,
+	)
+	return err
+}
+
+// ---------------------------------------------------------------------------
+//  Org peer credentials (encrypted at rest, #367)
+// ---------------------------------------------------------------------------
+
+func (pg *PostgresDB) GetOrgPeerCredential(orgID, peerID string) (*OrgPeerCredential, error) {
+	var c OrgPeerCredential
+	err := pg.pool.QueryRow(pg.ctx,
+		`SELECT org_id, peer_id, ciphertext, nonce, key_id, COALESCE(updated_at::text,''), COALESCE(updated_by,'')
+		 FROM org_peer_credentials WHERE org_id = $1 AND peer_id = $2`,
+		orgID, peerID,
+	).Scan(&c.OrgID, &c.PeerID, &c.Ciphertext, &c.Nonce, &c.KeyID, &c.UpdatedAt, &c.UpdatedBy)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	c.PasswordSet = c.Ciphertext != ""
+	return &c, nil
+}
+
+func (pg *PostgresDB) ListOrgPeerCredentialFlags(orgID string) ([]*OrgPeerCredential, error) {
+	rows, err := pg.pool.Query(pg.ctx,
+		`SELECT org_id, peer_id, COALESCE(updated_at::text,''), COALESCE(updated_by,'')
+		 FROM org_peer_credentials WHERE org_id = $1 ORDER BY peer_id`,
+		orgID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*OrgPeerCredential
+	for rows.Next() {
+		var c OrgPeerCredential
+		if err := rows.Scan(&c.OrgID, &c.PeerID, &c.UpdatedAt, &c.UpdatedBy); err != nil {
+			return nil, err
+		}
+		c.PasswordSet = true
+		out = append(out, &c)
+	}
+	return out, rows.Err()
+}
+
+func (pg *PostgresDB) SaveOrgPeerCredential(c *OrgPeerCredential) error {
+	if c == nil {
+		return fmt.Errorf("nil org peer credential")
+	}
+	_, err := pg.pool.Exec(pg.ctx,
+		`INSERT INTO org_peer_credentials (org_id, peer_id, ciphertext, nonce, key_id, updated_at, updated_by)
+		 VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+		 ON CONFLICT (org_id, peer_id) DO UPDATE SET
+		   ciphertext = EXCLUDED.ciphertext,
+		   nonce = EXCLUDED.nonce,
+		   key_id = EXCLUDED.key_id,
+		   updated_at = EXCLUDED.updated_at,
+		   updated_by = EXCLUDED.updated_by`,
+		c.OrgID, c.PeerID, c.Ciphertext, c.Nonce, c.KeyID, c.UpdatedBy,
+	)
+	return err
+}
+
+func (pg *PostgresDB) DeleteOrgPeerCredential(orgID, peerID string) error {
+	_, err := pg.pool.Exec(pg.ctx,
+		`DELETE FROM org_peer_credentials WHERE org_id = $1 AND peer_id = $2`,
+		orgID, peerID,
 	)
 	return err
 }

@@ -802,6 +802,31 @@ router.delete('/api/devices/:id/access-policy', requireAuth, requirePermission('
     }
 });
 
+/**
+ * GET /api/devices/:id/connect-password — org vault preset for Web Remote auto-fill (#367).
+ * Returns password only for authenticated operators; never logs the secret.
+ */
+router.get('/api/devices/:id/connect-password', requireAuth, requirePermission('device.view'), async (req, res) => {
+    try {
+        const device = await serverBackend.getDeviceById(req.params.id);
+        if (!device) return res.status(404).json({ success: false, error: req.t('devices.not_found') });
+        if (await rejectIfDeviceOutOfScope(req, res, device)) return;
+        const goApi = require('../services/betterdeskApi');
+        const result = await goApi.getPeerConnectPassword(req.params.id);
+        res.json(result);
+    } catch (err) {
+        const status = err.response?.status || 500;
+        if (status === 404) {
+            return res.status(404).json({ password_set: false });
+        }
+        if (status === 403) {
+            return res.status(403).json({ error: 'forbidden' });
+        }
+        console.error('Get connect password error:', err.message || err);
+        res.status(500).json({ success: false, error: 'Failed to get connect password' });
+    }
+});
+
 // ===========================================================================
 //  Phase 2 — Live agent introspection (services, processes, events, files,
 //  terminal, screenshot, activity). All endpoints proxy a command request to

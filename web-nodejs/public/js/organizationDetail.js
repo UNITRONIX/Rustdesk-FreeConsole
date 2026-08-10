@@ -610,6 +610,58 @@
     let addressBookEnabled = true;
     let addressBookPeers = [];
     let addressBookTags = [];
+    /** peer_id → true when encrypted vault password is set (#367) */
+    let addressBookCredentialFlags = {};
+
+    async function loadPeerCredentialFlags() {
+        addressBookCredentialFlags = {};
+        try {
+            const resp = await api('GET', '/peer-credentials');
+            const list = Array.isArray(resp.credentials) ? resp.credentials : [];
+            list.forEach(row => {
+                const id = String(row.peer_id || '').trim();
+                if (id && row.password_set !== false) addressBookCredentialFlags[id] = true;
+            });
+        } catch (_) {
+            /* vault optional on older servers */
+        }
+    }
+
+    async function setPeerCredential(peerId) {
+        const id = String(peerId || '').trim();
+        if (!id) {
+            toast(t('address_book_peer_id_required'), 'error');
+            return;
+        }
+        const password = window.prompt(t('address_book_set_password_prompt'));
+        if (password === null) return;
+        if (!String(password).trim()) {
+            toast(t('address_book_password_required'), 'error');
+            return;
+        }
+        try {
+            await api('PUT', `/peer-credentials/${encodeURIComponent(id)}`, { password: String(password).trim() });
+            addressBookCredentialFlags[id] = true;
+            toast(t('address_book_password_saved'), 'success');
+            renderAddressBookPeersTable();
+        } catch (err) {
+            toast(err.message || t('address_book_password_save_failed'), 'error');
+        }
+    }
+
+    async function clearPeerCredential(peerId) {
+        const id = String(peerId || '').trim();
+        if (!id) return;
+        if (!window.confirm(t('address_book_clear_password_confirm'))) return;
+        try {
+            await api('DELETE', `/peer-credentials/${encodeURIComponent(id)}`);
+            delete addressBookCredentialFlags[id];
+            toast(t('address_book_password_cleared'), 'success');
+            renderAddressBookPeersTable();
+        } catch (err) {
+            toast(err.message || t('address_book_password_clear_failed'), 'error');
+        }
+    }
     let addressBookShowJson = false;
 
     function parseAddressBook(raw) {
@@ -644,21 +696,33 @@
         const tbody = document.getElementById('org-address-book-peers-body');
         if (!tbody) return;
         if (!addressBookPeers.length) {
-            tbody.innerHTML = `<tr><td colspan="4" class="org-ab-empty">${escHtml(t('address_book_no_peers'))}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="org-ab-empty">${escHtml(t('address_book_no_peers'))}</td></tr>`;
             return;
         }
-        tbody.innerHTML = addressBookPeers.map((peer, index) => `
+        tbody.innerHTML = addressBookPeers.map((peer, index) => {
+            const hasPw = !!(peer.id && addressBookCredentialFlags[peer.id]);
+            const pwLabel = hasPw ? t('address_book_password_set') : t('address_book_password_unset');
+            return `
             <tr data-index="${index}">
                 <td><input type="text" class="form-input org-ab-peer-id" value="${escHtml(peer.id || '')}" maxlength="64" placeholder="123456789"></td>
                 <td><input type="text" class="form-input org-ab-peer-alias" value="${escHtml(peer.alias || '')}" maxlength="120" placeholder="${escHtml(t('address_book_alias'))}"></td>
                 <td><input type="text" class="form-input org-ab-peer-tags" value="${escHtml((peer.tags || []).join(', '))}" maxlength="200" placeholder="${escHtml(t('address_book_peer_tags_placeholder'))}"></td>
+                <td class="org-ab-password-cell">
+                    <span class="org-ab-password-flag ${hasPw ? 'is-set' : ''}">${escHtml(pwLabel)}</span>
+                    <button type="button" class="btn btn-secondary btn-sm org-ab-set-password" data-index="${index}" title="${escHtml(t('address_book_set_password'))}">
+                        <span class="material-icons">lock</span>
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm org-ab-clear-password" data-index="${index}" ${hasPw ? '' : 'disabled'} title="${escHtml(t('address_book_clear_password'))}">
+                        <span class="material-icons">lock_open</span>
+                    </button>
+                </td>
                 <td class="org-ab-actions">
                     <button type="button" class="action-btn danger org-ab-remove-peer" data-index="${index}" title="${escHtml(t('actions.delete'))}">
                         <span class="material-icons">delete</span>
                     </button>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
 
         tbody.querySelectorAll('.org-ab-remove-peer').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -667,6 +731,22 @@
                     addressBookPeers.splice(idx, 1);
                     renderAddressBookPeersTable();
                 }
+            });
+        });
+        tbody.querySelectorAll('.org-ab-set-password').forEach(btn => {
+            btn.addEventListener('click', () => {
+                syncAddressBookPeersFromTable();
+                const idx = parseInt(btn.dataset.index, 10);
+                const peer = addressBookPeers[idx];
+                if (peer) setPeerCredential(peer.id);
+            });
+        });
+        tbody.querySelectorAll('.org-ab-clear-password').forEach(btn => {
+            btn.addEventListener('click', () => {
+                syncAddressBookPeersFromTable();
+                const idx = parseInt(btn.dataset.index, 10);
+                const peer = addressBookPeers[idx];
+                if (peer) clearPeerCredential(peer.id);
             });
         });
     }
@@ -764,9 +844,11 @@
                 tags: Array.isArray(peer.tags) ? peer.tags.map(String) : [],
             })) : [];
             addressBookTags = Array.isArray(parsed.tags) ? parsed.tags.map(String) : [];
+            await loadPeerCredentialFlags();
             addressBookShowJson = false;
             container.innerHTML = `
                 <p class="form-hint">${escHtml(t('address_book_intro'))}</p>
+                <p class="form-hint">${escHtml(t('address_book_password_vault_hint'))}</p>
                 <label class="org-address-book-toggle">
                     <input type="checkbox" id="org-address-book-enabled" ${addressBookEnabled ? 'checked' : ''}>
                     <span>${escHtml(t('address_book_enabled'))}</span>
@@ -786,6 +868,7 @@
                                     <th>${escHtml(t('address_book_peer_id'))}</th>
                                     <th>${escHtml(t('address_book_alias'))}</th>
                                     <th>${escHtml(t('address_book_peer_tags'))}</th>
+                                    <th>${escHtml(t('address_book_preset_password'))}</th>
                                     <th></th>
                                 </tr>
                             </thead>

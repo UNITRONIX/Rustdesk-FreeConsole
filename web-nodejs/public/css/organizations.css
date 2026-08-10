@@ -297,6 +297,27 @@
     text-align: right;
 }
 
+.org-ab-password-cell {
+    white-space: nowrap;
+    vertical-align: middle;
+    min-width: 9rem;
+}
+
+.org-ab-password-cell .btn {
+    margin-left: 0.25rem;
+}
+
+.org-ab-password-flag {
+    font-size: 0.85rem;
+    opacity: 0.75;
+    margin-right: 0.35rem;
+}
+
+.org-ab-password-flag.is-set {
+    opacity: 1;
+    font-weight: 600;
+}
+
 .org-ab-empty {
     text-align: center;
     color: var(--text-secondary);

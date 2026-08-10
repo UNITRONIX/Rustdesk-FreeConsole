@@ -65,6 +65,9 @@ type Config struct {
 
 	// Security — Authentication
 	JWTSecret               string // Secret key for JWT signing (auto-generated if empty)
+	// OrgPeerVaultKey encrypts recoverable org peer passwords at rest (#367).
+	// Falls back to JWT secret when empty (installers should set a dedicated key).
+	OrgPeerVaultKey         string
 	JWTExpiry               int    // JWT token expiry in hours (default 24)
 	ClientSessionExpiryDays int    // RustDesk client session TTL in days (default 7)
 	ClientSessionSliding    bool   // Extend client session on activity (default true)
@@ -287,6 +290,9 @@ func (c *Config) LoadEnv() {
 	}
 	if v := os.Getenv("JWT_SECRET"); v != "" {
 		c.JWTSecret = v
+	}
+	if v := os.Getenv("ORG_PEER_VAULT_KEY"); v != "" {
+		c.OrgPeerVaultKey = v
 	}
 	if v := os.Getenv("JWT_EXPIRY_HOURS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {

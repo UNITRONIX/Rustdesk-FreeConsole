@@ -191,6 +191,14 @@ router.get('/api/panel/org/:id/address-book', requireAuth, (req, res) =>
 router.put('/api/panel/org/:id/address-book', requireAuth, requirePermission('org.edit'), (req, res) =>
     goApiProxySafe(req, res, 'put', () => orgApiPath(req.params.id, '/address-book'), req.body));
 
+// Encrypted org peer credential vault (#367)
+router.get('/api/panel/org/:id/peer-credentials', requireAuth, (req, res) =>
+    goApiProxySafe(req, res, 'get', () => orgApiPath(req.params.id, '/peer-credentials')));
+router.put('/api/panel/org/:id/peer-credentials/:peerId', requireAuth, requirePermission('org.edit'), (req, res) =>
+    goApiProxySafe(req, res, 'put', () => orgApiPath(req.params.id, `/peer-credentials/${encodeURIComponent(req.params.peerId)}`), req.body));
+router.delete('/api/panel/org/:id/peer-credentials/:peerId', requireAuth, requirePermission('org.edit'), (req, res) =>
+    goApiProxySafe(req, res, 'delete', () => orgApiPath(req.params.id, `/peer-credentials/${encodeURIComponent(req.params.peerId)}`)));
+
 /**
  * GET /api/panel/org/:id/device-groups
  * Device and user groups linked to this organization (team_id = org id).

@@ -912,6 +912,16 @@ async function deleteAccessPolicy(id) {
     }
 }
 
+/**
+ * Fetch org vault connect password for Web Remote auto-fill (#367).
+ * Propagates HTTP errors so callers can distinguish 404/403.
+ */
+async function getPeerConnectPassword(id) {
+    const safeId = assertSafeApiId(id, 'peerId');
+    const { data } = await apiClient.get(`/peers/${encodeURIComponent(safeId)}/connect-password`);
+    return data;
+}
+
 // ── RBAC: Roles & Permissions (Phase 52) ─────────────────────
 
 /**
@@ -1371,6 +1381,7 @@ module.exports = {
     getAccessPolicy,
     saveAccessPolicy,
     deleteAccessPolicy,
+    getPeerConnectPassword,
     // RBAC: Roles & Permissions (Phase 52)
     listRoles,
     getRolePermissions,

@@ -3,6 +3,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -107,6 +108,7 @@ func (s *SQLiteDB) DeleteOrganization(id string) error {
 	defer tx.Rollback()
 
 	// Cascade: remove settings, invitations, devices, users, then org
+	tx.Exec(`DELETE FROM org_peer_credentials WHERE org_id = ?`, id)
 	tx.Exec(`DELETE FROM org_address_books WHERE org_id = ?`, id)
 	tx.Exec(`DELETE FROM org_settings WHERE org_id = ?`, id)
 	tx.Exec(`DELETE FROM org_invitations WHERE org_id = ?`, id)
@@ -687,5 +689,84 @@ func (s *SQLiteDB) SaveOrgAddressBook(orgID, abType, data, updatedBy string) err
 		   updated_by = excluded.updated_by`,
 		orgID, abType, data, updatedBy,
 	)
+	return err
+}
+
+// ---------------------------------------------------------------------------
+//  Org peer credentials (encrypted at rest, #367)
+// ---------------------------------------------------------------------------
+
+func (s *SQLiteDB) GetOrgPeerCredential(orgID, peerID string) (*OrgPeerCredential, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var c OrgPeerCredential
+	err := s.db.QueryRow(
+		`SELECT org_id, peer_id, ciphertext, nonce, key_id, COALESCE(updated_at,''), COALESCE(updated_by,'')
+		 FROM org_peer_credentials WHERE org_id = ? AND peer_id = ?`,
+		orgID, peerID,
+	).Scan(&c.OrgID, &c.PeerID, &c.Ciphertext, &c.Nonce, &c.KeyID, &c.UpdatedAt, &c.UpdatedBy)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	c.PasswordSet = c.Ciphertext != ""
+	return &c, nil
+}
+
+func (s *SQLiteDB) ListOrgPeerCredentialFlags(orgID string) ([]*OrgPeerCredential, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows, err := s.db.Query(
+		`SELECT org_id, peer_id, COALESCE(updated_at,''), COALESCE(updated_by,'')
+		 FROM org_peer_credentials WHERE org_id = ? ORDER BY peer_id`,
+		orgID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*OrgPeerCredential
+	for rows.Next() {
+		var c OrgPeerCredential
+		if err := rows.Scan(&c.OrgID, &c.PeerID, &c.UpdatedAt, &c.UpdatedBy); err != nil {
+			return nil, err
+		}
+		c.PasswordSet = true
+		out = append(out, &c)
+	}
+	return out, rows.Err()
+}
+
+func (s *SQLiteDB) SaveOrgPeerCredential(c *OrgPeerCredential) error {
+	if c == nil {
+		return errors.New("nil org peer credential")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.Exec(
+		`INSERT INTO org_peer_credentials (org_id, peer_id, ciphertext, nonce, key_id, updated_at, updated_by)
+		 VALUES (?, ?, ?, ?, ?, datetime('now'), ?)
+		 ON CONFLICT(org_id, peer_id) DO UPDATE SET
+		   ciphertext = excluded.ciphertext,
+		   nonce = excluded.nonce,
+		   key_id = excluded.key_id,
+		   updated_at = excluded.updated_at,
+		   updated_by = excluded.updated_by`,
+		c.OrgID, c.PeerID, c.Ciphertext, c.Nonce, c.KeyID, c.UpdatedBy,
+	)
+	return err
+}
+
+func (s *SQLiteDB) DeleteOrgPeerCredential(orgID, peerID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, err := s.db.Exec(`DELETE FROM org_peer_credentials WHERE org_id = ? AND peer_id = ?`, orgID, peerID)
 	return err
 }

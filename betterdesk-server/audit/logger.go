@@ -58,6 +58,10 @@ const (
 	ActionHelpRequestCreated Action = "help_request_created"
 	ActionHelpRequestUpdated Action = "help_request_updated"
 	ActionChatMessage        Action = "chat_message"
+	// Org peer credential vault (#367) — never include password material in Details.
+	ActionOrgPeerCredentialSet   Action = "org_peer_credential_set"
+	ActionOrgPeerCredentialClear Action = "org_peer_credential_clear"
+	ActionOrgPeerCredentialFetch Action = "org_peer_credential_fetch"
 )
 
 // Event represents a single audit log entry.

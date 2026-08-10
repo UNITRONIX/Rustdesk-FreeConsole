@@ -862,15 +862,30 @@
             session.passwordOverlay.style.display = 'flex';
             session.loginError.style.display = 'none';
             session.passwordInput.value = '';
-            if (window.RdClientSecureStore && session.deviceId) {
-                window.RdClientSecureStore.loadPeerPassword(session.deviceId).then(function (saved) {
-                    if (saved) {
-                        session.passwordInput.value = saved;
-                        if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;
-                    }
-                }).catch(function () { /* ignore */ });
-            }
-            if (isActive(session)) session.passwordInput.focus();
+            var applySaved = function (saved) {
+                if (saved) {
+                    session.passwordInput.value = saved;
+                    if (session.rememberPeerCheckbox) session.rememberPeerCheckbox.checked = true;
+                }
+                if (isActive(session)) session.passwordInput.focus();
+            };
+            var localPromise = (window.RdClientSecureStore && session.deviceId)
+                ? window.RdClientSecureStore.loadPeerPassword(session.deviceId).catch(function () { return ''; })
+                : Promise.resolve('');
+            var orgPromise = session.deviceId
+                ? fetch('/api/devices/' + encodeURIComponent(session.deviceId) + '/connect-password', {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                }).then(function (r) {
+                    if (!r.ok) return '';
+                    return r.json().then(function (body) {
+                        return (body && body.password) ? String(body.password) : '';
+                    });
+                }).catch(function () { return ''; })
+                : Promise.resolve('');
+            Promise.all([localPromise, orgPromise]).then(function (pair) {
+                applySaved(pair[0] || pair[1] || '');
+            });
             if (isActive(session)) setToolbarChromeVisible(false);
         });
 

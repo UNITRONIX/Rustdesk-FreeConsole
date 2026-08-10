@@ -406,6 +406,15 @@ func main() {
 		apiSrv.SetKeyPair(kp)
 		apiSrv.SetTimeSyncService(timeSyncSvc)
 		apiSrv.SetBillingService(billingSvc)
+		vaultKey := cfg.OrgPeerVaultKey
+		if vaultKey == "" {
+			vaultKey = jwtSecret
+		}
+		if err := apiSrv.InitPeerCredentialVault(vaultKey); err != nil {
+			log.Printf("[warn] org peer credential vault disabled: %v", err)
+		} else {
+			log.Printf("Org peer credential vault ready (AES-GCM)")
+		}
 
 		// LDAP provider (loads config from DB, hot-reloadable via API)
 		apiSrv.InitLDAP()
@@ -506,6 +515,13 @@ func main() {
 		apiSrv.SetMetrics(mc)
 		apiSrv.SetJWTManager(jwtManager)
 		apiSrv.SetKeyPair(kp)
+		vaultKey := cfg.OrgPeerVaultKey
+		if vaultKey == "" {
+			vaultKey = jwtSecret
+		}
+		if err := apiSrv.InitPeerCredentialVault(vaultKey); err != nil {
+			log.Printf("[warn] org peer credential vault disabled: %v", err)
+		}
 		apiSrv.InitLDAP()
 		apiSrv.InitOIDC()
 		if err := apiSrv.Start(ctx); err != nil {

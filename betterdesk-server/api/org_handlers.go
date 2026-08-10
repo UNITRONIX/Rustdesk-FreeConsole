@@ -737,6 +737,7 @@ func (s *Server) handleSetOrgAddressBook(w http.ResponseWriter, r *http.Request)
 
 	if len(body.Data) > 0 && string(body.Data) != "null" {
 		dataStr := normalizeAbDataField(body.Data)
+		dataStr = stripSecretsFromOrgAddressBook(dataStr)
 		if len(dataStr) > 512*1024 {
 			http.Error(w, `{"error":"address book too large"}`, http.StatusRequestEntityTooLarge)
 			return

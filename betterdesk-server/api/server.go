@@ -24,6 +24,7 @@ import (
 	"github.com/unitronix/betterdesk-server/cdap"
 	"github.com/unitronix/betterdesk-server/config"
 	"github.com/unitronix/betterdesk-server/crypto"
+	"github.com/unitronix/betterdesk-server/crypto/peervault"
 	"github.com/unitronix/betterdesk-server/db"
 	eventsModule "github.com/unitronix/betterdesk-server/events"
 	"github.com/unitronix/betterdesk-server/meshcentral"
@@ -82,6 +83,7 @@ type Server struct {
 	panelStore        db.PanelSyncStore // device groups, folders, ACL (PostgreSQL or legacy auth.db)
 	timeSync          *timesync.Service
 	billing           *billing.Service
+	peerVault         *peervault.Vault // AES-GCM for org peer credentials (#367)
 	httpSrv           *http.Server
 	wg                sync.WaitGroup
 	version           string
@@ -204,6 +206,17 @@ func (s *Server) SetJWTManager(jm *auth.JWTManager) {
 	s.jwtManager = jm
 }
 
+// InitPeerCredentialVault configures AES-GCM sealing for org peer passwords (#367).
+// Prefer dedicated ORG_PEER_VAULT_KEY; callers typically fall back to the JWT secret.
+func (s *Server) InitPeerCredentialVault(secret string) error {
+	v, err := peervault.New(secret)
+	if err != nil {
+		return err
+	}
+	s.peerVault = v
+	return nil
+}
+
 // SetKeyPair sets the Ed25519 keypair for the server (used for signing IdPk).
 func (s *Server) SetKeyPair(kp *crypto.KeyPair) {
 	s.keyPair = kp
@@ -311,6 +324,10 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("PUT /api/org/{id}/settings", s.requirePermission(auth.PermOrgEdit, s.requireOrgMembership("id", s.handleSetOrgSetting)))
 	mux.HandleFunc("GET /api/org/{id}/address-book", s.requireOrgMembership("id", s.handleGetOrgAddressBook))
 	mux.HandleFunc("PUT /api/org/{id}/address-book", s.requirePermission(auth.PermOrgEdit, s.requireOrgMembership("id", s.handleSetOrgAddressBook)))
+	mux.HandleFunc("GET /api/org/{id}/peer-credentials", s.requireOrgMembership("id", s.handleListOrgPeerCredentials))
+	mux.HandleFunc("PUT /api/org/{id}/peer-credentials/{peerId}", s.requirePermission(auth.PermOrgEdit, s.requireOrgMembership("id", s.handleSetOrgPeerCredential)))
+	mux.HandleFunc("DELETE /api/org/{id}/peer-credentials/{peerId}", s.requirePermission(auth.PermOrgEdit, s.requireOrgMembership("id", s.handleClearOrgPeerCredential)))
+	mux.HandleFunc("GET /api/peers/{id}/connect-password", s.requirePermission(auth.PermDeviceView, s.handleGetPeerConnectPassword))
 	mux.HandleFunc("POST /api/org/login", s.handleOrgLogin) // public — no auth required
 
 	// User-Org Linking (Issue #106)

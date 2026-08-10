@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **Org peer credential vault (#367):** Organizations → Address Book can Set/Clear a per-contact unattended preset. Secrets are AES-256-GCM encrypted in the main DB (`org_peer_credentials`, SQLite/PostgreSQL), never stored in shared AB JSON. Runtime inject into `GET /api/ab` (`password` field) for authorized members; Web Remote pre-fills via `/api/devices/:id/connect-password`. Prefer `ORG_PEER_VAULT_KEY` (falls back to JWT secret). Ships via panel update (Go API restart). Verify: set password on org contact → RustDesk AB / Web Remote can connect without typing the secret; Advanced JSON dump has no password/hash.
+
 ### Changed
 - _(none yet)_
 

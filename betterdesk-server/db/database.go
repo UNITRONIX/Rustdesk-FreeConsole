@@ -282,6 +282,19 @@ type OrgSetting struct {
 	Value string `json:"value"`
 }
 
+// OrgPeerCredential is metadata for an encrypted peer password row (#367).
+// Ciphertext/nonce are never exposed via JSON APIs that list credentials.
+type OrgPeerCredential struct {
+	OrgID       string `json:"org_id"`
+	PeerID      string `json:"peer_id"`
+	Ciphertext  string `json:"-"`
+	Nonce       string `json:"-"`
+	KeyID       string `json:"-"`
+	PasswordSet bool   `json:"password_set"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+	UpdatedBy   string `json:"updated_by,omitempty"`
+}
+
 // AccessPolicy controls unattended access for a peer device.
 type AccessPolicy struct {
 	PeerID            string `json:"peer_id"`
@@ -614,6 +627,12 @@ type Database interface {
 	// Org Address Books (shared contacts for organization members)
 	GetOrgAddressBook(orgID, abType string) (string, error)
 	SaveOrgAddressBook(orgID, abType, data, updatedBy string) error
+
+	// Org peer credentials — AES-GCM ciphertext in main DB (#367)
+	GetOrgPeerCredential(orgID, peerID string) (*OrgPeerCredential, error)
+	ListOrgPeerCredentialFlags(orgID string) ([]*OrgPeerCredential, error)
+	SaveOrgPeerCredential(c *OrgPeerCredential) error
+	DeleteOrgPeerCredential(orgID, peerID string) error
 
 	// Access Policies (unattended access management)
 	GetAccessPolicy(peerID string) (*AccessPolicy, error)

@@ -15,7 +15,9 @@ const PROTECTED_KEYS = new Set([
     'DEFAULT_ADMIN_USERNAME',
     'DATABASE_URL',
     'DB_TYPE',
-    'DB_PATH'
+    'DB_PATH',
+    'ORG_PEER_VAULT_KEY',
+    'JWT_SECRET'
 ]);
 
 /**
@@ -110,6 +112,7 @@ function buildEnvSubstitutions(opts = {}) {
         API_PORT: String(apiPort),
         DEFAULT_ADMIN_PASSWORD: pick('DEFAULT_ADMIN_PASSWORD', ''),
         SESSION_SECRET: pick('SESSION_SECRET', config.sessionSecret, ''),
+        ORG_PEER_VAULT_KEY: pick('ORG_PEER_VAULT_KEY', ''),
         SSL_CERT_PATH: sslCert,
         SSL_KEY_PATH: sslKey
     };

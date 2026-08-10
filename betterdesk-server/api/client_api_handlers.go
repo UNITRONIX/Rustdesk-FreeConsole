@@ -394,6 +394,7 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		data = s.mergeOrgAddressBooksIntoAB(r, data)
+		data = s.injectOrgPeerCredentialsIntoAB(r, data)
 		if !auth.IsProRole(role) {
 			// Merge admin-set tags from peers table into AB (#76 TAG sync)
 			data = s.mergeAdminTagsIntoAB(data)

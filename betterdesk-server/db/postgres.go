@@ -304,6 +304,17 @@ func (pg *PostgresDB) Migrate() error {
 			updated_by TEXT NOT NULL DEFAULT '',
 			PRIMARY KEY(org_id, ab_type)
 		)`,
+		// Encrypted org peer passwords for shared AB / Web Remote (#367)
+		`CREATE TABLE IF NOT EXISTS org_peer_credentials (
+			org_id     TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+			peer_id    TEXT NOT NULL,
+			ciphertext TEXT NOT NULL,
+			nonce      TEXT NOT NULL,
+			key_id     TEXT NOT NULL DEFAULT 'v1',
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_by TEXT NOT NULL DEFAULT '',
+			PRIMARY KEY(org_id, peer_id)
+		)`,
 		// Role permission overrides (RBAC Phase 52)
 		`CREATE TABLE IF NOT EXISTS role_permissions (
 			id          BIGSERIAL PRIMARY KEY,
