@@ -403,6 +403,8 @@ func (s *Server) handleClientAddressBook(w http.ResponseWriter, r *http.Request)
 		}
 		// Enforce device-group / folder ACL on Address Book peers (org merge + stale entries).
 		data = s.applyDeviceScopeToAddressBook(r, username, role, data)
+		// Inject Access Policy passwords when passwordless server access is enabled.
+		data = s.enrichAddressBookWithAccessPasswords(username, data)
 		writeJSON(w, http.StatusOK, map[string]any{"data": data, "licensed_devices": 0})
 
 	case http.MethodPost:
@@ -459,6 +461,7 @@ func (s *Server) handleClientAddressBookPersonal(w http.ResponseWriter, r *http.
 			data = s.mergeAdminTagsIntoAB(data)
 		}
 		data = s.applyDeviceScopeToAddressBook(r, username, role, data)
+		data = s.enrichAddressBookWithAccessPasswords(username, data)
 		writeJSON(w, http.StatusOK, map[string]any{"data": data})
 
 	case http.MethodPost:

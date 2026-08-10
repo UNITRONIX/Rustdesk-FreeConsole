@@ -619,6 +619,7 @@ type Database interface {
 
 	// Access Policies (unattended access management)
 	GetAccessPolicy(peerID string) (*AccessPolicy, error)
+	GetAccessPoliciesByPeerIDs(peerIDs []string) (map[string]*AccessPolicy, error)
 	SaveAccessPolicy(p *AccessPolicy) error
 	DeleteAccessPolicy(peerID string) error
 

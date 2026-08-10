@@ -2322,6 +2322,50 @@ func (s *SQLiteDB) GetAccessPolicy(peerID string) (*AccessPolicy, error) {
 	return &p, nil
 }
 
+// GetAccessPoliciesByPeerIDs returns access policies for the given peer IDs.
+func (s *SQLiteDB) GetAccessPoliciesByPeerIDs(peerIDs []string) (map[string]*AccessPolicy, error) {
+	out := make(map[string]*AccessPolicy)
+	if len(peerIDs) == 0 {
+		return out, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	placeholders := make([]string, len(peerIDs))
+	args := make([]any, len(peerIDs))
+	for i, id := range peerIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		`SELECT peer_id, unattended_enabled, password_hash, COALESCE(password_enc, ''),
+				COALESCE(passwordless_server_access, 1), schedule_enabled,
+				schedule_days, schedule_start_time, schedule_end_time, schedule_timezone,
+				allowed_operators, updated_at, updated_by
+		 FROM access_policies WHERE peer_id IN (%s)`,
+		strings.Join(placeholders, ","))
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("db: GetAccessPoliciesByPeerIDs: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var p AccessPolicy
+		if err := rows.Scan(&p.PeerID, &p.UnattendedEnabled, &p.PasswordHash, &p.PasswordEnc,
+			&p.PasswordlessServerAccess, &p.ScheduleEnabled,
+			&p.ScheduleDays, &p.ScheduleStartTime, &p.ScheduleEndTime, &p.ScheduleTimezone,
+			&p.AllowedOperators, &p.UpdatedAt, &p.UpdatedBy); err != nil {
+			return nil, fmt.Errorf("db: GetAccessPoliciesByPeerIDs scan: %w", err)
+		}
+		p.PasswordSet = p.PasswordHash != ""
+		out[p.PeerID] = &p
+	}
+	return out, rows.Err()
+}
+
 // SaveAccessPolicy creates or updates the access policy for a peer device.
 func (s *SQLiteDB) SaveAccessPolicy(p *AccessPolicy) error {
 	s.mu.Lock()

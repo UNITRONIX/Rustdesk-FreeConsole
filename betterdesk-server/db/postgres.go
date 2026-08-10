@@ -2031,6 +2031,40 @@ func (pg *PostgresDB) GetAccessPolicy(peerID string) (*AccessPolicy, error) {
 	return &p, nil
 }
 
+// GetAccessPoliciesByPeerIDs returns access policies for the given peer IDs.
+func (pg *PostgresDB) GetAccessPoliciesByPeerIDs(peerIDs []string) (map[string]*AccessPolicy, error) {
+	out := make(map[string]*AccessPolicy)
+	if len(peerIDs) == 0 {
+		return out, nil
+	}
+
+	rows, err := pg.pool.Query(pg.ctx,
+		`SELECT peer_id, unattended_enabled, password_hash, COALESCE(password_enc, ''),
+				COALESCE(passwordless_server_access, TRUE), schedule_enabled,
+				schedule_days, schedule_start_time, schedule_end_time, schedule_timezone,
+				allowed_operators, COALESCE(updated_at, NOW()), updated_by
+		 FROM access_policies WHERE peer_id = ANY($1)`, peerIDs)
+	if err != nil {
+		return nil, fmt.Errorf("db: GetAccessPoliciesByPeerIDs: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var p AccessPolicy
+		var updatedAt time.Time
+		if err := rows.Scan(&p.PeerID, &p.UnattendedEnabled, &p.PasswordHash, &p.PasswordEnc,
+			&p.PasswordlessServerAccess, &p.ScheduleEnabled,
+			&p.ScheduleDays, &p.ScheduleStartTime, &p.ScheduleEndTime, &p.ScheduleTimezone,
+			&p.AllowedOperators, &updatedAt, &p.UpdatedBy); err != nil {
+			return nil, fmt.Errorf("db: GetAccessPoliciesByPeerIDs scan: %w", err)
+		}
+		p.UpdatedAt = updatedAt.Format(time.RFC3339)
+		p.PasswordSet = p.PasswordHash != ""
+		out[p.PeerID] = &p
+	}
+	return out, rows.Err()
+}
+
 // SaveAccessPolicy creates or updates the access policy for a peer device.
 func (pg *PostgresDB) SaveAccessPolicy(p *AccessPolicy) error {
 	_, err := pg.pool.Exec(pg.ctx,

@@ -8,6 +8,7 @@
 ## [3.5.46] — 2026-08-10
 
 ### Added
+- **Access Policy passwords in `/api/ab`:** When a device has unattended access, a sealed Access Password, and **Passwordless server access** enabled, GET `/api/ab` (and `/api/ab/personal`) injects that password into the matching peer card for authenticated users (honouring Allowed Operators). Stock RustDesk can then connect from the address book without a password prompt.
 - **Org Address Book peer passwords:** Shared org contacts can store a RustDesk connection `password` (structured editor + Advanced JSON). The field is preserved on save and included in GET `/api/ab` so clients can connect without a password prompt when the stored value matches the peer’s permanent password.
 
 ### Changed
