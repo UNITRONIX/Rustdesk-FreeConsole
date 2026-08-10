@@ -121,9 +121,17 @@ func (s *Server) buildRustDeskPeerList(r *http.Request) ([]map[string]any, int) 
 
 	abPeerMap := s.loadAddressBookPeerMap(username)
 
+	peerIDs := make([]string, 0, len(peerByID))
+	for id := range peerByID {
+		peerIDs = append(peerIDs, id)
+	}
+	// Accessible Devices (Groups): inject Access Policy passwords so the
+	// BetterDesk client can connect without prompting when passwordless.
+	accessPasswords := s.resolveAccessPasswordsForPeers(username, peerIDs)
+
 	result := make([]map[string]any, 0, len(peerByID))
 	for _, p := range peerByID {
-		result = append(result, rustDeskPeerPayload(s, p, folderAssignments, folderNames, manualGroupNames, sysinfoMap, abPeerMap))
+		result = append(result, rustDeskPeerPayload(s, p, folderAssignments, folderNames, manualGroupNames, sysinfoMap, abPeerMap, accessPasswords))
 	}
 
 	total := len(result)
@@ -506,6 +514,7 @@ func rustDeskPeerPayload(
 	manualGroupNames map[string]string,
 	sysinfo map[string]db.ConsolePeerSysinfo,
 	abPeer map[string]map[string]any,
+	accessPasswords map[string]string,
 ) map[string]any {
 	statusInt := 1
 	if p.Disabled {
@@ -565,7 +574,7 @@ func rustDeskPeerPayload(
 
 	online := s.peers.IsOnline(p.ID, config.RegTimeout)
 
-	return map[string]any{
+	out := map[string]any{
 		"id":     p.ID,
 		"info":   map[string]any{"device_name": deviceName, "os": platform, "username": username, "version": version},
 		"status": statusInt,
@@ -577,6 +586,12 @@ func rustDeskPeerPayload(
 		"alias":             alias,
 		"hash":              "",
 	}
+	if accessPasswords != nil {
+		if plain := strings.TrimSpace(accessPasswords[p.ID]); plain != "" {
+			out["password"] = plain
+		}
+	}
+	return out
 }
 
 // rustDeskGroupSecondaryNote clears a note that only repeats the peer ID.
