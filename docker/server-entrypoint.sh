@@ -48,8 +48,12 @@ panel_auth_db_ready
 # install and defaults to "managed" (stock RustDesk clients are queued for
 # operator approval). Pre-existing volumes keep their current behavior
 # (Go default "open", or whatever the panel persisted in the database).
-# An explicit ENROLLMENT_MODE env value always wins.
-if [ -z "${ENROLLMENT_MODE:-}" ]; then
+# An explicit ENROLLMENT_MODE env value always wins. The marker lets the Go
+# server distinguish it from the managed mode injected below as a default.
+if [ -n "${ENROLLMENT_MODE:-}" ]; then
+    export ENROLLMENT_MODE_ENV_OVERRIDE="Y"
+else
+    export ENROLLMENT_MODE_ENV_OVERRIDE="N"
     ENROLLMENT_SENTINEL="$DATA_DIR/.enrollment_initialized"
     if [ ! -f "$ENROLLMENT_SENTINEL" ]; then
         if [ -f "$DATA_DIR/db_v2.sqlite3" ] || [ -f "$DATA_DIR/id_ed25519" ]; then

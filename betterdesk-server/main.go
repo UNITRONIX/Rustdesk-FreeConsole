@@ -172,10 +172,18 @@ func main() {
 
 	log.Printf("Database initialized successfully")
 
-	// Restore enrollment mode from DB (persisted via handleSetEnrollmentMode)
-	if storedMode, _ := database.GetConfig("enrollment_mode"); storedMode != "" {
-		cfg.EnrollmentMode = storedMode
-		log.Printf("Restored enrollment mode from DB: %s", storedMode)
+	// An explicit ENROLLMENT_MODE is deployment configuration and must win over
+	// a stale value persisted by the panel. Entrypoint-generated fresh-install
+	// defaults are not explicit, so the panel remains authoritative there.
+	enrollmentSource, enrollmentModeErr := applyEnrollmentMode(cfg, database)
+	if enrollmentModeErr != nil {
+		log.Printf("WARN: Failed to reconcile enrollment mode: %v", enrollmentModeErr)
+	}
+	switch enrollmentSource {
+	case "environment":
+		log.Printf("Enrollment mode from explicit environment: %s", cfg.EnrollmentMode)
+	case "database":
+		log.Printf("Restored enrollment mode from DB: %s", cfg.EnrollmentMode)
 	}
 	if cfg.EnrollmentMode != "" && cfg.EnrollmentMode != "open" {
 		log.Printf("Enrollment restriction active: mode=%s (new devices need token/approval)", cfg.EnrollmentMode)
@@ -545,6 +553,39 @@ func main() {
 	log.Printf("Received signal %v, shutting down...", sig)
 	cancel()
 	log.Printf("Server stopped")
+}
+
+func resolveEnrollmentMode(configuredMode, storedMode string, envOverride bool) (string, string) {
+	if envOverride {
+		return configuredMode, "environment"
+	}
+	switch storedMode {
+	case config.EnrollmentModeOpen, config.EnrollmentModeManaged, config.EnrollmentModeLocked:
+		return storedMode, "database"
+	default:
+		return configuredMode, "configuration"
+	}
+}
+
+func applyEnrollmentMode(cfg *config.Config, database db.Database) (string, error) {
+	storedMode, err := database.GetConfig("enrollment_mode")
+	if err != nil {
+		return "configuration", err
+	}
+
+	resolvedMode, source := resolveEnrollmentMode(
+		cfg.EnrollmentMode,
+		storedMode,
+		cfg.EnrollmentModeEnvOverride,
+	)
+	cfg.EnrollmentMode = resolvedMode
+
+	if source == "environment" && storedMode != resolvedMode {
+		if err := database.SetConfig("enrollment_mode", resolvedMode); err != nil {
+			return source, err
+		}
+	}
+	return source, nil
 }
 
 func ensureScopedAPIKey(database db.Database, apiKey string) error {

@@ -3,6 +3,13 @@
 ### Changed
 - _(none yet)_
 
+### Fixed
+- **Docker enrollment environment precedence:** an explicitly configured
+  `ENROLLMENT_MODE` now remains authoritative after restart and is synchronized
+  to `server_config`. Entry-point generated defaults still defer to the mode
+  previously selected in the panel, preserving existing installations while
+  preventing a stale database value from silently overriding deployment config.
+
 ---
 
 ## [3.5.29] — 2026-08-09

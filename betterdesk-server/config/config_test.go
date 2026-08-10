@@ -73,3 +73,33 @@ func TestLoadEnv_SignalPortPrecedenceOverPort(t *testing.T) {
 		t.Fatalf("SignalPort = %d, want 21116 (SIGNAL_PORT should win over PORT)", cfg.SignalPort)
 	}
 }
+
+func TestLoadEnv_EnrollmentModeExplicitByDefault(t *testing.T) {
+	t.Setenv("ENROLLMENT_MODE", "open")
+	t.Setenv("ENROLLMENT_MODE_ENV_OVERRIDE", "")
+
+	cfg := DefaultConfig()
+	cfg.LoadEnv()
+
+	if cfg.EnrollmentMode != EnrollmentModeOpen {
+		t.Fatalf("EnrollmentMode = %q, want %q", cfg.EnrollmentMode, EnrollmentModeOpen)
+	}
+	if !cfg.EnrollmentModeEnvOverride {
+		t.Fatal("native ENROLLMENT_MODE should be treated as an explicit override")
+	}
+}
+
+func TestLoadEnv_EnrollmentModeEntrypointDefaultIsNotOverride(t *testing.T) {
+	t.Setenv("ENROLLMENT_MODE", "managed")
+	t.Setenv("ENROLLMENT_MODE_ENV_OVERRIDE", "N")
+
+	cfg := DefaultConfig()
+	cfg.LoadEnv()
+
+	if cfg.EnrollmentMode != EnrollmentModeManaged {
+		t.Fatalf("EnrollmentMode = %q, want %q", cfg.EnrollmentMode, EnrollmentModeManaged)
+	}
+	if cfg.EnrollmentModeEnvOverride {
+		t.Fatal("entrypoint-generated enrollment default must not override persisted panel state")
+	}
+}
