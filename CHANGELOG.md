@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.51] — 2026-08-10
+
 ### Added
 - **Windows client app_name gate:** `/api/login` (and OIDC auth start) rejects stock Windows RustDesk. Android/iOS always allowed. Branded DCS fork must send `deviceInfo.app_name=DCS Norway`. Env: `BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE` (default on), `BETTERDESK_ALLOWED_WINDOWS_APP_NAMES` (default `DCS Norway`). Disable with `BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE=false`. Host heartbeat/sysinfo are not gated so stock Windows hosts can still register.
 
@@ -3049,3 +3056,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.48]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.47...v3.5.48
 [3.5.49]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.48...v3.5.49
 [3.5.50]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.49...v3.5.50
+[3.5.51]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.50...v3.5.51
