@@ -329,7 +329,8 @@ body.ux35-page .mobile-bottom-nav {
 }
 
 .mobile-tabs-scroll .tab-btn,
-.mobile-tabs-scroll .settings-tab {
+.mobile-tabs-scroll .settings-tab,
+.mobile-tabs-scroll .settings-shell-tab {
     flex-shrink: 0;
     min-height: 44px;
 }
@@ -467,6 +468,7 @@ body.ux35-page .mobile-bottom-nav {
         -webkit-overflow-scrolling: touch;
     }
 
+    body.app-page.is-mobile-shell .settings-shell-nav,
     body.app-page.is-mobile-shell .settings-tabs,
     body.app-page.is-mobile-shell .server-mgmt-tabs {
         display: flex;
@@ -476,8 +478,10 @@ body.ux35-page .mobile-bottom-nav {
         scrollbar-width: none;
         gap: var(--space-xs);
         padding-bottom: var(--space-xs);
+        position: static;
     }
 
+    body.app-page.is-mobile-shell .settings-shell-nav::-webkit-scrollbar,
     body.app-page.is-mobile-shell .settings-tabs::-webkit-scrollbar,
     body.app-page.is-mobile-shell .server-mgmt-tabs::-webkit-scrollbar {
         display: none;

@@ -4,7 +4,7 @@
 - **Org peer credential vault (#367):** Organizations → Address Book can Set/Clear a per-contact unattended preset. Secrets are AES-256-GCM encrypted in the main DB (`org_peer_credentials`, SQLite/PostgreSQL), never stored in shared AB JSON. Runtime inject into `GET /api/ab` (`password` field) for authorized members; Web Remote pre-fills via `/api/devices/:id/connect-password`. Prefer `ORG_PEER_VAULT_KEY` (falls back to JWT secret). Ships via panel update (Go API restart). Verify: set password on org contact → RustDesk AB / Web Remote can connect without typing the secret; Advanced JSON dump has no password/hash.
 
 ### Changed
-- _(none yet)_
+- **Settings horizontal top tabs (#362):** Console Settings sub-navigation is a full-width horizontal tab bar (underline style, like Organizations) instead of a vertical left sidebar, so forms use the full content width. Ships via panel update. Verify: Settings → tabs sit under the page header; laptop/mobile can scroll tabs horizontally; hash links (`#auth`, `#updates`) and search still work.
 
 ---
 

@@ -647,44 +647,16 @@
     }
 }
 
-/* ==================== Settings Tabs ==================== */
+/* ==================== Settings Tabs (panel visibility + legacy tablist) ==================== */
 
+/* Legacy container — unused by Settings v2 shell; kept for any stray markup */
 .settings-tabs {
     display: flex;
     gap: var(--space-xs);
     margin-bottom: var(--space-lg);
     border-bottom: 1px solid var(--border-primary);
     padding-bottom: 0;
-}
-
-.settings-tab {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    border: none;
-    background: none;
-    color: var(--text-secondary);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-medium);
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: all var(--transition-fast);
-}
-
-.settings-tab .material-icons {
-    font-size: 18px;
-}
-
-.settings-tab:hover {
-    color: var(--text-primary);
-    background: var(--bg-hover);
-}
-
-.settings-tab.active {
-    color: var(--accent-blue);
-    border-bottom-color: var(--accent-blue);
+    overflow-x: auto;
 }
 
 .settings-tab-content {
@@ -1949,34 +1921,7 @@
     .branding-actions-row {
         flex-direction: column;
     }
-    
-    .settings-tabs {
-        overflow-x: auto;
-    }
 
-.settings-search {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    margin-bottom: var(--space-lg);
-    padding: var(--space-sm);
-    border: 1px solid var(--surface-glass-border, var(--border-primary));
-    border-radius: var(--radius-lg);
-    background: var(--surface-glass-bg-secondary, var(--bg-secondary));
-    backdrop-filter: blur(var(--surface-glass-blur, 0px)) saturate(var(--surface-glass-saturate, 1));
-    -webkit-backdrop-filter: blur(var(--surface-glass-blur, 0px)) saturate(var(--surface-glass-saturate, 1));
-}
-
-.settings-search > .material-icons {
-    color: var(--text-secondary);
-    margin-left: var(--space-xs);
-}
-
-.settings-search .form-input {
-    flex: 1;
-    min-width: 180px;
-}
-    
     .backend-selector {
         flex-direction: column;
     }
@@ -3313,11 +3258,11 @@
     }
 }
 
-/* ==================== Settings v2 shell ==================== */
+/* ==================== Settings v2 shell (horizontal top tabs) ==================== */
 
 .settings-shell {
     display: grid;
-    grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-lg);
     align-items: start;
 }
@@ -3328,50 +3273,74 @@
 
 .settings-shell-nav {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: var(--space-sm);
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-lg);
-    background: var(--bg-secondary);
-    background-color: var(--bg-secondary);
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-bottom: 1px solid var(--border-primary);
+    border-radius: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
     position: sticky;
-    top: var(--space-md);
+    top: 0;
+    z-index: 2;
+    /* Keep labels readable while scrolling long forms / branding wallpaper */
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    background-color: color-mix(in srgb, var(--bg-primary) 88%, transparent);
 }
 
-.settings-shell-tab {
+.settings-shell-nav .settings-shell-tab,
+.settings-shell-nav .settings-tab {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
+    gap: var(--space-xs);
+    flex: 0 0 auto;
+    padding: 10px 16px;
     border: none;
-    border-radius: var(--radius-md);
-    background: transparent;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: none;
+    background-color: transparent;
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
     cursor: pointer;
     text-align: left;
-    transition: background var(--transition-fast), color var(--transition-fast);
+    white-space: nowrap;
+    min-height: 44px;
+    transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
 }
 
-.settings-shell-tab .material-icons {
+.settings-shell-nav .settings-shell-tab .material-icons,
+.settings-shell-nav .settings-tab .material-icons {
     font-size: 18px;
     opacity: 0.85;
 }
 
-.settings-shell-tab:hover {
-    background: var(--bg-hover);
+.settings-shell-nav .settings-shell-tab:hover,
+.settings-shell-nav .settings-tab:hover {
+    background: transparent;
     color: var(--text-primary);
 }
 
-.settings-shell-tab.active,
-.settings-shell-tab[aria-selected="true"] {
-    background: var(--accent-blue-muted);
+.settings-shell-nav .settings-shell-tab.active,
+.settings-shell-nav .settings-shell-tab[aria-selected="true"],
+.settings-shell-nav .settings-tab.active,
+.settings-shell-nav .settings-tab[aria-selected="true"] {
+    background: transparent;
+    background-color: transparent;
     color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+    font-weight: 600;
 }
 
-.settings-shell-tab:focus-visible {
+.settings-shell-nav .settings-shell-tab:focus-visible,
+.settings-shell-nav .settings-tab:focus-visible {
     outline: 2px solid var(--accent-blue);
     outline-offset: 2px;
 }
@@ -3785,24 +3754,12 @@
     padding: var(--space-md);
 }
 
-.settings-tabs {
-    display: none;
-}
-
 @media (max-width: 900px) {
-    .settings-shell {
-        grid-template-columns: 1fr;
-    }
-
     .settings-shell-nav {
-        flex-direction: row;
-        overflow-x: auto;
         position: static;
-        flex-wrap: nowrap;
-    }
-
-    .settings-shell-tab {
-        flex: 0 0 auto;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        background-color: transparent;
     }
 
     .settings-row {

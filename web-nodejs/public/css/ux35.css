@@ -424,12 +424,13 @@ body.app-page.ux35-page {
     margin-bottom: var(--ux35-card-gap);
 }
 
-.ux35-content .settings-tabs {
-    gap: var(--ux35-space-2);
+/* Settings shell: horizontal tabs readable over branding wallpaper */
+.ux35-page .settings-shell-nav {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: color-mix(in srgb, var(--bg-primary) 92%, transparent);
 }
-
-/* Settings shell: readable over branding wallpaper */
-.ux35-page .settings-shell-nav,
 .ux35-page .settings-search,
 .ux35-page .settings-panel,
 .ux35-page .settings-section,
@@ -467,7 +468,7 @@ body.app-page.ux35-page {
 
 /* Solid content surfaces — defeat main.css glass on cards/forms inside UX 3.5 */
 .ux35-page .ux35-content :is(
-    .card, .stat-card, .modal, .toast, .settings-section, .settings-tab,
+    .card, .stat-card, .modal, .toast, .settings-section,
     .settings-panel, .settings-search, .dropdown-menu, .table,
     .form-input, .form-select, .form-textarea, .bd-glass-surface,
     .audit-log-container, .public-key-display, .server-info-item
