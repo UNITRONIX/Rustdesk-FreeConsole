@@ -625,6 +625,16 @@
         return JSON.stringify(normalized, null, 2);
     }
 
+    function normalizeAddressBookPeer(peer) {
+        const entry = {
+            id: String(peer && peer.id || '').trim(),
+            alias: String(peer && peer.alias || '').trim(),
+            tags: Array.isArray(peer && peer.tags) ? peer.tags.map(String) : [],
+            password: String(peer && peer.password || ''),
+        };
+        return entry;
+    }
+
     function buildAddressBookPayload() {
         if (addressBookShowJson) {
             return currentAddressBookJSON();
@@ -635,6 +645,8 @@
             const entry = { id: String(peer.id || '').trim() };
             if (peer.alias) entry.alias = String(peer.alias).trim();
             if (Array.isArray(peer.tags) && peer.tags.length) entry.tags = peer.tags;
+            const password = String(peer.password || '');
+            if (password) entry.password = password;
             return entry;
         }).filter(peer => peer.id);
         return { peers, tags };
@@ -644,13 +656,14 @@
         const tbody = document.getElementById('org-address-book-peers-body');
         if (!tbody) return;
         if (!addressBookPeers.length) {
-            tbody.innerHTML = `<tr><td colspan="4" class="org-ab-empty">${escHtml(t('address_book_no_peers'))}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="org-ab-empty">${escHtml(t('address_book_no_peers'))}</td></tr>`;
             return;
         }
         tbody.innerHTML = addressBookPeers.map((peer, index) => `
             <tr data-index="${index}">
                 <td><input type="text" class="form-input org-ab-peer-id" value="${escHtml(peer.id || '')}" maxlength="64" placeholder="123456789"></td>
                 <td><input type="text" class="form-input org-ab-peer-alias" value="${escHtml(peer.alias || '')}" maxlength="120" placeholder="${escHtml(t('address_book_alias'))}"></td>
+                <td><input type="password" class="form-input org-ab-peer-password" value="${escHtml(peer.password || '')}" maxlength="128" placeholder="${escHtml(t('address_book_password_placeholder'))}" autocomplete="new-password"></td>
                 <td><input type="text" class="form-input org-ab-peer-tags" value="${escHtml((peer.tags || []).join(', '))}" maxlength="200" placeholder="${escHtml(t('address_book_peer_tags_placeholder'))}"></td>
                 <td class="org-ab-actions">
                     <button type="button" class="action-btn danger org-ab-remove-peer" data-index="${index}" title="${escHtml(t('actions.delete'))}">
@@ -678,6 +691,7 @@
             return {
                 id: row.querySelector('.org-ab-peer-id')?.value.trim() || '',
                 alias: row.querySelector('.org-ab-peer-alias')?.value.trim() || '',
+                password: row.querySelector('.org-ab-peer-password')?.value || '',
                 tags: tagsRaw.split(',').map(tag => tag.trim()).filter(Boolean),
             };
         }).filter(peer => peer.id);
@@ -758,11 +772,7 @@
             const data = await api('GET', '/address-book');
             const parsed = parseAddressBook(data.data);
             addressBookEnabled = data.enabled !== false;
-            addressBookPeers = Array.isArray(parsed.peers) ? parsed.peers.map(peer => ({
-                id: String(peer.id || '').trim(),
-                alias: String(peer.alias || '').trim(),
-                tags: Array.isArray(peer.tags) ? peer.tags.map(String) : [],
-            })) : [];
+            addressBookPeers = Array.isArray(parsed.peers) ? parsed.peers.map(normalizeAddressBookPeer) : [];
             addressBookTags = Array.isArray(parsed.tags) ? parsed.tags.map(String) : [];
             addressBookShowJson = false;
             container.innerHTML = `
@@ -785,6 +795,7 @@
                                 <tr>
                                     <th>${escHtml(t('address_book_peer_id'))}</th>
                                     <th>${escHtml(t('address_book_alias'))}</th>
+                                    <th>${escHtml(t('address_book_password'))}</th>
                                     <th>${escHtml(t('address_book_peer_tags'))}</th>
                                     <th></th>
                                 </tr>
@@ -815,7 +826,7 @@
 
             document.getElementById('org-address-book-add-peer-btn')?.addEventListener('click', () => {
                 syncAddressBookPeersFromTable();
-                addressBookPeers.push({ id: '', alias: '', tags: [] });
+                addressBookPeers.push({ id: '', alias: '', tags: [], password: '' });
                 renderAddressBookPeersTable();
             });
 
@@ -834,8 +845,10 @@
                 } else {
                     try {
                         const parsedJson = currentAddressBookJSON();
-                        addressBookPeers = Array.isArray(parsedJson.peers) ? parsedJson.peers : [];
-                        addressBookTags = Array.isArray(parsedJson.tags) ? parsedJson.tags : [];
+                        addressBookPeers = Array.isArray(parsedJson.peers)
+                            ? parsedJson.peers.map(normalizeAddressBookPeer)
+                            : [];
+                        addressBookTags = Array.isArray(parsedJson.tags) ? parsedJson.tags.map(String) : [];
                         document.getElementById('org-address-book-tags-input').value = addressBookTags.join(', ');
                         renderAddressBookPeersTable();
                     } catch (err) {

@@ -2630,7 +2630,7 @@
         "address_book_intro": "이 조직의 구성원과 공유할 연락처를 관리합니다. 개인 주소록 항목은 계속 비공개이며 충돌 시 우선 적용됩니다.",
         "address_book_enabled": "이 주소록을 조직 구성원과 공유",
         "address_book_json": "주소록 JSON",
-        "address_book_json_hint": "RustDesk 레거시 형식 예: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"사무실 PC\"}],\"tags\":[\"사무실\"]}",
+        "address_book_json_hint": "RustDesk 레거시 형식 예: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"사무실 PC\",\"password\":\"secret\"}],\"tags\":[\"Office\"]}",
         "address_book_invalid_json": "주소록은 유효한 JSON이어야 합니다",
         "address_book_peers_array_required": "주소록 peers는 배열이어야 합니다",
         "address_book_tags_array_required": "주소록 tags는 배열이어야 합니다",
@@ -2649,7 +2649,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "비밀번호",
+        "address_book_password_placeholder": "연결 비밀번호"
     },
     "chat": {
         "e2e_enabled": "종단 간 암호화",

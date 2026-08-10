@@ -2630,7 +2630,7 @@
         "address_book_intro": "この組織のメンバーと共有する連絡先を管理します。個人のアドレス帳エントリは非公開のままで、競合時には優先されます。",
         "address_book_enabled": "このアドレス帳を組織メンバーと共有する",
         "address_book_json": "アドレス帳 JSON",
-        "address_book_json_hint": "RustDesk レガシー形式の例: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"オフィスPC\"}],\"tags\":[\"オフィス\"]}",
+        "address_book_json_hint": "RustDesk レガシー形式の例: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"オフィスPC\",\"password\":\"secret\"}],\"tags\":[\"Office\"]}",
         "address_book_invalid_json": "アドレス帳は有効な JSON である必要があります",
         "address_book_peers_array_required": "アドレス帳の peers は配列である必要があります",
         "address_book_tags_array_required": "アドレス帳の tags は配列である必要があります",
@@ -2649,7 +2649,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "パスワード",
+        "address_book_password_placeholder": "接続パスワード"
     },
     "chat": {
         "e2e_enabled": "エンドツーエンド暗号化",

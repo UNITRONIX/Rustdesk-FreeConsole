@@ -2636,7 +2636,7 @@
         "address_book_intro": "Kezelje a szervezet tagjaival megosztott névjegyeket. A személyes címjegyzék bejegyzései privátak maradnak, és ütközés esetén elsőbbséget élveznek.",
         "address_book_enabled": "Címjegyzék megosztása a szervezet tagjaival",
         "address_book_json": "Címjegyzék JSON",
-        "address_book_json_hint": "RustDesk régi formátum, például: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Irodai PC\"}],\"tags\":[\"Iroda\"]}",
+        "address_book_json_hint": "RustDesk legacy formátum, például: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Irodai PC\",\"password\":\"titkos\"}],\"tags\":[\"Iroda\"]}",
         "address_book_invalid_json": "A címjegyzéknek érvényes JSON-nak kell lennie",
         "address_book_peers_array_required": "A címjegyzék peers mezőjének tömbnek kell lennie",
         "address_book_tags_array_required": "A címjegyzék tags mezőjének tömbnek kell lennie",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Jelszó",
+        "address_book_password_placeholder": "Kapcsolódási jelszó"
     },
     "chat": {
         "e2e_enabled": "Végponttól végpontig titkosítva",

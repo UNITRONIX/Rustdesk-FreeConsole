@@ -2636,7 +2636,7 @@
         "address_book_intro": "Hallitse kontakteja, jotka jaetaan tämän organisaation jäsenille. Henkilökohtaiset osoitekirjamerkinnät pysyvät yksityisinä ja ohittavat jaetut merkinnät ristiriitatilanteessa.",
         "address_book_enabled": "Jaa tämä osoitekirja organisaation jäsenille",
         "address_book_json": "Osoitekirjan JSON",
-        "address_book_json_hint": "RustDesk legacy -muoto, esimerkiksi: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Toimisto-PC\"}],\"tags\":[\"Toimisto\"]}",
+        "address_book_json_hint": "RustDesk-legacy-muoto, esimerkiksi: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Toimisto-PC\",\"password\":\"salainen\"}],\"tags\":[\"Toimisto\"]}",
         "address_book_invalid_json": "Osoitekirjan on oltava kelvollista JSONia",
         "address_book_peers_array_required": "Osoitekirjan peers-kentän on oltava taulukko",
         "address_book_tags_array_required": "Osoitekirjan tags-kentän on oltava taulukko",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Salasana",
+        "address_book_password_placeholder": "Yhteyden salasana"
     },
     "chat": {
         "e2e_enabled": "Päästä päähän salattu",

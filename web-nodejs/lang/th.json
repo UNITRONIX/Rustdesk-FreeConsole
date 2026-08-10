@@ -2636,7 +2636,7 @@
         "address_book_intro": "จัดการรายชื่อติดต่อที่แชร์กับสมาชิกขององค์กรนี้ รายการสมุดที่อยู่ส่วนตัวยังคงเป็นส่วนตัวและมีลำดับความสำคัญเมื่อมีความขัดแย้ง",
         "address_book_enabled": "แชร์สมุดที่อยู่นี้กับสมาชิกองค์กร",
         "address_book_json": "JSON สมุดที่อยู่",
-        "address_book_json_hint": "รูปแบบ RustDesk เดิม เช่น: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"พีซีสำนักงาน\"}],\"tags\":[\"สำนักงาน\"]}",
+        "address_book_json_hint": "รูปแบบ legacy ของ RustDesk เช่น: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"พีซีสำนักงาน\",\"password\":\"secret\"}],\"tags\":[\"Office\"]}",
         "address_book_invalid_json": "สมุดที่อยู่ต้องเป็น JSON ที่ถูกต้อง",
         "address_book_peers_array_required": "peers ของสมุดที่อยู่ต้องเป็นอาร์เรย์",
         "address_book_tags_array_required": "tags ของสมุดที่อยู่ต้องเป็นอาร์เรย์",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "รหัสผ่าน",
+        "address_book_password_placeholder": "รหัสผ่านการเชื่อมต่อ"
     },
     "chat": {
         "e2e_enabled": "เข้ารหัสตั้งแต่ต้นทางถึงปลายทาง",

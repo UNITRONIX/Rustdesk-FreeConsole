@@ -2630,7 +2630,7 @@
         "address_book_intro": "Gestiona los contactos compartidos con los miembros de esta organización. Las entradas personales siguen siendo privadas y tienen prioridad en caso de conflicto.",
         "address_book_enabled": "Compartir esta libreta de direcciones con los miembros de la organización",
         "address_book_json": "JSON de la libreta de direcciones",
-        "address_book_json_hint": "Formato heredado de RustDesk, por ejemplo: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC oficina\"}],\"tags\":[\"Oficina\"]}",
+        "address_book_json_hint": "Formato legacy de RustDesk, por ejemplo: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC oficina\",\"password\":\"secreto\"}],\"tags\":[\"Oficina\"]}",
         "address_book_invalid_json": "La libreta de direcciones debe ser JSON válido",
         "address_book_peers_array_required": "Los peers de la libreta de direcciones deben ser un array",
         "address_book_tags_array_required": "Las etiquetas de la libreta de direcciones deben ser un array",
@@ -2649,7 +2649,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Contraseña",
+        "address_book_password_placeholder": "Contraseña de conexión"
     },
     "chat": {
         "e2e_enabled": "Cifrado de extremo a extremo",

@@ -2636,7 +2636,7 @@
         "address_book_intro": "Quản lý liên hệ được chia sẻ với thành viên của tổ chức này. Mục sổ địa chỉ cá nhân vẫn riêng tư và được ưu tiên khi có xung đột.",
         "address_book_enabled": "Chia sẻ sổ địa chỉ này với thành viên tổ chức",
         "address_book_json": "JSON sổ địa chỉ",
-        "address_book_json_hint": "Định dạng RustDesk cũ, ví dụ: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC văn phòng\"}],\"tags\":[\"Văn phòng\"]}",
+        "address_book_json_hint": "Định dạng legacy RustDesk, ví dụ: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC văn phòng\",\"password\":\"secret\"}],\"tags\":[\"Office\"]}",
         "address_book_invalid_json": "Sổ địa chỉ phải là JSON hợp lệ",
         "address_book_peers_array_required": "Peers trong sổ địa chỉ phải là một mảng",
         "address_book_tags_array_required": "Tags trong sổ địa chỉ phải là một mảng",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Mật khẩu",
+        "address_book_password_placeholder": "Mật khẩu kết nối"
     },
     "chat": {
         "e2e_enabled": "Mã hóa đầu cuối",

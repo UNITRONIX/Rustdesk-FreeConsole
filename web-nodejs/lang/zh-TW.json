@@ -2718,7 +2718,7 @@
         "address_book_intro": "管理與此組織成員共享的聯絡人。個人通訊錄項目仍保持私密，並在衝突時優先。",
         "address_book_enabled": "與組織成員共享此通訊錄",
         "address_book_json": "通訊錄 JSON",
-        "address_book_json_hint": "RustDesk 舊格式，例如：{\"peers\":[{\"id\":\"123456789\",\"alias\":\"辦公室電腦\"}],\"tags\":[\"辦公室\"]}",
+        "address_book_json_hint": "RustDesk 舊版格式，例如：{\"peers\":[{\"id\":\"123456789\",\"alias\":\"辦公室電腦\",\"password\":\"secret\"}],\"tags\":[\"Office\"]}",
         "address_book_invalid_json": "通訊錄必須是有效的 JSON",
         "address_book_peers_array_required": "通訊錄 peers 必須是陣列",
         "address_book_tags_array_required": "通訊錄 tags 必須是陣列",
@@ -2737,7 +2737,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "密碼",
+        "address_book_password_placeholder": "連線密碼"
     },
     "chat": {
         "e2e_enabled": "端到端加密",

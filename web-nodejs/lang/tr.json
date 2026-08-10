@@ -2636,7 +2636,7 @@
         "address_book_intro": "Bu kuruluşun üyeleriyle paylaşılan kişileri yönetin. Kişisel adres defteri kayıtları gizli kalır ve çakışma durumunda önceliklidir.",
         "address_book_enabled": "Bu adres defterini kuruluş üyeleriyle paylaş",
         "address_book_json": "Adres defteri JSON",
-        "address_book_json_hint": "RustDesk eski formatı, örneğin: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Ofis PC\"}],\"tags\":[\"Ofis\"]}",
+        "address_book_json_hint": "RustDesk legacy biçimi, örneğin: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Ofis PC\",\"password\":\"gizli\"}],\"tags\":[\"Ofis\"]}",
         "address_book_invalid_json": "Adres defteri geçerli JSON olmalıdır",
         "address_book_peers_array_required": "Adres defteri peers alanı bir dizi olmalıdır",
         "address_book_tags_array_required": "Adres defteri tags alanı bir dizi olmalıdır",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Parola",
+        "address_book_password_placeholder": "Bağlantı parolası"
     },
     "chat": {
         "e2e_enabled": "Uçtan uca şifrelenmiş",

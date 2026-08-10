@@ -2636,7 +2636,7 @@
         "address_book_intro": "Kelola kontak yang dibagikan dengan anggota organisasi ini. Entri buku alamat pribadi tetap privat dan diprioritaskan saat terjadi konflik.",
         "address_book_enabled": "Bagikan buku alamat ini dengan anggota organisasi",
         "address_book_json": "JSON buku alamat",
-        "address_book_json_hint": "Format lama RustDesk, misalnya: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC kantor\"}],\"tags\":[\"Kantor\"]}",
+        "address_book_json_hint": "Format legacy RustDesk, misalnya: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC kantor\",\"password\":\"rahasia\"}],\"tags\":[\"Kantor\"]}",
         "address_book_invalid_json": "Buku alamat harus berupa JSON yang valid",
         "address_book_peers_array_required": "Peers buku alamat harus berupa array",
         "address_book_tags_array_required": "Tags buku alamat harus berupa array",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Kata sandi",
+        "address_book_password_placeholder": "Kata sandi koneksi"
     },
     "chat": {
         "e2e_enabled": "Dienkripsi ujung ke ujung",

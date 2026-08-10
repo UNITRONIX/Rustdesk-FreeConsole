@@ -2630,7 +2630,7 @@
         "address_book_intro": "Gestisci i contatti condivisi con i membri di questa organizzazione. Le voci personali restano private e hanno la precedenza in caso di conflitto.",
         "address_book_enabled": "Condividi questa rubrica con i membri dell'organizzazione",
         "address_book_json": "JSON della rubrica",
-        "address_book_json_hint": "Formato legacy RustDesk, ad esempio: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC ufficio\"}],\"tags\":[\"Ufficio\"]}",
+        "address_book_json_hint": "Formato legacy RustDesk, ad esempio: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC ufficio\",\"password\":\"segreto\"}],\"tags\":[\"Ufficio\"]}",
         "address_book_invalid_json": "La rubrica deve essere JSON valido",
         "address_book_peers_array_required": "I peer della rubrica devono essere un array",
         "address_book_tags_array_required": "I tag della rubrica devono essere un array",
@@ -2649,7 +2649,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Password",
+        "address_book_password_placeholder": "Password di connessione"
     },
     "chat": {
         "e2e_enabled": "Crittografia end-to-end",

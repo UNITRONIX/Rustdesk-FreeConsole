@@ -2714,7 +2714,7 @@
         "address_book_intro": "Zarządzaj kontaktami udostępnianymi członkom tej organizacji. Osobiste wpisy książki adresowej pozostają prywatne i mają pierwszeństwo przy konflikcie.",
         "address_book_enabled": "Udostępniaj tę książkę adresową członkom organizacji",
         "address_book_json": "JSON książki adresowej",
-        "address_book_json_hint": "Starszy format RustDesk, na przykład: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Komputer biurowy\"}],\"tags\":[\"Biuro\"]}",
+        "address_book_json_hint": "Format legacy RustDesk, na przykład: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC biuro\",\"password\":\"tajne\"}],\"tags\":[\"Biuro\"]}",
         "address_book_invalid_json": "Książka adresowa musi być poprawnym JSON",
         "address_book_peers_array_required": "Pole peers w książce adresowej musi być tablicą",
         "address_book_tags_array_required": "Pole tags w książce adresowej musi być tablicą",
@@ -2733,7 +2733,9 @@
         "address_book_tags_hint": "Tagi oddzielone przecinkami dostępne w książce adresowej klienta RustDesk.",
         "address_book_no_peers": "Brak kontaktów — dodaj ID urządzenia lub zaimportuj urządzenia organizacji.",
         "address_book_show_json": "Zaawansowany JSON",
-        "address_book_hide_json": "Edytor strukturalny"
+        "address_book_hide_json": "Edytor strukturalny",
+        "address_book_password": "Hasło",
+        "address_book_password_placeholder": "Hasło połączenia"
     },
     "chat": {
         "e2e_enabled": "Szyfrowanie end-to-end",

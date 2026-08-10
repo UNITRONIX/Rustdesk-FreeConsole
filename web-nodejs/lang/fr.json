@@ -2718,7 +2718,7 @@
         "address_book_intro": "Gérez les contacts partagés avec les membres de cette organisation. Les entrées personnelles restent privées et priment en cas de conflit.",
         "address_book_enabled": "Partager ce carnet d'adresses avec les membres de l'organisation",
         "address_book_json": "JSON du carnet d'adresses",
-        "address_book_json_hint": "Format RustDesk hérité, par exemple : {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC bureau\"}],\"tags\":[\"Bureau\"]}",
+        "address_book_json_hint": "Format legacy RustDesk, par exemple : {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC bureau\",\"password\":\"secret\"}],\"tags\":[\"Bureau\"]}",
         "address_book_invalid_json": "Le carnet d'adresses doit être un JSON valide",
         "address_book_peers_array_required": "Les pairs du carnet d'adresses doivent être un tableau",
         "address_book_tags_array_required": "Les tags du carnet d'adresses doivent être un tableau",
@@ -2737,7 +2737,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Mot de passe",
+        "address_book_password_placeholder": "Mot de passe de connexion"
     },
     "chat": {
         "e2e_enabled": "Chiffré de bout en bout",

@@ -2636,7 +2636,7 @@
         "address_book_intro": "Administrer kontakter som deles med medlemmer av denne organisasjonen. Personlige adressebokoppføringer forblir private og har forrang ved konflikt.",
         "address_book_enabled": "Del denne adresseboken med organisasjonsmedlemmer",
         "address_book_json": "Adressebok-JSON",
-        "address_book_json_hint": "RustDesk legacy-format, for eksempel: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Kontor-PC\"}],\"tags\":[\"Kontor\"]}",
+        "address_book_json_hint": "RustDesk legacy-format, for eksempel: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Kontor-PC\",\"password\":\"hemmelig\"}],\"tags\":[\"Kontor\"]}",
         "address_book_invalid_json": "Adresseboken må være gyldig JSON",
         "address_book_peers_array_required": "Adressebok-peers må være en liste",
         "address_book_tags_array_required": "Adressebok-tagger må være en liste",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Passord",
+        "address_book_password_placeholder": "Tilkoblingspassord"
     },
     "chat": {
         "e2e_enabled": "Ende-til-ende kryptert",

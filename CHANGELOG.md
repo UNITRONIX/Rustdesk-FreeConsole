@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **Org Address Book peer passwords:** Shared org contacts can store a RustDesk connection `password` (structured editor + Advanced JSON). The field is preserved on save and included in GET `/api/ab` so clients can connect without a password prompt when the stored value matches the peer’s permanent password.
+
 ### Changed
 - _(none yet)_
 

@@ -40,6 +40,44 @@ func TestMergeAddressBookJSONEmptyOverlay(t *testing.T) {
 	}
 }
 
+func TestMergeAddressBookJSONPreservesPeerPassword(t *testing.T) {
+	t.Parallel()
+
+	// Org overlay supplies password when personal/legacy peer has none.
+	base := `{"peers":[{"id":"111","alias":"Mine"}],"tags":[]}`
+	overlay := `{"peers":[{"id":"111","alias":"OrgName","password":"org-secret"},{"id":"222","alias":"Shared","password":"shared-secret"}],"tags":[]}`
+
+	got := mergeAddressBookJSON(base, overlay)
+	ab := parseAddressBookMap(got)
+	peers := toPeerSlice(ab["peers"])
+	if len(peers) != 2 {
+		t.Fatalf("peer count = %d, want 2; data=%s", len(peers), got)
+	}
+	byID := map[string]map[string]any{}
+	for _, p := range peers {
+		id, _ := p["id"].(string)
+		byID[id] = p
+	}
+	if byID["111"]["alias"] != "Mine" {
+		t.Fatalf("base alias should win, got %v", byID["111"]["alias"])
+	}
+	if byID["111"]["password"] != "org-secret" {
+		t.Fatalf("empty base password should take overlay, got %v", byID["111"]["password"])
+	}
+	if byID["222"]["password"] != "shared-secret" {
+		t.Fatalf("new overlay peer password missing, got %v", byID["222"]["password"])
+	}
+
+	// Non-empty personal password must not be overwritten by org overlay.
+	baseKeep := `{"peers":[{"id":"111","password":"personal-secret"}],"tags":[]}`
+	overlayOther := `{"peers":[{"id":"111","password":"org-secret"}],"tags":[]}`
+	kept := mergeAddressBookJSON(baseKeep, overlayOther)
+	keptPeer := toPeerSlice(parseAddressBookMap(kept)["peers"])[0]
+	if keptPeer["password"] != "personal-secret" {
+		t.Fatalf("base password should win, got %v", keptPeer["password"])
+	}
+}
+
 func TestOrgSharedAddressBookEnabledFromValue(t *testing.T) {
 	t.Parallel()
 

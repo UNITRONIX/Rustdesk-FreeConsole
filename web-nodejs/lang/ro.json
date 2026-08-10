@@ -2636,7 +2636,7 @@
         "address_book_intro": "Gestionați contactele partajate cu membrii acestei organizații. Intrările personale din agenda de adrese rămân private și au prioritate în caz de conflict.",
         "address_book_enabled": "Partajează această agendă de adrese cu membrii organizației",
         "address_book_json": "JSON agendă de adrese",
-        "address_book_json_hint": "Format RustDesk vechi, de exemplu: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC birou\"}],\"tags\":[\"Birou\"]}",
+        "address_book_json_hint": "Format legacy RustDesk, de exemplu: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC birou\",\"password\":\"secret\"}],\"tags\":[\"Birou\"]}",
         "address_book_invalid_json": "Agenda de adrese trebuie să fie JSON valid",
         "address_book_peers_array_required": "Peer-urile din agenda de adrese trebuie să fie un array",
         "address_book_tags_array_required": "Tagurile din agenda de adrese trebuie să fie un array",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Parolă",
+        "address_book_password_placeholder": "Parolă de conexiune"
     },
     "chat": {
         "e2e_enabled": "Criptat de la capăt la capăt",

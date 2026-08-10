@@ -2636,7 +2636,7 @@
         "address_book_intro": "Керуйте контактами, спільними для членів цієї організації. Особисті записи адресної книги залишаються приватними та мають пріоритет у разі конфлікту.",
         "address_book_enabled": "Ділитися цією адресною книгою з членами організації",
         "address_book_json": "JSON адресної книги",
-        "address_book_json_hint": "Застарілий формат RustDesk, наприклад: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Офісний ПК\"}],\"tags\":[\"Офіс\"]}",
+        "address_book_json_hint": "Застарілий формат RustDesk, наприклад: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Офісний ПК\",\"password\":\"secret\"}],\"tags\":[\"Офіс\"]}",
         "address_book_invalid_json": "Адресна книга має бути коректним JSON",
         "address_book_peers_array_required": "Peers адресної книги мають бути масивом",
         "address_book_tags_array_required": "Tags адресної книги мають бути масивом",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Пароль",
+        "address_book_password_placeholder": "Пароль підключення"
     },
     "chat": {
         "e2e_enabled": "Наскрізне шифрування",

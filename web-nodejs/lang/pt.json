@@ -2630,7 +2630,7 @@
         "address_book_intro": "Gerencie os contatos compartilhados com os membros desta organização. As entradas pessoais continuam privadas e têm prioridade em caso de conflito.",
         "address_book_enabled": "Compartilhar este livro de endereços com os membros da organização",
         "address_book_json": "JSON do livro de endereços",
-        "address_book_json_hint": "Formato legado do RustDesk, por exemplo: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC escritório\"}],\"tags\":[\"Escritório\"]}",
+        "address_book_json_hint": "Formato legacy do RustDesk, por exemplo: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"PC escritório\",\"password\":\"segredo\"}],\"tags\":[\"Escritório\"]}",
         "address_book_invalid_json": "O livro de endereços deve ser um JSON válido",
         "address_book_peers_array_required": "Os peers do livro de endereços devem ser um array",
         "address_book_tags_array_required": "As tags do livro de endereços devem ser um array",
@@ -2649,7 +2649,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Palavra-passe",
+        "address_book_password_placeholder": "Palavra-passe de ligação"
     },
     "chat": {
         "e2e_enabled": "Criptografia ponta a ponta",

@@ -2636,7 +2636,7 @@
         "address_book_intro": "इस संगठन के सदस्यों के साथ साझा संपर्क प्रबंधित करें। व्यक्तिगत पता पुस्तिका प्रविष्टियां निजी रहती हैं और टकराव होने पर प्राथमिकता रखती हैं।",
         "address_book_enabled": "यह पता पुस्तिका संगठन सदस्यों के साथ साझा करें",
         "address_book_json": "पता पुस्तिका JSON",
-        "address_book_json_hint": "RustDesk पुराना प्रारूप, उदाहरण: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"ऑफिस PC\"}],\"tags\":[\"ऑफिस\"]}",
+        "address_book_json_hint": "RustDesk लीगेसी प्रारूप, उदाहरण: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"ऑफिस पीसी\",\"password\":\"secret\"}],\"tags\":[\"Office\"]}",
         "address_book_invalid_json": "पता पुस्तिका मान्य JSON होनी चाहिए",
         "address_book_peers_array_required": "पता पुस्तिका peers एक array होना चाहिए",
         "address_book_tags_array_required": "पता पुस्तिका tags एक array होना चाहिए",
@@ -2655,7 +2655,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "पासवर्ड",
+        "address_book_password_placeholder": "कनेक्शन पासवर्ड"
     },
     "chat": {
         "e2e_enabled": "एंड-टू-एंड एन्क्रिप्टेड",

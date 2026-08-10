@@ -2630,7 +2630,7 @@
         "address_book_intro": "Verwalten Sie Kontakte, die mit Mitgliedern dieser Organisation geteilt werden. Persönliche Adressbucheinträge bleiben privat und haben bei Konflikten Vorrang.",
         "address_book_enabled": "Dieses Adressbuch mit Organisationsmitgliedern teilen",
         "address_book_json": "Adressbuch-JSON",
-        "address_book_json_hint": "RustDesk-Legacy-Format, zum Beispiel: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Büro-PC\"}],\"tags\":[\"Büro\"]}",
+        "address_book_json_hint": "RustDesk-Legacy-Format, zum Beispiel: {\"peers\":[{\"id\":\"123456789\",\"alias\":\"Büro-PC\",\"password\":\"geheim\"}],\"tags\":[\"Büro\"]}",
         "address_book_invalid_json": "Das Adressbuch muss gültiges JSON sein",
         "address_book_peers_array_required": "Adressbuch-Peers müssen ein Array sein",
         "address_book_tags_array_required": "Adressbuch-Tags müssen ein Array sein",
@@ -2649,7 +2649,9 @@
         "address_book_tags_hint": "Comma-separated tags available in the RustDesk client address book.",
         "address_book_no_peers": "No contacts yet — add a device ID or import organization devices.",
         "address_book_show_json": "Advanced JSON",
-        "address_book_hide_json": "Structured editor"
+        "address_book_hide_json": "Structured editor",
+        "address_book_password": "Passwort",
+        "address_book_password_placeholder": "Verbindungspasswort"
     },
     "chat": {
         "e2e_enabled": "Ende-zu-Ende verschlüsselt",
