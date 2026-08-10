@@ -1,0 +1,50 @@
+---
+description: Every git commit message must acknowledge BetterDesk supporters
+alwaysApply: true
+---
+
+# Commits — always thank supporters
+
+Every git commit created in this repo (agent or operator request) **must** include a supporters acknowledgment in the commit **body** (not only the subject line).
+
+## Source of truth
+
+Read the current list from:
+
+1. [`SPONSORS.md`](SPONSORS.md) — Honorary Supporters + Individual Backers (+ any GitHub Sponsors Bronze+ when listed)
+2. [`web-nodejs/config/supporters.json`](web-nodejs/config/supporters.json) — same names for the console Help panel
+
+Do **not** invent names. If the lists differ, prefer `supporters.json` for display names/`github`, and keep `SPONSORS.md` in sync via the sponsors-update rule.
+
+## Required trailer
+
+Append this block at the end of the commit message body (after the summary / issue refs):
+
+```text
+Thanks: <Honorary…>; <Individual…>; …
+```
+
+Format each entry:
+
+- Honorary: `Name (Honorary)` (e.g. `INSOLVE (Honorary)`)
+- Individual with GitHub: `Display Name (@handle)` (e.g. `Marco Jakobs (@jacotec)`)
+- Individual without GitHub URL: `Display Name` or `Display Name (@handle)` if handle is known from `supporters.json`
+
+Separate entries with `; ` (semicolon + space). Include **all** current honorary + individual backers on every commit.
+
+## Example
+
+```text
+fix(ui): improve attestation badge contrast
+
+Refs #363
+
+Thanks: INSOLVE (Honorary); Marco Jakobs (@jacotec); MyNameisStitch (@MyNameisStitch); Redspin (@playerumpknow)
+```
+
+## Checklist when committing
+
+- [ ] Subject describes the change (why/what)
+- [ ] Body includes issue refs when relevant (`Refs #NNN` / `Fixes #NNN` only when closing is allowed)
+- [ ] Body ends with a current `Thanks:` line listing every supporter from `supporters.json` / `SPONSORS.md`
+- [ ] After a new sponsor is added, the next commit’s `Thanks:` line includes them immediately
