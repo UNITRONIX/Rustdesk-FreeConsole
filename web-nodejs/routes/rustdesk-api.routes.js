@@ -1386,6 +1386,27 @@ router.post('/api/login', async (req, res) => {
         // Support both field names: tfaCode (our API) and verificationCode (RustDesk client)
         const totpCode = tfaCode || verificationCode;
 
+        // Block stock Windows RustDesk; allow branded Windows + Android/iOS.
+        const { rejectWindowsClientAppName } = require('../lib/clientAppNameGate');
+        const deviceOs = deviceInfo && typeof deviceInfo === 'object' ? deviceInfo.os : '';
+        const deviceAppName =
+            deviceInfo && typeof deviceInfo === 'object'
+                ? deviceInfo.app_name || deviceInfo.appName || ''
+                : '';
+        const appNameReject = rejectWindowsClientAppName(deviceOs, deviceAppName);
+        if (appNameReject) {
+            console.log(
+                `[API:LOGIN] Rejected Windows client from ${ip}: os=${deviceOs} app_name=${deviceAppName}`
+            );
+            await db.logAction(
+                null,
+                'api_login_rejected_client',
+                `OS: ${deviceOs}, app_name: ${deviceAppName}, User: ${username}`,
+                ip
+            );
+            return res.status(403).json({ error: appNameReject });
+        }
+
         // ── TFA verification step ──
         if (totpCode && tfaSecret) {
             return handleTfaVerification(req, res, ip, totpCode);

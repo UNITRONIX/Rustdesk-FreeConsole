@@ -175,6 +175,18 @@ module.exports = {
     // bypass is ignored and TOTP is enforced normally on :21121.
     rustdeskApiDisableTotpAck: (process.env.RUSTDESK_API_DISABLE_TOTP_ACKNOWLEDGED || 'false').toLowerCase() === 'true',
 
+    // Block stock Windows RustDesk account login; allow branded app_name + Android/iOS.
+    // Go API reads the same env vars directly. Default gate on when unset.
+    windowsClientAppNameGate: (() => {
+        const v = String(process.env.BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE || '').trim().toLowerCase();
+        if (!v) return true;
+        return v === 'true' || v === '1' || v === 'yes' || v === 'y';
+    })(),
+    allowedWindowsAppNames: (process.env.BETTERDESK_ALLOWED_WINDOWS_APP_NAMES || 'DCS Norway')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+
     // Device visibility for non-admin roles: open (legacy overlay ACL) or restricted (default-deny).
     deviceScopeDefault: (process.env.DEVICE_SCOPE_DEFAULT || 'restricted').toLowerCase(),
 

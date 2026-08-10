@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- **Windows client app_name gate:** `/api/login` (and OIDC auth start) rejects stock Windows RustDesk. Android/iOS always allowed. Branded DCS fork must send `deviceInfo.app_name=DCS Norway`. Env: `BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE` (default on), `BETTERDESK_ALLOWED_WINDOWS_APP_NAMES` (default `DCS Norway`). Disable with `BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE=false`. Host heartbeat/sysinfo are not gated so stock Windows hosts can still register.
+
 ### Changed
 - _(none yet)_
 

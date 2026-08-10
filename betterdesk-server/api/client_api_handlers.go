@@ -142,6 +142,12 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 		TfaCode          string `json:"tfaCode"`
 		Secret           string `json:"secret"` // TFA session secret
 		AutoLogin        bool   `json:"autoLogin"`
+		DeviceInfo       struct {
+			Name    string `json:"name"`
+			OS      string `json:"os"`
+			Type    string `json:"type"`
+			AppName string `json:"app_name"`
+		} `json:"deviceInfo"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		log.Printf("[api] /api/login: JSON decode error from %s: %v", clientIP, err)
@@ -150,8 +156,24 @@ func (s *Server) handleClientLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// DEBUG: Log incoming login request fields (excluding password)
-	log.Printf("[api] /api/login from %s: user=%q type=%q code=%q secret_len=%d id=%q uuid=%q",
-		clientIP, body.Username, body.Type, body.VerificationCode, len(body.Secret), body.ID, body.UUID)
+	log.Printf("[api] /api/login from %s: user=%q type=%q code=%q secret_len=%d id=%q uuid=%q os=%q app_name=%q",
+		clientIP, body.Username, body.Type, body.VerificationCode, len(body.Secret), body.ID, body.UUID,
+		body.DeviceInfo.OS, body.DeviceInfo.AppName)
+
+	if msg := rejectWindowsClientAppName(body.DeviceInfo.OS, body.DeviceInfo.AppName); msg != "" {
+		log.Printf("[api] /api/login rejected Windows client from %s: os=%q app_name=%q",
+			clientIP, body.DeviceInfo.OS, body.DeviceInfo.AppName)
+		if s.auditLog != nil {
+			s.auditLog.Log(audit.ActionAuthLoginFailed, clientIP, body.Username, map[string]string{
+				"reason":   "windows_client_app_name",
+				"os":       body.DeviceInfo.OS,
+				"app_name": body.DeviceInfo.AppName,
+				"client_id": body.ID,
+			})
+		}
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": msg})
+		return
+	}
 
 	totpCode := body.VerificationCode
 	if totpCode == "" {
