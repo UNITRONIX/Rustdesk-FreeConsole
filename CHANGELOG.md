@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+- **Enrollment sidebar pending badge (#351):** `GET /api/registrations/count` now sums LAN discovery pendings and Go managed enrollment queue, so the sidebar badge stays visible on Dashboard/Devices/etc., not only on Enrollment Requests.
+- **Legacy rejected IP display (#351):** Orphan `rejected_device_*` history rows backfill IP from `peers` when available (and persist it); pure legacy locks without a peer row still show `—` (IP was never stored).
+
 ### Changed
 - _(none yet)_
 

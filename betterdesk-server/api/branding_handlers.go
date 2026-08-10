@@ -798,6 +798,20 @@ func (s *Server) listEnrollmentHistory(statusFilter string) []enrollmentDecision
 					d.DecidedAt = bannedMeta.DecidedAt
 				}
 			}
+			// Legacy rejects stored {"rejected":true} with no IP — best-effort backfill from peers (#351).
+			if d.IP == "" && s.db != nil {
+				if peerRow, perr := s.db.GetPeer(d.DeviceID); perr == nil && peerRow != nil && peerRow.IP != "" {
+					d.IP = peerRow.IP
+					var raw map[string]interface{}
+					if json.Unmarshal([]byte(cfg.Value), &raw) != nil || raw == nil {
+						raw = map[string]interface{}{"rejected": true}
+					}
+					raw["ip"] = peerRow.IP
+					if enriched, merr := json.Marshal(raw); merr == nil {
+						_ = s.db.SetConfig(cfg.Key, string(enriched))
+					}
+				}
+			}
 			seen[d.DeviceID] = struct{}{}
 			result = append(result, d)
 		}

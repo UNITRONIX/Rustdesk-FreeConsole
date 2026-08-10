@@ -136,11 +136,9 @@
 
     async function loadPendingCount() {
         try {
-            const [registrationResult, enrollmentResult] = await Promise.all([
-                apiFetch('/api/registrations/count'),
-                apiFetch('/api/enrollment/pending'),
-            ]);
-            const count = (registrationResult.count || 0) + (enrollmentResult.count || 0);
+            // Combined LAN + managed enrollment pending (same source as global sidebar badge)
+            const result = await apiFetch('/api/registrations/count');
+            const count = result.count || 0;
             pendingCountBadge.textContent = count;
             pendingCountBadge.style.display = count > 0 ? '' : 'none';
 

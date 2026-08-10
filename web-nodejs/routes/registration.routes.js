@@ -214,11 +214,26 @@ router.get('/api/registrations', requirePermission('enrollment.approve'), async 
 
 /**
  * GET /api/registrations/count — Pending registration count (sidebar badge).
+ * Combines LAN discovery pending_registrations with Go managed enrollment queue (#351).
  */
 router.get('/api/registrations/count', requirePermission('enrollment.approve'), async (req, res) => {
     try {
-        const count = await db.getPendingRegistrationCount();
-        res.json({ success: true, count });
+        let lanCount = 0;
+        try {
+            lanCount = await db.getPendingRegistrationCount() || 0;
+        } catch (_) {
+            lanCount = 0;
+        }
+
+        let enrollmentCount = 0;
+        try {
+            const pending = await betterdeskApi.getEnrollmentPending();
+            enrollmentCount = (pending && pending.count) || 0;
+        } catch (_) {
+            enrollmentCount = 0;
+        }
+
+        res.json({ success: true, count: lanCount + enrollmentCount });
     } catch (err) {
         res.json({ success: true, count: 0 });
     }

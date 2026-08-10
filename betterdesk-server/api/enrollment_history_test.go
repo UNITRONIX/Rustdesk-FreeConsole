@@ -287,6 +287,91 @@ func TestEnrollmentHistoryIncludesOrphanRejected(t *testing.T) {
 	}
 }
 
+func TestEnrollmentHistoryOrphanBackfillsIPFromPeer(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+
+	const deviceID = "ENR-ORPHAN-IP"
+	if err := database.SetConfig(rejectedDevicePrefix+deviceID, `{"rejected":true}`); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.UpsertPeer(&db.Peer{ID: deviceID, Hostname: "legacy-host", IP: "203.0.113.50", Status: "OFFLINE"}); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.DefaultConfig()
+	srv := New(cfg, database, peer.NewMap(), nil, "test")
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/enrollment/history", srv.handleListEnrollmentHistory)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/enrollment/history?status=rejected", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("history: %d", rec.Code)
+	}
+	var hist struct {
+		Devices []enrollmentDecision `json:"devices"`
+		Count   int                  `json:"count"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &hist); err != nil {
+		t.Fatal(err)
+	}
+	if hist.Count != 1 || hist.Devices[0].DeviceID != deviceID {
+		t.Fatalf("expected orphan row, got %+v", hist)
+	}
+	if hist.Devices[0].IP != "203.0.113.50" {
+		t.Fatalf("expected peer IP backfill, got %q", hist.Devices[0].IP)
+	}
+
+	raw, err := database.GetConfig(rejectedDevicePrefix + deviceID)
+	if err != nil || raw == "" {
+		t.Fatalf("expected persisted rejected_device payload: %v %q", err, raw)
+	}
+	var persisted map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &persisted); err != nil {
+		t.Fatal(err)
+	}
+	if persisted["ip"] != "203.0.113.50" {
+		t.Fatalf("expected IP persisted into rejected_device_*, got %+v", persisted)
+	}
+}
+
+func TestEnrollmentHistoryOrphanWithoutPeerKeepsEmptyIP(t *testing.T) {
+	database := testSetupDB(t)
+	defer database.Close()
+
+	const deviceID = "ENR-ORPHAN-NOIP"
+	if err := database.SetConfig(rejectedDevicePrefix+deviceID, `{"rejected":true}`); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.DefaultConfig()
+	srv := New(cfg, database, peer.NewMap(), nil, "test")
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/enrollment/history", srv.handleListEnrollmentHistory)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/enrollment/history?status=rejected", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("history: %d", rec.Code)
+	}
+	var hist struct {
+		Devices []enrollmentDecision `json:"devices"`
+		Count   int                  `json:"count"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &hist); err != nil {
+		t.Fatal(err)
+	}
+	if hist.Count != 1 || hist.Devices[0].DeviceID != deviceID {
+		t.Fatalf("expected orphan row, got %+v", hist)
+	}
+	if hist.Devices[0].IP != "" {
+		t.Fatalf("legacy orphan without peer must keep empty IP, got %q", hist.Devices[0].IP)
+	}
+}
+
 func TestEnrollmentApprovePersistsHistoryAndClearsRejection(t *testing.T) {
 	database := testSetupDB(t)
 	defer database.Close()
