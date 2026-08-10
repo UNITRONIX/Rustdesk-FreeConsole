@@ -10,6 +10,9 @@
 ### Added
 - **Shared Address Book protocol for Access Policy auto-connect:** BetterDesk now speaks RustDesk Pro shared-AB endpoints (`/api/ab/personal` guid, `/api/ab/settings`, `/api/ab/shared/profiles`, `/api/ab/peers`). The read-only **Devices** book injects sealed Access Policy passwords when unattended + Passwordless server access are enabled. Stock RustDesk only uses `peers[].password` from a shared Address Book card — not from Groups / Accessible devices, and not from legacy `/api/ab`.
 
+### Fixed
+- **Address book HTTP 404 after shared-AB rollout:** WAN path whitelist on `:21121` blocked `/api/ab/settings`, `/api/ab/shared/profiles`, `/api/ab/peers`, and `/api/ab/tags/{guid}`, so the client showed `Failed to refresh address book: HTTP 404`. Those routes are now allowed through to Go.
+
 ### Changed
 - _(none yet)_
 

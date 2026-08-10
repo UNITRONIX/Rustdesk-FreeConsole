@@ -1093,9 +1093,24 @@ router.post('/api/ab/personal', async (req, res) => {
     }
     const { data } = req.body || {};
     const hasData = data !== undefined && data !== null && data !== '';
-    // RustDesk 1.4.7 probes with an empty POST body; legacy servers return 404.
+    // Pro shared-AB probe: empty POST expects {"guid": "..."} (not 404).
     if (!hasData) {
-        return res.status(404).end();
+        const crypto = require('crypto');
+        const ns = Buffer.from('6ba7b8109dad11d180b400c04fd430c8', 'hex');
+        const name = Buffer.from('betterdesk-personal:' + String(user.username || '').trim().toLowerCase());
+        // UUID v5 (SHA-1) matching Go personalABGUID
+        const hash = crypto.createHash('sha1').update(ns).update(name).digest();
+        hash[6] = (hash[6] & 0x0f) | 0x50;
+        hash[8] = (hash[8] & 0x3f) | 0x80;
+        const hex = hash.toString('hex');
+        const guid = [
+            hex.slice(0, 8),
+            hex.slice(8, 12),
+            hex.slice(12, 16),
+            hex.slice(16, 20),
+            hex.slice(20, 32)
+        ].join('-');
+        return res.json({ guid });
     }
     const dataStrRaw = typeof data === 'string' ? data : JSON.stringify(data);
     try {
