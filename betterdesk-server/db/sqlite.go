@@ -157,6 +157,22 @@ func (s *SQLiteDB) Migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_peer_metrics_peer ON peer_metrics(peer_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_peer_metrics_created ON peer_metrics(created_at)`,
 
+		// Server-observed device presence intervals used by online-time reports.
+		`CREATE TABLE IF NOT EXISTS device_online_sessions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			peer_id TEXT NOT NULL,
+			started_at TEXT NOT NULL,
+			last_seen_at TEXT NOT NULL,
+			ended_at TEXT DEFAULT NULL,
+			end_reason TEXT DEFAULT ''
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_device_online_one_open
+			ON device_online_sessions(peer_id) WHERE ended_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_device_online_peer_started
+			ON device_online_sessions(peer_id, started_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_device_online_range
+			ON device_online_sessions(started_at, ended_at)`,
+
 		// Chat messages table
 		`CREATE TABLE IF NOT EXISTS chat_messages (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -314,6 +330,31 @@ func (s *SQLiteDB) Migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_conn_host ON audit_connections(host_id, created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_conn_peer ON audit_connections(peer_id, created_at)`,
+
+		// Actual remote-control/file/terminal sessions. This is deliberately
+		// separate from device_online_sessions (availability/presence).
+		`CREATE TABLE IF NOT EXISTS remote_access_sessions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			session_key TEXT UNIQUE NOT NULL,
+			target_id TEXT NOT NULL,
+			target_uuid TEXT DEFAULT '',
+			operator_username TEXT DEFAULT '',
+			controller_id TEXT DEFAULT '',
+			controller_name TEXT DEFAULT '',
+			connection_type INTEGER NOT NULL DEFAULT 0,
+			source TEXT NOT NULL DEFAULT 'rustdesk_audit',
+			started_at TEXT NOT NULL,
+			last_seen_at TEXT NOT NULL,
+			ended_at TEXT DEFAULT NULL,
+			end_reason TEXT DEFAULT '',
+			created_at TEXT DEFAULT (datetime('now')),
+			updated_at TEXT DEFAULT (datetime('now'))
+		)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_remote_access_session_key ON remote_access_sessions(session_key)`,
+		`CREATE INDEX IF NOT EXISTS idx_remote_access_target_started ON remote_access_sessions(target_id, started_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_remote_access_operator_started ON remote_access_sessions(operator_username, started_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_remote_access_range ON remote_access_sessions(started_at, ended_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_remote_access_open_target ON remote_access_sessions(target_id) WHERE ended_at IS NULL`,
 
 		`CREATE TABLE IF NOT EXISTS audit_files (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -900,9 +941,26 @@ func (s *SQLiteDB) DeletePeer(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, err := s.db.Exec(
-		`UPDATE peers SET soft_deleted = 1, deleted_at = datetime('now') WHERE id = ?`, id)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := closeDeviceOnlineSessionSQLite(tx, id, time.Now().UTC(), "device_deleted"); err != nil {
+		return err
+	}
+	now := activityTimeString(time.Now().UTC())
+	if _, err := tx.Exec(`UPDATE remote_access_sessions
+		SET ended_at = CASE WHEN ? < started_at THEN started_at ELSE ? END,
+		    last_seen_at = CASE WHEN last_seen_at < ? THEN ? ELSE last_seen_at END,
+		    end_reason = 'device_deleted', updated_at = datetime('now')
+		WHERE target_id = ? AND ended_at IS NULL`, now, now, now, now, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE peers SET soft_deleted = 1, deleted_at = datetime('now') WHERE id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // HardDeletePeer permanently removes a peer from the database and releases
@@ -917,6 +975,14 @@ func (s *SQLiteDB) HardDeletePeer(id string) error {
 	}
 	defer tx.Rollback()
 
+	// Permanent deletion must also remove presence history so a released ID
+	// cannot attribute the previous device's time to a future device.
+	if _, err := tx.Exec(`DELETE FROM device_online_sessions WHERE peer_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM remote_access_sessions WHERE target_id = ?`, id); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(`DELETE FROM peers WHERE id = ?`, id); err != nil {
 		return err
 	}
@@ -1056,10 +1122,25 @@ func (s *SQLiteDB) UpdatePeerStatus(id string, status string, ip string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, err := s.db.Exec(
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.Exec(
 		`UPDATE peers SET status = ?, ip = ?, last_online = datetime('now') WHERE id = ? AND soft_deleted = 0`,
 		status, ip, id)
-	return err
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	switch status {
+	case "OFFLINE":
+		if err := closeDeviceOnlineSessionSQLite(tx, id, now, "server_offline"); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // BatchUpdatePeerStatus sets status for many peers in one query (empty ip preserved).
@@ -1081,8 +1162,30 @@ func (s *SQLiteDB) BatchUpdatePeerStatus(ids []string, status string) error {
 		`UPDATE peers SET status = ?, last_online = datetime('now') WHERE soft_deleted = 0 AND id IN (%s)`,
 		strings.Join(placeholders, ","),
 	)
-	_, err := s.db.Exec(query, args...)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(query, args...); err != nil {
+		return err
+	}
+	if status == "OFFLINE" {
+		closeArgs := make([]any, 0, len(ids)+2)
+		closeArgs = append(closeArgs, activityTimeString(time.Now().UTC()), "server_offline")
+		for _, id := range ids {
+			closeArgs = append(closeArgs, id)
+		}
+		if _, err := tx.Exec(fmt.Sprintf(`
+			UPDATE device_online_sessions
+			SET ended_at = CASE WHEN ? < started_at THEN started_at ELSE ? END,
+			    end_reason = ?
+			WHERE ended_at IS NULL AND peer_id IN (%s)`, strings.Join(placeholders, ",")),
+			append([]any{closeArgs[0], closeArgs[0], closeArgs[1]}, closeArgs[2:]...)...); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // UpdatePeerSysinfo updates hostname, os, and version for a peer.
@@ -1106,8 +1209,22 @@ func (s *SQLiteDB) SetAllOffline() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, err := s.db.Exec(`UPDATE peers SET status = 'OFFLINE'`)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`
+		UPDATE device_online_sessions
+		SET ended_at = CASE WHEN last_seen_at < started_at THEN started_at ELSE last_seen_at END,
+		    end_reason = 'server_restart'
+		WHERE ended_at IS NULL`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE peers SET status = 'OFFLINE'`); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // BanPeer bans a specific peer by ID.
@@ -1115,10 +1232,18 @@ func (s *SQLiteDB) BanPeer(id string, reason string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, err := s.db.Exec(
-		`UPDATE peers SET banned = 1, ban_reason = ?, banned_at = datetime('now') WHERE id = ?`,
-		reason, id)
-	return err
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := closeDeviceOnlineSessionSQLite(tx, id, time.Now().UTC(), "device_banned"); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE peers SET banned = 1, ban_reason = ?, banned_at = datetime('now') WHERE id = ?`, reason, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // UnbanPeer removes the ban from a peer.
@@ -1204,6 +1329,8 @@ func (s *SQLiteDB) cascadePeerIDInTx(tx *sql.Tx, oldID, newID string) error {
 		{`UPDATE device_tokens SET peer_id = ? WHERE peer_id = ?`, []any{newID, oldID}},
 		{`UPDATE org_devices SET device_id = ? WHERE device_id = ?`, []any{newID, oldID}},
 		{`UPDATE peers SET linked_peer_id = ? WHERE linked_peer_id = ?`, []any{newID, oldID}},
+		{`UPDATE device_online_sessions SET peer_id = ? WHERE peer_id = ?`, []any{newID, oldID}},
+		{`UPDATE remote_access_sessions SET target_id = ? WHERE target_id = ?`, []any{newID, oldID}},
 	}
 	for _, st := range stmts {
 		if _, err := tx.Exec(st.query, st.args...); err != nil {

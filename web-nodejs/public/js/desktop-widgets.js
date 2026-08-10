@@ -107,6 +107,10 @@
         return d.innerHTML;
     }
 
+    function escAttr(s) {
+        return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     /** Close all open kebab menus except optionally the one inside excludeEl */
     function _closeAllKebabMenus(excludeEl) {
         document.querySelectorAll('.widget-kebab-menu.open').forEach(function (m) {
@@ -2136,6 +2140,10 @@
         var iconColor = plugin.color || '#58a6ff';
         var title = esc(plugin.name || w.type);
         var theme = document.documentElement.getAttribute('data-desktop-theme') || 'dark';
+        var widgetStylesheet = document.querySelector('link[href*="/css/desktop-widgets.css"]');
+        var widgetStylesheetHref = widgetStylesheet && widgetStylesheet.href
+            ? widgetStylesheet.href
+            : '/css/desktop-widgets.css';
 
         // Build self-contained popup HTML
         popup.document.open();
@@ -2143,6 +2151,7 @@
             '<!DOCTYPE html><html lang="en" data-desktop-theme="' + esc(theme) + '">' +
             '<head><meta charset="utf-8"><title>' + title + ' — BetterDesk Widget</title>' +
             '<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">' +
+            '<link rel="stylesheet" href="' + escAttr(widgetStylesheetHref) + '">' +
             '<style>' + _getPopoutCSS() + '</style></head>' +
             '<body>' +
             '<div class="popout-header">' +
@@ -2267,6 +2276,27 @@
                 'padding: 4px; border-radius: 4px; -webkit-app-region: no-drag; display: flex; align-items: center; }' +
             '.popout-pop-in:hover { background: ' + (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)') + '; }' +
             '.popout-body { flex: 1; overflow: auto; padding: 8px; }' +
+            /* Device list fallback: the full widget stylesheet is linked above,
+             * but these rules keep this high-value popout usable if it is slow
+             * or unavailable during a reconnect. */
+            '.widget-device-list { display:flex; flex-direction:column; gap:6px; min-width:0; }' +
+            '.widget-device-row { display:grid; grid-template-columns:8px minmax(0,1fr) auto; align-items:center; gap:10px; ' +
+                'padding:8px 10px; border:1px solid ' + border + '; border-radius:8px; ' +
+                'background:' + (isDark ? 'rgba(255,255,255,0.025)' : 'rgba(31,35,40,0.025)') + '; }' +
+            '.widget-device-row:hover { background:' + (isDark ? 'rgba(88,166,255,0.08)' : 'rgba(9,105,218,0.07)') + '; }' +
+            '.widget-device-dot { width:7px; height:7px; border-radius:50%; }' +
+            '.widget-device-dot.online { background:#3fb950; box-shadow:0 0 0 3px rgba(63,185,80,0.12); }' +
+            '.widget-device-dot.offline { background:' + (isDark ? '#484f58' : '#8c959f') + '; }' +
+            '.widget-device-identity { min-width:0; }' +
+            '.widget-device-name { color:' + fg + '; font-size:12px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }' +
+            '.widget-device-meta { display:flex; align-items:center; gap:6px; min-width:0; margin-top:2px; color:' + (isDark ? '#8b949e' : '#656d76') + '; }' +
+            '.widget-device-id { font:10px ui-monospace,SFMono-Regular,Consolas,monospace; flex-shrink:0; }' +
+            '.widget-device-platform { font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }' +
+            '.widget-device-platform:not(:empty)::before { content:"·"; margin-right:6px; opacity:.55; }' +
+            '.widget-device-connection { min-width:70px; text-align:right; line-height:1.2; }' +
+            '.widget-device-connection-status { display:block; color:' + (isDark ? '#8b949e' : '#656d76') + '; font-size:9px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }' +
+            '.widget-device-connection.online .widget-device-connection-status { color:#3fb950; }' +
+            '.widget-device-duration { display:block; margin-top:2px; color:' + fg + '; font:600 11px ui-monospace,SFMono-Regular,Consolas,monospace; white-space:nowrap; }' +
             /* Widget body styling resets for popup context */
             '.widget-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; ' +
                 'gap: 8px; height: 100%; color: ' + (isDark ? '#8b949e' : '#656d76') + '; font-size: 13px; }' +

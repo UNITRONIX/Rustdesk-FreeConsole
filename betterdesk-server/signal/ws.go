@@ -524,6 +524,9 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 
 		requestPk := len(existing.PK) == 0
 		s.db.UpdatePeerStatus(id, "ONLINE", remoteAddr)
+		if err := s.db.TouchDeviceOnlineSession(id, existing.LastReg.UTC(), config.RegTimeout); err != nil {
+			log.Printf("[signal] Failed to record WS online heartbeat for %s: %v", id, err)
+		}
 
 		return &pb.RendezvousMessage{
 			Union: &pb.RendezvousMessage_RegisterPeerResponse{
@@ -567,6 +570,9 @@ func (s *Server) handleRegisterPeerWS(msg *pb.RegisterPeer, remoteAddr string) *
 
 	log.Printf("[signal] New WS peer registered: %s from %s", id, remoteAddr)
 	s.db.UpdatePeerStatus(id, "ONLINE", remoteAddr)
+	if err := s.db.TouchDeviceOnlineSession(id, entry.LastReg.UTC(), config.RegTimeout); err != nil {
+		log.Printf("[signal] Failed to start WS online session for %s: %v", id, err)
+	}
 	s.publishPeerOnline(id)
 
 	return &pb.RendezvousMessage{

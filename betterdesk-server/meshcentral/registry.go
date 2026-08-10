@@ -36,6 +36,9 @@ func (g *Gateway) registerAgent(ac *AgentConn) (string, error) {
 		return "", err
 	}
 	g.db.UpdatePeerStatus(peerID, "ONLINE", ac.clientIP)
+	if err := g.db.TouchDeviceOnlineSession(peerID, time.Now().UTC(), 0); err != nil {
+		log.Printf("[mesh] failed to record online session for %s: %v", peerID, err)
+	}
 	g.db.SetConfig("mesh_node_id_"+peerID, ac.meshNodeID)
 	g.db.SetConfig("mesh_group_id_"+peerID, ac.meshGroupID)
 

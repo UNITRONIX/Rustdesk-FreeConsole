@@ -1056,54 +1056,136 @@
 .widget-device-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     max-height: 100%;
     overflow-y: auto;
+    min-width: 0;
 }
 
 .widget-device-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-radius: 6px;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.025);
     font-size: 12px;
-    transition: background 0.12s ease;
+    transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .widget-device-row:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(88, 166, 255, 0.08);
+    border-color: rgba(88, 166, 255, 0.18);
 }
 
 .widget-device-dot {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     flex-shrink: 0;
 }
 
-.widget-device-dot.online { background: #3fb950; }
+.widget-device-dot.online {
+    background: #3fb950;
+    box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.12);
+}
 .widget-device-dot.offline { background: #484f58; }
 
+.widget-device-identity {
+    min-width: 0;
+}
+
 .widget-device-id {
-    font-family: monospace;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
     color: #8b949e;
-    font-size: 11px;
+    font-size: 10px;
     flex-shrink: 0;
 }
 
 .widget-device-name {
-    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: #e6edf3;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.widget-device-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    margin-top: 2px;
 }
 
 .widget-device-platform {
     font-size: 10px;
     color: #8b949e;
-    flex-shrink: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.widget-device-platform:not(:empty)::before {
+    content: '·';
+    margin-right: 6px;
+    opacity: 0.55;
+}
+
+.widget-device-connection {
+    min-width: 70px;
+    text-align: right;
+    line-height: 1.2;
+}
+
+.widget-device-connection-status {
+    display: block;
+    color: #8b949e;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.widget-device-connection.online .widget-device-connection-status {
+    color: #3fb950;
+}
+
+.widget-device-duration {
+    display: block;
+    margin-top: 2px;
+    color: #e6edf3;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.widget-device-live {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 1px 4px;
+    border-radius: 999px;
+    background: rgba(255, 77, 77, 0.14);
+    color: #ff6b6b;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.widget-device-operator {
+    display: block;
+    max-width: 120px;
+    margin-top: 2px;
+    overflow: hidden;
+    color: #8b949e;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Network Monitor Widget */

@@ -121,6 +121,82 @@
     const sessions = new Map(); // deviceId → SessionInfo
     let activeSessionId = null;
 
+    function newRemoteTrackingID() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+        // RFC 4122 v4 fallback for older enterprise browsers.
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (char) {
+            const value = Math.floor(Math.random() * 16);
+            return (char === 'x' ? value : ((value & 3) | 8)).toString(16);
+        });
+    }
+
+    function postRemoteSessionEvent(session, action, reason, keepalive) {
+        if (!session || !session.remoteTrackingId) return Promise.resolve();
+        return fetch('/api/devices/remote-sessions/event', {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: keepalive === true,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.BetterDesk && window.BetterDesk.csrfToken) || ''
+            },
+            body: JSON.stringify({
+                action,
+                session_id: session.remoteTrackingId,
+                device_id: session.deviceId,
+                connection_type: 0,
+                reason: reason || ''
+            })
+        }).then(function (response) {
+            if (!response.ok) throw new Error('remote session event failed: ' + response.status);
+        }).catch(function (error) {
+            // Never interrupt remote control because reporting is temporarily
+            // unavailable. A subsequent heartbeat retries the active start.
+            console.warn('[RemoteSession]', action, error.message || error);
+            if (action === 'start' && !session.remoteTrackingEnded) {
+                session.remoteTrackingStarted = false;
+            }
+        });
+    }
+
+    function startRemoteSessionTracking(session) {
+        if (!session) return;
+        // RustDesk targets report the authorised session through the official
+        // /api/audit/conn flow. Recording it here as well would double-count.
+        if (getTransportName() === 'rd') return;
+        if (session.remoteTrackingEnded) {
+            session.remoteTrackingId = newRemoteTrackingID();
+            session.remoteTrackingEnded = false;
+            session.remoteTrackingStarted = false;
+        }
+        if (!session.remoteTrackingStarted) {
+            session.remoteTrackingStarted = true;
+            postRemoteSessionEvent(session, 'start');
+        }
+        clearInterval(session.remoteTrackingHeartbeat);
+        session.remoteTrackingHeartbeat = setInterval(function () {
+            if (session.remoteTrackingEnded || session.state !== 'streaming') return;
+            if (!session.remoteTrackingStarted) {
+                session.remoteTrackingStarted = true;
+                postRemoteSessionEvent(session, 'start');
+            } else {
+                postRemoteSessionEvent(session, 'heartbeat');
+            }
+        }, 30000);
+    }
+
+    function endRemoteSessionTracking(session, reason, keepalive) {
+        if (!session) return;
+        if (getTransportName() === 'rd') return;
+        clearInterval(session.remoteTrackingHeartbeat);
+        session.remoteTrackingHeartbeat = null;
+        if (!session.remoteTrackingStarted || session.remoteTrackingEnded) return;
+        session.remoteTrackingEnded = true;
+        postRemoteSessionEvent(session, 'end', reason || 'disconnected', keepalive === true);
+    }
+
     const Prefs = window.RemoteViewerPrefs || {};
     const globalViewerPrefs = typeof Prefs.loadRemoteViewerPrefs === 'function'
         ? Prefs.loadRemoteViewerPrefs(window.BetterDesk?.user?.id)
@@ -229,6 +305,10 @@
             this.viewerPrefs = cloneViewerPrefs();
             this.mediaRecorder = null;
             this.recordedChunks = [];
+            this.remoteTrackingId = newRemoteTrackingID();
+            this.remoteTrackingStarted = false;
+            this.remoteTrackingEnded = false;
+            this.remoteTrackingHeartbeat = null;
         }
     }
 
@@ -758,6 +838,7 @@
             return;
         }
 
+        endRemoteSessionTracking(session, 'session_closed');
         try { if (session.client) session.client.disconnect(); } catch { /* ignore */ }
         if (window.__fileTransferModal?.isOpen() &&
             window.__fileTransferModal._session?.deviceId === deviceId) {
@@ -845,6 +926,7 @@
         });
 
         c.on('disconnected', (reason) => {
+            endRemoteSessionTracking(session, reason || 'disconnected');
             setSessionStatus(session, 'info', reason || _('remote.disconnected'));
             showSessionActions(session);
             if (isActive(session)) setToolbarChromeVisible(false);
@@ -922,6 +1004,7 @@
         });
 
         c.on('session_start', () => {
+            startRemoteSessionTracking(session);
             session.connectionOverlay.style.display = 'none';
             session.passwordOverlay.style.display = 'none';
             session.client.renderer.resize();
@@ -2146,6 +2229,7 @@
     function installLifecycleHandlers() {
         const teardown = () => {
             for (const session of sessions.values()) {
+                endRemoteSessionTracking(session, 'page_closed', true);
                 try {
                     if (session.client) session.client.disconnect();
                 } catch { /* ignore */ }

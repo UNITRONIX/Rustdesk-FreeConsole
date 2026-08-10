@@ -1,7 +1,7 @@
 <%- include('layouts/main', {
     title: _('nav.devices'),
-    pageStyles: ['devices', 'device-detail'],
-    pageScripts: ['devices', 'deviceDetail', 'rdclient/mesh-terminal', 'rdclient/mesh-port-forward'],
+    pageStyles: ['devices', 'device-detail', 'device-activity'],
+    pageScripts: ['devices', 'deviceActivity', 'deviceDetail', 'rdclient/mesh-terminal', 'rdclient/mesh-port-forward'],
     currentPage: 'devices',
     breadcrumb: [{ label: _('nav.devices') }],
     body: `
@@ -13,12 +13,81 @@
                     <span class="devices-count" id="devices-count">0</span>
                 </div>
                 <div class="devices-actions">
+                    <button class="btn btn-secondary btn-sm" id="device-activity-toggle">
+                        <span class="material-icons">schedule</span>
+                        <span class="btn-label">${_('devices.activity_report')}</span>
+                    </button>
                     <button class="btn btn-secondary btn-sm" id="sync-btn">
                         <span class="material-icons">sync</span>
                         <span class="btn-label">${_('devices.sync_status')}</span>
                     </button>
                 </div>
             </div>
+
+            <!-- Server-observed connected-time report -->
+            <section class="device-activity-panel" id="device-activity-panel" hidden>
+                <div class="device-activity-heading">
+                    <div>
+                        <h2>${_('devices.activity_title')}</h2>
+                        <p>${_('devices.activity_hint')}</p>
+                    </div>
+                    <button type="button" class="btn-icon" id="device-activity-close" title="${_('actions.close')}">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+                <div class="device-activity-filters">
+                    <label>
+                        <span>${_('devices.activity_from')}</span>
+                        <input type="date" class="form-input" id="device-activity-from">
+                    </label>
+                    <label>
+                        <span>${_('devices.activity_to')}</span>
+                        <input type="date" class="form-input" id="device-activity-to">
+                    </label>
+                    <label>
+                        <span>${_('devices.activity_operator')}</span>
+                        <input type="text" class="form-input" id="device-activity-operator" list="device-activity-operators" placeholder="${_('devices.activity_all_operators')}">
+                        <datalist id="device-activity-operators"></datalist>
+                    </label>
+                    <label class="device-activity-connected-only">
+                        <input type="checkbox" id="device-activity-connected-only">
+                        <span>${_('devices.filter_live_only')}</span>
+                    </label>
+                    <button type="button" class="btn btn-primary" id="device-activity-run">
+                        <span class="material-icons">analytics</span>
+                        ${_('devices.activity_generate')}
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="device-activity-export" disabled>
+                        <span class="material-icons">download</span>
+                        ${_('devices.activity_export_csv')}
+                    </button>
+                </div>
+                <div class="device-activity-note">
+                    <span class="material-icons">info</span>
+                    <span>${_('devices.activity_presence_note')}</span>
+                </div>
+                <div class="device-activity-summary" id="device-activity-summary"></div>
+                <div class="device-activity-table-wrap">
+                    <table class="device-activity-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="device-activity-select-all" checked aria-label="${_('devices.activity_select_all_operators')}"></th>
+                                <th>${_('devices.activity_operator')}</th>
+                                <th>${_('devices.activity_total')}</th>
+                                <th>${_('devices.activity_current_session')}</th>
+                                <th>${_('devices.activity_devices')}</th>
+                                <th>${_('devices.activity_days')}</th>
+                                <th>${_('devices.activity_sessions')}</th>
+                                <th>${_('devices.live')}</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="device-activity-tbody">
+                            <tr><td colspan="9" class="device-activity-empty">${_('devices.activity_open_hint')}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
             <!-- Folder & group tiles -->
             <div class="devices-tile-bars">
@@ -86,6 +155,7 @@
                 <div class="toolbar-filters">
                     <button class="filter-btn active" data-filter="all">${_('devices.filter_all')}</button>
                     <button class="filter-btn" data-filter="online">${_('devices.filter_online')}</button>
+                    <button class="filter-btn" data-filter="live">${_('devices.filter_live')}</button>
                     <button class="filter-btn" data-filter="offline">${_('devices.filter_offline')}</button>
                     <button class="filter-btn" data-filter="mesh_agent">${_('mesh.filter_mesh')}</button>
                     <button class="filter-btn" data-filter="banned">${_('devices.filter_banned')}</button>
@@ -120,6 +190,10 @@
                             <span>${_('devices.last_seen')}</span>
                         </label>
                         <label class="column-toggle">
+                            <input type="checkbox" data-column="connected_for" checked>
+                            <span>${_('devices.live')}</span>
+                        </label>
+                        <label class="column-toggle">
                             <input type="checkbox" data-column="status" checked>
                             <span>${_('devices.status')}</span>
                         </label>
@@ -142,6 +216,7 @@
                                 <th class="sortable" data-sort="device_type" data-column="device_type">${_('devices.device_type')}</th>
                                 <th class="sortable" data-sort="platform" data-column="platform">${_('devices.platform')}</th>
                                 <th class="sortable" data-sort="last_online" data-column="last_online">${_('devices.last_seen')}</th>
+                                <th class="sortable" data-sort="remote_live_seconds" data-column="connected_for">${_('devices.live')}</th>
                                 <th data-column="status">${_('devices.status')}</th>
                                 <th data-column="tags">${_('devices.tags')}</th>
                                 <th class="col-actions" data-column="actions"></th>
@@ -149,7 +224,7 @@
                         </thead>
                         <tbody id="devices-tbody">
                             <tr class="loading-row">
-                                <td colspan=\"8\" style=\"text-align: center; padding: 40px;\">
+                                <td colspan=\"9\" style=\"text-align: center; padding: 40px;\">
                                     <span class="skeleton skeleton-text" style="width: 200px;"></span>
                                 </td>
                             </tr>

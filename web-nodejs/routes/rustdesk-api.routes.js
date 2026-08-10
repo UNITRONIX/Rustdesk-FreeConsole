@@ -1654,6 +1654,15 @@ router.post('/api/audit/conn', async (req, res) => {
     try {
         const body = req.body || {};
 
+        // In consolidated deployments the Go API owns the audit/session
+        // database. Forward the original RustDesk 1.4.4+ payload unchanged so
+        // id/uuid/peer/type/conn_id fields are not lost in the legacy adapter.
+        if (AUDIT_SOURCE_IS_GO) {
+            const remote = await betterdeskApi.forwardClientAuditConnection(body);
+            if (remote.success) return res.status(remote.status || 200).json(remote.data || {});
+            return res.status(remote.status || 502).json({ error: remote.error || 'Audit service unavailable' });
+        }
+
         // Validate required fields (host_id may be string or number from RustDesk client)
         const hostId = body.host_id != null ? String(body.host_id) : '';
         if (!hostId) {

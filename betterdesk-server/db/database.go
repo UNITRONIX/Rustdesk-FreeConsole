@@ -357,6 +357,35 @@ type AuditConnection struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// RemoteAccessSession is an actual operator-to-device remote session. Unlike
+// DeviceOnlineSession it never represents device availability: it starts only
+// after RustDesk authorises a remote connection and ends when that connection
+// closes.
+type RemoteAccessSession struct {
+	ID               int64      `json:"id"`
+	SessionKey       string     `json:"session_key"`
+	TargetID         string     `json:"target_id"`
+	TargetUUID       string     `json:"target_uuid"`
+	OperatorUsername string     `json:"operator_username"`
+	ControllerID     string     `json:"controller_id"`
+	ControllerName   string     `json:"controller_name"`
+	ConnectionType   int        `json:"connection_type"`
+	Source           string     `json:"source"`
+	StartedAt        time.Time  `json:"started_at"`
+	LastSeenAt       time.Time  `json:"last_seen_at"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	EndReason        string     `json:"end_reason"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
+type RemoteAccessSessionFilter struct {
+	TargetIDs []string
+	Operators []string
+	From      time.Time
+	To        time.Time
+}
+
 // AuditFile records a file-transfer event reported by a RustDesk client.
 type AuditFile struct {
 	ID        int64  `json:"id"`
@@ -465,6 +494,13 @@ type Database interface {
 	BatchUpdatePeerStatus(ids []string, status string) error
 	UpdatePeerSysinfo(id, hostname, os, version string) error
 	SetAllOffline() error
+
+	// Device online presence. Timestamps are server-observed and stored in UTC.
+	TouchDeviceOnlineSession(peerID string, observedAt time.Time, maxGap time.Duration) error
+	CloseDeviceOnlineSession(peerID string, endedAt time.Time, reason string) error
+	CloseStaleDeviceOnlineSessions(staleBefore time.Time, grace time.Duration, reason string) (int64, error)
+	ListDeviceOnlineSessions(filter DeviceOnlineSessionFilter) ([]*DeviceOnlineSession, error)
+	GetOpenDeviceOnlineSessions(peerIDs []string) (map[string]*DeviceOnlineSession, error)
 
 	// Peer field updates
 	UpdatePeerFields(id string, fields map[string]string) error
@@ -634,6 +670,13 @@ type Database interface {
 	InsertAuditConnection(a *AuditConnection) error
 	ListAuditConnections(f AuditFilter) ([]*AuditConnection, error)
 	CountAuditConnections(f AuditFilter) (int, error)
+	UpsertRemoteAccessSession(session *RemoteAccessSession) error
+	TouchRemoteAccessSession(sessionKey string, observedAt time.Time) error
+	EndRemoteAccessSession(sessionKey string, endedAt time.Time, reason string) error
+	CloseStaleWebRemoteAccessSessions(staleBefore time.Time, grace time.Duration) (int64, error)
+	ListRemoteAccessSessions(filter RemoteAccessSessionFilter) ([]*RemoteAccessSession, error)
+	GetOpenRemoteAccessSessions(targetIDs []string) (map[string][]*RemoteAccessSession, error)
+	FindActiveClientUsernameByDevice(clientID string) (string, error)
 	InsertAuditFile(a *AuditFile) error
 	ListAuditFiles(f AuditFilter) ([]*AuditFile, error)
 	CountAuditFiles(f AuditFilter) (int, error)

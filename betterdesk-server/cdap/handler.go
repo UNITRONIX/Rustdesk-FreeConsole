@@ -88,6 +88,9 @@ func (g *Gateway) handleRegister(ctx context.Context, dc *DeviceConn) error {
 
 	// Update peer status to ONLINE
 	g.db.UpdatePeerStatus(dc.ID, "ONLINE", dc.ClientIP)
+	if err := g.db.TouchDeviceOnlineSession(dc.ID, time.Now().UTC(), time.Duration(dc.HeartbeatInterval*3)*time.Second); err != nil {
+		log.Printf("[cdap] failed to record online session for %s: %v", dc.ID, err)
+	}
 
 	// Send registration confirmation
 	result := map[string]any{
@@ -170,6 +173,9 @@ func (g *Gateway) handleHeartbeat(ctx context.Context, dc *DeviceConn, msg *Mess
 
 	// Keep peer ONLINE
 	g.db.UpdatePeerStatus(dc.ID, "ONLINE", dc.ClientIP)
+	if err := g.db.TouchDeviceOnlineSession(dc.ID, dc.LastHeartbeat.UTC(), time.Duration(dc.HeartbeatInterval*3)*time.Second); err != nil {
+		log.Printf("[cdap] failed to record online heartbeat for %s: %v", dc.ID, err)
+	}
 
 	// Respond with server ping
 	sendMessage(ctx, dc.conn, "ping", map[string]any{

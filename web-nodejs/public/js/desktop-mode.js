@@ -640,7 +640,7 @@
 
         var iframe = document.createElement('iframe');
         iframe.src = sanitizeDesktopRoute(win.app.route) + '?embed=1';
-        iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals');
+        iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-popups-to-escape-sandbox');
         iframe.setAttribute('loading', 'lazy');
 
         content.appendChild(loading);
