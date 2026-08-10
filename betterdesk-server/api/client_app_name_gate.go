@@ -8,7 +8,7 @@ import (
 const (
 	envWindowsClientAppNameGate = "BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE"
 	envAllowedWindowsAppNames   = "BETTERDESK_ALLOWED_WINDOWS_APP_NAMES"
-	defaultAllowedAppName       = "DCS Norway"
+	defaultAllowedAppName       = "DCS-Norway"
 	unsupportedWindowsClientMsg = "Unsupported Windows client. Use the DCS Norway Remote Desktop Client (or set BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE=false)."
 )
 

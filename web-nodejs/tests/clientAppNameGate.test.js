@@ -22,12 +22,12 @@ describe('clientAppNameGate', () => {
 
     test('allows mobile and non-Windows; blocks stock Windows', () => {
         process.env[ENV_GATE] = 'true';
-        process.env[ENV_ALLOW] = 'DCS Norway';
+        process.env[ENV_ALLOW] = 'DCS-Norway';
 
         expect(rejectWindowsClientAppName('android', 'RustDesk')).toBe('');
         expect(rejectWindowsClientAppName('ios', '')).toBe('');
         expect(rejectWindowsClientAppName('linux', 'RustDesk')).toBe('');
-        expect(rejectWindowsClientAppName('windows', 'DCS Norway')).toBe('');
+        expect(rejectWindowsClientAppName('windows', 'DCS-Norway')).toBe('');
         expect(rejectWindowsClientAppName('windows', 'RustDesk')).toBe(ERROR_MSG);
         expect(rejectWindowsClientAppName('windows', '')).toBe(ERROR_MSG);
     });

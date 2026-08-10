@@ -182,7 +182,7 @@ module.exports = {
         if (!v) return true;
         return v === 'true' || v === '1' || v === 'yes' || v === 'y';
     })(),
-    allowedWindowsAppNames: (process.env.BETTERDESK_ALLOWED_WINDOWS_APP_NAMES || 'DCS Norway')
+    allowedWindowsAppNames: (process.env.BETTERDESK_ALLOWED_WINDOWS_APP_NAMES || 'DCS-Norway')
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean),
