@@ -354,6 +354,12 @@ func (a *Agent) handleMonitorSelect(msg *Message) {
 
 // monitorCropFilter returns an ffmpeg -vf crop filter for the given monitor index.
 func monitorCropFilter(idx int) string {
+	// The default stream is gdigrab's virtual desktop. Do not turn its default
+	// monitor index into a primary-monitor crop: that silently removes other
+	// displays and is perceived as a partial screen by the operator.
+	if idx == 0 {
+		return ""
+	}
 	monitors := enumerateMonitors()
 	if idx < 0 || idx >= len(monitors) {
 		return ""

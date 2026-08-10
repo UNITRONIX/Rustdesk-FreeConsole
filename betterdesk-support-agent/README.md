@@ -1,7 +1,8 @@
 # BetterDesk Support Agent
 
 A lightweight quick-help remote desktop agent built as a **single self-contained
-Go binary** (Fyne GUI). One codebase, one binary — two distribution forms:
+Go binary**. The default interface is Wails/WebView2 on Windows (with a legacy
+Fyne fallback); one codebase produces two distribution forms:
 
 | Form | How it runs | Autostart | State location |
 |------|-------------|-----------|----------------|
@@ -32,7 +33,11 @@ only a minimal "quick help" surface.
 - **Request help** — posts to the console `/api/bd/help-request` endpoint.
 - **Test connection** — self-tests reachability of the CDAP gateway
   (`:21122/cdap/health`) and the web console (`:5000/health`) and reports each.
-- **System tray** — keeps running in the background; window hides on close.
+- **System tray** — keeps running in the background; closing the window hides
+  it, and the tray menu can reopen the agent, request help, or exit.
+- **Windows app icon** — generated from the signed branding profile and embedded
+  into the portable EXE and MSI, so it appears in the taskbar, notification area,
+  Explorer, and installed-apps list.
 
 ## Device-list marking
 
@@ -141,7 +146,7 @@ Force a backend: `BETTERDESK_UI_BACKEND=wayland` or `=x11`.
 
 | Platform | Minimum |
 |----------|---------|
-| Windows | 10 / Server 2016+ (64-bit). Fyne requires OpenGL 2.0+; use Mesa companion DLL or `-nogui` on VMs/RDP. |
+| Windows | 10 / Server 2016+ (64-bit) with WebView2. Legacy Fyne builds require OpenGL 2.0+; use Mesa companion DLL or `-nogui` on VMs/RDP. |
 | Linux | glibc-based distros with X11 or Wayland; dual UI binaries included. AppImage, deb, rpm, portable tar supported. |
 | macOS | 11+ (experimental cross-compile) |
 

@@ -38,10 +38,16 @@
     $('status-text').textContent = s.status_text || '';
     const dot = $('status-dot');
     dot.className = 'dot ' + (s.status_kind || 'ready');
-    $('version').textContent = s.version || '';
+    const contact = [s.support_email, s.support_phone, s.contact_url].filter(Boolean);
+    $('contact').textContent = contact.length ? contact.join(' • ') : (s.version || '');
+    $('contact').title = $('contact').textContent;
     if (s.logo_data_url) {
       $('logo').src = s.logo_data_url;
       $('logo').hidden = false;
+      $('logo-fallback').hidden = true;
+    } else {
+      $('logo').hidden = true;
+      $('logo-fallback').hidden = false;
     }
     applyI18n(s.strings || {});
     $('session-bar').hidden = !s.session_active;
@@ -191,6 +197,7 @@
     window.runtime.EventsOn('snapshot', applySnapshot);
     window.runtime.EventsOn('toast', toast);
     window.runtime.EventsOn('chat', (hist) => { /* open chat refreshes */ });
+    window.runtime.EventsOn('open-help', () => { $('btn-help').click(); });
     window.runtime.EventsOn('consent', (payload) => {
       const p = document.createElement('p');
       p.textContent = (payload && payload.prompt) || 'Allow remote access?';

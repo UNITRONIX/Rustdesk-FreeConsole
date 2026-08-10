@@ -101,6 +101,32 @@ if [ "${BETTERDESK_SUPPORT_FYNEUI:-0}" = "1" ]; then
     fi
 fi
 
+WINDOWS_RESOURCE=""
+WINDOWS_RESOURCE_DIR=""
+generate_windows_resources() {
+    WINDOWS_RESOURCE_DIR="$(mktemp -d)"
+    local icon="${WINDOWS_RESOURCE_DIR}/betterdesk-support.ico"
+    local manifest="${WINDOWS_RESOURCE_DIR}/betterdesk-support.manifest"
+    WINDOWS_RESOURCE="resource_windows_amd64.syso"
+
+    "$GO" run ./cmd/winicon -branding resources/branding.json -out "$icon"
+    cat > "$manifest" <<'EOF'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>
+EOF
+    # rsrc emits a Windows/amd64 COFF object recognised by go build. Keeping
+    # this in the module avoids a host-only windres dependency in the panel
+    # build worker.
+    CGO_ENABLED=0 "$GO" run github.com/akavel/rsrc \
+        -arch amd64 -ico "$icon" -manifest "$manifest" -o "$WINDOWS_RESOURCE"
+}
+
 if [ ! -f "frontend/ui/index.html" ]; then
     echo "ERROR: frontend/ui/index.html missing (Wails UI assets)" >&2
     exit 1
@@ -197,12 +223,21 @@ restore_branding() {
         cp "$BRANDING_PUB_BAK" resources/branding.pub
         rm -f "$BRANDING_PUB_BAK"
     fi
+    if [ -n "$WINDOWS_RESOURCE" ]; then
+        rm -f "$WINDOWS_RESOURCE"
+    fi
+    if [ -n "$WINDOWS_RESOURCE_DIR" ]; then
+        rm -rf "$WINDOWS_RESOURCE_DIR"
+    fi
 }
 trap restore_branding EXIT
 
 echo "Building $OUTPUT (GOOS=$TARGET_OS) ..."
 LDFLAGS="-s -w"
 [ "$TARGET_OS" = "windows" ] && LDFLAGS="$WIN_LDFLAGS"
+if [ "$TARGET_OS" = "windows" ]; then
+    generate_windows_resources
+fi
 
 BUILD_CMD=("$GO" build -trimpath -tags "$BUILD_TAGS" -ldflags "$LDFLAGS" -o "$OUTPUT" .)
 if [ "${BETTERDESK_USE_GARBLE:-0}" = "1" ] && command -v garble >/dev/null 2>&1; then

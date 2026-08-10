@@ -20,6 +20,10 @@ func StartTerminal(id string, cols, rows int, shell string, onOutput func([]byte
 
 	cmd := exec.Command(shell, "/Q")
 	cmd.Env = os.Environ()
+	// Pipe-based terminals do not need a visible console. Without this flag a
+	// session that accidentally reaches this shared path flashes cmd.exe over
+	// the user's desktop and can itself be captured by remote support.
+	hideConsole(cmd)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

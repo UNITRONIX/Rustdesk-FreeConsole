@@ -9,16 +9,17 @@
 <body>
   <div id="app">
     <header class="header" id="header">
-      <div class="brand-row">
-        <img id="logo" class="logo" alt="" hidden />
-        <div>
-          <div class="product" id="product">BetterDesk Support</div>
-          <div class="tagline" id="tagline"></div>
-        </div>
+      <div class="brand">
+        <div class="product" id="product">BetterDesk Support</div>
+        <div class="tagline" id="tagline"></div>
       </div>
     </header>
 
     <main class="main">
+      <div class="body-logo" aria-hidden="true">
+        <img id="logo" class="logo" alt="" hidden />
+        <span id="logo-fallback">🎧</span>
+      </div>
       <div class="status" id="status-row">
         <span class="dot" id="status-dot"></span>
         <span id="status-text">…</span>
@@ -28,7 +29,7 @@
         <div class="card-label" data-i18n="your_id">Your ID</div>
         <div class="card-row">
           <div class="card-value mono" id="device-id">—</div>
-          <button type="button" class="icon-btn" id="copy-id" title="Copy">⧉</button>
+          <button type="button" class="icon-btn copy-btn" id="copy-id" title="Copy" aria-label="Copy ID">⧉</button>
         </div>
       </section>
 
@@ -36,18 +37,24 @@
         <div class="card-label" data-i18n="access_password">Access password</div>
         <div class="card-row">
           <div class="card-value mono" id="password">—</div>
-          <button type="button" class="icon-btn" id="copy-pw" title="Copy">⧉</button>
+          <button type="button" class="icon-btn copy-btn" id="copy-pw" title="Copy" aria-label="Copy password">⧉</button>
         </div>
       </section>
 
-      <button type="button" class="btn secondary" id="btn-help" data-i18n="request_help">Request help</button>
-      <button type="button" class="btn primary" id="btn-chat" data-i18n="chat_with_support">Chat with support</button>
+      <button type="button" class="btn secondary" id="btn-help">
+        <span class="btn-icon" aria-hidden="true">?</span>
+        <span data-i18n="request_help">Request help</span>
+      </button>
+      <button type="button" class="btn primary" id="btn-chat">
+        <span class="btn-icon" aria-hidden="true">▰</span>
+        <span data-i18n="chat_with_support">Chat with support</span>
+      </button>
     </main>
 
     <footer class="footer">
-      <button type="button" class="icon-btn" id="btn-settings" title="Settings">⚙</button>
-      <span class="version" id="version"></span>
-      <button type="button" class="icon-btn" id="btn-quit" title="Quit">✕</button>
+      <button type="button" class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">⚙</button>
+      <span class="contact" id="contact"></span>
+      <button type="button" class="icon-btn" id="btn-quit" title="Quit" aria-label="Quit">⏻</button>
     </footer>
   </div>
 

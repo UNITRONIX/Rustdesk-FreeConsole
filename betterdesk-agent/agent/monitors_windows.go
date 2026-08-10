@@ -8,32 +8,54 @@ import (
 	"strings"
 )
 
-// enumerateMonitors lists displays via PowerShell's WMI bridge. The Win32
-// device-context APIs exist in syscall but pulling them in for what is a
-// once-per-session enumeration costs more than the PowerShell hop.
+// enumerateMonitors lists displays and their virtual-desktop bounds. Screen is
+// the only PowerShell-accessible API here that exposes the geometry needed to
+// explain what the capture source is sharing; WMI only exposes display names.
 func enumerateMonitors() []MonitorInfo {
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
-		`Get-WmiObject -Namespace root\wmi -Class WmiMonitorBasicDisplayParams |
-		ForEach-Object { [pscustomobject]@{ Name = $_.InstanceName } } |
+		`Add-Type -AssemblyName System.Windows.Forms;
+		[System.Windows.Forms.Screen]::AllScreens |
+		ForEach-Object { [pscustomobject]@{
+			Name = $_.DeviceName
+			Width = $_.Bounds.Width
+			Height = $_.Bounds.Height
+			X = $_.Bounds.X
+			Y = $_.Bounds.Y
+			Primary = $_.Primary
+		} } |
 		ConvertTo-Json -Compress`)
 	hideConsole(cmd)
 	out, err := cmd.Output()
 	if err == nil {
 		s := strings.TrimSpace(string(out))
 		if s != "" {
-			var raw []struct{ Name string }
-			if err := json.Unmarshal([]byte(s), &raw); err == nil {
-				mons := make([]MonitorInfo, 0, len(raw))
-				for i, r := range raw {
-					mons = append(mons, MonitorInfo{
-						Index:   i,
-						Name:    r.Name,
-						Primary: i == 0,
-					})
+			type screen struct {
+				Name    string
+				Width   int
+				Height  int
+				X       int
+				Y       int
+				Primary bool
+			}
+			var raw []screen
+			if err := json.Unmarshal([]byte(s), &raw); err != nil {
+				var one screen
+				if json.Unmarshal([]byte(s), &one) == nil && one.Name != "" {
+					raw = []screen{one}
 				}
-				if len(mons) > 0 {
-					return mons
+			}
+			mons := make([]MonitorInfo, 0, len(raw))
+			for i, r := range raw {
+				if r.Width <= 0 || r.Height <= 0 {
+					continue
 				}
+				mons = append(mons, MonitorInfo{
+					Index: i, Name: r.Name, Width: r.Width, Height: r.Height,
+					X: r.X, Y: r.Y, Primary: r.Primary,
+				})
+			}
+			if len(mons) > 0 {
+				return mons
 			}
 		}
 	}

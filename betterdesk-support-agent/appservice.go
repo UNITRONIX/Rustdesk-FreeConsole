@@ -19,10 +19,10 @@ type AppService struct {
 	signalHostMu sync.Mutex
 	signalHost   *signalhost.Host
 
-	consentMu     sync.Mutex
+	consentMu      sync.Mutex
 	pendingConsent *consentRequest
-	chatMessages  []string
-	chatMu        sync.Mutex
+	chatMessages   []string
+	chatMu         sync.Mutex
 
 	statusMu   sync.Mutex
 	statusKind statusKind
@@ -33,35 +33,39 @@ type AppService struct {
 	sessionOp     string
 	sessionMode   string
 
-	ctx context.Context
+	ctx      context.Context
+	trayOnce sync.Once
 }
 
 type UISnapshot struct {
-	ProductName     string   `json:"product_name"`
-	CompanyName     string   `json:"company_name"`
-	Tagline         string   `json:"tagline"`
-	PrimaryColor    string   `json:"primary_color"`
-	SurfaceColor    string   `json:"surface_color"`
-	BackgroundColor string   `json:"background_color"`
-	TextColor       string   `json:"text_color"`
-	TextMutedColor  string   `json:"text_muted_color"`
-	LogoDataURL     string   `json:"logo_data_url"`
-	Version         string   `json:"version"`
-	DeviceID        string   `json:"device_id"`
-	DeviceIDFmt     string   `json:"device_id_fmt"`
-	Password        string   `json:"password"`
-	PasswordMasked  string   `json:"password_masked"`
-	AccessMode      string   `json:"access_mode"`
-	CustomPassword  bool     `json:"custom_password"`
-	ShowPassword    bool     `json:"show_password"`
-	AllowUnattended bool     `json:"allow_unattended"`
-	Language        string   `json:"language"`
-	StatusKind      string   `json:"status_kind"`
-	StatusText      string   `json:"status_text"`
-	SessionActive   bool     `json:"session_active"`
-	SessionOperator string   `json:"session_operator"`
-	SessionMode     string   `json:"session_mode"`
-	ModeOptions     []string `json:"mode_options"`
+	ProductName     string            `json:"product_name"`
+	CompanyName     string            `json:"company_name"`
+	Tagline         string            `json:"tagline"`
+	PrimaryColor    string            `json:"primary_color"`
+	SurfaceColor    string            `json:"surface_color"`
+	BackgroundColor string            `json:"background_color"`
+	TextColor       string            `json:"text_color"`
+	TextMutedColor  string            `json:"text_muted_color"`
+	LogoDataURL     string            `json:"logo_data_url"`
+	SupportEmail    string            `json:"support_email"`
+	SupportPhone    string            `json:"support_phone"`
+	ContactURL      string            `json:"contact_url"`
+	Version         string            `json:"version"`
+	DeviceID        string            `json:"device_id"`
+	DeviceIDFmt     string            `json:"device_id_fmt"`
+	Password        string            `json:"password"`
+	PasswordMasked  string            `json:"password_masked"`
+	AccessMode      string            `json:"access_mode"`
+	CustomPassword  bool              `json:"custom_password"`
+	ShowPassword    bool              `json:"show_password"`
+	AllowUnattended bool              `json:"allow_unattended"`
+	Language        string            `json:"language"`
+	StatusKind      string            `json:"status_kind"`
+	StatusText      string            `json:"status_text"`
+	SessionActive   bool              `json:"session_active"`
+	SessionOperator string            `json:"session_operator"`
+	SessionMode     string            `json:"session_mode"`
+	ModeOptions     []string          `json:"mode_options"`
 	Strings         map[string]string `json:"strings"`
 }
 
@@ -93,11 +97,17 @@ func newAppService() (*AppService, error) {
 
 func (s *AppService) startup(ctx context.Context) {
 	s.ctx = ctx
+	s.startTray()
 	if s.brand.HasConnection() {
 		s.bootstrapConnection()
 	}
 	log.Printf("[support-agent] %s starting (device=%s) ui=wails", version, s.state.DeviceID)
 	appLogInfo("startup", "support agent started", map[string]any{"device_id": s.state.DeviceID, "version": version, "ui": "wails"})
+}
+
+func (s *AppService) shutdown(ctx context.Context) {
+	s.stopTray()
+	s.stopRemoteAccessForEnrollmentState()
 }
 
 func (s *AppService) emit(event string, data any) {
@@ -139,6 +149,9 @@ func (s *AppService) GetSnapshot() UISnapshot {
 		TextColor:       s.brand.TextColor,
 		TextMutedColor:  s.brand.TextMutedColor,
 		LogoDataURL:     s.brand.LogoDataURL,
+		SupportEmail:    s.brand.SupportEmail,
+		SupportPhone:    s.brand.SupportPhone,
+		ContactURL:      s.brand.ContactURL,
 		Version:         version,
 		DeviceID:        deviceID,
 		DeviceIDFmt:     formatDeviceID(deviceID),

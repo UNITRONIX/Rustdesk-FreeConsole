@@ -1146,6 +1146,12 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {},
             const msiDir = path.join(packDir, 'msi');
             await fsp.mkdir(msiDir, { recursive: true });
             await fsp.copyFile(binaryPath, path.join(msiDir, 'betterdesk-support.exe'));
+            const msiIcon = path.join(msiDir, 'betterdesk-support.ico');
+            await _runProcess('go', [
+                'run', './cmd/winicon',
+                '-branding', 'resources/branding.json',
+                '-out', msiIcon,
+            ], { cwd: workDir });
             const mesaFiles = _mesaCompanionFiles();
             let mesaComponent = '';
             let mesaFeatureRef = '';
@@ -1176,6 +1182,8 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {},
     <Package InstallerVersion="200" Compressed="yes" InstallScope="perUser" Platform="x64"/>
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed."/>
     <MediaTemplate EmbedCab="yes"/>
+    <Icon Id="ProductIcon" SourceFile="betterdesk-support.ico"/>
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon"/>
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="LocalAppDataFolder">
         <Directory Id="INSTALLDIR" Name="BetterDeskSupport"/>

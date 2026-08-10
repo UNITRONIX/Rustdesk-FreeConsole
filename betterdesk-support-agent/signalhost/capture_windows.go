@@ -12,24 +12,26 @@ import (
 )
 
 func platformCaptureStrategies(fps int) []captureStrategy {
-	var out []captureStrategy
-	if ffmpegSupportsDDAGrab() {
-		out = append(out, captureStrategy{
-			Name: "ddagrab",
-			Args: []string{
-				"-f", "lavfi",
-				"-i", fmt.Sprintf("ddagrab=output_idx=0:framerate=%d:draw_mouse=1,hwdownload,format=bgra", fps),
-			},
-		})
-	}
-	out = append(out, captureStrategy{
+	// gdigrab's "desktop" input covers the virtual desktop. Prefer it over
+	// ddagrab, which is restricted to one physical output and otherwise makes
+	// multi-monitor users look as if only a fragment of their screen is shared.
+	out := []captureStrategy{{
 		Name: "gdigrab",
 		Args: []string{
 			"-f", "gdigrab",
 			"-framerate", fmt.Sprintf("%d", fps),
 			"-i", "desktop",
 		},
-	})
+	}}
+	if ffmpegSupportsDDAGrab() {
+		out = append(out, captureStrategy{
+			Name: "ddagrab(single-output fallback)",
+			Args: []string{
+				"-f", "lavfi",
+				"-i", fmt.Sprintf("ddagrab=output_idx=0:framerate=%d:draw_mouse=1,hwdownload,format=bgra", fps),
+			},
+		})
+	}
 	return out
 }
 

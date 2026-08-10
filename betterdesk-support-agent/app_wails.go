@@ -34,11 +34,16 @@ func run() {
 		},
 		BackgroundColour: &options.RGBA{R: 15, G: 23, B: 42, A: 255},
 		OnStartup:        svc.startup,
-		Bind:             []interface{}{svc},
+		OnShutdown:       svc.shutdown,
+		// The agent continues to receive supervised-session requests after its
+		// window is closed. Keep it available through the Windows notification
+		// area instead of terminating the remote-access engine.
+		HideWindowOnClose: true,
+		Bind:              []interface{}{svc},
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
-			DisableWindowIcon:   false,
+			DisableWindowIcon:    false,
 		},
 	})
 	if err != nil {
