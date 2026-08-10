@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.54] — 2026-08-10
+
 ### Fixed
 - **Users “devices visible” always 0:** `Utils.api` already unwraps `{ success, data }`, but the users table read `resp.data.count` (always undefined). Use `resp.count` so admin/operator scope matches address-book access (including device groups). Ships via Settings → Updates.
 
@@ -3076,3 +3083,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.51]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.50...v3.5.51
 [3.5.52]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.51...v3.5.52
 [3.5.53]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.52...v3.5.53
+[3.5.54]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.53...v3.5.54
