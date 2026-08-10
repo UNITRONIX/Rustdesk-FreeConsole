@@ -1,5 +1,12 @@
 ## [Unreleased]
 
+### Changed
+- _(none yet)_
+
+---
+
+## [3.5.48] — 2026-08-10
+
 ### Added
 - **Shared Address Book protocol for Access Policy auto-connect:** BetterDesk now speaks RustDesk Pro shared-AB endpoints (`/api/ab/personal` guid, `/api/ab/settings`, `/api/ab/shared/profiles`, `/api/ab/peers`). The read-only **Devices** book injects sealed Access Policy passwords when unattended + Passwordless server access are enabled. Stock RustDesk only uses `peers[].password` from a shared Address Book card — not from Groups / Accessible devices, and not from legacy `/api/ab`.
 
@@ -3019,3 +3026,4 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 [3.5.45]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.44...v3.5.45
 [3.5.46]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.45...v3.5.46
 [3.5.47]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.46...v3.5.47
+[3.5.48]: https://github.com/UNITRONIX/BetterDesk/compare/v3.5.47...v3.5.48
