@@ -9,7 +9,7 @@
 
 const ENV_GATE = 'BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE';
 const ENV_ALLOW = 'BETTERDESK_ALLOWED_WINDOWS_APP_NAMES';
-const DEFAULT_APP = 'DCS-Norway';
+const DEFAULT_APP = 'DCS-Norway-RD';
 const ERROR_MSG =
     'Unsupported Windows client. Use the DCS Norway Remote Desktop Client (or set BETTERDESK_WINDOWS_CLIENT_APP_NAME_GATE=false).';
 

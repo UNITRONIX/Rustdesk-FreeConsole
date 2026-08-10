@@ -4,7 +4,7 @@ import "testing"
 
 func TestRejectWindowsClientAppName(t *testing.T) {
 	t.Setenv(envWindowsClientAppNameGate, "true")
-	t.Setenv(envAllowedWindowsAppNames, "DCS-Norway")
+	t.Setenv(envAllowedWindowsAppNames, "DCS-Norway-RD")
 
 	cases := []struct {
 		os, app string
@@ -14,10 +14,10 @@ func TestRejectWindowsClientAppName(t *testing.T) {
 		{"ios", "", false},
 		{"linux", "RustDesk", false},
 		{"macos", "RustDesk", false},
-		{"windows", "DCS-Norway", false},
+		{"windows", "DCS-Norway-RD", false},
 		{"windows", "RustDesk", true},
 		{"windows", "", true},
-		{"Windows", "DCS-Norway", false},
+		{"Windows", "DCS-Norway-RD", false},
 	}
 	for _, c := range cases {
 		msg := rejectWindowsClientAppName(c.os, c.app)
