@@ -200,16 +200,8 @@ async function buildRustDeskConfigPayloadAsync(endpointsOrHost, options = {}) {
 }
 
 /**
- * QR / deep-link format: rustdesk://config/<standard-base64-json>
- */
-function encodeRustDeskConfigUri(payload) {
-    const jsonStr = JSON.stringify(payload);
-    const b64 = Buffer.from(jsonStr).toString('base64');
-    return `rustdesk://config/${b64}`;
-}
-
-/**
  * CLI / Import format for `rustdesk.exe --config`: reverse(base64(json)) without padding.
+ * Same string as RustDesk Export Server Config / Import Server Config.
  */
 function encodeRustDeskCliConfigString(payload) {
     const jsonStr = JSON.stringify(payload);
@@ -219,8 +211,16 @@ function encodeRustDeskCliConfigString(payload) {
 }
 
 /**
+ * QR / deep-link format: rustdesk://config/<reversed-deploy-string>
+ * Path must match Export/`--config` (not standard base64) so RustDesk ServerConfig.decode works (#368).
+ */
+function encodeRustDeskConfigUri(payload) {
+    return `rustdesk://config/${encodeRustDeskCliConfigString(payload)}`;
+}
+
+/**
  * Generate QR code containing the RustDesk configuration URI.
- * Format: rustdesk://config/<base64-json>
+ * Format: rustdesk://config/<reversed-deploy-string>
  * @param {{ host: string, relay?: string, api?: string } | string} endpointsOrHost
  */
 async function getServerConfigQR(endpointsOrHost) {

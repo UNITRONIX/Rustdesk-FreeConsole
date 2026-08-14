@@ -10,20 +10,27 @@ describe('keyService RustDesk config encoding', () => {
         key: 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/=',
     };
 
-    it('encodeRustDeskConfigUri uses standard base64 JSON', () => {
-        const uri = keyService.encodeRustDeskConfigUri(samplePayload);
-        expect(uri.startsWith('rustdesk://config/')).toBe(true);
-        const b64 = uri.slice('rustdesk://config/'.length);
-        const decoded = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
-        expect(decoded).toEqual(samplePayload);
-    });
-
     it('encodeRustDeskCliConfigString reverses base64 without padding', () => {
         const json = JSON.stringify(samplePayload);
         let b64 = Buffer.from(json).toString('base64').replace(/=+$/, '');
         const expected = b64.split('').reverse().join('');
 
         expect(keyService.encodeRustDeskCliConfigString(samplePayload)).toBe(expected);
+    });
+
+    it('encodeRustDeskConfigUri path matches deploy string (#368)', () => {
+        const uri = keyService.encodeRustDeskConfigUri(samplePayload);
+        const deploy = keyService.encodeRustDeskCliConfigString(samplePayload);
+        expect(uri).toBe(`rustdesk://config/${deploy}`);
+    });
+
+    it('encodeRustDeskConfigUri round-trips like RustDesk ServerConfig.decode (#368)', () => {
+        const uri = keyService.encodeRustDeskConfigUri(samplePayload);
+        const path = uri.slice('rustdesk://config/'.length);
+        // RustDesk: reverse path → normalize base64 → decode → JSON
+        const reversed = path.split('').reverse().join('');
+        const decoded = JSON.parse(Buffer.from(reversed, 'base64').toString('utf8'));
+        expect(decoded).toEqual(samplePayload);
     });
 
     it('buildRustDeskConfigPayload normalizes host input', () => {

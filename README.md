@@ -695,9 +695,12 @@ The web console **Dashboard → RustDesk Client Configuration** card provides ma
 #### 1. QR / deep link
 
 ```
-rustdesk://config/<standard-base64-encoded-json>
+rustdesk://config/<reversed-deploy-string>
 ```
 
+Same encoding as **Copy deploy string** / Export Server Config (reversed base64, no `=` padding) — not standard base64 (#368).
+
+**Android / iOS (RustDesk 1.4.9+):** stock builds disable `rustdesk://config/...` unless the built-in option `allow-deep-link-server-settings` is `Y`. Fallback: **Copy deploy string** → client **Settings → Network → Import Server Config**, or enter the four Dashboard fields manually.
 #### 2. CLI / Import (`rustdesk.exe --config`)
 
 Uses a **reversed** base64 string (no `=` padding) — the same format as **Settings → Network → Import Server Config** in the RustDesk client. **Do not** pass raw JSON.

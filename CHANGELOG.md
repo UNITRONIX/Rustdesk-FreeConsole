@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+- **RustDesk client config QR encoding (#368):** Dashboard / Keys QR and `config_uri` now embed the same reversed deploy string as **Copy deploy string** / Import Server Config (`rustdesk://config/<reversed-b64>`). Stock clients rejected the previous standard-base64 path as invalid. Ships via panel update. Verify: QR path equals deploy string; desktop Import works; on Android/iOS 1.4.9+ enable built-in `allow-deep-link-server-settings` or use Import fallback.
+- **MFA enrollment QR compatibility:** TOTP setup now uses issuer `BetterDesk` (no spaces), a 20-byte secret, and a Go-aligned `otpauth://` URI without `algorithm=`. Some apps (e.g. Microsoft Authenticator on iOS) reject issuer labels with spaces as an invalid QR. Ships via panel update. Verify: Settings → Enable 2FA → scan with Google/Microsoft Authenticator; confirm code enables 2FA.
+
 ### Changed
 - _(none yet)_
 

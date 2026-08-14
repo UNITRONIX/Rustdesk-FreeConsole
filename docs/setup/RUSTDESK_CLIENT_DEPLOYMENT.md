@@ -28,8 +28,10 @@ Use **Copy deploy string** on the dashboard, or **Intune / PSADT script** for a 
 | Method | Format | Use case |
 |--------|--------|----------|
 | Manual UI | Four fields in Network settings | First test, one-off machines |
-| QR / deep link | `rustdesk://config/<standard-base64-json>` | Mobile / scan from dashboard QR |
+| QR / deep link | `rustdesk://config/<reversed-deploy-string>` | Mobile / scan from dashboard QR (same string as CLI) |
 | CLI / Import | `reverse(base64(json))` without `=` padding | Intune, PSADT, GPO, RMM scripts |
+
+> **Mobile note (#368):** The QR path must use the **reversed** deploy string (not standard base64). On stock RustDesk **Android/iOS 1.4.9+**, deep links that change server settings are off by default — enable built-in `allow-deep-link-server-settings`, or use **Copy deploy string** → **Import Server Config**.
 
 All three use the same JSON payload:
 

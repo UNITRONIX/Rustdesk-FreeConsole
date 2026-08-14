@@ -1016,6 +1016,24 @@ function validatePasswordStrength(password) {
 
 // ==================== TOTP (2FA) Functions ====================
 
+/** TOTP issuer label — no spaces (MS Authenticator / iOS reject some spaced issuers). Matches Go TOTPUri. */
+const TOTP_ISSUER = 'BetterDesk';
+
+/**
+ * Build otpauth:// URI compatible with Google/Microsoft Authenticator (aligned with Go TOTPUri).
+ * Omits algorithm= (SHA1 default) for max scanner compatibility.
+ */
+function buildTotpOtpauthUrl(account, secret, issuer = TOTP_ISSUER) {
+    const label = `${encodeURIComponent(issuer)}:${encodeURIComponent(account)}`;
+    const params = new URLSearchParams({
+        secret,
+        issuer,
+        digits: '6',
+        period: '30',
+    });
+    return `otpauth://totp/${label}?${params.toString()}`;
+}
+
 /**
  * Generate TOTP secret and QR code for user setup
  */
@@ -1024,16 +1042,15 @@ async function generateTotpSetup(userId) {
     if (!user) {
         return { success: false, error: 'User not found' };
     }
-    
-    // Generate secret
-    const secret = authenticator.generateSecret();
-    
+
+    // 20-byte secret → 32 base32 chars (same as Go GenerateTOTPSecret)
+    const secret = authenticator.generateSecret(20);
+
     // Save secret to DB (not yet enabled)
     await db.saveTotpSecret(userId, secret);
-    
-    // Generate otpauth URI
-    const otpauthUrl = authenticator.keyuri(user.username, 'BetterDesk Console', secret);
-    
+
+    const otpauthUrl = buildTotpOtpauthUrl(user.username, secret);
+
     // Generate QR code as data URL
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl, {
         width: 256,
@@ -1043,7 +1060,7 @@ async function generateTotpSetup(userId) {
             light: '#ffffff'
         }
     });
-    
+
     return {
         success: true,
         secret,
@@ -1330,4 +1347,6 @@ module.exports = {
     inferAuthProviderFromSSO,
     isExternalAuthProvider,
     isExternalAuthResult,
+    // Issue #368 — exported for unit tests
+    buildTotpOtpauthUrl,
 };
