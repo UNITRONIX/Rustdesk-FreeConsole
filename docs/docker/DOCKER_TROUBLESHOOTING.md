@@ -443,7 +443,7 @@ OCI runtime exec failed: exec failed: … executable file not found in $PATH
 ```bash
 # Pull the current tag (match VERSION / compose default), then recreate:
 cd /opt/betterdesk/docker   # or your compose directory
-# Ensure .env has BETTERDESK_IMAGE_TAG=<current VERSION>, e.g. 3.3.169
+# Ensure .env has BETTERDESK_IMAGE_TAG=<current VERSION>, e.g. 3.5.37
 docker compose pull && docker compose up -d
 
 # Official single-container service name:

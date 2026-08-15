@@ -170,8 +170,10 @@ const FILE_RULES = [
             const m = content.match(/\$\{BETTERDESK_IMAGE_TAG:-([^}]+)\}/);
             return m?.[1];
         },
-        apply: (content, version) =>
-            content.replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`),
+        apply: (content, version) => content
+            .replace(/\$\{BETTERDESK_IMAGE_TAG:-[^}]+\}/g, `\${BETTERDESK_IMAGE_TAG:-${version}}`)
+            .replace(/(#\s+Default:\s+)[^ \t]+(\s+\|\s+Rolling:)/, `$1${version}$2`)
+            .replace(/(BETTERDESK_IMAGE_TAG=)[^ \s]+(\s+docker compose up -d)/, `$1${version}$2`),
     },
     {
         id: 'docker-compose-quick-single-macvlan',

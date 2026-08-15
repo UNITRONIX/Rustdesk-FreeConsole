@@ -6,9 +6,37 @@ const path = require('path');
 /**
  * True when resolvedPath is rootDir or a descendant (no .. escape).
  */
+function normalizeComparablePath(value) {
+    let normalized = path.resolve(value);
+    const unresolvedSegments = [];
+    let existingPath = normalized;
+    while (!fs.existsSync(existingPath)) {
+        const parent = path.dirname(existingPath);
+        if (parent === existingPath) break;
+        unresolvedSegments.unshift(path.basename(existingPath));
+        existingPath = parent;
+    }
+    if (fs.existsSync(existingPath)) {
+        try {
+            normalized = path.join(
+                fs.realpathSync.native(existingPath),
+                ...unresolvedSegments
+            );
+        } catch (_e) {
+            // Keep the lexical path when the filesystem cannot resolve it.
+        }
+    }
+    if (process.platform === 'win32') {
+        // realpathSync.native may return the extended-length form while
+        // path.resolve returns a regular drive path.
+        normalized = normalized.replace(/^\\\\\?\\/, '').toLowerCase();
+    }
+    return normalized;
+}
+
 function isPathInsideRoot(resolvedPath, rootDir) {
-    const root = path.resolve(rootDir);
-    const target = path.resolve(resolvedPath);
+    const root = normalizeComparablePath(rootDir);
+    const target = normalizeComparablePath(resolvedPath);
     const rel = path.relative(root, target);
     return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }

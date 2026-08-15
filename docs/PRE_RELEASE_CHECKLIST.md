@@ -73,6 +73,38 @@ Use this checklist before every tagged release to ensure quality and stability.
 - [ ] **Windows fresh**: `.\betterdesk.ps1 -Auto` on clean Windows Server
 - [ ] **Windows update**: `.\betterdesk.ps1` option 2 preserves DB + config
 - [ ] **Docker script**: `./betterdesk-docker.sh` option 1 installs successfully
+- [ ] **Static CI**: `Installer CI` passes Bash syntax, PowerShell AST and
+  Compose validation; `install.sh` is included in version verification.
+- [ ] **Installer unit gate**: `Installer CI` runs the protocol, safe-path,
+  disk-space preflight and binary-rollback tests; the non-mutating `--help`
+  checks pass.
+- [ ] **Protocol matrix**: run
+  `node scripts/installer-protocol-check.js` against the selected API,
+  console/reverse-proxy URL and signal/relay ports; for HTTPS confirm the
+  certificate SAN and redirect behaviour.
+- [ ] **Agent fallback**: Linux agent service and Windows NSSM service start;
+  on a disposable Windows host with NSSM unavailable, the scheduled-task
+  fallback starts and `-Uninstall` / `-u` removes both service/task variants
+  while preserving data; use `-Purge` / `--purge` only for explicit cleanup.
+- [ ] **Support Agent lifecycle**: `betterdesk-support-agent -install` is
+  idempotent; `-uninstall` removes autostart and binaries while preserving
+  enrollment state, and `-uninstall -purge` removes state only when requested.
+- [ ] **Native uninstall**: `betterdesk.sh --auto --uninstall` and
+  `betterdesk.ps1 -Auto -Uninstall` remove services while preserving data;
+  repeat with `--purge` / `-Purge` only when data removal is intended.
+- [ ] **Docker uninstall**: default `install.sh --uninstall` preserves
+  volumes; `--purge` removes them only after an explicit data-loss decision.
+- [ ] **Rollback**: force a failed update in a disposable environment and
+  confirm the previous console/source/binary remains usable and update SHA is
+  not advanced.
+- [ ] **Runtime smoke**: run the manual `Installer CI` Docker runtime smoke
+  workflow for the exact GHCR tag intended for release.
+- [ ] **Lifecycle E2E**: on isolated Linux and Windows hosts, execute fresh
+  install → update → repair → backup/restore → uninstall → reinstall; record
+  elapsed time and confirm no duplicate services, rules or data.
+
+See [`docs/important/installer-contract.md`](important/installer-contract.md)
+for the lifecycle guarantees and platform endpoint matrix.
 
 ## 9. Documentation & Release
 

@@ -47,6 +47,8 @@ BETTERDESK_ORIG_ARGV=("$@")
 AUTO_MODE=false
 SKIP_VERIFY=false
 MINIMAL_MODE=false
+UNINSTALL_MODE=false
+PURGE_MODE=false
 PREFERRED_CONSOLE_TYPE="nodejs"  # Always Node.js (Flask removed in v2.3.0)
 
 # Relay server selection mode:
@@ -69,6 +71,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --minimal)
             MINIMAL_MODE=true
+            shift
+            ;;
+        --uninstall)
+            UNINSTALL_MODE=true
+            shift
+            ;;
+        --purge)
+            PURGE_MODE=true
             shift
             ;;
         --nodejs)
@@ -117,6 +127,8 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --auto, -a       Run in automatic mode (non-interactive)"
+            echo "  --uninstall      Stop services and remove the native installation"
+            echo "  --purge          With --uninstall, also remove data and keys"
             echo "  --skip-verify    Skip SHA256 verification of binaries"
             echo "  --minimal        Install Go server only (no web console)"
             echo "  --nodejs         Install Node.js web console (default)"
@@ -4428,6 +4440,32 @@ read_update_github_branch_from_env() {
     fi
 }
 
+resolve_update_remote_sha() {
+    local clone_dir="$1"
+    local remote_sha=""
+
+    if command -v git &>/dev/null && [ -d "$clone_dir/.git" ]; then
+        remote_sha=$(git -C "$clone_dir" rev-parse HEAD 2>/dev/null || true)
+    fi
+    if ! [[ "$remote_sha" =~ ^[0-9a-fA-F]{40}$ ]] && command -v git &>/dev/null; then
+        remote_sha=$(git ls-remote \
+            "https://github.com/${UPDATE_GITHUB_OWNER}/${UPDATE_GITHUB_REPO}.git" \
+            "refs/heads/${UPDATE_GITHUB_BRANCH}" 2>/dev/null | awk 'NR == 1 { print $1; exit }' || true)
+    fi
+    if ! [[ "$remote_sha" =~ ^[0-9a-fA-F]{40}$ ]] && command -v curl &>/dev/null; then
+        remote_sha=$(curl -fsSL --connect-timeout 15 --max-time 30 \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${UPDATE_GITHUB_OWNER}/${UPDATE_GITHUB_REPO}/commits?sha=${UPDATE_GITHUB_BRANCH}&per_page=1" \
+            2>/dev/null | awk -F'"' '/"sha"[[:space:]]*:/ { print $4; exit }' || true)
+    fi
+
+    if [[ "$remote_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+        printf '%s\n' "$remote_sha"
+        return 0
+    fi
+    return 1
+}
+
 write_update_github_branch_to_env() {
     local branch="$1"
     local env_file="${CONSOLE_PATH:-}/.env"
@@ -4514,6 +4552,8 @@ run_terminal_project_update() {
 update_from_github() {
     local clone_dir="$UPDATE_CLONE_DIR"
     local server_build_failed=0
+    local previous_source_dir=""
+    local remote_sha=""
 
     read_update_github_branch_from_env
 
@@ -4557,6 +4597,13 @@ update_from_github() {
         return 1
     fi
 
+    if ! remote_sha=$(resolve_update_remote_sha "$clone_dir"); then
+        print_error "Could not resolve the downloaded commit SHA; refusing an untracked update"
+        rm -rf "$clone_dir"
+        return 1
+    fi
+    print_info "Downloaded commit: ${remote_sha:0:7}"
+
     # Read remote version
     local remote_version=""
     if [ -f "$clone_dir/VERSION" ]; then
@@ -4569,8 +4616,13 @@ update_from_github() {
     # ---- Step 2: Update Go server source & compile ----
     print_step "Updating Go server source..."
     if [ -d "$GO_SERVER_SOURCE" ]; then
-        # Backup existing source (lightweight — just rename)
-        mv "$GO_SERVER_SOURCE" "${GO_SERVER_SOURCE}.pre-update.$$" 2>/dev/null || true
+        # Keep the old tree until the new server has built successfully so a
+        # failed update can restore a known-good source tree.
+        previous_source_dir="${GO_SERVER_SOURCE}.pre-update.$$"
+        if ! mv "$GO_SERVER_SOURCE" "$previous_source_dir" 2>/dev/null; then
+            previous_source_dir=""
+            print_warning "Could not stage the previous Go source tree; update will continue in place"
+        fi
     fi
     # Copy the *contents* into a guaranteed-existing destination. Copying the
     # directory itself would nest the new tree inside an existing
@@ -4581,10 +4633,9 @@ update_from_github() {
     cp -rf "$clone_dir/betterdesk-server/." "$GO_SERVER_SOURCE/"
 
     # Restore any local data/ directory that existed in the old source dir
-    if [ -d "${GO_SERVER_SOURCE}.pre-update.$$/data" ]; then
-        cp -rn "${GO_SERVER_SOURCE}.pre-update.$$/data" "$GO_SERVER_SOURCE/" 2>/dev/null || true
+    if [ -n "$previous_source_dir" ] && [ -d "$previous_source_dir/data" ]; then
+        cp -rn "$previous_source_dir/data" "$GO_SERVER_SOURCE/" 2>/dev/null || true
     fi
-    rm -rf "${GO_SERVER_SOURCE}.pre-update.$$"
     print_success "Go server source updated"
 
     # Compile Go server
@@ -4594,7 +4645,7 @@ update_from_github() {
         if ! install_golang; then
             print_warning "Go toolchain not available — server binary not updated"
             print_info "Install Go manually from https://go.dev/dl/ and re-run update"
-            # Non-critical: source files were updated, binary can be built later
+            server_build_failed=1
         fi
     fi
 
@@ -4619,6 +4670,8 @@ update_from_github() {
             print_info "Use the panel Rebuild server binary button or option 7 (Build & deploy server)"
             server_build_failed=1
         fi
+    else
+        server_build_failed=1
     fi
 
     # ---- Step 3: Update Node.js console files ----
@@ -4708,10 +4761,12 @@ update_from_github() {
     # ---- Step 4: Update installer scripts ----
     print_step "Updating installer scripts..."
     local scripts_updated=0
-    for script_file in betterdesk.sh betterdesk.ps1 betterdesk-docker.sh \
+    for script_file in install.sh betterdesk.sh betterdesk.ps1 betterdesk-docker.sh \
                        docker-compose.yml docker-compose.single.yml docker-compose.quick.yml \
                        docker-compose.quick.single.yml docker-compose.quick.single.macvlan.yml \
-                       Dockerfile Dockerfile.server Dockerfile.console VERSION; do
+                       Dockerfile Dockerfile.server Dockerfile.console docker-entrypoint.sh \
+                       docker/entrypoint.sh docker/server-entrypoint.sh docker/console-entrypoint.sh \
+                       docker/supervisord.conf scripts/installer-protocol-check.js VERSION; do
         if [ -f "$clone_dir/$script_file" ]; then
             cp "$clone_dir/$script_file" "$SCRIPT_DIR/$script_file" 2>/dev/null || true
             if [[ "$script_file" == *.sh ]]; then
@@ -4722,33 +4777,33 @@ update_from_github() {
     done
     print_success "$scripts_updated installer files updated"
 
-    # ---- Step 5: Update SHA tracking for in-app updater ----
-    if command -v git &>/dev/null && [ -d "$clone_dir/.git" ]; then
-        local remote_sha
-        remote_sha=$(git -C "$clone_dir" rev-parse HEAD 2>/dev/null)
-        if [ -n "$remote_sha" ]; then
-            mkdir -p "$CONSOLE_PATH/data"
-            echo "$remote_sha" > "$CONSOLE_PATH/data/.update_sha"
-            echo "$remote_sha" > "$CONSOLE_PATH/data/.agent_source_sha"
-            rm -f "$CONSOLE_PATH/data/.last_update_result.json"
-            print_info "SHA tracking updated: ${remote_sha:0:7}"
+    if [ "$server_build_failed" -eq 1 ]; then
+        if [ -n "$previous_source_dir" ] && [ -d "$previous_source_dir" ]; then
+            rm -rf "$GO_SERVER_SOURCE"
+            mv "$previous_source_dir" "$GO_SERVER_SOURCE" 2>/dev/null || \
+                print_warning "Could not restore the previous Go source tree"
         fi
+        rm -rf "$clone_dir"
+        print_error "Go server binary was not rebuilt — update incomplete for server component"
+        return 1
     fi
 
-    # ---- Step 6: Update VERSION file in project root ----
+    # Only mark the update complete after the server build/deploy succeeded.
+    mkdir -p "$CONSOLE_PATH/data"
+    printf '%s\n' "$remote_sha" > "$CONSOLE_PATH/data/.update_sha"
+    printf '%s\n' "$remote_sha" > "$CONSOLE_PATH/data/.agent_source_sha"
+    rm -f "$CONSOLE_PATH/data/.last_update_result.json"
+    print_info "SHA tracking updated: ${remote_sha:0:7}"
+
     if [ -f "$clone_dir/VERSION" ] && [ -n "$remote_version" ]; then
         cp "$clone_dir/VERSION" "$SCRIPT_DIR/VERSION" 2>/dev/null || true
         cp "$clone_dir/VERSION" "$CONSOLE_PATH/VERSION" 2>/dev/null || true
     fi
-
-    # Cleanup
     rm -rf "$clone_dir"
-
-    print_success "All project files updated from GitHub"
-    if [ "$server_build_failed" -eq 1 ]; then
-        print_error "Go server binary was not rebuilt — update incomplete for server component"
-        return 1
+    if [ -n "$previous_source_dir" ]; then
+        rm -rf "$previous_source_dir"
     fi
+    print_success "All project files updated from GitHub"
     return 0
 }
 
@@ -6457,11 +6512,13 @@ do_uninstall() {
     print_warning "This operation will remove BetterDesk Console!"
     echo ""
     
-    if ! confirm "Are you sure you want to continue?"; then
-        return
+    if [ "$AUTO_MODE" != true ] && [ "$UNINSTALL_MODE" != true ]; then
+        if ! confirm "Are you sure you want to continue?"; then
+            return
+        fi
     fi
     
-    if confirm "Create backup before uninstall?"; then
+    if [ "$AUTO_MODE" = true ] || confirm "Create backup before uninstall?"; then
         do_backup_silent
     fi
     
@@ -6485,14 +6542,18 @@ do_uninstall() {
     rm -f /etc/systemd/system/betterdesk-go.service
     systemctl daemon-reload
     
-    if confirm "Remove installation files ($RUSTDESK_PATH)?"; then
+    if [ "$PURGE_MODE" = true ] || { [ "$AUTO_MODE" != true ] && confirm "Remove installation files ($RUSTDESK_PATH)?"; }; then
         rm -rf "$RUSTDESK_PATH"
         print_info "Removed: $RUSTDESK_PATH"
+    else
+        print_info "Preserved server data: $RUSTDESK_PATH"
     fi
     
-    if confirm "Remove Web Console ($CONSOLE_PATH)?"; then
+    if [ "$PURGE_MODE" = true ] || { [ "$AUTO_MODE" != true ] && confirm "Remove Web Console ($CONSOLE_PATH)?"; }; then
         rm -rf "$CONSOLE_PATH"
         print_info "Removed: $CONSOLE_PATH"
+    else
+        print_info "Preserved console data: $CONSOLE_PATH"
     fi
     
     print_success "BetterDesk has been uninstalled"
@@ -7591,7 +7652,9 @@ main() {
     # Auto mode - run installation directly
     if [ "$AUTO_MODE" = true ]; then
         print_info "Running in AUTO mode..."
-        if [ "$MINIMAL_MODE" = true ]; then
+        if [ "$UNINSTALL_MODE" = true ]; then
+            do_uninstall
+        elif [ "$MINIMAL_MODE" = true ]; then
             do_install_minimal
         else
             do_install

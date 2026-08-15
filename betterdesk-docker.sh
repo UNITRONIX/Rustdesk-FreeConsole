@@ -1210,8 +1210,28 @@ start_containers() {
     elif [ "$SERVER_RUNNING" = true ] && [ "$CONSOLE_RUNNING" = true ]; then
         print_success "All containers running"
     else
-        print_warning "Some containers might not be working properly"
+        print_error "Required BetterDesk containers are not running"
+        return 1
     fi
+
+    local api_port="21114"
+    if [ "$DOCKER_LAYOUT" = "single" ] || [ "$AIO_RUNNING" = true ]; then
+        api_port="21121"
+    fi
+    local health_deadline=60
+    while [ "$health_deadline" -gt 0 ]; do
+        if curl -fsS --max-time 3 "http://127.0.0.1:${api_port}/api/health" >/dev/null 2>&1 \
+            && curl -fsS --max-time 3 "http://127.0.0.1:5000/health" >/dev/null 2>&1; then
+            print_success "API and web console health checks passed"
+            return 0
+        fi
+        sleep 2
+        health_deadline=$((health_deadline - 2))
+    done
+
+    print_error "BetterDesk containers started but health checks failed"
+    print_info "Inspect logs with: $COMPOSE_CMD -f $COMPOSE_FILE logs --tail=100"
+    return 1
 }
 
 stop_containers() {
@@ -1252,22 +1272,12 @@ create_admin_user() {
     local target_container
     target_container=$(resolve_panel_container)
 
-    docker exec -u betterdesk "$target_container" node /app/scripts/reset-password.js "$admin_password" admin 2>/dev/null || {
-        # If script fails, try via environment variable approach
-        print_info "Setting admin password via API..."
-        
-        # The console will create admin:admin by default on first run
-        # We need to change it to a secure random password
-        sleep 2
-        
-        # Use curl to change password (requires internal API)
-        # If this fails, admin will use default password which must be changed
-        docker exec -u betterdesk "$target_container" sh -c "
-            if [ -f /app/scripts/reset-password.js ]; then
-                node /app/scripts/reset-password.js '$admin_password' admin 2>/dev/null
-            fi
-        " 2>/dev/null || true
-    }
+    if ! docker exec -u betterdesk "$target_container" \
+        node /app/scripts/reset-password.js "$admin_password" admin 2>/dev/null; then
+        print_error "Could not set the admin password safely"
+        print_info "The installation is incomplete; inspect container logs before retrying"
+        return 1
+    fi
 
     echo ""
     echo -e "${GREEN}╔════════════════════════════════════════════════════════╗${NC}"
@@ -2621,7 +2631,13 @@ do_uninstall() {
     
     print_step "Stopping containers..."
     cd "$SCRIPT_DIR"
-    $COMPOSE_CMD down -v 2>/dev/null || true
+    if confirm "Remove Docker volumes (this deletes named-volume data)?"; then
+        $COMPOSE_CMD down -v 2>/dev/null || true
+        print_info "Docker volumes removed"
+    else
+        $COMPOSE_CMD down 2>/dev/null || true
+        print_info "Docker volumes preserved"
+    fi
     
     if confirm "Remove Docker images?"; then
         docker rmi betterdesk-server betterdesk-console 2>/dev/null || true

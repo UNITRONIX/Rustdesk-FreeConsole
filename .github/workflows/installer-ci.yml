@@ -1,0 +1,185 @@
+name: Installer CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'install.sh'
+      - 'betterdesk.sh'
+      - 'betterdesk.ps1'
+      - 'betterdesk-docker.sh'
+      - 'betterdesk-agent/install/**'
+      - 'betterdesk-support-agent/**'
+      - 'scripts/installer-protocol-check.js'
+      - 'web-nodejs/lib/safePath.js'
+      - 'web-nodejs/services/updateService.js'
+      - 'web-nodejs/tests/installerProtocolCheck.test.js'
+      - 'Dockerfile*'
+      - 'docker-compose*.yml'
+      - 'docker/**'
+      - 'docker-entrypoint.sh'
+      - '.github/workflows/installer-ci.yml'
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'install.sh'
+      - 'betterdesk.sh'
+      - 'betterdesk.ps1'
+      - 'betterdesk-docker.sh'
+      - 'betterdesk-agent/install/**'
+      - 'betterdesk-support-agent/**'
+      - 'scripts/installer-protocol-check.js'
+      - 'web-nodejs/lib/safePath.js'
+      - 'web-nodejs/services/updateService.js'
+      - 'web-nodejs/tests/installerProtocolCheck.test.js'
+      - 'Dockerfile*'
+      - 'docker-compose*.yml'
+      - 'docker/**'
+      - 'docker-entrypoint.sh'
+      - '.github/workflows/installer-ci.yml'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Published GHCR tag to smoke-test'
+        required: false
+        default: 'latest'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bash-static:
+    name: Bash installer syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse all Bash installers
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do
+            bash -n "$file"
+          done < <(printf '%s\n' \
+            install.sh \
+            betterdesk.sh \
+            betterdesk-docker.sh \
+            betterdesk-agent/install/install.sh)
+      - name: Run ShellCheck
+        run: |
+          shellcheck --severity=error \
+            install.sh \
+            betterdesk.sh \
+            betterdesk-docker.sh \
+            betterdesk-agent/install/install.sh
+
+  powershell-static:
+    name: PowerShell installer syntax
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell installers
+        shell: pwsh
+        run: |
+          $files = @(
+            "betterdesk.ps1",
+            "betterdesk-agent/install/install.ps1"
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $messages = $errors | ForEach-Object { $_.Message }
+              throw "$file failed to parse: $($messages -join '; ')"
+            }
+          }
+
+  installer-unit:
+    name: Installer reliability unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-nodejs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web-nodejs/package-lock.json
+      - name: Install console dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run installer-focused tests
+        run: >
+          npm test -- --runInBand
+          tests/installerProtocolCheck.test.js
+          tests/safePath.test.js
+          tests/updateService.channel.test.js
+          tests/updateService.consoleSync.test.js
+
+  installer-dry-run:
+    name: Installer non-mutating CLI checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify help paths do not mutate the host
+        run: |
+          set -euo pipefail
+          bash install.sh --help >/dev/null
+          bash betterdesk.sh --help >/dev/null
+          bash betterdesk-docker.sh --help >/dev/null
+
+  compose-static:
+    name: Docker Compose validation
+    runs-on: ubuntu-latest
+    env:
+      PG_PASSWORD: installer-ci-placeholder
+      MACVLAN_IPV4: 192.0.2.51
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose manifests
+        run: |
+          set -euo pipefail
+          for file in \
+            docker-compose.yml \
+            docker-compose.single.yml \
+            docker-compose.quick.yml \
+            docker-compose.quick.single.yml \
+            docker-compose.quick.single.macvlan.yml; do
+            docker compose -f "$file" config --quiet
+          done
+
+  docker-runtime-smoke:
+    name: Docker runtime smoke
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BETTERDESK_IMAGE_TAG: ${{ inputs.image_tag || 'latest' }}
+      ADMIN_PASSWORD: InstallerSmoke-ChangeMe-9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start official single-container stack
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.quick.single.yml pull
+          docker compose -f docker-compose.quick.single.yml up -d --wait
+      - name: Verify API and console health
+        run: |
+          set -euo pipefail
+          curl --fail --retry 30 --retry-delay 2 --retry-connrefused \
+            http://127.0.0.1:21121/api/health
+          curl --fail --retry 30 --retry-delay 2 --retry-connrefused \
+            http://127.0.0.1:5000/health
+          node scripts/installer-protocol-check.js \
+            --api-url http://127.0.0.1:21121/api/health \
+            --panel-url http://127.0.0.1:5000/health \
+            --port 127.0.0.1:21121
+          docker compose -f docker-compose.quick.single.yml ps
+      - name: Tear down smoke stack
+        if: always()
+        run: docker compose -f docker-compose.quick.single.yml down -v

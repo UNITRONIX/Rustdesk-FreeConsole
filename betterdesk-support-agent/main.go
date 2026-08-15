@@ -23,10 +23,15 @@ func main() {
 		showVer   = flag.Bool("version", false, "Print version and exit")
 		doInstall = flag.Bool("install", false, "Install to a per-user location and enable autostart")
 		doUninst  = flag.Bool("uninstall", false, "Remove autostart entry and installed binary")
+		doPurge   = flag.Bool("purge", false, "With -uninstall, also remove persistent state")
 		doReset   = flag.Bool("reset-enrollment", false, "Clear local enrollment state and exit")
 		noGUI     = flag.Bool("nogui", false, "Run without graphical interface (no window)")
 	)
 	flag.Parse()
+	if *doPurge && !*doUninst {
+		fmt.Fprintln(os.Stderr, "-purge requires -uninstall")
+		os.Exit(2)
+	}
 
 	antiDebugChecks()
 	prepWindowsGraphics()
@@ -46,7 +51,13 @@ func main() {
 	}
 
 	if *doUninst {
-		if err := Uninstall(); err != nil {
+		var err error
+		if *doPurge {
+			err = UninstallPurge()
+		} else {
+			err = Uninstall()
+		}
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "uninstall failed: %v\n", err)
 			os.Exit(1)
 		}

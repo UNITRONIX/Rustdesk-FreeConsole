@@ -81,17 +81,58 @@ func Install() error {
 	return nil
 }
 
-// Uninstall removes autostart and the installed binary.
+// Uninstall removes autostart and installed binaries while preserving the
+// agent's persistent state for a later reinstall.
 func Uninstall() error {
+	return uninstall(false)
+}
+
+// UninstallPurge removes autostart, installed binaries and persistent state.
+// It is intentionally separate so normal uninstall cannot destroy enrollment
+// identity or operator preferences.
+func UninstallPurge() error {
+	return uninstall(true)
+}
+
+func uninstall(purge bool) error {
 	if err := unregisterAutostart(); err != nil {
-		fmt.Printf("warning: remove autostart: %v\n", err)
+		return fmt.Errorf("remove autostart: %w", err)
 	}
 	dst, err := installedBinaryPath()
-	if err == nil {
-		_ = os.Remove(dst)
-		_ = os.Remove(filepath.Dir(dst))
+	if err != nil {
+		return err
 	}
-	fmt.Println("Uninstalled autostart entry.")
+	installPath := filepath.Dir(dst)
+	if purge {
+		if err := os.RemoveAll(installPath); err != nil {
+			return fmt.Errorf("remove install directory: %w", err)
+		}
+		if err := os.RemoveAll(stateDir()); err != nil {
+			return fmt.Errorf("remove state directory: %w", err)
+		}
+	} else {
+		for _, name := range []string{
+			filepath.Base(dst),
+			"betterdesk-support-x11",
+			"betterdesk-support-wayland",
+			"opengl32.dll",
+			"libgallium_wgl.dll",
+		} {
+			if err := os.Remove(filepath.Join(installPath, name)); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("remove installed binary %s: %w", name, err)
+			}
+		}
+		// Remove only an empty binary directory; any remaining operator files
+		// are deliberately preserved.
+		if err := os.Remove(installPath); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Preserved non-empty install directory %s.\n", installPath)
+		}
+	}
+	if purge {
+		fmt.Println("Uninstalled autostart entry and purged state.")
+	} else {
+		fmt.Println("Uninstalled autostart entry; persistent state preserved.")
+	}
 	return nil
 }
 
@@ -106,7 +147,24 @@ func copyExecutable(src, dst string) error {
 	if err := os.WriteFile(tmp, data, 0o755); err != nil {
 		return err
 	}
-	return os.Rename(tmp, dst)
+	if err := os.Rename(tmp, dst); err == nil {
+		return nil
+	} else if runtime.GOOS == "windows" {
+		// Windows cannot replace an existing executable with Rename. Remove
+		// only the previous target after the new bytes are safely staged.
+		if removeErr := os.Remove(dst); removeErr != nil && !os.IsNotExist(removeErr) {
+			_ = os.Remove(tmp)
+			return removeErr
+		}
+		if replaceErr := os.Rename(tmp, dst); replaceErr != nil {
+			_ = os.Remove(tmp)
+			return replaceErr
+		}
+		return nil
+	} else {
+		_ = os.Remove(tmp)
+		return err
+	}
 }
 
 // copyLinuxUIBundle installs the session launcher plus X11/Wayland UI binaries on Linux.

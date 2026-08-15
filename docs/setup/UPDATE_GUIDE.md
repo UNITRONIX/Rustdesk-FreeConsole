@@ -1,6 +1,24 @@
-# BetterDesk Console - Update Scripts
+# Legacy BetterDesk v1 Update Scripts
 
-This directory contains scripts to update BetterDesk Console from v1.0.0 to v1.1.0.
+This document is retained for historical migrations from the v1.0.0/v1.1.0
+Flask-era console. The scripts and SSH workflow described below are not the
+supported update path for current BetterDesk releases.
+
+## Current supported update paths
+
+- Native Linux: `sudo ./betterdesk.sh` → Update, or
+  `sudo ./betterdesk.sh --auto` for a scripted update.
+- Native Windows: run `.\betterdesk.ps1` as Administrator and choose Update,
+  or `.\betterdesk.ps1 -Auto`.
+- Docker: `docker compose pull && docker compose up -d` for image deployments,
+  or use `betterdesk-docker.sh` for a source rebuild.
+- Panel/CLI: Settings → Updates or `node web-nodejs/scripts/update-cli.js`.
+
+See [`docs/important/installer-contract.md`](../important/installer-contract.md)
+and [`docs/important/betterdesk-update-flow.md`](../important/betterdesk-update-flow.md)
+for current backup, rollback, SHA and health-check guarantees.
+
+The remainder of this file documents the legacy migration only.
 
 ## What's New in v1.1.0
 

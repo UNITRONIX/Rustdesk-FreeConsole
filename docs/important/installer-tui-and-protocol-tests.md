@@ -49,4 +49,12 @@
 - HTTP `:5000` is a redirect listener only when HTTPS + `HTTP_REDIRECT_HTTPS=true`; plain panel URL in HTTP mode is `http://<server>:5000`.
 - If stuck after a failed toggle: **Repair → Repair HTTPS / TLS**, then restart services. Panel updates also re-run LE redeploy + `SIGNAL_PORT=21116` isolation (#219).
 
-NOT yet mirrored to betterdesk.ps1 / betterdesk-docker.sh.
+Windows now performs HTTP health verification for the Go API and web console
+after service start. Docker installers verify the API and console health
+endpoints after containers start, and the rescue diagnostics remain
+non-destructive. Linux keeps the full `run_protocol_tests()` reverse-proxy
+matrix; Linux, Windows and Docker also share the built-in
+`scripts/installer-protocol-check.js` harness for HTTP/HTTPS, redirects,
+certificate SANs and TCP listeners. Run it with the endpoint/port matrix from
+[`installer-contract.md`](installer-contract.md) whenever a platform-specific
+TLS or reverse-proxy check is needed.

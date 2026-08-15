@@ -80,4 +80,41 @@ describe('updateService update channel', () => {
         expect(updateService.UPDATE_CHANNELS.stable.branch).toBe('main');
         expect(updateService.UPDATE_CHANNELS.development.branch).toBe('dev');
     });
+
+    test('reports insufficient disk space before an update', () => {
+        const updateService = loadUpdateService({ dataDir });
+        if (typeof fs.statfsSync !== 'function') {
+            expect(updateService.checkUpdateDiskSpace(dataDir).supported).toBe(false);
+            return;
+        }
+
+        const statfs = jest.spyOn(fs, 'statfsSync').mockReturnValue({
+            bavail: 1,
+            bsize: 4096,
+        });
+        try {
+            const result = updateService.checkUpdateDiskSpace(dataDir);
+            expect(result.supported).toBe(true);
+            expect(result.sufficient).toBe(false);
+            expect(result.availableBytes).toBe(4096);
+        } finally {
+            statfs.mockRestore();
+        }
+    });
+
+    test('does not block updates when filesystem statistics are unusable', () => {
+        const updateService = loadUpdateService({ dataDir });
+        if (typeof fs.statfsSync !== 'function') return;
+
+        const statfs = jest.spyOn(fs, 'statfsSync').mockReturnValue({});
+        try {
+            expect(updateService.checkUpdateDiskSpace(dataDir)).toMatchObject({
+                supported: false,
+                sufficient: null,
+                availableBytes: null,
+            });
+        } finally {
+            statfs.mockRestore();
+        }
+    });
 });

@@ -1,13 +1,14 @@
 # BetterDesk Agent — Windows installer (NSSM service)
 # Usage: Run as Administrator
-#   .\install.ps1 [-Server URL] [-Key KEY] [-Name NAME] [-Uninstall]
+#   .\install.ps1 [-Server URL] [-Key KEY] [-Name NAME] [-Uninstall] [-Purge]
 [CmdletBinding()]
 param(
     [string]$Server,
     [string]$Key,
     [string]$Name,
     [string]$InstallDir = "$env:ProgramFiles\BetterDesk\Agent",
-    [switch]$Uninstall
+    [switch]$Uninstall,
+    [switch]$Purge
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,10 +37,16 @@ if ($Uninstall) {
         Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
         sc.exe delete $ServiceName 2>$null
     }
-    if (Test-Path $InstallDir) {
-        Remove-Item -Path $InstallDir -Recurse -Force
+    Unregister-ScheduledTask -TaskName $ServiceName -Confirm:$false -ErrorAction SilentlyContinue
+    if ($Purge) {
+        if (Test-Path $InstallDir) {
+            Remove-Item -Path $InstallDir -Recurse -Force
+        }
+        Write-Host "BetterDesk Agent uninstalled and data purged." -ForegroundColor Green
+    } else {
+        Remove-Item -Path "$InstallDir\betterdesk-agent.exe" -Force -ErrorAction SilentlyContinue
+        Write-Host "BetterDesk Agent uninstalled; config and data preserved at $InstallDir." -ForegroundColor Green
     }
-    Write-Host "BetterDesk Agent uninstalled." -ForegroundColor Green
     exit 0
 }
 
@@ -79,6 +86,12 @@ if (-not (Test-Path $ConfigFile)) {
     if (-not $Name) {
         $Name = $env:COMPUTERNAME
     }
+    if ($Server -notmatch '^(ws|wss)://') {
+        throw "Gateway URL must start with ws:// or wss://"
+    }
+    if (-not $Key) {
+        throw "API key must not be empty"
+    }
     $config = @{
         server       = $Server
         auth_method  = "api_key"
@@ -104,45 +117,80 @@ if (-not (Test-Path $ConfigFile)) {
 
 # Install NSSM if not present
 $nssmPath = "$InstallDir\nssm.exe"
+$serviceMode = "nssm"
 if (-not (Test-Path $nssmPath)) {
     Write-Host "Downloading NSSM..."
-    $zipPath = "$env:TEMP\nssm.zip"
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $NSSMUrl -OutFile $zipPath -UseBasicParsing
-    $extractDir = "$env:TEMP\nssm-extract"
-    Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
-    $nssmBin = Get-ChildItem -Path $extractDir -Recurse -Filter "nssm.exe" |
-        Where-Object { $_.DirectoryName -like "*win64*" } | Select-Object -First 1
-    if ($nssmBin) {
-        Copy-Item -Path $nssmBin.FullName -Destination $nssmPath -Force
-    } else {
-        Write-Host "ERROR: Failed to find nssm.exe in archive" -ForegroundColor Red
-        exit 1
+    try {
+        $zipPath = "$env:TEMP\nssm.zip"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $NSSMUrl -OutFile $zipPath -UseBasicParsing
+        $extractDir = "$env:TEMP\nssm-extract"
+        Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+        $nssmBin = Get-ChildItem -Path $extractDir -Recurse -Filter "nssm.exe" |
+            Where-Object { $_.DirectoryName -like "*win64*" } | Select-Object -First 1
+        if ($nssmBin) {
+            Copy-Item -Path $nssmBin.FullName -Destination $nssmPath -Force
+        } else {
+            throw "nssm.exe was not found in the archive"
+        }
+        Remove-Item $zipPath, $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Warning "NSSM installation failed: $($_.Exception.Message)"
+        Write-Warning "Falling back to a per-user scheduled task."
+        $serviceMode = "scheduled-task"
     }
-    Remove-Item $zipPath, $extractDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# Create service
-& $nssmPath stop $ServiceName 2>$null
-& $nssmPath remove $ServiceName confirm 2>$null
+if ($serviceMode -eq "nssm" -and (Test-Path $nssmPath)) {
+    # Create NSSM service
+    & $nssmPath stop $ServiceName 2>$null
+    & $nssmPath remove $ServiceName confirm 2>$null
+    Unregister-ScheduledTask -TaskName $ServiceName -Confirm:$false -ErrorAction SilentlyContinue
 
-& $nssmPath install $ServiceName "$InstallDir\betterdesk-agent.exe"
-& $nssmPath set $ServiceName AppParameters "-config `"$ConfigFile`""
-& $nssmPath set $ServiceName AppDirectory $InstallDir
-& $nssmPath set $ServiceName Start SERVICE_AUTO_START
-& $nssmPath set $ServiceName AppStdout "$InstallDir\data\agent.log"
-& $nssmPath set $ServiceName AppStderr "$InstallDir\data\agent.log"
-& $nssmPath set $ServiceName AppRotateFiles 1
-& $nssmPath set $ServiceName AppRotateBytes 10485760
-& $nssmPath set $ServiceName Description "BetterDesk CDAP Agent"
+    & $nssmPath install $ServiceName "$InstallDir\betterdesk-agent.exe"
+    & $nssmPath set $ServiceName AppParameters "-config `"$ConfigFile`""
+    & $nssmPath set $ServiceName AppDirectory $InstallDir
+    & $nssmPath set $ServiceName Start SERVICE_AUTO_START
+    & $nssmPath set $ServiceName AppStdout "$InstallDir\data\agent.log"
+    & $nssmPath set $ServiceName AppStderr "$InstallDir\data\agent.log"
+    & $nssmPath set $ServiceName AppRotateFiles 1
+    & $nssmPath set $ServiceName AppRotateBytes 10485760
+    & $nssmPath set $ServiceName Description "BetterDesk CDAP Agent"
 
-& $nssmPath start $ServiceName
+    & $nssmPath start $ServiceName
+    if ($LASTEXITCODE -ne 0) {
+        throw "NSSM failed to start $ServiceName (exit code $LASTEXITCODE)"
+    }
+    Start-Sleep -Seconds 2
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not $service -or $service.Status -ne "Running") {
+        throw "$ServiceName was installed but is not running"
+    }
+} else {
+    # NSSM is optional: keep the installer usable on restricted hosts.
+    $taskAction = New-ScheduledTaskAction `
+        -Execute "$InstallDir\betterdesk-agent.exe" `
+        -Argument "-config `"$ConfigFile`"" `
+        -WorkingDirectory $InstallDir
+    $taskTrigger = New-ScheduledTaskTrigger -AtLogOn
+    $taskPrincipal = New-ScheduledTaskPrincipal `
+        -UserId "$env:USERDOMAIN\$env:USERNAME" `
+        -LogonType Interactive `
+        -RunLevel Limited
+    Unregister-ScheduledTask -TaskName $ServiceName -Confirm:$false -ErrorAction SilentlyContinue
+    Register-ScheduledTask -TaskName $ServiceName -Action $taskAction `
+        -Trigger $taskTrigger -Principal $taskPrincipal -Force | Out-Null
+    Start-ScheduledTask -TaskName $ServiceName
+    if (-not (Get-ScheduledTask -TaskName $ServiceName -ErrorAction SilentlyContinue)) {
+        throw "Scheduled-task fallback was not registered"
+    }
+}
 
 Write-Host ""
 Write-Host "=== BetterDesk Agent Installed ===" -ForegroundColor Green
 Write-Host "  Binary:  $InstallDir\betterdesk-agent.exe"
 Write-Host "  Config:  $ConfigFile"
-Write-Host "  Service: $ServiceName"
+Write-Host "  Autostart: $ServiceName ($serviceMode)"
 Write-Host ""
 Write-Host "Commands:"
 Write-Host "  nssm status $ServiceName"

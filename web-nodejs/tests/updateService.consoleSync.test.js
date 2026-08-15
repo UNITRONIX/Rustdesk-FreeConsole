@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
 const {
     GITHUB_COMPARE_FILE_LIMIT,
@@ -7,6 +10,7 @@ const {
     isRetryableDownloadStatus,
     getDownloadRetryDelayMs,
     ensureGoServerSignalRelayPorts,
+    restoreServerBinaryBackup,
 } = require('../services/updateService');
 
 describe('updateService console sync helpers', () => {
@@ -78,5 +82,29 @@ describe('updateService console sync helpers', () => {
 
         const again = ensureGoServerSignalRelayPorts(patched.text);
         expect(again.changed).toBe(false);
+    });
+
+    test('restores a validated server binary backup atomically', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bd-binary-rollback-'));
+        const target = path.join(root, 'betterdesk-server.exe');
+        const backup = `${target}.bak.test`;
+        try {
+            fs.writeFileSync(target, 'new');
+            fs.writeFileSync(backup, 'old');
+            expect(restoreServerBinaryBackup(backup, target)).toMatchObject({ restored: true });
+            expect(fs.readFileSync(target, 'utf8')).toBe('old');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    test('rejects a binary backup outside the target directory', () => {
+        expect(restoreServerBinaryBackup(
+            path.join(os.tmpdir(), 'betterdesk-server.exe.bak.test'),
+            path.join(os.tmpdir(), 'other', 'betterdesk-server.exe')
+        )).toMatchObject({
+            restored: false,
+            error: 'Server binary backup path failed validation',
+        });
     });
 });

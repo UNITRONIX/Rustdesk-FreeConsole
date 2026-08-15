@@ -10,7 +10,9 @@ const {
     resolveDeployScriptPath,
 } = require('../lib/linuxServerBinaryDeploy');
 
-describe('linuxServerBinaryDeploy', () => {
+const describeLinux = process.platform === 'linux' ? describe : describe.skip;
+
+describeLinux('linuxServerBinaryDeploy', () => {
     let tmpRoot;
     let consoleRoot;
     let serverRoot;

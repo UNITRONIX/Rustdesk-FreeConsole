@@ -7,7 +7,9 @@ const {
     privilegedSystemdUnitHint,
 } = require('../lib/linuxSystemdUnitPrivileged');
 
-describe('linuxSystemdUnitPrivileged', () => {
+const describeLinux = process.platform === 'linux' ? describe : describe.skip;
+
+describeLinux('linuxSystemdUnitPrivileged', () => {
     test('allows BetterDesk systemd unit paths only', () => {
         expect(isAllowedSystemdUnitPath('/etc/systemd/system/betterdesk-server.service')).toBe(true);
         expect(isAllowedSystemdUnitPath('/etc/systemd/system/betterdesk-console.service')).toBe(true);

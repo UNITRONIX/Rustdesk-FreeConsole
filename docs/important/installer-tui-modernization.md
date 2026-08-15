@@ -15,12 +15,16 @@ Goal: arrow-key TUI look across betterdesk.sh, betterdesk-docker.sh, betterdesk.
 - betterdesk-docker.sh: TUI ported, main + 7 sub-menus. `bash -n` OK.
 - betterdesk.ps1: 10 menus via Invoke-MenuChoose (DatabaseType, update-method, repair,
   password-reset, diagnostics, paths, SSL, protocol-toggle, build, migration) +
-  main menu via Invoke-TuiSelect with menuLabels/menuActions. NO pwsh on Fedora -> not runtime-tested.
+  main menu via Invoke-TuiSelect with menuLabels/menuActions. PowerShell AST
+  parsing is now enforced by `.github/workflows/installer-ci.yml`; runtime
+  install/update tests still require a Windows environment.
 
 ## Rules learned
 - Keep emoji OUT of printf/PadRight TUI labels (renderer counts 1 cell, term shows 2). Use ASCII `->`, `+--+`.
 - Data-entry prompts (host/port/password/paths/domain) stay plain read/Read-Host. Only MENUS convert.
 - menu_choose/Invoke-MenuChoose keep SAME return tokens the existing case/switch expects.
 - Docker SSL menu originally had no back option -> added `0` + `0) return ;;`.
-- Run `bash -n` after each bash script. PS1: flag user to verify on Windows.
+- Run `bash -n` after each bash script. CI parses every official Bash and
+  PowerShell installer; runtime install/update tests remain an environment
+  validation step.
 - Classic fallback: BETTERDESK_CLASSIC_MENU=1 (bash) / $env:BETTERDESK_CLASSIC_MENU=1 (ps1).

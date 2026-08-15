@@ -28,10 +28,40 @@ GitHub `compare` API caps `files` at 300, so large diffs are truncated and chang
 - **Passwords:** Panel login uses `users.password_hash` in `auth.db` / PostgreSQL. Updates must **not** change DB passwords.
 - **Services:** `patch_service_definitions` / `Patch-ServiceDefinitions` on every update when units exist; full `Setup-Services` only when missing or when operator confirms recreate (`[y/N]` prompt) / `UPDATE_REFRESH_SERVICES=true`.
 - **Script update failure:** GitHub update returns non-zero if Go server binary compile fails.
+- **Tracked commit:** both Bash and PowerShell installers resolve the downloaded
+  commit SHA through Git or the GitHub API. Tar/ZIP fallback updates refuse to
+  advance tracking when the commit cannot be verified.
+- **Failure recovery:** panel updates create a manifest for changed console,
+  server and installer files. Critical failures automatically restore the
+  manifest and any deployed server binary backup unless `autoRollback` is
+  explicitly disabled.
 
 ### Stale panel warning after script / Docker update (#192)
 
 `data/.last_update_result.json` stores the last **in-panel** update outcome. A failed panel attempt (e.g. `EACCES` on root-owned `/opt/` files) can leave a red banner even when a later **script** or **Docker** update succeeded.
+
+An update is not considered complete until the critical source/binary steps
+finish. `.update_sha`, `.agent_source_sha` and the stale-result marker are
+updated only after that point. Before applying changes, the panel also checks
+the writable data path and available disk space (override the 512 MiB minimum
+with `UPDATE_MIN_FREE_MB` when a deployment has a documented different
+requirement). If the host exposes `statfsSync` without usable block
+statistics, the check is reported as unsupported rather than blocking every
+Windows update.
+
+The same cross-platform protocol harness is available after installation:
+
+```bash
+node scripts/installer-protocol-check.js \
+  --api-url http://127.0.0.1:21114/api/health \
+  --panel-url http://127.0.0.1:5000/health \
+  --port 127.0.0.1:21116
+```
+
+Use `21121` instead of `21114` for the Docker single-container layout. The
+harness distinguishes TCP reachability from HTTP success, accepts a recorded
+3xx redirect, validates HTTPS certificate SANs by default, and supports
+`--insecure` only for explicitly disposable/self-signed checks.
 
 | Update path | Clears stale banner |
 |-------------|---------------------|

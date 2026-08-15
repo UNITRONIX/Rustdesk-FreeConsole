@@ -463,8 +463,12 @@ EOF
     configure_firewall
 
     log "Waiting for services..."
-    wait_for_http "$api_health_url" "BetterDesk API" 90 || true
-    wait_for_http "http://127.0.0.1:5000/login" "Web console" 60 || true
+    local health_failed=0
+    wait_for_http "$api_health_url" "BetterDesk API" 90 || health_failed=1
+    wait_for_http "http://127.0.0.1:5000/login" "Web console" 60 || health_failed=1
+    if [ "$health_failed" -ne 0 ]; then
+        die "BetterDesk containers did not pass health checks; inspect ${compose_dir}/docker-compose.yml logs before retrying"
+    fi
 
     print_docker_summary "$relay"
 }
@@ -555,6 +559,23 @@ install_native_mode() {
     ok "Native installation finished. See ${repo_dir} for logs and credentials."
 }
 
+uninstall_native_mode() {
+    local repo_dir="${INSTALL_DIR}/source"
+    local native_installer="${repo_dir}/betterdesk.sh"
+
+    require_root
+    if [ ! -x "$native_installer" ]; then
+        die "Native installer not found at ${native_installer}; nothing was removed"
+    fi
+
+    log "Running native uninstall (data is preserved unless --purge is supplied)..."
+    local args=(--auto --uninstall)
+    if [ "$DO_PURGE" = true ]; then
+        args+=(--purge)
+    fi
+    (cd "$repo_dir" && "$native_installer" "${args[@]}")
+}
+
 rescue_native_mode() {
     local repo_dir="${INSTALL_DIR}/source"
 
@@ -577,7 +598,11 @@ main() {
     echo ""
 
     if [ "$DO_UNINSTALL" = true ]; then
-        uninstall_docker_mode
+        case "$INSTALL_MODE" in
+            docker) uninstall_docker_mode ;;
+            native) uninstall_native_mode ;;
+            *) die "Unknown install mode: $INSTALL_MODE" ;;
+        esac
         exit 0
     fi
 

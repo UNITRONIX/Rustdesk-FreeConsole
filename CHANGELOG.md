@@ -1,7 +1,16 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- **Installer lifecycle reliability:** Native Linux/Windows updates now
+  verify tracked commits, preserve rollback state and perform safer
+  preflight/health checks; Windows agent installation can fall back to a
+  scheduled task when NSSM is unavailable.
+- **Cross-platform installer verification:** Added shared protocol checks,
+  installer-focused unit tests, Docker smoke validation and static CI gates
+  for Bash, PowerShell and Compose paths.
+- **Agent uninstall safety:** Native agent uninstall now preserves config and
+  enrollment data by default; explicit purge flags are required for cleanup,
+  including the support-agent binary's persistent state.
 
 ---
 
