@@ -7,7 +7,11 @@
     flex-direction: column;
     align-items: flex-start;
     justify-content: center;
-    background: linear-gradient(135deg, #0a1628 0%, #050a12 55%, #000 100%);
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 42%, rgba(0, 0, 0, 0.22) 100%),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0, rgba(255, 255, 255, 0.025) 1px, transparent 1px, transparent 3px),
+        repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.035) 0, rgba(0, 0, 0, 0.035) 1px, transparent 1px, transparent 3px),
+        linear-gradient(135deg, #3c3c3c 0%, #292929 52%, #171717 100%);
     border-radius: 4px;
     padding: 10px 14px;
     min-width: 120px;
