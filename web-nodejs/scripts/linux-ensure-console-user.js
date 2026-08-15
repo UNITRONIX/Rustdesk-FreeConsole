@@ -20,7 +20,6 @@ const {
 } = require('../lib/privilegedPorts');
 const { resolveDeployScriptPath } = require('../lib/linuxServerBinaryDeploy');
 const {
-    resolveSystemdUnitScriptPath,
     readSystemdUnitPrivileged,
     writeSystemdUnitPrivileged,
     isAllowedSystemdUnitPath,
@@ -33,6 +32,8 @@ const CONSOLE_SERVICE = 'betterdesk-console';
 const SERVER_SERVICE = 'betterdesk-server';
 const UPDATE_SUDOERS_PATH = '/etc/sudoers.d/betterdesk-console-updates';
 const UPDATE_SUDOERS_MARKER = '# Managed by BetterDesk linux-ensure-console-user.js';
+const PRIVILEGED_HELPER_PATH = '/usr/local/libexec/betterdesk/betterdesk-privileged-update.js';
+const PRIVILEGED_HELPER_SOURCE = path.join(__dirname, 'betterdesk-privileged-update.js');
 /** setgid + group rwx — new Go-server files inherit group betterdesk (#206) */
 const SHARED_GO_DATA_DIR_MODE = '2775';
 /** setgid + group rx — console reads TLS material written by root */
@@ -57,20 +58,38 @@ function resolveEnsureConsoleUserScriptPath(consoleRoot) {
 }
 
 function buildUpdateSudoersContent() {
-    const systemctl = resolveSystemctlPath();
-    const journalctl = resolveJournalctlPath();
-    const deployScript = resolveDeployScriptPath(CONSOLE_PATH);
-    const systemdUnitScript = resolveSystemdUnitScriptPath(CONSOLE_PATH);
-    const ensureScript = resolveEnsureConsoleUserScriptPath(CONSOLE_PATH);
     return [
         UPDATE_SUDOERS_MARKER,
-        `${SVC_USER} ALL=(root) NOPASSWD: ${systemctl}`,
-        `${SVC_USER} ALL=(root) NOPASSWD: ${journalctl}`,
-        `${SVC_USER} ALL=(root) NOPASSWD: ${deployScript}`,
-        `${SVC_USER} ALL=(root) NOPASSWD: ${process.execPath} ${systemdUnitScript}`,
-        `${SVC_USER} ALL=(root) NOPASSWD: ${process.execPath} ${ensureScript}`,
+        // Never grant root execution to scripts in the writable console tree.
+        `${SVC_USER} ALL=(root) NOPASSWD: ${process.execPath} ${PRIVILEGED_HELPER_PATH}`,
         '',
     ].join('\n');
+}
+
+function installPrivilegedUpdateHelper() {
+    if (!isRoot()) {
+        return { changed: false, skipped: true, reason: 'root maintenance required to install update broker' };
+    }
+    if (!fs.existsSync(PRIVILEGED_HELPER_SOURCE)) {
+        return { changed: false, error: 'privileged update broker source is missing' };
+    }
+
+    const targetDir = path.dirname(PRIVILEGED_HELPER_PATH);
+    fs.mkdirSync(targetDir, { recursive: true, mode: 0o755 });
+    const current = fs.existsSync(PRIVILEGED_HELPER_PATH)
+        ? fs.readFileSync(PRIVILEGED_HELPER_PATH)
+        : null;
+    const desired = fs.readFileSync(PRIVILEGED_HELPER_SOURCE);
+    if (current && current.equals(desired)) {
+        return { changed: false, path: PRIVILEGED_HELPER_PATH };
+    }
+
+    const tmp = path.join(targetDir, `.betterdesk-privileged-update.${process.pid}.tmp`);
+    fs.writeFileSync(tmp, desired, { mode: 0o700 });
+    fs.chmodSync(tmp, 0o755);
+    fs.renameSync(tmp, PRIVILEGED_HELPER_PATH);
+    try { fs.chownSync(PRIVILEGED_HELPER_PATH, 0, 0); } catch (_) { /* root on non-Unix test doubles */ }
+    return { changed: true, path: PRIVILEGED_HELPER_PATH };
 }
 
 function ensureDeployScriptExecutable() {
@@ -92,8 +111,12 @@ function ensureDeployScriptExecutable() {
 
 /** Install passwordless sudo for panel service restarts (Linux updates). */
 function ensureConsoleUpdateSudoers() {
-    if (!isRoot() && !canUseSudo()) {
-        return { changed: false, skipped: true, reason: 'no root/sudo for sudoers install' };
+    if (!isRoot()) {
+        return { changed: false, skipped: true, reason: 'root maintenance required to install sudoers' };
+    }
+    const helper = installPrivilegedUpdateHelper();
+    if (helper.error) {
+        return helper;
     }
     const desired = buildUpdateSudoersContent();
     let existing = '';
@@ -127,29 +150,16 @@ function isRoot() {
     return typeof process.getuid === 'function' && process.getuid() === 0;
 }
 
-function canUseSudo() {
-    if (isRoot()) return true;
-    try {
-        execFileSync('sudo', ['-n', resolveSystemctlPath(), '--version'], { stdio: 'pipe', timeout: 5000 });
-        return true;
-    } catch (_) {
-        return false;
-    }
-}
-
 function runPrivilegedArgv(binary, args, opts = {}) {
-    if (!isRoot() && !canUseSudo()) {
-        throw new Error('Privileged command requires root or passwordless sudo');
+    if (!isRoot()) {
+        throw new Error('Root maintenance run required for privileged filesystem changes');
     }
     const runOpts = {
         encoding: opts.encoding || 'utf8',
         stdio: opts.stdio || 'pipe',
         timeout: opts.timeout || 30000,
     };
-    if (isRoot()) {
-        return execFileSync(binary, args, runOpts);
-    }
-    return execFileSync('sudo', ['-n', binary, ...args], runOpts);
+    return execFileSync(binary, args, runOpts);
 }
 
 function readServiceFile() {
@@ -198,8 +208,8 @@ function ensureSystemUser() {
     if (userExists(SVC_USER)) {
         return;
     }
-    if (!isRoot() && !canUseSudo()) {
-        throw new Error(`System user ${SVC_USER} is missing and console cannot create it without root/sudo`);
+    if (!isRoot()) {
+        throw new Error(`System user ${SVC_USER} is missing and console cannot create it without root`);
     }
     runPrivilegedArgv('useradd', [
         '-r', '-s', '/usr/sbin/nologin', '-d', '/var/lib/betterdesk',
@@ -509,8 +519,8 @@ function repairLetsEncryptSslMaterial(opts = {}) {
         return { changed: false, skipped: true, reason: 'no-le-live-dir' };
     }
 
-    if (!isRoot() && !canUseSudo()) {
-        return { changed: false, skipped: true, error: 'no root/sudo for LE cert redeploy' };
+    if (!isRoot()) {
+        return { changed: false, skipped: true, error: 'root maintenance required for LE cert redeploy' };
     }
 
     try {
@@ -545,8 +555,8 @@ function repairLetsEncryptSslMaterial(opts = {}) {
  * @returns {{ ok: boolean, error?: string, skipped?: boolean }}
  */
 function fixSharedPermissions() {
-    if (!isRoot() && !canUseSudo()) {
-        return { ok: false, skipped: true, error: 'no root/sudo for permission sync' };
+    if (!isRoot()) {
+        return { ok: false, skipped: true, error: 'root maintenance required for permission sync' };
     }
     try {
         runPrivilegedArgv('mkdir', ['-p', '/var/lib/betterdesk']);
@@ -700,7 +710,7 @@ function ensureLinuxConsoleServiceUser() {
         ensureDataDir();
         ensureSystemUser();
 
-        const privileged = isRoot() || canUseSudo();
+        const privileged = isRoot();
         let perm = { ok: false, skipped: !privileged };
         if (privileged) {
             perm = fixSharedPermissions();
@@ -712,7 +722,7 @@ function ensureLinuxConsoleServiceUser() {
             }
             const sudoers = ensureConsoleUpdateSudoers();
             if (sudoers.changed) {
-                result.changes.push('passwordless sudo for panel updates (services + server binary deploy)');
+                result.changes.push('fixed root broker installed for panel service operations');
             } else if (sudoers.reason) {
                 result.changes.push(sudoers.reason);
             }
@@ -726,7 +736,7 @@ function ensureLinuxConsoleServiceUser() {
             const leRepair = repairLetsEncryptSslMaterial({ runFn: runPrivilegedArgv });
             if (leRepair.changed) {
                 result.changes.push("Let's Encrypt TLS material redeployed for console user (#219)");
-            } else if (leRepair.error && leRepair.error !== 'no root/sudo for LE cert redeploy') {
+            } else if (leRepair.error && leRepair.error !== 'root maintenance required for LE cert redeploy') {
                 result.warnings.push(`LE TLS repair: ${leRepair.error}`);
             }
         } else if (userExists(SVC_USER)) {
@@ -737,11 +747,11 @@ function ensureLinuxConsoleServiceUser() {
             } else {
                 result.changes.push(`${SVC_USER} user present; permission sync skipped (no sudo)`);
                 result.fatal = true;
-                result.error = access.error || 'permission sync requires root/sudo';
+            result.error = access.error || 'permission sync requires root maintenance';
             }
         } else {
             result.fatal = true;
-            result.error = `System user ${SVC_USER} is missing and cannot be created without root/sudo`;
+            result.error = `System user ${SVC_USER} is missing and cannot be created without root`;
         }
 
         const access = verifyConsoleUserAccess();
@@ -801,6 +811,7 @@ module.exports = {
     listSharedGoDataFiles,
     applySharedGoFilePermissions,
     buildUpdateSudoersContent,
+    installPrivilegedUpdateHelper,
     ensureDeployScriptExecutable,
     resolveSystemctlPath,
     resolveEnsureConsoleUserScriptPath,
@@ -820,4 +831,5 @@ module.exports = {
     SHARED_GO_DATA_DIR_MODE,
     SHARED_GO_SSL_DIR_MODE,
     SVC_USER,
+    PRIVILEGED_HELPER_PATH,
 };

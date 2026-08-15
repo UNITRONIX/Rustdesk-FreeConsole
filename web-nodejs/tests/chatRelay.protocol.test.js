@@ -1,6 +1,11 @@
 const http = require('http');
 const WebSocket = require('ws');
 
+jest.mock('../lib/deviceTokenAuth', () => ({
+    verifyDeviceWsAuth: jest.fn(),
+}));
+
+const { verifyDeviceWsAuth } = require('../lib/deviceTokenAuth');
 const { initChatRelay } = require('../services/chatRelay');
 
 function openSocket(url) {
@@ -89,10 +94,15 @@ describe('Chat Relay Protocol', () => {
             get: jest.fn().mockRejectedValue(new Error('offline')),
             post: jest.fn().mockResolvedValue({ data: { success: true } }),
         };
+        verifyDeviceWsAuth.mockResolvedValue(true);
 
         server = http.createServer();
         initChatRelay(server, (req, _res, next) => {
-            req.session = { userId: 1, username: 'operator1' };
+            req.session = {
+                userId: 1,
+                username: 'operator1',
+                user: { role: 'operator', username: 'operator1' },
+            };
             next();
         }, goApi);
 
@@ -111,10 +121,24 @@ describe('Chat Relay Protocol', () => {
     }
 
     async function connect(path) {
-        const ws = await openSocket(`ws://127.0.0.1:${address.port}${path}`);
+        const agentPath = path.startsWith('/ws/chat/')
+            ? `${path}${path.includes('?') ? '&' : '?'}token=valid-device-token`
+            : path;
+        const ws = await openSocket(`ws://127.0.0.1:${address.port}${agentPath}`);
         sockets.push(ws);
         return ws;
     }
+
+    it('rejects an agent upgrade without a valid device token', async () => {
+        verifyDeviceWsAuth.mockResolvedValueOnce(false);
+        await expect(openSocket(`ws://127.0.0.1:${address.port}/ws/chat/UNAUTH-DEVICE`))
+            .rejects.toThrow();
+        expect(verifyDeviceWsAuth).toHaveBeenCalledWith(
+            'UNAUTH-DEVICE',
+            '',
+            expect.any(Object),
+        );
+    });
 
     it('acknowledges agent hello frames with a welcome message and capabilities', async () => {
         const deviceId = nextDeviceId();

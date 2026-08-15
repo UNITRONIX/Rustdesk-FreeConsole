@@ -464,32 +464,12 @@ router.get('/attachments/:aid(\\d+)', fileAccessLimiter, requireAuth, async (req
 // ---------------------------------------------------------------------------
 
 const db = require('../services/database');
-
-async function identifyDevice(req, res, next) {
-    const auth = req.headers['authorization'];
-    if (auth && auth.startsWith('Bearer ')) {
-        const token = auth.substring(7).trim();
-        try {
-            const tokenRow = await db.getAccessToken(token);
-            if (tokenRow) {
-                req.deviceId = tokenRow.client_id || null;
-                await db.touchAccessToken(token);
-                return next();
-            }
-        } catch (_) { /* ignored */ }
-    }
-    const deviceId = req.headers['x-device-id'];
-    if (deviceId && /^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
-        req.deviceId = deviceId;
-        return next();
-    }
-    return res.status(401).json({ error: 'Missing device identification' });
-}
+const { requireDeviceToken } = require('../middleware/deviceAuth');
 
 /**
  * POST /api/bd/tickets — Create ticket from desktop agent.
  */
-router.post('/bd', identifyDevice, async (req, res) => {
+router.post('/bd', requireDeviceToken, async (req, res) => {
     try {
         const { title, description, priority, category } = req.body;
 
@@ -523,7 +503,7 @@ router.post('/bd', identifyDevice, async (req, res) => {
 /**
  * GET /api/bd/tickets — List own tickets (agent).
  */
-router.get('/bd', identifyDevice, async (req, res) => {
+router.get('/bd', requireDeviceToken, async (req, res) => {
     try {
         const adapter = getAdapter();
         const tickets = await adapter.getAllTickets({ device_id: req.deviceId });

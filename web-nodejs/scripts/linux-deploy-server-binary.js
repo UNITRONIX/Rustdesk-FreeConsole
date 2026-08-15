@@ -3,12 +3,13 @@
 
 /**
  * Privileged Go server binary deploy (issue #182).
- * Invoked via passwordless sudo from the panel update service.
+ * Run explicitly by the operator as root. The panel must not invoke this
+ * repository script through sudo because the source tree is mutable.
  *
  * Reads a JSON payload from stdin:
  *   { "source": "...", "target": "...", "consoleRoot": "...", "serverSourceRoot": "..." }
  *
- * Or `--check` to verify the caller can run this script via sudo (exit 0).
+ * Or `--check` to verify the caller is root (exit 0).
  */
 
 const fs = require('fs');
@@ -33,14 +34,14 @@ function readStdinPayload() {
 
 function runCheck() {
     if (typeof process.getuid === 'function' && process.getuid() !== 0) {
-        throw new Error('Privileged deploy check must run as root (via sudo)');
+        throw new Error('Privileged deploy check must run as root');
     }
     process.stdout.write(JSON.stringify({ success: true, mode: 'check' }));
 }
 
 function runDeploy(payload) {
     if (typeof process.getuid === 'function' && process.getuid() !== 0) {
-        throw new Error('Deploy must run as root (via sudo)');
+        throw new Error('Deploy must run as root');
     }
 
     const consoleRoot = payload.consoleRoot || path.join(__dirname, '..');
@@ -59,7 +60,7 @@ function runDeploy(payload) {
 
     const result = deployServerBinaryAtomic(validated.sourceReal, validated.targetPath);
 
-    // Running as root — refresh sudoers so panel updates pick up new privileged helpers.
+    // Running as root — refresh the fixed service-operation broker.
     let sudoersSync = null;
     try {
         const modPath = path.join(__dirname, 'linux-ensure-console-user.js');

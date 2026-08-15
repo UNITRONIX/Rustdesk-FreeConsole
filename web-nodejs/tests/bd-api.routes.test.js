@@ -55,4 +55,16 @@ describe('BD-API register rename guard', () => {
         expect(res.body.success).toBe(true);
         expect(db.upsertPeer).toHaveBeenCalled();
     });
+
+    it('rejects a bearer-bound device from registering a different device ID', async () => {
+        db.getAccessToken.mockResolvedValue({ client_id: 'BOUND123' });
+
+        const res = await request(app)
+            .post('/api/bd/register')
+            .set('Authorization', 'Bearer device-token')
+            .send({ device_id: 'OTHER123', uuid: 'device-uuid' });
+
+        expect(res.status).toBe(403);
+        expect(db.upsertPeer).not.toHaveBeenCalled();
+    });
 });

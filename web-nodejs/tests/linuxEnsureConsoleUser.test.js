@@ -20,18 +20,21 @@ const {
     SHARED_GO_DATA_DIR_MODE,
     SHARED_GO_SSL_DIR_MODE,
     SVC_USER,
+    PRIVILEGED_HELPER_PATH,
 } = require('../scripts/linux-ensure-console-user');
 const { ensureBindCapabilityInServiceUnit } = require('../lib/privilegedPorts');
 
 describe('linux-ensure-console-user helpers', () => {
-    test('buildUpdateSudoersContent references resolved binary paths', () => {
+    test('buildUpdateSudoersContent allows only the fixed root-owned broker', () => {
         const content = buildUpdateSudoersContent();
         expect(content).toContain('# Managed by BetterDesk linux-ensure-console-user.js');
-        expect(content).toContain(`${SVC_USER} ALL=(root) NOPASSWD: ${resolveSystemctlPath()}`);
-        expect(content).toMatch(/NOPASSWD: \/usr\/bin\/journalctl|NOPASSWD: \/bin\/journalctl/);
-        expect(content).toContain('linux-deploy-server-binary.js');
-        expect(content).toContain('linux-write-systemd-unit.js');
-        expect(content).toContain('linux-ensure-console-user.js');
+        expect(content).toContain(
+            `${SVC_USER} ALL=(root) NOPASSWD: ${process.execPath} ${PRIVILEGED_HELPER_PATH}`,
+        );
+        expect(content).not.toContain('linux-deploy-server-binary.js');
+        expect(content).not.toContain('linux-write-systemd-unit.js');
+        expect(content).not.toContain('systemctl');
+        expect(content).not.toContain('journalctl');
     });
 
     test('resolveSystemctlPath returns an existing path when available', () => {

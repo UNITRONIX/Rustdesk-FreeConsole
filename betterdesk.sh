@@ -164,9 +164,9 @@ done
 GO_SERVER_SOURCE="$SCRIPT_DIR/betterdesk-server"
 
 # Minimum Go version required for compilation (must match betterdesk-server/go.mod).
-GO_MIN_VERSION="1.26.5"
+GO_MIN_VERSION="1.26.6"
 # Point release downloaded when system Go is missing/outdated (must exist on go.dev/dl).
-GO_DOWNLOAD_VERSION="1.26.5"
+GO_DOWNLOAD_VERSION="1.26.6"
 # Maximum time allowed for the first module download on a native install.
 GO_MODULE_DOWNLOAD_TIMEOUT="${GO_MODULE_DOWNLOAD_TIMEOUT:-600}"
 
@@ -1873,10 +1873,8 @@ prepare_console_after_update() {
     if [ -f "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" ] && command -v node &>/dev/null; then
         if [ "$(id -u)" -eq 0 ]; then
             node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission sync reported issues"
-        elif command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
-            sudo -n node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission sync reported issues"
         else
-            print_warning "Console permission sync skipped (run as root: sudo node $CONSOLE_PATH/scripts/linux-ensure-console-user.js)"
+            print_warning "Console permission sync skipped; run linux-ensure-console-user.js as root"
         fi
     fi
     repair_console_service_user_line "betterdesk" || true
@@ -3194,10 +3192,8 @@ install_nodejs_console() {
     fi
     rm -f "$npm_log"
 
-    # Server Management Terminal sudo hint (BETA — manual step, NOT automated):
-    #   echo 'betterdesk-console ALL=(ALL) NOPASSWD: /usr/bin/systemctl, /usr/bin/journalctl' \
-    #       | sudo tee /etc/sudoers.d/betterdesk-console
-    # The installer never modifies sudoers; admins opt in manually.
+    # Do not suggest a broad systemctl/journalctl sudoers rule here. The
+    # privileged update broker is the only supported panel elevation path.
     echo ""
     
     # Create data directory for databases
@@ -3569,17 +3565,15 @@ patch_service_definitions() {
         content=$(cat "$console_svc")
         new_content=$(printf '%s' "$content" \
             | sed 's|Environment=HBBS_API_URL=https://localhost|Environment=HBBS_API_URL=http://localhost|g' \
-            | sed 's|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|g')
+            | sed 's|Environment=BETTERDESK_API_URL=https://localhost|Environment=BETTERDESK_API_URL=http://localhost|g' \
+            | sed '/^ExecStartPre=.*linux-ensure-console-user/d')
         if [ "$console_user" != "root" ] && grep -q '^User=root' <<< "$new_content"; then
             new_content=$(printf '%s' "$new_content" | sed "s/^User=root/User=$console_user/")
             print_info "Patched betterdesk-console.service (User=$console_user)"
             changed=1
         fi
-        local node_path
-        node_path=$(command -v node 2>/dev/null || echo "/usr/bin/node")
-        if ! grep -q '^ExecStartPre=.*linux-ensure-console-user' <<< "$new_content"; then
-            new_content=$(printf '%s' "$new_content" | sed "s|^ExecStart=|ExecStartPre=+${node_path} ${CONSOLE_PATH}/scripts/linux-ensure-console-user.js\nExecStart=|")
-            print_info "Patched betterdesk-console.service (ExecStartPre permission sync)"
+        if [ "$new_content" != "$content" ] && grep -q '^ExecStartPre=.*linux-ensure-console-user' <<< "$content"; then
+            print_info "Removed unsafe root ExecStartPre permission hook from betterdesk-console.service"
             changed=1
         fi
         if [ "$new_content" != "$content" ]; then
@@ -3951,7 +3945,6 @@ Type=simple
 User=$console_user
 WorkingDirectory=$CONSOLE_PATH
 EnvironmentFile=-$CONSOLE_PATH/.env
-ExecStartPre=+$node_path $CONSOLE_PATH/scripts/linux-ensure-console-user.js
 ExecStart=$node_path server.js
 StandardOutput=journal
 StandardError=journal
@@ -5213,10 +5206,8 @@ repair_permissions() {
         if [ -f "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" ] && command -v node &>/dev/null; then
             if [ "$(id -u)" -eq 0 ]; then
                 node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission script reported issues"
-            elif command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
-                sudo -n node "$CONSOLE_PATH/scripts/linux-ensure-console-user.js" || print_warning "Console permission script reported issues"
             else
-                print_warning "Console permission sync skipped (run as root: sudo node $CONSOLE_PATH/scripts/linux-ensure-console-user.js)"
+                print_warning "Console permission sync skipped; run linux-ensure-console-user.js as root"
             fi
         fi
         repair_https_stuck_state yes

@@ -31,6 +31,9 @@
 'use strict';
 
 const WebSocket = require('ws');
+const db = require('./database');
+const { verifyDeviceWsAuth } = require('../lib/deviceTokenAuth');
+const { roleHasPermission } = require('../middleware/auth');
 
 const log = {
     info:  (...a) => console.log('[Chat]', ...a),
@@ -508,8 +511,23 @@ function initChatRelay(server, sessionMiddleware, betterdeskApi) {
             const agentMatch = pathname.match(/^\/ws\/chat\/([^/]+)$/);
             if (agentMatch) {
                 if (!enforceOrigin(req, socket, `chat-agent ${pathname}`)) return;
-                wss.handleUpgrade(req, socket, head, (ws) => {
-                    wss.emit('connection', ws, req, 'agent', agentMatch[1]);
+                const authHeader = req.headers.authorization || '';
+                const headerToken = /^Bearer\s+(\S+)$/.exec(authHeader)?.[1] || '';
+                const token = url.searchParams.get('token') || headerToken;
+                verifyDeviceWsAuth(agentMatch[1], token, db).then((ok) => {
+                    if (!ok) {
+                        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                        socket.destroy();
+                        return;
+                    }
+                    wss.handleUpgrade(req, socket, head, (ws) => {
+                        wss.emit('connection', ws, req, 'agent', agentMatch[1]);
+                    });
+                }).catch(() => {
+                    try {
+                        socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+                        socket.destroy();
+                    } catch (_) { /* socket already closed */ }
                 });
                 return;
             }
@@ -520,6 +538,11 @@ function initChatRelay(server, sessionMiddleware, betterdeskApi) {
                 sessionMiddleware(req, {}, () => {
                     if (!req.session || !req.session.userId) {
                         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                        socket.destroy();
+                        return;
+                    }
+                    if (!roleHasPermission(req.session.user?.role, 'chat.access')) {
+                        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
                         socket.destroy();
                         return;
                     }
@@ -536,7 +559,7 @@ function initChatRelay(server, sessionMiddleware, betterdeskApi) {
             handleAgentConnection(ws, deviceId);
         } else {
             sessionMiddleware(req, {}, () => {
-                const operatorName = req.session?.username || 'operator';
+                const operatorName = req.session?.user?.username || req.session?.username || 'operator';
                 handleOperatorConnection(ws, deviceId, operatorName);
             });
         }

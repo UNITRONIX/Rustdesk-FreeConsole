@@ -188,8 +188,9 @@ app.use('/api/', apiLimiter);
 // dedicated WAN-facing port (21121) with additional hardening.
 app.use(rustdeskApiRoutes);
 
-// BetterDesk Desktop Client API — device-facing endpoints that use
-// Bearer token or X-Device-Id header, not browser CSRF cookies.
+// BetterDesk Desktop Client API — device-facing endpoints use Bearer tokens
+// (the initial registration endpoint is the only X-Device-Id compatibility
+// path), not browser CSRF cookies.
 app.use('/api/bd', bdApiRoutes);
 
 // i18n middleware

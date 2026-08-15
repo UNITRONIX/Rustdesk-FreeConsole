@@ -155,8 +155,8 @@ $script:RELAY_SERVERS = if ($RelayServers) { $RelayServers } elseif ($env:RELAY_
 # Go server configuration
 $script:GO_SERVER_SOURCE = Join-Path $script:ScriptDir "betterdesk-server"
 # Must match the toolchain pinned in betterdesk-server/go.mod.
-$script:GO_MIN_VERSION = "1.26.5"
-$script:GO_DOWNLOAD_VERSION = "1.26.5"
+$script:GO_MIN_VERSION = "1.26.6"
+$script:GO_DOWNLOAD_VERSION = "1.26.6"
 # Legacy Rust checksums (deprecated, kept for migration purposes)
 $script:HBBS_WINDOWS_X86_64_SHA256 = "B790FA44CAC7482A057ED322412F6D178FB33F3B05327BFA753416E9879BD62F"
 $script:HBBR_WINDOWS_X86_64_SHA256 = "368C71E8D3AEF4C5C65177FBBBB99EA045661697A89CB7C2A703759C575E8E9F"

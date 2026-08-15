@@ -27,11 +27,14 @@ const https = require('https');
 const { execSync, execFileSync } = require('child_process');
 const config = require('../config/config');
 const {
-    readSystemdUnitPrivileged,
-    writeSystemdUnitPrivileged,
     isAllowedSystemdUnitPath,
     privilegedSystemdUnitHint,
 } = require('../lib/linuxSystemdUnitPrivileged');
+const {
+    canUsePrivilegedUpdate,
+    daemonReload: privilegedDaemonReload,
+    restartService: privilegedRestartService,
+} = require('../lib/privilegedUpdateHelper');
 const { readProductVersion } = require('../lib/productVersion');
 const { createConsoleDeployGraph } = require('../lib/consoleDeployGraph');
 const { resolveChildPath, resolvePathUnderRoot, existsConfinedChild, removeConfinedChild } = require('../lib/safePath');
@@ -786,15 +789,11 @@ function readTextFilePrivileged(filePath) {
     try {
         return fs.readFileSync(filePath, 'utf8');
     } catch (err) {
-        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM') && isAllowedSystemdUnitPath(filePath)) {
-            return readSystemdUnitPrivileged(filePath, ROOT_DIR);
-        }
         if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
-            try {
-                return execSync(`sudo -n cat ${shellQuote(filePath)}`, { timeout: 5000, stdio: 'pipe' }).toString();
-            } catch (sudoErr) {
-                throw new Error(`${sudoErr.message || sudoErr}. ${privilegedSystemdUnitHint()}`);
-            }
+            const detail = isAllowedSystemdUnitPath(filePath)
+                ? privilegedSystemdUnitHint()
+                : 'Run the update preparation step as root.';
+            throw new Error(`${err.message || err}. ${detail}`);
         }
         throw err;
     }
@@ -804,10 +803,6 @@ function writeTextFilePrivileged(filePath, content) {
     try {
         fs.writeFileSync(filePath, content);
     } catch (err) {
-        if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM') && isAllowedSystemdUnitPath(filePath)) {
-            writeSystemdUnitPrivileged(filePath, content, ROOT_DIR);
-            return;
-        }
         if (!IS_WINDOWS && (err.code === 'EACCES' || err.code === 'EPERM')) {
             throw new Error(`${err.message || err}. ${privilegedSystemdUnitHint()}`);
         }
@@ -816,8 +811,18 @@ function writeTextFilePrivileged(filePath, content) {
 }
 
 function runPrivileged(command, options = {}) {
-    const prefix = !IS_WINDOWS && typeof process.getuid === 'function' && process.getuid() !== 0 ? 'sudo -n ' : '';
-    return execSync(prefix + command, options);
+    void options;
+    if (IS_WINDOWS) {
+        throw new Error('Privileged Linux service operation requested on Windows');
+    }
+    if (command === 'systemctl daemon-reload') {
+        return privilegedDaemonReload();
+    }
+    const restartMatch = /^systemctl restart '?([A-Za-z0-9_.@-]+)'?$/.exec(String(command || ''));
+    if (restartMatch) {
+        return privilegedRestartService(restartMatch[1]);
+    }
+    throw new Error('Unallowlisted privileged service command');
 }
 
 /**
@@ -1560,7 +1565,7 @@ const GO_TOOLCHAIN_DIR = path.join(config.dataDir, 'go-toolchain');
 // Minimum Go version required to build the server. Keep this aligned with the
 // toolchain pinned in betterdesk-server/go.mod so builds do not trigger a
 // hidden automatic toolchain download.
-const GO_MIN_VERSION = '1.26.5';
+const GO_MIN_VERSION = '1.26.6';
 
 function getToolchainKey() {
     const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
@@ -1808,39 +1813,20 @@ async function _installGoToolchainBody(onProgress, opts = {}) {
     }
 }
 
-/** Refresh Linux sudoers/permissions (issue #182). Runs ensure script as root when possible. */
+/** Report Linux privilege state without running repository code as root. */
 function syncLinuxPanelUpdatePrivileges() {
     if (IS_WINDOWS) return { skipped: true, reason: 'not-linux' };
 
-    const ensureScript = path.join(ROOT_DIR, 'scripts/linux-ensure-console-user.js');
-
-    const runEnsureInProcess = () => {
+    try {
+        if (typeof process.getuid === 'function' && process.getuid() !== 0) {
+            return {
+                skipped: true,
+                reason: 'root maintenance required; the panel will not execute repository scripts via sudo',
+            };
+        }
         const modPath = require.resolve('../scripts/linux-ensure-console-user');
         delete require.cache[modPath];
         return require('../scripts/linux-ensure-console-user').ensureLinuxConsoleServiceUser();
-    };
-
-    try {
-        if (typeof process.getuid === 'function' && process.getuid() !== 0 && fs.existsSync(ensureScript)) {
-            try {
-                const out = execFileSync('sudo', ['-n', process.execPath, ensureScript], {
-                    encoding: 'utf8',
-                    timeout: 120000,
-                    stdio: ['pipe', 'pipe', 'pipe'],
-                });
-                const parsed = JSON.parse(String(out || '').trim() || '{}');
-                if (parsed.error) {
-                    console.warn(`[UPDATE] Linux privilege sync reported: ${parsed.error}`);
-                }
-                return parsed;
-            } catch (sudoErr) {
-                console.warn(
-                    `[UPDATE] Privileged ensure via sudo failed (${sudoErr.message || sudoErr});`
-                    + ' trying in-process (sudoers may need one deploy cycle or root repair)'
-                );
-            }
-        }
-        return runEnsureInProcess();
     } catch (err) {
         console.warn(`[UPDATE] Linux privilege sync warning: ${err.message}`);
         return { error: err.message || String(err) };
@@ -1852,6 +1838,13 @@ function deployServerBinaryPrivileged(builtBinaryPath, targetPath) {
     if (!fs.existsSync(scriptPath)) {
         return { success: false, error: 'Privileged deploy helper not installed' };
     }
+    if (!IS_WINDOWS && typeof process.getuid === 'function' && process.getuid() !== 0) {
+        return {
+            success: false,
+            error: 'Go server binary is root-owned. Run the release deploy helper once as root; '
+                + 'the panel will not execute repository code through sudo.',
+        };
+    }
 
     const payload = JSON.stringify({
         source: builtBinaryPath,
@@ -1862,10 +1855,7 @@ function deployServerBinaryPrivileged(builtBinaryPath, targetPath) {
     });
 
     try {
-        const prefix = !IS_WINDOWS && typeof process.getuid === 'function' && process.getuid() !== 0
-            ? 'sudo -n '
-            : '';
-        const out = execSync(`${prefix}${shellQuote(scriptPath)}`, {
+        const out = execSync(`${shellQuote(scriptPath)}`, {
             input: payload,
             timeout: 120000,
             encoding: 'utf8',
@@ -3532,10 +3522,10 @@ async function runUpdatePreflight(opts = {}) {
     }
 
     if (process.platform === 'linux' && typeof process.getuid === 'function' && process.getuid() !== 0) {
-        try {
-            execSync('sudo -n systemctl --version', { timeout: 5000, stdio: 'pipe' });
-        } catch (_e) {
-            warnings.push('Passwordless sudo for systemctl is not configured — service restarts during update may fail until linux-ensure-console-user.js is run as root');
+        if (!canUsePrivilegedUpdate()) {
+            warnings.push(
+                'The fixed root update broker is not installed — run linux-ensure-console-user.js as root once'
+            );
         }
     }
 
@@ -3545,7 +3535,7 @@ async function runUpdatePreflight(opts = {}) {
         if (!capability.ready) {
             warnings.push(
                 `Server binary directory is not writable: ${capability.targetDir || path.dirname(binaryPath)}`
-                + ' — run linux-ensure-console-user.js as root once to enable privileged deploy'
+                + ' — run the documented Go server deploy helper as root; the panel will not sudo repository code'
             );
         }
     } else {

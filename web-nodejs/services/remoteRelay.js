@@ -32,6 +32,7 @@ const WebSocket = require('ws');
 const crypto = require('crypto');
 const db = require('./database');
 const { verifyDeviceWsAuth } = require('../lib/deviceTokenAuth');
+const { roleHasPermission } = require('../middleware/auth');
 
 const MAX_BINARY_FRAME  = 2 * 1024 * 1024; // 2 MB
 const MAX_VIEWERS       = 5;
@@ -329,6 +330,11 @@ function initRemoteRelay(server, sessionMiddleware) {
                 sessionMiddleware(req, {}, () => {
                     if (!req.session || !req.session.userId) {
                         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                        socket.destroy();
+                        return;
+                    }
+                    if (!roleHasPermission(req.session.user?.role, 'device.connect')) {
+                        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
                         socket.destroy();
                         return;
                     }
