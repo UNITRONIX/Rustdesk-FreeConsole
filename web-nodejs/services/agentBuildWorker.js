@@ -95,16 +95,32 @@ function _mesaCompanionFiles() {
     }));
 }
 
+/** True when legacy Fyne dual X11/Wayland artifacts are present alongside the launcher. */
+function _hasDualLinuxUI(distDir) {
+    return fs.existsSync(path.join(distDir, 'betterdesk-support-x11'))
+        && fs.existsSync(path.join(distDir, 'betterdesk-support-wayland'));
+}
+
+/**
+ * Stage Linux UI binaries into a package directory.
+ * Wails (default) ships a single binary; Fyne dual layout is used only when
+ * betterdesk-support-x11 + betterdesk-support-wayland exist in distDir.
+ * @returns {'single'|'dual'}
+ */
 async function _stageLinuxUI(distDir, stageDir, launcherName) {
     const launcher = path.join(distDir, launcherName);
-    const x11 = path.join(distDir, 'betterdesk-support-x11');
-    const wl = path.join(distDir, 'betterdesk-support-wayland');
     await fsp.copyFile(launcher, path.join(stageDir, launcherName));
     await fsp.chmod(path.join(stageDir, launcherName), 0o755);
+    if (!_hasDualLinuxUI(distDir)) {
+        return 'single';
+    }
+    const x11 = path.join(distDir, 'betterdesk-support-x11');
+    const wl = path.join(distDir, 'betterdesk-support-wayland');
     await fsp.copyFile(x11, path.join(stageDir, 'betterdesk-support-x11'));
     await fsp.chmod(path.join(stageDir, 'betterdesk-support-x11'), 0o755);
     await fsp.copyFile(wl, path.join(stageDir, 'betterdesk-support-wayland'));
     await fsp.chmod(path.join(stageDir, 'betterdesk-support-wayland'), 0o755);
+    return 'dual';
 }
 
 function _resolveBin(candidates) {
@@ -1017,16 +1033,12 @@ async function _findBundleForHash(hash) {
     return all.find(b => b.branding_hash === hash) || null;
 }
 
-async function _needsCompile(workDir, buildFingerprint, binaryPath, targetOS) {
+async function _needsCompile(workDir, buildFingerprint, binaryPath, _targetOS) {
     try {
         const stamp = (await fsp.readFile(path.join(workDir, '.built_for'), 'utf8')).trim();
         if (stamp !== buildFingerprint) return true;
+        // Wails ships a single Linux binary; dual X11/Wayland is optional (Fyne).
         await fsp.access(binaryPath, fs.constants.R_OK);
-        if (targetOS === 'linux') {
-            const distDir = path.dirname(binaryPath);
-            await fsp.access(path.join(distDir, 'betterdesk-support-x11'), fs.constants.R_OK);
-            await fsp.access(path.join(distDir, 'betterdesk-support-wayland'), fs.constants.R_OK);
-        }
         return false;
     } catch {
         return true;
@@ -1116,13 +1128,8 @@ async function _runGoBuild(workDir, brandingPath, outputPath, targetOS, signingK
         cwd: workDir,
         env: { BETTERDESK_BUNDLE_SIGNING_KEY_FILE: signingKeyFile },
     });
+    // Wails (default) produces a single Linux binary; dual X11/Wayland only for Fyne.
     await fsp.access(outputPath, fs.constants.R_OK);
-    if (targetOS === 'linux') {
-        const distDir = path.dirname(outputPath);
-        for (const name of ['betterdesk-support-x11', 'betterdesk-support-wayland']) {
-            await fsp.access(path.join(distDir, name), fs.constants.R_OK);
-        }
-    }
 }
 
 async function _packArtifact(workDir, binaryPath, profile, label, branding = {}, brandingHash = label) {
@@ -1215,15 +1222,23 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {},
             const stage = path.join(packDir, 'stage');
             const distDir = path.dirname(binaryPath);
             await fsp.mkdir(stage, { recursive: true });
-            await _stageLinuxUI(distDir, stage, baseName);
+            const layout = await _stageLinuxUI(distDir, stage, baseName);
             await fsp.writeFile(path.join(stage, 'portable'), '', 'utf8');
-            await fsp.writeFile(path.join(stage, 'README.txt'),
-                'BetterDesk Support Agent (portable)\r\n\r\n' +
-                'Run ./betterdesk-support — auto-selects Wayland or X11.\r\n' +
-                'Override: BETTERDESK_UI_BACKEND=wayland|x11\r\n',
-                'utf8');
+            const readme = layout === 'dual'
+                ? (
+                    'BetterDesk Support Agent (portable)\r\n\r\n'
+                    + 'Run ./betterdesk-support — auto-selects Wayland or X11.\r\n'
+                    + 'Override: BETTERDESK_UI_BACKEND=wayland|x11\r\n'
+                )
+                : (
+                    'BetterDesk Support Agent (portable)\r\n\r\n'
+                    + 'Run ./betterdesk-support\r\n'
+                );
+            await fsp.writeFile(path.join(stage, 'README.txt'), readme, 'utf8');
             const tarPath = path.join(packDir, `betterdesk-support-${label}-portable.tar.gz`);
-            const tarMembers = ['betterdesk-support', 'betterdesk-support-x11', 'betterdesk-support-wayland', 'portable', 'README.txt'];
+            const tarMembers = layout === 'dual'
+                ? ['betterdesk-support', 'betterdesk-support-x11', 'betterdesk-support-wayland', 'portable', 'README.txt']
+                : ['betterdesk-support', 'portable', 'README.txt'];
             await _runProcess('tar', ['-czf', tarPath, '-C', stage, ...tarMembers], { cwd: packDir });
             return tarPath;
         }
@@ -1234,16 +1249,24 @@ async function _packArtifact(workDir, binaryPath, profile, label, branding = {},
             await fsp.mkdir(binDir, { recursive: true });
             await fsp.mkdir(libDir, { recursive: true });
             const distDir = path.dirname(binaryPath);
-            await _stageLinuxUI(distDir, libDir, 'betterdesk-support');
+            const layout = await _stageLinuxUI(distDir, libDir, 'betterdesk-support');
             const binDest = path.join(binDir, 'betterdesk-support');
-            await fsp.writeFile(binDest, `#!/bin/sh
+            if (layout === 'dual') {
+                await fsp.writeFile(binDest, `#!/bin/sh
 LIB="/usr/lib/betterdesk-support"
 if [ -n "$WAYLAND_DISPLAY" ] && [ -z "$DISPLAY" ] && [ -x "$LIB/betterdesk-support-wayland" ]; then
   exec "$LIB/betterdesk-support-wayland" "$@"
 fi
 exec "$LIB/betterdesk-support-x11" "$@"
 `, { mode: 0o755 });
-            const postinst = `#!/bin/sh\n/usr/lib/betterdesk-support/betterdesk-support-x11 -install || true\n`;
+            } else {
+                await fsp.writeFile(binDest, `#!/bin/sh
+exec /usr/lib/betterdesk-support/betterdesk-support "$@"
+`, { mode: 0o755 });
+            }
+            const postinst = layout === 'dual'
+                ? `#!/bin/sh\n/usr/lib/betterdesk-support/betterdesk-support-x11 -install || true\n`
+                : `#!/bin/sh\n/usr/lib/betterdesk-support/betterdesk-support -install || true\n`;
             const debianDir = path.join(pkgRoot, 'DEBIAN');
             await fsp.mkdir(debianDir, { recursive: true });
             await fsp.writeFile(path.join(debianDir, 'postinst'), postinst, { mode: 0o755 });
@@ -1265,15 +1288,33 @@ exec "$LIB/betterdesk-support-x11" "$@"
             await fsp.mkdir(libDir, { recursive: true });
             await fsp.mkdir(binDir, { recursive: true });
             const distDir = path.dirname(binaryPath);
-            await _stageLinuxUI(distDir, libDir, 'betterdesk-support');
+            const layout = await _stageLinuxUI(distDir, libDir, 'betterdesk-support');
             const wrapperPath = path.join(binDir, 'betterdesk-support');
-            await fsp.writeFile(wrapperPath, `#!/bin/sh
+            if (layout === 'dual') {
+                await fsp.writeFile(wrapperPath, `#!/bin/sh
 LIB="/usr/lib/betterdesk-support"
 if [ -n "$WAYLAND_DISPLAY" ] && [ -z "$DISPLAY" ] && [ -x "$LIB/betterdesk-support-wayland" ]; then
   exec "$LIB/betterdesk-support-wayland" "$@"
 fi
 exec "$LIB/betterdesk-support-x11" "$@"
 `, { mode: 0o755 });
+            } else {
+                await fsp.writeFile(wrapperPath, `#!/bin/sh
+exec /usr/lib/betterdesk-support/betterdesk-support "$@"
+`, { mode: 0o755 });
+            }
+            const filesSection = layout === 'dual'
+                ? `/usr/lib/betterdesk-support/betterdesk-support
+/usr/lib/betterdesk-support/betterdesk-support-x11
+/usr/lib/betterdesk-support/betterdesk-support-wayland
+/usr/local/bin/betterdesk-support
+`
+                : `/usr/lib/betterdesk-support/betterdesk-support
+/usr/local/bin/betterdesk-support
+`;
+            const postInstall = layout === 'dual'
+                ? '/usr/lib/betterdesk-support/betterdesk-support-x11 -install || true'
+                : '/usr/lib/betterdesk-support/betterdesk-support -install || true';
             const spec = `Name:           betterdesk-support
 Version:        1.0.0
 Release:        1%{?dist}
@@ -1292,14 +1333,10 @@ cp -a %{_builddir}/usr/lib/betterdesk-support/. %{buildroot}/usr/lib/betterdesk-
 install -m 755 %{_builddir}/usr/local/bin/betterdesk-support %{buildroot}/usr/local/bin/betterdesk-support
 
 %post
-/usr/lib/betterdesk-support/betterdesk-support-x11 -install || true
+${postInstall}
 
 %files
-/usr/lib/betterdesk-support/betterdesk-support
-/usr/lib/betterdesk-support/betterdesk-support-x11
-/usr/lib/betterdesk-support/betterdesk-support-wayland
-/usr/local/bin/betterdesk-support
-`;
+${filesSection}`;
             const specPath = path.join(topdir, 'SPECS', 'betterdesk-support.spec');
             await fsp.writeFile(specPath, spec, 'utf8');
             await _runProcess('rpmbuild', [
@@ -1319,7 +1356,7 @@ install -m 755 %{_builddir}/usr/local/bin/betterdesk-support %{buildroot}/usr/lo
             const binDir = path.join(appDir, 'usr', 'bin');
             const distDir = path.dirname(binaryPath);
             await fsp.mkdir(binDir, { recursive: true });
-            await _stageLinuxUI(distDir, binDir, 'betterdesk-support');
+            const layout = await _stageLinuxUI(distDir, binDir, 'betterdesk-support');
             await fsp.writeFile(path.join(binDir, 'portable'), '', 'utf8');
 
             const displayName = String(branding.product_name || branding.company_name || 'BetterDesk Support')
@@ -1327,7 +1364,8 @@ install -m 755 %{_builddir}/usr/local/bin/betterdesk-support %{buildroot}/usr/lo
                 .trim()
                 .slice(0, 80);
 
-            await fsp.writeFile(path.join(appDir, 'AppRun'), `#!/bin/sh
+            const appRun = layout === 'dual'
+                ? `#!/bin/sh
 HERE="$(dirname "$(readlink -f "$0")")"
 export PATH="$HERE/usr/bin:$PATH"
 BD_UID="$(id -u 2>/dev/null || echo 0)"
@@ -1340,7 +1378,18 @@ if [ -x "$LAUNCHER" ]; then
   exec "$LAUNCHER" "$@"
 fi
 exec "$HERE/usr/bin/betterdesk-support-x11" "$@"
-`, { mode: 0o755 });
+`
+                : `#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+export PATH="$HERE/usr/bin:$PATH"
+BD_UID="$(id -u 2>/dev/null || echo 0)"
+export XDG_RUNTIME_DIR="\${XDG_RUNTIME_DIR:-/run/user/$BD_UID}"
+if [ -z "\${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "\$XDG_RUNTIME_DIR/bus" ]; then
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=\$XDG_RUNTIME_DIR/bus"
+fi
+exec "$HERE/usr/bin/betterdesk-support" "$@"
+`;
+            await fsp.writeFile(path.join(appDir, 'AppRun'), appRun, { mode: 0o755 });
 
             await fsp.writeFile(path.join(appDir, 'betterdesk-support.desktop'),
                 `[Desktop Entry]
@@ -1464,5 +1513,8 @@ module.exports = {
         assertReleaseSupportProfile: _assertReleaseSupportProfile,
         ensureFreshSupportProfile: _ensureFreshSupportProfile,
         parseBundleBranding: _parseBundleBranding,
+        hasDualLinuxUI: _hasDualLinuxUI,
+        stageLinuxUI: _stageLinuxUI,
+        needsCompile: _needsCompile,
     },
 };

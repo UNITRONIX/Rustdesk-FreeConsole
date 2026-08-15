@@ -193,9 +193,35 @@ if [ "$TARGET_OS" = "linux" ] && [ "$DUAL_LINUX" = 1 ]; then
     echo "Note: Wails UI uses a single Linux binary (ignoring -d X11/Wayland split)"
 fi
 
-# Seal branding for release embeds (plaintext restored after build).
+# Windows ICO/manifest must be generated from plaintext branding JSON.
+# sealbranding rewrites resources/branding.json to a BDBR1 blob that winicon
+# cannot parse (json: invalid character 'B').
+restore_branding() {
+    if [ -n "${BRANDING_PLAIN_BAK:-}" ] && [ -f "$BRANDING_PLAIN_BAK" ]; then
+        cp "$BRANDING_PLAIN_BAK" resources/branding.json
+        rm -f "$BRANDING_PLAIN_BAK"
+    fi
+    if [ -n "${BRANDING_PUB_BAK:-}" ] && [ -f "$BRANDING_PUB_BAK" ]; then
+        cp "$BRANDING_PUB_BAK" resources/branding.pub
+        rm -f "$BRANDING_PUB_BAK"
+    fi
+    if [ -n "${WINDOWS_RESOURCE:-}" ]; then
+        rm -f "$WINDOWS_RESOURCE"
+    fi
+    if [ -n "${WINDOWS_RESOURCE_DIR:-}" ]; then
+        rm -rf "$WINDOWS_RESOURCE_DIR"
+    fi
+}
+trap restore_branding EXIT
+
 BRANDING_PLAIN_BAK=""
 BRANDING_PUB_BAK=""
+
+if [ "$TARGET_OS" = "windows" ]; then
+    generate_windows_resources
+fi
+
+# Seal branding for release embeds (plaintext restored after build).
 if [ -f resources/branding.json ]; then
     BRANDING_PLAIN_BAK="$(mktemp)"
     cp resources/branding.json "$BRANDING_PLAIN_BAK"
@@ -214,30 +240,10 @@ if [ -f resources/branding.json ]; then
         exit 1
     fi
 fi
-restore_branding() {
-    if [ -n "$BRANDING_PLAIN_BAK" ] && [ -f "$BRANDING_PLAIN_BAK" ]; then
-        cp "$BRANDING_PLAIN_BAK" resources/branding.json
-        rm -f "$BRANDING_PLAIN_BAK"
-    fi
-    if [ -n "$BRANDING_PUB_BAK" ] && [ -f "$BRANDING_PUB_BAK" ]; then
-        cp "$BRANDING_PUB_BAK" resources/branding.pub
-        rm -f "$BRANDING_PUB_BAK"
-    fi
-    if [ -n "$WINDOWS_RESOURCE" ]; then
-        rm -f "$WINDOWS_RESOURCE"
-    fi
-    if [ -n "$WINDOWS_RESOURCE_DIR" ]; then
-        rm -rf "$WINDOWS_RESOURCE_DIR"
-    fi
-}
-trap restore_branding EXIT
 
 echo "Building $OUTPUT (GOOS=$TARGET_OS) ..."
 LDFLAGS="-s -w"
 [ "$TARGET_OS" = "windows" ] && LDFLAGS="$WIN_LDFLAGS"
-if [ "$TARGET_OS" = "windows" ]; then
-    generate_windows_resources
-fi
 
 BUILD_CMD=("$GO" build -trimpath -tags "$BUILD_TAGS" -ldflags "$LDFLAGS" -o "$OUTPUT" .)
 if [ "${BETTERDESK_USE_GARBLE:-0}" = "1" ] && command -v garble >/dev/null 2>&1; then

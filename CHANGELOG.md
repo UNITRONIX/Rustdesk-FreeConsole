@@ -1,7 +1,7 @@
 ## [Unreleased]
 
-### Changed
-- _(none yet)_
+### Fixed
+- **Support Agent generator builds (Linux + Windows):** Windows MSI/portable no longer fail when `winicon` ran against sealed `BDBR1` branding (`invalid character 'B'`). Linux `.deb` / `.rpm` / AppImage / tar.gz packaging now expects the default Wails single binary instead of missing X11/Wayland companions (`ENOENT` under `data/build-cache`). Fyne dual layout remains when those binaries are present. Ships via panel update (`agentBuildWorker.js` + agent-source `build.sh`); retry Client Builds after update. Refs #373.
 
 ---
 
