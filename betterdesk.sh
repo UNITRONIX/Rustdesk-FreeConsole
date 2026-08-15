@@ -151,10 +151,12 @@ done
 # Go server source directory
 GO_SERVER_SOURCE="$SCRIPT_DIR/betterdesk-server"
 
-# Minimum Go version required for compilation
-GO_MIN_VERSION="1.25"
+# Minimum Go version required for compilation (must match betterdesk-server/go.mod).
+GO_MIN_VERSION="1.26.5"
 # Point release downloaded when system Go is missing/outdated (must exist on go.dev/dl).
-GO_DOWNLOAD_VERSION="1.26.4"
+GO_DOWNLOAD_VERSION="1.26.5"
+# Maximum time allowed for the first module download on a native install.
+GO_MODULE_DOWNLOAD_TIMEOUT="${GO_MODULE_DOWNLOAD_TIMEOUT:-600}"
 
 # Default paths (can be overridden by environment variables)
 RUSTDESK_PATH="${RUSTDESK_PATH:-}"
@@ -2545,6 +2547,7 @@ check_go_installed() {
         local go_patch=$(_go_version_part "$go_version" 3)
         local min_major=$(_go_version_part "$GO_MIN_VERSION" 1)
         local min_minor=$(_go_version_part "$GO_MIN_VERSION" 2)
+        local min_patch=$(_go_version_part "$GO_MIN_VERSION" 3)
 
         # Security hardening: reject vulnerable Go 1.26.0 stdlib.
         if [ "$go_major" -eq 1 ] && [ "$go_minor" -eq 26 ] && [ "$go_patch" -eq 0 ]; then
@@ -2552,7 +2555,9 @@ check_go_installed() {
             return 1
         fi
         
-        if [ "$go_major" -gt "$min_major" ] || ([ "$go_major" -eq "$min_major" ] && [ "$go_minor" -ge "$min_minor" ]); then
+        if [ "$go_major" -gt "$min_major" ] ||
+           ([ "$go_major" -eq "$min_major" ] && [ "$go_minor" -gt "$min_minor" ]) ||
+           ([ "$go_major" -eq "$min_major" ] && [ "$go_minor" -eq "$min_minor" ] && [ "$go_patch" -ge "$min_patch" ]); then
             return 0
         fi
     fi
@@ -2648,9 +2653,34 @@ compile_go_server() {
     print_info "Building BetterDesk server for $ARCH_NAME..."
     local output_name="betterdesk-server"
     
-    # Download dependencies
-    print_info "Downloading Go modules..."
-    go mod download
+    # Download dependencies. Keep this visible and bounded: Go may otherwise
+    # silently fetch the toolchain named in go.mod on hosts with an older Go.
+    print_info "Downloading Go modules (timeout: ${GO_MODULE_DOWNLOAD_TIMEOUT}s)..."
+    local module_download_status=0
+    if command -v timeout &> /dev/null; then
+        if timeout "${GO_MODULE_DOWNLOAD_TIMEOUT}s" go mod download -x; then
+            :
+        else
+            module_download_status=$?
+        fi
+    else
+        print_warning "'timeout' command is unavailable; module download will run without a deadline"
+        if go mod download -x; then
+            :
+        else
+            module_download_status=$?
+        fi
+    fi
+
+    if [ "$module_download_status" -ne 0 ]; then
+        if [ "$module_download_status" -eq 124 ]; then
+            print_error "Go module download timed out after ${GO_MODULE_DOWNLOAD_TIMEOUT}s"
+        else
+            print_error "Go module download failed (exit code ${module_download_status})"
+        fi
+        print_error "Check DNS, outbound HTTPS, firewall and GOPROXY access, then retry"
+        return 1
+    fi
     
     # Build with optimizations
     CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=${VERSION}" -o "$output_name" .

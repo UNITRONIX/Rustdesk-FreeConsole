@@ -1,7 +1,7 @@
 ## [Unreleased]
 
 ### Changed
-- _(none yet)_
+- **Native Linux installer Go download diagnostics (#371):** Native builds now use the Go `1.26.5` toolchain pinned by the server module, show module download progress, and fail with a timeout plus network guidance instead of appearing stuck at `Downloading Go modules...`. The panel rebuild path uses the same pinned toolchain.
 
 ---
 

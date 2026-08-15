@@ -152,7 +152,7 @@ async function _ensureGoToolchain() {
     if (!_ensureGoPromise) {
         _ensureGoPromise = (async () => {
             const updateService = require('./updateService');
-            const result = await updateService.installGoToolchain(null, { maxVersion: '1.25.99' });
+            const result = await updateService.installGoToolchain(null, { maxVersion: '1.26.5' });
             if (result.success && result.binPath && _goBinaryHealthy(result.binPath)) {
                 _activeGoBin = result.binPath;
                 process.env.GO_BIN = result.binPath;

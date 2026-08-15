@@ -1554,10 +1554,10 @@ async function buildGoServer(preferredGoBinPath = null) {
 // ---------- Vendored Go toolchain bootstrap ----------
 
 const GO_TOOLCHAIN_DIR = path.join(config.dataDir, 'go-toolchain');
-// Minimum Go version required to build the server (must match
-// betterdesk-server/go.mod). The actual point release is selected at
-// install time from the live go.dev manifest.
-const GO_MIN_VERSION = '1.23.0';
+// Minimum Go version required to build the server. Keep this aligned with the
+// toolchain pinned in betterdesk-server/go.mod so builds do not trigger a
+// hidden automatic toolchain download.
+const GO_MIN_VERSION = '1.26.5';
 
 function getToolchainKey() {
     const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
@@ -1665,8 +1665,9 @@ function httpsDownload(url, redirects = 5) {
  * the canonical SHA-256 sum so the download can be verified securely.
  */
 async function resolveGoRelease(opts = {}) {
-    // Go 1.26.x ships incomplete stdlib on some hosts; cap agent/server builds at 1.25.x.
-    const maxVersion = opts.maxVersion || '1.25.99';
+    // The server's go.mod pins this toolchain. Callers may explicitly request
+    // another compatible release for a separate build target.
+    const maxVersion = opts.maxVersion || GO_MIN_VERSION;
     const key = getToolchainKey();
     const data = await httpsDownload('https://go.dev/dl/?mode=json');
     const releases = JSON.parse(data.toString('utf8'));
