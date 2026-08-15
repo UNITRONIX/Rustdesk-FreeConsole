@@ -30,6 +30,86 @@ func authorizeTestRelayPair(t *testing.T, uuid string) {
 	}
 }
 
+func TestStandaloneCompatibilityAcceptsUUIDWithoutLocalTicket(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.RelayRequireTickets = false
+	srv := New(cfg)
+
+	if !srv.claimRelayTicket("standalone-uuid") || !srv.claimRelayTicket("standalone-uuid") {
+		t.Fatal("standalone relay must accept both sides without a process-local signal ticket")
+	}
+}
+
+func TestStandaloneCompatibilityPairsWithoutLocalTicket(t *testing.T) {
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
+	cfg := config.DefaultConfig()
+	cfg.RelayPort = port
+	cfg.RelayRequireTickets = false
+	srv := New(cfg)
+	if err := srv.Start(t.Context()); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer srv.Stop()
+
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	connA, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		t.Fatalf("dial A: %v", err)
+	}
+	defer connA.Close()
+	connB, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		t.Fatalf("dial B: %v", err)
+	}
+	defer connB.Close()
+
+	uuid := "standalone-wire-pair-uuid"
+	for _, side := range []struct {
+		conn net.Conn
+		id   string
+	}{{connA, "PEER_B"}, {connB, "PEER_A"}} {
+		if err := codec.WriteRawProto(side.conn, &pb.RendezvousMessage{
+			Union: &pb.RendezvousMessage_RequestRelay{
+				RequestRelay: &pb.RequestRelay{Uuid: uuid, Id: side.id},
+			},
+		}); err != nil {
+			t.Fatalf("write %s request: %v", side.id, err)
+		}
+	}
+
+	waitRelayPairing(t, srv)
+	payload := []byte("standalone relay payload")
+	if err := connA.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := connA.Write(payload); err != nil {
+		t.Fatalf("write payload: %v", err)
+	}
+	if err := connB.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	got := make([]byte, len(payload))
+	if _, err := connB.Read(got); err != nil {
+		t.Fatalf("read payload: %v", err)
+	}
+	if string(got) != string(payload) {
+		t.Fatalf("payload mismatch: got %q, want %q", got, payload)
+	}
+}
+
+func TestRelayRejectsUUIDWithoutTicketByDefault(t *testing.T) {
+	srv := New(config.DefaultConfig())
+	if srv.claimRelayTicket("unknown-default-uuid") {
+		t.Fatal("all-in-one relay accepted a UUID without a signal-issued ticket")
+	}
+}
+
 func TestRelayPairing(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.RelayPort = 0 // let OS pick a free port

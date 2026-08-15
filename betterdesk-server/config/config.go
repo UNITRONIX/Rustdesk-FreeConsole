@@ -85,6 +85,7 @@ type Config struct {
 	// as panel-authorized initiators (#302 regression fix). Default: loopback.
 	PanelSignalProxyCIDRs []*net.IPNet
 	RelayMaxConnsIP       int    // Max relay connections per IP (0 = unlimited)
+	RelayRequireTickets   bool   // Require signal-issued UUID tickets (disable only on a separate relay process)
 	InitAdminUser         string // Initial admin username (created on first start)
 	InitAdminPass         string // Initial admin password (auto-generated if empty)
 
@@ -181,6 +182,7 @@ func DefaultConfig() *Config {
 		ClientSessionSliding:      true,
 		ClientSessionMaxDays:      30,
 		RelayMaxConnsIP:           20,
+		RelayRequireTickets:       true,
 		EnrollmentMode:            EnrollmentModeOpen, // Backward compatible default
 		PanelSignalProxyCIDRs:     panelCIDRs,
 		CDAPPort:                  21122,
@@ -348,6 +350,14 @@ func (c *Config) LoadEnv() {
 	if v := os.Getenv("RELAY_MAX_CONNS_PER_IP"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			c.RelayMaxConnsIP = n
+		}
+	}
+	if v := strings.ToUpper(strings.TrimSpace(os.Getenv("RELAY_REQUIRE_TICKETS"))); v != "" {
+		switch v {
+		case "Y", "YES", "1", "TRUE", "ON":
+			c.RelayRequireTickets = true
+		case "N", "NO", "0", "FALSE", "OFF":
+			c.RelayRequireTickets = false
 		}
 	}
 	// Issue #122: allow tuning the per-IP signal/registration rate limit

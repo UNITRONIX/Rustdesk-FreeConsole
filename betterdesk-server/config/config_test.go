@@ -73,3 +73,20 @@ func TestLoadEnv_SignalPortPrecedenceOverPort(t *testing.T) {
 		t.Fatalf("SignalPort = %d, want 21116 (SIGNAL_PORT should win over PORT)", cfg.SignalPort)
 	}
 }
+
+func TestDefaultConfig_RelayTicketsAreRequired(t *testing.T) {
+	if !DefaultConfig().RelayRequireTickets {
+		t.Fatal("RelayRequireTickets must be enabled by default")
+	}
+}
+
+func TestLoadEnv_CanDisableRelayTicketsExplicitly(t *testing.T) {
+	t.Setenv("RELAY_REQUIRE_TICKETS", "N")
+
+	cfg := DefaultConfig()
+	cfg.LoadEnv()
+
+	if cfg.RelayRequireTickets {
+		t.Fatal("RelayRequireTickets = true, want false")
+	}
+}

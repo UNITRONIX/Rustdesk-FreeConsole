@@ -174,8 +174,11 @@ The Go server (`betterdesk-server/`) is a ~20,000 LOC clean-room implementation 
 # Signal only (no relay)
 ./betterdesk-server -mode signal
 
-# Relay only
+# Relay only on the same process/host as its signal authorization registry
 ./betterdesk-server -mode relay
+
+# Separate relay host (official hbbr-compatible UUID pairing)
+RELAY_REQUIRE_TICKETS=N ./betterdesk-server -mode relay
 ```
 
 ### Protocol Implementation
@@ -970,6 +973,7 @@ You can **upgrade to Let's Encrypt** or a custom certificate at any time using m
 | `-db` | `./db_v2.sqlite3` | `DB_URL` | Database DSN — file path (SQLite) or `postgres://...` (PostgreSQL) |
 | `-key-file` | `id_ed25519` | `KEY_FILE` | Ed25519 key file path (without extension) |
 | `-relay-servers` | *(empty)* | `RELAY_SERVERS` | Comma-separated relay addresses for `ConfigUpdate` |
+| *(none)* | `true` | `RELAY_REQUIRE_TICKETS` | Require process-local signal-issued relay UUID tickets. Set `N` only on a separate relay process; all-in-one keeps `Y`. |
 | `-rendezvous-servers` | *(empty)* | `RENDEZVOUS_SERVERS` | Comma-separated rendezvous addresses |
 | `-mask` | *(empty)* | `MASK` | LAN mask (e.g. `192.168.0.0/24`) |
 | `-always-relay` | `false` | `ALWAYS_USE_RELAY=Y` | Force relay for all connections (no P2P) |
