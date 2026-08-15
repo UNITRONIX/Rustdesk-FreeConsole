@@ -258,7 +258,8 @@ impl CdapClient {
         let url_str = cfg.cdap_ws_url();
         let url = url::Url::parse(&url_str).context("Invalid CDAP URL")?;
 
-        // Build WS connector — honour BETTERDESK_STRICT_TLS via shared tls helper.
+        // Build WS connector — strict certificate validation is the default;
+        // invalid certificates require the explicit development-only override.
         let connector = crate::tls::build_ws_connector();
 
         let (ws_stream, _response) = if let Some(c) = connector {

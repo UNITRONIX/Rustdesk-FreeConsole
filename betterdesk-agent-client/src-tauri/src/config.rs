@@ -164,11 +164,10 @@ pub struct AgentConfig {
 
     // ── TLS hardening (Phase 4) ─────────────────────────────────────────────
 
-    /// Opt-in flag that rejects plaintext `ws://` for non-local hosts. Left
-    /// `false` by default so HTTP/`ws://` stays a fully supported transport for
-    /// deployments without TLS infrastructure (the agent still logs a warning
-    /// recommending `wss://`). Operators on hostile networks can enable it.
-    #[serde(default)]
+    /// Reject plaintext `ws://` for non-local hosts. Localhost/LAN development
+    /// remains compatible; remote deployments must use `wss://` or explicitly
+    /// opt out in the configuration after accepting the risk.
+    #[serde(default = "default_true")]
     pub enforce_tls: bool,
 
     /// Hex-encoded SHA-256 of the server certificate's SubjectPublicKeyInfo
@@ -211,7 +210,7 @@ impl Default for AgentConfig {
             start_minimized: true,
             language: "en".to_string(),
             unattended_password: String::new(),
-            enforce_tls: false,
+            enforce_tls: true,
             server_cert_pin: String::new(),
             settings_lock: crate::settings_lock::SettingsLock::default(),
         }

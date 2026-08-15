@@ -2,7 +2,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync, execFileSync } = require('child_process');
 
 const SERVER_BINARY_NAME = 'betterdesk-server';
 const ALLOWED_TARGET_DIRS = [
@@ -193,21 +192,15 @@ function canWriteDirectory(dirPath) {
 }
 
 function canUsePrivilegedDeploy(scriptPath) {
-    if (process.platform !== 'linux' || !scriptPath || !fs.existsSync(scriptPath)) {
-        return false;
-    }
+    if (process.platform !== 'linux') return false;
     if (typeof process.getuid === 'function' && process.getuid() === 0) {
         return true;
     }
-    try {
-        execFileSync('sudo', ['-n', scriptPath, '--check'], {
-            timeout: 5000,
-            stdio: 'pipe',
-        });
-        return true;
-    } catch (_e) {
-        return false;
-    }
+    // A binary built in the console user's writable tree cannot safely be
+    // promoted to a root-owned path without a separately verified signature.
+    // Require the operator to run the deploy helper as root instead.
+    void scriptPath;
+    return false;
 }
 
 /**

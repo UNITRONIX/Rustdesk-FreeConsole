@@ -22,16 +22,15 @@ Session detection and GDK/WebKit env setup run in `src-tauri/src/linux_display.r
 
 ### TLS (HTTP / self-signed / Let's Encrypt)
 
-RdClient targets **self-hosted operator panels**. By default it accepts:
-
-- **`http://`** panel URLs (no TLS)
-- **`https://`** with **self-signed** BetterDesk installer certs
-- **`https://`** with **Let's Encrypt** or commercial CAs (including incomplete intermediate chains on LAN)
+RdClient targets **self-hosted operator panels**. HTTPS certificate validation
+is enabled by default and uses the operating system trust store. Plain HTTP
+remains available for explicit local/development deployments but must not be
+used for production or hostile networks.
 
 | Platform | Mechanism |
 |----------|-----------|
-| **Linux** | Patched WebKitGTK `TLSErrorsPolicy::Ignore` on each WebContext (`vendor/wry`) |
-| **Windows** | WebView2 `--ignore-certificate-errors` |
+| **Linux** | System certificate validation by default; the bundled WebKit policy is only relaxed when strict TLS is explicitly disabled |
+| **Windows** | WebView2 certificate validation by default; `--ignore-certificate-errors` is only used when strict TLS is explicitly disabled |
 
 Strict validation (system trust store only):
 
@@ -39,7 +38,8 @@ Strict validation (system trust store only):
 BETTERDESK_TLS_STRICT=1 npm run dev
 ```
 
-Use strict mode only when the panel serves a **complete, publicly trusted chain** and you do not need LAN/self-signed access.
+Disable strict mode only for a deliberate development/self-signed exception,
+and never use that exception for production credentials or WAN access.
 
 ### Linux troubleshooting (Gdk error 71 / Wayland)
 

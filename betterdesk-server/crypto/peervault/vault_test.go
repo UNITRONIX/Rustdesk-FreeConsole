@@ -1,6 +1,9 @@
 package peervault
 
-import "testing"
+import (
+	"encoding/base64"
+	"testing"
+)
 
 func TestSealOpenRoundTrip(t *testing.T) {
 	v, err := New("test-secret-at-least-16b")
@@ -38,8 +41,13 @@ func TestTamperFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c = c[:len(c)-1] + "x"
-	if _, err := v.Open(n, c, kid); err == nil {
+	raw, err := base64.RawURLEncoding.DecodeString(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw[len(raw)-1] ^= 0x01
+	tampered := base64.RawURLEncoding.EncodeToString(raw)
+	if _, err := v.Open(n, tampered, kid); err == nil {
 		t.Fatal("expected open failure")
 	}
 }

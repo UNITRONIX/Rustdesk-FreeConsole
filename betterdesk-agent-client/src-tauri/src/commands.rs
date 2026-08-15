@@ -643,7 +643,7 @@ pub async fn send_chat_message(
     message: String,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
-    let (msg, address, device_id) = {
+    let (msg, address, device_id, auth_token) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
@@ -655,7 +655,12 @@ pub async fn send_chat_message(
             content: message.clone(),
             timestamp: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         };
-        (msg, config.server_address.clone(), config.device_id.clone())
+        (
+            msg,
+            config.server_address.clone(),
+            config.device_id.clone(),
+            config.auth_token.clone(),
+        )
     };
 
     // Store locally first.
@@ -677,10 +682,17 @@ pub async fn send_chat_message(
     });
 
     let url = format_console_url(&address, "/bd/chat/send");
-    // `X-Device-Id` is required by the `identifyDevice` middleware on the
-    // console; otherwise the relay rejects the message with 401. The helper
-    // also follows the HTTP→HTTPS redirect so the POST body survives.
-    if let Err(e) = send_console_json(reqwest::Method::POST, &url, &device_id, &payload, 8).await {
+    // The device token is the credential; X-Device-Id remains only as a
+    // compatibility hint for older consoles. The helper also follows the
+    // HTTP→HTTPS redirect so the POST body and headers survive.
+    if let Err(e) = send_console_json(
+        reqwest::Method::POST,
+        &url,
+        &device_id,
+        &auth_token,
+        &payload,
+        8,
+    ).await {
         info!("Chat delivery failed (non-fatal): {}", e);
     }
 
@@ -730,19 +742,23 @@ pub async fn request_help(
     description: String,
     state: State<'_, AgentState>,
 ) -> Result<(), String> {
-    let (address, device_id, device_name) = {
+    let (address, device_id, device_name, auth_token) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
         }
-        (config.server_address.clone(), config.device_id.clone(), config.device_name.clone())
+        (
+            config.server_address.clone(),
+            config.device_id.clone(),
+            config.device_name.clone(),
+            config.auth_token.clone(),
+        )
     };
 
     // The Node.js console route (`/api/bd/help-request`) reads `message` and
     // `hostname`; older `description`/`device_name` keys are kept for forward
-    // compatibility. The `X-Device-Id` header is REQUIRED by the `identifyDevice`
-    // middleware — without it the request is rejected with 401 even though the
-    // device is registered.
+    // compatibility. A server-issued device token is required for this
+    // device-facing endpoint.
     let payload = serde_json::json!({
         "device_id": device_id,
         "hostname": device_name,
@@ -755,7 +771,7 @@ pub async fn request_help(
     let url = format_console_url(&address, "/bd/help-request");
 
     let resp =
-        send_console_json(reqwest::Method::POST, &url, &device_id, &payload, 10).await?;
+        send_console_json(reqwest::Method::POST, &url, &device_id, &auth_token, &payload, 10).await?;
 
     if resp.status().is_success() {
         info!("Help request sent from {}", device_id);
@@ -767,12 +783,16 @@ pub async fn request_help(
 
 #[tauri::command]
 pub async fn cancel_help_request(state: State<'_, AgentState>) -> Result<(), String> {
-    let (address, device_id) = {
+    let (address, device_id, auth_token) = {
         let config = state.config.lock().map_err(|e| e.to_string())?;
         if !config.is_registered() {
             return Err("Device not registered".to_string());
         }
-        (config.server_address.clone(), config.device_id.clone())
+        (
+            config.server_address.clone(),
+            config.device_id.clone(),
+            config.auth_token.clone(),
+        )
     };
 
     let payload = serde_json::json!({
@@ -783,7 +803,7 @@ pub async fn cancel_help_request(state: State<'_, AgentState>) -> Result<(), Str
     let url = format_console_url(&address, "/bd/help-request");
 
     // Best-effort: no DELETE route exists server-side, so the result is ignored.
-    let _ = send_console_json(reqwest::Method::DELETE, &url, &device_id, &payload, 10).await;
+    let _ = send_console_json(reqwest::Method::DELETE, &url, &device_id, &auth_token, &payload, 10).await;
     info!("Help request cancelled for {}", device_id);
     Ok(())
 }
@@ -825,6 +845,8 @@ pub fn get_agent_settings(state: State<'_, AgentState>) -> Result<AgentSettings,
         language: config.language.clone(),
         autostart: config.autostart,
         start_minimized: config.start_minimized,
+        // Never expose the persisted unlock secret to the frontend.
+        unlock_password: String::new(),
     })
 }
 
@@ -1057,6 +1079,7 @@ async fn send_console_json(
     method: reqwest::Method,
     url: &str,
     device_id: &str,
+    auth_token: &str,
     payload: &serde_json::Value,
     timeout_secs: u64,
 ) -> Result<reqwest::Response, String> {
@@ -1065,10 +1088,14 @@ async fn send_console_json(
 
     let mut current = url.to_string();
     for _ in 0..5 {
-        let resp = client
+        let mut request = client
             .request(method.clone(), &current)
             .header("X-Device-Id", device_id)
-            .json(payload)
+            .json(payload);
+        if !auth_token.trim().is_empty() {
+            request = request.bearer_auth(auth_token.trim());
+        }
+        let resp = request
             .send()
             .await
             .map_err(|e| format!("Request failed: {}", e))?;
@@ -1231,8 +1258,9 @@ pub async fn disconnect_active_session(
         .map(|sessions| sessions.is_empty())
         .unwrap_or(true);
     if hide_overlay {
-        app.run_on_main_thread(|handle| {
-            crate::session_overlay::hide(handle);
+        let app_for_overlay = app.clone();
+        app.run_on_main_thread(move || {
+            crate::session_overlay::hide(&app_for_overlay);
         })
         .map_err(|e| e.to_string())?;
     }

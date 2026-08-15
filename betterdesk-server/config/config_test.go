@@ -73,3 +73,17 @@ func TestLoadEnv_SignalPortPrecedenceOverPort(t *testing.T) {
 		t.Fatalf("SignalPort = %d, want 21116 (SIGNAL_PORT should win over PORT)", cfg.SignalPort)
 	}
 }
+
+func TestLoadEnv_CDAPTLSRequiredEnablesTLS(t *testing.T) {
+	t.Setenv("CDAP_TLS_REQUIRED", "true")
+
+	cfg := DefaultConfig()
+	cfg.LoadEnv()
+
+	if !cfg.CDAPTLSRequired {
+		t.Fatal("CDAPTLSRequired = false, want true")
+	}
+	if !cfg.CDAPTLS {
+		t.Fatal("CDAPTLS = false, want true when TLS is required")
+	}
+}

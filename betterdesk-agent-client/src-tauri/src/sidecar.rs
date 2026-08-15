@@ -128,8 +128,8 @@ pub struct SidecarConfig {
     pub hw_accel: String,
     pub data_dir: PathBuf,
     pub cdap_port: u16,
-    /// Opt-in: reject plaintext `ws://` for non-local hosts. Default `false`
-    /// keeps HTTP a fully supported transport (the Go agent only warns).
+    /// Reject plaintext `ws://` for non-local hosts. Local development remains
+    /// compatible; remote deployments should use `wss://`.
     pub enforce_tls: bool,
     /// Hex SHA-256 SPKI pin of the CDAP server certificate (Phase 4). Empty
     /// disables pinning. Forwarded to the Go agent as `server_cert_pin`.
@@ -832,16 +832,14 @@ fn write_go_config(path: &PathBuf, cfg: &SidecarConfig) -> Result<()> {
         max_reconnect: 300,
         log_level: "info".to_string(),
         data_dir: cfg.data_dir.to_string_lossy().to_string(),
-        // HTTP (ws://) stays a fully supported transport: enforcement is an
-        // explicit operator opt-in, never auto-derived from the URL scheme. A
-        // configured cert pin still protects wss:// against MITM.
+        // Plaintext ws:// remains available for local hosts; remote plaintext
+        // requires an explicit configuration opt-out.
         enforce_tls: cfg.enforce_tls,
         server_cert_pin: cfg.server_cert_pin.clone(),
     };
 
-    // Recommend TLS but never block plaintext: surface a warning in the agent
-    // log when the operator connects over ws:// to a non-local host so they can
-    // make an informed choice without losing connectivity.
+    // Surface any plaintext downgrade in the agent log. The default policy
+    // rejects remote ws:// before the sidecar starts.
     if server_url.starts_with("ws://") {
         let host = server_url
             .trim_start_matches("ws://")

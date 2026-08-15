@@ -90,9 +90,9 @@
             <h2>Security</h2>
             <div class="checkbox-row">
                 <input type="checkbox" id="tls-strict">
-                <label for="tls-strict">Strict TLS (reject self-signed certificates)</label>
+                <label for="tls-strict">Strict TLS (enabled by default)</label>
             </div>
-            <p class="hint warn">Only enable if your panel uses a trusted CA certificate. Self-signed panels require this to stay off.</p>
+            <p class="hint warn">Keep enabled for production. Disable only for an explicit development or self-signed-certificate compatibility case.</p>
             <button type="button" class="btn-secondary" id="save-tls-btn">Save TLS setting</button>
         </section>
 

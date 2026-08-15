@@ -7,8 +7,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 pub fn strict_tls_enabled() -> bool {
-    matches!(
-        std::env::var("BETTERDESK_STRICT_TLS").as_deref(),
+    !matches!(
+        std::env::var("BETTERDESK_ALLOW_INVALID_TLS").as_deref(),
         Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
     )
 }
@@ -22,7 +22,8 @@ fn warn_self_signed_once() {
     if !WARNED.swap(true, Ordering::SeqCst) {
         warn!(
             "TLS certificate validation is DISABLED for BetterDesk API calls. \
-             Set BETTERDESK_STRICT_TLS=1 once the server has a proper certificate."
+             BETTERDESK_ALLOW_INVALID_TLS is a development-only override; \
+             use a trusted certificate or configure certificate pinning in production."
         );
     }
 }

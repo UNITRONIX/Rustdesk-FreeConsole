@@ -51,13 +51,14 @@ function requestEndpoint(rawUrl, options = {}) {
             headers: { 'User-Agent': 'BetterDesk-Installer-Protocol-Check/1' },
         }, (response) => {
             let body = '';
+            const certificate = response.socket?.getPeerCertificate?.(true) || null;
             response.setEncoding('utf8');
             response.on('data', (chunk) => { body += chunk; });
             response.on('end', () => resolve({
                 statusCode: response.statusCode || 0,
                 headers: response.headers,
                 body,
-                certificate: response.socket?.getPeerCertificate?.() || null,
+                certificate,
             }));
         });
         request.on('timeout', () => request.destroy(new Error('request timed out')));
@@ -70,7 +71,7 @@ function checkCertificateHostname(certificate, hostname) {
     if (!certificate || !hostname) return false;
     const names = String(certificate.subjectaltname || '')
         .split(',')
-        .map((name) => name.trim().replace(/^DNS:/i, ''))
+        .map((name) => name.trim().replace(/^(?:DNS|IP Address|IP):/i, ''))
         .filter(Boolean);
     return names.includes(hostname)
         || names.some((name) => name.startsWith('*.') && hostname.endsWith(name.slice(1)));

@@ -70,6 +70,15 @@ Use this checklist before every tagged release to ensure quality and stability.
 
 - [ ] **Linux fresh**: `sudo ./betterdesk.sh --auto` on clean Ubuntu/Debian
 - [ ] **Linux update**: `sudo ./betterdesk.sh` option 2 preserves DB + config
+- [ ] **Linux privilege migration**: run
+  `sudo node web-nodejs/scripts/linux-ensure-console-user.js`; verify the
+  sudoers file contains only the fixed
+  `/usr/local/libexec/betterdesk/betterdesk-privileged-update.js` broker and
+  no `ExecStartPre=+...linux-ensure-console-user.js` remains in the console
+  unit.
+- [ ] **Linux protected binary**: if the Go server is root-owned, deploy the
+  reviewed binary with the documented root-only helper; confirm the panel
+  reports a manual step instead of using `sudo` on repository scripts.
 - [ ] **Windows fresh**: `.\betterdesk.ps1 -Auto` on clean Windows Server
 - [ ] **Windows update**: `.\betterdesk.ps1` option 2 preserves DB + config
 - [ ] **Docker script**: `./betterdesk-docker.sh` option 1 installs successfully

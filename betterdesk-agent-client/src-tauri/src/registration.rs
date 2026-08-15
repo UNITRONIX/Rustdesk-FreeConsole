@@ -76,7 +76,8 @@ struct DiscoveryServerInfo {
     protocol: String,
 }
 
-/// Build a reqwest client honouring the BETTERDESK_STRICT_TLS gate.
+/// Build a reqwest client with strict TLS by default. Development-only
+/// invalid-certificate acceptance is controlled by BETTERDESK_ALLOW_INVALID_TLS.
 pub(crate) fn build_http_client(timeout_secs: u64) -> Result<Client> {
     crate::tls::build_http_client(timeout_secs).map_err(Into::into)
 }

@@ -34,6 +34,10 @@ const remoteRelay = require('../services/remoteRelay');
 const brandingService = require('../services/brandingService');
 const authService = require('../services/authService');
 const betterdeskApi = require('../services/betterdeskApi');
+const {
+    requireDeviceToken,
+    requireTokenDeviceMatch,
+} = require('../middleware/deviceAuth');
 
 // ---------------------------------------------------------------------------
 //  Help requests & chat are stored on the Go server (single source of truth).
@@ -169,7 +173,7 @@ router.get('/server-info', (_req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-//  Middleware — authenticate desktop client via access token or session cookie
+//  Middleware — authenticate operator-facing desktop API requests
 // ---------------------------------------------------------------------------
 
 async function requireDeviceAuth(req, res, next) {
@@ -202,8 +206,10 @@ async function requireDeviceAuth(req, res, next) {
 }
 
 /**
- * Lightweight auth — token OR device_id header (for unauthenticated heartbeat).
- * Sets req.deviceId from token's client_id or from X-Device-Id header.
+ * Registration-only compatibility auth. The initial register request is the
+ * one endpoint that may identify a device before a server token exists.
+ * Every endpoint that reads or mutates existing device state uses
+ * requireDeviceToken instead.
  */
 async function identifyDevice(req, res, next) {
     const token = extractBearerToken(req);
@@ -211,10 +217,11 @@ async function identifyDevice(req, res, next) {
         try {
             const tokenRow = await db.getAccessToken(token);
             if (tokenRow) {
-                req.deviceId = tokenRow.client_id || null;
+                const boundDeviceId = String(tokenRow.client_id || '');
+                req.deviceId = /^[A-Za-z0-9_-]{3,64}$/.test(boundDeviceId) ? boundDeviceId : null;
                 req.deviceToken = tokenRow;
                 await db.touchAccessToken(token);
-                return next();
+                if (req.deviceId) return next();
             }
         } catch (_) {}
     }
@@ -236,7 +243,11 @@ router.post('/register', identifyDevice, async (req, res) => {
         const ip = getClientIp(req);
         const { device_id, uuid, hostname, platform, version, public_key } = req.body;
 
-        const id = device_id || req.deviceId;
+        const claimedId = typeof device_id === 'string' ? device_id.trim() : '';
+        if (req.deviceId && claimedId && req.deviceId !== claimedId) {
+            return res.status(403).json({ error: 'device_id mismatch' });
+        }
+        const id = claimedId || req.deviceId;
         if (!id) {
             return res.status(400).json({ error: 'device_id is required' });
         }
@@ -303,7 +314,7 @@ router.post('/register', identifyDevice, async (req, res) => {
 //  POST /api/bd/heartbeat — Lightweight keepalive
 // ---------------------------------------------------------------------------
 
-router.post('/heartbeat', identifyDevice, async (req, res) => {
+router.post('/heartbeat', requireDeviceToken, requireTokenDeviceMatch, async (req, res) => {
     try {
         const id = req.body.device_id || req.deviceId;
         if (!id) {
@@ -342,7 +353,7 @@ router.post('/heartbeat', identifyDevice, async (req, res) => {
 //  POST /api/bd/remote-agent-token — Single-use token for /ws/remote-agent
 // ---------------------------------------------------------------------------
 
-router.post('/remote-agent-token', identifyDevice, async (req, res) => {
+router.post('/remote-agent-token', requireDeviceToken, requireTokenDeviceMatch, async (req, res) => {
     try {
         const id = req.body.device_id || req.deviceId;
         if (!id || !/^[A-Za-z0-9_-]{3,64}$/.test(id)) {
@@ -371,7 +382,14 @@ router.post('/connect', requireDeviceAuth, async (req, res) => {
             return res.status(400).json({ error: 'target_id is required' });
         }
 
-        const srcId = initiator_id || req.deviceToken?.client_id;
+        const authenticatedDeviceId = req.deviceToken?.client_id;
+        if (!authenticatedDeviceId) {
+            return res.status(403).json({ error: 'A device-bound access token is required' });
+        }
+        if (initiator_id && initiator_id !== authenticatedDeviceId) {
+            return res.status(403).json({ error: 'initiator_id mismatch' });
+        }
+        const srcId = authenticatedDeviceId;
         if (!srcId) {
             return res.status(400).json({ error: 'initiator_id is required' });
         }
@@ -415,10 +433,13 @@ router.post('/connect', requireDeviceAuth, async (req, res) => {
 //  GET /api/bd/session/:id — Check session status
 // ---------------------------------------------------------------------------
 
-router.get('/session/:id', identifyDevice, (req, res) => {
+router.get('/session/:id', requireDeviceToken, (req, res) => {
     const session = bdRelay.getRelaySession(req.params.id);
     if (!session) {
         return res.status(404).json({ error: 'Session not found or expired' });
+    }
+    if (session.initiatorId !== req.deviceId && session.targetId !== req.deviceId) {
+        return res.status(403).json({ error: 'Not a participant of this session' });
     }
     res.json({ success: true, session });
 });
@@ -427,7 +448,7 @@ router.get('/session/:id', identifyDevice, (req, res) => {
 //  DELETE /api/bd/session/:id — Cancel relay session
 // ---------------------------------------------------------------------------
 
-router.delete('/session/:id', identifyDevice, (req, res) => {
+router.delete('/session/:id', requireDeviceToken, (req, res) => {
     const sessionId = req.params.id;
     const session = bdRelay.getRelaySession(sessionId);
     if (!session) {
@@ -447,7 +468,7 @@ router.delete('/session/:id', identifyDevice, (req, res) => {
 //  GET /api/bd/peers — List online peers
 // ---------------------------------------------------------------------------
 
-router.get('/peers', requireDeviceAuth, async (req, res) => {
+router.get('/peers', requireDeviceToken, async (req, res) => {
     try {
         const onlineIds = bdRelay.getOnlineDeviceIds();
         const peers = [];
@@ -475,7 +496,7 @@ router.get('/peers', requireDeviceAuth, async (req, res) => {
 //  GET /api/bd/peer/:id — Get single peer info
 // ---------------------------------------------------------------------------
 
-router.get('/peer/:id', identifyDevice, async (req, res) => {
+router.get('/peer/:id', requireDeviceToken, async (req, res) => {
     try {
         const device = await db.getDeviceById(req.params.id);
         if (!device) {
@@ -563,7 +584,7 @@ router.get('/appearance', (_req, res) => {
 //  POST /api/bd/help-request — Desktop client requests operator assistance
 // ---------------------------------------------------------------------------
 
-router.post('/help-request', identifyDevice, async (req, res) => {
+router.post('/help-request', requireDeviceToken, requireTokenDeviceMatch, async (req, res) => {
     try {
         const { device_id, hostname, message } = req.body;
 
@@ -615,7 +636,7 @@ router.post('/help-request', identifyDevice, async (req, res) => {
 // panel proxies sends/reads through the Go REST API. Live fan-out to operator
 // browsers happens through the Go event bus (see helpChatPush service).
 
-router.post('/chat/send', identifyDevice, async (req, res) => {
+router.post('/chat/send', requireDeviceToken, requireTokenDeviceMatch, async (req, res) => {
     try {
         const { device_id, sender, content, timestamp } = req.body;
 
@@ -658,7 +679,7 @@ router.post('/chat/send', identifyDevice, async (req, res) => {
 //  GET /api/bd/chat/history — Fetch recent messages for a device
 // ---------------------------------------------------------------------------
 
-router.get('/chat/history', requireDeviceAuth, async (req, res) => {
+router.get('/chat/history', requireDeviceToken, requireTokenDeviceMatch, async (req, res) => {
     const deviceId = String(req.query.device_id || '').slice(0, 64);
     if (!deviceId) return res.status(400).json({ error: 'Missing device_id' });
 

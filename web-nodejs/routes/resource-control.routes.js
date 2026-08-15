@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const { assertSafeApiId } = require('../lib/goApiPath');
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { requireDeviceToken, requireTokenDeviceMatch } = require('../middleware/deviceAuth');
 
 let apiClient;
 try {
@@ -183,8 +184,8 @@ router.put('/api/panel/resource-control/org-policy', requireAuth, requirePermiss
 /**
  * GET /api/bd/resource-policy — Agent fetches its resource policy
  */
-router.get('/api/bd/resource-policy', async (req, res) => {
-    const deviceId = req.headers['x-device-id'] || req.query.device_id;
+router.get('/api/bd/resource-policy', requireDeviceToken, requireTokenDeviceMatch, async (req, res) => {
+    const deviceId = req.headers['x-device-id'] || req.query.device_id || req.deviceId;
     if (!deviceId) {
         return res.status(400).json({ error: 'Missing device_id' });
     }

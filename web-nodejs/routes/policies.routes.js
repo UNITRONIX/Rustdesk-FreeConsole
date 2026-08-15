@@ -35,6 +35,7 @@ const router = express.Router();
 const { apiClient } = require('../services/betterdeskApi');
 const { assertSafeApiId } = require('../lib/goApiPath');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireDeviceToken, requireTokenDeviceMatch } = require('../middleware/deviceAuth');
 
 // ---------------------------------------------------------------------------
 //  Helper: proxy to Go server
@@ -137,8 +138,8 @@ router.get('/api/panel/policies/:orgId/audit', requireAuth, (req, res) =>
 //  Device-facing: agent fetches its policy
 // ---------------------------------------------------------------------------
 
-router.get('/api/bd/device-policy', async (req, res) => {
-    const rawDeviceId = req.query.device_id || req.headers['x-device-id'];
+router.get('/api/bd/device-policy', requireDeviceToken, requireTokenDeviceMatch, async (req, res) => {
+    const rawDeviceId = req.query.device_id || req.headers['x-device-id'] || req.deviceId;
     if (!rawDeviceId) {
         return res.status(400).json({ error: 'device_id required' });
     }
@@ -200,7 +201,7 @@ router.get('/api/panel/attestation/:deviceId', requireAuth, async (req, res) => 
 });
 
 // Device reports attestation data
-router.post('/api/bd/attestation', async (req, res) => {
+router.post('/api/bd/attestation', requireDeviceToken, requireTokenDeviceMatch, async (req, res) => {
     const { device_id, fingerprint, platform_data } = req.body;
     if (!device_id || !fingerprint) {
         return res.status(400).json({ error: 'device_id and fingerprint required' });

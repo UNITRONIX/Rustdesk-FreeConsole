@@ -8,7 +8,9 @@
 //! (tauri-apps/tauri#15014). Pass flags through the process env var instead so every
 //! webview keeps wry's default `CoreWebView2EnvironmentOptions`.
 //!
-//! Set `BETTERDESK_TLS_STRICT=1` to use system certificate validation (production CA only).
+//! The app enables system certificate validation by default. The
+//! `BETTERDESK_TLS_STRICT=1` environment override is retained for embedded
+//! launchers that set the policy before app startup.
 
 use tauri::{Runtime, WebviewWindowBuilder};
 

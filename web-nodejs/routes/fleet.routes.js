@@ -5,6 +5,7 @@ const router = express.Router();
 const { requireAuth, requirePermission } = require('../middleware/auth');
 const { apiClient } = require('../services/betterdeskApi');
 const { proxyToGo, safeSegment, assertSafeApiId } = require('../lib/goApiProxy');
+const { requireDeviceToken, requireTokenDeviceMatch } = require('../middleware/deviceAuth');
 
 // ---------------------------------------------------------------------------
 // Page routes
@@ -160,11 +161,11 @@ router.post('/api/panel/fleet/compliance/:deviceId/remediate', requireAuth, requ
 // Device-facing API (agents report back — body JSON, unchanged for compatibility)
 // ---------------------------------------------------------------------------
 
-router.post('/api/bd/fleet/task-result', (req, res) => {
+router.post('/api/bd/fleet/task-result', requireDeviceToken, requireTokenDeviceMatch, (req, res) => {
     proxyToGo(apiClient, req, res, 'POST', '/fleet/task-result', req.body);
 });
 
-router.post('/api/bd/fleet/software', (req, res) => {
+router.post('/api/bd/fleet/software', requireDeviceToken, requireTokenDeviceMatch, (req, res) => {
     proxyToGo(apiClient, req, res, 'POST', '/fleet/software', req.body);
 });
 

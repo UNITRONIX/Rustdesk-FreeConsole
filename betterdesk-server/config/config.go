@@ -64,7 +64,7 @@ type Config struct {
 	AdminPort int // TCP admin interface port (0 = disabled)
 
 	// Security — Authentication
-	JWTSecret               string // Secret key for JWT signing (auto-generated if empty)
+	JWTSecret string // Secret key for JWT signing (auto-generated if empty)
 	// OrgPeerVaultKey encrypts recoverable org peer passwords at rest (#367).
 	// Falls back to JWT secret when empty (installers should set a dedicated key).
 	OrgPeerVaultKey         string
@@ -140,10 +140,11 @@ type Config struct {
 	EnrollmentMode string
 
 	// CDAP Gateway
-	CDAPPort      int  // WebSocket gateway port (default 21122)
-	CDAPEnabled   bool // Enable CDAP gateway (default false)
-	CDAPTLS       bool // Enable TLS on CDAP port
-	CDAPRateLimit int  // Max requests per minute per IP (default 30)
+	CDAPPort        int  // WebSocket gateway port (default 21122)
+	CDAPEnabled     bool // Enable CDAP gateway (default false)
+	CDAPTLS         bool // Enable TLS on CDAP port
+	CDAPTLSRequired bool // Reject plaintext connections on the CDAP port
+	CDAPRateLimit   int  // Max requests per minute per IP (default 30)
 
 	// MeshCentral compatibility layer
 	MeshCentralEnabled bool   // MESH_ENABLED
@@ -433,6 +434,10 @@ func (c *Config) LoadEnv() {
 	if strings.ToUpper(os.Getenv("CDAP_TLS")) == "Y" {
 		c.CDAPTLS = true
 	}
+	if v := strings.ToUpper(os.Getenv("CDAP_TLS_REQUIRED")); v == "Y" || v == "YES" || v == "TRUE" || v == "1" {
+		c.CDAPTLSRequired = true
+		c.CDAPTLS = true
+	}
 	if v := os.Getenv("CDAP_RATE_LIMIT"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			c.CDAPRateLimit = n
@@ -657,5 +662,12 @@ func (c *Config) APITLSEnabled() bool {
 
 // CDAPTLSEnabled returns true if TLS should be used for the CDAP WebSocket gateway.
 func (c *Config) CDAPTLSEnabled() bool {
-	return c.CDAPTLS && c.HasTLSCert()
+	return (c.CDAPTLS || c.CDAPTLSRequired) && c.HasTLSCert()
+}
+
+// CDAPTLSRequiredEnabled returns true when the CDAP gateway must reject
+// plaintext connections instead of accepting the backwards-compatible
+// dual-mode protocol.
+func (c *Config) CDAPTLSRequiredEnabled() bool {
+	return c.CDAPTLSRequired && c.HasTLSCert()
 }

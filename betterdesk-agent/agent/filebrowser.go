@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,26 +18,74 @@ type FileEntry struct {
 	Mode     string `json:"mode"`     // e.g. "drwxr-xr-x"
 }
 
-// safePath resolves a user-supplied path relative to root and prevents
-// directory traversal attacks. Returns the absolute path or an error.
-func safePath(root, userPath string) (string, error) {
-	// Clean the user path to remove .. and similar tricks
-	cleaned := filepath.Clean("/" + userPath)
-	abs := filepath.Join(root, cleaned)
+func pathWithin(root, candidate string) bool {
+	rel, err := filepath.Rel(root, candidate)
+	if err != nil {
+		return false
+	}
+	return rel == "." ||
+		(rel != ".." &&
+			!strings.HasPrefix(rel, ".."+string(filepath.Separator)) &&
+			!filepath.IsAbs(rel))
+}
 
-	// Ensure the result is still under root
+// safePath resolves a user-supplied path relative to root and prevents
+// traversal through both .. components and symlinks. The nearest existing
+// ancestor is checked so writes to new files cannot use a symlinked parent.
+func safePath(root, userPath string) (string, error) {
 	absRoot, err := filepath.Abs(root)
 	if err != nil {
 		return "", fmt.Errorf("invalid root: %w", err)
 	}
-	absPath, err := filepath.Abs(abs)
+	absRoot = filepath.Clean(absRoot)
+
+	realRoot, err := filepath.EvalSymlinks(absRoot)
 	if err != nil {
-		return "", fmt.Errorf("invalid path: %w", err)
+		return "", fmt.Errorf("invalid root: %w", err)
+	}
+	realRoot, err = filepath.Abs(realRoot)
+	if err != nil {
+		return "", fmt.Errorf("invalid resolved root: %w", err)
 	}
 
-	if !strings.HasPrefix(absPath, absRoot) {
+	// Treat leading separators as the historical root-relative notation, but
+	// preserve .. components so an escape is rejected instead of normalized
+	// back inside the root. Drive-qualified Windows paths are never relative.
+	if filepath.VolumeName(userPath) != "" {
+		return "", fmt.Errorf("absolute path denied")
+	}
+	relativeInput := strings.TrimLeft(userPath, `/\`)
+	absPath := filepath.Clean(filepath.Join(absRoot, relativeInput))
+	if !pathWithin(absRoot, absPath) {
 		return "", fmt.Errorf("path traversal denied")
 	}
+
+	// Resolve the existing portion of the path. This catches symlink escapes
+	// for reads, deletes, and writes whose destination does not exist yet.
+	checkPath := absPath
+	for {
+		_, statErr := os.Lstat(checkPath)
+		if statErr == nil {
+			realPath, resolveErr := filepath.EvalSymlinks(checkPath)
+			if resolveErr != nil {
+				return "", fmt.Errorf("cannot resolve path: %w", resolveErr)
+			}
+			realPath, resolveErr = filepath.Abs(realPath)
+			if resolveErr != nil || !pathWithin(realRoot, realPath) {
+				return "", fmt.Errorf("path escapes file root")
+			}
+			break
+		}
+		if !errors.Is(statErr, os.ErrNotExist) {
+			return "", fmt.Errorf("cannot inspect path: %w", statErr)
+		}
+		parent := filepath.Dir(checkPath)
+		if parent == checkPath {
+			break
+		}
+		checkPath = parent
+	}
+
 	return absPath, nil
 }
 

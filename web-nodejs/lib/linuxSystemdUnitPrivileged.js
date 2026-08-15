@@ -46,30 +46,12 @@ function canUsePasswordlessSudo() {
 }
 
 function invokeSystemdUnitScript(payload, consoleRoot) {
-    const scriptPath = resolveSystemdUnitScriptPath(consoleRoot);
-    if (!fs.existsSync(scriptPath)) {
-        throw new Error('Systemd unit helper not installed');
-    }
-
-    const runOpts = {
-        input: JSON.stringify(payload),
-        encoding: 'utf8',
-        timeout: 15000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-    };
-
-    let out;
-    if (isRoot()) {
-        out = execFileSync(process.execPath, [scriptPath], runOpts);
-    } else {
-        out = execFileSync('sudo', ['-n', process.execPath, scriptPath], runOpts);
-    }
-
-    const parsed = JSON.parse(String(out || '').trim() || '{}');
-    if (!parsed.success) {
-        throw new Error(parsed.error || 'Privileged systemd unit operation failed');
-    }
-    return parsed;
+    void payload;
+    void consoleRoot;
+    throw new Error(
+        'Systemd unit access requires a root maintenance run; '
+        + 'the panel must not execute repository scripts as root',
+    );
 }
 
 function readSystemdUnitPrivileged(filePath, consoleRoot) {
@@ -84,8 +66,10 @@ function readSystemdUnitPrivileged(filePath, consoleRoot) {
         if (err.code !== 'EACCES' && err.code !== 'EPERM') throw err;
     }
 
-    const result = invokeSystemdUnitScript({ action: 'read', path: normalized }, consoleRoot);
-    return result.content || '';
+    throw new Error(
+        `Cannot read protected systemd unit as the console user: ${normalized}. `
+        + privilegedSystemdUnitHint(),
+    );
 }
 
 function writeSystemdUnitPrivileged(filePath, content, consoleRoot) {
@@ -101,7 +85,11 @@ function writeSystemdUnitPrivileged(filePath, content, consoleRoot) {
         if (err.code !== 'EACCES' && err.code !== 'EPERM') throw err;
     }
 
-    invokeSystemdUnitScript({ action: 'write', path: normalized, content }, consoleRoot);
+    void content;
+    throw new Error(
+        `Cannot write protected systemd unit as the console user: ${normalized}. `
+        + privilegedSystemdUnitHint(),
+    );
 }
 
 function privilegedSystemdUnitHint() {

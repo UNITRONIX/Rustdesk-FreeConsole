@@ -13,7 +13,9 @@ pub struct AppConfig {
     pub config_version: u32,
     #[serde(default)]
     pub server_url: Option<String>,
-    #[serde(default)]
+    /// Validate panel certificates by default. Set false only for an explicit
+    /// development/self-signed compatibility choice.
+    #[serde(default = "default_true")]
     pub tls_strict: bool,
     #[serde(default)]
     pub discovered_via: Option<String>,
@@ -25,12 +27,16 @@ fn default_config_version() -> u32 {
     CONFIG_VERSION
 }
 
+fn default_true() -> bool {
+    true
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             config_version: CONFIG_VERSION,
             server_url: None,
-            tls_strict: false,
+            tls_strict: true,
             discovered_via: None,
             ui_lang: None,
         }
@@ -103,5 +109,17 @@ pub fn apply_tls_from_config(cfg: &AppConfig) {
         unsafe {
             std::env::set_var("BETTERDESK_TLS_STRICT", "1");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppConfig;
+
+    #[test]
+    fn new_config_defaults_to_strict_tls() {
+        assert!(AppConfig::default().tls_strict);
+        let decoded: AppConfig = serde_json::from_str("{}").expect("default config should decode");
+        assert!(decoded.tls_strict);
     }
 }

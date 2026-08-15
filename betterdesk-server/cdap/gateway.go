@@ -155,8 +155,13 @@ func (g *Gateway) Start(ctx context.Context) error {
 			ln.Close()
 			return fmt.Errorf("cdap: tls config: %w", tlsErr)
 		}
-		ln = config.NewDualModeListener(ln, tlsCfg)
-		log.Printf("[cdap] TLS enabled (dual-mode: plain + TLS auto-detect)")
+		if g.cfg.CDAPTLSRequiredEnabled() {
+			ln = config.NewTLSOnlyListener(ln, tlsCfg)
+			log.Printf("[cdap] TLS enabled (plaintext rejected)")
+		} else {
+			ln = config.NewDualModeListener(ln, tlsCfg)
+			log.Printf("[cdap] TLS enabled (dual-mode: plain + TLS auto-detect)")
+		}
 	}
 
 	g.ln = ln

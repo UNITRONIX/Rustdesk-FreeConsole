@@ -52,6 +52,13 @@ func NewDualModeListener(ln net.Listener, cfg *tls.Config) net.Listener {
 	return &DualModeListener{inner: ln, tlsCfg: cfg}
 }
 
+// NewTLSOnlyListener wraps a listener with TLS without the legacy plaintext
+// fallback. The HTTP server performs the handshake on first read, allowing
+// its existing header timeout to bound incomplete handshakes.
+func NewTLSOnlyListener(ln net.Listener, cfg *tls.Config) net.Listener {
+	return tls.NewListener(ln, cfg)
+}
+
 // dualModePeekTimeout is the maximum time to wait for the client's first byte
 // when detecting TLS vs plain TCP. RustDesk clients that are logged in call
 // secure_tcp which READs first (waiting for the server's KeyExchange). If we

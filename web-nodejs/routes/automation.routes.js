@@ -54,30 +54,7 @@ const VALID_COMMAND_TYPES = ['shell', 'powershell', 'script', 'restart_service',
 
 const { requireAuth, requirePermission } = require('../middleware/auth');
 
-// ---------------------------------------------------------------------------
-//  Auth middleware
-// ---------------------------------------------------------------------------
-
-async function identifyDevice(req, res, next) {
-    const auth = req.headers['authorization'];
-    if (auth && auth.startsWith('Bearer ')) {
-        const token = auth.substring(7).trim();
-        try {
-            const tokenRow = await db.getAccessToken(token);
-            if (tokenRow) {
-                req.deviceId = tokenRow.client_id || null;
-                await db.touchAccessToken(token);
-                return next();
-            }
-        } catch (_) { /* ignored */ }
-    }
-    const deviceId = req.headers['x-device-id'];
-    if (deviceId && /^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
-        req.deviceId = deviceId;
-        return next();
-    }
-    return res.status(401).json({ error: 'Missing device identification' });
-}
+const { requireDeviceToken } = require('../middleware/deviceAuth');
 
 // ===========================================================================
 //  Alert Rules
@@ -347,7 +324,7 @@ router.get('/commands/:id(\\d+)', requireAuth, async (req, res) => {
 /**
  * GET /api/bd/commands — Get pending commands for this device.
  */
-router.get('/commands', identifyDevice, async (req, res) => {
+router.get('/commands', requireDeviceToken, async (req, res) => {
     try {
         const adapter = getAdapter();
         const commands = await adapter.getPendingCommands(req.deviceId);
@@ -361,7 +338,7 @@ router.get('/commands', identifyDevice, async (req, res) => {
 /**
  * POST /api/bd/commands/:id/result — Agent submits command result.
  */
-router.post('/commands/:id(\\d+)/result', identifyDevice, async (req, res) => {
+router.post('/commands/:id(\\d+)/result', requireDeviceToken, async (req, res) => {
     try {
         const { status, result } = req.body;
         if (!status || !['completed', 'failed', 'running'].includes(status)) {

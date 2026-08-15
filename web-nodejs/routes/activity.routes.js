@@ -28,39 +28,10 @@ const { getAdapter } = require('../services/dbAdapter');
 
 const { requireAuth, requirePermission } = require('../middleware/auth');
 
-// ---------------------------------------------------------------------------
-//  Auth middleware (shared patterns)
-// ---------------------------------------------------------------------------
-
-function extractBearerToken(req) {
-    const auth = req.headers['authorization'];
-    if (!auth || !auth.startsWith('Bearer ')) return null;
-    return auth.substring(7).trim();
-}
-
-/**
- * Lightweight device auth — bearer token OR X-Device-Id header.
- */
-async function identifyDevice(req, res, next) {
-    const token = extractBearerToken(req);
-    if (token) {
-        try {
-            const tokenRow = await db.getAccessToken(token);
-            if (tokenRow) {
-                req.deviceId = tokenRow.client_id || null;
-                req.deviceToken = tokenRow;
-                await db.touchAccessToken(token);
-                return next();
-            }
-        } catch (_) { /* ignored */ }
-    }
-    const deviceId = req.headers['x-device-id'];
-    if (deviceId && /^[A-Za-z0-9_-]{3,64}$/.test(deviceId)) {
-        req.deviceId = deviceId;
-        return next();
-    }
-    return res.status(401).json({ error: 'Missing device identification' });
-}
+const {
+    requireDeviceToken,
+    requireTokenDeviceMatch,
+} = require('../middleware/deviceAuth');
 
 // ---------------------------------------------------------------------------
 //  Device-facing endpoint
@@ -76,7 +47,7 @@ async function identifyDevice(req, res, next) {
  *   timestamp: string (ISO 8601)
  * }
  */
-router.post('/activity', identifyDevice, async (req, res) => {
+router.post('/activity', requireDeviceToken, requireTokenDeviceMatch, async (req, res) => {
     try {
         const { device_id, sessions, idle_seconds, timestamp } = req.body;
 

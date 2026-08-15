@@ -31,22 +31,11 @@ const router = express.Router();
 const { getAdapter } = require('../services/dbAdapter');
 
 const { requireAuth, requirePermission } = require('../middleware/auth');
+const { requireDeviceToken } = require('../middleware/deviceAuth');
 
 // ---------------------------------------------------------------------------
 //  Auth middleware helpers
 // ---------------------------------------------------------------------------
-
-/** Accept device auth via X-Device-Id header or bearer token. */
-function acceptDeviceAuth(req, res, next) {
-    const deviceId = req.headers['x-device-id'];
-    if (deviceId) {
-        req.deviceId = deviceId;
-        return next();
-    }
-    // Fallback: session-based for testing from web console
-    if (req.session && req.session.user) return next();
-    return res.status(401).json({ error: 'Device authentication required' });
-}
 
 // =========================================================================
 //  Admin-facing — Policy CRUD
@@ -209,7 +198,7 @@ router.get('/stats', requireAuth, requirePermission('audit.view'), async (req, r
  * Returns only enabled policies for the requesting agent.
  * Mounted under /api/bd so full path is /api/bd/dlp-policies
  */
-router.get('/dlp-policies', acceptDeviceAuth, async (req, res) => {
+router.get('/dlp-policies', requireDeviceToken, async (req, res) => {
     try {
         const db = getAdapter();
         const policies = await db.getDlpPolicies();
@@ -235,7 +224,7 @@ router.get('/dlp-policies', acceptDeviceAuth, async (req, res) => {
  * Body: { event_source, event_type, policy_id?, policy_name?, action?, details? }
  * Mounted under /api/bd so full path is /api/bd/dlp-events
  */
-router.post('/dlp-events', acceptDeviceAuth, async (req, res) => {
+router.post('/dlp-events', requireDeviceToken, async (req, res) => {
     try {
         const deviceId = req.deviceId || (req.session && req.session.user && req.session.user.username) || 'unknown';
         const { event_source, event_type, policy_id, policy_name, action, details } = req.body;

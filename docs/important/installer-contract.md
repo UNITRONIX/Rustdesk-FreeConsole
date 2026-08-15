@@ -34,8 +34,11 @@ with a clear message and non-zero exit code:
    preserve operator-supplied secrets, initialize the selected database and
    finish with a health check.
 3. **Update** — download a complete, validated source/image, preserve runtime
-   state, apply migrations, deploy binaries atomically, restart affected
-   services and write the commit/version marker only after verification.
+   state, apply migrations, deploy writable binaries atomically, restart
+   affected services and write the commit/version marker only after
+   verification. Root-owned Linux systemd units and Go binaries require the
+   documented root maintenance/deploy step; the panel must not sudo mutable
+   repository scripts.
 4. **Repair** — restore missing binaries, dependencies, permissions, service
    definitions and TLS material without requiring legacy RustDesk artifacts for
    the Go deployment.
@@ -86,5 +89,8 @@ handshake.
   confirmation or a purge flag.
 - Never require `hbbs`, `hbbr` or `hbbs-patch-v2` to repair a Go
   `betterdesk-server` installation.
+- Never grant sudoers permission to execute a mutable repository script as
+  root. Linux panel restarts use only the fixed root-owned
+  `betterdesk-privileged-update.js` broker with an allowlisted action set.
 - Never report success after a partial update merely because the process
   restarted.
