@@ -8,69 +8,163 @@
 </head>
 <body>
   <div id="app">
-    <header class="header" id="header">
-      <div class="brand">
-        <div class="product" id="product">BetterDesk Support</div>
-        <div class="tagline" id="tagline"></div>
+    <header class="topbar">
+      <div class="topbar-brand">
+        <img id="logo-top" class="logo-top" alt="" hidden />
+        <span id="logo-top-fallback" class="logo-top-fallback" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.75"/>
+            <path d="M8 12h8M12 8l4 4-4 4" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <div class="topbar-text">
+          <div class="product" id="product">BetterDesk Support</div>
+          <div class="tagline" id="tagline"></div>
+        </div>
       </div>
+      <button type="button" class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.75"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.86.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.86 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.86l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.86.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.86-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.86V9c0 .69.4 1.31 1.03 1.58.2.09.42.13.64.13H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </header>
 
-    <main class="main">
-      <div class="body-logo" aria-hidden="true">
-        <img id="logo" class="logo" alt="" hidden />
-        <span id="logo-fallback">🎧</span>
-      </div>
-      <div class="status" id="status-row">
-        <span class="dot" id="status-dot"></span>
-        <span id="status-text">…</span>
+    <div id="view-idle" class="view">
+      <div class="hero" id="hero">
+        <img id="logo-hero" class="logo-hero" alt="" hidden />
+        <div id="hero-art" class="hero-art" aria-hidden="true">
+          <svg viewBox="0 0 280 120" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="heroWave" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="var(--primary)" stop-opacity=".35"/>
+                <stop offset="100%" stop-color="var(--primary)" stop-opacity=".08"/>
+              </linearGradient>
+            </defs>
+            <path d="M0 70c40-28 70-28 110 0s70 28 110 0 50-20 60-28v78H0Z" fill="url(#heroWave)"/>
+            <rect x="88" y="28" width="104" height="64" rx="8" fill="var(--primary)" opacity=".9"/>
+            <rect x="96" y="36" width="88" height="40" rx="3" fill="#fff" opacity=".92"/>
+            <rect x="120" y="92" width="40" height="6" rx="2" fill="var(--primary)" opacity=".55"/>
+          </svg>
+        </div>
       </div>
 
-      <section class="card">
-        <div class="card-label" data-i18n="your_id">Your ID</div>
-        <div class="card-row">
+      <section class="support-section">
+        <h1 class="section-title" data-i18n="receive_support">Get support</h1>
+        <p class="section-hint" data-i18n="receive_support_hint">Request help or chat with support. You can also share your ID and password below.</p>
+        <div class="cta-row">
+          <button type="button" class="btn secondary" id="btn-help">
+            <span data-i18n="request_help">Request help</span>
+          </button>
+          <button type="button" class="btn primary" id="btn-chat">
+            <span data-i18n="chat_with_support">Chat with support</span>
+          </button>
+        </div>
+      </section>
+
+      <div class="divider" role="separator">
+        <span data-i18n="or_share_id">Or share your ID</span>
+      </div>
+
+      <section class="cred-card" aria-label="Credentials">
+        <div class="cred-col">
+          <div class="card-label" data-i18n="your_id">Your ID</div>
           <div class="card-value mono" id="device-id">—</div>
-          <button type="button" class="icon-btn copy-btn" id="copy-id" title="Copy" aria-label="Copy ID">⧉</button>
         </div>
-      </section>
-
-      <section class="card" id="password-card">
-        <div class="card-label" data-i18n="access_password">Access password</div>
-        <div class="card-row">
+        <div class="cred-col" id="password-card">
+          <div class="card-label" data-i18n="access_password">Password</div>
           <div class="card-value mono" id="password">—</div>
-          <button type="button" class="icon-btn copy-btn" id="copy-pw" title="Copy" aria-label="Copy password">⧉</button>
+        </div>
+        <div class="cred-actions">
+          <button type="button" class="icon-btn" id="btn-regen" title="Regenerate" aria-label="Regenerate password">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M20 12a8 8 0 1 1-2.3-5.6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+              <path d="M20 4v6h-6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button type="button" class="icon-btn" id="copy-creds" title="Copy" aria-label="Copy ID and password">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.75"/>
+              <path d="M5 15V5a2 2 0 0 1 2-2h10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            </svg>
+          </button>
         </div>
       </section>
+    </div>
 
-      <button type="button" class="btn secondary" id="btn-help">
-        <span class="btn-icon" aria-hidden="true">?</span>
-        <span data-i18n="request_help">Request help</span>
+    <div id="view-session" class="view session-view" hidden>
+      <div class="hero hero-session" aria-hidden="true">
+        <svg viewBox="0 0 280 120" xmlns="http://www.w3.org/2000/svg">
+          <rect x="40" y="34" width="80" height="52" rx="6" fill="var(--primary)" opacity=".85"/>
+          <rect x="160" y="34" width="80" height="52" rx="6" fill="var(--primary)" opacity=".55"/>
+          <path d="M120 60h40" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="140" cy="60" r="5" fill="var(--ready)"/>
+        </svg>
+      </div>
+      <h1 class="section-title" data-i18n="ongoing_session">Ongoing session</h1>
+      <p class="section-hint" id="session-detail"></p>
+      <button type="button" class="btn outline wide" id="btn-disconnect" data-i18n="close_session">Close session</button>
+      <button type="button" class="text-link" id="btn-share-id">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M7 17 17 7M9 7h8v8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span data-i18n="share_id_password">Share ID and password</span>
       </button>
-      <button type="button" class="btn primary" id="btn-chat">
-        <span class="btn-icon" aria-hidden="true">▰</span>
-        <span data-i18n="chat_with_support">Chat with support</span>
-      </button>
-    </main>
+    </div>
 
-    <footer class="footer">
-      <button type="button" class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">⚙</button>
-      <span class="contact" id="contact"></span>
-      <button type="button" class="icon-btn" id="btn-quit" title="Quit" aria-label="Quit">⏻</button>
+    <footer class="status-footer">
+      <span class="dot" id="status-dot"></span>
+      <span class="status-text" id="status-text">…</span>
+      <span class="contact" id="contact" hidden></span>
     </footer>
   </div>
 
   <div class="modal" id="modal" hidden>
     <div class="modal-card">
-      <h2 id="modal-title"></h2>
+      <div class="modal-head">
+        <h2 id="modal-title"></h2>
+        <button type="button" class="icon-btn modal-close" id="modal-close" aria-label="Close">×</button>
+      </div>
       <div id="modal-body"></div>
       <div class="modal-actions" id="modal-actions"></div>
     </div>
   </div>
 
-  <div class="toast" id="toast" hidden></div>
-  <div class="session-bar" id="session-bar" hidden>
-    <span id="session-text"></span>
-    <button type="button" class="btn danger" id="btn-disconnect" data-i18n="disconnect">Disconnect</button>
+  <div class="modal" id="share-modal" hidden>
+    <div class="modal-card share-card">
+      <div class="modal-head">
+        <h2 data-i18n="share_id_password">Share ID and password</h2>
+        <button type="button" class="icon-btn modal-close" id="share-close" aria-label="Close">×</button>
+      </div>
+      <p class="section-hint" data-i18n="share_id_hint">Share these credentials so a supporter can connect to your device.</p>
+      <section class="cred-card">
+        <div class="cred-col">
+          <div class="card-label" data-i18n="your_id">Your ID</div>
+          <div class="card-value mono" id="share-device-id">—</div>
+        </div>
+        <div class="cred-col" id="share-password-card">
+          <div class="card-label" data-i18n="access_password">Password</div>
+          <div class="card-value mono" id="share-password">—</div>
+        </div>
+        <div class="cred-actions">
+          <button type="button" class="icon-btn" id="share-regen" title="Regenerate" aria-label="Regenerate password">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M20 12a8 8 0 1 1-2.3-5.6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+              <path d="M20 4v6h-6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button type="button" class="icon-btn" id="share-copy" title="Copy" aria-label="Copy ID and password">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.75"/>
+              <path d="M5 15V5a2 2 0 0 1 2-2h10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </section>
+    </div>
   </div>
+
+  <div class="toast" id="toast" hidden></div>
 
   <script src="app.js"></script>
 </body>

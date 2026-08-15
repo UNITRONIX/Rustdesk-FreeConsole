@@ -11,8 +11,14 @@ func TestBrandingNormalizeDefaults(t *testing.T) {
 	if b.PrimaryColor != "#2563eb" {
 		t.Fatalf("primary default: %s", b.PrimaryColor)
 	}
-	if b.BackgroundColor != "#0f172a" {
+	if b.BackgroundColor != "#ffffff" {
 		t.Fatalf("background default: %s", b.BackgroundColor)
+	}
+	if b.AccentColor != "#e0f2fe" {
+		t.Fatalf("accent default: %s", b.AccentColor)
+	}
+	if b.HeaderTextColor != "#1f2937" {
+		t.Fatalf("header text default: %s", b.HeaderTextColor)
 	}
 	if b.StatusReadyColor != "#22c55e" {
 		t.Fatalf("status color default: %s", b.StatusReadyColor)

@@ -38,35 +38,38 @@ type AppService struct {
 }
 
 type UISnapshot struct {
-	ProductName     string            `json:"product_name"`
-	CompanyName     string            `json:"company_name"`
-	Tagline         string            `json:"tagline"`
-	PrimaryColor    string            `json:"primary_color"`
-	SurfaceColor    string            `json:"surface_color"`
-	BackgroundColor string            `json:"background_color"`
-	TextColor       string            `json:"text_color"`
-	TextMutedColor  string            `json:"text_muted_color"`
-	LogoDataURL     string            `json:"logo_data_url"`
-	SupportEmail    string            `json:"support_email"`
-	SupportPhone    string            `json:"support_phone"`
-	ContactURL      string            `json:"contact_url"`
-	Version         string            `json:"version"`
-	DeviceID        string            `json:"device_id"`
-	DeviceIDFmt     string            `json:"device_id_fmt"`
-	Password        string            `json:"password"`
-	PasswordMasked  string            `json:"password_masked"`
-	AccessMode      string            `json:"access_mode"`
-	CustomPassword  bool              `json:"custom_password"`
-	ShowPassword    bool              `json:"show_password"`
-	AllowUnattended bool              `json:"allow_unattended"`
-	Language        string            `json:"language"`
-	StatusKind      string            `json:"status_kind"`
-	StatusText      string            `json:"status_text"`
-	SessionActive   bool              `json:"session_active"`
-	SessionOperator string            `json:"session_operator"`
-	SessionMode     string            `json:"session_mode"`
-	ModeOptions     []string          `json:"mode_options"`
-	Strings         map[string]string `json:"strings"`
+	ProductName      string            `json:"product_name"`
+	CompanyName      string            `json:"company_name"`
+	Tagline          string            `json:"tagline"`
+	PrimaryColor     string            `json:"primary_color"`
+	AccentColor      string            `json:"accent_color"`
+	SurfaceColor     string            `json:"surface_color"`
+	BackgroundColor  string            `json:"background_color"`
+	TextColor        string            `json:"text_color"`
+	TextMutedColor   string            `json:"text_muted_color"`
+	StatusReadyColor string            `json:"status_ready_color"`
+	HeaderTextColor  string            `json:"header_text_color"`
+	LogoDataURL      string            `json:"logo_data_url"`
+	SupportEmail     string            `json:"support_email"`
+	SupportPhone     string            `json:"support_phone"`
+	ContactURL       string            `json:"contact_url"`
+	Version          string            `json:"version"`
+	DeviceID         string            `json:"device_id"`
+	DeviceIDFmt      string            `json:"device_id_fmt"`
+	Password         string            `json:"password"`
+	PasswordMasked   string            `json:"password_masked"`
+	AccessMode       string            `json:"access_mode"`
+	CustomPassword   bool              `json:"custom_password"`
+	ShowPassword     bool              `json:"show_password"`
+	AllowUnattended  bool              `json:"allow_unattended"`
+	Language         string            `json:"language"`
+	StatusKind       string            `json:"status_kind"`
+	StatusText       string            `json:"status_text"`
+	SessionActive    bool              `json:"session_active"`
+	SessionOperator  string            `json:"session_operator"`
+	SessionMode      string            `json:"session_mode"`
+	ModeOptions      []string          `json:"mode_options"`
+	Strings          map[string]string `json:"strings"`
 }
 
 type ConnTestDTO struct {
@@ -131,7 +134,10 @@ func (s *AppService) GetSnapshot() UISnapshot {
 		"settings", "quit", "copied", "mode_supervised", "mode_unattended", "mode_disabled",
 		"language", "test_connection", "set_custom", "regenerate", "totp", "send", "cancel",
 		"save", "close", "consent_title", "consent_accept", "consent_deny", "consent_prompt",
-		"help_message", "help_sent", "help_failed", "session_active", "disconnect",
+		"consent_ack", "consent_display_name", "consent_session",
+		"help_message", "help_sent", "help_failed", "session_active", "session_with",
+		"disconnect", "close_session", "ongoing_session", "receive_support", "receive_support_hint",
+		"or_share_id", "share_id_password", "share_id_hint", "password_regenerated", "chat_placeholder",
 		"connected", "disconnected", "status_ready", "enrollment_pending", "enrollment_rejected",
 	}
 	strs := make(map[string]string, len(keys))
@@ -140,33 +146,36 @@ func (s *AppService) GetSnapshot() UISnapshot {
 	}
 
 	return UISnapshot{
-		ProductName:     s.brand.ProductName,
-		CompanyName:     s.brand.CompanyName,
-		Tagline:         s.brand.Tagline,
-		PrimaryColor:    s.brand.PrimaryColor,
-		SurfaceColor:    s.brand.SurfaceColor,
-		BackgroundColor: s.brand.BackgroundColor,
-		TextColor:       s.brand.TextColor,
-		TextMutedColor:  s.brand.TextMutedColor,
-		LogoDataURL:     s.brand.LogoDataURL,
-		SupportEmail:    s.brand.SupportEmail,
-		SupportPhone:    s.brand.SupportPhone,
-		ContactURL:      s.brand.ContactURL,
-		Version:         version,
-		DeviceID:        deviceID,
-		DeviceIDFmt:     formatDeviceID(deviceID),
-		Password:        password,
-		PasswordMasked:  maskPassword(password),
-		AccessMode:      mode,
-		CustomPassword:  custom,
-		ShowPassword:    s.shouldShowPasswordBox(mode, custom),
-		AllowUnattended: s.brand.AllowUnattended,
-		Language:        s.state.Language,
-		StatusKind:      statusKindName(kind),
-		StatusText:      text,
-		SessionActive:   active,
-		SessionOperator: op,
-		SessionMode:     smode,
+		ProductName:      s.brand.ProductName,
+		CompanyName:      s.brand.CompanyName,
+		Tagline:          s.brand.Tagline,
+		PrimaryColor:     s.brand.PrimaryColor,
+		AccentColor:      s.brand.AccentColor,
+		SurfaceColor:     s.brand.SurfaceColor,
+		BackgroundColor:  s.brand.BackgroundColor,
+		TextColor:        s.brand.TextColor,
+		TextMutedColor:   s.brand.TextMutedColor,
+		StatusReadyColor: s.brand.StatusReadyColor,
+		HeaderTextColor:  s.brand.HeaderTextColor,
+		LogoDataURL:      s.brand.LogoDataURL,
+		SupportEmail:     s.brand.SupportEmail,
+		SupportPhone:     s.brand.SupportPhone,
+		ContactURL:       s.brand.ContactURL,
+		Version:          version,
+		DeviceID:         deviceID,
+		DeviceIDFmt:      formatDeviceID(deviceID),
+		Password:         password,
+		PasswordMasked:   maskPassword(password),
+		AccessMode:       mode,
+		CustomPassword:   custom,
+		ShowPassword:     s.shouldShowPasswordBox(mode, custom),
+		AllowUnattended:  s.brand.AllowUnattended,
+		Language:         s.state.Language,
+		StatusKind:       statusKindName(kind),
+		StatusText:       text,
+		SessionActive:    active,
+		SessionOperator:  op,
+		SessionMode:      smode,
 		ModeOptions:     s.accessModeOptions(),
 		Strings:         strs,
 	}

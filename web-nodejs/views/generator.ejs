@@ -159,26 +159,26 @@
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label" for="gen-accent">${_('generator.accent_color')}</label>
-                                            <input type="color" id="gen-accent" class="form-input form-color" value="#1e293b">
+                                            <input type="color" id="gen-accent" class="form-input form-color" value="#e0f2fe">
                                         </div>
                                     </div>
 
                                     <div class="form-row color-grid">
                                         <div class="form-group">
                                             <label class="form-label" for="gen-bg">${_('generator.background_color')}</label>
-                                            <input type="color" id="gen-bg" class="form-input form-color" value="#0f172a">
+                                            <input type="color" id="gen-bg" class="form-input form-color" value="#ffffff">
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label" for="gen-surface">${_('generator.surface_color')}</label>
-                                            <input type="color" id="gen-surface" class="form-input form-color" value="#1e293b">
+                                            <input type="color" id="gen-surface" class="form-input form-color" value="#f3f4f6">
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label" for="gen-text">${_('generator.text_color')}</label>
-                                            <input type="color" id="gen-text" class="form-input form-color" value="#e2e8f0">
+                                            <input type="color" id="gen-text" class="form-input form-color" value="#1f2937">
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label" for="gen-text-muted">${_('generator.text_muted_color')}</label>
-                                            <input type="color" id="gen-text-muted" class="form-input form-color" value="#94a3b8">
+                                            <input type="color" id="gen-text-muted" class="form-input form-color" value="#6b7280">
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label" for="gen-status-ready">${_('generator.status_ready_color')}</label>
@@ -186,7 +186,7 @@
                                         </div>
                                         <div class="form-group">
                                             <label class="form-label" for="gen-header-text">${_('generator.header_text_color')}</label>
-                                            <input type="color" id="gen-header-text" class="form-input form-color" value="#ffffff">
+                                            <input type="color" id="gen-header-text" class="form-input form-color" value="#1f2937">
                                         </div>
                                     </div>
 
@@ -248,46 +248,53 @@
                                 <h3 class="section-title">${_('generator.preview_title')}</h3>
                                 <p class="form-hint">${_('generator.preview_hint')}</p>
                                 <div class="agent-preview" id="gen-preview">
-                                    <div class="agent-preview-frame" style="--brand-primary: #2563eb; --brand-accent: #1e293b;">
-                                        <div class="ap-header">
-                                            <div class="ap-brand ap-brand-only">
-                                                <div class="ap-brand-name" id="gen-prev-name">${_('generator.preview_default_name')}</div>
-                                                <div class="ap-brand-text" id="gen-prev-text"></div>
+                                    <div class="agent-preview-frame" style="--brand-primary: #2563eb; --brand-accent: #e0f2fe; --brand-bg: #ffffff; --brand-surface: #f3f4f6; --brand-text: #1f2937; --brand-text-muted: #6b7280; --brand-header-text: #1f2937; --brand-status-ready: #22c55e;">
+                                        <div class="ap-topbar">
+                                            <div class="ap-topbar-brand">
+                                                <div class="ap-logo" id="gen-prev-logo">
+                                                    <span class="material-icons">support_agent</span>
+                                                </div>
+                                                <div class="ap-brand">
+                                                    <div class="ap-brand-name" id="gen-prev-name">${_('generator.preview_default_name')}</div>
+                                                    <div class="ap-brand-text" id="gen-prev-text"></div>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div class="ap-body">
-                                            <div class="ap-body-logo" id="gen-prev-body-logo">
-                                                <span class="material-icons">support_agent</span>
-                                            </div>
-                                            <div class="ap-status">
-                                                <span class="ap-status-dot"></span>
-                                                <span class="ap-status-text">${_('generator.preview_status_ready')}</span>
-                                            </div>
-                                            <div class="ap-id-row">
-                                                <span class="ap-id-label">${_('generator.preview_id')}</span>
-                                                <span class="ap-id-value">123 456 789</span>
-                                            </div>
-                                            <div class="ap-pw-row" id="gen-prev-pw-row">
-                                                <span class="ap-id-label">${_('generator.preview_password')}</span>
-                                                <span class="ap-id-value ap-pw">a B 3 # K 9</span>
-                                            </div>
-                                            <button class="ap-help" type="button" disabled>
-                                                <span class="material-icons">contact_support</span>
-                                                ${_('generator.preview_help')}
-                                            </button>
-                                            <button class="ap-chat" type="button" disabled>
-                                                <span class="material-icons">chat</span>
-                                                ${_('generator.preview_chat')}
-                                            </button>
-                                        </div>
-                                        <div class="ap-footer">
                                             <button class="ap-icon-btn" type="button" disabled title="${_('generator.preview_settings')}">
                                                 <span class="material-icons">settings</span>
                                             </button>
+                                        </div>
+                                        <div class="ap-body">
+                                            <div class="ap-hero" id="gen-prev-body-logo">
+                                                <span class="material-icons">devices</span>
+                                            </div>
+                                            <div class="ap-support">
+                                                <div class="ap-section-title">${_('generator.preview_receive_support')}</div>
+                                                <p class="ap-section-hint">${_('generator.preview_receive_hint')}</p>
+                                                <div class="ap-cta-row">
+                                                    <button class="ap-help" type="button" disabled>${_('generator.preview_help')}</button>
+                                                    <button class="ap-chat" type="button" disabled>${_('generator.preview_chat')}</button>
+                                                </div>
+                                            </div>
+                                            <div class="ap-divider"><span>${_('generator.preview_or_share')}</span></div>
+                                            <div class="ap-cred-card">
+                                                <div class="ap-cred-col">
+                                                    <span class="ap-id-label">${_('generator.preview_id')}</span>
+                                                    <span class="ap-id-value">123 456 789</span>
+                                                </div>
+                                                <div class="ap-cred-col" id="gen-prev-pw-row">
+                                                    <span class="ap-id-label">${_('generator.preview_password')}</span>
+                                                    <span class="ap-id-value ap-pw">aB3#K9m2</span>
+                                                </div>
+                                                <div class="ap-cred-actions">
+                                                    <span class="material-icons">refresh</span>
+                                                    <span class="material-icons">content_copy</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="ap-footer">
+                                            <span class="ap-status-dot"></span>
+                                            <span class="ap-status-text">${_('generator.preview_status_ready')}</span>
                                             <div class="ap-contact" id="gen-prev-contact"></div>
-                                            <button class="ap-icon-btn" type="button" disabled title="${_('generator.preview_quit')}">
-                                                <span class="material-icons">power_settings_new</span>
-                                            </button>
                                         </div>
                                     </div>
                                 </div>

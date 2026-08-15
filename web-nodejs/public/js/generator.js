@@ -62,7 +62,7 @@
          'gen-server-host', 'gen-use-https', 'gen-token-mask',
          'gen-logo', 'gen-logo-clear', 'gen-primary', 'gen-accent', 'gen-bg', 'gen-surface', 'gen-text', 'gen-text-muted', 'gen-status-ready', 'gen-header-text', 'gen-lang', 'gen-unattended',
          'gen-download-info', 'gen-download-url', 'gen-copy-link', 'gen-open-link',
-         'gen-preview', 'gen-prev-body-logo', 'gen-prev-name', 'gen-prev-text', 'gen-prev-pw-row', 'gen-prev-contact',
+         'gen-preview', 'gen-prev-logo', 'gen-prev-body-logo', 'gen-prev-name', 'gen-prev-text', 'gen-prev-pw-row', 'gen-prev-contact',
          'gen-validation-errors', 'gen-advanced-branding'
         ].forEach(id => { els[id] = $(id); });
     }
@@ -75,13 +75,13 @@
         contact_url: '',
         logo_data_url: '',
         primary_color: '#2563eb',
-        accent_color:  '#1e293b',
-        background_color: '#0f172a',
-        surface_color: '#1e293b',
-        text_color: '#e2e8f0',
-        text_muted_color: '#94a3b8',
+        accent_color:  '#e0f2fe',
+        background_color: '#ffffff',
+        surface_color: '#f3f4f6',
+        text_color: '#1f2937',
+        text_muted_color: '#6b7280',
         status_ready_color: '#22c55e',
-        header_text_color: '#ffffff',
+        header_text_color: '#1f2937',
         allow_unattended: false,
         default_lang: 'en',
         server_host: '',
@@ -173,13 +173,13 @@
         els['gen-phone'].value = b.contact_phone || '';
         els['gen-url'].value   = b.contact_url || '';
         els['gen-primary'].value = b.primary_color || '#2563eb';
-        els['gen-accent'].value  = b.accent_color  || '#1e293b';
-        els['gen-bg'].value = b.background_color || '#0f172a';
-        els['gen-surface'].value = b.surface_color || '#1e293b';
-        els['gen-text'].value = b.text_color || '#e2e8f0';
-        els['gen-text-muted'].value = b.text_muted_color || '#94a3b8';
+        els['gen-accent'].value  = b.accent_color  || '#e0f2fe';
+        els['gen-bg'].value = b.background_color || '#ffffff';
+        els['gen-surface'].value = b.surface_color || '#f3f4f6';
+        els['gen-text'].value = b.text_color || '#1f2937';
+        els['gen-text-muted'].value = b.text_muted_color || '#6b7280';
         els['gen-status-ready'].value = b.status_ready_color || '#22c55e';
-        els['gen-header-text'].value = b.header_text_color || '#ffffff';
+        els['gen-header-text'].value = b.header_text_color || '#1f2937';
         els['gen-unattended'].checked = !!b.allow_unattended;
         els['gen-lang'].value = b.default_lang || 'en';
         logoDataUrl = b.logo_data_url || '';
@@ -199,22 +199,27 @@
         if (frame) {
             frame.style.setProperty('--brand-primary', b.primary_color);
             frame.style.setProperty('--brand-accent',  b.accent_color);
-            frame.style.setProperty('--brand-bg', b.background_color || '#0f172a');
-            frame.style.setProperty('--brand-surface', b.surface_color || '#1e293b');
-            frame.style.setProperty('--brand-text', b.text_color || '#e2e8f0');
-            frame.style.setProperty('--brand-text-muted', b.text_muted_color || '#94a3b8');
+            frame.style.setProperty('--brand-bg', b.background_color || '#ffffff');
+            frame.style.setProperty('--brand-surface', b.surface_color || '#f3f4f6');
+            frame.style.setProperty('--brand-text', b.text_color || '#1f2937');
+            frame.style.setProperty('--brand-text-muted', b.text_muted_color || '#6b7280');
             frame.style.setProperty('--brand-status-ready', b.status_ready_color || '#22c55e');
-            frame.style.setProperty('--brand-header-text', b.header_text_color || '#ffffff');
+            frame.style.setProperty('--brand-header-text', b.header_text_color || '#1f2937');
         }
-        const logoEl = els['gen-prev-body-logo'];
-        if (b.logo_data_url) {
-            logoEl.innerHTML = `<img src="${escapeText(b.logo_data_url)}" alt="">`;
-        } else {
-            logoEl.innerHTML = '<span class="material-icons">support_agent</span>';
+        const logoHtml = b.logo_data_url
+            ? `<img src="${escapeText(b.logo_data_url)}" alt="">`
+            : '<span class="material-icons">support_agent</span>';
+        const logoTop = els['gen-prev-logo'];
+        if (logoTop) logoTop.innerHTML = logoHtml;
+        const logoHero = els['gen-prev-body-logo'];
+        if (logoHero) {
+            logoHero.innerHTML = b.logo_data_url
+                ? `<img src="${escapeText(b.logo_data_url)}" alt="">`
+                : '<span class="material-icons">devices</span>';
         }
         els['gen-prev-name'].textContent = b.company_name || t('generator.preview_default_name', 'BetterDesk Support');
         els['gen-prev-text'].textContent = b.short_text || '';
-        els['gen-prev-pw-row'].classList.remove('hidden');
+        if (els['gen-prev-pw-row']) els['gen-prev-pw-row'].classList.remove('hidden');
         const parts = [];
         if (b.contact_email) parts.push(b.contact_email);
         if (b.contact_phone) parts.push(b.contact_phone);
