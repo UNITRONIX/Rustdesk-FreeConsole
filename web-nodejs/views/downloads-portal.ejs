@@ -85,7 +85,7 @@
                         grid.innerHTML = '<div class="portal-empty">No installers available yet.</div>';
                         return;
                     }
-                    var labels = { windows: 'Windows', linux: 'Linux', macos: 'macOS' };
+                    var labels = { windows: 'Windows', linux: 'Linux', android: 'Android' };
                     grid.innerHTML = data.installers.map(function (i) {
                         var label = labels[i.platform] || i.platform;
                         return '<div class="portal-card">'

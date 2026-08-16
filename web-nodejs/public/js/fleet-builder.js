@@ -376,7 +376,7 @@
             html += field(node, 'threshold', 'Threshold (%)', '90');
         }
         if (node.type === 'cond_os') {
-            html += selectField(node, 'os', 'Target OS', ['windows', 'linux', 'macos', 'any']);
+            html += selectField(node, 'os', 'Target OS', ['windows', 'linux', 'android', 'any']);
         }
         if (node.type === 'cond_threshold') {
             html += selectField(node, 'metric', 'Metric', ['cpu', 'ram', 'disk', 'network']);
